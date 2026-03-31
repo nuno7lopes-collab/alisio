@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 private enum ChatUIConstants {
-    static let bubbleMaxWidth: CGFloat = 560
+    static let bubbleMaxWidth: CGFloat = 620
     static let bubbleCorner: CGFloat = 18
 }
 
@@ -153,12 +153,19 @@ struct ChatMessageBubble: View {
             markdownVariant: self.markdownVariant,
             userAccent: self.userAccent,
             showsAssistantTrace: self.showsAssistantTrace)
-            .frame(maxWidth: ChatUIConstants.bubbleMaxWidth, alignment: self.isUser ? .trailing : .leading)
+            .frame(maxWidth: self.maxWidth, alignment: self.isUser ? .trailing : .leading)
             .frame(maxWidth: .infinity, alignment: self.isUser ? .trailing : .leading)
             .padding(.horizontal, 2)
     }
 
     private var isUser: Bool { self.message.role.lowercased() == "user" }
+
+    private var maxWidth: CGFloat {
+        if self.style == .lume {
+            return self.isUser ? 360 : 700
+        }
+        return ChatUIConstants.bubbleMaxWidth
+    }
 }
 
 @MainActor
@@ -224,8 +231,8 @@ private struct ChatMessageBody: View {
             }
         }
         .textSelection(.enabled)
-        .padding(.vertical, 10)
-        .padding(.horizontal, 12)
+        .padding(.vertical, self.style == .lume ? (self.isUser ? 12 : 2) : 10)
+        .padding(.horizontal, self.style == .lume ? (self.isUser ? 14 : 0) : 12)
         .foregroundStyle(textColor)
         .background(self.bubbleBackground)
         .clipShape(self.bubbleShape)
@@ -288,7 +295,13 @@ private struct ChatMessageBody: View {
 
     private var bubbleFillColor: Color {
         if self.isUser {
+            if self.style == .lume {
+                return Color(chatHex: 0x1A1B1F)
+            }
             return self.userAccent ?? OpenClawChatTheme.userBubble
+        }
+        if self.style == .lume {
+            return .clear
         }
         if self.style == .onboarding {
             return OpenClawChatTheme.onboardingAssistantBubble
@@ -302,7 +315,13 @@ private struct ChatMessageBody: View {
 
     private var bubbleBorderColor: Color {
         if self.isUser {
+            if self.style == .lume {
+                return Color.white.opacity(0.08)
+            }
             return Color.white.opacity(0.12)
+        }
+        if self.style == .lume {
+            return .clear
         }
         if self.style == .onboarding {
             return OpenClawChatTheme.onboardingAssistantBorder
@@ -311,6 +330,9 @@ private struct ChatMessageBody: View {
     }
 
     private var bubbleBorderWidth: CGFloat {
+        if self.style == .lume {
+            return self.isUser ? 1 : 0
+        }
         if self.isUser { return 0.5 }
         if self.style == .onboarding { return 0.8 }
         return 1
@@ -321,7 +343,9 @@ private struct ChatMessageBody: View {
     }
 
     private var bubbleShape: ChatBubbleShape {
-        ChatBubbleShape(cornerRadius: ChatUIConstants.bubbleCorner, tail: self.bubbleTail)
+        ChatBubbleShape(
+            cornerRadius: self.style == .lume ? (self.isUser ? 22 : 0) : ChatUIConstants.bubbleCorner,
+            tail: self.bubbleTail)
     }
 
     private var bubbleTail: ChatBubbleShape.Tail {
@@ -338,14 +362,23 @@ private struct ChatMessageBody: View {
     }
 
     private var bubbleShadowColor: Color {
+        if self.style == .lume && self.isUser {
+            return Color.black.opacity(0.18)
+        }
         self.style == .onboarding && !self.isUser ? Color.black.opacity(0.28) : .clear
     }
 
     private var bubbleShadowRadius: CGFloat {
+        if self.style == .lume && self.isUser {
+            return 12
+        }
         self.style == .onboarding && !self.isUser ? 6 : 0
     }
 
     private var bubbleShadowYOffset: CGFloat {
+        if self.style == .lume && self.isUser {
+            return 5
+        }
         self.style == .onboarding && !self.isUser ? 2 : 0
     }
 }
@@ -479,14 +512,14 @@ struct ChatTypingIndicatorBubble: View {
             TypingDots()
             Spacer(minLength: 0)
         }
-        .padding(.vertical, self.style == .standard ? 12 : 10)
-        .padding(.horizontal, self.style == .standard ? 12 : 14)
+        .padding(.vertical, self.style == .lume ? 2 : (self.style == .standard ? 12 : 10))
+        .padding(.horizontal, self.style == .lume ? 0 : (self.style == .standard ? 12 : 14))
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(OpenClawChatTheme.assistantBubble))
+                .fill(self.style == .lume ? Color.clear : OpenClawChatTheme.assistantBubble))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1))
+                .strokeBorder(self.style == .lume ? Color.clear : Color.white.opacity(0.08), lineWidth: 1))
         .frame(maxWidth: ChatUIConstants.bubbleMaxWidth, alignment: .leading)
         .focusable(false)
     }

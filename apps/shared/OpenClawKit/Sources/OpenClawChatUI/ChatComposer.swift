@@ -27,7 +27,7 @@ struct OpenClawChatComposer: View {
     #endif
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: self.style == .lume ? 8 : 4) {
             if self.showsToolbar {
                 HStack(spacing: 6) {
                     if self.showsSessionSwitcher {
@@ -68,11 +68,11 @@ struct OpenClawChatComposer: View {
                     .overlay(shape.strokeBorder(OpenClawChatTheme.composerBorder, lineWidth: 1))
                     .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
             } else {
-                let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                let shape = RoundedRectangle(cornerRadius: self.style == .lume ? 24 : cornerRadius, style: .continuous)
                 shape
-                    .fill(OpenClawChatTheme.composerBackground)
-                    .overlay(shape.strokeBorder(OpenClawChatTheme.composerBorder, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+                    .fill(self.style == .lume ? AnyShapeStyle(Color(chatHex: 0x111215)) : OpenClawChatTheme.composerBackground)
+                    .overlay(shape.strokeBorder(self.style == .lume ? Color.white.opacity(0.09) : OpenClawChatTheme.composerBorder, lineWidth: 1))
+                    .shadow(color: .black.opacity(self.style == .lume ? 0.24 : 0.12), radius: self.style == .lume ? 20 : 12, y: self.style == .lume ? 10 : 6)
             }
             #else
             let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -160,7 +160,7 @@ struct OpenClawChatComposer: View {
         } label: {
             Image(systemName: "paperclip")
         }
-        .help("Add Image")
+        .help("Add Files")
         .buttonStyle(.bordered)
         .controlSize(.small)
         #else
@@ -206,7 +206,10 @@ struct OpenClawChatComposer: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .background(Color.accentColor.opacity(0.08))
+                    .background(self.style == .lume ? Color(chatHex: 0x181A1F) : Color.accentColor.opacity(0.08))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(self.style == .lume ? Color.white.opacity(0.08) : Color.clear, lineWidth: 1))
                     .clipShape(Capsule())
                 }
             }
@@ -217,7 +220,7 @@ struct OpenClawChatComposer: View {
         VStack(alignment: .leading, spacing: 8) {
             self.editorOverlay
 
-            if !self.isComposerCompacted {
+            if !self.isComposerCompacted && self.style != .lume {
                 Rectangle()
                     .fill(OpenClawChatTheme.divider)
                     .frame(height: 1)
@@ -225,21 +228,26 @@ struct OpenClawChatComposer: View {
             }
 
             HStack(alignment: .center, spacing: 8) {
-                if self.showsConnectionPill {
+                if self.style == .lume {
+                    HStack(spacing: 14) {
+                        self.lumeAttachmentButton
+                        self.lumeMentionButton
+                    }
+                } else if self.showsConnectionPill {
                     self.connectionPill
                 }
                 Spacer(minLength: 0)
                 self.sendButton
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, self.style == .lume ? 14 : 10)
+        .padding(.vertical, self.style == .lume ? 12 : 8)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(OpenClawChatTheme.composerField)
+            RoundedRectangle(cornerRadius: self.style == .lume ? 22 : 12, style: .continuous)
+                .fill(self.style == .lume ? AnyShapeStyle(Color.clear) : OpenClawChatTheme.composerField)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(OpenClawChatTheme.composerBorder)))
+                    RoundedRectangle(cornerRadius: self.style == .lume ? 22 : 12, style: .continuous)
+                        .strokeBorder(self.style == .lume ? Color.clear : OpenClawChatTheme.composerBorder)))
         .padding(self.editorPadding)
     }
 
@@ -321,7 +329,7 @@ struct OpenClawChatComposer: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
                 .padding(6)
-                .background(Circle().fill(Color.red))
+                .background(Circle().fill(self.style == .lume ? Color(chatHex: 0xE05757) : Color.red))
                 .disabled(self.viewModel.isAborting)
             } else {
                 Button {
@@ -336,8 +344,8 @@ struct OpenClawChatComposer: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .padding(6)
-                .background(Circle().fill(Color.accentColor))
+                .padding(self.style == .lume ? 9 : 6)
+                .background(Circle().fill(self.style == .lume ? Color(chatHex: 0x272A32) : Color.accentColor))
                 .disabled(!self.viewModel.canSend)
             }
         }
@@ -355,7 +363,7 @@ struct OpenClawChatComposer: View {
     }
 
     private var showsToolbar: Bool {
-        self.style != .onboarding && !self.isComposerCompacted
+        self.style == .standard && !self.isComposerCompacted
     }
 
     private var showsAttachments: Bool {
@@ -363,23 +371,37 @@ struct OpenClawChatComposer: View {
     }
 
     private var showsConnectionPill: Bool {
-        self.style != .onboarding && !self.isComposerCompacted
+        self.style == .standard && !self.isComposerCompacted
     }
 
     private var composerPadding: CGFloat {
-        self.style == .onboarding ? 5 : (self.isComposerCompacted ? 4 : 6)
+        switch self.style {
+        case .onboarding:
+            5
+        case .lume:
+            0
+        case .standard:
+            self.isComposerCompacted ? 4 : 6
+        }
     }
 
     private var editorPadding: CGFloat {
-        self.style == .onboarding ? 5 : (self.isComposerCompacted ? 4 : 6)
+        switch self.style {
+        case .onboarding:
+            5
+        case .lume:
+            0
+        case .standard:
+            self.isComposerCompacted ? 4 : 6
+        }
     }
 
     private var textMinHeight: CGFloat {
-        self.style == .onboarding ? 24 : 28
+        self.style == .lume ? 48 : (self.style == .onboarding ? 24 : 28)
     }
 
     private var textMaxHeight: CGFloat {
-        self.style == .onboarding ? 52 : 64
+        self.style == .lume ? 140 : (self.style == .onboarding ? 52 : 64)
     }
 
     private var isComposerCompacted: Bool {
@@ -390,13 +412,48 @@ struct OpenClawChatComposer: View {
         #endif
     }
 
+    @ViewBuilder
+    private var lumeAttachmentButton: some View {
+        #if os(macOS)
+        Button {
+            self.pickFilesMac()
+        } label: {
+            Image(systemName: "paperclip")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color(chatHex: 0x8F95A3))
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(Color(chatHex: 0x17191E))
+                        .overlay(
+                            Circle()
+                                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+        }
+        .buttonStyle(.plain)
+        #else
+        self.attachmentPicker
+        #endif
+    }
+
+    private var lumeMentionButton: some View {
+        Image(systemName: "at")
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color(chatHex: 0x8F95A3))
+            .frame(width: 28, height: 28)
+            .background(
+                Circle()
+                    .fill(Color(chatHex: 0x17191E))
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)))
+    }
+
     #if os(macOS)
     private func pickFilesMac() {
         let panel = NSOpenPanel()
-        panel.title = "Select image attachments"
+        panel.title = "Select attachments"
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.image]
         panel.begin { resp in
             guard resp == .OK else { return }
             self.viewModel.addAttachments(urls: panel.urls)

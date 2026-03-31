@@ -751,6 +751,11 @@ function renderPreviewHtml(preview: {
       background: rgba(183, 86, 42, 0.08);
       border-color: rgba(183, 86, 42, 0.18);
     }
+    .account-row.account-skeleton {
+      min-height: 72px;
+      pointer-events: none;
+      cursor: default;
+    }
     .account-row:disabled {
       opacity: 0.6;
       cursor: not-allowed;
@@ -874,6 +879,13 @@ function renderPreviewHtml(preview: {
       border-radius: 18px;
       background: rgba(255, 255, 255, 0.52);
       min-height: 84px;
+    }
+    .check-item.skeleton-block {
+      min-height: 72px;
+    }
+    .detail-card.skeleton-block,
+    .account-row.skeleton-block {
+      min-height: 88px;
     }
     .skeleton-message {
       min-height: 96px;
@@ -1267,6 +1279,13 @@ function renderPreviewHtml(preview: {
     let shouldStickToLatest = true;
     let hasHydrated = Boolean(state.status && state.settings);
     let syncIndicatorTimer = null;
+    const SECTION_STORAGE_KEY = "desktop-worker.active-section";
+    const VALID_SECTION_IDS = ["chat", "worker", "settings"];
+    const SECTION_TITLES = {
+      chat: "Conversa",
+      worker: "Worker",
+      settings: "Definições",
+    };
 
     const loadingState = {
       bootstrap: !hasHydrated,
@@ -1282,6 +1301,16 @@ function renderPreviewHtml(preview: {
       oauthManual: false,
       activateBinding: false,
       logout: false,
+    };
+
+    const draftState = {
+      settingsModelDirty: false,
+    };
+
+    const scrollState = {
+      chat: 0,
+      worker: 0,
+      settings: 0,
     };
 
     const ui = {
@@ -1336,6 +1365,9 @@ function renderPreviewHtml(preview: {
       modelButtons: Array.from(document.querySelectorAll("[data-model]")),
     };
 
+    const preferredSectionId = readPreferredSection();
+    let activeSectionId = "chat";
+
     function describeError(error) {
       if (error instanceof Error && error.message) {
         return error.message;
@@ -1361,6 +1393,57 @@ function renderPreviewHtml(preview: {
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;");
+    }
+
+    function normalizeSectionId(value) {
+      return VALID_SECTION_IDS.includes(value || "") ? value : "chat";
+    }
+
+    function readPreferredSection() {
+      try {
+        return normalizeSectionId(window.sessionStorage.getItem(SECTION_STORAGE_KEY));
+      } catch {
+        return "chat";
+      }
+    }
+
+    function persistSection(id) {
+      try {
+        window.sessionStorage.setItem(SECTION_STORAGE_KEY, id);
+      } catch {}
+    }
+
+    function setHtml(node, html) {
+      if (!node || node.innerHTML === html) {
+        return false;
+      }
+      node.innerHTML = html;
+      return true;
+    }
+
+    function setText(node, value) {
+      if (!node) {
+        return;
+      }
+      const nextValue = String(value);
+      if (node.textContent !== nextValue) {
+        node.textContent = nextValue;
+      }
+    }
+
+    function setClassName(node, value) {
+      if (node && node.className !== value) {
+        node.className = value;
+      }
+    }
+
+    function setInputValue(input, value, preserveDraft) {
+      if (!input || preserveDraft) {
+        return;
+      }
+      if (input.value !== value) {
+        input.value = value;
+      }
     }
 
     function isMutationBusy() {
@@ -1478,8 +1561,17 @@ function renderPreviewHtml(preview: {
       ].join("");
     }
 
+    function buildAccountSkeletons() {
+      return [
+        '<div class="account-row account-skeleton skeleton-block" aria-hidden="true"></div>',
+        '<div class="account-row account-skeleton skeleton-block" aria-hidden="true"></div>',
+      ].join("");
+    }
+
     function applySkeletons(active) {
       const textTargets = [
+        ui.sidebarWorkerChip,
+        ui.sidebarModelChip,
         ui.sidebarSession,
         ui.sidebarMessages,
         ui.workerState,
@@ -1490,6 +1582,7 @@ function renderPreviewHtml(preview: {
         ui.workerCardPort,
         ui.workerCardModel,
         ui.providerHint,
+        ui.settingsProviderPill,
         ui.settingsKeyState,
         ui.settingsModelCurrent,
         ui.settingsOauthState,
@@ -1501,9 +1594,10 @@ function renderPreviewHtml(preview: {
         }
       });
       if (active) {
-        ui.messages.innerHTML = buildMessageSkeletons();
-        ui.workerChecklist.innerHTML = buildChecklistSkeletons();
-        ui.workerDetails.innerHTML = buildDetailSkeletons();
+        setHtml(ui.messages, buildMessageSkeletons());
+        setHtml(ui.workerChecklist, buildChecklistSkeletons());
+        setHtml(ui.workerDetails, buildDetailSkeletons());
+        setHtml(ui.accountList, buildAccountSkeletons());
       }
     }
 
@@ -1515,6 +1609,10 @@ function renderPreviewHtml(preview: {
       const hasDraft = Boolean(ui.composer.value.trim());
       const hasAuthName = Boolean(ui.authName.value.trim());
       const hasAuthEmail = Boolean(ui.authEmail.value.trim());
+      const currentModel = state.settings?.model || "gpt-5.4";
+      const nextModel = ui.settingsModel.value.trim() || "gpt-5.4";
+      const hasSettingsChanges = hasSettings
+        && (Boolean(ui.settingsApiKey.value.trim()) || nextModel !== currentModel);
       const lockUi = loadingState.bootstrap || mutationState.logout;
 
       ui.authName.disabled = mutationState.auth || lockUi;
@@ -1527,7 +1625,7 @@ function renderPreviewHtml(preview: {
       ui.authSubmit.disabled = mutationState.auth || lockUi || !hasAuthName || !hasAuthEmail;
       ui.sendMessage.disabled = !hasSession || mutationState.send || lockUi || !hasDraft;
       ui.logout.disabled = !hasSession || mutationState.logout || loadingState.bootstrap;
-      ui.saveSettings.disabled = !hasSettings || mutationState.saveSettings || lockUi;
+      ui.saveSettings.disabled = !hasSettings || mutationState.saveSettings || lockUi || !hasSettingsChanges;
       ui.oauthManualSubmit.disabled = !hasManualCode || mutationState.oauthManual || lockUi;
       ui.openOauthUrl.disabled = !hasOauthUrl || lockUi;
       ui.accountList.querySelectorAll("[data-credential-id]").forEach((button) => {
@@ -1557,15 +1655,53 @@ function renderPreviewHtml(preview: {
       ui.composer.style.height = String(nextHeight) + "px";
     }
 
+    function saveScrollPosition(sectionId) {
+      if (sectionId === "chat") {
+        scrollState.chat = ui.messages.scrollTop;
+        return;
+      }
+      const section = ui.sections.find((item) => item.id === sectionId);
+      if (section) {
+        scrollState[sectionId] = section.scrollTop;
+      }
+    }
+
+    function restoreScrollPosition(sectionId) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (sectionId === "chat") {
+            if (shouldStickToLatest) {
+              ui.messages.scrollTop = ui.messages.scrollHeight;
+            } else {
+              ui.messages.scrollTop = scrollState.chat;
+            }
+            return;
+          }
+          const section = ui.sections.find((item) => item.id === sectionId);
+          if (section) {
+            section.scrollTop = scrollState[sectionId] || 0;
+          }
+        });
+      });
+    }
+
     function setSection(id) {
+      const nextSectionId = normalizeSectionId(id);
+      if (nextSectionId === activeSectionId) {
+        restoreScrollPosition(nextSectionId);
+        return;
+      }
+      saveScrollPosition(activeSectionId);
+      activeSectionId = nextSectionId;
+      persistSection(nextSectionId);
       if (ui.contentShell) {
-        ui.contentShell.classList.toggle("chat-mode", id === "chat");
+        ui.contentShell.classList.toggle("chat-mode", nextSectionId === "chat");
       }
       if (ui.topbarTitle) {
-        ui.topbarTitle.textContent = id === "settings" ? "Definições" : "Worker";
+        ui.topbarTitle.textContent = SECTION_TITLES[nextSectionId] || "Worker";
       }
       for (const button of ui.navButtons) {
-        const isActive = button.dataset.section === id;
+        const isActive = button.dataset.section === nextSectionId;
         button.classList.toggle("active", isActive);
         if (isActive) {
           button.setAttribute("aria-current", "page");
@@ -1574,16 +1710,13 @@ function renderPreviewHtml(preview: {
         }
       }
       for (const section of ui.sections) {
-        section.classList.toggle("active", section.id === id);
+        section.classList.toggle("active", section.id === nextSectionId);
       }
-      if (id === "chat") {
-        queueScrollToLatest(true);
-      }
+      restoreScrollPosition(nextSectionId);
     }
 
     function isChatSectionActive() {
-      const chatSection = document.getElementById("chat");
-      return Boolean(chatSection && chatSection.classList.contains("active"));
+      return activeSectionId === "chat";
     }
 
     function isNearLatest() {
@@ -1817,8 +1950,12 @@ function renderPreviewHtml(preview: {
 
     function renderMessages() {
       const shouldAutoScroll = shouldStickToLatest || isNearLatest() || pendingAssistantBubble;
+      const previousScrollTop = ui.messages.scrollTop;
       if (!state.transcript.length && !pendingAssistantBubble) {
-        ui.messages.innerHTML = '<div class="empty-state">' + (loadingState.error && !hasHydrated ? "Não foi possível carregar." : "Ainda sem mensagens.") + "</div>";
+        setHtml(ui.messages, '<div class="empty-state">' + (loadingState.error && !hasHydrated ? "Não foi possível carregar." : "Ainda sem mensagens.") + "</div>");
+        if (!shouldAutoScroll) {
+          ui.messages.scrollTop = previousScrollTop;
+        }
         if (shouldAutoScroll) {
           queueScrollToLatest(true);
         }
@@ -1829,7 +1966,10 @@ function renderPreviewHtml(preview: {
       if (pendingAssistantBubble) {
         html.push('<div class="bubble assistant skeleton-block skeleton-message assistant" aria-hidden="true"></div>');
       }
-      ui.messages.innerHTML = html.join("");
+      setHtml(ui.messages, html.join(""));
+      if (!shouldAutoScroll) {
+        ui.messages.scrollTop = previousScrollTop;
+      }
       if (shouldAutoScroll) {
         queueScrollToLatest(true);
       }
@@ -1839,20 +1979,20 @@ function renderPreviewHtml(preview: {
       if (!state.status) {
         return;
       }
-      ui.workerState.textContent = state.status.state;
-      ui.workerPort.textContent = "localhost:" + String(state.status.port);
-      ui.workerModel.textContent = state.status.model;
-      ui.sidebarWorkerChip.textContent = state.status.state === "ready" ? "Worker pronto" : "Worker " + state.status.state;
-      ui.sidebarWorkerChip.className = "pill " + (state.status.state === "ready" ? "ok" : "warn");
-      ui.sidebarModelChip.textContent = state.status.model;
-      ui.sidebarPort.textContent = "localhost:" + String(state.status.port);
-      ui.workerPageState.textContent = state.status.state === "ready" ? "Pronto" : state.status.state;
-      ui.workerPageState.className = "pill " + (state.status.state === "ready" ? "ok" : "warn");
-      ui.workerCardState.textContent = state.status.state;
-      ui.workerCardPort.textContent = String(state.status.port);
-      ui.workerCardModel.textContent = state.status.model;
+      setText(ui.workerState, state.status.state);
+      setText(ui.workerPort, "localhost:" + String(state.status.port));
+      setText(ui.workerModel, state.status.model);
+      setText(ui.sidebarWorkerChip, state.status.state === "ready" ? "Worker pronto" : "Worker " + state.status.state);
+      setClassName(ui.sidebarWorkerChip, "pill " + (state.status.state === "ready" ? "ok" : "warn"));
+      setText(ui.sidebarModelChip, state.status.model);
+      setText(ui.sidebarPort, "localhost:" + String(state.status.port));
+      setText(ui.workerPageState, state.status.state === "ready" ? "Pronto" : state.status.state);
+      setClassName(ui.workerPageState, "pill " + (state.status.state === "ready" ? "ok" : "warn"));
+      setText(ui.workerCardState, state.status.state);
+      setText(ui.workerCardPort, String(state.status.port));
+      setText(ui.workerCardModel, state.status.model);
 
-      const checklist = [
+      const checklistItems = [
         {
           ok: state.status.state === "ready",
           title: "Worker",
@@ -1879,7 +2019,7 @@ function renderPreviewHtml(preview: {
         },
       ];
 
-      ui.workerChecklist.innerHTML = checklist.map((item) => ""
+      const checklistHtml = checklistItems.map((item) => ""
         + '<div class="check-item">'
         + '  <div class="check-bullet ' + (item.ok ? "ok" : "warn") + '">' + (item.ok ? "OK" : "!") + "</div>"
         + "  <div>"
@@ -1888,8 +2028,9 @@ function renderPreviewHtml(preview: {
         + "  </div>"
         + "</div>"
       ).join("");
+      setHtml(ui.workerChecklist, checklistHtml);
 
-      ui.workerDetails.innerHTML = [
+      const detailsHtml = [
         ["Marca do worker", state.status.brandName],
         ["Sessão criada", state.status.hasSession ? "Sim, sessão local pronta." : "Não, autenticação local em falta."],
         ["Conta AI ativa", state.status.activeAiProfileLabel || "Ainda não ligada."],
@@ -1903,17 +2044,18 @@ function renderPreviewHtml(preview: {
         + '  <div class="detail-value">' + escapeHtml(value) + "</div>"
         + "</div>"
       ).join("");
+      setHtml(ui.workerDetails, detailsHtml);
 
       ui.workerError.classList.toggle("hidden", !state.status.lastError);
-      ui.workerErrorText.textContent = state.status.lastError || "";
+      setText(ui.workerErrorText, state.status.lastError || "");
     }
 
     function renderSession() {
       const hasSession = Boolean(state.session);
       ui.authCard.classList.toggle("hidden", hasSession);
       ui.logout.classList.toggle("hidden", !hasSession);
-      ui.sidebarSession.textContent = hasSession ? state.session.email : "Sem sessão";
-      ui.sidebarMessages.textContent = String(state.transcript.length) + " no histórico";
+      setText(ui.sidebarSession, hasSession ? state.session.email : "Sem sessão");
+      setText(ui.sidebarMessages, String(state.transcript.length) + " no histórico");
     }
 
     function renderAccountList() {
@@ -1922,11 +2064,11 @@ function renderPreviewHtml(preview: {
       const binding = getRuntimeBinding();
 
       if (!credentials.length) {
-        ui.accountList.innerHTML = '<div class="empty-state">Ainda não tens contas AI ligadas neste dispositivo.</div>';
+        setHtml(ui.accountList, '<div class="empty-state">Ainda não tens contas AI ligadas neste dispositivo.</div>');
         return;
       }
 
-      ui.accountList.innerHTML = credentials.map((credential) => {
+      const accountListHtml = credentials.map((credential) => {
         const profile = profiles.find((item) => item.id === credential.aiProfileId);
         const isActive = binding?.workerAiCredentialId === credential.id;
         const title = profile?.label || credential.email || credential.accountId || "Conta OpenAI";
@@ -1945,6 +2087,7 @@ function renderPreviewHtml(preview: {
           + '  <div class="pill ' + actionTone + '">' + escapeHtml(actionLabel) + "</div>"
           + "</button>";
       }).join("");
+      setHtml(ui.accountList, accountListHtml);
     }
 
     function renderSettings() {
@@ -1960,22 +2103,27 @@ function renderPreviewHtml(preview: {
         activeCredential?.email ||
         activeCredential?.accountId ||
         "";
-      ui.settingsModel.value = state.settings.model || "gpt-5.4";
-      ui.settingsModelCurrent.textContent = state.settings.model || "gpt-5.4";
+      const currentModel = state.settings.model || "gpt-5.4";
+      if (draftState.settingsModelDirty && ui.settingsModel.value === currentModel) {
+        draftState.settingsModelDirty = false;
+      }
+      const preserveModelDraft = draftState.settingsModelDirty || document.activeElement === ui.settingsModel;
+      setInputValue(ui.settingsModel, currentModel, preserveModelDraft);
+      setText(ui.settingsModelCurrent, currentModel);
       ui.settingsApiKey.placeholder = state.settings.hasOpenAiApiKey
         ? "Já existe uma chave guardada. Preenche apenas para substituir."
         : "sk-...";
-      ui.providerHint.textContent = state.settings.provider === "openai-codex"
+      setText(ui.providerHint, state.settings.provider === "openai-codex"
         ? activeLabel || (credentialCount ? credentialCount + " conta disponível" + (credentialCount > 1 ? "s" : "") : "Sem conta ligada")
-        : "API key";
-      ui.settingsProviderPill.textContent = state.settings.provider === "openai-codex" ? "OpenAI OAuth" : "OpenAI API";
-      ui.settingsKeyState.textContent = state.settings.hasOpenAiApiKey ? "Guardada neste dispositivo" : "Não definida";
-      ui.settingsOauthState.textContent = oauthPhaseLabel(oauth);
-      ui.settingsAccountState.textContent = activeLabel
+        : "API key");
+      setText(ui.settingsProviderPill, state.settings.provider === "openai-codex" ? "OpenAI OAuth" : "OpenAI API");
+      setText(ui.settingsKeyState, state.settings.hasOpenAiApiKey ? "Guardada neste dispositivo" : "Não definida");
+      setText(ui.settingsOauthState, oauthPhaseLabel(oauth));
+      setText(ui.settingsAccountState, activeLabel
         ? activeLabel + " · " + credentialStateLabel(activeCredential?.runtimeState)
         : credentialCount
           ? credentialCount + " conta disponível" + (credentialCount > 1 ? "s" : "")
-          : "Sem conta ligada";
+          : "Sem conta ligada");
 
       let bannerText = "Ainda não ligaste nenhuma conta OpenAI neste dispositivo.";
       if (oauth.error) {
@@ -1997,10 +2145,10 @@ function renderPreviewHtml(preview: {
       ui.connectOauth.textContent = oauth.connected ? "Ligar outra conta" : "Ligar OpenAI OAuth";
       ui.oauthStatus.classList.remove("hidden");
       ui.oauthStatus.classList.toggle("danger-panel", Boolean(oauth.error));
-      ui.oauthStatus.textContent = bannerText;
+      setText(ui.oauthStatus, bannerText);
       ui.openOauthUrl.classList.toggle("hidden", !oauth.authUrl);
       ui.oauthManual.classList.toggle("hidden", oauth.phase !== "waiting_manual");
-      ui.oauthManualText.textContent = oauth.manualPrompt || "Cola aqui o URL final ou o código devolvido pela OpenAI.";
+      setText(ui.oauthManualText, oauth.manualPrompt || "Cola aqui o URL final ou o código devolvido pela OpenAI.");
       renderAccountList();
     }
 
@@ -2131,11 +2279,24 @@ function renderPreviewHtml(preview: {
     ui.authName.addEventListener("input", updateActionStates);
     ui.authEmail.addEventListener("input", updateActionStates);
     ui.oauthManualInput.addEventListener("input", updateActionStates);
-    ui.settingsModel.addEventListener("input", updateActionStates);
+    ui.settingsModel.addEventListener("input", () => {
+      draftState.settingsModelDirty = (ui.settingsModel.value.trim() || "gpt-5.4") !== (state.settings?.model || "gpt-5.4");
+      updateActionStates();
+    });
     ui.settingsApiKey.addEventListener("input", updateActionStates);
     ui.messages.addEventListener("scroll", () => {
       shouldStickToLatest = isNearLatest();
     }, { passive: true });
+    ui.sections.forEach((section) => {
+      if (section.id === "chat") {
+        return;
+      }
+      section.addEventListener("scroll", () => {
+        if (section.id === activeSectionId) {
+          scrollState[section.id] = section.scrollTop;
+        }
+      }, { passive: true });
+    });
 
     ui.authSubmit.addEventListener("click", async () => {
       mutationState.auth = true;
@@ -2173,6 +2334,7 @@ function renderPreviewHtml(preview: {
             model: ui.settingsModel.value || "gpt-5.4",
           }),
         });
+        draftState.settingsModelDirty = false;
         ui.settingsApiKey.value = "";
         await refresh({ visual: "busy" });
       } catch (error) {
@@ -2314,6 +2476,7 @@ function renderPreviewHtml(preview: {
     });
 
     resizeComposer();
+    setSection(preferredSectionId);
     render();
     refresh({ visual: hasHydrated ? "silent" : "bootstrap", reportError: !hasHydrated }).catch((error) => {
       if (!hasHydrated) {

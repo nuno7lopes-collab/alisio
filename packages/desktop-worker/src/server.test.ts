@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { JSDOM, type DOMWindow } from "jsdom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDesktopWorkerServer } from "./server.js";
 
@@ -17,6 +18,35 @@ async function createTempDir() {
   createdDirs.push(directory);
   return directory;
 }
+
+async function waitForUi(ms = 40) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function loadShellDom(url: string, setup?: (window: DOMWindow) => void): Promise<JSDOM> {
+  const response = await fetch(url);
+  const html = await response.text();
+  const dom = new JSDOM(html, {
+    pretendToBeVisual: true,
+    runScripts: "dangerously",
+    url,
+    beforeParse(window) {
+      window.fetch = ((input: string | URL, init?: RequestInit) => {
+        const nextUrl = new URL(typeof input === "string" ? input : input.toString(), url);
+        return fetch(nextUrl, init);
+      }) as typeof fetch;
+      setup?.(window);
+    },
+  });
+  await waitForUi(80);
+  return dom;
+}
+
+type BrowserShellWindow = DOMWindow & {
+  Event: typeof Event;
+  refresh: (options?: { visual?: string; reportError?: boolean }) => Promise<void>;
+  setSection: (sectionId: string) => void;
+};
 
 describe("createDesktopWorkerServer", () => {
   it("serve a shell web glass com tabs dedicadas", async () => {
@@ -248,6 +278,95 @@ describe("createDesktopWorkerServer", () => {
       }),
     );
 
+    await server.close();
+  });
+
+  it("restaura a última tab activa sem regressar ao chat", async () => {
+    const storageDir = await createTempDir();
+    const server = await createDesktopWorkerServer({
+      port: 43295,
+      storageDir,
+    });
+
+    const dom = await loadShellDom(server.baseUrl, (window) => {
+      window.sessionStorage.setItem("desktop-worker.active-section", "settings");
+    });
+    const document = dom.window.document;
+
+    expect(document.querySelector(".nav-button.active")?.getAttribute("data-section")).toBe(
+      "settings",
+    );
+    expect(document.getElementById("settings")?.classList.contains("active")).toBe(true);
+    expect(document.getElementById("worker")?.classList.contains("active")).toBe(false);
+    expect(document.querySelector(".content-shell")?.classList.contains("chat-mode")).toBe(false);
+    expect(document.getElementById("topbar-title")?.textContent).toBe("Definições");
+
+    dom.window.close();
+    await server.close();
+  });
+
+  it("preserva o scroll da tab quando alternas entre secções", async () => {
+    const storageDir = await createTempDir();
+    const server = await createDesktopWorkerServer({
+      port: 43296,
+      storageDir,
+    });
+
+    const dom = await loadShellDom(server.baseUrl);
+    const browser = dom.window as BrowserShellWindow;
+    const workerSection = browser.document.getElementById("worker");
+
+    browser.setSection("worker");
+    await waitForUi();
+    expect(workerSection).not.toBeNull();
+    if (!workerSection) {
+      throw new Error("worker section em falta");
+    }
+
+    workerSection.scrollTop = 184;
+    workerSection.dispatchEvent(new browser.Event("scroll"));
+    browser.setSection("settings");
+    await waitForUi();
+    browser.setSection("worker");
+    await waitForUi(80);
+
+    expect(workerSection.scrollTop).toBe(184);
+
+    dom.window.close();
+    await server.close();
+  });
+
+  it("mantém o draft do modelo durante refresh silencioso", async () => {
+    const storageDir = await createTempDir();
+    const server = await createDesktopWorkerServer({
+      port: 43297,
+      storageDir,
+    });
+
+    const dom = await loadShellDom(server.baseUrl);
+    const browser = dom.window as BrowserShellWindow;
+    const modelInput = browser.document.getElementById("settings-model") as HTMLInputElement | null;
+    const saveButton = browser.document.getElementById("save-settings") as HTMLButtonElement | null;
+    const currentModel = browser.document.getElementById("settings-model-current");
+
+    browser.setSection("settings");
+    await waitForUi();
+    expect(modelInput).not.toBeNull();
+    expect(saveButton).not.toBeNull();
+    if (!modelInput || !saveButton) {
+      throw new Error("settings model input em falta");
+    }
+
+    modelInput.value = "gpt-5.4-mini";
+    modelInput.dispatchEvent(new browser.Event("input", { bubbles: true }));
+    await browser.refresh({ visual: "silent", reportError: false });
+    await waitForUi();
+
+    expect(modelInput.value).toBe("gpt-5.4-mini");
+    expect(saveButton.disabled).toBe(false);
+    expect(currentModel?.textContent).toBe("gpt-5.4");
+
+    dom.window.close();
     await server.close();
   });
 });

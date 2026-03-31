@@ -46,6 +46,62 @@ public struct OpenClawChatView: View {
         #endif
     }
 
+    private var outerPaddingHorizontal: CGFloat {
+        switch self.style {
+        case .standard:
+            Layout.outerPaddingHorizontal
+        case .onboarding:
+            6
+        case .lume:
+            0
+        }
+    }
+
+    private var outerPaddingVertical: CGFloat {
+        switch self.style {
+        case .standard:
+            Layout.outerPaddingVertical
+        case .onboarding:
+            Layout.outerPaddingVertical
+        case .lume:
+            0
+        }
+    }
+
+    private var composerPaddingHorizontal: CGFloat {
+        switch self.style {
+        case .standard:
+            Layout.composerPaddingHorizontal
+        case .onboarding:
+            Layout.composerPaddingHorizontal
+        case .lume:
+            0
+        }
+    }
+
+    private var messageSpacing: CGFloat {
+        switch self.style {
+        case .standard:
+            Layout.messageSpacing
+        case .onboarding:
+            Layout.messageSpacing
+        case .lume:
+            18
+        }
+    }
+
+    private var messageListPaddingTop: CGFloat {
+        self.style == .lume ? 18 : Layout.messageListPaddingTop
+    }
+
+    private var messageListPaddingBottom: CGFloat {
+        self.style == .lume ? 28 : Layout.messageListPaddingBottom
+    }
+
+    private var messageListPaddingHorizontal: CGFloat {
+        self.style == .lume ? 0 : Layout.messageListPaddingHorizontal
+    }
+
     public init(
         viewModel: OpenClawChatViewModel,
         showsSessionSwitcher: Bool = false,
@@ -71,14 +127,14 @@ public struct OpenClawChatView: View {
 
             VStack(spacing: Layout.stackSpacing) {
                 self.messageList
-                    .padding(.horizontal, Layout.outerPaddingHorizontal)
+                    .padding(.horizontal, self.outerPaddingHorizontal)
                 OpenClawChatComposer(
                     viewModel: self.viewModel,
                     style: self.style,
                     showsSessionSwitcher: self.showsSessionSwitcher)
-                    .padding(.horizontal, Layout.composerPaddingHorizontal)
+                    .padding(.horizontal, self.composerPaddingHorizontal)
             }
-            .padding(.vertical, Layout.outerPaddingVertical)
+            .padding(.vertical, self.outerPaddingVertical)
             .frame(maxWidth: .infinity)
             .frame(maxHeight: .infinity, alignment: .top)
         }
@@ -96,21 +152,21 @@ public struct OpenClawChatView: View {
     private var messageList: some View {
         ZStack {
             ScrollView {
-                LazyVStack(spacing: Layout.messageSpacing) {
+                LazyVStack(spacing: self.messageSpacing) {
                     self.messageListRows
 
                     Color.clear
                         #if os(macOS)
-                        .frame(height: Layout.messageListPaddingBottom)
+                        .frame(height: self.messageListPaddingBottom)
                         #else
-                        .frame(height: Layout.messageListPaddingBottom + 1)
+                        .frame(height: self.messageListPaddingBottom + 1)
                         #endif
                         .id(self.scrollerBottomID)
                 }
                 // Use scroll targets for stable auto-scroll without ScrollViewReader relayout glitches.
                 .scrollTargetLayout()
-                .padding(.top, Layout.messageListPaddingTop)
-                .padding(.horizontal, Layout.messageListPaddingHorizontal)
+                .padding(.top, self.messageListPaddingTop)
+                .padding(.horizontal, self.messageListPaddingHorizontal)
             }
             #if !os(macOS)
             .scrollDismissesKeyboard(.interactively)

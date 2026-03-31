@@ -163,6 +163,15 @@ enum OpenClawChatTheme {
     }
 }
 
+extension Color {
+    fileprivate init(chatHex: UInt, opacity: Double = 1) {
+        let red = Double((chatHex >> 16) & 0xFF) / 255
+        let green = Double((chatHex >> 8) & 0xFF) / 255
+        let blue = Double(chatHex & 0xFF) / 255
+        self.init(.sRGB, red: red, green: green, blue: blue, opacity: opacity)
+    }
+}
+
 enum OpenClawPlatformImageFactory {
     static func image(_ image: OpenClawPlatformImage) -> Image {
         #if os(macOS)
