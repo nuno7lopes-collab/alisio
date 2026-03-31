@@ -488,6 +488,10 @@ function renderPreviewHtml(preview: {
     .tab-page.active {
       display: block;
     }
+    .chat-page {
+      overflow: hidden;
+      padding-right: 0;
+    }
     .page-stack {
       display: grid;
       gap: 16px;
@@ -498,19 +502,27 @@ function renderPreviewHtml(preview: {
       grid-template-rows: auto 1fr auto;
       gap: 14px;
       min-height: 100%;
+      height: 100%;
     }
     .chat-auth {
       max-width: 560px;
     }
     .chat-stream-card {
       min-height: 0;
-      padding: 20px;
+      padding: 20px 14px 20px 20px;
       display: flex;
+      overflow: hidden;
     }
     .chat-stream {
       width: 100%;
-      min-height: 100%;
-      align-content: end;
+      min-height: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 14px;
+      overflow: auto;
+      padding-right: 6px;
     }
     .panel-card {
       display: grid;
@@ -633,6 +645,7 @@ function renderPreviewHtml(preview: {
       border: 1px solid rgba(19, 35, 58, 0.08);
       color: var(--ink-soft);
       line-height: 1.5;
+      margin-top: auto;
     }
     .bubble {
       padding: 18px;
@@ -1020,7 +1033,8 @@ function renderPreviewHtml(preview: {
           <div class="chat-layout">
             <div id="auth-card" class="panel-card auth-layout chat-auth">
               <div>
-                <h3>Iniciar sessão</h3>
+                <h3>Entrar neste dispositivo</h3>
+                <p class="muted">Sessão local simples para começares a usar o worker.</p>
               </div>
               <label>Nome
                 <input id="auth-name" placeholder="Nuno" />
@@ -1038,7 +1052,7 @@ function renderPreviewHtml(preview: {
             </div>
 
             <div class="composer-dock">
-              <textarea id="composer" placeholder="Pergunta alguma coisa"></textarea>
+              <textarea id="composer" placeholder="Ex.: quem está ligado neste computador?"></textarea>
               <div class="composer-actions">
                 <button id="send-message" class="primary">Enviar</button>
               </div>
@@ -1231,6 +1245,7 @@ function renderPreviewHtml(preview: {
     let oauthPollTimer = null;
     let refreshCounter = 0;
     let pendingAssistantBubble = false;
+    let shouldStickToLatest = true;
     let hasHydrated = Boolean(state.status && state.settings);
     let syncIndicatorTimer = null;
 
@@ -1533,6 +1548,31 @@ function renderPreviewHtml(preview: {
       for (const section of ui.sections) {
         section.classList.toggle("active", section.id === id);
       }
+      if (id === "chat") {
+        queueScrollToLatest(true);
+      }
+    }
+
+    function isChatSectionActive() {
+      const chatSection = document.getElementById("chat");
+      return Boolean(chatSection && chatSection.classList.contains("active"));
+    }
+
+    function isNearLatest() {
+      const remaining = ui.messages.scrollHeight - ui.messages.scrollTop - ui.messages.clientHeight;
+      return remaining < 40;
+    }
+
+    function queueScrollToLatest(force) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!force && !isChatSectionActive()) {
+            return;
+          }
+          ui.messages.scrollTop = ui.messages.scrollHeight;
+          shouldStickToLatest = true;
+        });
+      });
     }
 
     function countRole(role) {
@@ -1748,8 +1788,12 @@ function renderPreviewHtml(preview: {
     }
 
     function renderMessages() {
+      const shouldAutoScroll = shouldStickToLatest || isNearLatest() || pendingAssistantBubble;
       if (!state.transcript.length && !pendingAssistantBubble) {
         ui.messages.innerHTML = '<div class="empty-state">' + (loadingState.error && !hasHydrated ? "Não foi possível carregar." : "Ainda sem mensagens.") + "</div>";
+        if (shouldAutoScroll) {
+          queueScrollToLatest(true);
+        }
         return;
       }
 
@@ -1758,6 +1802,9 @@ function renderPreviewHtml(preview: {
         html.push('<div class="bubble assistant skeleton-block skeleton-message assistant" aria-hidden="true"></div>');
       }
       ui.messages.innerHTML = html.join("");
+      if (shouldAutoScroll) {
+        queueScrollToLatest(true);
+      }
     }
 
     function renderStatus() {
@@ -2026,6 +2073,9 @@ function renderPreviewHtml(preview: {
       if (!workerAiCredentialId) {
         return;
       }
+      if (getRuntimeBinding()?.workerAiCredentialId === workerAiCredentialId) {
+        return;
+      }
       mutationState.activateBinding = true;
       loadingState.error = "";
       render();
@@ -2051,6 +2101,9 @@ function renderPreviewHtml(preview: {
     ui.oauthManualInput.addEventListener("input", updateActionStates);
     ui.settingsModel.addEventListener("input", updateActionStates);
     ui.settingsApiKey.addEventListener("input", updateActionStates);
+    ui.messages.addEventListener("scroll", () => {
+      shouldStickToLatest = isNearLatest();
+    }, { passive: true });
 
     ui.authSubmit.addEventListener("click", async () => {
       mutationState.auth = true;

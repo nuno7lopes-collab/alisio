@@ -30,9 +30,10 @@ describe("createDesktopWorkerServer", () => {
     const html = await response.text();
 
     expect(response.status).toBe(200);
-    expect(html).toContain("Iniciar sessão");
-    expect(html).toContain("Pergunta alguma coisa");
+    expect(html).toContain("Entrar neste dispositivo");
+    expect(html).toContain("Conta AI ativa");
     expect(html).toContain("Estado");
+    expect(html).toContain('id="account-list"');
     expect(html).toContain('id="sync-status"');
     expect(html).toContain('id="initial-state"');
     expect(html).toContain('class="tab-page chat-page active"');
