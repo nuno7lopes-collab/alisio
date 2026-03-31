@@ -8,6 +8,7 @@ public struct OpenClawChatView: View {
     public enum Style {
         case standard
         case onboarding
+        case lume
     }
 
     @State private var viewModel: OpenClawChatViewModel

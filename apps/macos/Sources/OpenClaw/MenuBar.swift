@@ -77,6 +77,14 @@ struct OpenClawApp: App {
             Task { await ConnectionModeCoordinator.shared.apply(mode: mode, paused: self.state.isPaused) }
             CLIInstallPrompter.shared.checkAndPromptIfNeeded(reason: "connection-mode")
         }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                Button("Settings…") {
+                    LumeWindowManager.shared.showSettings(tab: .general)
+                }
+                .keyboardShortcut(",", modifiers: [.command])
+            }
+        }
 
         Settings {
             SettingsRootView(state: self.state, updater: self.delegate.updaterController)
@@ -135,7 +143,7 @@ struct OpenClawApp: App {
         guard let button = item.button else { return }
         if button.subviews.contains(where: { $0 is StatusItemMouseHandlerView }) { return }
 
-        WebChatManager.shared.onPanelVisibilityChanged = { [self] visible in
+        LumeWindowManager.shared.onWindowVisibilityChanged = { [self] visible in
             self.isPanelVisible = visible
             self.updateStatusHighlight()
             self.updateHoverHUDSuppression()
@@ -149,7 +157,7 @@ struct OpenClawApp: App {
         handler.translatesAutoresizingMaskIntoConstraints = false
         handler.onLeftClick = { [self] in
             HoverHUDController.shared.dismiss(reason: "statusItemClick")
-            self.toggleWebChatPanel()
+            self.showLumeWindow()
         }
         handler.onRightClick = { [self] in
             HoverHUDController.shared.dismiss(reason: "statusItemRightClick")
@@ -173,15 +181,10 @@ struct OpenClawApp: App {
     }
 
     @MainActor
-    private func toggleWebChatPanel() {
+    private func showLumeWindow() {
         HoverHUDController.shared.setSuppressed(true)
         self.isMenuPresented = false
-        Task { @MainActor in
-            let sessionKey = await WebChatManager.shared.preferredSessionKey()
-            WebChatManager.shared.togglePanel(
-                sessionKey: sessionKey,
-                anchorProvider: { [self] in self.statusButtonScreenFrame() })
-        }
+        LumeWindowManager.shared.showPreferredChat()
     }
 
     @MainActor
@@ -261,6 +264,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         self.state = AppStateStore.shared
+        if let state = self.state {
+            LumeWindowManager.shared.configure(state: state, updater: self.updaterController)
+        }
         AppActivationPolicy.apply(showDockIcon: self.state?.showDockIcon ?? false)
         if let state {
             Task { await ConnectionModeCoordinator.shared.apply(mode: state.connectionMode, paused: state.isPaused) }
@@ -284,10 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Developer/testing helper: auto-open chat when launched with --chat (or legacy --webchat).
         if CommandLine.arguments.contains("--chat") || CommandLine.arguments.contains("--webchat") {
             self.webChatAutoLogger.debug("Auto-opening chat via CLI flag")
-            Task { @MainActor in
-                let sessionKey = await WebChatManager.shared.preferredSessionKey()
-                WebChatManager.shared.show(sessionKey: sessionKey)
-            }
+            LumeWindowManager.shared.showPreferredChat()
         }
     }
 
@@ -300,6 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MacNodeModeCoordinator.shared.stop()
         TerminationSignalWatcher.shared.stop()
         VoiceWakeGlobalSettingsSync.shared.stop()
+        LumeWindowManager.shared.close()
         WebChatManager.shared.close()
         WebChatManager.shared.resetTunnels()
         Task { await RemoteTunnelManager.shared.stopAll() }

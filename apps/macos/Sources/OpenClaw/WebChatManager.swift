@@ -35,28 +35,16 @@ final class WebChatManager {
     var onPanelVisibilityChanged: ((Bool) -> Void)?
 
     var activeSessionKey: String? {
-        self.panelSessionKey ?? self.windowSessionKey
+        self.panelSessionKey ?? LumeWindowManager.shared.activeSessionKey ?? self.windowSessionKey
     }
 
     func show(sessionKey: String) {
+        self.cachedPreferredSessionKey = sessionKey
         self.closePanel()
-        if let controller = self.windowController {
-            if self.windowSessionKey == sessionKey {
-                controller.show()
-                return
-            }
-
-            controller.close()
-            self.windowController = nil
-            self.windowSessionKey = nil
-        }
-        let controller = WebChatSwiftUIWindowController(sessionKey: sessionKey, presentation: .window)
-        controller.onVisibilityChanged = { [weak self] visible in
-            self?.onPanelVisibilityChanged?(visible)
-        }
-        self.windowController = controller
+        self.windowController?.close()
+        self.windowController = nil
         self.windowSessionKey = sessionKey
-        controller.show()
+        LumeWindowManager.shared.showChat(sessionKey: sessionKey)
     }
 
     func togglePanel(sessionKey: String, anchorProvider: @escaping () -> NSRect?) {

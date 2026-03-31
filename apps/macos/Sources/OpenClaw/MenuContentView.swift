@@ -16,7 +16,6 @@ struct MenuContent: View {
     private let activityStore = WorkActivityStore.shared
     @Bindable private var pairingPrompter = NodePairingApprovalPrompter.shared
     @Bindable private var devicePairingPrompter = DevicePairingApprovalPrompter.shared
-    @Environment(\.openSettings) private var openSettings
     @State private var availableMics: [AudioInputDevice] = []
     @State private var loadingMics = false
     @State private var micObserver = AudioInputDeviceObserver()
@@ -114,12 +113,9 @@ struct MenuContent: View {
                 Label("Open Dashboard", systemImage: "gauge")
             }
             Button {
-                Task { @MainActor in
-                    let sessionKey = await WebChatManager.shared.preferredSessionKey()
-                    WebChatManager.shared.show(sessionKey: sessionKey)
-                }
+                LumeWindowManager.shared.showPreferredChat()
             } label: {
-                Label("Open Chat", systemImage: "bubble.left.and.bubble.right")
+                Label("Open Lume", systemImage: "bubble.left.and.bubble.right")
             }
             if self.state.canvasEnabled {
                 Button {
@@ -149,7 +145,7 @@ struct MenuContent: View {
             Button("Settings…") { self.open(tab: .general) }
                 .keyboardShortcut(",", modifiers: [.command])
             self.debugMenu
-            Button("About OpenClaw") { self.open(tab: .about) }
+            Button("About Lume") { self.open(tab: .about) }
             if let updater, updater.isAvailable, self.updateStatus.isUpdateReady {
                 Button("Update ready, restart now?") { updater.checkForUpdates(nil) }
             }
@@ -180,9 +176,6 @@ struct MenuContent: View {
             self.micRefreshTask?.cancel()
             self.micRefreshTask = nil
             self.micObserver.stop()
-        }
-        .task { @MainActor in
-            SettingsWindowOpener.shared.register(openSettings: self.openSettings)
         }
     }
 
@@ -329,12 +322,7 @@ struct MenuContent: View {
     }
 
     private func open(tab: SettingsTab) {
-        SettingsTabRouter.request(tab)
-        NSApp.activate(ignoringOtherApps: true)
-        self.openSettings()
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .openclawSelectSettingsTab, object: tab)
-        }
+        SettingsWindowOpener.shared.open(tab: tab)
     }
 
     @MainActor

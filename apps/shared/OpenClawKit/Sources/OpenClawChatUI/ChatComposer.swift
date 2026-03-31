@@ -269,7 +269,7 @@ struct OpenClawChatComposer: View {
     private var editorOverlay: some View {
         ZStack(alignment: .topLeading) {
             if self.viewModel.input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Message OpenClaw…")
+                Text(self.style == .lume ? "Message Lume…" : "Message OpenClaw…")
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 4)
                     .padding(.vertical, 4)
@@ -355,15 +355,15 @@ struct OpenClawChatComposer: View {
     }
 
     private var showsToolbar: Bool {
-        self.style == .standard && !self.isComposerCompacted
+        self.style != .onboarding && !self.isComposerCompacted
     }
 
     private var showsAttachments: Bool {
-        self.style == .standard
+        self.style != .onboarding
     }
 
     private var showsConnectionPill: Bool {
-        self.style == .standard && !self.isComposerCompacted
+        self.style != .onboarding && !self.isComposerCompacted
     }
 
     private var composerPadding: CGFloat {
@@ -386,7 +386,7 @@ struct OpenClawChatComposer: View {
         #if os(macOS)
         false
         #else
-        self.style == .standard && self.isFocused
+        self.style != .onboarding && self.isFocused
         #endif
     }
 

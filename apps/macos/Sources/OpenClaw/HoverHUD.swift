@@ -3,7 +3,7 @@ import Observation
 import QuartzCore
 import SwiftUI
 
-/// Hover-only HUD anchored to the menu bar item. Click expands into full Web Chat.
+/// Hover-only HUD anchored to the menu bar item. Click expands into the main Lume window.
 @MainActor
 @Observable
 final class HoverHUDController {
@@ -78,12 +78,9 @@ final class HoverHUDController {
     }
 
     func openChat() {
-        guard let anchorProvider = self.anchorProvider else { return }
+        guard self.anchorProvider != nil else { return }
         self.dismiss(reason: "openChat")
-        Task { @MainActor in
-            let sessionKey = await WebChatManager.shared.preferredSessionKey()
-            WebChatManager.shared.togglePanel(sessionKey: sessionKey, anchorProvider: anchorProvider)
-        }
+        LumeWindowManager.shared.showPreferredChat()
     }
 
     func dismiss(reason: String = "explicit") {

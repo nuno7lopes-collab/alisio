@@ -39,6 +39,7 @@ public final class OpenClawChatViewModel {
     private var sessionDefaults: OpenClawChatSessionsDefaults?
     private let prefersExplicitThinkingLevel: Bool
     private let onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)?
+    private let onSessionKeyChanged: (@MainActor @Sendable (String) -> Void)?
 
     @ObservationIgnored
     private nonisolated(unsafe) var eventTask: Task<Void, Never>?
@@ -77,7 +78,8 @@ public final class OpenClawChatViewModel {
         sessionKey: String,
         transport: any OpenClawChatTransport,
         initialThinkingLevel: String? = nil,
-        onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)? = nil)
+        onThinkingLevelChanged: (@MainActor @Sendable (String) -> Void)? = nil,
+        onSessionKeyChanged: (@MainActor @Sendable (String) -> Void)? = nil)
     {
         self.sessionKey = sessionKey
         self.transport = transport
@@ -85,6 +87,7 @@ public final class OpenClawChatViewModel {
         self.thinkingLevel = normalizedThinkingLevel ?? "off"
         self.prefersExplicitThinkingLevel = normalizedThinkingLevel != nil
         self.onThinkingLevelChanged = onThinkingLevelChanged
+        self.onSessionKeyChanged = onSessionKeyChanged
 
         self.eventTask = Task { [weak self] in
             guard let self else { return }
@@ -612,6 +615,7 @@ public final class OpenClawChatViewModel {
         guard !next.isEmpty else { return }
         guard next != self.sessionKey else { return }
         self.sessionKey = next
+        self.onSessionKeyChanged?(next)
         self.modelSelectionID = Self.defaultModelSelectionID
         await self.bootstrap()
     }
