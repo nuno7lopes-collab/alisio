@@ -151,25 +151,25 @@ function renderPreviewHtml(preview: {
   <style>
     :root {
       color-scheme: light;
-      --bg-a: #f3f0ea;
-      --bg-b: #f7f3ed;
-      --bg-c: #efe8de;
-      --surface: rgba(255, 252, 247, 0.84);
-      --surface-strong: rgba(255, 252, 247, 0.94);
-      --surface-soft: rgba(255, 252, 247, 0.72);
-      --line: rgba(24, 22, 19, 0.08);
-      --line-soft: rgba(24, 22, 19, 0.08);
-      --ink: #181613;
-      --ink-soft: rgba(24, 22, 19, 0.62);
-      --accent: #b7562a;
-      --accent-2: #2c6a62;
-      --ok: #2c6a62;
-      --warn: #c08a2b;
-      --danger: #b7562a;
-      --shadow: 0 18px 42px rgba(24, 22, 19, 0.06);
-      --radius-xl: 24px;
-      --radius-lg: 20px;
-      --radius-md: 16px;
+      --bg-a: #f6f4ef;
+      --bg-b: #f3f1ec;
+      --bg-c: #eeebe4;
+      --surface: rgba(255, 255, 255, 0.72);
+      --surface-strong: rgba(255, 255, 255, 0.88);
+      --surface-soft: rgba(255, 255, 255, 0.62);
+      --line: rgba(15, 23, 42, 0.08);
+      --line-soft: rgba(15, 23, 42, 0.10);
+      --ink: #16181d;
+      --ink-soft: rgba(22, 24, 29, 0.58);
+      --accent: #2f5bea;
+      --accent-2: #215b52;
+      --ok: #215b52;
+      --warn: #9b6a1c;
+      --danger: #bf4b39;
+      --shadow: 0 14px 34px rgba(15, 23, 42, 0.05);
+      --radius-xl: 22px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
       --radius-pill: 999px;
     }
     * { box-sizing: border-box; }
@@ -179,8 +179,8 @@ function renderPreviewHtml(preview: {
       font-family: "Manrope", "Avenir Next", "Segoe UI", ui-sans-serif, sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(circle at top left, rgba(183, 86, 42, 0.10), transparent 24%),
-        radial-gradient(circle at 88% 16%, rgba(44, 106, 98, 0.10), transparent 22%),
+        radial-gradient(circle at top left, rgba(47, 91, 234, 0.07), transparent 22%),
+        radial-gradient(circle at 88% 16%, rgba(33, 91, 82, 0.06), transparent 18%),
         linear-gradient(135deg, var(--bg-a), var(--bg-b) 52%, var(--bg-c));
       overflow: hidden;
     }
@@ -190,24 +190,24 @@ function renderPreviewHtml(preview: {
     }
     .app-shell {
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
-      gap: 20px;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 16px;
       height: 100vh;
-      padding: 20px;
+      padding: 16px;
     }
     .glass {
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 252, 247, 0.92));
+        linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(255, 255, 255, 0.92));
       border: 1px solid var(--line);
       box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
     }
     .sidebar {
       display: flex;
       flex-direction: column;
-      gap: 20px;
-      padding: 22px;
+      gap: 16px;
+      padding: 18px;
       border-radius: var(--radius-xl);
       overflow: auto;
       min-height: 0;
@@ -236,14 +236,14 @@ function renderPreviewHtml(preview: {
       gap: 14px;
     }
     .brand-mark {
-      width: 42px;
-      height: 42px;
-      border-radius: 12px;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
       background: var(--accent);
       color: white;
       display: grid;
       place-items: center;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 800;
       letter-spacing: 0.03em;
       flex: 0 0 auto;
@@ -263,7 +263,7 @@ function renderPreviewHtml(preview: {
       letter-spacing: -0.03em;
     }
     .brand-copy h1 {
-      font-size: 24px;
+      font-size: 22px;
       margin-top: 0;
       margin-bottom: 0;
     }
@@ -281,7 +281,7 @@ function renderPreviewHtml(preview: {
     .checklist,
     .nav-list {
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
     .status-row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -292,42 +292,42 @@ function renderPreviewHtml(preview: {
       gap: 8px;
       width: fit-content;
       max-width: 100%;
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-radius: var(--radius-pill);
       border: 1px solid transparent;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       line-height: 1.2;
-      background: rgba(255, 255, 255, 0.44);
+      background: rgba(255, 255, 255, 0.54);
     }
     .pill.ok {
       color: var(--ok);
-      background: rgba(20, 134, 109, 0.10);
-      border-color: rgba(20, 134, 109, 0.22);
+      background: rgba(33, 91, 82, 0.08);
+      border-color: rgba(33, 91, 82, 0.16);
     }
     .pill.primary {
       color: var(--accent);
-      background: rgba(52, 120, 246, 0.10);
-      border-color: rgba(52, 120, 246, 0.20);
+      background: rgba(47, 91, 234, 0.09);
+      border-color: rgba(47, 91, 234, 0.16);
     }
     .pill.warn {
       color: var(--warn);
-      background: rgba(192, 138, 43, 0.12);
-      border-color: rgba(192, 138, 43, 0.22);
+      background: rgba(155, 106, 28, 0.10);
+      border-color: rgba(155, 106, 28, 0.16);
     }
     .pill.danger {
       color: var(--danger);
-      background: rgba(192, 70, 72, 0.10);
-      border-color: rgba(192, 70, 72, 0.22);
+      background: rgba(191, 75, 57, 0.10);
+      border-color: rgba(191, 75, 57, 0.16);
     }
     .nav-list {
       margin-top: 4px;
     }
     .nav-button {
-      border: 1px solid rgba(24, 22, 19, 0.06);
-      background: rgba(255, 255, 255, 0.48);
-      border-radius: 16px;
-      padding: 14px;
+      border: 1px solid rgba(15, 23, 42, 0.05);
+      background: rgba(255, 255, 255, 0.44);
+      border-radius: 14px;
+      padding: 12px 14px;
       color: var(--ink);
       text-align: left;
       cursor: pointer;
@@ -335,32 +335,32 @@ function renderPreviewHtml(preview: {
     }
     .nav-button:hover {
       transform: translateY(-1px);
-      border-color: rgba(52, 120, 246, 0.20);
+      border-color: rgba(47, 91, 234, 0.18);
     }
     .nav-button.active {
-      background: rgba(183, 86, 42, 0.10);
-      border-color: rgba(183, 86, 42, 0.18);
+      background: rgba(47, 91, 234, 0.08);
+      border-color: rgba(47, 91, 234, 0.16);
     }
     .nav-label {
       display: block;
       font-weight: 700;
-      font-size: 16px;
+      font-size: 15px;
     }
     .summary-card,
     .meta-card,
     .metric-card,
     .panel-card,
     .composer-card {
-      border-radius: 20px;
+      border-radius: 18px;
       border: 1px solid var(--line);
       background: var(--surface-strong);
-      box-shadow: 0 10px 24px rgba(24, 22, 19, 0.04);
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.035);
     }
     .summary-card,
     .meta-card,
     .metric-card,
     .panel-card {
-      padding: 16px;
+      padding: 14px;
     }
     .summary-card h3,
     .panel-card h3,
@@ -372,11 +372,11 @@ function renderPreviewHtml(preview: {
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      padding: 6px 0;
-      font-size: 14px;
+      padding: 4px 0;
+      font-size: 13px;
     }
     .summary-item strong {
-      font-size: 14px;
+      font-size: 13px;
     }
     .sidebar-actions {
       margin-top: auto;
@@ -387,7 +387,7 @@ function renderPreviewHtml(preview: {
       min-width: 0;
       display: grid;
       grid-template-rows: auto 1fr;
-      gap: 18px;
+      gap: 14px;
       min-height: 0;
       overflow: hidden;
       position: relative;
@@ -396,10 +396,10 @@ function renderPreviewHtml(preview: {
       display: none;
     }
     .topbar {
-      padding: 16px;
+      padding: 14px;
       border-radius: var(--radius-xl);
       display: grid;
-      gap: 12px;
+      gap: 10px;
     }
     .topbar-header {
       display: flex;
@@ -445,7 +445,7 @@ function renderPreviewHtml(preview: {
       animation: none;
     }
     .hero-copy h2 {
-      font-size: 22px;
+      font-size: 20px;
       margin-top: 4px;
       margin-bottom: 0;
     }
@@ -494,13 +494,13 @@ function renderPreviewHtml(preview: {
     }
     .page-stack {
       display: grid;
-      gap: 16px;
+      gap: 14px;
       min-height: 100%;
     }
     .chat-layout {
       display: grid;
       grid-template-rows: auto 1fr auto;
-      gap: 14px;
+      gap: 10px;
       min-height: 100%;
       height: 100%;
     }
@@ -509,7 +509,7 @@ function renderPreviewHtml(preview: {
     }
     .chat-stream-card {
       min-height: 0;
-      padding: 20px 14px 20px 20px;
+      padding: 12px 10px 12px 12px;
       display: flex;
       overflow: hidden;
     }
@@ -520,13 +520,13 @@ function renderPreviewHtml(preview: {
       display: flex;
       flex-direction: column;
       justify-content: flex-end;
-      gap: 14px;
+      gap: 10px;
       overflow: auto;
       padding-right: 6px;
     }
     .panel-card {
       display: grid;
-      gap: 14px;
+      gap: 12px;
     }
     .panel-header {
       display: flex;
@@ -543,11 +543,11 @@ function renderPreviewHtml(preview: {
     }
     .prompt-chip,
     .model-chip {
-      border: 1px solid rgba(52, 120, 246, 0.16);
-      background: rgba(201, 229, 255, 0.54);
+      border: 1px solid rgba(47, 91, 234, 0.14);
+      background: rgba(47, 91, 234, 0.08);
       color: var(--ink);
-      border-radius: 18px;
-      padding: 12px 14px;
+      border-radius: 14px;
+      padding: 10px 12px;
       cursor: pointer;
       text-align: left;
     }
@@ -572,25 +572,25 @@ function renderPreviewHtml(preview: {
     textarea {
       width: 100%;
       border: 1px solid var(--line-soft);
-      border-radius: 18px;
-      padding: 14px 16px;
+      border-radius: 14px;
+      padding: 12px 14px;
       color: var(--ink);
-      background: rgba(255, 255, 255, 0.74);
+      background: rgba(255, 255, 255, 0.8);
       outline: none;
       transition: 160ms ease;
     }
     input:focus,
     textarea:focus {
-      border-color: rgba(52, 120, 246, 0.42);
-      box-shadow: 0 0 0 4px rgba(52, 120, 246, 0.10);
+      border-color: rgba(47, 91, 234, 0.34);
+      box-shadow: 0 0 0 3px rgba(47, 91, 234, 0.08);
     }
     textarea {
-      min-height: 148px;
+      min-height: 104px;
       resize: vertical;
     }
     .actions {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
       align-items: center;
     }
@@ -598,8 +598,8 @@ function renderPreviewHtml(preview: {
     button.secondary,
     .link-button {
       border: 0;
-      border-radius: 18px;
-      padding: 13px 18px;
+      border-radius: 14px;
+      padding: 11px 16px;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
@@ -609,15 +609,15 @@ function renderPreviewHtml(preview: {
       transition: 160ms ease;
     }
     button.primary {
-      background: linear-gradient(135deg, var(--accent), #5b90fb);
+      background: linear-gradient(135deg, var(--accent), #648df5);
       color: white;
-      box-shadow: 0 18px 30px rgba(52, 120, 246, 0.24);
+      box-shadow: 0 10px 24px rgba(47, 91, 234, 0.18);
     }
     button.secondary,
     .link-button {
-      background: rgba(255, 255, 255, 0.58);
+      background: rgba(255, 255, 255, 0.7);
       color: var(--ink);
-      border: 1px solid rgba(19, 35, 58, 0.10);
+      border: 1px solid rgba(15, 23, 42, 0.08);
     }
     button:hover,
     .link-button:hover {
@@ -635,40 +635,40 @@ function renderPreviewHtml(preview: {
     }
     .messages {
       display: grid;
-      gap: 14px;
+      gap: 10px;
       padding-right: 6px;
     }
     .empty-state {
-      padding: 18px;
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.58);
-      border: 1px solid rgba(19, 35, 58, 0.08);
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(15, 23, 42, 0.06);
       color: var(--ink-soft);
       line-height: 1.5;
       margin-top: auto;
     }
     .bubble {
-      padding: 18px;
-      border-radius: 26px;
-      border: 1px solid rgba(255, 255, 255, 0.48);
+      padding: 14px 15px;
+      border-radius: 18px;
+      border: 1px solid rgba(15, 23, 42, 0.05);
       white-space: pre-wrap;
-      box-shadow: 0 16px 36px rgba(19, 35, 58, 0.08);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
     }
     .bubble.user {
-      margin-left: 72px;
-      background: rgba(52, 120, 246, 0.12);
+      margin-left: 96px;
+      background: rgba(47, 91, 234, 0.08);
     }
     .bubble.assistant {
-      margin-right: 72px;
-      background: rgba(255, 255, 255, 0.78);
+      margin-right: 140px;
+      background: rgba(255, 255, 255, 0.86);
     }
     .bubble.tool {
-      margin-right: 120px;
-      background: rgba(232, 246, 242, 0.96);
+      margin-right: 180px;
+      background: rgba(238, 246, 244, 0.92);
     }
     .bubble.system {
-      margin-right: 120px;
-      background: rgba(244, 242, 232, 0.96);
+      margin-right: 180px;
+      background: rgba(244, 242, 235, 0.92);
     }
     .bubble.error {
       border-color: rgba(192, 70, 72, 0.30);
@@ -678,7 +678,7 @@ function renderPreviewHtml(preview: {
       justify-content: space-between;
       align-items: center;
       gap: 12px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       flex-wrap: wrap;
     }
     .bubble-meta {
@@ -698,10 +698,10 @@ function renderPreviewHtml(preview: {
     .check-item {
       display: flex;
       gap: 12px;
-      padding: 16px;
-      border-radius: 22px;
-      border: 1px solid rgba(255, 255, 255, 0.48);
-      background: rgba(255, 255, 255, 0.54);
+      padding: 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.05);
+      background: rgba(255, 255, 255, 0.6);
     }
     .check-bullet {
       width: 28px;
@@ -731,10 +731,10 @@ function renderPreviewHtml(preview: {
     }
     .account-row {
       width: 100%;
-      border: 1px solid rgba(24, 22, 19, 0.08);
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.56);
-      padding: 14px 16px;
+      border: 1px solid rgba(15, 23, 42, 0.07);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.6);
+      padding: 13px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -774,10 +774,10 @@ function renderPreviewHtml(preview: {
       line-height: 1.4;
     }
     .detail-card {
-      padding: 16px;
-      border-radius: 22px;
-      background: rgba(255, 255, 255, 0.56);
-      border: 1px solid rgba(255, 255, 255, 0.48);
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid rgba(15, 23, 42, 0.05);
     }
     .detail-label {
       font-size: 13px;
@@ -790,8 +790,8 @@ function renderPreviewHtml(preview: {
       line-height: 1.4;
     }
     .banner {
-      padding: 14px 16px;
-      border-radius: 20px;
+      padding: 13px 14px;
+      border-radius: 16px;
       background: rgba(255, 248, 227, 0.94);
       color: #6b4d14;
       border: 1px solid rgba(192, 138, 43, 0.20);
@@ -809,21 +809,26 @@ function renderPreviewHtml(preview: {
       gap: 14px;
     }
     .composer-dock {
-      border-radius: 20px;
+      border-radius: 18px;
       border: 1px solid var(--line);
       background: var(--surface-strong);
-      box-shadow: 0 10px 24px rgba(24, 22, 19, 0.04);
-      padding: 16px;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
+      padding: 10px 10px 10px 14px;
       display: grid;
-      gap: 12px;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: flex-end;
     }
     .composer-dock textarea {
-      min-height: 120px;
+      min-height: 24px;
+      max-height: 144px;
       resize: none;
       border: 0;
-      padding: 0;
+      padding: 8px 0;
       background: transparent;
       box-shadow: none;
+      line-height: 1.5;
+      overflow-y: auto;
     }
     .composer-dock textarea:focus {
       border-color: transparent;
@@ -832,7 +837,12 @@ function renderPreviewHtml(preview: {
     .composer-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 12px;
+      gap: 10px;
+      align-self: flex-end;
+    }
+    .composer-actions .primary {
+      min-width: 96px;
+      padding: 11px 16px;
     }
     .hidden { display: none !important; }
     .skeleton-text {
@@ -861,19 +871,19 @@ function renderPreviewHtml(preview: {
     .skeleton-block {
       position: relative;
       overflow: hidden;
-      border-radius: 22px;
+      border-radius: 18px;
       background: rgba(255, 255, 255, 0.52);
       min-height: 84px;
     }
     .skeleton-message {
       min-height: 96px;
-      border-radius: 26px;
+      border-radius: 18px;
     }
     .skeleton-message.user {
-      margin-left: 72px;
+      margin-left: 96px;
     }
     .skeleton-message.assistant {
-      margin-right: 72px;
+      margin-right: 140px;
     }
     .footer-note {
       font-size: 13px;
@@ -939,7 +949,7 @@ function renderPreviewHtml(preview: {
       }
       .sidebar,
       .topbar {
-        padding: 18px;
+        padding: 16px;
       }
       .panel-card,
       .metric-card,
@@ -947,6 +957,15 @@ function renderPreviewHtml(preview: {
       .meta-card,
       .composer-card {
         padding: 16px;
+      }
+      .composer-dock {
+        grid-template-columns: 1fr;
+      }
+      .composer-actions {
+        width: 100%;
+      }
+      .composer-actions .primary {
+        width: 100%;
       }
       .bubble.user,
       .bubble.assistant,
@@ -1052,7 +1071,7 @@ function renderPreviewHtml(preview: {
             </div>
 
             <div class="composer-dock">
-              <textarea id="composer" placeholder="Ex.: quem está ligado neste computador?"></textarea>
+              <textarea id="composer" rows="1" placeholder="Pergunta qualquer coisa..."></textarea>
               <div class="composer-actions">
                 <button id="send-message" class="primary">Enviar</button>
               </div>
@@ -1527,6 +1546,15 @@ function renderPreviewHtml(preview: {
       setButtonBusy(ui.oauthManualSubmit, mutationState.oauthManual, "A validar");
       setButtonBusy(ui.logout, mutationState.logout, "A terminar");
       renderSyncStatus();
+    }
+
+    function resizeComposer() {
+      if (!(ui.composer instanceof HTMLTextAreaElement)) {
+        return;
+      }
+      ui.composer.style.height = "0px";
+      const nextHeight = Math.min(Math.max(ui.composer.scrollHeight, 40), 144);
+      ui.composer.style.height = String(nextHeight) + "px";
     }
 
     function setSection(id) {
@@ -2048,6 +2076,7 @@ function renderPreviewHtml(preview: {
       button.addEventListener("click", () => {
         const prompt = button.dataset.prompt || "";
         ui.composer.value = prompt;
+        resizeComposer();
         ui.composer.focus();
         updateActionStates();
       });
@@ -2095,7 +2124,10 @@ function renderPreviewHtml(preview: {
       }
     });
 
-    ui.composer.addEventListener("input", updateActionStates);
+    ui.composer.addEventListener("input", () => {
+      resizeComposer();
+      updateActionStates();
+    });
     ui.authName.addEventListener("input", updateActionStates);
     ui.authEmail.addEventListener("input", updateActionStates);
     ui.oauthManualInput.addEventListener("input", updateActionStates);
@@ -2223,6 +2255,7 @@ function renderPreviewHtml(preview: {
         },
       ]);
       ui.composer.value = "";
+      resizeComposer();
       render();
       try {
         const payload = await request("/chat/send", {
@@ -2246,6 +2279,7 @@ function renderPreviewHtml(preview: {
           },
         ]);
         ui.composer.value = draft;
+        resizeComposer();
         loadingState.error = describeError(error);
       } finally {
         mutationState.send = false;
@@ -2261,6 +2295,7 @@ function renderPreviewHtml(preview: {
         await request("/auth/mock/logout", { method: "POST" });
         pendingAssistantBubble = false;
         ui.composer.value = "";
+        resizeComposer();
         await refresh({ visual: "busy" });
       } catch (error) {
         loadingState.error = describeError(error);
@@ -2278,6 +2313,7 @@ function renderPreviewHtml(preview: {
       }
     });
 
+    resizeComposer();
     render();
     refresh({ visual: hasHydrated ? "silent" : "bootstrap", reportError: !hasHydrated }).catch((error) => {
       if (!hasHydrated) {
