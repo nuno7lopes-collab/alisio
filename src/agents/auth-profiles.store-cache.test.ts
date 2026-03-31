@@ -158,4 +158,25 @@ describe("auth profile store cache", () => {
       fs.rmSync(agentDir, { recursive: true, force: true });
     }
   });
+
+  it("ignora o sync de credenciais externas quando OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC=1", async () => {
+    const previousDisableExternalCliSync = process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC;
+    try {
+      process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC = "1";
+
+      await withAgentDirEnv("openclaw-auth-store-disabled-", (agentDir) => {
+        writeAuthStore(agentDir, "sk-test");
+
+        ensureAuthProfileStore(agentDir);
+
+        expect(mocks.syncExternalCliCredentials).not.toHaveBeenCalled();
+      });
+    } finally {
+      if (previousDisableExternalCliSync === undefined) {
+        delete process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC;
+      } else {
+        process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC = previousDisableExternalCliSync;
+      }
+    }
+  });
 });

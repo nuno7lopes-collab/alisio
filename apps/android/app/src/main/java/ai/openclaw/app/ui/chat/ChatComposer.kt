@@ -41,10 +41,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import ai.openclaw.app.ui.mobileAccent
 import ai.openclaw.app.ui.mobileAccentBorderStrong
 import ai.openclaw.app.ui.mobileAccentSoft
@@ -58,6 +66,7 @@ import ai.openclaw.app.ui.mobileSurface
 import ai.openclaw.app.ui.mobileText
 import ai.openclaw.app.ui.mobileTextSecondary
 import ai.openclaw.app.ui.mobileTextTertiary
+import androidx.compose.ui.text.input.ImeAction
 
 @Composable
 fun ChatComposer(
@@ -78,6 +87,13 @@ fun ChatComposer(
   val canSend = pendingRunCount == 0 && (input.trim().isNotEmpty() || attachments.isNotEmpty()) && healthOk
   val sendBusy = pendingRunCount > 0
 
+  fun submitCurrentInput() {
+    if (!canSend) return
+    val text = input
+    input = ""
+    onSend(text)
+  }
+
   Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     if (attachments.isNotEmpty()) {
       AttachmentsStrip(attachments = attachments, onRemoveAttachment = onRemoveAttachment)
@@ -86,13 +102,34 @@ fun ChatComposer(
     OutlinedTextField(
       value = input,
       onValueChange = { input = it },
-      modifier = Modifier.fillMaxWidth(),
+      modifier =
+        Modifier
+          .fillMaxWidth()
+          .onPreviewKeyEvent { event ->
+            if (
+              event.type == KeyEventType.KeyDown &&
+                event.key == Key.Enter &&
+                !event.isShiftPressed
+            ) {
+              submitCurrentInput()
+              true
+            } else {
+              false
+            }
+          },
       placeholder = { Text("Type a message…", style = mobileBodyStyle(), color = mobileTextTertiary) },
       minLines = 2,
       maxLines = 5,
       textStyle = mobileBodyStyle().copy(color = mobileText),
       shape = RoundedCornerShape(14.dp),
       colors = chatTextFieldColors(),
+      keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+      keyboardActions =
+        KeyboardActions(
+          onSend = {
+            submitCurrentInput()
+          },
+        ),
     )
 
     if (!healthOk) {
@@ -171,11 +208,7 @@ fun ChatComposer(
       Spacer(modifier = Modifier.weight(1f))
 
       Button(
-        onClick = {
-          val text = input
-          input = ""
-          onSend(text)
-        },
+        onClick = { submitCurrentInput() },
         enabled = canSend,
         modifier = Modifier.height(44.dp),
         shape = RoundedCornerShape(14.dp),

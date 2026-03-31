@@ -398,10 +398,17 @@ function shouldLogAuthStoreTiming(): boolean {
   return process.env.OPENCLAW_DEBUG_INGRESS_TIMING === "1";
 }
 
+function shouldSyncExternalCliCredentials(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC !== "1";
+}
+
 function syncExternalCliCredentialsTimed(
   store: AuthProfileStore,
   options?: Parameters<typeof syncExternalCliCredentials>[1],
 ): boolean {
+  if (!shouldSyncExternalCliCredentials()) {
+    return false;
+  }
   if (!shouldLogAuthStoreTiming()) {
     return syncExternalCliCredentials(store, options);
   }

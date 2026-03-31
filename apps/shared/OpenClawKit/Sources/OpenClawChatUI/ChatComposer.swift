@@ -2,6 +2,10 @@ import Foundation
 import Observation
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 #if !os(macOS)
 import PhotosUI
 import UniformTypeIdentifiers
@@ -285,16 +289,18 @@ struct OpenClawChatComposer: View {
             .padding(.horizontal, 4)
             .padding(.vertical, 3)
             #else
-            TextEditor(text: self.$viewModel.input)
-                .font(.system(size: 15))
-                .scrollContentBackground(.hidden)
-                .frame(
-                    minHeight: self.textMinHeight,
-                    idealHeight: self.textMinHeight,
-                    maxHeight: self.textMaxHeight)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 4)
-                .focused(self.$isFocused)
+            ChatComposerTextViewIOS(
+                text: self.$viewModel.input,
+                isFocused: self.$isFocused,
+                onSend: {
+                    self.viewModel.send()
+                })
+            .frame(
+                minHeight: self.textMinHeight,
+                idealHeight: self.textMinHeight,
+                maxHeight: self.textMaxHeight)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
             #endif
         }
     }
@@ -430,6 +436,80 @@ struct OpenClawChatComposer: View {
     }
     #endif
 }
+
+#if canImport(UIKit) && !os(macOS)
+private struct ChatComposerTextViewIOS: UIViewRepresentable {
+    @Binding var text: String
+    @Binding var isFocused: Bool
+    var onSend: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.delegate = context.coordinator
+        textView.backgroundColor = .clear
+        textView.font = .systemFont(ofSize: 15)
+        textView.returnKeyType = .send
+        textView.enablesReturnKeyAutomatically = true
+        textView.autocorrectionType = .yes
+        textView.autocapitalizationType = .sentences
+        textView.smartDashesType = .no
+        textView.smartQuotesType = .no
+        textView.textContainerInset = UIEdgeInsets(top: 4, left: 0, bottom: 4, right: 0)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.keyboardDismissMode = .interactive
+        textView.text = self.text
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        if textView.text != self.text {
+            context.coordinator.isProgrammaticUpdate = true
+            defer { context.coordinator.isProgrammaticUpdate = false }
+            textView.text = self.text
+        }
+
+        if self.isFocused, !textView.isFirstResponder {
+            textView.becomeFirstResponder()
+        } else if !self.isFocused, textView.isFirstResponder {
+            textView.resignFirstResponder()
+        }
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: ChatComposerTextViewIOS
+        var isProgrammaticUpdate = false
+
+        init(_ parent: ChatComposerTextViewIOS) {
+            self.parent = parent
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            guard !self.isProgrammaticUpdate else { return }
+            self.parent.text = textView.text
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            self.parent.isFocused = true
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            self.parent.isFocused = false
+        }
+
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText text: String) -> Bool
+        {
+            guard text == "\n", textView.markedTextRange == nil else { return true }
+            self.parent.onSend()
+            return false
+        }
+    }
+}
+#endif
 
 #if os(macOS)
 import AppKit

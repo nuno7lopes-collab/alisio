@@ -1,0 +1,11 @@
+{
+  "name": "@openclaw/desktop-worker",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./types": "./src/types.ts"
+  }
+}
