@@ -61,7 +61,7 @@ enum DebugActions {
     }
 
     static func sendTestNotification() async {
-        _ = await NotificationManager().send(title: "OpenClaw", body: "Test notification", sound: nil)
+        _ = await NotificationManager().send(title: "Lume", body: "Test notification", sound: nil)
     }
 
     static func sendDebugVoice() async -> Result<String, DebugActionError> {
@@ -187,7 +187,8 @@ enum DebugActions {
         UserDefaults.standard.set(false, forKey: self.onboardingSeenKey)
         UserDefaults.standard.set(0, forKey: onboardingVersionKey)
         AppStateStore.shared.onboardingSeen = false
-        OnboardingController.shared.restart()
+        LumeWindowManager.shared.shellState.restartOnboarding()
+        LumeWindowManager.shared.show(route: .onboarding)
     }
 
     @MainActor

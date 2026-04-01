@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import {
+  resolveAgentDir,
   resolveAgentEffectiveModelPrimary,
   resolveAgentModelFallbacksOverride,
   resolveAgentWorkspaceDir,
@@ -14,6 +15,7 @@ import {
   resolveConfiguredModelRef,
   resolveDefaultModelForAgent,
 } from "../agents/model-selection.js";
+import { resolvePersonWorkspaceSummary } from "../agents/person-agent.js";
 import {
   getSessionDisplaySubagentRunByChildSessionKey,
   getSubagentSessionRuntimeMs,
@@ -632,7 +634,11 @@ export function listAgentsForGateway(cfg: OpenClawConfig): {
   const scope = cfg.session?.scope ?? "per-sender";
   const configuredById = new Map<
     string,
-    { name?: string; identity?: GatewayAgentRow["identity"] }
+    {
+      entry: NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number];
+      name?: string;
+      identity?: GatewayAgentRow["identity"];
+    }
   >();
   for (const entry of cfg.agents?.list ?? []) {
     if (!entry?.id) {
@@ -652,6 +658,7 @@ export function listAgentsForGateway(cfg: OpenClawConfig): {
         }
       : undefined;
     configuredById.set(normalizeAgentId(entry.id), {
+      entry,
       name: typeof entry.name === "string" && entry.name.trim() ? entry.name.trim() : undefined,
       identity,
     });
@@ -671,10 +678,18 @@ export function listAgentsForGateway(cfg: OpenClawConfig): {
   const agents = agentIds.map((id) => {
     const meta = configuredById.get(id);
     const model = resolveGatewayAgentModel(cfg, id);
+    const person = resolvePersonWorkspaceSummary({
+      cfg,
+      agentId: id,
+      defaultAgentId: defaultId,
+      agent: meta?.entry ?? { id },
+      agentDir: resolveAgentDir(cfg, id),
+    });
     return {
       id,
       name: meta?.name,
       identity: meta?.identity,
+      ...(person ? { person } : {}),
       workspace: resolveAgentWorkspaceDir(cfg, id),
       ...(model ? { model } : {}),
     };

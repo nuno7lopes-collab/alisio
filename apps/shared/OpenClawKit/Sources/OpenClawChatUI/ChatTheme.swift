@@ -164,7 +164,7 @@ enum OpenClawChatTheme {
 }
 
 extension Color {
-    fileprivate init(chatHex: UInt, opacity: Double = 1) {
+    init(chatHex: UInt, opacity: Double = 1) {
         let red = Double((chatHex >> 16) & 0xFF) / 255
         let green = Double((chatHex >> 8) & 0xFF) / 255
         let blue = Double(chatHex & 0xFF) / 255

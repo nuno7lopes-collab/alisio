@@ -11,6 +11,12 @@ import {
   resolveAgentIdFromSessionKey,
 } from "../routing/session-key.js";
 import { resolveUserPath } from "../utils.js";
+import {
+  mergePersonAgentMemoryDefaults,
+  mergePersonAgentSubagentDefaults,
+  mergePersonAgentToolDefaults,
+  resolveActivePersonAgentConfig,
+} from "./person-agent.js";
 import { normalizeSkillFilter } from "./skills/filter.js";
 import { resolveDefaultAgentWorkspaceDir } from "./workspace.js";
 
@@ -44,6 +50,7 @@ type ResolvedAgentConfig = {
   humanDelay?: AgentEntry["humanDelay"];
   heartbeat?: AgentEntry["heartbeat"];
   identity?: AgentEntry["identity"];
+  person?: ReturnType<typeof resolveActivePersonAgentConfig>;
   groupChat?: AgentEntry["groupChat"];
   subagents?: AgentEntry["subagents"];
   sandbox?: AgentEntry["sandbox"];
@@ -133,6 +140,11 @@ export function resolveAgentConfig(
   if (!entry) {
     return undefined;
   }
+  const person = resolveActivePersonAgentConfig({
+    cfg,
+    agentId: id,
+    agent: entry,
+  });
   return {
     name: typeof entry.name === "string" ? entry.name : undefined,
     workspace: typeof entry.workspace === "string" ? entry.workspace : undefined,
@@ -145,14 +157,18 @@ export function resolveAgentConfig(
     reasoningDefault: entry.reasoningDefault,
     fastModeDefault: entry.fastModeDefault,
     skills: Array.isArray(entry.skills) ? entry.skills : undefined,
-    memorySearch: entry.memorySearch,
+    memorySearch: mergePersonAgentMemoryDefaults(entry.memorySearch, person),
     humanDelay: entry.humanDelay,
     heartbeat: entry.heartbeat,
     identity: entry.identity,
+    person,
     groupChat: entry.groupChat,
-    subagents: typeof entry.subagents === "object" && entry.subagents ? entry.subagents : undefined,
+    subagents: mergePersonAgentSubagentDefaults(
+      typeof entry.subagents === "object" && entry.subagents ? entry.subagents : undefined,
+      person,
+    ),
     sandbox: entry.sandbox,
-    tools: entry.tools,
+    tools: mergePersonAgentToolDefaults(entry.tools, person),
   };
 }
 

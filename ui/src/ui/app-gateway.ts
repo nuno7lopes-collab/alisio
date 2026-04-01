@@ -68,6 +68,7 @@ type GatewayHost = {
   eventLogBuffer: EventLogEntry[];
   eventLog: EventLogEntry[];
   tab: Tab;
+  settingsSection?: import("./navigation.ts").SettingsSection;
   presenceEntries: PresenceEntry[];
   presenceError: string | null;
   presenceStatus: StatusSummary | null;
@@ -363,7 +364,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     { ts: Date.now(), event: evt.event, payload: evt.payload },
     ...host.eventLogBuffer,
   ].slice(0, 250);
-  if (host.tab === "debug" || host.tab === "overview") {
+  if (host.tab === "home" || (host.tab === "settings" && host.settingsSection === "debug")) {
     host.eventLog = host.eventLogBuffer;
   }
 
@@ -414,7 +415,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     return;
   }
 
-  if (evt.event === "cron" && host.tab === "cron") {
+  if (evt.event === "cron" && host.tab === "automations") {
     void loadCron(host as unknown as Parameters<typeof loadCron>[0]);
   }
 

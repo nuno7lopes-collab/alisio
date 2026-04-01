@@ -22,6 +22,7 @@ import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "./lanes.js";
 import { resolveSubagentSpawnModelSelection } from "./model-selection.js";
+import { evaluatePersonSubagentGuard } from "./person-agent.js";
 import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
 import {
   mapToolContextToSpawnedRunMetadata,
@@ -433,6 +434,17 @@ export async function spawnSubagentDirect(
     ctx.requesterAgentIdOverride ?? parseAgentSessionKey(requesterInternalKey)?.agentId,
   );
   const targetAgentId = requestedAgentId ? normalizeAgentId(requestedAgentId) : requesterAgentId;
+  const personGuard = evaluatePersonSubagentGuard({
+    person: resolveAgentConfig(cfg, requesterAgentId)?.person,
+    requesterAgentId,
+    targetAgentId,
+  });
+  if (personGuard) {
+    return {
+      status: "forbidden",
+      error: personGuard.reason,
+    };
+  }
   if (targetAgentId !== requesterAgentId) {
     const allowAgents = resolveAgentConfig(cfg, requesterAgentId)?.subagents?.allowAgents ?? [];
     const allowAny = allowAgents.some((value) => value.trim() === "*");

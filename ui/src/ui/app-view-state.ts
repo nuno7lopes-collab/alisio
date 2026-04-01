@@ -6,7 +6,7 @@ import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { Tab } from "./navigation.ts";
+import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
@@ -23,6 +23,7 @@ import type {
   LogLevel,
   ChatModelOverride,
   ModelCatalogEntry,
+  NativeShellState,
   NostrProfile,
   PresenceEntry,
   SessionsUsageResult,
@@ -43,6 +44,7 @@ export type AppViewState = {
   loginShowGatewayToken: boolean;
   loginShowGatewayPassword: boolean;
   tab: Tab;
+  settingsSection: SettingsSection;
   onboarding: boolean;
   basePath: string;
   connected: boolean;
@@ -57,6 +59,9 @@ export type AppViewState = {
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
+  nativeShellLoading: boolean;
+  nativeShellError: string | null;
+  nativeShellState: NativeShellState | null;
   sessionKey: string;
   chatLoading: boolean;
   chatSending: boolean;

@@ -10,6 +10,7 @@ import {
   ToolsLinksSchema,
   ToolsMediaSchema,
 } from "./zod-schema.core.js";
+import { PersonAgentSchema } from "./zod-schema.person.js";
 import { sensitive } from "./zod-schema.sensitive.js";
 
 export const HeartbeatSchema = z
@@ -780,6 +781,7 @@ export const AgentEntrySchema = z
     humanDelay: HumanDelaySchema.optional(),
     heartbeat: HeartbeatSchema,
     identity: IdentitySchema,
+    person: PersonAgentSchema,
     groupChat: GroupChatSchema,
     subagents: z
       .object({

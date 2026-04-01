@@ -182,11 +182,11 @@ struct MenuContent: View {
     private var connectionLabel: String {
         switch self.state.connectionMode {
         case .unconfigured:
-            "OpenClaw Not Configured"
+            "Lume Not Configured"
         case .remote:
-            "Remote OpenClaw Active"
+            "Remote Lume Active"
         case .local:
-            "OpenClaw Active"
+            "Lume Active"
         }
     }
 

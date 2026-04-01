@@ -61,11 +61,75 @@ describe("resolveAgentConfig", () => {
       agentDir: "~/.openclaw/agents/main",
       model: "anthropic/claude-sonnet-4-6",
       identity: undefined,
+      person: undefined,
       groupChat: undefined,
       subagents: undefined,
       sandbox: undefined,
       tools: undefined,
     });
+  });
+
+  it("applies person-agent defaults when the profile is enabled", () => {
+    const cfg: OpenClawConfig = {
+      agents: {
+        defaults: {
+          userTimezone: "Europe/Lisbon",
+        },
+        list: [
+          {
+            id: "main",
+            person: {
+              enabled: true,
+              profile: {
+                priorities: ["Customer follow-up"],
+              },
+            },
+          },
+        ],
+      },
+    };
+
+    const result = resolveAgentConfig(cfg, "main");
+
+    expect(result?.person).toMatchObject({
+      status: "active",
+      scope: "personal_and_work",
+      autonomyMode: "draft-first",
+      starterPack: "browser-first",
+      profile: {
+        timezone: "Europe/Lisbon",
+      },
+      specialists: ["research-specialist", "writing-specialist", "browser-errand-specialist"],
+    });
+    expect(result?.tools).toMatchObject({
+      profile: "minimal",
+      fs: { workspaceOnly: true },
+    });
+    expect(result?.tools?.alsoAllow).toEqual(
+      expect.arrayContaining([
+        "browser",
+        "read",
+        "sessions_spawn",
+        "subagents",
+        "web_fetch",
+        "web_search",
+      ]),
+    );
+    expect(result?.tools?.deny).toEqual(
+      expect.arrayContaining(["exec", "message", "sessions_send", "write"]),
+    );
+    expect(result?.memorySearch).toMatchObject({
+      enabled: true,
+      experimental: { sessionMemory: true },
+    });
+    expect(result?.memorySearch?.sources).toEqual(expect.arrayContaining(["memory", "sessions"]));
+    expect(result?.subagents?.allowAgents).toEqual(
+      expect.arrayContaining([
+        "research-specialist",
+        "writing-specialist",
+        "browser-errand-specialist",
+      ]),
+    );
   });
 
   it("resolves explicit and effective model primary separately", () => {

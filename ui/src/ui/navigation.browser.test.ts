@@ -48,8 +48,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/ui");
-    expect(app.tab).toBe("cron");
-    expect(window.location.pathname).toBe("/ui/cron");
+    expect(app.tab).toBe("automations");
+    expect(window.location.pathname).toBe("/ui/automations");
   });
 
   it("infers nested base paths", async () => {
@@ -57,8 +57,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/apps/openclaw");
-    expect(app.tab).toBe("cron");
-    expect(window.location.pathname).toBe("/apps/openclaw/cron");
+    expect(app.tab).toBe("automations");
+    expect(window.location.pathname).toBe("/apps/openclaw/automations");
   });
 
   it("honors explicit base path overrides", async () => {
@@ -75,13 +75,13 @@ describe("control UI routing", () => {
     const app = mountApp("/chat");
     await app.updateComplete;
 
-    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/channels"]');
+    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/organization"]');
     expect(link).not.toBeNull();
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
 
     await app.updateComplete;
-    expect(app.tab).toBe("channels");
-    expect(window.location.pathname).toBe("/channels");
+    expect(app.tab).toBe("organization");
+    expect(window.location.pathname).toBe("/organization");
   });
 
   it("renders the refreshed top navigation shell", async () => {
@@ -285,14 +285,14 @@ describe("control UI routing", () => {
     toggle?.click();
     await app.updateComplete;
 
-    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/channels"]');
+    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/organization"]');
     const shell = app.querySelector<HTMLElement>(".shell");
     expect(link).not.toBeNull();
     expect(shell?.classList.contains("shell--nav-drawer-open")).toBe(true);
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
 
     await app.updateComplete;
-    expect(app.tab).toBe("channels");
+    expect(app.tab).toBe("organization");
     expect(shell?.classList.contains("shell--nav-drawer-open")).toBe(false);
   });
 
@@ -343,7 +343,7 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.pathname).toBe("/ui/home");
     expect(window.location.search).toBe("");
   });
 
@@ -352,7 +352,7 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.password).toBe("");
-    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.pathname).toBe("/ui/home");
     expect(window.location.search).toBe("");
   });
 
@@ -371,7 +371,7 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.pathname).toBe("/ui/home");
     expect(window.location.hash).toBe("");
   });
 
@@ -383,20 +383,19 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/overview");
+    expect(window.location.pathname).toBe("/ui/home");
     expect(window.location.hash).toBe("");
   });
 
   it("clears the current token when the gateway URL changes", async () => {
-    const app = mountApp("/ui/overview#token=abc123");
+    const app = mountApp("/ui/settings#token=abc123");
     await app.updateComplete;
 
-    const gatewayUrlInput = app.querySelector<HTMLInputElement>(
-      'input[placeholder="ws://100.x.y.z:18789"]',
-    );
-    expect(gatewayUrlInput).not.toBeNull();
-    gatewayUrlInput!.value = "wss://other-gateway.example/openclaw";
-    gatewayUrlInput!.dispatchEvent(new Event("input", { bubbles: true }));
+    app.applySettings({
+      ...app.settings,
+      gatewayUrl: "wss://other-gateway.example/openclaw",
+      token: app.settings.token,
+    });
     await app.updateComplete;
 
     expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
@@ -405,7 +404,7 @@ describe("control UI routing", () => {
 
   it("keeps a hash token pending until the gateway URL change is confirmed", async () => {
     const app = mountApp(
-      "/ui/overview?gatewayUrl=wss://other-gateway.example/openclaw#token=abc123",
+      "/ui/settings?gatewayUrl=wss://other-gateway.example/openclaw#token=abc123",
     );
     await app.updateComplete;
 
@@ -419,7 +418,7 @@ describe("control UI routing", () => {
 
   it("keeps a query token pending until the gateway URL change is confirmed", async () => {
     const app = mountApp(
-      "/ui/overview?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
+      "/ui/settings?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
     );
     await app.updateComplete;
 
@@ -436,7 +435,7 @@ describe("control UI routing", () => {
     await first.updateComplete;
     first.remove();
 
-    const refreshed = mountApp("/ui/overview");
+    const refreshed = mountApp("/ui/home");
     await refreshed.updateComplete;
 
     expect(refreshed.settings.token).toBe("abc123");

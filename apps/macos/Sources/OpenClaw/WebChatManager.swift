@@ -26,24 +26,19 @@ enum WebChatPresentation {
 final class WebChatManager {
     static let shared = WebChatManager()
 
-    private var windowController: WebChatSwiftUIWindowController?
-    private var windowSessionKey: String?
-    private var panelController: WebChatSwiftUIWindowController?
+    private var panelController: LumeWorkspaceWindowController?
     private var panelSessionKey: String?
     private var cachedPreferredSessionKey: String?
 
     var onPanelVisibilityChanged: ((Bool) -> Void)?
 
     var activeSessionKey: String? {
-        self.panelSessionKey ?? LumeWindowManager.shared.activeSessionKey ?? self.windowSessionKey
+        self.panelSessionKey ?? LumeWindowManager.shared.activeSessionKey
     }
 
     func show(sessionKey: String) {
         self.cachedPreferredSessionKey = sessionKey
         self.closePanel()
-        self.windowController?.close()
-        self.windowController = nil
-        self.windowSessionKey = sessionKey
         LumeWindowManager.shared.showChat(sessionKey: sessionKey)
     }
 
@@ -57,15 +52,13 @@ final class WebChatManager {
                 if controller.isVisible {
                     controller.close()
                 } else {
-                    controller.presentAnchored(anchorProvider: anchorProvider)
+                    controller.show(shellState: self.panelShellState(sessionKey: sessionKey))
                 }
                 return
             }
         }
 
-        let controller = WebChatSwiftUIWindowController(
-            sessionKey: sessionKey,
-            presentation: .panel(anchorProvider: anchorProvider))
+        let controller = LumeWorkspaceWindowController(presentation: .panel(anchorProvider: anchorProvider))
         controller.onClosed = { [weak self] in
             self?.panelHidden()
         }
@@ -74,7 +67,7 @@ final class WebChatManager {
         }
         self.panelController = controller
         self.panelSessionKey = sessionKey
-        controller.presentAnchored(anchorProvider: anchorProvider)
+        controller.show(shellState: self.panelShellState(sessionKey: sessionKey))
     }
 
     func closePanel() {
@@ -89,9 +82,6 @@ final class WebChatManager {
     }
 
     func resetTunnels() {
-        self.windowController?.close()
-        self.windowController = nil
-        self.windowSessionKey = nil
         self.panelController?.close()
         self.panelController = nil
         self.panelSessionKey = nil
@@ -105,5 +95,12 @@ final class WebChatManager {
     private func panelHidden() {
         self.onPanelVisibilityChanged?(false)
         // Keep panel controller cached so reopening doesn't re-bootstrap.
+    }
+
+    private func panelShellState(sessionKey: String) -> LumeShellState {
+        let shellState = LumeShellState()
+        shellState.completeOnboarding(preferredSessionKey: sessionKey)
+        shellState.showChat(sessionKey: sessionKey)
+        return shellState
     }
 }

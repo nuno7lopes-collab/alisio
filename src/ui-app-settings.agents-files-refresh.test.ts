@@ -98,6 +98,7 @@ function createHost(agentsPanel: AgentsPanel): Parameters<typeof refreshActiveTa
     themeResolved: "dark",
     applySessionKey: "main",
     sessionKey: "main",
+    settingsSection: "workspace",
     chatHasAutoScrolled: false,
     logsAtBottom: false,
     eventLog: [],

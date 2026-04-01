@@ -1,10 +1,11 @@
 import AppKit
+import OpenClawIPC
 import SwiftUI
 
 extension OnboardingView {
     var body: some View {
         VStack(spacing: 0) {
-            GlowingOpenClawIcon(size: 130, glowIntensity: 0.28)
+            LumeOnboardingIcon()
                 .offset(y: 10)
                 .frame(height: 145)
 
@@ -32,21 +33,20 @@ extension OnboardingView {
         .onAppear {
             self.currentPage = 0
             self.updateMonitoring(for: 0)
+            self.syncShellOnboardingState()
         }
         .onChange(of: self.currentPage) { _, newValue in
             self.updateMonitoring(for: self.activePageIndex(for: newValue))
+            self.syncShellOnboardingState()
         }
         .onChange(of: self.state.connectionMode) { _, _ in
             let oldActive = self.activePageIndex
             self.reconcilePageForModeChange(previousActivePageIndex: oldActive)
             self.updateDiscoveryMonitoring(for: self.activePageIndex)
-        }
-        .onChange(of: self.needsBootstrap) { _, _ in
-            if self.currentPage >= self.pageOrder.count {
-                self.currentPage = max(0, self.pageOrder.count - 1)
-            }
+            self.syncShellOnboardingState()
         }
         .onChange(of: self.onboardingWizard.isComplete) { _, newValue in
+            self.syncShellOnboardingState()
             guard newValue, self.activePageIndex == self.wizardPageIndex else { return }
             self.handleNext()
         }
@@ -62,6 +62,7 @@ extension OnboardingView {
             await self.ensureDefaultWorkspace()
             self.refreshBootstrapStatus()
             self.preferredGatewayID = GatewayDiscoveryPreferences.preferredStableID()
+            self.syncShellOnboardingState()
         }
     }
 
@@ -232,5 +233,35 @@ extension OnboardingView {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
+    }
+
+    private var lumeOnboardingStep: LumeOnboardingState.Step {
+        switch self.activePageIndex {
+        case 1:
+            .gateway
+        case 3:
+            .setup
+        case 5:
+            .permissions
+        case 9:
+            .finish
+        default:
+            .welcome
+        }
+    }
+
+    func syncShellOnboardingState() {
+        guard let shellOnboarding = self.shellOnboarding else { return }
+        shellOnboarding.currentStep = self.lumeOnboardingStep
+        shellOnboarding.selectedGateway = switch self.state.connectionMode {
+        case .local: .local
+        case .remote: .remote
+        case .unconfigured: .unconfigured
+        }
+        shellOnboarding.permissionStates = Dictionary(
+            uniqueKeysWithValues: Capability.allCases.map { capability in
+                (String(describing: capability), self.permissionMonitor.status[capability] ?? false)
+            })
+        shellOnboarding.isWizardComplete = self.state.connectionMode != .local || self.onboardingWizard.isComplete
     }
 }

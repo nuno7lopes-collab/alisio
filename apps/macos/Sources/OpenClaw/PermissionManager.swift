@@ -9,6 +9,17 @@ import OpenClawIPC
 import Speech
 import UserNotifications
 
+enum NotificationPermissionRuntimeSupport {
+    static var isAvailableInCurrentProcess: Bool {
+        Bundle.main.bundleURL.pathExtension == "app" && Bundle.main.bundleIdentifier != nil
+    }
+
+    static func currentCenter() -> UNUserNotificationCenter? {
+        guard self.isAvailableInCurrentProcess else { return nil }
+        return UNUserNotificationCenter.current()
+    }
+}
+
 enum PermissionManager {
     static func isLocationAuthorized(status: CLAuthorizationStatus, requireAlways: Bool) -> Bool {
         if requireAlways { return status == .authorizedAlways }
@@ -52,7 +63,9 @@ enum PermissionManager {
     }
 
     private static func ensureNotifications(interactive: Bool) async -> Bool {
-        let center = UNUserNotificationCenter.current()
+        guard let center = NotificationPermissionRuntimeSupport.currentCenter() else {
+            return false
+        }
         let settings = await center.notificationSettings()
 
         switch settings.authorizationStatus {
@@ -190,7 +203,10 @@ enum PermissionManager {
         for cap in caps {
             switch cap {
             case .notifications:
-                let center = UNUserNotificationCenter.current()
+                guard let center = NotificationPermissionRuntimeSupport.currentCenter() else {
+                    results[cap] = false
+                    continue
+                }
                 let settings = await center.notificationSettings()
                 results[cap] = settings.authorizationStatus == .authorized
                     || settings.authorizationStatus == .provisional

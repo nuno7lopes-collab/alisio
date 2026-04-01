@@ -179,4 +179,100 @@ describe("renderAgents", () => {
 
     expect(skillsTab?.textContent?.trim()).toContain("1");
   });
+
+  it("renders the person agent workspace summary when available", async () => {
+    const container = document.createElement("div");
+    render(
+      renderAgents(
+        createProps({
+          agentsList: {
+            defaultId: "alpha",
+            mainKey: "main",
+            scope: "workspace",
+            agents: [
+              {
+                id: "alpha",
+                name: "Alpha",
+                person: {
+                  status: "active",
+                  scope: "personal_and_work",
+                  autonomyMode: "draft-first",
+                  starterPack: "browser-first",
+                  profile: {
+                    name: "Alpha",
+                    timezone: "Europe/Lisbon",
+                    writingPreferences: ["Keep drafts concise"],
+                    priorities: ["Inbox triage"],
+                    routines: ["Morning plan"],
+                    frequentContacts: [],
+                    frequentContexts: ["Work coordination"],
+                  },
+                  specialists: [
+                    "research-specialist",
+                    "writing-specialist",
+                    "browser-errand-specialist",
+                  ],
+                  memoryScopes: [
+                    "profile_memory",
+                    "working_memory",
+                    "relationship_memory",
+                    "artifact_memory",
+                  ],
+                  taskIntents: [
+                    "triage",
+                    "research",
+                    "draft",
+                    "follow_up",
+                    "organize",
+                    "execute_browser",
+                  ],
+                  artifactTypes: [
+                    "draft_message",
+                    "meeting_brief",
+                    "follow_up_plan",
+                    "task_list",
+                    "decision_note",
+                  ],
+                  approvalPolicy: {
+                    id: "person-draft-first-v1",
+                    allowWithoutApproval: [
+                      "triage",
+                      "research",
+                      "draft",
+                      "follow_up",
+                      "organize",
+                      "execute_browser",
+                    ],
+                    requireApprovalFor: [
+                      "external_send",
+                      "external_write",
+                      "destructive_change",
+                      "third_party_share",
+                      "automation_mutation",
+                    ],
+                  },
+                  capabilityLeases: [
+                    { capability: "browser", access: "execute", source: "starter_pack" },
+                  ],
+                  connectedAccounts: {
+                    status: "missing",
+                    totalProfiles: 0,
+                    providers: [],
+                  },
+                },
+              } as never,
+            ],
+          },
+          selectedAgentId: "alpha",
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    expect(container.textContent).toContain("Person Agent Workspace");
+    expect(container.textContent).toContain("Inbox triage");
+    expect(container.textContent).toContain("No linked accounts");
+    expect(container.textContent).toContain("research-specialist");
+  });
 });

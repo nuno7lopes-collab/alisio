@@ -30,11 +30,7 @@ extension OnboardingView {
     }
 
     func refreshBootstrapStatus() {
-        let url = AgentWorkspace.resolveWorkspaceURL(from: self.workspacePath)
-        self.needsBootstrap = AgentWorkspace.needsBootstrap(workspaceURL: url)
-        if self.needsBootstrap {
-            self.didAutoKickoff = false
-        }
+        _ = AgentWorkspace.resolveWorkspaceURL(from: self.workspacePath)
     }
 
     var workspaceBootstrapCommand: String {

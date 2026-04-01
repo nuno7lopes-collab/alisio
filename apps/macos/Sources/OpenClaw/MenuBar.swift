@@ -317,7 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shouldShow = seenVersion < currentOnboardingVersion || !AppStateStore.shared.onboardingSeen
         guard shouldShow else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            OnboardingController.shared.show()
+            LumeWindowManager.shared.show(route: .onboarding)
         }
     }
 

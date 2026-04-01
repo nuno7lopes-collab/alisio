@@ -1,3 +1,5 @@
+import type { PersonWorkspaceSummary } from "../config/types.person.js";
+
 export type GatewayAgentIdentity = {
   name?: string;
   theme?: string;
@@ -15,6 +17,7 @@ export type GatewayAgentRow = {
   id: string;
   name?: string;
   identity?: GatewayAgentIdentity;
+  person?: PersonWorkspaceSummary;
   workspace?: string;
   model?: GatewayAgentModel;
 };

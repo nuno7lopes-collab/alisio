@@ -25,6 +25,7 @@ type LifecycleHost = {
   connectGeneration: number;
   connected?: boolean;
   tab: Tab;
+  settingsSection?: import("./navigation.ts").SettingsSection;
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
@@ -58,10 +59,10 @@ export function handleConnected(host: LifecycleHost) {
     connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
   });
   startNodesPolling(host as unknown as Parameters<typeof startNodesPolling>[0]);
-  if (host.tab === "logs") {
+  if (host.tab === "settings" && host.settingsSection === "logs") {
     startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
   }
-  if (host.tab === "debug") {
+  if (host.tab === "settings" && host.settingsSection === "debug") {
     startDebugPolling(host as unknown as Parameters<typeof startDebugPolling>[0]);
   }
 }
@@ -111,7 +112,8 @@ export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unk
     );
   }
   if (
-    host.tab === "logs" &&
+    host.tab === "settings" &&
+    host.settingsSection === "logs" &&
     (changed.has("logsEntries") || changed.has("logsAutoFollow") || changed.has("tab"))
   ) {
     if (host.logsAutoFollow && host.logsAtBottom) {

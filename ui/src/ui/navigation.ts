@@ -2,69 +2,81 @@ import { t } from "../i18n/index.ts";
 import type { IconName } from "./icons.js";
 
 export const TAB_GROUPS = [
-  { label: "chat", tabs: ["chat"] },
   {
     label: "control",
-    tabs: ["overview", "channels", "instances", "sessions", "usage", "cron"],
+    tabs: ["home", "chat", "authentications", "organization", "sessions"],
   },
-  { label: "agent", tabs: ["agents", "skills", "nodes"] },
+  { label: "agent", tabs: ["automations", "agents"] },
   {
     label: "settings",
-    tabs: [
-      "config",
-      "communications",
-      "appearance",
-      "automation",
-      "infrastructure",
-      "aiAgents",
-      "debug",
-      "logs",
-    ],
+    tabs: ["settings"],
   },
 ] as const;
 
+export const SETTINGS_SECTIONS = [
+  "workspace",
+  "communications",
+  "appearance",
+  "automation",
+  "infrastructure",
+  "aiAgents",
+  "mac",
+  "debug",
+  "logs",
+] as const;
+
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
 export type Tab =
   | "agents"
-  | "overview"
-  | "channels"
-  | "instances"
+  | "home"
+  | "authentications"
+  | "organization"
   | "sessions"
-  | "usage"
-  | "cron"
-  | "skills"
-  | "nodes"
+  | "automations"
   | "chat"
-  | "config"
-  | "communications"
-  | "appearance"
-  | "automation"
-  | "infrastructure"
-  | "aiAgents"
-  | "debug"
-  | "logs";
+  | "settings";
 
 const TAB_PATHS: Record<Tab, string> = {
   agents: "/agents",
-  overview: "/overview",
-  channels: "/channels",
-  instances: "/instances",
+  home: "/home",
+  authentications: "/authentications",
+  organization: "/organization",
   sessions: "/sessions",
-  usage: "/usage",
-  cron: "/cron",
-  skills: "/skills",
-  nodes: "/nodes",
+  automations: "/automations",
   chat: "/chat",
-  config: "/config",
-  communications: "/communications",
-  appearance: "/appearance",
-  automation: "/automation",
-  infrastructure: "/infrastructure",
-  aiAgents: "/ai-agents",
-  debug: "/debug",
-  logs: "/logs",
+  settings: "/settings",
 };
 
 const PATH_TO_TAB = new Map(Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab as Tab]));
+const LEGACY_PATH_ALIASES = new Map<string, Tab>([
+  ["/overview", "home"],
+  ["/cron", "automations"],
+  ["/channels", "organization"],
+  ["/instances", "organization"],
+  ["/usage", "organization"],
+  ["/skills", "agents"],
+  ["/nodes", "settings"],
+  ["/config", "settings"],
+  ["/communications", "settings"],
+  ["/appearance", "settings"],
+  ["/automation", "settings"],
+  ["/infrastructure", "settings"],
+  ["/ai-agents", "settings"],
+  ["/debug", "settings"],
+  ["/logs", "settings"],
+]);
+const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
+  ["/config", "workspace"],
+  ["/communications", "communications"],
+  ["/appearance", "appearance"],
+  ["/automation", "automation"],
+  ["/infrastructure", "infrastructure"],
+  ["/ai-agents", "aiAgents"],
+  ["/debug", "debug"],
+  ["/logs", "logs"],
+  ["/nodes", "mac"],
+]);
 
 export function normalizeBasePath(basePath: string): string {
   if (!basePath) {
@@ -118,9 +130,37 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
     normalized = "/";
   }
   if (normalized === "/") {
-    return "chat";
+    return "home";
   }
-  return PATH_TO_TAB.get(normalized) ?? null;
+  return PATH_TO_TAB.get(normalized) ?? LEGACY_PATH_ALIASES.get(normalized) ?? null;
+}
+
+export function normalizeSettingsSection(value: string | null | undefined): SettingsSection {
+  const normalized = (value ?? "").trim();
+  if (SETTINGS_SECTIONS.includes(normalized as SettingsSection)) {
+    return normalized as SettingsSection;
+  }
+  return "workspace";
+}
+
+export function settingsSectionFromPath(pathname: string, basePath = ""): SettingsSection | null {
+  const base = normalizeBasePath(basePath);
+  let path = pathname || "/";
+  if (base) {
+    if (path === base) {
+      path = "/";
+    } else if (path.startsWith(`${base}/`)) {
+      path = path.slice(base.length);
+    }
+  }
+  let normalized = normalizePath(path).toLowerCase();
+  if (normalized.endsWith("/index.html")) {
+    normalized = normalized.slice(0, -"/index.html".length) || "/";
+  }
+  if (normalized === "/settings") {
+    return "workspace";
+  }
+  return LEGACY_SETTINGS_PATHS.get(normalized) ?? null;
 }
 
 export function inferBasePathFromPathname(pathname: string): string {
@@ -137,7 +177,7 @@ export function inferBasePathFromPathname(pathname: string): string {
   }
   for (let i = 0; i < segments.length; i++) {
     const candidate = `/${segments.slice(i).join("/")}`.toLowerCase();
-    if (PATH_TO_TAB.has(candidate)) {
+    if (PATH_TO_TAB.has(candidate) || LEGACY_PATH_ALIASES.has(candidate)) {
       const prefix = segments.slice(0, i);
       return prefix.length ? `/${prefix.join("/")}` : "";
     }
@@ -149,40 +189,20 @@ export function iconForTab(tab: Tab): IconName {
   switch (tab) {
     case "agents":
       return "folder";
+    case "home":
+      return "spark";
+    case "authentications":
+      return "link";
+    case "organization":
+      return "barChart";
+    case "automations":
+      return "loader";
     case "chat":
       return "messageSquare";
-    case "overview":
-      return "barChart";
-    case "channels":
-      return "link";
-    case "instances":
-      return "radio";
     case "sessions":
       return "fileText";
-    case "usage":
-      return "barChart";
-    case "cron":
-      return "loader";
-    case "skills":
-      return "zap";
-    case "nodes":
-      return "monitor";
-    case "config":
+    case "settings":
       return "settings";
-    case "communications":
-      return "send";
-    case "appearance":
-      return "spark";
-    case "automation":
-      return "terminal";
-    case "infrastructure":
-      return "globe";
-    case "aiAgents":
-      return "brain";
-    case "debug":
-      return "bug";
-    case "logs":
-      return "scrollText";
     default:
       return "folder";
   }

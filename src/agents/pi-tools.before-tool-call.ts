@@ -1,3 +1,4 @@
+import { loadConfig } from "../config/config.js";
 import type { ToolLoopDetectionConfig } from "../config/types.tools.js";
 import type { SessionState } from "../logging/diagnostic-session-state.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -6,7 +7,9 @@ import { copyPluginToolMeta } from "../plugins/tools.js";
 import { PluginApprovalResolutions, type PluginApprovalResolution } from "../plugins/types.js";
 import { createLazyRuntimeSurface } from "../shared/lazy-runtime.js";
 import { isPlainObject } from "../utils.js";
+import { resolveAgentConfig } from "./agent-scope.js";
 import { copyChannelAgentToolMeta } from "./channel-tools.js";
+import { evaluatePersonToolCallGuard } from "./person-agent.js";
 import { normalizeToolName } from "./tool-policy.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { callGatewayTool } from "./tools/gateway.js";
@@ -125,6 +128,20 @@ export async function runBeforeToolCallHook(args: {
 }): Promise<HookOutcome> {
   const toolName = normalizeToolName(args.toolName || "tool");
   const params = args.params;
+  if (args.ctx?.agentId) {
+    const cfg = loadConfig();
+    const personGuard = evaluatePersonToolCallGuard({
+      person: resolveAgentConfig(cfg, args.ctx.agentId)?.person,
+      toolName,
+      toolParams: params,
+    });
+    if (personGuard) {
+      return {
+        blocked: true,
+        reason: personGuard.reason,
+      };
+    }
+  }
 
   if (args.ctx?.sessionKey) {
     const { getDiagnosticSessionState, logToolLoopAction, detectToolCallLoop, recordToolCall } =

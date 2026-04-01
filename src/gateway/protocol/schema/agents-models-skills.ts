@@ -28,6 +28,123 @@ export const AgentSummarySchema = Type.Object(
         { additionalProperties: false },
       ),
     ),
+    person: Type.Optional(
+      Type.Object(
+        {
+          status: Type.Union([Type.Literal("active"), Type.Literal("suggested")]),
+          scope: Type.Literal("personal_and_work"),
+          autonomyMode: Type.Literal("draft-first"),
+          starterPack: Type.Literal("browser-first"),
+          profile: Type.Object(
+            {
+              name: Type.Optional(NonEmptyString),
+              timezone: NonEmptyString,
+              tone: Type.Optional(NonEmptyString),
+              writingPreferences: Type.Array(NonEmptyString),
+              priorities: Type.Array(NonEmptyString),
+              routines: Type.Array(NonEmptyString),
+              frequentContacts: Type.Array(NonEmptyString),
+              frequentContexts: Type.Array(NonEmptyString),
+            },
+            { additionalProperties: false },
+          ),
+          specialists: Type.Array(NonEmptyString),
+          memoryScopes: Type.Array(
+            Type.Union([
+              Type.Literal("profile_memory"),
+              Type.Literal("working_memory"),
+              Type.Literal("relationship_memory"),
+              Type.Literal("artifact_memory"),
+            ]),
+          ),
+          taskIntents: Type.Array(
+            Type.Union([
+              Type.Literal("triage"),
+              Type.Literal("research"),
+              Type.Literal("draft"),
+              Type.Literal("follow_up"),
+              Type.Literal("organize"),
+              Type.Literal("execute_browser"),
+            ]),
+          ),
+          artifactTypes: Type.Array(
+            Type.Union([
+              Type.Literal("draft_message"),
+              Type.Literal("meeting_brief"),
+              Type.Literal("follow_up_plan"),
+              Type.Literal("task_list"),
+              Type.Literal("decision_note"),
+            ]),
+          ),
+          approvalPolicy: Type.Object(
+            {
+              id: Type.Literal("person-draft-first-v1"),
+              allowWithoutApproval: Type.Array(
+                Type.Union([
+                  Type.Literal("triage"),
+                  Type.Literal("research"),
+                  Type.Literal("draft"),
+                  Type.Literal("follow_up"),
+                  Type.Literal("organize"),
+                  Type.Literal("execute_browser"),
+                ]),
+              ),
+              requireApprovalFor: Type.Array(
+                Type.Union([
+                  Type.Literal("external_send"),
+                  Type.Literal("external_write"),
+                  Type.Literal("destructive_change"),
+                  Type.Literal("third_party_share"),
+                  Type.Literal("automation_mutation"),
+                ]),
+              ),
+            },
+            { additionalProperties: false },
+          ),
+          capabilityLeases: Type.Array(
+            Type.Object(
+              {
+                capability: Type.Union([
+                  Type.Literal("browser"),
+                  Type.Literal("files"),
+                  Type.Literal("memory"),
+                  Type.Literal("search"),
+                  Type.Literal("sessions"),
+                  Type.Literal("artifacts"),
+                ]),
+                access: Type.Union([
+                  Type.Literal("read"),
+                  Type.Literal("write"),
+                  Type.Literal("execute"),
+                ]),
+                source: Type.Union([
+                  Type.Literal("starter_pack"),
+                  Type.Literal("delegated_specialist"),
+                ]),
+                scopedTo: Type.Optional(NonEmptyString),
+                expiresAt: Type.Optional(Type.Number()),
+              },
+              { additionalProperties: false },
+            ),
+          ),
+          connectedAccounts: Type.Object(
+            {
+              status: Type.Union([
+                Type.Literal("ok"),
+                Type.Literal("expiring"),
+                Type.Literal("expired"),
+                Type.Literal("missing"),
+                Type.Literal("static"),
+              ]),
+              totalProfiles: Type.Integer({ minimum: 0 }),
+              providers: Type.Array(NonEmptyString),
+            },
+            { additionalProperties: false },
+          ),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     workspace: Type.Optional(NonEmptyString),
     model: Type.Optional(
       Type.Object(

@@ -15,7 +15,10 @@ struct NotificationManager {
     }()
 
     func send(title: String, body: String, sound: String?, priority: NotificationPriority? = nil) async -> Bool {
-        let center = UNUserNotificationCenter.current()
+        guard let center = NotificationPermissionRuntimeSupport.currentCenter() else {
+            self.logger.debug("notification send skipped outside app bundle")
+            return false
+        }
         let status = await center.notificationSettings()
         if status.authorizationStatus == .notDetermined {
             let granted = try? await center.requestAuthorization(options: [.alert, .sound, .badge])

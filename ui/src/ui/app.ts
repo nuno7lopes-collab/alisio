@@ -63,9 +63,10 @@ import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./contro
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
+import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { Tab } from "./navigation.ts";
+import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { VALID_THEME_NAMES, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
 import type {
@@ -82,6 +83,7 @@ import type {
   LogEntry,
   LogLevel,
   ModelCatalogEntry,
+  NativeShellState,
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
@@ -131,7 +133,8 @@ export class OpenClawApp extends LitElement {
   @state() password = "";
   @state() loginShowGatewayToken = false;
   @state() loginShowGatewayPassword = false;
-  @state() tab: Tab = "chat";
+  @state() tab: Tab = "home";
+  @state() settingsSection: SettingsSection = "workspace";
   @state() onboarding = resolveOnboardingMode();
   @state() connected = false;
   @state() theme: ThemeName = this.settings.theme ?? "claw";
@@ -150,6 +153,9 @@ export class OpenClawApp extends LitElement {
   @state() assistantAvatar = bootAssistantIdentity.avatar;
   @state() assistantAgentId = bootAssistantIdentity.agentId ?? null;
   @state() serverVersion: string | null = null;
+  @state() nativeShellLoading = false;
+  @state() nativeShellError: string | null = null;
+  @state() nativeShellState: NativeShellState | null = null;
 
   @state() sessionKey = this.settings.sessionKey;
   @state() chatLoading = false;

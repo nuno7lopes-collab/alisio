@@ -24,7 +24,6 @@ extension OnboardingView {
             state: state,
             permissionMonitor: PermissionMonitor.shared,
             discoveryModel: discovery)
-        view.needsBootstrap = true
         view.localGatewayProbe = LocalGatewayProbe(
             port: GatewayEnvironment.gatewayPort(),
             pid: 123,
@@ -44,7 +43,6 @@ extension OnboardingView {
         _ = view.permissionsPage()
         _ = view.cliPage()
         _ = view.workspacePage()
-        _ = view.onboardingChatPage()
         _ = view.readyPage()
 
         view.selectLocalGateway()

@@ -17,13 +17,13 @@ struct OnboardingViewSmokeTests {
     }
 
     @Test func `page order omits workspace and identity steps`() {
-        let order = OnboardingView.pageOrder(for: .local, showOnboardingChat: false)
+        let order = OnboardingView.pageOrder(for: .local)
         #expect(!order.contains(7))
         #expect(order.contains(3))
     }
 
     @Test func `page order omits onboarding chat when identity known`() {
-        let order = OnboardingView.pageOrder(for: .local, showOnboardingChat: false)
+        let order = OnboardingView.pageOrder(for: .local)
         #expect(!order.contains(8))
     }
 

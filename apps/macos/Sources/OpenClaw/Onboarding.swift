@@ -1,12 +1,11 @@
 import AppKit
 import Observation
-import OpenClawChatUI
 import OpenClawDiscovery
 import OpenClawIPC
 import SwiftUI
 
 enum UIStrings {
-    static let welcomeTitle = "Welcome to OpenClaw"
+    static let welcomeTitle = "Welcome to Lume"
 }
 
 enum RemoteOnboardingProbeState: Equatable {
@@ -19,44 +18,24 @@ enum RemoteOnboardingProbeState: Equatable {
 @MainActor
 final class OnboardingController {
     static let shared = OnboardingController()
-    private var window: NSWindow?
 
     func show() {
         if ProcessInfo.processInfo.isNixMode {
             // Nix mode is fully declarative; onboarding would suggest interactive setup that doesn't apply.
-            UserDefaults.standard.set(true, forKey: "openclaw.onboardingSeen")
+            UserDefaults.standard.set(true, forKey: onboardingSeenKey)
             UserDefaults.standard.set(currentOnboardingVersion, forKey: onboardingVersionKey)
             AppStateStore.shared.onboardingSeen = true
             return
         }
-        if let window {
-            DockIconManager.shared.temporarilyShowDock()
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return
-        }
-        let hosting = NSHostingController(rootView: OnboardingView())
-        let window = NSWindow(contentViewController: hosting)
-        window.title = UIStrings.welcomeTitle
-        window.setContentSize(NSSize(width: OnboardingView.windowWidth, height: OnboardingView.windowHeight))
-        window.styleMask = [.titled, .closable, .fullSizeContentView]
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
-        window.center()
         DockIconManager.shared.temporarilyShowDock()
-        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        self.window = window
+        LumeWindowManager.shared.show(route: .onboarding)
     }
 
-    func close() {
-        self.window?.close()
-        self.window = nil
-    }
+    func close() {}
 
     func restart() {
-        self.close()
+        LumeWindowManager.shared.shellState.restartOnboarding()
         self.show()
     }
 }
@@ -74,21 +53,19 @@ struct OnboardingView: View {
     @State var workspacePath: String = ""
     @State var workspaceStatus: String?
     @State var workspaceApplying = false
-    @State var needsBootstrap = false
-    @State var didAutoKickoff = false
     @State var showAdvancedConnection = false
     @State var preferredGatewayID: String?
     @State var remoteProbeState: RemoteOnboardingProbeState = .idle
     @State var remoteAuthIssue: RemoteGatewayAuthIssue?
     @State var suppressRemoteProbeReset = false
     @State var gatewayDiscovery: GatewayDiscoveryModel
-    @State var onboardingChatModel: OpenClawChatViewModel
     @State var onboardingSkillsModel = SkillsSettingsModel()
     @State var onboardingWizard = OnboardingWizardModel()
     @State var didLoadOnboardingSkills = false
     @State var localGatewayProbe: LocalGatewayProbe?
     @Bindable var state: AppState
     var permissionMonitor: PermissionMonitor
+    var shellOnboarding: LumeOnboardingState?
 
     static let windowWidth: CGFloat = 630
     static let windowHeight: CGFloat = 752 // ~+10% to fit full onboarding content
@@ -97,31 +74,21 @@ struct OnboardingView: View {
     let contentHeight: CGFloat = 460
     let connectionPageIndex = 1
     let wizardPageIndex = 3
-    let onboardingChatPageIndex = 8
 
     let permissionsPageIndex = 5
-    static func pageOrder(
-        for mode: AppState.ConnectionMode,
-        showOnboardingChat: Bool) -> [Int]
-    {
+    static func pageOrder(for mode: AppState.ConnectionMode) -> [Int] {
         switch mode {
         case .remote:
-            // Remote setup doesn't need local gateway/CLI/workspace setup pages,
-            // and WhatsApp/Telegram setup is optional.
-            showOnboardingChat ? [0, 1, 5, 8, 9] : [0, 1, 5, 9]
+            [0, 1, 5, 9]
         case .unconfigured:
-            showOnboardingChat ? [0, 1, 8, 9] : [0, 1, 9]
+            [0, 1, 9]
         case .local:
-            showOnboardingChat ? [0, 1, 3, 5, 8, 9] : [0, 1, 3, 5, 9]
+            [0, 1, 3, 5, 9]
         }
     }
 
-    var showOnboardingChat: Bool {
-        self.state.connectionMode == .local && self.needsBootstrap
-    }
-
     var pageOrder: [Int] {
-        Self.pageOrder(for: self.state.connectionMode, showOnboardingChat: self.showOnboardingChat)
+        Self.pageOrder(for: self.state.connectionMode)
     }
 
     var pageCount: Int {
@@ -165,14 +132,12 @@ struct OnboardingView: View {
         permissionMonitor: PermissionMonitor = .shared,
         discoveryModel: GatewayDiscoveryModel = GatewayDiscoveryModel(
             localDisplayName: InstanceIdentity.displayName,
-            filterLocalGateways: false))
+            filterLocalGateways: false),
+        shellOnboarding: LumeOnboardingState? = nil)
     {
         self.state = state
         self.permissionMonitor = permissionMonitor
         self._gatewayDiscovery = State(initialValue: discoveryModel)
-        self._onboardingChatModel = State(
-            initialValue: OpenClawChatViewModel(
-                sessionKey: "onboarding",
-                transport: MacGatewayChatTransport()))
+        self.shellOnboarding = shellOnboarding
     }
 }

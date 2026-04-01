@@ -568,9 +568,53 @@ describe("gateway session utils", () => {
     expect(result.agents[0]).toMatchObject({
       id: "main",
       workspace: "/tmp/default-workspace",
+      person: {
+        status: "suggested",
+        autonomyMode: "draft-first",
+        starterPack: "browser-first",
+      },
       model: {
         primary: "openai/gpt-5.4",
         fallbacks: ["openai-codex/gpt-5.2-codex"],
+      },
+    });
+  });
+
+  test("listAgentsForGateway includes active person workspace metadata when configured", () => {
+    const cfg = {
+      session: { mainKey: "main" },
+      agents: {
+        defaults: {
+          userTimezone: "Europe/Lisbon",
+        },
+        list: [
+          {
+            id: "main",
+            default: true,
+            name: "Nuno",
+            person: {
+              enabled: true,
+              profile: {
+                priorities: ["Investor follow-up"],
+              },
+            },
+          },
+        ],
+      },
+    } as OpenClawConfig;
+
+    const result = listAgentsForGateway(cfg);
+
+    expect(result.agents[0]?.person).toMatchObject({
+      status: "active",
+      profile: {
+        name: "Nuno",
+        timezone: "Europe/Lisbon",
+      },
+      specialists: ["research-specialist", "writing-specialist", "browser-errand-specialist"],
+      connectedAccounts: {
+        status: "missing",
+        totalProfiles: 0,
       },
     });
   });

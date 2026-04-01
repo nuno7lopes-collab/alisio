@@ -1,192 +1,194 @@
 import Foundation
 import Observation
-import SwiftUI
 
-private let lumeSidebarCollapsedKey = "openclaw.lume.sidebarCollapsed"
-private let lumeAssistantSidebarCollapsedKey = "openclaw.lume.assistantSidebarCollapsed"
-private let lumeThemeKey = "openclaw.lume.theme"
-private let lumeLanguageKey = "openclaw.lume.language"
-private let lumeAuthorizedIntegrationsKey = "openclaw.lume.authorizedIntegrations"
-private let lumeIntegrationInputsKey = "openclaw.lume.integrationInputs"
+@MainActor
+@Observable
+final class LumeOnboardingState {
+    enum Step: String, CaseIterable, Identifiable {
+        case welcome
+        case gateway
+        case setup
+        case permissions
+        case finish
+
+        var id: String { self.rawValue }
+    }
+
+    enum GatewayChoice: String, CaseIterable, Identifiable {
+        case local
+        case remote
+        case unconfigured
+
+        var id: String { self.rawValue }
+    }
+
+    var currentStep: Step = .welcome
+    var selectedGateway: GatewayChoice = .local
+    var permissionStates: [String: Bool] = [:]
+    var isWizardComplete = false
+    var isComplete = false
+
+    static func requiresCompletion() -> Bool {
+        let seenVersion = UserDefaults.standard.integer(forKey: onboardingVersionKey)
+        return seenVersion < currentOnboardingVersion || !AppStateStore.shared.onboardingSeen
+    }
+}
 
 @MainActor
 @Observable
 final class LumeShellState {
     enum Route: String, CaseIterable, Identifiable {
-        case assistant
-        case deepResearch
+        case onboarding
+        case home
+        case chat
         case authentications
+        case automations
+        case agents
         case organization
+        case sessions
         case settings
 
         var id: String { self.rawValue }
-
-        var title: String {
-            switch self {
-            case .assistant: "Lume"
-            case .deepResearch: "Deep Research"
-            case .authentications: "Authentications"
-            case .organization: "Organization"
-            case .settings: "Settings"
-            }
-        }
-
-        var symbolName: String {
-            switch self {
-            case .assistant: "terminal"
-            case .deepResearch: "magnifyingglass"
-            case .authentications: "key"
-            case .organization: "building.2"
-            case .settings: "gearshape"
-            }
-        }
     }
 
     enum SettingsSection: String, CaseIterable, Identifiable {
-        case general
-        case account
-        case creditUsage
-        case support
-        case followUs
+        case workspace
+        case communications
+        case appearance
+        case automation
+        case infrastructure
+        case aiAgents
+        case mac
+        case debug
+        case logs
 
         var id: String { self.rawValue }
 
-        var title: String {
-            switch self {
-            case .general: "General"
-            case .account: "Account"
-            case .creditUsage: "Credit Usage"
-            case .support: "Support"
-            case .followUs: "Follow Us"
-            }
-        }
-
-        var symbolName: String {
-            switch self {
-            case .general: "gearshape"
-            case .account: "person.crop.circle"
-            case .creditUsage: "chart.bar"
-            case .support: "envelope"
-            case .followUs: "person.2"
-            }
+        var queryValue: String? {
+            self == .workspace ? nil : self.rawValue
         }
     }
 
-    enum AuthFilter: String, CaseIterable, Identifiable {
-        case all = "All"
-        case authorized = "Authorized"
-        case google = "Google"
-        case microsoft = "Microsoft"
-        case social = "Social"
-        case storage = "Storage"
-        case development = "Development"
+    let onboardingState = LumeOnboardingState()
 
-        var id: String { self.rawValue }
-    }
-
-    var route: Route = .assistant
+    var route: Route
     var activeSessionKey: String?
-    var settingsSection: SettingsSection = .general
-    var isPrimaryRailCollapsed: Bool
-    var isAssistantSidebarCollapsed: Bool
-    var isAccountMenuPresented = false
-    var authSearchQuery = ""
-    var authFilter: AuthFilter = .all
-    var preferredTheme: LumeThemeChoice
-    var preferredLanguage: LumeLanguageChoice
-    var authorizedIntegrationIDs: Set<String>
-    var integrationInputValues: [String: String] = [:]
+    var settingsSection: SettingsSection = .workspace
 
     init() {
-        self.isPrimaryRailCollapsed = UserDefaults.standard.bool(forKey: lumeSidebarCollapsedKey)
-        self.isAssistantSidebarCollapsed = UserDefaults.standard.bool(forKey: lumeAssistantSidebarCollapsedKey)
-        self.preferredTheme = LumeThemeChoice(
-            rawValue: UserDefaults.standard.string(forKey: lumeThemeKey) ?? "") ?? .dark
-        self.preferredLanguage = LumeLanguageChoice(
-            rawValue: UserDefaults.standard.string(forKey: lumeLanguageKey) ?? "") ?? .english
-        let storedAuthorized = UserDefaults.standard.stringArray(forKey: lumeAuthorizedIntegrationsKey) ?? [
-            "google-calendar",
-            "gmail-read",
-            "google-drive",
-            "github",
-        ]
-        self.authorizedIntegrationIDs = Set(storedAuthorized)
-        self.integrationInputValues =
-            UserDefaults.standard.dictionary(forKey: lumeIntegrationInputsKey) as? [String: String] ?? [:]
+        let onboardingRequired = LumeOnboardingState.requiresCompletion()
+        self.onboardingState.isComplete = !onboardingRequired
+        self.route = onboardingRequired ? .onboarding : .home
     }
 
     func showChat(sessionKey: String?) {
-        self.route = .assistant
+        guard !self.requiresOnboarding else {
+            self.route = .onboarding
+            return
+        }
+        self.route = .chat
         if let sessionKey, !sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.activeSessionKey = sessionKey
         }
     }
 
     func showSettings(tab: SettingsTab) {
-        self.settingsSection = switch tab {
-        case .general, .channels, .skills, .sessions, .cron, .config, .instances, .voiceWake, .permissions, .debug:
-            .general
-        case .about:
-            .support
+        guard !self.requiresOnboarding else {
+            self.route = .onboarding
+            return
         }
-        self.route = .settings
+        let mapped = Self.mapSettings(tab)
+        self.route = mapped.route
+        if let section = mapped.section {
+            self.settingsSection = section
+        }
     }
 
     func show(route: Route) {
+        if route != .onboarding && self.requiresOnboarding {
+            self.route = .onboarding
+            return
+        }
         self.route = route
     }
 
-    func toggleSidebar() {
-        self.isPrimaryRailCollapsed.toggle()
-        UserDefaults.standard.set(self.isPrimaryRailCollapsed, forKey: lumeSidebarCollapsedKey)
+    var requiresOnboarding: Bool {
+        !self.onboardingState.isComplete && LumeOnboardingState.requiresCompletion()
     }
 
-    func toggleAssistantSidebar() {
-        self.isAssistantSidebarCollapsed.toggle()
-        UserDefaults.standard.set(self.isAssistantSidebarCollapsed, forKey: lumeAssistantSidebarCollapsedKey)
+    func completeOnboarding(preferredSessionKey: String? = nil) {
+        self.onboardingState.currentStep = .finish
+        self.onboardingState.isComplete = true
+        if let preferredSessionKey, !preferredSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            self.activeSessionKey = preferredSessionKey
+        }
+        self.route = .home
     }
 
-    func setTheme(_ theme: LumeThemeChoice) {
-        self.preferredTheme = theme
-        UserDefaults.standard.set(theme.rawValue, forKey: lumeThemeKey)
+    func restartOnboarding() {
+        self.onboardingState.currentStep = .welcome
+        self.onboardingState.selectedGateway = .local
+        self.onboardingState.permissionStates = [:]
+        self.onboardingState.isWizardComplete = false
+        self.onboardingState.isComplete = false
+        self.route = .onboarding
     }
 
-    func setLanguage(_ language: LumeLanguageChoice) {
-        self.preferredLanguage = language
-        UserDefaults.standard.set(language.rawValue, forKey: lumeLanguageKey)
+    func workspacePath() -> String {
+        switch self.route {
+        case .onboarding:
+            return "/home"
+        case .home:
+            return "/home"
+        case .chat:
+            if let activeSessionKey, !activeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "/chat?session=\(Self.encodeQueryValue(activeSessionKey))"
+            }
+            return "/chat"
+        case .authentications:
+            return "/authentications"
+        case .automations:
+            return "/automations"
+        case .agents:
+            return "/agents"
+        case .organization:
+            return "/organization"
+        case .sessions:
+            return "/sessions"
+        case .settings:
+            if let section = self.settingsSection.queryValue {
+                return "/settings?section=\(Self.encodeQueryValue(section))"
+            }
+            return "/settings"
+        }
     }
 
-    func isAuthorized(_ integration: LumeIntegration) -> Bool {
-        self.authorizedIntegrationIDs.contains(integration.id)
+    private static func mapSettings(_ tab: SettingsTab) -> (route: Route, section: SettingsSection?) {
+        switch tab {
+        case .general:
+            (.settings, .workspace)
+        case .channels:
+            (.settings, .communications)
+        case .skills:
+            (.settings, .aiAgents)
+        case .sessions:
+            (.sessions, nil)
+        case .cron:
+            (.automations, nil)
+        case .config:
+            (.settings, .workspace)
+        case .instances:
+            (.settings, .infrastructure)
+        case .voiceWake, .permissions:
+            (.settings, .mac)
+        case .debug:
+            (.settings, .debug)
+        case .about:
+            (.settings, .workspace)
+        }
     }
 
-    func connect(_ integration: LumeIntegration) {
-        self.authorizedIntegrationIDs.insert(integration.id)
-        self.persistAuthorizedIntegrations()
-    }
-
-    func disconnect(_ integration: LumeIntegration) {
-        self.authorizedIntegrationIDs.remove(integration.id)
-        self.persistAuthorizedIntegrations()
-    }
-
-    func clearAuthorizedIntegrations() {
-        self.authorizedIntegrationIDs.removeAll()
-        self.persistAuthorizedIntegrations()
-    }
-
-    func setIntegrationInput(_ value: String, for integrationID: String) {
-        self.integrationInputValues[integrationID] = value
-        UserDefaults.standard.set(self.integrationInputValues, forKey: lumeIntegrationInputsKey)
-    }
-
-    func integrationInput(for integrationID: String) -> String {
-        self.integrationInputValues[integrationID] ?? ""
-    }
-
-    private func persistAuthorizedIntegrations() {
-        UserDefaults.standard.set(
-            self.authorizedIntegrationIDs.sorted(),
-            forKey: lumeAuthorizedIntegrationsKey)
+    private static func encodeQueryValue(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
     }
 }

@@ -365,21 +365,21 @@ private struct ChatMessageBody: View {
         if self.style == .lume && self.isUser {
             return Color.black.opacity(0.18)
         }
-        self.style == .onboarding && !self.isUser ? Color.black.opacity(0.28) : .clear
+        return self.style == .onboarding && !self.isUser ? Color.black.opacity(0.28) : .clear
     }
 
     private var bubbleShadowRadius: CGFloat {
         if self.style == .lume && self.isUser {
             return 12
         }
-        self.style == .onboarding && !self.isUser ? 6 : 0
+        return self.style == .onboarding && !self.isUser ? 6 : 0
     }
 
     private var bubbleShadowYOffset: CGFloat {
         if self.style == .lume && self.isUser {
             return 5
         }
-        self.style == .onboarding && !self.isUser ? 2 : 0
+        return self.style == .onboarding && !self.isUser ? 2 : 0
     }
 }
 

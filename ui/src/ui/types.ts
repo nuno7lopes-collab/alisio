@@ -332,6 +332,31 @@ export type AgentsListResult = {
   agents: GatewayAgentRow[];
 };
 
+export type NativeShellPermission =
+  | "notifications"
+  | "appleScript"
+  | "accessibility"
+  | "screenRecording"
+  | "microphone"
+  | "speechRecognition"
+  | "camera"
+  | "location";
+
+export type NativeShellVoiceWakeState = {
+  supported: boolean;
+  enabled: boolean;
+  talkEnabled: boolean;
+  triggers: string[];
+};
+
+export type NativeShellState = {
+  platform: "macos";
+  launchAtLogin: boolean;
+  permissions: Record<NativeShellPermission, boolean>;
+  voiceWake: NativeShellVoiceWakeState;
+  logsPath: string | null;
+};
+
 export type AgentIdentityResult = {
   agentId: string;
   name: string;

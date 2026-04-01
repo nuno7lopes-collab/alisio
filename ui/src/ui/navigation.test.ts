@@ -27,16 +27,13 @@ describe("iconForTab", () => {
 
   it("returns stable icons for known tabs", () => {
     expect(iconForTab("chat")).toBe("messageSquare");
-    expect(iconForTab("overview")).toBe("barChart");
-    expect(iconForTab("channels")).toBe("link");
-    expect(iconForTab("instances")).toBe("radio");
+    expect(iconForTab("home")).toBe("spark");
+    expect(iconForTab("authentications")).toBe("link");
+    expect(iconForTab("organization")).toBe("barChart");
     expect(iconForTab("sessions")).toBe("fileText");
-    expect(iconForTab("cron")).toBe("loader");
-    expect(iconForTab("skills")).toBe("zap");
-    expect(iconForTab("nodes")).toBe("monitor");
-    expect(iconForTab("config")).toBe("settings");
-    expect(iconForTab("debug")).toBe("bug");
-    expect(iconForTab("logs")).toBe("scrollText");
+    expect(iconForTab("automations")).toBe("loader");
+    expect(iconForTab("agents")).toBe("folder");
+    expect(iconForTab("settings")).toBe("settings");
   });
 
   it("returns a fallback icon for unknown tab", () => {
@@ -57,8 +54,8 @@ describe("titleForTab", () => {
 
   it("returns expected titles", () => {
     expect(titleForTab("chat")).toBe("Chat");
-    expect(titleForTab("overview")).toBe("Overview");
-    expect(titleForTab("cron")).toBe("Cron Jobs");
+    expect(titleForTab("home")).toBe("Home");
+    expect(titleForTab("automations")).toBe("Automations");
   });
 });
 
@@ -72,7 +69,7 @@ describe("subtitleForTab", () => {
 
   it("returns descriptive subtitles", () => {
     expect(subtitleForTab("chat")).toContain("quick interventions");
-    expect(subtitleForTab("config")).toContain("openclaw.json");
+    expect(subtitleForTab("settings")).toContain("configuration");
   });
 });
 
@@ -116,7 +113,7 @@ describe("normalizePath", () => {
 describe("pathForTab", () => {
   it("returns correct path without base", () => {
     expect(pathForTab("chat")).toBe("/chat");
-    expect(pathForTab("overview")).toBe("/overview");
+    expect(pathForTab("home")).toBe("/home");
   });
 
   it("prepends base path", () => {
@@ -128,12 +125,12 @@ describe("pathForTab", () => {
 describe("tabFromPath", () => {
   it("returns tab for valid path", () => {
     expect(tabFromPath("/chat")).toBe("chat");
-    expect(tabFromPath("/overview")).toBe("overview");
+    expect(tabFromPath("/home")).toBe("home");
     expect(tabFromPath("/sessions")).toBe("sessions");
   });
 
-  it("returns chat for root path", () => {
-    expect(tabFromPath("/")).toBe("chat");
+  it("returns home for root path", () => {
+    expect(tabFromPath("/")).toBe("home");
   });
 
   it("handles base paths", () => {
@@ -147,7 +144,16 @@ describe("tabFromPath", () => {
 
   it("is case-insensitive", () => {
     expect(tabFromPath("/CHAT")).toBe("chat");
-    expect(tabFromPath("/Overview")).toBe("overview");
+    expect(tabFromPath("/Overview")).toBe("home");
+  });
+
+  it("maps legacy paths onto canonical tabs", () => {
+    expect(tabFromPath("/overview")).toBe("home");
+    expect(tabFromPath("/cron")).toBe("automations");
+    expect(tabFromPath("/channels")).toBe("organization");
+    expect(tabFromPath("/instances")).toBe("organization");
+    expect(tabFromPath("/usage")).toBe("organization");
+    expect(tabFromPath("/config")).toBe("settings");
   });
 });
 
@@ -158,6 +164,7 @@ describe("inferBasePathFromPathname", () => {
 
   it("returns empty string for direct tab path", () => {
     expect(inferBasePathFromPathname("/chat")).toBe("");
+    expect(inferBasePathFromPathname("/home")).toBe("");
     expect(inferBasePathFromPathname("/overview")).toBe("");
   });
 
@@ -175,7 +182,6 @@ describe("inferBasePathFromPathname", () => {
 describe("TAB_GROUPS", () => {
   it("contains all expected groups", () => {
     const labels = TAB_GROUPS.map((g) => g.label);
-    expect(labels).toContain("chat");
     expect(labels).toContain("control");
     expect(labels).toContain("agent");
     expect(labels).toContain("settings");

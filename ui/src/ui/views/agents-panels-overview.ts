@@ -16,6 +16,93 @@ import {
 } from "./agents-utils.ts";
 import type { AgentsPanel } from "./agents.ts";
 
+function prettifyKey(value: string): string {
+  return value.replaceAll("_", " ");
+}
+
+function renderPersonWorkspace(agent: AgentsListResult["agents"][number]) {
+  const person = agent.person;
+  if (!person) {
+    return nothing;
+  }
+  const priorities = person.profile.priorities ?? [];
+  const routines = person.profile.routines ?? [];
+  const statusLabel = person.status === "active" ? "Active" : "Suggested";
+  const approvalSummary = person.approvalPolicy.requireApprovalFor.map(prettifyKey).join(", ");
+  return html`
+    <section class="card" style="margin-top: 16px;">
+      <div
+        style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;"
+      >
+        <div>
+          <div class="card-title">Person Agent Workspace</div>
+          <div class="card-sub">
+            Personal + work operator with ${person.autonomyMode} autonomy and ${person.starterPack}
+            starter pack.
+          </div>
+        </div>
+        <span class="agent-pill ${person.status === "active" ? "" : "warn"}">${statusLabel}</span>
+      </div>
+
+      <div class="agents-overview-grid" style="margin-top: 16px;">
+        <div class="agent-kv">
+          <div class="label">Today</div>
+          <div>${priorities.join(" · ") || "No priorities yet"}</div>
+          <div class="agent-kv-sub">Routines: ${routines.join(" · ") || "No routines yet"}</div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Drafts</div>
+          <div>${person.artifactTypes.map(prettifyKey).join(" · ")}</div>
+          <div class="agent-kv-sub">Output stays draft-first until approved.</div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Tasks</div>
+          <div>${person.taskIntents.map(prettifyKey).join(" · ")}</div>
+          <div class="agent-kv-sub">Scope: ${prettifyKey(person.scope)}</div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Memory</div>
+          <div>${person.memoryScopes.map(prettifyKey).join(" · ")}</div>
+          <div class="agent-kv-sub">Timezone: ${person.profile.timezone}</div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Approvals</div>
+          <div>${approvalSummary}</div>
+          <div class="agent-kv-sub">
+            Free without approval:
+            ${person.approvalPolicy.allowWithoutApproval.map(prettifyKey).join(" · ")}
+          </div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Automations</div>
+          <div>${person.capabilityLeases.map((lease) => lease.capability).join(" · ")}</div>
+          <div class="agent-kv-sub">Automation mutations stay gated in V1.</div>
+        </div>
+        <div class="agent-kv">
+          <div class="label">Connected Accounts</div>
+          <div>
+            ${person.connectedAccounts.totalProfiles > 0
+              ? `${person.connectedAccounts.totalProfiles} linked`
+              : "No linked accounts"}
+          </div>
+          <div class="agent-kv-sub">
+            ${person.connectedAccounts.providers.length > 0
+              ? person.connectedAccounts.providers.join(" · ")
+              : "Browser-first starter pack works without OAuth."}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px;">
+        <div class="label">Specialists</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+          ${person.specialists.map((specialist) => html`<span class="chip">${specialist}</span>`)}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 export function renderAgentOverview(params: {
   agent: AgentsListResult["agents"][number];
   basePath: string;
@@ -218,5 +305,6 @@ export function renderAgentOverview(params: {
         </div>
       </div>
     </section>
+    ${renderPersonWorkspace(agent)}
   `;
 }

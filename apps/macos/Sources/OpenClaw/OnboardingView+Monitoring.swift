@@ -5,6 +5,7 @@ extension OnboardingView {
     @MainActor
     func refreshPerms() async {
         await self.permissionMonitor.refreshNow()
+        self.syncShellOnboardingState()
     }
 
     @MainActor
@@ -42,7 +43,6 @@ extension OnboardingView {
     func updateMonitoring(for pageIndex: Int) {
         self.updatePermissionMonitoring(for: pageIndex)
         self.updateDiscoveryMonitoring(for: pageIndex)
-        self.maybeKickoffOnboardingChat(for: pageIndex)
     }
 
     func stopPermissionMonitoring() {

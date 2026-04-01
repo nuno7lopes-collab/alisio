@@ -24,12 +24,16 @@ import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
+import { loadNativeShellState } from "./lume-host.ts";
 import {
   inferBasePathFromPathname,
   normalizeBasePath,
   normalizePath,
+  normalizeSettingsSection,
   pathForTab,
+  settingsSectionFromPath,
   tabFromPath,
+  type SettingsSection,
   type Tab,
 } from "./navigation.ts";
 import { saveSettings, type UiSettings } from "./storage.ts";
@@ -47,6 +51,7 @@ type SettingsHost = {
   applySessionKey: string;
   sessionKey: string;
   tab: Tab;
+  settingsSection: SettingsSection;
   connected: boolean;
   chatHasAutoScrolled: boolean;
   logsAtBottom: boolean;
@@ -59,11 +64,18 @@ type SettingsHost = {
   pendingGatewayUrl?: string | null;
   systemThemeCleanup?: (() => void) | null;
   pendingGatewayToken?: string | null;
+  nativeShellLoading?: boolean;
+  nativeShellError?: string | null;
+  nativeShellState?: import("./types.ts").NativeShellState | null;
 };
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
+  const previous = host.settings;
+  const gatewayUrlChanged = next.gatewayUrl.trim() !== previous.gatewayUrl.trim();
+  const shouldClearToken = gatewayUrlChanged && next.token === previous.token;
   const normalized = {
     ...next,
+    token: shouldClearToken ? "" : next.token,
     lastActiveSessionKey: next.lastActiveSessionKey?.trim() || next.sessionKey.trim() || "main",
   };
   host.settings = normalized;
@@ -215,26 +227,32 @@ export function setThemeMode(
 }
 
 export async function refreshActiveTab(host: SettingsHost) {
-  if (host.tab === "overview") {
-    await loadOverview(host);
+  if (host.tab === "home") {
+    await Promise.allSettled([
+      loadOverview(host),
+      loadAgents(host as unknown as OpenClawApp),
+      loadConfig(host as unknown as OpenClawApp),
+    ]);
   }
-  if (host.tab === "channels") {
-    await loadChannelsTab(host);
+  if (host.tab === "authentications") {
+    await Promise.all([
+      loadAgents(host as unknown as OpenClawApp),
+      loadChannels(host as unknown as OpenClawApp, false),
+    ]);
   }
-  if (host.tab === "instances") {
-    await loadPresence(host as unknown as OpenClawApp);
-  }
-  if (host.tab === "usage") {
-    await loadUsage(host as unknown as OpenClawApp);
+  if (host.tab === "organization") {
+    await Promise.allSettled([
+      loadChannels(host as unknown as OpenClawApp, true),
+      loadPresence(host as unknown as OpenClawApp),
+      loadUsage(host as unknown as OpenClawApp),
+      loadSessions(host as unknown as OpenClawApp),
+    ]);
   }
   if (host.tab === "sessions") {
     await loadSessions(host as unknown as OpenClawApp);
   }
-  if (host.tab === "cron") {
+  if (host.tab === "automations") {
     await loadCron(host);
-  }
-  if (host.tab === "skills") {
-    await loadSkills(host as unknown as OpenClawApp);
   }
   if (host.tab === "agents") {
     await loadAgents(host as unknown as OpenClawApp);
@@ -261,12 +279,6 @@ export async function refreshActiveTab(host: SettingsHost) {
       }
     }
   }
-  if (host.tab === "nodes") {
-    await loadNodes(host as unknown as OpenClawApp);
-    await loadDevices(host as unknown as OpenClawApp);
-    await loadConfig(host as unknown as OpenClawApp);
-    await loadExecApprovals(host as unknown as OpenClawApp);
-  }
   if (host.tab === "chat") {
     await refreshChat(host as unknown as Parameters<typeof refreshChat>[0]);
     scheduleChatScroll(
@@ -274,25 +286,27 @@ export async function refreshActiveTab(host: SettingsHost) {
       !host.chatHasAutoScrolled,
     );
   }
-  if (
-    host.tab === "config" ||
-    host.tab === "communications" ||
-    host.tab === "appearance" ||
-    host.tab === "automation" ||
-    host.tab === "infrastructure" ||
-    host.tab === "aiAgents"
-  ) {
+  if (host.tab === "settings") {
     await loadConfigSchema(host as unknown as OpenClawApp);
     await loadConfig(host as unknown as OpenClawApp);
-  }
-  if (host.tab === "debug") {
-    await loadDebug(host as unknown as OpenClawApp);
-    host.eventLog = host.eventLogBuffer;
-  }
-  if (host.tab === "logs") {
-    host.logsAtBottom = true;
-    await loadLogs(host as unknown as OpenClawApp, { reset: true });
-    scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
+    if (host.settingsSection === "aiAgents") {
+      await loadSkills(host as unknown as OpenClawApp);
+    }
+    if (host.settingsSection === "debug") {
+      await loadDebug(host as unknown as OpenClawApp);
+      host.eventLog = host.eventLogBuffer;
+    }
+    if (host.settingsSection === "logs") {
+      host.logsAtBottom = true;
+      await loadLogs(host as unknown as OpenClawApp, { reset: true });
+      scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
+    }
+    if (host.settingsSection === "mac") {
+      await loadNodes(host as unknown as OpenClawApp);
+      await loadDevices(host as unknown as OpenClawApp);
+      await loadExecApprovals(host as unknown as OpenClawApp);
+      await loadNativeShellState(host);
+    }
   }
 }
 
@@ -391,7 +405,10 @@ export function syncTabWithLocation(host: SettingsHost, replace: boolean) {
   if (typeof window === "undefined") {
     return;
   }
-  const resolved = tabFromPath(window.location.pathname, host.basePath) ?? "chat";
+  const resolved = tabFromPath(window.location.pathname, host.basePath) ?? "home";
+  if (resolved === "settings") {
+    resolveSettingsSectionFromLocation(host, window.location.pathname, window.location.search);
+  }
   setTabFromRoute(host, resolved);
   syncUrlWithTab(host, resolved, replace);
 }
@@ -414,6 +431,9 @@ export function onPopState(host: SettingsHost) {
       sessionKey: session,
       lastActiveSessionKey: session,
     });
+  }
+  if (resolved === "settings") {
+    resolveSettingsSectionFromLocation(host, window.location.pathname, window.location.search);
   }
 
   setTabFromRoute(host, resolved);
@@ -441,12 +461,12 @@ function applyTabSelection(
   if (next === "chat") {
     host.chatHasAutoScrolled = false;
   }
-  if (next === "logs") {
+  if (next === "settings" && host.settingsSection === "logs") {
     startLogsPolling(host as unknown as Parameters<typeof startLogsPolling>[0]);
   } else {
     stopLogsPolling(host as unknown as Parameters<typeof stopLogsPolling>[0]);
   }
-  if (next === "debug") {
+  if (next === "settings" && host.settingsSection === "debug") {
     startDebugPolling(host as unknown as Parameters<typeof startDebugPolling>[0]);
   } else {
     stopDebugPolling(host as unknown as Parameters<typeof stopDebugPolling>[0]);
@@ -474,6 +494,15 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
   } else {
     url.searchParams.delete("session");
   }
+  if (tab === "settings") {
+    if (host.settingsSection === "workspace") {
+      url.searchParams.delete("section");
+    } else {
+      url.searchParams.set("section", host.settingsSection);
+    }
+  } else {
+    url.searchParams.delete("section");
+  }
 
   if (currentPath !== targetPath) {
     url.pathname = targetPath;
@@ -483,6 +512,19 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
     window.history.replaceState({}, "", url.toString());
   } else {
     window.history.pushState({}, "", url.toString());
+  }
+}
+
+function resolveSettingsSectionFromLocation(host: SettingsHost, pathname: string, search: string) {
+  const url = new URL(`http://localhost${pathname}${search || ""}`);
+  const querySection = url.searchParams.get("section");
+  if (querySection) {
+    host.settingsSection = normalizeSettingsSection(querySection);
+    return;
+  }
+  const legacySection = settingsSectionFromPath(pathname, host.basePath);
+  if (legacySection) {
+    host.settingsSection = legacySection;
   }
 }
 

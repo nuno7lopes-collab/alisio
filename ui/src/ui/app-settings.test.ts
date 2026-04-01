@@ -12,23 +12,13 @@ import type { ThemeMode, ThemeName } from "./theme.ts";
 
 type Tab =
   | "agents"
-  | "overview"
-  | "channels"
-  | "instances"
+  | "home"
+  | "authentications"
+  | "organization"
   | "sessions"
-  | "usage"
-  | "cron"
-  | "skills"
-  | "nodes"
+  | "automations"
   | "chat"
-  | "config"
-  | "communications"
-  | "appearance"
-  | "automation"
-  | "infrastructure"
-  | "aiAgents"
-  | "debug"
-  | "logs";
+  | "settings";
 
 type SettingsHost = {
   settings: {
@@ -53,6 +43,7 @@ type SettingsHost = {
   applySessionKey: string;
   sessionKey: string;
   tab: Tab;
+  settingsSection: import("./navigation.ts").SettingsSection;
   connected: boolean;
   chatHasAutoScrolled: boolean;
   logsAtBottom: boolean;
@@ -133,6 +124,7 @@ const createHost = (tab: Tab): SettingsHost => ({
   applySessionKey: "main",
   sessionKey: "main",
   tab,
+  settingsSection: "workspace",
   connected: false,
   chatHasAutoScrolled: false,
   logsAtBottom: false,
@@ -159,8 +151,9 @@ describe("setTabFromRoute", () => {
 
   it("starts and stops log polling based on the tab", () => {
     const host = createHost("chat");
+    host.settingsSection = "logs";
 
-    setTabFromRoute(host, "logs");
+    setTabFromRoute(host, "settings");
     expect(host.logsPollInterval).not.toBeNull();
     expect(host.debugPollInterval).toBeNull();
 
@@ -170,8 +163,9 @@ describe("setTabFromRoute", () => {
 
   it("starts and stops debug polling based on the tab", () => {
     const host = createHost("chat");
+    host.settingsSection = "debug";
 
-    setTabFromRoute(host, "debug");
+    setTabFromRoute(host, "settings");
     expect(host.debugPollInterval).not.toBeNull();
     expect(host.logsPollInterval).toBeNull();
 
@@ -257,7 +251,7 @@ describe("applySettingsFromUrl", () => {
     vi.stubGlobal("localStorage", createStorageMock());
     vi.stubGlobal("sessionStorage", createStorageMock());
     vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
-    setTestWindowUrl("https://control.example/ui/overview");
+    setTestWindowUrl("https://control.example/ui/home");
   });
 
   afterEach(() => {
@@ -266,8 +260,8 @@ describe("applySettingsFromUrl", () => {
   });
 
   it("hydrates query token params and strips them from the URL", () => {
-    setTestWindowUrl("https://control.example/ui/overview?token=abc123");
-    const host = createHost("overview");
+    setTestWindowUrl("https://control.example/ui/home?token=abc123");
+    const host = createHost("home");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);
@@ -278,9 +272,9 @@ describe("applySettingsFromUrl", () => {
 
   it("keeps query token params pending when a gatewayUrl confirmation is required", () => {
     setTestWindowUrl(
-      "https://control.example/ui/overview?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
+      "https://control.example/ui/home?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
     );
-    const host = createHost("overview");
+    const host = createHost("home");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);
@@ -292,8 +286,8 @@ describe("applySettingsFromUrl", () => {
   });
 
   it("prefers fragment tokens over legacy query tokens when both are present", () => {
-    setTestWindowUrl("https://control.example/ui/overview?token=query-token#token=hash-token");
-    const host = createHost("overview");
+    setTestWindowUrl("https://control.example/ui/home?token=query-token#token=hash-token");
+    const host = createHost("home");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);
