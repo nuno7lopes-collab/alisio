@@ -11,6 +11,10 @@ import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
 import type {
+  AlisioAccountState,
+  AlisioConnectorAuthorization,
+  AlisioConnectorDefinition,
+  AlisioOrganizationMembershipState,
   AgentsListResult,
   AgentsFilesListResult,
   AgentIdentityResult,
@@ -24,7 +28,6 @@ import type {
   ChatModelOverride,
   ModelCatalogEntry,
   NativeShellState,
-  NostrProfile,
   PresenceEntry,
   SessionsUsageResult,
   CostUsageSummary,
@@ -35,7 +38,6 @@ import type {
   ToolsCatalogResult,
 } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem } from "./ui-types.ts";
-import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 import type { SessionLogEntry } from "./views/usage.ts";
 
 export type AppViewState = {
@@ -45,7 +47,6 @@ export type AppViewState = {
   loginShowGatewayPassword: boolean;
   tab: Tab;
   settingsSection: SettingsSection;
-  onboarding: boolean;
   basePath: string;
   connected: boolean;
   theme: ThemeName;
@@ -62,6 +63,41 @@ export type AppViewState = {
   nativeShellLoading: boolean;
   nativeShellError: string | null;
   nativeShellState: NativeShellState | null;
+  alisioStartupLoading: boolean;
+  alisioStartupError: string | null;
+  alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null;
+  alisioBootstrapLoading: boolean;
+  alisioBootstrapError: string | null;
+  alisioBootstrap: import("./types.ts").AlisioBootstrapState | null;
+  alisioDoctorLoading: boolean;
+  alisioDoctorError: string | null;
+  alisioDoctor: import("./types.ts").AlisioDoctorSummaryState | null;
+  alisioAccountLoading: boolean;
+  alisioAccountError: string | null;
+  alisioAccount: AlisioAccountState | null;
+  alisioOrganizationLoading: boolean;
+  alisioOrganizationError: string | null;
+  alisioOrganization: AlisioOrganizationMembershipState | null;
+  alisioConnectorsLoading: boolean;
+  alisioConnectorsError: string | null;
+  alisioConnectorCatalog: AlisioConnectorDefinition[];
+  alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
+  alisioConnectorsSearch: string;
+  alisioConnectorsCategoryFilter: string;
+  alisioOrganizationDraftMode: "create" | "join";
+  alisioOrganizationName: string;
+  alisioOrganizationInviteEmail: string;
+  setupWizardLoading: boolean;
+  setupWizardSubmitting: boolean;
+  setupWizardSessionId: string | null;
+  setupWizardStep: import("./types.ts").WizardStep | null;
+  setupWizardStatus: string | null;
+  setupWizardError: string | null;
+  setupWizardDraftText: string;
+  setupWizardDraftConfirm: boolean;
+  setupWizardDraftSelectIndex: number;
+  setupWizardDraftMultiIndexes: number[];
+  setupStep: import("./types.ts").AlisioBootstrapStep | null;
   sessionKey: string;
   chatLoading: boolean;
   chatSending: boolean;
@@ -105,6 +141,8 @@ export type AppViewState = {
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalBusy: boolean;
   execApprovalError: string | null;
+  gatewayBootstrapUrl: string | null;
+  gatewayBootstrapToken: string | null;
   pendingGatewayUrl: string | null;
   configLoading: boolean;
   configRaw: string;
@@ -150,12 +188,6 @@ export type AppViewState = {
   channelsSnapshot: ChannelsStatusSnapshot | null;
   channelsError: string | null;
   channelsLastSuccess: number | null;
-  whatsappLoginMessage: string | null;
-  whatsappLoginQrDataUrl: string | null;
-  whatsappLoginConnected: boolean | null;
-  whatsappBusy: boolean;
-  nostrProfileFormState: NostrProfileFormState | null;
-  nostrProfileAccountId: string | null;
   configFormDirty: boolean;
   presenceLoading: boolean;
   presenceEntries: PresenceEntry[];
@@ -313,10 +345,6 @@ export type AppViewState = {
     paletteQuery: string;
     paletteActiveIndex: number;
     streamMode: boolean;
-    overviewShowGatewayToken: boolean;
-    overviewShowGatewayPassword: boolean;
-    overviewLogLines: string[];
-    overviewLogCursor: number;
     client: GatewayBrowserClient | null;
     refreshSessionsAfterChat: Set<string>;
     connect: () => void;
@@ -328,17 +356,6 @@ export type AppViewState = {
     loadOverview: () => Promise<void>;
     loadAssistantIdentity: () => Promise<void>;
     loadCron: () => Promise<void>;
-    handleWhatsAppStart: (force: boolean) => Promise<void>;
-    handleWhatsAppWait: () => Promise<void>;
-    handleWhatsAppLogout: () => Promise<void>;
-    handleChannelConfigSave: () => Promise<void>;
-    handleChannelConfigReload: () => Promise<void>;
-    handleNostrProfileEdit: (accountId: string, profile: NostrProfile | null) => void;
-    handleNostrProfileCancel: () => void;
-    handleNostrProfileFieldChange: (field: keyof NostrProfile, value: string) => void;
-    handleNostrProfileSave: () => Promise<void>;
-    handleNostrProfileImport: () => Promise<void>;
-    handleNostrProfileToggleAdvanced: () => void;
     handleExecApprovalDecision: (decision: "allow-once" | "allow-always" | "deny") => Promise<void>;
     handleGatewayUrlConfirm: () => void;
     handleGatewayUrlCancel: () => void;

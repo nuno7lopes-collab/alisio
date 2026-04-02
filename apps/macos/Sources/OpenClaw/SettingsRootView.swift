@@ -59,7 +59,7 @@ struct SettingsRootView: View {
                 PermissionsSettings(
                     status: self.permissionMonitor.status,
                     refresh: self.refreshPerms,
-                    showOnboarding: { DebugActions.restartOnboarding() })
+                    openSetup: { DebugActions.openSetup() })
                     .tabItem { Label("Permissions", systemImage: "lock.shield") }
                     .tag(SettingsTab.permissions)
 

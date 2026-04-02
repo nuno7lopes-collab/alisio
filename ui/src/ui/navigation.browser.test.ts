@@ -39,8 +39,8 @@ describe("control UI routing", () => {
     const app = mountApp("/sessions");
     await app.updateComplete;
 
-    expect(app.tab).toBe("sessions");
-    expect(window.location.pathname).toBe("/sessions");
+    expect(app.tab).toBe("chat");
+    expect(window.location.pathname).toBe("/chat");
   });
 
   it("respects /ui base paths", async () => {
@@ -48,8 +48,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/ui");
-    expect(app.tab).toBe("automations");
-    expect(window.location.pathname).toBe("/ui/automations");
+    expect(app.tab).toBe("chat");
+    expect(window.location.pathname).toBe("/ui/chat");
   });
 
   it("infers nested base paths", async () => {
@@ -57,8 +57,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/apps/openclaw");
-    expect(app.tab).toBe("automations");
-    expect(window.location.pathname).toBe("/apps/openclaw/automations");
+    expect(app.tab).toBe("chat");
+    expect(window.location.pathname).toBe("/apps/openclaw/chat");
   });
 
   it("honors explicit base path overrides", async () => {
@@ -67,8 +67,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.basePath).toBe("/openclaw");
-    expect(app.tab).toBe("sessions");
-    expect(window.location.pathname).toBe("/openclaw/sessions");
+    expect(app.tab).toBe("chat");
+    expect(window.location.pathname).toBe("/openclaw/chat");
   });
 
   it("updates the URL when clicking nav items", async () => {
@@ -99,6 +99,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.querySelector(".sidebar-shell")).not.toBeNull();
+    expect(app.querySelector(".sidebar-rail")).not.toBeNull();
+    expect(app.querySelector(".sidebar-panel")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__header")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__body")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__footer")).not.toBeNull();
@@ -127,7 +129,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.querySelector(".nav-section__label")).toBeNull();
-    expect(app.querySelector(".sidebar-brand__logo")).toBeNull();
+    expect(app.querySelector(".sidebar-panel")).toBeNull();
+    expect(app.querySelector(".sidebar-rail__brand")).not.toBeNull();
   });
 
   it("keeps footer utilities available in collapsed mode", async () => {
@@ -137,8 +140,9 @@ describe("control UI routing", () => {
     app.applySettings({ ...app.settings, navCollapsed: true });
     await app.updateComplete;
 
-    expect(app.querySelector(".sidebar-shell__footer")).not.toBeNull();
-    expect(app.querySelector(".sidebar-utility-link")).not.toBeNull();
+    expect(app.querySelector(".sidebar-rail__footer")).not.toBeNull();
+    expect(app.querySelector(".sidebar-rail__account")).not.toBeNull();
+    expect(app.querySelector(".sidebar-rail__upgrade")).not.toBeNull();
   });
 
   it("keeps the collapsed desktop rail compact", async () => {
@@ -148,19 +152,19 @@ describe("control UI routing", () => {
     app.applySettings({ ...app.settings, navCollapsed: true });
     await app.updateComplete;
 
-    const item = app.querySelector<HTMLElement>(".sidebar .nav-item");
-    const header = app.querySelector<HTMLElement>(".sidebar-shell__header");
+    const item = app.querySelector<HTMLElement>(".sidebar .nav-item--rail");
+    const rail = app.querySelector<HTMLElement>(".sidebar-rail");
     expect(item).not.toBeNull();
-    expect(header).not.toBeNull();
-    if (!item || !header) {
+    expect(rail).not.toBeNull();
+    if (!item || !rail) {
       return;
     }
 
     const itemStyles = getComputedStyle(item);
-    const headerStyles = getComputedStyle(header);
-    expect(itemStyles.width).toBe("44px");
-    expect(itemStyles.minHeight).toBe("44px");
-    expect(headerStyles.justifyContent).toBe("center");
+    const railStyles = getComputedStyle(rail);
+    expect(itemStyles.width).toBe("40px");
+    expect(itemStyles.minHeight).toBe("40px");
+    expect(railStyles.display).toBe("flex");
   });
 
   it("resets to the main session when opening chat from sidebar navigation", async () => {
@@ -343,8 +347,8 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/home");
-    expect(window.location.search).toBe("");
+    expect(window.location.pathname).toBe("/ui/chat");
+    expect(window.location.search).toBe("?session=main");
   });
 
   it("strips password URL params without importing them", async () => {
@@ -352,8 +356,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.password).toBe("");
-    expect(window.location.pathname).toBe("/ui/home");
-    expect(window.location.search).toBe("");
+    expect(window.location.pathname).toBe("/ui/chat");
+    expect(window.location.search).toBe("?session=main");
   });
 
   it("hydrates token from URL hash when settings already set", async () => {
@@ -371,7 +375,7 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/home");
+    expect(window.location.pathname).toBe("/ui/chat");
     expect(window.location.hash).toBe("");
   });
 
@@ -383,7 +387,7 @@ describe("control UI routing", () => {
     expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
       undefined,
     );
-    expect(window.location.pathname).toBe("/ui/home");
+    expect(window.location.pathname).toBe("/ui/chat");
     expect(window.location.hash).toBe("");
   });
 
@@ -435,7 +439,7 @@ describe("control UI routing", () => {
     await first.updateComplete;
     first.remove();
 
-    const refreshed = mountApp("/ui/home");
+    const refreshed = mountApp("/ui/chat");
     await refreshed.updateComplete;
 
     expect(refreshed.settings.token).toBe("abc123");

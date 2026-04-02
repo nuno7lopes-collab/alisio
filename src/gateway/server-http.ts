@@ -12,10 +12,12 @@ import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { CANVAS_WS_PATH, handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { loadConfig } from "../config/config.js";
+import { loadAlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../plugin-sdk/slack.js";
 import { resolveHookExternalContentSource as resolveHookExternalContentSourceFromSession } from "../security/external-content.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
+import { handleAlisioOAuthHttpRequest } from "./alisio-oauth-http.js";
 import {
   AUTH_RATE_LIMIT_SCOPE_HOOK_AUTH,
   createAuthRateLimiter,
@@ -30,6 +32,7 @@ import {
 } from "./auth.js";
 import { normalizeCanvasScopedUrl } from "./canvas-capability.js";
 import {
+  handleAlisioBootstrapHttpRequest,
   handleControlUiAvatarRequest,
   handleControlUiHttpRequest,
   type ControlUiRootState,
@@ -874,6 +877,10 @@ export function createGatewayHttpServer(opts: {
           name: "slack",
           run: () => handleSlackHttpRequest(req, res),
         },
+        {
+          name: "alisio-oauth",
+          run: () => handleAlisioOAuthHttpRequest(req, res),
+        },
       ];
       if (openResponsesEnabled) {
         requestStages.push({
@@ -960,6 +967,16 @@ export function createGatewayHttpServer(opts: {
             handleControlUiAvatarRequest(req, res, {
               basePath: controlUiBasePath,
               resolveAvatar: (agentId) => resolveAgentAvatar(configSnapshot, agentId),
+            }),
+        });
+        requestStages.push({
+          name: "alisio-bootstrap-http",
+          run: () =>
+            handleAlisioBootstrapHttpRequest(req, res, {
+              basePath: controlUiBasePath,
+              trustedProxies,
+              allowRealIpFallback,
+              loadRuntimeSetup: () => loadAlisioRuntimeSetupState(),
             }),
         });
         requestStages.push({

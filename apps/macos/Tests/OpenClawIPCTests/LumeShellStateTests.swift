@@ -6,16 +6,29 @@ import Testing
 struct LumeShellStateTests {
     @Test func `chat route encodes session key in workspace path`() {
         let state = LumeShellState()
-        state.completeOnboarding(preferredSessionKey: "team/main")
         state.showChat(sessionKey: "team/main")
 
         #expect(state.route == .chat)
         #expect(state.workspacePath() == "/chat?session=team/main")
     }
 
+    @Test func `shell starts on chat route`() {
+        let state = LumeShellState()
+
+        #expect(state.route == .chat)
+        #expect(state.workspacePath() == "/chat")
+        #expect(state.requiresOnboarding == false)
+    }
+
+    @Test func `onboarding route resolves to setup workspace path`() {
+        let state = LumeShellState()
+        state.show(route: .onboarding)
+
+        #expect(state.workspacePath() == "/setup")
+    }
+
     @Test func `settings tabs map to canonical workspace routes`() {
         let state = LumeShellState()
-        state.completeOnboarding()
 
         state.showSettings(tab: .skills)
         #expect(state.route == .settings)

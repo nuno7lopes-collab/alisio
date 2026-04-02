@@ -83,7 +83,7 @@ struct DebugSettings: View {
     }
 
     private var launchdSection: some View {
-        GroupBox("Gateway startup") {
+        GroupBox("Runtime startup") {
             VStack(alignment: .leading, spacing: 8) {
                 Toggle("Attach only (skip launchd install)", isOn: self.$launchAgentWriteDisabled)
                     .onChange(of: self.launchAgentWriteDisabled) { _, newValue in
@@ -103,8 +103,8 @@ struct DebugSettings: View {
                     }
 
                 Text(
-                    "When enabled, OpenClaw won't install or manage \(gatewayLaunchdLabel). " +
-                        "It will only attach to an existing Gateway.")
+                    "When enabled, Alisio won't install or manage \(gatewayLaunchdLabel). " +
+                        "It will only attach to an existing local runtime.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -121,7 +121,7 @@ struct DebugSettings: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Debug")
                 .font(.title3.weight(.semibold))
-            Text("Tools for diagnosing local issues (Gateway, ports, logs, Canvas).")
+            Text("Tools for diagnosing local issues (runtime, ports, logs, Canvas).")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -172,7 +172,7 @@ struct DebugSettings: View {
     }
 
     private var gatewaySection: some View {
-        GroupBox("Gateway") {
+        GroupBox("Runtime") {
             VStack(alignment: .leading, spacing: 10) {
                 Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 14, verticalSpacing: 10) {
                     GridRow {
@@ -203,7 +203,7 @@ struct DebugSettings: View {
                     Button("Copy sample URL") {
                         let msg = "Hello from deep link"
                         let encoded = msg.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? msg
-                        let url = "openclaw://agent?message=\(encoded)&key=\(key)"
+                        let url = "alisio://agent?message=\(encoded)&key=\(key)"
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url, forType: .string)
                     }
@@ -211,7 +211,7 @@ struct DebugSettings: View {
                     Spacer(minLength: 0)
                 }
 
-                Text("Deep links (openclaw://…) are always enabled; the key controls unattended runs.")
+                Text("Deep links (alisio://…) are always enabled; the key controls unattended runs.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
@@ -229,7 +229,7 @@ struct DebugSettings: View {
 
                     HStack(spacing: 8) {
                         if self.canRestartGateway {
-                            Button("Restart Gateway") { DebugActions.restartGateway() }
+                            Button("Restart runtime") { DebugActions.restartGateway() }
                         }
                         Button("Clear log") { GatewayProcessManager.shared.clearLog() }
                         Spacer(minLength: 0)
@@ -274,7 +274,7 @@ struct DebugSettings: View {
                         Toggle("Write rolling diagnostics log (JSONL)", isOn: self.$diagnosticsFileLogEnabled)
                             .toggleStyle(.checkbox)
                             .help(
-                                "Writes a rotating, local-only log under ~/Library/Logs/OpenClaw/. " +
+                                "Writes a rotating, local-only log under ~/Library/Logs/Alisio/. " +
                                     "Enable only while actively debugging.")
 
                         HStack(spacing: 8) {
@@ -307,7 +307,7 @@ struct DebugSettings: View {
                         .font(.caption.weight(.semibold))
                     if self.portCheckInFlight { ProgressView().controlSize(.small) }
                     Spacer()
-                    Button("Check gateway ports") {
+                    Button("Check runtime ports") {
                         Task { await self.runPortCheck() }
                     }
                     .buttonStyle(.borderedProminent)
@@ -382,10 +382,10 @@ struct DebugSettings: View {
         GroupBox("Paths") {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("OpenClaw project root")
+                    Text("Alisio project root")
                         .font(.caption.weight(.semibold))
                     HStack(spacing: 8) {
-                        TextField("Path to openclaw repo", text: self.$gatewayRootInput)
+                        TextField("Path to Alisio repo", text: self.$gatewayRootInput)
                             .textFieldStyle(.roundedBorder)
                             .font(.caption.monospaced())
                             .onSubmit { self.saveRelayRoot() }
@@ -393,13 +393,13 @@ struct DebugSettings: View {
                             .buttonStyle(.borderedProminent)
                         Button("Reset") {
                             let def = FileManager().homeDirectoryForCurrentUser
-                                .appendingPathComponent("Projects/openclaw").path
+                                .appendingPathComponent("Projects/alisio").path
                             self.gatewayRootInput = def
                             self.saveRelayRoot()
                         }
                         .buttonStyle(.bordered)
                     }
-                    Text("Used for pnpm/node fallback and PATH population when launching the gateway.")
+                    Text("Used for pnpm/node fallback and PATH population when launching the local runtime.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -423,7 +423,7 @@ struct DebugSettings: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("Used by the CLI session loader; stored in ~/.openclaw/openclaw.json.")
+                                Text("Used by the CLI session loader and stored in the local app config.")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             }
@@ -524,7 +524,7 @@ struct DebugSettings: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(
-                        "Note: macOS may require restarting OpenClaw after enabling Accessibility or Screen Recording.")
+                        "Note: macOS may require restarting Alisio after enabling Accessibility or Screen Recording.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -532,7 +532,7 @@ struct DebugSettings: View {
                     Button {
                         LaunchdManager.startOpenClaw()
                     } label: {
-                        Label("Restart OpenClaw", systemImage: "arrow.counterclockwise")
+                        Label("Restart Alisio", systemImage: "arrow.counterclockwise")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -540,7 +540,7 @@ struct DebugSettings: View {
 
                 HStack(spacing: 8) {
                     Button("Restart app") { DebugActions.restartApp() }
-                    Button("Restart onboarding") { DebugActions.restartOnboarding() }
+                    Button("Open setup") { DebugActions.openSetup() }
                     Button("Reveal app in Finder") { self.revealApp() }
                     Spacer(minLength: 0)
                 }

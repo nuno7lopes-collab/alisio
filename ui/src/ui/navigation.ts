@@ -1,61 +1,105 @@
-import { t } from "../i18n/index.ts";
 import type { IconName } from "./icons.js";
+
+const PUBLIC_TABS = ["setup", "chat", "authentications", "organization", "settings"] as const;
+const LEGACY_TABS = ["home", "sessions", "automations", "agents"] as const;
 
 export const TAB_GROUPS = [
   {
-    label: "control",
-    tabs: ["home", "chat", "authentications", "organization", "sessions"],
+    label: "primary",
+    tabs: ["chat"],
   },
-  { label: "agent", tabs: ["automations", "agents"] },
   {
-    label: "settings",
-    tabs: ["settings"],
+    label: "workspace",
+    tabs: ["authentications", "organization", "settings"],
   },
 ] as const;
 
-export const SETTINGS_SECTIONS = [
+const PUBLIC_SETTINGS_SECTIONS = [
+  "appearance",
+  "language",
+  "account",
+  "security",
+  "devices",
+  "billing",
+  "support",
+  "mac",
+] as const;
+
+const LEGACY_SETTINGS_SECTIONS = [
   "workspace",
   "communications",
-  "appearance",
   "automation",
   "infrastructure",
   "aiAgents",
-  "mac",
   "debug",
   "logs",
 ] as const;
 
-export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+export type SettingsSection =
+  | (typeof PUBLIC_SETTINGS_SECTIONS)[number]
+  | (typeof LEGACY_SETTINGS_SECTIONS)[number];
 
-export type Tab =
-  | "agents"
-  | "home"
-  | "authentications"
-  | "organization"
-  | "sessions"
-  | "automations"
-  | "chat"
-  | "settings";
+type PublicTab = (typeof PUBLIC_TABS)[number];
+type LegacyTab = (typeof LEGACY_TABS)[number];
+type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
-const TAB_PATHS: Record<Tab, string> = {
-  agents: "/agents",
-  home: "/home",
+export type Tab = PublicTab | LegacyTab;
+
+export function normalizePublicTab(tab: Tab): PublicTab {
+  switch (tab) {
+    case "setup":
+    case "authentications":
+    case "organization":
+    case "settings":
+    case "chat":
+      return tab;
+    case "home":
+    case "sessions":
+    case "automations":
+    case "agents":
+    default:
+      return "chat";
+  }
+}
+
+export function publicTabFor(tab: Tab): PublicTab {
+  return normalizePublicTab(tab);
+}
+
+const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
+  setup: "/setup",
+  chat: "/chat",
   authentications: "/authentications",
   organization: "/organization",
-  sessions: "/sessions",
-  automations: "/automations",
-  chat: "/chat",
   settings: "/settings",
 };
 
-const PATH_TO_TAB = new Map(Object.entries(TAB_PATHS).map(([tab, path]) => [path, tab as Tab]));
-const LEGACY_PATH_ALIASES = new Map<string, Tab>([
-  ["/overview", "home"],
-  ["/cron", "automations"],
+const LEGACY_TAB_PATHS: Record<LegacyTab, string> = {
+  home: "/home",
+  sessions: "/sessions",
+  automations: "/automations",
+  agents: "/agents",
+};
+
+const TAB_PATHS: Record<Tab, string> = {
+  ...PUBLIC_TAB_PATHS,
+  ...LEGACY_TAB_PATHS,
+};
+
+const PATH_TO_PUBLIC_TAB = new Map(
+  Object.entries(PUBLIC_TAB_PATHS).map(([tab, path]) => [path, tab as PublicTab]),
+);
+const LEGACY_PATH_ALIASES = new Map<string, PublicTab>([
+  ["/overview", "chat"],
+  ["/home", "chat"],
+  ["/sessions", "chat"],
+  ["/cron", "chat"],
+  ["/automations", "chat"],
+  ["/agents", "chat"],
+  ["/skills", "chat"],
   ["/channels", "organization"],
   ["/instances", "organization"],
   ["/usage", "organization"],
-  ["/skills", "agents"],
   ["/nodes", "settings"],
   ["/config", "settings"],
   ["/communications", "settings"],
@@ -67,14 +111,14 @@ const LEGACY_PATH_ALIASES = new Map<string, Tab>([
   ["/logs", "settings"],
 ]);
 const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
-  ["/config", "workspace"],
-  ["/communications", "communications"],
+  ["/config", "account"],
+  ["/communications", "support"],
   ["/appearance", "appearance"],
-  ["/automation", "automation"],
-  ["/infrastructure", "infrastructure"],
-  ["/ai-agents", "aiAgents"],
-  ["/debug", "debug"],
-  ["/logs", "logs"],
+  ["/automation", "account"],
+  ["/infrastructure", "mac"],
+  ["/ai-agents", "account"],
+  ["/debug", "account"],
+  ["/logs", "account"],
   ["/nodes", "mac"],
 ]);
 
@@ -111,7 +155,7 @@ export function normalizePath(path: string): string {
 
 export function pathForTab(tab: Tab, basePath = ""): string {
   const base = normalizeBasePath(basePath);
-  const path = TAB_PATHS[tab];
+  const path = TAB_PATHS[normalizePublicTab(tab)];
   return base ? `${base}${path}` : path;
 }
 
@@ -130,17 +174,17 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
     normalized = "/";
   }
   if (normalized === "/") {
-    return "home";
+    return "setup";
   }
-  return PATH_TO_TAB.get(normalized) ?? LEGACY_PATH_ALIASES.get(normalized) ?? null;
+  return PATH_TO_PUBLIC_TAB.get(normalized) ?? LEGACY_PATH_ALIASES.get(normalized) ?? null;
 }
 
 export function normalizeSettingsSection(value: string | null | undefined): SettingsSection {
   const normalized = (value ?? "").trim();
-  if (SETTINGS_SECTIONS.includes(normalized as SettingsSection)) {
-    return normalized as SettingsSection;
+  if (PUBLIC_SETTINGS_SECTIONS.includes(normalized as PublicSettingsSection)) {
+    return normalized as PublicSettingsSection;
   }
-  return "workspace";
+  return "account";
 }
 
 export function settingsSectionFromPath(pathname: string, basePath = ""): SettingsSection | null {
@@ -158,7 +202,7 @@ export function settingsSectionFromPath(pathname: string, basePath = ""): Settin
     normalized = normalized.slice(0, -"/index.html".length) || "/";
   }
   if (normalized === "/settings") {
-    return "workspace";
+    return "account";
   }
   return LEGACY_SETTINGS_PATHS.get(normalized) ?? null;
 }
@@ -177,7 +221,7 @@ export function inferBasePathFromPathname(pathname: string): string {
   }
   for (let i = 0; i < segments.length; i++) {
     const candidate = `/${segments.slice(i).join("/")}`.toLowerCase();
-    if (PATH_TO_TAB.has(candidate) || LEGACY_PATH_ALIASES.has(candidate)) {
+    if (PATH_TO_PUBLIC_TAB.has(candidate) || LEGACY_PATH_ALIASES.has(candidate)) {
       const prefix = segments.slice(0, i);
       return prefix.length ? `/${prefix.join("/")}` : "";
     }
@@ -186,32 +230,52 @@ export function inferBasePathFromPathname(pathname: string): string {
 }
 
 export function iconForTab(tab: Tab): IconName {
-  switch (tab) {
-    case "agents":
-      return "folder";
-    case "home":
-      return "spark";
+  switch (normalizePublicTab(tab)) {
+    case "setup":
+      return "terminal";
     case "authentications":
       return "link";
     case "organization":
       return "barChart";
-    case "automations":
-      return "loader";
     case "chat":
       return "messageSquare";
-    case "sessions":
-      return "fileText";
     case "settings":
       return "settings";
     default:
-      return "folder";
+      return "messageSquare";
   }
 }
 
 export function titleForTab(tab: Tab) {
-  return t(`tabs.${tab}`);
+  switch (normalizePublicTab(tab)) {
+    case "setup":
+      return "Setup";
+    case "chat":
+      return "Chat";
+    case "authentications":
+      return "Authentications";
+    case "organization":
+      return "Organization";
+    case "settings":
+      return "Settings";
+    default:
+      return "Chat";
+  }
 }
 
 export function subtitleForTab(tab: Tab) {
-  return t(`subtitles.${tab}`);
+  switch (normalizePublicTab(tab)) {
+    case "setup":
+      return "Connect your runtime, account, organization, connectors, and permissions.";
+    case "chat":
+      return "Conversations, context, and tool calls.";
+    case "authentications":
+      return "Connected accounts and authorization status.";
+    case "organization":
+      return "Create or join the organization that will share work with you.";
+    case "settings":
+      return "Appearance, account, billing, and native shell preferences.";
+    default:
+      return "Conversations, context, and tool calls.";
+  }
 }

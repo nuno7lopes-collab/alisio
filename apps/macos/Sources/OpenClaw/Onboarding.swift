@@ -5,7 +5,7 @@ import OpenClawIPC
 import SwiftUI
 
 enum UIStrings {
-    static let welcomeTitle = "Welcome to Lume"
+    static let welcomeTitle = "Welcome to Alisio"
 }
 
 enum RemoteOnboardingProbeState: Equatable {
@@ -35,7 +35,6 @@ final class OnboardingController {
     func close() {}
 
     func restart() {
-        LumeWindowManager.shared.shellState.restartOnboarding()
         self.show()
     }
 }

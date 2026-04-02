@@ -25,56 +25,32 @@ const SLASH_PALETTE_ITEMS: PaletteItem[] = SLASH_COMMANDS.map((command) => ({
 const PALETTE_ITEMS: PaletteItem[] = [
   ...SLASH_PALETTE_ITEMS,
   {
-    id: "nav-overview",
-    label: "Overview",
+    id: "nav-chat",
+    label: "tabs.chat",
+    icon: "messageSquare",
+    category: "navigation",
+    action: "nav:chat",
+  },
+  {
+    id: "nav-authentications",
+    label: "tabs.authentications",
+    icon: "link",
+    category: "navigation",
+    action: "nav:authentications",
+  },
+  {
+    id: "nav-organization",
+    label: "tabs.organization",
     icon: "barChart",
     category: "navigation",
-    action: "nav:overview",
+    action: "nav:organization",
   },
   {
-    id: "nav-sessions",
-    label: "Sessions",
-    icon: "fileText",
-    category: "navigation",
-    action: "nav:sessions",
-  },
-  {
-    id: "nav-cron",
-    label: "Scheduled",
-    icon: "scrollText",
-    category: "navigation",
-    action: "nav:cron",
-  },
-  { id: "nav-skills", label: "Skills", icon: "zap", category: "navigation", action: "nav:skills" },
-  {
-    id: "nav-config",
-    label: "Settings",
+    id: "nav-settings",
+    label: "tabs.settings",
     icon: "settings",
     category: "navigation",
-    action: "nav:config",
-  },
-  {
-    id: "nav-agents",
-    label: "Agents",
-    icon: "folder",
-    category: "navigation",
-    action: "nav:agents",
-  },
-  {
-    id: "skill-shell",
-    label: "Shell Command",
-    icon: "monitor",
-    category: "skills",
-    action: "/skill shell",
-    description: "Run shell",
-  },
-  {
-    id: "skill-debug",
-    label: "Debug Mode",
-    icon: "bug",
-    category: "skills",
-    action: "/verbose full",
-    description: "Toggle debug",
+    action: "nav:settings",
   },
 ];
 
@@ -100,7 +76,7 @@ function filteredItems(query: string): PaletteItem[] {
   const q = query.toLowerCase();
   return PALETTE_ITEMS.filter(
     (item) =>
-      item.label.toLowerCase().includes(q) ||
+      t(item.label).toLowerCase().includes(q) ||
       (item.description?.toLowerCase().includes(q) ?? false),
   );
 }
@@ -175,11 +151,9 @@ function handleKeydown(e: KeyboardEvent, props: CommandPaletteProps) {
   }
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  search: "Search",
-  navigation: "Navigation",
-  skills: "Skills",
-};
+function categoryLabel(category: string) {
+  return t(`alisio.shell.commandPalette.categories.${category}`);
+}
 
 function focusInput(el: Element | undefined) {
   if (el) {
@@ -212,7 +186,7 @@ export function renderCommandPalette(props: CommandPaletteProps) {
         <input
           ${ref(focusInput)}
           class="cmd-palette__input"
-          placeholder="${t("overview.palette.placeholder")}"
+          placeholder="${t("alisio.shell.commandPalette.placeholder")}"
           .value=${props.query}
           @input=${(e: Event) => {
             props.onQueryChange((e.target as HTMLInputElement).value);
@@ -225,13 +199,11 @@ export function renderCommandPalette(props: CommandPaletteProps) {
                 <span class="nav-item__icon" style="opacity:0.3;width:20px;height:20px"
                   >${icons.search}</span
                 >
-                <span>${t("overview.palette.noResults")}</span>
+                <span>${t("alisio.shell.commandPalette.noResults")}</span>
               </div>`
             : grouped.map(
                 ([category, groupedItems]) => html`
-                  <div class="cmd-palette__group-label">
-                    ${CATEGORY_LABELS[category] ?? category}
-                  </div>
+                  <div class="cmd-palette__group-label">${categoryLabel(category)}</div>
                   ${groupedItems.map((item) => {
                     const globalIndex = items.indexOf(item);
                     const isActive = globalIndex === props.activeIndex;
@@ -245,7 +217,7 @@ export function renderCommandPalette(props: CommandPaletteProps) {
                         @mouseenter=${() => props.onActiveIndexChange(globalIndex)}
                       >
                         <span class="nav-item__icon">${icons[item.icon]}</span>
-                        <span>${item.label}</span>
+                        <span>${t(item.label)}</span>
                         ${item.description
                           ? html`<span class="cmd-palette__item-desc muted"
                               >${item.description}</span
@@ -258,9 +230,9 @@ export function renderCommandPalette(props: CommandPaletteProps) {
               )}
         </div>
         <div class="cmd-palette__footer">
-          <span><kbd>↑↓</kbd> navigate</span>
-          <span><kbd>↵</kbd> select</span>
-          <span><kbd>esc</kbd> close</span>
+          <span><kbd>↑↓</kbd> ${t("alisio.shell.commandPalette.footer.navigate")}</span>
+          <span><kbd>↵</kbd> ${t("alisio.shell.commandPalette.footer.select")}</span>
+          <span><kbd>esc</kbd> ${t("alisio.shell.commandPalette.footer.close")}</span>
         </div>
       </div>
     </div>

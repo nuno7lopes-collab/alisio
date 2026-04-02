@@ -139,6 +139,34 @@ import Testing
         #expect(first == tmp.appendingPathComponent("node_modules/.bin").path)
     }
 
+    @Test func `prefers bundled repo root over stale stored project root`() throws {
+        let defaults = self.makeDefaults()
+        let stale = try makeTempDirForTests()
+        defaults.set(stale.path, forKey: "openclaw.gatewayProjectRootPath")
+
+        let bundledRoot = try makeTempDirForTests()
+        try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+        let bundleURL = bundledRoot.appendingPathComponent("dist/Alisio.app", isDirectory: true)
+        try FileManager().createDirectory(at: bundleURL, withIntermediateDirectories: true)
+
+        let resolved = CommandResolver.projectRoot(
+            defaults: defaults,
+            bundleURL: bundleURL,
+            fileManager: FileManager(),
+            homeDirectory: FileManager().homeDirectoryForCurrentUser)
+
+        #expect(resolved.path == bundledRoot.path)
+    }
+
     @Test func `builds SSH command for remote mode`() {
         let defaults = self.makeDefaults()
         defaults.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)

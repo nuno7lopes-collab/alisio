@@ -21,7 +21,7 @@ final class ConnectionModeCoordinator {
             _ = await NodeServiceManager.stop()
             NodesStore.shared.lastError = nil
             await RemoteTunnelManager.shared.stopAll()
-            WebChatManager.shared.resetTunnels()
+            LumeWorkspaceManager.shared.resetTunnels()
             GatewayProcessManager.shared.stop()
             await GatewayConnection.shared.shutdown()
             await ControlChannel.shared.disconnect()
@@ -31,7 +31,7 @@ final class ConnectionModeCoordinator {
             _ = await NodeServiceManager.stop()
             NodesStore.shared.lastError = nil
             await RemoteTunnelManager.shared.stopAll()
-            WebChatManager.shared.resetTunnels()
+            LumeWorkspaceManager.shared.resetTunnels()
             let shouldStart = GatewayAutostartPolicy.shouldStartGateway(mode: .local, paused: paused)
             if shouldStart {
                 GatewayProcessManager.shared.setActive(true)
@@ -57,7 +57,7 @@ final class ConnectionModeCoordinator {
         case .remote:
             // Never run a local gateway in remote mode.
             GatewayProcessManager.shared.stop()
-            WebChatManager.shared.resetTunnels()
+            LumeWorkspaceManager.shared.resetTunnels()
 
             do {
                 NodesStore.shared.lastError = nil

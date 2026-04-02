@@ -90,6 +90,14 @@ enum GatewayEnvironment {
     }
 
     static func expectedGatewayVersionString() -> String? {
+        #if DEBUG
+        if let override = ProcessInfo.processInfo.environment["OPENCLAW_TEST_EXPECTED_GATEWAY_VERSION"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return override
+        }
+        #endif
         let bundleVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
         let trimmed = bundleVersion?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (trimmed?.isEmpty == false) ? trimmed : nil

@@ -28,9 +28,9 @@ extension OnboardingView {
     func welcomePage() -> some View {
         self.onboardingPage {
             VStack(spacing: 22) {
-                Text("Welcome to Lume")
+                Text("Welcome to Alisio")
                     .font(.largeTitle.weight(.semibold))
-                Text("Lume is your private desktop AI workspace, built to run locally and keep your tools in sync.")
+                Text("Alisio is your private desktop AI workspace, built to run locally and keep your tools in sync.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -53,7 +53,7 @@ extension OnboardingView {
                                 "The connected AI agent can trigger powerful actions on your Mac, " +
                                     "including running commands, reading/writing files, and capturing screenshots — " +
                                     "depending on the permissions you grant.\n\n" +
-                                    "Only enable Lume if you understand the risks and trust the prompts and " +
+                                    "Only enable Alisio if you understand the risks and trust the prompts and " +
                                     "integrations you use.")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -69,11 +69,11 @@ extension OnboardingView {
 
     func connectionPage() -> some View {
         self.onboardingPage {
-            Text("Choose your Gateway")
+            Text("Choose where Alisio runs")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                "Lume uses a single Gateway that stays running. Pick this Mac, " +
-                    "connect to a discovered gateway nearby, or configure later.")
+                "Alisio uses one runtime that stays active. Pick this Mac, " +
+                    "connect to a nearby runtime, or configure it later.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -102,7 +102,7 @@ extension OnboardingView {
 
                     self.connectionChoiceButton(
                         title: "Configure later",
-                        subtitle: "Don’t start the Gateway yet.",
+                        subtitle: "Don’t start Alisio yet.",
                         selected: self.state.connectionMode == .unconfigured)
                     {
                         self.selectUnconfiguredGateway()
@@ -132,10 +132,10 @@ extension OnboardingView {
 
     private var localGatewaySubtitle: String {
         guard let probe = self.localGatewayProbe else {
-            return "Gateway starts automatically on this Mac."
+            return "Alisio starts automatically on this Mac."
         }
         let base = probe.expected
-            ? "Existing gateway detected"
+            ? "Existing runtime detected"
             : "Port \(probe.port) already in use"
         let command = probe.command.isEmpty ? "" : " (\(probe.command) pid \(probe.pid))"
         return "\(base)\(command). Will attach."
@@ -162,13 +162,13 @@ extension OnboardingView {
         }
 
         if self.gatewayDiscovery.gateways.isEmpty {
-            Text("Searching for nearby gateways…")
+            Text("Searching for nearby Alisio runtimes…")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.leading, 4)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Nearby gateways")
+                Text("Nearby Alisio runtimes")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 4)
@@ -220,7 +220,7 @@ extension OnboardingView {
                     }
                     if self.state.remoteTransport == .direct {
                         GridRow {
-                            Text("Gateway URL")
+                            Text("Remote URL")
                                 .font(.callout.weight(.semibold))
                                 .frame(width: labelWidth, alignment: .leading)
                             TextField("wss://gateway.example.ts.net", text: self.$state.remoteUrl)
@@ -261,7 +261,7 @@ extension OnboardingView {
                             Text("Project root")
                                 .font(.callout.weight(.semibold))
                                 .frame(width: labelWidth, alignment: .leading)
-                            TextField("/home/you/Projects/openclaw", text: self.$state.remoteProjectRoot)
+                            TextField("/home/you/Projects/alisio", text: self.$state.remoteProjectRoot)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: fieldWidth)
                         }
@@ -270,7 +270,7 @@ extension OnboardingView {
                                 .font(.callout.weight(.semibold))
                                 .frame(width: labelWidth, alignment: .leading)
                             TextField(
-                                "/Applications/Lume.app/.../openclaw",
+                                "/usr/local/bin/cli",
                                 text: self.$state.remoteCliPath)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: fieldWidth)
@@ -279,8 +279,8 @@ extension OnboardingView {
                 }
 
                 Text(self.state.remoteTransport == .direct
-                    ? "Tip: use Tailscale Serve so the gateway has a valid HTTPS cert."
-                    : "Tip: keep Tailscale enabled so your gateway stays reachable.")
+                    ? "Tip: use Tailscale Serve so the remote runtime has a valid HTTPS certificate."
+                    : "Tip: keep Tailscale enabled so your runtime stays reachable.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -315,16 +315,16 @@ extension OnboardingView {
         case .direct:
             let trimmedUrl = self.state.remoteUrl.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedUrl.isEmpty {
-                return "Select a nearby gateway or open Advanced to enter a gateway URL."
+                return "Select a nearby runtime or open Advanced to enter a remote URL."
             }
             if GatewayRemoteConfig.normalizeGatewayUrl(trimmedUrl) == nil {
-                return "Gateway URL must use wss:// for remote hosts (ws:// only for localhost)."
+                return "Remote URL must use wss:// for remote hosts (ws:// only for localhost)."
             }
             return nil
         case .ssh:
             let trimmedTarget = self.state.remoteTarget.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmedTarget.isEmpty {
-                return "Select a nearby gateway or open Advanced to enter an SSH target."
+                return "Select a nearby runtime or open Advanced to enter an SSH target."
             }
             return CommandResolver.sshTargetValidationMessage(trimmedTarget)
         }
@@ -340,7 +340,7 @@ extension OnboardingView {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Remote connection")
                         .font(.callout.weight(.semibold))
-                    Text("Checks the real remote websocket and auth handshake.")
+                    Text("Checks the real remote websocket and authentication handshake.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -383,19 +383,19 @@ extension OnboardingView {
     private func remoteTokenField() -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 12) {
-                Text("Gateway token")
+                Text("Access token")
                     .font(.callout.weight(.semibold))
                     .frame(width: 110, alignment: .leading)
-                SecureField("remote gateway auth token (gateway.remote.token)", text: self.$state.remoteToken)
+                SecureField("remote access token", text: self.$state.remoteToken)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 320)
             }
-            Text("Used when the remote gateway requires token auth.")
+            Text("Used when the remote runtime requires token authentication.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if self.state.remoteTokenUnsupported {
                 Text(
-                    "The current gateway.remote.token value is not plain text. Lume for macOS cannot use it directly; enter a plaintext token here to replace it.")
+                    "The current gateway.remote.token value is not plain text. Alisio for macOS cannot use it directly; enter a plaintext token here to replace it.")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
@@ -409,7 +409,7 @@ extension OnboardingView {
         case .idle:
             EmptyView()
         case .checking:
-            Text("Checking remote gateway…")
+            Text("Checking remote runtime…")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         case let .ok(success):
@@ -534,7 +534,7 @@ extension OnboardingView {
 
     func gatewaySubtitle(for gateway: GatewayDiscoveryModel.DiscoveredGateway) -> String? {
         if self.state.remoteTransport == .direct {
-            return GatewayDiscoveryHelpers.directUrl(for: gateway) ?? "Gateway pairing only"
+            return GatewayDiscoveryHelpers.directUrl(for: gateway) ?? "Pairing only"
         }
         if let target = GatewayDiscoveryHelpers.sshTarget(for: gateway),
            let parsed = CommandResolver.parseSSHTarget(target)
@@ -542,7 +542,7 @@ extension OnboardingView {
             let portSuffix = parsed.port != 22 ? " · ssh \(parsed.port)" : ""
             return "\(parsed.host)\(portSuffix)"
         }
-        return "Gateway pairing only"
+        return "Pairing only"
     }
 
     func isSelectedGateway(_ gateway: GatewayDiscoveryModel.DiscoveredGateway) -> Bool {
@@ -588,7 +588,7 @@ extension OnboardingView {
         self.onboardingPage {
             Text("Grant permissions")
                 .font(.largeTitle.weight(.semibold))
-            Text("These macOS permissions let Lume automate apps and capture context on this Mac.")
+            Text("These macOS permissions let Alisio automate apps and capture context on this Mac.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -629,7 +629,7 @@ extension OnboardingView {
         self.onboardingPage {
             Text("Install the CLI")
                 .font(.largeTitle.weight(.semibold))
-            Text("Required for local mode: installs `openclaw` so launchd can run the gateway.")
+            Text("Required for local mode: installs the local CLI so macOS can keep the gateway running.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -689,7 +689,7 @@ extension OnboardingView {
             Text("Agent workspace")
                 .font(.largeTitle.weight(.semibold))
             Text(
-                "Lume runs the agent from a dedicated workspace so it can load `AGENTS.md` " +
+                "Alisio runs the agent from a dedicated workspace so it can load `AGENTS.md` " +
                     "and write files there without mixing into your other projects.")
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -702,8 +702,8 @@ extension OnboardingView {
                     Text("Remote gateway detected")
                         .font(.headline)
                     Text(
-                        "Create the workspace on the remote host (SSH in first). " +
-                            "The macOS app can’t write files on your gateway over SSH yet.")
+                        "Create the workspace on the remote host first. " +
+                            "The macOS app can’t write files to the remote runtime over SSH yet.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
 
@@ -746,7 +746,7 @@ extension OnboardingView {
                                     let saved = await self.saveAgentWorkspace(AgentWorkspace.displayPath(for: url))
                                     if saved {
                                         self.workspaceStatus =
-                                            "Saved to ~/.openclaw/openclaw.json (agents.defaults.workspace)"
+                                            "Workspace preference saved for this Alisio installation."
                                     }
                                 }
                             }
@@ -789,18 +789,18 @@ extension OnboardingView {
                 }
                 if self.state.connectionMode == .remote {
                     self.featureRow(
-                        title: "Remote gateway checklist",
+                        title: "Remote workspace checklist",
                         subtitle: """
-                        On your gateway host: install/update the `openclaw` package and make sure credentials exist
-                        (typically `~/.openclaw/credentials/oauth.json`). Then connect again if needed.
+                        On the remote host: make sure the CLI is installed and the required credentials already exist.
+                        Then reconnect from Alisio if needed.
                         """,
                         systemImage: "network")
                     Divider()
                         .padding(.vertical, 6)
                 }
                 self.featureActionRow(
-                    title: "Open Lume",
-                    subtitle: "Finish onboarding and continue in the main Lume window.",
+                    title: "Open Alisio",
+                    subtitle: "Finish onboarding and continue in the main Alisio window.",
                     systemImage: "terminal",
                     buttonTitle: "Open now")
                 {
@@ -810,11 +810,11 @@ extension OnboardingView {
                     .padding(.vertical, 6)
                 self.featureRow(
                     title: "Open the menu bar panel",
-                    subtitle: "Click the Lume menu bar icon for quick status and shortcuts.",
+                    subtitle: "Click the Alisio menu bar icon for quick status and shortcuts.",
                     systemImage: "terminal")
                 self.featureActionRow(
-                    title: "Manage channels and routing",
-                    subtitle: "Open Settings to configure channels, permissions, and runtime behaviour.",
+                    title: "Review permissions and setup",
+                    subtitle: "Open Settings to configure permissions, connection mode, and product preferences.",
                     systemImage: "slider.horizontal.3",
                     buttonTitle: "Open Settings")
                 {
@@ -831,11 +831,11 @@ extension OnboardingView {
                     systemImage: "rectangle.inset.filled.and.person.filled")
                 self.featureActionRow(
                     title: "Give your agent more powers",
-                    subtitle: "Enable optional skills (Peekaboo, oracle, camsnap, …) from Settings → Skills.",
+                    subtitle: "Enable optional capabilities and advanced tooling from Settings when you're ready.",
                     systemImage: "sparkles",
-                    buttonTitle: "Open Settings → Skills")
+                    buttonTitle: "Open Settings")
                 {
-                    self.openSettings(tab: .skills)
+                    self.openSettings(tab: .general)
                 }
                 self.skillsOverview
                 Toggle("Launch at login", isOn: self.$state.launchAtLogin)
@@ -875,12 +875,11 @@ extension OnboardingView {
 
             if let error = self.onboardingSkillsModel.error {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Couldn’t load skills from the Gateway.")
+                    Text("Couldn’t load skills from the runtime.")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(.orange)
                     Text(
-                        "Make sure the Gateway is running and connected, " +
-                            "then hit Refresh (or open Settings → Skills).")
+                        "Make sure Alisio is running and connected, then hit Refresh.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

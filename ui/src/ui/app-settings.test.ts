@@ -6,19 +6,12 @@ import {
   applySettingsFromUrl,
   attachThemeListener,
   setTabFromRoute,
+  syncUrlWithTab,
   syncThemeWithSettings,
 } from "./app-settings.ts";
 import type { ThemeMode, ThemeName } from "./theme.ts";
 
-type Tab =
-  | "agents"
-  | "home"
-  | "authentications"
-  | "organization"
-  | "sessions"
-  | "automations"
-  | "chat"
-  | "settings";
+type Tab = "setup" | "authentications" | "organization" | "chat" | "settings";
 
 type SettingsHost = {
   settings: {
@@ -45,6 +38,8 @@ type SettingsHost = {
   tab: Tab;
   settingsSection: import("./navigation.ts").SettingsSection;
   connected: boolean;
+  alisioBootstrap?: import("./types.ts").AlisioBootstrapState | null;
+  setupStep?: import("./types.ts").AlisioBootstrapStep | null;
   chatHasAutoScrolled: boolean;
   logsAtBottom: boolean;
   eventLog: unknown[];
@@ -124,8 +119,10 @@ const createHost = (tab: Tab): SettingsHost => ({
   applySessionKey: "main",
   sessionKey: "main",
   tab,
-  settingsSection: "workspace",
+  settingsSection: "account",
   connected: false,
+  alisioBootstrap: null,
+  setupStep: null,
   chatHasAutoScrolled: false,
   logsAtBottom: false,
   eventLog: [],
@@ -261,7 +258,7 @@ describe("applySettingsFromUrl", () => {
 
   it("hydrates query token params and strips them from the URL", () => {
     setTestWindowUrl("https://control.example/ui/home?token=abc123");
-    const host = createHost("home");
+    const host = createHost("chat");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);
@@ -270,11 +267,76 @@ describe("applySettingsFromUrl", () => {
     expect(window.location.search).toBe("");
   });
 
+  it("persists the focused setup step in the URL", () => {
+    const { history } = setTestWindowUrl("https://control.example/setup");
+    const host = createHost("setup");
+    host.connected = true;
+    host.alisioBootstrap = {
+      connectionRequired: false,
+      wizardRequired: true,
+      wizardRunning: false,
+      providerReady: false,
+      accountReady: false,
+      startupState: "needs_profile",
+      organizationState: { mode: "none" },
+      connectorSummary: {
+        total: 0,
+        ready: 0,
+        connected: 0,
+        needsReconnect: 0,
+        inReview: 0,
+        unavailable: 0,
+        available: 0,
+      },
+      nextStep: "account",
+      account: {
+        profile: {
+          username: "nuno",
+          displayName: "Nuno",
+          email: "nuno@alisio.local",
+          avatarLabel: "N",
+          joinedAt: "2026-04-01T00:00:00.000Z",
+          plan: "Free Plan",
+        },
+        preferences: {
+          language: "pt-PT",
+          theme: "dark",
+        },
+        session: {
+          state: "signed_in",
+          profileCompleted: true,
+        },
+        devices: [],
+      },
+      organization: { mode: "none" },
+      connectors: {
+        catalog: [],
+        authorizations: [],
+        summary: {
+          total: 0,
+          ready: 0,
+          connected: 0,
+          needsReconnect: 0,
+          inReview: 0,
+          unavailable: 0,
+          available: 0,
+        },
+      },
+      wizard: { running: false, sessionId: null },
+      models: { total: 0, defaultProvider: "anthropic", providers: [] },
+    };
+
+    syncUrlWithTab(host, "setup", true);
+
+    expect(history.replaceState).toHaveBeenCalledOnce();
+    expect(String(window.location.href)).toContain("/setup?step=account");
+  });
+
   it("keeps query token params pending when a gatewayUrl confirmation is required", () => {
     setTestWindowUrl(
       "https://control.example/ui/home?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
     );
-    const host = createHost("home");
+    const host = createHost("chat");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);
@@ -287,7 +349,7 @@ describe("applySettingsFromUrl", () => {
 
   it("prefers fragment tokens over legacy query tokens when both are present", () => {
     setTestWindowUrl("https://control.example/ui/home?token=query-token#token=hash-token");
-    const host = createHost("home");
+    const host = createHost("chat");
     host.settings.gatewayUrl = "wss://control.example/openclaw";
 
     applySettingsFromUrl(host);

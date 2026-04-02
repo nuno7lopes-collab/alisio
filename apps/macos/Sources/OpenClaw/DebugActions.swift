@@ -5,7 +5,6 @@ import SwiftUI
 enum DebugActions {
     private static let verboseDefaultsKey = "openclaw.debug.verboseMain"
     private static let sessionMenuLimit = 12
-    private static let onboardingSeenKey = "openclaw.onboardingSeen"
 
     @MainActor
     static func openAgentEventsWindow() {
@@ -61,7 +60,7 @@ enum DebugActions {
     }
 
     static func sendTestNotification() async {
-        _ = await NotificationManager().send(title: "Lume", body: "Test notification", sound: nil)
+        _ = await NotificationManager().send(title: "Alisio", body: "Test notification", sound: nil)
     }
 
     static func sendDebugVoice() async -> Result<String, DebugActionError> {
@@ -183,11 +182,7 @@ enum DebugActions {
     }
 
     @MainActor
-    static func restartOnboarding() {
-        UserDefaults.standard.set(false, forKey: self.onboardingSeenKey)
-        UserDefaults.standard.set(0, forKey: onboardingVersionKey)
-        AppStateStore.shared.onboardingSeen = false
-        LumeWindowManager.shared.shellState.restartOnboarding()
+    static func openSetup() {
         LumeWindowManager.shared.show(route: .onboarding)
     }
 

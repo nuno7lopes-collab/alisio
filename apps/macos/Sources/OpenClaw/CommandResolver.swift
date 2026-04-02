@@ -46,19 +46,26 @@ enum CommandResolver {
         return ["/bin/sh", "-c", script]
     }
 
-    static func projectRoot() -> URL {
-        if let stored = UserDefaults.standard.string(forKey: self.projectRootDefaultsKey),
+    static func projectRoot(
+        defaults: UserDefaults = .standard,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default,
+        homeDirectory: URL = FileManager().homeDirectoryForCurrentUser) -> URL
+    {
+        if let inferred = self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return inferred
+        }
+        if let stored = defaults.string(forKey: self.projectRootDefaultsKey),
            let url = self.expandPath(stored),
-           FileManager().fileExists(atPath: url.path)
+           fileManager.fileExists(atPath: url.path)
         {
             return url
         }
-        let fallback = FileManager().homeDirectoryForCurrentUser
-            .appendingPathComponent("Projects/openclaw")
-        if FileManager().fileExists(atPath: fallback.path) {
+        let fallback = homeDirectory.appendingPathComponent("Projects/openclaw")
+        if fileManager.fileExists(atPath: fallback.path) {
             return fallback
         }
-        return FileManager().homeDirectoryForCurrentUser
+        return homeDirectory
     }
 
     static func setProjectRoot(_ path: String) {
@@ -67,6 +74,27 @@ enum CommandResolver {
 
     static func projectRootPath() -> String {
         self.projectRoot().path
+    }
+
+    static func inferBundledProjectRoot(bundleURL: URL, fileManager: FileManager = .default) -> URL? {
+        #if DEBUG
+        let standardized = bundleURL.standardizedFileURL
+        var cursor = standardized.deletingLastPathComponent()
+        for _ in 0..<8 {
+            if cursor.lastPathComponent == "dist" {
+                let candidate = cursor.deletingLastPathComponent()
+                if self.isProjectRoot(candidate, fileManager: fileManager) {
+                    return candidate
+                }
+            }
+            let parent = cursor.deletingLastPathComponent()
+            if parent.path == cursor.path {
+                break
+            }
+            cursor = parent
+        }
+        #endif
+        return nil
     }
 
     static func preferredPaths() -> [String] {
@@ -501,6 +529,16 @@ enum CommandResolver {
         if text.isEmpty { return "''" }
         let escaped = text.replacingOccurrences(of: "'", with: "'\\''")
         return "'\(escaped)'"
+    }
+
+    private static func isProjectRoot(_ url: URL, fileManager: FileManager) -> Bool {
+        let required = [
+            url.appendingPathComponent("package.json"),
+            url.appendingPathComponent("src", isDirectory: true),
+            url.appendingPathComponent("ui", isDirectory: true),
+            url.appendingPathComponent("apps/macos", isDirectory: true),
+        ]
+        return required.allSatisfy { fileManager.fileExists(atPath: $0.path) }
     }
 
     private static func expandPath(_ path: String) -> URL? {

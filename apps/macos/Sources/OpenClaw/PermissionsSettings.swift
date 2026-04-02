@@ -6,14 +6,14 @@ import SwiftUI
 struct PermissionsSettings: View {
     let status: [Capability: Bool]
     let refresh: () async -> Void
-    let showOnboarding: () -> Void
+    let openSetup: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 SystemRunSettingsView()
 
-                Text("Allow these so OpenClaw can notify and capture when needed.")
+                Text("Allow these so Alisio can notify and capture when needed.")
                     .padding(.top, 4)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -23,7 +23,7 @@ struct PermissionsSettings: View {
 
                 LocationAccessSettings()
 
-                Button("Restart onboarding") { self.showOnboarding() }
+                Button("Open setup") { self.openSetup() }
                     .buttonStyle(.bordered)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -286,7 +286,7 @@ struct PermissionsSettings_Previews: PreviewProvider {
                 .speechRecognition: false,
             ],
             refresh: {},
-            showOnboarding: {})
+            openSetup: {})
             .frame(width: SettingsTab.windowWidth, height: SettingsTab.windowHeight)
     }
 }

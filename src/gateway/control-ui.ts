@@ -2,18 +2,28 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
+import {
+  getAlisioAccountState,
+  getAlisioBootstrapSummary,
+  hasRestorableAlisioAccount,
+} from "../infra/alisio-store.js";
 import { matchBoundaryFileOpenFailure, openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
   isPackageProvenControlUiRootSync,
   resolveControlUiRootSync,
 } from "../infra/control-ui-assets.js";
+import { issueDeviceBootstrapToken } from "../infra/device-bootstrap.js";
 import { isWithinDir } from "../infra/path-safety.js";
 import { openVerifiedFileSync } from "../infra/safe-open-sync.js";
 import { AVATAR_MAX_BYTES } from "../shared/avatar-policy.js";
+import { CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE } from "../shared/device-bootstrap-profile.js";
 import { resolveRuntimeServiceVersion } from "../version.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
+import { isLocalDirectRequest } from "./auth.js";
 import {
+  ALISIO_BOOTSTRAP_HTTP_PATH,
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+  type AlisioHttpBootstrap,
   type ControlUiBootstrapConfig,
 } from "./control-ui-contract.js";
 import { buildControlUiCspHeader, computeInlineScriptHashes } from "./control-ui-csp.js";
@@ -46,6 +56,13 @@ export type ControlUiRootState =
   | { kind: "resolved"; path: string }
   | { kind: "invalid"; path: string }
   | { kind: "missing" };
+
+export type AlisioBootstrapHttpRequestOptions = {
+  basePath?: string;
+  trustedProxies: string[];
+  allowRealIpFallback: boolean;
+  loadRuntimeSetup: () => Promise<{ providerReady: boolean }>;
+};
 
 function contentTypeForExt(ext: string): string {
   switch (ext) {
@@ -122,6 +139,95 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   res.end(JSON.stringify(body));
+}
+
+function resolveHttpOrigin(req: IncomingMessage): string {
+  const host = String(req.headers.host ?? "127.0.0.1:18789").trim() || "127.0.0.1:18789";
+  const socket = req.socket as { encrypted?: boolean } | undefined;
+  const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "")
+    .split(",")[0]
+    ?.trim()
+    .toLowerCase();
+  const protocol =
+    forwardedProto === "https" || forwardedProto === "wss"
+      ? "https"
+      : socket?.encrypted
+        ? "https"
+        : "http";
+  return `${protocol}://${host}`;
+}
+
+function resolveWebSocketUrl(req: IncomingMessage, basePath: string): string {
+  const origin = new URL(resolveHttpOrigin(req));
+  origin.protocol = origin.protocol === "https:" ? "wss:" : "ws:";
+  origin.pathname = basePath || "/";
+  origin.search = "";
+  origin.hash = "";
+  return origin.toString();
+}
+
+export async function handleAlisioBootstrapHttpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: AlisioBootstrapHttpRequestOptions,
+): Promise<boolean> {
+  const urlRaw = req.url;
+  if (!urlRaw || !isReadHttpMethod(req.method)) {
+    return false;
+  }
+
+  const url = new URL(urlRaw, "http://localhost");
+  const basePath = normalizeControlUiBasePath(opts.basePath);
+  const bootstrapPath = basePath
+    ? `${basePath}${ALISIO_BOOTSTRAP_HTTP_PATH}`
+    : ALISIO_BOOTSTRAP_HTTP_PATH;
+  if (url.pathname !== bootstrapPath) {
+    return false;
+  }
+
+  applyControlUiSecurityHeaders(res);
+  if (req.method === "HEAD") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.end();
+    return true;
+  }
+
+  const localDirect = isLocalDirectRequest(req, opts.trustedProxies, opts.allowRealIpFallback);
+  const account = await getAlisioAccountState();
+  const runtimeSetup = await opts.loadRuntimeSetup();
+  const bootstrap = await getAlisioBootstrapSummary({
+    providerReady: runtimeSetup.providerReady,
+    wizardRunning: false,
+    connectionRequired: false,
+  });
+  const body: AlisioHttpBootstrap = {
+    basePath,
+    controlUrl: resolveWebSocketUrl(req, basePath),
+    startupState: bootstrap.startupState,
+    account: hasRestorableAlisioAccount(account.profile, account.session)
+      ? {
+          username: account.profile.username,
+          displayName: account.profile.displayName,
+          email: account.profile.email,
+          avatarLabel: account.profile.avatarLabel,
+          plan: account.profile.plan,
+        }
+      : null,
+    manualConnectionRequired: !localDirect,
+    ...(localDirect
+      ? {
+          bootstrapToken: (
+            await issueDeviceBootstrapToken({
+              profile: CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE,
+            })
+          ).token,
+        }
+      : {}),
+  };
+  sendJson(res, 200, body);
+  return true;
 }
 
 function respondControlUiAssetsUnavailable(

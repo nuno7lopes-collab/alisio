@@ -562,6 +562,31 @@ describe("sendChatMessage", () => {
       ],
     });
   });
+
+  it("redirects runtime setup errors into a guided state instead of appending a raw assistant error", async () => {
+    const request = vi
+      .fn()
+      .mockRejectedValue(
+        new Error("No providers configured. Add a model provider api key before sending chat."),
+      );
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    const result = await sendChatMessage(state, "hello");
+
+    expect(result).toBeNull();
+    expect(state.lastError).toContain("Configure um provider");
+    expect(state.chatRuntimeSetupHint).toMatchObject({
+      title: "Runtime setup required",
+      ctaLabel: "Abrir setup do runtime",
+    });
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0]).toMatchObject({
+      role: "user",
+    });
+  });
 });
 
 describe("abortChatRun", () => {

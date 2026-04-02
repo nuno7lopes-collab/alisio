@@ -15,7 +15,7 @@ import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/age
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
-import { iconForTab, pathForTab, titleForTab, type Tab } from "./navigation.ts";
+import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ThemeMode, ThemeName } from "./theme.ts";
 import type { SessionsListResult } from "./types.ts";
@@ -55,14 +55,21 @@ function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string)
   });
 }
 
-export function renderTab(state: AppViewState, tab: Tab, opts?: { collapsed?: boolean }) {
+export function renderTab(
+  state: AppViewState,
+  tab: Tab,
+  opts?: { collapsed?: boolean; variant?: "panel" | "rail" },
+) {
   const href = pathForTab(tab, state.basePath);
-  const isActive = state.tab === tab;
+  const isActive = publicTabFor(state.tab) === publicTabFor(tab);
+  const variant = opts?.variant ?? "panel";
   const collapsed = opts?.collapsed ?? state.settings.navCollapsed;
+  const showText = variant !== "rail" && !collapsed;
   return html`
     <a
       href=${href}
-      class="nav-item ${isActive ? "nav-item--active" : ""}"
+      class="nav-item nav-item--${variant} ${isActive ? "nav-item--active" : ""}"
+      aria-current=${isActive ? "page" : "false"}
       @click=${(event: MouseEvent) => {
         if (
           event.defaultPrevented ||
@@ -87,7 +94,7 @@ export function renderTab(state: AppViewState, tab: Tab, opts?: { collapsed?: bo
       title=${titleForTab(tab)}
     >
       <span class="nav-item__icon" aria-hidden="true">${icons[iconForTab(tab)]}</span>
-      ${!collapsed ? html`<span class="nav-item__text">${titleForTab(tab)}</span>` : nothing}
+      ${showText ? html`<span class="nav-item__text">${titleForTab(tab)}</span>` : nothing}
     </a>
   `;
 }
@@ -172,11 +179,11 @@ export function renderChatControls(state: AppViewState) {
   const hiddenCronCount = hideCron
     ? countHiddenCronSessions(state.sessionKey, state.sessionsResult)
     : 0;
-  const disableThinkingToggle = state.onboarding;
-  const disableFocusToggle = state.onboarding;
-  const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
-  const showToolCalls = state.onboarding ? true : state.settings.chatShowToolCalls;
-  const focusActive = state.onboarding ? true : state.settings.chatFocusMode;
+  const disableThinkingToggle = false;
+  const disableFocusToggle = false;
+  const showThinking = state.settings.chatShowThinking;
+  const showToolCalls = state.settings.chatShowToolCalls;
+  const focusActive = state.settings.chatFocusMode;
   const toolCallsIcon = html`
     <svg
       width="18"
@@ -330,11 +337,11 @@ export function renderChatControls(state: AppViewState) {
  */
 export function renderChatMobileToggle(state: AppViewState) {
   const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
-  const disableThinkingToggle = state.onboarding;
-  const disableFocusToggle = state.onboarding;
-  const showThinking = state.onboarding ? false : state.settings.chatShowThinking;
-  const showToolCalls = state.onboarding ? true : state.settings.chatShowToolCalls;
-  const focusActive = state.onboarding ? true : state.settings.chatFocusMode;
+  const disableThinkingToggle = false;
+  const disableFocusToggle = false;
+  const showThinking = state.settings.chatShowThinking;
+  const showToolCalls = state.settings.chatShowToolCalls;
+  const focusActive = state.settings.chatFocusMode;
   const toolCallsIcon = html`
     <svg
       width="18"

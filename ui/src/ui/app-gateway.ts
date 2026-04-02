@@ -19,6 +19,7 @@ import type { OpenClawApp } from "./app.ts";
 import { shouldReloadHistoryForFinalEvent } from "./chat-event-reload.ts";
 import { formatConnectError } from "./connect-error.ts";
 import { loadAgents } from "./controllers/agents.ts";
+import { loadAlisioBootstrap, loadAlisioDoctorSummary } from "./controllers/alisio.ts";
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
@@ -58,13 +59,14 @@ function isGenericBrowserFetchFailure(message: string): boolean {
 type GatewayHost = {
   settings: UiSettings;
   password: string;
+  gatewayBootstrapUrl: string | null;
+  gatewayBootstrapToken: string | null;
   clientInstanceId: string;
   client: GatewayBrowserClient | null;
   connected: boolean;
   hello: GatewayHelloOk | null;
   lastError: string | null;
   lastErrorCode: string | null;
-  onboarding?: boolean;
   eventLogBuffer: EventLogEntry[];
   eventLog: EventLogEntry[];
   tab: Tab;
@@ -210,13 +212,17 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
   host.execApprovalError = null;
 
   const previousClient = host.client;
+  const gatewayUrl = host.gatewayBootstrapUrl?.trim() || host.settings.gatewayUrl;
+  const gatewayToken = host.gatewayBootstrapToken?.trim() || host.settings.token.trim();
   const clientVersion = resolveControlUiClientVersion({
-    gatewayUrl: host.settings.gatewayUrl,
+    gatewayUrl,
     serverVersion: host.serverVersion,
   });
   const client = new GatewayBrowserClient({
-    url: host.settings.gatewayUrl,
+    url: gatewayUrl,
     token: host.settings.token.trim() ? host.settings.token : undefined,
+    bootstrapToken:
+      gatewayToken && gatewayToken !== host.settings.token.trim() ? gatewayToken : undefined,
     password: host.password.trim() ? host.password : undefined,
     clientName: "openclaw-control-ui",
     clientVersion,
@@ -252,6 +258,8 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       void loadHealthState(host as unknown as OpenClawApp);
       void loadNodes(host as unknown as OpenClawApp, { quiet: true });
       void loadDevices(host as unknown as OpenClawApp, { quiet: true });
+      void loadAlisioBootstrap(host as unknown as OpenClawApp);
+      void loadAlisioDoctorSummary(host as unknown as OpenClawApp);
       void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0]);
     },
     onClose: ({ code, reason, error }) => {
@@ -369,9 +377,6 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   }
 
   if (evt.event === "agent") {
-    if (host.onboarding) {
-      return;
-    }
     handleAgentEvent(
       host as unknown as Parameters<typeof handleAgentEvent>[0],
       evt.payload as AgentEventPayload | undefined,

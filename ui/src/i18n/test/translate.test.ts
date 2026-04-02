@@ -31,6 +31,24 @@ describe("i18n", () => {
     expect(translate.t("common.health")).toBe("Health");
   });
 
+  it("loads Alisio product copy in pt-PT and es", async () => {
+    await translate.i18n.setLocale("pt-PT");
+    expect(translate.t("alisio.authentications.title")).toBe("As tuas autorizações");
+    expect(translate.t("alisio.organization.title")).toBe("Organização");
+    expect(translate.t("alisio.settings.title")).toBe("Definições");
+    expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Português (Portugal)");
+    expect(translate.t("alisio.chat.defaultAssistantName")).toBe("Assistente");
+    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL da gateway");
+
+    await translate.i18n.setLocale("es");
+    expect(translate.t("alisio.authentications.title")).toBe("Tus autorizaciones");
+    expect(translate.t("alisio.organization.title")).toBe("Organización");
+    expect(translate.t("alisio.settings.title")).toBe("Ajustes");
+    expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Portugués (Portugal)");
+    expect(translate.t("alisio.chat.defaultAssistantName")).toBe("Asistente");
+    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL de la puerta de enlace");
+  });
+
   it("should replace parameters correctly", () => {
     expect(translate.t("overview.stats.cronNext", { time: "10:00" })).toBe("Next wake 10:00");
   });

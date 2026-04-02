@@ -2,7 +2,6 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
-import { i18n } from "../../i18n/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { renderChatSessionSelect } from "../app-render.helpers.ts";
 import type { AppViewState } from "../app-view-state.ts";
@@ -16,7 +15,6 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ModelCatalogEntry } from "../types.ts";
 import type { SessionsListResult } from "../types.ts";
 import { renderChat, type ChatProps } from "./chat.ts";
-import { renderOverview, type OverviewProps } from "./overview.ts";
 
 function createSessions(): SessionsListResult {
   return {
@@ -175,13 +173,15 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     canSend: true,
     disabledReason: null,
     error: null,
+    runtimeSetupHint: null,
     sessions: createSessions(),
     focusMode: false,
-    assistantName: "OpenClaw",
+    assistantName: "Alisio",
     assistantAvatar: null,
     onRefresh: () => undefined,
     onToggleFocusMode: () => undefined,
     onDraftChange: () => undefined,
+    onOpenRuntimeSetup: () => undefined,
     onSend: () => undefined,
     onQueueRemove: () => undefined,
     onNewSession: () => undefined,
@@ -192,59 +192,36 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   };
 }
 
-function createOverviewProps(overrides: Partial<OverviewProps> = {}): OverviewProps {
-  return {
-    connected: false,
-    hello: null,
-    settings: {
-      gatewayUrl: "",
-      token: "",
-      sessionKey: "main",
-      lastActiveSessionKey: "main",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-      borderRadius: 50,
-      locale: "en",
-    },
-    password: "",
-    lastError: null,
-    lastErrorCode: null,
-    presenceCount: 0,
-    sessionsCount: null,
-    cronEnabled: null,
-    cronNext: null,
-    lastChannelsRefresh: null,
-    usageResult: null,
-    sessionsResult: null,
-    skillsReport: null,
-    cronJobs: [],
-    cronStatus: null,
-    attentionItems: [],
-    eventLog: [],
-    overviewLogLines: [],
-    showGatewayToken: false,
-    showGatewayPassword: false,
-    onSettingsChange: () => undefined,
-    onPasswordChange: () => undefined,
-    onSessionKeyChange: () => undefined,
-    onToggleGatewayTokenVisibility: () => undefined,
-    onToggleGatewayPasswordVisibility: () => undefined,
-    onConnect: () => undefined,
-    onRefresh: () => undefined,
-    onNavigate: () => undefined,
-    onRefreshLogs: () => undefined,
-    ...overrides,
-  };
-}
-
 describe("chat view", () => {
+  it("shows a runtime setup callout instead of the raw error when setup is missing", () => {
+    const container = document.createElement("div");
+    const onOpenRuntimeSetup = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          error: "No providers configured",
+          runtimeSetupHint: {
+            title: "Runtime setup required",
+            message:
+              "Configure um provider e as credenciais do runtime antes de enviar mensagens no chat.",
+            ctaLabel: "Abrir setup do runtime",
+          },
+          onOpenRuntimeSetup,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Runtime setup required");
+    expect(container.textContent).toContain("Abrir setup do runtime");
+    expect(container.textContent).not.toContain("No providers configured");
+
+    const button = container.querySelector("button.btn");
+    expect(button).not.toBeNull();
+    button?.dispatchEvent(new MouseEvent("click"));
+    expect(onOpenRuntimeSetup).toHaveBeenCalledTimes(1);
+  });
+
   it("hides the context notice when only cumulative inputTokens exceed the limit", () => {
     const container = document.createElement("div");
     render(
@@ -453,37 +430,6 @@ describe("chat view", () => {
     expect(groupedLogo?.getAttribute("src")).toBe("/openclaw/favicon.svg");
   });
 
-  it("keeps the persisted overview locale selected before i18n hydration finishes", async () => {
-    const container = document.createElement("div");
-    const props = createOverviewProps({
-      settings: {
-        ...createOverviewProps().settings,
-        locale: "zh-CN",
-      },
-    });
-
-    getSafeLocalStorage()?.clear();
-    await i18n.setLocale("en");
-
-    render(renderOverview(props), container);
-    await Promise.resolve();
-
-    let select = container.querySelector<HTMLSelectElement>("select");
-    expect(i18n.getLocale()).toBe("en");
-    expect(select?.value).toBe("zh-CN");
-    expect(select?.selectedOptions[0]?.textContent?.trim()).toBe("简体中文 (Simplified Chinese)");
-
-    await i18n.setLocale("zh-CN");
-    render(renderOverview(props), container);
-    await Promise.resolve();
-
-    select = container.querySelector<HTMLSelectElement>("select");
-    expect(select?.value).toBe("zh-CN");
-    expect(select?.selectedOptions[0]?.textContent?.trim()).toBe("简体中文 (简体中文)");
-
-    await i18n.setLocale("en");
-  });
-
   it("renders compacting indicator as a badge", () => {
     const container = document.createElement("div");
     render(
@@ -636,7 +582,7 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("New session");
   });
 
-  it("shows a new session button when aborting is unavailable", () => {
+  it("keeps secondary composer actions hidden when aborting is unavailable", () => {
     const container = document.createElement("div");
     const onNewSession = vi.fn();
     render(
@@ -652,9 +598,8 @@ describe("chat view", () => {
     const newSessionButton = container.querySelector<HTMLButtonElement>(
       'button[title="New session"]',
     );
-    expect(newSessionButton).not.toBeUndefined();
-    newSessionButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onNewSession).toHaveBeenCalledTimes(1);
+    expect(newSessionButton).toBeNull();
+    expect(onNewSession).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain("Stop");
   });
 
@@ -1191,5 +1136,15 @@ describe("chat view", () => {
     expect(labels.filter((label) => label === "Deep Chat (alpha) / main")).toHaveLength(1);
     expect(labels).toContain("Deep Chat (alpha) / main · named-main");
     expect(labels).toContain("Coding (beta) / main");
+  });
+
+  it("renders the Alisio chat shell wrappers for the redesigned layout", () => {
+    const container = document.createElement("div");
+    render(renderChat(createProps()), container);
+
+    expect(container.querySelector(".alisio-chat")).not.toBeNull();
+    expect(container.querySelector(".alisio-chat__thread")).not.toBeNull();
+    expect(container.querySelector(".alisio-chat__composer")).not.toBeNull();
+    expect(container.querySelector(".alisio-chat__composer-toolbar")).not.toBeNull();
   });
 });

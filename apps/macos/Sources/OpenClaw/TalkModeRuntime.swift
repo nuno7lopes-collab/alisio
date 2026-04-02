@@ -346,7 +346,7 @@ actor TalkModeRuntime {
         await self.reloadConfig()
         guard self.isCurrent(gen) else { return }
         let prompt = self.buildPrompt(transcript: transcript)
-        let activeSessionKey = await MainActor.run { WebChatManager.shared.activeSessionKey }
+        let activeSessionKey = await MainActor.run { LumeWorkspaceManager.shared.activeSessionKey }
         let sessionKey: String = if let activeSessionKey {
             activeSessionKey
         } else {

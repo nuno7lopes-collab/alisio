@@ -1,4 +1,25 @@
 export type UpdateAvailable = import("../../../src/infra/update-startup.js").UpdateAvailable;
+export type AlisioAccountState = import("../../../src/infra/alisio-store.js").AlisioAccountState;
+export type AlisioHttpBootstrap =
+  import("../../../src/gateway/control-ui-contract.js").AlisioHttpBootstrap;
+export type AlisioBootstrapState =
+  import("../../../src/gateway/protocol/index.js").AlisioBootstrapResult;
+export type AlisioDoctorSummaryState =
+  import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
+export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;
+export type AlisioConnectedAccount =
+  import("../../../src/infra/alisio-store.js").AlisioConnectedAccount;
+export type AlisioConnectorAuthorization =
+  import("../../../src/infra/alisio-store.js").AlisioConnectorAuthorization;
+export type AlisioConnectorDefinition =
+  import("../../../src/infra/alisio-store.js").AlisioConnectorDefinition;
+export type AlisioOrganizationMembershipState =
+  import("../../../src/infra/alisio-store.js").AlisioOrganizationMembershipState;
+export type WizardNextResult = import("../../../src/gateway/protocol/index.js").WizardNextResult;
+export type WizardStartResult = import("../../../src/gateway/protocol/index.js").WizardStartResult;
+export type WizardStatusResult =
+  import("../../../src/gateway/protocol/index.js").WizardStatusResult;
+export type WizardStep = import("../../../src/gateway/protocol/index.js").WizardStep;
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 import type {

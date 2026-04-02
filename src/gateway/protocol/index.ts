@@ -3,11 +3,71 @@ import type { SessionsPatchResult } from "../session-utils.types.js";
 import {
   type AgentEvent,
   AgentEventSchema,
+  type AlisioAccountGetParams,
+  AlisioAccountGetParamsSchema,
+  type AlisioAccountSignInParams,
+  AlisioAccountSignInParamsSchema,
+  type AlisioAccountSignOutParams,
+  AlisioAccountSignOutParamsSchema,
+  type AlisioAccountSignUpParams,
+  AlisioAccountSignUpParamsSchema,
+  type AlisioAccountResult,
+  AlisioAccountResultSchema,
+  type AlisioAccountUpdateParams,
+  AlisioAccountUpdateParamsSchema,
+  type AlisioConnectedAccount,
+  AlisioConnectedAccountSchema,
+  type AlisioConnectorAuthorization,
+  AlisioConnectorAuthorizationSchema,
+  type AlisioConnectorDefinition,
+  AlisioConnectorDefinitionSchema,
+  type AlisioConnectorSummary,
+  AlisioConnectorSummarySchema,
+  type AlisioBootstrapGetParams,
+  AlisioBootstrapGetParamsSchema,
+  type AlisioBootstrapResult,
+  AlisioBootstrapResultSchema,
+  type AlisioDoctorSummaryParams,
+  AlisioDoctorSummaryParamsSchema,
+  type AlisioDoctorSummaryResult,
+  AlisioDoctorSummaryResultSchema,
+  type AlisioRuntimeRestartParams,
+  AlisioRuntimeRestartParamsSchema,
+  type AlisioRuntimeRestartResult,
+  AlisioRuntimeRestartResultSchema,
+  type AlisioConnectorsBeginParams,
+  AlisioConnectorsBeginParamsSchema,
+  type AlisioConnectorsBeginResult,
+  AlisioConnectorsBeginResultSchema,
+  type AlisioConnectorsCatalogParams,
+  AlisioConnectorsCatalogParamsSchema,
+  type AlisioConnectorsCatalogResult,
+  AlisioConnectorsCatalogResultSchema,
+  type AlisioConnectorsCompleteParams,
+  AlisioConnectorsCompleteParamsSchema,
+  type AlisioConnectorsListParams,
+  AlisioConnectorsListParamsSchema,
+  type AlisioConnectorsListResult,
+  AlisioConnectorsListResultSchema,
+  type AlisioConnectorsRevokeParams,
+  AlisioConnectorsRevokeParamsSchema,
   type AgentIdentityParams,
   AgentIdentityParamsSchema,
   type AgentIdentityResult,
   AgentIdentityResultSchema,
   AgentParamsSchema,
+  type AlisioLocalAccountProfile,
+  AlisioLocalAccountProfileSchema,
+  type AlisioLocalDeviceSession,
+  AlisioLocalDeviceSessionSchema,
+  type AlisioLocalUserPreferences,
+  AlisioLocalUserPreferencesSchema,
+  type AlisioOrganizationGetParams,
+  AlisioOrganizationGetParamsSchema,
+  type AlisioOrganizationSetParams,
+  AlisioOrganizationSetParamsSchema,
+  type AlisioOrganizationState,
+  AlisioOrganizationStateSchema,
   type AgentSummary,
   AgentSummarySchema,
   type AgentsFileEntry,
@@ -284,6 +344,65 @@ export const validateEventFrame = ajv.compile<EventFrame>(EventFrameSchema);
 export const validateSendParams = ajv.compile(SendParamsSchema);
 export const validatePollParams = ajv.compile<PollParams>(PollParamsSchema);
 export const validateAgentParams = ajv.compile(AgentParamsSchema);
+export const validateAlisioAccountGetParams = ajv.compile<AlisioAccountGetParams>(
+  AlisioAccountGetParamsSchema,
+);
+export const validateAlisioAccountSignUpParams = ajv.compile<AlisioAccountSignUpParams>(
+  AlisioAccountSignUpParamsSchema,
+);
+export const validateAlisioAccountSignInParams = ajv.compile<AlisioAccountSignInParams>(
+  AlisioAccountSignInParamsSchema,
+);
+export const validateAlisioAccountSignOutParams = ajv.compile<AlisioAccountSignOutParams>(
+  AlisioAccountSignOutParamsSchema,
+);
+export const validateAlisioAccountResult =
+  ajv.compile<AlisioAccountResult>(AlisioAccountResultSchema);
+export const validateAlisioAccountUpdateParams = ajv.compile<AlisioAccountUpdateParams>(
+  AlisioAccountUpdateParamsSchema,
+);
+export const validateAlisioBootstrapGetParams = ajv.compile<AlisioBootstrapGetParams>(
+  AlisioBootstrapGetParamsSchema,
+);
+export const validateAlisioBootstrapResult = ajv.compile<AlisioBootstrapResult>(
+  AlisioBootstrapResultSchema,
+);
+export const validateAlisioDoctorSummaryParams = ajv.compile<AlisioDoctorSummaryParams>(
+  AlisioDoctorSummaryParamsSchema,
+);
+export const validateAlisioDoctorSummaryResult = ajv.compile<AlisioDoctorSummaryResult>(
+  AlisioDoctorSummaryResultSchema,
+);
+export const validateAlisioRuntimeRestartParams = ajv.compile<AlisioRuntimeRestartParams>(
+  AlisioRuntimeRestartParamsSchema,
+);
+export const validateAlisioRuntimeRestartResult = ajv.compile<AlisioRuntimeRestartResult>(
+  AlisioRuntimeRestartResultSchema,
+);
+export const validateAlisioOrganizationGetParams = ajv.compile<AlisioOrganizationGetParams>(
+  AlisioOrganizationGetParamsSchema,
+);
+export const validateAlisioOrganizationSetParams = ajv.compile<AlisioOrganizationSetParams>(
+  AlisioOrganizationSetParamsSchema,
+);
+export const validateAlisioConnectorsCatalogParams = ajv.compile<AlisioConnectorsCatalogParams>(
+  AlisioConnectorsCatalogParamsSchema,
+);
+export const validateAlisioConnectorsListParams = ajv.compile<AlisioConnectorsListParams>(
+  AlisioConnectorsListParamsSchema,
+);
+export const validateAlisioConnectorsBeginParams = ajv.compile<AlisioConnectorsBeginParams>(
+  AlisioConnectorsBeginParamsSchema,
+);
+export const validateAlisioConnectorsBeginResult = ajv.compile<AlisioConnectorsBeginResult>(
+  AlisioConnectorsBeginResultSchema,
+);
+export const validateAlisioConnectorsCompleteParams = ajv.compile<AlisioConnectorsCompleteParams>(
+  AlisioConnectorsCompleteParamsSchema,
+);
+export const validateAlisioConnectorsRevokeParams = ajv.compile<AlisioConnectorsRevokeParams>(
+  AlisioConnectorsRevokeParamsSchema,
+);
 export const validateAgentIdentityParams =
   ajv.compile<AgentIdentityParams>(AgentIdentityParamsSchema);
 export const validateAgentWaitParams = ajv.compile<AgentWaitParams>(AgentWaitParamsSchema);
@@ -516,6 +635,31 @@ export {
   SendParamsSchema,
   PollParamsSchema,
   AgentParamsSchema,
+  AlisioConnectedAccountSchema,
+  AlisioConnectorDefinitionSchema,
+  AlisioConnectorAuthorizationSchema,
+  AlisioConnectorSummarySchema,
+  AlisioLocalAccountProfileSchema,
+  AlisioLocalUserPreferencesSchema,
+  AlisioLocalDeviceSessionSchema,
+  AlisioOrganizationStateSchema,
+  AlisioBootstrapGetParamsSchema,
+  AlisioBootstrapResultSchema,
+  AlisioDoctorSummaryParamsSchema,
+  AlisioDoctorSummaryResultSchema,
+  AlisioAccountGetParamsSchema,
+  AlisioAccountResultSchema,
+  AlisioAccountUpdateParamsSchema,
+  AlisioOrganizationGetParamsSchema,
+  AlisioOrganizationSetParamsSchema,
+  AlisioConnectorsCatalogParamsSchema,
+  AlisioConnectorsCatalogResultSchema,
+  AlisioConnectorsListParamsSchema,
+  AlisioConnectorsListResultSchema,
+  AlisioConnectorsBeginParamsSchema,
+  AlisioConnectorsBeginResultSchema,
+  AlisioConnectorsCompleteParamsSchema,
+  AlisioConnectorsRevokeParamsSchema,
   AgentIdentityParamsSchema,
   AgentIdentityResultSchema,
   WakeParamsSchema,
@@ -625,6 +769,31 @@ export type {
   ErrorShape,
   StateVersion,
   AgentEvent,
+  AlisioConnectedAccount,
+  AlisioConnectorDefinition,
+  AlisioConnectorAuthorization,
+  AlisioConnectorSummary,
+  AlisioLocalAccountProfile,
+  AlisioLocalUserPreferences,
+  AlisioLocalDeviceSession,
+  AlisioOrganizationState,
+  AlisioBootstrapGetParams,
+  AlisioBootstrapResult,
+  AlisioDoctorSummaryParams,
+  AlisioDoctorSummaryResult,
+  AlisioAccountGetParams,
+  AlisioAccountResult,
+  AlisioAccountUpdateParams,
+  AlisioOrganizationGetParams,
+  AlisioOrganizationSetParams,
+  AlisioConnectorsCatalogParams,
+  AlisioConnectorsCatalogResult,
+  AlisioConnectorsListParams,
+  AlisioConnectorsListResult,
+  AlisioConnectorsBeginParams,
+  AlisioConnectorsBeginResult,
+  AlisioConnectorsCompleteParams,
+  AlisioConnectorsRevokeParams,
   AgentIdentityParams,
   AgentIdentityResult,
   AgentWaitParams,

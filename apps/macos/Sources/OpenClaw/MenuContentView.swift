@@ -4,7 +4,7 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// Menu contents for the OpenClaw menu bar extra.
+/// Menu contents for the Alisio menu bar extra.
 struct MenuContent: View {
     @Bindable var state: AppState
     let updater: UpdaterProviding?
@@ -110,12 +110,12 @@ struct MenuContent: View {
                     await self.openDashboard()
                 }
             } label: {
-                Label("Open Dashboard", systemImage: "gauge")
+                Label("Open Workspace", systemImage: "gauge")
             }
             Button {
                 LumeWindowManager.shared.showPreferredChat()
             } label: {
-                Label("Open Lume", systemImage: "bubble.left.and.bubble.right")
+                Label("Open Alisio", systemImage: "bubble.left.and.bubble.right")
             }
             if self.state.canvasEnabled {
                 Button {
@@ -145,7 +145,7 @@ struct MenuContent: View {
             Button("Settings…") { self.open(tab: .general) }
                 .keyboardShortcut(",", modifiers: [.command])
             self.debugMenu
-            Button("About Lume") { self.open(tab: .about) }
+            Button("About Alisio") { self.open(tab: .about) }
             if let updater, updater.isAvailable, self.updateStatus.isUpdateReady {
                 Button("Update ready, restart now?") { updater.checkForUpdates(nil) }
             }
@@ -182,11 +182,11 @@ struct MenuContent: View {
     private var connectionLabel: String {
         switch self.state.connectionMode {
         case .unconfigured:
-            "Lume Not Configured"
+            "Alisio not configured"
         case .remote:
-            "Remote Lume Active"
+            "Remote Alisio active"
         case .local:
-            "Lume Active"
+            "Alisio active"
         }
     }
 
@@ -304,13 +304,13 @@ struct MenuContent: View {
                     Button {
                         DebugActions.restartGateway()
                     } label: {
-                        Label("Restart Gateway", systemImage: "arrow.clockwise")
+                        Label("Restart local runtime", systemImage: "arrow.clockwise")
                     }
                 }
                 Button {
-                    DebugActions.restartOnboarding()
+                    DebugActions.openSetup()
                 } label: {
-                    Label("Restart Onboarding", systemImage: "arrow.counterclockwise")
+                    Label("Open Setup", systemImage: "arrow.counterclockwise")
                 }
                 Button {
                     DebugActions.restartApp()
@@ -333,7 +333,7 @@ struct MenuContent: View {
             NSWorkspace.shared.open(url)
         } catch {
             let alert = NSAlert()
-            alert.messageText = "Dashboard unavailable"
+            alert.messageText = "Workspace unavailable"
             alert.informativeText = error.localizedDescription
             alert.runModal()
         }

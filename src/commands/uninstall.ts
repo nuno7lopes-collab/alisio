@@ -87,6 +87,10 @@ async function removeMacApp(runtime: RuntimeEnv, dryRun?: boolean) {
   if (process.platform !== "darwin") {
     return;
   }
+  await removePath("/Applications/Alisio.app", runtime, {
+    dryRun,
+    label: "/Applications/Alisio.app",
+  });
   await removePath("/Applications/OpenClaw.app", runtime, {
     dryRun,
     label: "/Applications/OpenClaw.app",
@@ -125,7 +129,7 @@ export async function uninstallCommand(runtime: RuntimeEnv, opts: UninstallOptio
         {
           value: "app",
           label: "macOS app",
-          hint: "/Applications/OpenClaw.app",
+          hint: "/Applications/Alisio.app",
         },
       ],
       initialValues: ["service", "state", "workspace"],

@@ -24,12 +24,19 @@ type LifecycleHost = {
   client?: { stop: () => void } | null;
   connectGeneration: number;
   connected?: boolean;
+  settings?: { token: string };
+  password?: string;
   tab: Tab;
   settingsSection?: import("./navigation.ts").SettingsSection;
   assistantName: string;
   assistantAvatar: string | null;
   assistantAgentId: string | null;
   serverVersion: string | null;
+  alisioStartupLoading: boolean;
+  alisioStartupError: string | null;
+  alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null;
+  gatewayBootstrapUrl: string | null;
+  gatewayBootstrapToken: string | null;
   chatHasAutoScrolled: boolean;
   chatManualRefreshInFlight: boolean;
   chatLoading: boolean;
@@ -54,6 +61,13 @@ export function handleConnected(host: LifecycleHost) {
   window.addEventListener("popstate", host.popStateHandler);
   void bootstrapReady.finally(() => {
     if (host.connectGeneration !== connectGeneration) {
+      return;
+    }
+    const manualConnectionRequired = host.alisioStartupBootstrap?.manualConnectionRequired ?? false;
+    const hasExplicitGatewayAuth = Boolean(
+      host.gatewayBootstrapToken?.trim() || host.settings?.token?.trim() || host.password?.trim(),
+    );
+    if (manualConnectionRequired && !hasExplicitGatewayAuth) {
       return;
     }
     connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);

@@ -14,7 +14,7 @@ private enum LumeWorkspaceLayout {
 
 @MainActor
 final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
-    private let presentation: WebChatPresentation
+    private let presentation: LumeWorkspacePresentation
     let webView: WKWebView
     private let hostBridge = LumeHostBridge()
     private var dismissMonitor: Any?
@@ -24,7 +24,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
     var onClosed: (() -> Void)?
     var onVisibilityChanged: ((Bool) -> Void)?
 
-    init(presentation: WebChatPresentation) {
+    init(presentation: LumeWorkspacePresentation) {
         self.presentation = presentation
 
         let config = WKWebViewConfiguration()
@@ -123,7 +123,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
         <!doctype html>
         <html lang="en">
           <meta charset="utf-8">
-          <title>Lume</title>
+          <title>Alisio</title>
           <style>
             :root { color-scheme: dark; }
             body {
@@ -153,7 +153,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
           </style>
           <body>
             <section class="card">
-              <h1>Lume Workspace unavailable</h1>
+              <h1>Alisio workspace unavailable</h1>
               <p>The native shell could not resolve the gateway workspace.</p>
               <code>\(escaped)</code>
             </section>
@@ -206,7 +206,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
     }
 
     private static func makeWindow(
-        for presentation: WebChatPresentation,
+        for presentation: LumeWorkspacePresentation,
         contentViewController: NSViewController) -> NSWindow
     {
         switch presentation {
@@ -216,7 +216,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered,
                 defer: false)
-            window.title = "Lume"
+            window.title = "Alisio"
             window.identifier = NSUserInterfaceItemIdentifier("ai.openclaw.lume-workspace-window")
             window.contentViewController = contentViewController
             window.isReleasedWhenClosed = false
@@ -228,7 +228,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
             window.center()
             return window
         case .panel:
-            let panel = WebChatPanel(
+            let panel = LumeWorkspacePanel(
                 contentRect: NSRect(origin: .zero, size: LumeWorkspaceLayout.panelSize),
                 styleMask: [.borderless],
                 backing: .buffered,
@@ -254,7 +254,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
     }
 
     private static func makeContentController(
-        for presentation: WebChatPresentation,
+        for presentation: LumeWorkspacePresentation,
         webView: WKWebView) -> NSViewController
     {
         let controller = NSViewController()
@@ -329,7 +329,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
             return
         }
 
-        if url.scheme?.lowercased() == "openclaw" {
+        if let scheme = url.scheme?.lowercased(), scheme == "alisio" || scheme == "openclaw" {
             Task { await DeepLinkHandler.shared.handle(url: url) }
             decisionHandler(.cancel)
             return

@@ -10,9 +10,25 @@ type LazyLocaleRegistration = {
 
 export const DEFAULT_LOCALE: Locale = "en";
 
-const LAZY_LOCALES: readonly LazyLocale[] = ["zh-CN", "zh-TW", "pt-BR", "de", "es"];
+const LAZY_LOCALES: readonly LazyLocale[] = ["pt-PT", "pt-BR", "es", "de", "zh-CN", "zh-TW"];
 
 const LAZY_LOCALE_REGISTRY: Record<LazyLocale, LazyLocaleRegistration> = {
+  "pt-PT": {
+    exportName: "pt_PT",
+    loader: () => import("../locales/pt-PT.ts"),
+  },
+  "pt-BR": {
+    exportName: "pt_BR",
+    loader: () => import("../locales/pt-BR.ts"),
+  },
+  es: {
+    exportName: "es",
+    loader: () => import("../locales/es.ts"),
+  },
+  de: {
+    exportName: "de",
+    loader: () => import("../locales/de.ts"),
+  },
   "zh-CN": {
     exportName: "zh_CN",
     loader: () => import("../locales/zh-CN.ts"),
@@ -20,18 +36,6 @@ const LAZY_LOCALE_REGISTRY: Record<LazyLocale, LazyLocaleRegistration> = {
   "zh-TW": {
     exportName: "zh_TW",
     loader: () => import("../locales/zh-TW.ts"),
-  },
-  "pt-BR": {
-    exportName: "pt_BR",
-    loader: () => import("../locales/pt-BR.ts"),
-  },
-  de: {
-    exportName: "de",
-    loader: () => import("../locales/de.ts"),
-  },
-  es: {
-    exportName: "es",
-    loader: () => import("../locales/es.ts"),
   },
 };
 
@@ -50,7 +54,7 @@ export function resolveNavigatorLocale(navLang: string): Locale {
     return navLang === "zh-TW" || navLang === "zh-HK" ? "zh-TW" : "zh-CN";
   }
   if (navLang.startsWith("pt")) {
-    return "pt-BR";
+    return "pt-PT";
   }
   if (navLang.startsWith("de")) {
     return "de";

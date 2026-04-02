@@ -157,7 +157,7 @@ enum AgentWorkspace {
 
     static func defaultTemplate() -> String {
         let fallback = """
-        # AGENTS.md - OpenClaw Workspace
+        # AGENTS.md - Alisio Workspace
 
         This folder is the assistant's working directory.
 

@@ -11,9 +11,9 @@
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Lume</string>
+    <string>Alisio</string>
     <key>CFBundleDisplayName</key>
-    <string>Lume</string>
+    <string>Alisio</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -26,10 +26,11 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>ai.openclaw.mac.deeplink</string>
+            <string>ai.alisio.mac.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
-                <string>openclaw</string>
+            <string>alisio</string>
+            <string>openclaw</string>
             </array>
         </dict>
     </array>
@@ -44,25 +45,25 @@
     <string></string>
 
     <key>NSUserNotificationUsageDescription</key>
-    <string>Lume needs notification permission to show alerts for agent actions.</string>
+    <string>Alisio needs notification permission to show alerts for agent actions.</string>
     <key>NSScreenCaptureDescription</key>
-    <string>Lume captures the screen when the agent needs screenshots for context.</string>
+    <string>Alisio captures the screen when the agent needs screenshots for context.</string>
     <key>NSCameraUsageDescription</key>
-    <string>Lume can capture photos or short video clips when requested by the agent.</string>
+    <string>Alisio can capture photos or short video clips when requested by the agent.</string>
 	<key>NSLocationUsageDescription</key>
-	<string>Lume can share your location when requested by the agent.</string>
+	<string>Alisio can share your location when requested by the agent.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Lume can share your location when requested by the agent.</string>
+	<string>Alisio can share your location when requested by the agent.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Lume can share your location when requested by the agent.</string>
+	<string>Alisio can share your location when requested by the agent.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Lume needs the mic for Voice Wake tests and agent audio capture.</string>
+	<string>Alisio needs the mic for Voice Wake tests and agent audio capture.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
-    <string>Lume uses speech recognition to detect your Voice Wake trigger phrase.</string>
+    <string>Alisio uses speech recognition to detect your Voice Wake trigger phrase.</string>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Lume needs Automation (AppleScript) permission to drive Terminal and other apps for agent actions.</string>
+    <string>Alisio needs Automation (AppleScript) permission to drive Terminal and other apps for agent actions.</string>
     <key>NSRemindersUsageDescription</key>
-    <string>Lume can access Reminders when requested by the agent for the apple-reminders skill.</string>
+    <string>Alisio can access Reminders when requested by the agent for the apple-reminders skill.</string>
 
     <key>NSAppTransportSecurity</key>
     <dict>

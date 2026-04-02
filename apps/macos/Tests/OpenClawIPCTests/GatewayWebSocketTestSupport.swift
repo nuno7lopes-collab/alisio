@@ -28,7 +28,7 @@ enum GatewayWebSocketTestSupport {
         return obj["id"] as? String
     }
 
-    static func connectOkData(id: String) -> Data {
+    static func connectOkData(id: String, version: String = "test") -> Data {
         let json = """
         {
           "type": "res",
@@ -37,7 +37,7 @@ enum GatewayWebSocketTestSupport {
           "payload": {
             "type": "hello-ok",
             "protocol": 2,
-            "server": { "version": "test", "connId": "test" },
+            "server": { "version": "\(version)", "connId": "test" },
             "features": { "methods": [], "events": [] },
             "snapshot": {
               "presence": [ { "ts": 1 } ],

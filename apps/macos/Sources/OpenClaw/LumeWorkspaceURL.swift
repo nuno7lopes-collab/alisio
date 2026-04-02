@@ -3,8 +3,6 @@ import Foundation
 @MainActor
 enum LumeWorkspaceURL {
     static func resolve(shellState: LumeShellState, appState: AppState) async throws -> URL {
-        precondition(shellState.route != .onboarding, "Onboarding is hosted natively")
-
         let config = try await GatewayEndpointStore.shared.requireConfig()
         let dashboardURL = try GatewayEndpointStore.dashboardURL(for: config, mode: appState.connectionMode)
         guard var components = URLComponents(url: dashboardURL, resolvingAgainstBaseURL: false) else {

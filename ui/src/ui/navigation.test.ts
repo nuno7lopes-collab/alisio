@@ -13,7 +13,7 @@ import {
 } from "./navigation.ts";
 
 /** All valid tab identifiers derived from TAB_GROUPS */
-const ALL_TABS: Tab[] = TAB_GROUPS.flatMap((group) => group.tabs) as Tab[];
+const ALL_TABS: Tab[] = ["setup", ...(TAB_GROUPS.flatMap((group) => group.tabs) as Tab[])];
 
 describe("iconForTab", () => {
   it("returns a non-empty string for every tab", () => {
@@ -26,20 +26,17 @@ describe("iconForTab", () => {
   });
 
   it("returns stable icons for known tabs", () => {
+    expect(iconForTab("setup")).toBe("terminal");
     expect(iconForTab("chat")).toBe("messageSquare");
-    expect(iconForTab("home")).toBe("spark");
     expect(iconForTab("authentications")).toBe("link");
     expect(iconForTab("organization")).toBe("barChart");
-    expect(iconForTab("sessions")).toBe("fileText");
-    expect(iconForTab("automations")).toBe("loader");
-    expect(iconForTab("agents")).toBe("folder");
     expect(iconForTab("settings")).toBe("settings");
   });
 
   it("returns a fallback icon for unknown tab", () => {
     // TypeScript won't allow this normally, but runtime could receive unexpected values
     const unknownTab = "unknown" as Tab;
-    expect(iconForTab(unknownTab)).toBe("folder");
+    expect(iconForTab(unknownTab)).toBe("messageSquare");
   });
 });
 
@@ -53,9 +50,11 @@ describe("titleForTab", () => {
   });
 
   it("returns expected titles", () => {
+    expect(titleForTab("setup")).toBe("Setup");
     expect(titleForTab("chat")).toBe("Chat");
-    expect(titleForTab("home")).toBe("Home");
-    expect(titleForTab("automations")).toBe("Automations");
+    expect(titleForTab("authentications")).toBe("Authentications");
+    expect(titleForTab("organization")).toBe("Organization");
+    expect(titleForTab("settings")).toBe("Settings");
   });
 });
 
@@ -68,8 +67,10 @@ describe("subtitleForTab", () => {
   });
 
   it("returns descriptive subtitles", () => {
-    expect(subtitleForTab("chat")).toContain("quick interventions");
-    expect(subtitleForTab("settings")).toContain("configuration");
+    expect(subtitleForTab("setup")).toContain("runtime");
+    expect(subtitleForTab("chat")).toContain("tool calls");
+    expect(subtitleForTab("authentications")).toContain("authorization");
+    expect(subtitleForTab("settings")).toContain("native shell");
   });
 });
 
@@ -112,30 +113,33 @@ describe("normalizePath", () => {
 
 describe("pathForTab", () => {
   it("returns correct path without base", () => {
+    expect(pathForTab("setup")).toBe("/setup");
     expect(pathForTab("chat")).toBe("/chat");
-    expect(pathForTab("home")).toBe("/home");
+    expect(pathForTab("authentications")).toBe("/authentications");
+    expect(pathForTab("organization")).toBe("/organization");
   });
 
   it("prepends base path", () => {
     expect(pathForTab("chat", "/ui")).toBe("/ui/chat");
-    expect(pathForTab("sessions", "/apps/openclaw")).toBe("/apps/openclaw/sessions");
+    expect(pathForTab("settings", "/apps/alisio")).toBe("/apps/alisio/settings");
   });
 });
 
 describe("tabFromPath", () => {
   it("returns tab for valid path", () => {
+    expect(tabFromPath("/setup")).toBe("setup");
     expect(tabFromPath("/chat")).toBe("chat");
-    expect(tabFromPath("/home")).toBe("home");
-    expect(tabFromPath("/sessions")).toBe("sessions");
+    expect(tabFromPath("/authentications")).toBe("authentications");
+    expect(tabFromPath("/organization")).toBe("organization");
   });
 
-  it("returns home for root path", () => {
-    expect(tabFromPath("/")).toBe("home");
+  it("returns setup for root path", () => {
+    expect(tabFromPath("/")).toBe("setup");
   });
 
   it("handles base paths", () => {
     expect(tabFromPath("/ui/chat", "/ui")).toBe("chat");
-    expect(tabFromPath("/apps/openclaw/sessions", "/apps/openclaw")).toBe("sessions");
+    expect(tabFromPath("/apps/alisio/settings", "/apps/alisio")).toBe("settings");
   });
 
   it("returns null for unknown path", () => {
@@ -144,12 +148,17 @@ describe("tabFromPath", () => {
 
   it("is case-insensitive", () => {
     expect(tabFromPath("/CHAT")).toBe("chat");
-    expect(tabFromPath("/Overview")).toBe("home");
+    expect(tabFromPath("/Overview")).toBe("chat");
   });
 
   it("maps legacy paths onto canonical tabs", () => {
-    expect(tabFromPath("/overview")).toBe("home");
-    expect(tabFromPath("/cron")).toBe("automations");
+    expect(tabFromPath("/overview")).toBe("chat");
+    expect(tabFromPath("/home")).toBe("chat");
+    expect(tabFromPath("/sessions")).toBe("chat");
+    expect(tabFromPath("/cron")).toBe("chat");
+    expect(tabFromPath("/automations")).toBe("chat");
+    expect(tabFromPath("/agents")).toBe("chat");
+    expect(tabFromPath("/skills")).toBe("chat");
     expect(tabFromPath("/channels")).toBe("organization");
     expect(tabFromPath("/instances")).toBe("organization");
     expect(tabFromPath("/usage")).toBe("organization");
@@ -163,14 +172,15 @@ describe("inferBasePathFromPathname", () => {
   });
 
   it("returns empty string for direct tab path", () => {
+    expect(inferBasePathFromPathname("/setup")).toBe("");
     expect(inferBasePathFromPathname("/chat")).toBe("");
-    expect(inferBasePathFromPathname("/home")).toBe("");
+    expect(inferBasePathFromPathname("/authentications")).toBe("");
     expect(inferBasePathFromPathname("/overview")).toBe("");
   });
 
   it("infers base path from nested paths", () => {
     expect(inferBasePathFromPathname("/ui/chat")).toBe("/ui");
-    expect(inferBasePathFromPathname("/apps/openclaw/sessions")).toBe("/apps/openclaw");
+    expect(inferBasePathFromPathname("/apps/alisio/agents")).toBe("/apps/alisio");
   });
 
   it("handles index.html suffix", () => {
@@ -182,9 +192,7 @@ describe("inferBasePathFromPathname", () => {
 describe("TAB_GROUPS", () => {
   it("contains all expected groups", () => {
     const labels = TAB_GROUPS.map((g) => g.label);
-    expect(labels).toContain("control");
-    expect(labels).toContain("agent");
-    expect(labels).toContain("settings");
+    expect(labels).toEqual(["product"]);
   });
 
   it("all tabs are unique", () => {

@@ -3,7 +3,7 @@ import Observation
 import QuartzCore
 import SwiftUI
 
-/// Hover-only HUD anchored to the menu bar item. Click expands into the main Lume window.
+/// Hover-only HUD anchored to the menu bar item. Click expands into the main Alisio window.
 @MainActor
 @Observable
 final class HoverHUDController {

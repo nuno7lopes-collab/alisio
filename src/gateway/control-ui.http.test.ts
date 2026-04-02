@@ -4,8 +4,15 @@ import type { IncomingMessage } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "./control-ui-contract.js";
-import { handleControlUiAvatarRequest, handleControlUiHttpRequest } from "./control-ui.js";
+import {
+  ALISIO_BOOTSTRAP_HTTP_PATH,
+  CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
+} from "./control-ui-contract.js";
+import {
+  handleAlisioBootstrapHttpRequest,
+  handleControlUiAvatarRequest,
+  handleControlUiHttpRequest,
+} from "./control-ui.js";
 import { makeMockHttpResponse } from "./test-http-response.js";
 
 describe("handleControlUiHttpRequest", () => {
@@ -28,6 +35,17 @@ describe("handleControlUiHttpRequest", () => {
       assistantName: string;
       assistantAvatar: string;
       assistantAgentId: string;
+    };
+  }
+
+  function parseAlisioBootstrapPayload(end: ReturnType<typeof makeMockHttpResponse>["end"]) {
+    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
+      basePath: string;
+      controlUrl: string;
+      startupState: string;
+      account: unknown;
+      bootstrapToken?: string;
+      manualConnectionRequired: boolean;
     };
   }
 
@@ -225,6 +243,47 @@ describe("handleControlUiHttpRequest", () => {
         expect(parsed.assistantAgentId).toBe("main");
       },
     });
+  });
+
+  it("serves the account-first Alisio bootstrap on local loopback requests", async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-alisio-bootstrap-"));
+    const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    try {
+      const { res, end } = makeMockHttpResponse();
+      const handled = await handleAlisioBootstrapHttpRequest(
+        {
+          url: ALISIO_BOOTSTRAP_HTTP_PATH,
+          method: "GET",
+          headers: { host: "127.0.0.1:18789" },
+          socket: { remoteAddress: "127.0.0.1" },
+        } as IncomingMessage,
+        res,
+        {
+          trustedProxies: [],
+          allowRealIpFallback: false,
+          loadRuntimeSetup: async () => ({ providerReady: false }),
+        },
+      );
+
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(200);
+      const parsed = parseAlisioBootstrapPayload(end);
+      expect(parsed.basePath).toBe("");
+      expect(parsed.controlUrl).toBe("ws://127.0.0.1:18789/");
+      expect(parsed.startupState).toBe("signed_out");
+      expect(parsed.account).toBeNull();
+      expect(parsed.manualConnectionRequired).toBe(false);
+      expect(typeof parsed.bootstrapToken).toBe("string");
+      expect(parsed.bootstrapToken?.length).toBeGreaterThan(10);
+    } finally {
+      if (previousStateDir === undefined) {
+        delete process.env.OPENCLAW_STATE_DIR;
+      } else {
+        process.env.OPENCLAW_STATE_DIR = previousStateDir;
+      }
+      await fs.rm(stateDir, { recursive: true, force: true });
+    }
   });
 
   it("serves local avatar bytes through hardened avatar handler", async () => {

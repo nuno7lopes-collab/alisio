@@ -137,7 +137,7 @@ struct SettingsViewSmokeTests {
                 .screenRecording: false,
             ],
             refresh: {},
-            showOnboarding: {})
+            openSetup: {})
         _ = view.body
     }
 

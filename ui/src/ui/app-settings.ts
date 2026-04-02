@@ -8,18 +8,17 @@ import {
 } from "./app-polling.ts";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { OpenClawApp } from "./app.ts";
-import { loadAgentFiles } from "./controllers/agent-files.ts";
-import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
-import { loadAgentSkills } from "./controllers/agent-skills.ts";
-import { loadAgents } from "./controllers/agents.ts";
+import {
+  loadAlisioBootstrap,
+  loadAlisioAccount,
+  loadAlisioConnectors,
+  loadAlisioDoctorSummary,
+  loadAlisioOrganization,
+} from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
-import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
-import { loadDevices } from "./controllers/devices.ts";
-import { loadExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
-import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
@@ -31,6 +30,7 @@ import {
   normalizePath,
   normalizeSettingsSection,
   pathForTab,
+  publicTabFor,
   settingsSectionFromPath,
   tabFromPath,
   type SettingsSection,
@@ -51,8 +51,11 @@ type SettingsHost = {
   applySessionKey: string;
   sessionKey: string;
   tab: Tab;
+  setTab?: (tab: Tab) => void;
   settingsSection: SettingsSection;
   connected: boolean;
+  alisioBootstrap?: import("./types.ts").AlisioBootstrapState | null;
+  setupStep?: import("./types.ts").AlisioBootstrapStep | null;
   chatHasAutoScrolled: boolean;
   logsAtBottom: boolean;
   eventLog: unknown[];
@@ -68,6 +71,56 @@ type SettingsHost = {
   nativeShellError?: string | null;
   nativeShellState?: import("./types.ts").NativeShellState | null;
 };
+
+function bootstrapBlocksChatAccess(
+  bootstrap: import("./types.ts").AlisioBootstrapState | null | undefined,
+) {
+  if (!bootstrap) {
+    return false;
+  }
+  return bootstrap.connectionRequired || bootstrap.startupState !== "ready";
+}
+
+function normalizeSetupStep(
+  value: string | null | undefined,
+): import("./types.ts").AlisioBootstrapStep | null {
+  switch ((value ?? "").trim()) {
+    case "gateway":
+    case "runtime":
+    case "account":
+    case "organization":
+    case "connectors":
+    case "permissions":
+    case "ready":
+      return value as import("./types.ts").AlisioBootstrapStep;
+    default:
+      return null;
+  }
+}
+
+function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootstrapStep | null {
+  const requestedStep = normalizeSetupStep(host.setupStep);
+  if (requestedStep) {
+    return requestedStep;
+  }
+  if (!host.connected) {
+    return "gateway";
+  }
+  if (host.alisioBootstrap?.startupState === "signed_out") {
+    return "account";
+  }
+  if (host.alisioBootstrap?.startupState === "needs_profile") {
+    return "account";
+  }
+  if (host.alisioBootstrap?.startupState === "needs_ai") {
+    return "runtime";
+  }
+  const bootstrapStep = normalizeSetupStep(host.alisioBootstrap?.nextStep);
+  if (bootstrapStep && bootstrapStep !== "ready") {
+    return bootstrapStep;
+  }
+  return null;
+}
 
 export function applySettings(host: SettingsHost, next: UiSettings) {
   const previous = host.settings;
@@ -191,7 +244,7 @@ export function applySettingsFromUrl(host: SettingsHost) {
 }
 
 export function setTab(host: SettingsHost, next: Tab) {
-  applyTabSelection(host, next, { refreshPolicy: "always", syncUrl: true });
+  applyTabSelection(host, publicTabFor(next), { refreshPolicy: "always", syncUrl: true });
 }
 
 export function setTheme(host: SettingsHost, next: ThemeName, context?: ThemeTransitionContext) {
@@ -227,71 +280,47 @@ export function setThemeMode(
 }
 
 export async function refreshActiveTab(host: SettingsHost) {
-  if (host.tab === "home") {
+  if (host.tab === "setup") {
     await Promise.allSettled([
-      loadOverview(host),
-      loadAgents(host as unknown as OpenClawApp),
-      loadConfig(host as unknown as OpenClawApp),
+      loadAlisioBootstrap(host as unknown as OpenClawApp),
+      loadAlisioDoctorSummary(host as unknown as OpenClawApp),
+      loadNativeShellState(host),
     ]);
+    return;
   }
   if (host.tab === "authentications") {
-    await Promise.all([
-      loadAgents(host as unknown as OpenClawApp),
-      loadChannels(host as unknown as OpenClawApp, false),
+    await Promise.allSettled([
+      loadAlisioAccount(host as unknown as OpenClawApp),
+      loadAlisioConnectors(host as unknown as OpenClawApp),
     ]);
   }
   if (host.tab === "organization") {
     await Promise.allSettled([
-      loadChannels(host as unknown as OpenClawApp, true),
-      loadPresence(host as unknown as OpenClawApp),
-      loadUsage(host as unknown as OpenClawApp),
-      loadSessions(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as OpenClawApp),
+      loadAlisioOrganization(host as unknown as OpenClawApp),
     ]);
   }
-  if (host.tab === "sessions") {
-    await loadSessions(host as unknown as OpenClawApp);
-  }
-  if (host.tab === "automations") {
-    await loadCron(host);
-  }
-  if (host.tab === "agents") {
-    await loadAgents(host as unknown as OpenClawApp);
-    await loadConfig(host as unknown as OpenClawApp);
-    const agentIds = host.agentsList?.agents?.map((entry) => entry.id) ?? [];
-    if (agentIds.length > 0) {
-      void loadAgentIdentities(host as unknown as OpenClawApp, agentIds);
-    }
-    const agentId =
-      host.agentsSelectedId ?? host.agentsList?.defaultId ?? host.agentsList?.agents?.[0]?.id;
-    if (agentId) {
-      void loadAgentIdentity(host as unknown as OpenClawApp, agentId);
-      if (host.agentsPanel === "files") {
-        void loadAgentFiles(host as unknown as OpenClawApp, agentId);
-      }
-      if (host.agentsPanel === "skills") {
-        void loadAgentSkills(host as unknown as OpenClawApp, agentId);
-      }
-      if (host.agentsPanel === "channels") {
-        void loadChannels(host as unknown as OpenClawApp, false);
-      }
-      if (host.agentsPanel === "cron") {
-        void loadCron(host);
-      }
-    }
-  }
   if (host.tab === "chat") {
-    await refreshChat(host as unknown as Parameters<typeof refreshChat>[0]);
+    await loadAlisioBootstrap(host as unknown as OpenClawApp);
+    if (bootstrapBlocksChatAccess(host.alisioBootstrap)) {
+      host.setupStep = !host.connected ? "gateway" : (host.alisioBootstrap?.nextStep ?? "runtime");
+      host.setTab?.("setup");
+      return;
+    }
+    await Promise.allSettled([
+      refreshChat(host as unknown as Parameters<typeof refreshChat>[0]),
+      loadAlisioAccount(host as unknown as OpenClawApp),
+    ]);
     scheduleChatScroll(
       host as unknown as Parameters<typeof scheduleChatScroll>[0],
       !host.chatHasAutoScrolled,
     );
   }
   if (host.tab === "settings") {
-    await loadConfigSchema(host as unknown as OpenClawApp);
-    await loadConfig(host as unknown as OpenClawApp);
-    if (host.settingsSection === "aiAgents") {
-      await loadSkills(host as unknown as OpenClawApp);
-    }
+    await Promise.allSettled([
+      loadAlisioAccount(host as unknown as OpenClawApp),
+      loadAlisioDoctorSummary(host as unknown as OpenClawApp),
+    ]);
     if (host.settingsSection === "debug") {
       await loadDebug(host as unknown as OpenClawApp);
       host.eventLog = host.eventLogBuffer;
@@ -302,9 +331,6 @@ export async function refreshActiveTab(host: SettingsHost) {
       scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
     }
     if (host.settingsSection === "mac") {
-      await loadNodes(host as unknown as OpenClawApp);
-      await loadDevices(host as unknown as OpenClawApp);
-      await loadExecApprovals(host as unknown as OpenClawApp);
       await loadNativeShellState(host);
     }
   }
@@ -405,9 +431,12 @@ export function syncTabWithLocation(host: SettingsHost, replace: boolean) {
   if (typeof window === "undefined") {
     return;
   }
-  const resolved = tabFromPath(window.location.pathname, host.basePath) ?? "home";
+  const resolved = publicTabFor(tabFromPath(window.location.pathname, host.basePath) ?? "chat");
   if (resolved === "settings") {
     resolveSettingsSectionFromLocation(host, window.location.pathname, window.location.search);
+  }
+  if (resolved === "setup") {
+    resolveSetupStepFromLocation(host, window.location.search);
   }
   setTabFromRoute(host, resolved);
   syncUrlWithTab(host, resolved, replace);
@@ -417,7 +446,8 @@ export function onPopState(host: SettingsHost) {
   if (typeof window === "undefined") {
     return;
   }
-  const resolved = tabFromPath(window.location.pathname, host.basePath);
+  const resolvedRaw = tabFromPath(window.location.pathname, host.basePath);
+  const resolved = resolvedRaw ? publicTabFor(resolvedRaw) : null;
   if (!resolved) {
     return;
   }
@@ -435,12 +465,15 @@ export function onPopState(host: SettingsHost) {
   if (resolved === "settings") {
     resolveSettingsSectionFromLocation(host, window.location.pathname, window.location.search);
   }
+  if (resolved === "setup") {
+    resolveSetupStepFromLocation(host, window.location.search);
+  }
 
   setTabFromRoute(host, resolved);
 }
 
 export function setTabFromRoute(host: SettingsHost, next: Tab) {
-  applyTabSelection(host, next, { refreshPolicy: "connected" });
+  applyTabSelection(host, publicTabFor(next), { refreshPolicy: "connected" });
 }
 
 function applyTabSelection(
@@ -448,6 +481,7 @@ function applyTabSelection(
   next: Tab,
   options: { refreshPolicy: "always" | "connected"; syncUrl?: boolean },
 ) {
+  next = publicTabFor(next);
   const prev = host.tab;
   if (host.tab !== next) {
     host.tab = next;
@@ -456,6 +490,9 @@ function applyTabSelection(
   // Cleanup chat module state when navigating away from chat
   if (prev === "chat" && next !== "chat") {
     resetChatViewState();
+  }
+  if (next !== "setup") {
+    host.setupStep = null;
   }
 
   if (next === "chat") {
@@ -495,13 +532,23 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
     url.searchParams.delete("session");
   }
   if (tab === "settings") {
-    if (host.settingsSection === "workspace") {
+    if (host.settingsSection === "account") {
       url.searchParams.delete("section");
     } else {
       url.searchParams.set("section", host.settingsSection);
     }
   } else {
     url.searchParams.delete("section");
+  }
+  if (tab === "setup") {
+    const step = resolveSetupStep(host);
+    if (step) {
+      url.searchParams.set("step", step);
+    } else {
+      url.searchParams.delete("step");
+    }
+  } else {
+    url.searchParams.delete("step");
   }
 
   if (currentPath !== targetPath) {
@@ -528,6 +575,11 @@ function resolveSettingsSectionFromLocation(host: SettingsHost, pathname: string
   }
 }
 
+function resolveSetupStepFromLocation(host: SettingsHost, search: string) {
+  const url = new URL(`http://localhost/${search.startsWith("?") ? search : `?${search}`}`);
+  host.setupStep = normalizeSetupStep(url.searchParams.get("step"));
+}
+
 export function syncUrlWithSessionKey(host: SettingsHost, sessionKey: string, replace: boolean) {
   if (typeof window === "undefined") {
     return;
@@ -552,7 +604,6 @@ export async function loadOverview(host: SettingsHost) {
     loadDebug(app),
     loadSkills(app),
     loadUsage(app),
-    loadOverviewLogs(app),
   ]);
   buildAttentionItems(app);
 }
@@ -577,32 +628,6 @@ export function hasMissingSkillDependencies(
     return false;
   }
   return Object.values(missing).some((value) => Array.isArray(value) && value.length > 0);
-}
-
-async function loadOverviewLogs(host: OpenClawApp) {
-  if (!host.client || !host.connected) {
-    return;
-  }
-  try {
-    const res = await host.client.request("logs.tail", {
-      cursor: host.overviewLogCursor || undefined,
-      limit: 100,
-      maxBytes: 50_000,
-    });
-    const payload = res as {
-      cursor?: number;
-      lines?: unknown;
-    };
-    const lines = Array.isArray(payload.lines)
-      ? payload.lines.filter((line): line is string => typeof line === "string")
-      : [];
-    host.overviewLogLines = [...host.overviewLogLines, ...lines].slice(-500);
-    if (typeof payload.cursor === "number") {
-      host.overviewLogCursor = payload.cursor;
-    }
-  } catch {
-    /* non-critical */
-  }
 }
 
 function buildAttentionItems(host: OpenClawApp) {
@@ -679,14 +704,6 @@ function buildAttentionItems(host: OpenClawApp) {
   }
 
   host.attentionItems = items;
-}
-
-export async function loadChannelsTab(host: SettingsHost) {
-  await Promise.all([
-    loadChannels(host as unknown as OpenClawApp, true),
-    loadConfigSchema(host as unknown as OpenClawApp),
-    loadConfig(host as unknown as OpenClawApp),
-  ]);
 }
 
 export async function loadCron(host: SettingsHost) {

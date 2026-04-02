@@ -111,7 +111,7 @@ final class ExecApprovalsGatewayPrompter {
 
     private func shouldPresent(request: GatewayApprovalRequest) -> PresentationDecision {
         let mode = AppStateStore.shared.connectionMode
-        let activeSession = WebChatManager.shared.activeSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let activeSession = LumeWorkspaceManager.shared.activeSessionKey?.trimmingCharacters(in: .whitespacesAndNewlines)
         let requestSession = request.request.sessionKey?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Read-only resolve to avoid disk writes on the MainActor

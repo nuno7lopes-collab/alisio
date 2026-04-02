@@ -46,6 +46,13 @@ export type ChatState = {
   chatStream: string | null;
   chatStreamStartedAt: number | null;
   lastError: string | null;
+  chatRuntimeSetupHint?: ChatRuntimeSetupHint | null;
+};
+
+export type ChatRuntimeSetupHint = {
+  title: string;
+  message: string;
+  ctaLabel: string;
 };
 
 export type ChatEventPayload = {
@@ -68,12 +75,53 @@ function maybeResetToolStream(state: ChatState) {
   }
 }
 
+function describeRuntimeSetupError(error: unknown) {
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error instanceof Error) {
+    return [error.name, error.message].filter(Boolean).join(": ");
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "";
+  }
+}
+
+function resolveChatRuntimeSetupHint(error: unknown): ChatRuntimeSetupHint | null {
+  const formatted = formatConnectError(error);
+  const combined = `${formatted} ${describeRuntimeSetupError(error)}`.trim().toLowerCase();
+  const mentionsProviderSetup =
+    combined.includes("no providers configured") ||
+    combined.includes("no provider plugins found") ||
+    combined.includes("missing provider") ||
+    combined.includes("missing runtime") ||
+    combined.includes("runtime missing") ||
+    combined.includes("model provider") ||
+    combined.includes("provider contract entry missing") ||
+    combined.includes("provider auth");
+  const mentionsCredentials =
+    combined.includes("api key") ||
+    combined.includes("token auth") ||
+    combined.includes("oauth credentials");
+  if (!mentionsProviderSetup && !mentionsCredentials) {
+    return null;
+  }
+  return {
+    title: "Runtime setup required",
+    message: "Configure um provider e as credenciais do runtime antes de enviar mensagens no chat.",
+    ctaLabel: "Abrir setup do runtime",
+  };
+}
+
 export async function loadChatHistory(state: ChatState) {
   if (!state.client || !state.connected) {
     return;
   }
   state.chatLoading = true;
   state.lastError = null;
+  state.chatRuntimeSetupHint = null;
   try {
     const res = await state.client.request<{ messages?: Array<unknown>; thinkingLevel?: string }>(
       "chat.history",
@@ -202,6 +250,7 @@ export async function sendChatMessage(
 
   state.chatSending = true;
   state.lastError = null;
+  state.chatRuntimeSetupHint = null;
   const runId = generateUUID();
   state.chatRunId = runId;
   state.chatStream = "";
@@ -235,18 +284,22 @@ export async function sendChatMessage(
     return runId;
   } catch (err) {
     const error = formatConnectError(err);
+    const runtimeSetupHint = resolveChatRuntimeSetupHint(err);
     state.chatRunId = null;
     state.chatStream = null;
     state.chatStreamStartedAt = null;
-    state.lastError = error;
-    state.chatMessages = [
-      ...state.chatMessages,
-      {
-        role: "assistant",
-        content: [{ type: "text", text: "Error: " + error }],
-        timestamp: Date.now(),
-      },
-    ];
+    state.chatRuntimeSetupHint = runtimeSetupHint;
+    state.lastError = runtimeSetupHint?.message ?? error;
+    if (!runtimeSetupHint) {
+      state.chatMessages = [
+        ...state.chatMessages,
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Error: " + error }],
+          timestamp: Date.now(),
+        },
+      ];
+    }
     return null;
   } finally {
     state.chatSending = false;
@@ -338,10 +391,12 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "error") {
+    const runtimeSetupHint = resolveChatRuntimeSetupHint(payload.errorMessage ?? "chat error");
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
-    state.lastError = payload.errorMessage ?? "chat error";
+    state.chatRuntimeSetupHint = runtimeSetupHint;
+    state.lastError = runtimeSetupHint?.message ?? payload.errorMessage ?? "chat error";
   }
   return payload.state;
 }

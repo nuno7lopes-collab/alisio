@@ -52,7 +52,7 @@ export function renderHome(props: {
   return html`
     <section class="grid">
       <div class="card">
-        <div class="card-title">Lume Workspace</div>
+        <div class="card-title">Alisio Workspace</div>
         <div class="card-sub">
           ${props.connected
             ? "One surface for your person agent, sessions, authentications, and automations."

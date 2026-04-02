@@ -1,5 +1,4 @@
 import AppKit
-import SwiftUI
 
 @MainActor
 final class LumeWindowManager: NSObject, NSWindowDelegate {
@@ -10,8 +9,6 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
     var onWindowVisibilityChanged: ((Bool) -> Void)?
 
     private var updater: (any UpdaterProviding)?
-    private var onboardingWindow: NSWindow?
-    private var onboardingController: NSHostingController<OnboardingView>?
     private var workspaceController: LumeWorkspaceWindowController?
 
     func configure(state: AppState = AppStateStore.shared, updater: (any UpdaterProviding)?) {
@@ -34,12 +31,8 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
     }
 
     func showPreferredChat() {
-        if self.shellState.requiresOnboarding {
-            self.show(route: .onboarding)
-            return
-        }
         Task { @MainActor in
-            let sessionKey = await WebChatManager.shared.preferredSessionKey()
+            let sessionKey = await LumeWorkspaceManager.shared.preferredSessionKey()
             self.showChat(sessionKey: sessionKey)
         }
     }
@@ -50,18 +43,12 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
     }
 
     func hide() {
-        self.onboardingWindow?.orderOut(nil)
         self.workspaceController?.window?.orderOut(nil)
         self.onWindowVisibilityChanged?(false)
     }
 
     func close() {
         self.onWindowVisibilityChanged?(false)
-
-        self.onboardingWindow?.delegate = nil
-        self.onboardingWindow?.close()
-        self.onboardingWindow = nil
-        self.onboardingController = nil
 
         self.workspaceController?.window?.delegate = nil
         self.workspaceController?.window?.close()
@@ -86,9 +73,7 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_: Notification) {
-        if self.onboardingWindow?.isVisible == true {
-            self.onWindowVisibilityChanged?(true)
-        }
+        self.onWindowVisibilityChanged?(false)
     }
 
     private func showWindow() {
@@ -97,53 +82,8 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
     }
 
     private func refreshVisibleSurface(state: AppState) {
-        if self.shellState.route == .onboarding {
-            self.showOnboardingWindow(state: state)
-            return
-        }
-        self.onboardingWindow?.orderOut(nil)
         let controller = self.ensureWorkspaceController()
         controller.show(shellState: self.shellState, state: state)
-    }
-
-    private func showOnboardingWindow(state: AppState) {
-        self.workspaceController?.window?.orderOut(nil)
-
-        let controller = self.ensureOnboardingController(state: state)
-        let window: NSWindow
-        if let existing = self.onboardingWindow {
-            window = existing
-            existing.contentViewController = controller
-        } else {
-            window = NSWindow(contentViewController: controller)
-            window.delegate = self
-            window.title = "Lume"
-            window.identifier = NSUserInterfaceItemIdentifier("ai.openclaw.lume-onboarding-window")
-            window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.isReleasedWhenClosed = false
-            window.isMovableByWindowBackground = true
-            window.minSize = NSSize(width: OnboardingView.windowWidth, height: OnboardingView.windowHeight)
-            window.setContentSize(NSSize(width: OnboardingView.windowWidth, height: OnboardingView.windowHeight))
-            window.center()
-            window.toolbarStyle = .unifiedCompact
-            self.onboardingWindow = window
-        }
-
-        window.makeKeyAndOrderFront(nil)
-        self.onWindowVisibilityChanged?(true)
-    }
-
-    private func ensureOnboardingController(state: AppState) -> NSHostingController<OnboardingView> {
-        if let onboardingController {
-            onboardingController.rootView = self.makeOnboardingView(state: state)
-            return onboardingController
-        }
-
-        let controller = NSHostingController(rootView: self.makeOnboardingView(state: state))
-        self.onboardingController = controller
-        return controller
     }
 
     private func ensureWorkspaceController() -> LumeWorkspaceWindowController {
@@ -157,9 +97,5 @@ final class LumeWindowManager: NSObject, NSWindowDelegate {
         }
         self.workspaceController = controller
         return controller
-    }
-
-    private func makeOnboardingView(state: AppState) -> OnboardingView {
-        OnboardingView(state: state, shellOnboarding: self.shellState.onboardingState)
     }
 }

@@ -1,12 +1,12 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
+import { t } from "../../i18n/index.ts";
 import {
   CHAT_ATTACHMENT_ACCEPT,
   isSupportedChatAttachmentMimeType,
 } from "../chat/attachment-support.ts";
 import { DeletedMessages } from "../chat/deleted-messages.ts";
-import { exportChatMarkdown } from "../chat/export.ts";
 import {
   renderMessageGroup,
   renderReadingIndicatorGroup,
@@ -19,13 +19,13 @@ import { getPinnedMessageSummary } from "../chat/pinned-summary.ts";
 import { messageMatchesSearchQuery } from "../chat/search-match.ts";
 import { getOrCreateSessionCacheValue } from "../chat/session-cache.ts";
 import {
-  CATEGORY_LABELS,
   SLASH_COMMANDS,
   getSlashCommandCompletions,
   type SlashCommandCategory,
   type SlashCommandDef,
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
+import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
@@ -74,6 +74,7 @@ export type ChatProps = {
   canSend: boolean;
   disabledReason: string | null;
   error: string | null;
+  runtimeSetupHint?: ChatRuntimeSetupHint | null;
   sessions: SessionsListResult | null;
   focusMode: boolean;
   sidebarOpen?: boolean;
@@ -90,6 +91,7 @@ export type ChatProps = {
   onToggleFocusMode: () => void;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
+  onOpenRuntimeSetup?: () => void;
   onRequestUpdate?: () => void;
   onSend: () => void;
   onAbort?: () => void;
@@ -113,6 +115,32 @@ export type ChatProps = {
 
 const COMPACTION_TOAST_DURATION_MS = 5000;
 const FALLBACK_TOAST_DURATION_MS = 8000;
+
+const chatText = (key: string, params?: Record<string, string>) => t(`alisio.chat.${key}`, params);
+
+function getSlashCategoryLabel(category: SlashCommandCategory): string {
+  switch (category) {
+    case "session":
+      return chatText("slash.categories.session");
+    case "model":
+      return chatText("slash.categories.model");
+    case "agents":
+      return chatText("slash.categories.agents");
+    case "tools":
+      return chatText("slash.categories.tools");
+  }
+}
+
+function getSlashCommandDescription(cmd: SlashCommandDef): string {
+  switch (cmd.key) {
+    case "clear":
+      return chatText("slash.descriptions.clear");
+    case "redirect":
+      return chatText("slash.descriptions.redirect");
+    default:
+      return cmd.description;
+  }
+}
 
 // Persistent instances keyed by session
 const inputHistories = new Map<string, InputHistory>();
@@ -200,7 +228,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
         role="status"
         aria-live="polite"
       >
-        ${icons.loader} Compacting context...
+        ${icons.loader} ${chatText("compaction.active")}
       </div>
     `;
   }
@@ -213,7 +241,7 @@ function renderCompactionIndicator(status: CompactionIndicatorStatus | null | un
           role="status"
           aria-live="polite"
         >
-          ${icons.check} Context compacted
+          ${icons.check} ${chatText("compaction.complete")}
         </div>
       `;
     }
@@ -231,18 +259,24 @@ function renderFallbackIndicator(status: FallbackIndicatorStatus | null | undefi
     return nothing;
   }
   const details = [
-    `Selected: ${status.selected}`,
-    phase === "cleared" ? `Active: ${status.selected}` : `Active: ${status.active}`,
-    phase === "cleared" && status.previous ? `Previous fallback: ${status.previous}` : null,
-    status.reason ? `Reason: ${status.reason}` : null,
-    status.attempts.length > 0 ? `Attempts: ${status.attempts.slice(0, 3).join(" | ")}` : null,
+    chatText("fallback.selected", { value: status.selected }),
+    phase === "cleared"
+      ? chatText("fallback.active", { value: status.selected })
+      : chatText("fallback.active", { value: status.active }),
+    phase === "cleared" && status.previous
+      ? chatText("fallback.previous", { value: status.previous })
+      : null,
+    status.reason ? chatText("fallback.reason", { value: status.reason }) : null,
+    status.attempts.length > 0
+      ? chatText("fallback.attempts", { value: status.attempts.slice(0, 3).join(" | ") })
+      : null,
   ]
     .filter(Boolean)
     .join(" • ");
   const message =
     phase === "cleared"
-      ? `Fallback cleared: ${status.selected}`
-      : `Fallback active: ${status.active}`;
+      ? chatText("fallback.clearedMessage", { value: status.selected })
+      : chatText("fallback.activeMessage", { value: status.active });
   const className =
     phase === "cleared"
       ? "compaction-indicator compaction-indicator--fallback-cleared"
@@ -337,10 +371,13 @@ function renderContextNotice(
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
-      <span>${pct}% context used</span>
-      <span class="context-notice__detail"
-        >${formatTokensCompact(used)} / ${formatTokensCompact(limit)}</span
-      >
+      <span>${chatText("context.used", { pct: String(pct) })}</span>
+      <span class="context-notice__detail">
+        ${chatText("context.usage", {
+          used: formatTokensCompact(used),
+          limit: formatTokensCompact(limit),
+        })}
+      </span>
     </div>
   `;
 }
@@ -462,15 +499,15 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
     return nothing;
   }
   return html`
-    <div class="chat-attachments-preview">
+    <div class="chat-attachments-preview alisio-chat__attachments">
       ${attachments.map(
         (att) => html`
-          <div class="chat-attachment-thumb">
-            <img src=${att.dataUrl} alt="Attachment preview" />
+          <div class="chat-attachment-thumb alisio-chat__attachment-thumb">
+            <img src=${att.dataUrl} alt=${chatText("attachments.preview")} />
             <button
-              class="chat-attachment-remove"
+              class="chat-attachment-remove alisio-chat__attachment-remove"
               type="button"
-              aria-label="Remove attachment"
+              aria-label=${chatText("attachments.remove")}
               @click=${() => {
                 const next = (props.attachments ?? []).filter((a) => a.id !== att.id);
                 props.onAttachmentsChange?.(next);
@@ -615,22 +652,15 @@ function tokenEstimate(draft: string): string | null {
   return `~${Math.ceil(draft.length / 4)} tokens`;
 }
 
-/**
- * Export chat markdown - delegates to shared utility.
- */
-function exportMarkdown(props: ChatProps): void {
-  exportChatMarkdown(props.messages, props.assistantName);
-}
-
-const WELCOME_SUGGESTIONS = [
-  "What can you do?",
-  "Summarize my recent sessions",
-  "Help me configure a channel",
-  "Check system health",
-];
+const WELCOME_SUGGESTION_KEYS = [
+  "suggestions.whatCanYouDo",
+  "suggestions.summarizeRecentSessions",
+  "suggestions.helpConfigureChannel",
+  "suggestions.checkSystemHealth",
+] as const;
 
 function renderWelcomeState(props: ChatProps): TemplateResult {
-  const name = props.assistantName || "Assistant";
+  const name = props.assistantName || chatText("defaultAssistantName");
   const avatar = resolveAgentAvatarUrl({
     identity: {
       avatar: props.assistantAvatar ?? undefined,
@@ -649,25 +679,30 @@ function renderWelcomeState(props: ChatProps): TemplateResult {
             style="width:56px; height:56px; border-radius:50%; object-fit:cover;"
           />`
         : html`<div class="agent-chat__avatar agent-chat__avatar--logo">
-            <img src=${logoUrl} alt="OpenClaw" />
+            <img src=${logoUrl} alt="Alisio" />
           </div>`}
       <h2>${name}</h2>
       <div class="agent-chat__badges">
-        <span class="agent-chat__badge"><img src=${logoUrl} alt="" /> Ready to chat</span>
+        <span class="agent-chat__badge"
+          ><img src=${logoUrl} alt="" /> ${chatText("welcome.readyBadge")}</span
+        >
       </div>
-      <p class="agent-chat__hint">Type a message below &middot; <kbd>/</kbd> for commands</p>
+      <p class="agent-chat__hint">
+        ${chatText("welcome.hint")} &middot; <kbd>/</kbd> ${chatText("welcome.commandHint")}
+      </p>
       <div class="agent-chat__suggestions">
-        ${WELCOME_SUGGESTIONS.map(
-          (text) => html`
+        ${WELCOME_SUGGESTION_KEYS.map(
+          (key) => html`
             <button
               type="button"
               class="agent-chat__suggestion"
               @click=${() => {
+                const text = chatText(key);
                 props.onDraftChange(text);
                 props.onSend();
               }}
             >
-              ${text}
+              ${chatText(key)}
             </button>
           `,
         )}
@@ -685,8 +720,8 @@ function renderSearchBar(requestUpdate: () => void): TemplateResult | typeof not
       ${icons.search}
       <input
         type="text"
-        placeholder="Search messages..."
-        aria-label="Search messages"
+        placeholder=${chatText("searchPlaceholder")}
+        aria-label=${chatText("searchAria")}
         .value=${vs.searchQuery}
         @input=${(e: Event) => {
           vs.searchQuery = (e.target as HTMLInputElement).value;
@@ -695,7 +730,7 @@ function renderSearchBar(requestUpdate: () => void): TemplateResult | typeof not
       />
       <button
         class="btn btn--ghost"
-        aria-label="Close search"
+        aria-label=${chatText("searchClose")}
         @click=${() => {
           vs.searchOpen = false;
           vs.searchQuery = "";
@@ -736,7 +771,7 @@ function renderPinnedSection(
           requestUpdate();
         }}
       >
-        ${icons.bookmark} ${entries.length} pinned
+        ${icons.bookmark} ${chatText("pinned.count", { count: String(entries.length) })}
         <span class="collapse-chevron ${vs.pinnedExpanded ? "" : "collapse-chevron--collapsed"}"
           >${icons.chevronDown}</span
         >
@@ -748,7 +783,9 @@ function renderPinnedSection(
                 ({ index, text, role }) => html`
                   <div class="agent-chat__pinned-item">
                     <span class="agent-chat__pinned-role"
-                      >${role === "user" ? "You" : "Assistant"}</span
+                      >${role === "user"
+                        ? chatText("pinned.roleUser")
+                        : chatText("pinned.roleAssistant")}</span
                     >
                     <span class="agent-chat__pinned-text"
                       >${text.slice(0, 100)}${text.length > 100 ? "..." : ""}</span
@@ -759,7 +796,7 @@ function renderPinnedSection(
                         pinned.unpin(index);
                         requestUpdate();
                       }}
-                      title="Unpin"
+                      title=${chatText("pinned.unpin")}
                     >
                       ${icons.x}
                     </button>
@@ -784,10 +821,10 @@ function renderSlashMenu(
   // Arg-picker mode: show options for the selected command
   if (vs.slashMenuMode === "args" && vs.slashMenuCommand && vs.slashMenuArgItems.length > 0) {
     return html`
-      <div class="slash-menu" role="listbox" aria-label="Command arguments">
+      <div class="slash-menu" role="listbox" aria-label=${chatText("slash.argsAria")}>
         <div class="slash-menu-group">
           <div class="slash-menu-group__label">
-            /${vs.slashMenuCommand.name} ${vs.slashMenuCommand.description}
+            /${vs.slashMenuCommand.name} ${getSlashCommandDescription(vs.slashMenuCommand)}
           </div>
           ${vs.slashMenuArgItems.map(
             (arg, i) => html`
@@ -810,9 +847,7 @@ function renderSlashMenu(
             `,
           )}
         </div>
-        <div class="slash-menu-footer">
-          <kbd>↑↓</kbd> navigate <kbd>Tab</kbd> fill <kbd>Enter</kbd> run <kbd>Esc</kbd> close
-        </div>
+        <div class="slash-menu-footer">${chatText("slash.footerArgs")}</div>
       </div>
     `;
   }
@@ -841,7 +876,7 @@ function renderSlashMenu(
   for (const [cat, entries] of grouped) {
     sections.push(html`
       <div class="slash-menu-group">
-        <div class="slash-menu-group__label">${CATEGORY_LABELS[cat]}</div>
+        <div class="slash-menu-group__label">${getSlashCategoryLabel(cat)}</div>
         ${entries.map(
           ({ cmd, globalIdx }) => html`
             <div
@@ -859,11 +894,15 @@ function renderSlashMenu(
               ${cmd.icon ? html`<span class="slash-menu-icon">${icons[cmd.icon]}</span>` : nothing}
               <span class="slash-menu-name">/${cmd.name}</span>
               ${cmd.args ? html`<span class="slash-menu-args">${cmd.args}</span>` : nothing}
-              <span class="slash-menu-desc">${cmd.description}</span>
+              <span class="slash-menu-desc">${getSlashCommandDescription(cmd)}</span>
               ${cmd.argOptions?.length
-                ? html`<span class="slash-menu-badge">${cmd.argOptions.length} options</span>`
+                ? html`<span class="slash-menu-badge"
+                    >${chatText("slash.options", {
+                      count: String(cmd.argOptions.length),
+                    })}</span
+                  >`
                 : cmd.executeLocal && !cmd.args
-                  ? html` <span class="slash-menu-badge">instant</span> `
+                  ? html` <span class="slash-menu-badge">${chatText("slash.instant")}</span> `
                   : nothing}
             </div>
           `,
@@ -873,11 +912,9 @@ function renderSlashMenu(
   }
 
   return html`
-    <div class="slash-menu" role="listbox" aria-label="Slash commands">
+    <div class="slash-menu" role="listbox" aria-label=${chatText("slash.commandsAria")}>
       ${sections}
-      <div class="slash-menu-footer">
-        <kbd>↑↓</kbd> navigate <kbd>Tab</kbd> fill <kbd>Enter</kbd> select <kbd>Esc</kbd> close
-      </div>
+      <div class="slash-menu-footer">${chatText("slash.footerCommands")}</div>
     </div>
   `;
 }
@@ -907,9 +944,11 @@ export function renderChat(props: ChatProps) {
 
   const placeholder = props.connected
     ? hasAttachments
-      ? "Add a message or paste more images..."
-      : `Message ${props.assistantName || "agent"} (Enter to send)`
-    : "Connect to the gateway to start chatting...";
+      ? chatText("compose.placeholderWithAttachments")
+      : chatText("compose.placeholder", {
+          assistant: props.assistantName || chatText("defaultAssistantName"),
+        })
+    : chatText("compose.placeholderDisconnected");
 
   const requestUpdate = props.onRequestUpdate ?? (() => {});
   const getDraft = props.getDraft ?? (() => props.draft);
@@ -943,10 +982,10 @@ export function renderChat(props: ChatProps) {
       @scroll=${props.onChatScroll}
       @click=${handleCodeBlockCopy}
     >
-      <div class="chat-thread-inner">
+      <div class="chat-thread-inner alisio-chat__thread">
         ${props.loading
           ? html`
-              <div class="chat-loading-skeleton" aria-label="Loading chat">
+              <div class="chat-loading-skeleton" aria-label=${chatText("loading")}>
                 <div class="chat-line assistant">
                   <div class="chat-msg">
                     <div class="chat-bubble">
@@ -985,7 +1024,7 @@ export function renderChat(props: ChatProps) {
           : nothing}
         ${isEmpty && !vs.searchOpen ? renderWelcomeState(props) : nothing}
         ${isEmpty && vs.searchOpen
-          ? html` <div class="agent-chat__empty">No matching messages</div> `
+          ? html` <div class="agent-chat__empty">${chatText("noMatchingMessages")}</div> `
           : nothing}
         ${repeat(
           chatItems,
@@ -1148,6 +1187,24 @@ export function renderChat(props: ChatProps) {
     }
   };
 
+  const runtimeSetupCallout = props.runtimeSetupHint
+    ? html`
+        <div class="callout info alisio-chat__setup-callout" role="status" aria-live="polite">
+          <div class="alisio-chat__setup-copy">
+            <strong>${props.runtimeSetupHint.title}</strong>
+            <span>${props.runtimeSetupHint.message}</span>
+          </div>
+          ${props.onOpenRuntimeSetup
+            ? html`
+                <button class="btn btn--sm" type="button" @click=${props.onOpenRuntimeSetup}>
+                  ${props.runtimeSetupHint.ctaLabel}
+                </button>
+              `
+            : nothing}
+        </div>
+      `
+    : nothing;
+
   const handleInput = (e: Event) => {
     const target = e.target as HTMLTextAreaElement;
     adjustTextareaHeight(target);
@@ -1158,20 +1215,23 @@ export function renderChat(props: ChatProps) {
 
   return html`
     <section
-      class="card chat"
+      class="card chat alisio-chat"
       @drop=${(e: DragEvent) => handleDrop(e, props)}
       @dragover=${(e: DragEvent) => e.preventDefault()}
     >
       ${props.disabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
-      ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
+      ${runtimeSetupCallout}
+      ${props.error && !props.runtimeSetupHint
+        ? html`<div class="callout danger">${props.error}</div>`
+        : nothing}
       ${props.focusMode
         ? html`
             <button
               class="chat-focus-exit"
               type="button"
               @click=${props.onToggleFocusMode}
-              aria-label="Exit focus mode"
-              title="Exit focus mode"
+              aria-label=${chatText("focus.exit")}
+              title=${chatText("focus.exit")}
             >
               ${icons.x}
             </button>
@@ -1179,9 +1239,13 @@ export function renderChat(props: ChatProps) {
         : nothing}
       ${renderSearchBar(requestUpdate)} ${renderPinnedSection(props, pinned, requestUpdate)}
 
-      <div class="chat-split-container ${sidebarOpen ? "chat-split-container--open" : ""}">
+      <div
+        class="chat-split-container alisio-chat__workspace ${sidebarOpen
+          ? "chat-split-container--open"
+          : ""}"
+      >
         <div
-          class="chat-main"
+          class="chat-main alisio-chat__main"
           style="flex: ${sidebarOpen ? `0 0 ${splitRatio * 100}%` : "1 1 100%"}"
         >
           ${thread}
@@ -1213,19 +1277,25 @@ export function renderChat(props: ChatProps) {
       ${props.queue.length
         ? html`
             <div class="chat-queue" role="status" aria-live="polite">
-              <div class="chat-queue__title">Queued (${props.queue.length})</div>
+              <div class="chat-queue__title">
+                ${chatText("queue.title", { count: String(props.queue.length) })}
+              </div>
               <div class="chat-queue__list">
                 ${props.queue.map(
                   (item) => html`
                     <div class="chat-queue__item">
                       <div class="chat-queue__text">
                         ${item.text ||
-                        (item.attachments?.length ? `Image (${item.attachments.length})` : "")}
+                        (item.attachments?.length
+                          ? chatText("compose.imageAttachment", {
+                              count: String(item.attachments.length),
+                            })
+                          : "")}
                       </div>
                       <button
                         class="btn chat-queue__remove"
                         type="button"
-                        aria-label="Remove queued message"
+                        aria-label=${chatText("queue.remove")}
                         @click=${() => props.onQueueRemove(item.id)}
                       >
                         ${icons.x}
@@ -1243,13 +1313,13 @@ export function renderChat(props: ChatProps) {
       ${props.showNewMessages
         ? html`
             <button class="chat-new-messages" type="button" @click=${props.onScrollToBottom}>
-              ${icons.arrowDown} New messages
+              ${icons.arrowDown} ${chatText("newMessages")}
             </button>
           `
         : nothing}
 
       <!-- Input bar -->
-      <div class="agent-chat__input">
+      <div class="agent-chat__input alisio-chat__composer">
         ${renderSlashMenu(requestUpdate, props)} ${renderAttachmentPreview(props)}
 
         <input
@@ -1265,6 +1335,7 @@ export function renderChat(props: ChatProps) {
           : nothing}
 
         <textarea
+          class="alisio-chat__composer-field"
           ${ref((el) => el && adjustTextareaHeight(el as HTMLTextAreaElement))}
           .value=${props.draft}
           dir=${detectTextDirection(props.draft)}
@@ -1272,19 +1343,19 @@ export function renderChat(props: ChatProps) {
           @keydown=${handleKeyDown}
           @input=${handleInput}
           @paste=${(e: ClipboardEvent) => handlePaste(e, props)}
-          placeholder=${vs.sttRecording ? "Listening..." : placeholder}
+          placeholder=${vs.sttRecording ? chatText("compose.listening") : placeholder}
           rows="1"
         ></textarea>
 
-        <div class="agent-chat__toolbar">
-          <div class="agent-chat__toolbar-left">
+        <div class="agent-chat__toolbar alisio-chat__composer-toolbar">
+          <div class="agent-chat__toolbar-left alisio-chat__composer-tools">
             <button
               class="agent-chat__input-btn"
               @click=${() => {
                 document.querySelector<HTMLInputElement>(".agent-chat__file-input")?.click();
               }}
-              title="Attach file"
-              aria-label="Attach file"
+              title=${chatText("compose.attachFile")}
+              aria-label=${chatText("compose.attachFile")}
               ?disabled=${!props.connected}
             >
               ${icons.paperclip}
@@ -1336,7 +1407,9 @@ export function renderChat(props: ChatProps) {
                         }
                       }
                     }}
-                    title=${vs.sttRecording ? "Stop recording" : "Voice input"}
+                    title=${vs.sttRecording
+                      ? chatText("compose.stopRecording")
+                      : chatText("compose.voiceInput")}
                     ?disabled=${!props.connected}
                   >
                     ${vs.sttRecording ? icons.micOff : icons.mic}
@@ -1346,37 +1419,15 @@ export function renderChat(props: ChatProps) {
             ${tokens ? html`<span class="agent-chat__token-count">${tokens}</span>` : nothing}
           </div>
 
-          <div class="agent-chat__toolbar-right">
+          <div class="agent-chat__toolbar-right alisio-chat__composer-actions">
             ${nothing /* search hidden for now */}
-            ${canAbort
-              ? nothing
-              : html`
-                  <button
-                    class="btn btn--ghost"
-                    @click=${props.onNewSession}
-                    title="New session"
-                    aria-label="New session"
-                  >
-                    ${icons.plus}
-                  </button>
-                `}
-            <button
-              class="btn btn--ghost"
-              @click=${() => exportMarkdown(props)}
-              title="Export"
-              aria-label="Export chat"
-              ?disabled=${props.messages.length === 0}
-            >
-              ${icons.download}
-            </button>
-
             ${canAbort && (isBusy || props.sending)
               ? html`
                   <button
                     class="chat-send-btn chat-send-btn--stop"
                     @click=${props.onAbort}
-                    title="Stop"
-                    aria-label="Stop generating"
+                    title=${chatText("compose.stop")}
+                    aria-label=${chatText("compose.stopGenerating")}
                   >
                     ${icons.stop}
                   </button>
@@ -1391,8 +1442,10 @@ export function renderChat(props: ChatProps) {
                       props.onSend();
                     }}
                     ?disabled=${!props.connected || props.sending}
-                    title=${isBusy ? "Queue" : "Send"}
-                    aria-label=${isBusy ? "Queue message" : "Send message"}
+                    title=${isBusy ? chatText("compose.queue") : chatText("compose.send")}
+                    aria-label=${isBusy
+                      ? chatText("compose.queueMessage")
+                      : chatText("compose.sendMessage")}
                   >
                     ${icons.send}
                   </button>
@@ -1464,7 +1517,10 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
       key: "chat:history:notice",
       message: {
         role: "system",
-        content: `Showing last ${CHAT_HISTORY_RENDER_LIMIT} messages (${historyStart} hidden).`,
+        content: chatText("history.notice", {
+          shown: String(CHAT_HISTORY_RENDER_LIMIT),
+          hidden: String(historyStart),
+        }),
         timestamp: Date.now(),
       },
     });
@@ -1481,7 +1537,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
           typeof marker.id === "string"
             ? `divider:compaction:${marker.id}`
             : `divider:compaction:${normalized.timestamp}:${i}`,
-        label: "Compaction",
+        label: chatText("divider.compaction"),
         timestamp: normalized.timestamp ?? Date.now(),
       });
       continue;

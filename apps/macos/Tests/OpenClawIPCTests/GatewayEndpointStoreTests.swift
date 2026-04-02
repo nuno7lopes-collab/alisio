@@ -126,6 +126,14 @@ struct GatewayEndpointStoreTests {
         #expect(resolved.mode == .remote)
     }
 
+    @Test func `connection mode resolver defaults to local without onboarding state`() {
+        let defaults = self.makeDefaults()
+
+        let resolved = ConnectionModeResolver.resolve(root: [:], defaults: defaults)
+        #expect(resolved.mode == .local)
+        #expect(resolved.source == .defaultLocal)
+    }
+
     @Test func `connection mode resolver falls back to defaults on unknown config`() {
         let defaults = self.makeDefaults()
         defaults.set("local", forKey: connectionModeKey)
@@ -258,7 +266,7 @@ struct GatewayEndpointStoreTests {
         #expect(url.absoluteString == "https://gateway.example:443/remote-ui/")
     }
 
-    @Test func `dashboard URL uses fragment token and omits password`() throws {
+    @Test func `dashboard URL omits fragment token in local mode`() throws {
         let config: GatewayConnection.Config = try (
             url: #require(URL(string: "ws://127.0.0.1:18789")),
             token: "abc123",
@@ -268,7 +276,22 @@ struct GatewayEndpointStoreTests {
             for: config,
             mode: .local,
             localBasePath: "/control")
-        #expect(url.absoluteString == "http://127.0.0.1:18789/control/#token=abc123")
+        #expect(url.absoluteString == "http://127.0.0.1:18789/control/")
+        #expect(url.fragment == nil)
+        #expect(url.query == nil)
+    }
+
+    @Test func `dashboard URL keeps fragment token only in remote mode`() throws {
+        let config: GatewayConnection.Config = try (
+            url: #require(URL(string: "ws://gateway.example:18789")),
+            token: "abc123",
+            password: "sekret") // pragma: allowlist secret
+
+        let url = try GatewayEndpointStore.dashboardURL(
+            for: config,
+            mode: .remote,
+            localBasePath: "/control")
+        #expect(url.absoluteString == "http://gateway.example:18789/#token=abc123")
         #expect(url.query == nil)
     }
 

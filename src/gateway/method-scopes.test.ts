@@ -24,6 +24,7 @@ describe("method scope resolution", () => {
     ["sessions.messages.unsubscribe", ["operator.read"]],
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
+    ["alisio.runtime.restart", ["operator.admin"]],
     ["config.patch", ["operator.admin"]],
     ["wizard.start", ["operator.admin"]],
     ["update.run", ["operator.admin"]],
@@ -56,6 +57,9 @@ describe("operator scope authorization", () => {
   it.each([
     ["health", ["operator.read"], { allowed: true }],
     ["health", ["operator.write"], { allowed: true }],
+    ["alisio.bootstrap.get", ["operator.read"], { allowed: true }],
+    ["alisio.doctor.summary", ["operator.read"], { allowed: true }],
+    ["alisio.runtime.restart", ["operator.admin"], { allowed: true }],
     ["config.schema.lookup", ["operator.read"], { allowed: true }],
     ["config.patch", ["operator.admin"], { allowed: true }],
   ])("authorizes %s for scopes %j", (method, scopes, expected) => {

@@ -29,8 +29,8 @@ struct GeneralSettings: View {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 12) {
                     SettingsToggleRow(
-                        title: "OpenClaw active",
-                        subtitle: "Pause to stop the OpenClaw gateway; no messages will be processed.",
+                        title: "Alisio active",
+                        subtitle: "Pause to stop the Alisio gateway; no messages will be processed.",
                         binding: self.activeBinding)
 
                     self.connectionSection
@@ -39,12 +39,12 @@ struct GeneralSettings: View {
 
                     SettingsToggleRow(
                         title: "Launch at login",
-                        subtitle: "Automatically start OpenClaw after you sign in.",
+                        subtitle: "Automatically start Alisio after you sign in.",
                         binding: self.$state.launchAtLogin)
 
                     SettingsToggleRow(
                         title: "Show Dock icon",
-                        subtitle: "Keep OpenClaw visible in the Dock instead of menu-bar-only mode.",
+                        subtitle: "Keep Alisio visible in the Dock instead of menu-bar-only mode.",
                         binding: self.$state.showDockIcon)
 
                     SettingsToggleRow(
@@ -76,7 +76,7 @@ struct GeneralSettings: View {
                 Spacer(minLength: 12)
                 HStack {
                     Spacer()
-                    Button("Quit OpenClaw") { NSApp.terminate(nil) }
+                    Button("Quit Alisio") { NSApp.terminate(nil) }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -103,7 +103,7 @@ struct GeneralSettings: View {
 
     private var connectionSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("OpenClaw runs")
+            Text("Alisio runs")
                 .font(.title3.weight(.semibold))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -117,7 +117,7 @@ struct GeneralSettings: View {
             .frame(width: 260, alignment: .leading)
 
             if self.state.connectionMode == .unconfigured {
-                Text("Pick Local or Remote to start the Gateway.")
+                Text("Pick Local or Remote to start Alisio.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -173,12 +173,12 @@ struct GeneralSettings: View {
                                 .frame(width: 280)
                         }
                         LabeledContent("Project root") {
-                            TextField("/home/you/Projects/openclaw", text: self.$state.remoteProjectRoot)
+                            TextField("/home/you/Projects/alisio", text: self.$state.remoteProjectRoot)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 280)
                         }
                         LabeledContent("CLI path") {
-                            TextField("/Applications/OpenClaw.app/.../openclaw", text: self.$state.remoteCliPath)
+                            TextField("/usr/local/bin/cli", text: self.$state.remoteCliPath)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 280)
                         }
@@ -275,7 +275,7 @@ struct GeneralSettings: View {
     private var remoteDirectRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 10) {
-                Text("Gateway")
+                Text("Remote URL")
                     .font(.callout.weight(.semibold))
                     .frame(width: self.remoteLabelWidth, alignment: .leading)
                 TextField("wss://gateway.example.ts.net", text: self.$state.remoteUrl)
@@ -295,20 +295,20 @@ struct GeneralSettings: View {
     private var remoteTokenRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .center, spacing: 10) {
-                Text("Gateway token")
+                Text("Access token")
                     .font(.callout.weight(.semibold))
                     .frame(width: self.remoteLabelWidth, alignment: .leading)
-                SecureField("remote gateway auth token (gateway.remote.token)", text: self.$state.remoteToken)
+                SecureField("remote access token", text: self.$state.remoteToken)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: .infinity)
             }
-            Text("Used when the remote gateway requires token auth.")
+            Text("Used when the remote workspace requires token authentication.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.leading, self.remoteLabelWidth + 10)
             if self.state.remoteTokenUnsupported {
                 Text(
-                    "The current gateway.remote.token value is not plain text. OpenClaw for macOS cannot use it directly; enter a plaintext token here to replace it.")
+                    "The current gateway.remote.token value is not plain text. Alisio for macOS cannot use it directly; enter a plaintext token here to replace it.")
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.leading, self.remoteLabelWidth + 10)
@@ -392,7 +392,7 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if let gatewayVersion = self.gatewayStatus.gatewayVersion {
-                Text("Gateway \(gatewayVersion) detected")
+                Text("Alisio runtime \(gatewayVersion) detected")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -404,7 +404,7 @@ struct GeneralSettings: View {
             }
 
             if case let .attachedExisting(details) = self.gatewayManager.status {
-                Text(details ?? "Using existing gateway instance")
+                Text(details ?? "Using existing local runtime")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -418,7 +418,7 @@ struct GeneralSettings: View {
             Button("Recheck") { self.refreshGatewayStatus() }
                 .buttonStyle(.bordered)
 
-            Text("Gateway auto-starts in local mode via launchd (\(gatewayLaunchdLabel)).")
+            Text("Alisio auto-starts its local runtime in local mode via launchd (\(gatewayLaunchdLabel)).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
@@ -589,7 +589,7 @@ extension GeneralSettings {
         let alert = NSAlert()
         alert.messageText = "Log file not found"
         alert.informativeText = """
-        Looked for openclaw logs in /tmp/openclaw/.
+        Looked for local runtime logs in the standard temporary log locations.
         Run a health check or send a message to generate activity, then try again.
         """
         alert.alertStyle = .informational

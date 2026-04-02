@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build and bundle OpenClaw into a minimal .app we can open.
-# Outputs to dist/OpenClaw.app
+# Build and bundle Alisio into a minimal .app we can open.
+# Outputs to dist/Alisio.app
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_ROOT="$ROOT_DIR/dist/OpenClaw.app"
+APP_ROOT="$ROOT_DIR/dist/Alisio.app"
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
 PRODUCT="OpenClaw"
 BUNDLE_ID="${BUNDLE_ID:-ai.openclaw.mac.debug}"
@@ -293,7 +293,7 @@ else
   fi
 fi
 
-echo "⏹  Stopping any running OpenClaw"
+echo "⏹  Stopping any running Alisio"
 killall -q OpenClaw 2>/dev/null || true
 
 echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"

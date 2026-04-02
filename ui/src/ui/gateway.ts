@@ -10,9 +10,15 @@ import {
   readConnectErrorRecoveryAdvice,
   readConnectErrorDetailCode,
 } from "../../../src/gateway/protocol/connect-error-details.js";
+import {
+  CONTROL_UI_OPERATOR_ROLE,
+  CONTROL_UI_OPERATOR_SCOPES,
+} from "../../../src/shared/control-ui-operator.js";
 import { clearDeviceAuthToken, loadDeviceAuthToken, storeDeviceAuthToken } from "./device-auth.ts";
 import { loadOrCreateDeviceIdentity, signDevicePayload } from "./device-identity.ts";
 import { generateUUID } from "./uuid.ts";
+
+export { CONTROL_UI_OPERATOR_ROLE, CONTROL_UI_OPERATOR_SCOPES };
 
 export type GatewayEventFrame = {
   type: "event";
@@ -121,6 +127,7 @@ type Pending = {
 
 type SelectedConnectAuth = {
   authToken?: string;
+  authBootstrapToken?: string;
   authDeviceToken?: string;
   authPassword?: string;
   resolvedDeviceToken?: string;
@@ -128,18 +135,9 @@ type SelectedConnectAuth = {
   canFallbackToShared: boolean;
 };
 
-export const CONTROL_UI_OPERATOR_ROLE = "operator";
-
-export const CONTROL_UI_OPERATOR_SCOPES = [
-  "operator.admin",
-  "operator.read",
-  "operator.write",
-  "operator.approvals",
-  "operator.pairing",
-] as const;
-
 export type GatewayConnectAuth = {
   token?: string;
+  bootstrapToken?: string;
   deviceToken?: string;
   password?: string;
 };
@@ -197,6 +195,7 @@ type DeviceTokenRetryDecision = {
 export type GatewayBrowserClientOptions = {
   url: string;
   token?: string;
+  bootstrapToken?: string;
   password?: string;
   clientName?: GatewayClientName;
   clientVersion?: string;
@@ -216,11 +215,12 @@ function buildGatewayConnectAuth(
   selectedAuth: SelectedConnectAuth,
 ): GatewayConnectAuth | undefined {
   const authToken = selectedAuth.authToken;
-  if (!(authToken || selectedAuth.authPassword)) {
+  if (!(authToken || selectedAuth.authPassword || selectedAuth.authBootstrapToken)) {
     return undefined;
   }
   return {
     token: authToken,
+    bootstrapToken: selectedAuth.authBootstrapToken,
     deviceToken: selectedAuth.authDeviceToken ?? selectedAuth.resolvedDeviceToken,
     password: selectedAuth.authPassword,
   };
@@ -387,6 +387,7 @@ export class GatewayBrowserClient {
     const scopes = [...CONTROL_UI_OPERATOR_SCOPES];
     const client = this.buildConnectClient();
     const explicitGatewayToken = this.opts.token?.trim() || undefined;
+    const explicitBootstrapToken = this.opts.bootstrapToken?.trim() || undefined;
     const explicitPassword = this.opts.password?.trim() || undefined;
 
     // crypto.subtle is only available in secure contexts (HTTPS, localhost).
@@ -396,6 +397,7 @@ export class GatewayBrowserClient {
     let deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
     let selectedAuth: SelectedConnectAuth = {
       authToken: explicitGatewayToken,
+      authBootstrapToken: explicitBootstrapToken,
       authPassword: explicitPassword,
       canFallbackToShared: false,
     };
@@ -565,6 +567,7 @@ export class GatewayBrowserClient {
 
   private selectConnectAuth(params: { role: string; deviceId: string }): SelectedConnectAuth {
     const explicitGatewayToken = this.opts.token?.trim() || undefined;
+    const explicitBootstrapToken = this.opts.bootstrapToken?.trim() || undefined;
     const authPassword = this.opts.password?.trim() || undefined;
     const storedEntry = loadDeviceAuthToken({
       deviceId: params.deviceId,
@@ -586,8 +589,11 @@ export class GatewayBrowserClient {
       ? (storedToken ?? undefined)
       : undefined;
     const authToken = explicitGatewayToken ?? resolvedDeviceToken;
+    const authBootstrapToken =
+      !explicitGatewayToken && !resolvedDeviceToken ? explicitBootstrapToken : undefined;
     return {
       authToken,
+      authBootstrapToken,
       authDeviceToken: shouldUseDeviceRetryToken ? (storedToken ?? undefined) : undefined,
       authPassword,
       resolvedDeviceToken,

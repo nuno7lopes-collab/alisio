@@ -29,8 +29,7 @@ final class LumeOnboardingState {
     var isComplete = false
 
     static func requiresCompletion() -> Bool {
-        let seenVersion = UserDefaults.standard.integer(forKey: onboardingVersionKey)
-        return seenVersion < currentOnboardingVersion || !AppStateStore.shared.onboardingSeen
+        false
     }
 }
 
@@ -76,16 +75,11 @@ final class LumeShellState {
     var settingsSection: SettingsSection = .workspace
 
     init() {
-        let onboardingRequired = LumeOnboardingState.requiresCompletion()
-        self.onboardingState.isComplete = !onboardingRequired
-        self.route = onboardingRequired ? .onboarding : .home
+        self.onboardingState.isComplete = true
+        self.route = .chat
     }
 
     func showChat(sessionKey: String?) {
-        guard !self.requiresOnboarding else {
-            self.route = .onboarding
-            return
-        }
         self.route = .chat
         if let sessionKey, !sessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.activeSessionKey = sessionKey
@@ -93,10 +87,6 @@ final class LumeShellState {
     }
 
     func showSettings(tab: SettingsTab) {
-        guard !self.requiresOnboarding else {
-            self.route = .onboarding
-            return
-        }
         let mapped = Self.mapSettings(tab)
         self.route = mapped.route
         if let section = mapped.section {
@@ -105,15 +95,11 @@ final class LumeShellState {
     }
 
     func show(route: Route) {
-        if route != .onboarding && self.requiresOnboarding {
-            self.route = .onboarding
-            return
-        }
         self.route = route
     }
 
     var requiresOnboarding: Bool {
-        !self.onboardingState.isComplete && LumeOnboardingState.requiresCompletion()
+        false
     }
 
     func completeOnboarding(preferredSessionKey: String? = nil) {
@@ -122,24 +108,15 @@ final class LumeShellState {
         if let preferredSessionKey, !preferredSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             self.activeSessionKey = preferredSessionKey
         }
-        self.route = .home
-    }
-
-    func restartOnboarding() {
-        self.onboardingState.currentStep = .welcome
-        self.onboardingState.selectedGateway = .local
-        self.onboardingState.permissionStates = [:]
-        self.onboardingState.isWizardComplete = false
-        self.onboardingState.isComplete = false
-        self.route = .onboarding
+        self.route = .chat
     }
 
     func workspacePath() -> String {
         switch self.route {
         case .onboarding:
-            return "/home"
+            return "/setup"
         case .home:
-            return "/home"
+            return "/chat"
         case .chat:
             if let activeSessionKey, !activeSessionKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return "/chat?session=\(Self.encodeQueryValue(activeSessionKey))"

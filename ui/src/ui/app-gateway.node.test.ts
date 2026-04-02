@@ -121,7 +121,7 @@ function createHost() {
     lastErrorCode: null,
     eventLogBuffer: [],
     eventLog: [],
-    tab: "overview",
+    tab: "home",
     presenceEntries: [],
     presenceError: null,
     presenceStatus: null,
@@ -129,7 +129,7 @@ function createHost() {
     agentsList: null,
     agentsError: null,
     debugHealth: null,
-    assistantName: "OpenClaw",
+    assistantName: "Alisio",
     assistantAvatar: null,
     assistantAgentId: null,
     serverVersion: null,
@@ -219,6 +219,10 @@ describe("connectGateway", () => {
         pendingRunId?: string;
       }>;
     };
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
     chatHost.chatRunId = "run-1";
     chatHost.chatQueue = [
       {
@@ -242,10 +246,6 @@ describe("connectGateway", () => {
         expiresAtMs: Date.now() + 60_000,
       },
     ];
-
-    connectGateway(host);
-    const client = gatewayClientInstances[0];
-    expect(client).toBeDefined();
 
     client.emitGap(20, 24);
 

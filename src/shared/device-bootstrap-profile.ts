@@ -1,3 +1,4 @@
+import { CONTROL_UI_OPERATOR_ROLE, CONTROL_UI_OPERATOR_SCOPES } from "./control-ui-operator.js";
 import { normalizeDeviceAuthRole, normalizeDeviceAuthScopes } from "./device-auth.js";
 
 export type DeviceBootstrapProfile = {
@@ -13,6 +14,11 @@ export type DeviceBootstrapProfileInput = {
 export const PAIRING_SETUP_BOOTSTRAP_PROFILE: DeviceBootstrapProfile = {
   roles: ["node"],
   scopes: [],
+};
+
+export const CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE: DeviceBootstrapProfile = {
+  roles: [CONTROL_UI_OPERATOR_ROLE],
+  scopes: [...CONTROL_UI_OPERATOR_SCOPES],
 };
 
 function normalizeBootstrapRoles(roles: readonly string[] | undefined): string[] {

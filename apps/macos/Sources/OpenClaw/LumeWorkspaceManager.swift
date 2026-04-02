@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 /// A borderless panel that can still accept key focus (needed for typing).
-final class WebChatPanel: NSPanel {
+final class LumeWorkspacePanel: NSPanel {
     override var canBecomeKey: Bool {
         true
     }
@@ -12,7 +12,7 @@ final class WebChatPanel: NSPanel {
     }
 }
 
-enum WebChatPresentation {
+enum LumeWorkspacePresentation {
     case window
     case panel(anchorProvider: () -> NSRect?)
 
@@ -23,8 +23,8 @@ enum WebChatPresentation {
 }
 
 @MainActor
-final class WebChatManager {
-    static let shared = WebChatManager()
+final class LumeWorkspaceManager {
+    static let shared = LumeWorkspaceManager()
 
     private var panelController: LumeWorkspaceWindowController?
     private var panelSessionKey: String?

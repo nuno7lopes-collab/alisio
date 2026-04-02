@@ -8,7 +8,7 @@ export class DashboardHeader extends LitElement {
     return this;
   }
 
-  @property() tab: Tab = "home";
+  @property() tab: Tab = "chat";
 
   override render() {
     const label = titleForTab(this.tab);
@@ -20,10 +20,10 @@ export class DashboardHeader extends LitElement {
             class="dashboard-header__breadcrumb-link"
             @click=${() =>
               this.dispatchEvent(
-                new CustomEvent("navigate", { detail: "home", bubbles: true, composed: true }),
+                new CustomEvent("navigate", { detail: "chat", bubbles: true, composed: true }),
               )}
           >
-            Lume
+            Alisio
           </span>
           <span class="dashboard-header__breadcrumb-sep">›</span>
           <span class="dashboard-header__breadcrumb-current">${label}</span>

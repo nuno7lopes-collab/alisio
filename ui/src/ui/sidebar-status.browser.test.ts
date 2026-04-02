@@ -4,7 +4,7 @@ import { mountApp, registerAppMountHooks } from "./test-helpers/app-mount.ts";
 registerAppMountHooks();
 
 describe("sidebar connection status", () => {
-  it("shows a single online status dot next to the version", async () => {
+  it("shows a single online status dot in the Alisio account footer", async () => {
     const app = mountApp("/chat");
     await app.updateComplete;
 
@@ -15,9 +15,9 @@ describe("sidebar connection status", () => {
     app.requestUpdate();
     await app.updateComplete;
 
-    const version = app.querySelector<HTMLElement>(".sidebar-version");
-    const statusDot = app.querySelector<HTMLElement>(".sidebar-version__status");
-    expect(version).not.toBeNull();
+    const footer = app.querySelector<HTMLElement>(".alisio-sidebar-account__status");
+    const statusDot = app.querySelector<HTMLElement>(".alisio-sidebar-account__dot");
+    expect(footer).not.toBeNull();
     expect(statusDot).not.toBeNull();
     expect(statusDot?.getAttribute("aria-label")).toContain("Online");
   });

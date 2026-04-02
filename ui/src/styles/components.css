@@ -162,6 +162,502 @@
 }
 
 /* ===========================================
+   Setup Surface
+   =========================================== */
+
+.setup-surface {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: clamp(20px, 3vw, 36px);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg-accent) 96%, transparent) 0%,
+    var(--bg) 100%
+  );
+}
+
+.setup-shell {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  display: grid;
+  gap: 18px;
+}
+
+.setup-hero {
+  display: grid;
+  gap: 16px;
+  padding: clamp(20px, 2.8vw, 28px);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--card) 98%, transparent);
+  box-shadow: none;
+}
+
+.setup-hero__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.setup-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--border) 90%, transparent);
+  color: var(--muted);
+  background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.setup-hero__counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.setup-hero__headline {
+  display: grid;
+  gap: 8px;
+  max-width: 680px;
+}
+
+.setup-hero__headline h1 {
+  margin: 0;
+  font-size: clamp(32px, 4.3vw, 46px);
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+.setup-hero__headline p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.setup-hero__metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setup-metric {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+.setup-metric__label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.setup-metric strong {
+  font-size: 18px;
+  letter-spacing: -0.03em;
+}
+
+.setup-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.setup-hero__summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+.setup-hero__summary strong {
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.setup-hero__summary span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.setup-hero__error {
+  margin: 0;
+}
+
+.setup-section {
+  display: grid;
+  gap: 12px;
+}
+
+.setup-section__head {
+  display: grid;
+  gap: 8px;
+}
+
+.setup-section__head h2 {
+  margin: 0;
+  font-size: clamp(20px, 2.8vw, 26px);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+}
+
+.setup-section__head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.setup-section__kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.setup-grid--compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.setup-step {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 100%;
+}
+
+.setup-mini-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.setup-mini-card h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+
+.setup-mini-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.setup-mini-card__kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.setup-step--focus {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border-strong) 70%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.setup-step__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.setup-step__head h2 {
+  margin: 4px 0 6px;
+  font-size: 18px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.setup-step__head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.setup-step__kicker {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.setup-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.setup-status--complete {
+  border-color: color-mix(in srgb, var(--ok) 26%, var(--border));
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--ok);
+}
+
+.setup-status--current {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.setup-status--review {
+  border-color: color-mix(in srgb, var(--warn) 30%, var(--border));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--warn);
+}
+
+.setup-status--blocked {
+  border-color: color-mix(in srgb, var(--danger) 26%, var(--border));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.setup-step__body,
+.setup-step__form {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-step__dual {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setup-step__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.setup-advanced {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.setup-advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.setup-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-advanced summary::after {
+  content: "Show";
+  margin-left: 8px;
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.setup-advanced[open] summary::after {
+  content: "Hide";
+}
+
+.setup-step__hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.setup-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.setup-list > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.setup-list span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.setup-list strong {
+  text-align: right;
+  font-weight: 600;
+}
+
+.setup-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-connector-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-connector-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+.setup-connector-row__copy {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.setup-connector-row__icon {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 14px;
+  border: 1px solid var(--connector-border, color-mix(in srgb, var(--border) 78%, transparent));
+  background: var(--connector-surface, color-mix(in srgb, var(--bg-elevated) 84%, transparent));
+  color: var(--connector-accent, var(--text-strong));
+  overflow: hidden;
+}
+
+.setup-connector-row__icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+}
+
+.setup-connector-row__icon-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.setup-connector-row__title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.setup-connector-row__sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setup-connector-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setup-permission {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.setup-permission:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.setup-permission strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.setup-permission.is-granted {
+  border-color: color-mix(in srgb, var(--ok) 28%, var(--border));
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.setup-permission.is-granted strong {
+  color: var(--ok);
+}
+
+/* ===========================================
    Update Banner
    =========================================== */
 
@@ -224,19 +720,20 @@
    =========================================== */
 
 .card {
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: var(--card);
-  border-radius: var(--radius-lg);
-  padding: 18px;
+  border-radius: 18px;
+  padding: 16px;
   animation: rise 0.25s var(--ease-out) backwards;
   transition:
     border-color var(--duration-normal) var(--ease-out),
     box-shadow var(--duration-normal) var(--ease-out);
+  box-shadow: none;
 }
 
 .card:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .card-title {
@@ -1859,6 +2356,42 @@
   background: var(--danger-subtle);
 }
 
+.chip-active {
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  background: color-mix(in srgb, var(--accent-subtle) 86%, transparent);
+}
+
+.pill--connected {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 28%, transparent);
+  background: color-mix(in srgb, var(--ok-subtle) 84%, transparent);
+}
+
+.pill--needs-reconnect {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 28%, transparent);
+  background: color-mix(in srgb, var(--warn-subtle) 84%, transparent);
+}
+
+.pill--ready {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-subtle) 84%, transparent);
+}
+
+.pill--in-review {
+  color: color-mix(in srgb, var(--text) 72%, var(--muted) 28%);
+  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.pill--unavailable {
+  color: var(--muted);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--secondary) 82%, transparent);
+}
+
 /* ===========================================
    Tables
    =========================================== */
@@ -2826,6 +3359,357 @@ td.data-table-key-col {
   padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   border-bottom-left-radius: var(--radius-lg);
   border-bottom-right-radius: var(--radius-lg);
+}
+
+/* ===========================================
+   Alisio Chat Refresh
+   =========================================== */
+
+.alisio-chat {
+  isolation: isolate;
+}
+
+.alisio-chat .chat-split-container {
+  min-height: 0;
+}
+
+.alisio-chat .chat-main {
+  min-width: 0;
+}
+
+.alisio-chat .chat-thread {
+  padding: 18px 12px 12px;
+  scroll-padding-bottom: 180px;
+}
+
+.alisio-chat__thread,
+.alisio-chat .chat-loading-skeleton {
+  width: min(100%, 760px);
+  margin: 0 auto;
+}
+
+.alisio-chat__thread {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 28px;
+}
+
+.alisio-chat .chat-group {
+  gap: 0;
+  margin: 0;
+}
+
+.alisio-chat .chat-group-messages {
+  gap: 8px;
+  max-width: min(100%, 760px);
+}
+
+.alisio-chat .chat-group.user .chat-group-messages {
+  max-width: min(100%, 360px);
+}
+
+.alisio-chat .chat-avatar {
+  display: none;
+}
+
+.alisio-chat .chat-bubble {
+  padding: 0;
+  border-radius: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+:root[data-theme-mode="light"] .alisio-chat .chat-bubble {
+  box-shadow: none;
+}
+
+.alisio-chat .chat-group.user .chat-bubble {
+  padding: 12px 16px;
+  border-radius: 20px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 98%, transparent);
+  box-shadow: none;
+}
+
+.alisio-chat .chat-group.user .chat-bubble:hover {
+  background: color-mix(in srgb, var(--bg-hover) 92%, transparent);
+}
+
+.alisio-chat .chat-bubble.chat-reading-indicator {
+  padding: 10px 14px;
+  border-radius: 999px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+}
+
+.alisio-chat .chat-bubble-actions {
+  top: -8px;
+  right: 0;
+  gap: 4px;
+}
+
+.alisio-chat .chat-copy-btn,
+.alisio-chat .chat-expand-btn {
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 98%, transparent);
+  color: var(--muted);
+}
+
+.alisio-chat .chat-text {
+  font-size: 14px;
+  line-height: 1.75;
+  max-width: 66ch;
+  color: var(--chat-text);
+}
+
+.alisio-chat .chat-thinking {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+}
+
+.alisio-chat .chat-group-footer {
+  gap: 8px;
+  margin-top: 0;
+  padding-inline: 2px;
+  opacity: 0.72;
+}
+
+.alisio-chat .chat-sender-name {
+  display: none;
+}
+
+.alisio-chat .chat-group-timestamp,
+.alisio-chat .msg-meta {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--muted) 76%, transparent);
+}
+
+.alisio-chat .chat-divider {
+  width: min(100%, 720px);
+  margin: -4px auto 4px;
+}
+
+.alisio-chat .chat-tool-msg-collapse,
+.alisio-chat .chat-tools-collapse,
+.alisio-chat .chat-json-collapse {
+  margin-top: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.alisio-chat .chat-tool-msg-summary,
+.alisio-chat .chat-tools-summary,
+.alisio-chat .chat-json-summary {
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  font-size: 11px;
+}
+
+.alisio-chat .chat-tool-msg-summary__icon,
+.alisio-chat .chat-tools-summary__icon {
+  color: var(--muted);
+  opacity: 0.78;
+}
+
+.alisio-chat .chat-tool-msg-summary__label,
+.alisio-chat .chat-tools-summary__count {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.alisio-chat .chat-tool-msg-summary__names,
+.alisio-chat .chat-tool-msg-summary__preview,
+.alisio-chat .chat-tools-summary__names {
+  color: color-mix(in srgb, var(--muted) 86%, transparent);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.alisio-chat .chat-tool-msg-body,
+.alisio-chat .chat-tools-collapse__body,
+.alisio-chat .chat-json-content {
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.alisio-chat .chat-tool-msg-body {
+  padding: 10px 10px 12px;
+}
+
+.alisio-chat .chat-tools-collapse__body {
+  padding: 2px 10px 10px;
+}
+
+.alisio-chat .chat-json-content {
+  padding: 10px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+}
+
+.alisio-chat .chat-tool-card {
+  max-height: none;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border-radius: 14px;
+  border-color: color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--secondary) 96%, transparent);
+  box-shadow: none;
+}
+
+.alisio-chat .chat-tool-card__title {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+}
+
+.alisio-chat .chat-tool-card__detail {
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--muted) 82%, var(--text) 18%);
+}
+
+.alisio-chat .chat-tool-card__preview,
+.alisio-chat .chat-tool-card__inline,
+.alisio-chat .chat-tool-card__output {
+  margin-top: 8px;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent);
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+}
+
+.alisio-chat .chat-tool-card__preview {
+  max-height: none;
+  border-style: dashed;
+}
+
+.alisio-chat .chat-tool-card__inline {
+  padding: 8px 10px;
+}
+
+.alisio-chat__composer {
+  width: min(100%, 720px);
+  margin: 0 auto 8px;
+  padding: 8px 12px 8px;
+  border-radius: 24px;
+  border-color: color-mix(in srgb, var(--border) 86%, transparent);
+  background: color-mix(in srgb, var(--card) 98%, transparent);
+  box-shadow: none;
+}
+
+.alisio-chat__composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border-strong) 76%);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.alisio-chat__attachments {
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.alisio-chat__attachment-thumb {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  border-color: color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+}
+
+.alisio-chat__attachment-remove {
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  background: color-mix(in srgb, black 72%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.alisio-chat__composer-field {
+  min-height: 48px;
+  max-height: 168px;
+  padding: 6px 4px 8px;
+  font-size: 14px;
+  line-height: 1.58;
+}
+
+.alisio-chat__composer-field::placeholder {
+  color: color-mix(in srgb, var(--muted) 84%, transparent);
+}
+
+.alisio-chat__composer-toolbar {
+  padding: 8px 2px 0;
+  border-top-color: color-mix(in srgb, var(--border) 44%, transparent);
+}
+
+.alisio-chat__composer-tools,
+.alisio-chat__composer-actions {
+  gap: 6px;
+}
+
+.alisio-chat .agent-chat__input-btn,
+.alisio-chat .agent-chat__toolbar .btn--ghost,
+.alisio-chat .chat-send-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.alisio-chat .agent-chat__input-btn,
+.alisio-chat .agent-chat__toolbar .btn--ghost {
+  border: 1px solid transparent;
+}
+
+.alisio-chat .agent-chat__input-btn:hover:not(:disabled),
+.alisio-chat .agent-chat__toolbar .btn--ghost:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--border) 68%, transparent);
+  background: color-mix(in srgb, var(--bg-hover) 80%, transparent);
+}
+
+.alisio-chat .chat-send-btn {
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--accent) 92%, black 8%);
+  color: var(--accent-foreground);
+}
+
+.alisio-chat .chat-send-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-hover) 88%, black 12%);
+  color: var(--accent-foreground);
+}
+
+.alisio-chat .chat-send-btn:disabled {
+  border-color: transparent;
+  background: transparent;
+}
+
+.alisio-chat .chat-send-btn--stop {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--danger) 88%, black 12%);
+  color: var(--destructive-foreground);
+}
+
+.alisio-chat .agent-chat__token-count {
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.alisio-chat .chat-queue {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 10px 12px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 96%, transparent);
 }
 
 .chat-compose__field {

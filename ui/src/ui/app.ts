@@ -3,19 +3,6 @@ import { customElement, state } from "lit/decorators.js";
 import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
 import {
-  handleChannelConfigReload as handleChannelConfigReloadInternal,
-  handleChannelConfigSave as handleChannelConfigSaveInternal,
-  handleNostrProfileCancel as handleNostrProfileCancelInternal,
-  handleNostrProfileEdit as handleNostrProfileEditInternal,
-  handleNostrProfileFieldChange as handleNostrProfileFieldChangeInternal,
-  handleNostrProfileImport as handleNostrProfileImportInternal,
-  handleNostrProfileSave as handleNostrProfileSaveInternal,
-  handleNostrProfileToggleAdvanced as handleNostrProfileToggleAdvancedInternal,
-  handleWhatsAppLogout as handleWhatsAppLogoutInternal,
-  handleWhatsAppStart as handleWhatsAppStartInternal,
-  handleWhatsAppWait as handleWhatsAppWaitInternal,
-} from "./app-channels.ts";
-import {
   handleAbortChat as handleAbortChatInternal,
   handleSendChat as handleSendChatInternal,
   removeQueuedMessage as removeQueuedMessageInternal,
@@ -89,13 +76,11 @@ import type {
   SessionsListResult,
   SkillStatusReport,
   StatusSummary,
-  NostrProfile,
   ToolsCatalogResult,
   ToolsEffectiveResult,
 } from "./types.ts";
 import { type ChatAttachment, type ChatQueueItem, type CronFormState } from "./ui-types.ts";
 import { generateUUID } from "./uuid.ts";
-import type { NostrProfileFormState } from "./views/channels.nostr-profile-form.ts";
 
 declare global {
   interface Window {
@@ -105,20 +90,7 @@ declare global {
 
 const bootAssistantIdentity = normalizeAssistantIdentity({});
 
-function resolveOnboardingMode(): boolean {
-  if (!window.location.search) {
-    return false;
-  }
-  const params = new URLSearchParams(window.location.search);
-  const raw = params.get("onboarding");
-  if (!raw) {
-    return false;
-  }
-  const normalized = raw.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
-}
-
-@customElement("openclaw-app")
+@customElement("alisio-app")
 export class OpenClawApp extends LitElement {
   private i18nController = new I18nController(this);
   clientInstanceId = generateUUID();
@@ -133,9 +105,8 @@ export class OpenClawApp extends LitElement {
   @state() password = "";
   @state() loginShowGatewayToken = false;
   @state() loginShowGatewayPassword = false;
-  @state() tab: Tab = "home";
-  @state() settingsSection: SettingsSection = "workspace";
-  @state() onboarding = resolveOnboardingMode();
+  @state() tab: Tab = "chat";
+  @state() settingsSection: SettingsSection = "account";
   @state() connected = false;
   @state() theme: ThemeName = this.settings.theme ?? "claw";
   @state() themeMode: ThemeMode = this.settings.themeMode ?? "system";
@@ -156,6 +127,41 @@ export class OpenClawApp extends LitElement {
   @state() nativeShellLoading = false;
   @state() nativeShellError: string | null = null;
   @state() nativeShellState: NativeShellState | null = null;
+  @state() alisioStartupLoading = false;
+  @state() alisioStartupError: string | null = null;
+  @state() alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null = null;
+  @state() alisioBootstrapLoading = false;
+  @state() alisioBootstrapError: string | null = null;
+  @state() alisioBootstrap: import("./types.ts").AlisioBootstrapState | null = null;
+  @state() alisioDoctorLoading = false;
+  @state() alisioDoctorError: string | null = null;
+  @state() alisioDoctor: import("./types.ts").AlisioDoctorSummaryState | null = null;
+  @state() alisioAccountLoading = false;
+  @state() alisioAccountError: string | null = null;
+  @state() alisioAccount: import("./types.ts").AlisioAccountState | null = null;
+  @state() alisioOrganizationLoading = false;
+  @state() alisioOrganizationError: string | null = null;
+  @state() alisioOrganization: import("./types.ts").AlisioOrganizationMembershipState | null = null;
+  @state() alisioConnectorsLoading = false;
+  @state() alisioConnectorsError: string | null = null;
+  @state() alisioConnectorCatalog: import("./types.ts").AlisioConnectorDefinition[] = [];
+  @state() alisioConnectorAuthorizations: import("./types.ts").AlisioConnectorAuthorization[] = [];
+  @state() alisioConnectorsSearch = "";
+  @state() alisioConnectorsCategoryFilter = "all";
+  @state() alisioOrganizationDraftMode: "create" | "join" = "create";
+  @state() alisioOrganizationName = "";
+  @state() alisioOrganizationInviteEmail = "";
+  @state() setupWizardLoading = false;
+  @state() setupWizardSubmitting = false;
+  @state() setupWizardSessionId: string | null = null;
+  @state() setupWizardStep: import("./types.ts").WizardStep | null = null;
+  @state() setupWizardStatus: string | null = null;
+  @state() setupWizardError: string | null = null;
+  @state() setupWizardDraftText = "";
+  @state() setupWizardDraftConfirm = false;
+  @state() setupWizardDraftSelectIndex = 0;
+  @state() setupWizardDraftMultiIndexes: number[] = [];
+  @state() setupStep: import("./types.ts").AlisioBootstrapStep | null = null;
 
   @state() sessionKey = this.settings.sessionKey;
   @state() chatLoading = false;
@@ -203,6 +209,8 @@ export class OpenClawApp extends LitElement {
   @state() execApprovalQueue: ExecApprovalRequest[] = [];
   @state() execApprovalBusy = false;
   @state() execApprovalError: string | null = null;
+  @state() gatewayBootstrapUrl: string | null = null;
+  @state() gatewayBootstrapToken: string | null = null;
   @state() pendingGatewayUrl: string | null = null;
   pendingGatewayToken: string | null = null;
 
@@ -252,12 +260,6 @@ export class OpenClawApp extends LitElement {
   @state() channelsSnapshot: ChannelsStatusSnapshot | null = null;
   @state() channelsError: string | null = null;
   @state() channelsLastSuccess: number | null = null;
-  @state() whatsappLoginMessage: string | null = null;
-  @state() whatsappLoginQrDataUrl: string | null = null;
-  @state() whatsappLoginConnected: boolean | null = null;
-  @state() whatsappBusy = false;
-  @state() nostrProfileFormState: NostrProfileFormState | null = null;
-  @state() nostrProfileAccountId: string | null = null;
 
   @state() presenceLoading = false;
   @state() presenceEntries: PresenceEntry[] = [];
@@ -405,10 +407,6 @@ export class OpenClawApp extends LitElement {
   @state() paletteOpen = false;
   @state() paletteQuery = "";
   @state() paletteActiveIndex = 0;
-  @state() overviewShowGatewayToken = false;
-  @state() overviewShowGatewayPassword = false;
-  @state() overviewLogLines: string[] = [];
-  @state() overviewLogCursor = 0;
 
   @state() skillsLoading = false;
   @state() skillsReport: SkillStatusReport | null = null;
@@ -642,50 +640,6 @@ export class OpenClawApp extends LitElement {
       messageOverride,
       opts,
     );
-  }
-
-  async handleWhatsAppStart(force: boolean) {
-    await handleWhatsAppStartInternal(this, force);
-  }
-
-  async handleWhatsAppWait() {
-    await handleWhatsAppWaitInternal(this);
-  }
-
-  async handleWhatsAppLogout() {
-    await handleWhatsAppLogoutInternal(this);
-  }
-
-  async handleChannelConfigSave() {
-    await handleChannelConfigSaveInternal(this);
-  }
-
-  async handleChannelConfigReload() {
-    await handleChannelConfigReloadInternal(this);
-  }
-
-  handleNostrProfileEdit(accountId: string, profile: NostrProfile | null) {
-    handleNostrProfileEditInternal(this, accountId, profile);
-  }
-
-  handleNostrProfileCancel() {
-    handleNostrProfileCancelInternal(this);
-  }
-
-  handleNostrProfileFieldChange(field: keyof NostrProfile, value: string) {
-    handleNostrProfileFieldChangeInternal(this, field, value);
-  }
-
-  async handleNostrProfileSave() {
-    await handleNostrProfileSaveInternal(this);
-  }
-
-  async handleNostrProfileImport() {
-    await handleNostrProfileImportInternal(this);
-  }
-
-  handleNostrProfileToggleAdvanced() {
-    handleNostrProfileToggleAdvancedInternal(this);
   }
 
   async handleExecApprovalDecision(decision: "allow-once" | "allow-always" | "deny") {

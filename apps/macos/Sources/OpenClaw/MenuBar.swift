@@ -161,7 +161,7 @@ struct OpenClawApp: App {
         }
         handler.onRightClick = { [self] in
             HoverHUDController.shared.dismiss(reason: "statusItemRightClick")
-            WebChatManager.shared.closePanel()
+            LumeWorkspaceManager.shared.closePanel()
             self.isMenuPresented = true
             self.updateStatusHighlight()
         }
@@ -282,7 +282,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await HealthStore.shared.refresh(onDemand: true) }
         Task { await PortGuardian.shared.sweep(mode: AppStateStore.shared.connectionMode) }
         Task { await PeekabooBridgeHostCoordinator.shared.setEnabled(AppStateStore.shared.peekabooBridgeEnabled) }
-        self.scheduleFirstRunOnboardingIfNeeded()
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             CLIInstallPrompter.shared.checkAndPromptIfNeeded(reason: "launch")
         }
@@ -304,21 +303,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TerminationSignalWatcher.shared.stop()
         VoiceWakeGlobalSettingsSync.shared.stop()
         LumeWindowManager.shared.close()
-        WebChatManager.shared.close()
-        WebChatManager.shared.resetTunnels()
+        LumeWorkspaceManager.shared.close()
+        LumeWorkspaceManager.shared.resetTunnels()
         Task { await RemoteTunnelManager.shared.stopAll() }
         Task { await GatewayConnection.shared.shutdown() }
         Task { await PeekabooBridgeHostCoordinator.shared.stop() }
-    }
-
-    @MainActor
-    private func scheduleFirstRunOnboardingIfNeeded() {
-        let seenVersion = UserDefaults.standard.integer(forKey: onboardingVersionKey)
-        let shouldShow = seenVersion < currentOnboardingVersion || !AppStateStore.shared.onboardingSeen
-        guard shouldShow else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            LumeWindowManager.shared.show(route: .onboarding)
-        }
     }
 
     private func isDuplicateInstance() -> Bool {

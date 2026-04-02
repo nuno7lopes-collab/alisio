@@ -205,6 +205,13 @@ final class GatewayProcessManager {
             do {
                 let data = try await attemptAttach()
                 let snap = decodeHealthSnapshot(from: data)
+                if let incompatibleReason = await self.incompatibleExistingGatewayReason(port: port) {
+                    self.existingGatewayDetails = instanceText
+                    self.status = .starting
+                    self.appendLog("[gateway] ignoring existing instance: \(incompatibleReason)\n")
+                    self.logger.warning("gateway existing instance ignored reason=\(incompatibleReason)")
+                    return false
+                }
                 let details = self.describe(details: instanceText, port: port, snap: snap)
                 self.existingGatewayDetails = details
                 self.clearLastFailure()
@@ -238,6 +245,27 @@ final class GatewayProcessManager {
 
         self.existingGatewayDetails = nil
         return false
+    }
+
+    private func incompatibleExistingGatewayReason(port: Int) async -> String? {
+        guard let expected = GatewayEnvironment.expectedGatewayVersion(),
+              let expectedString = GatewayEnvironment.expectedGatewayVersionString()
+        else {
+            return nil
+        }
+
+        let rawVersion = await self.connection.cachedGatewayVersion()
+        let trimmed = rawVersion?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            return "existing gateway on port \(port) did not report a version; expected \(expectedString)"
+        }
+        guard let found = GatewayEnvironment.expectedGatewayVersion(from: trimmed) else {
+            return "existing gateway on port \(port) reported non-semver version \(trimmed); expected \(expectedString)"
+        }
+        guard found.compatible(with: expected) else {
+            return "existing gateway on port \(port) is \(found.description), expected \(expectedString)"
+        }
+        return nil
     }
 
     private func describe(details instance: String?, port: Int, snap: HealthSnapshot?) -> String {

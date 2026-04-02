@@ -4,7 +4,7 @@ enum EffectiveConnectionModeSource: Equatable {
     case configMode
     case configRemoteURL
     case userDefaults
-    case onboarding
+    case defaultLocal
 }
 
 struct EffectiveConnectionMode: Equatable {
@@ -43,7 +43,6 @@ enum ConnectionModeResolver {
             return EffectiveConnectionMode(mode: storedMode, source: .userDefaults)
         }
 
-        let seen = defaults.bool(forKey: "openclaw.onboardingSeen")
-        return EffectiveConnectionMode(mode: seen ? .local : .unconfigured, source: .onboarding)
+        return EffectiveConnectionMode(mode: .local, source: .defaultLocal)
     }
 }

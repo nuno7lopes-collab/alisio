@@ -1,14 +1,17 @@
 import type { NativeShellPermission, NativeShellState } from "./types.ts";
 
-type LumeHostRequest = <T = unknown>(
+type AlisioHostRequest = <T = unknown>(
   method: string,
   params?: Record<string, unknown>,
 ) => Promise<T>;
 
 declare global {
   interface Window {
+    alisioHost?: {
+      request: AlisioHostRequest;
+    };
     lumeHost?: {
-      request: LumeHostRequest;
+      request: AlisioHostRequest;
     };
   }
 }
@@ -20,7 +23,11 @@ type NativeShellStateHost = {
 };
 
 export function hasLumeHostBridge(): boolean {
-  return typeof window !== "undefined" && typeof window.lumeHost?.request === "function";
+  return (
+    typeof window !== "undefined" &&
+    (typeof window.alisioHost?.request === "function" ||
+      typeof window.lumeHost?.request === "function")
+  );
 }
 
 export async function requestLumeHost<T = unknown>(
@@ -30,7 +37,8 @@ export async function requestLumeHost<T = unknown>(
   if (!hasLumeHostBridge()) {
     throw new Error("Native shell bridge unavailable");
   }
-  return window.lumeHost!.request<T>(method, params);
+  const host = window.alisioHost ?? window.lumeHost;
+  return host!.request<T>(method, params);
 }
 
 export async function loadNativeShellState(state: NativeShellStateHost) {
@@ -73,4 +81,8 @@ export async function revealLogs() {
 
 export async function openNativeSettings(section?: string) {
   return requestLumeHost("openNativeSettings", section ? { section } : {});
+}
+
+export async function openExternal(url: string) {
+  return requestLumeHost("openExternal", { url });
 }

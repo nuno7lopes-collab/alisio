@@ -237,8 +237,7 @@ actor GatewayEndpointStore {
         if let modeRaw {
             initialMode = AppState.ConnectionMode(rawValue: modeRaw) ?? .local
         } else {
-            let seen = UserDefaults.standard.bool(forKey: "openclaw.onboardingSeen")
-            initialMode = seen ? .local : .unconfigured
+            initialMode = .local
         }
 
         let port = deps.localPort()
@@ -694,7 +693,8 @@ extension GatewayEndpointStore {
         }
 
         var fragmentItems: [URLQueryItem] = []
-        if let token = config.token?.trimmingCharacters(in: .whitespacesAndNewlines),
+        if mode == .remote,
+           let token = config.token?.trimmingCharacters(in: .whitespacesAndNewlines),
            !token.isEmpty
         {
             fragmentItems.append(URLQueryItem(name: "token", value: token))
