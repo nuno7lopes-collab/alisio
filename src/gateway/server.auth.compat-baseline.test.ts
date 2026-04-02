@@ -116,7 +116,7 @@ describe("gateway auth compatibility baseline", () => {
       try {
         const res = await connectReq(ws, { token: "wrong" });
         expect(res.ok).toBe(false);
-        expect(res.error?.message ?? "").toContain("gateway token mismatch");
+        expect(res.error?.message ?? "").toContain("connection token mismatch");
         expectAuthErrorDetails({
           details: res.error?.details,
           expectedCode: ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH,

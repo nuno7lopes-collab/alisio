@@ -1451,6 +1451,12 @@
   font-weight: 500;
 }
 
+.field-note {
+  color: color-mix(in srgb, var(--muted) 88%, transparent);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .field input,
 .field textarea,
 .field select {
@@ -3535,6 +3541,11 @@ td.data-table-key-col {
   isolation: isolate;
 }
 
+.alisio-chat--empty .chat-thread {
+  display: grid;
+  align-items: center;
+}
+
 .alisio-chat .chat-split-container {
   min-height: 0;
 }
@@ -3550,7 +3561,7 @@ td.data-table-key-col {
 
 .alisio-chat__thread,
 .alisio-chat .chat-loading-skeleton {
-  width: min(100%, 760px);
+  width: min(100%, 820px);
   margin: 0 auto;
 }
 
@@ -3568,11 +3579,11 @@ td.data-table-key-col {
 
 .alisio-chat .chat-group-messages {
   gap: 8px;
-  max-width: min(100%, 760px);
+  max-width: min(100%, 820px);
 }
 
 .alisio-chat .chat-group.user .chat-group-messages {
-  max-width: min(100%, 360px);
+  max-width: min(100%, 420px);
 }
 
 .alisio-chat .chat-avatar {
@@ -3592,11 +3603,11 @@ td.data-table-key-col {
 }
 
 .alisio-chat .chat-group.user .chat-bubble {
-  padding: 12px 16px;
-  border-radius: 20px;
+  padding: 13px 17px;
+  border-radius: 22px;
   border-style: solid;
-  border-color: color-mix(in srgb, var(--border) 84%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 98%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 12%, var(--border) 88%);
+  background: color-mix(in srgb, var(--bg-elevated) 98%, var(--accent) 2%);
   box-shadow: none;
 }
 
@@ -3627,7 +3638,7 @@ td.data-table-key-col {
 
 .alisio-chat .chat-text {
   font-size: 15px;
-  line-height: 1.78;
+  line-height: 1.74;
   max-width: 68ch;
   color: var(--chat-text);
 }
@@ -3811,9 +3822,9 @@ td.data-table-key-col {
 
 .alisio-chat .chat-tool-card {
   margin-top: 8px;
-  border-radius: 14px;
+  border-radius: 16px;
   border-color: color-mix(in srgb, var(--border) 82%, transparent);
-  background: color-mix(in srgb, var(--secondary) 96%, transparent);
+  background: color-mix(in srgb, var(--secondary) 92%, transparent);
   box-shadow: none;
 }
 
@@ -3861,13 +3872,18 @@ td.data-table-key-col {
 }
 
 .alisio-chat__composer {
-  width: min(100%, 720px);
-  margin: 0 auto 8px;
-  padding: 8px 12px 8px;
-  border-radius: 24px;
+  width: min(100%, 760px);
+  margin: 0 auto 10px;
+  padding: 10px 14px 10px;
+  border-radius: 26px;
   border-color: color-mix(in srgb, var(--border) 86%, transparent);
-  background: color-mix(in srgb, var(--card) 98%, transparent);
-  box-shadow: none;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--card) 98%, transparent),
+      color-mix(in srgb, var(--bg-elevated) 94%, transparent)
+    );
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.16);
 }
 
 .alisio-chat__composer:focus-within {
@@ -3899,9 +3915,9 @@ td.data-table-key-col {
 }
 
 .alisio-chat__composer-field {
-  min-height: 48px;
+  min-height: 50px;
   max-height: 168px;
-  padding: 6px 4px 8px;
+  padding: 8px 4px 8px;
   font-size: 14px;
   line-height: 1.58;
 }
@@ -3941,7 +3957,7 @@ td.data-table-key-col {
 
 .alisio-chat .chat-send-btn {
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent) 92%, black 8%);
+  background: color-mix(in srgb, var(--accent) 90%, black 10%);
   color: var(--accent-foreground);
 }
 
@@ -3964,6 +3980,29 @@ td.data-table-key-col {
 .alisio-chat .agent-chat__token-count {
   padding: 0 6px;
   font-size: 11px;
+}
+
+.alisio-chat .agent-chat__welcome {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  padding: 22px 18px 12px;
+}
+
+.alisio-chat .agent-chat__welcome h2 {
+  font-family: var(--font-display);
+  letter-spacing: -0.05em;
+}
+
+.alisio-chat .agent-chat__suggestions {
+  width: 100%;
+  gap: 10px;
+}
+
+.alisio-chat .agent-chat__suggestion {
+  min-height: 42px;
+  border-radius: 16px;
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 76%, transparent);
 }
 
 .alisio-chat .chat-queue {

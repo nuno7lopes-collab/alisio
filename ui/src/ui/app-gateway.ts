@@ -2,6 +2,7 @@ import {
   GATEWAY_EVENT_UPDATE_AVAILABLE,
   type GatewayUpdateAvailableEventPayload,
 } from "../../../src/gateway/events.js";
+import { ConnectErrorDetailCodes } from "../../../src/gateway/protocol/connect-error-details.js";
 import {
   CHAT_SESSIONS_ACTIVE_MINUTES,
   clearPendingQueueItemsForRun,
@@ -23,6 +24,7 @@ import { loadAlisioBootstrap, loadAlisioDoctorSummary } from "./controllers/alis
 import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
+import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import {
@@ -36,6 +38,8 @@ import {
 import { loadHealthState } from "./controllers/health.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadSessions, subscribeSessions } from "./controllers/sessions.ts";
+import { clearDeviceAuthToken } from "./device-auth.ts";
+import { loadOrCreateDeviceIdentity } from "./device-identity.ts";
 import {
   resolveGatewayErrorDetailCode,
   type GatewayEventFrame,
@@ -91,6 +95,7 @@ type GatewayHost = {
   execApprovalQueue: ExecApprovalRequest[];
   execApprovalError: string | null;
   updateAvailable: UpdateAvailable | null;
+  bootstrapDeviceRetryConsumed?: boolean;
 };
 
 type SessionDefaultsSnapshot = {
@@ -134,6 +139,42 @@ export function resolveControlUiClientVersion(params: {
   } catch {
     return undefined;
   }
+}
+
+function shouldRetryWithFreshDeviceSession(
+  detailCode: string | null,
+  usingAutomaticBootstrap: boolean,
+) {
+  if (!usingAutomaticBootstrap || !detailCode) {
+    return false;
+  }
+  return (
+    detailCode === ConnectErrorDetailCodes.AUTH_DEVICE_TOKEN_MISMATCH ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_INVALID ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_DEVICE_ID_MISMATCH ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_SIGNATURE_EXPIRED ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_NONCE_REQUIRED ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_NONCE_MISMATCH ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_SIGNATURE_INVALID ||
+    detailCode === ConnectErrorDetailCodes.DEVICE_AUTH_PUBLIC_KEY_INVALID
+  );
+}
+
+function shouldRefreshControlUiBootstrap(
+  detailCode: string | null,
+  usingAutomaticBootstrap: boolean,
+) {
+  return (
+    usingAutomaticBootstrap && detailCode === ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID
+  );
+}
+
+async function clearStoredBrowserDeviceAuth() {
+  const identity = await loadOrCreateDeviceIdentity().catch(() => null);
+  if (!identity?.deviceId) {
+    return;
+  }
+  clearDeviceAuthToken({ deviceId: identity.deviceId, role: "operator" });
 }
 
 function normalizeSessionKeyForDefaults(
@@ -213,17 +254,26 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
 
   const previousClient = host.client;
   const gatewayUrl = host.gatewayBootstrapUrl?.trim() || host.settings.gatewayUrl;
-  const gatewayToken = host.gatewayBootstrapToken?.trim() || host.settings.token.trim();
+  const bootstrapToken = host.gatewayBootstrapToken?.trim() || undefined;
+  const usingAutomaticBootstrap = Boolean(bootstrapToken);
+  if (usingAutomaticBootstrap && host.settings.token.trim()) {
+    applySettings(host as unknown as Parameters<typeof applySettings>[0], {
+      ...host.settings,
+      token: "",
+    });
+  }
+  if (usingAutomaticBootstrap && host.password.trim()) {
+    host.password = "";
+  }
   const clientVersion = resolveControlUiClientVersion({
     gatewayUrl,
     serverVersion: host.serverVersion,
   });
   const client = new GatewayBrowserClient({
     url: gatewayUrl,
-    token: host.settings.token.trim() ? host.settings.token : undefined,
-    bootstrapToken:
-      gatewayToken && gatewayToken !== host.settings.token.trim() ? gatewayToken : undefined,
-    password: host.password.trim() ? host.password : undefined,
+    token: usingAutomaticBootstrap ? undefined : host.settings.token.trim() || undefined,
+    bootstrapToken,
+    password: usingAutomaticBootstrap ? undefined : host.password.trim() || undefined,
     clientName: "openclaw-control-ui",
     clientVersion,
     mode: "webchat",
@@ -234,6 +284,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       }
       shutdownHost.pendingShutdownMessage = null;
       host.connected = true;
+      host.bootstrapDeviceRetryConsumed = false;
       host.lastError = null;
       host.lastErrorCode = null;
       host.hello = hello;
@@ -271,16 +322,54 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       host.lastErrorCode =
         resolveGatewayErrorDetailCode(error) ??
         (typeof error?.code === "string" ? error.code : null);
+      if (
+        shouldRetryWithFreshDeviceSession(host.lastErrorCode, usingAutomaticBootstrap) &&
+        !host.bootstrapDeviceRetryConsumed
+      ) {
+        host.bootstrapDeviceRetryConsumed = true;
+        host.lastError = "Refreshing secure device session…";
+        void clearStoredBrowserDeviceAuth().finally(() => {
+          if (host.client !== client) {
+            return;
+          }
+          connectGateway(host);
+        });
+        return;
+      }
+      if (
+        shouldRefreshControlUiBootstrap(host.lastErrorCode, usingAutomaticBootstrap) &&
+        host.gatewayBootstrapToken?.trim()
+      ) {
+        host.lastError = "Refreshing gateway bootstrap…";
+        void loadControlUiBootstrapConfig(
+          host as unknown as Parameters<typeof loadControlUiBootstrapConfig>[0],
+        ).finally(() => {
+          if (host.client !== client) {
+            return;
+          }
+          connectGateway(host);
+        });
+        return;
+      }
       if (code !== 1012) {
         if (error?.message) {
-          host.lastError =
-            host.lastErrorCode && isGenericBrowserFetchFailure(error.message)
-              ? formatConnectError({
-                  message: error.message,
-                  details: error.details,
-                  code: error.code,
-                } as Parameters<typeof formatConnectError>[0])
-              : error.message;
+          const normalized = error.message.trim().toLowerCase();
+          const shouldFormatError =
+            isGenericBrowserFetchFailure(error.message) ||
+            normalized.startsWith("unauthorized:") ||
+            normalized.includes("connection token") ||
+            normalized.includes("connection auth") ||
+            normalized.includes("gateway auth") ||
+            normalized.includes("device signature") ||
+            normalized.includes("device auth") ||
+            normalized.includes("bootstrap token");
+          host.lastError = shouldFormatError
+            ? formatConnectError({
+                message: error.message,
+                details: error.details,
+                code: error.code,
+              } as Parameters<typeof formatConnectError>[0])
+            : error.message;
           return;
         }
         host.lastError =

@@ -5,12 +5,32 @@ import { connectGateway, resolveControlUiClientVersion } from "./app-gateway.ts"
 import type { GatewayHelloOk } from "./gateway.ts";
 
 const loadChatHistoryMock = vi.hoisted(() => vi.fn(async () => undefined));
+const loadControlUiBootstrapConfigMock = vi.hoisted(() =>
+  vi.fn(
+    async (state: {
+      gatewayBootstrapToken?: string | null;
+      gatewayBootstrapUrl?: string | null;
+    }) => {
+      state.gatewayBootstrapToken = "refreshed-bootstrap-token";
+      state.gatewayBootstrapUrl = "ws://127.0.0.1:18789";
+    },
+  ),
+);
+const clearDeviceAuthTokenMock = vi.hoisted(() => vi.fn());
+const loadOrCreateDeviceIdentityMock = vi.hoisted(() =>
+  vi.fn(async () => ({ deviceId: "device-1", publicKey: "pk", privateKey: "sk" })),
+);
 
 type GatewayClientMock = {
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
   request: ReturnType<typeof vi.fn>;
-  options: { clientVersion?: string };
+  options: {
+    clientVersion?: string;
+    token?: string;
+    bootstrapToken?: string;
+    password?: string;
+  };
   emitHello: (hello?: GatewayHelloOk) => void;
   emitClose: (info: {
     code: number;
@@ -45,6 +65,9 @@ vi.mock("./gateway.ts", async (importOriginal) => {
     constructor(
       private opts: {
         clientVersion?: string;
+        token?: string;
+        bootstrapToken?: string;
+        password?: string;
         onHello?: (hello: GatewayHelloOk) => void;
         onClose?: (info: {
           code: number;
@@ -59,7 +82,12 @@ vi.mock("./gateway.ts", async (importOriginal) => {
         start: this.start,
         stop: this.stop,
         request: this.request,
-        options: { clientVersion: this.opts.clientVersion },
+        options: {
+          clientVersion: this.opts.clientVersion,
+          token: this.opts.token,
+          bootstrapToken: this.opts.bootstrapToken,
+          password: this.opts.password,
+        },
         emitHello: (hello) => {
           this.opts.onHello?.(
             hello ?? {
@@ -96,6 +124,22 @@ vi.mock("./controllers/chat.ts", async (importOriginal) => {
     loadChatHistory: loadChatHistoryMock,
   };
 });
+
+vi.mock("./controllers/control-ui-bootstrap.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./controllers/control-ui-bootstrap.ts")>();
+  return {
+    ...actual,
+    loadControlUiBootstrapConfig: loadControlUiBootstrapConfigMock,
+  };
+});
+
+vi.mock("./device-auth.ts", () => ({
+  clearDeviceAuthToken: clearDeviceAuthTokenMock,
+}));
+
+vi.mock("./device-identity.ts", () => ({
+  loadOrCreateDeviceIdentity: loadOrCreateDeviceIdentityMock,
+}));
 
 function createHost() {
   return {
@@ -186,6 +230,9 @@ describe("connectGateway", () => {
   beforeEach(() => {
     gatewayClientInstances.length = 0;
     loadChatHistoryMock.mockClear();
+    loadControlUiBootstrapConfigMock.mockClear();
+    clearDeviceAuthTokenMock.mockClear();
+    loadOrCreateDeviceIdentityMock.mockClear();
   });
 
   it("ignores stale client onGap callbacks after reconnect", () => {
@@ -206,6 +253,25 @@ describe("connectGateway", () => {
     expect(gatewayClientInstances).toHaveLength(3);
     expect(secondClient.stop).toHaveBeenCalledTimes(1);
     expect(host.lastError).toBeNull();
+  });
+
+  it("prefers bootstrap auth over stale shared token settings for automatic local startup", () => {
+    const host = createHost() as ReturnType<typeof createHost> & {
+      gatewayBootstrapToken: string | null;
+      password: string;
+    };
+    host.settings.token = "stale-shared-token";
+    host.gatewayBootstrapToken = "fresh-bootstrap-token";
+    host.password = "stale-password";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+
+    expect(host.settings.token).toBe("");
+    expect(host.password).toBe("");
+    expect(client.options.token).toBeUndefined();
+    expect(client.options.password).toBeUndefined();
+    expect(client.options.bootstrapToken).toBe("fresh-bootstrap-token");
   });
 
   it("preserves approval prompts, clears stale run indicators, and resumes queued work after seq-gap reconnect", () => {
@@ -359,7 +425,7 @@ describe("connectGateway", () => {
     });
 
     expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH);
-    expect(host.lastError).toContain("gateway token mismatch");
+    expect(host.lastError).toContain("connection token mismatch");
   });
 
   it("maps TypeError fetch failures to actionable auth rate-limit guidance", () => {
@@ -402,6 +468,59 @@ describe("connectGateway", () => {
 
     expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED);
     expect(host.lastError).toContain("device identity required");
+  });
+
+  it("clears stale device auth and reconnects once when bootstrap auth hits a signature error", async () => {
+    const host = createHost();
+    host.gatewayBootstrapToken = "fresh-bootstrap-token";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitClose({
+      code: 4008,
+      reason: "connect failed",
+      error: {
+        code: "INVALID_REQUEST",
+        message: "device signature invalid",
+        details: { code: ConnectErrorDetailCodes.DEVICE_AUTH_SIGNATURE_INVALID },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(loadOrCreateDeviceIdentityMock).toHaveBeenCalledTimes(1);
+      expect(clearDeviceAuthTokenMock).toHaveBeenCalledWith({
+        deviceId: "device-1",
+        role: "operator",
+      });
+      expect(gatewayClientInstances).toHaveLength(2);
+    });
+  });
+
+  it("refreshes the control-ui bootstrap and reconnects when the bootstrap token expires", async () => {
+    const host = createHost();
+    host.gatewayBootstrapToken = "stale-bootstrap-token";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitClose({
+      code: 4008,
+      reason: "connect failed",
+      error: {
+        code: "INVALID_REQUEST",
+        message: "unauthorized: bootstrap token invalid or expired",
+        details: { code: ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID },
+      },
+    });
+
+    await vi.waitFor(() => {
+      expect(loadControlUiBootstrapConfigMock).toHaveBeenCalledTimes(1);
+      expect(gatewayClientInstances).toHaveLength(2);
+      expect(gatewayClientInstances[1].options.bootstrapToken).toBe("refreshed-bootstrap-token");
+    });
   });
 
   it("maps generic fetch failures to actionable origin guidance", () => {
@@ -459,12 +578,12 @@ describe("connectGateway", () => {
       error: {
         code: "INVALID_REQUEST",
         message:
-          "unauthorized: gateway token mismatch (open the dashboard URL and paste the token in Control UI settings)",
+          "unauthorized: connection token mismatch (open the dashboard URL and paste the token in Control UI settings)",
         details: { code: "AUTH_TOKEN_MISMATCH" },
       },
     });
 
-    expect(host.lastError).toContain("gateway token mismatch");
+    expect(host.lastError).toContain("connection token mismatch");
     expect(host.lastErrorCode).toBe("AUTH_TOKEN_MISMATCH");
   });
 

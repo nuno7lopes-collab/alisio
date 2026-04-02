@@ -42,7 +42,8 @@ final class AppState {
     }
 
     var onboardingSeen: Bool {
-        didSet { self.ifNotPreview { UserDefaults.standard.set(self.onboardingSeen, forKey: onboardingSeenKey) }
+        didSet {
+            self.ifNotPreview { UserDefaults.standard.set(self.onboardingSeen, forKey: onboardingSeenKey) }
         }
     }
 

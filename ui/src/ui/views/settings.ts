@@ -776,11 +776,16 @@ export function renderSettingsHub(props: {
 
   return html`
     <section class="alisio-page alisio-settings-page">
+      <div class="card alisio-settings-hero">
+        <div class="alisio-page__eyebrow">Settings</div>
+        <div class="card-title">${text.title}</div>
+        <div class="card-sub">${text.subtitle}</div>
+      </div>
       <div class="alisio-settings-shell">
         <aside class="card alisio-settings-sidebar">
           <div class="alisio-settings-sidebar__head">
-            <div class="card-title">${text.title}</div>
-            <div class="card-sub">${text.subtitle}</div>
+            <div class="card-title">Browse</div>
+            <div class="card-sub">Account, AI, product preferences, and advanced controls.</div>
           </div>
           <nav class="alisio-settings-links" aria-label="Settings sections">
             ${PUBLIC_SETTINGS_SECTIONS.map(

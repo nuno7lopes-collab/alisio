@@ -214,16 +214,10 @@ export function renderApp(state: AppViewState) {
     state.alisioBootstrap &&
     (state.alisioBootstrap.connectionRequired || state.alisioBootstrap.startupState !== "ready"),
   );
-  const shouldShowSetup =
-    !state.connected || state.tab === "setup" || (setupBlockedByBootstrap && state.tab === "chat");
+  const shouldShowSetup = !state.connected || state.tab === "setup" || setupBlockedByBootstrap;
   const setupView = renderSetup({
     connected: state.connected,
     lastError: state.lastError,
-    gatewayUrl: state.settings.gatewayUrl,
-    gatewayToken: state.settings.token,
-    gatewayPassword: state.password,
-    showGatewayToken: state.loginShowGatewayToken,
-    showGatewayPassword: state.loginShowGatewayPassword,
     startupLoading: state.alisioStartupLoading,
     startupError: state.alisioStartupError,
     startupBootstrap: state.alisioStartupBootstrap,
@@ -266,21 +260,6 @@ export function renderApp(state: AppViewState) {
     nativeShellLoading: state.nativeShellLoading,
     nativeShellError: state.nativeShellError,
     nativeShellState: state.nativeShellState,
-    onGatewayUrlChange: (value) => {
-      state.applySettings({ ...state.settings, gatewayUrl: value });
-    },
-    onGatewayTokenChange: (value) => {
-      state.applySettings({ ...state.settings, token: value });
-    },
-    onGatewayPasswordChange: (value) => {
-      state.password = value;
-    },
-    onToggleGatewayToken: () => {
-      state.loginShowGatewayToken = !state.loginShowGatewayToken;
-    },
-    onToggleGatewayPassword: () => {
-      state.loginShowGatewayPassword = !state.loginShowGatewayPassword;
-    },
     onAuthModeChange: (value) => {
       state.alisioAuthMode = value;
     },

@@ -87,7 +87,7 @@ type ConnectFrame = {
   id?: string;
   method?: string;
   params?: {
-    auth?: { token?: string; password?: string; deviceToken?: string };
+    auth?: { token?: string; bootstrapToken?: string; password?: string; deviceToken?: string };
     scopes?: string[];
   };
 };
@@ -291,6 +291,41 @@ describe("GatewayBrowserClient", () => {
     expect(signDevicePayloadMock).toHaveBeenCalledWith("private-key", expect.any(String));
     const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
     expect(signedPayload).toContain("|stored-device-token|nonce-1");
+  });
+
+  it("signs bootstrap-token connects with the bootstrap token payload", async () => {
+    localStorage.clear();
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      bootstrapToken: "bootstrap-token",
+    });
+
+    const { connectFrame } = await startConnect(client);
+
+    expect(connectFrame.method).toBe("connect");
+    expect(connectFrame.params?.auth?.token).toBeUndefined();
+    expect(connectFrame.params?.auth?.bootstrapToken).toBe("bootstrap-token");
+    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    expect(signedPayload).toContain("|bootstrap-token|nonce-1");
+  });
+
+  it("prefers bootstrap auth over cached device tokens for automatic startup", async () => {
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      bootstrapToken: "bootstrap-token",
+    });
+
+    const { connectFrame } = await startConnect(client);
+
+    expect(connectFrame.params?.auth).toEqual({
+      token: undefined,
+      bootstrapToken: "bootstrap-token",
+      password: undefined,
+      deviceToken: undefined,
+    });
+    const signedPayload = signDevicePayloadMock.mock.calls[0]?.[1];
+    expect(signedPayload).toContain("|bootstrap-token|nonce-1");
+    expect(signedPayload).not.toContain("stored-device-token");
   });
 
   it("ignores cached operator device tokens that do not include read access", async () => {

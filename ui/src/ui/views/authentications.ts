@@ -271,6 +271,7 @@ export function renderAuthentications(props: {
     <section class="alisio-page alisio-auth-page">
       <div class="alisio-page__hero card alisio-auth-hero">
         <div class="alisio-auth-hero__copy">
+          <div class="alisio-page__eyebrow">Tools</div>
           <div class="card-title">${text.title}</div>
           <div class="card-sub">${text.subtitle}</div>
         </div>

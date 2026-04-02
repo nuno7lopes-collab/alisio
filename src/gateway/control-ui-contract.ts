@@ -31,5 +31,4 @@ export type AlisioHttpBootstrap = {
   account: AlisioHttpBootstrapAccount;
   ai: AlisioHttpBootstrapAi;
   bootstrapToken?: string;
-  manualConnectionRequired: boolean;
 };

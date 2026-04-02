@@ -32,6 +32,8 @@ type LifecycleHost = {
   assistantAvatar: string | null;
   assistantAgentId: string | null;
   serverVersion: string | null;
+  alisioAuthMode?: "sign-up" | "sign-in";
+  alisioAuthEmail?: string;
   alisioStartupLoading: boolean;
   alisioStartupError: string | null;
   alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null;
@@ -48,6 +50,7 @@ type LifecycleHost = {
   logsEntries: unknown[];
   popStateHandler: () => void;
   topbarObserver: ResizeObserver | null;
+  setTab?: (tab: Tab) => void;
 };
 
 export function handleConnected(host: LifecycleHost) {
@@ -63,12 +66,18 @@ export function handleConnected(host: LifecycleHost) {
     if (host.connectGeneration !== connectGeneration) {
       return;
     }
-    const manualConnectionRequired = host.alisioStartupBootstrap?.manualConnectionRequired ?? false;
-    const hasExplicitGatewayAuth = Boolean(
-      host.gatewayBootstrapToken?.trim() || host.settings?.token?.trim() || host.password?.trim(),
-    );
-    if (manualConnectionRequired && !hasExplicitGatewayAuth) {
-      return;
+    const restoredEmail = host.alisioStartupBootstrap?.account?.email?.trim();
+    if (restoredEmail) {
+      if (!host.alisioAuthEmail?.trim()) {
+        host.alisioAuthEmail = restoredEmail;
+      }
+      if (host.alisioStartupBootstrap?.startupState === "signed_out") {
+        host.alisioAuthMode = "sign-in";
+      }
+    }
+    const startupState = host.alisioStartupBootstrap?.startupState ?? null;
+    if (startupState && startupState !== "ready" && host.tab !== "setup") {
+      host.setTab?.("setup");
     }
     connectGateway(host as unknown as Parameters<typeof connectGateway>[0]);
   });

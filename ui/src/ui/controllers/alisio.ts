@@ -112,7 +112,7 @@ function syncSetupRoute(state: AlisioState) {
   }
   const activeTab = state.tab ?? "chat";
   const bootstrap = state.alisioBootstrap;
-  if (shouldForceSetup(bootstrap) && activeTab === "chat") {
+  if (shouldForceSetup(bootstrap) && activeTab !== "setup") {
     state.setupStep = !state.connected
       ? "gateway"
       : bootstrap?.startupState === "signed_out" || bootstrap?.startupState === "needs_profile"
@@ -230,7 +230,12 @@ export async function loadAlisioAccount(state: AlisioState) {
 }
 
 export async function signUpAlisioAccount(state: AlisioState) {
-  if (!state.client || !state.connected || state.alisioAccountLoading) {
+  if (state.alisioAccountLoading) {
+    return;
+  }
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "Alisio is still reconnecting. Wait a moment, then try creating your account again.";
     return;
   }
   state.alisioAccountLoading = true;
@@ -253,7 +258,12 @@ export async function signUpAlisioAccount(state: AlisioState) {
 }
 
 export async function signInAlisioAccount(state: AlisioState) {
-  if (!state.client || !state.connected || state.alisioAccountLoading) {
+  if (state.alisioAccountLoading) {
+    return;
+  }
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "Alisio is still reconnecting. Wait a moment, then try signing in again.";
     return;
   }
   state.alisioAccountLoading = true;
@@ -287,6 +297,8 @@ export async function saveAlisioAccount(
   },
 ) {
   if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "Alisio is still reconnecting. Wait a moment, then save your profile again.";
     return;
   }
   state.alisioAccountLoading = true;
@@ -333,7 +345,12 @@ export async function signOutAlisioAccount(state: AlisioState) {
 }
 
 export async function requestAlisioPasswordReset(state: AlisioState) {
-  if (!state.client || !state.connected || state.alisioAccountLoading) {
+  if (state.alisioAccountLoading) {
+    return;
+  }
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "Alisio is still reconnecting. Wait a moment, then request a password reset again.";
     return;
   }
   state.alisioAccountLoading = true;

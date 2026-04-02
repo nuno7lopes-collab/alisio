@@ -501,7 +501,7 @@ export function registerControlUiAndPairingSuite(): void {
         opts: { token: "wrong" },
         assert: (res) => {
           expect(res.ok).toBe(false);
-          expect(res.error?.message ?? "").toContain("gateway token mismatch");
+          expect(res.error?.message ?? "").toContain("connection token mismatch");
           expect(res.error?.message ?? "").not.toContain("device token mismatch");
           const details = res.error?.details as
             | {

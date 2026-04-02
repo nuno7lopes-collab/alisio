@@ -38,7 +38,7 @@ describe("i18n", () => {
     expect(translate.t("alisio.settings.title")).toBe("Definições");
     expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Português (Portugal)");
     expect(translate.t("alisio.chat.defaultAssistantName")).toBe("Assistente");
-    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL da gateway");
+    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL da workspace");
 
     await translate.i18n.setLocale("es");
     expect(translate.t("alisio.authentications.title")).toBe("Tus autorizaciones");
@@ -46,7 +46,7 @@ describe("i18n", () => {
     expect(translate.t("alisio.settings.title")).toBe("Ajustes");
     expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Portugués (Portugal)");
     expect(translate.t("alisio.chat.defaultAssistantName")).toBe("Asistente");
-    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL de la puerta de enlace");
+    expect(translate.t("alisio.login.gatewayUrl")).toBe("URL del workspace");
   });
 
   it("should replace parameters correctly", () => {

@@ -4,8 +4,8 @@ import Foundation
 // nix-openclaw writes app defaults into this suite to survive app bundle identifier churn.
 let launchdLabel = "ai.openclaw.mac"
 let gatewayLaunchdLabel = "ai.openclaw.gateway"
-let onboardingVersionKey = "openclaw.onboardingVersion"
-let onboardingSeenKey = "openclaw.onboardingSeen"
+let onboardingVersionKey = "alisio.onboardingVersion"
+let onboardingSeenKey = "alisio.onboardingSeen"
 let currentOnboardingVersion = 7
 let pauseDefaultsKey = "openclaw.pauseEnabled"
 let iconAnimationsEnabledKey = "openclaw.iconAnimationsEnabled"

@@ -4,6 +4,10 @@ import {
   completeAlisioAiConnect,
   completeAlisioConnectorAuthorizationFromCallback,
 } from "../infra/alisio-store.js";
+import {
+  buildAlisioOpenAiOAuthCompletionScript,
+  buildAlisioOpenAiOAuthSignal,
+} from "../shared/alisio-openai-oauth.js";
 
 type SupportedProvider = "google" | "github" | "openai";
 
@@ -29,7 +33,13 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-function sendHtml(res: ServerResponse, status: number, title: string, message: string) {
+function sendHtml(
+  res: ServerResponse,
+  status: number,
+  title: string,
+  message: string,
+  extraHeadNodes: string[] = [],
+) {
   const safeTitle = escapeHtml(title);
   const safeMessage = escapeHtml(message);
   res.statusCode = status;
@@ -40,6 +50,7 @@ function sendHtml(res: ServerResponse, status: number, title: string, message: s
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${safeTitle}</title>
+    ${extraHeadNodes.join("\n")}
     <style>
       :root { color-scheme: dark; }
       body {
@@ -109,6 +120,9 @@ export async function handleAlisioOAuthHttpRequest(
         200,
         "Alisio is connected to OpenAI",
         `OpenAI is now connected for ${label}. You can return to Alisio.`,
+        [
+          `<script>${buildAlisioOpenAiOAuthCompletionScript(buildAlisioOpenAiOAuthSignal())}</script>`,
+        ],
       );
       return true;
     } catch (error) {

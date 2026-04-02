@@ -36,11 +36,6 @@ describe("setup view", () => {
       renderSetup({
         connected: false,
         lastError: "Runtime unavailable",
-        gatewayUrl: "ws://127.0.0.1:18789",
-        gatewayToken: "",
-        gatewayPassword: "",
-        showGatewayToken: false,
-        showGatewayPassword: false,
         bootstrapLoading: false,
         bootstrapError: null,
         bootstrap: null,
@@ -50,9 +45,14 @@ describe("setup view", () => {
           basePath: "/",
           controlUrl: "ws://127.0.0.1:18789/",
           startupState: "signed_out",
-          account: null,
+          account: {
+            username: "nuno",
+            displayName: "Nuno",
+            email: "nuno@example.com",
+            avatarLabel: "N",
+            plan: "Free Plan",
+          },
           ai: null,
-          manualConnectionRequired: false,
         },
         doctorLoading: false,
         doctorError: null,
@@ -101,11 +101,6 @@ describe("setup view", () => {
         nativeShellLoading: false,
         nativeShellError: null,
         nativeShellState: createNativeShellState(),
-        onGatewayUrlChange: vi.fn(),
-        onGatewayTokenChange: vi.fn(),
-        onGatewayPasswordChange: vi.fn(),
-        onToggleGatewayToken: vi.fn(),
-        onToggleGatewayPassword: vi.fn(),
         onAuthModeChange: vi.fn(),
         onAuthEmailChange: vi.fn(),
         onAuthPasswordChange: vi.fn(),
@@ -149,5 +144,8 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Create your account");
     expect(container.textContent).toContain("Email");
     expect(container.textContent).toContain("Password");
+    expect(container.textContent).toContain("Use the email you want to use to sign in to Alisio.");
+    expect(container.textContent).toContain("Reconnect Alisio");
+    expect(container.textContent).toContain("Alisio should connect automatically on this host.");
   });
 });

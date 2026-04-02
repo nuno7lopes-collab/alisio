@@ -1,11 +1,18 @@
-const SETTINGS_KEY_PREFIX = "openclaw.control.settings.v1:";
+const SETTINGS_KEY_PREFIX = "alisio.control.settings.v2:";
+const LEGACY_SETTINGS_KEY_PREFIX = "openclaw.control.settings.v1:";
+const DEFAULT_SETTINGS_KEY = "alisio.control.settings.v2";
 const LEGACY_SETTINGS_KEY = "openclaw.control.settings.v1";
+const TOKEN_SESSION_KEY_PREFIX = "alisio.control.token.v2:";
+const LEGACY_TOKEN_SESSION_KEY_PREFIX = "openclaw.control.token.v1:";
 const LEGACY_TOKEN_SESSION_KEY = "openclaw.control.token.v1";
-const TOKEN_SESSION_KEY_PREFIX = "openclaw.control.token.v1:";
 const MAX_SCOPED_SESSION_ENTRIES = 10;
 
 function settingsKeyForGateway(gatewayUrl: string): string {
   return `${SETTINGS_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
+}
+
+function legacySettingsKeyForGateway(gatewayUrl: string): string {
+  return `${LEGACY_SETTINGS_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
 }
 
 type ScopedSessionSelection = {
@@ -116,6 +123,10 @@ function tokenSessionKeyForGateway(gatewayUrl: string): string {
   return `${TOKEN_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
 }
 
+function legacyTokenSessionKeyForGateway(gatewayUrl: string): string {
+  return `${LEGACY_TOKEN_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
+}
+
 function resolveScopedSessionSelection(
   gatewayUrl: string,
   parsed: PersistedUiSettings,
@@ -157,8 +168,18 @@ function loadSessionToken(gatewayUrl: string): string {
     if (!storage) {
       return "";
     }
+    const scopedKey = tokenSessionKeyForGateway(gatewayUrl);
+    const legacyScopedKey = legacyTokenSessionKeyForGateway(gatewayUrl);
+    const token =
+      storage.getItem(scopedKey) ??
+      storage.getItem(legacyScopedKey) ??
+      storage.getItem(LEGACY_TOKEN_SESSION_KEY) ??
+      "";
     storage.removeItem(LEGACY_TOKEN_SESSION_KEY);
-    const token = storage.getItem(tokenSessionKeyForGateway(gatewayUrl)) ?? "";
+    if (token) {
+      storage.setItem(scopedKey, token.trim());
+      storage.removeItem(legacyScopedKey);
+    }
     return token.trim();
   } catch {
     return "";
@@ -173,12 +194,15 @@ function persistSessionToken(gatewayUrl: string, token: string) {
     }
     storage.removeItem(LEGACY_TOKEN_SESSION_KEY);
     const key = tokenSessionKeyForGateway(gatewayUrl);
+    const legacyKey = legacyTokenSessionKeyForGateway(gatewayUrl);
     const normalized = token.trim();
     if (normalized) {
       storage.setItem(key, normalized);
+      storage.removeItem(legacyKey);
       return;
     }
     storage.removeItem(key);
+    storage.removeItem(legacyKey);
   } catch {
     // best-effort
   }
@@ -190,7 +214,7 @@ export function loadSettings(): UiSettings {
 
   const defaults: UiSettings = {
     gatewayUrl: defaultUrl,
-    token: loadSessionToken(defaultUrl),
+    token: "",
     sessionKey: "main",
     lastActiveSessionKey: "main",
     theme: "claw",
@@ -208,12 +232,18 @@ export function loadSettings(): UiSettings {
   try {
     // First check for legacy key (no scope), then check for scoped key
     const scopedKey = settingsKeyForGateway(defaults.gatewayUrl);
+    const legacyScopedKey = legacySettingsKeyForGateway(defaults.gatewayUrl);
     const raw =
       storage?.getItem(scopedKey) ??
-      storage?.getItem(SETTINGS_KEY_PREFIX + "default") ??
+      storage?.getItem(DEFAULT_SETTINGS_KEY) ??
+      storage?.getItem(legacyScopedKey) ??
+      storage?.getItem(LEGACY_SETTINGS_KEY_PREFIX + "default") ??
       storage?.getItem(LEGACY_SETTINGS_KEY);
     if (!raw) {
-      return defaults;
+      return {
+        ...defaults,
+        token: loadSessionToken(defaultUrl),
+      };
     }
     const parsed = JSON.parse(raw) as PersistedUiSettings;
     const parsedGatewayUrl =
@@ -286,13 +316,16 @@ function persistSettings(next: UiSettings) {
   const storage = getSafeLocalStorage();
   const scope = normalizeGatewayTokenScope(next.gatewayUrl);
   const scopedKey = settingsKeyForGateway(next.gatewayUrl);
+  const legacyScopedKey = legacySettingsKeyForGateway(next.gatewayUrl);
   let existingSessionsByGateway: Record<string, ScopedSessionSelection> = {};
   try {
     // Try to migrate from legacy key or other scopes
     const raw =
       storage?.getItem(scopedKey) ??
-      storage?.getItem(SETTINGS_KEY_PREFIX + "default") ??
-      storage?.getItem("openclaw.control.settings.v1");
+      storage?.getItem(DEFAULT_SETTINGS_KEY) ??
+      storage?.getItem(legacyScopedKey) ??
+      storage?.getItem(LEGACY_SETTINGS_KEY_PREFIX + "default") ??
+      storage?.getItem(LEGACY_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as PersistedUiSettings;
       if (parsed.sessionsByGateway && typeof parsed.sessionsByGateway === "object") {
@@ -332,7 +365,9 @@ function persistSettings(next: UiSettings) {
   const serialized = JSON.stringify(persisted);
   try {
     storage?.setItem(scopedKey, serialized);
-    storage?.setItem(LEGACY_SETTINGS_KEY, serialized);
+    storage?.setItem(DEFAULT_SETTINGS_KEY, serialized);
+    storage?.removeItem(legacyScopedKey);
+    storage?.removeItem(LEGACY_SETTINGS_KEY);
   } catch {
     // best-effort — quota exceeded or security restrictions should not
     // prevent in-memory settings and visual updates from being applied

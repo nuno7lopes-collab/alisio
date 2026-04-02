@@ -50,10 +50,10 @@ export const en: TranslationMap = {
   alisio: {
     login: {
       title: "Connect to Alisio",
-      subtitle: "Link Alisio to your local gateway.",
-      gatewayUrl: "Gateway URL",
+      subtitle: "Automatic setup is the normal path; use recovery only for remote hosts.",
+      gatewayUrl: "Workspace URL",
       gatewayUrlPlaceholder: "ws://127.0.0.1:18789",
-      gatewayToken: "Gateway token",
+      gatewayToken: "Access token",
       gatewayTokenPlaceholder: "ALISIO_GATEWAY_TOKEN (optional)",
       gatewayPassword: "Password",
       gatewayPasswordPlaceholder: "optional",
@@ -61,13 +61,11 @@ export const en: TranslationMap = {
       tokenVisibilityHide: "Hide token",
       passwordVisibilityShow: "Show password",
       passwordVisibilityHide: "Hide password",
-      helpTitle: "How to connect",
-      step1: "Make sure your local Alisio gateway is running.",
-      step2:
-        "Open a tokenized workspace URL from the gateway host, or paste the gateway URL and token above.",
-      step3:
-        "If you are connecting remotely, keep the tokenized link handy and use the same gateway here.",
-      docsLink: "Open connection docs",
+      helpTitle: "How automatic setup works",
+      step1: "Alisio normally connects to your workspace automatically.",
+      step2: "Use recovery only when you are connecting to another host.",
+      step3: "If you are reconnecting remotely, use the same workspace URL and connection token.",
+      docsLink: "Open connection settings",
     },
     chat: {
       defaultAssistantName: "Assistant",
@@ -679,19 +677,17 @@ export const en: TranslationMap = {
     },
   },
   login: {
-    subtitle: "Connect Alisio to your local gateway",
+    subtitle: "Automatic setup is the normal path; use recovery only for remote hosts",
     passwordPlaceholder: "optional",
     tokenVisibilityShow: "Show token",
     tokenVisibilityHide: "Hide token",
     passwordVisibilityShow: "Show password",
     passwordVisibilityHide: "Hide password",
-    helpTitle: "How to connect",
-    step1: "Make sure your local Alisio gateway is running.",
-    step2:
-      "Open a tokenized workspace URL from the gateway host, or paste the gateway URL and token above.",
-    step3:
-      "If you are connecting remotely, keep the tokenized link handy and use the same gateway here.",
-    docsLink: "Open connection docs",
+    helpTitle: "How automatic setup works",
+    step1: "Alisio normally connects to your workspace automatically.",
+    step2: "Use recovery only when you are connecting to another host.",
+    step3: "If you are reconnecting remotely, use the same workspace URL and connection token.",
+    docsLink: "Open connection settings",
   },
   chat: {
     disconnected: "Disconnected from gateway.",

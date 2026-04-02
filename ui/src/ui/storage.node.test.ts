@@ -121,10 +121,10 @@ describe("loadSettings default gateway URL derivation", () => {
     const { loadSettings } = await import("./storage.ts");
     expect(loadSettings()).toMatchObject({
       gatewayUrl: "wss://gateway.example:8443/openclaw",
-      token: "",
+      token: "legacy-session-token",
       sessionKey: "agent",
     });
-    const scopedKey = "openclaw.control.settings.v1:wss://gateway.example:8443/openclaw";
+    const scopedKey = "alisio.control.settings.v2:wss://gateway.example:8443/openclaw";
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toEqual({
       gatewayUrl: "wss://gateway.example:8443/openclaw",
       theme: "claw",
@@ -144,7 +144,10 @@ describe("loadSettings default gateway URL derivation", () => {
         },
       },
     });
-    expect(sessionStorage.length).toBe(0);
+    expect(sessionStorage.getItem("openclaw.control.token.v1")).toBeNull();
+    expect(
+      sessionStorage.getItem("alisio.control.token.v2:wss://gateway.example:8443/openclaw"),
+    ).toBe("legacy-session-token");
   });
 
   it("loads the current-tab token from sessionStorage", async () => {
@@ -259,7 +262,7 @@ describe("loadSettings default gateway URL derivation", () => {
       token: "memory-only-token",
     });
 
-    const scopedKey = `openclaw.control.settings.v1:${gwUrl}`;
+    const scopedKey = `alisio.control.settings.v2:${gwUrl}`;
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toEqual({
       gatewayUrl: gwUrl,
       theme: "claw",
@@ -354,7 +357,7 @@ describe("loadSettings default gateway URL derivation", () => {
       borderRadius: 50,
     });
 
-    const scopedKey = `openclaw.control.settings.v1:${gwUrl}`;
+    const scopedKey = `alisio.control.settings.v2:${gwUrl}`;
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toMatchObject({
       theme: "dash",
       themeMode: "light",
@@ -405,7 +408,7 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const { saveSettings } = await import("./storage.ts");
     const gwUrl = expectedGatewayUrl("");
-    const scopedKey = `openclaw.control.settings.v1:wss://gateway.example:8443`;
+    const scopedKey = `alisio.control.settings.v2:wss://gateway.example:8443`;
 
     // Pre-seed sessionsByGateway with 11 stale gateway entries so the next
     // saveSettings call pushes the total to 12 and triggers the cap (10).

@@ -354,7 +354,7 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.settings.token).toBe("abc123");
-    expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
+    expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}").token).toBe(
       undefined,
     );
     expect(window.location.pathname).toBe("/ui/chat");
@@ -372,17 +372,17 @@ describe("control UI routing", () => {
 
   it("hydrates token from URL hash when settings already set", async () => {
     localStorage.setItem(
-      "openclaw.control.settings.v1",
+      "alisio.control.settings.v2",
       JSON.stringify({ token: "existing-token", gatewayUrl: "wss://gateway.example/openclaw" }),
     );
     const app = mountApp("/ui/overview#token=abc123");
     await app.updateComplete;
 
     expect(app.settings.token).toBe("abc123");
-    expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}")).toMatchObject({
+    expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}")).toMatchObject({
       gatewayUrl: "wss://gateway.example/openclaw",
     });
-    expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
+    expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}").token).toBe(
       undefined,
     );
     expect(window.location.pathname).toBe("/ui/chat");
@@ -394,7 +394,7 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.settings.token).toBe("abc123");
-    expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
+    expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}").token).toBe(
       undefined,
     );
     expect(window.location.pathname).toBe("/ui/chat");
@@ -453,7 +453,7 @@ describe("control UI routing", () => {
     await refreshed.updateComplete;
 
     expect(refreshed.settings.token).toBe("abc123");
-    expect(JSON.parse(localStorage.getItem("openclaw.control.settings.v1") ?? "{}").token).toBe(
+    expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}").token).toBe(
       undefined,
     );
   });

@@ -1289,7 +1289,7 @@ export async function beginAlisioAiConnect(
 ): Promise<{ setupUrl: string }> {
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const authorization = buildAlisioOpenAiAuthorization({
+    const authorization = await buildAlisioOpenAiAuthorization({
       callbackUrl: input.callbackUrl,
     });
     if (!state.ai) {
@@ -1324,6 +1324,7 @@ export async function completeAlisioAiConnect(
         delete state.ai.pending;
       }
       await persistState(state, env);
+      await clearAlisioOpenAiRuntime().catch(() => undefined);
       throw new AlisioAiError(
         "invalid_callback",
         input.errorDescription?.trim() || input.error.trim(),

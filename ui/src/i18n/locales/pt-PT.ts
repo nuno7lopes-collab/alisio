@@ -32,10 +32,11 @@ export const pt_PT: TranslationMap = {
   alisio: {
     login: {
       title: "Ligar ao Alisio",
-      subtitle: "Liga o Alisio à tua gateway local.",
-      gatewayUrl: "URL da gateway",
+      subtitle:
+        "A ligação automática é o caminho normal; usa recuperação apenas para hosts remotos.",
+      gatewayUrl: "URL da workspace",
       gatewayUrlPlaceholder: "ws://127.0.0.1:18789",
-      gatewayToken: "Token da gateway",
+      gatewayToken: "Token de acesso",
       gatewayTokenPlaceholder: "ALISIO_GATEWAY_TOKEN (opcional)",
       gatewayPassword: "Palavra-passe",
       gatewayPasswordPlaceholder: "opcional",
@@ -43,13 +44,12 @@ export const pt_PT: TranslationMap = {
       tokenVisibilityHide: "Esconder token",
       passwordVisibilityShow: "Mostrar palavra-passe",
       passwordVisibilityHide: "Esconder palavra-passe",
-      helpTitle: "Como ligar",
-      step1: "Confirma que o gateway local do Alisio está a correr.",
-      step2:
-        "Abre um URL tokenizado da workspace a partir da máquina host, ou cola acima o URL e o token do gateway.",
+      helpTitle: "Como funciona a ligação automática",
+      step1: "O Alisio liga-se automaticamente à tua workspace.",
+      step2: "Usa recuperação apenas quando estiveres a ligar a outro host.",
       step3:
-        "Se estiveres a ligar remotamente, guarda o link tokenizado e usa aqui o mesmo gateway.",
-      docsLink: "Abrir documentação de ligação",
+        "Se estiveres a ligar remotamente, usa o mesmo URL da workspace e o mesmo token de ligação.",
+      docsLink: "Abrir definições de ligação",
     },
     chat: {
       defaultAssistantName: "Assistente",
@@ -355,16 +355,16 @@ export const pt_PT: TranslationMap = {
   },
   login: {
     ...(pt_BR.login as TranslationMap),
-    subtitle: "Liga o Alisio ao teu gateway local",
+    subtitle: "Recupera a ligação do Alisio apenas se a ligação automática falhar",
     tokenVisibilityShow: "Mostrar token",
     tokenVisibilityHide: "Esconder token",
     passwordVisibilityShow: "Mostrar palavra-passe",
     passwordVisibilityHide: "Esconder palavra-passe",
-    helpTitle: "Como ligar",
-    step1: "Confirma que o gateway local do Alisio está a correr.",
-    step2:
-      "Abre um URL tokenizado da workspace a partir da máquina host, ou cola acima o URL e o token do gateway.",
-    step3: "Se estiveres a ligar remotamente, guarda o link tokenizado e usa aqui o mesmo gateway.",
-    docsLink: "Abrir documentação de ligação",
+    helpTitle: "Como recuperar",
+    step1: "O Alisio liga-se automaticamente à tua workspace.",
+    step2: "Usa recuperação apenas quando estiveres a ligar a outro host.",
+    step3:
+      "Se estiveres a ligar remotamente, usa o mesmo URL da workspace e o mesmo token de ligação.",
+    docsLink: "Abrir definições de ligação",
   },
 };

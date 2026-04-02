@@ -3,7 +3,7 @@
  *
  * Tracks failed auth attempts by {scope, clientIp}. A scope lets callers keep
  * independent counters for different credential classes (for example, shared
- * gateway token/password vs device-token auth) while still sharing one
+ * connection token/password vs device-token auth) while still sharing one
  * limiter instance.
  *
  * Design decisions:

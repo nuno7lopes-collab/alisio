@@ -100,11 +100,8 @@ function normalizeSetupStep(
 
 function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootstrapStep | null {
   const requestedStep = normalizeSetupStep(host.setupStep);
-  if (requestedStep) {
-    return requestedStep;
-  }
   if (!host.connected) {
-    return "gateway";
+    return requestedStep === "ready" ? "gateway" : (requestedStep ?? "gateway");
   }
   if (host.alisioBootstrap?.startupState === "signed_out") {
     return "account";
@@ -114,6 +111,9 @@ function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootst
   }
   if (host.alisioBootstrap?.startupState === "needs_ai") {
     return "runtime";
+  }
+  if (requestedStep) {
+    return requestedStep;
   }
   const bootstrapStep = normalizeSetupStep(host.alisioBootstrap?.nextStep);
   if (bootstrapStep && bootstrapStep !== "ready") {

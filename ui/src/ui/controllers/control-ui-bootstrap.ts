@@ -20,6 +20,17 @@ export type ControlUiBootstrapState = {
   gatewayBootstrapToken: string | null;
 };
 
+function looksLikeHtmlDocument(payload: string) {
+  const normalized = payload.trim().toLowerCase();
+  return normalized.startsWith("<!doctype html") || normalized.startsWith("<html");
+}
+
+function staleGatewayBootstrapMessage(serverVersion: string | null) {
+  return serverVersion
+    ? `The local Alisio app is still running an older build (${serverVersion}). Restart Alisio, then reload this page.`
+    : "The local Alisio app is still serving an older workspace build. Restart Alisio, then reload this page.";
+}
+
 export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapState) {
   if (typeof window === "undefined") {
     return;
@@ -74,7 +85,18 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
       state.alisioStartupError = `startup bootstrap failed (${res.status})`;
       return;
     }
-    const parsed = (await res.json()) as AlisioHttpBootstrap;
+    const raw = await res.text();
+    if (looksLikeHtmlDocument(raw)) {
+      state.alisioStartupError = staleGatewayBootstrapMessage(state.serverVersion);
+      return;
+    }
+    let parsed: AlisioHttpBootstrap;
+    try {
+      parsed = JSON.parse(raw) as AlisioHttpBootstrap;
+    } catch {
+      state.alisioStartupError = "Could not read the local startup bootstrap. Reload the page.";
+      return;
+    }
     state.alisioStartupBootstrap = parsed;
     state.gatewayBootstrapUrl = parsed.controlUrl ?? null;
     state.gatewayBootstrapToken = parsed.bootstrapToken ?? null;

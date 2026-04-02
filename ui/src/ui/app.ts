@@ -3,6 +3,10 @@ import { customElement, state } from "lit/decorators.js";
 import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
 import {
+  refreshAfterAlisioOpenAiOAuth,
+  subscribeAlisioOpenAiOAuthSignals,
+} from "./alisio-oauth.ts";
+import {
   handleAbortChat as handleAbortChatInternal,
   handleSendChat as handleSendChatInternal,
   removeQueuedMessage as removeQueuedMessageInternal,
@@ -103,8 +107,6 @@ export class OpenClawApp extends LitElement {
     }
   }
   @state() password = "";
-  @state() loginShowGatewayToken = false;
-  @state() loginShowGatewayPassword = false;
   @state() tab: Tab = "chat";
   @state() settingsSection: SettingsSection = "account";
   @state() connected = false;
@@ -471,6 +473,8 @@ export class OpenClawApp extends LitElement {
   private popStateHandler = () =>
     onPopStateInternal(this as unknown as Parameters<typeof onPopStateInternal>[0]);
   private topbarObserver: ResizeObserver | null = null;
+  private openAiOAuthCleanup: (() => void) | null = null;
+  private openAiOAuthRefreshInFlight = false;
   private globalKeydownHandler = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "k") {
       e.preventDefault();
@@ -506,6 +510,9 @@ export class OpenClawApp extends LitElement {
       }
     };
     document.addEventListener("keydown", this.globalKeydownHandler);
+    this.openAiOAuthCleanup = subscribeAlisioOpenAiOAuthSignals(() => {
+      void this.refreshAfterOpenAiOAuth();
+    });
     handleConnected(this as unknown as Parameters<typeof handleConnected>[0]);
   }
 
@@ -515,6 +522,8 @@ export class OpenClawApp extends LitElement {
 
   disconnectedCallback() {
     document.removeEventListener("keydown", this.globalKeydownHandler);
+    this.openAiOAuthCleanup?.();
+    this.openAiOAuthCleanup = null;
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
   }
@@ -541,6 +550,22 @@ export class OpenClawApp extends LitElement {
 
   connect() {
     connectGatewayInternal(this as unknown as Parameters<typeof connectGatewayInternal>[0]);
+  }
+
+  private async refreshAfterOpenAiOAuth() {
+    if (this.openAiOAuthRefreshInFlight) {
+      return;
+    }
+    this.openAiOAuthRefreshInFlight = true;
+    try {
+      await refreshAfterAlisioOpenAiOAuth(
+        this as unknown as Parameters<typeof refreshAfterAlisioOpenAiOAuth>[0],
+      );
+    } catch (error) {
+      this.lastError = `OpenAI connection refresh failed: ${String(error)}`;
+    } finally {
+      this.openAiOAuthRefreshInFlight = false;
+    }
   }
 
   handleChatScroll(event: Event) {

@@ -1317,7 +1317,16 @@
 }
 
 .alisio-page__hero {
-  background: var(--card);
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 24px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--bg-elevated) 98%, transparent),
+      color-mix(in srgb, var(--card) 96%, transparent)
+    );
+  box-shadow: var(--shadow-md);
 }
 
 .alisio-metrics {
@@ -1484,12 +1493,14 @@
 
 .alisio-auth-hero {
   display: grid;
-  gap: 14px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  align-items: end;
+  gap: 18px;
 }
 
 .alisio-auth-hero__copy {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .alisio-auth-hero__eyebrow {
@@ -1499,18 +1510,21 @@
 .alisio-auth-toolbar {
   display: grid;
   gap: 12px;
+  padding: 18px 20px;
 }
 
 .alisio-auth-section {
   display: grid;
   gap: 10px;
+  padding: 18px 20px;
 }
 
 .alisio-organization-hero {
   display: grid;
   gap: 18px;
-  max-width: 780px;
+  max-width: 1040px;
   margin: 0 auto;
+  padding: 22px 24px;
 }
 
 .alisio-organization-hero__topbar {
@@ -1518,6 +1532,26 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.alisio-organization-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+}
+
+.alisio-organization-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+}
+
+.alisio-organization-panel--muted {
+  align-content: start;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
 .alisio-organization-actions,
@@ -1552,10 +1586,16 @@
   margin: 0 auto;
 }
 
+.alisio-settings-hero {
+  display: grid;
+  gap: 8px;
+  padding: 20px 22px;
+}
+
 .alisio-settings-shell {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  gap: 16px;
+  gap: 18px;
   align-items: start;
 }
 
@@ -1564,7 +1604,8 @@
   top: 16px;
   display: grid;
   gap: 16px;
-  padding: 14px;
+  padding: 16px;
+  border-radius: 22px;
 }
 
 .alisio-settings-sidebar__head {
@@ -1582,9 +1623,9 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 42px;
-  padding: 0 12px;
-  border-radius: 14px;
+  min-height: 44px;
+  padding: 0 13px;
+  border-radius: 15px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--muted);
@@ -1646,6 +1687,8 @@
 
 .alisio-settings-card {
   min-width: 0;
+  padding: 18px 20px;
+  border-radius: 22px;
 }
 
 .alisio-settings-doctor {

@@ -20,7 +20,6 @@ import { AVATAR_MAX_BYTES } from "../shared/avatar-policy.js";
 import { CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE } from "../shared/device-bootstrap-profile.js";
 import { resolveRuntimeServiceVersion } from "../version.js";
 import { DEFAULT_ASSISTANT_IDENTITY, resolveAssistantIdentity } from "./assistant-identity.js";
-import { isLocalDirectRequest } from "./auth.js";
 import {
   ALISIO_BOOTSTRAP_HTTP_PATH,
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
@@ -44,7 +43,6 @@ import {
 const ROOT_PREFIX = "/";
 const CONTROL_UI_ASSETS_MISSING_MESSAGE =
   "Control UI assets not found. Build them with `pnpm ui:build` (auto-installs UI deps), or run `pnpm ui:dev` during development.";
-
 export type ControlUiRequestOptions = {
   basePath?: string;
   config?: OpenClawConfig;
@@ -195,7 +193,6 @@ export async function handleAlisioBootstrapHttpRequest(
     return true;
   }
 
-  const localDirect = isLocalDirectRequest(req, opts.trustedProxies, opts.allowRealIpFallback);
   const account = await getAlisioAccountState();
   const ai = await getAlisioAiState();
   const bootstrap = await getAlisioBootstrapSummary({
@@ -216,16 +213,11 @@ export async function handleAlisioBootstrapHttpRequest(
         }
       : null,
     ai,
-    manualConnectionRequired: !localDirect,
-    ...(localDirect
-      ? {
-          bootstrapToken: (
-            await issueDeviceBootstrapToken({
-              profile: CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE,
-            })
-          ).token,
-        }
-      : {}),
+    bootstrapToken: (
+      await issueDeviceBootstrapToken({
+        profile: CONTROL_UI_LOCAL_BOOTSTRAP_PROFILE,
+      })
+    ).token,
   };
   sendJson(res, 200, body);
   return true;

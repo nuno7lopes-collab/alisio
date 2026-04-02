@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import {
   ALISIO_USERNAME_MAX_LENGTH,
   ALISIO_USERNAME_MIN_LENGTH,
+  validateAlisioEmail,
   validateAlisioAccountDraft,
 } from "../../../../src/shared/alisio-account.js";
 import type {
@@ -20,11 +21,6 @@ import type {
 type SetupProps = {
   connected: boolean;
   lastError: string | null;
-  gatewayUrl: string;
-  gatewayToken: string;
-  gatewayPassword: string;
-  showGatewayToken: boolean;
-  showGatewayPassword: boolean;
   bootstrapLoading: boolean;
   bootstrapError: string | null;
   bootstrap: AlisioBootstrapState | null;
@@ -67,11 +63,6 @@ type SetupProps = {
   nativeShellLoading: boolean;
   nativeShellError: string | null;
   nativeShellState: NativeShellState | null;
-  onGatewayUrlChange: (value: string) => void;
-  onGatewayTokenChange: (value: string) => void;
-  onGatewayPasswordChange: (value: string) => void;
-  onToggleGatewayToken: () => void;
-  onToggleGatewayPassword: () => void;
   onAuthModeChange: (value: "sign-up" | "sign-in") => void;
   onAuthEmailChange: (value: string) => void;
   onAuthPasswordChange: (value: string) => void;
@@ -146,66 +137,51 @@ function accountValidationMessage(props: SetupProps) {
   });
 }
 
-function renderAdvancedConnection(props: SetupProps) {
-  const needsManual = Boolean(props.startupBootstrap?.manualConnectionRequired);
-  if (!needsManual) {
-    return nothing;
-  }
-  return html`
-    <details class="alisio-setup-advanced card">
-      <summary>Advanced connection</summary>
-      <p class="card-sub">
-        Use this only when you are connecting to another gateway manually or recovering a custom
-        local setup.
-      </p>
-      ${renderCallout("danger", props.lastError ?? props.startupError ?? props.bootstrapError)}
-      <div class="alisio-settings-form" style="margin-top: 16px;">
-        <label class="field">
-          <span>Gateway URL</span>
-          <input
-            type="text"
-            .value=${props.gatewayUrl}
-            @input=${(event: Event) =>
-              props.onGatewayUrlChange((event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field">
-          <span>Access token</span>
-          <input
-            type=${props.showGatewayToken ? "text" : "password"}
-            .value=${props.gatewayToken}
-            @input=${(event: Event) =>
-              props.onGatewayTokenChange((event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <input
-            type=${props.showGatewayPassword ? "text" : "password"}
-            .value=${props.gatewayPassword}
-            @input=${(event: Event) =>
-              props.onGatewayPasswordChange((event.target as HTMLInputElement).value)}
-          />
-        </label>
-      </div>
-      <div class="row" style="margin-top: 16px;">
-        <button class="btn" @click=${props.onConnect}>Connect manually</button>
-      </div>
-    </details>
-  `;
-}
-
 function renderAccountStep(props: SetupProps) {
   const authMode = props.authMode ?? "sign-up";
   const authEmail = props.authEmail ?? "";
   const authPassword = props.authPassword ?? "";
+  const emailError = validateAlisioEmail(authEmail);
+  const suggestedEmail =
+    props.account?.profile.email ?? props.startupBootstrap?.account?.email ?? "";
+  const canSubmit = props.connected && !emailError && authPassword.trim().length > 0;
+  const submitBlocker = !props.connected
+    ? "Wait for Alisio to connect automatically, then continue."
+    : authEmail.trim().length === 0
+      ? "Enter your email to continue."
+      : emailError
+        ? "Use a valid email such as name@example.com."
+        : authPassword.trim().length === 0
+          ? "Add your password to continue."
+          : null;
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">${authMode === "sign-up" ? "Create your account" : "Sign in"}</div>
       <div class="card-sub">
-        Start with your Alisio account. The local gateway stays behind the scenes.
+        Start with your Alisio account. The secure connection happens automatically in the
+        background.
       </div>
-      ${renderCallout("danger", props.accountError)} ${renderCallout("info", props.accountNotice)}
+      ${suggestedEmail && !authEmail.trim()
+        ? html`
+            <div class="callout info">
+              Saved account found for <strong>${suggestedEmail}</strong>. You can sign in with that
+              email or create a different account.
+            </div>
+          `
+        : nothing}
+      ${renderCallout("danger", props.accountError)}
+      ${authEmail.trim() && emailError
+        ? html`<div class="callout danger">${emailError}</div>`
+        : nothing}
+      ${renderCallout("info", props.accountNotice)}
+      ${!props.connected
+        ? html`
+            <div class="callout info">
+              Alisio should connect automatically on this host. If it has not yet finished, retry
+              once.
+            </div>
+          `
+        : nothing}
       <div class="row" style="margin-top: 16px;">
         <button
           class="chip ${authMode === "sign-up" ? "chip-active" : ""}"
@@ -226,39 +202,52 @@ function renderAccountStep(props: SetupProps) {
           <input
             type="email"
             autocomplete="email"
+            placeholder="name@example.com"
             .value=${authEmail}
             @input=${(event: Event) =>
               props.onAuthEmailChange((event.target as HTMLInputElement).value)}
           />
+          <small class="field-note">Use the email you want to use to sign in to Alisio.</small>
         </label>
         <label class="field">
           <span>Password</span>
           <input
             type="password"
             autocomplete=${authMode === "sign-up" ? "new-password" : "current-password"}
+            placeholder=${authMode === "sign-up" ? "Create a password" : "Your password"}
             .value=${authPassword}
             @input=${(event: Event) =>
               props.onAuthPasswordChange((event.target as HTMLInputElement).value)}
           />
         </label>
       </div>
+      ${submitBlocker
+        ? html`<div class="callout info" style="margin-top: 16px;">${submitBlocker}</div>`
+        : nothing}
       <div class="row" style="margin-top: 16px;">
+        ${!props.connected
+          ? html`
+              <button class="btn" ?disabled=${props.startupLoading} @click=${props.onConnect}>
+                ${props.startupLoading ? "Connecting…" : "Reconnect Alisio"}
+              </button>
+            `
+          : nothing}
         <button
           class="btn primary"
-          ?disabled=${props.accountLoading || !authEmail.trim() || !authPassword.trim()}
+          ?disabled=${props.accountLoading || !canSubmit}
           @click=${authMode === "sign-up" ? props.onSignUpAccount : props.onSignInAccount}
         >
           ${props.accountLoading
             ? "Working…"
             : authMode === "sign-up"
-              ? "Create account"
-              : "Sign in"}
+              ? (submitBlocker ?? "Create account")
+              : (submitBlocker ?? "Sign in")}
         </button>
         ${authMode === "sign-in"
           ? html`
               <button
                 class="btn"
-                ?disabled=${props.accountLoading || !authEmail.trim()}
+                ?disabled=${props.accountLoading || !authEmail.trim() || Boolean(emailError)}
                 @click=${props.onRequestPasswordReset}
               >
                 Send password reset email
@@ -444,12 +433,14 @@ export function renderSetup(props: SetupProps) {
 
       <div class="alisio-setup-page__card">
         <div class="alisio-setup-minimal__stack">
+          ${!props.connected && (props.lastError || props.startupError)
+            ? html` <div class="callout danger">${props.lastError ?? props.startupError}</div> `
+            : nothing}
           ${startupState === "signed_out" ? renderAccountStep(props) : nothing}
           ${startupState === "needs_profile" ? renderProfileStep(props) : nothing}
           ${startupState === "needs_ai" ? renderAiStep(props) : nothing}
           ${ready ? renderReadyStep(props) : nothing}
         </div>
-        ${renderAdvancedConnection(props)}
       </div>
     </section>
   `;

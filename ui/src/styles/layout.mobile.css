@@ -164,6 +164,11 @@
     position: static;
   }
 
+  .alisio-auth-hero,
+  .alisio-organization-grid {
+    grid-template-columns: 1fr;
+  }
+
   .alisio-auth-card {
     grid-template-columns: 1fr;
   }

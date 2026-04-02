@@ -46,7 +46,6 @@ describe("handleControlUiHttpRequest", () => {
       account: unknown;
       ai: unknown;
       bootstrapToken?: string;
-      manualConnectionRequired: boolean;
     };
   }
 
@@ -275,7 +274,6 @@ describe("handleControlUiHttpRequest", () => {
       expect(parsed.startupState).toBe("signed_out");
       expect(parsed.account).toBeNull();
       expect(parsed.ai).toEqual({ provider: "openai", status: "disconnected" });
-      expect(parsed.manualConnectionRequired).toBe(false);
       expect(typeof parsed.bootstrapToken).toBe("string");
       expect(parsed.bootstrapToken?.length).toBeGreaterThan(10);
     } finally {

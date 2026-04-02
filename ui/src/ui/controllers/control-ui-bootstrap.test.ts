@@ -24,24 +24,24 @@ describe("loadControlUiBootstrapConfig", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          basePath: "/openclaw",
-          controlUrl: "ws://127.0.0.1:18789/openclaw/",
-          startupState: "needs_profile",
-          account: {
-            username: "nuno",
-            displayName: "Nuno",
-            email: "nuno@alisio.local",
-            avatarLabel: "N",
-            plan: "free",
-          },
-          ai: {
-            provider: "openai",
-            status: "disconnected",
-          },
-          bootstrapToken: "bootstrap-123",
-          manualConnectionRequired: false,
-        }),
+        text: async () =>
+          JSON.stringify({
+            basePath: "/openclaw",
+            controlUrl: "ws://127.0.0.1:18789/openclaw/",
+            startupState: "needs_profile",
+            account: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@alisio.local",
+              avatarLabel: "N",
+              plan: "free",
+            },
+            ai: {
+              provider: "openai",
+              status: "disconnected",
+            },
+            bootstrapToken: "bootstrap-123",
+          }),
       });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
@@ -71,6 +71,48 @@ describe("loadControlUiBootstrapConfig", () => {
     expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:18789/openclaw/");
     expect(state.gatewayBootstrapToken).toBe("bootstrap-123");
     expect(state.alisioStartupBootstrap?.startupState).toBe("needs_profile");
+
+    vi.unstubAllGlobals();
+  });
+
+  it("surfaces a clear message when an old gateway serves html instead of bootstrap json", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          basePath: "/",
+          assistantName: "Assistant",
+          assistantAvatar: "A",
+          assistantAgentId: "main",
+          serverVersion: "2026.3.24",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          "<!doctype html><html><head><title>OpenClaw Control</title></head><body></body></html>",
+      });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state: ControlUiBootstrapState = {
+      basePath: "",
+      assistantName: "Assistant",
+      assistantAvatar: null,
+      assistantAgentId: null,
+      serverVersion: null,
+      alisioStartupLoading: false,
+      alisioStartupError: null,
+      alisioStartupBootstrap: null,
+      gatewayBootstrapUrl: null,
+      gatewayBootstrapToken: null,
+    };
+
+    await loadControlUiBootstrapConfig(state);
+
+    expect(state.alisioStartupBootstrap).toBeNull();
+    expect(state.alisioStartupError).toContain("older build");
+    expect(state.alisioStartupError).toContain("2026.3.24");
 
     vi.unstubAllGlobals();
   });

@@ -130,6 +130,7 @@ type SelectedConnectAuth = {
   authBootstrapToken?: string;
   authDeviceToken?: string;
   authPassword?: string;
+  signatureToken?: string;
   resolvedDeviceToken?: string;
   storedToken?: string;
   canFallbackToShared: boolean;
@@ -231,7 +232,7 @@ async function buildGatewayConnectDevice(params: {
   client: GatewayConnectClientInfo;
   role: string;
   scopes: string[];
-  authToken?: string;
+  signatureToken?: string;
   connectNonce: string | null;
 }): Promise<GatewayConnectDevice | undefined> {
   const { deviceIdentity } = params;
@@ -247,7 +248,9 @@ async function buildGatewayConnectDevice(params: {
     role: params.role,
     scopes: params.scopes,
     signedAtMs,
-    token: params.authToken ?? null,
+    // The device signature must bind to the same credential that the server
+    // will validate first during connect.
+    token: params.signatureToken ?? null,
     nonce,
   });
   const signature = await signDevicePayload(deviceIdentity.privateKey, payload);
@@ -426,7 +429,7 @@ export class GatewayBrowserClient {
         client,
         role,
         scopes,
-        authToken: selectedAuth.authToken,
+        signatureToken: selectedAuth.signatureToken,
         connectNonce: this.connectNonce,
       }),
     };
@@ -585,17 +588,19 @@ export class GatewayBrowserClient {
       Boolean(explicitGatewayToken) &&
       Boolean(storedToken) &&
       isTrustedRetryEndpoint(this.opts.url);
-    const resolvedDeviceToken = !(explicitGatewayToken || authPassword)
+    const prefersBootstrapAuth = Boolean(explicitBootstrapToken);
+    const resolvedDeviceToken = !(explicitGatewayToken || authPassword || prefersBootstrapAuth)
       ? (storedToken ?? undefined)
       : undefined;
     const authToken = explicitGatewayToken ?? resolvedDeviceToken;
     const authBootstrapToken =
-      !explicitGatewayToken && !resolvedDeviceToken ? explicitBootstrapToken : undefined;
+      !explicitGatewayToken && !authToken ? explicitBootstrapToken : undefined;
     return {
       authToken,
       authBootstrapToken,
       authDeviceToken: shouldUseDeviceRetryToken ? (storedToken ?? undefined) : undefined,
       authPassword,
+      signatureToken: authToken ?? authBootstrapToken ?? undefined,
       resolvedDeviceToken,
       storedToken: storedToken ?? undefined,
       canFallbackToShared: Boolean(storedToken && explicitGatewayToken),

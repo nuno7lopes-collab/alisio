@@ -1215,7 +1215,7 @@ export function renderChat(props: ChatProps) {
 
   return html`
     <section
-      class="card chat alisio-chat"
+      class="card chat alisio-chat ${isEmpty ? "alisio-chat--empty" : ""}"
       @drop=${(e: DragEvent) => handleDrop(e, props)}
       @dragover=${(e: DragEvent) => e.preventDefault()}
     >

@@ -1,8 +1,10 @@
 import { createHash, randomBytes } from "node:crypto";
+import { createServer, type Server } from "node:http";
 import { refreshOpenAICodexToken } from "@mariozechner/pi-ai/oauth";
 import { ensureAuthProfileStore, saveAuthProfileStore } from "../agents/auth-profiles.js";
 import { OPENAI_CODEX_DEFAULT_PROFILE_ID } from "../agents/auth-profiles/constants.js";
 import { updateConfig } from "../commands/models/shared.js";
+import { isLoopbackHost } from "../gateway/net.js";
 import { applyDefaultModel } from "../plugins/provider-auth-choice-helpers.js";
 import { writeOAuthCredentials } from "../plugins/provider-auth-helpers.js";
 import { applyAuthProfileConfig } from "../plugins/provider-auth-helpers.js";
@@ -12,6 +14,7 @@ const OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
 const OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
 const OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const OPENAI_SCOPE = "openid profile email offline_access";
+const OPENAI_LOOPBACK_REDIRECT_URI = "http://localhost:1455/auth/callback";
 const OPENAI_AUTH_CLAIM_PATH = "https://api.openai.com/auth";
 const LIMITS_REFRESH_TTL_MS = 10 * 60 * 1000;
 
@@ -62,6 +65,7 @@ export type AlisioPendingAiAuthorization = {
   codeVerifier: string;
   redirectUri: string;
   createdAt: string;
+  callbackUrl?: string;
 };
 
 export class AlisioAiError extends Error {
@@ -88,7 +92,8 @@ export class AlisioAiError extends Error {
 }
 
 function buildCodeVerifier() {
-  return randomBytes(48).toString("base64url");
+  // Keep verifier shape aligned with @mariozechner/pi-ai's OpenAI Codex OAuth flow.
+  return randomBytes(32).toString("base64url");
 }
 
 function buildCodeChallenge(verifier: string) {
@@ -96,7 +101,9 @@ function buildCodeChallenge(verifier: string) {
 }
 
 function buildStateToken() {
-  return randomBytes(24).toString("base64url");
+  // OpenAI's hosted auth flow appears sensitive to the exact request shape.
+  // Mirror the upstream flow here to avoid hidden compatibility drift.
+  return randomBytes(16).toString("hex");
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -150,13 +157,136 @@ function normalizeLimitsSnapshot(
   };
 }
 
-export function buildAlisioOpenAiAuthorization(params: { callbackUrl: string }): {
+type OpenAiRedirectProxy = {
+  server: Server;
+  callbackUrl: string;
+};
+
+let openAiRedirectProxy: OpenAiRedirectProxy | null = null;
+
+function isOpenAiLocalCallbackTarget(callbackUrl: URL): boolean {
+  return isLoopbackHost(callbackUrl.hostname);
+}
+
+async function stopOpenAiRedirectProxy(): Promise<void> {
+  const proxy = openAiRedirectProxy;
+  if (!proxy) {
+    return;
+  }
+  openAiRedirectProxy = null;
+  await new Promise<void>((resolve) => {
+    proxy.server.close(() => resolve());
+  }).catch(() => undefined);
+}
+
+async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
+  const target = new URL(callbackUrl);
+  if (!/^https?:$/.test(target.protocol)) {
+    throw new AlisioAiError("connect_failed", "The OpenAI callback must use http or https.");
+  }
+
+  if (openAiRedirectProxy) {
+    if (openAiRedirectProxy.callbackUrl !== target.toString()) {
+      await stopOpenAiRedirectProxy();
+    } else {
+      return;
+    }
+  }
+
+  const createRelayServer = () =>
+    createServer((req, res) => {
+      try {
+        const requestUrl = new URL(req.url ?? "/", OPENAI_LOOPBACK_REDIRECT_URI);
+        if (requestUrl.pathname !== "/auth/callback") {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "text/plain; charset=utf-8");
+          res.end("Not found");
+          return;
+        }
+
+        const destination = new URL(target.toString());
+        destination.search = requestUrl.search;
+        destination.hash = requestUrl.hash;
+
+        res.statusCode = 302;
+        res.setHeader("Location", destination.toString());
+        res.end();
+        void stopOpenAiRedirectProxy();
+      } catch {
+        res.statusCode = 500;
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        res.end("OpenAI callback relay failed");
+        void stopOpenAiRedirectProxy();
+      }
+    });
+
+  const listen = async (host: string): Promise<Server> => {
+    const server = createRelayServer();
+    await new Promise<void>((resolve, reject) => {
+      const handleError = (error: Error) => {
+        server.off("listening", handleListening);
+        reject(error);
+      };
+      const handleListening = () => {
+        server.off("error", handleError);
+        resolve();
+      };
+      server.once("error", handleError);
+      server.once("listening", handleListening);
+      server.listen({ port: 1455, host });
+    }).catch((error) => {
+      server.close(() => undefined);
+      throw error;
+    });
+    return server;
+  };
+
+  try {
+    // Listen on the IPv6 wildcard first so localhost works for both ::1 and 127.0.0.1.
+    const server = await listen("::");
+    openAiRedirectProxy = {
+      server,
+      callbackUrl: target.toString(),
+    };
+    return;
+  } catch (error) {
+    const code =
+      error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+    if (code !== "EAFNOSUPPORT" && code !== "EADDRNOTAVAIL") {
+      throw new AlisioAiError(
+        "connect_failed",
+        `Could not start the local OpenAI callback relay on localhost:1455: ${String(error)}`,
+      );
+    }
+  }
+
+  try {
+    const server = await listen("127.0.0.1");
+    openAiRedirectProxy = {
+      server,
+      callbackUrl: target.toString(),
+    };
+  } catch (error) {
+    throw new AlisioAiError(
+      "connect_failed",
+      `Could not start the local OpenAI callback relay on localhost:1455: ${String(error)}`,
+    );
+  }
+}
+
+export async function buildAlisioOpenAiAuthorization(params: { callbackUrl: string }): Promise<{
   pending: AlisioPendingAiAuthorization;
   setupUrl: string;
-} {
+}> {
   const callbackUrl = new URL(params.callbackUrl);
   if (!/^https?:$/.test(callbackUrl.protocol)) {
     throw new AlisioAiError("connect_failed", "The OpenAI callback must use http or https.");
+  }
+
+  const useLocalRelay = isOpenAiLocalCallbackTarget(callbackUrl);
+  const redirectUri = useLocalRelay ? OPENAI_LOOPBACK_REDIRECT_URI : callbackUrl.toString();
+  if (useLocalRelay) {
+    await ensureOpenAiRedirectProxy(callbackUrl.toString());
   }
 
   const codeVerifier = buildCodeVerifier();
@@ -165,8 +295,9 @@ export function buildAlisioOpenAiAuthorization(params: { callbackUrl: string }):
     provider: "openai",
     stateToken,
     codeVerifier,
-    redirectUri: callbackUrl.toString(),
+    redirectUri,
     createdAt: new Date().toISOString(),
+    ...(useLocalRelay ? { callbackUrl: callbackUrl.toString() } : {}),
   };
   const url = new URL(OPENAI_AUTHORIZE_URL);
   url.searchParams.set("response_type", "code");
@@ -178,7 +309,7 @@ export function buildAlisioOpenAiAuthorization(params: { callbackUrl: string }):
   url.searchParams.set("state", stateToken);
   url.searchParams.set("id_token_add_organizations", "true");
   url.searchParams.set("codex_cli_simplified_flow", "true");
-  url.searchParams.set("originator", "alisio");
+  url.searchParams.set("originator", "pi");
   return { pending, setupUrl: url.toString() };
 }
 
@@ -369,6 +500,7 @@ export async function applyAlisioOpenAiRuntime(session: AlisioStoredAiSession): 
 }
 
 export async function clearAlisioOpenAiRuntime(): Promise<void> {
+  await stopOpenAiRedirectProxy();
   const store = ensureAuthProfileStore();
   delete store.profiles[OPENAI_CODEX_DEFAULT_PROFILE_ID];
   if (store.lastGood?.["openai-codex"] === OPENAI_CODEX_DEFAULT_PROFILE_ID) {

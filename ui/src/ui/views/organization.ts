@@ -45,6 +45,7 @@ export function renderOrganization(props: {
   return html`
     <section class="alisio-page">
       <div class="card alisio-organization-hero">
+        <div class="alisio-page__eyebrow">Organization</div>
         <div class="alisio-organization-hero__topbar">
           <div>
             <div class="card-title">${text.title}</div>
@@ -57,82 +58,106 @@ export function renderOrganization(props: {
           ? html`<div class="empty-state" style="margin-top: 20px;">${text.loading}</div>`
           : hasOrganization
             ? html`
-                <div class="alisio-organization-current">
-                  <div class="agent-kv">
-                    <div class="label">${text.currentOrganization}</div>
-                    <div>${props.organization?.organizationName ?? text.unnamedOrganization}</div>
-                    <div class="agent-kv-sub">
-                      ${membership === "owner" ? text.youCreated : text.youJoined}
+                <div class="alisio-organization-grid">
+                  <div class="card alisio-organization-panel">
+                    <div class="agent-kv">
+                      <div class="label">${text.currentOrganization}</div>
+                      <div>${props.organization?.organizationName ?? text.unnamedOrganization}</div>
+                      <div class="agent-kv-sub">
+                        ${membership === "owner" ? text.youCreated : text.youJoined}
+                      </div>
                     </div>
+                    ${props.organization?.inviteEmail
+                      ? html`
+                          <div class="agent-kv">
+                            <div class="label">${text.invitation}</div>
+                            <div>${props.organization.inviteEmail}</div>
+                            <div class="agent-kv-sub">${text.linkedThroughEmail}</div>
+                          </div>
+                        `
+                      : nothing}
                   </div>
-                  ${props.organization?.inviteEmail
-                    ? html`
-                        <div class="agent-kv">
-                          <div class="label">${text.invitation}</div>
-                          <div>${props.organization.inviteEmail}</div>
-                          <div class="agent-kv-sub">${text.linkedThroughEmail}</div>
-                        </div>
-                      `
-                    : nothing}
-                  <div class="row">
-                    <button class="btn" @click=${props.onResetOrganization}>
-                      ${text.leaveForNow}
-                    </button>
+                  <div class="card alisio-organization-panel">
+                    <div class="card-title">Keep it personal for now</div>
+                    <div class="card-sub">
+                      Organizations are optional in the first run. You can come back later without
+                      blocking the chat.
+                    </div>
+                    <div class="row">
+                      <button class="btn" @click=${props.onResetOrganization}>
+                        ${text.leaveForNow}
+                      </button>
+                    </div>
                   </div>
                 </div>
               `
             : html`
-                <div class="alisio-organization-actions">
-                  <button
-                    class="chip ${props.draftMode === "create" ? "chip-active" : ""}"
-                    @click=${() => props.onDraftModeChange("create")}
-                  >
-                    ${text.createOrganization}
-                  </button>
-                  <button
-                    class="chip ${props.draftMode === "join" ? "chip-active" : ""}"
-                    @click=${() => props.onDraftModeChange("join")}
-                  >
-                    ${text.joinOrganization}
-                  </button>
-                </div>
-                <div class="alisio-organization-form">
-                  <label class="field">
-                    <span>${text.organizationName}</span>
-                    <input
-                      type="text"
-                      placeholder=${props.draftMode === "create"
-                        ? text.createPlaceholder
-                        : text.joinPlaceholder}
-                      .value=${props.organizationName}
-                      @input=${(event: Event) =>
-                        props.onOrganizationNameChange((event.target as HTMLInputElement).value)}
-                    />
-                  </label>
-                  ${props.draftMode === "join"
-                    ? html`
-                        <label class="field">
-                          <span>${text.invitationEmail}</span>
-                          <input
-                            type="email"
-                            placeholder=${text.invitationPlaceholder}
-                            .value=${props.inviteEmail}
-                            @input=${(event: Event) =>
-                              props.onInviteEmailChange((event.target as HTMLInputElement).value)}
-                          />
-                        </label>
-                      `
-                    : nothing}
-                  <div class="row">
-                    <button
-                      class="btn primary"
-                      ?disabled=${!props.organizationName.trim()}
-                      @click=${props.draftMode === "create"
-                        ? props.onCreateOrganization
-                        : props.onJoinOrganization}
-                    >
-                      ${props.draftMode === "create" ? text.submitCreate : text.submitJoin}
-                    </button>
+                <div class="alisio-organization-grid">
+                  <div class="card alisio-organization-panel">
+                    <div class="alisio-organization-actions">
+                      <button
+                        class="chip ${props.draftMode === "create" ? "chip-active" : ""}"
+                        @click=${() => props.onDraftModeChange("create")}
+                      >
+                        ${text.createOrganization}
+                      </button>
+                      <button
+                        class="chip ${props.draftMode === "join" ? "chip-active" : ""}"
+                        @click=${() => props.onDraftModeChange("join")}
+                      >
+                        ${text.joinOrganization}
+                      </button>
+                    </div>
+                    <div class="alisio-organization-form">
+                      <label class="field">
+                        <span>${text.organizationName}</span>
+                        <input
+                          type="text"
+                          placeholder=${props.draftMode === "create"
+                            ? text.createPlaceholder
+                            : text.joinPlaceholder}
+                          .value=${props.organizationName}
+                          @input=${(event: Event) =>
+                            props.onOrganizationNameChange(
+                              (event.target as HTMLInputElement).value,
+                            )}
+                        />
+                      </label>
+                      ${props.draftMode === "join"
+                        ? html`
+                            <label class="field">
+                              <span>${text.invitationEmail}</span>
+                              <input
+                                type="email"
+                                placeholder=${text.invitationPlaceholder}
+                                .value=${props.inviteEmail}
+                                @input=${(event: Event) =>
+                                  props.onInviteEmailChange(
+                                    (event.target as HTMLInputElement).value,
+                                  )}
+                              />
+                            </label>
+                          `
+                        : nothing}
+                      <div class="row">
+                        <button
+                          class="btn primary"
+                          ?disabled=${!props.organizationName.trim()}
+                          @click=${props.draftMode === "create"
+                            ? props.onCreateOrganization
+                            : props.onJoinOrganization}
+                        >
+                          ${props.draftMode === "create" ? text.submitCreate : text.submitJoin}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card alisio-organization-panel alisio-organization-panel--muted">
+                    <div class="card-title">After your first chat</div>
+                    <div class="card-sub">
+                      Use organizations when you want shared access, team billing, or admin
+                      controls. It is not required to start using Alisio.
+                    </div>
                   </div>
                 </div>
               `}

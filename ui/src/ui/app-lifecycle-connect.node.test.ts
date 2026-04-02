@@ -53,6 +53,8 @@ function createHost() {
     assistantAvatar: null,
     assistantAgentId: null,
     serverVersion: null,
+    alisioAuthMode: "sign-up",
+    alisioAuthEmail: "",
     alisioStartupLoading: false,
     alisioStartupError: null,
     alisioStartupBootstrap: null,
@@ -69,6 +71,7 @@ function createHost() {
     logsEntries: [],
     popStateHandler: vi.fn(),
     topbarObserver: null,
+    setTab: vi.fn(),
   };
 }
 
@@ -128,5 +131,35 @@ describe("handleConnected", () => {
     expect(applySettingsFromUrlMock.mock.invocationCallOrder[0]).toBeLessThan(
       loadBootstrapMock.mock.invocationCallOrder[0],
     );
+  });
+
+  it("moves to setup before connecting when startup is not ready", async () => {
+    loadBootstrapMock.mockImplementationOnce(
+      async (host: ReturnType<typeof createHost> & { alisioStartupBootstrap: unknown }) => {
+        host.alisioStartupBootstrap = {
+          basePath: "/",
+          controlUrl: "ws://localhost:18789/",
+          startupState: "signed_out",
+          account: {
+            username: "nuno",
+            displayName: "Nuno",
+            email: "nuno@example.com",
+            avatarLabel: "N",
+            plan: "Free Plan",
+          },
+          ai: null,
+          bootstrapToken: "ticket",
+        } as never;
+      },
+    );
+    const host = createHost();
+
+    handleConnected(host as never);
+    await Promise.resolve();
+
+    expect(host.setTab).toHaveBeenCalledWith("setup");
+    expect(host.alisioAuthMode).toBe("sign-in");
+    expect(host.alisioAuthEmail).toBe("nuno@example.com");
+    expect(connectGatewayMock).toHaveBeenCalledTimes(1);
   });
 });
