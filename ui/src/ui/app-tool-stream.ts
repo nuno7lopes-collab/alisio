@@ -20,6 +20,9 @@ export type ToolStreamEntry = {
   name: string;
   args?: unknown;
   output?: string;
+  phase?: "start" | "update" | "result";
+  isError?: boolean;
+  meta?: string;
   startedAt: number;
   updatedAt: number;
   message: Record<string, unknown>;
@@ -189,8 +192,19 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
     role: "assistant",
     toolCallId: entry.toolCallId,
     runId: entry.runId,
+    toolName: entry.name,
+    toolPhase: entry.phase,
+    toolMeta: entry.meta,
+    toolError: entry.isError ?? false,
     content,
     timestamp: entry.startedAt,
+    __openclaw: {
+      kind: "tool-stream",
+      toolCallId: entry.toolCallId,
+      phase: entry.phase,
+      isError: entry.isError ?? false,
+      meta: entry.meta,
+    },
   };
 }
 
@@ -425,6 +439,8 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
   const name = typeof data.name === "string" ? data.name : "tool";
   const phase = typeof data.phase === "string" ? data.phase : "";
   const args = phase === "start" ? data.args : undefined;
+  const meta = typeof data.meta === "string" && data.meta.trim() ? data.meta.trim() : undefined;
+  const isError = Boolean(data.isError);
   const output =
     phase === "update"
       ? formatToolOutput(data.partialResult)
@@ -449,6 +465,9 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       name,
       args,
       output: output || undefined,
+      phase: phase === "start" || phase === "update" || phase === "result" ? phase : undefined,
+      isError: phase === "result" ? isError : false,
+      meta,
       startedAt: typeof payload.ts === "number" ? payload.ts : now,
       updatedAt: now,
       message: {},
@@ -462,6 +481,15 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
     }
     if (output !== undefined) {
       entry.output = output || undefined;
+    }
+    if (phase === "start" || phase === "update" || phase === "result") {
+      entry.phase = phase;
+    }
+    if (phase === "result") {
+      entry.isError = isError;
+    }
+    if (meta !== undefined) {
+      entry.meta = meta;
     }
     entry.updatedAt = now;
   }

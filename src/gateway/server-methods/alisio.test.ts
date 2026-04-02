@@ -112,6 +112,29 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(false);
   });
 
+  it("starts password recovery with a product-facing success result", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.requestPasswordReset"]({
+      params: {
+        email: "nuno@example.com",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.requestPasswordReset", params: {}, id: 5 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("password reset email"),
+    });
+  });
+
   it("schedules a restart from the unified product runtime action", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();

@@ -51,6 +51,7 @@ describe("setup view", () => {
           controlUrl: "ws://127.0.0.1:18789/",
           startupState: "signed_out",
           account: null,
+          ai: null,
           manualConnectionRequired: false,
         },
         doctorLoading: false,
@@ -69,7 +70,13 @@ describe("setup view", () => {
         requestedStep: "runtime",
         accountLoading: false,
         accountError: null,
+        accountNotice: null,
         account: null,
+        authMode: "sign-up",
+        authEmail: "nuno@example.com",
+        authPassword: "password123",
+        aiLoading: false,
+        aiError: null,
         organizationLoading: false,
         organizationError: null,
         organization: { mode: "none" },
@@ -99,9 +106,13 @@ describe("setup view", () => {
         onGatewayPasswordChange: vi.fn(),
         onToggleGatewayToken: vi.fn(),
         onToggleGatewayPassword: vi.fn(),
+        onAuthModeChange: vi.fn(),
+        onAuthEmailChange: vi.fn(),
+        onAuthPasswordChange: vi.fn(),
         onConnect: vi.fn(),
         onOpenWorkspace: vi.fn(),
         onOpenAuthentications: vi.fn(),
+        onOpenSettingsAi: vi.fn(),
         onOpenSettingsMac: vi.fn(),
         onSetLaunchAtLogin: vi.fn(),
         onRequestPermission: vi.fn(),
@@ -123,20 +134,20 @@ describe("setup view", () => {
         onAccountFieldChange: vi.fn(),
         onSignUpAccount: vi.fn(),
         onSignInAccount: vi.fn(),
+        onRequestPasswordReset: vi.fn(),
+        onBeginAiConnect: vi.fn(),
+        onDisconnectAi: vi.fn(),
+        onRefreshAi: vi.fn(),
         onSaveAccount: vi.fn(),
       }),
       container,
     );
 
-    expect(container.textContent).toContain(
-      "Create your Alisio account, connect OpenAI, and start the first real chat",
-    );
-    expect(container.textContent).toContain("Two more steps and you are in");
+    expect(container.textContent).toContain("Welcome to Alisio");
+    expect(container.textContent).toContain("Set up your personal agent.");
+    expect(container.textContent).toContain("connect OpenAI");
     expect(container.textContent).toContain("Create your account");
-    expect(container.textContent).toContain("Connect your AI");
-    expect(container.textContent).toContain("Everything else can wait");
-    expect(container.textContent).toContain("Connect apps when you actually need them");
-    expect(container.textContent).toContain("Runtime unavailable");
-    expect(container.textContent).toContain("Open authentications");
+    expect(container.textContent).toContain("Email");
+    expect(container.textContent).toContain("Password");
   });
 });

@@ -138,7 +138,13 @@ export class OpenClawApp extends LitElement {
   @state() alisioDoctor: import("./types.ts").AlisioDoctorSummaryState | null = null;
   @state() alisioAccountLoading = false;
   @state() alisioAccountError: string | null = null;
+  @state() alisioAccountNotice: string | null = null;
   @state() alisioAccount: import("./types.ts").AlisioAccountState | null = null;
+  @state() alisioAuthMode: "sign-up" | "sign-in" = "sign-up";
+  @state() alisioAuthEmail = "";
+  @state() alisioAuthPassword = "";
+  @state() alisioAiLoading = false;
+  @state() alisioAiError: string | null = null;
   @state() alisioOrganizationLoading = false;
   @state() alisioOrganizationError: string | null = null;
   @state() alisioOrganization: import("./types.ts").AlisioOrganizationMembershipState | null = null;

@@ -8,6 +8,7 @@ import {
 } from "./app-polling.ts";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { OpenClawApp } from "./app.ts";
+import { normalizeBasePath } from "./base-path.ts";
 import {
   loadAlisioBootstrap,
   loadAlisioAccount,
@@ -26,7 +27,6 @@ import { loadUsage } from "./controllers/usage.ts";
 import { loadNativeShellState } from "./lume-host.ts";
 import {
   inferBasePathFromPathname,
-  normalizeBasePath,
   normalizePath,
   normalizeSettingsSection,
   pathForTab,

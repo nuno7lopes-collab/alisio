@@ -39,6 +39,9 @@ export function scheduleChatScroll(host: ScrollHost, force = false, smooth = fal
         return container;
       }
     }
+    if (typeof document === "undefined") {
+      return null;
+    }
     return (document.scrollingElement ?? document.documentElement) as HTMLElement | null;
   };
   // Wait for Lit render to complete, then scroll

@@ -93,22 +93,18 @@
 
   .sidebar-shell,
   .sidebar--collapsed .sidebar-shell {
-    flex-direction: row;
+    flex-direction: column;
     min-height: 100%;
     padding: 0;
     border-radius: 0;
   }
 
-  .sidebar-rail {
-    padding: 14px 10px 12px;
-  }
-
-  .sidebar-panel {
+  .sidebar-shell {
     padding: 14px 12px 12px;
   }
 
-  .shell--nav-collapsed:not(.shell--nav-drawer-open) .sidebar-panel {
-    display: none;
+  .sidebar--collapsed .sidebar-shell {
+    padding: 14px 10px 12px;
   }
 
   .sidebar-shell__header {
@@ -160,6 +156,14 @@
     grid-template-columns: 1fr;
   }
 
+  .alisio-settings-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .alisio-settings-sidebar {
+    position: static;
+  }
+
   .alisio-auth-card {
     grid-template-columns: 1fr;
   }
@@ -167,6 +171,14 @@
   .alisio-auth-card__aside {
     min-width: 0;
     justify-items: start;
+  }
+
+  .setup-frame__header {
+    padding: 16px 16px 0;
+  }
+
+  .setup-frame__body {
+    padding: 20px 16px 24px;
   }
 
   .alisio-section-head {

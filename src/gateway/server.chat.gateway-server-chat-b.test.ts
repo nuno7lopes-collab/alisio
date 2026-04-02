@@ -398,6 +398,55 @@ describe("gateway server chat", () => {
     });
   });
 
+  test("chat.history preserves only safe reasoning summary signatures", async () => {
+    await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
+      await connectOk(ws);
+
+      const sessionDir = await createSessionDir();
+      await writeMainSessionStore();
+
+      await writeMainSessionTranscript(sessionDir, [
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            timestamp: Date.now(),
+            content: [
+              {
+                type: "thinking",
+                thinking: "Safe provider summary",
+                thinkingSignature: JSON.stringify({ id: "rs_123", type: "reasoning.summary" }),
+              },
+            ],
+          },
+        }),
+        JSON.stringify({
+          message: {
+            role: "assistant",
+            timestamp: Date.now() + 1,
+            content: [
+              {
+                type: "thinking",
+                thinking: "Raw provider reasoning",
+                thinkingSignature: JSON.stringify({ id: "r_123", type: "reasoning" }),
+              },
+            ],
+          },
+        }),
+      ]);
+
+      const messages = await fetchHistoryMessages(ws);
+      expect(messages).toHaveLength(2);
+
+      const summaryBlock = (messages[0] as { content?: Array<{ thinkingSignature?: unknown }> })
+        .content?.[0];
+      const rawBlock = (messages[1] as { content?: Array<{ thinkingSignature?: unknown }> })
+        .content?.[0];
+
+      expect(summaryBlock?.thinkingSignature).toEqual({ type: "reasoning.summary" });
+      expect(rawBlock?.thinkingSignature).toBeUndefined();
+    });
+  });
+
   test("chat.history strips inline directives from displayed message text", async () => {
     await withGatewayChatHarness(async ({ ws, createSessionDir }) => {
       await connectOk(ws);

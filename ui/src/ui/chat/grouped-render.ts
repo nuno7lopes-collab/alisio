@@ -11,12 +11,12 @@ import { agentLogoUrl } from "../views/agents-utils.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
   extractTextCached,
-  extractThinkingCached,
-  formatReasoningMarkdown,
+  extractThinkingSummaryText,
+  extractThinkingSummary,
 } from "./message-extract.ts";
 import { isToolResultMessage, normalizeRoleForGrouping } from "./message-normalizer.ts";
 import { isTtsSupported, speakText, stopTts, isTtsSpeaking } from "./speech.ts";
-import { extractToolCards, renderToolCardSidebar } from "./tool-cards.ts";
+import { extractToolCards, renderToolCardStack } from "./tool-cards.ts";
 
 type ImageBlock = {
   url: string;
@@ -548,33 +548,8 @@ function renderMessageImages(images: ImageBlock[]) {
 }
 
 /** Render tool cards inside a collapsed `<details>` element. */
-function renderCollapsedToolCards(
-  toolCards: ToolCard[],
-  onOpenSidebar?: (content: string) => void,
-) {
-  const calls = toolCards.filter((c) => c.kind === "call");
-  const results = toolCards.filter((c) => c.kind === "result");
-  const totalTools = Math.max(calls.length, results.length) || toolCards.length;
-  const toolNames = [...new Set(toolCards.map((c) => c.name))];
-  const summaryLabel =
-    toolNames.length <= 3
-      ? toolNames.join(", ")
-      : `${toolNames.slice(0, 2).join(", ")} +${toolNames.length - 2} more`;
-
-  return html`
-    <details class="chat-tools-collapse">
-      <summary class="chat-tools-summary">
-        <span class="chat-tools-summary__icon">${icons.zap}</span>
-        <span class="chat-tools-summary__count"
-          >${totalTools} tool${totalTools === 1 ? "" : "s"}</span
-        >
-        <span class="chat-tools-summary__names">${summaryLabel}</span>
-      </summary>
-      <div class="chat-tools-collapse__body">
-        ${toolCards.map((card) => renderToolCardSidebar(card, onOpenSidebar))}
-      </div>
-    </details>
-  `;
+function renderToolCards(toolCards: ToolCard[], onOpenSidebar?: (content: string) => void) {
+  return renderToolCardStack(toolCards, onOpenSidebar);
 }
 
 /**
@@ -636,6 +611,51 @@ function renderExpandButton(markdown: string, onOpenSidebar: (content: string) =
   `;
 }
 
+function renderThinkingPanel(message: unknown) {
+  const thinkingSummary = extractThinkingSummary(message);
+  if (!thinkingSummary) {
+    return nothing;
+  }
+
+  if (thinkingSummary.source === "summary") {
+    const extractedThinking = extractThinkingSummaryText(message);
+    if (!extractedThinking) {
+      return nothing;
+    }
+    return html`
+      <details class="chat-thinking-collapse">
+        <summary class="chat-thinking-summary">
+          <span class="chat-thinking-summary__icon">${icons.brain}</span>
+          <span class="chat-thinking-summary__label">Thinking</span>
+          <span class="chat-thinking-summary__meta">Summary</span>
+          <span class="chat-thinking-summary__state">
+            <span class="chat-thinking-summary__state-dot"></span>
+            <span>Done</span>
+          </span>
+        </summary>
+        <div class="chat-thinking-body chat-text" dir="${detectTextDirection(extractedThinking)}">
+          ${unsafeHTML(toSanitizedMarkdownHtml(extractedThinking))}
+        </div>
+      </details>
+    `;
+  }
+
+  return html`
+    <div class="chat-thinking-summary-card" role="note">
+      <span class="chat-thinking-summary__icon">${icons.brain}</span>
+      <span class="chat-thinking-summary__label">Thinking</span>
+      <span class="chat-thinking-summary__meta">Hidden</span>
+      <span class="chat-thinking-summary__state">
+        <span class="chat-thinking-summary__state-dot"></span>
+        <span>Done</span>
+      </span>
+      <span class="chat-thinking-summary__preview"
+        >Raw internal reasoning stays hidden. Tool calls below show the execution trace.</span
+      >
+    </div>
+  `;
+}
+
 function renderGroupedMessage(
   message: unknown,
   opts: { isStreaming: boolean; showReasoning: boolean; showToolCalls?: boolean },
@@ -657,13 +677,12 @@ function renderGroupedMessage(
   const hasImages = images.length > 0;
 
   const extractedText = extractTextCached(message);
-  const extractedThinking =
-    opts.showReasoning && role === "assistant" ? extractThinkingCached(message) : null;
   const markdownBase = extractedText?.trim() ? extractedText : null;
-  const reasoningMarkdown = extractedThinking ? formatReasoningMarkdown(extractedThinking) : null;
   const markdown = markdownBase;
   const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
   const canExpand = role === "assistant" && Boolean(onOpenSidebar && markdown?.trim());
+  const thinkingPanel =
+    opts.showReasoning && role === "assistant" ? renderThinkingPanel(message) : nothing;
 
   // Detect pure-JSON messages and render as collapsible block
   const jsonResult = markdown && !opts.isStreaming ? detectJson(markdown) : null;
@@ -673,7 +692,7 @@ function renderGroupedMessage(
     .join(" ");
 
   if (!markdown && hasToolCards && isToolResult) {
-    return renderCollapsedToolCards(toolCards, onOpenSidebar);
+    return renderToolCards(toolCards, onOpenSidebar);
   }
 
   // Suppress empty bubbles when tool cards are the only content and toggle is off
@@ -683,14 +702,6 @@ function renderGroupedMessage(
   }
 
   const isToolMessage = normalizedRole === "tool" || isToolResult;
-  const toolNames = [...new Set(toolCards.map((c) => c.name))];
-  const toolSummaryLabel =
-    toolNames.length <= 3
-      ? toolNames.join(", ")
-      : `${toolNames.slice(0, 2).join(", ")} +${toolNames.length - 2} more`;
-  const toolPreview =
-    markdown && !toolSummaryLabel ? markdown.trim().replace(/\s+/g, " ").slice(0, 120) : "";
-
   const hasActions = canCopyMarkdown || canExpand;
 
   return html`
@@ -703,47 +714,26 @@ function renderGroupedMessage(
         : nothing}
       ${isToolMessage
         ? html`
-            <details class="chat-tool-msg-collapse">
-              <summary class="chat-tool-msg-summary">
-                <span class="chat-tool-msg-summary__icon">${icons.zap}</span>
-                <span class="chat-tool-msg-summary__label">Tool output</span>
-                ${toolSummaryLabel
-                  ? html`<span class="chat-tool-msg-summary__names">${toolSummaryLabel}</span>`
-                  : toolPreview
-                    ? html`<span class="chat-tool-msg-summary__preview">${toolPreview}</span>`
-                    : nothing}
-              </summary>
-              <div class="chat-tool-msg-body">
-                ${renderMessageImages(images)}
-                ${reasoningMarkdown
-                  ? html`<div class="chat-thinking">
-                      ${unsafeHTML(toSanitizedMarkdownHtml(reasoningMarkdown))}
+            <div class="chat-tool-msg-body chat-tool-msg-body--flat">
+              ${renderMessageImages(images)} ${thinkingPanel}
+              ${jsonResult
+                ? html`<details class="chat-json-collapse">
+                    <summary class="chat-json-summary">
+                      <span class="chat-json-badge">JSON</span>
+                      <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
+                    </summary>
+                    <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
+                  </details>`
+                : markdown
+                  ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
+                      ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
                     </div>`
                   : nothing}
-                ${jsonResult
-                  ? html`<details class="chat-json-collapse">
-                      <summary class="chat-json-summary">
-                        <span class="chat-json-badge">JSON</span>
-                        <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
-                      </summary>
-                      <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
-                    </details>`
-                  : markdown
-                    ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
-                        ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
-                      </div>`
-                    : nothing}
-                ${hasToolCards ? renderCollapsedToolCards(toolCards, onOpenSidebar) : nothing}
-              </div>
-            </details>
+              ${hasToolCards ? renderToolCards(toolCards, onOpenSidebar) : nothing}
+            </div>
           `
         : html`
-            ${renderMessageImages(images)}
-            ${reasoningMarkdown
-              ? html`<div class="chat-thinking">
-                  ${unsafeHTML(toSanitizedMarkdownHtml(reasoningMarkdown))}
-                </div>`
-              : nothing}
+            ${renderMessageImages(images)} ${thinkingPanel}
             ${jsonResult
               ? html`<details class="chat-json-collapse">
                   <summary class="chat-json-summary">
@@ -757,7 +747,7 @@ function renderGroupedMessage(
                     ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
                   </div>`
                 : nothing}
-            ${hasToolCards ? renderCollapsedToolCards(toolCards, onOpenSidebar) : nothing}
+            ${hasToolCards ? renderToolCards(toolCards, onOpenSidebar) : nothing}
           `}
     </div>
   `;

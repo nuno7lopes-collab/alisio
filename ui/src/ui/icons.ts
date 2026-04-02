@@ -76,6 +76,18 @@ export const icons = {
       <circle cx="12" cy="12" r="3" />
     </svg>
   `,
+  user: html`
+    <svg viewBox="0 0 24 24">
+      <path d="M19 21a7 7 0 0 0-14 0" />
+      <circle cx="12" cy="8" r="4" />
+    </svg>
+  `,
+  shield: html`
+    <svg viewBox="0 0 24 24">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  `,
   bug: html`
     <svg viewBox="0 0 24 24">
       <path d="m8 2 1.88 1.88" />

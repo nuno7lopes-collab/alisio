@@ -1,20 +1,20 @@
+import { normalizeBasePath } from "./base-path.ts";
 import type { IconName } from "./icons.js";
+
+export { normalizeBasePath } from "./base-path.ts";
 
 const PUBLIC_TABS = ["setup", "chat", "authentications", "organization", "settings"] as const;
 const LEGACY_TABS = ["home", "sessions", "automations", "agents"] as const;
 
 export const TAB_GROUPS = [
   {
-    label: "primary",
-    tabs: ["chat"],
-  },
-  {
-    label: "workspace",
-    tabs: ["authentications", "organization", "settings"],
+    label: "product",
+    tabs: ["chat", "authentications", "organization", "settings"],
   },
 ] as const;
 
 const PUBLIC_SETTINGS_SECTIONS = [
+  "ai",
   "appearance",
   "language",
   "account",
@@ -23,6 +23,7 @@ const PUBLIC_SETTINGS_SECTIONS = [
   "billing",
   "support",
   "mac",
+  "advanced",
 ] as const;
 
 const LEGACY_SETTINGS_SECTIONS = [
@@ -121,23 +122,6 @@ const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
   ["/logs", "account"],
   ["/nodes", "mac"],
 ]);
-
-export function normalizeBasePath(basePath: string): string {
-  if (!basePath) {
-    return "";
-  }
-  let base = basePath.trim();
-  if (!base.startsWith("/")) {
-    base = `/${base}`;
-  }
-  if (base === "/") {
-    return "";
-  }
-  if (base.endsWith("/")) {
-    base = base.slice(0, -1);
-  }
-  return base;
-}
 
 export function normalizePath(path: string): string {
   if (!path) {

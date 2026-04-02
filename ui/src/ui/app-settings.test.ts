@@ -308,6 +308,10 @@ describe("applySettingsFromUrl", () => {
         },
         devices: [],
       },
+      ai: {
+        provider: "openai",
+        status: "disconnected",
+      },
       organization: { mode: "none" },
       connectors: {
         catalog: [],

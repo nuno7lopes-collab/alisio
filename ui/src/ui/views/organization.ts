@@ -18,6 +18,8 @@ export function renderOrganization(props: {
 }) {
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
+  const membershipLabel =
+    membership === "owner" ? "Owner" : membership === "member" ? "Member" : "Personal";
   const text = {
     title: t("alisio.organization.title"),
     subtitle: t("alisio.organization.subtitle"),
@@ -43,8 +45,13 @@ export function renderOrganization(props: {
   return html`
     <section class="alisio-page">
       <div class="card alisio-organization-hero">
-        <div class="card-title">${text.title}</div>
-        <div class="card-sub">${text.subtitle}</div>
+        <div class="alisio-organization-hero__topbar">
+          <div>
+            <div class="card-title">${text.title}</div>
+            <div class="card-sub">${text.subtitle}</div>
+          </div>
+          <span class="pill">${membershipLabel}</span>
+        </div>
         ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
         ${props.loading
           ? html`<div class="empty-state" style="margin-top: 20px;">${text.loading}</div>`
@@ -118,7 +125,7 @@ export function renderOrganization(props: {
                     : nothing}
                   <div class="row">
                     <button
-                      class="btn"
+                      class="btn primary"
                       ?disabled=${!props.organizationName.trim()}
                       @click=${props.draftMode === "create"
                         ? props.onCreateOrganization

@@ -451,6 +451,27 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
   };
 }
 
+function sanitizeThinkingSignatureForHistory(value: unknown):
+  | {
+      type: "reasoning.summary";
+    }
+  | undefined {
+  let type: string | undefined;
+  if (value && typeof value === "object") {
+    const candidate = (value as { type?: unknown }).type;
+    type = typeof candidate === "string" ? candidate.trim() : undefined;
+  } else if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value) as { type?: unknown };
+      type = typeof parsed.type === "string" ? parsed.type.trim() : undefined;
+    } catch {
+      const trimmed = value.trim();
+      type = trimmed || undefined;
+    }
+  }
+  return type === "reasoning.summary" ? { type: "reasoning.summary" } : undefined;
+}
+
 function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; changed: boolean } {
   if (!block || typeof block !== "object") {
     return { block, changed: false };
@@ -479,8 +500,22 @@ function sanitizeChatHistoryContentBlock(block: unknown): { block: unknown; chan
     changed ||= res.truncated;
   }
   if ("thinkingSignature" in entry) {
-    delete entry.thinkingSignature;
-    changed = true;
+    const sanitizedSignature = sanitizeThinkingSignatureForHistory(entry.thinkingSignature);
+    if (sanitizedSignature) {
+      const original = entry.thinkingSignature;
+      const originalIsMinimalSummary =
+        original &&
+        typeof original === "object" &&
+        (original as { type?: unknown }).type === sanitizedSignature.type &&
+        Object.keys(original as Record<string, unknown>).length === 1;
+      if (!originalIsMinimalSummary) {
+        entry.thinkingSignature = sanitizedSignature;
+        changed = true;
+      }
+    } else {
+      delete entry.thinkingSignature;
+      changed = true;
+    }
   }
   const type = typeof entry.type === "string" ? entry.type : "";
   if (type === "image" && typeof entry.data === "string") {

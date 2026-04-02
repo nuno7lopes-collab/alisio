@@ -1,7 +1,11 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { completeAlisioConnectorAuthorizationFromCallback } from "../infra/alisio-store.js";
+import { AlisioAiError } from "../infra/alisio-ai.js";
+import {
+  completeAlisioAiConnect,
+  completeAlisioConnectorAuthorizationFromCallback,
+} from "../infra/alisio-store.js";
 
-type SupportedProvider = "google" | "github";
+type SupportedProvider = "google" | "github" | "openai";
 
 function resolveProviderFromPath(pathname: string): SupportedProvider | null {
   if (pathname === "/oauth/google/callback") {
@@ -9,6 +13,9 @@ function resolveProviderFromPath(pathname: string): SupportedProvider | null {
   }
   if (pathname === "/oauth/github/callback") {
     return "github";
+  }
+  if (pathname === "/__alisio/auth/openai/callback") {
+    return "openai";
   }
   return null;
 }
@@ -82,6 +89,34 @@ export async function handleAlisioOAuthHttpRequest(
     res.setHeader("Allow", "GET");
     res.end("Method Not Allowed");
     return true;
+  }
+
+  if (provider === "openai") {
+    try {
+      const result = await completeAlisioAiConnect(
+        {
+          stateToken: url.searchParams.get("state"),
+          code: url.searchParams.get("code"),
+          error: url.searchParams.get("error"),
+          errorDescription: url.searchParams.get("error_description"),
+        },
+        env,
+        fetchImpl,
+      );
+      const label = result.email ?? "your OpenAI account";
+      sendHtml(
+        res,
+        200,
+        "Alisio is connected to OpenAI",
+        `OpenAI is now connected for ${label}. You can return to Alisio.`,
+      );
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof AlisioAiError ? error.message : "OpenAI could not be connected.";
+      sendHtml(res, 400, "Alisio could not connect OpenAI", message);
+      return true;
+    }
   }
 
   const result = await completeAlisioConnectorAuthorizationFromCallback(

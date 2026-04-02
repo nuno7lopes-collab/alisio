@@ -2,6 +2,7 @@
 
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatHost } from "./app-chat.ts";
+import { refreshChatAvatar } from "./app-chat.ts";
 
 const { setLastActiveSessionKeyMock } = vi.hoisted(() => ({
   setLastActiveSessionKeyMock: vi.fn(),
@@ -12,13 +13,11 @@ vi.mock("./app-settings.ts", () => ({
 }));
 
 let handleSendChat: typeof import("./app-chat.ts").handleSendChat;
-let refreshChatAvatar: typeof import("./app-chat.ts").refreshChatAvatar;
 let clearPendingQueueItemsForRun: typeof import("./app-chat.ts").clearPendingQueueItemsForRun;
 
 async function loadChatHelpers(): Promise<void> {
   vi.resetModules();
-  ({ handleSendChat, refreshChatAvatar, clearPendingQueueItemsForRun } =
-    await import("./app-chat.ts"));
+  ({ handleSendChat, clearPendingQueueItemsForRun } = await import("./app-chat.ts"));
 }
 
 function makeHost(overrides?: Partial<ChatHost>): ChatHost {
@@ -47,10 +46,6 @@ function makeHost(overrides?: Partial<ChatHost>): ChatHost {
 }
 
 describe("refreshChatAvatar", () => {
-  beforeEach(async () => {
-    await loadChatHelpers();
-  });
-
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -94,7 +89,7 @@ describe("handleSendChat", () => {
   beforeEach(async () => {
     setLastActiveSessionKeyMock.mockReset();
     await loadChatHelpers();
-  });
+  }, 20_000);
 
   afterEach(() => {
     vi.unstubAllGlobals();

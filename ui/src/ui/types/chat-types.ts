@@ -42,5 +42,9 @@ export type ToolCard = {
   kind: "call" | "result";
   name: string;
   args?: unknown;
-  text?: string;
+  text?: unknown;
+  toolCallId?: string;
+  phase?: "start" | "update" | "result";
+  isError?: boolean;
+  meta?: string;
 };

@@ -1,8 +1,10 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import { icons } from "../icons.ts";
 import type { SettingsSection } from "../navigation.ts";
 import type {
   AlisioAccountState,
+  AlisioBootstrapState,
   AlisioDoctorSummaryState,
   NativeShellPermission,
   NativeShellState,
@@ -12,11 +14,13 @@ const PUBLIC_SETTINGS_SECTIONS = [
   "appearance",
   "language",
   "account",
+  "ai",
   "security",
   "devices",
   "billing",
   "support",
   "mac",
+  "advanced",
 ] as const;
 
 type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
@@ -25,15 +29,87 @@ const SETTINGS_SECTION_LABELS: Record<PublicSettingsSection, string> = {
   appearance: t("alisio.settings.sections.appearance"),
   language: t("alisio.settings.sections.language"),
   account: t("alisio.settings.sections.account"),
+  ai: "AI",
   security: t("alisio.settings.sections.security"),
   devices: t("alisio.settings.sections.devices"),
   billing: t("alisio.settings.sections.billing"),
   support: t("alisio.settings.sections.support"),
   mac: t("alisio.settings.sections.mac"),
+  advanced: "Advanced",
 };
+
+const SETTINGS_SECTION_ICONS = {
+  appearance: icons.sun,
+  language: icons.globe,
+  account: icons.user,
+  ai: icons.spark,
+  security: icons.shield,
+  devices: icons.smartphone,
+  billing: icons.spark,
+  support: icons.messageSquare,
+  mac: icons.terminal,
+  advanced: icons.settings,
+} as const;
 
 function settingsSectionLabel(section: PublicSettingsSection) {
   return SETTINGS_SECTION_LABELS[section] ?? section;
+}
+
+function settingsSectionIcon(section: PublicSettingsSection) {
+  return SETTINGS_SECTION_ICONS[section] ?? icons.settings;
+}
+
+function renderDoctorCard(props: {
+  doctorLoading: boolean;
+  doctorError: string | null;
+  doctor: AlisioDoctorSummaryState | null;
+  onReconnectRuntime: () => void;
+  onOpenSetup: () => void;
+}) {
+  if (props.doctorError) {
+    return html`<div class="callout danger">${props.doctorError}</div>`;
+  }
+  if (props.doctorLoading) {
+    return html`<div class="alisio-settings-doctor"><p>Loading system checks…</p></div>`;
+  }
+  if (!props.doctor) {
+    return nothing;
+  }
+
+  const statusText = props.doctor.ok ? "Healthy" : "Needs attention";
+  const summary = props.doctor.ok
+    ? "The essential setup path is healthy."
+    : "There are still a few setup issues worth closing.";
+
+  return html`
+    <section class="alisio-settings-doctor ${props.doctor.ok ? "is-ok" : "is-attention"}">
+      <div class="alisio-settings-doctor__head">
+        <div>
+          <h3>System health</h3>
+          <p>${summary}</p>
+        </div>
+        <span class="alisio-settings-doctor__status">${statusText}</span>
+      </div>
+      ${props.doctor.issues.length > 0
+        ? html`
+            <div class="alisio-settings-doctor__issues">
+              ${props.doctor.issues.slice(0, 4).map(
+                (issue) => html`
+                  <div class="alisio-settings-doctor__issue">
+                    <span>${issue.title}</span>
+                    <strong>${issue.step ?? issue.code}</strong>
+                  </div>
+                `,
+              )}
+            </div>
+          `
+        : nothing}
+      <div class="alisio-settings-doctor__actions">
+        <button class="btn" @click=${props.onReconnectRuntime}>Restart runtime</button>
+        <button class="btn" @click=${props.onOpenSetup}>Open setup</button>
+      </div>
+    </section>
+  `;
 }
 
 function permissionLabel(permission: NativeShellPermission) {
@@ -120,12 +196,14 @@ function renderMacSection(props: {
     refresh: t("alisio.settings.mac.refresh"),
   };
   if (props.nativeShellLoading) {
-    return html`<div class="card"><div class="card-sub">${text.loading}</div></div>`;
+    return html`<div class="card alisio-settings-card">
+      <div class="card-sub">${text.loading}</div>
+    </div>`;
   }
 
   if (props.nativeShellError) {
     return html`
-      <div class="card">
+      <div class="card alisio-settings-card">
         <div class="card-title">${text.title}</div>
         <div class="callout danger" style="margin-top: 16px;">${props.nativeShellError}</div>
       </div>
@@ -134,7 +212,7 @@ function renderMacSection(props: {
 
   if (!props.nativeShellState) {
     return html`
-      <div class="card">
+      <div class="card alisio-settings-card">
         <div class="card-title">${text.title}</div>
         <div class="card-sub">${text.unavailable}</div>
       </div>
@@ -143,7 +221,7 @@ function renderMacSection(props: {
 
   const state = props.nativeShellState;
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.bridge}</div>
       <div class="agents-overview-grid" style="margin-top: 16px;">
@@ -241,7 +319,7 @@ function renderAppearanceSection(props: {
     dark: t("alisio.settings.appearance.options.dark"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <div class="alisio-settings-options">
@@ -270,7 +348,7 @@ function renderLanguageSection(props: {
     displayLanguage: t("alisio.settings.language.displayLanguage"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <label class="field" style="margin-top: 16px;">
@@ -294,6 +372,7 @@ function renderLanguageSection(props: {
 function renderAccountSection(props: {
   accountLoading: boolean;
   accountError: string | null;
+  accountNotice: string | null;
   account: AlisioAccountState | null;
   onSaveField: (patch: {
     username?: string;
@@ -303,6 +382,7 @@ function renderAccountSection(props: {
   }) => void;
   locale?: string;
   onSignOut: () => void;
+  onRequestPasswordReset: () => void;
 }) {
   const text = {
     title: t("alisio.settings.account.title"),
@@ -316,11 +396,14 @@ function renderAccountSection(props: {
   };
   const joinedFormatter = new Intl.DateTimeFormat(props.locale ?? undefined);
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       ${props.accountError
         ? html`<div class="callout danger" style="margin-top: 16px;">${props.accountError}</div>`
+        : nothing}
+      ${props.accountNotice
+        ? html`<div class="callout info" style="margin-top: 16px;">${props.accountNotice}</div>`
         : nothing}
       ${props.accountLoading && !props.account
         ? html`<div class="empty-state" style="margin-top: 16px;">${text.loading}</div>`
@@ -391,10 +474,80 @@ function renderAccountSection(props: {
                 </label>
               </div>
               <div class="row" style="margin-top: 16px;">
-                <button class="btn" @click=${props.onSignOut}>Sign out</button>
+                <button class="btn" @click=${props.onRequestPasswordReset}>
+                  Send password reset email
+                </button>
+                <button class="btn danger" @click=${props.onSignOut}>Sign out</button>
               </div>
             </div>
           `}
+    </div>
+  `;
+}
+
+function renderAiSection(props: {
+  bootstrap: AlisioBootstrapState | null;
+  aiLoading: boolean;
+  aiError: string | null;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onRefresh: () => void;
+}) {
+  const ai = props.bootstrap?.ai;
+  const windows = ai?.limits?.windows ?? [];
+  const statusLabel =
+    ai?.status === "connected"
+      ? "Connected"
+      : ai?.status === "limits_unavailable"
+        ? "Connected (limits unavailable)"
+        : ai?.status === "connecting"
+          ? "Connecting"
+          : ai?.status === "expired"
+            ? "Expired"
+            : "Disconnected";
+  return html`
+    <div class="card alisio-settings-card">
+      <div class="card-title">AI</div>
+      <div class="card-sub">OpenAI powers Alisio by default during the first run.</div>
+      ${props.aiError
+        ? html`<div class="callout danger" style="margin-top: 16px;">${props.aiError}</div>`
+        : nothing}
+      <div class="list-item" style="margin-top: 16px;">
+        <div class="list-title">${statusLabel}</div>
+        <div class="list-sub">
+          ${ai?.email ?? ai?.planLabel ?? "No OpenAI account is connected yet."}
+        </div>
+      </div>
+      ${windows.length > 0
+        ? html`
+            <div style="display: grid; gap: 12px; margin-top: 16px;">
+              ${windows.map(
+                (window) => html`
+                  <div class="list-item">
+                    <div class="list-title">${window.label}</div>
+                    <div class="list-sub">${window.usedPercent}% used</div>
+                  </div>
+                `,
+              )}
+            </div>
+          `
+        : nothing}
+      <div class="row" style="margin-top: 16px;">
+        ${ai?.status === "connected" || ai?.status === "limits_unavailable"
+          ? html`
+              <button class="btn" ?disabled=${props.aiLoading} @click=${props.onRefresh}>
+                Refresh limits
+              </button>
+              <button class="btn danger" ?disabled=${props.aiLoading} @click=${props.onDisconnect}>
+                Disconnect OpenAI
+              </button>
+            `
+          : html`
+              <button class="btn primary" ?disabled=${props.aiLoading} @click=${props.onConnect}>
+                Connect OpenAI
+              </button>
+            `}
+      </div>
     </div>
   `;
 }
@@ -407,7 +560,7 @@ function renderSecuritySection() {
     placeholder: t("alisio.settings.security.placeholder"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <div class="list-item" style="margin-top: 16px;">
@@ -428,7 +581,7 @@ function renderDevicesSection(props: { account: AlisioAccountState | null }) {
     empty: t("alisio.settings.devices.empty"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       ${(props.account?.devices ?? []).length === 0
@@ -461,7 +614,7 @@ function renderBillingSection(props: { account: AlisioAccountState | null }) {
     freePlan: t("alisio.settings.billing.freePlan"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <div class="alisio-settings-billing" style="margin-top: 16px;">
@@ -469,7 +622,7 @@ function renderBillingSection(props: { account: AlisioAccountState | null }) {
           <div class="list-title">${props.account?.profile.plan ?? text.freePlan}</div>
           <div class="list-sub">${text.note}</div>
         </div>
-        <button class="btn">${text.upgrade}</button>
+        <button class="btn primary">${text.upgrade}</button>
       </div>
     </div>
   `;
@@ -482,7 +635,7 @@ function renderSupportSection() {
     email: t("alisio.settings.support.email"),
   };
   return html`
-    <div class="card">
+    <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
       <div class="card-sub">${text.subtitle}</div>
       <div class="list-item" style="margin-top: 16px;">
@@ -495,12 +648,37 @@ function renderSupportSection() {
   `;
 }
 
+function renderAdvancedSection(props: { onOpenSetup: () => void }) {
+  return html`
+    <div class="card alisio-settings-card">
+      <div class="card-title">Advanced</div>
+      <div class="card-sub">
+        Manual gateway and connection controls stay out of the normal onboarding path.
+      </div>
+      <div class="list-item" style="margin-top: 16px;">
+        <div class="list-title">Connection</div>
+        <div class="list-sub">
+          Use the setup flow if you need to connect to another gateway or use a legacy tokenized
+          link.
+        </div>
+      </div>
+      <div class="row" style="margin-top: 16px;">
+        <button class="btn" @click=${props.onOpenSetup}>Open setup</button>
+      </div>
+    </div>
+  `;
+}
+
 export function renderSettingsHub(props: {
   section: SettingsSection;
   onSectionChange: (section: SettingsSection) => void;
   accountLoading: boolean;
   accountError: string | null;
+  accountNotice: string | null;
   account: AlisioAccountState | null;
+  bootstrap: AlisioBootstrapState | null;
+  aiLoading: boolean;
+  aiError: string | null;
   doctorLoading: boolean;
   doctorError: string | null;
   doctor: AlisioDoctorSummaryState | null;
@@ -525,7 +703,11 @@ export function renderSettingsHub(props: {
   onRevealLogs: () => void;
   onOpenSetup: () => void;
   onSignOutAccount: () => void;
+  onRequestPasswordReset: () => void;
   onReconnectRuntime: () => void;
+  onConnectAi: () => void;
+  onDisconnectAi: () => void;
+  onRefreshAi: () => void;
 }) {
   const text = {
     title: t("alisio.settings.title"),
@@ -547,10 +729,21 @@ export function renderSettingsHub(props: {
         return renderAccountSection({
           accountLoading: props.accountLoading,
           accountError: props.accountError,
+          accountNotice: props.accountNotice,
           account: props.account,
           locale: props.locale,
           onSaveField: props.onSaveAccountField,
           onSignOut: props.onSignOutAccount,
+          onRequestPasswordReset: props.onRequestPasswordReset,
+        });
+      case "ai":
+        return renderAiSection({
+          bootstrap: props.bootstrap,
+          aiLoading: props.aiLoading,
+          aiError: props.aiError,
+          onConnect: props.onConnectAi,
+          onDisconnect: props.onDisconnectAi,
+          onRefresh: props.onRefreshAi,
         });
       case "security":
         return renderSecuritySection();
@@ -572,64 +765,50 @@ export function renderSettingsHub(props: {
           onOpenNativeSettings: props.onOpenNativeSettings,
           onRevealLogs: props.onRevealLogs,
         });
+      case "advanced":
+        return renderAdvancedSection({
+          onOpenSetup: props.onOpenSetup,
+        });
       default:
         return nothing;
     }
   })();
 
   return html`
-    <section class="alisio-page">
-      <div class="card">
-        <div class="card-title">${text.title}</div>
-        <div class="card-sub">${text.subtitle}</div>
-        <div class="alisio-settings-nav">
-          ${PUBLIC_SETTINGS_SECTIONS.map(
-            (section) => html`
-              <button
-                class="chip ${props.section === section ? "chip-active" : ""}"
-                @click=${() => props.onSectionChange(section)}
-              >
-                ${settingsSectionLabel(section)}
-              </button>
-            `,
-          )}
-        </div>
+    <section class="alisio-page alisio-settings-page">
+      <div class="alisio-settings-shell">
+        <aside class="card alisio-settings-sidebar">
+          <div class="alisio-settings-sidebar__head">
+            <div class="card-title">${text.title}</div>
+            <div class="card-sub">${text.subtitle}</div>
+          </div>
+          <nav class="alisio-settings-links" aria-label="Settings sections">
+            ${PUBLIC_SETTINGS_SECTIONS.map(
+              (section) => html`
+                <button
+                  class="alisio-settings-link ${props.section === section
+                    ? "alisio-settings-link--active"
+                    : ""}"
+                  @click=${() => props.onSectionChange(section)}
+                >
+                  <span class="alisio-settings-link__icon" aria-hidden="true"
+                    >${settingsSectionIcon(section)}</span
+                  >
+                  <span class="alisio-settings-link__label">${settingsSectionLabel(section)}</span>
+                </button>
+              `,
+            )}
+          </nav>
+          ${renderDoctorCard({
+            doctorLoading: props.doctorLoading,
+            doctorError: props.doctorError,
+            doctor: props.doctor,
+            onReconnectRuntime: props.onReconnectRuntime,
+            onOpenSetup: props.onOpenSetup,
+          })}
+        </aside>
+        <div class="alisio-settings-main">${sectionContent}</div>
       </div>
-      ${props.doctorError
-        ? html`<div class="callout danger">${props.doctorError}</div>`
-        : props.doctorLoading
-          ? html`<div class="callout info">Loading system checks…</div>`
-          : props.doctor
-            ? html`
-                <div class="card">
-                  <div class="card-title">Doctor-lite</div>
-                  <div class="card-sub">
-                    ${props.doctor.ok
-                      ? "The essential setup path is healthy."
-                      : "There are still a few setup issues worth closing."}
-                  </div>
-                  ${props.doctor.issues.length > 0
-                    ? html`
-                        <div class="setup-list" style="margin-top: 16px;">
-                          ${props.doctor.issues.slice(0, 5).map(
-                            (issue) => html`
-                              <div>
-                                <span>${issue.title}</span>
-                                <strong>${issue.step ?? issue.code}</strong>
-                              </div>
-                            `,
-                          )}
-                        </div>
-                      `
-                    : nothing}
-                  <div class="row" style="margin-top: 16px;">
-                    <button class="btn" @click=${props.onReconnectRuntime}>Restart runtime</button>
-                    <button class="btn" @click=${props.onOpenSetup}>Open setup</button>
-                  </div>
-                </div>
-              `
-            : nothing}
-      ${sectionContent}
     </section>
   `;
 }

@@ -35,6 +35,10 @@ describe("loadControlUiBootstrapConfig", () => {
             avatarLabel: "N",
             plan: "free",
           },
+          ai: {
+            provider: "openai",
+            status: "disconnected",
+          },
           bootstrapToken: "bootstrap-123",
           manualConnectionRequired: false,
         }),

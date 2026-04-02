@@ -4,6 +4,7 @@ import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import {
   getAlisioAccountState,
+  getAlisioAiState,
   getAlisioBootstrapSummary,
   hasRestorableAlisioAccount,
 } from "../infra/alisio-store.js";
@@ -196,9 +197,8 @@ export async function handleAlisioBootstrapHttpRequest(
 
   const localDirect = isLocalDirectRequest(req, opts.trustedProxies, opts.allowRealIpFallback);
   const account = await getAlisioAccountState();
-  const runtimeSetup = await opts.loadRuntimeSetup();
+  const ai = await getAlisioAiState();
   const bootstrap = await getAlisioBootstrapSummary({
-    providerReady: runtimeSetup.providerReady,
     wizardRunning: false,
     connectionRequired: false,
   });
@@ -215,6 +215,7 @@ export async function handleAlisioBootstrapHttpRequest(
           plan: account.profile.plan,
         }
       : null,
+    ai,
     manualConnectionRequired: !localDirect,
     ...(localDirect
       ? {

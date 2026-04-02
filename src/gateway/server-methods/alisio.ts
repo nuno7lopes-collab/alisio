@@ -1,15 +1,23 @@
+import { AlisioAccountCloudError } from "../../infra/alisio-account-cloud.js";
+import { AlisioAiError } from "../../infra/alisio-ai.js";
 import { loadAlisioRuntimeSetupState } from "../../infra/alisio-runtime.js";
 import {
   AlisioAccountValidationError,
   beginAlisioConnectorSetup,
+  beginAlisioAiConnect,
   completeAlisioConnectorAuthorization,
+  completeAlisioAiConnect,
+  disconnectAlisioAi,
   getAlisioBootstrapSummary,
   getAlisioDoctorSummary,
   getAlisioAccountState,
+  getAlisioAiState,
   getAlisioOrganizationState,
   listAlisioConnectorAuthorizations,
   listAlisioConnectorDefinitions,
   loadAlisioBootstrapSnapshot,
+  refreshAlisioAiLimits,
+  requestAlisioAccountPasswordReset,
   revokeAlisioConnectorAuthorization,
   setAlisioOrganizationState,
   signInAlisioAccount,
@@ -25,10 +33,20 @@ import {
   errorShape,
   formatValidationErrors,
   validateAlisioAccountGetParams,
+  validateAlisioAccountPasswordResetParams,
+  validateAlisioAccountPasswordResetResult,
+  validateAlisioAccountCompleteProfileParams,
   validateAlisioAccountSignInParams,
   validateAlisioAccountSignOutParams,
   validateAlisioAccountSignUpParams,
   validateAlisioAccountUpdateParams,
+  validateAlisioAiBeginConnectParams,
+  validateAlisioAiBeginConnectResult,
+  validateAlisioAiCompleteConnectParams,
+  validateAlisioAiDisconnectParams,
+  validateAlisioAiGetParams,
+  validateAlisioAiRefreshLimitsParams,
+  validateAlisioAiState,
   validateAlisioBootstrapGetParams,
   validateAlisioBootstrapResult,
   validateAlisioConnectorsBeginParams,
@@ -63,6 +81,51 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
     respond(true, await getAlisioAccountState(), undefined);
   },
+  "alisio.account.requestPasswordReset": async ({ params, respond }) => {
+    if (!validateAlisioAccountPasswordResetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.requestPasswordReset params: ${formatValidationErrors(
+            validateAlisioAccountPasswordResetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await requestAlisioAccountPasswordReset({ email: params.email }, process.env);
+      if (!validateAlisioAccountPasswordResetResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.account.requestPasswordReset result: ${formatValidationErrors(
+              validateAlisioAccountPasswordResetResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to start Alisio password recovery: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
   "alisio.account.signUp": async ({ params, respond }) => {
     if (!validateAlisioAccountSignUpParams(params)) {
       respond(
@@ -77,7 +140,29 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    respond(true, await signUpAlisioAccount(), undefined);
+    try {
+      respond(
+        true,
+        await signUpAlisioAccount(
+          {
+            email: params.email,
+            password: params.password,
+          },
+          process.env,
+        ),
+        undefined,
+      );
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to create Alisio account: ${formatError(err)}`),
+      );
+    }
   },
   "alisio.account.signIn": async ({ params, respond }) => {
     if (!validateAlisioAccountSignInParams(params)) {
@@ -93,16 +178,29 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const result = await signInAlisioAccount();
-    if (!result) {
+    try {
+      respond(
+        true,
+        await signInAlisioAccount(
+          {
+            email: params.email,
+            password: params.password,
+          },
+          process.env,
+        ),
+        undefined,
+      );
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, "no saved Alisio account is available on this device"),
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to sign in to Alisio: ${formatError(err)}`),
       );
-      return;
     }
-    respond(true, result, undefined);
   },
   "alisio.account.signOut": async ({ params, respond, client, context }) => {
     if (!validateAlisioAccountSignOutParams(params)) {
@@ -165,6 +263,198 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
+  "alisio.account.completeProfile": async ({ params, respond }) => {
+    if (!validateAlisioAccountCompleteProfileParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.completeProfile params: ${formatValidationErrors(
+            validateAlisioAccountCompleteProfileParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      respond(true, await updateAlisioAccountProfile(params), undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError || err instanceof AlisioAccountCloudError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to complete Alisio profile: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.ai.get": async ({ params, respond }) => {
+    if (!validateAlisioAiGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.get params: ${formatValidationErrors(validateAlisioAiGetParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const result = await getAlisioAiState();
+    if (!validateAlisioAiState(result)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.get result: ${formatValidationErrors(validateAlisioAiState.errors)}`,
+        ),
+      );
+      return;
+    }
+    respond(true, result, undefined);
+  },
+  "alisio.ai.beginConnect": async ({ params, respond }) => {
+    if (!validateAlisioAiBeginConnectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.beginConnect params: ${formatValidationErrors(
+            validateAlisioAiBeginConnectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await beginAlisioAiConnect(params);
+      if (!validateAlisioAiBeginConnectResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.ai.beginConnect result: ${formatValidationErrors(
+              validateAlisioAiBeginConnectResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAiError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to start OpenAI connection: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.ai.completeConnect": async ({ params, respond }) => {
+    if (!validateAlisioAiCompleteConnectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.completeConnect params: ${formatValidationErrors(
+            validateAlisioAiCompleteConnectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await completeAlisioAiConnect(params);
+      if (!validateAlisioAiState(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.ai.completeConnect result: ${formatValidationErrors(
+              validateAlisioAiState.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAiError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to complete OpenAI connection: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.ai.disconnect": async ({ params, respond }) => {
+    if (!validateAlisioAiDisconnectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.disconnect params: ${formatValidationErrors(
+            validateAlisioAiDisconnectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const result = await disconnectAlisioAi();
+    respond(true, result, undefined);
+  },
+  "alisio.ai.refreshLimits": async ({ params, respond }) => {
+    if (!validateAlisioAiRefreshLimitsParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.refreshLimits params: ${formatValidationErrors(
+            validateAlisioAiRefreshLimitsParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      respond(true, await refreshAlisioAiLimits(), undefined);
+    } catch (err) {
+      if (err instanceof AlisioAiError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to refresh OpenAI limits: ${formatError(err)}`),
+      );
+    }
+  },
   "alisio.bootstrap.get": async ({ params, respond, context }) => {
     if (!validateAlisioBootstrapGetParams(params)) {
       respond(
@@ -186,7 +476,6 @@ export const alisioHandlers: GatewayRequestHandlers = {
         Promise.resolve(runtimeSetup),
         loadAlisioBootstrapSnapshot(),
         getAlisioBootstrapSummary({
-          providerReady: runtimeSetup.providerReady,
           wizardRunning: Boolean(wizardSessionId),
           connectionRequired: false,
         }),
@@ -194,6 +483,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       const result = {
         ...summary,
         account: snapshot.account,
+        ai: snapshot.ai,
         organization: snapshot.organization,
         connectors: snapshot.connectors,
         wizard: {
@@ -247,12 +537,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
       const [snapshot, bootstrapSummary, doctorSummary] = await Promise.all([
         loadAlisioBootstrapSnapshot(),
         getAlisioBootstrapSummary({
-          providerReady: runtimeSetup.providerReady,
           wizardRunning: wizardSessionId !== null,
           connectionRequired: false,
         }),
         getAlisioDoctorSummary({
-          providerReady: runtimeSetup.providerReady,
           wizardRunning: wizardSessionId !== null,
           connectionRequired: false,
         }),
@@ -260,6 +548,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       const bootstrap = {
         ...bootstrapSummary,
         account: snapshot.account,
+        ai: snapshot.ai,
         organization: snapshot.organization,
         connectors: snapshot.connectors,
         wizard: {

@@ -14,10 +14,14 @@ import {
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import {
+  beginAlisioAiConnect,
   beginAlisioConnector,
   cancelAlisioSetupWizard,
   continueAlisioSetupWizard,
+  disconnectAlisioAi,
   loadAlisioConnectors,
+  requestAlisioPasswordReset,
+  refreshAlisioAi,
   restartAlisioRuntime,
   revokeAlisioConnector,
   saveAlisioAccount,
@@ -41,7 +45,7 @@ import {
   setLaunchAtLogin,
   setVoiceWake,
 } from "./lume-host.ts";
-import { TAB_GROUPS, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
+import { TAB_GROUPS, pathForTab, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
 import { agentLogoUrl } from "./views/agents-utils.ts";
 import { renderAuthentications } from "./views/authentications.ts";
 import { renderChat } from "./views/chat.ts";
@@ -144,6 +148,33 @@ function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId:
   tick();
 }
 
+function scheduleOpenAiRefresh(state: AppViewState) {
+  let attempts = 0;
+  const maxAttempts = 45;
+
+  const tick = () => {
+    window.setTimeout(
+      async () => {
+        attempts += 1;
+        await refreshAlisioAi(state);
+        const aiStatus =
+          state.alisioBootstrap?.ai.status ?? state.alisioStartupBootstrap?.ai?.status ?? null;
+        if (
+          aiStatus === "connected" ||
+          aiStatus === "limits_unavailable" ||
+          attempts >= maxAttempts
+        ) {
+          return;
+        }
+        tick();
+      },
+      attempts === 0 ? 1000 : 2000,
+    );
+  };
+
+  tick();
+}
+
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
 function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
@@ -164,8 +195,8 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
 
 function sidebarGroupLabel(label: (typeof TAB_GROUPS)[number]["label"]) {
   switch (label) {
-    case "workspace":
-      return "Workspace";
+    case "product":
+      return "Product";
     default:
       return null;
   }
@@ -215,7 +246,13 @@ export function renderApp(state: AppViewState) {
     requestedStep: state.setupStep,
     accountLoading: state.alisioAccountLoading,
     accountError: state.alisioAccountError,
+    accountNotice: state.alisioAccountNotice,
     account: state.alisioAccount,
+    authMode: state.alisioAuthMode,
+    authEmail: state.alisioAuthEmail,
+    authPassword: state.alisioAuthPassword,
+    aiLoading: state.alisioAiLoading,
+    aiError: state.alisioAiError,
     organizationLoading: state.alisioOrganizationLoading,
     organizationError: state.alisioOrganizationError,
     organization: state.alisioOrganization,
@@ -244,9 +281,22 @@ export function renderApp(state: AppViewState) {
     onToggleGatewayPassword: () => {
       state.loginShowGatewayPassword = !state.loginShowGatewayPassword;
     },
+    onAuthModeChange: (value) => {
+      state.alisioAuthMode = value;
+    },
+    onAuthEmailChange: (value) => {
+      state.alisioAuthEmail = value;
+    },
+    onAuthPasswordChange: (value) => {
+      state.alisioAuthPassword = value;
+    },
     onConnect: () => state.connect(),
     onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
     onOpenAuthentications: () => state.setTab("authentications" as import("./navigation.ts").Tab),
+    onOpenSettingsAi: () => {
+      state.settingsSection = "ai";
+      state.setTab("settings" as import("./navigation.ts").Tab);
+    },
     onOpenSettingsMac: () => {
       state.settingsSection = "mac";
       state.setTab("settings" as import("./navigation.ts").Tab);
@@ -341,6 +391,30 @@ export function renderApp(state: AppViewState) {
     onSignInAccount: () => {
       void signInAlisioAccount(state);
     },
+    onRequestPasswordReset: () => {
+      void requestAlisioPasswordReset(state);
+    },
+    onBeginAiConnect: () => {
+      const callbackUrl = new URL("/__alisio/auth/openai/callback", window.location.origin);
+      void beginAlisioAiConnect(state, callbackUrl.toString()).then((result) => {
+        const targetUrl = result?.setupUrl;
+        if (!targetUrl) {
+          return;
+        }
+        scheduleOpenAiRefresh(state);
+        if (typeof window.alisioHost?.request === "function") {
+          void openExternal(targetUrl);
+          return;
+        }
+        window.open(targetUrl, "_blank", "noopener,noreferrer");
+      });
+    },
+    onDisconnectAi: () => {
+      void disconnectAlisioAi(state);
+    },
+    onRefreshAi: () => {
+      void refreshAlisioAi(state);
+    },
     onSaveAccount: () => {
       const profile = state.alisioAccount?.profile;
       if (!profile) {
@@ -351,6 +425,7 @@ export function renderApp(state: AppViewState) {
         displayName: profile.displayName,
         email: profile.email,
         avatarLabel: profile.avatarLabel,
+        avatarUrl: profile.avatarUrl,
       });
     },
   });
@@ -372,12 +447,8 @@ export function renderApp(state: AppViewState) {
   const profilePlan = profile?.plan ?? t("alisio.settings.billing.freePlan");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
-  const sidebarContextBadge = shouldShowSetup ? titleForTab("setup") : titleForTab(activeTab);
-  const sidebarContextEyebrow = shouldShowSetup
-    ? "Required now"
-    : state.connected
-      ? "Local workspace"
-      : "Connect gateway";
+  const sidebarContextBadge = titleForTab(activeTab);
+  const sidebarContextEyebrow = state.connected ? "Personal workspace" : "Offline";
   const openSettingsSection = (section: import("./navigation.ts").SettingsSection) => {
     state.settingsSection = section;
     state.setTab("settings" as import("./navigation.ts").Tab);
@@ -390,6 +461,34 @@ export function renderApp(state: AppViewState) {
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
     null;
+  if (shouldShowSetup) {
+    return html`
+      <section class="setup-frame">
+        <header class="setup-frame__header">
+          <a
+            class="setup-frame__brand"
+            href=${pathForTab("setup", state.basePath)}
+            @click=${(event: MouseEvent) => {
+              event.preventDefault();
+              state.setTab("setup" as import("./navigation.ts").Tab);
+            }}
+          >
+            <span class="setup-frame__brand-mark" aria-hidden="true"
+              ><img src=${appLogoUrl} alt=""
+            /></span>
+            <span class="setup-frame__brand-copy">
+              <span class="setup-frame__brand-eyebrow">Alisio</span>
+              <span class="setup-frame__brand-title">Personal Agent</span>
+            </span>
+          </a>
+          <div class="setup-frame__meta">
+            <span class="setup-frame__meta-pill">${connectionLabel}</span>
+          </div>
+        </header>
+        <main class="setup-frame__body">${setupView}</main>
+      </section>
+    `;
+  }
   return html`
     ${renderCommandPalette({
       open: state.paletteOpen,
@@ -463,174 +562,144 @@ export function renderApp(state: AppViewState) {
       <div class="shell-nav">
         <aside class="sidebar ${navCollapsed ? "sidebar--collapsed" : ""}">
           <div class="sidebar-shell">
-            <div class="sidebar-rail">
-              <div class="sidebar-rail__top">
-                <button
-                  type="button"
-                  class="sidebar-rail__brand"
-                  title="Open chat"
-                  aria-label="Open chat"
-                  @click=${() => {
-                    state.setTab("chat" as import("./navigation.ts").Tab);
-                  }}
-                >
-                  <img src=${appLogoUrl} alt="Alisio" />
-                </button>
-                <button
-                  type="button"
-                  class="nav-collapse-toggle sidebar-rail__toggle"
-                  @click=${() =>
-                    state.applySettings({
-                      ...state.settings,
-                      navCollapsed: !state.settings.navCollapsed,
-                    })}
-                  title="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
-                  aria-label="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
-                >
-                  <span class="nav-collapse-toggle__icon" aria-hidden="true"
-                    >${navCollapsed ? icons.panelLeftOpen : icons.panelLeftClose}</span
-                  >
-                </button>
+            <div class="sidebar-shell__header">
+              <div class="sidebar-brand">
+                <span class="sidebar-brand__logo" aria-hidden="true"
+                  ><img src=${appLogoUrl} alt=""
+                /></span>
+                ${navCollapsed
+                  ? nothing
+                  : html`
+                      <span class="sidebar-brand__copy">
+                        <span class="sidebar-brand__eyebrow">Alisio</span>
+                        <span class="sidebar-brand__title">Alisio</span>
+                      </span>
+                    `}
               </div>
-              <div class="sidebar-rail__body">
-                <nav class="sidebar-rail__nav" aria-label="Primary navigation">
-                  ${TAB_GROUPS.map(
-                    (group) => html`
-                      <div class="sidebar-rail__group">
+              <button
+                type="button"
+                class="nav-collapse-toggle sidebar-shell__toggle"
+                @click=${() =>
+                  state.applySettings({
+                    ...state.settings,
+                    navCollapsed: !state.settings.navCollapsed,
+                  })}
+                title="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
+                aria-label="${navCollapsed ? t("nav.expand") : t("nav.collapse")}"
+              >
+                <span class="nav-collapse-toggle__icon" aria-hidden="true"
+                  >${navCollapsed ? icons.panelLeftOpen : icons.panelLeftClose}</span
+                >
+              </button>
+            </div>
+            <div class="sidebar-shell__body">
+              ${navCollapsed
+                ? nothing
+                : html`
+                    <div class="sidebar-context">
+                      <div class="sidebar-context__main">
+                        <span class="sidebar-context__copy">
+                          <span class="sidebar-context__eyebrow">${sidebarContextEyebrow}</span>
+                          <span class="sidebar-context__title">${sidebarContextBadge}</span>
+                        </span>
+                      </div>
+                      <span class="sidebar-context__badge">${connectionLabel}</span>
+                    </div>
+                  `}
+              <nav class="sidebar-nav sidebar-nav--product" aria-label="Primary navigation">
+                ${TAB_GROUPS.map((group) => {
+                  const groupLabel = sidebarGroupLabel(group.label);
+                  return html`
+                    <section class="nav-section">
+                      ${groupLabel && !navCollapsed
+                        ? html`
+                            <div class="nav-section__label">
+                              <span class="nav-section__label-text">${groupLabel}</span>
+                            </div>
+                          `
+                        : nothing}
+                      <div class="nav-section__items">
                         ${group.tabs.map((tab) =>
                           renderTab(state, tab, {
-                            collapsed: true,
-                            variant: "rail",
+                            collapsed: navCollapsed,
+                            variant: navCollapsed ? "rail" : "panel",
                           }),
                         )}
                       </div>
-                    `,
-                  )}
-                </nav>
-              </div>
-              <div class="sidebar-rail__footer">
-                <button
-                  type="button"
-                  class="sidebar-rail__account"
-                  title=${profileName}
-                  aria-label=${profileName}
-                  @click=${() => openSettingsSection("account")}
-                >
-                  <span class="sidebar-rail__avatar">${profileAvatarLabel}</span>
-                  <span
-                    class="sidebar-rail__presence ${state.connected ? "is-online" : ""}"
-                    aria-hidden="true"
-                  ></span>
-                </button>
-                <button
-                  type="button"
-                  class="sidebar-rail__upgrade"
-                  title=${t("alisio.settings.billing.upgrade")}
-                  aria-label=${t("alisio.settings.billing.upgrade")}
-                  @click=${() => openSettingsSection("billing")}
-                >
-                  ${icons.spark}
-                </button>
-              </div>
+                    </section>
+                  `;
+                })}
+              </nav>
             </div>
-            ${navCollapsed
-              ? nothing
-              : html`
-                  <div class="sidebar-panel">
-                    <div class="sidebar-shell__header">
-                      <div class="sidebar-brand">
-                        <span class="sidebar-brand__logo" aria-hidden="true"
-                          ><img src=${appLogoUrl} alt=""
-                        /></span>
-                        <span class="sidebar-brand__copy">
-                          <span class="sidebar-brand__eyebrow">Control center</span>
-                          <span class="sidebar-brand__title">Alisio</span>
+            <div class="sidebar-shell__footer">
+              ${navCollapsed
+                ? html`
+                    <div class="sidebar-footer-compact">
+                      <button
+                        type="button"
+                        class="sidebar-footer-compact__account"
+                        title=${profileName}
+                        aria-label=${profileName}
+                        @click=${() => openSettingsSection("account")}
+                      >
+                        <span class="sidebar-footer-compact__avatar">${profileAvatarLabel}</span>
+                        <span
+                          class="sidebar-footer-compact__presence ${state.connected
+                            ? "is-online"
+                            : ""}"
+                          aria-hidden="true"
+                        ></span>
+                      </button>
+                      <button
+                        type="button"
+                        class="sidebar-footer-compact__upgrade"
+                        title=${t("alisio.settings.billing.upgrade")}
+                        aria-label=${t("alisio.settings.billing.upgrade")}
+                        @click=${() => openSettingsSection("billing")}
+                      >
+                        ${icons.spark}
+                      </button>
+                    </div>
+                  `
+                : html`
+                    <div class="alisio-sidebar-account">
+                      <button
+                        type="button"
+                        class="alisio-sidebar-account__card"
+                        title=${profileEmail}
+                        @click=${() => openSettingsSection("account")}
+                      >
+                        <span class="alisio-sidebar-account__avatar">${profileAvatarLabel}</span>
+                        <span class="alisio-sidebar-account__copy">
+                          <span class="alisio-sidebar-account__name">${profileName}</span>
+                          <span class="alisio-sidebar-account__meta">${profilePlan}</span>
                         </span>
-                      </div>
-                      <span class="sidebar-panel__badge">${connectionLabel}</span>
-                    </div>
-                    <div class="sidebar-shell__body">
-                      <div class="sidebar-context">
-                        <div class="sidebar-context__main">
-                          <span class="sidebar-context__icon" aria-hidden="true"
-                            ><img src=${appLogoUrl} alt=""
-                          /></span>
-                          <span class="sidebar-context__copy">
-                            <span class="sidebar-context__eyebrow">${sidebarContextEyebrow}</span>
-                            <span class="sidebar-context__title">Alisio</span>
-                          </span>
+                      </button>
+                      <div class="alisio-sidebar-account__footer">
+                        <div class="alisio-sidebar-account__status">
+                          <span
+                            class="alisio-sidebar-account__dot ${state.connected
+                              ? "is-online"
+                              : ""}"
+                            aria-label=${connectionLabel}
+                          ></span>
+                          <span>${connectionLabel}</span>
                         </div>
-                        <span class="sidebar-context__badge">${sidebarContextBadge}</span>
-                      </div>
-                      <nav class="sidebar-nav sidebar-nav--product">
-                        ${TAB_GROUPS.map((group) => {
-                          const groupLabel = sidebarGroupLabel(group.label);
-                          return html`
-                            <section class="nav-section">
-                              ${groupLabel
-                                ? html`
-                                    <div class="nav-section__label">
-                                      <span class="nav-section__label-text">${groupLabel}</span>
-                                    </div>
-                                  `
-                                : nothing}
-                              <div class="nav-section__items">
-                                ${group.tabs.map((tab) =>
-                                  renderTab(state, tab, {
-                                    collapsed: false,
-                                    variant: "panel",
-                                  }),
-                                )}
-                              </div>
-                            </section>
-                          `;
-                        })}
-                      </nav>
-                    </div>
-                    <div class="sidebar-shell__footer">
-                      <div class="alisio-sidebar-account">
                         <button
                           type="button"
-                          class="alisio-sidebar-account__card"
-                          title=${profileEmail}
-                          @click=${() => openSettingsSection("account")}
+                          class="btn alisio-sidebar-account__upgrade"
+                          @click=${() => openSettingsSection("billing")}
                         >
-                          <span class="alisio-sidebar-account__avatar">${profileAvatarLabel}</span>
-                          <span class="alisio-sidebar-account__copy">
-                            <span class="alisio-sidebar-account__name">${profileName}</span>
-                            <span class="alisio-sidebar-account__meta">${profilePlan}</span>
-                          </span>
+                          ${t("alisio.settings.billing.upgrade")}
                         </button>
-                        <div class="alisio-sidebar-account__footer">
-                          <div class="alisio-sidebar-account__status">
-                            <span
-                              class="alisio-sidebar-account__dot ${state.connected
-                                ? "is-online"
-                                : ""}"
-                              aria-label=${connectionLabel}
-                            ></span>
-                            <span>${connectionLabel}</span>
-                          </div>
-                          <button
-                            type="button"
-                            class="btn alisio-sidebar-account__upgrade"
-                            @click=${() => openSettingsSection("billing")}
-                          >
-                            ${t("alisio.settings.billing.upgrade")}
-                          </button>
-                        </div>
                       </div>
                     </div>
-                  </div>
-                `}
+                  `}
+            </div>
           </div>
         </aside>
       </div>
-      <main
-        class="content ${shouldShowSetup ? "content--setup" : ""} ${isChat && !shouldShowSetup
-          ? "content--chat"
-          : ""}"
-      >
+      <main class="content ${isChat ? "content--chat" : ""}">
         ${state.updateAvailable &&
         state.updateAvailable.latestVersion !== state.updateAvailable.currentVersion &&
         !isUpdateBannerDismissed(state.updateAvailable)
@@ -661,24 +730,17 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>`
           : nothing}
-        ${shouldShowSetup
-          ? nothing
-          : html`
-              <section class="content-header">
-                <div>
-                  <div class="page-title">${titleForTab(activeTab)}</div>
-                  <div class="page-sub">${subtitleForTab(activeTab)}</div>
-                </div>
-                <div class="page-meta">
-                  ${state.lastError
-                    ? html`<div class="pill danger">${state.lastError}</div>`
-                    : nothing}
-                  ${activeTab === "settings" ? renderTopbarThemeModeToggle(state) : nothing}
-                </div>
-              </section>
-            `}
-        ${shouldShowSetup ? setupView : nothing}
-        ${!shouldShowSetup && activeTab === "authentications"
+        <section class="content-header">
+          <div>
+            <div class="page-title">${titleForTab(activeTab)}</div>
+            <div class="page-sub">${subtitleForTab(activeTab)}</div>
+          </div>
+          <div class="page-meta">
+            ${state.lastError ? html`<div class="pill danger">${state.lastError}</div>` : nothing}
+            ${activeTab === "settings" ? renderTopbarThemeModeToggle(state) : nothing}
+          </div>
+        </section>
+        ${activeTab === "authentications"
           ? renderAuthentications({
               loading: state.alisioConnectorsLoading,
               error: state.alisioConnectorsError,
@@ -714,7 +776,7 @@ export function renderApp(state: AppViewState) {
               },
             })
           : nothing}
-        ${!shouldShowSetup && activeTab === "organization"
+        ${activeTab === "organization"
           ? renderOrganization({
               loading: state.alisioOrganizationLoading,
               error: state.alisioOrganizationError,
@@ -749,7 +811,7 @@ export function renderApp(state: AppViewState) {
               },
             })
           : nothing}
-        ${!shouldShowSetup && activeTab === "chat"
+        ${activeTab === "chat"
           ? renderChat({
               sessionKey: state.sessionKey,
               onSessionKeyChange: (next) => {
@@ -869,7 +931,7 @@ export function renderApp(state: AppViewState) {
               basePath: state.basePath ?? "",
             })
           : nothing}
-        ${!shouldShowSetup && activeTab === "settings"
+        ${activeTab === "settings"
           ? renderSettingsHub({
               section: state.settingsSection,
               onSectionChange: (section) => {
@@ -878,7 +940,11 @@ export function renderApp(state: AppViewState) {
               },
               accountLoading: state.alisioAccountLoading,
               accountError: state.alisioAccountError,
+              accountNotice: state.alisioAccountNotice,
               account: state.alisioAccount,
+              bootstrap: state.alisioBootstrap,
+              aiLoading: state.alisioAiLoading,
+              aiError: state.alisioAiError,
               doctorLoading: state.alisioDoctorLoading,
               doctorError: state.alisioDoctorError,
               doctor: state.alisioDoctor,
@@ -922,6 +988,33 @@ export function renderApp(state: AppViewState) {
               },
               onSignOutAccount: () => {
                 void signOutAlisioAccount(state);
+              },
+              onRequestPasswordReset: () => {
+                void requestAlisioPasswordReset(state);
+              },
+              onConnectAi: () => {
+                const callbackUrl = new URL(
+                  "/__alisio/auth/openai/callback",
+                  window.location.origin,
+                );
+                void beginAlisioAiConnect(state, callbackUrl.toString()).then((result) => {
+                  const targetUrl = result?.setupUrl;
+                  if (!targetUrl) {
+                    return;
+                  }
+                  scheduleOpenAiRefresh(state);
+                  if (typeof window.alisioHost?.request === "function") {
+                    void openExternal(targetUrl);
+                    return;
+                  }
+                  window.open(targetUrl, "_blank", "noopener,noreferrer");
+                });
+              },
+              onDisconnectAi: () => {
+                void disconnectAlisioAi(state);
+              },
+              onRefreshAi: () => {
+                void refreshAlisioAi(state);
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

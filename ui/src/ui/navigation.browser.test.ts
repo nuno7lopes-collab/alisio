@@ -99,14 +99,24 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.querySelector(".sidebar-shell")).not.toBeNull();
-    expect(app.querySelector(".sidebar-rail")).not.toBeNull();
-    expect(app.querySelector(".sidebar-panel")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__header")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__body")).not.toBeNull();
     expect(app.querySelector(".sidebar-shell__footer")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__logo")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).not.toBeNull();
+  });
+
+  it("uses a dedicated onboarding shell on /setup", async () => {
+    const app = mountApp("/setup");
+    await app.updateComplete;
+
+    expect(app.querySelector(".setup-frame")).not.toBeNull();
+    expect(app.querySelector(".setup-frame__header")).not.toBeNull();
+    expect(app.querySelector(".setup-frame__body")).not.toBeNull();
+    expect(app.querySelector(".shell")).toBeNull();
+    expect(app.querySelector(".sidebar-shell")).toBeNull();
+    expect(app.querySelector(".topnav-shell")).toBeNull();
   });
 
   it("does not render a desktop sidebar resizer or inject a custom nav width", async () => {
@@ -129,8 +139,8 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     expect(app.querySelector(".nav-section__label")).toBeNull();
-    expect(app.querySelector(".sidebar-panel")).toBeNull();
-    expect(app.querySelector(".sidebar-rail__brand")).not.toBeNull();
+    expect(app.querySelector(".sidebar-brand")).not.toBeNull();
+    expect(app.querySelector(".sidebar-brand__copy")).toBeNull();
   });
 
   it("keeps footer utilities available in collapsed mode", async () => {
@@ -140,12 +150,12 @@ describe("control UI routing", () => {
     app.applySettings({ ...app.settings, navCollapsed: true });
     await app.updateComplete;
 
-    expect(app.querySelector(".sidebar-rail__footer")).not.toBeNull();
-    expect(app.querySelector(".sidebar-rail__account")).not.toBeNull();
-    expect(app.querySelector(".sidebar-rail__upgrade")).not.toBeNull();
+    expect(app.querySelector(".sidebar-footer-compact")).not.toBeNull();
+    expect(app.querySelector(".sidebar-footer-compact__account")).not.toBeNull();
+    expect(app.querySelector(".sidebar-footer-compact__upgrade")).not.toBeNull();
   });
 
-  it("keeps the collapsed desktop rail compact", async () => {
+  it("keeps the collapsed desktop sidebar compact", async () => {
     const app = mountApp("/chat");
     await app.updateComplete;
 
@@ -153,18 +163,18 @@ describe("control UI routing", () => {
     await app.updateComplete;
 
     const item = app.querySelector<HTMLElement>(".sidebar .nav-item--rail");
-    const rail = app.querySelector<HTMLElement>(".sidebar-rail");
+    const shell = app.querySelector<HTMLElement>(".sidebar-shell");
     expect(item).not.toBeNull();
-    expect(rail).not.toBeNull();
-    if (!item || !rail) {
+    expect(shell).not.toBeNull();
+    if (!item || !shell) {
       return;
     }
 
     const itemStyles = getComputedStyle(item);
-    const railStyles = getComputedStyle(rail);
+    const shellStyles = getComputedStyle(shell);
     expect(itemStyles.width).toBe("40px");
     expect(itemStyles.minHeight).toBe("40px");
-    expect(railStyles.display).toBe("flex");
+    expect(shellStyles.display).toBe("flex");
   });
 
   it("resets to the main session when opening chat from sidebar navigation", async () => {

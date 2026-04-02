@@ -3,8 +3,28 @@ import type { SessionsPatchResult } from "../session-utils.types.js";
 import {
   type AgentEvent,
   AgentEventSchema,
+  type AlisioAiBeginConnectParams,
+  AlisioAiBeginConnectParamsSchema,
+  type AlisioAiBeginConnectResult,
+  AlisioAiBeginConnectResultSchema,
+  type AlisioAiCompleteConnectParams,
+  AlisioAiCompleteConnectParamsSchema,
+  type AlisioAiDisconnectParams,
+  AlisioAiDisconnectParamsSchema,
+  type AlisioAiGetParams,
+  AlisioAiGetParamsSchema,
+  type AlisioAiRefreshLimitsParams,
+  AlisioAiRefreshLimitsParamsSchema,
+  type AlisioAiState,
+  AlisioAiStateSchema,
   type AlisioAccountGetParams,
   AlisioAccountGetParamsSchema,
+  type AlisioAccountPasswordResetParams,
+  AlisioAccountPasswordResetParamsSchema,
+  type AlisioAccountPasswordResetResult,
+  AlisioAccountPasswordResetResultSchema,
+  type AlisioAccountCompleteProfileParams,
+  AlisioAccountCompleteProfileParamsSchema,
   type AlisioAccountSignInParams,
   AlisioAccountSignInParamsSchema,
   type AlisioAccountSignOutParams,
@@ -347,6 +367,8 @@ export const validateAgentParams = ajv.compile(AgentParamsSchema);
 export const validateAlisioAccountGetParams = ajv.compile<AlisioAccountGetParams>(
   AlisioAccountGetParamsSchema,
 );
+export const validateAlisioAccountPasswordResetParams =
+  ajv.compile<AlisioAccountPasswordResetParams>(AlisioAccountPasswordResetParamsSchema);
 export const validateAlisioAccountSignUpParams = ajv.compile<AlisioAccountSignUpParams>(
   AlisioAccountSignUpParamsSchema,
 );
@@ -358,8 +380,29 @@ export const validateAlisioAccountSignOutParams = ajv.compile<AlisioAccountSignO
 );
 export const validateAlisioAccountResult =
   ajv.compile<AlisioAccountResult>(AlisioAccountResultSchema);
+export const validateAlisioAccountPasswordResetResult =
+  ajv.compile<AlisioAccountPasswordResetResult>(AlisioAccountPasswordResetResultSchema);
+export const validateAlisioAccountCompleteProfileParams =
+  ajv.compile<AlisioAccountCompleteProfileParams>(AlisioAccountCompleteProfileParamsSchema);
 export const validateAlisioAccountUpdateParams = ajv.compile<AlisioAccountUpdateParams>(
   AlisioAccountUpdateParamsSchema,
+);
+export const validateAlisioAiGetParams = ajv.compile<AlisioAiGetParams>(AlisioAiGetParamsSchema);
+export const validateAlisioAiState = ajv.compile<AlisioAiState>(AlisioAiStateSchema);
+export const validateAlisioAiBeginConnectParams = ajv.compile<AlisioAiBeginConnectParams>(
+  AlisioAiBeginConnectParamsSchema,
+);
+export const validateAlisioAiBeginConnectResult = ajv.compile<AlisioAiBeginConnectResult>(
+  AlisioAiBeginConnectResultSchema,
+);
+export const validateAlisioAiCompleteConnectParams = ajv.compile<AlisioAiCompleteConnectParams>(
+  AlisioAiCompleteConnectParamsSchema,
+);
+export const validateAlisioAiDisconnectParams = ajv.compile<AlisioAiDisconnectParams>(
+  AlisioAiDisconnectParamsSchema,
+);
+export const validateAlisioAiRefreshLimitsParams = ajv.compile<AlisioAiRefreshLimitsParams>(
+  AlisioAiRefreshLimitsParamsSchema,
 );
 export const validateAlisioBootstrapGetParams = ajv.compile<AlisioBootstrapGetParams>(
   AlisioBootstrapGetParamsSchema,
@@ -635,6 +678,7 @@ export {
   SendParamsSchema,
   PollParamsSchema,
   AgentParamsSchema,
+  AlisioAiStateSchema,
   AlisioConnectedAccountSchema,
   AlisioConnectorDefinitionSchema,
   AlisioConnectorAuthorizationSchema,
@@ -648,8 +692,17 @@ export {
   AlisioDoctorSummaryParamsSchema,
   AlisioDoctorSummaryResultSchema,
   AlisioAccountGetParamsSchema,
+  AlisioAccountPasswordResetParamsSchema,
+  AlisioAccountPasswordResetResultSchema,
+  AlisioAccountCompleteProfileParamsSchema,
   AlisioAccountResultSchema,
   AlisioAccountUpdateParamsSchema,
+  AlisioAiGetParamsSchema,
+  AlisioAiBeginConnectParamsSchema,
+  AlisioAiBeginConnectResultSchema,
+  AlisioAiCompleteConnectParamsSchema,
+  AlisioAiDisconnectParamsSchema,
+  AlisioAiRefreshLimitsParamsSchema,
   AlisioOrganizationGetParamsSchema,
   AlisioOrganizationSetParamsSchema,
   AlisioConnectorsCatalogParamsSchema,
@@ -775,6 +828,7 @@ export type {
   AlisioConnectorSummary,
   AlisioLocalAccountProfile,
   AlisioLocalUserPreferences,
+  AlisioAiState,
   AlisioLocalDeviceSession,
   AlisioOrganizationState,
   AlisioBootstrapGetParams,
@@ -782,8 +836,17 @@ export type {
   AlisioDoctorSummaryParams,
   AlisioDoctorSummaryResult,
   AlisioAccountGetParams,
+  AlisioAccountPasswordResetParams,
+  AlisioAccountPasswordResetResult,
+  AlisioAccountCompleteProfileParams,
   AlisioAccountResult,
   AlisioAccountUpdateParams,
+  AlisioAiGetParams,
+  AlisioAiBeginConnectParams,
+  AlisioAiBeginConnectResult,
+  AlisioAiCompleteConnectParams,
+  AlisioAiDisconnectParams,
+  AlisioAiRefreshLimitsParams,
   AlisioOrganizationGetParams,
   AlisioOrganizationSetParams,
   AlisioConnectorsCatalogParams,

@@ -17,11 +17,19 @@ export type AlisioHttpBootstrapAccount = {
   plan: string;
 } | null;
 
+export type AlisioHttpBootstrapAi = {
+  provider: "openai";
+  status: import("../infra/alisio-ai.js").AlisioAiStatus;
+  email?: string;
+  planLabel?: string;
+} | null;
+
 export type AlisioHttpBootstrap = {
   basePath: string;
   controlUrl: string;
   startupState: import("../infra/alisio-store.js").AlisioStartupState;
   account: AlisioHttpBootstrapAccount;
+  ai: AlisioHttpBootstrapAi;
   bootstrapToken?: string;
   manualConnectionRequired: boolean;
 };

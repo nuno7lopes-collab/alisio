@@ -2,7 +2,7 @@
 
 import { render } from "lit";
 import { describe, expect, it } from "vitest";
-import { extractToolCards, renderToolCardSidebar } from "./tool-cards.ts";
+import { extractToolCards, renderToolCardSidebar, renderToolCardStack } from "./tool-cards.ts";
 
 describe("tool cards", () => {
   it("renders anthropic tool_use input details in tool cards", () => {
@@ -30,5 +30,150 @@ describe("tool cards", () => {
 
     expect(container.textContent).toContain('time claude -p "say ok"');
     expect(container.textContent).toContain("Bash");
+  });
+
+  it("renders merged tool rows with done state and input/output sections", () => {
+    const message = {
+      role: "assistant",
+      toolCallId: "call_123",
+      toolPhase: "result",
+      toolError: false,
+      content: [
+        {
+          type: "toolcall",
+          name: "read",
+          arguments: { path: "/tmp/demo.txt" },
+        },
+        {
+          type: "toolresult",
+          name: "read",
+          text: "hello world",
+        },
+      ],
+      timestamp: Date.now(),
+      __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined),
+      container,
+    );
+
+    expect(container.textContent).toContain("Done");
+    expect(container.textContent).toContain("Input");
+    expect(container.textContent).toContain("Output");
+    expect(container.textContent).toContain("/tmp/demo.txt");
+    expect(container.textContent).toContain("hello world");
+  });
+
+  it("renders error state when tool execution fails", () => {
+    const message = {
+      role: "assistant",
+      toolCallId: "call_456",
+      toolPhase: "result",
+      toolError: true,
+      content: [
+        {
+          type: "toolcall",
+          name: "gmail_send",
+          arguments: { to: "test@example.com" },
+        },
+        {
+          type: "toolresult",
+          name: "gmail_send",
+          text: '{"status":"rejected","error":"auth missing"}',
+        },
+      ],
+      timestamp: Date.now(),
+      __openclaw: { kind: "tool-stream", phase: "result", isError: true },
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined),
+      container,
+    );
+
+    expect(container.textContent).toContain("Rejected");
+    expect(container.textContent).toContain("Error");
+  });
+
+  it("matches repeated tool names by block-level ids instead of FIFO name order", () => {
+    const message = {
+      role: "assistant",
+      content: [
+        {
+          type: "tool_use",
+          id: "toolu_1",
+          name: "read",
+          input: { path: "/tmp/one.txt" },
+        },
+        {
+          type: "tool_use",
+          id: "toolu_2",
+          name: "read",
+          input: { path: "/tmp/two.txt" },
+        },
+        {
+          type: "tool_result",
+          name: "read",
+          tool_use_id: "toolu_2",
+          content: "second result",
+        },
+        {
+          type: "tool_result",
+          name: "read",
+          tool_use_id: "toolu_1",
+          content: "first result",
+        },
+      ],
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined),
+      container,
+    );
+
+    const renderedCards = Array.from(container.querySelectorAll(".chat-tool-card"));
+    expect(renderedCards).toHaveLength(2);
+    expect(renderedCards[0]?.textContent).toContain("/tmp/one.txt");
+    expect(renderedCards[0]?.textContent).toContain("first result");
+    expect(renderedCards[1]?.textContent).toContain("/tmp/two.txt");
+    expect(renderedCards[1]?.textContent).toContain("second result");
+  });
+
+  it("renders structured tool result payloads and truncates oversized previews", () => {
+    const longOutput = `head-${"x".repeat(5_800)}-tail-marker`;
+    const message = {
+      role: "assistant",
+      content: [
+        {
+          type: "toolcall",
+          name: "exec",
+          arguments: { command: "echo ok" },
+        },
+        {
+          type: "toolresult",
+          name: "exec",
+          content: [{ type: "text", text: longOutput }],
+        },
+      ],
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined),
+      container,
+    );
+
+    expect(container.textContent).toContain("Open full output");
+    expect(container.textContent).toContain("… truncated");
+    expect(container.textContent).not.toContain("-tail-marker");
   });
 });

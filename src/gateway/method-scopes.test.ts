@@ -24,6 +24,7 @@ describe("method scope resolution", () => {
     ["sessions.messages.unsubscribe", ["operator.read"]],
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
+    ["alisio.account.requestPasswordReset", ["operator.write"]],
     ["alisio.runtime.restart", ["operator.admin"]],
     ["config.patch", ["operator.admin"]],
     ["wizard.start", ["operator.admin"]],

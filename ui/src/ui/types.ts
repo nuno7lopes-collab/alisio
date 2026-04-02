@@ -1,5 +1,6 @@
 export type UpdateAvailable = import("../../../src/infra/update-startup.js").UpdateAvailable;
 export type AlisioAccountState = import("../../../src/infra/alisio-store.js").AlisioAccountState;
+export type AlisioAiState = import("../../../src/infra/alisio-ai.js").AlisioAiState;
 export type AlisioHttpBootstrap =
   import("../../../src/gateway/control-ui-contract.js").AlisioHttpBootstrap;
 export type AlisioBootstrapState =

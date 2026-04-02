@@ -382,7 +382,7 @@ img.chat-avatar {
   background: var(--bg-hover, rgba(255, 255, 255, 0.06));
   padding: 1px 6px;
   border-radius: var(--radius-sm, 4px);
-  font-family: var(--font-mono, monospace);
+  font-family: var(--mono, monospace);
 }
 
 .msg-meta__cost {
@@ -429,7 +429,7 @@ img.chat-avatar {
   margin: 0 0 8px;
   font-size: 13px;
   font-weight: 500;
-  color: var(--fg, #fff);
+  color: var(--text-strong, #fff);
 }
 
 .chat-delete-confirm__remember {

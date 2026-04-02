@@ -65,11 +65,21 @@ const AccountSessionStateSchema = Type.Union([
   Type.Literal("signed_in"),
 ]);
 
+const AccountBackendSchema = Type.Union([Type.Literal("supabase"), Type.Literal("local-dev")]);
+
 const StartupStateSchema = Type.Union([
   Type.Literal("signed_out"),
   Type.Literal("needs_profile"),
   Type.Literal("needs_ai"),
   Type.Literal("ready"),
+]);
+
+const AiStatusSchema = Type.Union([
+  Type.Literal("disconnected"),
+  Type.Literal("connecting"),
+  Type.Literal("connected"),
+  Type.Literal("limits_unavailable"),
+  Type.Literal("expired"),
 ]);
 
 const BootstrapStepSchema = Type.Union([
@@ -140,6 +150,7 @@ export const AlisioConnectorAuthorizationSchema = Type.Object(
 
 export const AlisioLocalAccountProfileSchema = Type.Object(
   {
+    userId: Type.Optional(Type.String()),
     username: Type.String({
       minLength: ALISIO_USERNAME_MIN_LENGTH,
       maxLength: ALISIO_USERNAME_MAX_LENGTH,
@@ -148,8 +159,10 @@ export const AlisioLocalAccountProfileSchema = Type.Object(
     displayName: NonEmptyString,
     email: NonEmptyString,
     avatarLabel: NonEmptyString,
+    avatarUrl: Type.Optional(Type.String()),
     joinedAt: NonEmptyString,
     plan: NonEmptyString,
+    backend: Type.Optional(AccountBackendSchema),
   },
   { additionalProperties: false },
 );
@@ -168,6 +181,37 @@ export const AlisioAccountSessionSchema = Type.Object(
     profileCompleted: Type.Boolean(),
     signedInAt: Type.Optional(Type.String()),
     signedOutAt: Type.Optional(Type.String()),
+    backend: Type.Optional(AccountBackendSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAiUsageWindowSchema = Type.Object(
+  {
+    label: NonEmptyString,
+    usedPercent: Type.Number({ minimum: 0 }),
+    resetAt: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAiLimitsSchema = Type.Object(
+  {
+    windows: Type.Array(AlisioAiUsageWindowSchema),
+    lastRefreshedAt: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAiStateSchema = Type.Object(
+  {
+    provider: Type.Literal("openai"),
+    status: AiStatusSchema,
+    email: Type.Optional(Type.String()),
+    accountId: Type.Optional(Type.String()),
+    planLabel: Type.Optional(Type.String()),
+    connectedAt: Type.Optional(Type.String()),
+    limits: Type.Optional(AlisioAiLimitsSchema),
   },
   { additionalProperties: false },
 );
@@ -208,15 +252,83 @@ export const AlisioAccountUpdateParamsSchema = Type.Object(
     displayName: Type.Optional(Type.String()),
     email: Type.Optional(Type.String()),
     avatarLabel: Type.Optional(Type.String()),
+    avatarUrl: Type.Optional(Type.String()),
     language: Type.Optional(PreferredLanguageSchema),
     theme: Type.Optional(PreferredThemeSchema),
   },
   { additionalProperties: false },
 );
 
-export const AlisioAccountSignUpParamsSchema = Type.Object({}, { additionalProperties: false });
-export const AlisioAccountSignInParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioAccountCompleteProfileParamsSchema = Type.Object(
+  {
+    username: Type.String({
+      minLength: ALISIO_USERNAME_MIN_LENGTH,
+      maxLength: ALISIO_USERNAME_MAX_LENGTH,
+      pattern: ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE,
+    }),
+    displayName: NonEmptyString,
+    email: NonEmptyString,
+    avatarLabel: Type.Optional(Type.String()),
+    avatarUrl: Type.Optional(Type.String()),
+    language: Type.Optional(PreferredLanguageSchema),
+    theme: Type.Optional(PreferredThemeSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAccountSignUpParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+    password: Type.String({ minLength: 8 }),
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountSignInParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+    password: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountPasswordResetParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
 export const AlisioAccountSignOutParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioAccountPasswordResetResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    message: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAiGetParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioAiBeginConnectParamsSchema = Type.Object(
+  {
+    callbackUrl: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAiBeginConnectResultSchema = Type.Object(
+  {
+    setupUrl: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAiCompleteConnectParamsSchema = Type.Object(
+  {
+    stateToken: Type.Optional(Type.String()),
+    code: Type.Optional(Type.String()),
+    error: Type.Optional(Type.String()),
+    errorDescription: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+export const AlisioAiDisconnectParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioAiRefreshLimitsParamsSchema = Type.Object({}, { additionalProperties: false });
 
 export const AlisioOrganizationStateSchema = Type.Union([
   Type.Object(
@@ -274,6 +386,7 @@ export const AlisioBootstrapResultSchema = Type.Object(
     connectorSummary: AlisioConnectorSummarySchema,
     nextStep: BootstrapStepSchema,
     account: AlisioAccountResultSchema,
+    ai: AlisioAiStateSchema,
     organization: AlisioOrganizationStateSchema,
     connectors: Type.Object(
       {

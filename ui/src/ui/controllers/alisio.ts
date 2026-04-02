@@ -3,6 +3,7 @@ import { loadOrCreateDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type {
   AlisioAccountState,
+  AlisioAiState,
   AlisioBootstrapState,
   AlisioDoctorSummaryState,
   AlisioConnectorAuthorization,
@@ -27,7 +28,13 @@ export type AlisioState = {
   alisioDoctor: AlisioDoctorSummaryState | null;
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
+  alisioAccountNotice: string | null;
   alisioAccount: AlisioAccountState | null;
+  alisioAuthMode: "sign-up" | "sign-in";
+  alisioAuthEmail: string;
+  alisioAuthPassword: string;
+  alisioAiLoading: boolean;
+  alisioAiError: string | null;
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
@@ -124,6 +131,9 @@ function syncSetupRoute(state: AlisioState) {
 function applyBootstrapSnapshot(state: AlisioState, bootstrap: AlisioBootstrapState) {
   state.alisioBootstrap = bootstrap;
   state.alisioAccount = bootstrap.account;
+  if (!state.alisioAuthEmail && bootstrap.account.profile.email) {
+    state.alisioAuthEmail = bootstrap.account.profile.email;
+  }
   state.alisioOrganization = bootstrap.organization;
   state.alisioConnectorCatalog = [...bootstrap.connectors.catalog];
   state.alisioConnectorAuthorizations = [...bootstrap.connectors.authorizations];
@@ -208,6 +218,7 @@ export async function loadAlisioAccount(state: AlisioState) {
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
   try {
     state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.get", {});
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
@@ -224,11 +235,15 @@ export async function signUpAlisioAccount(state: AlisioState) {
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
   try {
-    state.alisioAccount = await state.client.request<AlisioAccountState>(
-      "alisio.account.signUp",
-      {},
-    );
+    const email = state.alisioAuthEmail.trim();
+    const password = state.alisioAuthPassword;
+    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.signUp", {
+      email,
+      password,
+    });
+    state.alisioAuthMode = "sign-in";
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioAccountError = String(error);
@@ -243,11 +258,14 @@ export async function signInAlisioAccount(state: AlisioState) {
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
   try {
-    state.alisioAccount = await state.client.request<AlisioAccountState>(
-      "alisio.account.signIn",
-      {},
-    );
+    const email = state.alisioAuthEmail.trim();
+    const password = state.alisioAuthPassword;
+    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.signIn", {
+      email,
+      password,
+    });
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioAccountError = String(error);
@@ -263,6 +281,7 @@ export async function saveAlisioAccount(
     displayName?: string;
     email?: string;
     avatarLabel?: string;
+    avatarUrl?: string;
     language?: "en" | "pt-PT" | "es";
     theme?: "system" | "light" | "dark";
   },
@@ -272,9 +291,10 @@ export async function saveAlisioAccount(
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
   try {
     state.alisioAccount = await state.client.request<AlisioAccountState>(
-      "alisio.account.update",
+      "alisio.account.completeProfile",
       patch,
     );
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
@@ -291,6 +311,7 @@ export async function signOutAlisioAccount(state: AlisioState) {
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
   try {
     state.alisioAccount = await state.client.request<AlisioAccountState>(
       "alisio.account.signOut",
@@ -302,11 +323,84 @@ export async function signOutAlisioAccount(state: AlisioState) {
     }
     state.alisioBootstrap = null;
     state.setupStep = "account";
+    state.alisioAuthPassword = "";
     state.setTab?.("setup");
   } catch (error) {
     state.alisioAccountError = String(error);
   } finally {
     state.alisioAccountLoading = false;
+  }
+}
+
+export async function requestAlisioPasswordReset(state: AlisioState) {
+  if (!state.client || !state.connected || state.alisioAccountLoading) {
+    return;
+  }
+  state.alisioAccountLoading = true;
+  state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
+  try {
+    const email = state.alisioAuthEmail.trim();
+    const result = await state.client.request<{ message: string; ok: true }>(
+      "alisio.account.requestPasswordReset",
+      { email },
+    );
+    state.alisioAccountNotice = result.message;
+  } catch (error) {
+    state.alisioAccountError = String(error);
+  } finally {
+    state.alisioAccountLoading = false;
+  }
+}
+
+export async function beginAlisioAiConnect(state: AlisioState, callbackUrl: string) {
+  if (!state.client || !state.connected || state.alisioAiLoading) {
+    return null;
+  }
+  state.alisioAiLoading = true;
+  state.alisioAiError = null;
+  try {
+    const result = await state.client.request<{ setupUrl: string }>("alisio.ai.beginConnect", {
+      callbackUrl,
+    });
+    return result;
+  } catch (error) {
+    state.alisioAiError = String(error);
+    return null;
+  } finally {
+    state.alisioAiLoading = false;
+  }
+}
+
+export async function disconnectAlisioAi(state: AlisioState) {
+  if (!state.client || !state.connected || state.alisioAiLoading) {
+    return;
+  }
+  state.alisioAiLoading = true;
+  state.alisioAiError = null;
+  try {
+    await state.client.request<AlisioAiState>("alisio.ai.disconnect", {});
+    await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
+  } catch (error) {
+    state.alisioAiError = String(error);
+  } finally {
+    state.alisioAiLoading = false;
+  }
+}
+
+export async function refreshAlisioAi(state: AlisioState) {
+  if (!state.client || !state.connected || state.alisioAiLoading) {
+    return;
+  }
+  state.alisioAiLoading = true;
+  state.alisioAiError = null;
+  try {
+    await state.client.request<AlisioAiState>("alisio.ai.refreshLimits", {});
+    await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
+  } catch (error) {
+    state.alisioAiError = String(error);
+  } finally {
+    state.alisioAiLoading = false;
   }
 }
 

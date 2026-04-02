@@ -74,7 +74,13 @@ export type AppViewState = {
   alisioDoctor: import("./types.ts").AlisioDoctorSummaryState | null;
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
+  alisioAccountNotice: string | null;
   alisioAccount: AlisioAccountState | null;
+  alisioAuthMode: "sign-up" | "sign-in";
+  alisioAuthEmail: string;
+  alisioAuthPassword: string;
+  alisioAiLoading: boolean;
+  alisioAiError: string | null;
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
