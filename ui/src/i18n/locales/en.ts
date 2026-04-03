@@ -208,6 +208,22 @@ export const en: TranslationMap = {
         unavailable: "Not available in this environment yet.",
         needsReconnect: "Authorization exists but must be reconnected before the agent can use it.",
       },
+      setupGuide: {
+        missingConfigTitle: "Finish OAuth setup in Alisio",
+        reviewTitle: "Connector rollout still in progress",
+        unavailableTitle: "Connector not available yet",
+        missingConfigBody:
+          "This connector already uses the native Alisio OAuth flow, but the provider app is not configured on this gateway yet.",
+        reviewBody:
+          "This connector is visible in product already, but the provider approval and runtime support are still being rolled out.",
+        unavailableBody: "This connector is not enabled in the current environment yet.",
+        envVars: "Required environment variables",
+        callback: "Suggested callback URL",
+        callbackHint:
+          "Register this callback in the provider app and use the same value in the redirect URI environment variable.",
+        support: "Provider docs",
+        dismiss: "Dismiss",
+      },
     },
     organization: {
       title: "Organization",
@@ -414,7 +430,7 @@ export const en: TranslationMap = {
     pairing: {
       hint: "This device needs pairing approval from the gateway host.",
       mobileHint:
-        "On mobile? Copy the full URL (including #token=...) from openclaw dashboard --no-open on your desktop.",
+        "On mobile? Copy the full URL (including #token=...) from the Alisio desktop app on your desktop.",
     },
     insecure: {
       hint: "This page is HTTP, so the browser blocks device identity. Use HTTPS (Tailscale Serve) or open {url} on the gateway host.",

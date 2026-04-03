@@ -154,13 +154,24 @@ async function fetchProviderUsageSnapshot(params: {
     },
   });
   if (pluginSnapshot) {
-    return pluginSnapshot;
+    return {
+      ...pluginSnapshot,
+      ...(params.auth.profileId ? { profileId: params.auth.profileId } : {}),
+      ...(params.auth.accountLabel ? { accountLabel: params.auth.accountLabel } : {}),
+      ...(params.auth.accountEmail ? { accountEmail: params.auth.accountEmail } : {}),
+    };
   }
-  return await fetchProviderUsageSnapshotFallback({
+  const snapshot = await fetchProviderUsageSnapshotFallback({
     auth: params.auth,
     timeoutMs: params.timeoutMs,
     fetchFn: params.fetchFn,
   });
+  return {
+    ...snapshot,
+    ...(params.auth.profileId ? { profileId: params.auth.profileId } : {}),
+    ...(params.auth.accountLabel ? { accountLabel: params.auth.accountLabel } : {}),
+    ...(params.auth.accountEmail ? { accountEmail: params.auth.accountEmail } : {}),
+  };
 }
 
 export async function loadProviderUsageSummary(

@@ -10,6 +10,7 @@ import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
+import type { ProviderUsageSummary } from "./types.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
@@ -79,6 +80,9 @@ export type AppViewState = {
   alisioAuthPassword: string;
   alisioAiLoading: boolean;
   alisioAiError: string | null;
+  providerUsageLoading: boolean;
+  providerUsageError: string | null;
+  providerUsageSummary: ProviderUsageSummary | null;
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
@@ -86,6 +90,7 @@ export type AppViewState = {
   alisioConnectorsError: string | null;
   alisioConnectorCatalog: AlisioConnectorDefinition[];
   alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
+  alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null;
   alisioConnectorsSearch: string;
   alisioConnectorsCategoryFilter: string;
   alisioOrganizationDraftMode: "create" | "join";

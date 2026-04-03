@@ -5,6 +5,7 @@ import {
   resolveApiKeyForProfile,
   resolveAuthProfileOrder,
 } from "../agents/auth-profiles.js";
+import { resolveAuthProfileMetadata } from "../agents/auth-profiles/identity.js";
 import { isNonSecretApiKeyMarker } from "../agents/model-auth-markers.js";
 import { resolveUsableCustomProviderApiKey } from "../agents/model-auth.js";
 import { normalizeProviderId } from "../agents/model-selection.js";
@@ -18,6 +19,9 @@ export type ProviderAuth = {
   provider: UsageProviderId;
   token: string;
   accountId?: string;
+  profileId?: string;
+  accountLabel?: string;
+  accountEmail?: string;
 };
 
 type AuthStore = ReturnType<typeof ensureAuthProfileStore>;
@@ -92,16 +96,40 @@ function resolveProviderApiKeyFromConfigAndStore(params: {
   return undefined;
 }
 
-async function resolveOAuthToken(params: {
+function buildResolvedProfileAuth(params: {
   state: UsageAuthState;
   provider: UsageProviderId;
-}): Promise<ProviderAuth | null> {
+  profileId: string;
+  credential: { accountId?: string };
+  token: string;
+}): ProviderAuth {
+  const metadata = resolveAuthProfileMetadata({
+    cfg: params.state.cfg,
+    store: params.state.store,
+    profileId: params.profileId,
+  });
+  const accountLabel = metadata.displayName ?? metadata.email ?? params.profileId;
+  return {
+    provider: params.provider,
+    token: params.token,
+    ...(params.credential.accountId ? { accountId: params.credential.accountId } : {}),
+    profileId: params.profileId,
+    accountLabel,
+    ...(metadata.email ? { accountEmail: metadata.email } : {}),
+  };
+}
+
+async function resolveOAuthAuths(params: {
+  state: UsageAuthState;
+  provider: UsageProviderId;
+}): Promise<ProviderAuth[]> {
   const order = resolveAuthProfileOrder({
     cfg: params.state.cfg,
     store: params.state.store,
     provider: params.provider,
   });
   const deduped = dedupeProfileIds(order);
+  const resolvedAuths: ProviderAuth[] = [];
 
   for (const profileId of deduped) {
     const cred = params.state.store.profiles[profileId];
@@ -120,20 +148,25 @@ async function resolveOAuthToken(params: {
       if (!resolved) {
         continue;
       }
-      return {
-        provider: params.provider,
-        token: resolved.apiKey,
-        accountId:
-          cred.type === "oauth" && "accountId" in cred
-            ? (cred as { accountId?: string }).accountId
-            : undefined,
-      };
+      const accountId =
+        cred.type === "oauth" && "accountId" in cred
+          ? (cred as { accountId?: string }).accountId
+          : undefined;
+      resolvedAuths.push(
+        buildResolvedProfileAuth({
+          state: params.state,
+          provider: params.provider,
+          profileId,
+          credential: { accountId },
+          token: resolved.apiKey,
+        }),
+      );
     } catch {
       // ignore
     }
   }
 
-  return null;
+  return resolvedAuths;
 }
 
 async function resolveProviderUsageAuthViaPlugin(params: {
@@ -156,14 +189,15 @@ async function resolveProviderUsageAuthViaPlugin(params: {
           envDirect: options?.envDirect,
         }),
       resolveOAuthToken: async () => {
-        const auth = await resolveOAuthToken({
+        const auth = await resolveOAuthAuths({
           state: params.state,
           provider: params.provider,
         });
-        return auth
+        const first = auth[0];
+        return first
           ? {
-              token: auth.token,
-              ...(auth.accountId ? { accountId: auth.accountId } : {}),
+              token: first.token,
+              ...(first.accountId ? { accountId: first.accountId } : {}),
             }
           : null;
       },
@@ -187,9 +221,9 @@ async function resolveProviderUsageAuthFallback(params: {
     case "anthropic":
     case "github-copilot":
     case "openai-codex":
-      return await resolveOAuthToken(params);
+      return (await resolveOAuthAuths(params))[0] ?? null;
     case "google-gemini-cli": {
-      const auth = await resolveOAuthToken(params);
+      const auth = (await resolveOAuthAuths(params))[0] ?? null;
       return auth ? { ...auth, token: parseGoogleUsageToken(auth.token) } : null;
     }
     case "zai": {
@@ -255,6 +289,29 @@ export async function resolveProviderAuths(params: {
       auths.push(pluginAuth);
       continue;
     }
+
+    if (
+      provider === "anthropic" ||
+      provider === "github-copilot" ||
+      provider === "google-gemini-cli" ||
+      provider === "openai-codex"
+    ) {
+      const oauthAuths = await resolveOAuthAuths({
+        state,
+        provider,
+      });
+      if (oauthAuths.length > 0) {
+        auths.push(
+          ...oauthAuths.map((auth) =>
+            provider === "google-gemini-cli"
+              ? { ...auth, token: parseGoogleUsageToken(auth.token) }
+              : auth,
+          ),
+        );
+        continue;
+      }
+    }
+
     const fallbackAuth = await resolveProviderUsageAuthFallback({
       state,
       provider,

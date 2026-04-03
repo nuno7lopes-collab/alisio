@@ -481,7 +481,14 @@ describe("resolveProviderAuths key normalization", () => {
           },
         });
       },
-      expected: [{ provider: "google-gemini-cli", token: expectedToken }],
+      expected: [
+        {
+          provider: "google-gemini-cli",
+          token: expectedToken,
+          profileId: "google-gemini-cli:default",
+          accountLabel: "google-gemini-cli:default",
+        },
+      ],
     });
   });
 
@@ -609,7 +616,14 @@ describe("resolveProviderAuths key normalization", () => {
         config: {},
         env: buildSuiteEnv(home),
       });
-      expect(auths).toEqual([{ provider: "anthropic", token: "anthropic-token" }]);
+      expect(auths).toEqual([
+        {
+          provider: "anthropic",
+          token: "anthropic-token",
+          profileId: "anthropic:valid",
+          accountLabel: "anthropic:valid",
+        },
+      ]);
     });
   });
 
@@ -627,7 +641,58 @@ describe("resolveProviderAuths key normalization", () => {
         config: {},
         env: buildSuiteEnv(home),
       });
-      expect(auths).toEqual([{ provider: "anthropic", token: "token-1" }]);
+      expect(auths).toEqual([
+        {
+          provider: "anthropic",
+          token: "token-1",
+          profileId: "anthropic:token",
+          accountLabel: "anthropic:token",
+        },
+      ]);
+    });
+  });
+
+  it("returns every valid oauth profile for the same provider in priority order", async () => {
+    await withSuiteHome(async (home) => {
+      await writeAuthProfiles(home, {
+        "anthropic:primary": {
+          type: "token",
+          provider: "anthropic",
+          token: "primary-token",
+          email: "primary@example.com",
+        },
+        "anthropic:backup": {
+          type: "token",
+          provider: "anthropic",
+          token: "backup-token",
+          email: "backup@example.com",
+        },
+      });
+      await writeProfileOrder(home, "anthropic", ["anthropic:primary", "anthropic:backup"]);
+
+      const auths = await resolveProviderAuths({
+        providers: ["anthropic"],
+        agentDir: agentDirForHome(home),
+        config: {},
+        env: buildSuiteEnv(home),
+      });
+
+      expect(auths).toEqual([
+        {
+          provider: "anthropic",
+          token: "primary-token",
+          profileId: "anthropic:primary",
+          accountLabel: "primary@example.com",
+          accountEmail: "primary@example.com",
+        },
+        {
+          provider: "anthropic",
+          token: "backup-token",
+          profileId: "anthropic:backup",
+          accountLabel: "backup@example.com",
+          accountEmail: "backup@example.com",
+        },
+      ]);
     });
   });
 

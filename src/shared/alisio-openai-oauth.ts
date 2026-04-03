@@ -1,5 +1,7 @@
-export const ALISIO_OPENAI_OAUTH_STORAGE_KEY = "openclaw:alisio-openai-oauth:v1";
-export const ALISIO_OPENAI_OAUTH_CHANNEL = "openclaw:alisio-openai-oauth:v1";
+export const ALISIO_OPENAI_OAUTH_STORAGE_KEY = "alisio:alisio-openai-oauth:v1";
+export const ALISIO_OPENAI_OAUTH_CHANNEL = "alisio:alisio-openai-oauth:v1";
+export const LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY = "openclaw:alisio-openai-oauth:v1";
+export const LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL = "openclaw:alisio-openai-oauth:v1";
 export const ALISIO_OPENAI_OAUTH_SIGNAL_TYPE = "openai-oauth-complete";
 
 export type AlisioOpenAiOAuthSignal = {

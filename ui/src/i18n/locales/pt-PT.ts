@@ -193,6 +193,22 @@ export const pt_PT: TranslationMap = {
         needsReconnect:
           "A autorização existe, mas precisa de ser reconectada antes de o agente a poder usar.",
       },
+      setupGuide: {
+        missingConfigTitle: "Concluir configuração OAuth no Alisio",
+        reviewTitle: "Rollout do connector ainda em progresso",
+        unavailableTitle: "Connector ainda não disponível",
+        missingConfigBody:
+          "Este connector já usa o fluxo OAuth nativo do Alisio, mas a app do provider ainda não está configurada neste gateway.",
+        reviewBody:
+          "Este connector já está visível no produto, mas a aprovação do fornecedor e o suporte de runtime ainda estão em rollout.",
+        unavailableBody: "Este connector ainda não está activado no ambiente actual.",
+        envVars: "Variáveis de ambiente necessárias",
+        callback: "URL de callback sugerido",
+        callbackHint:
+          "Regista este callback na app do provider e usa exactamente o mesmo valor na variável de redirect URI.",
+        support: "Docs do provider",
+        dismiss: "Fechar",
+      },
     },
     organization: {
       title: "Organização",

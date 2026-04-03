@@ -3,6 +3,7 @@ import { t } from "../../i18n/index.ts";
 import type {
   AlisioAccountState,
   AlisioConnectorAuthorization,
+  AlisioConnectorsBeginResult,
   AlisioConnectorDefinition,
 } from "../types.ts";
 import {
@@ -18,6 +19,8 @@ type ConnectorRow = {
   authorization: AlisioConnectorAuthorization;
   status: ConnectorStatus;
 };
+
+type ConnectorSetupGuide = AlisioConnectorsBeginResult;
 
 const CATEGORY_ORDER = ["social", "google", "productivity", "development"] as const;
 
@@ -205,18 +208,127 @@ function renderConnectorCard(
   `;
 }
 
+function resolveSuggestedCallbackUrl(callbackPath: string | undefined) {
+  if (!callbackPath || typeof window === "undefined") {
+    return null;
+  }
+  try {
+    return new URL(callbackPath, window.location.origin).toString();
+  } catch {
+    return null;
+  }
+}
+
+function renderSetupGuide(
+  guide: ConnectorSetupGuide,
+  props: {
+    connectorTitle?: string;
+    onDismissSetupGuide: () => void;
+    onOpenSupportUrl: (url: string) => void;
+  },
+  text: {
+    setupMissingConfigTitle: string;
+    setupReviewTitle: string;
+    setupUnavailableTitle: string;
+    setupMissingConfigBody: string;
+    setupReviewBody: string;
+    setupUnavailableBody: string;
+    setupEnvVars: string;
+    setupCallback: string;
+    setupCallbackHint: string;
+    setupSupport: string;
+    dismiss: string;
+  },
+) {
+  const callbackUrl = resolveSuggestedCallbackUrl(guide.callbackPath);
+  const title =
+    guide.statusReason === "missing_client_config"
+      ? text.setupMissingConfigTitle
+      : guide.statusReason === "review_required"
+        ? text.setupReviewTitle
+        : text.setupUnavailableTitle;
+  const body =
+    guide.statusReason === "missing_client_config"
+      ? text.setupMissingConfigBody
+      : guide.statusReason === "review_required"
+        ? text.setupReviewBody
+        : text.setupUnavailableBody;
+
+  return html`
+    <section class="card alisio-auth-setup">
+      <div class="alisio-auth-setup__header">
+        <div>
+          <div class="card-title">${title}</div>
+          <div class="card-sub">
+            ${body}
+            ${guide.setupHint
+              ? html` <span class="alisio-auth-setup__hint">${guide.setupHint}</span>`
+              : nothing}
+          </div>
+        </div>
+        <div class="alisio-auth-setup__actions">
+          ${guide.setupUrl
+            ? html`
+                <button
+                  class="btn btn--sm"
+                  type="button"
+                  @click=${() => props.onOpenSupportUrl(guide.setupUrl!)}
+                >
+                  ${text.setupSupport}
+                </button>
+              `
+            : nothing}
+          <button class="btn btn--sm" type="button" @click=${props.onDismissSetupGuide}>
+            ${text.dismiss}
+          </button>
+        </div>
+      </div>
+
+      <div class="alisio-auth-setup__meta">
+        <span class="pill">${guide.providerLabel ?? guide.provider ?? guide.connectorId}</span>
+        <span class="pill">${props.connectorTitle ?? guide.connectorId}</span>
+      </div>
+
+      ${guide.requiredEnvVars && guide.requiredEnvVars.length > 0
+        ? html`
+            <div class="alisio-auth-setup__block">
+              <div class="label">${text.setupEnvVars}</div>
+              <div class="alisio-auth-setup__chips">
+                ${guide.requiredEnvVars.map(
+                  (entry) => html`<span class="chip mono">${entry}</span>`,
+                )}
+              </div>
+            </div>
+          `
+        : nothing}
+      ${callbackUrl
+        ? html`
+            <div class="alisio-auth-setup__block">
+              <div class="label">${text.setupCallback}</div>
+              <div class="alisio-auth-setup__callback mono">${callbackUrl}</div>
+              <div class="alisio-auth-setup__hint">${text.setupCallbackHint}</div>
+            </div>
+          `
+        : nothing}
+    </section>
+  `;
+}
+
 export function renderAuthentications(props: {
   loading: boolean;
   error: string | null;
   account: AlisioAccountState | null;
   connectorCatalog: AlisioConnectorDefinition[];
   connectorAuthorizations: AlisioConnectorAuthorization[];
+  setupGuide: ConnectorSetupGuide | null;
   search: string;
   categoryFilter: string;
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
+  onDismissSetupGuide: () => void;
+  onOpenSupportUrl: (url: string) => void;
 }) {
   const text = {
     title: t("alisio.authentications.title"),
@@ -240,6 +352,17 @@ export function renderAuthentications(props: {
     inReviewHint: t("alisio.authentications.hints.inReview"),
     unavailableHint: t("alisio.authentications.hints.unavailable"),
     needsReconnectHint: t("alisio.authentications.hints.needsReconnect"),
+    setupMissingConfigTitle: t("alisio.authentications.setupGuide.missingConfigTitle"),
+    setupReviewTitle: t("alisio.authentications.setupGuide.reviewTitle"),
+    setupUnavailableTitle: t("alisio.authentications.setupGuide.unavailableTitle"),
+    setupMissingConfigBody: t("alisio.authentications.setupGuide.missingConfigBody"),
+    setupReviewBody: t("alisio.authentications.setupGuide.reviewBody"),
+    setupUnavailableBody: t("alisio.authentications.setupGuide.unavailableBody"),
+    setupEnvVars: t("alisio.authentications.setupGuide.envVars"),
+    setupCallback: t("alisio.authentications.setupGuide.callback"),
+    setupCallbackHint: t("alisio.authentications.setupGuide.callbackHint"),
+    setupSupport: t("alisio.authentications.setupGuide.support"),
+    dismiss: t("alisio.authentications.setupGuide.dismiss"),
   };
   const categories = categoryLabels();
 
@@ -261,6 +384,9 @@ export function renderAuthentications(props: {
 
   const visibleRows = filterRows(rows, props.search, props.categoryFilter);
   const connectedRows = rows.filter((row) => row.status === "connected");
+  const setupDefinition = props.setupGuide
+    ? props.connectorCatalog.find((entry) => entry.id === props.setupGuide?.connectorId)
+    : null;
   const sections = CATEGORY_ORDER.map((category) => ({
     id: category,
     label: categories[category],
@@ -293,6 +419,14 @@ export function renderAuthentications(props: {
           </div>
         </div>
       </div>
+
+      ${props.setupGuide
+        ? renderSetupGuide(
+            props.setupGuide,
+            { ...props, connectorTitle: setupDefinition?.title },
+            text,
+          )
+        : nothing}
 
       <div class="card alisio-auth-toolbar">
         <div class="alisio-section-head">

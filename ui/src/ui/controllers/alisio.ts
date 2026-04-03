@@ -5,6 +5,7 @@ import type {
   AlisioAccountState,
   AlisioAiState,
   AlisioBootstrapState,
+  AlisioConnectorsBeginResult,
   AlisioDoctorSummaryState,
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
@@ -19,7 +20,9 @@ export type AlisioState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
   tab?: string;
-  setTab?: (tab: "setup" | "chat" | "authentications" | "organization" | "settings") => void;
+  setTab?: (
+    tab: "setup" | "chat" | "connections" | "authentications" | "organization" | "settings",
+  ) => void;
   alisioBootstrapLoading: boolean;
   alisioBootstrapError: string | null;
   alisioBootstrap: AlisioBootstrapState | null;
@@ -42,6 +45,7 @@ export type AlisioState = {
   alisioConnectorsError: string | null;
   alisioConnectorCatalog: AlisioConnectorDefinition[];
   alisioConnectorAuthorizations: AlisioConnectorAuthorization[];
+  alisioConnectorSetupGuide: AlisioConnectorsBeginResult | null;
   setupWizardLoading: boolean;
   setupWizardSubmitting: boolean;
   setupWizardSessionId: string | null;
@@ -484,6 +488,16 @@ export async function loadAlisioConnectors(state: AlisioState) {
     ]);
     state.alisioConnectorCatalog = catalog.connectors;
     state.alisioConnectorAuthorizations = authorizations.authorizations;
+    if (
+      state.alisioConnectorSetupGuide &&
+      authorizations.authorizations.some(
+        (entry) =>
+          entry.connectorId === state.alisioConnectorSetupGuide?.connectorId &&
+          entry.state === "connected",
+      )
+    ) {
+      state.alisioConnectorSetupGuide = null;
+    }
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioConnectorsError = String(error);
@@ -503,15 +517,7 @@ export async function revokeAlisioConnector(state: AlisioState, connectorId: str
 export async function beginAlisioConnector(
   state: AlisioState,
   connectorId: string,
-): Promise<{
-  connectorId: string;
-  availability: string;
-  mode: "oauth" | "setup";
-  statusReason: "ready_for_oauth" | "missing_client_config" | "review_required" | "unavailable";
-  provider?: "google" | "github" | "notion" | "vercel";
-  setupUrl?: string;
-  redirectUri?: string;
-} | null> {
+): Promise<AlisioConnectorsBeginResult | null> {
   if (!state.client || !state.connected) {
     return null;
   }

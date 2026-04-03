@@ -58,7 +58,7 @@ function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string)
 export function renderTab(
   state: AppViewState,
   tab: Tab,
-  opts?: { collapsed?: boolean; variant?: "panel" | "rail" },
+  opts?: { collapsed?: boolean; variant?: "list" | "panel" | "rail" },
 ) {
   const href = pathForTab(tab, state.basePath);
   const isActive = publicTabFor(state.tab) === publicTabFor(tab);

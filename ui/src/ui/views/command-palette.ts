@@ -26,28 +26,35 @@ const PALETTE_ITEMS: PaletteItem[] = [
   ...SLASH_PALETTE_ITEMS,
   {
     id: "nav-chat",
-    label: "tabs.chat",
+    label: "Chat",
     icon: "messageSquare",
     category: "navigation",
     action: "nav:chat",
   },
   {
+    id: "nav-connections",
+    label: "Connections",
+    icon: "monitor",
+    category: "navigation",
+    action: "nav:connections",
+  },
+  {
     id: "nav-authentications",
-    label: "tabs.authentications",
+    label: "Integrations",
     icon: "link",
     category: "navigation",
     action: "nav:authentications",
   },
   {
     id: "nav-organization",
-    label: "tabs.organization",
+    label: "Workspace",
     icon: "barChart",
     category: "navigation",
     action: "nav:organization",
   },
   {
     id: "nav-settings",
-    label: "tabs.settings",
+    label: "Preferences",
     icon: "settings",
     category: "navigation",
     action: "nav:settings",
@@ -76,7 +83,7 @@ function filteredItems(query: string): PaletteItem[] {
   const q = query.toLowerCase();
   return PALETTE_ITEMS.filter(
     (item) =>
-      t(item.label).toLowerCase().includes(q) ||
+      item.label.toLowerCase().includes(q) ||
       (item.description?.toLowerCase().includes(q) ?? false),
   );
 }
@@ -217,7 +224,7 @@ export function renderCommandPalette(props: CommandPaletteProps) {
                         @mouseenter=${() => props.onActiveIndexChange(globalIndex)}
                       >
                         <span class="nav-item__icon">${icons[item.icon]}</span>
-                        <span>${t(item.label)}</span>
+                        <span>${item.label}</span>
                         ${item.description
                           ? html`<span class="cmd-palette__item-desc muted"
                               >${item.description}</span

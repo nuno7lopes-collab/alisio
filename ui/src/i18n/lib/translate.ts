@@ -13,6 +13,9 @@ type Subscriber = (locale: Locale) => void;
 
 export { SUPPORTED_LOCALES, isSupportedLocale };
 
+const LOCALE_STORAGE_KEY = "alisio.i18n.locale";
+const LEGACY_LOCALE_STORAGE_KEY = "openclaw.i18n.locale";
+
 class I18nManager {
   private locale: Locale = DEFAULT_LOCALE;
   private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: en };
@@ -28,7 +31,7 @@ class I18nManager {
       return null;
     }
     try {
-      return storage.getItem("openclaw.i18n.locale");
+      return storage.getItem(LOCALE_STORAGE_KEY) ?? storage.getItem(LEGACY_LOCALE_STORAGE_KEY);
     } catch {
       return null;
     }
@@ -40,7 +43,8 @@ class I18nManager {
       return;
     }
     try {
-      storage.setItem("openclaw.i18n.locale", locale);
+      storage.setItem(LOCALE_STORAGE_KEY, locale);
+      storage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
     } catch {
       // Ignore storage write failures in private/blocked contexts.
     }

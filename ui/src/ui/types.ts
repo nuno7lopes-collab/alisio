@@ -1,6 +1,11 @@
 export type UpdateAvailable = import("../../../src/infra/update-startup.js").UpdateAvailable;
 export type AlisioAccountState = import("../../../src/infra/alisio-store.js").AlisioAccountState;
 export type AlisioAiState = import("../../../src/infra/alisio-ai.js").AlisioAiState;
+export type ProviderUsageSummary =
+  import("../../../src/infra/provider-usage.types.js").UsageSummary;
+export type ProviderUsageSnapshot =
+  import("../../../src/infra/provider-usage.types.js").ProviderUsageSnapshot;
+export type ProviderUsageWindow = import("../../../src/infra/provider-usage.types.js").UsageWindow;
 export type AlisioHttpBootstrap =
   import("../../../src/gateway/control-ui-contract.js").AlisioHttpBootstrap;
 export type AlisioBootstrapState =
@@ -12,6 +17,8 @@ export type AlisioConnectedAccount =
   import("../../../src/infra/alisio-store.js").AlisioConnectedAccount;
 export type AlisioConnectorAuthorization =
   import("../../../src/infra/alisio-store.js").AlisioConnectorAuthorization;
+export type AlisioConnectorsBeginResult =
+  import("../../../src/infra/alisio-store.js").AlisioConnectorsBeginResult;
 export type AlisioConnectorDefinition =
   import("../../../src/infra/alisio-store.js").AlisioConnectorDefinition;
 export type AlisioOrganizationMembershipState =

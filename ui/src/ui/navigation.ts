@@ -3,13 +3,20 @@ import type { IconName } from "./icons.js";
 
 export { normalizeBasePath } from "./base-path.ts";
 
-const PUBLIC_TABS = ["setup", "chat", "authentications", "organization", "settings"] as const;
+const PUBLIC_TABS = [
+  "setup",
+  "chat",
+  "connections",
+  "authentications",
+  "organization",
+  "settings",
+] as const;
 const LEGACY_TABS = ["home", "sessions", "automations", "agents"] as const;
 
 export const TAB_GROUPS = [
   {
     label: "product",
-    tabs: ["chat", "authentications", "organization", "settings"],
+    tabs: ["chat", "connections", "authentications", "organization", "settings"],
   },
 ] as const;
 
@@ -50,6 +57,7 @@ export function normalizePublicTab(tab: Tab): PublicTab {
   switch (tab) {
     case "setup":
     case "authentications":
+    case "connections":
     case "organization":
     case "settings":
     case "chat":
@@ -70,6 +78,7 @@ export function publicTabFor(tab: Tab): PublicTab {
 const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
   setup: "/setup",
   chat: "/chat",
+  connections: "/connections",
   authentications: "/authentications",
   organization: "/organization",
   settings: "/settings",
@@ -98,10 +107,11 @@ const LEGACY_PATH_ALIASES = new Map<string, PublicTab>([
   ["/automations", "chat"],
   ["/agents", "chat"],
   ["/skills", "chat"],
+  ["/connections", "connections"],
   ["/channels", "organization"],
   ["/instances", "organization"],
   ["/usage", "organization"],
-  ["/nodes", "settings"],
+  ["/nodes", "connections"],
   ["/config", "settings"],
   ["/communications", "settings"],
   ["/appearance", "settings"],
@@ -219,6 +229,8 @@ export function iconForTab(tab: Tab): IconName {
       return "terminal";
     case "authentications":
       return "link";
+    case "connections":
+      return "monitor";
     case "organization":
       return "barChart";
     case "chat":
@@ -236,12 +248,14 @@ export function titleForTab(tab: Tab) {
       return "Setup";
     case "chat":
       return "Chat";
+    case "connections":
+      return "Connections";
     case "authentications":
-      return "Authentications";
+      return "Integrations";
     case "organization":
-      return "Organization";
+      return "Workspace";
     case "settings":
-      return "Settings";
+      return "Preferences";
     default:
       return "Chat";
   }
@@ -252,13 +266,15 @@ export function subtitleForTab(tab: Tab) {
     case "setup":
       return "Connect your runtime, account, organization, connectors, and permissions.";
     case "chat":
-      return "Conversations, context, and tool calls.";
+      return "Minimal chat, context, and live tool execution.";
+    case "connections":
+      return "Devices, nodes, bindings, and runtime connectivity.";
     case "authentications":
-      return "Connected accounts and authorization status.";
+      return "Connected apps, authorization state, and reconnect actions.";
     case "organization":
-      return "Create or join the organization that will share work with you.";
+      return "Team access, membership, and shared workspace context.";
     case "settings":
-      return "Appearance, account, billing, and native shell preferences.";
+      return "Account, AI runtime, appearance, and native controls.";
     default:
       return "Conversations, context, and tool calls.";
   }

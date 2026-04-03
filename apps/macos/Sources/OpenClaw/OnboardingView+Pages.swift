@@ -386,7 +386,7 @@ extension OnboardingView {
                 Text("Access token")
                     .font(.callout.weight(.semibold))
                     .frame(width: 110, alignment: .leading)
-                SecureField("remote access token", text: self.$state.remoteToken)
+                SecureField("remote connection token", text: self.$state.remoteToken)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 320)
             }

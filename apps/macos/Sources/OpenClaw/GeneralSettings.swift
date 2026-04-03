@@ -298,7 +298,7 @@ struct GeneralSettings: View {
                 Text("Access token")
                     .font(.callout.weight(.semibold))
                     .frame(width: self.remoteLabelWidth, alignment: .leading)
-                SecureField("remote access token", text: self.$state.remoteToken)
+                SecureField("remote connection token", text: self.$state.remoteToken)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: .infinity)
             }

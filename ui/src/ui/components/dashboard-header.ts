@@ -15,19 +15,7 @@ export class DashboardHeader extends LitElement {
 
     return html`
       <div class="dashboard-header">
-        <div class="dashboard-header__breadcrumb">
-          <span
-            class="dashboard-header__breadcrumb-link"
-            @click=${() =>
-              this.dispatchEvent(
-                new CustomEvent("navigate", { detail: "chat", bubbles: true, composed: true }),
-              )}
-          >
-            Alisio
-          </span>
-          <span class="dashboard-header__breadcrumb-sep">›</span>
-          <span class="dashboard-header__breadcrumb-current">${label}</span>
-        </div>
+        <div class="dashboard-header__title">${label}</div>
         <div class="dashboard-header__actions">
           <slot></slot>
         </div>

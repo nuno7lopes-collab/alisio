@@ -6,10 +6,11 @@ describe("command palette", () => {
     const items = getPaletteItems();
     const labels = items.map((item) => item.label);
 
-    expect(labels).toContain("tabs.chat");
-    expect(labels).toContain("tabs.authentications");
-    expect(labels).toContain("tabs.organization");
-    expect(labels).toContain("tabs.settings");
+    expect(labels).toContain("Chat");
+    expect(labels).toContain("Connections");
+    expect(labels).toContain("Integrations");
+    expect(labels).toContain("Workspace");
+    expect(labels).toContain("Preferences");
     expect(items.some((item) => item.category === "skills")).toBe(false);
   });
 });

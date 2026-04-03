@@ -28,6 +28,7 @@ describe("iconForTab", () => {
   it("returns stable icons for known tabs", () => {
     expect(iconForTab("setup")).toBe("terminal");
     expect(iconForTab("chat")).toBe("messageSquare");
+    expect(iconForTab("connections")).toBe("monitor");
     expect(iconForTab("authentications")).toBe("link");
     expect(iconForTab("organization")).toBe("barChart");
     expect(iconForTab("settings")).toBe("settings");
@@ -52,9 +53,10 @@ describe("titleForTab", () => {
   it("returns expected titles", () => {
     expect(titleForTab("setup")).toBe("Setup");
     expect(titleForTab("chat")).toBe("Chat");
-    expect(titleForTab("authentications")).toBe("Authentications");
-    expect(titleForTab("organization")).toBe("Organization");
-    expect(titleForTab("settings")).toBe("Settings");
+    expect(titleForTab("connections")).toBe("Connections");
+    expect(titleForTab("authentications")).toBe("Integrations");
+    expect(titleForTab("organization")).toBe("Workspace");
+    expect(titleForTab("settings")).toBe("Preferences");
   });
 });
 
@@ -68,9 +70,10 @@ describe("subtitleForTab", () => {
 
   it("returns descriptive subtitles", () => {
     expect(subtitleForTab("setup")).toContain("runtime");
-    expect(subtitleForTab("chat")).toContain("tool calls");
+    expect(subtitleForTab("chat")).toContain("tool");
+    expect(subtitleForTab("connections")).toContain("Devices");
     expect(subtitleForTab("authentications")).toContain("authorization");
-    expect(subtitleForTab("settings")).toContain("native shell");
+    expect(subtitleForTab("settings")).toContain("native");
   });
 });
 
@@ -115,6 +118,7 @@ describe("pathForTab", () => {
   it("returns correct path without base", () => {
     expect(pathForTab("setup")).toBe("/setup");
     expect(pathForTab("chat")).toBe("/chat");
+    expect(pathForTab("connections")).toBe("/connections");
     expect(pathForTab("authentications")).toBe("/authentications");
     expect(pathForTab("organization")).toBe("/organization");
   });

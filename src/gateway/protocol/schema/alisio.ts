@@ -480,7 +480,11 @@ export const AlisioConnectorsBeginResultSchema = Type.Object(
     statusReason: ConnectorBeginReasonSchema,
     setupUrl: Type.Optional(Type.String()),
     provider: Type.Optional(OAuthProviderSchema),
+    providerLabel: Type.Optional(NonEmptyString),
     redirectUri: Type.Optional(Type.String()),
+    callbackPath: Type.Optional(Type.String()),
+    requiredEnvVars: Type.Optional(Type.Array(NonEmptyString)),
+    setupHint: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

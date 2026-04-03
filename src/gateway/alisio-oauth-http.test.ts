@@ -48,7 +48,7 @@ describe("handleAlisioOAuthHttpRequest", () => {
     expect(handled).toBe(true);
     expect(res.statusCode).toBe(200);
     expect(res.body()).toContain("Alisio is connected to OpenAI");
-    expect(res.body()).toContain("openclaw:alisio-openai-oauth:v1");
+    expect(res.body()).toContain("alisio:alisio-openai-oauth:v1");
     expect(res.body()).toContain("BroadcastChannel");
   });
 });

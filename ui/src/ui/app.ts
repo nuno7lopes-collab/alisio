@@ -147,6 +147,9 @@ export class OpenClawApp extends LitElement {
   @state() alisioAuthPassword = "";
   @state() alisioAiLoading = false;
   @state() alisioAiError: string | null = null;
+  @state() providerUsageLoading = false;
+  @state() providerUsageError: string | null = null;
+  @state() providerUsageSummary: import("./types.ts").ProviderUsageSummary | null = null;
   @state() alisioOrganizationLoading = false;
   @state() alisioOrganizationError: string | null = null;
   @state() alisioOrganization: import("./types.ts").AlisioOrganizationMembershipState | null = null;
@@ -154,6 +157,8 @@ export class OpenClawApp extends LitElement {
   @state() alisioConnectorsError: string | null = null;
   @state() alisioConnectorCatalog: import("./types.ts").AlisioConnectorDefinition[] = [];
   @state() alisioConnectorAuthorizations: import("./types.ts").AlisioConnectorAuthorization[] = [];
+  @state() alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null =
+    null;
   @state() alisioConnectorsSearch = "";
   @state() alisioConnectorsCategoryFilter = "all";
   @state() alisioOrganizationDraftMode: "create" | "join" = "create";

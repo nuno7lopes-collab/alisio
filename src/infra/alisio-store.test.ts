@@ -24,7 +24,14 @@ describe("beginAlisioConnectorSetup", () => {
         availability: "ready",
         mode: "setup",
         provider: "google",
+        providerLabel: "Google",
         statusReason: "missing_client_config",
+        callbackPath: "/oauth/google/callback",
+        requiredEnvVars: [
+          "ALISIO_GOOGLE_CLIENT_ID",
+          "ALISIO_GOOGLE_CLIENT_SECRET",
+          "ALISIO_GOOGLE_REDIRECT_URI",
+        ],
       });
       expect(result?.setupUrl).toContain("developers.google.com");
     });
@@ -44,8 +51,10 @@ describe("beginAlisioConnectorSetup", () => {
         availability: "ready",
         mode: "oauth",
         provider: "google",
+        providerLabel: "Google",
         redirectUri: "http://127.0.0.1:8787/oauth/google/callback",
         statusReason: "ready_for_oauth",
+        callbackPath: "/oauth/google/callback",
       });
       const launchUrl = new URL(result?.setupUrl ?? "");
       expect(`${launchUrl.origin}${launchUrl.pathname}`).toBe(
@@ -319,12 +328,26 @@ describe("beginAlisioConnectorSetup", () => {
         availability: "in_review",
         mode: "setup",
         statusReason: "review_required",
+        provider: "notion",
+        providerLabel: "Notion",
+        requiredEnvVars: [
+          "ALISIO_NOTION_CLIENT_ID",
+          "ALISIO_NOTION_CLIENT_SECRET",
+          "ALISIO_NOTION_REDIRECT_URI",
+        ],
       });
       expect(vercel).toMatchObject({
         connectorId: "vercel",
         availability: "in_review",
         mode: "setup",
         statusReason: "review_required",
+        provider: "vercel",
+        providerLabel: "Vercel",
+        requiredEnvVars: [
+          "ALISIO_VERCEL_CLIENT_ID",
+          "ALISIO_VERCEL_CLIENT_SECRET",
+          "ALISIO_VERCEL_REDIRECT_URI",
+        ],
       });
     });
   });

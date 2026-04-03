@@ -17,10 +17,15 @@ import {
   loadAlisioOrganization,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
+import { loadConfig } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
+import { loadDevices } from "./controllers/devices.ts";
+import { loadExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
+import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
+import { loadProviderUsageStatus } from "./controllers/provider-usage.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
@@ -70,6 +75,8 @@ type SettingsHost = {
   nativeShellLoading?: boolean;
   nativeShellError?: string | null;
   nativeShellState?: import("./types.ts").NativeShellState | null;
+  execApprovalsTarget?: "gateway" | "node";
+  execApprovalsTargetNodeId?: string | null;
 };
 
 function bootstrapBlocksChatAccess(
@@ -294,6 +301,18 @@ export async function refreshActiveTab(host: SettingsHost) {
       loadAlisioConnectors(host as unknown as OpenClawApp),
     ]);
   }
+  if (host.tab === "connections") {
+    const execTarget =
+      host.execApprovalsTarget === "node" && host.execApprovalsTargetNodeId?.trim()
+        ? { kind: "node" as const, nodeId: host.execApprovalsTargetNodeId.trim() }
+        : ({ kind: "gateway" } as const);
+    await Promise.allSettled([
+      loadNodes(host as unknown as OpenClawApp),
+      loadDevices(host as unknown as OpenClawApp),
+      loadConfig(host as unknown as OpenClawApp),
+      loadExecApprovals(host as unknown as OpenClawApp, execTarget),
+    ]);
+  }
   if (host.tab === "organization") {
     await Promise.allSettled([
       loadAlisioAccount(host as unknown as OpenClawApp),
@@ -321,6 +340,12 @@ export async function refreshActiveTab(host: SettingsHost) {
       loadAlisioAccount(host as unknown as OpenClawApp),
       loadAlisioDoctorSummary(host as unknown as OpenClawApp),
     ]);
+    if (host.settingsSection === "ai") {
+      await Promise.allSettled([
+        loadAlisioBootstrap(host as unknown as OpenClawApp),
+        loadProviderUsageStatus(host as unknown as OpenClawApp),
+      ]);
+    }
     if (host.settingsSection === "debug") {
       await loadDebug(host as unknown as OpenClawApp);
       host.eventLog = host.eventLogBuffer;

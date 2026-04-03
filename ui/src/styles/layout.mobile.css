@@ -169,6 +169,14 @@
     grid-template-columns: 1fr;
   }
 
+  .alisio-auth-setup__header {
+    flex-direction: column;
+  }
+
+  .alisio-auth-setup__actions {
+    justify-content: flex-start;
+  }
+
   .alisio-auth-card {
     grid-template-columns: 1fr;
   }

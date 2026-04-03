@@ -8,6 +8,8 @@ import type {
   AlisioDoctorSummaryState,
   NativeShellPermission,
   NativeShellState,
+  ProviderUsageSnapshot,
+  ProviderUsageSummary,
 } from "../types.ts";
 
 const PUBLIC_SETTINGS_SECTIONS = [
@@ -489,12 +491,22 @@ function renderAiSection(props: {
   bootstrap: AlisioBootstrapState | null;
   aiLoading: boolean;
   aiError: string | null;
+  providerUsageLoading: boolean;
+  providerUsageError: string | null;
+  providerUsageSummary: ProviderUsageSummary | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onRefresh: () => void;
 }) {
   const ai = props.bootstrap?.ai;
-  const windows = ai?.limits?.windows ?? [];
+  const runtimeWindows = ai?.limits?.windows ?? [];
+  const providerSnapshots = [...(props.providerUsageSummary?.providers ?? [])].toSorted(
+    (left, right) => {
+      const leftPeak = Math.max(...left.windows.map((window) => window.usedPercent), 0);
+      const rightPeak = Math.max(...right.windows.map((window) => window.usedPercent), 0);
+      return rightPeak - leftPeak;
+    },
+  );
   const statusLabel =
     ai?.status === "connected"
       ? "Connected"
@@ -505,50 +517,214 @@ function renderAiSection(props: {
           : ai?.status === "expired"
             ? "Expired"
             : "Disconnected";
+
+  const formatReset = (resetAt?: number) => {
+    if (typeof resetAt !== "number") {
+      return "live";
+    }
+    const diffMs = resetAt - Date.now();
+    if (diffMs <= 0) {
+      return "now";
+    }
+    const diffHours = Math.floor(diffMs / 3_600_000);
+    const diffMinutes = Math.floor((diffMs % 3_600_000) / 60_000);
+    if (diffHours <= 0) {
+      return `${Math.max(diffMinutes, 1)}m`;
+    }
+    if (diffHours < 24) {
+      return diffMinutes > 0 ? `${diffHours}h ${diffMinutes}m` : `${diffHours}h`;
+    }
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d`;
+  };
+
+  const usageTone = (usedPercent: number) => {
+    if (usedPercent >= 85) {
+      return "is-critical";
+    }
+    if (usedPercent >= 60) {
+      return "is-warm";
+    }
+    return "is-healthy";
+  };
+
   return html`
-    <div class="card alisio-settings-card">
-      <div class="card-title">AI</div>
-      <div class="card-sub">OpenAI powers Alisio by default during the first run.</div>
+    <section class="alisio-settings-ai">
+      <div class="card alisio-settings-card alisio-settings-card--hero">
+        <div class="alisio-settings-ai__hero">
+          <div>
+            <div class="alisio-page__eyebrow">Runtime</div>
+            <div class="card-title">AI providers</div>
+            <div class="card-sub">
+              Runtime auth, provider accounts, weekly quotas, and short-cycle limits in one place.
+            </div>
+          </div>
+          <div class="alisio-settings-ai__hero-metrics">
+            <div class="alisio-settings-ai__metric">
+              <strong>${providerSnapshots.length}</strong>
+              <span>tracked accounts</span>
+            </div>
+            <div class="alisio-settings-ai__metric">
+              <strong>${runtimeWindows.length}</strong>
+              <span>runtime windows</span>
+            </div>
+          </div>
+        </div>
+      </div>
       ${props.aiError
         ? html`<div class="callout danger" style="margin-top: 16px;">${props.aiError}</div>`
         : nothing}
-      <div class="list-item" style="margin-top: 16px;">
-        <div class="list-title">${statusLabel}</div>
-        <div class="list-sub">
-          ${ai?.email ?? ai?.planLabel ?? "No OpenAI account is connected yet."}
-        </div>
-      </div>
-      ${windows.length > 0
-        ? html`
-            <div style="display: grid; gap: 12px; margin-top: 16px;">
-              ${windows.map(
-                (window) => html`
-                  <div class="list-item">
-                    <div class="list-title">${window.label}</div>
-                    <div class="list-sub">${window.usedPercent}% used</div>
-                  </div>
-                `,
-              )}
-            </div>
-          `
+      ${props.providerUsageError
+        ? html`<div class="callout danger" style="margin-top: 16px;">
+            ${props.providerUsageError}
+          </div>`
         : nothing}
-      <div class="row" style="margin-top: 16px;">
-        ${ai?.status === "connected" || ai?.status === "limits_unavailable"
-          ? html`
-              <button class="btn" ?disabled=${props.aiLoading} @click=${props.onRefresh}>
-                Refresh limits
-              </button>
-              <button class="btn danger" ?disabled=${props.aiLoading} @click=${props.onDisconnect}>
-                Disconnect OpenAI
-              </button>
-            `
-          : html`
-              <button class="btn primary" ?disabled=${props.aiLoading} @click=${props.onConnect}>
-                Connect OpenAI
-              </button>
-            `}
+      <div class="alisio-settings-ai__grid">
+        <article class="card alisio-settings-card alisio-settings-ai__runtime">
+          <div class="alisio-settings-ai__card-head">
+            <div>
+              <div class="card-title">OpenAI runtime</div>
+              <div class="card-sub">
+                The account used by Alisio during setup and first-run chat.
+              </div>
+            </div>
+            <span class="pill">${statusLabel}</span>
+          </div>
+          <div class="alisio-settings-ai__runtime-account">
+            <strong>${ai?.email ?? "No OpenAI account connected yet."}</strong>
+            <span>${ai?.planLabel ?? "OAuth runtime profile"}</span>
+          </div>
+          ${runtimeWindows.length > 0
+            ? html`
+                <div class="alisio-settings-ai__windows">
+                  ${runtimeWindows.map(
+                    (window) => html`
+                      <div class="alisio-settings-ai__window ${usageTone(window.usedPercent)}">
+                        <div class="alisio-settings-ai__window-top">
+                          <span>${window.label}</span>
+                          <strong>${Math.round(window.usedPercent)}%</strong>
+                        </div>
+                        <div class="alisio-settings-ai__window-bar">
+                          <span style=${`width:${Math.max(4, window.usedPercent)}%`}></span>
+                        </div>
+                        <div class="alisio-settings-ai__window-meta">
+                          resets in ${formatReset(window.resetAt)}
+                        </div>
+                      </div>
+                    `,
+                  )}
+                </div>
+              `
+            : html`
+                <div class="alisio-settings-ai__empty">
+                  Connect the runtime or refresh limits to load the active windows.
+                </div>
+              `}
+          <div class="row" style="margin-top: 16px;">
+            ${ai?.status === "connected" || ai?.status === "limits_unavailable"
+              ? html`
+                  <button class="btn" ?disabled=${props.aiLoading} @click=${props.onRefresh}>
+                    ${props.providerUsageLoading ? "Refreshing…" : "Refresh telemetry"}
+                  </button>
+                  <button
+                    class="btn danger"
+                    ?disabled=${props.aiLoading}
+                    @click=${props.onDisconnect}
+                  >
+                    Disconnect OpenAI
+                  </button>
+                `
+              : html`
+                  <button
+                    class="btn primary"
+                    ?disabled=${props.aiLoading}
+                    @click=${props.onConnect}
+                  >
+                    Connect OpenAI
+                  </button>
+                `}
+          </div>
+        </article>
+        <article class="card alisio-settings-card alisio-settings-ai__accounts">
+          <div class="alisio-settings-ai__card-head">
+            <div>
+              <div class="card-title">Provider telemetry</div>
+              <div class="card-sub">
+                Real quota windows from your configured provider accounts and profiles.
+              </div>
+            </div>
+            <span class="pill">${props.providerUsageLoading ? "Syncing" : "Live"}</span>
+          </div>
+          ${providerSnapshots.length === 0
+            ? html`
+                <div class="alisio-settings-ai__empty">
+                  No provider usage is available yet. Connect an account or add a configured
+                  provider key to start tracking weekly and short-cycle limits.
+                </div>
+              `
+            : html`
+                <div class="alisio-settings-ai__provider-list">
+                  ${providerSnapshots.map((snapshot) =>
+                    renderProviderUsageCard(snapshot, { formatReset, usageTone }),
+                  )}
+                </div>
+              `}
+        </article>
       </div>
-    </div>
+    </section>
+  `;
+}
+
+function renderProviderUsageCard(
+  snapshot: ProviderUsageSnapshot,
+  helpers: {
+    formatReset: (resetAt?: number) => string;
+    usageTone: (usedPercent: number) => string;
+  },
+) {
+  return html`
+    <article class="alisio-provider-card">
+      <div class="alisio-provider-card__head">
+        <div>
+          <div class="alisio-provider-card__title">${snapshot.displayName}</div>
+          <div class="alisio-provider-card__identity">
+            ${snapshot.accountLabel ?? snapshot.profileId ?? "Primary account"}
+          </div>
+        </div>
+        ${snapshot.plan ? html`<span class="pill">${snapshot.plan}</span>` : nothing}
+      </div>
+      ${snapshot.accountEmail && snapshot.accountEmail !== snapshot.accountLabel
+        ? html`<div class="alisio-provider-card__meta">${snapshot.accountEmail}</div>`
+        : nothing}
+      ${snapshot.error
+        ? html`<div class="callout danger" style="margin-top: 12px;">${snapshot.error}</div>`
+        : snapshot.windows.length === 0
+          ? html`<div class="alisio-settings-ai__empty" style="margin-top: 12px;">
+              No quota data available for this account.
+            </div>`
+          : html`
+              <div class="alisio-settings-ai__windows" style="margin-top: 14px;">
+                ${snapshot.windows.map(
+                  (window) => html`
+                    <div
+                      class="alisio-settings-ai__window ${helpers.usageTone(window.usedPercent)}"
+                    >
+                      <div class="alisio-settings-ai__window-top">
+                        <span>${window.label}</span>
+                        <strong>${Math.round(window.usedPercent)}%</strong>
+                      </div>
+                      <div class="alisio-settings-ai__window-bar">
+                        <span style=${`width:${Math.max(4, window.usedPercent)}%`}></span>
+                      </div>
+                      <div class="alisio-settings-ai__window-meta">
+                        resets in ${helpers.formatReset(window.resetAt)}
+                      </div>
+                    </div>
+                  `,
+                )}
+              </div>
+            `}
+    </article>
   `;
 }
 
@@ -679,6 +855,9 @@ export function renderSettingsHub(props: {
   bootstrap: AlisioBootstrapState | null;
   aiLoading: boolean;
   aiError: string | null;
+  providerUsageLoading: boolean;
+  providerUsageError: string | null;
+  providerUsageSummary: ProviderUsageSummary | null;
   doctorLoading: boolean;
   doctorError: string | null;
   doctor: AlisioDoctorSummaryState | null;
@@ -741,6 +920,9 @@ export function renderSettingsHub(props: {
           bootstrap: props.bootstrap,
           aiLoading: props.aiLoading,
           aiError: props.aiError,
+          providerUsageLoading: props.providerUsageLoading,
+          providerUsageError: props.providerUsageError,
+          providerUsageSummary: props.providerUsageSummary,
           onConnect: props.onConnectAi,
           onDisconnect: props.onDisconnectAi,
           onRefresh: props.onRefreshAi,

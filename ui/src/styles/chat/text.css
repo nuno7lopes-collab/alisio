@@ -25,11 +25,36 @@
   overflow-wrap: break-word;
 }
 
+.chat-text :where(strong, b) {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.chat-text :where(h1, h2, h3, h4) {
+  margin: 0;
+  color: var(--text-strong);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.22;
+}
+
+.chat-text :where(h1) {
+  font-size: 1.5em;
+}
+
+.chat-text :where(h2) {
+  font-size: 1.28em;
+}
+
+.chat-text :where(h3, h4) {
+  font-size: 1.08em;
+}
+
 .chat-text :where(p, ul, ol, pre, blockquote, table) {
   margin: 0;
 }
 
-.chat-text :where(p + p, p + ul, p + ol, p + pre, p + blockquote) {
+.chat-text :where(p + p, p + ul, p + ol, p + pre, p + blockquote, h1 + p, h2 + p, h3 + p, h4 + p) {
   margin-top: 0.75em;
 }
 

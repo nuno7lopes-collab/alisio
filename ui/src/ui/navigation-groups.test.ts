@@ -19,7 +19,13 @@ describe("TAB_GROUPS", () => {
 
   it("does not expose unfinished settings slices in the sidebar", () => {
     const product = navigation.TAB_GROUPS.find((group) => group.label === "product");
-    expect(product?.tabs).toEqual(["chat", "authentications", "organization", "settings"]);
+    expect(product?.tabs).toEqual([
+      "chat",
+      "connections",
+      "authentications",
+      "organization",
+      "settings",
+    ]);
   });
 
   it("keeps setup routable without promoting it into the sidebar", () => {

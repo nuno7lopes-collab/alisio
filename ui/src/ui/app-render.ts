@@ -33,7 +33,29 @@ import {
 } from "./controllers/alisio.ts";
 import type { ChatRuntimeSetupHint } from "./controllers/chat.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
-import { runUpdate } from "./controllers/config.ts";
+import {
+  ensureAgentConfigEntry,
+  loadConfig,
+  removeConfigFormValue,
+  runUpdate,
+  saveConfig,
+  updateConfigFormValue,
+} from "./controllers/config.ts";
+import {
+  approveDevicePairing,
+  loadDevices,
+  rejectDevicePairing,
+  revokeDeviceToken,
+  rotateDeviceToken,
+} from "./controllers/devices.ts";
+import {
+  loadExecApprovals,
+  removeExecApprovalsFormValue,
+  saveExecApprovals,
+  updateExecApprovalsFormValue,
+} from "./controllers/exec-approvals.ts";
+import { loadNodes } from "./controllers/nodes.ts";
+import { loadProviderUsageStatus } from "./controllers/provider-usage.ts";
 import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
 import {
@@ -50,6 +72,7 @@ import { agentLogoUrl } from "./views/agents-utils.ts";
 import { renderAuthentications } from "./views/authentications.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderCommandPalette } from "./views/command-palette.ts";
+import { renderConnections } from "./views/connections.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
 import { renderOrganization } from "./views/organization.ts";
@@ -164,6 +187,9 @@ function scheduleOpenAiRefresh(state: AppViewState) {
           aiStatus === "limits_unavailable" ||
           attempts >= maxAttempts
         ) {
+          if (aiStatus === "connected" || aiStatus === "limits_unavailable") {
+            await loadProviderUsageStatus(state, { quiet: true });
+          }
           return;
         }
         tick();
@@ -191,15 +217,6 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
     return candidate;
   }
   return identity?.avatarUrl;
-}
-
-function sidebarGroupLabel(label: (typeof TAB_GROUPS)[number]["label"]) {
-  switch (label) {
-    case "product":
-      return "Product";
-    default:
-      return null;
-  }
 }
 
 export function renderApp(state: AppViewState) {
@@ -426,8 +443,10 @@ export function renderApp(state: AppViewState) {
   const profilePlan = profile?.plan ?? t("alisio.settings.billing.freePlan");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
-  const sidebarContextBadge = titleForTab(activeTab);
-  const sidebarContextEyebrow = state.connected ? "Personal workspace" : "Offline";
+  const execApprovalsTarget =
+    state.execApprovalsTarget === "node" && state.execApprovalsTargetNodeId?.trim()
+      ? { kind: "node" as const, nodeId: state.execApprovalsTargetNodeId.trim() }
+      : ({ kind: "gateway" } as const);
   const openSettingsSection = (section: import("./navigation.ts").SettingsSection) => {
     state.settingsSection = section;
     state.setTab("settings" as import("./navigation.ts").Tab);
@@ -457,7 +476,7 @@ export function renderApp(state: AppViewState) {
             /></span>
             <span class="setup-frame__brand-copy">
               <span class="setup-frame__brand-eyebrow">Alisio</span>
-              <span class="setup-frame__brand-title">Personal Agent</span>
+              <span class="setup-frame__brand-title">Setup</span>
             </span>
           </a>
           <div class="setup-frame__meta">
@@ -572,31 +591,10 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>
             <div class="sidebar-shell__body">
-              ${navCollapsed
-                ? nothing
-                : html`
-                    <div class="sidebar-context">
-                      <div class="sidebar-context__main">
-                        <span class="sidebar-context__copy">
-                          <span class="sidebar-context__eyebrow">${sidebarContextEyebrow}</span>
-                          <span class="sidebar-context__title">${sidebarContextBadge}</span>
-                        </span>
-                      </div>
-                      <span class="sidebar-context__badge">${connectionLabel}</span>
-                    </div>
-                  `}
               <nav class="sidebar-nav sidebar-nav--product" aria-label="Primary navigation">
                 ${TAB_GROUPS.map((group) => {
-                  const groupLabel = sidebarGroupLabel(group.label);
                   return html`
                     <section class="nav-section">
-                      ${groupLabel && !navCollapsed
-                        ? html`
-                            <div class="nav-section__label">
-                              <span class="nav-section__label-text">${groupLabel}</span>
-                            </div>
-                          `
-                        : nothing}
                       <div class="nav-section__items">
                         ${group.tabs.map((tab) =>
                           renderTab(state, tab, {
@@ -726,6 +724,7 @@ export function renderApp(state: AppViewState) {
               account: state.alisioAccount,
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
+              setupGuide: state.alisioConnectorSetupGuide,
               search: state.alisioConnectorsSearch,
               categoryFilter: state.alisioConnectorsCategoryFilter,
               onSearchChange: (value) => {
@@ -734,10 +733,29 @@ export function renderApp(state: AppViewState) {
               onCategoryChange: (value) => {
                 state.alisioConnectorsCategoryFilter = value;
               },
+              onDismissSetupGuide: () => {
+                state.alisioConnectorSetupGuide = null;
+              },
+              onOpenSupportUrl: (targetUrl) => {
+                void openExternal(targetUrl);
+              },
               onBeginConnector: (connectorId) => {
+                state.alisioConnectorsError = null;
+                state.alisioConnectorSetupGuide = null;
                 void beginAlisioConnector(state, connectorId).then((result) => {
-                  const targetUrl = result?.setupUrl;
+                  if (!result) {
+                    state.alisioConnectorsError = "Could not start this authentication right now.";
+                    return;
+                  }
+                  if (result.mode !== "oauth") {
+                    state.alisioConnectorSetupGuide = result;
+                    return;
+                  }
+                  state.alisioConnectorSetupGuide = null;
+                  const targetUrl = result.setupUrl;
                   if (!targetUrl) {
+                    state.alisioConnectorsError =
+                      "Authentication URL is missing for this connector.";
                     return;
                   }
                   if (result.mode === "oauth") {
@@ -752,6 +770,123 @@ export function renderApp(state: AppViewState) {
               },
               onRevokeConnector: (connectorId) => {
                 void revokeAlisioConnector(state, connectorId);
+              },
+            })
+          : nothing}
+        ${activeTab === "connections"
+          ? renderConnections({
+              loading: state.nodesLoading,
+              nodes: state.nodes,
+              devicesLoading: state.devicesLoading,
+              devicesError: state.devicesError,
+              devicesList: state.devicesList,
+              configForm: state.configForm,
+              configLoading: state.configLoading,
+              configSaving: state.configSaving,
+              configDirty: state.configFormDirty,
+              configFormMode: state.configFormMode,
+              execApprovalsLoading: state.execApprovalsLoading,
+              execApprovalsSaving: state.execApprovalsSaving,
+              execApprovalsDirty: state.execApprovalsDirty,
+              execApprovalsSnapshot: state.execApprovalsSnapshot,
+              execApprovalsForm: state.execApprovalsForm,
+              execApprovalsSelectedAgent: state.execApprovalsSelectedAgent,
+              execApprovalsTarget: state.execApprovalsTarget,
+              execApprovalsTargetNodeId: state.execApprovalsTargetNodeId,
+              onRefresh: () => {
+                void Promise.allSettled([
+                  loadNodes(state),
+                  loadDevices(state),
+                  loadConfig(state),
+                  loadExecApprovals(state, execApprovalsTarget),
+                ]);
+              },
+              onDevicesRefresh: () => {
+                void loadDevices(state);
+              },
+              onDeviceApprove: (requestId) => {
+                void approveDevicePairing(state, requestId);
+              },
+              onDeviceReject: (requestId) => {
+                void rejectDevicePairing(state, requestId);
+              },
+              onDeviceRotate: (deviceId, role, scopes) => {
+                void rotateDeviceToken(state, { deviceId, role, scopes });
+              },
+              onDeviceRevoke: (deviceId, role) => {
+                void revokeDeviceToken(state, { deviceId, role });
+              },
+              onLoadConfig: () => {
+                void loadConfig(state);
+              },
+              onLoadExecApprovals: () => {
+                void loadExecApprovals(state, execApprovalsTarget);
+              },
+              onBindDefault: (nodeId) => {
+                if (nodeId) {
+                  updateConfigFormValue(state, ["tools", "exec", "node"], nodeId);
+                  return;
+                }
+                removeConfigFormValue(state, ["tools", "exec", "node"]);
+              },
+              onBindAgent: (agentIndex, nodeId) => {
+                const source =
+                  (state.configForm as { agents?: { list?: unknown[] } } | null)?.agents?.list ??
+                  (state.configSnapshot?.config as { agents?: { list?: unknown[] } } | null)?.agents
+                    ?.list;
+                const entry =
+                  Array.isArray(source) &&
+                  source[agentIndex] &&
+                  typeof source[agentIndex] === "object"
+                    ? (source[agentIndex] as { id?: string })
+                    : null;
+                const targetIndex =
+                  typeof entry?.id === "string" && entry.id.trim()
+                    ? agentIndex
+                    : ensureAgentConfigEntry(state, "main");
+                if (targetIndex < 0) {
+                  return;
+                }
+                if (nodeId) {
+                  updateConfigFormValue(
+                    state,
+                    ["agents", "list", targetIndex, "tools", "exec", "node"],
+                    nodeId,
+                  );
+                  return;
+                }
+                removeConfigFormValue(state, [
+                  "agents",
+                  "list",
+                  targetIndex,
+                  "tools",
+                  "exec",
+                  "node",
+                ]);
+              },
+              onSaveBindings: () => {
+                void saveConfig(state);
+              },
+              onExecApprovalsTargetChange: (kind, nodeId) => {
+                state.execApprovalsTarget = kind;
+                state.execApprovalsTargetNodeId = kind === "node" ? nodeId : null;
+                const nextTarget =
+                  kind === "node" && nodeId?.trim()
+                    ? { kind: "node" as const, nodeId: nodeId.trim() }
+                    : ({ kind: "gateway" } as const);
+                void loadExecApprovals(state, nextTarget);
+              },
+              onExecApprovalsSelectAgent: (agentId) => {
+                state.execApprovalsSelectedAgent = agentId;
+              },
+              onExecApprovalsPatch: (path, value) => {
+                updateExecApprovalsFormValue(state, path, value);
+              },
+              onExecApprovalsRemove: (path) => {
+                removeExecApprovalsFormValue(state, path);
+              },
+              onSaveExecApprovals: () => {
+                void saveExecApprovals(state, execApprovalsTarget);
               },
             })
           : nothing}
@@ -924,6 +1059,9 @@ export function renderApp(state: AppViewState) {
               bootstrap: state.alisioBootstrap,
               aiLoading: state.alisioAiLoading,
               aiError: state.alisioAiError,
+              providerUsageLoading: state.providerUsageLoading,
+              providerUsageError: state.providerUsageError,
+              providerUsageSummary: state.providerUsageSummary,
               doctorLoading: state.alisioDoctorLoading,
               doctorError: state.alisioDoctorError,
               doctor: state.alisioDoctor,
@@ -993,7 +1131,7 @@ export function renderApp(state: AppViewState) {
                 void disconnectAlisioAi(state);
               },
               onRefreshAi: () => {
-                void refreshAlisioAi(state);
+                void Promise.allSettled([refreshAlisioAi(state), loadProviderUsageStatus(state)]);
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

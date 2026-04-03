@@ -1,6 +1,8 @@
 import {
   ALISIO_OPENAI_OAUTH_CHANNEL,
   ALISIO_OPENAI_OAUTH_STORAGE_KEY,
+  LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL,
+  LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY,
   buildAlisioOpenAiOAuthSignal,
   isAlisioOpenAiOAuthSignal,
   type AlisioOpenAiOAuthSignal,
@@ -39,6 +41,7 @@ export function emitAlisioOpenAiOAuthSignal(
   try {
     window.localStorage.setItem(ALISIO_OPENAI_OAUTH_STORAGE_KEY, serialized);
     window.localStorage.removeItem(ALISIO_OPENAI_OAUTH_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY);
   } catch {
     // Ignore storage failures; the BroadcastChannel fallback still covers modern browsers.
   }
@@ -48,6 +51,9 @@ export function emitAlisioOpenAiOAuthSignal(
       const channel = new BroadcastChannel(ALISIO_OPENAI_OAUTH_CHANNEL);
       channel.postMessage(signal);
       channel.close();
+      const legacyChannel = new BroadcastChannel(LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL);
+      legacyChannel.postMessage(signal);
+      legacyChannel.close();
     }
   } catch {
     // Ignore broadcast failures; the storage event fallback still covers the same-origin tabs.
@@ -69,7 +75,13 @@ export function subscribeAlisioOpenAiOAuthSignals(onSignal: OpenAiOAuthSignalHan
   };
 
   const handleStorage = (event: StorageEvent) => {
-    if (event.key !== ALISIO_OPENAI_OAUTH_STORAGE_KEY || !event.newValue) {
+    if (
+      event.key !== ALISIO_OPENAI_OAUTH_STORAGE_KEY &&
+      event.key !== LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY
+    ) {
+      return;
+    }
+    if (!event.newValue) {
       return;
     }
     handleSignal(event.newValue);
@@ -79,17 +91,24 @@ export function subscribeAlisioOpenAiOAuthSignals(onSignal: OpenAiOAuthSignalHan
     typeof window.BroadcastChannel === "function"
       ? new BroadcastChannel(ALISIO_OPENAI_OAUTH_CHANNEL)
       : null;
+  const legacyChannel =
+    typeof window.BroadcastChannel === "function"
+      ? new BroadcastChannel(LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL)
+      : null;
   const handleMessage = (event: MessageEvent<unknown>) => {
     handleSignal(event.data);
   };
 
   window.addEventListener("storage", handleStorage);
   channel?.addEventListener("message", handleMessage as EventListener);
+  legacyChannel?.addEventListener("message", handleMessage as EventListener);
 
   return () => {
     window.removeEventListener("storage", handleStorage);
     channel?.removeEventListener("message", handleMessage as EventListener);
+    legacyChannel?.removeEventListener("message", handleMessage as EventListener);
     channel?.close();
+    legacyChannel?.close();
   };
 }
 

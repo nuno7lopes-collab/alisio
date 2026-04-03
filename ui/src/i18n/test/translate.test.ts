@@ -78,13 +78,26 @@ describe("i18n", () => {
     vi.resetModules();
     vi.stubGlobal("localStorage", createStorageMock());
     vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
-    localStorage.setItem("openclaw.i18n.locale", "zh-CN");
+    localStorage.setItem("alisio.i18n.locale", "zh-CN");
     const fresh = await import("../lib/translate.ts");
     await vi.waitFor(() => {
       expect(fresh.i18n.getLocale()).toBe("zh-CN");
     });
     expect(fresh.i18n.getLocale()).toBe("zh-CN");
     expect(fresh.t("common.health")).toBe("健康状况");
+  });
+
+  it("migrates legacy locale storage to the alisio key", async () => {
+    vi.resetModules();
+    vi.stubGlobal("localStorage", createStorageMock());
+    vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
+    localStorage.setItem("openclaw.i18n.locale", "pt-PT");
+    const fresh = await import("../lib/translate.ts");
+    await vi.waitFor(() => {
+      expect(fresh.i18n.getLocale()).toBe("pt-PT");
+    });
+    expect(localStorage.getItem("alisio.i18n.locale")).toBe("pt-PT");
+    expect(localStorage.getItem("openclaw.i18n.locale")).toBeNull();
   });
 
   it("skips node localStorage accessors that warn without a storage file", async () => {

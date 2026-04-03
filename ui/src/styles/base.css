@@ -1,38 +1,38 @@
 :root {
   /* Background - neutral charcoal, closer to Pokee */
-  --bg: #101113;
-  --bg-accent: #141518;
-  --bg-elevated: #181a1e;
-  --bg-hover: #202329;
-  --bg-muted: #1c1e23;
+  --bg: #171717;
+  --bg-accent: #1a1a1a;
+  --bg-elevated: #1f1f1f;
+  --bg-hover: #252525;
+  --bg-muted: #202020;
 
   /* Card / Surface */
-  --card: #15171a;
-  --card-foreground: #f5f6f8;
+  --card: #1c1c1c;
+  --card-foreground: #f7f7f7;
   --card-highlight: rgba(255, 255, 255, 0.035);
-  --popover: #17191d;
-  --popover-foreground: #f5f6f8;
+  --popover: #1d1d1d;
+  --popover-foreground: #f7f7f7;
 
   /* Panel */
-  --panel: #0e0f11;
-  --panel-strong: #17191d;
-  --panel-hover: #202329;
-  --chrome: rgba(15, 16, 18, 0.94);
-  --chrome-strong: rgba(15, 16, 18, 0.98);
+  --panel: #121212;
+  --panel-strong: #1c1c1c;
+  --panel-hover: #252525;
+  --chrome: rgba(23, 23, 23, 0.94);
+  --chrome-strong: rgba(23, 23, 23, 0.98);
 
   /* Text */
-  --text: #d9dce1;
-  --text-strong: #fbfbfc;
-  --chat-text: #e3e5e9;
-  --muted: #8b9099;
-  --muted-strong: #787d86;
-  --muted-foreground: #8b9099;
+  --text: #e3e3e3;
+  --text-strong: #ffffff;
+  --chat-text: #f5f5f5;
+  --muted: #a0a0a0;
+  --muted-strong: #8e8e8e;
+  --muted-foreground: #a0a0a0;
 
   /* Border */
-  --border: #262a31;
-  --border-strong: #353b45;
-  --border-hover: #454d59;
-  --input: #262a31;
+  --border: #2a2a2a;
+  --border-strong: #3a3a3a;
+  --border-hover: #4a4a4a;
+  --input: #2a2a2a;
   --ring: #f0b56f;
 
   /* Accent - warm amber used sparingly */
@@ -514,7 +514,7 @@ html.theme-transition::view-transition-new(theme) {
   }
 }
 
-openclaw-app {
+alisio-app {
   display: block;
   position: relative;
   z-index: 1;

@@ -7,6 +7,9 @@ export type UsageWindow = {
 export type ProviderUsageSnapshot = {
   provider: UsageProviderId;
   displayName: string;
+  profileId?: string;
+  accountLabel?: string;
+  accountEmail?: string;
   windows: UsageWindow[];
   plan?: string;
   error?: string;

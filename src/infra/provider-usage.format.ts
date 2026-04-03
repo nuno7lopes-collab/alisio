@@ -81,7 +81,10 @@ export function formatUsageSummaryLine(
     const window = entry.windows.reduce((best, next) =>
       next.usedPercent > best.usedPercent ? next : best,
     );
-    return `${entry.displayName} ${formatWindowShort(window, opts?.now)}`;
+    const label = entry.accountLabel
+      ? `${entry.displayName} (${entry.accountLabel})`
+      : entry.displayName;
+    return `${label} ${formatWindowShort(window, opts?.now)}`;
   });
   return `📊 Usage: ${parts.join(" · ")}`;
 }
@@ -93,16 +96,17 @@ export function formatUsageReportLines(summary: UsageSummary, opts?: { now?: num
 
   const lines: string[] = ["Usage:"];
   for (const entry of summary.providers) {
+    const identitySuffix = entry.accountLabel ? ` · ${entry.accountLabel}` : "";
     const planSuffix = entry.plan ? ` (${entry.plan})` : "";
     if (entry.error) {
-      lines.push(`  ${entry.displayName}${planSuffix}: ${entry.error}`);
+      lines.push(`  ${entry.displayName}${identitySuffix}${planSuffix}: ${entry.error}`);
       continue;
     }
     if (entry.windows.length === 0) {
-      lines.push(`  ${entry.displayName}${planSuffix}: no data`);
+      lines.push(`  ${entry.displayName}${identitySuffix}${planSuffix}: no data`);
       continue;
     }
-    lines.push(`  ${entry.displayName}${planSuffix}`);
+    lines.push(`  ${entry.displayName}${identitySuffix}${planSuffix}`);
     for (const window of entry.windows) {
       const remaining = clampPercent(100 - window.usedPercent);
       const reset = formatResetRemaining(window.resetAt, opts?.now);

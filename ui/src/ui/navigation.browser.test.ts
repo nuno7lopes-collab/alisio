@@ -75,13 +75,13 @@ describe("control UI routing", () => {
     const app = mountApp("/chat");
     await app.updateComplete;
 
-    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/organization"]');
+    const link = app.querySelector<HTMLAnchorElement>('a.nav-item[href="/connections"]');
     expect(link).not.toBeNull();
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }));
 
     await app.updateComplete;
-    expect(app.tab).toBe("organization");
-    expect(window.location.pathname).toBe("/organization");
+    expect(app.tab).toBe("connections");
+    expect(window.location.pathname).toBe("/connections");
   });
 
   it("renders the refreshed top navigation shell", async () => {
@@ -105,6 +105,8 @@ describe("control UI routing", () => {
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__logo")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).not.toBeNull();
+    expect(app.querySelector(".sidebar-context")).toBeNull();
+    expect(app.querySelector(".nav-section__label")).toBeNull();
   });
 
   it("uses a dedicated onboarding shell on /setup", async () => {

@@ -242,9 +242,13 @@ export type AlisioConnectorsBeginResult = {
   availability: AlisioConnectorAvailability;
   mode: AlisioConnectorBeginMode;
   provider?: AlisioOAuthProvider;
+  providerLabel?: string;
   statusReason: AlisioConnectorBeginReason;
   setupUrl?: string;
   redirectUri?: string;
+  callbackPath?: string;
+  requiredEnvVars?: string[];
+  setupHint?: string;
 };
 
 export type AlisioOAuthCallbackResult =
@@ -1468,6 +1472,67 @@ function resolveConnectorOAuthProvider(connectorId: string): AlisioOAuthProvider
   return null;
 }
 
+function providerLabel(provider: AlisioOAuthProvider) {
+  switch (provider) {
+    case "google":
+      return "Google";
+    case "github":
+      return "GitHub";
+    case "notion":
+      return "Notion";
+    case "vercel":
+      return "Vercel";
+  }
+}
+
+function providerRequiredEnvVars(provider: AlisioOAuthProvider) {
+  switch (provider) {
+    case "google":
+      return [
+        "ALISIO_GOOGLE_CLIENT_ID",
+        "ALISIO_GOOGLE_CLIENT_SECRET",
+        "ALISIO_GOOGLE_REDIRECT_URI",
+      ];
+    case "github":
+      return [
+        "ALISIO_GITHUB_CLIENT_ID",
+        "ALISIO_GITHUB_CLIENT_SECRET",
+        "ALISIO_GITHUB_REDIRECT_URI",
+      ];
+    case "notion":
+      return [
+        "ALISIO_NOTION_CLIENT_ID",
+        "ALISIO_NOTION_CLIENT_SECRET",
+        "ALISIO_NOTION_REDIRECT_URI",
+      ];
+    case "vercel":
+      return [
+        "ALISIO_VERCEL_CLIENT_ID",
+        "ALISIO_VERCEL_CLIENT_SECRET",
+        "ALISIO_VERCEL_REDIRECT_URI",
+      ];
+  }
+}
+
+function providerCallbackPath(provider: AlisioOAuthProvider): string | undefined {
+  switch (provider) {
+    case "google":
+      return "/oauth/google/callback";
+    case "github":
+      return "/oauth/github/callback";
+    default:
+      return undefined;
+  }
+}
+
+function providerSetupHint(provider: AlisioOAuthProvider, connectorTitle: string) {
+  const label = providerLabel(provider);
+  if (provider === "google" || provider === "github") {
+    return `${connectorTitle} can complete native ${label} OAuth in Alisio as soon as the provider app credentials are configured on this gateway.`;
+  }
+  return `${connectorTitle} is modeled in the product already, but the native ${label} OAuth callback is still pending in this rollout.`;
+}
+
 function resolveOAuthClientConfig(provider: AlisioOAuthProvider, env: NodeJS.ProcessEnv) {
   switch (provider) {
     case "google":
@@ -1594,6 +1659,17 @@ export async function beginAlisioConnectorSetup(
     if (!connector) {
       return null;
     }
+    const provider = resolveConnectorOAuthProvider(connector.id);
+    const providerGuide =
+      provider == null
+        ? {}
+        : {
+            provider,
+            providerLabel: providerLabel(provider),
+            callbackPath: providerCallbackPath(provider),
+            requiredEnvVars: providerRequiredEnvVars(provider),
+            setupHint: providerSetupHint(provider, connector.title),
+          };
     if (connector.availability === "in_review") {
       return {
         connectorId: connector.id,
@@ -1601,6 +1677,7 @@ export async function beginAlisioConnectorSetup(
         mode: "setup",
         statusReason: "review_required",
         setupUrl: connector.setupUrl,
+        ...providerGuide,
       };
     }
     if (connector.availability === "unavailable") {
@@ -1610,10 +1687,10 @@ export async function beginAlisioConnectorSetup(
         mode: "setup",
         statusReason: "unavailable",
         setupUrl: connector.setupUrl,
+        ...providerGuide,
       };
     }
 
-    const provider = resolveConnectorOAuthProvider(connector.id);
     if (!provider) {
       return {
         connectorId: connector.id,
@@ -1628,9 +1705,9 @@ export async function beginAlisioConnectorSetup(
         connectorId: connector.id,
         availability: connector.availability,
         mode: "setup",
-        provider,
         statusReason: "unavailable",
         setupUrl: connector.setupUrl,
+        ...providerGuide,
       };
     }
     const config = resolveOAuthClientConfig(provider, env);
@@ -1639,9 +1716,9 @@ export async function beginAlisioConnectorSetup(
         connectorId: connector.id,
         availability: connector.availability,
         mode: "setup",
-        provider,
         statusReason: "missing_client_config",
         setupUrl: connector.setupUrl,
+        ...providerGuide,
       };
     }
 
@@ -1662,6 +1739,7 @@ export async function beginAlisioConnectorSetup(
       availability: connector.availability,
       mode: "oauth",
       provider,
+      providerLabel: providerLabel(provider),
       statusReason: "ready_for_oauth",
       setupUrl: buildAuthorizationUrl({
         provider,
@@ -1672,6 +1750,7 @@ export async function beginAlisioConnectorSetup(
         codeVerifier,
       }),
       redirectUri: config.redirectUri,
+      callbackPath: providerCallbackPath(provider),
     };
   });
 }
