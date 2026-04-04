@@ -2,8 +2,14 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import type { AppViewState } from "../app-view-state.ts";
 import type { ConfigState } from "../controllers/config.ts";
-import type { ExecApprovalsState } from "../controllers/exec-approvals.ts";
+import {
+  changeExecApprovalsTarget,
+  loadSelectedExecApprovals,
+  type ExecApprovalsState,
+  type ExecApprovalsTargetState,
+} from "../controllers/exec-approvals.ts";
 import {
   FULL_ACCESS_CONFIG_DEFAULTS,
   RECOMMENDED_CONFIG_DEFAULTS,
@@ -12,7 +18,10 @@ import {
   resolveSecurityAccessMode,
 } from "../controllers/security-access.ts";
 import type { GatewayAccessModeState } from "../controllers/security-access.ts";
+import { resolveAgentDisplayLabel } from "./agent-display.ts";
+import { renderExecApprovalPrompt } from "./exec-approval.ts";
 import { renderSecurity, supportsRuntimeAccessModeTarget } from "./security.ts";
+import { parseSessionKey, resolveSessionDisplayName } from "./session-display.ts";
 
 describe("resolveConfiguredExecDefaults", () => {
   it("falls back to the gateway exec baseline when config is missing", () => {
@@ -160,9 +169,54 @@ describe("supportsRuntimeAccessModeTarget", () => {
   });
 });
 
+describe("agent and session display labels", () => {
+  it("shows the assistant name for the primary agent instead of the raw main id", () => {
+    expect(
+      resolveAgentDisplayLabel(
+        { id: "main" },
+        { assistantName: "Alisio", assistantAgentId: "main" },
+      ),
+    ).toBe("Alisio");
+  });
+
+  it("lets an explicit primary agent override the current session agent id", () => {
+    expect(
+      resolveAgentDisplayLabel(
+        { id: "main" },
+        {
+          assistantName: "Alisio",
+          assistantAgentId: "ops",
+          primaryAgentId: "main",
+        },
+      ),
+    ).toBe("Alisio");
+  });
+
+  it("labels the main and direct sessions without exposing the raw scoped key", () => {
+    expect(
+      resolveSessionDisplayName("agent:main:main", undefined, {
+        assistantName: "Alisio",
+        assistantAgentId: "main",
+      }),
+    ).toBe("Main Session");
+    expect(
+      resolveSessionDisplayName("agent:ops:main", undefined, {
+        assistantName: "Alisio",
+        assistantAgentId: "main",
+      }),
+    ).toBe("ops / Main Session");
+    expect(parseSessionKey("agent:main:telegram:direct:user123")).toEqual({
+      prefix: "",
+      fallbackName: "Telegram · user123",
+    });
+  });
+});
+
 describe("renderSecurity", () => {
   function createProps() {
     return {
+      assistantName: "Alisio",
+      assistantAgentId: "main",
       loading: false,
       nodes: [],
       configSnapshot: {
@@ -185,6 +239,8 @@ describe("renderSecurity", () => {
       },
       configLoading: false,
       configSaving: false,
+      configDirty: false,
+      configFormMode: "form" as const,
       execApprovalsLoading: false,
       execApprovalsSaving: false,
       execApprovalsDirty: true,
@@ -249,6 +305,59 @@ describe("renderSecurity", () => {
     expect(activeButton?.hasAttribute("disabled")).toBe(true);
   });
 
+  it("shows the assistant name instead of leaking the internal main agent id", () => {
+    const container = document.createElement("div");
+    render(renderSecurity(createProps()), container);
+
+    const scopeButtons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".btn.btn--sm"),
+      (button) => button.textContent?.trim() ?? "",
+    );
+    expect(scopeButtons).toContain("Alisio");
+    expect(scopeButtons).not.toContain("main");
+  });
+
+  it("renders pending approvals without leaking raw main agent or session ids", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        execApprovalQueue: [
+          {
+            id: "approval-1",
+            kind: "exec",
+            createdAtMs: Date.now(),
+            expiresAtMs: Date.now() + 30_000,
+            request: {
+              command: "uname -a",
+              host: "gateway",
+              agentId: "main",
+              sessionKey: "agent:main:main",
+              cwd: "/tmp",
+              security: "full",
+              ask: "off",
+            },
+          },
+        ],
+      }),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Alisio");
+    expect(text).toContain("Main Session");
+    expect(text).not.toContain("agent:main:main");
+  });
+
+  it("keeps the live approvals panel visible with an empty state", () => {
+    const container = document.createElement("div");
+    render(renderSecurity(createProps()), container);
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Live approvals");
+    expect(text).toContain("No approvals waiting");
+  });
+
   it("shows the selected node prompt instead of the gateway prompt in hero stats", () => {
     const container = document.createElement("div");
     render(
@@ -277,6 +386,43 @@ describe("renderSecurity", () => {
     const stats = container.querySelector(".alisio-security-summary");
     expect(stats?.textContent).toContain("Always");
     expect(stats?.textContent).not.toContain("On miss");
+  });
+});
+
+describe("renderExecApprovalPrompt", () => {
+  it("shows human labels for the primary agent and main session", () => {
+    const container = document.createElement("div");
+    const state = {
+      assistantName: "Alisio",
+      assistantAgentId: "main",
+      execApprovalQueue: [
+        {
+          id: "approval-1",
+          kind: "exec",
+          createdAtMs: Date.now(),
+          expiresAtMs: Date.now() + 30_000,
+          request: {
+            command: "uname -a",
+            host: "gateway",
+            agentId: "main",
+            sessionKey: "agent:main:main",
+            cwd: "/tmp",
+            security: "full",
+            ask: "off",
+          },
+        },
+      ],
+      execApprovalBusy: false,
+      execApprovalError: null,
+      handleExecApprovalDecision: () => undefined,
+    } as unknown as AppViewState;
+
+    render(renderExecApprovalPrompt(state), container);
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Alisio");
+    expect(text).toContain("Main Session");
+    expect(text).not.toContain("agent:main:main");
   });
 });
 
@@ -488,5 +634,116 @@ describe("applyGatewayAccessMode", () => {
     expect(state.configForm).toEqual(cleanedConfig);
     expect(state.gatewayAccessMode).toBe("recommended");
     expect(state.lastError).toBeNull();
+  });
+
+  it("blocks access mode changes while a raw config draft is still dirty", async () => {
+    const request = vi.fn();
+    const state = createControllerState();
+    state.client = { request } as unknown as ConfigState["client"];
+    state.configFormDirty = true;
+    state.configFormMode = "raw";
+
+    await applyGatewayAccessMode(state, "recommended");
+
+    expect(request).not.toHaveBeenCalled();
+    expect(state.lastError).toBe(
+      "Save or reload the raw config draft before changing the access mode.",
+    );
+  });
+});
+
+describe("exec approvals target handling", () => {
+  function createExecApprovalsTargetState(): ExecApprovalsTargetState {
+    return {
+      client: null,
+      connected: true,
+      execApprovalsLoading: false,
+      execApprovalsSaving: false,
+      execApprovalsDirty: false,
+      execApprovalsSnapshot: null,
+      execApprovalsForm: null,
+      execApprovalsSelectedAgent: null,
+      execApprovalsTarget: "gateway",
+      execApprovalsTargetNodeId: null,
+      lastError: null,
+    };
+  }
+
+  it("clears stale approvals without error when node target has no selected node", async () => {
+    const request = vi.fn();
+    const state = createExecApprovalsTargetState();
+    state.client = { request } as unknown as ExecApprovalsTargetState["client"];
+    state.execApprovalsTarget = "node";
+    state.execApprovalsSnapshot = {
+      path: "/tmp/exec-approvals.json",
+      exists: true,
+      hash: "hash-gateway",
+      file: {
+        version: 1,
+        defaults: {
+          security: "allowlist",
+        },
+      },
+    };
+    state.execApprovalsForm = {
+      version: 1,
+      defaults: {
+        security: "allowlist",
+      },
+    };
+
+    await loadSelectedExecApprovals(state);
+
+    expect(request).not.toHaveBeenCalled();
+    expect(state.execApprovalsSnapshot).toBeNull();
+    expect(state.execApprovalsForm).toBeNull();
+    expect(state.lastError).toBeNull();
+  });
+
+  it("blocks target switches while the current draft is dirty", async () => {
+    const request = vi.fn();
+    const state = createExecApprovalsTargetState();
+    state.client = { request } as unknown as ExecApprovalsTargetState["client"];
+    state.execApprovalsDirty = true;
+
+    await changeExecApprovalsTarget(state, { kind: "node", nodeId: "node-1" });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(state.execApprovalsTarget).toBe("gateway");
+    expect(state.execApprovalsTargetNodeId).toBeNull();
+    expect(state.lastError).toBe(
+      "Save or reload the current exec approvals draft before changing target.",
+    );
+  });
+
+  it("loads node approvals when switching to a concrete node target", async () => {
+    const request = vi.fn().mockResolvedValue({
+      path: "/tmp/node-exec-approvals.json",
+      exists: true,
+      hash: "hash-node-1",
+      file: {
+        version: 1,
+        defaults: {
+          security: "allowlist",
+          ask: "always",
+        },
+      },
+    });
+    const state = createExecApprovalsTargetState();
+    state.client = { request } as unknown as ExecApprovalsTargetState["client"];
+
+    await changeExecApprovalsTarget(state, { kind: "node", nodeId: "node-1" });
+
+    expect(request).toHaveBeenCalledWith("exec.approvals.node.get", { nodeId: "node-1" });
+    expect(state.execApprovalsTarget).toBe("node");
+    expect(state.execApprovalsTargetNodeId).toBe("node-1");
+    expect(state.execApprovalsSnapshot?.hash).toBe("hash-node-1");
+    expect(state.execApprovalsForm).toEqual({
+      version: 1,
+      defaults: {
+        security: "allowlist",
+        ask: "always",
+      },
+    });
   });
 });

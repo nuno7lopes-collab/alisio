@@ -151,7 +151,7 @@ const coreEntries: CoreCliEntry[] = [
     commands: [
       {
         name: "mcp",
-        description: "Manage OpenClaw MCP config and channel bridge",
+        description: "Manage Alisio MCP config and channel bridge",
         hasSubcommands: true,
       },
     ],

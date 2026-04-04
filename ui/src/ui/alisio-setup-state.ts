@@ -82,13 +82,13 @@ export function resolveDisplayedSetupStep(params: {
   if (!params.connected) {
     return "gateway";
   }
-  if (startupState === "ready") {
-    return "ready";
-  }
   const requestedStep = normalizeSetupStep(params.requestedStep);
   const bootstrapStep = normalizeSetupStep(
     params.bootstrap?.nextStep ?? params.startupBootstrap?.nextStep,
   );
+  if (startupState === "ready") {
+    return requestedStep && isPostReadySetupStep(requestedStep) ? requestedStep : "ready";
+  }
   if (requestedStep && requestedStep !== "ready") {
     return requestedStep;
   }

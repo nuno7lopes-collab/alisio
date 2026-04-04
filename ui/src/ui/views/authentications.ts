@@ -7,48 +7,14 @@ import type {
   AlisioConnectorDefinition,
 } from "../types.ts";
 import { connectorBrandStyle, getConnectorBranding } from "./connector-branding.ts";
-
-type ConnectorStatus =
-  | "connected"
-  | "needs_reconnect"
-  | "setup_required"
-  | "ready"
-  | "in_review"
-  | "unavailable";
-
-type ConnectorRow = {
-  definition: AlisioConnectorDefinition;
-  authorization: AlisioConnectorAuthorization;
-  status: ConnectorStatus;
-};
+import {
+  buildConnectorRows,
+  connectorStatusHint,
+  connectorStatusLabel,
+  type ConnectorRow,
+} from "./connector-state.ts";
 
 const CATEGORY_ORDER = ["social", "google", "productivity", "development"] as const;
-
-function resolveConnectorStatus(row: {
-  definition: AlisioConnectorDefinition;
-  authorization: AlisioConnectorAuthorization | undefined;
-}): ConnectorStatus {
-  if (
-    row.authorization?.state === "needs_reconnect" ||
-    (row.authorization?.health === "needs_reconnect" &&
-      row.authorization?.state !== "not_connected")
-  ) {
-    return "needs_reconnect";
-  }
-  if (row.authorization?.state === "connected") {
-    return "connected";
-  }
-  if (row.authorization?.health === "config_missing") {
-    return "setup_required";
-  }
-  if (row.definition.availability === "ready") {
-    return "ready";
-  }
-  if (row.definition.availability === "in_review") {
-    return "in_review";
-  }
-  return "unavailable";
-}
 
 function filterRows(rows: ConnectorRow[], search: string, category: string) {
   const normalizedSearch = search.trim().toLowerCase();
@@ -83,28 +49,6 @@ function categoryLabels() {
   } as const;
 }
 
-function statusLabel(status: ConnectorStatus) {
-  return t(`alisio.authentications.statuses.${status}`);
-}
-
-function statusHint(status: ConnectorStatus) {
-  switch (status) {
-    case "connected":
-      return t("alisio.authentications.hints.connected");
-    case "ready":
-      return t("alisio.authentications.hints.ready");
-    case "needs_reconnect":
-      return t("alisio.authentications.hints.needsReconnect");
-    case "setup_required":
-      return t("alisio.authentications.hints.setupRequired");
-    case "in_review":
-      return t("alisio.authentications.hints.inReview");
-    case "unavailable":
-    default:
-      return t("alisio.authentications.hints.unavailable");
-  }
-}
-
 function connectedAccountLabel(authorization: AlisioConnectorAuthorization) {
   return (
     authorization.connectedAccount?.label?.trim() ||
@@ -133,6 +77,7 @@ function renderConnectorAction(
   text: {
     revoke: string;
     reconnect: string;
+    reviewSetup: string;
   },
 ) {
   if (row.status === "connected") {
@@ -156,6 +101,13 @@ function renderConnectorAction(
       </button>
     `;
   }
+  if (row.status === "setup_required") {
+    return html`
+      <button class="btn btn--sm primary" @click=${() => props.onBeginConnector(row.definition.id)}>
+        ${text.reviewSetup}
+      </button>
+    `;
+  }
   return nothing;
 }
 
@@ -169,6 +121,7 @@ function renderConnectorCard(
   text: {
     revoke: string;
     reconnect: string;
+    reviewSetup: string;
   },
 ) {
   const compact = props.compact ?? false;
@@ -191,7 +144,7 @@ function renderConnectorCard(
             </div>
           </div>
           <span class="pill ${`pill--${row.status.replace("_", "-")}`}"
-            >${statusLabel(row.status)}</span
+            >${connectorStatusLabel(row.status)}</span
           >
         </div>
         <div class="chip-row" style="margin-top: ${compact ? "10px" : "12px"};">
@@ -205,7 +158,7 @@ function renderConnectorCard(
             : nothing}
         </div>
         <div class="muted" style="margin-top: 10px; font-size: 13px;">
-          ${statusHint(row.status)}
+          ${connectorStatusHint(row.status)}
         </div>
       </div>
       <div class="alisio-auth-card__aside">${renderConnectorAction(row, props, text)}</div>
@@ -246,24 +199,11 @@ export function renderAuthentications(props: {
     emptyFiltered: t("alisio.authentications.emptyFiltered"),
     revoke: t("alisio.authentications.actions.revoke"),
     reconnect: t("alisio.authentications.actions.reconnect"),
+    reviewSetup: t("alisio.authentications.actions.reviewSetup"),
   };
   const categories = categoryLabels();
 
-  const rows = props.connectorCatalog.map((definition) => {
-    const authorization = props.connectorAuthorizations.find(
-      (entry) => entry.connectorId === definition.id,
-    );
-    return {
-      definition,
-      authorization: authorization ?? {
-        connectorId: definition.id,
-        state: "not_connected",
-        health: definition.availability === "ready" ? "config_missing" : definition.availability,
-        scopes: definition.scopes,
-      },
-      status: resolveConnectorStatus({ definition, authorization }),
-    } satisfies ConnectorRow;
-  });
+  const rows = buildConnectorRows(props.connectorCatalog, props.connectorAuthorizations);
 
   const visibleRows = filterRows(rows, props.search, props.categoryFilter);
   const connectedRows = visibleRows.filter((row) => row.status === "connected");

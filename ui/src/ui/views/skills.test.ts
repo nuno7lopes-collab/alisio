@@ -1,3 +1,5 @@
+/* @vitest-environment jsdom */
+
 import { render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
@@ -9,7 +11,7 @@ function createSkill(overrides: Partial<SkillStatusEntry> = {}): SkillStatusEntr
   return {
     name: "Repo Skill",
     description: "Skill description",
-    source: "workspace",
+    source: "openclaw-workspace",
     filePath: "/tmp/skill",
     baseDir: "/tmp",
     skillKey: "repo-skill",

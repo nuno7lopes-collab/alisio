@@ -9,13 +9,17 @@ export const unitTestIncludePatterns = [
   "ui/src/ui/chat/**/*.test.ts",
   "ui/src/ui/navigation-groups.test.ts",
   "ui/src/ui/navigation.test.ts",
+  "ui/src/ui/views/agents.test.ts",
   "ui/src/ui/views/agents-utils.test.ts",
+  "ui/src/ui/views/capabilities.test.ts",
   "ui/src/ui/views/channels.test.ts",
   "ui/src/ui/views/chat.test.ts",
+  "ui/src/ui/views/skills.test.ts",
   "ui/src/ui/views/security.test.ts",
   "ui/src/ui/views/usage-render-details.test.ts",
   "ui/src/ui/controllers/agents.test.ts",
   "ui/src/ui/controllers/chat.test.ts",
+  "ui/src/ui/controllers/skills.test.ts",
 ];
 
 export const unitTestAdditionalExcludePatterns = [

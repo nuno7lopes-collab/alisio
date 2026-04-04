@@ -1,5 +1,5 @@
 import { LitElement } from "lit";
-import { customElement, state } from "lit/decorators.js";
+import { state } from "lit/decorators.js";
 import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.js";
 import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
@@ -63,10 +63,11 @@ import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./contro
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
-import "./lume-host.ts";
 import type { SecurityAccessMode } from "./controllers/security-access.ts";
+import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
+import type { ModelsServerDraft } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import { VALID_THEME_NAMES, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
@@ -104,7 +105,6 @@ declare global {
 
 const bootAssistantIdentity = normalizeAssistantIdentity({});
 
-@customElement("alisio-app")
 export class OpenClawApp extends LitElement {
   private i18nController = new I18nController(this);
   clientInstanceId = generateUUID();
@@ -148,6 +148,9 @@ export class OpenClawApp extends LitElement {
   @state() alisioDoctorLoading = false;
   @state() alisioDoctorError: string | null = null;
   @state() alisioDoctor: import("./types.ts").AlisioDoctorSummaryState | null = null;
+  @state() alisioModelsLoading = false;
+  @state() alisioModelsError: string | null = null;
+  @state() alisioModels: import("./types.ts").AlisioModelsState | null = null;
   @state() alisioAccountLoading = false;
   @state() alisioAccountError: string | null = null;
   @state() alisioAccountNotice: string | null = null;
@@ -209,6 +212,8 @@ export class OpenClawApp extends LitElement {
   @state() chatManualRefreshInFlight = false;
   @state() navDrawerOpen = false;
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
+  @state() modelsSelectedProviderId: "openai" | "server" | "local" | null | undefined = undefined;
+  @state() modelsServerDraft: ModelsServerDraft | null | undefined = undefined;
 
   onSlashAction?: (action: string) => void;
 
@@ -292,6 +297,7 @@ export class OpenClawApp extends LitElement {
   @state() channelsActionMessage: string | null = null;
   @state() channelsLoginQrDataUrl: string | null = null;
   @state() channelsLoginConnected: boolean | null = null;
+  @state() channelsLoginAccountId: string | null = null;
   @state() channelsSetupLoading = false;
   @state() channelsSetupSubmitting = false;
   @state() channelsSetupSessionId: string | null = null;
@@ -858,4 +864,8 @@ export class OpenClawApp extends LitElement {
   render() {
     return renderApp(this as unknown as AppViewState);
   }
+}
+
+if (typeof customElements !== "undefined" && !customElements.get("alisio-app")) {
+  customElements.define("alisio-app", OpenClawApp);
 }

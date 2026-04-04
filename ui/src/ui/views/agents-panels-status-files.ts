@@ -21,6 +21,7 @@ import type {
 import { type AgentContext } from "./agents-utils.ts";
 import type { AgentsPanel } from "./agents.ts";
 import { resolveChannelExtras as resolveChannelExtrasFromConfig } from "./channel-config-extras.ts";
+import { channelAccountLooksConnected } from "./channel-display.ts";
 
 function renderAgentContextCard(
   context: AgentContext,
@@ -124,12 +125,7 @@ function summarizeChannelAccounts(accounts: ChannelAccountSnapshot[]) {
   let configured = 0;
   let enabled = 0;
   for (const account of accounts) {
-    const probeOk =
-      account.probe && typeof account.probe === "object" && "ok" in account.probe
-        ? Boolean((account.probe as { ok?: unknown }).ok)
-        : false;
-    const isConnected = account.connected === true || account.running === true || probeOk;
-    if (isConnected) {
+    if (channelAccountLooksConnected(account)) {
       connected += 1;
     }
     if (account.configured) {

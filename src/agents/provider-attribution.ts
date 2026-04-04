@@ -28,7 +28,7 @@ export type ProviderAttributionPolicy = {
 
 export type ProviderAttributionIdentity = Pick<ProviderAttributionPolicy, "product" | "version">;
 
-const OPENCLAW_ATTRIBUTION_PRODUCT = "OpenClaw";
+const OPENCLAW_ATTRIBUTION_PRODUCT = "Alisio";
 const OPENCLAW_ATTRIBUTION_ORIGINATOR = "openclaw";
 
 export function resolveProviderAttributionIdentity(
@@ -50,7 +50,7 @@ function buildOpenRouterAttributionPolicy(
     verification: "vendor-documented",
     hook: "request-headers",
     docsUrl: "https://openrouter.ai/docs/app-attribution",
-    reviewNote: "Documented app attribution headers. Verified in OpenClaw runtime wrapper.",
+    reviewNote: "Documented app attribution headers. Verified in Alisio runtime wrapper.",
     ...identity,
     headers: {
       "HTTP-Referer": "https://openclaw.ai",

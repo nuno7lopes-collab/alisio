@@ -207,7 +207,7 @@ describe("installPluginFromClawHub", () => {
         ok: false,
         code: CLAWHUB_INSTALL_ERROR_CODE.INCOMPATIBLE_PLUGIN_API,
         error:
-          'Plugin "demo" requires plugin API >=2026.3.22, but this OpenClaw runtime exposes 2026.3.21.',
+          'Plugin "demo" requires plugin API >=2026.3.22, but this Alisio runtime exposes 2026.3.21.',
       },
     },
     {

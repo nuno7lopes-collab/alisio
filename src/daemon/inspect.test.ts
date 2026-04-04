@@ -15,7 +15,7 @@ vi.mock("./schtasks-exec.js", () => ({
 // Real content from the openclaw-gateway.service unit file (the canonical gateway unit).
 const GATEWAY_SERVICE_CONTENTS = `\
 [Unit]
-Description=OpenClaw Gateway (v2026.3.8)
+Description=Alisio Gateway (v2026.3.8)
 After=network-online.target
 Wants=network-online.target
 
@@ -176,7 +176,7 @@ describe("findExtraGatewayServices (win32)", () => {
     execSchtasksMock.mockResolvedValueOnce({
       code: 0,
       stdout: [
-        "TaskName: OpenClaw Gateway",
+        "TaskName: Alisio Gateway",
         "Task To Run: C:\\Program Files\\OpenClaw\\openclaw.exe gateway run",
         "",
         "TaskName: Clawdbot Legacy",

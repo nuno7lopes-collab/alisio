@@ -25,6 +25,7 @@ describe("method scope resolution", () => {
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
     ["alisio.account.requestPasswordReset", ["operator.write"]],
+    ["alisio.models.server.save", ["operator.write"]],
     ["alisio.runtime.restart", ["operator.admin"]],
     ["config.patch", ["operator.admin"]],
     ["wizard.start", ["operator.admin"]],
@@ -59,9 +60,14 @@ describe("operator scope authorization", () => {
     ["health", ["operator.read"], { allowed: true }],
     ["health", ["operator.write"], { allowed: true }],
     ["alisio.bootstrap.get", ["operator.read"], { allowed: true }],
+    ["alisio.models.get", ["operator.read"], { allowed: true }],
     ["alisio.doctor.summary", ["operator.read"], { allowed: true }],
     ["alisio.runtime.restart", ["operator.admin"], { allowed: true }],
     ["config.schema.lookup", ["operator.read"], { allowed: true }],
+    ["alisio.models.install", ["operator.write"], { allowed: true }],
+    ["alisio.models.server.save", ["operator.write"], { allowed: true }],
+    ["alisio.models.server.remove", ["operator.write"], { allowed: true }],
+    ["alisio.models.server.select", ["operator.write"], { allowed: true }],
     ["config.patch", ["operator.admin"], { allowed: true }],
   ])("authorizes %s for scopes %j", (method, scopes, expected) => {
     expect(authorizeOperatorScopesForMethod(method, scopes)).toEqual(expected);

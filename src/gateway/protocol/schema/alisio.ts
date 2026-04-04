@@ -5,6 +5,7 @@ import {
   ALISIO_USERNAME_MIN_LENGTH,
 } from "../../../shared/alisio-account.js";
 import { ALISIO_PLAN_VALUES } from "../../../shared/alisio-billing.js";
+import { ALISIO_LOCAL_MODEL_BACKEND } from "../../../shared/alisio-local-models.js";
 import { NonEmptyString } from "./primitives.js";
 
 const ConnectorCategorySchema = Type.Union([
@@ -113,6 +114,29 @@ const DoctorIssueSeveritySchema = Type.Union([
   Type.Literal("info"),
   Type.Literal("warning"),
   Type.Literal("error"),
+]);
+
+const LocalModelReleaseStageSchema = Type.Union([
+  Type.Literal("hidden"),
+  Type.Literal("published"),
+]);
+
+const LocalModelRuntimeStatusSchema = Type.Union([
+  Type.Literal("ready"),
+  Type.Literal("not_configured"),
+  Type.Literal("error"),
+]);
+
+const RemoteModelServerKindSchema = Type.Union([
+  Type.Literal("openai-compatible"),
+  Type.Literal("ollama"),
+]);
+
+const ModelRecommendationGradeSchema = Type.Union([
+  Type.Literal("recommended"),
+  Type.Literal("works"),
+  Type.Literal("slow"),
+  Type.Literal("unsupported"),
 ]);
 
 export const AlisioConnectorSummarySchema = Type.Object(
@@ -506,6 +530,151 @@ export const AlisioBootstrapModelsSchema = Type.Object(
     total: Type.Integer({ minimum: 0 }),
     defaultProvider: NonEmptyString,
     providers: Type.Array(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+export const AlisioLocalModelCatalogEntrySchema = Type.Object(
+  {
+    id: NonEmptyString,
+    slug: NonEmptyString,
+    family: NonEmptyString,
+    name: NonEmptyString,
+    parametersBillions: Type.Number({ minimum: 0 }),
+    quantization: NonEmptyString,
+    backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    summary: NonEmptyString,
+    diskGb: Type.Number({ minimum: 0 }),
+    memoryGb: Type.Number({ minimum: 0 }),
+    vramGb: Type.Optional(Type.Number({ minimum: 0 })),
+    releaseStage: LocalModelReleaseStageSchema,
+  },
+  { additionalProperties: false },
+);
+export const AlisioInstalledLocalModelSchema = Type.Object(
+  {
+    id: NonEmptyString,
+    name: NonEmptyString,
+    ownedBy: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelHardwareSchema = Type.Object(
+  {
+    platform: NonEmptyString,
+    architecture: NonEmptyString,
+    totalMemoryGb: Type.Number({ minimum: 0 }),
+    cpuCores: Type.Integer({ minimum: 1 }),
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelRecommendationSchema = Type.Object(
+  {
+    modelId: NonEmptyString,
+    grade: ModelRecommendationGradeSchema,
+    label: NonEmptyString,
+    reason: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsTargetSchema = Type.Object(
+  {
+    targetId: NonEmptyString,
+    label: NonEmptyString,
+    platform: Type.Optional(Type.String()),
+    current: Type.Boolean(),
+    connected: Type.Boolean(),
+    backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    runtimeStatus: LocalModelRuntimeStatusSchema,
+    runtimeMessage: Type.Optional(Type.String()),
+    installedModels: Type.Array(AlisioInstalledLocalModelSchema),
+    hardware: Type.Optional(AlisioModelHardwareSchema),
+    recommendations: Type.Array(AlisioModelRecommendationSchema),
+    bestModelId: Type.Optional(Type.String()),
+    bestModelName: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsGetParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioModelsInstallParamsSchema = Type.Object(
+  {
+    targetId: NonEmptyString,
+    modelId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsInstallResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    targetId: NonEmptyString,
+    modelId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioRemoteModelServerSchema = Type.Object(
+  {
+    serverId: NonEmptyString,
+    label: NonEmptyString,
+    kind: RemoteModelServerKindSchema,
+    baseUrl: NonEmptyString,
+    active: Type.Boolean(),
+    hasApiKey: Type.Boolean(),
+    status: LocalModelRuntimeStatusSchema,
+    message: Type.Optional(Type.String()),
+    models: Type.Array(AlisioInstalledLocalModelSchema),
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerSaveParamsSchema = Type.Object(
+  {
+    serverId: Type.Optional(Type.String()),
+    label: NonEmptyString,
+    kind: RemoteModelServerKindSchema,
+    baseUrl: NonEmptyString,
+    apiKey: Type.Optional(Type.String()),
+    clearApiKey: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerSaveResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    serverId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerRemoveParamsSchema = Type.Object(
+  {
+    serverId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerRemoveResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    serverId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerSelectParamsSchema = Type.Object(
+  {
+    serverId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsServerSelectResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    serverId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsResultSchema = Type.Object(
+  {
+    backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    catalog: Type.Array(AlisioLocalModelCatalogEntrySchema),
+    targets: Type.Array(AlisioModelsTargetSchema),
+    servers: Type.Array(AlisioRemoteModelServerSchema),
   },
   { additionalProperties: false },
 );

@@ -288,6 +288,9 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> =
         },
         resolveAccountSnapshot: async ({ account, runtime }) => {
           const linked = await (await loadWhatsAppChannelRuntime()).webAuthExists(account.authDir);
+          const self = linked
+            ? (await loadWhatsAppChannelRuntime()).readWebSelfId(account.authDir)
+            : { e164: null, jid: null };
           return {
             accountId: account.accountId,
             name: account.name,
@@ -295,6 +298,7 @@ export const whatsappPlugin: ChannelPlugin<ResolvedWhatsAppAccount> =
             configured: true,
             extra: {
               linked,
+              self,
               connected: runtime?.connected ?? false,
               reconnectAttempts: runtime?.reconnectAttempts,
               lastConnectedAt: runtime?.lastConnectedAt ?? null,

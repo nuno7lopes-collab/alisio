@@ -187,7 +187,17 @@ describe("channelsHandlers channels.status", () => {
             docsPath: "/channels/discord",
           }),
         ],
-        channelIssues: {},
+        channelIssues: {
+          telegram: [
+            expect.objectContaining({
+              accountId: "default",
+              kind: "config",
+              message:
+                "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
+              fix: "Finish setup or install the channel runtime so the gateway can start it.",
+            }),
+          ],
+        },
         channels: {
           telegram: expect.objectContaining({
             configured: true,
@@ -210,6 +220,37 @@ describe("channelsHandlers channels.status", () => {
             linkMode: "wizard",
           }),
         },
+      }),
+      undefined,
+    );
+  });
+
+  it("sinaliza canais configurados que ficaram apenas em modo setup-only", async () => {
+    const autoEnabledConfig = { autoEnabled: true };
+    mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
+    const respond = vi.fn();
+
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+        },
+      ),
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        channelIssues: expect.objectContaining({
+          telegram: [
+            expect.objectContaining({
+              kind: "config",
+              message:
+                "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
+            }),
+          ],
+        }),
       }),
       undefined,
     );
@@ -239,7 +280,7 @@ describe("channelsHandlers channels.status", () => {
     expect(respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
-        channelIssues: {
+        channelIssues: expect.objectContaining({
           whatsapp: [
             expect.objectContaining({
               accountId: "default",
@@ -248,7 +289,7 @@ describe("channelsHandlers channels.status", () => {
               fix: "Refresh the connection.",
             }),
           ],
-        },
+        }),
       }),
       undefined,
     );

@@ -381,6 +381,10 @@ export async function applyGatewayAccessMode(
   if (!state.client || !state.connected || state.gatewayAccessModeBusy) {
     return;
   }
+  if (state.configFormDirty && state.configFormMode === "raw") {
+    state.lastError = "Save or reload the raw config draft before changing the access mode.";
+    return;
+  }
   if (state.execApprovalsTarget === "gateway" && state.execApprovalsDirty) {
     state.lastError =
       "Save or reload the gateway exec approvals draft before changing the access mode.";

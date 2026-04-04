@@ -7,6 +7,7 @@ import type {
   ChannelUiMetaEntry,
   WizardStep,
 } from "../types.ts";
+import { channelAccountLooksConnected, summarizeChannelsSnapshot } from "./channel-display.ts";
 
 type WizardAnswer = {
   stepId: string;
@@ -23,6 +24,7 @@ type ChannelsProps = {
   actionMessage: string | null;
   loginQrDataUrl: string | null;
   loginConnected: boolean | null;
+  loginAccountId: string | null;
   setupLoading: boolean;
   setupSubmitting: boolean;
   setupSessionId: string | null;
@@ -42,8 +44,8 @@ type ChannelsProps = {
   onSetupDraftConfirmChange: (value: boolean) => void;
   onSetupDraftSelectIndexChange: (value: number) => void;
   onSetupDraftMultiIndexesChange: (value: number[]) => void;
-  onStartWhatsAppLink: (force: boolean) => void;
-  onWaitWhatsAppLink: () => void;
+  onStartWhatsAppLink: (force: boolean, accountId?: string) => void;
+  onWaitWhatsAppLink: (accountId?: string) => void;
   onLogoutChannel: (channelId: string, accountId?: string) => void;
   onOpenSupportUrl: (url: string) => void;
 };
@@ -84,6 +86,17 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean {
 function readString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNestedString(value: unknown, keys: string[]): string | null {
+  let current = value;
+  for (const key of keys) {
+    if (!current || typeof current !== "object") {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
 }
 
 function buildChannelDocsUrl(docsPath?: string): string | null {
@@ -133,6 +146,11 @@ function deriveChannelMeta(
     detailLabel,
     ...(typeof systemImage === "string" && systemImage.trim() ? { systemImage } : {}),
   };
+}
+
+function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | null {
+  const localized = channelText(`descriptions.${row.id}`);
+  return localized !== `alisio.channels.descriptions.${row.id}` ? localized : null;
 }
 
 function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): ResolvedChannelRow[] {
@@ -198,31 +216,42 @@ function resolveChannelIdentifier(row: ResolvedChannelRow): string | null {
   return account?.name?.trim() ?? null;
 }
 
-function resolveAccountLabel(row: ResolvedChannelRow): string {
-  const account = row.defaultAccount;
-  const accountId = row.defaultAccountId?.trim();
-  if (account?.name?.trim()) {
-    return account.name.trim();
+function resolveAccountIdentifier(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): string | null {
+  const probe = asRecord(account.probe);
+  if (row.id === "telegram") {
+    const username = readNestedString(probe, ["bot", "username"]);
+    return username ? `@${username.replace(/^@+/, "")}` : null;
   }
-  if (!accountId || accountId === "default") {
-    return channelText("noAccount");
+  if (row.id === "discord") {
+    return readNestedString(probe, ["bot", "username"]);
   }
-  return accountId;
+  if (row.id === "whatsapp") {
+    return (
+      readNestedString(account, ["self", "e164"]) ??
+      readNestedString(account, ["self", "jid"]) ??
+      (row.defaultAccountId === account.accountId ? resolveChannelIdentifier(row) : null)
+    );
+  }
+  return account.name?.trim() ?? null;
 }
 
 function resolveChannelFlags(row: ResolvedChannelRow) {
   const summary = row.summary;
-  const account = row.defaultAccount;
-  const configured = readBoolean(summary, "configured") || account?.configured === true;
-  const linked = readBoolean(summary, "linked") || account?.linked === true;
+  const configured =
+    readBoolean(summary, "configured") ||
+    row.accounts.some((account) => account.configured === true);
+  const linked =
+    readBoolean(summary, "linked") || row.accounts.some((account) => account.linked === true);
   const connected =
     readBoolean(summary, "connected") ||
     readBoolean(summary, "running") ||
-    account?.connected === true ||
-    account?.running === true;
+    row.accounts.some((account) => channelAccountLooksConnected(account));
   const attention =
     row.issues.length > 0 ||
-    Boolean(account?.lastError?.trim()) ||
+    row.accounts.some((account) => Boolean(account.lastError?.trim())) ||
     Boolean(readString(summary, "lastError"));
   const setupAvailable =
     readBoolean(summary, "setupAvailable") ||
@@ -232,6 +261,7 @@ function resolveChannelFlags(row: ResolvedChannelRow) {
   const logoutAvailable =
     readBoolean(summary, "logoutAvailable") || row.id === "telegram" || row.id === "whatsapp";
   const linkMode = readString(summary, "linkMode") ?? (row.id === "whatsapp" ? "qr" : "wizard");
+  const setupOnly = readBoolean(summary, "setupOnly");
 
   return {
     configured,
@@ -241,11 +271,81 @@ function resolveChannelFlags(row: ResolvedChannelRow) {
     setupAvailable,
     logoutAvailable,
     linkMode,
+    setupOnly,
+  };
+}
+
+function resolveAccountIssues(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): ChannelStatusIssue[] {
+  return row.issues.filter((issue) => issue.accountId === account.accountId);
+}
+
+function resolveAccountFlags(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): ReturnType<typeof resolveChannelFlags> {
+  const channelFlags = resolveChannelFlags(row);
+  const isDefaultAccount = row.defaultAccountId === account.accountId;
+  const summary = row.summary;
+  return {
+    ...channelFlags,
+    configured:
+      account.configured === true || (isDefaultAccount && readBoolean(summary, "configured")),
+    linked: account.linked === true || (isDefaultAccount && readBoolean(summary, "linked")),
+    connected:
+      channelAccountLooksConnected(account) ||
+      (isDefaultAccount && (readBoolean(summary, "connected") || readBoolean(summary, "running"))),
+    attention:
+      resolveAccountIssues(row, account).length > 0 ||
+      Boolean(account.lastError?.trim()) ||
+      (isDefaultAccount && Boolean(readString(summary, "lastError"))),
   };
 }
 
 function resolveChannelStatus(row: ResolvedChannelRow): ChannelVisualStatus {
   const flags = resolveChannelFlags(row);
+  if (flags.attention) {
+    return {
+      key: "attention",
+      label: channelText("status.attention"),
+      className: "chip chip-warn",
+    };
+  }
+  if (flags.connected) {
+    return {
+      key: "connected",
+      label: channelText("status.connected"),
+      className: "chip chip-ok",
+    };
+  }
+  if (flags.linked) {
+    return {
+      key: "linked",
+      label: channelText("status.linked"),
+      className: "chip chip-active",
+    };
+  }
+  if (flags.configured) {
+    return {
+      key: "ready",
+      label: channelText("status.ready"),
+      className: "chip",
+    };
+  }
+  return {
+    key: "notConfigured",
+    label: channelText("status.notConfigured"),
+    className: "chip",
+  };
+}
+
+function resolveAccountStatus(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): ChannelVisualStatus {
+  const flags = resolveAccountFlags(row, account);
   if (flags.attention) {
     return {
       key: "attention",
@@ -315,7 +415,7 @@ function resolveChannelRequirements(row: ResolvedChannelRow): ChannelRequirement
   return null;
 }
 
-function resolvePrimaryAction(
+function resolveSetupAction(
   row: ResolvedChannelRow,
   props: ChannelsProps,
 ): { label: string; action: () => void; busy: boolean } | null {
@@ -326,29 +426,46 @@ function resolvePrimaryAction(
     props.setupSessionId !== null ||
     props.setupStep !== null;
 
-  if (row.id === "whatsapp" && flags.configured) {
-    return {
-      label: flags.linked ? channelText("relink") : channelText("showQr"),
-      action: () => {
-        props.onStartWhatsAppLink(flags.linked);
-      },
-      busy: props.busyKey === "whatsapp:start" || props.busyKey === "whatsapp:wait",
-    };
-  }
-
   if (!flags.setupAvailable) {
     return null;
   }
 
   return {
-    label:
-      flags.configured || flags.attention
+    label: flags.setupOnly
+      ? flags.configured || flags.attention
+        ? channelText("fixSetup")
+        : channelText("finishSetup")
+      : flags.configured || flags.attention
         ? channelText("configureAction")
         : channelText("connectAction"),
     action: () => {
       props.onStartChannelSetup(row.id);
     },
     busy: isSetupBusy,
+  };
+}
+
+function resolveWhatsAppAccountAction(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+  props: ChannelsProps,
+): { label: string; action: () => void; busy: boolean } | null {
+  if (row.id !== "whatsapp") {
+    return null;
+  }
+  const flags = resolveAccountFlags(row, account);
+  if (!flags.configured && !flags.linked) {
+    return null;
+  }
+  const busy =
+    (props.busyKey === "whatsapp:start" || props.busyKey === "whatsapp:wait") &&
+    (props.loginAccountId ?? row.defaultAccountId ?? "default") === account.accountId;
+  return {
+    label: flags.linked ? channelText("relink") : channelText("showQr"),
+    action: () => {
+      props.onStartWhatsAppLink(flags.linked, account.accountId);
+    },
+    busy,
   };
 }
 
@@ -417,14 +534,91 @@ function resolveSetupContinueLabel(
   return channelText("setupContinue");
 }
 
+function isSetupCommandLine(line: string) {
+  return /^(alisio|openclaw)\s+/i.test(line.trim());
+}
+
+function readSetupDocsUrl(line: string) {
+  const match = line.trim().match(/^Docs?:\s+(https?:\/\/\S+)$/i);
+  return match?.[1]?.trim() || null;
+}
+
+function renderSetupNoteMessage(message: string) {
+  const lines = message
+    .split(/\r?\n/g)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+  const visibleLines = lines.length > 0 ? lines : [channelText("setupWaiting")];
+  return html`
+    <div class="channel-setup-note">
+      ${visibleLines.map((line) => {
+        const trimmed = line.trim();
+        const docsUrl = readSetupDocsUrl(trimmed);
+        if (docsUrl) {
+          return html`
+            <a class="channel-setup-note__link" href=${docsUrl} target="_blank" rel="noreferrer">
+              ${docsUrl}
+            </a>
+          `;
+        }
+        if (isSetupCommandLine(trimmed)) {
+          return html`<code class="channel-setup-note__code">${trimmed}</code>`;
+        }
+        return html`<div class="channel-setup-note__line">${trimmed}</div>`;
+      })}
+    </div>
+  `;
+}
+
+function renderSetupOption(params: {
+  type: "radio" | "checkbox";
+  checked: boolean;
+  title: string;
+  hint?: string;
+  name?: string;
+  onChange: (checked: boolean) => void;
+}) {
+  const classes = [
+    "channel-setup-option",
+    params.checked ? "channel-setup-option--selected" : "",
+    params.type === "checkbox" ? "channel-setup-option--checkbox" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return html`
+    <label class=${classes}>
+      <input
+        class="channel-setup-option__input"
+        type=${params.type}
+        name=${params.name ?? ""}
+        .checked=${params.checked}
+        @change=${(event: Event) => {
+          params.onChange((event.target as HTMLInputElement).checked);
+        }}
+      />
+      <span class="channel-setup-option__marker" aria-hidden="true">
+        ${params.type === "radio" && params.checked
+          ? html`<span class="channel-setup-option__marker-dot"></span>`
+          : nothing}
+      </span>
+      <span class="channel-setup-option__content">
+        <span class="channel-setup-option__title">${params.title}</span>
+        ${params.hint
+          ? html`<span class="channel-setup-option__hint">${params.hint}</span>`
+          : nothing}
+      </span>
+    </label>
+  `;
+}
+
 function renderWizardStep(step: WizardStep, props: ChannelsProps) {
   const message = step.message?.trim() || "";
   if (step.type === "text") {
     return html`
-      <label class="field" style="margin-top: 14px;">
-        <span>${message}</span>
+      <label class="channel-setup-field">
+        ${message ? html`<span class="channel-setup-field__label">${message}</span>` : nothing}
         <input
-          class="input"
+          class="input channel-setup-field__input"
           .value=${props.setupDraftText}
           type=${step.sensitive ? "password" : "text"}
           placeholder=${step.placeholder ?? ""}
@@ -433,92 +627,74 @@ function renderWizardStep(step: WizardStep, props: ChannelsProps) {
           }}
         />
         ${step.sensitive
-          ? html`<div class="list-sub" style="margin-top: 8px;">
-              ${channelText("setupSensitiveHint")}
-            </div>`
+          ? html`<div class="channel-setup-field__hint">${channelText("setupSensitiveHint")}</div>`
           : nothing}
       </label>
     `;
   }
   if (step.type === "confirm") {
     return html`
-      <label
-        class="list-item"
-        style="margin-top: 14px; align-items: center; gap: 12px; cursor: pointer;"
-      >
-        <input
-          type="checkbox"
-          .checked=${props.setupDraftConfirm}
-          @change=${(event: Event) => {
-            props.onSetupDraftConfirmChange((event.target as HTMLInputElement).checked);
-          }}
-        />
-        <div class="list-main">
-          <div class="list-title">${message}</div>
-        </div>
-      </label>
+      <div class="channel-setup-options">
+        ${renderSetupOption({
+          type: "checkbox",
+          checked: props.setupDraftConfirm,
+          title: message,
+          onChange: (checked) => {
+            props.onSetupDraftConfirmChange(checked);
+          },
+        })}
+      </div>
     `;
   }
   if (step.type === "select" && Array.isArray(step.options)) {
     return html`
-      <div style="display: grid; gap: 10px; margin-top: 14px;">
-        ${step.options.map(
-          (option, index) => html`
-            <label class="list-item" style="align-items: flex-start; gap: 12px; cursor: pointer;">
-              <input
-                type="radio"
-                name="channel-setup-select"
-                .checked=${props.setupDraftSelectIndex === index}
-                @change=${() => {
+      <div class="channel-setup-stage">
+        ${message ? html`<div class="channel-setup-stage__description">${message}</div>` : nothing}
+        <div class="channel-setup-options">
+          ${step.options.map(
+            (option, index) => html`
+              ${renderSetupOption({
+                type: "radio",
+                checked: props.setupDraftSelectIndex === index,
+                title: option.label,
+                hint: option.hint,
+                name: "channel-setup-select",
+                onChange: () => {
                   props.onSetupDraftSelectIndexChange(index);
-                }}
-              />
-              <div class="list-main">
-                <div class="list-title">${option.label}</div>
-                ${option.hint ? html`<div class="list-sub">${option.hint}</div>` : nothing}
-              </div>
-            </label>
-          `,
-        )}
+                },
+              })}
+            `,
+          )}
+        </div>
       </div>
     `;
   }
   if (step.type === "multiselect" && Array.isArray(step.options)) {
     return html`
-      <div style="display: grid; gap: 10px; margin-top: 14px;">
-        ${step.options.map(
-          (option, index) => html`
-            <label class="list-item" style="align-items: flex-start; gap: 12px; cursor: pointer;">
-              <input
-                type="checkbox"
-                .checked=${props.setupDraftMultiIndexes.includes(index)}
-                @change=${(event: Event) => {
-                  const checked = (event.target as HTMLInputElement).checked;
+      <div class="channel-setup-stage">
+        ${message ? html`<div class="channel-setup-stage__description">${message}</div>` : nothing}
+        <div class="channel-setup-options">
+          ${step.options.map(
+            (option, index) => html`
+              ${renderSetupOption({
+                type: "checkbox",
+                checked: props.setupDraftMultiIndexes.includes(index),
+                title: option.label,
+                hint: option.hint,
+                onChange: (checked) => {
                   const next = checked
                     ? [...new Set([...props.setupDraftMultiIndexes, index])]
                     : props.setupDraftMultiIndexes.filter((entry) => entry !== index);
                   props.onSetupDraftMultiIndexesChange(next);
-                }}
-              />
-              <div class="list-main">
-                <div class="list-title">${option.label}</div>
-                ${option.hint ? html`<div class="list-sub">${option.hint}</div>` : nothing}
-              </div>
-            </label>
-          `,
-        )}
+                },
+              })}
+            `,
+          )}
+        </div>
       </div>
     `;
   }
-  return html`
-    <div class="list-item" style="margin-top: 14px;">
-      <div class="list-main">
-        <div class="list-sub" style="white-space: pre-wrap;">
-          ${message || channelText("setupWaiting")}
-        </div>
-      </div>
-    </div>
-  `;
+  return renderSetupNoteMessage(message || channelText("setupWaiting"));
 }
 
 function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
@@ -539,61 +715,67 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
   const docsUrl = selectedRow ? buildChannelDocsUrl(selectedRow.meta.docsPath) : null;
 
   return html`
-    <section class="card">
+    <section class="card channel-setup-panel">
       <div class="alisio-page__eyebrow">${channelText("setupEyebrow")}</div>
       <div class="card-title">${channelText("setupTitle", { channel: String(channelLabel) })}</div>
-      ${requirements ? renderChannelSteps(requirements) : nothing}
-      ${props.setupLoading && !step
-        ? html`<div class="card-sub" style="margin-top: 10px;">${channelText("setupLoading")}</div>`
-        : nothing}
-      ${props.setupError
-        ? html`<div class="pill danger" style="margin-top: 12px; width: fit-content;">
-            ${props.setupError}
-          </div>`
-        : nothing}
-      ${step
-        ? html`
-            ${step.title?.trim()
-              ? html`<div class="list-title" style="margin-top: 14px;">${step.title}</div>`
+      <div class="channel-setup-panel__body">
+        ${requirements
+          ? html`<aside class="channel-setup-panel__guide">
+              ${renderChannelSteps(requirements)}
+            </aside>`
+          : nothing}
+        <div class="channel-setup-panel__stage">
+          ${props.setupLoading && !step
+            ? html`<div class="card-sub">${channelText("setupLoading")}</div>`
+            : nothing}
+          ${props.setupError
+            ? html`<div class="channel-feedback channel-feedback--danger">${props.setupError}</div>`
+            : nothing}
+          ${step
+            ? html`
+                ${step.title?.trim()
+                  ? html`<div class="channel-setup-stage__title">${step.title}</div>`
+                  : nothing}
+                ${renderWizardStep(step, props)}
+              `
+            : nothing}
+          <div class="row" style="gap: 10px; flex-wrap: wrap;">
+            <button
+              class="btn btn--sm primary"
+              ?disabled=${!canContinue || props.setupSubmitting}
+              @click=${() => {
+                props.onContinueSetup(buildWizardAnswer(props));
+              }}
+            >
+              ${resolveSetupContinueLabel(step, props.setupSubmitting, {
+                hasError: Boolean(props.setupError),
+              })}
+            </button>
+            ${props.setupSessionId
+              ? html`
+                  <button
+                    class="btn btn--sm"
+                    ?disabled=${props.setupSubmitting}
+                    @click=${props.onCancelSetup}
+                  >
+                    ${channelText("setupCancel")}
+                  </button>
+                `
               : nothing}
-            ${renderWizardStep(step, props)}
-          `
-        : nothing}
-      <div class="row" style="gap: 10px; margin-top: 18px; flex-wrap: wrap;">
-        <button
-          class="btn btn--sm primary"
-          ?disabled=${!canContinue || props.setupSubmitting}
-          @click=${() => {
-            props.onContinueSetup(buildWizardAnswer(props));
-          }}
-        >
-          ${resolveSetupContinueLabel(step, props.setupSubmitting, {
-            hasError: Boolean(props.setupError),
-          })}
-        </button>
-        ${props.setupSessionId
-          ? html`
-              <button
-                class="btn btn--sm"
-                ?disabled=${props.setupSubmitting}
-                @click=${props.onCancelSetup}
-              >
-                ${channelText("setupCancel")}
-              </button>
-            `
-          : nothing}
-        ${docsUrl
-          ? html`
-              <button
-                class="btn btn--sm"
-                @click=${() => {
-                  props.onOpenSupportUrl(docsUrl);
-                }}
-              >
-                ${channelText("openGuide")}
-              </button>
-            `
-          : nothing}
+            ${docsUrl
+              ? html`
+                  <button
+                    class="btn btn--sm"
+                    @click=${() => {
+                      props.onOpenSupportUrl(docsUrl);
+                    }}
+                  >
+                    ${channelText("openGuide")}
+                  </button>
+                `
+              : nothing}
+          </div>
+        </div>
       </div>
     </section>
   `;
@@ -638,8 +820,9 @@ function renderChannelSteps(requirements: ChannelRequirements, opts?: { compact?
   `;
 }
 
-function renderWhatsAppQr(row: ResolvedChannelRow, props: ChannelsProps) {
-  if (row.id !== "whatsapp" || !props.loginQrDataUrl) {
+function renderWhatsAppQr(accountId: string, props: ChannelsProps) {
+  const activeAccountId = props.loginAccountId?.trim() || "default";
+  if (!props.loginQrDataUrl || activeAccountId !== accountId) {
     return nothing;
   }
   return html`
@@ -651,7 +834,9 @@ function renderWhatsAppQr(row: ResolvedChannelRow, props: ChannelsProps) {
       <button
         class="btn btn--sm"
         ?disabled=${props.busyKey === "whatsapp:wait"}
-        @click=${props.onWaitWhatsAppLink}
+        @click=${() => {
+          props.onWaitWhatsAppLink(accountId);
+        }}
       >
         ${props.busyKey === "whatsapp:wait"
           ? channelText("checkingLink")
@@ -661,52 +846,113 @@ function renderWhatsAppQr(row: ResolvedChannelRow, props: ChannelsProps) {
   `;
 }
 
-function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
-  const status = resolveChannelStatus(row);
-  const docsUrl = buildChannelDocsUrl(row.meta.docsPath);
-  const primaryAction = resolvePrimaryAction(row, props);
-  const identifier = resolveChannelIdentifier(row);
-  const lastActivity = formatLastActivity(row.defaultAccount);
-  const flags = resolveChannelFlags(row);
-  const requirements = resolveChannelRequirements(row);
+function renderAccountBlock(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+  props: ChannelsProps,
+) {
+  const status = resolveAccountStatus(row, account);
+  const issues = resolveAccountIssues(row, account);
+  const identifier = resolveAccountIdentifier(row, account);
+  const lastActivity = formatLastActivity(account);
+  const flags = resolveAccountFlags(row, account);
+  const accountAction = resolveWhatsAppAccountAction(row, account, props);
   const canLogout =
-    flags.logoutAvailable && (flags.linked || flags.connected) && Boolean(row.defaultAccountId);
+    flags.logoutAvailable && (flags.linked || flags.connected) && Boolean(account.accountId);
+  const accountLabel =
+    account.name?.trim() ||
+    (account.accountId.trim() === "default" ? channelText("noAccount") : account.accountId.trim());
 
   return html`
-    <article class="card">
-      <div class="row" style="justify-content: space-between; align-items: flex-start; gap: 12px;">
-        <div>
-          <div class="card-title">${row.meta.label}</div>
-          <div class="card-sub" style="margin-top: 8px;">
-            ${row.meta.blurb?.trim() || row.meta.detailLabel || channelText("noDetails")}
-          </div>
+    <section class="channel-account">
+      <div class="channel-account__head">
+        <div class="channel-account__title-wrap">
+          <div class="channel-account__eyebrow">${channelText("channelAccount")}</div>
+          <div class="channel-account__title">${accountLabel}</div>
         </div>
         <span class=${status.className}>${status.label}</span>
       </div>
 
-      <div class="chip-row" style="margin-top: 14px;">
-        <span class="chip">${resolveAccountLabel(row)}</span>
+      <div class="chip-row">
         ${identifier ? html`<span class="chip">${identifier}</span>` : nothing}
         ${lastActivity
-          ? html` <span class="chip">${channelText("lastActivity")}: ${lastActivity}</span> `
+          ? html`<span class="chip">${channelText("lastActivity")}: ${lastActivity}</span>`
           : html`<span class="chip">${channelText("activityNone")}</span>`}
       </div>
 
-      ${renderIssueList(row.issues)}
-      ${requirements && (!flags.connected || row.issues.length > 0)
-        ? renderChannelSteps(requirements, { compact: true })
-        : nothing}
-      ${renderWhatsAppQr(row, props)}
+      ${renderIssueList(issues)} ${renderWhatsAppQr(account.accountId, props)}
+      ${(accountAction || canLogout) &&
+      html`
+        <div class="row channel-account__actions">
+          ${accountAction
+            ? html`
+                <button
+                  class="btn btn--sm primary"
+                  ?disabled=${accountAction.busy}
+                  @click=${accountAction.action}
+                >
+                  ${accountAction.label}
+                </button>
+              `
+            : nothing}
+          ${canLogout
+            ? html`
+                <button
+                  class="btn btn--sm danger"
+                  ?disabled=${props.busyKey === `${row.id}:logout`}
+                  @click=${() => {
+                    props.onLogoutChannel(row.id, account.accountId);
+                  }}
+                >
+                  ${channelText("logout")}
+                </button>
+              `
+            : nothing}
+        </div>
+      `}
+    </section>
+  `;
+}
 
-      <div class="row" style="gap: 10px; margin-top: 18px; flex-wrap: wrap;">
-        ${primaryAction
+function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
+  const status = resolveChannelStatus(row);
+  const docsUrl = buildChannelDocsUrl(row.meta.docsPath);
+  const setupAction = resolveSetupAction(row, props);
+  const flags = resolveChannelFlags(row);
+  const requirements = resolveChannelRequirements(row);
+  const description =
+    resolveLocalizedChannelDescription(row) ??
+    row.meta.blurb?.trim() ??
+    row.meta.detailLabel ??
+    channelText("noDetails");
+  const showCompactRequirements =
+    requirements && props.setupChannelId !== row.id && (!flags.connected || row.issues.length > 0);
+
+  return html`
+    <article class="card">
+      <div class="channel-card__header">
+        <div>
+          <div class="card-title">${row.meta.label}</div>
+          <div class="card-sub channel-card__description">${description}</div>
+        </div>
+        <span class=${status.className}>${status.label}</span>
+      </div>
+
+      ${showCompactRequirements ? renderChannelSteps(requirements, { compact: true }) : nothing}
+
+      <div class="channel-card__accounts">
+        ${row.accounts.map((account) => renderAccountBlock(row, account, props))}
+      </div>
+
+      <div class="row channel-card__footer">
+        ${setupAction
           ? html`
               <button
                 class="btn btn--sm primary"
-                ?disabled=${primaryAction.busy}
-                @click=${primaryAction.action}
+                ?disabled=${setupAction.busy}
+                @click=${setupAction.action}
               >
-                ${primaryAction.label}
+                ${setupAction.label}
               </button>
             `
           : nothing}
@@ -722,18 +968,6 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
               </button>
             `
           : nothing}
-        ${canLogout
-          ? html`
-              <button
-                class="btn btn--sm danger"
-                @click=${() => {
-                  props.onLogoutChannel(row.id, row.defaultAccountId ?? undefined);
-                }}
-              >
-                ${channelText("logout")}
-              </button>
-            `
-          : nothing}
       </div>
     </article>
   `;
@@ -741,9 +975,7 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
 
 export function renderChannels(props: ChannelsProps) {
   const rows = resolveChannelRows(props.snapshot);
-  const connectedChannels = rows.filter((row) => resolveChannelFlags(row).connected).length;
-  const attentionChannels = rows.filter((row) => resolveChannelFlags(row).attention).length;
-  const publishedChannels = rows.length;
+  const summary = summarizeChannelsSnapshot(props.snapshot);
   const lastChecked = formatTimestamp(props.lastSuccess ?? props.snapshot?.ts ?? null);
 
   return html`
@@ -763,38 +995,40 @@ export function renderChannels(props: ChannelsProps) {
           </button>
         </div>
 
-        <div
-          style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 18px;"
-        >
-          <article class="list-item">
-            <div class="list-title">${publishedChannels}</div>
-            <div class="list-sub">${channelText("availableChannels")}</div>
+        <div class="channel-summary-grid">
+          <article class="channel-summary-card">
+            <div class="channel-summary-card__value">${summary.totalChannels}</div>
+            <div class="channel-summary-card__label">${channelText("availableChannels")}</div>
           </article>
-          <article class="list-item">
-            <div class="list-title">${connectedChannels}</div>
-            <div class="list-sub">${channelText("connectedChannels")}</div>
+          <article class="channel-summary-card">
+            <div class="channel-summary-card__value">${summary.connectedChannels}</div>
+            <div class="channel-summary-card__label">${channelText("connectedChannels")}</div>
           </article>
-          <article class="list-item">
-            <div class="list-title">${attentionChannels}</div>
-            <div class="list-sub">${channelText("attentionChannels")}</div>
+          <article class="channel-summary-card">
+            <div class="channel-summary-card__value">${summary.attentionChannels}</div>
+            <div class="channel-summary-card__label">${channelText("attentionChannels")}</div>
           </article>
-          <article class="list-item">
-            <div class="list-title">${lastChecked ?? "—"}</div>
-            <div class="list-sub">${channelText("lastChecked")}</div>
+          <article class="channel-summary-card">
+            <div class="channel-summary-card__value">${lastChecked ?? "—"}</div>
+            <div class="channel-summary-card__label">${channelText("lastChecked")}</div>
           </article>
         </div>
 
-        ${props.actionMessage
+        ${props.actionMessage || props.error
           ? html`
-              <div class="pill pill--ok" style="margin-top: 16px; width: fit-content;">
-                ${props.actionMessage}
-              </div>
-            `
-          : nothing}
-        ${props.error
-          ? html`
-              <div class="pill danger" style="margin-top: 12px; width: fit-content;">
-                ${props.error}
+              <div class="channel-feedback-stack">
+                ${props.actionMessage
+                  ? html`
+                      <div class="channel-feedback channel-feedback--ok">
+                        ${props.actionMessage}
+                      </div>
+                    `
+                  : nothing}
+                ${props.error
+                  ? html`
+                      <div class="channel-feedback channel-feedback--danger">${props.error}</div>
+                    `
+                  : nothing}
               </div>
             `
           : nothing}

@@ -117,7 +117,7 @@ export async function startWebLoginWithQr(
     accountId?: string;
     runtime?: RuntimeEnv;
   } = {},
-): Promise<{ qrDataUrl?: string; message: string }> {
+): Promise<{ qrDataUrl?: string; message: string; accountId: string }> {
   const runtime = opts.runtime ?? defaultRuntime;
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({ cfg, accountId: opts.accountId });
@@ -127,6 +127,7 @@ export async function startWebLoginWithQr(
     const who = selfId.e164 ?? selfId.jid ?? "unknown";
     return {
       message: `WhatsApp is already linked (${who}). Say “relink” if you want a fresh QR.`,
+      accountId: account.accountId,
     };
   }
 
@@ -135,6 +136,7 @@ export async function startWebLoginWithQr(
     return {
       qrDataUrl: existing.qrDataUrl,
       message: "QR already active. Scan it in WhatsApp → Linked Devices.",
+      accountId: account.accountId,
     };
   }
 
@@ -178,6 +180,7 @@ export async function startWebLoginWithQr(
     await resetActiveLogin(account.accountId);
     return {
       message: `Failed to start WhatsApp login: ${String(err)}`,
+      accountId: account.accountId,
     };
   }
   const login: ActiveLogin = {
@@ -206,6 +209,7 @@ export async function startWebLoginWithQr(
     await resetActiveLogin(account.accountId);
     return {
       message: `Failed to get QR: ${String(err)}`,
+      accountId: account.accountId,
     };
   }
 
@@ -214,12 +218,13 @@ export async function startWebLoginWithQr(
   return {
     qrDataUrl: login.qrDataUrl,
     message: "Scan this QR in WhatsApp → Linked Devices.",
+    accountId: account.accountId,
   };
 }
 
 export async function waitForWebLogin(
   opts: { timeoutMs?: number; runtime?: RuntimeEnv; accountId?: string } = {},
-): Promise<{ connected: boolean; message: string }> {
+): Promise<{ connected: boolean; message: string; accountId: string }> {
   const runtime = opts.runtime ?? defaultRuntime;
   const cfg = loadConfig();
   const account = resolveWhatsAppAccount({ cfg, accountId: opts.accountId });
@@ -228,6 +233,7 @@ export async function waitForWebLogin(
     return {
       connected: false,
       message: "No active WhatsApp login in progress.",
+      accountId: account.accountId,
     };
   }
 
@@ -237,6 +243,7 @@ export async function waitForWebLogin(
     return {
       connected: false,
       message: "The login QR expired. Ask me to generate a new one.",
+      accountId: account.accountId,
     };
   }
   const timeoutMs = Math.max(opts.timeoutMs ?? 120_000, 1000);
@@ -248,6 +255,7 @@ export async function waitForWebLogin(
       return {
         connected: false,
         message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        accountId: account.accountId,
       };
     }
     const timeout = new Promise<"timeout">((resolve) =>
@@ -259,6 +267,7 @@ export async function waitForWebLogin(
       return {
         connected: false,
         message: "Still waiting for the QR scan. Let me know when you’ve scanned it.",
+        accountId: account.accountId,
       };
     }
 
@@ -273,7 +282,7 @@ export async function waitForWebLogin(
           "WhatsApp reported the session is logged out. Cleared cached web session; please scan a new QR.";
         await resetActiveLogin(account.accountId, message);
         runtime.log(danger(message));
-        return { connected: false, message };
+        return { connected: false, message, accountId: account.accountId };
       }
       if (login.errorStatus === 515) {
         const restarted = await restartLoginSocket(login, runtime);
@@ -284,16 +293,20 @@ export async function waitForWebLogin(
       const message = `WhatsApp login failed: ${login.error}`;
       await resetActiveLogin(account.accountId, message);
       runtime.log(danger(message));
-      return { connected: false, message };
+      return { connected: false, message, accountId: account.accountId };
     }
 
     if (login.connected) {
       const message = "✅ Linked! WhatsApp is ready.";
       runtime.log(success(message));
       await resetActiveLogin(account.accountId);
-      return { connected: true, message };
+      return { connected: true, message, accountId: account.accountId };
     }
 
-    return { connected: false, message: "Login ended without a connection." };
+    return {
+      connected: false,
+      message: "Login ended without a connection.",
+      accountId: account.accountId,
+    };
   }
 }

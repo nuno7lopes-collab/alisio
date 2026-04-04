@@ -406,7 +406,7 @@ async function createToolRichScenario(workspaceDir: string): Promise<PromptScena
   const skillsPrompt = [
     "<available_skills>",
     "<skill><name>checks</name><description>Run checks before landing changes.</description><location>/skills/checks/SKILL.md</location></skill>",
-    "<skill><name>release</name><description>Release OpenClaw safely.</description><location>/skills/release/SKILL.md</location></skill>",
+    "<skill><name>release</name><description>Release Alisio safely.</description><location>/skills/release/SKILL.md</location></skill>",
     "</available_skills>",
   ].join("\n");
   const contextFiles = await readContextFiles(workspaceDir, ["AGENTS.md", "TOOLS.md", "SOUL.md"]);

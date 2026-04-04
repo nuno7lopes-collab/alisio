@@ -188,7 +188,7 @@ export function loadBundledPluginPublicSurfaceModuleSync<T extends object>(param
     rootPath: location.boundaryRoot,
     boundaryLabel:
       location.boundaryRoot === OPENCLAW_PACKAGE_ROOT
-        ? "OpenClaw package root"
+        ? "Alisio package root"
         : "bundled plugin directory",
     rejectHardlinks: false,
   });

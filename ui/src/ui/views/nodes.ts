@@ -8,9 +8,12 @@ import type {
 } from "../controllers/devices.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import { formatRelativeTimestamp, formatList } from "../format.ts";
+import { icons } from "../icons.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
 import { resolveConfigAgents, resolveNodeTargets, type NodeTargetOption } from "./nodes-shared.ts";
 export type NodesProps = {
+  assistantName: string;
+  assistantAgentId: string | null;
   loading: boolean;
   nodes: Array<Record<string, unknown>>;
   devicesLoading: boolean;
@@ -51,32 +54,20 @@ export function renderNodes(props: NodesProps, opts?: { includeExecApprovals?: b
   const bindingState = resolveBindingsState(props);
   const approvalsState = resolveExecApprovalsState(props);
   const includeExecApprovals = opts?.includeExecApprovals ?? true;
-  const text = {
-    nodesTitle: t("alisio.connections.nodes.title"),
-    nodesSubtitle: t("alisio.connections.nodes.subtitle"),
-    loading: t("alisio.connections.loading"),
-    refresh: t("common.refresh"),
-    noNodes: t("alisio.connections.nodes.empty"),
-  };
   return html`
     ${includeExecApprovals ? renderExecApprovals(approvalsState) : nothing}
-    ${renderBindings(bindingState)} ${renderDevices(props)}
-    <section class="card">
-      <div class="row" style="justify-content: space-between;">
-        <div>
-          <div class="card-title">${text.nodesTitle}</div>
-          <div class="card-sub">${text.nodesSubtitle}</div>
-        </div>
-        <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? text.loading : text.refresh}
-        </button>
-      </div>
-      <div class="list" style="margin-top: 16px;">
-        ${props.nodes.length === 0
-          ? html` <div class="muted">${text.noNodes}</div> `
-          : props.nodes.map((n) => renderNode(n))}
-      </div>
-    </section>
+    <div class="alisio-connections-layout">
+      ${renderDevices(props)} ${renderRuntime(props, bindingState)}
+    </div>
+  `;
+}
+
+function renderPanelSummaryItem(value: number | string, label: string) {
+  return html`
+    <div class="alisio-connections-summary-pill">
+      <strong>${value}</strong>
+      <span>${label}</span>
+    </div>
   `;
 }
 
@@ -91,38 +82,98 @@ function renderDevices(props: NodesProps) {
     refresh: t("common.refresh"),
     pending: t("alisio.connections.devices.pending"),
     paired: t("alisio.connections.devices.paired"),
+    pendingEmpty: t("alisio.connections.devices.pendingEmpty"),
     empty: t("alisio.connections.devices.empty"),
   };
   return html`
-    <section class="card">
-      <div class="row" style="justify-content: space-between;">
-        <div>
-          <div class="card-title">${text.title}</div>
-          <div class="card-sub">${text.subtitle}</div>
+    <section class="card alisio-connections-panel">
+      <div class="alisio-connections-panel__head">
+        <div class="alisio-connections-panel__identity">
+          <span class="alisio-connections-panel__icon" aria-hidden="true">${icons.smartphone}</span>
+          <div>
+            <div class="card-title">${text.title}</div>
+            <div class="card-sub">${text.subtitle}</div>
+          </div>
         </div>
-        <button class="btn" ?disabled=${props.devicesLoading} @click=${props.onDevicesRefresh}>
+        <button
+          class="btn btn--ghost"
+          ?disabled=${props.devicesLoading}
+          @click=${props.onDevicesRefresh}
+        >
           ${props.devicesLoading ? text.loading : text.refresh}
         </button>
+      </div>
+      <div class="alisio-connections-panel__summary">
+        ${renderPanelSummaryItem(pending.length, text.pending)}
+        ${renderPanelSummaryItem(paired.length, text.paired)}
       </div>
       ${props.devicesError
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.devicesError}</div>`
         : nothing}
-      <div class="list" style="margin-top: 16px;">
-        ${pending.length > 0
-          ? html`
-              <div class="muted" style="margin-bottom: 8px;">${text.pending}</div>
-              ${pending.map((req) => renderPendingDevice(req, props))}
-            `
-          : nothing}
-        ${paired.length > 0
-          ? html`
-              <div class="muted" style="margin-top: 12px; margin-bottom: 8px;">${text.paired}</div>
-              ${paired.map((device) => renderPairedDevice(device, props))}
-            `
-          : nothing}
-        ${pending.length === 0 && paired.length === 0
-          ? html` <div class="muted">${text.empty}</div> `
-          : nothing}
+      <div class="alisio-connections-sections">
+        <section class="alisio-connections-subsection">
+          <div class="alisio-connections-subsection__head">
+            <span class="alisio-connections-subsection__title">${text.pending}</span>
+            <span class="alisio-connections-subsection__count">${pending.length}</span>
+          </div>
+          <div class="list">
+            ${pending.length === 0
+              ? html`<div class="alisio-connections-empty">${text.pendingEmpty}</div>`
+              : pending.map((req) => renderPendingDevice(req, props))}
+          </div>
+        </section>
+        <section class="alisio-connections-subsection">
+          <div class="alisio-connections-subsection__head">
+            <span class="alisio-connections-subsection__title">${text.paired}</span>
+            <span class="alisio-connections-subsection__count">${paired.length}</span>
+          </div>
+          <div class="list">
+            ${paired.length === 0
+              ? html`<div class="alisio-connections-empty">${text.empty}</div>`
+              : paired.map((device) => renderPairedDevice(device, props))}
+          </div>
+        </section>
+      </div>
+    </section>
+  `;
+}
+
+function renderRuntime(props: NodesProps, state: BindingState) {
+  const connectedNodes = countConnectedNodes(props.nodes);
+  const execNodes = resolveExecNodes(props.nodes).length;
+  const text = {
+    title: t("alisio.connections.runtimeTitle"),
+    subtitle: t("alisio.connections.runtimeSubtitle"),
+    loading: t("alisio.connections.loading"),
+    refresh: t("common.refresh"),
+    liveNodes: t("alisio.connections.liveNodes"),
+    execReady: t("alisio.connections.nodes.execReady"),
+    syncState: t("alisio.connections.bindingState"),
+    synced: t("alisio.connections.synced"),
+    unsaved: t("alisio.connections.unsaved"),
+  };
+  const syncLabel = state.configDirty ? text.unsaved : text.synced;
+  return html`
+    <section class="card alisio-connections-panel">
+      <div class="alisio-connections-panel__head">
+        <div class="alisio-connections-panel__identity">
+          <span class="alisio-connections-panel__icon" aria-hidden="true">${icons.monitor}</span>
+          <div>
+            <div class="card-title">${text.title}</div>
+            <div class="card-sub">${text.subtitle}</div>
+          </div>
+        </div>
+        <button class="btn btn--ghost" ?disabled=${props.loading} @click=${props.onRefresh}>
+          ${props.loading ? text.loading : text.refresh}
+        </button>
+      </div>
+      <div class="alisio-connections-panel__summary">
+        ${renderPanelSummaryItem(connectedNodes, text.liveNodes)}
+        ${renderPanelSummaryItem(execNodes, text.execReady)}
+        ${renderPanelSummaryItem(syncLabel, text.syncState)}
+      </div>
+      <div class="alisio-connections-runtime-stack">
+        ${renderBindings(state)} ${renderNodeList(props)}
       </div>
     </section>
   `;
@@ -136,11 +187,16 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
   const repair = req.isRepair ? ` · ${t("alisio.connections.devices.repair")}` : "";
   const ip = req.remoteIp ? ` · ${req.remoteIp}` : "";
   return html`
-    <div class="list-item">
+    <div class="list-item alisio-connections-entry alisio-connections-entry--pending">
       <div class="list-main">
-        <div class="list-title">${name}</div>
-        <div class="list-sub">${req.deviceId}${ip}</div>
-        <div class="muted" style="margin-top: 6px;">
+        <div class="alisio-connections-entry__head">
+          <div class="list-title">${name}</div>
+          <div class="alisio-connections-entry__pills">
+            <span class="pill pill--in-review">${t("alisio.connections.devices.pending")}</span>
+          </div>
+        </div>
+        <div class="list-sub mono alisio-connections-entry__identifier">${req.deviceId}${ip}</div>
+        <div class="alisio-connections-entry__note">
           ${t("alisio.connections.devices.requestMeta", {
             role: roleValue,
             scopes: scopesValue,
@@ -148,7 +204,7 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
           })}${repair}
         </div>
       </div>
-      <div class="list-meta">
+      <div class="list-meta alisio-connections-entry__actions">
         <div class="row" style="justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn--sm primary" @click=${() => props.onDeviceApprove(req.requestId)}>
             ${t("alisio.connections.devices.approve")}
@@ -169,14 +225,23 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
   const scopes = t("alisio.connections.devices.scopes", { values: formatList(device.scopes) });
   const tokens = Array.isArray(device.tokens) ? device.tokens : [];
   return html`
-    <div class="list-item">
+    <div class="list-item alisio-connections-entry">
       <div class="list-main">
-        <div class="list-title">${name}</div>
-        <div class="list-sub">${device.deviceId}${ip}</div>
-        <div class="muted" style="margin-top: 6px;">${roles} · ${scopes}</div>
+        <div class="alisio-connections-entry__head">
+          <div class="list-title">${name}</div>
+          <div class="alisio-connections-entry__pills">
+            <span class="pill pill--connected"
+              >${tokens.length} ${t("alisio.connections.devices.tokens")}</span
+            >
+          </div>
+        </div>
+        <div class="list-sub mono alisio-connections-entry__identifier">
+          ${device.deviceId}${ip}
+        </div>
+        <div class="alisio-connections-entry__note">${roles} · ${scopes}</div>
         ${tokens.length === 0
           ? html`
-              <div class="muted" style="margin-top: 6px">
+              <div class="alisio-connections-empty" style="margin-top: 10px;">
                 ${t("alisio.connections.devices.tokensNone")}
               </div>
             `
@@ -184,7 +249,7 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
               <div class="muted" style="margin-top: 10px;">
                 ${t("alisio.connections.devices.tokens")}
               </div>
-              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+              <div class="alisio-token-list">
                 ${tokens.map((token) => renderTokenRow(device.deviceId, token, props))}
               </div>
             `}
@@ -201,9 +266,16 @@ function renderTokenRow(deviceId: string, token: DeviceTokenSummary, props: Node
   const when = formatRelativeTimestamp(
     token.rotatedAtMs ?? token.createdAtMs ?? token.lastUsedAtMs ?? null,
   );
+  const statusClass = token.revokedAtMs ? "" : "pill--connected";
   return html`
-    <div class="row" style="justify-content: space-between; gap: 8px;">
-      <div class="list-sub">${token.role} · ${status} · ${scopes} · ${when}</div>
+    <div class="alisio-token-row">
+      <div class="alisio-token-row__main">
+        <div class="alisio-token-row__title">
+          <strong>${token.role}</strong>
+          <span class="pill ${statusClass}">${status}</span>
+        </div>
+        <div class="alisio-token-row__subtitle">${scopes} · ${when}</div>
+      </div>
       <div class="row" style="justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
         <button
           class="btn btn--sm"
@@ -299,15 +371,16 @@ function renderBindings(state: BindingState) {
     usesDefault: t("alisio.connections.bindings.usesDefault"),
     override: t("alisio.connections.bindings.override"),
   };
+  const defaultLabel = resolveNodeLabel(state.nodes, state.defaultBinding, text.anyNode);
   return html`
-    <section class="card">
-      <div class="row" style="justify-content: space-between; align-items: center;">
+    <section class="alisio-connections-subpanel">
+      <div class="alisio-connections-subpanel__head">
         <div>
-          <div class="card-title">${text.title}</div>
-          <div class="card-sub">${text.subtitle}</div>
+          <div class="alisio-connections-subpanel__title">${text.title}</div>
+          <div class="alisio-connections-subpanel__subtitle">${text.subtitle}</div>
         </div>
         <button
-          class="btn"
+          class="btn btn--sm"
           ?disabled=${state.disabled || !state.configDirty}
           @click=${state.onSave}
         >
@@ -319,17 +392,22 @@ function renderBindings(state: BindingState) {
         ? html` <div class="callout warn" style="margin-top: 12px">${text.rawMode}</div> `
         : nothing}
       ${!state.ready
-        ? html`<div class="row" style="margin-top: 12px; gap: 12px;">
-            <div class="muted">${text.loadConfig}</div>
+        ? html`<div class="alisio-connections-empty">
+            <div>${text.loadConfig}</div>
             <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
               ${state.configLoading ? text.loading : text.loadConfig}
             </button>
           </div>`
         : html`
-            <div class="list" style="margin-top: 16px;">
-              <div class="list-item">
+            <div class="alisio-binding-list">
+              <div class="list-item alisio-binding-row">
                 <div class="list-main">
-                  <div class="list-title">${text.defaultBinding}</div>
+                  <div class="alisio-connections-entry__head">
+                    <div class="list-title">${text.defaultBinding}</div>
+                    <div class="alisio-connections-entry__pills">
+                      <span class="pill">${defaultLabel}</span>
+                    </div>
+                  </div>
                   <div class="list-sub">${text.defaultSubtitle}</div>
                 </div>
                 <div class="list-meta">
@@ -372,10 +450,25 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
   const label = agent.name?.trim() ? `${agent.name} (${agent.id})` : agent.id;
   const supportsBinding = state.nodes.length > 0;
   const isDefault = agent.isDefault;
+  const activeBindingLabel =
+    bindingValue === "__default__"
+      ? t("alisio.connections.bindings.useDefault")
+      : resolveNodeLabel(state.nodes, agent.binding, agent.binding ?? "");
+  const inheritedLabel = resolveNodeLabel(
+    state.nodes,
+    state.defaultBinding,
+    t("alisio.connections.bindings.anyNode"),
+  );
+  const overrideLabel = resolveNodeLabel(state.nodes, agent.binding, agent.binding ?? "");
   return html`
-    <div class="list-item">
+    <div class="list-item alisio-binding-row">
       <div class="list-main">
-        <div class="list-title">${label}</div>
+        <div class="alisio-connections-entry__head">
+          <div class="list-title">${label}</div>
+          <div class="alisio-connections-entry__pills">
+            <span class="pill">${activeBindingLabel}</span>
+          </div>
+        </div>
         <div class="list-sub">
           ${isDefault
             ? t("alisio.connections.bindings.defaultAgent")
@@ -383,9 +476,9 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
           ·
           ${bindingValue === "__default__"
             ? t("alisio.connections.bindings.usesDefault", {
-                value: state.defaultBinding ?? t("alisio.connections.bindings.anyNode"),
+                value: inheritedLabel,
               })
-            : t("alisio.connections.bindings.override", { value: agent.binding ?? "" })}
+            : t("alisio.connections.bindings.override", { value: overrideLabel })}
         </div>
       </div>
       <div class="list-meta">
@@ -415,8 +508,42 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
   `;
 }
 
+function renderNodeList(props: NodesProps) {
+  const text = {
+    nodesTitle: t("alisio.connections.nodes.title"),
+    nodesSubtitle: t("alisio.connections.nodes.subtitle"),
+    noNodes: t("alisio.connections.nodes.empty"),
+  };
+  return html`
+    <section class="alisio-connections-subpanel">
+      <div class="alisio-connections-subpanel__head">
+        <div>
+          <div class="alisio-connections-subpanel__title">${text.nodesTitle}</div>
+          <div class="alisio-connections-subpanel__subtitle">${text.nodesSubtitle}</div>
+        </div>
+      </div>
+      <div class="alisio-node-list">
+        ${props.nodes.length === 0
+          ? html`<div class="alisio-connections-empty">${text.noNodes}</div>`
+          : props.nodes.map((node) => renderNode(node))}
+      </div>
+    </section>
+  `;
+}
+
 function resolveExecNodes(nodes: Array<Record<string, unknown>>): BindingNode[] {
   return resolveNodeTargets(nodes, ["system.run"]);
+}
+
+function resolveNodeLabel(
+  nodes: BindingNode[],
+  nodeId: string | null | undefined,
+  fallback: string,
+): string {
+  if (!nodeId) {
+    return fallback;
+  }
+  return nodes.find((node) => node.id === nodeId)?.label ?? nodeId;
 }
 
 function resolveAgentBindings(config: Record<string, unknown> | null): {
@@ -464,57 +591,78 @@ function resolveAgentBindings(config: Record<string, unknown> | null): {
   return { defaultBinding, agents };
 }
 
+function countConnectedNodes(nodes: Array<Record<string, unknown>>) {
+  return nodes.filter((node) => Boolean(node.connected) || Boolean(node.online)).length;
+}
+
+function resolveNodeCapabilityCount(node: Record<string, unknown>) {
+  const capabilities = Array.isArray(node.capabilities) ? node.capabilities : [];
+  if (capabilities.length > 0) {
+    return capabilities.length;
+  }
+  return Array.isArray(node.caps) ? node.caps.length : 0;
+}
+
+function resolveNodeCommandCount(node: Record<string, unknown>) {
+  return Array.isArray(node.commands) ? node.commands.length : 0;
+}
+
+function nodeSupportsExec(node: Record<string, unknown>) {
+  return (
+    Array.isArray(node.commands) &&
+    node.commands.some((command) => String(command) === "system.run")
+  );
+}
+
 function renderNode(node: Record<string, unknown>) {
   const connected = Boolean(node.connected);
   const paired = Boolean(node.paired);
   const title =
     (typeof node.displayName === "string" && node.displayName.trim()) ||
     (typeof node.nodeId === "string" ? node.nodeId : "unknown");
-  const caps = Array.isArray(node.caps) ? (node.caps as unknown[]) : [];
-  const capabilities = Array.isArray(node.capabilities) ? (node.capabilities as unknown[]) : [];
-  const commands = Array.isArray(node.commands) ? (node.commands as unknown[]) : [];
+  const capabilityCount = resolveNodeCapabilityCount(node);
+  const commandCount = resolveNodeCommandCount(node);
+  const execReady = nodeSupportsExec(node);
+  const details = [
+    typeof node.remoteIp === "string" && node.remoteIp.trim() ? node.remoteIp.trim() : null,
+    typeof node.version === "string" && node.version.trim() ? node.version.trim() : null,
+    execReady ? t("alisio.connections.nodes.execReady") : null,
+    capabilityCount > 0
+      ? t("alisio.connections.nodes.capabilitiesCount", { count: String(capabilityCount) })
+      : null,
+    commandCount > 0
+      ? t("alisio.connections.nodes.commandsCount", { count: String(commandCount) })
+      : null,
+  ].filter((detail): detail is string => Boolean(detail));
   return html`
-    <div class="list-item">
-      <div class="list-main">
-        <div class="list-title">${title}</div>
-        <div class="list-sub">
-          ${typeof node.nodeId === "string" ? node.nodeId : ""}
-          ${typeof node.remoteIp === "string" ? ` · ${node.remoteIp}` : ""}
-          ${typeof node.version === "string" ? ` · ${node.version}` : ""}
+    <article class="alisio-node-card">
+      <div class="alisio-node-card__head">
+        <div class="list-main">
+          <div class="list-title">${title}</div>
+          <div class="list-sub mono alisio-connections-entry__identifier">
+            ${typeof node.nodeId === "string" ? node.nodeId : ""}
+          </div>
         </div>
-        <div class="chip-row" style="margin-top: 6px;">
+        <div class="alisio-node-card__status">
+          <span class="pill ${connected ? "pill--connected" : "pill--needs-reconnect"}">
+            ${connected
+              ? t("alisio.connections.nodes.connected")
+              : t("alisio.connections.nodes.offline")}
+          </span>
           <span class="chip">
             ${paired
               ? t("alisio.connections.nodes.paired")
               : t("alisio.connections.nodes.unpaired")}
           </span>
-          <span class="chip ${connected ? "chip-ok" : "chip-warn"}">
-            ${connected
-              ? t("alisio.connections.nodes.connected")
-              : t("alisio.connections.nodes.offline")}
-          </span>
-          ${caps.slice(0, 12).map((c) => html`<span class="chip">${String(c)}</span>`)}
-          ${capabilities
-            .slice(0, 6)
-            .map(
-              (capability) =>
-                html`<span class="chip"
-                  >${renderCapabilityChip(capability as Record<string, unknown>)}</span
-                >`,
-            )}
-          ${commands.slice(0, 8).map((c) => html`<span class="chip">${String(c)}</span>`)}
         </div>
       </div>
-    </div>
+      ${details.length > 0
+        ? html`
+            <div class="alisio-node-card__details">
+              ${details.map((detail) => html`<span>${detail}</span>`)}
+            </div>
+          `
+        : nothing}
+    </article>
   `;
-}
-
-function renderCapabilityChip(capability: Record<string, unknown>) {
-  const title =
-    (typeof capability.title === "string" && capability.title.trim()) ||
-    (typeof capability.id === "string" && capability.id.trim()) ||
-    "capability";
-  const risk =
-    typeof capability.risk === "string" && capability.risk.trim() ? capability.risk.trim() : "";
-  return risk ? `${title} · ${risk}` : title;
 }

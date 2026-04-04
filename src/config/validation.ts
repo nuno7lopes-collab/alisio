@@ -462,7 +462,7 @@ function validateConfigObjectWithPluginsBase(
     path,
     message:
       `${path} is deprecated for web search provider config. ` +
-      "Move it under plugins.entries.<plugin>.config.webSearch.*; OpenClaw mapped it automatically for compatibility.",
+      "Move it under plugins.entries.<plugin>.config.webSearch.*; Alisio mapped it automatically for compatibility.",
   }));
   const hasExplicitPluginsConfig =
     isRecord(raw) && Object.prototype.hasOwnProperty.call(raw, "plugins");

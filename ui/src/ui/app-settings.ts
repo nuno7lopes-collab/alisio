@@ -1,5 +1,9 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
-import { alisioBootstrapBlocksChatAccess, resolveBlockingSetupStep } from "./alisio-setup-state.ts";
+import {
+  alisioBootstrapBlocksChatAccess,
+  isPostReadySetupStep,
+  resolveBlockingSetupStep,
+} from "./alisio-setup-state.ts";
 import { refreshChat } from "./app-chat.ts";
 import {
   startLogsPolling,
@@ -15,6 +19,7 @@ import {
   loadAlisioAccount,
   loadAlisioConnectors,
   loadAlisioDoctorSummary,
+  loadAlisioModels,
   loadAlisioOrganization,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
@@ -22,8 +27,9 @@ import { loadConfig } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
-import { loadExecApprovals } from "./controllers/exec-approvals.ts";
+import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
+import { loadModels as loadChatModels } from "./controllers/models.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadGatewayAccessMode } from "./controllers/security-access.ts";
@@ -73,11 +79,17 @@ type SettingsHost = {
   pendingGatewayUrl?: string | null;
   systemThemeCleanup?: (() => void) | null;
   pendingGatewayToken?: string | null;
+  client?: import("./gateway.ts").GatewayBrowserClient | null;
   nativeShellLoading?: boolean;
   nativeShellError?: string | null;
   nativeShellState?: import("./types.ts").NativeShellState | null;
   execApprovalsTarget?: "gateway" | "node";
   execApprovalsTargetNodeId?: string | null;
+  sessionsLoading?: boolean;
+  sessionsResult?: import("./types.ts").SessionsListResult | null;
+  sessionsError?: string | null;
+  chatModelsLoading?: boolean;
+  chatModelCatalog?: import("./types.ts").ModelCatalogEntry[];
 };
 
 function bootstrapBlocksChatAccess(
@@ -113,6 +125,9 @@ function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootst
       connected: host.connected,
       bootstrap: host.alisioBootstrap,
     });
+  }
+  if (requestedStep && isPostReadySetupStep(requestedStep)) {
+    return requestedStep;
   }
   return null;
 }
@@ -293,10 +308,28 @@ export async function refreshActiveTab(host: SettingsHost) {
     await loadChannels(host as unknown as OpenClawApp, false);
   }
   if (host.tab === "models") {
+    // Legacy model fallbacks derive local targets from bootstrap/account state.
+    // Load bootstrap first so older gateways do not briefly render an empty models view.
     await Promise.allSettled([
       loadAlisioBootstrap(host as unknown as OpenClawApp),
-      loadAlisioAccount(host as unknown as OpenClawApp),
-      loadNodes(host as unknown as OpenClawApp),
+      loadAlisioModels(host as unknown as OpenClawApp),
+      loadSessions(host as unknown as OpenClawApp, {
+        activeMinutes: 0,
+        limit: 0,
+        includeGlobal: true,
+        includeUnknown: true,
+      }),
+      (async () => {
+        if (!host.connected || !host.client) {
+          return;
+        }
+        host.chatModelsLoading = true;
+        try {
+          host.chatModelCatalog = await loadChatModels(host.client);
+        } finally {
+          host.chatModelsLoading = false;
+        }
+      })(),
     ]);
   }
   if (host.tab === "capabilities") {
@@ -314,14 +347,10 @@ export async function refreshActiveTab(host: SettingsHost) {
     ]);
   }
   if (host.tab === "security") {
-    const execTarget =
-      host.execApprovalsTarget === "node" && host.execApprovalsTargetNodeId?.trim()
-        ? { kind: "node" as const, nodeId: host.execApprovalsTargetNodeId.trim() }
-        : ({ kind: "gateway" } as const);
     await Promise.allSettled([
       loadNodes(host as unknown as OpenClawApp),
       loadConfig(host as unknown as OpenClawApp),
-      loadExecApprovals(host as unknown as OpenClawApp, execTarget),
+      loadSelectedExecApprovals(host as unknown as OpenClawApp),
       loadGatewayAccessMode(host as unknown as OpenClawApp),
     ]);
   }

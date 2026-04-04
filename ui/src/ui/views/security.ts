@@ -6,19 +6,25 @@ import {
   resolveConfiguredExecDefaults,
   type SecurityAccessMode,
 } from "../controllers/security-access.ts";
+import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
+import { resolveSessionDisplayName } from "./session-display.ts";
 
 type ExecAsk = "off" | "on-miss" | "always";
 type ApprovalDecision = "allow-once" | "allow-always" | "deny";
 
 export type SecurityProps = {
+  assistantName: string;
+  assistantAgentId: string | null;
   loading: boolean;
   nodes: Array<Record<string, unknown>>;
   configSnapshot?: { config?: Record<string, unknown> | null } | null;
   configForm: Record<string, unknown> | null;
   configLoading: boolean;
   configSaving: boolean;
+  configDirty: boolean;
+  configFormMode: "form" | "raw";
   execApprovalsLoading: boolean;
   execApprovalsSaving: boolean;
   execApprovalsDirty: boolean;
@@ -112,6 +118,14 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
     entry.kind === "plugin"
       ? (entry.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
       : entry.request.command;
+  const agentLabel = resolveAgentIdDisplayLabel(entry.request.agentId, {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId,
+  });
+  const sessionLabel = resolveSessionDisplayName(entry.request.sessionKey ?? "", undefined, {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId,
+  });
 
   return html`
     <article class="exec-approval-card alisio-security-queue-item">
@@ -139,8 +153,8 @@ ${entry.pluginDescription}</pre
         ${renderApprovalMeta(t("alisio.security.queue.labels.type"), entry.kind)}
         ${renderApprovalMeta(t("alisio.connections.execApprovals.host"), entry.request.host)}
         ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.agent"), entry.request.agentId)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.session"), entry.request.sessionKey)}
+        ${renderApprovalMeta(t("alisio.security.queue.labels.agent"), agentLabel)}
+        ${renderApprovalMeta(t("alisio.security.queue.labels.session"), sessionLabel)}
         ${renderApprovalMeta(t("alisio.security.queue.labels.cwd"), entry.request.cwd)}
         ${renderApprovalMeta(
           t("alisio.connections.execApprovals.security"),
@@ -179,9 +193,6 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
   const queue = [...props.execApprovalQueue].toSorted(
     (left, right) => left.expiresAtMs - right.expiresAtMs,
   );
-  if (queue.length === 0 && !props.execApprovalError) {
-    return nothing;
-  }
   return html`
     <section class="card alisio-security-panel">
       <div class="alisio-security-panel__head">
@@ -199,7 +210,12 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
         ? html`<div class="callout danger">${props.execApprovalError}</div>`
         : nothing}
       ${queue.length === 0
-        ? html`<div class="alisio-security-empty">${t("alisio.security.queue.emptyTitle")}</div>`
+        ? html`
+            <div class="alisio-security-empty">
+              <strong>${t("alisio.security.queue.emptyTitle")}</strong>
+              <span>${t("alisio.security.queue.emptyBody")}</span>
+            </div>
+          `
         : html`
             <div class="alisio-security-approval-list">
               ${queue.map((entry) => renderPendingApproval(entry, props, nowMs))}
@@ -207,6 +223,16 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
           `}
     </section>
   `;
+}
+
+function resolveAccessModeBlockMessage(props: SecurityProps): string | null {
+  if (props.configDirty && props.configFormMode === "raw") {
+    return t("alisio.security.access.lockedByRawConfig");
+  }
+  if (supportsRuntimeAccessModeTarget(props.execApprovalsTarget) && props.execApprovalsDirty) {
+    return t("alisio.security.access.lockedByExecApprovals");
+  }
+  return null;
 }
 
 function renderAccessModePanel(props: SecurityProps) {
@@ -228,7 +254,9 @@ function renderAccessModePanel(props: SecurityProps) {
 
   const mode = props.gatewayAccessMode;
   const ready = mode !== null && !props.gatewayAccessModeLoading;
+  const blockedMessage = resolveAccessModeBlockMessage(props);
   const busy = props.gatewayAccessModeBusy || props.gatewayAccessModeLoading;
+  const disabled = busy || Boolean(blockedMessage);
 
   return html`
     <div class="alisio-security-access">
@@ -249,7 +277,7 @@ function renderAccessModePanel(props: SecurityProps) {
                 type="button"
                 data-security-mode="recommended"
                 class="alisio-chat__access-pill ${mode === "recommended" ? "is-active" : ""}"
-                ?disabled=${busy || mode === "recommended"}
+                ?disabled=${disabled || mode === "recommended"}
                 aria-pressed=${mode === "recommended"}
                 @click=${() => props.onApplyAccessMode("recommended")}
               >
@@ -259,7 +287,7 @@ function renderAccessModePanel(props: SecurityProps) {
                 type="button"
                 data-security-mode="full-access"
                 class="alisio-chat__access-pill ${mode === "full-access" ? "is-active" : ""}"
-                ?disabled=${busy || mode === "full-access"}
+                ?disabled=${disabled || mode === "full-access"}
                 aria-pressed=${mode === "full-access"}
                 @click=${() => props.onApplyAccessMode("full-access")}
               >
@@ -269,6 +297,7 @@ function renderAccessModePanel(props: SecurityProps) {
                 ? html`<span class="pill">${t("alisio.security.access.custom.label")}</span>`
                 : nothing}
             </div>
+            ${blockedMessage ? html`<div class="callout warn">${blockedMessage}</div>` : nothing}
             <div class="alisio-security-access__note">${accessModeDescription(mode)}</div>
           `}
     </div>

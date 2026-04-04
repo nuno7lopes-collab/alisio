@@ -22,6 +22,11 @@ import type {
 } from "../controllers/exec-approvals.ts";
 import { clampText, formatRelativeTimestamp } from "../format.ts";
 import {
+  resolveAgentDisplayLabel,
+  resolvePrimaryAssistantAgentId,
+  type AgentDisplayOptions,
+} from "./agent-display.ts";
+import {
   resolveConfigAgents as resolveSharedConfigAgents,
   resolveNodeTargets,
   type NodeTargetOption,
@@ -36,6 +41,8 @@ type ExecApprovalsAgentOption = {
 type ExecApprovalsTargetNode = NodeTargetOption;
 
 export type ExecApprovalsViewProps = {
+  assistantName: string;
+  assistantAgentId: string | null;
   nodes: Array<Record<string, unknown>>;
   configForm: Record<string, unknown> | null;
   execApprovalsLoading: boolean;
@@ -55,6 +62,9 @@ export type ExecApprovalsViewProps = {
 };
 
 type ExecApprovalsState = {
+  assistantName: string;
+  assistantAgentId: string | null;
+  primaryAgentId: string;
   ready: boolean;
   disabled: boolean;
   dirty: boolean;
@@ -121,20 +131,29 @@ function resolveConfigAgents(config: Record<string, unknown> | null): ExecApprov
 function resolveExecApprovalsAgents(
   config: Record<string, unknown> | null,
   form: ExecApprovalsFile | null,
-): ExecApprovalsAgentOption[] {
+  options: AgentDisplayOptions,
+): { agents: ExecApprovalsAgentOption[]; primaryAgentId: string } {
   const configAgents = resolveConfigAgents(config);
   const approvalsAgents = Object.keys(form?.agents ?? {});
   const merged = new Map<string, ExecApprovalsAgentOption>();
-  configAgents.forEach((agent) => merged.set(agent.id, agent));
+  const configDefaultAgentId = configAgents.find((agent) => agent.isDefault)?.id ?? null;
+  const primaryAgentId = resolvePrimaryAssistantAgentId({
+    ...options,
+    primaryAgentId: configDefaultAgentId,
+  });
+  const resolvedOptions = { ...options, primaryAgentId };
+  configAgents.forEach((agent) =>
+    merged.set(agent.id, { ...agent, isDefault: agent.isDefault || agent.id === primaryAgentId }),
+  );
   approvalsAgents.forEach((id) => {
     if (merged.has(id)) {
       return;
     }
-    merged.set(id, { id });
+    merged.set(id, { id, isDefault: id === primaryAgentId });
   });
   const agents = Array.from(merged.values());
   if (agents.length === 0) {
-    agents.push({ id: "main", isDefault: true });
+    agents.push({ id: primaryAgentId, isDefault: true });
   }
   agents.sort((a, b) => {
     if (a.isDefault && !b.isDefault) {
@@ -143,11 +162,11 @@ function resolveExecApprovalsAgents(
     if (!a.isDefault && b.isDefault) {
       return 1;
     }
-    const aLabel = a.name?.trim() ? a.name : a.id;
-    const bLabel = b.name?.trim() ? b.name : b.id;
+    const aLabel = resolveAgentDisplayLabel(a, resolvedOptions);
+    const bLabel = resolveAgentDisplayLabel(b, resolvedOptions);
     return aLabel.localeCompare(bLabel);
   });
-  return agents;
+  return { agents, primaryAgentId };
 }
 
 function resolveExecApprovalsScope(
@@ -164,17 +183,28 @@ function resolveExecApprovalsScope(
 }
 
 export function resolveExecApprovalsState(props: ExecApprovalsViewProps): ExecApprovalsState {
-  const form = props.execApprovalsForm ?? props.execApprovalsSnapshot?.file ?? null;
-  const ready = Boolean(form);
-  const defaults = resolveExecApprovalsDefaults(form);
-  const agents = resolveExecApprovalsAgents(props.configForm, form);
-  const targetNodes = resolveExecApprovalsNodes(props.nodes);
   const target = props.execApprovalsTarget;
   let targetNodeId =
     target === "node" && props.execApprovalsTargetNodeId ? props.execApprovalsTargetNodeId : null;
+  const targetNodes = resolveExecApprovalsNodes(props.nodes);
   if (target === "node" && targetNodeId && !targetNodes.some((node) => node.id === targetNodeId)) {
-    targetNodeId = null;
+    const hasLoadedTargetState = Boolean(
+      props.execApprovalsForm ?? props.execApprovalsSnapshot?.file,
+    );
+    if (!hasLoadedTargetState) {
+      targetNodeId = null;
+    }
   }
+  const targetReady = target !== "node" || Boolean(targetNodeId);
+  const form = targetReady
+    ? (props.execApprovalsForm ?? props.execApprovalsSnapshot?.file ?? null)
+    : null;
+  const ready = Boolean(form);
+  const defaults = resolveExecApprovalsDefaults(form);
+  const { agents, primaryAgentId } = resolveExecApprovalsAgents(props.configForm, form, {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId,
+  });
   const selectedScope = resolveExecApprovalsScope(props.execApprovalsSelectedAgent, agents);
   const selectedAgent =
     selectedScope !== EXEC_APPROVALS_DEFAULT_SCOPE
@@ -184,6 +214,9 @@ export function resolveExecApprovalsState(props: ExecApprovalsViewProps): ExecAp
     ? ((selectedAgent as { allowlist?: ExecApprovalsAllowlistEntry[] }).allowlist ?? [])
     : [];
   return {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId,
+    primaryAgentId,
     ready,
     disabled: props.execApprovalsSaving || props.execApprovalsLoading,
     dirty: props.execApprovalsDirty,
@@ -256,6 +289,7 @@ export function renderExecApprovals(state: ExecApprovalsState) {
 function renderExecApprovalsTarget(state: ExecApprovalsState) {
   const hasNodes = state.targetNodes.length > 0;
   const nodeValue = state.targetNodeId ?? "";
+  const targetLocked = state.dirty;
   const text = {
     title: t("alisio.connections.execApprovals.targetTitle"),
     subtitle: t("alisio.connections.execApprovals.targetSubtitle"),
@@ -264,6 +298,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
     node: t("alisio.connections.execApprovals.node"),
     selectNode: t("alisio.connections.execApprovals.selectNode"),
     noNodes: t("alisio.connections.execApprovals.noNodes"),
+    switchTargetHint: t("alisio.connections.execApprovals.switchTargetHint"),
   };
   return html`
     <div class="list" style="margin-top: 12px;">
@@ -276,7 +311,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
           <label class="field">
             <span>${text.host}</span>
             <select
-              ?disabled=${state.disabled}
+              ?disabled=${state.disabled || targetLocked}
               @change=${(event: Event) => {
                 const target = event.target as HTMLSelectElement;
                 const value = target.value;
@@ -299,7 +334,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
                 <label class="field">
                   <span>${text.node}</span>
                   <select
-                    ?disabled=${state.disabled || !hasNodes}
+                    ?disabled=${state.disabled || targetLocked || !hasNodes}
                     @change=${(event: Event) => {
                       const target = event.target as HTMLSelectElement;
                       const value = target.value.trim();
@@ -322,6 +357,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
       ${state.target === "node" && !hasNodes
         ? html` <div class="muted">${text.noNodes}</div> `
         : nothing}
+      ${targetLocked ? html`<div class="muted">${text.switchTargetHint}</div>` : nothing}
     </div>
   `;
 }
@@ -340,7 +376,11 @@ function renderExecApprovalsTabs(state: ExecApprovalsState) {
           ${t("alisio.connections.execApprovals.defaults")}
         </button>
         ${state.agents.map((agent) => {
-          const label = agent.name?.trim() ? `${agent.name} (${agent.id})` : agent.id;
+          const label = resolveAgentDisplayLabel(agent, {
+            assistantName: state.assistantName,
+            assistantAgentId: state.assistantAgentId,
+            primaryAgentId: state.primaryAgentId,
+          });
           return html`
             <button
               class="btn btn--sm ${state.selectedScope === agent.id ? "active" : ""}"

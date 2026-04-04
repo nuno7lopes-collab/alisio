@@ -6,7 +6,11 @@ import {
   normalizeChannelId,
 } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
-import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
+import type {
+  ChannelAccountSnapshot,
+  ChannelPlugin,
+  ChannelStatusIssue,
+} from "../../channels/plugins/types.js";
 import { listChatChannels } from "../../channels/registry.js";
 import { isChannelConfigured } from "../../config/channel-configured.js";
 import type { OpenClawConfig } from "../../config/config.js";
@@ -32,6 +36,12 @@ type ChannelLogoutPayload = {
   cleared: boolean;
   [key: string]: unknown;
 };
+
+function appendChannelIssue(issuesMap: Record<string, unknown>, issue: ChannelStatusIssue): void {
+  const channelIssues = (issuesMap[issue.channel] as ChannelStatusIssue[] | undefined) ?? [];
+  channelIssues.push(issue);
+  issuesMap[issue.channel] = channelIssues;
+}
 
 const ALISIO_PUBLIC_CHANNEL_IDS = ["telegram", "whatsapp", "discord"] as const;
 
@@ -278,6 +288,16 @@ export const channelsHandlers: GatewayRequestHandlers = {
           },
         ] satisfies ChannelAccountSnapshot[];
         defaultAccountIdMap[entry.id] = DEFAULT_ACCOUNT_ID;
+        if (configured) {
+          appendChannelIssue(issuesMap, {
+            channel: entry.id,
+            accountId: DEFAULT_ACCOUNT_ID,
+            kind: "config",
+            message:
+              "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
+            fix: "Finish setup or install the channel runtime so the gateway can start it.",
+          });
+        }
         continue;
       }
 
@@ -309,9 +329,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
       defaultAccountIdMap[plugin.id] = defaultAccountId;
     }
     for (const issue of collectChannelStatusIssues(payload)) {
-      const channelIssues = (issuesMap[issue.channel] as Array<typeof issue> | undefined) ?? [];
-      channelIssues.push(issue);
-      issuesMap[issue.channel] = channelIssues;
+      appendChannelIssue(issuesMap, issue);
     }
 
     respond(true, payload, undefined);

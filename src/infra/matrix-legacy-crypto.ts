@@ -102,7 +102,7 @@ function detectLegacyBotSdkCryptoStore(cryptoRootDir: string): {
         detected: false,
         warning:
           `Legacy Matrix encrypted state path exists but is not a directory: ${cryptoRootDir}. ` +
-          "OpenClaw skipped automatic crypto migration for that path.",
+          "Alisio skipped automatic crypto migration for that path.",
       };
     }
   } catch (err) {
@@ -110,7 +110,7 @@ function detectLegacyBotSdkCryptoStore(cryptoRootDir: string): {
       detected: false,
       warning:
         `Failed reading legacy Matrix encrypted state path (${cryptoRootDir}): ${String(err)}. ` +
-        "OpenClaw skipped automatic crypto migration for that path.",
+        "Alisio skipped automatic crypto migration for that path.",
     };
   }
 
@@ -132,7 +132,7 @@ function detectLegacyBotSdkCryptoStore(cryptoRootDir: string): {
       detected: false,
       warning:
         `Failed scanning legacy Matrix encrypted state path (${cryptoRootDir}): ${String(err)}. ` +
-        "OpenClaw skipped automatic crypto migration for that path.",
+        "Alisio skipped automatic crypto migration for that path.",
     };
   }
 }
@@ -363,7 +363,7 @@ export async function autoPrepareLegacyMatrixCrypto(params: {
     if (!plan.deviceId) {
       warnings.push(
         `Legacy Matrix encrypted state detected at ${plan.legacyCryptoPath}, but no device ID was found for account "${plan.accountId}". ` +
-          `OpenClaw will continue, but old encrypted history cannot be recovered automatically.`,
+          `Alisio will continue, but old encrypted history cannot be recovered automatically.`,
       );
       continue;
     }

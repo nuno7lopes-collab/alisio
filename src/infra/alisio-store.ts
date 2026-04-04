@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from "node:child_process";
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
@@ -10,6 +10,7 @@ import {
   validateAlisioAccountDraft,
 } from "../shared/alisio-account.js";
 import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
+import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
 import {
   AlisioAccountCloudError,
   completeAlisioCloudAccountProfile,
@@ -193,6 +194,20 @@ export type AlisioLocalDeviceSession = {
   lastSeenAt: string;
 };
 
+export type AlisioRemoteModelServerKind = "openai-compatible" | "ollama";
+
+export type AlisioRemoteModelServer = {
+  serverId: string;
+  label: string;
+  kind: AlisioRemoteModelServerKind;
+  baseUrl: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  apiKey?: string;
+  apiKeyEncrypted?: AlisioEncryptedToken;
+};
+
 export type AlisioOrganizationMembershipState = {
   mode: "none" | "owner" | "member";
   organizationName?: string;
@@ -229,6 +244,7 @@ export type AlisioStoredState = {
   organization: AlisioOrganizationMembershipState;
   ai?: AlisioStoredAiState;
   authorizations: Record<string, AlisioConnectorAuthorization>;
+  modelServers?: Record<string, AlisioRemoteModelServer>;
   oauthCredentials: Record<
     string,
     {
@@ -300,6 +316,7 @@ export type AlisioOAuthCallbackResult =
         | "pending_not_found"
         | "provider_mismatch"
         | "missing_client_config"
+        | "missing_token_encryption"
         | "oauth_denied"
         | "token_exchange_failed"
         | "profile_fetch_failed";
@@ -339,7 +356,8 @@ type AlisioOAuthTokenSet = {
 const STORE_FILENAME = "alisio/state.json";
 const PENDING_AUTHORIZATION_TTL_MS = 15 * 60 * 1000;
 const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY";
-const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "OpenClaw Alisio Connector Token Encryption";
+const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encryption";
+const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "OpenClaw Alisio Connector Token Encryption";
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const withLock = createAsyncLock();
 
@@ -629,19 +647,27 @@ function readConnectorTokenKeychainSecret(
     return null;
   }
   const account = resolveConnectorTokenKeychainAccount(env);
-  try {
-    const secret = execSyncImpl(
-      `security find-generic-password -s "${ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE}" -a "${account}" -w`,
-      {
-        encoding: "utf8",
-        timeout: 5_000,
-        stdio: ["pipe", "pipe", "pipe"],
-      },
-    ).trim();
-    return secret || null;
-  } catch {
-    return null;
+  for (const service of [
+    ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE,
+    LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE,
+  ]) {
+    try {
+      const secret = execSyncImpl(
+        `security find-generic-password -s "${service}" -a "${account}" -w`,
+        {
+          encoding: "utf8",
+          timeout: 5_000,
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      ).trim();
+      if (secret) {
+        return secret;
+      }
+    } catch {
+      // Try the next compatible keychain service name.
+    }
   }
+  return null;
 }
 
 function writeConnectorTokenKeychainSecret(
@@ -934,6 +960,91 @@ function serializeStoredAiSecrets(
   };
 }
 
+function hydrateStoredApiKeySecret<
+  T extends {
+    apiKey?: string;
+    apiKeyEncrypted?: AlisioEncryptedToken;
+  },
+>(entry: T | undefined, env: NodeJS.ProcessEnv) {
+  if (!entry) {
+    return undefined;
+  }
+  const apiKey =
+    typeof entry.apiKey === "string" && entry.apiKey.trim()
+      ? entry.apiKey
+      : (decryptConnectorToken(entry.apiKeyEncrypted, env) ?? undefined);
+  const { apiKeyEncrypted: _ignoredEncrypted, ...rest } = entry;
+  return {
+    ...rest,
+    ...(apiKey ? { apiKey } : {}),
+    ...(!apiKey && entry.apiKeyEncrypted ? { apiKeyEncrypted: entry.apiKeyEncrypted } : {}),
+  } as T;
+}
+
+function serializeStoredApiKeySecret<
+  T extends {
+    apiKey?: string;
+    apiKeyEncrypted?: AlisioEncryptedToken;
+  },
+>(entry: T | undefined, env: NodeJS.ProcessEnv) {
+  if (!entry) {
+    return undefined;
+  }
+  const { apiKey, apiKeyEncrypted, ...rest } = entry;
+  const next: T = { ...rest } as T;
+  if (typeof apiKey === "string" && apiKey.trim()) {
+    const encrypted = encryptConnectorToken(apiKey, env);
+    if (encrypted) {
+      next.apiKeyEncrypted = encrypted;
+    } else {
+      next.apiKey = apiKey;
+    }
+  } else if (apiKeyEncrypted) {
+    next.apiKeyEncrypted = apiKeyEncrypted;
+  }
+  return next;
+}
+
+function hydrateStoredRemoteModelServers(
+  servers: Record<string, AlisioRemoteModelServer> | undefined,
+  env: NodeJS.ProcessEnv,
+) {
+  if (!servers) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(servers)
+      .map(([serverId, entry]) => {
+        const hydrated = hydrateStoredApiKeySecret(entry, env);
+        if (!hydrated) {
+          return null;
+        }
+        return [serverId, hydrated] as const;
+      })
+      .filter((entry): entry is readonly [string, AlisioRemoteModelServer] => Boolean(entry)),
+  );
+}
+
+function serializeStoredRemoteModelServers(
+  servers: Record<string, AlisioRemoteModelServer> | undefined,
+  env: NodeJS.ProcessEnv,
+) {
+  if (!servers) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(servers)
+      .map(([serverId, entry]) => {
+        const serialized = serializeStoredApiKeySecret(entry, env);
+        if (!serialized) {
+          return null;
+        }
+        return [serverId, serialized] as const;
+      })
+      .filter((entry): entry is readonly [string, AlisioRemoteModelServer] => Boolean(entry)),
+  );
+}
+
 function isOAuthCredentialExpired(expiresAt: string | undefined, now = Date.now()) {
   if (!expiresAt) {
     return false;
@@ -1085,6 +1196,7 @@ function buildDefaultState(): AlisioStoredState {
     },
     ai: {},
     authorizations: {},
+    modelServers: {},
     oauthCredentials: {},
     pendingAuthorizations: {},
   };
@@ -1370,37 +1482,10 @@ function isAlisioAiReady(state: AlisioAiState | null | undefined) {
 function summarizeConnectorAuthorizations(
   authorizations: readonly AlisioConnectorAuthorization[],
 ): AlisioBootstrapConnectorSummary {
-  const summary: AlisioBootstrapConnectorSummary = {
-    total: CONNECTOR_CATALOG.length,
-    ready: 0,
-    connected: 0,
-    needsReconnect: 0,
-    inReview: 0,
-    unavailable: 0,
-    available: 0,
-  };
-
-  for (const connector of CONNECTOR_CATALOG) {
-    if (connector.availability === "ready") {
-      summary.ready += 1;
-    } else if (connector.availability === "in_review") {
-      summary.inReview += 1;
-    } else {
-      summary.unavailable += 1;
-    }
-  }
-
-  for (const authorization of authorizations) {
-    if (authorization.state === "connected") {
-      summary.connected += 1;
-    }
-    if (authorization.state === "connected" && authorization.health === "needs_reconnect") {
-      summary.needsReconnect += 1;
-    }
-  }
-
-  summary.available = summary.total - summary.unavailable;
-  return summary;
+  return summarizeAlisioConnectorUiStatuses({
+    definitions: CONNECTOR_CATALOG,
+    authorizations,
+  });
 }
 
 function buildAlisioBootstrapSummary(params: {
@@ -1433,7 +1518,8 @@ function buildAlisioBootstrapSummary(params: {
         ? "runtime"
         : params.organization.mode === "none"
           ? "organization"
-          : connectorSummary.connected === 0 && connectorSummary.ready > 0
+          : connectorSummary.connected === 0 &&
+              (connectorSummary.ready > 0 || connectorSummary.needsReconnect > 0)
             ? "connectors"
             : process.platform === "darwin"
               ? "permissions"
@@ -2040,6 +2126,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     return defaults;
   }
   const loaded = migrateLegacyLocalDevAccountState(rawLoaded, defaults);
+  const loadedModelServers = hydrateStoredRemoteModelServers(loaded.modelServers, runtimeEnv);
   const loadedAccountWithoutSecrets = { ...loaded.account };
   const loadedCloudSession = hydrateStoredTokenSecrets(
     loadedAccountWithoutSecrets.cloudSession,
@@ -2086,6 +2173,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     organization: mergedOrganization,
     ai: nextAi,
     authorizations: loaded.authorizations ?? {},
+    modelServers: loadedModelServers,
     oauthCredentials: loaded.oauthCredentials ?? {},
     pendingAuthorizations: loaded.pendingAuthorizations ?? {},
   };
@@ -2211,6 +2299,7 @@ async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
     runtimeEnv,
   );
   const serializedAi = serializeStoredAiSecrets(state.ai, runtimeEnv);
+  const serializedModelServers = serializeStoredRemoteModelServers(state.modelServers, runtimeEnv);
   await writeJsonAtomic(
     stateFilePath(env),
     {
@@ -2220,6 +2309,7 @@ async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
         ...(serializedCloudSession ? { cloudSession: serializedCloudSession } : {}),
       },
       ...(serializedAi ? { ai: serializedAi } : {}),
+      modelServers: serializedModelServers,
     },
     { trailingNewline: true },
   );
@@ -2706,6 +2796,149 @@ export async function getAlisioAiState(env?: NodeJS.ProcessEnv): Promise<AlisioA
     state: state.ai,
     workerId: currentWorkerId(),
     authStore: ensureAuthProfileStore(),
+  });
+}
+
+function normalizeRemoteModelServerBaseUrl(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    const url = new URL(trimmed);
+    url.hash = "";
+    url.search = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return trimmed.replace(/\/+$/, "");
+  }
+}
+
+function sortRemoteModelServers(servers: readonly AlisioRemoteModelServer[]) {
+  return [...servers].toSorted((left, right) => {
+    if (left.active && !right.active) {
+      return -1;
+    }
+    if (right.active && !left.active) {
+      return 1;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+export async function listAlisioRemoteModelServers(
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioRemoteModelServer[]> {
+  const state = await loadStoredState(env);
+  return sortRemoteModelServers(Object.values(state.modelServers ?? {}));
+}
+
+export async function saveAlisioRemoteModelServer(
+  input: {
+    serverId?: string;
+    label: string;
+    kind: AlisioRemoteModelServerKind;
+    baseUrl: string;
+    apiKey?: string;
+    clearApiKey?: boolean;
+  },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioRemoteModelServer> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const now = new Date().toISOString();
+    const serverId = input.serverId?.trim() || randomUUID();
+    const existing = state.modelServers?.[serverId];
+    const label = input.label.trim();
+    const baseUrl = normalizeRemoteModelServerBaseUrl(input.baseUrl);
+    if (!label) {
+      throw new AlisioAccountValidationError("Dá um nome ao servidor.");
+    }
+    if (!baseUrl) {
+      throw new AlisioAccountValidationError("Indica o endereço do servidor.");
+    }
+    const nextServer: AlisioRemoteModelServer = {
+      serverId,
+      label,
+      kind: input.kind,
+      baseUrl,
+      active:
+        existing?.active === true ||
+        (!existing && !Object.values(state.modelServers ?? {}).some((server) => server.active)),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      ...(typeof input.apiKey === "string" && input.apiKey.trim()
+        ? { apiKey: input.apiKey.trim() }
+        : input.clearApiKey
+          ? {}
+          : existing?.apiKey
+            ? { apiKey: existing.apiKey }
+            : existing?.apiKeyEncrypted
+              ? { apiKeyEncrypted: existing.apiKeyEncrypted }
+              : {}),
+    };
+    state.modelServers = {
+      ...state.modelServers,
+      [serverId]: nextServer,
+    };
+    await persistState(state, env);
+    return nextServer;
+  });
+}
+
+export async function removeAlisioRemoteModelServer(
+  input: { serverId: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ serverId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const serverId = input.serverId.trim();
+    const removed = state.modelServers?.[serverId];
+    if (!removed) {
+      return { serverId };
+    }
+    delete state.modelServers?.[serverId];
+    if (removed.active) {
+      const nextServer = Object.values(state.modelServers ?? {})[0];
+      if (nextServer) {
+        state.modelServers = {
+          ...state.modelServers,
+          [nextServer.serverId]: {
+            ...nextServer,
+            active: true,
+            updatedAt: new Date().toISOString(),
+          },
+        };
+      }
+    }
+    await persistState(state, env);
+    return { serverId };
+  });
+}
+
+export async function selectAlisioRemoteModelServer(
+  input: { serverId: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ serverId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const serverId = input.serverId.trim();
+    if (!state.modelServers?.[serverId]) {
+      throw new AlisioAccountValidationError("O servidor já não existe.");
+    }
+    const now = new Date().toISOString();
+    state.modelServers = Object.fromEntries(
+      Object.entries(state.modelServers ?? {}).map(([id, server]) => [
+        id,
+        {
+          ...server,
+          active: id === serverId,
+          updatedAt: id === serverId || server.active ? now : server.updatedAt,
+        },
+      ]),
+    );
+    await persistState(state, env);
+    return { serverId };
   });
 }
 
@@ -4453,6 +4686,16 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
         ok: false,
         reason: "missing_client_config",
         message: "OAuth redirect configuration changed before the callback completed.",
+      } satisfies AlisioOAuthCallbackResult;
+    }
+    if (!resolveConnectorTokenEncryptionKey(env)) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "missing_token_encryption",
+        message:
+          "Secure local token storage is unavailable on this gateway. Restore the macOS login keychain or configure ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY and try again.",
       } satisfies AlisioOAuthCallbackResult;
     }
 

@@ -36,6 +36,11 @@ export type ExecApprovalsSnapshot = {
 
 export type ExecApprovalsTarget = { kind: "gateway" } | { kind: "node"; nodeId: string };
 
+export type ExecApprovalsTargetSelection = {
+  execApprovalsTarget: "gateway" | "node";
+  execApprovalsTargetNodeId: string | null;
+};
+
 export type ExecApprovalsState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -48,10 +53,15 @@ export type ExecApprovalsState = {
   lastError: string | null;
 };
 
+export type ExecApprovalsTargetState = ExecApprovalsState & ExecApprovalsTargetSelection;
+
 function resolveExecApprovalsRpc(target?: ExecApprovalsTarget | null): {
   method: string;
   params: Record<string, unknown>;
 } | null {
+  if (target === null) {
+    return null;
+  }
   if (!target || target.kind === "gateway") {
     return { method: "exec.approvals.get", params: {} };
   }
@@ -66,6 +76,9 @@ function resolveExecApprovalsSaveRpc(
   target: ExecApprovalsTarget | null | undefined,
   params: { file: ExecApprovalsFile; baseHash: string },
 ): { method: string; params: Record<string, unknown> } | null {
+  if (target === null) {
+    return null;
+  }
   if (!target || target.kind === "gateway") {
     return { method: "exec.approvals.set", params };
   }
@@ -74,6 +87,23 @@ function resolveExecApprovalsSaveRpc(
     return null;
   }
   return { method: "exec.approvals.node.set", params: { ...params, nodeId } };
+}
+
+export function resolveSelectedExecApprovalsTarget(
+  params: ExecApprovalsTargetSelection,
+): ExecApprovalsTarget | null {
+  if (params.execApprovalsTarget !== "node") {
+    return { kind: "gateway" };
+  }
+  const nodeId = params.execApprovalsTargetNodeId?.trim() || "";
+  return nodeId ? { kind: "node", nodeId } : null;
+}
+
+function clearExecApprovalsSnapshot(state: ExecApprovalsState) {
+  state.execApprovalsSnapshot = null;
+  if (!state.execApprovalsDirty) {
+    state.execApprovalsForm = null;
+  }
 }
 
 export async function loadExecApprovals(
@@ -101,6 +131,16 @@ export async function loadExecApprovals(
   } finally {
     state.execApprovalsLoading = false;
   }
+}
+
+export async function loadSelectedExecApprovals(state: ExecApprovalsTargetState) {
+  const target = resolveSelectedExecApprovalsTarget(state);
+  if (state.execApprovalsTarget === "node" && !target) {
+    state.lastError = null;
+    clearExecApprovalsSnapshot(state);
+    return;
+  }
+  await loadExecApprovals(state, target);
 }
 
 export function applyExecApprovalsSnapshot(
@@ -142,6 +182,32 @@ export async function saveExecApprovals(
   } finally {
     state.execApprovalsSaving = false;
   }
+}
+
+export async function changeExecApprovalsTarget(
+  state: ExecApprovalsTargetState,
+  params: { kind: "gateway" | "node"; nodeId: string | null },
+) {
+  const nextNodeId = params.kind === "node" ? params.nodeId?.trim() || null : null;
+  const currentNodeId = state.execApprovalsTargetNodeId?.trim() || null;
+  if (state.execApprovalsTarget === params.kind && currentNodeId === nextNodeId) {
+    return;
+  }
+  if (state.execApprovalsDirty) {
+    state.lastError = "Save or reload the current exec approvals draft before changing target.";
+    return;
+  }
+
+  state.lastError = null;
+  state.execApprovalsTarget = params.kind;
+  state.execApprovalsTargetNodeId = nextNodeId;
+
+  const target = resolveSelectedExecApprovalsTarget(state);
+  if (state.execApprovalsTarget === "node" && !target) {
+    clearExecApprovalsSnapshot(state);
+    return;
+  }
+  await loadExecApprovals(state, target);
 }
 
 export function updateExecApprovalsFormValue(

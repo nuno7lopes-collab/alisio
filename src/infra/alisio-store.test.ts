@@ -815,6 +815,35 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("rejects callbacks honestly when secure token storage disappears before completion", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GITHUB_CLIENT_ID: "github-client-id",
+        ALISIO_GITHUB_CLIENT_SECRET: "github-client-secret",
+        ALISIO_GITHUB_REDIRECT_URI: "http://127.0.0.1:8787/oauth/github/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+      });
+      const begin = await beginAlisioConnectorSetup("github", env);
+      const launchUrl = new URL(begin?.setupUrl ?? "");
+      delete env.ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY;
+
+      const result = await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "github",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "github-code",
+        },
+        env,
+        vi.fn<typeof fetch>(),
+      );
+
+      expect(result).toMatchObject({
+        ok: false,
+        reason: "missing_token_encryption",
+      });
+    });
+  });
+
   it("revokes Google on disconnect before removing the local connector state", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -1971,7 +2000,8 @@ describe("beginAlisioConnectorSetup", () => {
       });
       expect(summary.organizationState.mode).toBe("none");
       expect(summary.connectorSummary.total).toBeGreaterThan(0);
-      expect(summary.connectorSummary.ready).toBeGreaterThan(0);
+      expect(summary.connectorSummary.ready).toBe(0);
+      expect(summary.connectorSummary.connected).toBe(0);
     });
   });
 
@@ -1998,14 +2028,14 @@ describe("beginAlisioConnectorSetup", () => {
     const summary = summarizeAlisioConnectorAuthorizations([
       {
         connectorId: "google-calendar",
-        state: "connected",
+        state: "needs_reconnect",
         health: "needs_reconnect",
         scopes: ["openid"],
       },
     ]);
 
     expect(summary).toMatchObject({
-      connected: 1,
+      connected: 0,
       needsReconnect: 1,
       inReview: expect.any(Number),
       unavailable: expect.any(Number),
@@ -2013,6 +2043,29 @@ describe("beginAlisioConnectorSetup", () => {
     expect(summary.total).toBeGreaterThan(0);
     expect(summary.ready).toBeGreaterThan(0);
     expect(summary.available).toBe(summary.total - summary.unavailable);
+  });
+
+  it("does not route ready accounts into an empty connectors step when OAuth config is missing", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setAlisioOrganizationState(
+        {
+          mode: "owner",
+          organizationName: "OpenClaw",
+        },
+        env,
+      );
+
+      const summary = await getAlisioBootstrapSummary({
+        env,
+        providerReady: true,
+      });
+
+      expect(summary.startupState).toBe("ready");
+      expect(summary.connectorSummary.connected).toBe(0);
+      expect(summary.connectorSummary.ready).toBe(0);
+      expect(summary.nextStep).toBe(process.platform === "darwin" ? "permissions" : "ready");
+    });
   });
 });
 

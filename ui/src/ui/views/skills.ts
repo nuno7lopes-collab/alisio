@@ -1,24 +1,15 @@
 import { html, nothing } from "lit";
-import { ref } from "lit/directives/ref.js";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
-import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
 import { groupSkills } from "./skills-grouping.ts";
 import {
-  computeSkillMissing,
-  computeSkillReasons,
-  renderSkillStatusChips,
+  buildSkillStatusCounts,
+  renderSkillDetailDialog,
+  skillMatchesStatus,
+  skillStatusClass,
+  type SkillsStatusFilter,
 } from "./skills-shared.ts";
-
-function safeExternalHref(raw?: string): string | null {
-  if (!raw) {
-    return null;
-  }
-  return resolveSafeExternalUrl(raw, window.location.href);
-}
-
-export type SkillsStatusFilter = "all" | "ready" | "needs-setup" | "disabled";
 
 export type SkillsProps = {
   connected: boolean;
@@ -51,44 +42,9 @@ const STATUS_TABS: StatusTabDef[] = [
   { id: "disabled", label: "Disabled" },
 ];
 
-function skillMatchesStatus(skill: SkillStatusEntry, status: SkillsStatusFilter): boolean {
-  switch (status) {
-    case "all":
-      return true;
-    case "ready":
-      return !skill.disabled && skill.eligible;
-    case "needs-setup":
-      return !skill.disabled && !skill.eligible;
-    case "disabled":
-      return skill.disabled;
-  }
-}
-
-function skillStatusClass(skill: SkillStatusEntry): string {
-  if (skill.disabled) {
-    return "muted";
-  }
-  return skill.eligible ? "ok" : "warn";
-}
-
 export function renderSkills(props: SkillsProps) {
   const skills = props.report?.skills ?? [];
-
-  const statusCounts: Record<SkillsStatusFilter, number> = {
-    all: skills.length,
-    ready: 0,
-    "needs-setup": 0,
-    disabled: 0,
-  };
-  for (const s of skills) {
-    if (s.disabled) {
-      statusCounts.disabled++;
-    } else if (s.eligible) {
-      statusCounts.ready++;
-    } else {
-      statusCounts["needs-setup"]++;
-    }
-  }
+  const statusCounts = buildSkillStatusCounts(skills);
 
   const afterStatus =
     props.statusFilter === "all"
@@ -220,7 +176,7 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
             ?disabled=${busy}
             @change=${(e: Event) => {
               e.stopPropagation();
-              props.onToggle(skill.skillKey, skill.disabled);
+              props.onToggle(skill.skillKey, (e.target as HTMLInputElement).checked);
             }}
           />
         </label>
@@ -230,162 +186,5 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
 }
 
 function renderSkillDetail(skill: SkillStatusEntry, props: SkillsProps) {
-  const busy = props.busyKey === skill.skillKey;
-  const apiKey = props.edits[skill.skillKey] ?? "";
-  const message = props.messages[skill.skillKey] ?? null;
-  const canInstall = skill.install.length > 0 && skill.missing.bins.length > 0;
-  const showBundledBadge = Boolean(skill.bundled && skill.source !== "openclaw-bundled");
-  const missing = computeSkillMissing(skill);
-  const reasons = computeSkillReasons(skill);
-  const ensureModalOpen = (el?: Element) => {
-    if (!(el instanceof HTMLDialogElement) || el.open) {
-      return;
-    }
-    el.showModal();
-  };
-
-  return html`
-    <dialog
-      class="md-preview-dialog"
-      ${ref(ensureModalOpen)}
-      @click=${(e: Event) => {
-        const dialog = e.currentTarget as HTMLDialogElement;
-        if (e.target === dialog) {
-          dialog.close();
-        }
-      }}
-      @close=${props.onDetailClose}
-    >
-      <div class="md-preview-dialog__panel">
-        <div class="md-preview-dialog__header">
-          <div
-            class="md-preview-dialog__title"
-            style="display: flex; align-items: center; gap: 8px;"
-          >
-            <span class="statusDot ${skillStatusClass(skill)}"></span>
-            ${skill.emoji ? html`<span style="font-size: 18px;">${skill.emoji}</span>` : nothing}
-            <span>${skill.name}</span>
-          </div>
-          <button
-            class="btn btn--sm"
-            @click=${(e: Event) => {
-              (e.currentTarget as HTMLElement).closest("dialog")?.close();
-            }}
-          >
-            Close
-          </button>
-        </div>
-        <div class="md-preview-dialog__body" style="display: grid; gap: 16px;">
-          <div>
-            <div style="font-size: 14px; line-height: 1.5; color: var(--text);">
-              ${skill.description}
-            </div>
-            ${renderSkillStatusChips({ skill, showBundledBadge })}
-          </div>
-
-          ${missing.length > 0
-            ? html`
-                <div
-                  class="callout"
-                  style="border-color: var(--warn-subtle); background: var(--warn-subtle); color: var(--warn);"
-                >
-                  <div style="font-weight: 600; margin-bottom: 4px;">Missing requirements</div>
-                  <div>${missing.join(", ")}</div>
-                </div>
-              `
-            : nothing}
-          ${reasons.length > 0
-            ? html`
-                <div class="muted" style="font-size: 13px;">Reason: ${reasons.join(", ")}</div>
-              `
-            : nothing}
-
-          <div style="display: flex; align-items: center; gap: 12px;">
-            <label class="skill-toggle-wrap">
-              <input
-                type="checkbox"
-                class="skill-toggle"
-                .checked=${!skill.disabled}
-                ?disabled=${busy}
-                @change=${() => props.onToggle(skill.skillKey, skill.disabled)}
-              />
-            </label>
-            <span style="font-size: 13px; font-weight: 500;">
-              ${skill.disabled ? "Disabled" : "Enabled"}
-            </span>
-            ${canInstall
-              ? html`<button
-                  class="btn"
-                  ?disabled=${busy}
-                  @click=${() => props.onInstall(skill.skillKey, skill.name, skill.install[0].id)}
-                >
-                  ${busy ? "Installing\u2026" : skill.install[0].label}
-                </button>`
-              : nothing}
-          </div>
-
-          ${message
-            ? html`<div class="callout ${message.kind === "error" ? "danger" : "success"}">
-                ${message.message}
-              </div>`
-            : nothing}
-          ${skill.primaryEnv
-            ? html`
-                <div style="display: grid; gap: 8px;">
-                  <div class="field">
-                    <span
-                      >API key
-                      <span class="muted" style="font-weight: normal; font-size: 0.88em;"
-                        >(${skill.primaryEnv})</span
-                      ></span
-                    >
-                    <input
-                      type="password"
-                      .value=${apiKey}
-                      @input=${(e: Event) =>
-                        props.onEdit(skill.skillKey, (e.target as HTMLInputElement).value)}
-                    />
-                  </div>
-                  ${(() => {
-                    const href = safeExternalHref(skill.homepage);
-                    return href
-                      ? html`<div class="muted" style="font-size: 13px;">
-                          Get your key:
-                          <a href="${href}" target="_blank" rel="noopener noreferrer"
-                            >${skill.homepage}</a
-                          >
-                        </div>`
-                      : nothing;
-                  })()}
-                  <button
-                    class="btn primary"
-                    ?disabled=${busy}
-                    @click=${() => props.onSaveKey(skill.skillKey)}
-                  >
-                    Save key
-                  </button>
-                </div>
-              `
-            : nothing}
-
-          <div
-            style="border-top: 1px solid var(--border); padding-top: 12px; display: grid; gap: 6px; font-size: 12px; color: var(--muted);"
-          >
-            <div><span style="font-weight: 600;">Source:</span> ${skill.source}</div>
-            <div style="font-family: var(--mono); word-break: break-all;">${skill.filePath}</div>
-            ${(() => {
-              const safeHref = safeExternalHref(skill.homepage);
-              return safeHref
-                ? html`<div>
-                    <a href="${safeHref}" target="_blank" rel="noopener noreferrer"
-                      >${skill.homepage}</a
-                    >
-                  </div>`
-                : nothing;
-            })()}
-          </div>
-        </div>
-      </div>
-    </dialog>
-  `;
+  return renderSkillDetailDialog(skill, props);
 }

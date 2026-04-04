@@ -5,14 +5,14 @@ import { isRich, theme } from "../../terminal/theme.js";
 import { escapeRegExp } from "../../utils.js";
 import { hasFlag, hasRootVersionAlias } from "../argv.js";
 import { formatCliBannerLine, hasEmittedCliBanner } from "../banner.js";
-import { PUBLIC_CLI_NAME, replaceCliName, resolveCliName } from "../cli-name.js";
+import { replaceCliName, resolveCliName } from "../cli-name.js";
 import { CLI_LOG_LEVEL_VALUES, parseCliLogLevelOption } from "../log-level-option.js";
 import type { ProgramContext } from "./context.js";
 import { getCoreCliCommandsWithSubcommands } from "./core-command-descriptors.js";
 import { getSubCliCommandsWithSubcommands } from "./subcli-descriptors.js";
 
 const CLI_NAME = resolveCliName();
-const CLI_PRODUCT_NAME = CLI_NAME === PUBLIC_CLI_NAME ? "Alisio" : "OpenClaw";
+const CLI_PRODUCT_NAME = "Alisio";
 const CLI_NAME_PATTERN = escapeRegExp(CLI_NAME);
 const ROOT_COMMANDS_WITH_SUBCOMMANDS = new Set([
   ...getCoreCliCommandsWithSubcommands(),

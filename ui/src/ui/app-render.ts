@@ -22,9 +22,11 @@ import {
   renderChatMobileToggle,
   resolveAlisioOpenAiCallbackUrl,
   renderTab,
+  setActiveChatModel,
   switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
+import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import {
   beginAlisioAiConnect,
   beginAlisioConnector,
@@ -32,7 +34,9 @@ import {
   continueAlisioSetupWizard,
   disconnectAlisioAi,
   disconnectAlisioAiProfile,
+  installAlisioModel,
   loadAlisioConnectors,
+  removeAlisioModelsServer,
   renameAlisioAiProfile,
   requestAlisioPasswordReset,
   refreshAlisioAi,
@@ -40,7 +44,9 @@ import {
   restartAlisioRuntime,
   revokeAlisioConnector,
   saveAlisioAccount,
+  saveAlisioModelsServer,
   selectAlisioAiProfile,
+  selectAlisioModelsServer,
   signInAlisioAccount,
   signOutAlisioAccount,
   signUpAlisioAccount,
@@ -74,8 +80,10 @@ import {
   rotateDeviceToken,
 } from "./controllers/devices.ts";
 import {
-  loadExecApprovals,
+  changeExecApprovalsTarget,
+  loadSelectedExecApprovals,
   removeExecApprovalsFormValue,
+  resolveSelectedExecApprovalsTarget,
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
@@ -85,10 +93,11 @@ import {
   installSkill,
   loadSkills,
   saveSkillApiKey,
+  updateSkillEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
-import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
+import "./components/dashboard-header.ts";
 import {
   loadNativeShellState,
   openExternal,
@@ -98,6 +107,7 @@ import {
   setLaunchAtLogin,
   setVoiceWake,
 } from "./lume-host.ts";
+import type { ModelsServerDraft } from "./models-view-types.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
 import {
   closeReservedExternalPopup,
@@ -188,6 +198,19 @@ function dismissUpdateBanner(updateAvailable: unknown) {
   }
 }
 
+function createModelsServerDraft(
+  server?: NonNullable<NonNullable<AppViewState["alisioModels"]>["servers"]>[number] | null,
+): ModelsServerDraft {
+  return {
+    mode: server ? "edit" : "create",
+    serverId: server?.serverId,
+    label: server?.label ?? "",
+    kind: server?.kind ?? "openai-compatible",
+    baseUrl: server?.baseUrl ?? "",
+    apiKey: "",
+  };
+}
+
 function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId: string) {
   let attempts = 0;
   const maxAttempts = 45;
@@ -237,6 +260,34 @@ function scheduleOpenAiRefresh(state: AppViewState) {
   };
 
   tick();
+}
+
+function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
+  const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
+  void beginAlisioAiConnect(state, callbackUrl)
+    .then((result) => {
+      const targetUrl = result?.setupUrl;
+      if (!targetUrl) {
+        closeReservedExternalPopup(popup);
+        return;
+      }
+      scheduleOpenAiRefresh(state);
+      if (typeof window.alisioHost?.request === "function") {
+        void openExternal(targetUrl);
+        return;
+      }
+      if (navigateReservedExternalPopup(popup, targetUrl)) {
+        return;
+      }
+      closeReservedExternalPopup(popup);
+      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
+      if (safeTargetUrl) {
+        window.location.assign(safeTargetUrl);
+      }
+    })
+    .catch(() => {
+      closeReservedExternalPopup(popup);
+    });
 }
 
 const AVATAR_DATA_RE = /^data:/i;
@@ -312,14 +363,12 @@ function beginConnectorFlow(
       }
       if (result.mode !== "oauth") {
         closeReservedExternalPopup(popup);
-        state.alisioConnectorsError =
-          result.statusReason === "review_required"
-            ? t("alisio.authentications.errors.reviewPending")
-            : result.statusReason === "missing_token_encryption"
-              ? t("alisio.authentications.errors.missingTokenEncryption")
-              : result.statusReason === "unavailable"
-                ? t("alisio.authentications.errors.unavailable")
-                : t("alisio.authentications.errors.preparing");
+        state.alisioConnectorSetupGuide = result;
+        state.setupStep = "connectors";
+        state.alisioConnectorsError = null;
+        if (typeof state.setTab === "function") {
+          state.setTab("setup");
+        }
         return;
       }
       const targetUrl = result.setupUrl;
@@ -571,6 +620,12 @@ export function renderApp(state: AppViewState) {
 
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const activeTab = publicTabFor(state.tab);
+  const chatModelSelectState = resolveChatModelSelectState(state);
+  const effectiveChatModelValue =
+    chatModelSelectState.currentOverride || chatModelSelectState.defaultModel;
+  const effectiveChatModelLabel =
+    chatModelSelectState.options.find((entry) => entry.value === effectiveChatModelValue)?.label ??
+    chatModelSelectState.defaultDisplay;
   const isChat = activeTab === "chat";
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
@@ -588,10 +643,7 @@ export function renderApp(state: AppViewState) {
     : t("alisio.settings.billing.freePlan");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
-  const execApprovalsTarget =
-    state.execApprovalsTarget === "node" && state.execApprovalsTargetNodeId?.trim()
-      ? { kind: "node" as const, nodeId: state.execApprovalsTargetNodeId.trim() }
-      : ({ kind: "gateway" } as const);
+  const execApprovalsTarget = resolveSelectedExecApprovalsTarget(state);
   const resolveApprovalDecision = async (
     entry: import("./controllers/exec-approval.ts").ExecApprovalRequest,
     decision: "allow-once" | "allow-always" | "deny",
@@ -946,6 +998,7 @@ export function renderApp(state: AppViewState) {
               actionMessage: state.channelsActionMessage,
               loginQrDataUrl: state.channelsLoginQrDataUrl,
               loginConnected: state.channelsLoginConnected,
+              loginAccountId: state.channelsLoginAccountId,
               setupLoading: state.channelsSetupLoading ?? false,
               setupSubmitting: state.channelsSetupSubmitting ?? false,
               setupSessionId: state.channelsSetupSessionId ?? null,
@@ -981,11 +1034,11 @@ export function renderApp(state: AppViewState) {
               onSetupDraftMultiIndexesChange: (value) => {
                 state.channelsSetupDraftMultiIndexes = value;
               },
-              onStartWhatsAppLink: (force) => {
-                void startWebChannelLogin(state, { force });
+              onStartWhatsAppLink: (force, accountId) => {
+                void startWebChannelLogin(state, { force, accountId });
               },
-              onWaitWhatsAppLink: () => {
-                void waitWebChannelLogin(state);
+              onWaitWhatsAppLink: (accountId) => {
+                void waitWebChannelLogin(state, { accountId });
               },
               onLogoutChannel: (channelId, accountId) => {
                 void logoutChannelAccount(state, { channelId, accountId });
@@ -1028,7 +1081,7 @@ export function renderApp(state: AppViewState) {
                 void updateSkillEnabled(state, skillKey, enabled);
               },
               onEdit: (skillKey, value) => {
-                state.skillEdits = { ...state.skillEdits, [skillKey]: value };
+                updateSkillEdit(state, skillKey, value);
               },
               onSaveKey: (skillKey) => {
                 void saveSkillApiKey(state, skillKey);
@@ -1052,6 +1105,8 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "connections"
           ? renderConnections({
+              assistantName: state.assistantName,
+              assistantAgentId: state.assistantAgentId,
               loading: state.nodesLoading,
               nodes: state.nodes,
               devicesLoading: state.devicesLoading,
@@ -1075,7 +1130,7 @@ export function renderApp(state: AppViewState) {
                   loadNodes(state),
                   loadDevices(state),
                   loadConfig(state),
-                  loadExecApprovals(state, execApprovalsTarget),
+                  loadSelectedExecApprovals(state),
                 ]);
               },
               onDevicesRefresh: () => {
@@ -1097,7 +1152,7 @@ export function renderApp(state: AppViewState) {
                 void loadConfig(state);
               },
               onLoadExecApprovals: () => {
-                void loadExecApprovals(state, execApprovalsTarget);
+                void loadSelectedExecApprovals(state);
               },
               onBindDefault: (nodeId) => {
                 if (nodeId) {
@@ -1145,13 +1200,7 @@ export function renderApp(state: AppViewState) {
                 void saveConfig(state);
               },
               onExecApprovalsTargetChange: (kind, nodeId) => {
-                state.execApprovalsTarget = kind;
-                state.execApprovalsTargetNodeId = kind === "node" ? nodeId : null;
-                const nextTarget =
-                  kind === "node" && nodeId?.trim()
-                    ? { kind: "node" as const, nodeId: nodeId.trim() }
-                    : ({ kind: "gateway" } as const);
-                void loadExecApprovals(state, nextTarget);
+                void changeExecApprovalsTarget(state, { kind, nodeId });
               },
               onExecApprovalsSelectAgent: (agentId) => {
                 state.execApprovalsSelectedAgent = agentId;
@@ -1169,12 +1218,16 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "security"
           ? renderSecurity({
+              assistantName: state.assistantName,
+              assistantAgentId: state.assistantAgentId,
               loading: state.nodesLoading || state.configLoading,
               nodes: state.nodes,
               configSnapshot: state.configSnapshot,
               configForm: state.configForm,
               configLoading: state.configLoading,
               configSaving: state.configSaving,
+              configDirty: state.configFormDirty,
+              configFormMode: state.configFormMode,
               execApprovalsLoading: state.execApprovalsLoading,
               execApprovalsSaving: state.execApprovalsSaving,
               execApprovalsDirty: state.execApprovalsDirty,
@@ -1193,21 +1246,15 @@ export function renderApp(state: AppViewState) {
                 void Promise.allSettled([
                   loadNodes(state),
                   loadConfig(state),
-                  loadExecApprovals(state, execApprovalsTarget),
+                  loadSelectedExecApprovals(state),
                   loadGatewayAccessMode(state),
                 ]);
               },
               onLoadExecApprovals: () => {
-                void loadExecApprovals(state, execApprovalsTarget);
+                void loadSelectedExecApprovals(state);
               },
               onExecApprovalsTargetChange: (kind, nodeId) => {
-                state.execApprovalsTarget = kind;
-                state.execApprovalsTargetNodeId = kind === "node" ? nodeId : null;
-                const nextTarget =
-                  kind === "node" && nodeId?.trim()
-                    ? { kind: "node" as const, nodeId: nodeId.trim() }
-                    : ({ kind: "gateway" } as const);
-                void loadExecApprovals(state, nextTarget);
+                void changeExecApprovalsTarget(state, { kind, nodeId });
               },
               onExecApprovalsSelectAgent: (agentId) => {
                 state.execApprovalsSelectedAgent = agentId;
@@ -1400,20 +1447,26 @@ export function renderApp(state: AppViewState) {
         ${activeTab === "models"
           ? renderModelsHub({
               bootstrap: state.alisioBootstrap,
-              account: state.alisioAccount,
-              nodes: state.nodes,
+              models: state.alisioModels,
+              modelsLoading: state.alisioModelsLoading,
+              modelsError: state.alisioModelsError,
               aiLoading: state.alisioAiLoading,
               aiError: state.alisioAiError,
               expandedProfileId: state.modelsExpandedProfileId,
+              selectedProviderId: state.modelsSelectedProviderId,
               onToggleProfile: (profileId) => {
                 state.modelsExpandedProfileId =
                   state.modelsExpandedProfileId === profileId ? null : profileId;
               },
+              onSelectProvider: (providerId) => {
+                state.modelsSelectedProviderId = providerId;
+              },
               onConnectAi: () => {
                 const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
-                void beginAlisioAiConnect(state, callbackUrl).then(() => {
-                  scheduleOpenAiRefresh(state);
-                });
+                beginOpenAiConnectFlow(state, callbackUrl);
+              },
+              onRefreshAllAiProfiles: () => {
+                void refreshAlisioAi(state);
               },
               onSelectAiProfile: (profileId) => {
                 state.modelsExpandedProfileId = profileId;
@@ -1427,6 +1480,68 @@ export function renderApp(state: AppViewState) {
               },
               onRenameAiProfile: (profileId, label) => {
                 void renameAlisioAiProfile(state, profileId, label);
+              },
+              chatModelOptions: chatModelSelectState.options,
+              currentChatModelOverrideValue: chatModelSelectState.currentOverride,
+              defaultChatModelValue: chatModelSelectState.defaultModel,
+              defaultChatModelLabel: chatModelSelectState.defaultLabel,
+              effectiveChatModelValue,
+              effectiveChatModelLabel,
+              modelPickerBusy: state.chatModelsLoading || state.sessionsLoading,
+              serverDraft: state.modelsServerDraft,
+              onSelectChatModel: (modelValue) => {
+                void setActiveChatModel(state, modelValue);
+              },
+              onInstallModel: (targetId, modelId) => {
+                void installAlisioModel(state, { targetId, modelId });
+              },
+              onStartCreateServer: () => {
+                state.modelsServerDraft = createModelsServerDraft();
+              },
+              onStartEditServer: (server) => {
+                state.modelsServerDraft = createModelsServerDraft(server);
+              },
+              onChangeServerDraft: (field, value) => {
+                const currentDraft = state.modelsServerDraft ?? createModelsServerDraft();
+                state.modelsServerDraft = { ...currentDraft, [field]: value };
+              },
+              onCancelServerDraft: () => {
+                state.modelsServerDraft = null;
+              },
+              onSubmitServerDraft: () => {
+                const draft = state.modelsServerDraft;
+                if (!draft) {
+                  return;
+                }
+                const label = draft.label.trim();
+                const baseUrl = draft.baseUrl.trim();
+                if (!label || !baseUrl) {
+                  return;
+                }
+                void (async () => {
+                  await saveAlisioModelsServer(state, {
+                    serverId: draft.serverId,
+                    label,
+                    kind: draft.kind,
+                    baseUrl,
+                    apiKey: draft.apiKey.trim() || undefined,
+                  });
+                  if (!state.alisioModelsError) {
+                    state.modelsServerDraft = null;
+                  }
+                })();
+              },
+              onSaveServer: (params) => {
+                void saveAlisioModelsServer(state, params);
+              },
+              onRemoveServer: (serverId) => {
+                if (state.modelsServerDraft?.serverId === serverId) {
+                  state.modelsServerDraft = null;
+                }
+                void removeAlisioModelsServer(state, serverId);
+              },
+              onSelectServer: (serverId) => {
+                void selectAlisioModelsServer(state, serverId);
               },
             })
           : nothing}
@@ -1493,32 +1608,7 @@ export function renderApp(state: AppViewState) {
               },
               onConnectAi: () => {
                 const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
-                const popup =
-                  typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
-                void beginAlisioAiConnect(state, callbackUrl.toString())
-                  .then((result) => {
-                    const targetUrl = result?.setupUrl;
-                    if (!targetUrl) {
-                      closeReservedExternalPopup(popup);
-                      return;
-                    }
-                    scheduleOpenAiRefresh(state);
-                    if (typeof window.alisioHost?.request === "function") {
-                      void openExternal(targetUrl);
-                      return;
-                    }
-                    if (navigateReservedExternalPopup(popup, targetUrl)) {
-                      return;
-                    }
-                    closeReservedExternalPopup(popup);
-                    const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
-                    if (safeTargetUrl) {
-                      window.location.assign(safeTargetUrl);
-                    }
-                  })
-                  .catch(() => {
-                    closeReservedExternalPopup(popup);
-                  });
+                beginOpenAiConnectFlow(state, callbackUrl.toString());
               },
               onDisconnectAi: () => {
                 void disconnectAlisioAi(state);

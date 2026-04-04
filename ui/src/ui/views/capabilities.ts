@@ -1,9 +1,7 @@
 import { html, nothing } from "lit";
-import { ref } from "lit/directives/ref.js";
 import { t } from "../../i18n/index.ts";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
-import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
@@ -11,13 +9,15 @@ import type {
   SkillStatusEntry,
   SkillStatusReport,
 } from "../types.ts";
+import { summarizeChannelsSnapshot } from "./channel-display.ts";
 import {
-  computeSkillMissing,
-  computeSkillReasons,
-  renderSkillStatusChips,
+  buildSkillStatusCounts,
+  renderSkillDetailDialog,
+  skillMatchesStatus,
+  skillStatusClass,
+  skillStatusLabel,
+  type SkillsStatusFilter,
 } from "./skills-shared.ts";
-
-export type SkillsStatusFilter = "all" | "ready" | "needs-setup" | "disabled";
 type CapabilityStatus = "ready" | "partial" | "needs-setup" | "not-exposed";
 
 type CapabilityCard = {
@@ -83,36 +83,12 @@ const FAMILY_DEFINITIONS = [
   },
 ] as const;
 
-function humanizeSkillSource(source: string) {
-  switch (source) {
-    case "openclaw-bundled":
-      return t("alisio.capabilities.sources.builtIn");
-    case "openclaw-managed":
-      return t("alisio.capabilities.sources.managed");
-    case "openclaw-workspace":
-      return t("alisio.capabilities.sources.workspace");
-    case "openclaw-plugin":
-      return t("alisio.capabilities.sources.plugin");
-    default:
-      return t("alisio.capabilities.sources.external");
-  }
-}
-
-function safeExternalHref(raw?: string): string | null {
-  if (!raw) {
-    return null;
-  }
-  return resolveSafeExternalUrl(raw, window.location.href);
-}
-
 function channelSignals(snapshot: ChannelsStatusSnapshot | null) {
-  const accounts = Object.values(snapshot?.channelAccounts ?? {}).flat();
-  const connected = accounts.filter((account) => account.connected).length;
-  const linked = accounts.filter((account) => account.linked || account.configured).length;
+  const summary = summarizeChannelsSnapshot(snapshot);
   return {
-    total: snapshot?.channelOrder.length ?? 0,
-    connected,
-    linked,
+    total: summary.totalChannels,
+    connected: summary.connectedChannels,
+    active: summary.activeChannels,
   };
 }
 
@@ -162,35 +138,6 @@ function capabilityStatusClass(status: CapabilityStatus) {
   }
 }
 
-function skillMatchesStatus(skill: SkillStatusEntry, status: SkillsStatusFilter): boolean {
-  switch (status) {
-    case "all":
-      return true;
-    case "ready":
-      return !skill.disabled && skill.eligible;
-    case "needs-setup":
-      return !skill.disabled && !skill.eligible;
-    case "disabled":
-      return skill.disabled;
-  }
-}
-
-function skillStatusClass(skill: SkillStatusEntry): string {
-  if (skill.disabled) {
-    return "muted";
-  }
-  return skill.eligible ? "ok" : "warn";
-}
-
-function skillStatusLabel(skill: SkillStatusEntry) {
-  if (skill.disabled) {
-    return t("alisio.capabilities.filters.disabled");
-  }
-  return skill.eligible
-    ? t("alisio.capabilities.filters.ready")
-    : t("alisio.capabilities.filters.needsSetup");
-}
-
 function matchFamilySkills(skills: SkillStatusEntry[], patterns: readonly string[]) {
   return skills.filter((skill) => {
     const haystack = [skill.skillKey, skill.name, skill.description, skill.source]
@@ -227,7 +174,7 @@ function buildCapabilityCards(props: CapabilitiesProps): CapabilityCard[] {
       status:
         channels.connected > 0
           ? "ready"
-          : channels.linked > 0
+          : channels.active > 0
             ? "partial"
             : channels.total > 0
               ? "needs-setup"
@@ -297,7 +244,7 @@ function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
       <div class="list-meta">
         <span
           class=${capabilityStatusClass(
-            skill.disabled ? "needs-setup" : skill.eligible ? "ready" : "partial",
+            skill.disabled || skill.blockedByAllowlist || !skill.eligible ? "needs-setup" : "ready",
           )}
         >
           ${skillStatusLabel(skill)}
@@ -308,198 +255,12 @@ function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
 }
 
 function renderSkillDetail(skill: SkillStatusEntry, props: CapabilitiesProps) {
-  const busy = props.busyKey === skill.skillKey;
-  const apiKey = props.edits[skill.skillKey] ?? "";
-  const message = props.messages[skill.skillKey] ?? null;
-  const canInstall = skill.install.length > 0 && skill.missing.bins.length > 0;
-  const showBundledBadge = Boolean(skill.bundled && skill.source !== "openclaw-bundled");
-  const missing = computeSkillMissing(skill);
-  const reasons = computeSkillReasons(skill);
-  const sourceLabel = humanizeSkillSource(skill.source);
-  const ensureModalOpen = (el?: Element) => {
-    if (!(el instanceof HTMLDialogElement) || el.open) {
-      return;
-    }
-    el.showModal();
-  };
-
-  return html`
-    <dialog
-      class="md-preview-dialog"
-      ${ref(ensureModalOpen)}
-      @click=${(event: Event) => {
-        const dialog = event.currentTarget as HTMLDialogElement;
-        if (event.target === dialog) {
-          dialog.close();
-        }
-      }}
-      @close=${props.onDetailClose}
-    >
-      <div class="md-preview-dialog__panel">
-        <div class="md-preview-dialog__header">
-          <div
-            class="md-preview-dialog__title"
-            style="display: flex; align-items: center; gap: 8px;"
-          >
-            <span class="statusDot ${skillStatusClass(skill)}"></span>
-            ${skill.emoji ? html`<span style="font-size: 18px;">${skill.emoji}</span>` : nothing}
-            <span>${skill.name}</span>
-          </div>
-          <button
-            class="btn btn--sm"
-            @click=${(event: Event) => {
-              (event.currentTarget as HTMLElement).closest("dialog")?.close();
-            }}
-          >
-            ${t("alisio.capabilities.detail.close")}
-          </button>
-        </div>
-        <div class="md-preview-dialog__body" style="display: grid; gap: 16px;">
-          <div>
-            <div style="font-size: 14px; line-height: 1.5; color: var(--text);">
-              ${skill.description}
-            </div>
-            ${renderSkillStatusChips({ skill, showBundledBadge })}
-          </div>
-
-          ${missing.length > 0
-            ? html`
-                <div
-                  class="callout"
-                  style="border-color: var(--warn-subtle); background: var(--warn-subtle); color: var(--warn);"
-                >
-                  <div style="font-weight: 600; margin-bottom: 4px;">
-                    ${t("alisio.capabilities.detail.missingTitle")}
-                  </div>
-                  <div>${missing.join(", ")}</div>
-                </div>
-              `
-            : nothing}
-          ${reasons.length > 0
-            ? html`
-                <div class="muted" style="font-size: 13px;">
-                  ${t("alisio.capabilities.detail.reasonsTitle")}: ${reasons.join(", ")}
-                </div>
-              `
-            : nothing}
-
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-            <label class="skill-toggle-wrap">
-              <input
-                type="checkbox"
-                class="skill-toggle"
-                .checked=${!skill.disabled}
-                ?disabled=${busy}
-                @change=${() => props.onToggle(skill.skillKey, skill.disabled)}
-              />
-            </label>
-            <span style="font-size: 13px; font-weight: 500;">
-              ${skill.disabled
-                ? t("alisio.capabilities.detail.disabled")
-                : t("alisio.capabilities.detail.enabled")}
-            </span>
-            ${canInstall
-              ? html`
-                  <button
-                    class="btn"
-                    ?disabled=${busy}
-                    @click=${() => props.onInstall(skill.skillKey, skill.name, skill.install[0].id)}
-                  >
-                    ${busy ? t("alisio.capabilities.detail.installing") : skill.install[0].label}
-                  </button>
-                `
-              : nothing}
-          </div>
-
-          ${message
-            ? html`<div class="callout ${message.kind === "error" ? "danger" : "success"}">
-                ${message.message}
-              </div>`
-            : nothing}
-          ${skill.primaryEnv
-            ? html`
-                <div style="display: grid; gap: 8px;">
-                  <label class="field">
-                    <span>
-                      ${t("alisio.capabilities.detail.apiKey")}
-                      <span class="muted" style="font-weight: normal; font-size: 0.88em;">
-                        (${skill.primaryEnv})
-                      </span>
-                    </span>
-                    <input
-                      type="password"
-                      .value=${apiKey}
-                      @input=${(event: Event) =>
-                        props.onEdit(skill.skillKey, (event.target as HTMLInputElement).value)}
-                    />
-                  </label>
-                  ${(() => {
-                    const href = safeExternalHref(skill.homepage);
-                    return href
-                      ? html`
-                          <div class="muted" style="font-size: 13px;">
-                            ${t("alisio.capabilities.detail.getKey")}:
-                            <a href=${href} target="_blank" rel="noopener noreferrer"
-                              >${skill.homepage}</a
-                            >
-                          </div>
-                        `
-                      : nothing;
-                  })()}
-                  <button
-                    class="btn primary"
-                    ?disabled=${busy}
-                    @click=${() => props.onSaveKey(skill.skillKey)}
-                  >
-                    ${t("alisio.capabilities.detail.saveKey")}
-                  </button>
-                </div>
-              `
-            : nothing}
-
-          <div
-            style="border-top: 1px solid var(--border); padding-top: 12px; display: grid; gap: 6px; font-size: 12px; color: var(--muted);"
-          >
-            <div>
-              <span style="font-weight: 600;">${t("alisio.capabilities.detail.source")}:</span>
-              ${sourceLabel}
-            </div>
-            ${(() => {
-              const href = safeExternalHref(skill.homepage);
-              return href
-                ? html`
-                    <div>
-                      <a href=${href} target="_blank" rel="noopener noreferrer"
-                        >${skill.homepage}</a
-                      >
-                    </div>
-                  `
-                : nothing;
-            })()}
-          </div>
-        </div>
-      </div>
-    </dialog>
-  `;
+  return renderSkillDetailDialog(skill, props);
 }
 
 export function renderCapabilities(props: CapabilitiesProps) {
   const skills = props.report?.skills ?? [];
-  const statusCounts: Record<SkillsStatusFilter, number> = {
-    all: skills.length,
-    ready: 0,
-    "needs-setup": 0,
-    disabled: 0,
-  };
-  for (const skill of skills) {
-    if (skill.disabled) {
-      statusCounts.disabled++;
-    } else if (skill.eligible) {
-      statusCounts.ready++;
-    } else {
-      statusCounts["needs-setup"]++;
-    }
-  }
+  const statusCounts = buildSkillStatusCounts(skills);
 
   const filteredByStatus =
     props.statusFilter === "all"

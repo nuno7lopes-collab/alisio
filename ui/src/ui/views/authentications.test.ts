@@ -181,7 +181,9 @@ describe("authentications view", () => {
 
     const badge = container.querySelector(".pill");
     expect(badge?.textContent).toContain("Ready");
-    const button = container.querySelector("button");
+    const button = [...container.querySelectorAll("button")].find((candidate) =>
+      candidate.textContent?.includes("Connect with Google"),
+    );
     expect(button?.textContent).toContain("Connect with Google");
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");

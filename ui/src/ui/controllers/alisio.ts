@@ -1,5 +1,7 @@
+import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
 import {
   alisioBootstrapBlocksChatAccess,
+  isPostReadySetupStep,
   resolveBlockingSetupStep,
 } from "../alisio-setup-state.ts";
 import { clearDeviceAuthToken } from "../device-auth.ts";
@@ -9,6 +11,11 @@ import type {
   AlisioAccountState,
   AlisioAiState,
   AlisioBootstrapState,
+  AlisioModelsInstallResult,
+  AlisioModelsServerRemoveResult,
+  AlisioModelsServerSaveResult,
+  AlisioModelsServerSelectResult,
+  AlisioModelsState,
   AlisioConnectorsBeginResult,
   AlisioDoctorSummaryState,
   AlisioConnectorAuthorization,
@@ -28,6 +35,7 @@ export type AlisioState = {
     tab:
       | "setup"
       | "chat"
+      | "models"
       | "channels"
       | "capabilities"
       | "connections"
@@ -41,6 +49,9 @@ export type AlisioState = {
   alisioDoctorLoading: boolean;
   alisioDoctorError: string | null;
   alisioDoctor: AlisioDoctorSummaryState | null;
+  alisioModelsLoading: boolean;
+  alisioModelsError: string | null;
+  alisioModels: AlisioModelsState | null;
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
   alisioAccountNotice: string | null;
@@ -78,12 +89,39 @@ type TrackedRequest = {
 
 const bootstrapRequests = new WeakMap<AlisioState, TrackedRequest>();
 const doctorRequests = new WeakMap<AlisioState, TrackedRequest>();
+const modelsRequests = new WeakMap<AlisioState, TrackedRequest>();
 const accountRequests = new WeakMap<AlisioState, TrackedRequest>();
 const aiRequests = new WeakMap<AlisioState, TrackedRequest>();
 const organizationRequests = new WeakMap<AlisioState, TrackedRequest>();
 const connectorRequests = new WeakMap<AlisioState, TrackedRequest>();
 const connectorLastSuccessAt = new WeakMap<AlisioState, number>();
 const CONNECTORS_CACHE_TTL_MS = 15_000;
+
+function buildLegacyModelsState(state: AlisioState): AlisioModelsState {
+  const devices = state.alisioBootstrap?.account.devices ?? state.alisioAccount?.devices ?? [];
+  return {
+    backend: "llama.cpp",
+    catalog: [],
+    targets: devices.map((device) => ({
+      targetId: device.id,
+      label: device.label,
+      platform: device.platform,
+      current: device.current,
+      connected: true,
+      backend: "llama.cpp",
+      runtimeStatus: "not_configured",
+      runtimeMessage:
+        "Actualiza o gateway para a versão mais recente para activar o catálogo completo de modelos.",
+      installedModels: [],
+      recommendations: [],
+    })),
+    servers: [],
+  };
+}
+
+function isUnknownMethodError(error: unknown, method: string) {
+  return String(error).includes(`unknown method: ${method}`);
+}
 
 function beginTrackedRequest(
   state: AlisioState,
@@ -176,7 +214,11 @@ function syncSetupRoute(state: AlisioState) {
     state.setTab("setup");
     return;
   }
-  if (!shouldForceSetup(bootstrap) && activeTab === "setup") {
+  if (
+    !shouldForceSetup(bootstrap) &&
+    activeTab === "setup" &&
+    !isPostReadySetupStep(state.setupStep)
+  ) {
     state.setTab("chat");
   }
 }
@@ -190,8 +232,34 @@ function applyBootstrapSnapshot(state: AlisioState, bootstrap: AlisioBootstrapSt
   state.alisioOrganization = bootstrap.organization;
   state.alisioConnectorCatalog = [...bootstrap.connectors.catalog];
   state.alisioConnectorAuthorizations = [...bootstrap.connectors.authorizations];
+  if (
+    state.alisioConnectorSetupGuide &&
+    bootstrap.connectors.authorizations.some(
+      (entry) =>
+        entry.connectorId === state.alisioConnectorSetupGuide?.connectorId &&
+        entry.state === "connected",
+    )
+  ) {
+    state.alisioConnectorSetupGuide = null;
+  }
   connectorLastSuccessAt.set(state, Date.now());
   syncSetupRoute(state);
+}
+
+function resetSignedOutAccountState(state: AlisioState) {
+  state.alisioBootstrap = null;
+  state.alisioOrganization = null;
+  state.alisioOrganizationError = null;
+  state.alisioConnectorCatalog = [];
+  state.alisioConnectorAuthorizations = [];
+  state.alisioConnectorsError = null;
+  state.alisioConnectorSetupGuide = null;
+  connectorLastSuccessAt.delete(state);
+  state.setupWizardSessionId = null;
+  state.setupWizardStatus = null;
+  state.setupWizardStep = null;
+  state.setupWizardError = null;
+  syncWizardDraftState(state, null);
 }
 
 function applyWizardResult(
@@ -291,6 +359,121 @@ export async function loadAlisioDoctorSummary(state: AlisioState) {
   }
 }
 
+export async function loadAlisioModels(state: AlisioState) {
+  const request = beginTrackedRequest(state, modelsRequests, state.alisioModelsLoading);
+  if (!request) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    const result = await request.client.request<AlisioModelsState>("alisio.models.get", {});
+    if (!isTrackedRequestCurrent(state, modelsRequests, request)) {
+      return;
+    }
+    state.alisioModels = result;
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, modelsRequests, request)) {
+      return;
+    }
+    if (isUnknownMethodError(error, "alisio.models.get")) {
+      state.alisioModels = buildLegacyModelsState(state);
+      state.alisioModelsError = null;
+      return;
+    }
+    state.alisioModelsError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, modelsRequests, request)) {
+      state.alisioModelsLoading = false;
+    }
+  }
+}
+
+export async function installAlisioModel(
+  state: AlisioState,
+  params: {
+    targetId: string;
+    modelId: string;
+  },
+) {
+  if (!state.client || !state.connected || state.alisioModelsLoading) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    await state.client.request<AlisioModelsInstallResult>("alisio.models.install", params);
+    const result = await state.client.request<AlisioModelsState>("alisio.models.get", {});
+    state.alisioModels = result;
+  } catch (error) {
+    state.alisioModelsError = String(error);
+  } finally {
+    state.alisioModelsLoading = false;
+  }
+}
+
+export async function saveAlisioModelsServer(
+  state: AlisioState,
+  params: {
+    serverId?: string;
+    label: string;
+    kind: "openai-compatible" | "ollama";
+    baseUrl: string;
+    apiKey?: string;
+    clearApiKey?: boolean;
+  },
+) {
+  if (!state.client || !state.connected || state.alisioModelsLoading) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    await state.client.request<AlisioModelsServerSaveResult>("alisio.models.server.save", params);
+    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
+  } catch (error) {
+    state.alisioModelsError = String(error);
+  } finally {
+    state.alisioModelsLoading = false;
+  }
+}
+
+export async function removeAlisioModelsServer(state: AlisioState, serverId: string) {
+  if (!state.client || !state.connected || state.alisioModelsLoading) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    await state.client.request<AlisioModelsServerRemoveResult>("alisio.models.server.remove", {
+      serverId,
+    });
+    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
+  } catch (error) {
+    state.alisioModelsError = String(error);
+  } finally {
+    state.alisioModelsLoading = false;
+  }
+}
+
+export async function selectAlisioModelsServer(state: AlisioState, serverId: string) {
+  if (!state.client || !state.connected || state.alisioModelsLoading) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    await state.client.request<AlisioModelsServerSelectResult>("alisio.models.server.select", {
+      serverId,
+    });
+    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
+  } catch (error) {
+    state.alisioModelsError = String(error);
+  } finally {
+    state.alisioModelsLoading = false;
+  }
+}
+
 export async function loadAlisioAccount(state: AlisioState) {
   const request = beginTrackedRequest(state, accountRequests, state.alisioAccountLoading);
   if (!request) {
@@ -338,6 +521,7 @@ export async function signUpAlisioAccount(state: AlisioState) {
       password,
     });
     state.alisioAuthMode = "sign-in";
+    state.alisioAuthPassword = "";
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioAccountError = String(error);
@@ -365,6 +549,7 @@ export async function signInAlisioAccount(state: AlisioState) {
       email,
       password,
     });
+    state.alisioAuthPassword = "";
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioAccountError = String(error);
@@ -434,7 +619,7 @@ export async function signOutAlisioAccount(state: AlisioState) {
     if (identity?.deviceId) {
       clearDeviceAuthToken({ deviceId: identity.deviceId, role: "operator" });
     }
-    state.alisioBootstrap = null;
+    resetSignedOutAccountState(state);
     state.setupStep = "account";
     state.alisioAuthPassword = "";
     state.setTab?.("setup");
@@ -702,6 +887,10 @@ export async function loadAlisioConnectors(state: AlisioState, opts?: { force?: 
     if (state.alisioBootstrap) {
       state.alisioBootstrap = {
         ...state.alisioBootstrap,
+        connectorSummary: summarizeAlisioConnectorUiStatuses({
+          definitions: catalog.connectors,
+          authorizations: authorizations.authorizations,
+        }),
         connectors: {
           ...state.alisioBootstrap.connectors,
           catalog: [...catalog.connectors],

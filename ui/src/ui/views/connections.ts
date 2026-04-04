@@ -14,21 +14,40 @@ function countPairedDevices(props: NodesProps) {
   return props.devicesList?.paired?.length ?? 0;
 }
 
+function renderOverviewCard(params: {
+  label: string;
+  value: number | string;
+  headline: string;
+  detail: string;
+}) {
+  return html`
+    <article class="alisio-connections-overview-card">
+      <span class="alisio-connections-overview-card__label">${params.label}</span>
+      <strong>${params.value}</strong>
+      <p>${params.headline}</p>
+      <div class="alisio-connections-overview-card__detail">${params.detail}</div>
+    </article>
+  `;
+}
+
 export function renderConnections(props: NodesProps) {
   const pendingDevices = countPendingDevices(props);
   const pairedDevices = countPairedDevices(props);
   const connectedNodes = countConnectedNodes(props.nodes);
+  const syncLabel = props.configDirty
+    ? t("alisio.connections.unsaved")
+    : t("alisio.connections.synced");
   const text = {
     eyebrow: t("alisio.connections.eyebrow"),
     title: t("alisio.connections.title"),
     subtitle: t("alisio.connections.subtitle"),
     refreshing: t("alisio.connections.refreshing"),
     refreshAll: t("alisio.connections.refreshAll"),
+    devicesTitle: t("alisio.connections.devices.title"),
+    runtimeTitle: t("alisio.connections.runtimeTitle"),
     pendingDevices: t("alisio.connections.pendingDevices"),
     pairedDevices: t("alisio.connections.pairedDevices"),
     liveNodes: t("alisio.connections.liveNodes"),
-    unsaved: t("alisio.connections.unsaved"),
-    synced: t("alisio.connections.synced"),
     bindingState: t("alisio.connections.bindingState"),
   };
 
@@ -45,23 +64,19 @@ export function renderConnections(props: NodesProps) {
             ${props.loading ? text.refreshing : text.refreshAll}
           </button>
         </div>
-        <div class="alisio-connections-hero__stats">
-          <article class="alisio-connections-stat">
-            <strong>${pendingDevices}</strong>
-            <span>${text.pendingDevices}</span>
-          </article>
-          <article class="alisio-connections-stat">
-            <strong>${pairedDevices}</strong>
-            <span>${text.pairedDevices}</span>
-          </article>
-          <article class="alisio-connections-stat">
-            <strong>${connectedNodes}</strong>
-            <span>${text.liveNodes}</span>
-          </article>
-          <article class="alisio-connections-stat">
-            <strong>${props.configDirty ? text.unsaved : text.synced}</strong>
-            <span>${text.bindingState}</span>
-          </article>
+        <div class="alisio-connections-overview">
+          ${renderOverviewCard({
+            label: text.devicesTitle,
+            value: pairedDevices,
+            headline: text.pairedDevices,
+            detail: `${pendingDevices} ${text.pendingDevices}`,
+          })}
+          ${renderOverviewCard({
+            label: text.runtimeTitle,
+            value: connectedNodes,
+            headline: text.liveNodes,
+            detail: `${syncLabel} · ${text.bindingState}`,
+          })}
         </div>
       </div>
       <div class="alisio-connections-stack">

@@ -7,6 +7,7 @@ import type {
   CronStatus,
   SessionsListResult,
 } from "../types.ts";
+import { countConnectedChannelAccounts } from "./channel-display.ts";
 
 function findDefaultAgent(agentsList: AgentsListResult | null) {
   if (!agentsList) {
@@ -20,13 +21,7 @@ function findDefaultAgent(agentsList: AgentsListResult | null) {
 }
 
 function countConnectedChannels(snapshot: ChannelsStatusSnapshot | null): number {
-  if (!snapshot) {
-    return 0;
-  }
-  return snapshot.channelOrder.reduce((count, channelId) => {
-    const accounts = snapshot.channelAccounts[channelId] ?? [];
-    return count + accounts.filter((account) => account.connected || account.running).length;
-  }, 0);
+  return countConnectedChannelAccounts(snapshot);
 }
 
 export function renderHome(props: {

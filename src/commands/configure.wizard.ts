@@ -233,7 +233,7 @@ export async function runConfigureWizard(
   runtime: RuntimeEnv = defaultRuntime,
 ) {
   try {
-    intro(opts.command === "update" ? "OpenClaw update wizard" : "OpenClaw configure");
+    intro(opts.command === "update" ? "Alisio update wizard" : "Alisio configure");
     const prompter = createClackPrompter();
 
     const snapshot = await readConfigFileSnapshot();

@@ -11,7 +11,7 @@ describe("buildPlatformRuntimeLogHints", () => {
           OPENCLAW_LOG_PREFIX: "gateway",
         },
         systemdServiceName: "openclaw-gateway",
-        windowsTaskName: "OpenClaw Gateway",
+        windowsTaskName: "Alisio Gateway",
       }),
     ).toEqual([
       "Launchd stdout (if installed): /tmp/openclaw-state/logs/gateway.log",
@@ -24,16 +24,16 @@ describe("buildPlatformRuntimeLogHints", () => {
       buildPlatformRuntimeLogHints({
         platform: "linux",
         systemdServiceName: "openclaw-gateway",
-        windowsTaskName: "OpenClaw Gateway",
+        windowsTaskName: "Alisio Gateway",
       }),
     ).toEqual(["Logs: journalctl --user -u openclaw-gateway.service -n 200 --no-pager"]);
     expect(
       buildPlatformRuntimeLogHints({
         platform: "win32",
         systemdServiceName: "openclaw-gateway",
-        windowsTaskName: "OpenClaw Gateway",
+        windowsTaskName: "Alisio Gateway",
       }),
-    ).toEqual(['Logs: schtasks /Query /TN "OpenClaw Gateway" /V /FO LIST']);
+    ).toEqual(['Logs: schtasks /Query /TN "Alisio Gateway" /V /FO LIST']);
   });
 });
 
@@ -46,7 +46,7 @@ describe("buildPlatformServiceStartHints", () => {
         startCommand: "openclaw gateway",
         launchAgentPlistPath: "~/Library/LaunchAgents/com.openclaw.gateway.plist",
         systemdServiceName: "openclaw-gateway",
-        windowsTaskName: "OpenClaw Gateway",
+        windowsTaskName: "Alisio Gateway",
       }),
     ).toEqual([
       "openclaw gateway install",
@@ -60,7 +60,7 @@ describe("buildPlatformServiceStartHints", () => {
         startCommand: "openclaw gateway",
         launchAgentPlistPath: "~/Library/LaunchAgents/com.openclaw.gateway.plist",
         systemdServiceName: "openclaw-gateway",
-        windowsTaskName: "OpenClaw Gateway",
+        windowsTaskName: "Alisio Gateway",
       }),
     ).toEqual([
       "openclaw gateway install",

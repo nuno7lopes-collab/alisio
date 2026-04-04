@@ -4,6 +4,7 @@ import {
   loadAlisioBootstrap,
   loadAlisioConnectors,
   loadAlisioDoctorSummary,
+  signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
 
@@ -33,6 +34,9 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioDoctorLoading: false,
     alisioDoctorError: null,
     alisioDoctor: null,
+    alisioModelsLoading: false,
+    alisioModelsError: null,
+    alisioModels: null,
     alisioAccountLoading: false,
     alisioAccountError: null,
     alisioAccountNotice: null,
@@ -220,5 +224,84 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioConnectorAuthorizations).toEqual([
       { connectorId: "google", state: "connected" },
     ]);
+  });
+
+  it("limpa estado e cache de connectors ao terminar sessão", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.signOut") {
+        return {
+          profile: {
+            email: "signed-out@example.com",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_out",
+            profileCompleted: false,
+          },
+          devices: [],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioBootstrap: {
+        account: {
+          profile: {
+            email: "nuno@example.com",
+          },
+        },
+        organization: { mode: "owner", organizationName: "Team" },
+        connectors: {
+          catalog: [{ id: "google" }],
+          authorizations: [{ connectorId: "google", state: "connected" }],
+          summary: [],
+        },
+        wizard: { running: false, sessionId: null },
+      } as unknown as AlisioState["alisioBootstrap"],
+      alisioOrganization: { mode: "owner", organizationName: "Team" },
+      alisioConnectorCatalog: [
+        { id: "google" },
+      ] as unknown as AlisioState["alisioConnectorCatalog"],
+      alisioConnectorAuthorizations: [
+        { connectorId: "google", state: "connected" },
+      ] as unknown as AlisioState["alisioConnectorAuthorizations"],
+      alisioConnectorSetupGuide: {
+        connectorId: "google",
+        availability: "ready",
+        mode: "setup",
+        provider: "google",
+        providerLabel: "Google",
+        statusReason: "missing_client_config",
+      } as unknown as AlisioState["alisioConnectorSetupGuide"],
+      setupWizardSessionId: "wizard-1",
+      setupWizardStatus: "running",
+      setupWizardStep: {
+        id: "step-1",
+        type: "text",
+        message: "Question",
+      } as NonNullable<AlisioState["setupWizardStep"]>,
+      setupWizardError: "stale",
+      setupWizardDraftText: "draft",
+      alisioAuthPassword: "secret",
+    });
+
+    await signOutAlisioAccount(state);
+
+    expect(state.alisioBootstrap).toBeNull();
+    expect(state.alisioOrganization).toBeNull();
+    expect(state.alisioConnectorCatalog).toEqual([]);
+    expect(state.alisioConnectorAuthorizations).toEqual([]);
+    expect(state.alisioConnectorSetupGuide).toBeNull();
+    expect(state.setupWizardSessionId).toBeNull();
+    expect(state.setupWizardStep).toBeNull();
+    expect(state.setupWizardStatus).toBeNull();
+    expect(state.setupWizardDraftText).toBe("");
+    expect(state.alisioAuthPassword).toBe("");
+    expect(state.setupStep).toBe("account");
+    expect(state.setTab).toHaveBeenCalledWith("setup");
   });
 });

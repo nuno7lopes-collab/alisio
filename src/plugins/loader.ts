@@ -1120,7 +1120,7 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
           level: "warn",
           pluginId: record.id,
           source: record.source,
-          message: `bundle capability detected but not wired into OpenClaw yet: ${capability}`,
+          message: `bundle capability detected but not wired into Alisio yet: ${capability}`,
         });
       }
       if (

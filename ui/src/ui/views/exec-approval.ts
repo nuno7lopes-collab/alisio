@@ -5,6 +5,8 @@ import type {
   ExecApprovalRequest,
   ExecApprovalRequestPayload,
 } from "../controllers/exec-approval.ts";
+import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
+import { resolveSessionDisplayName } from "./session-display.ts";
 
 export function formatApprovalRemaining(ms: number): string {
   const remaining = Math.max(0, ms);
@@ -27,19 +29,29 @@ function renderMetaRow(label: string, value?: string | null) {
   return html`<div class="exec-approval-meta-row"><span>${label}</span><span>${value}</span></div>`;
 }
 
-function renderExecBody(request: ExecApprovalRequestPayload) {
+type ApprovalPromptIdentity = Pick<AppViewState, "assistantName" | "assistantAgentId">;
+
+function renderExecBody(request: ExecApprovalRequestPayload, identity: ApprovalPromptIdentity) {
+  const agentLabel = resolveAgentIdDisplayLabel(request.agentId, identity);
+  const sessionLabel = resolveSessionDisplayName(request.sessionKey ?? "", undefined, identity);
   return html`
     <div class="exec-approval-command mono">${request.command}</div>
     <div class="exec-approval-meta">
-      ${renderMetaRow("Host", request.host)} ${renderMetaRow("Agent", request.agentId)}
-      ${renderMetaRow("Session", request.sessionKey)} ${renderMetaRow("CWD", request.cwd)}
+      ${renderMetaRow("Host", request.host)} ${renderMetaRow("Agent", agentLabel)}
+      ${renderMetaRow("Session", sessionLabel)} ${renderMetaRow("CWD", request.cwd)}
       ${renderMetaRow("Resolved", request.resolvedPath)}
       ${renderMetaRow("Security", request.security)} ${renderMetaRow("Ask", request.ask)}
     </div>
   `;
 }
 
-function renderPluginBody(active: ExecApprovalRequest) {
+function renderPluginBody(active: ExecApprovalRequest, identity: ApprovalPromptIdentity) {
+  const agentLabel = resolveAgentIdDisplayLabel(active.request.agentId, identity);
+  const sessionLabel = resolveSessionDisplayName(
+    active.request.sessionKey ?? "",
+    undefined,
+    identity,
+  );
   return html`
     ${active.pluginDescription
       ? html`<pre class="exec-approval-command mono" style="white-space:pre-wrap">
@@ -48,8 +60,8 @@ ${active.pluginDescription}</pre
       : nothing}
     <div class="exec-approval-meta">
       ${renderMetaRow("Severity", active.pluginSeverity)}
-      ${renderMetaRow("Plugin", active.pluginId)} ${renderMetaRow("Agent", active.request.agentId)}
-      ${renderMetaRow("Session", active.request.sessionKey)}
+      ${renderMetaRow("Plugin", active.pluginId)} ${renderMetaRow("Agent", agentLabel)}
+      ${renderMetaRow("Session", sessionLabel)}
     </div>
   `;
 }
@@ -84,7 +96,7 @@ export function renderExecApprovalPrompt(state: AppViewState) {
               </div>`
             : nothing}
         </div>
-        ${isPlugin ? renderPluginBody(active) : renderExecBody(request)}
+        ${isPlugin ? renderPluginBody(active, state) : renderExecBody(request, state)}
         ${state.execApprovalError
           ? html`<div class="exec-approval-error">${state.execApprovalError}</div>`
           : nothing}

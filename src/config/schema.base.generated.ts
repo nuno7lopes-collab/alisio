@@ -11566,7 +11566,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Updates",
       group: "Update",
       order: 25,
-      help: "Update-channel and startup-check behavior for keeping OpenClaw runtime versions current. Use conservative channels in production and more experimental channels only in controlled environments.",
+      help: "Update-channel and startup-check behavior for keeping Alisio runtime versions current. Use conservative channels in production and more experimental channels only in controlled environments.",
       tags: ["advanced"],
     },
     cli: {
@@ -11671,7 +11671,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       label: "Hooks",
       group: "Hooks",
       order: 110,
-      help: "Inbound webhook automation surface for mapping external events into wake or agent actions in OpenClaw. Keep this locked down with explicit token/session/agent controls before exposing it beyond trusted networks.",
+      help: "Inbound webhook automation surface for mapping external events into wake or agent actions in Alisio. Keep this locked down with explicit token/session/agent controls before exposing it beyond trusted networks.",
       tags: ["advanced"],
     },
     ui: {
@@ -11736,12 +11736,12 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     meta: {
       label: "Metadata",
-      help: "Metadata fields automatically maintained by OpenClaw to record write/version history for this config file. Keep these values system-managed and avoid manual edits unless debugging migration history.",
+      help: "Metadata fields automatically maintained by Alisio to record write/version history for this config file. Keep these values system-managed and avoid manual edits unless debugging migration history.",
       tags: ["advanced"],
     },
     "meta.lastTouchedVersion": {
       label: "Config Last Touched Version",
-      help: "Auto-set when OpenClaw writes the config.",
+      help: "Auto-set when Alisio writes the config.",
       tags: ["media"],
     },
     "meta.lastTouchedAt": {
@@ -11771,7 +11771,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "env.vars": {
       label: "Environment Variable Overrides",
-      help: "Explicit key/value environment variable overrides merged into runtime process environment for OpenClaw. Use this for deterministic env configuration instead of relying only on shell profile side effects.",
+      help: "Explicit key/value environment variable overrides merged into runtime process environment for Alisio. Use this for deterministic env configuration instead of relying only on shell profile side effects.",
       tags: ["advanced"],
     },
     "wizard.lastRunAt": {
@@ -11781,7 +11781,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "wizard.lastRunVersion": {
       label: "Wizard Last Run Version",
-      help: "OpenClaw version recorded at the time of the most recent wizard run on this config. Use this when diagnosing behavior differences across version-to-version setup changes.",
+      help: "Alisio version recorded at the time of the most recent wizard run on this config. Use this when diagnosing behavior differences across version-to-version setup changes.",
       tags: ["advanced"],
     },
     "wizard.lastRunCommit": {
@@ -11981,12 +11981,12 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.list[].runtime": {
       label: "Agent Runtime",
-      help: "Optional runtime descriptor for this agent. Use embedded for default OpenClaw execution or acp for external ACP harness defaults.",
+      help: "Optional runtime descriptor for this agent. Use embedded for default Alisio execution or acp for external ACP harness defaults.",
       tags: ["advanced"],
     },
     "agents.list[].runtime.type": {
       label: "Agent Runtime Type",
-      help: 'Runtime type for this agent: "embedded" (default OpenClaw runtime) or "acp" (ACP harness defaults).',
+      help: 'Runtime type for this agent: "embedded" (default Alisio runtime) or "acp" (ACP harness defaults).',
       tags: ["advanced"],
     },
     "agents.list[].runtime.acp": {
@@ -11996,7 +11996,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.list[].runtime.acp.agent": {
       label: "Agent ACP Harness Agent",
-      help: "Optional ACP harness agent id to use for this OpenClaw agent (for example codex, claude, cursor, gemini, openclaw).",
+      help: "Optional ACP harness agent id to use for this Alisio agent (for example codex, claude, cursor, gemini, openclaw).",
       tags: ["advanced"],
     },
     "agents.list[].runtime.acp.backend": {
@@ -13174,7 +13174,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "nodeHost.browserProxy.allowProfiles": {
       label: "Node Browser Proxy Allowed Profiles",
-      help: "Optional allowlist of browser profile names exposed through node proxy routing. Leave empty to preserve the default full profile surface, including profile create/delete routes. When set, OpenClaw enforces least-privilege profile access and blocks persistent profile create/delete through the proxy.",
+      help: "Optional allowlist of browser profile names exposed through node proxy routing. Leave empty to preserve the default full profile surface, including profile create/delete routes. When set, Alisio enforces least-privilege profile access and blocks persistent profile create/delete through the proxy.",
       tags: ["access", "network", "storage"],
     },
     media: {
@@ -13590,7 +13590,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "memory.backend": {
       label: "Memory Backend",
-      help: 'Selects the global memory engine: "builtin" uses OpenClaw memory internals, while "qmd" uses the QMD sidecar pipeline. Keep "builtin" unless you intentionally operate QMD.',
+      help: 'Selects the global memory engine: "builtin" uses Alisio memory internals, while "qmd" uses the QMD sidecar pipeline. Keep "builtin" unless you intentionally operate QMD.',
       tags: ["storage"],
     },
     "memory.citations": {
@@ -13881,7 +13881,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "models.providers.*.injectNumCtxForOpenAICompat": {
       label: "Model Provider Inject num_ctx (OpenAI Compat)",
-      help: "Controls whether OpenClaw injects `options.num_ctx` for Ollama providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
+      help: "Controls whether Alisio injects `options.num_ctx` for Ollama providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
       tags: ["models"],
     },
     "models.providers.*.headers": {
@@ -14151,7 +14151,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.embeddedPi": {
       label: "Embedded Pi",
-      help: "Embedded Pi runner hardening controls for how workspace-local Pi settings are trusted and applied in OpenClaw sessions.",
+      help: "Embedded Pi runner hardening controls for how workspace-local Pi settings are trusted and applied in Alisio sessions.",
       tags: ["advanced"],
     },
     "agents.defaults.embeddedPi.projectSettingsPolicy": {
@@ -14221,7 +14221,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "commands.mcp": {
       label: "Allow /mcp",
-      help: "Allow /mcp chat command to manage OpenClaw MCP server config under mcp.servers (default: false).",
+      help: "Allow /mcp chat command to manage Alisio MCP server config under mcp.servers (default: false).",
       tags: ["advanced"],
     },
     "commands.plugins": {
@@ -14267,12 +14267,12 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     mcp: {
       label: "MCP",
-      help: "Global MCP server definitions managed by OpenClaw. Embedded Pi and other runtime adapters can consume these servers without storing them inside Pi-owned project settings.",
+      help: "Global MCP server definitions managed by Alisio. Embedded Pi and other runtime adapters can consume these servers without storing them inside Pi-owned project settings.",
       tags: ["advanced"],
     },
     "mcp.servers": {
       label: "MCP Servers",
-      help: "Named MCP server definitions. OpenClaw stores them in its own config and runtime adapters decide which transports are supported at execution time.",
+      help: "Named MCP server definitions. Alisio stores them in its own config and runtime adapters decide which transports are supported at execution time.",
       tags: ["advanced"],
     },
     "ui.seamColor": {
@@ -14437,7 +14437,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "session.parentForkMaxTokens": {
       label: "Session Parent Fork Max Tokens",
-      help: "Maximum parent-session token count allowed for thread/session inheritance forking. If the parent exceeds this, OpenClaw starts a fresh thread session instead of forking; set 0 to disable this protection.",
+      help: "Maximum parent-session token count allowed for thread/session inheritance forking. If the parent exceeds this, Alisio starts a fresh thread session instead of forking; set 0 to disable this protection.",
       tags: ["security", "auth", "performance", "storage"],
     },
     "session.mainKey": {

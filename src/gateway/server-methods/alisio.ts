@@ -1,5 +1,9 @@
 import { AlisioAccountCloudError } from "../../infra/alisio-account-cloud.js";
 import { AlisioAiError } from "../../infra/alisio-ai.js";
+import {
+  inspectManagedLocalModelRuntime,
+  installAlisioLocalModel,
+} from "../../infra/alisio-local-llama-runtime.js";
 import { loadAlisioRuntimeSetupState } from "../../infra/alisio-runtime.js";
 import {
   AlisioAccountValidationError,
@@ -14,12 +18,16 @@ import {
   getAlisioOrganizationState,
   listAlisioConnectorAuthorizations,
   listAlisioConnectorDefinitions,
+  listAlisioRemoteModelServers,
   loadAlisioBootstrapState,
+  removeAlisioRemoteModelServer,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
   requestAlisioAccountPasswordReset,
   revokeAlisioConnectorAuthorization,
+  saveAlisioRemoteModelServer,
   selectAlisioAiProfile,
+  selectAlisioRemoteModelServer,
   setAlisioOrganizationState,
   signInAlisioAccount,
   signOutAlisioAccount,
@@ -28,7 +36,16 @@ import {
 } from "../../infra/alisio-store.js";
 import { clearDeviceBootstrapTokens } from "../../infra/device-bootstrap.js";
 import { revokeDeviceToken } from "../../infra/device-pairing.js";
+import {
+  summarizeHardwareRecommendation,
+  type AlisioModelHardwareProfile,
+} from "../../infra/model-hardware.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
+import {
+  ALISIO_LOCAL_MODEL_BACKEND,
+  findAlisioLocalModelCatalogEntry,
+  listPublishedAlisioLocalModels,
+} from "../../shared/alisio-local-models.js";
 import {
   ErrorCodes,
   errorShape,
@@ -51,6 +68,16 @@ import {
   validateAlisioAiSelectProfileParams,
   validateAlisioAiState,
   validateAlisioBootstrapGetParams,
+  validateAlisioModelsGetParams,
+  validateAlisioModelsInstallParams,
+  validateAlisioModelsInstallResult,
+  validateAlisioModelsServerRemoveParams,
+  validateAlisioModelsServerRemoveResult,
+  validateAlisioModelsServerSaveParams,
+  validateAlisioModelsServerSaveResult,
+  validateAlisioModelsServerSelectParams,
+  validateAlisioModelsServerSelectResult,
+  validateAlisioModelsResult,
   validateAlisioBootstrapResult,
   validateAlisioConnectorsBeginParams,
   validateAlisioConnectorsCatalogParams,
@@ -66,6 +93,129 @@ import {
 } from "../protocol/index.js";
 import { formatError } from "../server-utils.js";
 import type { GatewayRequestHandlers } from "./types.js";
+
+type RemoteServerInspection = {
+  status: "ready" | "not_configured" | "error";
+  message?: string;
+  models: Array<{ id: string; name: string; ownedBy?: string }>;
+};
+
+function normalizeRemoteServerModels(payload: unknown, kind: "openai-compatible" | "ollama") {
+  if (!payload || typeof payload !== "object") {
+    return [];
+  }
+
+  if (kind === "ollama") {
+    const models = Array.isArray((payload as { models?: unknown[] }).models)
+      ? ((payload as { models?: unknown[] }).models ?? [])
+      : [];
+    return models.flatMap((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return [];
+      }
+      const name =
+        typeof (entry as { name?: unknown }).name === "string"
+          ? (entry as { name: string }).name.trim()
+          : "";
+      if (!name) {
+        return [];
+      }
+      return [{ id: name, name, ownedBy: "ollama" }];
+    });
+  }
+
+  const data = Array.isArray((payload as { data?: unknown[] }).data)
+    ? ((payload as { data?: unknown[] }).data ?? [])
+    : [];
+  return data.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") {
+      return [];
+    }
+    const id =
+      typeof (entry as { id?: unknown }).id === "string" ? (entry as { id: string }).id.trim() : "";
+    if (!id) {
+      return [];
+    }
+    return [
+      {
+        id,
+        name: id,
+        ownedBy:
+          typeof (entry as { owned_by?: unknown }).owned_by === "string"
+            ? (entry as { owned_by: string }).owned_by.trim() || undefined
+            : undefined,
+      },
+    ];
+  });
+}
+
+function resolveRemoteServerModelUrls(baseUrl: string, kind: "openai-compatible" | "ollama") {
+  const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+  if (kind === "ollama") {
+    return normalizedBaseUrl.endsWith("/api")
+      ? [`${normalizedBaseUrl}/tags`]
+      : [`${normalizedBaseUrl}/api/tags`];
+  }
+  return normalizedBaseUrl.endsWith("/v1")
+    ? [`${normalizedBaseUrl}/models`]
+    : [`${normalizedBaseUrl}/models`, `${normalizedBaseUrl}/v1/models`];
+}
+
+async function inspectRemoteModelServer(server: {
+  kind: "openai-compatible" | "ollama";
+  baseUrl: string;
+  apiKey?: string;
+}): Promise<RemoteServerInspection> {
+  const headers: Record<string, string> = {};
+  if (server.apiKey?.trim()) {
+    headers.authorization = `Bearer ${server.apiKey.trim()}`;
+  }
+  let lastError = "server did not respond";
+  for (const endpoint of resolveRemoteServerModelUrls(server.baseUrl, server.kind)) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) {
+        lastError = `${response.status} ${response.statusText}`.trim();
+        continue;
+      }
+      const payload = (await response.json()) as unknown;
+      return {
+        status: "ready",
+        models: normalizeRemoteServerModels(payload, server.kind),
+      };
+    } catch (error) {
+      lastError = String(error);
+    }
+  }
+  return {
+    status: "error",
+    message: lastError,
+    models: [],
+  };
+}
+
+function buildTargetRecommendations(params: {
+  hardware?: AlisioModelHardwareProfile;
+  catalog: ReturnType<typeof listPublishedAlisioLocalModels>;
+}) {
+  if (!params.hardware) {
+    return {
+      recommendations: [],
+      bestModelId: undefined,
+      bestModelName: undefined,
+    };
+  }
+  const summarized = summarizeHardwareRecommendation(params.hardware, params.catalog);
+  return {
+    recommendations: summarized.recommendations,
+    bestModelId: summarized.bestModel?.id,
+    bestModelName: summarized.bestModel?.name,
+  };
+}
 
 export const alisioHandlers: GatewayRequestHandlers = {
   "alisio.account.get": async ({ params, respond }) => {
@@ -602,6 +752,424 @@ export const alisioHandlers: GatewayRequestHandlers = {
           `failed to load Alisio bootstrap state: ${formatError(err)}`,
         ),
       );
+    }
+  },
+  "alisio.models.get": async ({ params, respond, context }) => {
+    if (!validateAlisioModelsGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.models.get params: ${formatValidationErrors(
+            validateAlisioModelsGetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const account = await getAlisioAccountState();
+      const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
+      const currentInspection = await inspectManagedLocalModelRuntime(process.env);
+      const catalog = listPublishedAlisioLocalModels();
+      const currentRecommendations = buildTargetRecommendations({
+        hardware: currentInspection.hardware,
+        catalog,
+      });
+      const targets = [
+        {
+          targetId: currentDevice?.id ?? "current",
+          label: currentDevice?.label ?? "This computer",
+          platform: currentDevice?.platform,
+          current: true,
+          connected: true,
+          backend: ALISIO_LOCAL_MODEL_BACKEND,
+          runtimeStatus: currentInspection.status,
+          runtimeMessage: currentInspection.message,
+          installedModels: currentInspection.models,
+          hardware: currentInspection.hardware,
+          recommendations: currentRecommendations.recommendations,
+          bestModelId: currentRecommendations.bestModelId,
+          bestModelName: currentRecommendations.bestModelName,
+        },
+        ...(await Promise.all(
+          context.nodeRegistry.listConnected().map(async (node) => {
+            const supportsLlamaCatalog = node.capabilities.some(
+              (capability) => capability.id === "model.catalog.llamacpp.v1",
+            );
+            const supportsOpenAiCatalog = node.capabilities.some(
+              (capability) => capability.id === "model.catalog.openai.v1",
+            );
+            const capabilityId = supportsLlamaCatalog
+              ? "model.catalog.llamacpp.v1"
+              : supportsOpenAiCatalog
+                ? "model.catalog.openai.v1"
+                : null;
+            if (!capabilityId) {
+              return {
+                targetId: node.nodeId,
+                label: node.displayName ?? node.platform ?? node.nodeId,
+                platform: node.platform,
+                current: false,
+                connected: true,
+                backend: ALISIO_LOCAL_MODEL_BACKEND,
+                runtimeStatus: "not_configured" as const,
+                runtimeMessage: "local model runtime not configured on this computer",
+                installedModels: [],
+                recommendations: [],
+              };
+            }
+
+            const task = context.nodeRegistry.startTask({
+              nodeId: node.nodeId,
+              capabilityId,
+              input: {},
+              timeoutMs: 5_000,
+            });
+            if (!task.ok) {
+              return {
+                targetId: node.nodeId,
+                label: node.displayName ?? node.platform ?? node.nodeId,
+                platform: node.platform,
+                current: false,
+                connected: true,
+                backend: ALISIO_LOCAL_MODEL_BACKEND,
+                runtimeStatus: "error" as const,
+                runtimeMessage: task.error.message,
+                installedModels: [],
+                recommendations: [],
+              };
+            }
+
+            const result: Awaited<typeof task.result> = await task.result.catch((error) => ({
+              ok: false,
+              error: { message: String(error) },
+            }));
+            const payload =
+              result.ok &&
+              "payload" in result &&
+              typeof result.payload === "object" &&
+              result.payload !== null
+                ? (result.payload as {
+                    status?: "ready" | "not_configured" | "error";
+                    message?: string;
+                    models?: Array<{ id?: string; name?: string; ownedBy?: string }>;
+                    hardware?: AlisioModelHardwareProfile;
+                  })
+                : null;
+            const recommendations = buildTargetRecommendations({
+              hardware: payload?.hardware,
+              catalog,
+            });
+            return {
+              targetId: node.nodeId,
+              label: node.displayName ?? node.platform ?? node.nodeId,
+              platform: node.platform,
+              current: false,
+              connected: true,
+              backend: ALISIO_LOCAL_MODEL_BACKEND,
+              runtimeStatus: payload?.status ?? "error",
+              runtimeMessage:
+                payload?.message ??
+                result.error?.message ??
+                (!result.ok ? "failed to read local model runtime" : undefined),
+              installedModels:
+                payload?.models?.filter(
+                  (model): model is { id: string; name: string; ownedBy?: string } =>
+                    typeof model?.id === "string" && typeof model?.name === "string",
+                ) ?? [],
+              hardware: payload?.hardware,
+              recommendations: recommendations.recommendations,
+              bestModelId: recommendations.bestModelId,
+              bestModelName: recommendations.bestModelName,
+            };
+          }),
+        )),
+      ];
+      const servers = await Promise.all(
+        (await listAlisioRemoteModelServers(process.env)).map(async (server) => {
+          const inspection = await inspectRemoteModelServer(server);
+          return {
+            serverId: server.serverId,
+            label: server.label,
+            kind: server.kind,
+            baseUrl: server.baseUrl,
+            active: server.active,
+            hasApiKey: Boolean(server.apiKey?.trim() || server.apiKeyEncrypted),
+            status: inspection.status,
+            message: inspection.message,
+            models: inspection.models,
+          };
+        }),
+      );
+      const result = {
+        backend: ALISIO_LOCAL_MODEL_BACKEND,
+        catalog: catalog.map(({ sourceUri: _sourceUri, ...entry }) => entry),
+        targets,
+        servers,
+      };
+      if (!validateAlisioModelsResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.models.get result: ${formatValidationErrors(
+              validateAlisioModelsResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to load Alisio local models: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.models.install": async ({ params, respond, context }) => {
+    if (!validateAlisioModelsInstallParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.models.install params: ${formatValidationErrors(
+            validateAlisioModelsInstallParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+
+    const catalogEntry = findAlisioLocalModelCatalogEntry(params.modelId);
+    if (!catalogEntry || catalogEntry.releaseStage !== "published") {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown local model"));
+      return;
+    }
+
+    try {
+      const account = await getAlisioAccountState();
+      const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
+      const installCurrentTarget =
+        params.targetId === "current" ||
+        params.targetId === "local" ||
+        params.targetId === currentDevice?.id;
+
+      if (installCurrentTarget) {
+        await installAlisioLocalModel({
+          modelId: params.modelId,
+          env: process.env,
+        });
+      } else {
+        const node = context.nodeRegistry.get(params.targetId);
+        if (!node) {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.INVALID_REQUEST, "target computer not connected"),
+          );
+          return;
+        }
+        if (!node.capabilities.some((capability) => capability.id === "model.manage.llamacpp.v1")) {
+          respond(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.UNAVAILABLE,
+              "target computer does not support local model installation",
+            ),
+          );
+          return;
+        }
+
+        const task = context.nodeRegistry.startTask({
+          nodeId: node.nodeId,
+          capabilityId: "model.manage.llamacpp.v1",
+          input: {
+            action: "install",
+            modelId: params.modelId,
+          },
+          timeoutMs: 1_800_000,
+        });
+        if (!task.ok) {
+          respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, task.error.message));
+          return;
+        }
+        const result = await task.result;
+        if (!result.ok) {
+          respond(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.UNAVAILABLE,
+              result.error?.message ?? "local model install failed",
+            ),
+          );
+          return;
+        }
+      }
+
+      const result = {
+        ok: true as const,
+        backend: ALISIO_LOCAL_MODEL_BACKEND,
+        targetId: params.targetId,
+        modelId: params.modelId,
+      };
+      if (!validateAlisioModelsInstallResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.models.install result: ${formatValidationErrors(
+              validateAlisioModelsInstallResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to install local model: ${formatError(err)}`),
+      );
+    }
+  },
+  "alisio.models.server.save": async ({ params, respond }) => {
+    if (!validateAlisioModelsServerSaveParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.models.server.save params: ${formatValidationErrors(
+            validateAlisioModelsServerSaveParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await saveAlisioRemoteModelServer(
+        {
+          serverId: params.serverId?.trim() || undefined,
+          label: params.label,
+          kind: params.kind,
+          baseUrl: params.baseUrl,
+          apiKey: params.apiKey,
+          clearApiKey: params.clearApiKey,
+        },
+        process.env,
+      );
+      const payload = { ok: true as const, serverId: result.serverId };
+      if (!validateAlisioModelsServerSaveResult(payload)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.models.server.save result: ${formatValidationErrors(
+              validateAlisioModelsServerSaveResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, payload, undefined);
+    } catch (err) {
+      const message = err instanceof AlisioAccountValidationError ? err.message : formatError(err);
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, message));
+    }
+  },
+  "alisio.models.server.remove": async ({ params, respond }) => {
+    if (!validateAlisioModelsServerRemoveParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.models.server.remove params: ${formatValidationErrors(
+            validateAlisioModelsServerRemoveParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const removed = await removeAlisioRemoteModelServer(
+        { serverId: params.serverId },
+        process.env,
+      );
+      const payload = { ok: true as const, serverId: removed.serverId };
+      if (!validateAlisioModelsServerRemoveResult(payload)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.models.server.remove result: ${formatValidationErrors(
+              validateAlisioModelsServerRemoveResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, payload, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to remove remote server: ${formatError(err)}`),
+      );
+    }
+  },
+  "alisio.models.server.select": async ({ params, respond }) => {
+    if (!validateAlisioModelsServerSelectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.models.server.select params: ${formatValidationErrors(
+            validateAlisioModelsServerSelectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const selected = await selectAlisioRemoteModelServer(
+        { serverId: params.serverId },
+        process.env,
+      );
+      const payload = { ok: true as const, serverId: selected.serverId };
+      if (!validateAlisioModelsServerSelectResult(payload)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.models.server.select result: ${formatValidationErrors(
+              validateAlisioModelsServerSelectResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, payload, undefined);
+    } catch (err) {
+      const message = err instanceof AlisioAccountValidationError ? err.message : formatError(err);
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, message));
     }
   },
   "alisio.doctor.summary": async ({ params, respond, context }) => {

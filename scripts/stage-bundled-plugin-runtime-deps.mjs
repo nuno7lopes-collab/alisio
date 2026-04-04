@@ -46,9 +46,26 @@ function shouldStageRuntimeDeps(packageJson) {
   return packageJson.openclaw?.bundle?.stageRuntimeDependencies === true;
 }
 
-function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
+function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.cwd()) {
   const manifestPath = path.join(pluginDir, "package.json");
-  const packageJson = readJson(manifestPath);
+  let packageJson;
+  let shouldWriteManifest = false;
+
+  if (fs.existsSync(manifestPath)) {
+    packageJson = readJson(manifestPath);
+  } else {
+    const sourceManifestPath = path.join(
+      repoRoot,
+      "extensions",
+      path.basename(pluginDir),
+      "package.json",
+    );
+    if (!fs.existsSync(sourceManifestPath)) {
+      throw new Error(`missing bundled plugin manifest: ${manifestPath}`);
+    }
+    packageJson = readJson(sourceManifestPath);
+    shouldWriteManifest = true;
+  }
   let changed = false;
 
   if (packageJson.peerDependencies?.openclaw) {
@@ -84,7 +101,8 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir) {
     changed = true;
   }
 
-  if (changed) {
+  if (changed || shouldWriteManifest) {
+    fs.mkdirSync(pluginDir, { recursive: true });
     writeJson(manifestPath, packageJson);
   }
 
@@ -272,7 +290,7 @@ export function stageBundledPluginRuntimeDeps(params = {}) {
     params.installPluginRuntimeDepsImpl ?? installPluginRuntimeDeps;
   for (const pluginDir of listBundledPluginRuntimeDirs(repoRoot)) {
     const pluginId = path.basename(pluginDir);
-    const packageJson = sanitizeBundledManifestForRuntimeInstall(pluginDir);
+    const packageJson = sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot);
     const nodeModulesDir = path.join(pluginDir, "node_modules");
     const stampPath = resolveRuntimeDepsStampPath(pluginDir);
     if (!hasRuntimeDeps(packageJson) || !shouldStageRuntimeDeps(packageJson)) {

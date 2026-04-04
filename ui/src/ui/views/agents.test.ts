@@ -1,3 +1,5 @@
+/* @vitest-environment jsdom */
+
 import { render } from "lit";
 import { describe, expect, it } from "vitest";
 import { renderAgents, type AgentsProps } from "./agents.ts";
@@ -6,7 +8,7 @@ function createSkill() {
   return {
     name: "Repo Skill",
     description: "Skill description",
-    source: "workspace",
+    source: "openclaw-workspace",
     filePath: "/tmp/skill",
     baseDir: "/tmp",
     skillKey: "repo-skill",

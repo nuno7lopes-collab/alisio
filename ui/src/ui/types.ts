@@ -10,6 +10,15 @@ export type AlisioHttpBootstrap =
   import("../../../src/gateway/control-ui-contract.js").AlisioHttpBootstrap;
 export type AlisioBootstrapState =
   import("../../../src/gateway/protocol/index.js").AlisioBootstrapResult;
+export type AlisioModelsState = import("../../../src/gateway/protocol/index.js").AlisioModelsResult;
+export type AlisioModelsInstallResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsInstallResult;
+export type AlisioModelsServerSaveResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsServerSaveResult;
+export type AlisioModelsServerRemoveResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsServerRemoveResult;
+export type AlisioModelsServerSelectResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsServerSelectResult;
 export type AlisioDoctorSummaryState =
   import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
 export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;

@@ -37,6 +37,15 @@ function setSkillMessage(state: SkillsState, key: string, message?: SkillMessage
   state.skillMessages = next;
 }
 
+function clearSkillEdit(state: SkillsState, key: string) {
+  if (!Object.hasOwn(state.skillEdits, key)) {
+    return;
+  }
+  const next = { ...state.skillEdits };
+  delete next[key];
+  state.skillEdits = next;
+}
+
 function getErrorMessage(err: unknown) {
   if (err instanceof Error) {
     return err.message;
@@ -70,6 +79,7 @@ export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions
 
 export function updateSkillEdit(state: SkillsState, skillKey: string, value: string) {
   state.skillEdits = { ...state.skillEdits, [skillKey]: value };
+  setSkillMessage(state, skillKey);
 }
 
 export async function updateSkillEnabled(state: SkillsState, skillKey: string, enabled: boolean) {
@@ -109,6 +119,7 @@ export async function saveSkillApiKey(state: SkillsState, skillKey: string) {
     const apiKey = state.skillEdits[skillKey] ?? "";
     await state.client.request("skills.update", { skillKey, apiKey });
     await loadSkills(state);
+    clearSkillEdit(state, skillKey);
     setSkillMessage(state, skillKey, {
       kind: "success",
       message: t("alisio.capabilities.messages.saved"),

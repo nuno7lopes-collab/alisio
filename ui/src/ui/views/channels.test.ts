@@ -3,7 +3,8 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
-import { loadChannels, startChannelSetup } from "../controllers/channels.ts";
+import { continueChannelSetup, loadChannels, startChannelSetup } from "../controllers/channels.ts";
+import { countConnectedChannelAccounts, summarizeChannelsSnapshot } from "./channel-display.ts";
 import { renderChannels } from "./channels.ts";
 
 function findButton(container: HTMLElement, label: string) {
@@ -23,6 +24,7 @@ function createProps(overrides?: Record<string, unknown>) {
     actionMessage: null,
     loginQrDataUrl: null,
     loginConnected: null,
+    loginAccountId: null,
     setupLoading: false,
     setupSubmitting: false,
     setupSessionId: null,
@@ -68,6 +70,7 @@ function createChannelsControllerState(
     channelsActionMessage: null,
     channelsLoginQrDataUrl: null,
     channelsLoginConnected: null,
+    channelsLoginAccountId: null,
     channelsSetupLoading: false,
     channelsSetupSubmitting: false,
     channelsSetupSessionId: null,
@@ -221,7 +224,7 @@ describe("channels view", () => {
       "Scan this QR code in WhatsApp to link the number to Alisio.",
     );
     findButton(container, "Show QR")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onStartWhatsAppLink).toHaveBeenCalledWith(false);
+    expect(onStartWhatsAppLink).toHaveBeenCalledWith(false, "default");
   });
 
   it("starts the real setup flow for channels that are not configured yet", () => {
@@ -276,6 +279,124 @@ describe("channels view", () => {
     expect(container.textContent).toContain("Create the bot in BotFather.");
     expect(container.textContent).toContain("Paste the bot token here.");
     findButton(container, "Connect")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onStartChannelSetup).toHaveBeenCalledWith("telegram");
+  });
+
+  it("shows finish setup when the channel is still only available through setup-only mode", () => {
+    const container = document.createElement("div");
+    const onStartChannelSetup = vi.fn();
+
+    render(
+      renderChannels(
+        createProps({
+          onStartChannelSetup,
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channelIssues: {},
+            channels: {
+              telegram: {
+                configured: false,
+                linked: false,
+                running: false,
+                setupAvailable: true,
+                setupOnly: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: false,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    findButton(container, "Finish setup")?.dispatchEvent(
+      new MouseEvent("click", { bubbles: true }),
+    );
+    expect(onStartChannelSetup).toHaveBeenCalledWith("telegram");
+  });
+
+  it("shows fix setup when a configured channel is stuck in setup-only mode", () => {
+    const container = document.createElement("div");
+    const onStartChannelSetup = vi.fn();
+
+    render(
+      renderChannels(
+        createProps({
+          onStartChannelSetup,
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channelIssues: {
+              telegram: [
+                {
+                  channel: "telegram",
+                  accountId: "default",
+                  kind: "config",
+                  message:
+                    "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
+                },
+              ],
+            },
+            channels: {
+              telegram: {
+                configured: true,
+                linked: true,
+                running: false,
+                setupAvailable: true,
+                setupOnly: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  linked: true,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Needs attention");
+    findButton(container, "Fix setup")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onStartChannelSetup).toHaveBeenCalledWith("telegram");
   });
 
@@ -342,6 +463,88 @@ describe("channels view", () => {
       new MouseEvent("click", { bubbles: true }),
     );
     expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.openclaw.ai/channels/telegram");
+  });
+
+  it("keeps channel summary helpers aligned with setup-only and running states", () => {
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["telegram", "whatsapp", "discord"],
+      channelLabels: {
+        telegram: "Telegram",
+        whatsapp: "WhatsApp",
+        discord: "Discord",
+      },
+      channelDetailLabels: {
+        telegram: "Telegram",
+        whatsapp: "WhatsApp",
+        discord: "Discord",
+      },
+      channelMeta: [],
+      channelIssues: {
+        telegram: [
+          {
+            channel: "telegram",
+            accountId: "default",
+            kind: "config" as const,
+            message:
+              "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
+          },
+        ],
+      },
+      channels: {
+        telegram: {
+          configured: true,
+          setupAvailable: true,
+          setupOnly: true,
+        },
+        whatsapp: {
+          configured: true,
+          linked: true,
+          connected: true,
+          setupAvailable: true,
+        },
+        discord: {
+          configured: false,
+          setupAvailable: true,
+        },
+      },
+      channelAccounts: {
+        telegram: [
+          {
+            accountId: "default",
+            configured: true,
+          },
+        ],
+        whatsapp: [
+          {
+            accountId: "default",
+            configured: true,
+            linked: true,
+            connected: true,
+          },
+        ],
+        discord: [
+          {
+            accountId: "default",
+            configured: false,
+          },
+        ],
+      },
+      channelDefaultAccountId: {
+        telegram: "default",
+        whatsapp: "default",
+        discord: "default",
+      },
+    };
+
+    expect(countConnectedChannelAccounts(snapshot)).toBe(1);
+    expect(summarizeChannelsSnapshot(snapshot)).toMatchObject({
+      totalChannels: 3,
+      connectedChannels: 1,
+      attentionChannels: 1,
+      activeChannels: 2,
+      connectedAccounts: 1,
+    });
   });
 
   it("reutiliza o snapshot recente dos canais sem novo pedido quando não há probe", async () => {
@@ -454,6 +657,82 @@ describe("channels view", () => {
       title: "Telegram bot token",
       sensitive: true,
     });
+  });
+
+  it("limpa o estado stale do setup quando o gateway já não tem wizard em curso", async () => {
+    const snapshot = {
+      ts: Date.now(),
+      wizard: {
+        running: false,
+        sessionId: null,
+        channelId: null,
+      },
+      channelOrder: ["telegram"],
+      channelLabels: { telegram: "Telegram" },
+      channelDetailLabels: { telegram: "Telegram" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async () => snapshot);
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsSetupSessionId: "wiz-stale-1",
+      channelsSetupChannelId: "telegram",
+      channelsSetupError: "wizard already running",
+      channelsSetupStep: {
+        id: "step-stale",
+        type: "text",
+        message: "stale",
+      },
+      channelsSetupDraftText: "abc",
+    });
+
+    await loadChannels(state, true);
+
+    expect(state.channelsSetupSessionId).toBeNull();
+    expect(state.channelsSetupChannelId).toBeNull();
+    expect(state.channelsSetupError).toBeNull();
+    expect(state.channelsSetupStep).toBeNull();
+    expect(state.channelsSetupDraftText).toBe("");
+  });
+
+  it("troca o erro esperado de restart por uma mensagem neutra depois de guardar", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "wizard.next") {
+        return {
+          done: true,
+          status: "done",
+        };
+      }
+      if (method === "channels.status") {
+        throw new Error("gateway closed (1012): service restart");
+      }
+      throw new Error(`unexpected method ${method}`);
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsSetupSessionId: "wiz-telegram-1",
+      channelsSetupChannelId: "telegram",
+      channelsSetupStep: {
+        id: "step-keep-token",
+        type: "confirm",
+        message: "Keep the current token",
+      },
+    });
+
+    await continueChannelSetup(state, {
+      stepId: "step-keep-token",
+      value: true,
+    });
+
+    expect(state.channelsError).toBeNull();
+    expect(state.channelsActionMessage).toBe(
+      "Channel saved. The gateway is restarting to apply the connection.",
+    );
   });
 
   it("cancela um wizard antigo do onboarding antes de arrancar o setup do canal", async () => {

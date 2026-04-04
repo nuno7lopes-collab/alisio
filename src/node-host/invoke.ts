@@ -3,6 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { GatewayClient } from "../gateway/client.js";
 import {
+  chatWithInstalledAlisioLocalModel,
+  inspectManagedLocalModelRuntime,
+  installAlisioLocalModel,
+} from "../infra/alisio-local-llama-runtime.js";
+import {
+  inspectLocalModelRuntime,
+  resolveLocalModelRuntimeConfig,
+} from "../infra/alisio-local-model-runtime.js";
+import {
   ensureExecApprovals,
   mergeExecApprovalsSocketDefaults,
   normalizeExecApprovals,
@@ -87,6 +96,11 @@ type LocalModelTaskInput = {
   messages?: unknown[];
   stream?: boolean;
   [key: string]: unknown;
+};
+
+type LocalLlamaManageTaskInput = {
+  action?: string;
+  modelId?: string;
 };
 
 export type { SkillBinsProvider } from "./invoke-types.js";
@@ -506,25 +520,8 @@ async function sendInvalidTaskRequestResult(
   await sendTaskErrorResult(client, frame, "INVALID_REQUEST", String(err));
 }
 
-function resolveLocalModelBaseUrl(): string | null {
-  const raw = process.env.OPENCLAW_NODE_MODEL_BASE_URL?.trim();
-  if (!raw) {
-    return null;
-  }
-  return raw.replace(/\/+$/, "");
-}
-
-function resolveLocalModelAuthHeader(): string | null {
-  const apiKey =
-    process.env.OPENCLAW_NODE_MODEL_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
-    return null;
-  }
-  return `Bearer ${apiKey}`;
-}
-
 async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  const baseUrl = resolveLocalModelBaseUrl();
+  const { baseUrl, authHeader } = resolveLocalModelRuntimeConfig(process.env);
   if (!baseUrl) {
     await sendTaskErrorResult(
       client,
@@ -549,7 +546,6 @@ async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskReques
   const headers: Record<string, string> = {
     "content-type": "application/json",
   };
-  const authHeader = resolveLocalModelAuthHeader();
   if (authHeader) {
     headers.authorization = authHeader;
   }
@@ -676,6 +672,117 @@ async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskReques
     payload,
   });
   await sendJsonTaskResult(client, frame, payload);
+}
+
+async function handleLocalModelCatalogTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  const inspection = await inspectLocalModelRuntime({ env: process.env });
+  await sendTaskEvent(client, frame, {
+    kind: "completed",
+    seq: 1,
+    payload: inspection,
+  });
+  await sendJsonTaskResult(client, frame, inspection);
+}
+
+async function handleLlamaCppCatalogTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  const inspection = await inspectManagedLocalModelRuntime(process.env);
+  await sendTaskEvent(client, frame, {
+    kind: "completed",
+    seq: 1,
+    payload: inspection,
+  });
+  await sendJsonTaskResult(client, frame, inspection);
+}
+
+async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  let input: LocalLlamaManageTaskInput;
+  try {
+    input = decodeParams<LocalLlamaManageTaskInput>(frame.inputJSON);
+  } catch (err) {
+    await sendInvalidTaskRequestResult(client, frame, err);
+    return;
+  }
+  if (input.action !== "install") {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "unsupported local model action");
+    return;
+  }
+  const modelId = String(input.modelId ?? "").trim();
+  if (!modelId) {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "modelId required");
+    return;
+  }
+
+  try {
+    const model = await installAlisioLocalModel({ modelId, env: process.env });
+    await sendTaskEvent(client, frame, {
+      kind: "completed",
+      seq: 1,
+      payload: {
+        ok: true,
+        model,
+      },
+    });
+    await sendJsonTaskResult(client, frame, {
+      ok: true,
+      model,
+    });
+  } catch (error) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(error));
+  }
+}
+
+async function handleLlamaCppChatTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  let input: LocalModelTaskInput;
+  try {
+    input = decodeParams<LocalModelTaskInput>(frame.inputJSON);
+  } catch (err) {
+    await sendInvalidTaskRequestResult(client, frame, err);
+    return;
+  }
+  const modelId = String(input.model ?? "").trim();
+  if (!modelId) {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "model required");
+    return;
+  }
+  if (!Array.isArray(input.messages) || input.messages.length === 0) {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "messages required");
+    return;
+  }
+
+  let seq = 1;
+  try {
+    const result = await chatWithInstalledAlisioLocalModel({
+      modelId,
+      messages: input.messages,
+      signal:
+        typeof frame.timeoutMs === "number" && frame.timeoutMs > 0
+          ? AbortSignal.timeout(frame.timeoutMs)
+          : undefined,
+      maxTokens:
+        typeof input.max_tokens === "number"
+          ? input.max_tokens
+          : typeof input.maxTokens === "number"
+            ? input.maxTokens
+            : undefined,
+      temperature: typeof input.temperature === "number" ? input.temperature : undefined,
+      onTextChunk: async (chunk) => {
+        await sendTaskEvent(client, frame, {
+          kind: "delta",
+          seq,
+          payload: { text: chunk },
+        });
+        seq += 1;
+      },
+    });
+    await sendTaskEvent(client, frame, {
+      kind: "completed",
+      seq,
+      payload: result,
+    });
+    await sendJsonTaskResult(client, frame, result);
+  } catch (error) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(error));
+  }
 }
 
 export async function handleInvoke(
@@ -824,6 +931,30 @@ export async function handleTask(
   client: GatewayClient,
   skillBins: SkillBinsProvider,
 ) {
+  if (frame.capabilityId === "model.catalog.llamacpp.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLlamaCppCatalogTask(client, frame);
+    return;
+  }
+
+  if (frame.capabilityId === "model.manage.llamacpp.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLlamaCppManageTask(client, frame);
+    return;
+  }
+
+  if (frame.capabilityId === "model.chat.llamacpp.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLlamaCppChatTask(client, frame);
+    return;
+  }
+
+  if (frame.capabilityId === "model.catalog.openai.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLocalModelCatalogTask(client, frame);
+    return;
+  }
+
   if (frame.capabilityId === "model.chat.openai.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
     await handleLocalModelTask(client, frame);

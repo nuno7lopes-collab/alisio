@@ -5,7 +5,7 @@ import { t } from "../i18n/index.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import { OpenClawApp } from "./app.ts";
+import type { OpenClawApp } from "./app.ts";
 import { createChatModelOverride } from "./chat-model-ref.ts";
 import {
   resolveChatModelOverrideValue,
@@ -19,6 +19,12 @@ import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./n
 import type { ThemeTransitionContext } from "./theme-transition.ts";
 import type { ThemeMode, ThemeName } from "./theme.ts";
 import type { SessionsListResult } from "./types.ts";
+import { resolveSessionDisplayName } from "./views/session-display.ts";
+export {
+  parseSessionKey,
+  resolveSessionDisplayName,
+  type SessionKeyInfo,
+} from "./views/session-display.ts";
 
 type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
@@ -637,143 +643,8 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
   }
 }
 
-/* ── Channel display labels ────────────────────────────── */
-function channelLabel(channel: string): string {
-  switch (channel) {
-    case "bluebubbles":
-      return "iMessage";
-    case "telegram":
-      return "Telegram";
-    case "discord":
-      return "Discord";
-    case "signal":
-      return "Signal";
-    case "slack":
-      return "Slack";
-    case "whatsapp":
-      return "WhatsApp";
-    case "matrix":
-      return "Matrix";
-    case "email":
-      return t("alisio.shell.channels.email");
-    case "sms":
-      return t("alisio.shell.channels.sms");
-    default:
-      return capitalize(channel);
-  }
-}
-
-const CHANNEL_LABELS: Record<string, string> = {
-  bluebubbles: "iMessage",
-  telegram: "Telegram",
-  discord: "Discord",
-  signal: "Signal",
-  slack: "Slack",
-  whatsapp: "WhatsApp",
-  matrix: "Matrix",
-  email: "Email",
-  sms: "SMS",
-};
-
-const KNOWN_CHANNEL_KEYS = Object.keys(CHANNEL_LABELS);
-
-/** Parsed type / context extracted from a session key. */
-export type SessionKeyInfo = {
-  /** Prefix for typed sessions (Subagent:/Cron:). Empty for others. */
-  prefix: string;
-  /** Human-readable fallback when no label / displayName is available. */
-  fallbackName: string;
-};
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-/**
- * Parse a session key to extract type information and a human-readable
- * fallback display name.  Exported for testing.
- */
-export function parseSessionKey(key: string): SessionKeyInfo {
-  const normalized = key.toLowerCase();
-
-  // ── Main session ─────────────────────────────────
-  if (key === "main" || key === "agent:main:main") {
-    return { prefix: "", fallbackName: t("alisio.shell.sessions.main") };
-  }
-
-  // ── Subagent ─────────────────────────────────────
-  if (key.includes(":subagent:")) {
-    return {
-      prefix: `${t("alisio.shell.sessions.subagentPrefix")}:`,
-      fallbackName: `${t("alisio.shell.sessions.subagentPrefix")}:`,
-    };
-  }
-
-  // ── Cron job ─────────────────────────────────────
-  if (normalized.startsWith("cron:") || key.includes(":cron:")) {
-    return {
-      prefix: `${t("alisio.shell.sessions.cronPrefix")}:`,
-      fallbackName: `${t("alisio.shell.sessions.cronJob")}:`,
-    };
-  }
-
-  // ── Direct chat  (agent:<x>:<channel>:direct:<id>) ──
-  const directMatch = key.match(/^agent:[^:]+:([^:]+):direct:(.+)$/);
-  if (directMatch) {
-    const channel = directMatch[1];
-    const identifier = directMatch[2];
-    const resolvedChannelLabel = channelLabel(channel);
-    return { prefix: "", fallbackName: `${resolvedChannelLabel} · ${identifier}` };
-  }
-
-  // ── Group chat  (agent:<x>:<channel>:group:<id>) ────
-  const groupMatch = key.match(/^agent:[^:]+:([^:]+):group:(.+)$/);
-  if (groupMatch) {
-    const channel = groupMatch[1];
-    const resolvedChannelLabel = channelLabel(channel);
-    return {
-      prefix: "",
-      fallbackName: t("alisio.shell.sessions.channelGroup", { channel: resolvedChannelLabel }),
-    };
-  }
-
-  // ── Channel-prefixed legacy keys (e.g. "bluebubbles:g-…") ──
-  for (const ch of KNOWN_CHANNEL_KEYS) {
-    if (key === ch || key.startsWith(`${ch}:`)) {
-      return {
-        prefix: "",
-        fallbackName: t("alisio.shell.sessions.channelSession", { channel: channelLabel(ch) }),
-      };
-    }
-  }
-
-  // ── Unknown — return key as-is ───────────────────
-  return { prefix: "", fallbackName: key };
-}
-
-export function resolveSessionDisplayName(
-  key: string,
-  row?: SessionsListResult["sessions"][number],
-): string {
-  const label = row?.label?.trim() || "";
-  const displayName = row?.displayName?.trim() || "";
-  const { prefix, fallbackName } = parseSessionKey(key);
-
-  const applyTypedPrefix = (name: string): string => {
-    if (!prefix) {
-      return name;
-    }
-    const prefixPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\s*`, "i");
-    return prefixPattern.test(name) ? name : `${prefix} ${name}`;
-  };
-
-  if (label && label !== key) {
-    return applyTypedPrefix(label);
-  }
-  if (displayName && displayName !== key) {
-    return applyTypedPrefix(displayName);
-  }
-  return fallbackName;
+export async function setActiveChatModel(state: AppViewState, nextModel: string) {
+  await switchChatModel(state, nextModel);
 }
 
 export function isCronSessionKey(key: string): boolean {

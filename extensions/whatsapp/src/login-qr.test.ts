@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startWebLoginWithQr, waitForWebLogin } from "./login-qr.js";
 import {
   createWaSocket,
@@ -60,6 +60,12 @@ async function flushTasks() {
 describe("login-qr", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it("restarts login once on status 515 and completes", async () => {
@@ -90,5 +96,22 @@ describe("login-qr", () => {
     expect(result.connected).toBe(true);
     expect(createWaSocketMock).toHaveBeenCalledTimes(2);
     expect(logoutWebMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the account id when the QR wait times out", async () => {
+    vi.useFakeTimers();
+    waitForWaConnectionMock.mockReturnValueOnce(new Promise(() => {}));
+
+    const start = await startWebLoginWithQr({ timeoutMs: 5000 });
+    expect(start.accountId).toBe("default");
+
+    const resultPromise = waitForWebLogin({ timeoutMs: 1000 });
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await resultPromise;
+
+    expect(result).toMatchObject({
+      connected: false,
+      accountId: "default",
+    });
   });
 });

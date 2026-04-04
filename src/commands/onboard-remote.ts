@@ -174,7 +174,7 @@ export async function promptRemoteGatewayConfig(
       copy: {
         modeMessage: "How do you want to provide this gateway token?",
         plaintextLabel: "Enter token now",
-        plaintextHint: "Stores the token directly in OpenClaw config",
+        plaintextHint: "Stores the token directly in Alisio config",
       },
     });
     if (selectedMode === "ref") {
@@ -206,7 +206,7 @@ export async function promptRemoteGatewayConfig(
       copy: {
         modeMessage: "How do you want to provide this gateway password?",
         plaintextLabel: "Enter password now",
-        plaintextHint: "Stores the password directly in OpenClaw config",
+        plaintextHint: "Stores the password directly in Alisio config",
       },
     });
     if (selectedMode === "ref") {

@@ -5,8 +5,13 @@ import {
   validateAlisioEmail,
   validateAlisioAccountDraft,
 } from "../../../../src/shared/alisio-account.js";
+import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
 import { t } from "../../i18n/index.ts";
-import { resolveCurrentStartupState, resolveDisplayedSetupStep } from "../alisio-setup-state.ts";
+import {
+  isPostReadySetupStep,
+  resolveCurrentStartupState,
+  resolveDisplayedSetupStep,
+} from "../alisio-setup-state.ts";
 import type {
   AlisioAccountState,
   AlisioBootstrapState,
@@ -20,6 +25,12 @@ import type {
   NativeShellState,
   WizardStep,
 } from "../types.ts";
+import {
+  buildConnectorRows,
+  connectorStatusHint,
+  connectorStatusLabel,
+} from "./connector-state.ts";
+import { renderOrganization } from "./organization.ts";
 
 type SetupProps = {
   connected: boolean;
@@ -183,6 +194,9 @@ function accountValidationMessage(props: SetupProps) {
 }
 
 function renderAccountStep(props: SetupProps) {
+  if (props.account?.session.state === "signed_in" && !props.account.session.profileCompleted) {
+    return renderProfileStep(props);
+  }
   const authMode = props.authMode ?? "sign-up";
   const authEmail = props.authEmail ?? "";
   const authPassword = props.authPassword ?? "";
@@ -328,7 +342,7 @@ function renderGatewayStep(props: SetupProps) {
   `;
 }
 
-function _renderProfileStep(props: SetupProps) {
+function renderProfileStep(props: SetupProps) {
   const profile = props.account?.profile;
   const validation = accountValidationMessage(props);
   const emailManagedByCloud = props.account?.session.backend === "supabase";
@@ -478,7 +492,7 @@ function permissionLabel(permission: NativeShellPermission) {
   }
 }
 
-function _renderPermissionsStep(props: SetupProps) {
+function renderPermissionsStep(props: SetupProps) {
   const state = props.nativeShellState;
   return html`
     <section class="card alisio-setup-card">
@@ -552,6 +566,192 @@ function _renderPermissionsStep(props: SetupProps) {
   `;
 }
 
+function renderConnectorSetupGuide(props: SetupProps) {
+  const guide = props.setupGuide;
+  if (!guide) {
+    return nothing;
+  }
+
+  const title =
+    guide.statusReason === "review_required"
+      ? t("alisio.authentications.setupGuide.reviewTitle")
+      : guide.statusReason === "unavailable"
+        ? t("alisio.authentications.setupGuide.unavailableTitle")
+        : guide.statusReason === "missing_token_encryption"
+          ? t("alisio.authentications.setupGuide.missingTokenEncryptionTitle")
+          : t("alisio.authentications.setupGuide.missingConfigTitle");
+
+  const body =
+    guide.statusReason === "review_required"
+      ? t("alisio.authentications.setupGuide.reviewBody")
+      : guide.statusReason === "unavailable"
+        ? t("alisio.authentications.setupGuide.unavailableBody")
+        : guide.statusReason === "missing_token_encryption"
+          ? t("alisio.authentications.setupGuide.missingTokenEncryptionBody")
+          : t("alisio.authentications.setupGuide.missingConfigBody");
+
+  const callbackValue = guide.redirectUri?.trim() || guide.callbackPath?.trim() || null;
+
+  return html`
+    <section class="card alisio-setup-card">
+      <div class="card-title">${title}</div>
+      <div class="card-sub">${body}</div>
+      ${guide.providerLabel
+        ? html`
+            <div class="row" style="margin-top: 16px;">
+              ${renderStatusPill(guide.providerLabel)}
+              ${guide.connectorId ? renderStatusPill(guide.connectorId, "warn") : nothing}
+            </div>
+          `
+        : nothing}
+      ${Array.isArray(guide.requiredEnvVars) && guide.requiredEnvVars.length > 0
+        ? html`
+            <div class="agent-kv" style="margin-top: 16px;">
+              <div class="label">${t("alisio.authentications.setupGuide.envVars")}</div>
+              <div class="mono">${guide.requiredEnvVars.join("\n")}</div>
+            </div>
+          `
+        : nothing}
+      ${callbackValue
+        ? html`
+            <div class="agent-kv" style="margin-top: 16px;">
+              <div class="label">${t("alisio.authentications.setupGuide.callback")}</div>
+              <div class="mono">${callbackValue}</div>
+              <div class="agent-kv-sub">${t("alisio.authentications.setupGuide.callbackHint")}</div>
+            </div>
+          `
+        : nothing}
+      <div class="row" style="margin-top: 16px;">
+        ${guide.setupUrl
+          ? html`
+              <button class="btn" @click=${() => props.onOpenSupportUrl(guide.setupUrl!)}>
+                ${t("alisio.authentications.setupGuide.support")}
+              </button>
+            `
+          : nothing}
+        <button class="btn" @click=${props.onDismissSetupGuide}>
+          ${t("alisio.authentications.setupGuide.dismiss")}
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+function renderConnectorsStep(props: SetupProps) {
+  const connectorRows = buildConnectorRows(props.connectorCatalog, props.connectorAuthorizations);
+  const connectorSummary = summarizeAlisioConnectorUiStatuses({
+    definitions: props.connectorCatalog,
+    authorizations: props.connectorAuthorizations,
+  });
+  const visibleRows = connectorRows.filter(
+    (row) =>
+      row.status === "ready" ||
+      row.status === "needs_reconnect" ||
+      row.status === "connected" ||
+      row.status === "setup_required",
+  );
+
+  return html`
+    ${renderConnectorSetupGuide(props)}
+    <section class="card alisio-setup-card">
+      <div class="card-title">${t("alisio.setup.steps.connectors")}</div>
+      <div class="card-sub">${t("alisio.authentications.subtitle")}</div>
+      ${renderCallout("danger", props.connectorsError)}
+      <div
+        style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 16px;"
+      >
+        <article class="list-item">
+          <div class="list-title">${connectorSummary.connected}</div>
+          <div class="list-sub">${t("alisio.authentications.summary.connected")}</div>
+        </article>
+        <article class="list-item">
+          <div class="list-title">${connectorSummary.ready}</div>
+          <div class="list-sub">${t("alisio.authentications.summary.ready")}</div>
+        </article>
+        <article class="list-item">
+          <div class="list-title">${connectorSummary.needsReconnect}</div>
+          <div class="list-sub">${t("alisio.authentications.summary.attention")}</div>
+        </article>
+      </div>
+      ${props.connectorsLoading
+        ? html`
+            <div class="empty-state" style="margin-top: 16px;">
+              ${t("alisio.authentications.loading")}
+            </div>
+          `
+        : visibleRows.length === 0
+          ? html`
+              <div class="callout info" style="margin-top: 16px;">
+                ${t("alisio.authentications.emptyAuthorized")}
+              </div>
+            `
+          : html`
+              <div style="display: grid; gap: 12px; margin-top: 16px;">
+                ${visibleRows.map(
+                  (row) => html`
+                    <article class="list-item">
+                      <div
+                        class="row"
+                        style="justify-content: space-between; align-items: flex-start; gap: 12px;"
+                      >
+                        <div>
+                          <div class="list-title">${row.definition.title}</div>
+                          <div class="list-sub">${row.definition.summary}</div>
+                          <div class="muted" style="margin-top: 8px;">
+                            ${connectorStatusHint(row.status)}
+                          </div>
+                        </div>
+                        <span class="pill">${connectorStatusLabel(row.status)}</span>
+                      </div>
+                      <div class="row" style="margin-top: 12px;">
+                        ${row.status === "connected"
+                          ? html`
+                              <button
+                                class="btn danger"
+                                @click=${() => props.onRevokeConnector(row.definition.id)}
+                              >
+                                ${t("alisio.authentications.actions.revoke")}
+                              </button>
+                            `
+                          : html`
+                              <button
+                                class="btn primary"
+                                @click=${() => props.onBeginConnector(row.definition.id)}
+                              >
+                                ${row.status === "setup_required"
+                                  ? t("alisio.authentications.actions.reviewSetup")
+                                  : row.status === "needs_reconnect"
+                                    ? t("alisio.authentications.actions.reconnect")
+                                    : row.definition.connectLabel}
+                              </button>
+                            `}
+                      </div>
+                    </article>
+                  `,
+                )}
+              </div>
+            `}
+    </section>
+  `;
+}
+
+function renderOrganizationStep(props: SetupProps) {
+  return renderOrganization({
+    loading: props.organizationLoading,
+    error: props.organizationError,
+    organization: props.organization,
+    draftMode: props.organizationDraftMode,
+    organizationName: props.organizationName,
+    inviteEmail: props.organizationInviteEmail,
+    onDraftModeChange: props.onDraftModeChange,
+    onOrganizationNameChange: props.onOrganizationNameChange,
+    onInviteEmailChange: props.onInviteEmailChange,
+    onCreateOrganization: props.onCreateOrganization,
+    onJoinOrganization: props.onJoinOrganization,
+    onResetOrganization: props.onResetOrganization,
+  });
+}
+
 function renderReadyStep(props: SetupProps) {
   return html`
     <section class="card alisio-setup-card">
@@ -581,8 +781,11 @@ function renderSetupStep(props: SetupProps, step: AlisioBootstrapStep) {
     case "runtime":
       return renderAiStep(props);
     case "organization":
+      return renderOrganizationStep(props);
     case "connectors":
+      return renderConnectorsStep(props);
     case "permissions":
+      return renderPermissionsStep(props);
     case "ready":
     default:
       return renderReadyStep(props);
@@ -598,7 +801,10 @@ export function renderSetup(props: SetupProps) {
     bootstrap: props.bootstrap,
     startupBootstrap: props.startupBootstrap,
   });
-  const ready = displayStep === "ready" && startupState === "ready" && isAiReady(aiStatus);
+  const ready =
+    startupState === "ready" &&
+    isAiReady(aiStatus) &&
+    (displayStep === "ready" || isPostReadySetupStep(displayStep));
   const showGlobalCallout =
     !props.connected && displayStep !== "gateway" && (props.lastError || props.startupError);
   const progressLabel =

@@ -49,6 +49,20 @@ import {
   AlisioConnectorSummarySchema,
   type AlisioBootstrapGetParams,
   AlisioBootstrapGetParamsSchema,
+  type AlisioModelsGetParams,
+  AlisioModelsGetParamsSchema,
+  type AlisioModelsInstallParams,
+  AlisioModelsInstallParamsSchema,
+  type AlisioModelsInstallResult,
+  AlisioModelsInstallResultSchema,
+  AlisioModelsServerRemoveParamsSchema,
+  AlisioModelsServerRemoveResultSchema,
+  AlisioModelsServerSaveParamsSchema,
+  AlisioModelsServerSaveResultSchema,
+  AlisioModelsServerSelectParamsSchema,
+  AlisioModelsServerSelectResultSchema,
+  type AlisioModelsResult,
+  AlisioModelsResultSchema,
   type AlisioBootstrapResult,
   AlisioBootstrapResultSchema,
   type AlisioDoctorSummaryParams,
@@ -82,10 +96,19 @@ import {
   AgentParamsSchema,
   type AlisioLocalAccountProfile,
   AlisioLocalAccountProfileSchema,
+  type AlisioInstalledLocalModel,
+  AlisioInstalledLocalModelSchema,
   type AlisioLocalDeviceSession,
   AlisioLocalDeviceSessionSchema,
+  type AlisioLocalModelCatalogEntry,
+  AlisioLocalModelCatalogEntrySchema,
+  AlisioModelHardwareSchema,
+  AlisioModelRecommendationSchema,
   type AlisioLocalUserPreferences,
   AlisioLocalUserPreferencesSchema,
+  AlisioRemoteModelServerSchema,
+  type AlisioModelsTarget,
+  AlisioModelsTargetSchema,
   type AlisioOrganizationGetParams,
   AlisioOrganizationGetParamsSchema,
   type AlisioOrganizationSetParams,
@@ -362,6 +385,17 @@ import {
   type WizardStep,
   WizardStepSchema,
 } from "./schema.js";
+import type {
+  AlisioModelHardware,
+  AlisioModelRecommendation,
+  AlisioModelsServerRemoveParams,
+  AlisioModelsServerRemoveResult,
+  AlisioModelsServerSaveParams,
+  AlisioModelsServerSaveResult,
+  AlisioModelsServerSelectParams,
+  AlisioModelsServerSelectResult,
+  AlisioRemoteModelServer,
+} from "./schema/types.js";
 
 const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
   allErrors: true,
@@ -425,6 +459,34 @@ export const validateAlisioAiSelectProfileParams = ajv.compile<AlisioAiSelectPro
 export const validateAlisioBootstrapGetParams = ajv.compile<AlisioBootstrapGetParams>(
   AlisioBootstrapGetParamsSchema,
 );
+export const validateAlisioModelsGetParams = ajv.compile<AlisioModelsGetParams>(
+  AlisioModelsGetParamsSchema,
+);
+export const validateAlisioModelsInstallParams = ajv.compile<AlisioModelsInstallParams>(
+  AlisioModelsInstallParamsSchema,
+);
+export const validateAlisioModelsInstallResult = ajv.compile<AlisioModelsInstallResult>(
+  AlisioModelsInstallResultSchema,
+);
+export const validateAlisioModelsServerSaveParams = ajv.compile<AlisioModelsServerSaveParams>(
+  AlisioModelsServerSaveParamsSchema,
+);
+export const validateAlisioModelsServerSaveResult = ajv.compile<AlisioModelsServerSaveResult>(
+  AlisioModelsServerSaveResultSchema,
+);
+export const validateAlisioModelsServerRemoveParams = ajv.compile<AlisioModelsServerRemoveParams>(
+  AlisioModelsServerRemoveParamsSchema,
+);
+export const validateAlisioModelsServerRemoveResult = ajv.compile<AlisioModelsServerRemoveResult>(
+  AlisioModelsServerRemoveResultSchema,
+);
+export const validateAlisioModelsServerSelectParams = ajv.compile<AlisioModelsServerSelectParams>(
+  AlisioModelsServerSelectParamsSchema,
+);
+export const validateAlisioModelsServerSelectResult = ajv.compile<AlisioModelsServerSelectResult>(
+  AlisioModelsServerSelectResultSchema,
+);
+export const validateAlisioModelsResult = ajv.compile<AlisioModelsResult>(AlisioModelsResultSchema);
 export const validateAlisioBootstrapResult = ajv.compile<AlisioBootstrapResult>(
   AlisioBootstrapResultSchema,
 );
@@ -709,10 +771,26 @@ export {
   AlisioConnectorAuthorizationSchema,
   AlisioConnectorSummarySchema,
   AlisioLocalAccountProfileSchema,
+  AlisioLocalModelCatalogEntrySchema,
+  AlisioInstalledLocalModelSchema,
+  AlisioModelHardwareSchema,
+  AlisioModelRecommendationSchema,
+  AlisioRemoteModelServerSchema,
+  AlisioModelsTargetSchema,
   AlisioLocalUserPreferencesSchema,
   AlisioLocalDeviceSessionSchema,
   AlisioOrganizationStateSchema,
   AlisioBootstrapGetParamsSchema,
+  AlisioModelsGetParamsSchema,
+  AlisioModelsInstallParamsSchema,
+  AlisioModelsInstallResultSchema,
+  AlisioModelsServerSaveParamsSchema,
+  AlisioModelsServerSaveResultSchema,
+  AlisioModelsServerRemoveParamsSchema,
+  AlisioModelsServerRemoveResultSchema,
+  AlisioModelsServerSelectParamsSchema,
+  AlisioModelsServerSelectResultSchema,
+  AlisioModelsResultSchema,
   AlisioBootstrapResultSchema,
   AlisioDoctorSummaryParamsSchema,
   AlisioDoctorSummaryResultSchema,
@@ -858,11 +936,27 @@ export type {
   AlisioConnectorAuthorization,
   AlisioConnectorSummary,
   AlisioLocalAccountProfile,
+  AlisioLocalModelCatalogEntry,
+  AlisioInstalledLocalModel,
+  AlisioModelHardware,
+  AlisioModelRecommendation,
+  AlisioRemoteModelServer,
+  AlisioModelsTarget,
   AlisioLocalUserPreferences,
   AlisioAiState,
   AlisioLocalDeviceSession,
   AlisioOrganizationState,
   AlisioBootstrapGetParams,
+  AlisioModelsGetParams,
+  AlisioModelsInstallParams,
+  AlisioModelsInstallResult,
+  AlisioModelsServerSaveParams,
+  AlisioModelsServerSaveResult,
+  AlisioModelsServerRemoveParams,
+  AlisioModelsServerRemoveResult,
+  AlisioModelsServerSelectParams,
+  AlisioModelsServerSelectResult,
+  AlisioModelsResult,
   AlisioBootstrapResult,
   AlisioDoctorSummaryParams,
   AlisioDoctorSummaryResult,

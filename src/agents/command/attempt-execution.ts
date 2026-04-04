@@ -136,7 +136,10 @@ export function prependInternalEventContext(
   body: string,
   events: AgentCommandOpts["internalEvents"],
 ): string {
-  if (body.includes("OpenClaw runtime context (internal):")) {
+  if (
+    body.includes("OpenClaw runtime context (internal):") ||
+    body.includes("Alisio runtime context (internal):")
+  ) {
     return body;
   }
   const renderedEvents = formatAgentInternalEventsForPrompt(events);
