@@ -46,25 +46,75 @@ export type SttCallbacks = {
   onError?: (error: string) => void;
 };
 
-let activeRecognition: SpeechRecognitionInstance | null = null;
+type ActiveSttSession = {
+  callbacks: SttCallbacks;
+  recognition: SpeechRecognitionInstance | null;
+  keepAlive: boolean;
+  restartTimer: ReturnType<typeof setTimeout> | null;
+};
 
-export function startStt(callbacks: SttCallbacks): boolean {
+const STT_RESTART_DELAY_MS = 250;
+const FATAL_STT_ERRORS = new Set(["audio-capture", "language-not-supported"]);
+
+let activeSttSession: ActiveSttSession | null = null;
+
+function clearSttRestartTimer(session: ActiveSttSession): void {
+  if (session.restartTimer !== null) {
+    clearTimeout(session.restartTimer);
+    session.restartTimer = null;
+  }
+}
+
+function finishSttSession(session: ActiveSttSession): void {
+  clearSttRestartTimer(session);
+  session.recognition = null;
+  if (activeSttSession === session) {
+    activeSttSession = null;
+    session.callbacks.onEnd?.();
+  }
+}
+
+function scheduleSttRestart(session: ActiveSttSession): void {
+  if (session.restartTimer !== null) {
+    return;
+  }
+  session.restartTimer = setTimeout(() => {
+    session.restartTimer = null;
+    if (activeSttSession !== session || !session.keepAlive || session.recognition !== null) {
+      return;
+    }
+    if (!startRecognitionSession(session, false)) {
+      finishSttSession(session);
+    }
+  }, STT_RESTART_DELAY_MS);
+}
+
+function startRecognitionSession(session: ActiveSttSession, notifyStart: boolean): boolean {
   const Ctor = getSpeechRecognitionCtor();
   if (!Ctor) {
-    callbacks.onError?.("Speech recognition is not supported in this browser");
+    session.callbacks.onError?.("Speech recognition is not supported in this browser");
     return false;
   }
-
-  stopStt();
 
   const recognition = new Ctor();
   recognition.continuous = true;
   recognition.interimResults = true;
   recognition.lang = navigator.language || "en-US";
+  session.recognition = recognition;
 
-  recognition.addEventListener("start", () => callbacks.onStart?.());
+  recognition.addEventListener("start", () => {
+    if (activeSttSession !== session) {
+      return;
+    }
+    if (notifyStart) {
+      session.callbacks.onStart?.();
+    }
+  });
 
   recognition.addEventListener("result", (event) => {
+    if (activeSttSession !== session) {
+      return;
+    }
     const speechEvent = event as unknown as SpeechRecognitionEvent;
     let interimTranscript = "";
     let finalTranscript = "";
@@ -83,46 +133,97 @@ export function startStt(callbacks: SttCallbacks): boolean {
     }
 
     if (finalTranscript) {
-      callbacks.onTranscript(finalTranscript, true);
+      session.callbacks.onTranscript(finalTranscript, true);
     } else if (interimTranscript) {
-      callbacks.onTranscript(interimTranscript, false);
+      session.callbacks.onTranscript(interimTranscript, false);
     }
   });
 
   recognition.addEventListener("error", (event) => {
+    if (activeSttSession !== session) {
+      return;
+    }
     const speechEvent = event as unknown as SpeechRecognitionErrorEvent;
     if (speechEvent.error === "aborted" || speechEvent.error === "no-speech") {
       return;
     }
-    callbacks.onError?.(speechEvent.error);
+    if (
+      speechEvent.error === "not-allowed" ||
+      speechEvent.error === "service-not-allowed" ||
+      FATAL_STT_ERRORS.has(speechEvent.error)
+    ) {
+      session.keepAlive = false;
+      clearSttRestartTimer(session);
+      session.callbacks.onError?.(speechEvent.error);
+      return;
+    }
   });
 
   recognition.addEventListener("end", () => {
-    if (activeRecognition === recognition) {
-      activeRecognition = null;
+    if (activeSttSession !== session || session.recognition !== recognition) {
+      return;
     }
-    callbacks.onEnd?.();
+    session.recognition = null;
+    if (session.keepAlive) {
+      scheduleSttRestart(session);
+      return;
+    }
+    finishSttSession(session);
   });
 
-  activeRecognition = recognition;
-  recognition.start();
-  return true;
+  try {
+    recognition.start();
+    return true;
+  } catch {
+    session.recognition = null;
+    session.callbacks.onError?.("speech-start-failed");
+    return false;
+  }
+}
+
+export function startStt(callbacks: SttCallbacks): boolean {
+  if (!getSpeechRecognitionCtor()) {
+    callbacks.onError?.("Speech recognition is not supported in this browser");
+    return false;
+  }
+
+  stopStt();
+  const session: ActiveSttSession = {
+    callbacks,
+    recognition: null,
+    keepAlive: true,
+    restartTimer: null,
+  };
+  activeSttSession = session;
+  if (startRecognitionSession(session, true)) {
+    return true;
+  }
+  if (activeSttSession === session) {
+    finishSttSession(session);
+  }
+  return false;
 }
 
 export function stopStt(): void {
-  if (activeRecognition) {
-    const r = activeRecognition;
-    activeRecognition = null;
+  if (activeSttSession) {
+    const session = activeSttSession;
+    session.keepAlive = false;
+    clearSttRestartTimer(session);
+    const recognition = session.recognition;
+    if (!recognition) {
+      finishSttSession(session);
+      return;
+    }
     try {
-      r.stop();
+      recognition.stop();
     } catch {
-      // already stopped
+      finishSttSession(session);
     }
   }
 }
 
 export function isSttActive(): boolean {
-  return activeRecognition !== null;
+  return activeSttSession !== null;
 }
 
 // ─── TTS (Text-to-Speech) ───

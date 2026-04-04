@@ -1,4 +1,5 @@
 import { resetToolStream } from "../app-tool-stream.ts";
+import { isImageChatAttachmentMimeType } from "../chat/attachment-support.ts";
 import { extractText } from "../chat/message-extract.ts";
 import { formatConnectError } from "../connect-error.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
@@ -30,6 +31,69 @@ function isAssistantSilentReply(message: unknown): boolean {
   }
   const text = extractText(message);
   return typeof text === "string" && isSilentReplyStream(text);
+}
+
+function fingerprintChatMessage(message: unknown): string | null {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  try {
+    return JSON.stringify(message);
+  } catch {
+    const entry = message as Record<string, unknown>;
+    const role = typeof entry.role === "string" ? entry.role : "";
+    const id = typeof entry.id === "string" ? entry.id : "";
+    const messageId = typeof entry.messageId === "string" ? entry.messageId : "";
+    const toolCallId = typeof entry.toolCallId === "string" ? entry.toolCallId : "";
+    const timestamp = typeof entry.timestamp === "number" ? String(entry.timestamp) : "";
+    const text = extractText(message) ?? "";
+    return [role, id, messageId, toolCallId, timestamp, text].join("\u0001");
+  }
+}
+
+function isDuplicateAdjacentMessage(previous: unknown, next: unknown): boolean {
+  const prevFingerprint = fingerprintChatMessage(previous);
+  const nextFingerprint = fingerprintChatMessage(next);
+  return Boolean(prevFingerprint && nextFingerprint && prevFingerprint === nextFingerprint);
+}
+
+function dedupeAdjacentChatMessages(messages: unknown[]): unknown[] {
+  const deduped: unknown[] = [];
+  for (const message of messages) {
+    const previous = deduped.at(-1);
+    if (previous && isDuplicateAdjacentMessage(previous, message)) {
+      continue;
+    }
+    deduped.push(message);
+  }
+  return deduped;
+}
+
+function appendChatMessageIfDistinct(state: ChatState, message: unknown): void {
+  const previous = state.chatMessages.at(-1);
+  if (previous && isDuplicateAdjacentMessage(previous, message)) {
+    return;
+  }
+  state.chatMessages = [...state.chatMessages, message];
+}
+
+function buildNonImageAttachmentSummary(attachments: ChatAttachment[]): string | null {
+  const nonImageAttachments = attachments.filter(
+    (attachment) => !isImageChatAttachmentMimeType(attachment.mimeType),
+  );
+  if (nonImageAttachments.length === 0) {
+    return null;
+  }
+  const named = nonImageAttachments
+    .map((attachment) => attachment.fileName?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (named.length === 1) {
+    return `Attachment: ${named[0]}`;
+  }
+  if (named.length > 1) {
+    return `Attachments: ${named.slice(0, 2).join(", ")}${named.length > 2 ? ", ..." : ""}`;
+  }
+  return `Attachments: ${nonImageAttachments.length} file${nonImageAttachments.length === 1 ? "" : "s"}`;
 }
 
 export type ChatState = {
@@ -131,7 +195,9 @@ export async function loadChatHistory(state: ChatState) {
       },
     );
     const messages = Array.isArray(res.messages) ? res.messages : [];
-    state.chatMessages = messages.filter((message) => !isAssistantSilentReply(message));
+    state.chatMessages = dedupeAdjacentChatMessages(
+      messages.filter((message) => !isAssistantSilentReply(message)),
+    );
     state.chatThinkingLevel = res.thinkingLevel ?? null;
     // Clear all streaming state — history includes tool results and text
     // inline, so keeping streaming artifacts would cause duplicates.
@@ -232,10 +298,17 @@ export async function sendChatMessage(
   // Add image previews to the message for display
   if (hasAttachments) {
     for (const att of attachments) {
+      if (!isImageChatAttachmentMimeType(att.mimeType)) {
+        continue;
+      }
       contentBlocks.push({
         type: "image",
         source: { type: "base64", media_type: att.mimeType, data: att.dataUrl },
       });
+    }
+    const nonImageSummary = buildNonImageAttachmentSummary(attachments);
+    if (nonImageSummary) {
+      contentBlocks.push({ type: "text", text: nonImageSummary });
     }
   }
 
@@ -264,10 +337,12 @@ export async function sendChatMessage(
           if (!parsed) {
             return null;
           }
+          const attachmentType = parsed.mimeType.split("/")[0] || "file";
           return {
-            type: "image",
+            type: attachmentType,
             mimeType: parsed.mimeType,
             content: parsed.content,
+            ...(att.fileName ? { fileName: att.fileName } : {}),
           };
         })
         .filter((a): a is NonNullable<typeof a> => a !== null)
@@ -337,7 +412,7 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     if (payload.state === "final") {
       const finalMessage = normalizeFinalAssistantMessage(payload.message);
       if (finalMessage && !isAssistantSilentReply(finalMessage)) {
-        state.chatMessages = [...state.chatMessages, finalMessage];
+        appendChatMessageIfDistinct(state, finalMessage);
         return null;
       }
       return "final";
@@ -356,16 +431,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   } else if (payload.state === "final") {
     const finalMessage = normalizeFinalAssistantMessage(payload.message);
     if (finalMessage && !isAssistantSilentReply(finalMessage)) {
-      state.chatMessages = [...state.chatMessages, finalMessage];
+      appendChatMessageIfDistinct(state, finalMessage);
     } else if (state.chatStream?.trim() && !isSilentReplyStream(state.chatStream)) {
-      state.chatMessages = [
-        ...state.chatMessages,
-        {
-          role: "assistant",
-          content: [{ type: "text", text: state.chatStream }],
-          timestamp: Date.now(),
-        },
-      ];
+      appendChatMessageIfDistinct(state, {
+        role: "assistant",
+        content: [{ type: "text", text: state.chatStream }],
+        timestamp: Date.now(),
+      });
     }
     state.chatStream = null;
     state.chatRunId = null;
@@ -373,18 +445,15 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   } else if (payload.state === "aborted") {
     const normalizedMessage = normalizeAbortedAssistantMessage(payload.message);
     if (normalizedMessage && !isAssistantSilentReply(normalizedMessage)) {
-      state.chatMessages = [...state.chatMessages, normalizedMessage];
+      appendChatMessageIfDistinct(state, normalizedMessage);
     } else {
       const streamedText = state.chatStream ?? "";
       if (streamedText.trim() && !isSilentReplyStream(streamedText)) {
-        state.chatMessages = [
-          ...state.chatMessages,
-          {
-            role: "assistant",
-            content: [{ type: "text", text: streamedText }],
-            timestamp: Date.now(),
-          },
-        ];
+        appendChatMessageIfDistinct(state, {
+          role: "assistant",
+          content: [{ type: "text", text: streamedText }],
+          timestamp: Date.now(),
+        });
       }
     }
     state.chatStream = null;

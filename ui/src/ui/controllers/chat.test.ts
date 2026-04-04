@@ -123,6 +123,28 @@ describe("handleChatEvent", () => {
     expect(state.chatMessages[0]).toEqual(payload.message);
   });
 
+  it("does not append the same final assistant message twice", () => {
+    const finalMessage = {
+      role: "assistant",
+      content: [{ type: "text", text: "Done" }],
+      timestamp: 10,
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatRunId: "run-1",
+      chatMessages: [finalMessage],
+    });
+    const payload: ChatEventPayload = {
+      runId: "run-1",
+      sessionKey: "main",
+      state: "final",
+      message: finalMessage,
+    };
+
+    expect(handleChatEvent(state, payload)).toBe("final");
+    expect(state.chatMessages).toEqual([finalMessage]);
+  });
+
   it("drops NO_REPLY final payload from another run without clearing active stream", () => {
     const state = createActiveStreamingState();
     const payload = createOtherRunNoReplyFinalPayload();
@@ -644,6 +666,37 @@ describe("loadChatHistory", () => {
     expect(state.chatThinkingLevel).toBe("low");
     expect(state.chatLoading).toBe(false);
     expect(state.lastError).toBeNull();
+  });
+
+  it("collapses adjacent duplicate history messages", async () => {
+    const duplicate = {
+      role: "assistant",
+      content: [{ type: "text", text: "visible answer" }],
+      timestamp: 123,
+    };
+    const request = vi.fn().mockResolvedValue({
+      messages: [
+        duplicate,
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "visible answer" }],
+          timestamp: 123,
+        },
+        { role: "user", content: [{ type: "text", text: "Follow up" }], timestamp: 124 },
+      ],
+      thinkingLevel: "low",
+    });
+    const state = createState({
+      connected: true,
+      client: { request } as unknown as ChatState["client"],
+    });
+
+    await loadChatHistory(state);
+
+    expect(state.chatMessages).toEqual([
+      duplicate,
+      { role: "user", content: [{ type: "text", text: "Follow up" }], timestamp: 124 },
+    ]);
   });
 
   it("shows a targeted message when chat history is unauthorized", async () => {

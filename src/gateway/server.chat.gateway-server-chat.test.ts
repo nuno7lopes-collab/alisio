@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { WebSocket } from "ws";
 import { emitAgentEvent, registerAgentRunContext } from "../infra/agent-events.js";
+import { saveMediaBuffer } from "../media/store.js";
 import { extractFirstTextBlock } from "../shared/chat-message-content.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import {
@@ -30,6 +31,9 @@ installConnectedControlUiServerSuite((started) => {
   ws = started.ws;
   port = started.port;
 });
+
+const PNG_1X1_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/woAAn8B9FD5fHAAAAAASUVORK5CYII=";
 
 describe("gateway server chat", () => {
   const buildNoReplyHistoryFixture = (includeMixedAssistant = false) => [
@@ -683,6 +687,118 @@ describe("gateway server chat", () => {
       "user:NO_REPLY",
       "assistant:NO_REPLY",
     ]);
+  });
+
+  test("chat.history rehydrates inline image previews for persisted media attachments", async () => {
+    const saved = await saveMediaBuffer(
+      Buffer.from(PNG_1X1_BASE64, "base64"),
+      "image/png",
+      "inbound",
+      5_000_000,
+      "reload-preview.png",
+    );
+
+    try {
+      const historyMessages = await loadChatHistoryWithMessages([
+        {
+          role: "user",
+          content: "",
+          MediaPath: saved.path,
+          MediaPaths: [saved.path],
+          MediaType: "image/png",
+          MediaTypes: ["image/png"],
+          timestamp: 1,
+        },
+      ]);
+
+      expect(historyMessages).toHaveLength(1);
+      expect(historyMessages[0]).toMatchObject({
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",
+              data: expect.any(String),
+            },
+          },
+        ],
+      });
+    } finally {
+      await fs.rm(saved.path, { force: true }).catch(() => {});
+    }
+  });
+
+  test("chat.history prefers persisted image previews even when the original media file is gone", async () => {
+    const historyMessages = await loadChatHistoryWithMessages([
+      {
+        role: "user",
+        content: "",
+        MediaPath: "/tmp/missing-image.png",
+        MediaPaths: ["/tmp/missing-image.png"],
+        MediaType: "image/png",
+        MediaTypes: ["image/png"],
+        MediaPreviewImages: [
+          {
+            mimeType: "image/png",
+            data: PNG_1X1_BASE64,
+          },
+        ],
+        timestamp: 1,
+      },
+    ]);
+
+    expect(historyMessages).toHaveLength(1);
+    expect(historyMessages[0]).toMatchObject({
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: "image/png",
+            data: PNG_1X1_BASE64,
+          },
+        },
+      ],
+    });
+  });
+
+  test("chat.history does not synthesize text for non-image attachments", async () => {
+    const saved = await saveMediaBuffer(
+      Buffer.from("%PDF-1.4\n"),
+      "application/pdf",
+      "inbound",
+      5_000_000,
+      "brief.pdf",
+    );
+
+    try {
+      const historyMessages = await loadChatHistoryWithMessages([
+        {
+          role: "user",
+          content: "",
+          MediaPath: saved.path,
+          MediaPaths: [saved.path],
+          MediaType: "application/pdf",
+          MediaTypes: ["application/pdf"],
+          timestamp: 1,
+        },
+      ]);
+
+      expect(historyMessages).toHaveLength(1);
+      expect(historyMessages[0]).toMatchObject({
+        role: "user",
+        content: "",
+        MediaPath: saved.path,
+        MediaPaths: [saved.path],
+        MediaType: "application/pdf",
+        MediaTypes: ["application/pdf"],
+      });
+    } finally {
+      await fs.rm(saved.path, { force: true }).catch(() => {});
+    }
   });
 
   test("chat.send does not persist verboseLevel for operator.write callers", async () => {

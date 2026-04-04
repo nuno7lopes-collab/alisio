@@ -299,6 +299,39 @@ describe("cli credentials", () => {
     });
   });
 
+  it("skips the Codex keychain lookup when allowKeychainPrompt is false", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-codex-"));
+    process.env.CODEX_HOME = tempHome;
+    const expSeconds = Math.floor(Date.parse("2026-03-25T12:34:56Z") / 1000);
+
+    const authPath = path.join(tempHome, "auth.json");
+    fs.mkdirSync(tempHome, { recursive: true, mode: 0o700 });
+    fs.writeFileSync(
+      authPath,
+      JSON.stringify({
+        tokens: {
+          access_token: createJwtWithExp(expSeconds),
+          refresh_token: "file-refresh",
+        },
+      }),
+      "utf8",
+    );
+
+    const creds = readCodexCliCredentials({
+      allowKeychainPrompt: false,
+      platform: "darwin",
+      execSync: execSyncMock,
+    });
+
+    expect(execSyncMock).not.toHaveBeenCalled();
+    expect(creds).toMatchObject({
+      access: createJwtWithExp(expSeconds),
+      refresh: "file-refresh",
+      provider: "openai-codex",
+      expires: expSeconds * 1000,
+    });
+  });
+
   it("invalidates cached Codex credentials when auth.json changes within the TTL window", () => {
     const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-codex-cache-"));
     process.env.CODEX_HOME = tempHome;

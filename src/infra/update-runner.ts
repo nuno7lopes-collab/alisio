@@ -7,7 +7,7 @@ import {
   resolveControlUiDistIndexPathForRoot,
 } from "./control-ui-assets.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./detect-package-manager.js";
-import { readPackageName, readPackageVersion } from "./package-json.js";
+import { readPackageVersion } from "./package-json.js";
 import { normalizePackageTagInput } from "./package-tag.js";
 import { trimLogTail } from "./restart-sentinel.js";
 import { resolveStableNodePath } from "./stable-node-path.js";
@@ -23,13 +23,16 @@ import { compareSemverStrings } from "./update-check.js";
 import {
   collectInstalledGlobalPackageErrors,
   cleanupGlobalRenameDirs,
+  CORE_PACKAGE_NAME,
   createGlobalInstallEnv,
   detectGlobalInstallManagerForRoot,
   globalInstallArgs,
   globalInstallFallbackArgs,
+  PUBLIC_PACKAGE_NAME,
   resolveExpectedInstalledVersionFromSpec,
   resolveGlobalInstallSpec,
   resolveGlobalPackageRoot,
+  resolveGlobalPackageSpecifierName,
 } from "./update-global.js";
 
 export type UpdateStepResult = {
@@ -92,8 +95,8 @@ const DEFAULT_TIMEOUT_MS = 20 * 60_000;
 const MAX_LOG_CHARS = 8000;
 const PREFLIGHT_MAX_COMMITS = 10;
 const START_DIRS = ["cwd", "argv1", "process"];
-const DEFAULT_PACKAGE_NAME = "openclaw";
-const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME]);
+const _DEFAULT_PACKAGE_NAME = CORE_PACKAGE_NAME;
+const CORE_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
 
 function normalizeDir(value?: string | null) {
   if (!value) {
@@ -410,7 +413,7 @@ function managerInstallArgs(manager: BuildManager, opts?: { compatFallback?: boo
 }
 
 function normalizeTag(tag?: string) {
-  return normalizePackageTagInput(tag, ["openclaw", DEFAULT_PACKAGE_NAME]) ?? "latest";
+  return normalizePackageTagInput(tag, [PUBLIC_PACKAGE_NAME, CORE_PACKAGE_NAME]) ?? "latest";
 }
 
 function mergeCommandEnvironments(
@@ -1001,17 +1004,20 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
   const beforeVersion = await readPackageVersion(pkgRoot);
   const globalManager = await detectGlobalInstallManagerForRoot(runCommand, pkgRoot, timeoutMs);
   if (globalManager) {
-    const packageName = (await readPackageName(pkgRoot)) ?? DEFAULT_PACKAGE_NAME;
-    await cleanupGlobalRenameDirs({
-      globalRoot: path.dirname(pkgRoot),
-      packageName,
-    });
+    const installedPackageName = resolveGlobalPackageSpecifierName(pkgRoot);
+    const installPackageName = PUBLIC_PACKAGE_NAME;
+    for (const renameName of new Set([installedPackageName, installPackageName])) {
+      await cleanupGlobalRenameDirs({
+        globalRoot: path.dirname(pkgRoot),
+        packageName: renameName,
+      });
+    }
     const channel = opts.channel ?? DEFAULT_PACKAGE_CHANNEL;
     const tag = normalizeTag(opts.tag ?? channelToNpmTag(channel));
     const steps: UpdateStepResult[] = [];
     const globalInstallEnv = await createGlobalInstallEnv();
     const spec = resolveGlobalInstallSpec({
-      packageName,
+      packageName: installPackageName,
       tag,
       env: globalInstallEnv,
     });
@@ -1049,8 +1055,11 @@ export async function runGatewayUpdate(opts: UpdateRunnerOptions = {}): Promise<
     }
 
     const verifiedPackageRoot =
-      (await resolveGlobalPackageRoot(globalManager, runCommand, timeoutMs)) ?? pkgRoot;
-    const expectedVersion = resolveExpectedInstalledVersionFromSpec(packageName, spec);
+      (await resolveGlobalPackageRoot(globalManager, runCommand, timeoutMs, [
+        installedPackageName,
+        installPackageName,
+      ])) ?? pkgRoot;
+    const expectedVersion = resolveExpectedInstalledVersionFromSpec(installPackageName, spec);
     const verificationErrors = await collectInstalledGlobalPackageErrors({
       packageRoot: verifiedPackageRoot,
       expectedVersion,

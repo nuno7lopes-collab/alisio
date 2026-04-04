@@ -1,5 +1,5 @@
 ---
-summary: "First-run setup flow for OpenClaw (macOS app)"
+summary: "First-run setup flow for Alisio (macOS app)"
 read_when:
   - Designing the macOS onboarding assistant
   - Implementing auth or identity setup
@@ -11,7 +11,9 @@ sidebarTitle: "Onboarding: macOS App"
 
 This doc describes the **current** first‑run setup flow. The goal is a
 smooth “day 0” experience: pick where the Gateway runs, connect auth, run the
-wizard, and let the agent bootstrap itself.
+wizard, and let the agent bootstrap itself. The current app flow ends at the
+Ready page; workspace bootstrap and CLI install are handled automatically or
+from Settings rather than as separate onboarding pages.
 For a general overview of onboarding paths, see [Onboarding Overview](/start/onboarding-overview).
 
 <Steps>
@@ -32,7 +34,7 @@ For a general overview of onboarding paths, see [Onboarding Overview](/start/onb
 
 Security trust model:
 
-- By default, OpenClaw is a personal agent: one trusted operator boundary.
+- By default, Alisio is a personal agent: one trusted operator boundary.
 - Shared/multi-user setups require lock-down (split trust boundaries, keep tool access minimal, and follow [Security](/gateway/security)).
 - Local onboarding now defaults new configs to `tools.profile: "coding"` so fresh local setups keep filesystem/runtime tools without forcing the unrestricted `full` profile.
 - If hooks/webhooks or other untrusted content feeds are enabled, use a strong modern model tier and keep strict tool policy/sandboxing.
@@ -61,7 +63,7 @@ Where does the **Gateway** run?
 </Tip>
 </Step>
 <Step title="Permissions">
-<Frame caption="Choose what permissions do you want to give OpenClaw">
+<Frame caption="Choose what permissions do you want to give Alisio">
 <img src="/assets/macos-onboarding/05-permissions.png" alt="" />
 </Frame>
 
@@ -76,16 +78,5 @@ Onboarding requests TCC permissions needed for:
 - Camera
 - Location
 
-</Step>
-<Step title="CLI">
-  <Info>This step is optional</Info>
-  The app can install the global `openclaw` CLI via npm/pnpm so terminal
-  workflows and launchd tasks work out of the box.
-</Step>
-<Step title="Onboarding Chat (dedicated session)">
-  After setup, the app opens a dedicated onboarding chat session so the agent can
-  introduce itself and guide next steps. This keeps first‑run guidance separate
-  from your normal conversation. See [Bootstrapping](/start/bootstrapping) for
-  what happens on the gateway host during the first agent run.
 </Step>
 </Steps>

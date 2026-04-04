@@ -453,7 +453,7 @@ describe("update-cli", () => {
       },
       assert: () => {
         const logs = vi.mocked(defaultRuntime.log).mock.calls.map((call) => call[0]);
-        expect(logs.join("\n")).toContain("OpenClaw update status");
+        expect(logs.join("\n")).toContain("Alisio update status");
       },
     },
     {
@@ -549,7 +549,15 @@ describe("update-cli", () => {
       } else {
         expect(runGatewayUpdate).not.toHaveBeenCalled();
         expect(runCommandWithTimeout).toHaveBeenCalledWith(
-          ["npm", "i", "-g", "openclaw@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+          [
+            "npm",
+            "i",
+            "-g",
+            "alisio@npm:openclaw@latest",
+            "--no-fund",
+            "--no-audit",
+            "--loglevel=error",
+          ],
           expect.any(Object),
         );
       }
@@ -580,7 +588,15 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).toHaveBeenCalledWith(
-      ["npm", "i", "-g", "openclaw@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+      [
+        "npm",
+        "i",
+        "-g",
+        "alisio@npm:openclaw@latest",
+        "--no-fund",
+        "--no-audit",
+        "--loglevel=error",
+      ],
       expect.any(Object),
     );
   });
@@ -598,14 +614,22 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).not.toHaveBeenCalledWith(
-      ["npm", "i", "-g", "openclaw@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+      [
+        "npm",
+        "i",
+        "-g",
+        "alisio@npm:openclaw@latest",
+        "--no-fund",
+        "--no-audit",
+        "--loglevel=error",
+      ],
       expect.any(Object),
     );
     expect(defaultRuntime.exit).toHaveBeenCalledWith(1);
     const errors = vi.mocked(defaultRuntime.error).mock.calls.map((call) => String(call[0]));
     expect(errors.join("\n")).toContain("Node ");
     expect(errors.join("\n")).toContain(
-      "Bare `npm i -g openclaw` can silently install an older compatible release.",
+      "Bare `npm i -g alisio` can silently install an older compatible release.",
     );
   });
 
@@ -616,7 +640,7 @@ describe("update-cli", () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
         await updateCommand({ tag: "next" });
       },
-      expectedSpec: "openclaw@next",
+      expectedSpec: "alisio@npm:openclaw@next",
     },
     {
       name: "main shorthand",

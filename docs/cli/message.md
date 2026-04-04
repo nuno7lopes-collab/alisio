@@ -1,12 +1,12 @@
 ---
-summary: "CLI reference for `openclaw message` (send + channel actions)"
+summary: "CLI reference for `alisio message` (send + channel actions)"
 read_when:
   - Adding or modifying message CLI actions
   - Changing outbound channel behavior
 title: "message"
 ---
 
-# `openclaw message`
+# `alisio message`
 
 Single outbound command for sending messages and channel actions
 (Discord/Google Chat/iMessage/Matrix/Mattermost (plugin)/Microsoft Teams/Signal/Slack/Telegram/WhatsApp).
@@ -14,7 +14,7 @@ Single outbound command for sending messages and channel actions
 ## Usage
 
 ```
-openclaw message <subcommand> [flags]
+alisio message <subcommand> [flags]
 ```
 
 Channel selection:
@@ -39,7 +39,7 @@ Target formats (`--target`):
 Name lookup:
 
 - For supported providers (Discord/Slack/etc), channel names like `Help` or `#help` are resolved via the directory cache.
-- On cache miss, OpenClaw will attempt a live directory lookup when the provider supports it.
+- On cache miss, Alisio will attempt a live directory lookup when the provider supports it.
 
 ## Common flags
 
@@ -53,11 +53,11 @@ Name lookup:
 
 ## SecretRef behavior
 
-- `openclaw message` resolves supported channel SecretRefs before running the selected action.
+- `alisio message` resolves supported channel SecretRefs before running the selected action.
 - Resolution is scoped to the active action target when possible:
   - channel-scoped when `--channel` is set (or inferred from prefixed targets like `discord:...`)
   - account-scoped when `--account` is set (channel globals + selected account surfaces)
-  - when `--account` is omitted, OpenClaw does not force a `default` account SecretRef scope
+  - when `--account` is omitted, Alisio does not force a `default` account SecretRef scope
 - Unresolved SecretRefs on unrelated channels do not block a targeted message action.
 - If the selected channel/account SecretRef is unresolved, the command fails closed for that action.
 
@@ -200,14 +200,14 @@ Name lookup:
 Send a Discord reply:
 
 ```
-openclaw message send --channel discord \
+alisio message send --channel discord \
   --target channel:123 --message "hi" --reply-to 456
 ```
 
 Send a Discord message with components:
 
 ```
-openclaw message send --channel discord \
+alisio message send --channel discord \
   --target channel:123 --message "Choose:" \
   --components '{"text":"Choose a path","blocks":[{"type":"actions","buttons":[{"label":"Approve","style":"success"},{"label":"Decline","style":"danger"}]}]}'
 ```
@@ -217,7 +217,7 @@ See [Discord components](/channels/discord#interactive-components) for the full 
 Create a Discord poll:
 
 ```
-openclaw message poll --channel discord \
+alisio message poll --channel discord \
   --target channel:123 \
   --poll-question "Snack?" \
   --poll-option Pizza --poll-option Sushi \
@@ -227,7 +227,7 @@ openclaw message poll --channel discord \
 Create a Telegram poll (auto-close in 2 minutes):
 
 ```
-openclaw message poll --channel telegram \
+alisio message poll --channel telegram \
   --target @mychat \
   --poll-question "Lunch?" \
   --poll-option Pizza --poll-option Sushi \
@@ -237,14 +237,14 @@ openclaw message poll --channel telegram \
 Send a Teams proactive message:
 
 ```
-openclaw message send --channel msteams \
+alisio message send --channel msteams \
   --target conversation:19:abc@thread.tacv2 --message "hi"
 ```
 
 Create a Teams poll:
 
 ```
-openclaw message poll --channel msteams \
+alisio message poll --channel msteams \
   --target conversation:19:abc@thread.tacv2 \
   --poll-question "Lunch?" \
   --poll-option Pizza --poll-option Sushi
@@ -253,14 +253,14 @@ openclaw message poll --channel msteams \
 React in Slack:
 
 ```
-openclaw message react --channel slack \
+alisio message react --channel slack \
   --target C123 --message-id 456 --emoji "✅"
 ```
 
 React in a Signal group:
 
 ```
-openclaw message react --channel signal \
+alisio message react --channel signal \
   --target signal:group:abc123 --message-id 1737630212345 \
   --emoji "✅" --target-author-uuid 123e4567-e89b-12d3-a456-426614174000
 ```
@@ -268,13 +268,13 @@ openclaw message react --channel signal \
 Send Telegram inline buttons:
 
 ```
-openclaw message send --channel telegram --target @mychat --message "Choose:" \
+alisio message send --channel telegram --target @mychat --message "Choose:" \
   --buttons '[ [{"text":"Yes","callback_data":"cmd:yes"}], [{"text":"No","callback_data":"cmd:no"}] ]'
 ```
 
 Send a Telegram image as a document to avoid compression:
 
 ```bash
-openclaw message send --channel telegram --target @mychat \
+alisio message send --channel telegram --target @mychat \
   --media ./diagram.png --force-document
 ```

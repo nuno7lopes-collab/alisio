@@ -1,11 +1,11 @@
 ---
-summary: "CLI reference for `openclaw onboard` (interactive onboarding)"
+summary: "CLI reference for `alisio onboard` (interactive onboarding)"
 read_when:
   - You want guided setup for gateway, workspace, auth, channels, and skills
 title: "onboard"
 ---
 
-# `openclaw onboard`
+# `alisio onboard`
 
 Interactive onboarding for local or remote Gateway setup.
 
@@ -20,10 +20,10 @@ Interactive onboarding for local or remote Gateway setup.
 ## Examples
 
 ```bash
-openclaw onboard
-openclaw onboard --flow quickstart
-openclaw onboard --flow manual
-openclaw onboard --mode remote --remote-url wss://gateway-host:18789
+alisio onboard
+alisio onboard --flow quickstart
+alisio onboard --flow manual
+alisio onboard --mode remote --remote-url wss://gateway-host:18789
 ```
 
 For plaintext private-network `ws://` targets (trusted networks only), set
@@ -32,7 +32,7 @@ For plaintext private-network `ws://` targets (trusted networks only), set
 Non-interactive custom provider:
 
 ```bash
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --auth-choice custom-api-key \
   --custom-base-url "https://llm.example.com/v1" \
   --custom-model-id "foo-large" \
@@ -46,7 +46,7 @@ openclaw onboard --non-interactive \
 Non-interactive Ollama:
 
 ```bash
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --auth-choice ollama \
   --custom-base-url "http://ollama-host:11434" \
   --custom-model-id "qwen3.5:27b" \
@@ -58,7 +58,7 @@ openclaw onboard --non-interactive \
 Store provider keys as refs instead of plaintext:
 
 ```bash
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --auth-choice openai-api-key \
   --secret-input-mode ref \
   --accept-risk
@@ -83,11 +83,17 @@ Gateway token options in non-interactive mode:
 - With `--install-daemon`, if token mode requires a token and the configured token SecretRef is unresolved, onboarding fails closed with remediation guidance.
 - With `--install-daemon`, if both `gateway.auth.token` and `gateway.auth.password` are configured and `gateway.auth.mode` is unset, onboarding blocks install until mode is set explicitly.
 
+Remote gateway auth options in non-interactive mode:
+
+- `--remote-token <token>` stores a token for `gateway.mode=remote`.
+- `--remote-password <password>` stores a password for `gateway.mode=remote`.
+- `--remote-token` and `--remote-password` are mutually exclusive.
+
 Example:
 
 ```bash
 export OPENCLAW_GATEWAY_TOKEN="your-token"
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --mode local \
   --auth-choice skip \
   --gateway-auth token \
@@ -95,10 +101,18 @@ openclaw onboard --non-interactive \
   --accept-risk
 ```
 
+```bash
+alisio onboard --non-interactive \
+  --mode remote \
+  --remote-url ws://127.0.0.1:18789 \
+  --remote-password "$OPENCLAW_GATEWAY_PASSWORD" \
+  --accept-risk
+```
+
 Non-interactive local gateway health:
 
 - Unless you pass `--skip-health`, onboarding waits for a reachable local gateway before it exits successfully.
-- `--install-daemon` starts the managed gateway install path first. Without it, you must already have a local gateway running, for example `openclaw gateway run`.
+- `--install-daemon` starts the managed gateway install path first. Without it, you must already have a local gateway running, for example `alisio gateway run`.
 - If you only want config/workspace/bootstrap writes in automation, use `--skip-health`.
 - On native Windows, `--install-daemon` tries Scheduled Tasks first and falls back to a per-user Startup-folder login item if task creation is denied.
 
@@ -118,7 +132,7 @@ If you specifically want the GLM Coding Plan endpoints, pick `zai-coding-global`
 
 ```bash
 # Promptless endpoint selection
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --auth-choice zai-coding-global \
   --zai-api-key "$ZAI_API_KEY"
 
@@ -131,7 +145,7 @@ openclaw onboard --non-interactive \
 Non-interactive Mistral example:
 
 ```bash
-openclaw onboard --non-interactive \
+alisio onboard --non-interactive \
   --auth-choice mistral-api-key \
   --mistral-api-key "$MISTRAL_API_KEY"
 ```
@@ -144,15 +158,15 @@ Flow notes:
   prompt to enable `x_search` with the same `XAI_API_KEY` and optionally pick
   an `x_search` model. Other web-search providers do not show that prompt.
 - Local onboarding DM scope behavior: [CLI Setup Reference](/start/wizard-cli-reference#outputs-and-internals).
-- Fastest first chat: `openclaw dashboard` (Control UI, no channel setup).
+- Fastest first chat: `alisio dashboard` (Control UI, no channel setup).
 - Custom Provider: connect any OpenAI or Anthropic compatible endpoint,
   including hosted providers not listed. Use Unknown to auto-detect.
 
 ## Common follow-up commands
 
 ```bash
-openclaw configure
-openclaw agents add <name>
+alisio configure
+alisio agents add <name>
 ```
 
 <Note>

@@ -17,6 +17,7 @@ import { createCanvasTool } from "./tools/canvas-tool.js";
 import type { AnyAgentTool } from "./tools/common.js";
 import { createCronTool } from "./tools/cron-tool.js";
 import { createGatewayTool } from "./tools/gateway-tool.js";
+import { createGmailSendTool } from "./tools/gmail-send-tool.js";
 import { createImageGenerateTool } from "./tools/image-generate-tool.js";
 import { createImageTool } from "./tools/image-tool.js";
 import { createMessageTool } from "./tools/message-tool.js";
@@ -201,6 +202,7 @@ export function createOpenClawTools(
       agentChannel: options?.agentChannel,
       config: options?.config,
     }),
+    createGmailSendTool(),
     ...(imageGenerateTool ? [imageGenerateTool] : []),
     createGatewayTool({
       agentSessionKey: options?.agentSessionKey,

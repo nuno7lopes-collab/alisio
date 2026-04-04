@@ -91,7 +91,7 @@ enum RuntimeLocator {
         switch error {
         case let .notFound(searchPaths):
             [
-                "openclaw needs Node >=22.16.0 but found no runtime.",
+                "Alisio needs Node >=22.16.0 but found no runtime.",
                 "PATH searched: \(searchPaths.joined(separator: ":"))",
                 "Install Node: https://nodejs.org/en/download",
             ].joined(separator: "\n")
@@ -99,7 +99,7 @@ enum RuntimeLocator {
             [
                 "Found \(kind.rawValue) \(found) at \(path) but need >= \(required).",
                 "PATH searched: \(searchPaths.joined(separator: ":"))",
-                "Upgrade Node and rerun openclaw.",
+                "Upgrade Node and rerun alisio.",
             ].joined(separator: "\n")
         case let .versionParse(kind, raw, path, searchPaths):
             [

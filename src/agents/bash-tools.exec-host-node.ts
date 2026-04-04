@@ -28,6 +28,7 @@ import {
   normalizeNotifyOutput,
 } from "./bash-tools.exec-runtime.js";
 import type { ExecToolDetails } from "./bash-tools.exec-types.js";
+import { failedTextResult } from "./tools/common.js";
 import { callGatewayTool } from "./tools/gateway.js";
 import { listNodes, resolveNodeIdFromList } from "./tools/nodes-utils.js";
 
@@ -53,7 +54,61 @@ export type ExecuteNodeHostCommandParams = {
   warnings: string[];
   notifySessionKey?: string;
   trustedSafeBinDirs?: ReadonlySet<string>;
+  signal?: AbortSignal;
 };
+
+function buildNodeExecResult(params: {
+  raw: unknown;
+  startedAt: number;
+  cwd: string;
+}): AgentToolResult<ExecToolDetails> {
+  const payload =
+    params.raw && typeof params.raw === "object"
+      ? (params.raw as { payload?: unknown }).payload
+      : undefined;
+  const payloadObj =
+    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
+  const stdout = typeof payloadObj.stdout === "string" ? payloadObj.stdout : "";
+  const stderr = typeof payloadObj.stderr === "string" ? payloadObj.stderr : "";
+  const errorText = typeof payloadObj.error === "string" ? payloadObj.error : "";
+  const success = typeof payloadObj.success === "boolean" ? payloadObj.success : false;
+  const exitCode = typeof payloadObj.exitCode === "number" ? payloadObj.exitCode : null;
+  return {
+    content: [
+      {
+        type: "text",
+        text: stdout || stderr || errorText || "",
+      },
+    ],
+    details: {
+      status: success ? "completed" : "failed",
+      exitCode,
+      durationMs: Date.now() - params.startedAt,
+      aggregated: [stdout, stderr, errorText].filter(Boolean).join("\n"),
+      cwd: params.cwd,
+    } satisfies ExecToolDetails,
+  };
+}
+
+function buildNodeApprovalDeniedResult(params: {
+  warningText: string;
+  deniedReason: string;
+  cwd: string;
+}): AgentToolResult<ExecToolDetails> {
+  const reason =
+    params.deniedReason === "user-denied"
+      ? "Approval denied. Command did not run."
+      : params.deniedReason.startsWith("approval-timeout")
+        ? "Approval timed out. Command did not run."
+        : "Approval was not granted. Command did not run.";
+  return failedTextResult(`${params.warningText}${reason}`, {
+    status: "failed",
+    exitCode: null,
+    durationMs: 0,
+    aggregated: "",
+    cwd: params.cwd,
+  });
+}
 
 export async function executeNodeHostCommand(
   params: ExecuteNodeHostCommandParams,
@@ -231,6 +286,32 @@ export async function executeNodeHostCommand(
       },
       idempotencyKey: crypto.randomUUID(),
     }) satisfies Record<string, unknown>;
+  const resolveNodeApprovalOutcome = (decision: string | null | undefined) => {
+    const {
+      baseDecision,
+      approvedByAsk: initialApprovedByAsk,
+      deniedReason: initialDeniedReason,
+    } = execHostShared.createExecApprovalDecisionState({
+      decision,
+      askFallback,
+      obfuscationDetected: obfuscation.detected,
+    });
+    let approvedByAsk = initialApprovedByAsk;
+    let approvalDecision: "allow-once" | "allow-always" | null = null;
+    let deniedReason = initialDeniedReason;
+
+    if (baseDecision.timedOut && askFallback === "full" && approvedByAsk) {
+      approvalDecision = "allow-once";
+    } else if (decision === "allow-once") {
+      approvedByAsk = true;
+      approvalDecision = "allow-once";
+    } else if (decision === "allow-always") {
+      approvedByAsk = true;
+      approvalDecision = "allow-always";
+    }
+
+    return { approvedByAsk, approvalDecision, deniedReason };
+  };
 
   if (requiresAsk) {
     const requestArgs = execHostShared.buildDefaultExecApprovalRequestArgs({
@@ -277,6 +358,34 @@ export async function executeNodeHostCommand(
       turnSourceAccountId: params.turnSourceAccountId,
       turnSourceThreadId: params.turnSourceThreadId,
     });
+    const waitInline =
+      unavailableReason === null &&
+      execHostShared.shouldWaitForInlineExecApproval({
+        turnSourceChannel: params.turnSourceChannel,
+      });
+    if (waitInline) {
+      const decision = await execHostShared.waitForExecApprovalDecisionOrThrow({
+        approvalId,
+        preResolvedDecision,
+        signal: params.signal,
+      });
+      const { approvedByAsk, approvalDecision, deniedReason } =
+        resolveNodeApprovalOutcome(decision);
+      if (deniedReason) {
+        return buildNodeApprovalDeniedResult({
+          warningText,
+          deniedReason,
+          cwd: params.workdir,
+        });
+      }
+      const startedAt = Date.now();
+      const raw = await callGatewayTool(
+        "node.invoke",
+        { timeoutMs: invokeTimeoutMs },
+        buildInvokeParams(approvedByAsk, approvalDecision, approvalId),
+      );
+      return buildNodeExecResult({ raw, startedAt, cwd: params.workdir });
+    }
 
     void (async () => {
       const decision = await execHostShared.resolveApprovalDecisionOrUndefined({
@@ -291,29 +400,8 @@ export async function executeNodeHostCommand(
       if (decision === undefined) {
         return;
       }
-
-      const {
-        baseDecision,
-        approvedByAsk: initialApprovedByAsk,
-        deniedReason: initialDeniedReason,
-      } = execHostShared.createExecApprovalDecisionState({
-        decision,
-        askFallback,
-        obfuscationDetected: obfuscation.detected,
-      });
-      let approvedByAsk = initialApprovedByAsk;
-      let approvalDecision: "allow-once" | "allow-always" | null = null;
-      let deniedReason = initialDeniedReason;
-
-      if (baseDecision.timedOut && askFallback === "full" && approvedByAsk) {
-        approvalDecision = "allow-once";
-      } else if (decision === "allow-once") {
-        approvedByAsk = true;
-        approvalDecision = "allow-once";
-      } else if (decision === "allow-always") {
-        approvedByAsk = true;
-        approvalDecision = "allow-always";
-      }
+      const { approvedByAsk, approvalDecision, deniedReason } =
+        resolveNodeApprovalOutcome(decision);
 
       if (deniedReason) {
         await execHostShared.sendExecApprovalFollowupResult(
@@ -383,28 +471,5 @@ export async function executeNodeHostCommand(
     { timeoutMs: invokeTimeoutMs },
     buildInvokeParams(false, null),
   );
-  const payload =
-    raw && typeof raw === "object" ? (raw as { payload?: unknown }).payload : undefined;
-  const payloadObj =
-    payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {};
-  const stdout = typeof payloadObj.stdout === "string" ? payloadObj.stdout : "";
-  const stderr = typeof payloadObj.stderr === "string" ? payloadObj.stderr : "";
-  const errorText = typeof payloadObj.error === "string" ? payloadObj.error : "";
-  const success = typeof payloadObj.success === "boolean" ? payloadObj.success : false;
-  const exitCode = typeof payloadObj.exitCode === "number" ? payloadObj.exitCode : null;
-  return {
-    content: [
-      {
-        type: "text",
-        text: stdout || stderr || errorText || "",
-      },
-    ],
-    details: {
-      status: success ? "completed" : "failed",
-      exitCode,
-      durationMs: Date.now() - startedAt,
-      aggregated: [stdout, stderr, errorText].filter(Boolean).join("\n"),
-      cwd: params.workdir,
-    } satisfies ExecToolDetails,
-  };
+  return buildNodeExecResult({ raw, startedAt, cwd: params.workdir });
 }

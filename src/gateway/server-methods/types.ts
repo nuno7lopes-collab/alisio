@@ -80,8 +80,12 @@ export type GatewayRequestContext = {
   registerToolEventRecipient: (runId: string, connId: string) => void;
   dedupe: Map<string, DedupeEntry>;
   wizardSessions: Map<string, WizardSession>;
+  channelWizardSessions: Map<string, WizardSession>;
   findRunningWizard: () => string | null;
+  getRunningChannelWizard: () => { sessionId: string; channelId: string } | null;
   purgeWizardSession: (id: string) => void;
+  purgeChannelWizardSession: (id: string) => void;
+  rememberChannelWizardSession: (id: string, meta: { channelId: string }) => void;
   getRuntimeSnapshot: () => ChannelRuntimeSnapshot;
   startChannel: (
     channel: import("../../channels/plugins/types.js").ChannelId,
@@ -98,6 +102,11 @@ export type GatewayRequestContext = {
   ) => void;
   wizardRunner: (
     opts: import("../../commands/onboard-types.js").OnboardOptions,
+    runtime: import("../../runtime.js").RuntimeEnv,
+    prompter: import("../../wizard/prompts.js").WizardPrompter,
+  ) => Promise<void>;
+  channelWizardRunner: (
+    opts: import("../channel-setup-wizard.js").ChannelWizardStartOptions,
     runtime: import("../../runtime.js").RuntimeEnv,
     prompter: import("../../wizard/prompts.js").WizardPrompter,
   ) => Promise<void>;

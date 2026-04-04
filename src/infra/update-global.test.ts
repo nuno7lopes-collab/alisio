@@ -16,6 +16,7 @@ import {
   isExplicitPackageInstallSpec,
   isMainPackageTarget,
   OPENCLAW_MAIN_PACKAGE_SPEC,
+  resolveExpectedInstalledVersionFromSpec,
   resolveGlobalPackageRoot,
   resolveGlobalInstallSpec,
   resolveGlobalRoot,
@@ -70,6 +71,12 @@ describe("update global helpers", () => {
   });
 
   it("maps main and explicit install specs for global installs", () => {
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
+      "alisio@npm:openclaw@latest",
+    );
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe(
+      "alisio@npm:openclaw@beta",
+    );
     expect(resolveGlobalInstallSpec({ packageName: "openclaw", tag: "main" })).toBe(
       OPENCLAW_MAIN_PACKAGE_SPEC,
     );
@@ -101,6 +108,12 @@ describe("update global helpers", () => {
     expect(canResolveRegistryVersionForPackageTarget("2026.3.22")).toBe(true);
     expect(canResolveRegistryVersionForPackageTarget("main")).toBe(false);
     expect(canResolveRegistryVersionForPackageTarget("github:openclaw/openclaw#main")).toBe(false);
+    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@npm:openclaw@2026.3.22")).toBe(
+      "2026.3.22",
+    );
+    expect(
+      resolveExpectedInstalledVersionFromSpec("openclaw", "alisio@npm:openclaw@2026.3.22"),
+    ).toBe("2026.3.22");
   });
 
   it("detects install managers from resolved roots and on-disk presence", async () => {
@@ -134,6 +147,30 @@ describe("update global helpers", () => {
     await fs.rm(path.join(npmRoot, "openclaw"), { recursive: true, force: true });
     await fs.rm(path.join(pnpmRoot, "openclaw"), { recursive: true, force: true });
     await expect(detectGlobalInstallManagerByPresence(runCommand, 1000)).resolves.toBe("bun");
+  });
+
+  it("prefers the public alias package root when present", async () => {
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-global-alias-"));
+    const npmRoot = path.join(base, "npm-root");
+    await fs.mkdir(path.join(npmRoot, "alisio"), { recursive: true });
+    await fs.mkdir(path.join(npmRoot, "openclaw"), { recursive: true });
+
+    const runCommand: CommandRunner = async (argv) => {
+      if (argv[0] === "npm") {
+        return { stdout: `${npmRoot}\n`, stderr: "", code: 0 };
+      }
+      if (argv[0] === "pnpm") {
+        return { stdout: "", stderr: "", code: 1 };
+      }
+      throw new Error(`unexpected command: ${argv.join(" ")}`);
+    };
+
+    await expect(resolveGlobalPackageRoot("npm", runCommand, 1000)).resolves.toBe(
+      path.join(npmRoot, "alisio"),
+    );
+    await expect(resolveGlobalPackageRoot("npm", runCommand, 1000, ["openclaw"])).resolves.toBe(
+      path.join(npmRoot, "openclaw"),
+    );
   });
 
   it("builds install argv and npm fallback argv", () => {

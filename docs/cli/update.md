@@ -1,31 +1,31 @@
 ---
-summary: "CLI reference for `openclaw update` (safe-ish source update + gateway auto-restart)"
+summary: "CLI reference for `alisio update` (safe-ish source update + gateway auto-restart)"
 read_when:
   - You want to update a source checkout safely
   - You need to understand `--update` shorthand behavior
 title: "update"
 ---
 
-# `openclaw update`
+# `alisio update`
 
-Safely update OpenClaw and switch between stable/beta/dev channels.
+Safely update Alisio and switch between stable/beta/dev channels.
 
 If you installed via **npm/pnpm** (global install, no git metadata), updates happen via the package manager flow in [Updating](/install/updating).
 
 ## Usage
 
 ```bash
-openclaw update
-openclaw update status
-openclaw update wizard
-openclaw update --channel beta
-openclaw update --channel dev
-openclaw update --tag beta
-openclaw update --tag main
-openclaw update --dry-run
-openclaw update --no-restart
-openclaw update --json
-openclaw --update
+alisio update
+alisio update status
+alisio update wizard
+alisio update --channel beta
+alisio update --channel dev
+alisio update --tag beta
+alisio update --tag main
+alisio update --dry-run
+alisio update --no-restart
+alisio update --json
+alisio --update
 ```
 
 ## Options
@@ -62,7 +62,7 @@ offers to create one.
 
 ## What it does
 
-When you switch channels explicitly (`--channel ...`), OpenClaw also keeps the
+When you switch channels explicitly (`--channel ...`), Alisio also keeps the
 install method aligned:
 
 - `dev` → ensures a git checkout (default: `~/openclaw`, override with `OPENCLAW_GIT_DIR`),
@@ -88,16 +88,16 @@ High-level:
 5. Rebases onto the selected commit (dev only).
 6. Installs deps (pnpm preferred; npm fallback).
 7. Builds + builds the Control UI.
-8. Runs `openclaw doctor` as the final “safe update” check.
+8. Runs `alisio doctor` as the final “safe update” check.
 9. Syncs plugins to the active channel (dev uses bundled extensions; stable/beta uses npm) and updates npm-installed plugins.
 
 ## `--update` shorthand
 
-`openclaw --update` rewrites to `openclaw update` (useful for shells and launcher scripts).
+`alisio --update` rewrites to `alisio update` (useful for shells and launcher scripts).
 
 ## See also
 
-- `openclaw doctor` (offers to run update first on git checkouts)
+- `alisio doctor` (offers to run update first on git checkouts)
 - [Development channels](/install/development-channels)
 - [Updating](/install/updating)
 - [CLI reference](/cli)

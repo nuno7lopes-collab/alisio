@@ -73,6 +73,22 @@ export type NodeInvokeRequestPayload = {
   idempotencyKey?: string | null;
 };
 
+export type NodeTaskRequestPayload = {
+  taskId: string;
+  nodeId: string;
+  capabilityId: string;
+  inputJSON?: string | null;
+  timeoutMs?: number | null;
+  idempotencyKey?: string | null;
+};
+
+type LocalModelTaskInput = {
+  model?: string;
+  messages?: unknown[];
+  stream?: boolean;
+  [key: string]: unknown;
+};
+
 export type { SkillBinsProvider } from "./invoke-types.js";
 
 function resolveExecSecurity(value?: string): ExecSecurity {
@@ -414,6 +430,254 @@ async function sendInvalidRequestResult(
   await sendErrorResult(client, frame, "INVALID_REQUEST", String(err));
 }
 
+async function sendTaskEvent(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  event: {
+    kind: string;
+    seq?: number;
+    payload?: unknown;
+    payloadJSON?: string | null;
+  },
+) {
+  try {
+    await client.request("node.task.event", {
+      taskId: frame.taskId,
+      nodeId: frame.nodeId,
+      kind: event.kind,
+      seq: event.seq,
+      payloadJSON:
+        typeof event.payloadJSON === "string"
+          ? event.payloadJSON
+          : event.payload !== undefined
+            ? JSON.stringify(event.payload)
+            : null,
+    });
+  } catch {
+    // ignore: task events are best-effort
+  }
+}
+
+async function sendTaskResult(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  result: {
+    ok: boolean;
+    payload?: unknown;
+    payloadJSON?: string | null;
+    error?: { code?: string; message?: string } | null;
+  },
+) {
+  try {
+    await client.request("node.task.result", buildNodeTaskResultParams(frame, result));
+  } catch {
+    // ignore: task results are best-effort
+  }
+}
+
+async function sendJsonTaskResult(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  payload: unknown,
+) {
+  await sendTaskResult(client, frame, {
+    ok: true,
+    payloadJSON: JSON.stringify(payload),
+  });
+}
+
+async function sendTaskErrorResult(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  code: string,
+  message: string,
+) {
+  await sendTaskResult(client, frame, {
+    ok: false,
+    error: { code, message },
+  });
+}
+
+async function sendInvalidTaskRequestResult(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  err: unknown,
+) {
+  await sendTaskErrorResult(client, frame, "INVALID_REQUEST", String(err));
+}
+
+function resolveLocalModelBaseUrl(): string | null {
+  const raw = process.env.OPENCLAW_NODE_MODEL_BASE_URL?.trim();
+  if (!raw) {
+    return null;
+  }
+  return raw.replace(/\/+$/, "");
+}
+
+function resolveLocalModelAuthHeader(): string | null {
+  const apiKey =
+    process.env.OPENCLAW_NODE_MODEL_API_KEY?.trim() || process.env.OPENAI_API_KEY?.trim();
+  if (!apiKey) {
+    return null;
+  }
+  return `Bearer ${apiKey}`;
+}
+
+async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  const baseUrl = resolveLocalModelBaseUrl();
+  if (!baseUrl) {
+    await sendTaskErrorResult(
+      client,
+      frame,
+      "UNAVAILABLE",
+      "local model host not configured on this computer",
+    );
+    return;
+  }
+  let input: LocalModelTaskInput;
+  try {
+    input = decodeParams<LocalModelTaskInput>(frame.inputJSON);
+  } catch (err) {
+    await sendInvalidTaskRequestResult(client, frame, err);
+    return;
+  }
+  if (!Array.isArray(input.messages) || input.messages.length === 0) {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "messages required");
+    return;
+  }
+
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
+  const authHeader = resolveLocalModelAuthHeader();
+  if (authHeader) {
+    headers.authorization = authHeader;
+  }
+
+  const timeoutMs =
+    typeof frame.timeoutMs === "number" && frame.timeoutMs > 0 ? frame.timeoutMs : 120_000;
+  const signal = AbortSignal.timeout(timeoutMs);
+  const requestBody = {
+    ...input,
+    stream: true,
+  };
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+      signal,
+    });
+  } catch (err) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
+    return;
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    await sendTaskErrorResult(
+      client,
+      frame,
+      "UNAVAILABLE",
+      `local model host request failed (${response.status}): ${errorText || response.statusText}`,
+    );
+    return;
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  if (!contentType.includes("text/event-stream")) {
+    try {
+      const payload = (await response.json()) as unknown;
+      await sendTaskEvent(client, frame, { kind: "completed", seq: 1, payload });
+      await sendJsonTaskResult(client, frame, payload);
+    } catch (err) {
+      await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
+    }
+    return;
+  }
+
+  const body = response.body;
+  if (!body) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", "local model host returned no body");
+    return;
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let seq = 0;
+  let text = "";
+  let finalChunk: unknown = null;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+      const normalized = buffer.replace(/\r\n/g, "\n");
+      const events = normalized.split("\n\n");
+      buffer = events.pop() ?? "";
+      for (const rawEvent of events) {
+        const data = rawEvent
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("\n");
+        if (!data) {
+          continue;
+        }
+        if (data === "[DONE]") {
+          continue;
+        }
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(data) as unknown;
+        } catch {
+          parsed = { raw: data };
+        }
+        const deltaText =
+          typeof parsed === "object" &&
+          parsed !== null &&
+          Array.isArray((parsed as { choices?: unknown[] }).choices)
+            ? ((parsed as { choices?: Array<{ delta?: { content?: unknown } }> }).choices ?? [])
+                .map((choice) =>
+                  typeof choice?.delta?.content === "string" ? choice.delta.content : "",
+                )
+                .join("")
+            : "";
+        if (deltaText) {
+          text += deltaText;
+        }
+        finalChunk = parsed;
+        seq += 1;
+        await sendTaskEvent(client, frame, {
+          kind: "delta",
+          seq,
+          payload: parsed,
+        });
+      }
+      if (done) {
+        break;
+      }
+    }
+  } catch (err) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
+    return;
+  }
+
+  const payload = {
+    text,
+    response: finalChunk,
+  };
+  await sendTaskEvent(client, frame, {
+    kind: "completed",
+    seq: seq + 1,
+    payload,
+  });
+  await sendJsonTaskResult(client, frame, payload);
+}
+
 export async function handleInvoke(
   frame: NodeInvokeRequestPayload,
   client: GatewayClient,
@@ -555,6 +819,70 @@ export async function handleInvoke(
   });
 }
 
+export async function handleTask(
+  frame: NodeTaskRequestPayload,
+  client: GatewayClient,
+  skillBins: SkillBinsProvider,
+) {
+  if (frame.capabilityId === "model.chat.openai.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLocalModelTask(client, frame);
+    return;
+  }
+
+  if (frame.capabilityId !== "exec.shell.v1") {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", "capability not supported");
+    return;
+  }
+
+  let params: SystemRunParams;
+  try {
+    params = decodeParams<SystemRunParams>(frame.inputJSON);
+  } catch (err) {
+    await sendInvalidTaskRequestResult(client, frame, err);
+    return;
+  }
+
+  if (!Array.isArray(params.command) || params.command.length === 0) {
+    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "command required");
+    return;
+  }
+
+  await sendTaskEvent(client, frame, { kind: "started", seq: 1 });
+  await handleSystemRunInvoke({
+    client,
+    params,
+    skillBins,
+    execHostEnforced,
+    execHostFallbackAllowed,
+    resolveExecSecurity,
+    resolveExecAsk,
+    isCmdExeInvocation,
+    sanitizeEnv,
+    runCommand,
+    runViaMacAppExecHost,
+    sendNodeEvent,
+    buildExecEventPayload,
+    sendInvokeResult: async (result) => {
+      await sendTaskResult(client, frame, result);
+    },
+    sendExecFinishedEvent: async ({ sessionKey, runId, commandText, result }) => {
+      await sendExecFinishedEvent({ client, sessionKey, runId, commandText, result });
+      await sendTaskEvent(client, frame, {
+        kind: "completed",
+        seq: 2,
+        payload: {
+          runId,
+          sessionKey,
+          commandText,
+          result,
+        },
+      });
+    },
+    preferMacAppExecHost,
+  });
+}
+
 function decodeParams<T>(raw?: string | null): T {
   if (!raw) {
     throw new Error("INVALID_REQUEST: paramsJSON required");
@@ -586,6 +914,35 @@ export function coerceNodeInvokePayload(payload: unknown): NodeInvokeRequestPayl
     nodeId,
     command,
     paramsJSON,
+    timeoutMs,
+    idempotencyKey,
+  };
+}
+
+export function coerceNodeTaskPayload(payload: unknown): NodeTaskRequestPayload | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const obj = payload as Record<string, unknown>;
+  const taskId = typeof obj.taskId === "string" ? obj.taskId.trim() : "";
+  const nodeId = typeof obj.nodeId === "string" ? obj.nodeId.trim() : "";
+  const capabilityId = typeof obj.capabilityId === "string" ? obj.capabilityId.trim() : "";
+  if (!taskId || !nodeId || !capabilityId) {
+    return null;
+  }
+  const inputJSON =
+    typeof obj.inputJSON === "string"
+      ? obj.inputJSON
+      : obj.input !== undefined
+        ? JSON.stringify(obj.input)
+        : null;
+  const timeoutMs = typeof obj.timeoutMs === "number" ? obj.timeoutMs : null;
+  const idempotencyKey = typeof obj.idempotencyKey === "string" ? obj.idempotencyKey : null;
+  return {
+    taskId,
+    nodeId,
+    capabilityId,
+    inputJSON,
     timeoutMs,
     idempotencyKey,
   };
@@ -633,6 +990,46 @@ export function buildNodeInvokeResultParams(
     error?: { code?: string; message?: string };
   } = {
     id: frame.id,
+    nodeId: frame.nodeId,
+    ok: result.ok,
+  };
+  if (result.payload !== undefined) {
+    params.payload = result.payload;
+  }
+  if (typeof result.payloadJSON === "string") {
+    params.payloadJSON = result.payloadJSON;
+  }
+  if (result.error) {
+    params.error = result.error;
+  }
+  return params;
+}
+
+export function buildNodeTaskResultParams(
+  frame: NodeTaskRequestPayload,
+  result: {
+    ok: boolean;
+    payload?: unknown;
+    payloadJSON?: string | null;
+    error?: { code?: string; message?: string } | null;
+  },
+): {
+  taskId: string;
+  nodeId: string;
+  ok: boolean;
+  payload?: unknown;
+  payloadJSON?: string;
+  error?: { code?: string; message?: string };
+} {
+  const params: {
+    taskId: string;
+    nodeId: string;
+    ok: boolean;
+    payload?: unknown;
+    payloadJSON?: string;
+    error?: { code?: string; message?: string };
+  } = {
+    taskId: frame.taskId,
     nodeId: frame.nodeId,
     ok: result.ok,
   };

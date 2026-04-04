@@ -202,11 +202,15 @@ function decodeJwtExpiryMs(token: string): number | null {
 }
 
 function readCodexKeychainCredentials(options?: {
+  allowKeychainPrompt?: boolean;
   platform?: NodeJS.Platform;
   execSync?: ExecSyncFn;
 }): CodexCliCredential | null {
   const platform = options?.platform ?? process.platform;
   if (platform !== "darwin") {
+    return null;
+  }
+  if (options?.allowKeychainPrompt === false) {
     return null;
   }
   const execSyncImpl = options?.execSync ?? execSync;
@@ -488,10 +492,12 @@ export function writeClaudeCliCredentials(
 }
 
 export function readCodexCliCredentials(options?: {
+  allowKeychainPrompt?: boolean;
   platform?: NodeJS.Platform;
   execSync?: ExecSyncFn;
 }): CodexCliCredential | null {
   const keychain = readCodexKeychainCredentials({
+    allowKeychainPrompt: options?.allowKeychainPrompt,
     platform: options?.platform,
     execSync: options?.execSync,
   });
@@ -541,6 +547,7 @@ export function readCodexCliCredentials(options?: {
 }
 
 export function readCodexCliCredentialsCached(options?: {
+  allowKeychainPrompt?: boolean;
   ttlMs?: number;
   platform?: NodeJS.Platform;
   execSync?: ExecSyncFn;
@@ -549,9 +556,10 @@ export function readCodexCliCredentialsCached(options?: {
   return readCachedCliCredential({
     ttlMs: options?.ttlMs ?? 0,
     cache: codexCliCache,
-    cacheKey: `${options?.platform ?? process.platform}|${authPath}`,
+    cacheKey: `${options?.platform ?? process.platform}|${options?.allowKeychainPrompt !== false}|${authPath}`,
     read: () =>
       readCodexCliCredentials({
+        allowKeychainPrompt: options?.allowKeychainPrompt,
         platform: options?.platform,
         execSync: options?.execSync,
       }),

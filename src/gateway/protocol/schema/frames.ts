@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { NodeCapabilityManifestSchema } from "./nodes.js";
 import { GatewayClientIdSchema, GatewayClientModeSchema, NonEmptyString } from "./primitives.js";
 import { SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 
@@ -35,6 +36,7 @@ export const ConnectParamsSchema = Type.Object(
       { additionalProperties: false },
     ),
     caps: Type.Optional(Type.Array(NonEmptyString, { default: [] })),
+    capabilities: Type.Optional(Type.Array(NodeCapabilityManifestSchema)),
     commands: Type.Optional(Type.Array(NonEmptyString)),
     permissions: Type.Optional(Type.Record(NonEmptyString, Type.Boolean())),
     pathEnv: Type.Optional(Type.String()),

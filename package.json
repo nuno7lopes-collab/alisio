@@ -1,7 +1,7 @@
 {
   "name": "openclaw",
   "version": "2026.3.30",
-  "description": "Multi-channel AI gateway with extensible messaging integrations",
+  "description": "Alisio personal AI workspace with a multi-channel gateway and extensible messaging integrations",
   "keywords": [],
   "homepage": "https://github.com/openclaw/openclaw#readme",
   "bugs": {
@@ -14,6 +14,7 @@
     "url": "git+https://github.com/openclaw/openclaw.git"
   },
   "bin": {
+    "alisio": "openclaw.mjs",
     "openclaw": "openclaw.mjs"
   },
   "directories": {
@@ -949,6 +950,9 @@
     "./cli-entry": "./openclaw.mjs"
   },
   "scripts": {
+    "alisio": "node scripts/run-node.mjs",
+    "alisio:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
+    "alisio:supabase:audit": "node --import tsx scripts/alisio-supabase-audit.ts",
     "android:assemble": "cd apps/android && ./gradlew :app:assemblePlayDebug",
     "android:assemble:third-party": "cd apps/android && ./gradlew :app:assembleThirdPartyDebug",
     "android:bundle:release": "bun apps/android/scripts/build-release-aab.ts",

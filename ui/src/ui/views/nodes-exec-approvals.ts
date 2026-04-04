@@ -1,7 +1,24 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
+import {
+  type ExecApprovalsResolvedDefaults,
+  type ExecAsk,
+  type ExecSecurity,
+  DEFAULT_EXEC_ASK_FALLBACK,
+  DEFAULT_EXEC_AUTO_ALLOW_SKILLS,
+  DEFAULT_GATEWAY_EXEC_ASK,
+  DEFAULT_GATEWAY_EXEC_SECURITY,
+  EXEC_APPROVALS_FULL_ACCESS_DEFAULTS,
+  EXEC_APPROVALS_RECOMMENDED_DEFAULTS,
+  normalizeExecApprovalsAsk,
+  normalizeExecApprovalsSecurity,
+  resolveExecApprovalAccessMode,
+  resolveExecApprovalsDefaults,
+} from "../controllers/exec-approvals-policy.ts";
 import type {
   ExecApprovalsAllowlistEntry,
   ExecApprovalsFile,
+  ExecApprovalsSnapshot,
 } from "../controllers/exec-approvals.ts";
 import { clampText, formatRelativeTimestamp } from "../format.ts";
 import {
@@ -9,17 +26,6 @@ import {
   resolveNodeTargets,
   type NodeTargetOption,
 } from "./nodes-shared.ts";
-import type { NodesProps } from "./nodes.ts";
-
-type ExecSecurity = "deny" | "allowlist" | "full";
-type ExecAsk = "off" | "on-miss" | "always";
-
-type ExecApprovalsResolvedDefaults = {
-  security: ExecSecurity;
-  ask: ExecAsk;
-  askFallback: ExecSecurity;
-  autoAllowSkills: boolean;
-};
 
 type ExecApprovalsAgentOption = {
   id: string;
@@ -28,6 +34,25 @@ type ExecApprovalsAgentOption = {
 };
 
 type ExecApprovalsTargetNode = NodeTargetOption;
+
+export type ExecApprovalsViewProps = {
+  nodes: Array<Record<string, unknown>>;
+  configForm: Record<string, unknown> | null;
+  execApprovalsLoading: boolean;
+  execApprovalsSaving: boolean;
+  execApprovalsDirty: boolean;
+  execApprovalsSnapshot: ExecApprovalsSnapshot | null;
+  execApprovalsForm: ExecApprovalsFile | null;
+  execApprovalsSelectedAgent: string | null;
+  execApprovalsTarget: "gateway" | "node";
+  execApprovalsTargetNodeId: string | null;
+  onExecApprovalsTargetChange: (kind: "gateway" | "node", nodeId: string | null) => void;
+  onExecApprovalsSelectAgent: (agentId: string) => void;
+  onExecApprovalsPatch: (path: Array<string | number>, value: unknown) => void;
+  onExecApprovalsRemove: (path: Array<string | number>) => void;
+  onLoadExecApprovals: () => void;
+  onSaveExecApprovals: () => void;
+};
 
 type ExecApprovalsState = {
   ready: boolean;
@@ -53,43 +78,36 @@ type ExecApprovalsState = {
 };
 
 const EXEC_APPROVALS_DEFAULT_SCOPE = "__defaults__";
+export {
+  DEFAULT_GATEWAY_EXEC_SECURITY,
+  DEFAULT_GATEWAY_EXEC_ASK,
+  DEFAULT_EXEC_ASK_FALLBACK,
+  DEFAULT_EXEC_AUTO_ALLOW_SKILLS,
+  EXEC_APPROVALS_RECOMMENDED_DEFAULTS,
+  EXEC_APPROVALS_FULL_ACCESS_DEFAULTS,
+  normalizeExecApprovalsSecurity,
+  normalizeExecApprovalsAsk,
+  resolveExecApprovalsDefaults,
+  resolveExecApprovalAccessMode,
+};
 
-const SECURITY_OPTIONS: Array<{ value: ExecSecurity; label: string }> = [
-  { value: "deny", label: "Deny" },
-  { value: "allowlist", label: "Allowlist" },
-  { value: "full", label: "Full" },
-];
-
-const ASK_OPTIONS: Array<{ value: ExecAsk; label: string }> = [
-  { value: "off", label: "Off" },
-  { value: "on-miss", label: "On miss" },
-  { value: "always", label: "Always" },
-];
-
-function normalizeSecurity(value?: string): ExecSecurity {
-  if (value === "allowlist" || value === "full" || value === "deny") {
-    return value;
-  }
-  return "deny";
+function securityOptions(): Array<{ value: ExecSecurity; label: string }> {
+  return [
+    { value: "deny", label: t("alisio.connections.execApprovals.securityOptions.deny") },
+    {
+      value: "allowlist",
+      label: t("alisio.connections.execApprovals.securityOptions.allowlist"),
+    },
+    { value: "full", label: t("alisio.connections.execApprovals.securityOptions.full") },
+  ];
 }
 
-function normalizeAsk(value?: string): ExecAsk {
-  if (value === "always" || value === "off" || value === "on-miss") {
-    return value;
-  }
-  return "on-miss";
-}
-
-function resolveExecApprovalsDefaults(
-  form: ExecApprovalsFile | null,
-): ExecApprovalsResolvedDefaults {
-  const defaults = form?.defaults ?? {};
-  return {
-    security: normalizeSecurity(defaults.security),
-    ask: normalizeAsk(defaults.ask),
-    askFallback: normalizeSecurity(defaults.askFallback ?? "deny"),
-    autoAllowSkills: Boolean(defaults.autoAllowSkills ?? false),
-  };
+function askOptions(): Array<{ value: ExecAsk; label: string }> {
+  return [
+    { value: "off", label: t("alisio.connections.execApprovals.askOptions.off") },
+    { value: "on-miss", label: t("alisio.connections.execApprovals.askOptions.onMiss") },
+    { value: "always", label: t("alisio.connections.execApprovals.askOptions.always") },
+  ];
 }
 
 function resolveConfigAgents(config: Record<string, unknown> | null): ExecApprovalsAgentOption[] {
@@ -145,7 +163,7 @@ function resolveExecApprovalsScope(
   return EXEC_APPROVALS_DEFAULT_SCOPE;
 }
 
-export function resolveExecApprovalsState(props: NodesProps): ExecApprovalsState {
+export function resolveExecApprovalsState(props: ExecApprovalsViewProps): ExecApprovalsState {
   const form = props.execApprovalsForm ?? props.execApprovalsSnapshot?.file ?? null;
   const ready = Boolean(form);
   const defaults = resolveExecApprovalsDefaults(form);
@@ -192,30 +210,37 @@ export function resolveExecApprovalsState(props: NodesProps): ExecApprovalsState
 export function renderExecApprovals(state: ExecApprovalsState) {
   const ready = state.ready;
   const targetReady = state.target !== "node" || Boolean(state.targetNodeId);
+  const text = {
+    title: t("alisio.connections.execApprovals.title"),
+    subtitle: t("alisio.connections.execApprovals.subtitle"),
+    saving: t("alisio.connections.saving"),
+    save: t("alisio.connections.save"),
+    loadMessage: t("alisio.connections.execApprovals.loadMessage"),
+    loading: t("alisio.connections.loading"),
+    loadApprovals: t("alisio.connections.execApprovals.loadApprovals"),
+  };
   return html`
     <section class="card">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div>
-          <div class="card-title">Exec approvals</div>
-          <div class="card-sub">
-            Allowlist and approval policy for <span class="mono">exec host=gateway/node</span>.
-          </div>
+          <div class="card-title">${text.title}</div>
+          <div class="card-sub">${text.subtitle}</div>
         </div>
         <button
           class="btn"
           ?disabled=${state.disabled || !state.dirty || !targetReady}
           @click=${state.onSave}
         >
-          ${state.saving ? "Saving…" : "Save"}
+          ${state.saving ? text.saving : text.save}
         </button>
       </div>
 
       ${renderExecApprovalsTarget(state)}
       ${!ready
         ? html`<div class="row" style="margin-top: 12px; gap: 12px;">
-            <div class="muted">Load exec approvals to edit allowlists.</div>
+            <div class="muted">${text.loadMessage}</div>
             <button class="btn" ?disabled=${state.loading || !targetReady} @click=${state.onLoad}>
-              ${state.loading ? "Loading…" : "Load approvals"}
+              ${state.loading ? text.loading : text.loadApprovals}
             </button>
           </div>`
         : html`
@@ -231,16 +256,25 @@ export function renderExecApprovals(state: ExecApprovalsState) {
 function renderExecApprovalsTarget(state: ExecApprovalsState) {
   const hasNodes = state.targetNodes.length > 0;
   const nodeValue = state.targetNodeId ?? "";
+  const text = {
+    title: t("alisio.connections.execApprovals.targetTitle"),
+    subtitle: t("alisio.connections.execApprovals.targetSubtitle"),
+    host: t("alisio.connections.execApprovals.host"),
+    gateway: t("alisio.connections.execApprovals.gateway"),
+    node: t("alisio.connections.execApprovals.node"),
+    selectNode: t("alisio.connections.execApprovals.selectNode"),
+    noNodes: t("alisio.connections.execApprovals.noNodes"),
+  };
   return html`
     <div class="list" style="margin-top: 12px;">
       <div class="list-item">
         <div class="list-main">
-          <div class="list-title">Target</div>
-          <div class="list-sub">Gateway edits local approvals; node edits the selected node.</div>
+          <div class="list-title">${text.title}</div>
+          <div class="list-sub">${text.subtitle}</div>
         </div>
         <div class="list-meta">
           <label class="field">
-            <span>Host</span>
+            <span>${text.host}</span>
             <select
               ?disabled=${state.disabled}
               @change=${(event: Event) => {
@@ -254,14 +288,16 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
                 }
               }}
             >
-              <option value="gateway" ?selected=${state.target === "gateway"}>Gateway</option>
-              <option value="node" ?selected=${state.target === "node"}>Node</option>
+              <option value="gateway" ?selected=${state.target === "gateway"}>
+                ${text.gateway}
+              </option>
+              <option value="node" ?selected=${state.target === "node"}>${text.node}</option>
             </select>
           </label>
           ${state.target === "node"
             ? html`
                 <label class="field">
-                  <span>Node</span>
+                  <span>${text.node}</span>
                   <select
                     ?disabled=${state.disabled || !hasNodes}
                     @change=${(event: Event) => {
@@ -270,7 +306,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
                       state.onSelectTarget("node", value ? value : null);
                     }}
                   >
-                    <option value="" ?selected=${nodeValue === ""}>Select node</option>
+                    <option value="" ?selected=${nodeValue === ""}>${text.selectNode}</option>
                     ${state.targetNodes.map(
                       (node) =>
                         html`<option value=${node.id} ?selected=${nodeValue === node.id}>
@@ -284,7 +320,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
         </div>
       </div>
       ${state.target === "node" && !hasNodes
-        ? html` <div class="muted">No nodes advertise exec approvals yet.</div> `
+        ? html` <div class="muted">${text.noNodes}</div> `
         : nothing}
     </div>
   `;
@@ -293,7 +329,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
 function renderExecApprovalsTabs(state: ExecApprovalsState) {
   return html`
     <div class="row" style="margin-top: 12px; gap: 8px; flex-wrap: wrap;">
-      <span class="label">Scope</span>
+      <span class="label">${t("alisio.connections.execApprovals.scope")}</span>
       <div class="row" style="gap: 8px; flex-wrap: wrap;">
         <button
           class="btn btn--sm ${state.selectedScope === EXEC_APPROVALS_DEFAULT_SCOPE
@@ -301,7 +337,7 @@ function renderExecApprovalsTabs(state: ExecApprovalsState) {
             : ""}"
           @click=${() => state.onSelectScope(EXEC_APPROVALS_DEFAULT_SCOPE)}
         >
-          Defaults
+          ${t("alisio.connections.execApprovals.defaults")}
         </button>
         ${state.agents.map((agent) => {
           const label = agent.name?.trim() ? `${agent.name} (${agent.id})` : agent.id;
@@ -334,19 +370,27 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
     typeof agent.autoAllowSkills === "boolean" ? agent.autoAllowSkills : undefined;
   const autoEffective = autoOverride ?? defaults.autoAllowSkills;
   const autoIsDefault = autoOverride == null;
+  const securityChoices = securityOptions();
+  const askChoices = askOptions();
 
   return html`
     <div class="list" style="margin-top: 16px;">
       <div class="list-item">
         <div class="list-main">
-          <div class="list-title">Security</div>
+          <div class="list-title">${t("alisio.connections.execApprovals.security")}</div>
           <div class="list-sub">
-            ${isDefaults ? "Default security mode." : `Default: ${defaults.security}.`}
+            ${isDefaults
+              ? t("alisio.connections.execApprovals.securityDefault")
+              : t("alisio.connections.execApprovals.defaultValue", {
+                  value:
+                    securityChoices.find((option) => option.value === defaults.security)?.label ??
+                    defaults.security,
+                })}
           </div>
         </div>
         <div class="list-meta">
           <label class="field">
-            <span>Mode</span>
+            <span>${t("alisio.connections.execApprovals.mode")}</span>
             <select
               ?disabled=${state.disabled}
               @change=${(event: Event) => {
@@ -361,10 +405,14 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
             >
               ${!isDefaults
                 ? html`<option value="__default__" ?selected=${securityValue === "__default__"}>
-                    Use default (${defaults.security})
+                    ${t("alisio.connections.execApprovals.useDefault", {
+                      value:
+                        securityChoices.find((option) => option.value === defaults.security)
+                          ?.label ?? defaults.security,
+                    })}
                   </option>`
                 : nothing}
-              ${SECURITY_OPTIONS.map(
+              ${securityChoices.map(
                 (option) =>
                   html`<option value=${option.value} ?selected=${securityValue === option.value}>
                     ${option.label}
@@ -377,14 +425,20 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
 
       <div class="list-item">
         <div class="list-main">
-          <div class="list-title">Ask</div>
+          <div class="list-title">${t("alisio.connections.execApprovals.ask")}</div>
           <div class="list-sub">
-            ${isDefaults ? "Default prompt policy." : `Default: ${defaults.ask}.`}
+            ${isDefaults
+              ? t("alisio.connections.execApprovals.askDefault")
+              : t("alisio.connections.execApprovals.defaultValue", {
+                  value:
+                    askChoices.find((option) => option.value === defaults.ask)?.label ??
+                    defaults.ask,
+                })}
           </div>
         </div>
         <div class="list-meta">
           <label class="field">
-            <span>Mode</span>
+            <span>${t("alisio.connections.execApprovals.mode")}</span>
             <select
               ?disabled=${state.disabled}
               @change=${(event: Event) => {
@@ -399,10 +453,14 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
             >
               ${!isDefaults
                 ? html`<option value="__default__" ?selected=${askValue === "__default__"}>
-                    Use default (${defaults.ask})
+                    ${t("alisio.connections.execApprovals.useDefault", {
+                      value:
+                        askChoices.find((option) => option.value === defaults.ask)?.label ??
+                        defaults.ask,
+                    })}
                   </option>`
                 : nothing}
-              ${ASK_OPTIONS.map(
+              ${askChoices.map(
                 (option) =>
                   html`<option value=${option.value} ?selected=${askValue === option.value}>
                     ${option.label}
@@ -415,16 +473,20 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
 
       <div class="list-item">
         <div class="list-main">
-          <div class="list-title">Ask fallback</div>
+          <div class="list-title">${t("alisio.connections.execApprovals.askFallback")}</div>
           <div class="list-sub">
             ${isDefaults
-              ? "Applied when the UI prompt is unavailable."
-              : `Default: ${defaults.askFallback}.`}
+              ? t("alisio.connections.execApprovals.askFallbackDefault")
+              : t("alisio.connections.execApprovals.defaultValue", {
+                  value:
+                    securityChoices.find((option) => option.value === defaults.askFallback)
+                      ?.label ?? defaults.askFallback,
+                })}
           </div>
         </div>
         <div class="list-meta">
           <label class="field">
-            <span>Fallback</span>
+            <span>${t("alisio.connections.execApprovals.fallback")}</span>
             <select
               ?disabled=${state.disabled}
               @change=${(event: Event) => {
@@ -439,10 +501,14 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
             >
               ${!isDefaults
                 ? html`<option value="__default__" ?selected=${askFallbackValue === "__default__"}>
-                    Use default (${defaults.askFallback})
+                    ${t("alisio.connections.execApprovals.useDefault", {
+                      value:
+                        securityChoices.find((option) => option.value === defaults.askFallback)
+                          ?.label ?? defaults.askFallback,
+                    })}
                   </option>`
                 : nothing}
-              ${SECURITY_OPTIONS.map(
+              ${securityChoices.map(
                 (option) =>
                   html`<option value=${option.value} ?selected=${askFallbackValue === option.value}>
                     ${option.label}
@@ -455,18 +521,26 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
 
       <div class="list-item">
         <div class="list-main">
-          <div class="list-title">Auto-allow skill CLIs</div>
+          <div class="list-title">${t("alisio.connections.execApprovals.autoAllowTitle")}</div>
           <div class="list-sub">
             ${isDefaults
-              ? "Allow skill executables listed by the Gateway."
+              ? t("alisio.connections.execApprovals.autoAllowDefault")
               : autoIsDefault
-                ? `Using default (${defaults.autoAllowSkills ? "on" : "off"}).`
-                : `Override (${autoEffective ? "on" : "off"}).`}
+                ? t("alisio.connections.execApprovals.usingDefault", {
+                    value: defaults.autoAllowSkills
+                      ? t("alisio.connections.execApprovals.toggle.on")
+                      : t("alisio.connections.execApprovals.toggle.off"),
+                  })
+                : t("alisio.connections.execApprovals.overrideValue", {
+                    value: autoEffective
+                      ? t("alisio.connections.execApprovals.toggle.on")
+                      : t("alisio.connections.execApprovals.toggle.off"),
+                  })}
           </div>
         </div>
         <div class="list-meta">
           <label class="field">
-            <span>Enabled</span>
+            <span>${t("common.enabled")}</span>
             <input
               type="checkbox"
               ?disabled=${state.disabled}
@@ -483,7 +557,7 @@ function renderExecApprovalsPolicy(state: ExecApprovalsState) {
                 ?disabled=${state.disabled}
                 @click=${() => state.onRemove([...basePath, "autoAllowSkills"])}
               >
-                Use default
+                ${t("alisio.connections.execApprovals.resetToDefault")}
               </button>`
             : nothing}
         </div>
@@ -498,8 +572,8 @@ function renderExecApprovalsAllowlist(state: ExecApprovalsState) {
   return html`
     <div class="row" style="margin-top: 18px; justify-content: space-between;">
       <div>
-        <div class="card-title">Allowlist</div>
-        <div class="card-sub">Case-insensitive glob patterns.</div>
+        <div class="card-title">${t("alisio.connections.execApprovals.allowlistTitle")}</div>
+        <div class="card-sub">${t("alisio.connections.execApprovals.allowlistSubtitle")}</div>
       </div>
       <button
         class="btn btn--sm"
@@ -509,12 +583,14 @@ function renderExecApprovalsAllowlist(state: ExecApprovalsState) {
           state.onPatch(allowlistPath, next);
         }}
       >
-        Add pattern
+        ${t("alisio.connections.execApprovals.addPattern")}
       </button>
     </div>
     <div class="list" style="margin-top: 12px;">
       ${entries.length === 0
-        ? html` <div class="muted">No allowlist entries yet.</div> `
+        ? html`
+            <div class="muted">${t("alisio.connections.execApprovals.noAllowlistEntries")}</div>
+          `
         : entries.map((entry, index) => renderAllowlistEntry(state, entry, index))}
     </div>
   `;
@@ -525,20 +601,28 @@ function renderAllowlistEntry(
   entry: ExecApprovalsAllowlistEntry,
   index: number,
 ) {
-  const lastUsed = entry.lastUsedAt ? formatRelativeTimestamp(entry.lastUsedAt) : "never";
+  const lastUsed = entry.lastUsedAt
+    ? formatRelativeTimestamp(entry.lastUsedAt)
+    : t("alisio.connections.execApprovals.never");
   const lastCommand = entry.lastUsedCommand ? clampText(entry.lastUsedCommand, 120) : null;
   const lastPath = entry.lastResolvedPath ? clampText(entry.lastResolvedPath, 120) : null;
   return html`
     <div class="list-item">
       <div class="list-main">
-        <div class="list-title">${entry.pattern?.trim() ? entry.pattern : "New pattern"}</div>
-        <div class="list-sub">Last used: ${lastUsed}</div>
+        <div class="list-title">
+          ${entry.pattern?.trim()
+            ? entry.pattern
+            : t("alisio.connections.execApprovals.newPattern")}
+        </div>
+        <div class="list-sub">
+          ${t("alisio.connections.execApprovals.lastUsed", { value: lastUsed })}
+        </div>
         ${lastCommand ? html`<div class="list-sub mono">${lastCommand}</div>` : nothing}
         ${lastPath ? html`<div class="list-sub mono">${lastPath}</div>` : nothing}
       </div>
       <div class="list-meta">
         <label class="field">
-          <span>Pattern</span>
+          <span>${t("alisio.connections.execApprovals.pattern")}</span>
           <input
             type="text"
             .value=${entry.pattern ?? ""}
@@ -563,7 +647,7 @@ function renderAllowlistEntry(
             state.onRemove(["agents", state.selectedScope, "allowlist", index]);
           }}
         >
-          Remove
+          ${t("alisio.connections.execApprovals.removePattern")}
         </button>
       </div>
     </div>

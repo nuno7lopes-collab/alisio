@@ -235,12 +235,34 @@ async function tryWriteRestartSentinelPayload(
   }
 }
 
+function buildNoChangeConfigWriteResponse(params: {
+  config: OpenClawConfig;
+  uiHints: ConfigSchemaResponse["uiHints"];
+  changedPaths: string[];
+}) {
+  return {
+    ok: true,
+    path: createConfigIO().configPath,
+    config: redactConfigObject(params.config, params.uiHints),
+    changedPaths: params.changedPaths,
+    changed: false,
+    restart: null,
+    sentinel: null,
+  };
+}
+
 function loadSchemaWithPlugins(): ConfigSchemaResponse {
   // Note: We can't easily cache this, as there are no callback that can invalidate
   // our cache. However, loadConfig() and loadOpenClawPlugins() (called inside
   // loadGatewayRuntimeConfigSchema) already cache their results, and buildConfigSchema()
   // is just a cheap transformation.
   return loadGatewayRuntimeConfigSchema();
+}
+
+function normalizeComparableConfig(config: OpenClawConfig): OpenClawConfig {
+  const migrated = applyLegacyMigrations(config).next ?? config;
+  const validated = validateConfigObjectWithPlugins(migrated);
+  return validated.ok ? validated.config : migrated;
 }
 
 export const configHandlers: GatewayRequestHandlers = {
@@ -388,8 +410,26 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const changedPaths = diffConfigPaths(snapshot.config, validated.config);
+    const changedPaths = diffConfigPaths(
+      normalizeComparableConfig(snapshot.config),
+      validated.config,
+    );
     const actor = resolveControlPlaneActor(client);
+    if (changedPaths.length === 0) {
+      context?.logGateway?.info(
+        `config.patch no-op ${formatControlPlaneActor(actor)} changedPaths=<none>`,
+      );
+      respond(
+        true,
+        buildNoChangeConfigWriteResponse({
+          config: validated.config,
+          uiHints: schemaPatch.uiHints,
+          changedPaths,
+        }),
+        undefined,
+      );
+      return;
+    }
     context?.logGateway?.info(
       `config.patch write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.patch`,
     );
@@ -448,8 +488,23 @@ export const configHandlers: GatewayRequestHandlers = {
     if (!parsed) {
       return;
     }
-    const changedPaths = diffConfigPaths(snapshot.config, parsed.config);
+    const changedPaths = diffConfigPaths(normalizeComparableConfig(snapshot.config), parsed.config);
     const actor = resolveControlPlaneActor(client);
+    if (changedPaths.length === 0) {
+      context?.logGateway?.info(
+        `config.apply no-op ${formatControlPlaneActor(actor)} changedPaths=<none>`,
+      );
+      respond(
+        true,
+        buildNoChangeConfigWriteResponse({
+          config: parsed.config,
+          uiHints: parsed.schema.uiHints,
+          changedPaths,
+        }),
+        undefined,
+      );
+      return;
+    }
     context?.logGateway?.info(
       `config.apply write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.apply`,
     );

@@ -34,6 +34,7 @@ import {
   type ConnectParams,
   type EventFrame,
   type HelloOk,
+  type NodeCapabilityManifest,
   PROTOCOL_VERSION,
   type RequestFrame,
   validateEventFrame,
@@ -97,6 +98,7 @@ export type GatewayClientOptions = {
   role?: string;
   scopes?: string[];
   caps?: string[];
+  capabilities?: NodeCapabilityManifest[];
   commands?: string[];
   permissions?: Record<string, boolean>;
   pathEnv?: string;
@@ -471,6 +473,7 @@ export class GatewayClient {
         instanceId: this.opts.instanceId,
       },
       caps: Array.isArray(this.opts.caps) ? this.opts.caps : [],
+      capabilities: Array.isArray(this.opts.capabilities) ? this.opts.capabilities : undefined,
       commands: Array.isArray(this.opts.commands) ? this.opts.commands : undefined,
       permissions:
         this.opts.permissions && typeof this.opts.permissions === "object"

@@ -21,8 +21,12 @@ describe("TAB_GROUPS", () => {
     const product = navigation.TAB_GROUPS.find((group) => group.label === "product");
     expect(product?.tabs).toEqual([
       "chat",
-      "connections",
+      "models",
+      "channels",
       "authentications",
+      "capabilities",
+      "connections",
+      "security",
       "organization",
       "settings",
     ]);
@@ -42,7 +46,8 @@ describe("TAB_GROUPS", () => {
     expect(navigation.tabFromPath("/cron")).toBe("chat");
     expect(navigation.tabFromPath("/automations")).toBe("chat");
     expect(navigation.tabFromPath("/agents")).toBe("chat");
-    expect(navigation.tabFromPath("/skills")).toBe("chat");
+    expect(navigation.tabFromPath("/skills")).toBe("capabilities");
+    expect(navigation.tabFromPath("/channels")).toBe("channels");
   });
 
   it("routes every published settings slice", () => {
@@ -50,13 +55,13 @@ describe("TAB_GROUPS", () => {
     expect(navigation.tabFromPath("/appearance")).toBe("settings");
     expect(navigation.tabFromPath("/automation")).toBe("settings");
     expect(navigation.tabFromPath("/infrastructure")).toBe("settings");
-    expect(navigation.tabFromPath("/ai-agents")).toBe("settings");
+    expect(navigation.tabFromPath("/ai-agents")).toBe("models");
     expect(navigation.tabFromPath("/config")).toBe("settings");
     expect(navigation.settingsSectionFromPath("/communications")).toBe("support");
-    expect(navigation.settingsSectionFromPath("/appearance")).toBe("appearance");
+    expect(navigation.settingsSectionFromPath("/appearance")).toBe("general");
     expect(navigation.settingsSectionFromPath("/automation")).toBe("account");
     expect(navigation.settingsSectionFromPath("/infrastructure")).toBe("mac");
-    expect(navigation.settingsSectionFromPath("/ai-agents")).toBe("account");
+    expect(navigation.settingsSectionFromPath("/ai-agents")).toBe("ai");
     expect(navigation.settingsSectionFromPath("/config")).toBe("account");
   });
 });

@@ -707,7 +707,7 @@ export async function runMemoryFlushIfNeeded(params: {
           onAgentEvent: (evt) => {
             if (evt.stream === "compaction") {
               const phase = typeof evt.data.phase === "string" ? evt.data.phase : "";
-              if (phase === "end") {
+              if (phase === "end" && evt.data?.willRetry !== true) {
                 memoryCompactionCompleted = true;
               }
             }

@@ -1,11 +1,19 @@
 import { describe, expect, it } from "vitest";
 import "../styles.css";
+import type { OpenClawApp } from "./app.ts";
 import { mountApp as mountTestApp, registerAppMountHooks } from "./test-helpers/app-mount.ts";
 
 registerAppMountHooks();
 
 function mountApp(pathname: string) {
   return mountTestApp(pathname);
+}
+
+function mountDisconnectedApp(pathname: string) {
+  window.history.replaceState({}, "", pathname);
+  const app = document.createElement("alisio-app") as OpenClawApp;
+  document.body.append(app);
+  return app;
 }
 
 function nextFrame() {
@@ -32,6 +40,64 @@ function expectConfirmedGatewayChange(app: ReturnType<typeof mountApp>) {
   expect(app.settings.token).toBe("abc123");
   expect(window.location.search).toBe("");
   expect(window.location.hash).toBe("");
+}
+
+function createBlockingBootstrap(): OpenClawApp["alisioBootstrap"] {
+  return {
+    connectionRequired: false,
+    wizardRequired: false,
+    wizardRunning: false,
+    providerReady: false,
+    accountReady: true,
+    startupState: "needs_ai",
+    organizationState: { mode: "none" },
+    connectorSummary: {
+      total: 0,
+      ready: 0,
+      connected: 0,
+      needsReconnect: 0,
+      inReview: 0,
+      unavailable: 0,
+      available: 0,
+    },
+    nextStep: "runtime",
+    account: {
+      profile: {
+        username: "nuno",
+        displayName: "Nuno",
+        email: "nuno@alisio.local",
+        avatarLabel: "N",
+        joinedAt: "2026-04-01T00:00:00.000Z",
+        plan: "free",
+      },
+      preferences: {
+        language: "pt-PT",
+        theme: "dark",
+      },
+      session: {
+        state: "signed_in",
+        profileCompleted: true,
+      },
+      devices: [],
+    },
+    ai: { provider: "openai", status: "disconnected" },
+    organization: { mode: "none" },
+    connectors: {
+      catalog: [],
+      authorizations: [],
+      summary: {
+        total: 0,
+        ready: 0,
+        connected: 0,
+        needsReconnect: 0,
+        inReview: 0,
+        unavailable: 0,
+        available: 0,
+      },
+    },
+    wizard: { running: false, sessionId: null },
+    models: { total: 0, defaultProvider: "openai", providers: [] },
+  };
 }
 
 describe("control UI routing", () => {
@@ -106,7 +172,7 @@ describe("control UI routing", () => {
     expect(app.querySelector(".sidebar-brand__logo")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).not.toBeNull();
     expect(app.querySelector(".sidebar-context")).toBeNull();
-    expect(app.querySelector(".nav-section__label")).toBeNull();
+    expect(app.querySelector(".nav-section__label")).not.toBeNull();
   });
 
   it("uses a dedicated onboarding shell on /setup", async () => {
@@ -119,6 +185,27 @@ describe("control UI routing", () => {
     expect(app.querySelector(".shell")).toBeNull();
     expect(app.querySelector(".sidebar-shell")).toBeNull();
     expect(app.querySelector(".topnav-shell")).toBeNull();
+  });
+
+  it("does not flash the setup shell while /chat is reconnecting on reload", async () => {
+    const app = mountDisconnectedApp("/chat?session=agent%3Amain%3Amain");
+    await app.updateComplete;
+
+    expect(app.connected).toBe(false);
+    expect(app.tab).toBe("chat");
+    expect(app.querySelector(".setup-frame")).toBeNull();
+    expect(app.querySelector(".shell")).not.toBeNull();
+  });
+
+  it("still forces setup when bootstrap already says onboarding is incomplete", async () => {
+    const app = mountDisconnectedApp("/chat");
+    app.alisioBootstrap = createBlockingBootstrap();
+    app.requestUpdate();
+    await app.updateComplete;
+
+    expect(app.connected).toBe(false);
+    expect(app.querySelector(".setup-frame")).not.toBeNull();
+    expect(app.querySelector(".shell")).toBeNull();
   });
 
   it("does not render a desktop sidebar resizer or inject a custom nav width", async () => {
@@ -143,6 +230,7 @@ describe("control UI routing", () => {
     expect(app.querySelector(".nav-section__label")).toBeNull();
     expect(app.querySelector(".sidebar-brand")).not.toBeNull();
     expect(app.querySelector(".sidebar-brand__copy")).toBeNull();
+    expect(app.querySelector(".sidebar-context")).toBeNull();
   });
 
   it("keeps footer utilities available in collapsed mode", async () => {
@@ -174,8 +262,8 @@ describe("control UI routing", () => {
 
     const itemStyles = getComputedStyle(item);
     const shellStyles = getComputedStyle(shell);
-    expect(itemStyles.width).toBe("40px");
-    expect(itemStyles.minHeight).toBe("40px");
+    expect(itemStyles.width).toBe("42px");
+    expect(itemStyles.minHeight).toBe("42px");
     expect(shellStyles.display).toBe("flex");
   });
 

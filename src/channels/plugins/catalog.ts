@@ -15,6 +15,9 @@ export type ChannelUiMetaEntry = {
   id: string;
   label: string;
   detailLabel: string;
+  blurb?: string;
+  docsPath?: string;
+  docsLabel?: string;
   systemImage?: string;
 };
 
@@ -356,6 +359,9 @@ export function buildChannelUiCatalog(
       id: plugin.id,
       label: plugin.meta.label,
       detailLabel,
+      ...(plugin.meta.blurb ? { blurb: plugin.meta.blurb } : {}),
+      ...(plugin.meta.docsPath ? { docsPath: plugin.meta.docsPath } : {}),
+      ...(plugin.meta.docsLabel ? { docsLabel: plugin.meta.docsLabel } : {}),
       ...(plugin.meta.systemImage ? { systemImage: plugin.meta.systemImage } : {}),
     };
   });

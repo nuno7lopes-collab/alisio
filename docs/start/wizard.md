@@ -9,25 +9,25 @@ sidebarTitle: "Onboarding: CLI"
 
 # Onboarding (CLI)
 
-CLI onboarding is the **recommended** way to set up OpenClaw on macOS,
+CLI onboarding is the **recommended** way to set up Alisio on macOS,
 Linux, or Windows (via WSL2; strongly recommended).
 It configures a local Gateway or a remote Gateway connection, plus channels, skills,
 and workspace defaults in one guided flow.
 
 ```bash
-openclaw onboard
+alisio onboard
 ```
 
 <Info>
 Fastest first chat: open the Control UI (no channel setup needed). Run
-`openclaw dashboard` and chat in the browser. Docs: [Dashboard](/web/dashboard).
+`alisio dashboard` and chat in the browser. Docs: [Dashboard](/web/dashboard).
 </Info>
 
 To reconfigure later:
 
 ```bash
-openclaw configure
-openclaw agents add <name>
+alisio configure
+alisio agents add <name>
 ```
 
 <Note>
@@ -38,7 +38,7 @@ openclaw agents add <name>
 CLI onboarding includes a web search step where you can pick a provider
 (Perplexity, Brave, Gemini, Grok, or Kimi) and paste your API key so the agent
 can use `web_search`. You can also configure this later with
-`openclaw configure --section web`. Docs: [Web tools](/tools/web).
+`alisio configure --section web`. Docs: [Web tools](/tools/web).
 </Tip>
 
 ## QuickStart vs Advanced
@@ -76,6 +76,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
    In interactive token mode, choose default plaintext token storage or opt into SecretRef.
    Non-interactive token SecretRef path: `--gateway-token-ref-env <ENV_VAR>`.
 4. **Channels** — WhatsApp, Telegram, Discord, Google Chat, Mattermost, Signal, BlueBubbles, or iMessage.
+   When a channel supports multiple accounts, onboarding can also ask for the account id and optional display name.
 5. **Daemon** — Installs a LaunchAgent (macOS) or systemd user unit (Linux/WSL2).
    If token auth requires a token and `gateway.auth.token` is SecretRef-managed, daemon install validates it but does not persist the resolved token into supervisor service environment metadata.
    If token auth requires a token and the configured token SecretRef is unresolved, daemon install is blocked with actionable guidance.
@@ -86,7 +87,7 @@ Onboarding starts with **QuickStart** (defaults) vs **Advanced** (full control).
 <Note>
 Re-running onboarding does **not** wipe anything unless you explicitly choose **Reset** (or pass `--reset`).
 CLI `--reset` defaults to config, credentials, and sessions; use `--reset-scope full` to include workspace.
-If the config is invalid or contains legacy keys, onboarding asks you to run `openclaw doctor` first.
+If the config is invalid or contains legacy keys, onboarding asks you to run `alisio doctor` first.
 </Note>
 
 **Remote mode** only configures the local client to connect to a Gateway elsewhere.
@@ -94,7 +95,7 @@ It does **not** install or change anything on the remote host.
 
 ## Add another agent
 
-Use `openclaw agents add <name>` to create a separate agent with its own workspace,
+Use `alisio agents add <name>` to create a separate agent with its own workspace,
 sessions, and auth profiles. Running without `--workspace` launches onboarding.
 
 What it sets:
@@ -119,7 +120,7 @@ For the deeper technical reference, including RPC details, see
 
 ## Related docs
 
-- CLI command reference: [`openclaw onboard`](/cli/onboard)
+- CLI command reference: [`alisio onboard`](/cli/onboard)
 - Onboarding overview: [Onboarding Overview](/start/onboarding-overview)
 - macOS app onboarding: [Onboarding](/start/onboarding)
 - Agent first-run ritual: [Agent Bootstrapping](/start/bootstrapping)

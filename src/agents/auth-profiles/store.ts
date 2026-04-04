@@ -86,6 +86,23 @@ export function replaceRuntimeAuthProfileStoreSnapshots(
   }
 }
 
+export function updateRuntimeAuthProfileStoreSnapshot(params: {
+  agentDir?: string;
+  updater: (store: AuthProfileStore) => void;
+}): AuthProfileStore {
+  const runtimeKey = resolveRuntimeStoreKey(params.agentDir);
+  const baseStore =
+    runtimeAuthStoreSnapshots.get(runtimeKey) ??
+    loadAuthProfileStoreForAgent(params.agentDir, {
+      readOnly: true,
+      allowKeychainPrompt: false,
+    });
+  const nextStore = cloneAuthProfileStore(baseStore);
+  params.updater(nextStore);
+  runtimeAuthStoreSnapshots.set(runtimeKey, nextStore);
+  return cloneAuthProfileStore(nextStore);
+}
+
 export function clearRuntimeAuthProfileStoreSnapshots(): void {
   runtimeAuthStoreSnapshots.clear();
   loadedAuthStoreCache.clear();
@@ -464,7 +481,10 @@ function loadAuthProfileStoreForAgent(
   if (asStore) {
     // Runtime secret activation must remain read-only:
     // sync external CLI credentials in-memory, but never persist while readOnly.
-    const synced = syncExternalCliCredentialsTimed(asStore, { log: !readOnly });
+    const synced = syncExternalCliCredentialsTimed(asStore, {
+      log: !readOnly,
+      allowKeychainPrompt: options?.allowKeychainPrompt,
+    });
     if (synced && !readOnly) {
       saveJsonFile(authPath, asStore);
     }
@@ -500,7 +520,10 @@ function loadAuthProfileStoreForAgent(
 
   const mergedOAuth = mergeOAuthFileIntoStore(store);
   // Keep external CLI credentials visible in runtime even during read-only loads.
-  const syncedCli = syncExternalCliCredentialsTimed(store, { log: !readOnly });
+  const syncedCli = syncExternalCliCredentialsTimed(store, {
+    log: !readOnly,
+    allowKeychainPrompt: options?.allowKeychainPrompt,
+  });
   const forceReadOnly = process.env.OPENCLAW_AUTH_STORE_READONLY === "1";
   const shouldWrite = !readOnly && !forceReadOnly && (legacy !== null || mergedOAuth || syncedCli);
   if (shouldWrite) {

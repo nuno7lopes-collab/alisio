@@ -1,15 +1,15 @@
 ---
-summary: "CLI reference for `openclaw docs` (search the live docs index)"
+summary: "CLI reference for `alisio docs` (search the live docs index)"
 read_when:
-  - You want to search the live OpenClaw docs from the terminal
+  - You want to search the live Alisio docs from the terminal
 title: "docs"
 ---
 
-# `openclaw docs`
+# `alisio docs`
 
 Search the live docs index.
 
 ```bash
-openclaw docs browser existing-session
-openclaw docs sandbox allowHostControl
+alisio docs browser existing-session
+alisio docs sandbox allowHostControl
 ```

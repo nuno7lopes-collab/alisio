@@ -3,6 +3,7 @@ import { visibleWidth } from "../terminal/ansi.js";
 import { isRich, theme } from "../terminal/theme.js";
 import { hasRootVersionAlias } from "./argv.js";
 import { readCliBannerTaglineMode } from "./banner-config-lite.js";
+import { PUBLIC_CLI_NAME, resolveCliName } from "./cli-name.js";
 import { pickTagline, type TaglineMode, type TaglineOptions } from "./tagline.js";
 
 type BannerOptions = TaglineOptions & {
@@ -57,7 +58,8 @@ export function formatCliBannerLine(version: string, options: BannerOptions = {}
   const commitLabel = commit ?? "unknown";
   const tagline = pickTagline({ ...options, mode: resolveTaglineMode(options) });
   const rich = options.richTty ?? isRich();
-  const title = "🦞 OpenClaw";
+  const cliName = resolveCliName(options.argv);
+  const title = cliName === PUBLIC_CLI_NAME ? "🦞 Alisio" : "🦞 OpenClaw";
   const prefix = "🦞 ";
   const columns = options.columns ?? process.stdout.columns ?? 120;
   const plainBaseLine = `${title} ${version} (${commitLabel})`;
@@ -98,7 +100,7 @@ const LOBSTER_ASCII = [
   "██░███░██░▀▀░██░▄▄▄██░█░█░██░█████░████░▀▀░██░█░█░██",
   "██░▀▀▀░██░█████░▀▀▀██░██▄░██░▀▀▄██░▀▀░█░██░██▄▀▄▀▄██",
   "▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀",
-  "                  🦞 OPENCLAW 🦞                    ",
+  "                   🦞 ALISIO 🦞                     ",
   " ",
 ];
 
@@ -122,11 +124,11 @@ export function formatCliBannerArt(options: BannerOptions = {}): string {
   };
 
   const colored = LOBSTER_ASCII.map((line) => {
-    if (line.includes("OPENCLAW")) {
+    if (line.includes("ALISIO")) {
       return (
         theme.muted("              ") +
         theme.accent("🦞") +
-        theme.info(" OPENCLAW ") +
+        theme.info(" ALISIO ") +
         theme.accent("🦞")
       );
     }

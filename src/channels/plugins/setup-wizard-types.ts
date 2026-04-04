@@ -25,6 +25,7 @@ export type SetupChannelsOptions = {
   skipStatusNote?: boolean;
   skipDmPolicyPrompt?: boolean;
   skipConfirm?: boolean;
+  skipSelectionPrompt?: boolean;
   quickstartDefaults?: boolean;
   initialSelection?: ChannelId[];
   secretInputMode?: "plaintext" | "ref";

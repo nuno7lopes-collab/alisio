@@ -16,6 +16,23 @@ export { SUPPORTED_LOCALES, isSupportedLocale };
 const LOCALE_STORAGE_KEY = "alisio.i18n.locale";
 const LEGACY_LOCALE_STORAGE_KEY = "openclaw.i18n.locale";
 
+function readStoredLocaleValue(): string | null {
+  const storage = getSafeLocalStorage();
+  if (!storage) {
+    return null;
+  }
+  try {
+    return storage.getItem(LOCALE_STORAGE_KEY) ?? storage.getItem(LEGACY_LOCALE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function loadPersistedLocale(): Locale | null {
+  const locale = readStoredLocaleValue();
+  return isSupportedLocale(locale) ? locale : null;
+}
+
 class I18nManager {
   private locale: Locale = DEFAULT_LOCALE;
   private translations: Partial<Record<Locale, TranslationMap>> = { [DEFAULT_LOCALE]: en };
@@ -26,15 +43,7 @@ class I18nManager {
   }
 
   private readStoredLocale(): string | null {
-    const storage = getSafeLocalStorage();
-    if (!storage) {
-      return null;
-    }
-    try {
-      return storage.getItem(LOCALE_STORAGE_KEY) ?? storage.getItem(LEGACY_LOCALE_STORAGE_KEY);
-    } catch {
-      return null;
-    }
+    return readStoredLocaleValue();
   }
 
   private persistLocale(locale: Locale) {
@@ -48,6 +57,13 @@ class I18nManager {
     } catch {
       // Ignore storage write failures in private/blocked contexts.
     }
+  }
+
+  private syncDocumentLocale(locale: Locale) {
+    if (typeof document === "undefined") {
+      return;
+    }
+    document.documentElement.lang = locale;
   }
 
   private resolveInitialLocale(): Locale {
@@ -64,6 +80,7 @@ class I18nManager {
     const initialLocale = this.resolveInitialLocale();
     if (initialLocale === DEFAULT_LOCALE) {
       this.locale = DEFAULT_LOCALE;
+      this.syncDocumentLocale(DEFAULT_LOCALE);
       return;
     }
     // Use the normal locale setter so startup locale loading follows the same
@@ -95,6 +112,7 @@ class I18nManager {
     }
 
     this.locale = locale;
+    this.syncDocumentLocale(locale);
     this.persistLocale(locale);
     this.notify();
   }

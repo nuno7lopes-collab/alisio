@@ -24,10 +24,10 @@
     bottom: 0;
     left: 0;
     z-index: 70;
-    width: min(86vw, 320px);
+    width: min(90vw, 360px);
     min-width: 0;
     border-right: none;
-    box-shadow: 0 30px 80px color-mix(in srgb, black 40%, transparent);
+    box-shadow: 0 20px 48px color-mix(in srgb, black 28%, transparent);
     transform: translateX(-100%);
     opacity: 0;
     pointer-events: none;
@@ -76,11 +76,11 @@
     width: 38px;
     height: 38px;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-    border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg-elevated) 52%, transparent);
     color: var(--muted);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+    box-shadow: none;
   }
 
   .sidebar,
@@ -104,7 +104,7 @@
   }
 
   .sidebar--collapsed .sidebar-shell {
-    padding: 14px 10px 12px;
+    padding: 12px 9px 10px;
   }
 
   .sidebar-shell__header {
@@ -132,13 +132,13 @@
 
   .nav-item--panel,
   .sidebar--collapsed .nav-item--panel {
-    min-height: 40px;
-    padding: 0 12px;
+    min-height: 42px;
+    padding: 0 13px;
   }
 
   .shell--nav-collapsed:not(.shell--nav-drawer-open) .nav-item--rail {
-    width: 40px;
-    min-height: 40px;
+    width: 42px;
+    min-height: 42px;
   }
 
   .alisio-sidebar-account__footer {
@@ -156,12 +156,52 @@
     grid-template-columns: 1fr;
   }
 
-  .alisio-settings-shell {
+  .alisio-auth-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .alisio-auth-page__filters {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .alisio-auth-page__filters .alisio-filter,
+  .alisio-auth-page__filters .alisio-filter--search {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .alisio-settings-frame {
+    width: 100%;
     grid-template-columns: 1fr;
+    gap: 18px;
   }
 
   .alisio-settings-sidebar {
     position: static;
+    width: 100%;
+    gap: 14px;
+    padding: 0 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
+  }
+
+  .alisio-settings-main {
+    width: 100%;
+    padding: 0;
+    justify-self: stretch;
+  }
+
+  .alisio-settings-field--inline {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .alisio-settings-setting-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .alisio-auth-hero,
@@ -238,7 +278,7 @@
 
   /* Topbar */
   .topbar {
-    padding: 10px 12px;
+    padding: 8px 10px;
     min-height: auto;
   }
 
@@ -284,11 +324,11 @@
     width: 38px;
     height: 38px;
     padding: 0;
-    border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
-    border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--bg-elevated) 80%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--bg-elevated) 52%, transparent);
     color: var(--muted);
-    box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+    box-shadow: none;
   }
 
   .topbar-status {

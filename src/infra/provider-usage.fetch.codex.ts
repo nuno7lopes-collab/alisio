@@ -2,6 +2,19 @@ import { buildUsageHttpErrorSnapshot, fetchJson } from "./provider-usage.fetch.s
 import { clampPercent, PROVIDER_LABELS } from "./provider-usage.shared.js";
 import type { ProviderUsageSnapshot, UsageWindow } from "./provider-usage.types.js";
 
+export type CodexUsageTelemetryWindow = {
+  durationMinutes: number;
+  usedPercent: number;
+  resetAt?: number;
+};
+
+export type CodexUsageTelemetrySnapshot = {
+  planType?: string;
+  credits?: number;
+  primaryWindow?: CodexUsageTelemetryWindow;
+  secondaryWindow?: CodexUsageTelemetryWindow;
+};
+
 type CodexUsageResponse = {
   rate_limit?: {
     primary_window?: {
@@ -20,6 +33,29 @@ type CodexUsageResponse = {
 };
 
 const WEEKLY_RESET_GAP_SECONDS = 3 * 24 * 60 * 60;
+
+function resolveCreditsBalance(value: number | string | null | undefined): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function normalizeTelemetryWindow(window: {
+  limit_window_seconds?: number;
+  used_percent?: number;
+  reset_at?: number;
+}): CodexUsageTelemetryWindow {
+  return {
+    durationMinutes: Math.max(1, Math.round((window.limit_window_seconds || 0) / 60) || 0),
+    usedPercent: clampPercent(window.used_percent || 0),
+    ...(window.reset_at ? { resetAt: window.reset_at * 1000 } : {}),
+  };
+}
 
 function resolveSecondaryWindowLabel(params: {
   windowHours: number;
@@ -44,12 +80,12 @@ function resolveSecondaryWindowLabel(params: {
   return "Day";
 }
 
-export async function fetchCodexUsage(
+export async function fetchCodexUsageTelemetry(
   token: string,
   accountId: string | undefined,
   timeoutMs: number,
   fetchFn: typeof fetch,
-): Promise<ProviderUsageSnapshot> {
+): Promise<CodexUsageTelemetrySnapshot> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
     "User-Agent": "CodexBar",
@@ -67,54 +103,100 @@ export async function fetchCodexUsage(
   );
 
   if (!res.ok) {
-    return buildUsageHttpErrorSnapshot({
+    const errorSnapshot = buildUsageHttpErrorSnapshot({
       provider: "openai-codex",
       status: res.status,
       tokenExpiredStatuses: [401, 403],
     });
+    throw new Error(errorSnapshot.error || `HTTP ${res.status}`);
   }
 
   const data = (await res.json()) as CodexUsageResponse;
-  const windows: UsageWindow[] = [];
-
-  if (data.rate_limit?.primary_window) {
-    const pw = data.rate_limit.primary_window;
-    const windowHours = Math.round((pw.limit_window_seconds || 10800) / 3600);
-    windows.push({
-      label: `${windowHours}h`,
-      usedPercent: clampPercent(pw.used_percent || 0),
-      resetAt: pw.reset_at ? pw.reset_at * 1000 : undefined,
-    });
-  }
-
-  if (data.rate_limit?.secondary_window) {
-    const sw = data.rate_limit.secondary_window;
-    const windowHours = Math.round((sw.limit_window_seconds || 86400) / 3600);
-    const label = resolveSecondaryWindowLabel({
-      windowHours,
-      primaryResetAt: data.rate_limit?.primary_window?.reset_at,
-      secondaryResetAt: sw.reset_at,
-    });
-    windows.push({
-      label,
-      usedPercent: clampPercent(sw.used_percent || 0),
-      resetAt: sw.reset_at ? sw.reset_at * 1000 : undefined,
-    });
-  }
-
-  let plan = data.plan_type;
-  if (data.credits?.balance !== undefined && data.credits.balance !== null) {
-    const balance =
-      typeof data.credits.balance === "number"
-        ? data.credits.balance
-        : parseFloat(data.credits.balance) || 0;
-    plan = plan ? `${plan} ($${balance.toFixed(2)})` : `$${balance.toFixed(2)}`;
-  }
-
+  const credits = resolveCreditsBalance(data.credits?.balance);
   return {
-    provider: "openai-codex",
-    displayName: PROVIDER_LABELS["openai-codex"],
-    windows,
-    plan,
+    ...(typeof data.plan_type === "string" && data.plan_type.trim()
+      ? { planType: data.plan_type.trim() }
+      : {}),
+    ...(credits !== undefined ? { credits } : {}),
+    ...(data.rate_limit?.primary_window
+      ? { primaryWindow: normalizeTelemetryWindow(data.rate_limit.primary_window) }
+      : {}),
+    ...(data.rate_limit?.secondary_window
+      ? { secondaryWindow: normalizeTelemetryWindow(data.rate_limit.secondary_window) }
+      : {}),
   };
+}
+
+export async function fetchCodexUsage(
+  token: string,
+  accountId: string | undefined,
+  timeoutMs: number,
+  fetchFn: typeof fetch,
+): Promise<ProviderUsageSnapshot> {
+  try {
+    const telemetry = await fetchCodexUsageTelemetry(token, accountId, timeoutMs, fetchFn);
+    const windows: UsageWindow[] = [];
+
+    if (telemetry.primaryWindow) {
+      const windowHours = Math.round(
+        (telemetry.primaryWindow.durationMinutes * 60 || 10800) / 3600,
+      );
+      windows.push({
+        label: `${windowHours}h`,
+        usedPercent: telemetry.primaryWindow.usedPercent,
+        resetAt: telemetry.primaryWindow.resetAt,
+      });
+    }
+
+    if (telemetry.secondaryWindow) {
+      const windowHours = Math.round(
+        (telemetry.secondaryWindow.durationMinutes * 60 || 86400) / 3600,
+      );
+      const label = resolveSecondaryWindowLabel({
+        windowHours,
+        primaryResetAt:
+          typeof telemetry.primaryWindow?.resetAt === "number"
+            ? Math.round(telemetry.primaryWindow.resetAt / 1000)
+            : undefined,
+        secondaryResetAt:
+          typeof telemetry.secondaryWindow.resetAt === "number"
+            ? Math.round(telemetry.secondaryWindow.resetAt / 1000)
+            : undefined,
+      });
+      windows.push({
+        label,
+        usedPercent: telemetry.secondaryWindow.usedPercent,
+        resetAt: telemetry.secondaryWindow.resetAt,
+      });
+    }
+
+    let plan = telemetry.planType;
+    if (typeof telemetry.credits === "number") {
+      plan = plan
+        ? `${plan} ($${telemetry.credits.toFixed(2)})`
+        : `$${telemetry.credits.toFixed(2)}`;
+    }
+
+    return {
+      provider: "openai-codex",
+      displayName: PROVIDER_LABELS["openai-codex"],
+      windows,
+      plan,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === "Token expired") {
+      return buildUsageHttpErrorSnapshot({
+        provider: "openai-codex",
+        status: 401,
+        tokenExpiredStatuses: [401, 403],
+      });
+    }
+    return {
+      provider: "openai-codex",
+      displayName: PROVIDER_LABELS["openai-codex"],
+      windows: [],
+      error: message,
+    };
+  }
 }

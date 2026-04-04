@@ -82,6 +82,7 @@ import {
 import { runSetupWizard } from "../wizard/setup.js";
 import { createAuthRateLimiter, type AuthRateLimiter } from "./auth-rate-limit.js";
 import { startChannelHealthMonitor } from "./channel-health-monitor.js";
+import { runChannelSetupWizard } from "./channel-setup-wizard.js";
 import { startGatewayConfigReloader } from "./config-reload.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import {
@@ -367,6 +368,14 @@ export type GatewayServerOptions = {
    */
   wizardRunner?: (
     opts: import("../commands/onboard-types.js").OnboardOptions,
+    runtime: import("../runtime.js").RuntimeEnv,
+    prompter: import("../wizard/prompts.js").WizardPrompter,
+  ) => Promise<void>;
+  /**
+   * Test-only: override the channel setup wizard runner.
+   */
+  channelWizardRunner?: (
+    opts: import("./channel-setup-wizard.js").ChannelWizardStartOptions,
     runtime: import("../runtime.js").RuntimeEnv,
     prompter: import("../wizard/prompts.js").WizardPrompter,
   ) => Promise<void>;
@@ -687,6 +696,12 @@ export async function startGatewayServer(
 
   const wizardRunner = opts.wizardRunner ?? runSetupWizard;
   const { wizardSessions, findRunningWizard, purgeWizardSession } = createWizardSessionTracker();
+  const {
+    wizardSessions: channelWizardSessions,
+    getRunningWizard: getRunningChannelWizardEntry,
+    rememberWizardMeta: rememberChannelWizardSessionMeta,
+    purgeWizardSession: purgeChannelWizardSession,
+  } = createWizardSessionTracker<{ channelId: string }>();
 
   const deps = createDefaultDeps();
   let canvasHostServer: CanvasHostServer | null = null;
@@ -705,6 +720,19 @@ export async function startGatewayServer(
     channelRuntimeEnvs,
     resolveChannelRuntime: getChannelRuntime,
   });
+  const channelWizardRunner =
+    opts.channelWizardRunner ??
+    ((
+      wizardOpts: import("./channel-setup-wizard.js").ChannelWizardStartOptions,
+      runtime,
+      prompter,
+    ) =>
+      runChannelSetupWizard({
+        opts: wizardOpts,
+        runtime,
+        prompter,
+        startChannel,
+      }));
   const getReadiness = createReadinessChecker({
     channelManager,
     startedAt: serverStartedAt,
@@ -1274,13 +1302,27 @@ export async function startGatewayServer(
       registerToolEventRecipient: toolEventRecipients.add,
       dedupe,
       wizardSessions,
+      channelWizardSessions,
       findRunningWizard,
+      getRunningChannelWizard: () => {
+        const running = getRunningChannelWizardEntry();
+        if (!running?.meta?.channelId) {
+          return null;
+        }
+        return {
+          sessionId: running.sessionId,
+          channelId: running.meta.channelId,
+        };
+      },
       purgeWizardSession,
+      purgeChannelWizardSession,
+      rememberChannelWizardSession: rememberChannelWizardSessionMeta,
       getRuntimeSnapshot,
       startChannel,
       stopChannel,
       markChannelLoggedOut,
       wizardRunner,
+      channelWizardRunner,
       broadcastVoiceWakeChanged,
     };
 

@@ -72,7 +72,7 @@ Container start:
 ./scripts/run-openclaw-podman.sh launch
 ```
 
-The script starts the container as your current uid/gid with `--userns=keep-id` and bind-mounts your OpenClaw state into the container.
+The script starts the container as your current uid/gid with `--userns=keep-id` and bind-mounts your Alisio state into the container.
 
 Onboarding:
 

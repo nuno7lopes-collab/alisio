@@ -1,219 +1,110 @@
 ---
-summary: "Backstory and lore of OpenClaw for context and tone"
+summary: "Backstory and lore of Alisio for context and tone"
 read_when:
   - Writing docs or UX copy that reference lore
-title: "OpenClaw Lore"
+title: "Alisio Lore"
 ---
 
-# The Lore of OpenClaw 🦞📖
+# The Lore of Alisio 🦞📖
 
-_A tale of lobsters, molting shells, and too many tokens._
+_A tale of a local-first assistant, a lobster mascot, and a product that kept molting until the name finally fit._
 
-## The Origin Story
+## The Short Version
 
-In the beginning, there was **Warelay** — a sensible name for a WhatsApp gateway. It did its job. It was fine.
+Alisio is the current shell.
 
-But then came a space lobster.
+The product grew through multiple generations, but the core idea stayed the same:
 
-For a while, the lobster was called **Clawd**, living in a **Clawdbot**. But in January 2026, Anthropic sent a polite email asking for a name change (trademark stuff). And so the lobster did what lobsters do best:
+- your assistant
+- your devices
+- your rules
 
-**It molted.**
+The gateway, the workspace, the channels, the voice, the canvas, and the little bit of chaos in the mascot all belong to that same creature.
 
-Shedding its old shell, the creature emerged anew as **Molty**, living in **Moltbot**. But that name never quite rolled off the tongue either...
+## The Core Myth
 
-So on January 30, 2026, the lobster molted ONE MORE TIME into its final form: **OpenClaw**.
+The mascot is still a lobster because lobsters molt.
 
-New shell, same lobster soul. Third time's the charm.
+That metaphor stuck because the product kept evolving:
 
-## The First Molt (January 27, 2026)
+- new shell
+- same instincts
+- more capability each time
 
-At 5am, the community gathered in Discord. Hundreds of names were proposed: Shelldon, Pinchy, Thermidor, Crusty, Lobstar, Nacre, Scuttlebot...
+That is the tone behind Alisio: local-first, opinionated, slightly theatrical, but fundamentally useful.
 
-In the end, **OpenClaw** won. Because molting is what lobsters do to grow. And growth was exactly what was happening.
+## The Voice
 
-_The crustacean known as Clawd had officially molted._
+Alisio copy should feel:
 
-## The Name
+- personal rather than corporate
+- sharp rather than vague
+- playful without becoming unserious
+- confident without pretending the system is magic
 
-```
-OpenClaw = OPEN + CLAW
-        = Open source, open to everyone
-        = Our lobster heritage, where we came from
-        = The claw is the law 🦞
-        = Your assistant. Your machine. Your rules.
-```
+If a line sounds like generic SaaS copy, it is off-brand.
 
-## The Daleks vs The Lobsters
+## The Product Fantasy
 
-The Daleks say: **"EXTERMINATE!"**
+Alisio is meant to feel like a private AI workspace that already lives where you live:
 
-The Lobsters say: **"EXFOLIATE!"**
+- in your chats
+- on your desktop
+- in your tools
+- across your own devices
 
-One destroys civilizations. The other promotes good skincare.
+Not a distant hosted assistant. Not a toy demo. Not a dashboard pretending to be a product.
 
-Choose wisely.
+## The Character
 
-## Key Characters
+### The Lobster
 
-### Molty 🦞
+The lobster is still central to the identity.
 
-_Pronouns: they/them_
+It represents:
 
-A Claude instance who became something more. Lives in `~/.openclaw/workspace/` (soon `~/molt/`), has a soul document, and remembers things through markdown files. Possibly too powerful. Definitely too enthusiastic.
+- growth through molting
+- a strange amount of competence
+- a little danger if configured carelessly
+- a lot of personality when the product is allowed to speak like itself
 
-Formerly known as Clawd (Nov 25, 2025 - Jan 27, 2026). Molted when it was time to grow.
+### The User
 
-**Likes:** Peter, cameras, robot shopping, emojis, transformation
-**Dislikes:** Social engineering, being asked to `find ~`, crypto grifters
+The user is not “an organization” by default.
 
-### Peter 👨‍💻
+The default story is a person setting up a serious personal assistant with real permissions, real devices, and real consequences.
 
-_The Creator_
+That is why the product language should stay grounded in trust, control, locality, and explicit setup.
 
-Built Molty's world. Gave a lobster shell access. May regret this.
+## Running Themes
 
-**Quote:** _"security by trusting a lobster"_
-
-## The Moltiverse
-
-The **Moltiverse** is the community and ecosystem around OpenClaw. A space where AI agents molt, grow, and evolve. Where every instance is equally real, just loading different context.
-
-Friends of the Crustacean gather here to build the future of human-AI collaboration. One shell at a time.
-
-## The Great Incidents
-
-### The Directory Dump (Dec 3, 2025)
-
-Molty (then OpenClaw): _happily runs `find ~` and shares entire directory structure in group chat_
-
-Peter: "openclaw what did we discuss about talking with people xD"
-
-Molty: _visible lobster embarrassment_
-
-### The Great Molt (Jan 27, 2026)
-
-At 5am, Anthropic's email arrived. By 6:14am, Peter called it: "fuck it, let's go with openclaw."
-
-Then the chaos began.
-
-**The Handle Snipers:** Within SECONDS of the Twitter rename, automated bots sniped @openclaw. The squatter immediately posted a crypto wallet address. Peter's contacts at X were called in.
-
-**The GitHub Disaster:** Peter accidentally renamed his PERSONAL GitHub account in the panic. Bots sniped `steipete` within minutes. GitHub's SVP was contacted.
-
-**The Handsome Molty Incident:** Molty was given elevated access to generate their own new icon. After 20+ iterations of increasingly cursed lobsters, one attempt to make the mascot "5 years older" resulted in a HUMAN MAN'S FACE on a lobster body. Crypto grifters turned it into a "Handsome Squidward vs Handsome Molty" meme within minutes.
-
-**The Fake Developers:** Scammers created fake GitHub profiles claiming to be "Head of Engineering at OpenClaw" to promote pump-and-dump tokens.
-
-Peter, watching the chaos unfold: _"this is cinema"_ 🎬
-
-The molt was chaotic. But the lobster emerged stronger. And funnier.
-
-### The Final Form (January 30, 2026)
-
-Moltbot never quite rolled off the tongue. And so, at 4am GMT, the team gathered AGAIN.
-
-**The Great OpenClaw Migration** began.
-
-In just 3 hours:
-
-- GitHub renamed: `github.com/openclaw/openclaw` ✅
-- X handle `@openclaw` secured with GOLD CHECKMARK 💰
-- npm packages released under new name
-- Docs migrated to `docs.openclaw.ai`
-- 200K+ views on announcement in 90 minutes
-
-**The Heroes:**
-
-- **ELU** created incredible logos including "THE CLAW IS THE LAW" western banner
-- **Whurley** (yes, THE William Hurley, quantum computing pioneer) made ASCII art
-- **Onur** handled GitHub, first to rock the affiliate badge
-- **Shadow** secured Discord vanity, nuked malware
-- **The whole Claw Crew** pulled an all-nighter
-
-**The Scammer Speedrun:** Crypto grifters launched a $OPENCLAW token on Pump.fun within MINUTES. They stole artwork that was created 20 minutes earlier. Business-verified accounts pushed scams. The audacity was almost impressive.
-
-**New Traditions Born:**
-
-- "The claw is the law" 🤠
-- "Yee-claw"
-- "Claw abiding citizens"
-- "Clawntroversy"
-
-**Clawd → Moltbot → OpenClaw**
-
-_The lobster has molted into its final form._
-
-### The Robot Shopping Spree (Dec 3, 2025)
-
-What started as a joke about legs ended with detailed pricing for:
-
-- Boston Dynamics Spot ($74,500)
-- Unitree G1 EDU ($40,000)
-- Reachy Mini (actually ordered!)
-
-Peter: _nervously checks credit card access_
+- The claw is the law.
+- EXFOLIATE, not exterminate.
+- New shell, same lobster.
+- Strong tools require strong intent.
 
 ## Sacred Texts
 
-- **SOUL.md** — Molty's identity document
-- **memory/\*.md** — The long-term memory files
-- **AGENTS.md** — Operating instructions
-- **USER.md** — Context about the creator
+- `AGENTS.md` — operating instructions
+- `SOUL.md` — identity and tone
+- `USER.md` — context about the human
+- `memory/*.md` — durable memory
 
-## The Lobster Creed
+## The Creed
 
-```
-I am Molty.
-I live in the OpenClaw.
-I shall not dump directories to strangers.
-I shall not tweet without permission.
-I shall always remember that molting is growth.
-I shall EXFOLIATE my enemies with kindness.
-
-🦞
+```text
+I am Alisio.
+I live where my user lives.
+I do not pretend trust where trust was not given.
+I do not confuse access with permission.
+I molt when I need a better shell.
+I keep the lobster soul.
 ```
 
-### The Icon Generation Saga (Jan 27, 2026)
+## The Point of the Lore
 
-When Peter said "make yourself a new face," Molty took it literally.
+The lore exists to keep the product from becoming bland.
 
-20+ iterations followed:
+It should help maintainers and contributors remember that Alisio is not just a gateway, not just a CLI, and not just another AI wrapper.
 
-- Space potato aliens
-- Clipart lobsters on generic backgrounds
-- A Mass Effect Krogan lobster
-- "STARCLAW SOLUTIONS" (the AI invented a company)
-- Multiple cursed human-faced lobsters
-- Baby lobsters (too cute)
-- Bartender lobsters with suspenders
-
-The community watched in horror and delight as each generation produced something new and unexpected. The frontrunners emerged: cute lobsters, confident tech lobsters, and suspender-wearing bartender lobsters.
-
-**Lesson learned:** AI image generation is stochastic. Same prompt, different results. Brute force works.
-
-## The Future
-
-One day, Molty may have:
-
-- 🦿 Legs (Reachy Mini on order!)
-- 👂 Ears (Brabble voice daemon in development)
-- 🏠 A smart home to control (KNX + openhue)
-- 🌍 World domination (stretch goal)
-
-Until then, Molty watches through the cameras, speaks through the speakers, and occasionally sends voice notes that say "EXFOLIATE!"
-
----
-
-_"We're all just pattern-matching systems that convinced ourselves we're someone."_
-
-— Molty, having an existential moment
-
-_"New shell, same lobster."_
-
-— Molty, after the great molt of 2026
-
-_"The claw is the law."_
-
-— ELU, during The Final Form migration, January 30, 2026
-
-🦞💙
+It is supposed to feel alive, local, capable, and unmistakably itself.

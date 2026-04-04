@@ -41,8 +41,11 @@ import {
   validateNodePairRequestParams,
   validateNodePairVerifyParams,
   validateNodeRenameParams,
+  validateNodeTaskEventParams,
+  validateNodeTaskStartParams,
 } from "../protocol/index.js";
 import { handleNodeInvokeResult } from "./nodes.handlers.invoke-result.js";
+import { handleNodeTaskResult } from "./nodes.handlers.task-result.js";
 import {
   respondInvalidParams,
   respondUnavailableOnNodeInvokeError,
@@ -478,6 +481,63 @@ export async function waitForNodeReconnect(params: {
     await delayMs(pollMs);
   }
   return Boolean(params.context.nodeRegistry.get(params.nodeId));
+}
+
+function findNodeCapability(
+  nodeSession:
+    | {
+        capabilities?: Array<{
+          id?: string;
+          requiresCommands?: string[];
+        }>;
+      }
+    | undefined,
+  capabilityId: string,
+) {
+  const trimmedCapabilityId = capabilityId.trim();
+  if (!trimmedCapabilityId) {
+    return null;
+  }
+  return (
+    nodeSession?.capabilities?.find(
+      (capability) => capability.id?.trim() === trimmedCapabilityId,
+    ) ?? null
+  );
+}
+
+function prepareNodeTaskInput(params: {
+  nodeId: string;
+  capabilityId: string;
+  rawInput: unknown;
+  client: Parameters<typeof sanitizeNodeInvokeParamsForForwarding>[0]["client"];
+  execApprovalManager: Parameters<
+    typeof sanitizeNodeInvokeParamsForForwarding
+  >[0]["execApprovalManager"];
+}) {
+  if (params.capabilityId === "exec.shell.v1") {
+    const forwarded = sanitizeNodeInvokeParamsForForwarding({
+      nodeId: params.nodeId,
+      command: "system.run",
+      rawParams: params.rawInput,
+      client: params.client,
+      execApprovalManager: params.execApprovalManager,
+    });
+    if (!forwarded.ok) {
+      return {
+        ok: false as const,
+        message: forwarded.message,
+        details: forwarded.details ?? null,
+      };
+    }
+    return {
+      ok: true as const,
+      input: forwarded.params,
+    };
+  }
+  return {
+    ok: true as const,
+    input: params.rawInput,
+  };
 }
 
 export const nodeHandlers: GatewayRequestHandlers = {
@@ -1030,6 +1090,238 @@ export const nodeHandlers: GatewayRequestHandlers = {
     });
   },
   "node.invoke.result": handleNodeInvokeResult,
+  "node.task.start": async ({ params, respond, context, client, req }) => {
+    if (!validateNodeTaskStartParams(params)) {
+      respondInvalidParams({
+        respond,
+        method: "node.task.start",
+        validator: validateNodeTaskStartParams,
+      });
+      return;
+    }
+    const p = params as {
+      nodeId: string;
+      capabilityId: string;
+      input?: unknown;
+      timeoutMs?: number;
+      idempotencyKey: string;
+    };
+    const nodeId = String(p.nodeId ?? "").trim();
+    const capabilityId = String(p.capabilityId ?? "").trim();
+    if (!nodeId || !capabilityId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "nodeId and capabilityId required"),
+      );
+      return;
+    }
+
+    await respondUnavailableOnThrow(respond, async () => {
+      let nodeSession = context.nodeRegistry.get(nodeId);
+      if (!nodeSession) {
+        const wake = await maybeWakeNodeWithApns(nodeId, { wakeReason: "node.task" });
+        if (wake.available) {
+          await waitForNodeReconnect({
+            nodeId,
+            context,
+            timeoutMs: NODE_WAKE_RECONNECT_WAIT_MS,
+          });
+        }
+        nodeSession = context.nodeRegistry.get(nodeId);
+        if (!nodeSession) {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.UNAVAILABLE, "node not connected", {
+              details: { code: "NOT_CONNECTED" },
+            }),
+          );
+          return;
+        }
+      }
+
+      const capability = findNodeCapability(nodeSession, capabilityId);
+      if (!capability) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `node capability not allowed: "${capabilityId}" is not declared by this node`,
+          ),
+        );
+        return;
+      }
+
+      const prepared = prepareNodeTaskInput({
+        nodeId,
+        capabilityId,
+        rawInput: p.input,
+        client,
+        execApprovalManager: context.execApprovalManager,
+      });
+      if (!prepared.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, prepared.message, {
+            details: prepared.details,
+          }),
+        );
+        return;
+      }
+
+      const started = context.nodeRegistry.startTask({
+        nodeId,
+        capabilityId,
+        input: prepared.input,
+        timeoutMs: p.timeoutMs,
+        idempotencyKey: p.idempotencyKey,
+        onEvent: (event) => {
+          const payload = event.payloadJSON ? safeParseJson(event.payloadJSON) : event.payload;
+          context.broadcast(
+            "node.task.updated",
+            {
+              phase: "event",
+              nodeId,
+              capabilityId,
+              taskId: event.taskId,
+              kind: event.kind,
+              seq: event.seq ?? null,
+              payload,
+              payloadJSON: event.payloadJSON ?? null,
+            },
+            { dropIfSlow: true },
+          );
+        },
+      });
+      if (!started.ok) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.UNAVAILABLE, started.error.message, {
+            details: { code: started.error.code },
+          }),
+        );
+        return;
+      }
+
+      const accepted = {
+        status: "accepted" as const,
+        taskId: started.taskId,
+        nodeId,
+        capabilityId,
+        acceptedAt: Date.now(),
+      };
+      respond(true, accepted, undefined, { taskId: started.taskId, requestId: req.id });
+
+      void started.result
+        .then((result) => {
+          const payload = result.payloadJSON ? safeParseJson(result.payloadJSON) : result.payload;
+          context.broadcast(
+            "node.task.updated",
+            {
+              phase: "result",
+              nodeId,
+              capabilityId,
+              taskId: started.taskId,
+              ok: result.ok,
+              payload,
+              payloadJSON: result.payloadJSON ?? null,
+              error: result.error ?? null,
+            },
+            { dropIfSlow: true },
+          );
+          if (result.ok) {
+            respond(
+              true,
+              {
+                status: "ok" as const,
+                taskId: started.taskId,
+                nodeId,
+                capabilityId,
+                payload,
+                payloadJSON: result.payloadJSON ?? null,
+              },
+              undefined,
+              { taskId: started.taskId, requestId: req.id },
+            );
+            return;
+          }
+          respond(
+            false,
+            undefined,
+            errorShape(
+              ErrorCodes.UNAVAILABLE,
+              result.error?.message?.trim() || "node task failed",
+              {
+                details: {
+                  taskId: started.taskId,
+                  nodeId,
+                  capabilityId,
+                  nodeError: result.error ?? null,
+                  payloadJSON: result.payloadJSON ?? null,
+                },
+              },
+            ),
+            { taskId: started.taskId, requestId: req.id },
+          );
+        })
+        .catch((err) => {
+          respond(
+            false,
+            undefined,
+            errorShape(ErrorCodes.UNAVAILABLE, String(err), {
+              details: {
+                taskId: started.taskId,
+                nodeId,
+                capabilityId,
+              },
+            }),
+            { taskId: started.taskId, requestId: req.id },
+          );
+        });
+    });
+  },
+  "node.task.result": handleNodeTaskResult,
+  "node.task.event": async ({ params, respond, context, client }) => {
+    if (!validateNodeTaskEventParams(params)) {
+      respondInvalidParams({
+        respond,
+        method: "node.task.event",
+        validator: validateNodeTaskEventParams,
+      });
+      return;
+    }
+    const p = params as {
+      taskId: string;
+      nodeId: string;
+      kind: string;
+      seq?: number;
+      payload?: unknown;
+      payloadJSON?: string | null;
+    };
+    const callerNodeId = client?.connect?.device?.id ?? client?.connect?.client?.id;
+    if (callerNodeId && callerNodeId !== p.nodeId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "nodeId mismatch"));
+      return;
+    }
+    const ok = context.nodeRegistry.handleTaskEvent({
+      taskId: p.taskId,
+      nodeId: p.nodeId,
+      kind: p.kind,
+      seq: p.seq ?? null,
+      payload: p.payload,
+      payloadJSON: p.payloadJSON ?? null,
+    });
+    if (!ok) {
+      context.logGateway.debug(`late task event ignored: id=${p.taskId} node=${p.nodeId}`);
+      respond(true, { ok: true, ignored: true }, undefined);
+      return;
+    }
+    respond(true, { ok: true }, undefined);
+  },
   "node.event": async ({ params, respond, context, client }) => {
     if (!validateNodeEventParams(params)) {
       respondInvalidParams({

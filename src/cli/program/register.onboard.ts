@@ -125,6 +125,7 @@ export function registerOnboardCommand(program: Command) {
     .option("--gateway-password <password>", "Gateway password (password auth)")
     .option("--remote-url <url>", "Remote Gateway WebSocket URL")
     .option("--remote-token <token>", "Remote Gateway token (optional)")
+    .option("--remote-password <password>", "Remote Gateway password (optional)")
     .option("--tailscale <mode>", "Tailscale: off|serve|funnel")
     .option("--tailscale-reset-on-exit", "Reset tailscale serve/funnel on exit")
     .option("--install-daemon", "Install gateway service")
@@ -181,6 +182,7 @@ export function registerOnboardCommand(program: Command) {
           gatewayPassword: opts.gatewayPassword as string | undefined,
           remoteUrl: opts.remoteUrl as string | undefined,
           remoteToken: opts.remoteToken as string | undefined,
+          remotePassword: opts.remotePassword as string | undefined,
           tailscale: opts.tailscale as TailscaleMode | undefined,
           tailscaleResetOnExit: Boolean(opts.tailscaleResetOnExit),
           reset: Boolean(opts.reset),

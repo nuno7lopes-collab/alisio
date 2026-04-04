@@ -1,19 +1,61 @@
 import { formatDurationHuman } from "../../../src/infra/format-time/format-duration.ts";
-import { formatRelativeTimestamp } from "../../../src/infra/format-time/format-relative.ts";
 import { stripAssistantInternalScaffolding } from "../../../src/shared/text/assistant-visible-text.js";
+import { i18n, t } from "../i18n/index.ts";
 
-export { formatRelativeTimestamp, formatDurationHuman };
+export { formatDurationHuman };
+
+export function formatRelativeTimestamp(
+  timestampMs: number | null | undefined,
+  options?: { dateFallback?: boolean; timezone?: string; fallback?: string },
+): string {
+  const fallback = options?.fallback ?? t("common.na");
+  if (timestampMs == null || !Number.isFinite(timestampMs)) {
+    return fallback;
+  }
+
+  const locale = i18n.getLocale();
+  const diffMs = timestampMs - Date.now();
+  const absMs = Math.abs(diffMs);
+
+  if (options?.dateFallback && absMs > 7 * 24 * 60 * 60 * 1000) {
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        month: "short",
+        day: "numeric",
+        ...(options.timezone ? { timeZone: options.timezone } : {}),
+      }).format(new Date(timestampMs));
+    } catch {
+      return fallback;
+    }
+  }
+
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+
+  if (absMs < minute) {
+    return formatter.format(0, "minute");
+  }
+  if (absMs < hour) {
+    return formatter.format(Math.round(diffMs / minute), "minute");
+  }
+  if (absMs < 48 * hour) {
+    return formatter.format(Math.round(diffMs / hour), "hour");
+  }
+  return formatter.format(Math.round(diffMs / day), "day");
+}
 
 export function formatMs(ms?: number | null): string {
   if (!ms && ms !== 0) {
-    return "n/a";
+    return t("common.na");
   }
-  return new Date(ms).toLocaleString();
+  return new Date(ms).toLocaleString(i18n.getLocale());
 }
 
 export function formatList(values?: Array<string | null | undefined>): string {
   if (!values || values.length === 0) {
-    return "none";
+    return t("common.none");
   }
   return values.filter((v): v is string => Boolean(v && v.trim())).join(", ");
 }

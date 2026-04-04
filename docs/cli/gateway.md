@@ -1,5 +1,5 @@
 ---
-summary: "OpenClaw Gateway CLI (`openclaw gateway`) — run, query, and discover gateways"
+summary: "Alisio Gateway CLI (`alisio gateway`) — run, query, and discover gateways"
 read_when:
   - Running the Gateway from the CLI (dev or servers)
   - Debugging Gateway auth, bind modes, and connectivity
@@ -9,9 +9,9 @@ title: "gateway"
 
 # Gateway CLI
 
-The Gateway is OpenClaw’s WebSocket server (channels, nodes, sessions, hooks).
+The Gateway is Alisio’s WebSocket server (channels, nodes, sessions, hooks).
 
-Subcommands in this page live under `openclaw gateway …`.
+Subcommands in this page live under `alisio gateway …`.
 
 Related docs:
 
@@ -24,13 +24,13 @@ Related docs:
 Run a local Gateway process:
 
 ```bash
-openclaw gateway
+alisio gateway
 ```
 
 Foreground alias:
 
 ```bash
-openclaw gateway run
+alisio gateway run
 ```
 
 Notes:
@@ -86,7 +86,7 @@ Pass `--token` or `--password` explicitly. Missing explicit credentials is an er
 ### `gateway health`
 
 ```bash
-openclaw gateway health --url ws://127.0.0.1:18789
+alisio gateway health --url ws://127.0.0.1:18789
 ```
 
 ### `gateway status`
@@ -94,9 +94,9 @@ openclaw gateway health --url ws://127.0.0.1:18789
 `gateway status` shows the Gateway service (launchd/systemd/schtasks) plus an optional RPC probe.
 
 ```bash
-openclaw gateway status
-openclaw gateway status --json
-openclaw gateway status --require-rpc
+alisio gateway status
+alisio gateway status --json
+alisio gateway status --require-rpc
 ```
 
 Options:

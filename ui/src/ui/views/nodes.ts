@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type {
   DevicePairingList,
   DeviceTokenSummary,
@@ -46,24 +47,33 @@ export type NodesProps = {
   onSaveExecApprovals: () => void;
 };
 
-export function renderNodes(props: NodesProps) {
+export function renderNodes(props: NodesProps, opts?: { includeExecApprovals?: boolean }) {
   const bindingState = resolveBindingsState(props);
   const approvalsState = resolveExecApprovalsState(props);
+  const includeExecApprovals = opts?.includeExecApprovals ?? true;
+  const text = {
+    nodesTitle: t("alisio.connections.nodes.title"),
+    nodesSubtitle: t("alisio.connections.nodes.subtitle"),
+    loading: t("alisio.connections.loading"),
+    refresh: t("common.refresh"),
+    noNodes: t("alisio.connections.nodes.empty"),
+  };
   return html`
-    ${renderExecApprovals(approvalsState)} ${renderBindings(bindingState)} ${renderDevices(props)}
+    ${includeExecApprovals ? renderExecApprovals(approvalsState) : nothing}
+    ${renderBindings(bindingState)} ${renderDevices(props)}
     <section class="card">
       <div class="row" style="justify-content: space-between;">
         <div>
-          <div class="card-title">Nodes</div>
-          <div class="card-sub">Paired devices and live links.</div>
+          <div class="card-title">${text.nodesTitle}</div>
+          <div class="card-sub">${text.nodesSubtitle}</div>
         </div>
         <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? "Loading…" : "Refresh"}
+          ${props.loading ? text.loading : text.refresh}
         </button>
       </div>
       <div class="list" style="margin-top: 16px;">
         ${props.nodes.length === 0
-          ? html` <div class="muted">No nodes found.</div> `
+          ? html` <div class="muted">${text.noNodes}</div> `
           : props.nodes.map((n) => renderNode(n))}
       </div>
     </section>
@@ -74,15 +84,24 @@ function renderDevices(props: NodesProps) {
   const list = props.devicesList ?? { pending: [], paired: [] };
   const pending = Array.isArray(list.pending) ? list.pending : [];
   const paired = Array.isArray(list.paired) ? list.paired : [];
+  const text = {
+    title: t("alisio.connections.devices.title"),
+    subtitle: t("alisio.connections.devices.subtitle"),
+    loading: t("alisio.connections.loading"),
+    refresh: t("common.refresh"),
+    pending: t("alisio.connections.devices.pending"),
+    paired: t("alisio.connections.devices.paired"),
+    empty: t("alisio.connections.devices.empty"),
+  };
   return html`
     <section class="card">
       <div class="row" style="justify-content: space-between;">
         <div>
-          <div class="card-title">Devices</div>
-          <div class="card-sub">Pairing requests + role tokens.</div>
+          <div class="card-title">${text.title}</div>
+          <div class="card-sub">${text.subtitle}</div>
         </div>
         <button class="btn" ?disabled=${props.devicesLoading} @click=${props.onDevicesRefresh}>
-          ${props.devicesLoading ? "Loading…" : "Refresh"}
+          ${props.devicesLoading ? text.loading : text.refresh}
         </button>
       </div>
       ${props.devicesError
@@ -91,18 +110,18 @@ function renderDevices(props: NodesProps) {
       <div class="list" style="margin-top: 16px;">
         ${pending.length > 0
           ? html`
-              <div class="muted" style="margin-bottom: 8px;">Pending</div>
+              <div class="muted" style="margin-bottom: 8px;">${text.pending}</div>
               ${pending.map((req) => renderPendingDevice(req, props))}
             `
           : nothing}
         ${paired.length > 0
           ? html`
-              <div class="muted" style="margin-top: 12px; margin-bottom: 8px;">Paired</div>
+              <div class="muted" style="margin-top: 12px; margin-bottom: 8px;">${text.paired}</div>
               ${paired.map((device) => renderPairedDevice(device, props))}
             `
           : nothing}
         ${pending.length === 0 && paired.length === 0
-          ? html` <div class="muted">No paired devices.</div> `
+          ? html` <div class="muted">${text.empty}</div> `
           : nothing}
       </div>
     </section>
@@ -111,10 +130,10 @@ function renderDevices(props: NodesProps) {
 
 function renderPendingDevice(req: PendingDevice, props: NodesProps) {
   const name = req.displayName?.trim() || req.deviceId;
-  const age = typeof req.ts === "number" ? formatRelativeTimestamp(req.ts) : "n/a";
+  const age = typeof req.ts === "number" ? formatRelativeTimestamp(req.ts) : t("common.na");
   const roleValue = req.role?.trim() || formatList(req.roles);
   const scopesValue = formatList(req.scopes);
-  const repair = req.isRepair ? " · repair" : "";
+  const repair = req.isRepair ? ` · ${t("alisio.connections.devices.repair")}` : "";
   const ip = req.remoteIp ? ` · ${req.remoteIp}` : "";
   return html`
     <div class="list-item">
@@ -122,16 +141,20 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
         <div class="list-title">${name}</div>
         <div class="list-sub">${req.deviceId}${ip}</div>
         <div class="muted" style="margin-top: 6px;">
-          role: ${roleValue} · scopes: ${scopesValue} · requested ${age}${repair}
+          ${t("alisio.connections.devices.requestMeta", {
+            role: roleValue,
+            scopes: scopesValue,
+            age,
+          })}${repair}
         </div>
       </div>
       <div class="list-meta">
         <div class="row" style="justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
           <button class="btn btn--sm primary" @click=${() => props.onDeviceApprove(req.requestId)}>
-            Approve
+            ${t("alisio.connections.devices.approve")}
           </button>
           <button class="btn btn--sm" @click=${() => props.onDeviceReject(req.requestId)}>
-            Reject
+            ${t("alisio.connections.devices.reject")}
           </button>
         </div>
       </div>
@@ -142,8 +165,8 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
 function renderPairedDevice(device: PairedDevice, props: NodesProps) {
   const name = device.displayName?.trim() || device.deviceId;
   const ip = device.remoteIp ? ` · ${device.remoteIp}` : "";
-  const roles = `roles: ${formatList(device.roles)}`;
-  const scopes = `scopes: ${formatList(device.scopes)}`;
+  const roles = t("alisio.connections.devices.roles", { values: formatList(device.roles) });
+  const scopes = t("alisio.connections.devices.scopes", { values: formatList(device.scopes) });
   const tokens = Array.isArray(device.tokens) ? device.tokens : [];
   return html`
     <div class="list-item">
@@ -152,9 +175,15 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
         <div class="list-sub">${device.deviceId}${ip}</div>
         <div class="muted" style="margin-top: 6px;">${roles} · ${scopes}</div>
         ${tokens.length === 0
-          ? html` <div class="muted" style="margin-top: 6px">Tokens: none</div> `
+          ? html`
+              <div class="muted" style="margin-top: 6px">
+                ${t("alisio.connections.devices.tokensNone")}
+              </div>
+            `
           : html`
-              <div class="muted" style="margin-top: 10px;">Tokens</div>
+              <div class="muted" style="margin-top: 10px;">
+                ${t("alisio.connections.devices.tokens")}
+              </div>
               <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
                 ${tokens.map((token) => renderTokenRow(device.deviceId, token, props))}
               </div>
@@ -165,8 +194,10 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
 }
 
 function renderTokenRow(deviceId: string, token: DeviceTokenSummary, props: NodesProps) {
-  const status = token.revokedAtMs ? "revoked" : "active";
-  const scopes = `scopes: ${formatList(token.scopes)}`;
+  const status = token.revokedAtMs
+    ? t("alisio.connections.devices.tokenStatus.revoked")
+    : t("alisio.connections.devices.tokenStatus.active");
+  const scopes = t("alisio.connections.devices.scopes", { values: formatList(token.scopes) });
   const when = formatRelativeTimestamp(
     token.rotatedAtMs ?? token.createdAtMs ?? token.lastUsedAtMs ?? null,
   );
@@ -178,7 +209,7 @@ function renderTokenRow(deviceId: string, token: DeviceTokenSummary, props: Node
           class="btn btn--sm"
           @click=${() => props.onDeviceRotate(deviceId, token.role, token.scopes)}
         >
-          Rotate
+          ${t("alisio.connections.devices.rotate")}
         </button>
         ${token.revokedAtMs
           ? nothing
@@ -187,7 +218,7 @@ function renderTokenRow(deviceId: string, token: DeviceTokenSummary, props: Node
                 class="btn btn--sm danger"
                 @click=${() => props.onDeviceRevoke(deviceId, token.role)}
               >
-                Revoke
+                ${t("alisio.connections.devices.revoke")}
               </button>
             `}
       </div>
@@ -247,48 +278,63 @@ function resolveBindingsState(props: NodesProps): BindingState {
 function renderBindings(state: BindingState) {
   const supportsBinding = state.nodes.length > 0;
   const defaultValue = state.defaultBinding ?? "";
+  const text = {
+    title: t("alisio.connections.bindings.title"),
+    subtitle: t("alisio.connections.bindings.subtitle"),
+    saving: t("alisio.connections.saving"),
+    save: t("alisio.connections.save"),
+    rawMode: t("alisio.connections.bindings.rawMode"),
+    loadConfig: t("alisio.connections.bindings.loadConfig"),
+    loading: t("alisio.connections.loading"),
+    defaultBinding: t("alisio.connections.bindings.defaultBinding"),
+    defaultSubtitle: t("alisio.connections.bindings.defaultSubtitle"),
+    node: t("alisio.connections.bindings.node"),
+    anyNode: t("alisio.connections.bindings.anyNode"),
+    noExecNodes: t("alisio.connections.bindings.noExecNodes"),
+    noAgents: t("alisio.connections.bindings.noAgents"),
+    binding: t("alisio.connections.bindings.binding"),
+    useDefault: t("alisio.connections.bindings.useDefault"),
+    defaultAgent: t("alisio.connections.bindings.defaultAgent"),
+    agent: t("alisio.connections.bindings.agent"),
+    usesDefault: t("alisio.connections.bindings.usesDefault"),
+    override: t("alisio.connections.bindings.override"),
+  };
   return html`
     <section class="card">
       <div class="row" style="justify-content: space-between; align-items: center;">
         <div>
-          <div class="card-title">Exec node binding</div>
-          <div class="card-sub">
-            Pin agents to a specific node when using <span class="mono">exec host=node</span>.
-          </div>
+          <div class="card-title">${text.title}</div>
+          <div class="card-sub">${text.subtitle}</div>
         </div>
         <button
           class="btn"
           ?disabled=${state.disabled || !state.configDirty}
           @click=${state.onSave}
         >
-          ${state.configSaving ? "Saving…" : "Save"}
+          ${state.configSaving ? text.saving : text.save}
         </button>
       </div>
 
       ${state.formMode === "raw"
-        ? html`
-            <div class="callout warn" style="margin-top: 12px">
-              Switch the Config tab to <strong>Form</strong> mode to edit bindings here.
-            </div>
-          `
+        ? html` <div class="callout warn" style="margin-top: 12px">${text.rawMode}</div> `
         : nothing}
       ${!state.ready
         ? html`<div class="row" style="margin-top: 12px; gap: 12px;">
-            <div class="muted">Load config to edit bindings.</div>
+            <div class="muted">${text.loadConfig}</div>
             <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
-              ${state.configLoading ? "Loading…" : "Load config"}
+              ${state.configLoading ? text.loading : text.loadConfig}
             </button>
           </div>`
         : html`
             <div class="list" style="margin-top: 16px;">
               <div class="list-item">
                 <div class="list-main">
-                  <div class="list-title">Default binding</div>
-                  <div class="list-sub">Used when agents do not override a node binding.</div>
+                  <div class="list-title">${text.defaultBinding}</div>
+                  <div class="list-sub">${text.defaultSubtitle}</div>
                 </div>
                 <div class="list-meta">
                   <label class="field">
-                    <span>Node</span>
+                    <span>${text.node}</span>
                     <select
                       ?disabled=${state.disabled || !supportsBinding}
                       @change=${(event: Event) => {
@@ -297,7 +343,7 @@ function renderBindings(state: BindingState) {
                         state.onBindDefault(value ? value : null);
                       }}
                     >
-                      <option value="" ?selected=${defaultValue === ""}>Any node</option>
+                      <option value="" ?selected=${defaultValue === ""}>${text.anyNode}</option>
                       ${state.nodes.map(
                         (node) =>
                           html`<option value=${node.id} ?selected=${defaultValue === node.id}>
@@ -307,13 +353,13 @@ function renderBindings(state: BindingState) {
                     </select>
                   </label>
                   ${!supportsBinding
-                    ? html` <div class="muted">No nodes with system.run available.</div> `
+                    ? html` <div class="muted">${text.noExecNodes}</div> `
                     : nothing}
                 </div>
               </div>
 
               ${state.agents.length === 0
-                ? html` <div class="muted">No agents found.</div> `
+                ? html` <div class="muted">${text.noAgents}</div> `
                 : state.agents.map((agent) => renderAgentBinding(agent, state))}
             </div>
           `}
@@ -325,20 +371,26 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
   const bindingValue = agent.binding ?? "__default__";
   const label = agent.name?.trim() ? `${agent.name} (${agent.id})` : agent.id;
   const supportsBinding = state.nodes.length > 0;
+  const isDefault = agent.isDefault;
   return html`
     <div class="list-item">
       <div class="list-main">
         <div class="list-title">${label}</div>
         <div class="list-sub">
-          ${agent.isDefault ? "default agent" : "agent"} ·
+          ${isDefault
+            ? t("alisio.connections.bindings.defaultAgent")
+            : t("alisio.connections.bindings.agent")}
+          ·
           ${bindingValue === "__default__"
-            ? `uses default (${state.defaultBinding ?? "any"})`
-            : `override: ${agent.binding}`}
+            ? t("alisio.connections.bindings.usesDefault", {
+                value: state.defaultBinding ?? t("alisio.connections.bindings.anyNode"),
+              })
+            : t("alisio.connections.bindings.override", { value: agent.binding ?? "" })}
         </div>
       </div>
       <div class="list-meta">
         <label class="field">
-          <span>Binding</span>
+          <span>${t("alisio.connections.bindings.binding")}</span>
           <select
             ?disabled=${state.disabled || !supportsBinding}
             @change=${(event: Event) => {
@@ -348,7 +400,7 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
             }}
           >
             <option value="__default__" ?selected=${bindingValue === "__default__"}>
-              Use default
+              ${t("alisio.connections.bindings.useDefault")}
             </option>
             ${state.nodes.map(
               (node) =>
@@ -419,6 +471,7 @@ function renderNode(node: Record<string, unknown>) {
     (typeof node.displayName === "string" && node.displayName.trim()) ||
     (typeof node.nodeId === "string" ? node.nodeId : "unknown");
   const caps = Array.isArray(node.caps) ? (node.caps as unknown[]) : [];
+  const capabilities = Array.isArray(node.capabilities) ? (node.capabilities as unknown[]) : [];
   const commands = Array.isArray(node.commands) ? (node.commands as unknown[]) : [];
   return html`
     <div class="list-item">
@@ -430,14 +483,38 @@ function renderNode(node: Record<string, unknown>) {
           ${typeof node.version === "string" ? ` · ${node.version}` : ""}
         </div>
         <div class="chip-row" style="margin-top: 6px;">
-          <span class="chip">${paired ? "paired" : "unpaired"}</span>
+          <span class="chip">
+            ${paired
+              ? t("alisio.connections.nodes.paired")
+              : t("alisio.connections.nodes.unpaired")}
+          </span>
           <span class="chip ${connected ? "chip-ok" : "chip-warn"}">
-            ${connected ? "connected" : "offline"}
+            ${connected
+              ? t("alisio.connections.nodes.connected")
+              : t("alisio.connections.nodes.offline")}
           </span>
           ${caps.slice(0, 12).map((c) => html`<span class="chip">${String(c)}</span>`)}
+          ${capabilities
+            .slice(0, 6)
+            .map(
+              (capability) =>
+                html`<span class="chip"
+                  >${renderCapabilityChip(capability as Record<string, unknown>)}</span
+                >`,
+            )}
           ${commands.slice(0, 8).map((c) => html`<span class="chip">${String(c)}</span>`)}
         </div>
       </div>
     </div>
   `;
+}
+
+function renderCapabilityChip(capability: Record<string, unknown>) {
+  const title =
+    (typeof capability.title === "string" && capability.title.trim()) ||
+    (typeof capability.id === "string" && capability.id.trim()) ||
+    "capability";
+  const risk =
+    typeof capability.risk === "string" && capability.risk.trim() ? capability.risk.trim() : "";
+  return risk ? `${title} · ${risk}` : title;
 }

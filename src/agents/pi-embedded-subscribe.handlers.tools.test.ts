@@ -268,7 +268,7 @@ describe("handleToolExecutionEnd exec approval prompts", () => {
 
     expect(onToolResult).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: expect.stringContaining("```txt\n/approve 12345678 allow-once\n```"),
+        text: expect.stringContaining("Approve once: `/approve 12345678 allow-once`"),
         channelData: {
           execApproval: {
             approvalId: "12345678-1234-1234-1234-123456789012",

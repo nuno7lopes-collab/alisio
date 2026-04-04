@@ -42,7 +42,11 @@ describe("handleControlUiHttpRequest", () => {
     return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
       basePath: string;
       controlUrl: string;
+      connectionRequired?: boolean;
       startupState: string;
+      providerReady?: boolean;
+      accountReady?: boolean;
+      nextStep?: string;
       account: unknown;
       ai: unknown;
       bootstrapToken?: string;
@@ -141,6 +145,10 @@ describe("handleControlUiHttpRequest", () => {
         );
         expect(handled).toBe(true);
         expect(setHeader).toHaveBeenCalledWith("X-Frame-Options", "DENY");
+        expect(setHeader).toHaveBeenCalledWith(
+          "Permissions-Policy",
+          "camera=(), microphone=(self), geolocation=()",
+        );
         const csp = setHeader.mock.calls.find((call) => call[0] === "Content-Security-Policy")?.[1];
         expect(typeof csp).toBe("string");
         expect(String(csp)).toContain("frame-ancestors 'none'");
@@ -271,7 +279,11 @@ describe("handleControlUiHttpRequest", () => {
       const parsed = parseAlisioBootstrapPayload(end);
       expect(parsed.basePath).toBe("");
       expect(parsed.controlUrl).toBe("ws://127.0.0.1:18789/");
+      expect(parsed.connectionRequired).toBe(false);
       expect(parsed.startupState).toBe("signed_out");
+      expect(parsed.providerReady).toBe(false);
+      expect(parsed.accountReady).toBe(false);
+      expect(parsed.nextStep).toBe("account");
       expect(parsed.account).toBeNull();
       expect(parsed.ai).toEqual({ provider: "openai", status: "disconnected" });
       expect(typeof parsed.bootstrapToken).toBe("string");

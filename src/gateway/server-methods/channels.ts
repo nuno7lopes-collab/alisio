@@ -1,4 +1,3 @@
-import { buildChannelUiCatalog } from "../../channels/plugins/catalog.js";
 import { resolveChannelDefaultAccountId } from "../../channels/plugins/helpers.js";
 import {
   type ChannelId,
@@ -8,10 +7,13 @@ import {
 } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
+import { listChatChannels } from "../../channels/registry.js";
+import { isChannelConfigured } from "../../config/channel-configured.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { loadConfig, readConfigFileSnapshot } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
+import { collectChannelStatusIssues } from "../../infra/channels-status-issues.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
 import {
@@ -30,6 +32,8 @@ type ChannelLogoutPayload = {
   cleared: boolean;
   [key: string]: unknown;
 };
+
+const ALISIO_PUBLIC_CHANNEL_IDS = ["telegram", "whatsapp", "discord"] as const;
 
 export async function logoutChannelAccount(params: {
   channelId: ChannelId;
@@ -88,10 +92,18 @@ export const channelsHandlers: GatewayRequestHandlers = {
       env: process.env,
     }).config;
     const runtime = context.getRuntimeSnapshot();
-    const plugins = listChannelPlugins();
+    const runtimePlugins = listChannelPlugins();
     const pluginMap = new Map<ChannelId, ChannelPlugin>(
-      plugins.map((plugin) => [plugin.id, plugin]),
+      runtimePlugins.map((plugin) => [plugin.id, plugin]),
     );
+    const resolvedEntries = listChatChannels()
+      .filter((entry) =>
+        ALISIO_PUBLIC_CHANNEL_IDS.includes(entry.id as (typeof ALISIO_PUBLIC_CHANNEL_IDS)[number]),
+      )
+      .map((entry) => ({
+        id: entry.id,
+        meta: entry,
+      }));
 
     const resolveRuntimeSnapshot = (
       channelId: ChannelId,
@@ -197,22 +209,78 @@ export const channelsHandlers: GatewayRequestHandlers = {
       return { accounts, defaultAccountId, defaultAccount, resolvedAccounts };
     };
 
-    const uiCatalog = buildChannelUiCatalog(plugins);
+    const channelOrder = resolvedEntries.map((entry) => entry.id);
+    const channelLabels = Object.fromEntries(
+      resolvedEntries.map((entry) => [entry.id, entry.meta.label]),
+    );
+    const channelDetailLabels = Object.fromEntries(
+      resolvedEntries.map((entry) => [entry.id, entry.meta.detailLabel ?? entry.meta.label]),
+    );
+    const channelSystemImages = Object.fromEntries(
+      resolvedEntries.flatMap((entry) =>
+        entry.meta.systemImage?.trim() ? [[entry.id, entry.meta.systemImage.trim()] as const] : [],
+      ),
+    );
     const payload: Record<string, unknown> = {
       ts: Date.now(),
-      channelOrder: uiCatalog.order,
-      channelLabels: uiCatalog.labels,
-      channelDetailLabels: uiCatalog.detailLabels,
-      channelSystemImages: uiCatalog.systemImages,
-      channelMeta: uiCatalog.entries,
+      channelOrder,
+      channelLabels,
+      channelDetailLabels,
+      channelSystemImages,
+      wizard: (() => {
+        const running = context.getRunningChannelWizard();
+        return {
+          running: Boolean(running),
+          sessionId: running?.sessionId ?? null,
+          channelId: running?.channelId ?? null,
+        };
+      })(),
+      channelMeta: resolvedEntries.map((entry) => ({
+        id: entry.id,
+        label: entry.meta.label,
+        detailLabel: entry.meta.detailLabel ?? entry.meta.label,
+        ...(entry.meta.blurb?.trim() ? { blurb: entry.meta.blurb.trim() } : {}),
+        ...(entry.meta.docsPath?.trim() ? { docsPath: entry.meta.docsPath.trim() } : {}),
+        ...(entry.meta.docsLabel?.trim() ? { docsLabel: entry.meta.docsLabel.trim() } : {}),
+        ...(entry.meta.systemImage?.trim() ? { systemImage: entry.meta.systemImage.trim() } : {}),
+      })),
+      channelIssues: {} as Record<string, unknown>,
       channels: {} as Record<string, unknown>,
       channelAccounts: {} as Record<string, unknown>,
       channelDefaultAccountId: {} as Record<string, unknown>,
     };
+    const issuesMap = payload.channelIssues as Record<string, unknown>;
     const channelsMap = payload.channels as Record<string, unknown>;
     const accountsMap = payload.channelAccounts as Record<string, unknown>;
     const defaultAccountIdMap = payload.channelDefaultAccountId as Record<string, unknown>;
-    for (const plugin of plugins) {
+    for (const entry of resolvedEntries) {
+      const plugin = pluginMap.get(entry.id);
+      const configured = isChannelConfigured(cfg, entry.id, process.env);
+      const linkMode = entry.id === "whatsapp" ? "qr" : "wizard";
+      if (!plugin) {
+        channelsMap[entry.id] = {
+          configured,
+          linked: entry.id === "whatsapp" ? false : configured,
+          running: false,
+          connected: false,
+          setupOnly: true,
+          setupAvailable: true,
+          logoutAvailable: false,
+          linkMode,
+        };
+        accountsMap[entry.id] = [
+          {
+            accountId: DEFAULT_ACCOUNT_ID,
+            configured,
+            linked: entry.id === "whatsapp" ? false : configured,
+            running: false,
+            connected: false,
+          },
+        ] satisfies ChannelAccountSnapshot[];
+        defaultAccountIdMap[entry.id] = DEFAULT_ACCOUNT_ID;
+        continue;
+      }
+
       const { accounts, defaultAccountId, defaultAccount, resolvedAccounts } =
         await buildChannelAccounts(plugin.id);
       const fallbackAccount =
@@ -231,9 +299,19 @@ export const channelsHandlers: GatewayRequestHandlers = {
         : {
             configured: defaultAccount?.configured ?? false,
           };
-      channelsMap[plugin.id] = summary;
+      channelsMap[plugin.id] = {
+        ...summary,
+        setupAvailable: true,
+        logoutAvailable: Boolean(plugin.gateway?.logoutAccount),
+        linkMode,
+      };
       accountsMap[plugin.id] = accounts;
       defaultAccountIdMap[plugin.id] = defaultAccountId;
+    }
+    for (const issue of collectChannelStatusIssues(payload)) {
+      const channelIssues = (issuesMap[issue.channel] as Array<typeof issue> | undefined) ?? [];
+      channelIssues.push(issue);
+      issuesMap[issue.channel] = channelIssues;
     }
 
     respond(true, payload, undefined);

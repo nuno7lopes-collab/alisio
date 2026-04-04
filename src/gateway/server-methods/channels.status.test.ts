@@ -5,9 +5,11 @@ const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(),
   applyPluginAutoEnable: vi.fn(),
   listChannelPlugins: vi.fn(),
-  buildChannelUiCatalog: vi.fn(),
+  listChatChannels: vi.fn(),
+  isChannelConfigured: vi.fn(),
   buildChannelAccountSnapshot: vi.fn(),
   getChannelActivity: vi.fn(),
+  collectChannelStatusIssues: vi.fn(),
 }));
 
 vi.mock("../../config/config.js", async () => {
@@ -23,15 +25,25 @@ vi.mock("../../config/plugin-auto-enable.js", () => ({
   applyPluginAutoEnable: mocks.applyPluginAutoEnable,
 }));
 
+vi.mock("../../config/channel-configured.js", () => ({
+  isChannelConfigured: mocks.isChannelConfigured,
+}));
+
 vi.mock("../../channels/plugins/index.js", () => ({
   listChannelPlugins: mocks.listChannelPlugins,
   getChannelPlugin: vi.fn(),
   normalizeChannelId: (value: string) => value,
 }));
 
-vi.mock("../../channels/plugins/catalog.js", () => ({
-  buildChannelUiCatalog: mocks.buildChannelUiCatalog,
-}));
+vi.mock("../../channels/registry.js", async () => {
+  const actual = await vi.importActual<typeof import("../../channels/registry.js")>(
+    "../../channels/registry.js",
+  );
+  return {
+    ...actual,
+    listChatChannels: mocks.listChatChannels,
+  };
+});
 
 vi.mock("../../channels/plugins/status.js", () => ({
   buildChannelAccountSnapshot: mocks.buildChannelAccountSnapshot,
@@ -39,6 +51,10 @@ vi.mock("../../channels/plugins/status.js", () => ({
 
 vi.mock("../../infra/channel-activity.js", () => ({
   getChannelActivity: mocks.getChannelActivity,
+}));
+
+vi.mock("../../infra/channels-status-issues.js", () => ({
+  collectChannelStatusIssues: mocks.collectChannelStatusIssues,
 }));
 
 import { channelsHandlers } from "./channels.js";
@@ -58,6 +74,7 @@ function createOptions(
         channels: {},
         channelAccounts: {},
       }),
+      getRunningChannelWizard: () => null,
     },
     ...overrides,
   } as unknown as GatewayRequestHandlerOptions;
@@ -68,13 +85,43 @@ describe("channelsHandlers channels.status", () => {
     vi.clearAllMocks();
     mocks.loadConfig.mockReturnValue({});
     mocks.applyPluginAutoEnable.mockImplementation(({ config }) => ({ config, changes: [] }));
-    mocks.buildChannelUiCatalog.mockReturnValue({
-      order: ["whatsapp"],
-      labels: { whatsapp: "WhatsApp" },
-      detailLabels: { whatsapp: "WhatsApp" },
-      systemImages: { whatsapp: undefined },
-      entries: { whatsapp: { id: "whatsapp" } },
-    });
+    mocks.listChatChannels.mockReturnValue([
+      {
+        id: "telegram",
+        label: "Telegram",
+        selectionLabel: "Telegram",
+        detailLabel: "Bot, groups, and direct messages",
+        docsPath: "/channels/telegram",
+        blurb: "Message through a Telegram bot.",
+      },
+      {
+        id: "whatsapp",
+        label: "WhatsApp",
+        selectionLabel: "WhatsApp",
+        detailLabel: "Phone link and QR pairing",
+        docsPath: "/channels/whatsapp",
+        blurb: "Send and receive WhatsApp messages.",
+      },
+      {
+        id: "discord",
+        label: "Discord",
+        selectionLabel: "Discord",
+        detailLabel: "Server channels, DMs, and threads",
+        docsPath: "/channels/discord",
+        blurb: "Use Discord servers and DMs.",
+      },
+      {
+        id: "slack",
+        label: "Slack",
+        selectionLabel: "Slack",
+        detailLabel: "Workspace channels and DMs",
+        docsPath: "/channels/slack",
+        blurb: "Should stay hidden from the public shortlist.",
+      },
+    ]);
+    mocks.isChannelConfigured.mockImplementation(
+      (_cfg: unknown, channelId: string) => channelId === "telegram",
+    );
     mocks.buildChannelAccountSnapshot.mockResolvedValue({
       accountId: "default",
       configured: true,
@@ -83,6 +130,7 @@ describe("channelsHandlers channels.status", () => {
       inboundAt: null,
       outboundAt: null,
     });
+    mocks.collectChannelStatusIssues.mockReturnValue([]);
     mocks.listChannelPlugins.mockReturnValue([
       {
         id: "whatsapp",
@@ -97,18 +145,19 @@ describe("channelsHandlers channels.status", () => {
     ]);
   });
 
-  it("uses the auto-enabled config snapshot for channel account state", async () => {
+  it("usa o snapshot auto-enabled e expõe só a shortlist pública", async () => {
     const autoEnabledConfig = { autoEnabled: true };
     mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
     const respond = vi.fn();
-    const opts = createOptions(
-      { probe: false, timeoutMs: 2000 },
-      {
-        respond,
-      },
-    );
 
-    await channelsHandlers["channels.status"](opts);
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+        },
+      ),
+    );
 
     expect(mocks.applyPluginAutoEnable).toHaveBeenCalledWith({
       config: {},
@@ -123,10 +172,117 @@ describe("channelsHandlers channels.status", () => {
     expect(respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
+        channelOrder: ["telegram", "whatsapp", "discord"],
+        channelMeta: [
+          expect.objectContaining({
+            id: "telegram",
+            docsPath: "/channels/telegram",
+          }),
+          expect.objectContaining({
+            id: "whatsapp",
+            docsPath: "/channels/whatsapp",
+          }),
+          expect.objectContaining({
+            id: "discord",
+            docsPath: "/channels/discord",
+          }),
+        ],
+        channelIssues: {},
         channels: {
+          telegram: expect.objectContaining({
+            configured: true,
+            setupOnly: true,
+            setupAvailable: true,
+            logoutAvailable: false,
+            linkMode: "wizard",
+          }),
           whatsapp: expect.objectContaining({
             configured: true,
+            setupAvailable: true,
+            logoutAvailable: false,
+            linkMode: "qr",
           }),
+          discord: expect.objectContaining({
+            configured: false,
+            setupOnly: true,
+            setupAvailable: true,
+            logoutAvailable: false,
+            linkMode: "wizard",
+          }),
+        },
+      }),
+      undefined,
+    );
+  });
+
+  it("agrupa issues por canal no payload", async () => {
+    const respond = vi.fn();
+    mocks.collectChannelStatusIssues.mockReturnValue([
+      {
+        channel: "whatsapp",
+        accountId: "default",
+        kind: "runtime",
+        message: "Channel error: socket closed",
+        fix: "Refresh the connection.",
+      },
+    ]);
+
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+        },
+      ),
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        channelIssues: {
+          whatsapp: [
+            expect.objectContaining({
+              accountId: "default",
+              kind: "runtime",
+              message: "Channel error: socket closed",
+              fix: "Refresh the connection.",
+            }),
+          ],
+        },
+      }),
+      undefined,
+    );
+  });
+
+  it("expõe o wizard de canal em curso para a UI poder recuperar o setup", async () => {
+    const respond = vi.fn();
+
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+          context: {
+            getRuntimeSnapshot: () => ({
+              channels: {},
+              channelAccounts: {},
+            }),
+            getRunningChannelWizard: () => ({
+              sessionId: "wiz-telegram-1",
+              channelId: "telegram",
+            }),
+          } as never,
+        },
+      ),
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        wizard: {
+          running: true,
+          sessionId: "wiz-telegram-1",
+          channelId: "telegram",
         },
       }),
       undefined,

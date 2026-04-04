@@ -8,17 +8,18 @@ import {
   completeAlisioConnectorAuthorization,
   completeAlisioAiConnect,
   disconnectAlisioAi,
-  getAlisioBootstrapSummary,
   getAlisioDoctorSummary,
   getAlisioAccountState,
   getAlisioAiState,
   getAlisioOrganizationState,
   listAlisioConnectorAuthorizations,
   listAlisioConnectorDefinitions,
-  loadAlisioBootstrapSnapshot,
+  loadAlisioBootstrapState,
   refreshAlisioAiLimits,
+  renameAlisioAiProfile,
   requestAlisioAccountPasswordReset,
   revokeAlisioConnectorAuthorization,
+  selectAlisioAiProfile,
   setAlisioOrganizationState,
   signInAlisioAccount,
   signOutAlisioAccount,
@@ -45,7 +46,9 @@ import {
   validateAlisioAiCompleteConnectParams,
   validateAlisioAiDisconnectParams,
   validateAlisioAiGetParams,
+  validateAlisioAiRenameProfileParams,
   validateAlisioAiRefreshLimitsParams,
+  validateAlisioAiSelectProfileParams,
   validateAlisioAiState,
   validateAlisioBootstrapGetParams,
   validateAlisioBootstrapResult,
@@ -424,7 +427,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const result = await disconnectAlisioAi();
+    const result = await disconnectAlisioAi(params as { profileId?: string });
     respond(true, result, undefined);
   },
   "alisio.ai.refreshLimits": async ({ params, respond }) => {
@@ -442,7 +445,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      respond(true, await refreshAlisioAiLimits(), undefined);
+      respond(true, await refreshAlisioAiLimits(params as { profileId?: string }), undefined);
     } catch (err) {
       if (err instanceof AlisioAiError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
@@ -452,6 +455,90 @@ export const alisioHandlers: GatewayRequestHandlers = {
         false,
         undefined,
         errorShape(ErrorCodes.UNAVAILABLE, `failed to refresh OpenAI limits: ${formatError(err)}`),
+      );
+    }
+  },
+  "alisio.ai.renameProfile": async ({ params, respond }) => {
+    if (!validateAlisioAiRenameProfileParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.renameProfile params: ${formatValidationErrors(
+            validateAlisioAiRenameProfileParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await renameAlisioAiProfile(params as { profileId: string; label: string });
+      if (!validateAlisioAiState(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.ai.renameProfile result: ${formatValidationErrors(
+              validateAlisioAiState.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAiError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to rename OpenAI profile: ${formatError(err)}`),
+      );
+    }
+  },
+  "alisio.ai.selectProfile": async ({ params, respond }) => {
+    if (!validateAlisioAiSelectProfileParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.ai.selectProfile params: ${formatValidationErrors(
+            validateAlisioAiSelectProfileParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await selectAlisioAiProfile(params as { profileId: string });
+      if (!validateAlisioAiState(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.ai.selectProfile result: ${formatValidationErrors(
+              validateAlisioAiState.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAiError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to select OpenAI profile: ${formatError(err)}`),
       );
     }
   },
@@ -472,11 +559,11 @@ export const alisioHandlers: GatewayRequestHandlers = {
     try {
       const wizardSessionId = context.findRunningWizard();
       const runtimeSetup = await loadAlisioRuntimeSetupState(context);
-      const [{ models }, snapshot, summary] = await Promise.all([
+      const [{ models }, { snapshot, summary }] = await Promise.all([
         Promise.resolve(runtimeSetup),
-        loadAlisioBootstrapSnapshot(),
-        getAlisioBootstrapSummary({
+        loadAlisioBootstrapState({
           wizardRunning: Boolean(wizardSessionId),
+          providerReady: runtimeSetup.providerReady,
           connectionRequired: false,
         }),
       ]);
@@ -534,14 +621,15 @@ export const alisioHandlers: GatewayRequestHandlers = {
     try {
       const wizardSessionId = context.findRunningWizard();
       const runtimeSetup = await loadAlisioRuntimeSetupState(context);
-      const [snapshot, bootstrapSummary, doctorSummary] = await Promise.all([
-        loadAlisioBootstrapSnapshot(),
-        getAlisioBootstrapSummary({
+      const [{ snapshot, summary: bootstrapSummary }, doctorSummary] = await Promise.all([
+        loadAlisioBootstrapState({
           wizardRunning: wizardSessionId !== null,
+          providerReady: runtimeSetup.providerReady,
           connectionRequired: false,
         }),
         getAlisioDoctorSummary({
           wizardRunning: wizardSessionId !== null,
+          providerReady: runtimeSetup.providerReady,
           connectionRequired: false,
         }),
       ]);

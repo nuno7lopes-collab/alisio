@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { render } from "lit";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { extractToolCards, renderToolCardSidebar, renderToolCardStack } from "./tool-cards.ts";
 
 describe("tool cards", () => {
@@ -28,6 +28,7 @@ describe("tool cards", () => {
     const container = document.createElement("div");
     render(renderToolCardSidebar(cards[0]), container);
 
+    expect(container.querySelector("details")?.open).toBe(false);
     expect(container.textContent).toContain('time claude -p "say ok"');
     expect(container.textContent).toContain("Bash");
   });
@@ -61,6 +62,7 @@ describe("tool cards", () => {
       container,
     );
 
+    expect(container.querySelector("details")?.open).toBe(false);
     expect(container.textContent).toContain("Done");
     expect(container.textContent).toContain("Input");
     expect(container.textContent).toContain("Output");
@@ -97,6 +99,7 @@ describe("tool cards", () => {
       container,
     );
 
+    expect(container.querySelector("details")?.open).toBe(false);
     expect(container.textContent).toContain("Rejected");
     expect(container.textContent).toContain("Error");
   });
@@ -175,5 +178,49 @@ describe("tool cards", () => {
     expect(container.textContent).toContain("Open full output");
     expect(container.textContent).toContain("… truncated");
     expect(container.textContent).not.toContain("-tail-marker");
+  });
+
+  it("renders a connector auth CTA when a tool result needs Gmail auth", () => {
+    const onBeginConnector = vi.fn();
+    const message = {
+      role: "assistant",
+      toolCallId: "call_gmail_auth",
+      toolPhase: "result",
+      content: [
+        {
+          type: "toolcall",
+          name: "gmail_send",
+          arguments: { to: "nuno@example.com", subject: "Hello" },
+        },
+        {
+          type: "toolresult",
+          name: "gmail_send",
+          text: "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+          details: {
+            ok: false,
+            status: "auth_required",
+            connectorId: "gmail-send",
+            message: "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+            reconnectRequired: false,
+          },
+        },
+      ],
+      timestamp: Date.now(),
+      __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+    };
+
+    const cards = extractToolCards(message);
+    const container = document.createElement("div");
+    render(
+      renderToolCardStack(cards, () => undefined, onBeginConnector),
+      container,
+    );
+
+    expect(container.textContent).toContain("Needs auth");
+    expect(container.textContent).toContain("Connect Google");
+    const button = container.querySelector("button");
+    expect(button).not.toBeNull();
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
   });
 });

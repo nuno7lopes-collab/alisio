@@ -85,6 +85,7 @@ describe("gateway/node-catalog", () => {
           platform: "darwin",
           version: "1.2.3",
           caps: ["screen"],
+          capabilities: [],
           commands: ["screen.snapshot"],
           remoteIp: "100.0.0.11",
           pathEnv: "/usr/bin:/bin",

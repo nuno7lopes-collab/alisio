@@ -1,7 +1,13 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { deriveAlisioAvatarLabel, normalizeAlisioUsername } from "../shared/alisio-account.js";
+import { createHash } from "node:crypto";
+import {
+  ALISIO_USERNAME_MAX_LENGTH,
+  ALISIO_USERNAME_MIN_LENGTH,
+  deriveAlisioAvatarLabel,
+  normalizeAlisioUsername,
+} from "../shared/alisio-account.js";
+import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
 
-export type AlisioAccountBackend = "supabase" | "local-dev";
+export type AlisioAccountBackend = "supabase";
 
 export type AlisioStoredPasswordCredential = {
   email: string;
@@ -15,7 +21,17 @@ export type AlisioStoredCloudSession = {
   userId?: string;
   email?: string;
   accessToken?: string;
+  accessTokenEncrypted?: {
+    iv: string;
+    tag: string;
+    ciphertext: string;
+  };
   refreshToken?: string;
+  refreshTokenEncrypted?: {
+    iv: string;
+    tag: string;
+    ciphertext: string;
+  };
   expiresAt?: string;
   tokenType?: string;
   signedInAt?: string;
@@ -30,7 +46,7 @@ export type AlisioCloudAccountProfile = {
   avatarLabel: string;
   avatarUrl?: string;
   joinedAt: string;
-  plan: string;
+  plan: AlisioPlan;
   profileCompleted: boolean;
   backend: AlisioAccountBackend;
 };
@@ -108,7 +124,17 @@ type CompleteProfileParams = {
   avatarLabel: string;
   avatarUrl?: string;
   joinedAt: string;
-  plan: string;
+  plan: AlisioPlan;
+};
+
+type ResolvedSupabaseSession = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: string;
+  tokenType?: string;
+  userId: string;
+  email: string;
+  joinedAt: string;
 };
 
 function resolveSupabaseConfig(env: NodeJS.ProcessEnv): SupabaseConfig | null {
@@ -125,15 +151,16 @@ function resolveSupabaseConfig(env: NodeJS.ProcessEnv): SupabaseConfig | null {
 }
 
 export function resolveAlisioAccountBackend(
-  env: NodeJS.ProcessEnv = process.env,
+  _env: NodeJS.ProcessEnv = process.env,
 ): AlisioAccountBackend {
-  return resolveSupabaseConfig(env) ? "supabase" : "local-dev";
+  void _env;
+  return "supabase";
 }
 
 function defaultProfileSeed(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
   const rawName = normalizedEmail.split("@", 1)[0] || "alisio";
-  const username = normalizeAlisioUsername(rawName).replace(/[^a-z0-9._]+/g, "") || "alisio";
+  const username = normalizeSeedUsername(rawName);
   const displayName = rawName
     .split(/[._-]+/)
     .filter(Boolean)
@@ -149,32 +176,29 @@ function defaultProfileSeed(email: string) {
   };
 }
 
-function hashPassword(password: string, salt: string) {
-  return scryptSync(password, salt, 64).toString("hex");
+function normalizeSeedUsername(value: string) {
+  const normalized = normalizeAlisioUsername(value).replace(/[^a-z0-9._]+/g, "");
+  return normalized.slice(0, ALISIO_USERNAME_MAX_LENGTH) || "alisio";
 }
 
-function buildPasswordCredential(email: string, password: string): AlisioStoredPasswordCredential {
-  const salt = randomBytes(16).toString("hex");
-  return {
-    email: email.trim().toLowerCase(),
-    salt,
-    hash: hashPassword(password, salt),
-  };
-}
-
-export function verifyPasswordCredential(
-  credential: AlisioStoredPasswordCredential | undefined,
-  email: string,
-  password: string,
-) {
-  if (!credential) {
-    return false;
-  }
-  if (credential.email !== email.trim().toLowerCase()) {
-    return false;
-  }
-  const candidate = hashPassword(password, credential.salt);
-  return timingSafeEqual(Buffer.from(candidate, "hex"), Buffer.from(credential.hash, "hex"));
+function buildDefaultUsernameCandidates(email: string, userId: string) {
+  const base = normalizeSeedUsername(email.split("@", 1)[0] || "alisio");
+  const fallbackSuffix =
+    userId
+      .replace(/[^a-z0-9]/gi, "")
+      .toLowerCase()
+      .slice(0, 4) || createHash("sha256").update(email).digest("hex").slice(0, 4);
+  const paddedBase =
+    base.length >= ALISIO_USERNAME_MIN_LENGTH
+      ? base
+      : `${base}${fallbackSuffix}`.slice(0, ALISIO_USERNAME_MAX_LENGTH);
+  const baseWithSuffix = `${base.slice(0, ALISIO_USERNAME_MAX_LENGTH - fallbackSuffix.length)}${fallbackSuffix}`;
+  const fallbackBase = `user${fallbackSuffix}`.slice(0, ALISIO_USERNAME_MAX_LENGTH);
+  return [
+    ...new Set(
+      [paddedBase, baseWithSuffix, fallbackBase].map((entry) => normalizeSeedUsername(entry)),
+    ),
+  ].filter((entry) => entry.length >= ALISIO_USERNAME_MIN_LENGTH);
 }
 
 async function fetchJson(
@@ -228,7 +252,7 @@ function mapSupabaseProfile(
       }),
     avatarUrl: row?.avatar_url?.trim() || undefined,
     joinedAt: row?.joined_at?.trim() || fallback.joinedAt,
-    plan: row?.plan?.trim() || "Free Plan",
+    plan: normalizeAlisioPlan(row?.plan),
     profileCompleted: Boolean(row?.profile_completed),
     backend: fallback.backend,
   };
@@ -242,6 +266,46 @@ function readSupabaseErrorText(body: Record<string, unknown> | null | undefined)
     }
   }
   return "";
+}
+
+function resolveSignedOutCloudSession(
+  session: AlisioStoredCloudSession,
+  signedOutAt = new Date().toISOString(),
+): AlisioStoredCloudSession {
+  return {
+    backend: session.backend,
+    state: "signed_out",
+    ...(session.userId ? { userId: session.userId } : {}),
+    ...(session.email ? { email: session.email } : {}),
+    ...(session.signedInAt ? { signedInAt: session.signedInAt } : {}),
+    signedOutAt,
+  };
+}
+
+function resolveSupabaseSession(params: {
+  body: SupabaseSessionResponse;
+  fallbackEmail: string;
+  errorCode: AlisioAccountCloudError["code"];
+  errorMessage: string;
+}): ResolvedSupabaseSession {
+  const accessToken = params.body.access_token?.trim() || "";
+  const userId = params.body.user?.id?.trim() || "";
+  const email = params.body.user?.email?.trim().toLowerCase() || params.fallbackEmail;
+  if (!accessToken || !userId || !email) {
+    throw new AlisioAccountCloudError(params.errorCode, params.errorMessage);
+  }
+  return {
+    accessToken,
+    refreshToken: params.body.refresh_token?.trim() || undefined,
+    expiresAt:
+      typeof params.body.expires_in === "number"
+        ? new Date(Date.now() + params.body.expires_in * 1000).toISOString()
+        : undefined,
+    tokenType: params.body.token_type?.trim() || undefined,
+    userId,
+    email,
+    joinedAt: params.body.user?.created_at?.trim() || new Date().toISOString(),
+  };
 }
 
 async function fetchSupabaseProfile(params: {
@@ -276,6 +340,12 @@ async function fetchSupabaseProfile(params: {
     },
     params.fetchImpl,
   );
+  if (!result.ok) {
+    throw new AlisioAccountCloudError(
+      "profile_write_failed",
+      "Alisio could not load the account profile from the cloud.",
+    );
+  }
   const body = Array.isArray(result.body) ? result.body[0] : null;
   return mapSupabaseProfile(body, {
     userId: params.userId,
@@ -283,6 +353,170 @@ async function fetchSupabaseProfile(params: {
     joinedAt: params.fallbackJoinedAt,
     backend: "supabase",
   });
+}
+
+async function writeSupabaseProfile(params: {
+  config: SupabaseConfig;
+  accessToken: string;
+  payload: {
+    user_id: string;
+    email: string;
+    display_name: string;
+    username: string;
+    avatar_url: string | null;
+    avatar_label: string;
+    joined_at: string;
+    plan: AlisioPlan;
+    profile_completed: boolean;
+  };
+  fetchImpl: typeof fetch;
+}) {
+  const url = new URL(`/rest/v1/${params.config.profilesTable}`, params.config.url);
+  url.searchParams.set("on_conflict", "user_id");
+  const result = await fetchJson(
+    url.toString(),
+    {
+      method: "POST",
+      headers: {
+        ...supabaseHeaders(params.config, params.accessToken),
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify(params.payload),
+    },
+    params.fetchImpl,
+  );
+  if (!result.ok) {
+    const body = result.body as Record<string, unknown> | null;
+    const message = readSupabaseErrorText(body);
+    if (message.includes("duplicate") || message.includes("unique")) {
+      throw new AlisioAccountCloudError("username_taken", "That username is already in use.");
+    }
+    throw new AlisioAccountCloudError(
+      "profile_write_failed",
+      "Alisio could not save the account profile.",
+    );
+  }
+  const row = Array.isArray(result.body)
+    ? result.body[0]
+    : (result.body as SupabaseProfileRow | null);
+  if (!row) {
+    throw new AlisioAccountCloudError(
+      "profile_write_failed",
+      "Alisio could not verify the saved account profile.",
+    );
+  }
+  return row;
+}
+
+async function ensureSupabaseProfile(params: {
+  config: SupabaseConfig;
+  accessToken: string;
+  userId: string;
+  email: string;
+  joinedAt: string;
+  fetchImpl: typeof fetch;
+}) {
+  const fetched = await fetchSupabaseProfile({
+    config: params.config,
+    accessToken: params.accessToken,
+    userId: params.userId,
+    fallbackEmail: params.email,
+    fallbackJoinedAt: params.joinedAt,
+    fetchImpl: params.fetchImpl,
+  });
+  if (fetched.userId && fetched.profileCompleted) {
+    if (fetched.email === params.email) {
+      return fetched;
+    }
+    const row = await writeSupabaseProfile({
+      config: params.config,
+      accessToken: params.accessToken,
+      payload: {
+        user_id: params.userId,
+        email: params.email,
+        display_name: fetched.displayName,
+        username: fetched.username,
+        avatar_url: fetched.avatarUrl ?? null,
+        avatar_label: fetched.avatarLabel,
+        joined_at: fetched.joinedAt,
+        plan: fetched.plan,
+        profile_completed: true,
+      },
+      fetchImpl: params.fetchImpl,
+    });
+    return mapSupabaseProfile(row, {
+      userId: params.userId,
+      email: params.email,
+      joinedAt: fetched.joinedAt,
+      backend: "supabase",
+    });
+  }
+  if (fetched.userId) {
+    return fetched.email === params.email
+      ? fetched
+      : mapSupabaseProfile(
+          await writeSupabaseProfile({
+            config: params.config,
+            accessToken: params.accessToken,
+            payload: {
+              user_id: params.userId,
+              email: params.email,
+              display_name: fetched.displayName,
+              username: fetched.username,
+              avatar_url: fetched.avatarUrl ?? null,
+              avatar_label: fetched.avatarLabel,
+              joined_at: fetched.joinedAt,
+              plan: fetched.plan,
+              profile_completed: fetched.profileCompleted,
+            },
+            fetchImpl: params.fetchImpl,
+          }),
+          {
+            userId: params.userId,
+            email: params.email,
+            joinedAt: fetched.joinedAt,
+            backend: "supabase",
+          },
+        );
+  }
+
+  const seed = defaultProfileSeed(params.email);
+  const usernameCandidates = buildDefaultUsernameCandidates(params.email, params.userId);
+  for (const candidate of usernameCandidates) {
+    try {
+      const row = await writeSupabaseProfile({
+        config: params.config,
+        accessToken: params.accessToken,
+        payload: {
+          user_id: params.userId,
+          email: params.email,
+          display_name: seed.displayName,
+          username: candidate,
+          avatar_url: null,
+          avatar_label: seed.avatarLabel,
+          joined_at: params.joinedAt,
+          plan: "free",
+          profile_completed: false,
+        },
+        fetchImpl: params.fetchImpl,
+      });
+      return mapSupabaseProfile(row, {
+        userId: params.userId,
+        email: params.email,
+        joinedAt: params.joinedAt,
+        backend: "supabase",
+      });
+    } catch (error) {
+      if (!(error instanceof AlisioAccountCloudError) || error.code !== "username_taken") {
+        throw error;
+      }
+    }
+  }
+
+  throw new AlisioAccountCloudError(
+    "profile_write_failed",
+    "Alisio could not reserve a unique username for the new account.",
+  );
 }
 
 async function signInWithSupabasePassword(params: {
@@ -321,38 +555,10 @@ export async function signUpAlisioCloudAccount(params: {
 }): Promise<{
   session: AlisioStoredCloudSession;
   profile: AlisioCloudAccountProfile;
-  localPasswordCredential?: AlisioStoredPasswordCredential;
 }> {
   const env = params.env ?? process.env;
   const fetchImpl = params.fetchImpl ?? fetch;
   const email = params.email.trim().toLowerCase();
-  const backend = resolveAlisioAccountBackend(env);
-  const joinedAt = new Date().toISOString();
-
-  if (backend === "local-dev") {
-    const seed = defaultProfileSeed(email);
-    return {
-      session: {
-        backend,
-        state: "signed_in",
-        userId: createHash("sha256").update(email).digest("hex").slice(0, 24),
-        email,
-        signedInAt: joinedAt,
-      },
-      profile: {
-        userId: createHash("sha256").update(email).digest("hex").slice(0, 24),
-        email,
-        displayName: seed.displayName,
-        username: seed.username,
-        avatarLabel: seed.avatarLabel,
-        joinedAt,
-        plan: "Free Plan",
-        profileCompleted: false,
-        backend,
-      },
-      localPasswordCredential: buildPasswordCredential(email, params.password),
-    };
-  }
 
   const config = resolveSupabaseConfig(env);
   if (!config) {
@@ -396,15 +602,18 @@ export async function signUpAlisioCloudAccount(params: {
     password: params.password,
     fetchImpl,
   });
-  const accessToken = sessionResult.access_token ?? "";
-  const userId = sessionResult.user?.id ?? "";
-  const joinedAtValue = sessionResult.user?.created_at ?? joinedAt;
-  const profile = await fetchSupabaseProfile({
+  const resolvedSession = resolveSupabaseSession({
+    body: sessionResult,
+    fallbackEmail: email,
+    errorCode: "backend_unavailable",
+    errorMessage: "Alisio could not establish the new account session.",
+  });
+  const ensuredProfile = await ensureSupabaseProfile({
     config,
-    accessToken,
-    userId,
-    fallbackEmail: sessionResult.user?.email ?? email,
-    fallbackJoinedAt: joinedAtValue,
+    accessToken: resolvedSession.accessToken,
+    userId: resolvedSession.userId,
+    email: resolvedSession.email,
+    joinedAt: resolvedSession.joinedAt,
     fetchImpl,
   });
 
@@ -412,25 +621,21 @@ export async function signUpAlisioCloudAccount(params: {
     session: {
       backend: "supabase",
       state: "signed_in",
-      userId,
-      email: sessionResult.user?.email ?? email,
-      accessToken,
-      refreshToken: sessionResult.refresh_token,
-      expiresAt:
-        typeof sessionResult.expires_in === "number"
-          ? new Date(Date.now() + sessionResult.expires_in * 1000).toISOString()
-          : undefined,
-      tokenType: sessionResult.token_type,
+      userId: resolvedSession.userId,
+      email: resolvedSession.email,
+      accessToken: resolvedSession.accessToken,
+      refreshToken: resolvedSession.refreshToken,
+      expiresAt: resolvedSession.expiresAt,
+      tokenType: resolvedSession.tokenType,
       signedInAt: new Date().toISOString(),
     },
-    profile,
+    profile: ensuredProfile,
   };
 }
 
 export async function signInAlisioCloudAccount(params: {
   email: string;
   password: string;
-  localPasswordCredential?: AlisioStoredPasswordCredential;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }): Promise<{
@@ -440,37 +645,6 @@ export async function signInAlisioCloudAccount(params: {
   const env = params.env ?? process.env;
   const fetchImpl = params.fetchImpl ?? fetch;
   const email = params.email.trim().toLowerCase();
-  const backend = resolveAlisioAccountBackend(env);
-
-  if (backend === "local-dev") {
-    if (!verifyPasswordCredential(params.localPasswordCredential, email, params.password)) {
-      throw new AlisioAccountCloudError(
-        "invalid_credentials",
-        "Invalid email or password for this Alisio account.",
-      );
-    }
-    const seed = defaultProfileSeed(email);
-    return {
-      session: {
-        backend,
-        state: "signed_in",
-        userId: createHash("sha256").update(email).digest("hex").slice(0, 24),
-        email,
-        signedInAt: new Date().toISOString(),
-      },
-      profile: {
-        userId: createHash("sha256").update(email).digest("hex").slice(0, 24),
-        email,
-        displayName: seed.displayName,
-        username: seed.username,
-        avatarLabel: seed.avatarLabel,
-        joinedAt: new Date().toISOString(),
-        plan: "Free Plan",
-        profileCompleted: false,
-        backend,
-      },
-    };
-  }
 
   const config = resolveSupabaseConfig(env);
   if (!config) {
@@ -486,14 +660,18 @@ export async function signInAlisioCloudAccount(params: {
     password: params.password,
     fetchImpl,
   });
-  const accessToken = sessionResult.access_token ?? "";
-  const userId = sessionResult.user?.id ?? "";
-  const profile = await fetchSupabaseProfile({
+  const resolvedSession = resolveSupabaseSession({
+    body: sessionResult,
+    fallbackEmail: email,
+    errorCode: "backend_unavailable",
+    errorMessage: "Alisio could not establish the Alisio account session.",
+  });
+  const profile = await ensureSupabaseProfile({
     config,
-    accessToken,
-    userId,
-    fallbackEmail: sessionResult.user?.email ?? email,
-    fallbackJoinedAt: sessionResult.user?.created_at ?? new Date().toISOString(),
+    accessToken: resolvedSession.accessToken,
+    userId: resolvedSession.userId,
+    email: resolvedSession.email,
+    joinedAt: resolvedSession.joinedAt,
     fetchImpl,
   });
 
@@ -501,15 +679,12 @@ export async function signInAlisioCloudAccount(params: {
     session: {
       backend: "supabase",
       state: "signed_in",
-      userId,
-      email: sessionResult.user?.email ?? email,
-      accessToken,
-      refreshToken: sessionResult.refresh_token,
-      expiresAt:
-        typeof sessionResult.expires_in === "number"
-          ? new Date(Date.now() + sessionResult.expires_in * 1000).toISOString()
-          : undefined,
-      tokenType: sessionResult.token_type,
+      userId: resolvedSession.userId,
+      email: resolvedSession.email,
+      accessToken: resolvedSession.accessToken,
+      refreshToken: resolvedSession.refreshToken,
+      expiresAt: resolvedSession.expiresAt,
+      tokenType: resolvedSession.tokenType,
       signedInAt: new Date().toISOString(),
     },
     profile,
@@ -530,17 +705,10 @@ export async function restoreAlisioCloudAccountSession(params: {
   if (params.session.state !== "signed_in") {
     return params;
   }
-  if (params.session.backend === "local-dev") {
-    return params;
-  }
   const config = resolveSupabaseConfig(env);
   if (!config) {
     return {
-      session: {
-        ...params.session,
-        state: "signed_out",
-        signedOutAt: new Date().toISOString(),
-      },
+      session: resolveSignedOutCloudSession(params.session),
       profile: {
         ...params.profile,
         profileCompleted: false,
@@ -576,18 +744,20 @@ export async function restoreAlisioCloudAccountSession(params: {
         "The Alisio account session expired and needs a new sign-in.",
       );
     }
-    const body = refreshResult.body as SupabaseSessionResponse;
+    const resolvedSession = resolveSupabaseSession({
+      body: refreshResult.body as SupabaseSessionResponse,
+      fallbackEmail: session.email ?? params.profile.email,
+      errorCode: "session_refresh_failed",
+      errorMessage: "The Alisio account session expired and needs a new sign-in.",
+    });
     session = {
       ...session,
-      accessToken: body.access_token,
-      refreshToken: body.refresh_token ?? session.refreshToken,
-      tokenType: body.token_type ?? session.tokenType,
-      expiresAt:
-        typeof body.expires_in === "number"
-          ? new Date(Date.now() + body.expires_in * 1000).toISOString()
-          : session.expiresAt,
-      email: body.user?.email ?? session.email,
-      userId: body.user?.id ?? session.userId,
+      accessToken: resolvedSession.accessToken,
+      refreshToken: resolvedSession.refreshToken ?? session.refreshToken,
+      tokenType: resolvedSession.tokenType ?? session.tokenType,
+      expiresAt: resolvedSession.expiresAt ?? session.expiresAt,
+      email: resolvedSession.email,
+      userId: resolvedSession.userId,
     };
   }
 
@@ -607,12 +777,12 @@ export async function restoreAlisioCloudAccountSession(params: {
     );
   }
   const user = userResult.body as SupabaseUserResponse;
-  const profile = await fetchSupabaseProfile({
+  const profile = await ensureSupabaseProfile({
     config,
     accessToken: session.accessToken ?? "",
     userId: user.id ?? session.userId ?? "",
-    fallbackEmail: user.email ?? session.email ?? params.profile.email,
-    fallbackJoinedAt: user.created_at ?? params.profile.joinedAt,
+    email: user.email ?? session.email ?? params.profile.email,
+    joinedAt: user.created_at ?? params.profile.joinedAt,
     fetchImpl,
   });
 
@@ -634,24 +804,6 @@ export async function completeAlisioCloudAccountProfile(
 ): Promise<AlisioCloudAccountProfile> {
   const env = params.env ?? process.env;
   const fetchImpl = params.fetchImpl ?? fetch;
-  if (params.session.backend === "local-dev") {
-    return {
-      userId: params.session.userId,
-      email: params.email.trim().toLowerCase(),
-      displayName: params.displayName.trim(),
-      username: normalizeAlisioUsername(params.username),
-      avatarLabel: deriveAlisioAvatarLabel({
-        avatarLabel: params.avatarLabel,
-        displayName: params.displayName,
-        username: params.username,
-      }),
-      avatarUrl: params.avatarUrl?.trim() || undefined,
-      joinedAt: params.joinedAt,
-      plan: params.plan,
-      profileCompleted: true,
-      backend: "local-dev",
-    };
-  }
 
   const config = resolveSupabaseConfig(env);
   if (!config || !params.session.accessToken || !params.session.userId) {
@@ -661,11 +813,11 @@ export async function completeAlisioCloudAccountProfile(
     );
   }
 
-  const url = new URL(`/rest/v1/${config.profilesTable}`, config.url);
-  url.searchParams.set("on_conflict", "user_id");
+  const profileEmail =
+    params.session.email?.trim().toLowerCase() || params.email.trim().toLowerCase();
   const payload = {
     user_id: params.session.userId,
-    email: params.email.trim().toLowerCase(),
+    email: profileEmail,
     display_name: params.displayName.trim(),
     username: normalizeAlisioUsername(params.username),
     avatar_url: params.avatarUrl?.trim() || null,
@@ -675,38 +827,18 @@ export async function completeAlisioCloudAccountProfile(
       username: params.username,
     }),
     joined_at: params.joinedAt,
-    plan: params.plan,
+    plan: normalizeAlisioPlan(params.plan),
     profile_completed: true,
   };
-  const result = await fetchJson(
-    url.toString(),
-    {
-      method: "POST",
-      headers: {
-        ...supabaseHeaders(config, params.session.accessToken),
-        Prefer: "resolution=merge-duplicates,return=representation",
-      },
-      body: JSON.stringify(payload),
-    },
+  const row = await writeSupabaseProfile({
+    config,
+    accessToken: params.session.accessToken,
+    payload,
     fetchImpl,
-  );
-  if (!result.ok) {
-    const body = result.body as Record<string, unknown> | null;
-    const message = readSupabaseErrorText(body);
-    if (message.includes("duplicate") || message.includes("unique")) {
-      throw new AlisioAccountCloudError("username_taken", "That username is already in use.");
-    }
-    throw new AlisioAccountCloudError(
-      "profile_write_failed",
-      "Alisio could not save the account profile.",
-    );
-  }
-  const row = Array.isArray(result.body)
-    ? result.body[0]
-    : (result.body as SupabaseProfileRow | null);
+  });
   return mapSupabaseProfile(row, {
     userId: params.session.userId,
-    email: payload.email,
+    email: profileEmail,
     joinedAt: params.joinedAt,
     backend: "supabase",
   });
@@ -744,14 +876,6 @@ export async function requestAlisioCloudPasswordReset(params: {
       "password_reset_failed",
       "Enter the email for the Alisio account first.",
     );
-  }
-
-  const backend = resolveAlisioAccountBackend(env);
-  if (backend === "local-dev") {
-    return {
-      ok: true,
-      message: "If this Alisio account exists, a password reset email is on its way.",
-    };
   }
 
   const config = resolveSupabaseConfig(env);

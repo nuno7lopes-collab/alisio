@@ -10,9 +10,11 @@ import { parseSemver } from "../../infra/runtime-guard.js";
 import { fetchNpmTagVersion } from "../../infra/update-check.js";
 import {
   canResolveRegistryVersionForPackageTarget,
+  CORE_PACKAGE_NAME,
   createGlobalInstallEnv,
   detectGlobalInstallManagerByPresence,
   detectGlobalInstallManagerForRoot,
+  PUBLIC_PACKAGE_NAME,
   type CommandRunner,
   type GlobalInstallManager,
 } from "../../infra/update-global.js";
@@ -56,11 +58,11 @@ export function parseTimeoutMsOrExit(timeout?: string): number | undefined | nul
 const OPENCLAW_REPO_URL = "https://github.com/openclaw/openclaw.git";
 const MAX_LOG_CHARS = 8000;
 
-export const DEFAULT_PACKAGE_NAME = "openclaw";
-const CORE_PACKAGE_NAMES = new Set([DEFAULT_PACKAGE_NAME]);
+export const DEFAULT_PACKAGE_NAME = CORE_PACKAGE_NAME;
+const CORE_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
 
 export function normalizeTag(value?: string | null): string | null {
-  return normalizePackageTagInput(value, ["openclaw", DEFAULT_PACKAGE_NAME]);
+  return normalizePackageTagInput(value, [PUBLIC_PACKAGE_NAME, CORE_PACKAGE_NAME]);
 }
 
 export function normalizeVersionTag(tag: string): string | null {

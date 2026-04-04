@@ -1,6 +1,7 @@
 import { loadConfig, type OpenClawConfig } from "../config/config.js";
 import { GatewayClient } from "../gateway/client.js";
 import { resolveGatewayConnectionAuth } from "../gateway/connection-auth.js";
+import type { NodeCapabilityManifest } from "../gateway/protocol/index.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import type { SkillBinTrustEntry } from "../infra/exec-approvals.js";
 import { resolveExecutableFromPathEnv } from "../infra/executable-path.js";
@@ -17,8 +18,10 @@ import { VERSION } from "../version.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
 import {
   coerceNodeInvokePayload,
+  coerceNodeTaskPayload,
   type SkillBinsProvider,
   buildNodeInvokeResultParams,
+  handleTask,
   handleInvoke,
 } from "./invoke.js";
 
@@ -113,6 +116,44 @@ function ensureNodePathEnv(): string {
   return DEFAULT_NODE_PATH;
 }
 
+function resolveNodeHostCapabilities(params: {
+  browserProxyEnabled: boolean;
+}): NodeCapabilityManifest[] {
+  const capabilities: NodeCapabilityManifest[] = [
+    {
+      id: "exec.shell.v1",
+      title: "Execucao remota",
+      description: "Executa comandos aprovados neste computador ligado.",
+      version: 1,
+      risk: "high",
+      streaming: false,
+      interactive: false,
+      supportsCancel: false,
+      supportsResume: false,
+      requiresCommands: ["system.run"],
+      tags: ["shell", "automation"],
+    },
+  ];
+  const modelBaseUrl = process.env.OPENCLAW_NODE_MODEL_BASE_URL?.trim();
+  if (modelBaseUrl) {
+    capabilities.push({
+      id: "model.chat.openai.v1",
+      title: "Modelo local",
+      description:
+        "Encaminha pedidos de chat para um servidor local compativel com OpenAI neste computador.",
+      version: 1,
+      risk: "medium",
+      streaming: true,
+      interactive: true,
+      supportsCancel: false,
+      supportsResume: false,
+      tags: ["llm", "local-model", "openai-compatible"],
+    });
+  }
+  void params.browserProxyEnabled;
+  return capabilities;
+}
+
 export async function resolveNodeHostGatewayCredentials(params: {
   config: OpenClawConfig;
   env?: NodeJS.ProcessEnv;
@@ -177,6 +218,7 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   const scheme = gateway.tls ? "wss" : "ws";
   const url = `${scheme}://${host}:${port}`;
   const pathEnv = ensureNodePathEnv();
+  const capabilities = resolveNodeHostCapabilities({ browserProxyEnabled });
 
   const client = new GatewayClient({
     url,
@@ -190,7 +232,14 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
     mode: GATEWAY_CLIENT_MODES.NODE,
     role: "node",
     scopes: [],
-    caps: ["system", ...(browserProxyEnabled ? ["browser"] : [])],
+    caps: [
+      "system",
+      ...(browserProxyEnabled ? ["browser"] : []),
+      ...(capabilities.some((capability) => capability.id === "model.chat.openai.v1")
+        ? ["models"]
+        : []),
+    ],
+    capabilities,
     commands: [
       ...NODE_SYSTEM_RUN_COMMANDS,
       ...NODE_EXEC_APPROVALS_COMMANDS,
@@ -201,14 +250,20 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
     deviceIdentity: loadOrCreateDeviceIdentity(),
     tlsFingerprint: gateway.tlsFingerprint,
     onEvent: (evt) => {
-      if (evt.event !== "node.invoke.request") {
-        return;
+      if (evt.event === "node.invoke.request") {
+        const payload = coerceNodeInvokePayload(evt.payload);
+        if (!payload) {
+          return;
+        }
+        void handleInvoke(payload, client, skillBins);
       }
-      const payload = coerceNodeInvokePayload(evt.payload);
-      if (!payload) {
-        return;
+      if (evt.event === "node.task.request") {
+        const payload = coerceNodeTaskPayload(evt.payload);
+        if (!payload) {
+          return;
+        }
+        void handleTask(payload, client, skillBins);
       }
-      void handleInvoke(payload, client, skillBins);
     },
     onConnectError: (err) => {
       // keep retrying (handled by GatewayClient)

@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "name": "OpenClaw",
-  "description": "Self-hosted gateway that connects WhatsApp, Telegram, Discord, iMessage, and more to AI coding agents. Run a single Gateway process on your own machine and message your AI assistant from anywhere.",
+  "name": "Alisio",
+  "description": "Alisio is a self-hosted gateway that connects WhatsApp, Telegram, Discord, iMessage, and more to AI coding agents. Run a single Gateway process on your own machine and message your AI assistant from anywhere.",
   "theme": "mint",
   "icons": {
     "library": "lucide"
@@ -342,15 +342,23 @@
     },
     {
       "source": "/clawd",
-      "destination": "/start/openclaw"
+      "destination": "/start/alisio"
     },
     {
       "source": "/start/clawd",
-      "destination": "/start/openclaw"
+      "destination": "/start/alisio"
     },
     {
       "source": "/start/clawd/",
-      "destination": "/start/openclaw"
+      "destination": "/start/alisio"
+    },
+    {
+      "source": "/start/openclaw",
+      "destination": "/start/alisio"
+    },
+    {
+      "source": "/start/openclaw/",
+      "destination": "/start/alisio"
     },
     {
       "source": "/start/pairing",
@@ -905,7 +913,7 @@
               {
                 "group": "Guides",
                 "pages": [
-                  "start/openclaw",
+                  "start/alisio",
                   "start/wizard-cli-reference",
                   "start/wizard-cli-automation"
                 ]
@@ -1366,11 +1374,7 @@
                   },
                   {
                     "group": "Node features",
-                    "pages": [
-                      "nodes/talk",
-                      "nodes/voicewake",
-                      "nodes/location-command"
-                    ]
+                    "pages": ["nodes/talk", "nodes/voicewake", "nodes/location-command"]
                   }
                 ]
               },

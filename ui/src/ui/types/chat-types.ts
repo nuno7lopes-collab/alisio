@@ -43,6 +43,7 @@ export type ToolCard = {
   name: string;
   args?: unknown;
   text?: unknown;
+  details?: unknown;
   toolCallId?: string;
   phase?: "start" | "update" | "result";
   isError?: boolean;

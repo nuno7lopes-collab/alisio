@@ -112,18 +112,51 @@ const bundledPluginRoot = (pluginId: string) => ["extensions", pluginId].join("/
 const bundledPluginFile = (pluginId: string, relativePath: string) =>
   `${bundledPluginRoot(pluginId)}/${relativePath}`;
 
+export function buildSrcRuntimeBoundaryEntries(): Record<string, string> {
+  const srcRoot = path.join(process.cwd(), "src");
+  const entries: Record<string, string> = {};
+  const queue = [srcRoot];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (!current) {
+      continue;
+    }
+
+    const dirents = fs
+      .readdirSync(current, { withFileTypes: true })
+      .toSorted((a, b) => a.name.localeCompare(b.name));
+
+    for (const dirent of dirents) {
+      const fullPath = path.join(current, dirent.name);
+      if (dirent.isDirectory()) {
+        queue.push(fullPath);
+        continue;
+      }
+      if (!dirent.isFile() || !dirent.name.endsWith(".runtime.ts")) {
+        continue;
+      }
+
+      const relativePath = path.relative(srcRoot, fullPath).replaceAll(path.sep, "/");
+      entries[relativePath.slice(0, -".ts".length)] = `src/${relativePath}`;
+    }
+  }
+
+  return entries;
+}
+
+const srcRuntimeBoundaryEntries = buildSrcRuntimeBoundaryEntries();
+
 function buildCoreDistEntries(): Record<string, string> {
   return {
     index: "src/index.ts",
     entry: "src/entry.ts",
     // Ensure this module is bundled as an entry so legacy CLI shims can resolve its exports.
     "cli/daemon-cli": "src/cli/daemon-cli.ts",
-    // Keep long-lived lazy runtime boundaries on stable filenames so rebuilt
-    // dist/ trees do not strand already-running gateways on stale hashed chunks.
-    "agents/auth-profiles.runtime": "src/agents/auth-profiles.runtime.ts",
+    // Keep every source runtime boundary on a stable entry path so rebuilt
+    // dist/ trees do not strand already-running processes on stale hashed chunks.
+    ...srcRuntimeBoundaryEntries,
     "agents/pi-model-discovery-runtime": "src/agents/pi-model-discovery-runtime.ts",
-    "commands/status.summary.runtime": "src/commands/status.summary.runtime.ts",
-    "plugins/provider-runtime.runtime": "src/plugins/provider-runtime.runtime.ts",
     "plugins/runtime/runtime-line.contract": "src/plugins/runtime/runtime-line.contract.ts",
     extensionAPI: "src/extensionAPI.ts",
     "infra/warning-filter": "src/infra/warning-filter.ts",

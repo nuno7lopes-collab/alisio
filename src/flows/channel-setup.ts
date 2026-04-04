@@ -1,5 +1,8 @@
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
-import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
+import {
+  getChannelPluginCatalogEntry,
+  listChannelPluginCatalogEntries,
+} from "../channels/plugins/catalog.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import {
   getChannelSetupPlugin,
@@ -8,13 +11,17 @@ import {
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
 import { listChatChannels } from "../channels/registry.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import { resolveChannelSetupEntries } from "../commands/channel-setup/discovery.js";
+import {
+  isCatalogChannelInstalled,
+  resolveChannelSetupEntries,
+} from "../commands/channel-setup/discovery.js";
 import {
   ensureChannelSetupPluginInstalled,
   loadChannelSetupPluginRegistrySnapshotForChannel,
 } from "../commands/channel-setup/plugin-install.js";
 import { resolveChannelSetupWizardAdapterForPlugin } from "../commands/channel-setup/registry.js";
 import type {
+  ChannelSetupStatus,
   ChannelSetupConfiguredResult,
   ChannelSetupResult,
   ChannelOnboardingPostWriteHook,
@@ -155,23 +162,37 @@ export async function setupChannels(
   if (options?.whatsappAccountId?.trim()) {
     accountOverrides.whatsapp = options.whatsappAccountId.trim();
   }
-  preloadConfiguredExternalPlugins();
+  const presetSelection = Array.from(new Set(options?.initialSelection ?? []));
+  const useSingleChannelFastPath =
+    options?.skipSelectionPrompt === true && presetSelection.length === 1;
+  if (!useSingleChannelFastPath) {
+    preloadConfiguredExternalPlugins();
+  }
 
-  const {
-    installedPlugins,
-    catalogEntries,
-    installedCatalogEntries,
-    statusByChannel,
-    statusLines,
-  } = await collectChannelStatus({
-    cfg: next,
-    options,
-    accountOverrides,
-    installedPlugins: listVisibleInstalledPlugins(),
-    resolveAdapter: getVisibleSetupFlowAdapter,
-  });
-  if (!options?.skipStatusNote && statusLines.length > 0) {
-    await prompter.note(statusLines.join("\n"), "Channel status");
+  let installedPlugins: ChannelSetupPlugin[] = listVisibleInstalledPlugins();
+  let catalogEntries: ReturnType<typeof listChannelPluginCatalogEntries> = [];
+  let installedCatalogEntries: ReturnType<typeof listChannelPluginCatalogEntries> = [];
+  const statusByChannel = new Map<ChannelChoice, ChannelSetupStatus>();
+  let statusLines: string[] = [];
+
+  if (!useSingleChannelFastPath) {
+    const collected = await collectChannelStatus({
+      cfg: next,
+      options,
+      accountOverrides,
+      installedPlugins,
+      resolveAdapter: getVisibleSetupFlowAdapter,
+    });
+    installedPlugins = collected.installedPlugins;
+    catalogEntries = collected.catalogEntries;
+    installedCatalogEntries = collected.installedCatalogEntries;
+    for (const [channel, status] of collected.statusByChannel) {
+      statusByChannel.set(channel, status);
+    }
+    statusLines = collected.statusLines;
+    if (!options?.skipStatusNote && statusLines.length > 0) {
+      await prompter.note(statusLines.join("\n"), "Channel status");
+    }
   }
 
   const shouldConfigure = options?.skipConfirm
@@ -214,10 +235,11 @@ export async function setupChannels(
         blurb: entry.meta.blurb,
       })),
   ];
-  await noteChannelPrimer(prompter, primerChannels);
+  if (!useSingleChannelFastPath) {
+    await noteChannelPrimer(prompter, primerChannels);
+  }
 
-  const quickstartDefault =
-    options?.initialSelection?.[0] ?? resolveQuickstartDefault(statusByChannel);
+  const quickstartDefault = presetSelection[0] ?? resolveQuickstartDefault(statusByChannel);
 
   const shouldPromptAccountIds = options?.promptAccountIds === true;
   const accountIdsByChannel = new Map<ChannelChoice, string>();
@@ -233,6 +255,27 @@ export async function setupChannels(
     if (!selection.includes(channel)) {
       selection.push(channel);
     }
+  };
+
+  const getDirectChannelCatalogEntries = (channel: ChannelChoice) => {
+    const workspaceDir = resolveWorkspaceDir();
+    const entry = getChannelPluginCatalogEntry(channel, { workspaceDir });
+    if (!entry) {
+      return {
+        catalogEntry: undefined,
+        installedCatalogEntry: undefined,
+      };
+    }
+    if (isCatalogChannelInstalled({ cfg: next, entry, workspaceDir })) {
+      return {
+        catalogEntry: undefined,
+        installedCatalogEntry: entry,
+      };
+    }
+    return {
+      catalogEntry: entry,
+      installedCatalogEntry: undefined,
+    };
   };
 
   const resolveDisabledHint = (channel: ChannelChoice): string | undefined => {
@@ -467,9 +510,16 @@ export async function setupChannels(
   };
 
   const handleChannelChoice = async (channel: ChannelChoice) => {
-    const { catalogById, installedCatalogById } = getChannelEntries();
-    const catalogEntry = catalogById.get(channel);
-    const installedCatalogEntry = installedCatalogById.get(channel);
+    const directEntries = useSingleChannelFastPath ? getDirectChannelCatalogEntries(channel) : null;
+    const entryMaps = directEntries
+      ? null
+      : (() => {
+          const { catalogById, installedCatalogById } = getChannelEntries();
+          return { catalogById, installedCatalogById };
+        })();
+    const catalogEntry = directEntries?.catalogEntry ?? entryMaps?.catalogById.get(channel);
+    const installedCatalogEntry =
+      directEntries?.installedCatalogEntry ?? entryMaps?.installedCatalogById.get(channel);
     if (catalogEntry) {
       const workspaceDir = resolveWorkspaceDir();
       const result = await ensureChannelSetupPluginInstalled({
@@ -528,7 +578,15 @@ export async function setupChannels(
     await configureChannel(channel);
   };
 
-  if (options?.quickstartDefaults) {
+  if (options?.skipSelectionPrompt) {
+    if (presetSelection.length === 0) {
+      await prompter.note("No channel selected.", "Channel setup");
+      return next;
+    }
+    for (const channel of presetSelection) {
+      await handleChannelChoice(channel);
+    }
+  } else if (options?.quickstartDefaults) {
     const { entries } = getChannelEntries();
     const choice = (await prompter.select({
       message: "Select channel (QuickStart)",
@@ -579,11 +637,13 @@ export async function setupChannels(
 
   options?.onSelection?.(selection);
 
-  const selectedLines = resolveChannelSelectionNoteLines({
-    cfg: next,
-    installedPlugins: listVisibleInstalledPlugins(),
-    selection,
-  });
+  const selectedLines = useSingleChannelFastPath
+    ? []
+    : resolveChannelSelectionNoteLines({
+        cfg: next,
+        installedPlugins: listVisibleInstalledPlugins(),
+        selection,
+      });
   if (selectedLines.length > 0) {
     await prompter.note(selectedLines.join("\n"), "Selected channels");
   }

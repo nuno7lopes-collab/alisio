@@ -31,7 +31,7 @@ const CONNECTOR_BRANDING: Record<string, ConnectorBranding> = {
     border: "rgba(255, 255, 255, 0.14)",
   },
   linkedin: {
-    logoUrl: "https://cdn.simpleicons.org/linkedin/0A66C2",
+    logoUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/LinkedIn_icon.svg",
     accent: "#0A66C2",
     surface: "rgba(10, 102, 194, 0.16)",
     border: "rgba(10, 102, 194, 0.28)",
@@ -127,16 +127,16 @@ const CONNECTOR_BRANDING: Record<string, ConnectorBranding> = {
     border: "rgba(255, 255, 255, 0.14)",
   },
   slack: {
-    logoUrl: "https://cdn.simpleicons.org/slack/FFFFFF",
-    accent: "#FFFFFF",
-    surface: "rgba(255, 255, 255, 0.08)",
-    border: "rgba(255, 255, 255, 0.14)",
+    logoUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Slack_Logo_Icon.svg",
+    accent: "#4A154B",
+    surface: "rgba(74, 21, 75, 0.16)",
+    border: "rgba(74, 21, 75, 0.28)",
   },
   freshdesk: {
-    logoUrl: "https://cdn.simpleicons.org/freshworks/49C556",
-    accent: "#49C556",
-    surface: "rgba(73, 197, 86, 0.16)",
-    border: "rgba(73, 197, 86, 0.28)",
+    logoUrl: "https://commons.wikimedia.org/wiki/Special:FilePath/Freshworks-vector-logo.svg",
+    accent: "#2EB67D",
+    surface: "rgba(46, 182, 125, 0.16)",
+    border: "rgba(46, 182, 125, 0.28)",
   },
   vercel: {
     logoUrl: "https://cdn.simpleicons.org/vercel/FFFFFF",
@@ -164,15 +164,12 @@ export function getConnectorBranding(
   connectorId: string,
   providerLabel: string,
 ): ConnectorBranding {
-  return (
-    CONNECTOR_BRANDING[connectorId] ??
-    PROVIDER_BRANDING[providerLabel.trim().toLowerCase()] ?? {
-      logoUrl: "",
-      accent: "#d4a574",
-      surface: "rgba(212, 165, 116, 0.14)",
-      border: "rgba(212, 165, 116, 0.24)",
-    }
-  );
+  const branding =
+    CONNECTOR_BRANDING[connectorId] ?? PROVIDER_BRANDING[providerLabel.trim().toLowerCase()];
+  if (!branding) {
+    throw new Error(`Missing connector branding for ${connectorId}`);
+  }
+  return branding;
 }
 
 export function connectorBrandStyle(branding: ConnectorBranding): string {
@@ -181,18 +178,4 @@ export function connectorBrandStyle(branding: ConnectorBranding): string {
     `--connector-surface:${branding.surface}`,
     `--connector-border:${branding.border}`,
   ].join(";");
-}
-
-export function connectorFallbackMonogram(title: string): string {
-  const words = title
-    .split(/[\s/+-]+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (words.length === 0) {
-    return "?";
-  }
-  if (words.length === 1) {
-    return words[0].slice(0, 1).toUpperCase();
-  }
-  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
 }

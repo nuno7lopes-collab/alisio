@@ -6,13 +6,15 @@ import type {
   AlisioConnectorsBeginResult,
   AlisioConnectorDefinition,
 } from "../types.ts";
-import {
-  connectorBrandStyle,
-  connectorFallbackMonogram,
-  getConnectorBranding,
-} from "./connector-branding.ts";
+import { connectorBrandStyle, getConnectorBranding } from "./connector-branding.ts";
 
-type ConnectorStatus = "connected" | "needs_reconnect" | "ready" | "in_review" | "unavailable";
+type ConnectorStatus =
+  | "connected"
+  | "needs_reconnect"
+  | "setup_required"
+  | "ready"
+  | "in_review"
+  | "unavailable";
 
 type ConnectorRow = {
   definition: AlisioConnectorDefinition;
@@ -20,22 +22,24 @@ type ConnectorRow = {
   status: ConnectorStatus;
 };
 
-type ConnectorSetupGuide = AlisioConnectorsBeginResult;
-
 const CATEGORY_ORDER = ["social", "google", "productivity", "development"] as const;
 
 function resolveConnectorStatus(row: {
   definition: AlisioConnectorDefinition;
   authorization: AlisioConnectorAuthorization | undefined;
 }): ConnectorStatus {
+  if (
+    row.authorization?.state === "needs_reconnect" ||
+    (row.authorization?.health === "needs_reconnect" &&
+      row.authorization?.state !== "not_connected")
+  ) {
+    return "needs_reconnect";
+  }
   if (row.authorization?.state === "connected") {
     return "connected";
   }
-  if (
-    row.authorization?.state === "needs_reconnect" ||
-    row.authorization?.health === "needs_reconnect"
-  ) {
-    return "needs_reconnect";
+  if (row.authorization?.health === "config_missing") {
+    return "setup_required";
   }
   if (row.definition.availability === "ready") {
     return "ready";
@@ -83,26 +87,39 @@ function statusLabel(status: ConnectorStatus) {
   return t(`alisio.authentications.statuses.${status}`);
 }
 
+function statusHint(status: ConnectorStatus) {
+  switch (status) {
+    case "connected":
+      return t("alisio.authentications.hints.connected");
+    case "ready":
+      return t("alisio.authentications.hints.ready");
+    case "needs_reconnect":
+      return t("alisio.authentications.hints.needsReconnect");
+    case "setup_required":
+      return t("alisio.authentications.hints.setupRequired");
+    case "in_review":
+      return t("alisio.authentications.hints.inReview");
+    case "unavailable":
+    default:
+      return t("alisio.authentications.hints.unavailable");
+  }
+}
+
+function connectedAccountLabel(authorization: AlisioConnectorAuthorization) {
+  return (
+    authorization.connectedAccount?.label?.trim() ||
+    authorization.connectedAccount?.email?.trim() ||
+    authorization.connectedAccount?.handle?.trim() ||
+    null
+  );
+}
+
 function renderConnectorIcon(definition: AlisioConnectorDefinition) {
   const branding = getConnectorBranding(definition.id, definition.providerLabel);
-  const monogram = connectorFallbackMonogram(definition.title);
 
   return html`
     <span class="alisio-auth-card__icon" style=${connectorBrandStyle(branding)}>
-      <span class="alisio-auth-card__icon-fallback">${monogram}</span>
-      ${branding.logoUrl
-        ? html`
-            <img
-              src=${branding.logoUrl}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              @error=${(event: Event) => {
-                (event.currentTarget as HTMLImageElement).style.display = "none";
-              }}
-            />
-          `
-        : nothing}
+      <img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />
     </span>
   `;
 }
@@ -116,9 +133,6 @@ function renderConnectorAction(
   text: {
     revoke: string;
     reconnect: string;
-    inReviewHint: string;
-    unavailableHint: string;
-    needsReconnectHint: string;
   },
 ) {
   if (row.status === "connected") {
@@ -140,14 +154,9 @@ function renderConnectorAction(
       <button class="btn btn--sm primary" @click=${() => props.onBeginConnector(row.definition.id)}>
         ${text.reconnect}
       </button>
-      <span class="alisio-auth-card__hint">${text.needsReconnectHint}</span>
     `;
   }
-  return html`
-    <span class="alisio-auth-card__hint">
-      ${row.status === "in_review" ? text.inReviewHint : text.unavailableHint}
-    </span>
-  `;
+  return nothing;
 }
 
 function renderConnectorCard(
@@ -160,15 +169,11 @@ function renderConnectorCard(
   text: {
     revoke: string;
     reconnect: string;
-    inReviewHint: string;
-    unavailableHint: string;
-    needsReconnectHint: string;
   },
 ) {
   const compact = props.compact ?? false;
-  const connectedAccountLabel =
-    row.authorization.connectedAccount?.label ?? row.definition.providerLabel;
-  const connectedAccountEmail = row.authorization.connectedAccount?.email?.trim();
+  const connectedAs = connectedAccountLabel(row.authorization);
+  const summary = row.definition.detail?.trim() || row.definition.summary;
 
   return html`
     <article
@@ -182,135 +187,29 @@ function renderConnectorCard(
             ${renderConnectorIcon(row.definition)}
             <div class="alisio-auth-card__brand-copy">
               <div class="list-title">${row.definition.title}</div>
-              <div class="list-sub">
-                ${connectedAccountLabel}${connectedAccountEmail
-                  ? ` · ${connectedAccountEmail}`
-                  : ""}
-              </div>
+              <div class="list-sub">${summary}</div>
             </div>
           </div>
           <span class="pill ${`pill--${row.status.replace("_", "-")}`}"
             >${statusLabel(row.status)}</span
           >
         </div>
-        <div class="alisio-auth-card__summary">${row.definition.summary}</div>
-        ${row.definition.detail && !compact
-          ? html`<div class="alisio-auth-card__detail">${row.definition.detail}</div>`
-          : nothing}
-        <div class="alisio-auth-card__scopes">
-          ${(compact ? row.definition.scopes.slice(0, 2) : row.definition.scopes.slice(0, 3)).map(
-            (scope) => html`<span class="chip">${scope}</span>`,
-          )}
+        <div class="chip-row" style="margin-top: ${compact ? "10px" : "12px"};">
+          <span class="chip">${row.definition.providerLabel}</span>
+          ${connectedAs
+            ? html`
+                <span class="chip">
+                  ${t("alisio.authentications.connectedAs")}: ${connectedAs}
+                </span>
+              `
+            : nothing}
+        </div>
+        <div class="muted" style="margin-top: 10px; font-size: 13px;">
+          ${statusHint(row.status)}
         </div>
       </div>
       <div class="alisio-auth-card__aside">${renderConnectorAction(row, props, text)}</div>
     </article>
-  `;
-}
-
-function resolveSuggestedCallbackUrl(callbackPath: string | undefined) {
-  if (!callbackPath || typeof window === "undefined") {
-    return null;
-  }
-  try {
-    return new URL(callbackPath, window.location.origin).toString();
-  } catch {
-    return null;
-  }
-}
-
-function renderSetupGuide(
-  guide: ConnectorSetupGuide,
-  props: {
-    connectorTitle?: string;
-    onDismissSetupGuide: () => void;
-    onOpenSupportUrl: (url: string) => void;
-  },
-  text: {
-    setupMissingConfigTitle: string;
-    setupReviewTitle: string;
-    setupUnavailableTitle: string;
-    setupMissingConfigBody: string;
-    setupReviewBody: string;
-    setupUnavailableBody: string;
-    setupEnvVars: string;
-    setupCallback: string;
-    setupCallbackHint: string;
-    setupSupport: string;
-    dismiss: string;
-  },
-) {
-  const callbackUrl = resolveSuggestedCallbackUrl(guide.callbackPath);
-  const title =
-    guide.statusReason === "missing_client_config"
-      ? text.setupMissingConfigTitle
-      : guide.statusReason === "review_required"
-        ? text.setupReviewTitle
-        : text.setupUnavailableTitle;
-  const body =
-    guide.statusReason === "missing_client_config"
-      ? text.setupMissingConfigBody
-      : guide.statusReason === "review_required"
-        ? text.setupReviewBody
-        : text.setupUnavailableBody;
-
-  return html`
-    <section class="card alisio-auth-setup">
-      <div class="alisio-auth-setup__header">
-        <div>
-          <div class="card-title">${title}</div>
-          <div class="card-sub">
-            ${body}
-            ${guide.setupHint
-              ? html` <span class="alisio-auth-setup__hint">${guide.setupHint}</span>`
-              : nothing}
-          </div>
-        </div>
-        <div class="alisio-auth-setup__actions">
-          ${guide.setupUrl
-            ? html`
-                <button
-                  class="btn btn--sm"
-                  type="button"
-                  @click=${() => props.onOpenSupportUrl(guide.setupUrl!)}
-                >
-                  ${text.setupSupport}
-                </button>
-              `
-            : nothing}
-          <button class="btn btn--sm" type="button" @click=${props.onDismissSetupGuide}>
-            ${text.dismiss}
-          </button>
-        </div>
-      </div>
-
-      <div class="alisio-auth-setup__meta">
-        <span class="pill">${guide.providerLabel ?? guide.provider ?? guide.connectorId}</span>
-        <span class="pill">${props.connectorTitle ?? guide.connectorId}</span>
-      </div>
-
-      ${guide.requiredEnvVars && guide.requiredEnvVars.length > 0
-        ? html`
-            <div class="alisio-auth-setup__block">
-              <div class="label">${text.setupEnvVars}</div>
-              <div class="alisio-auth-setup__chips">
-                ${guide.requiredEnvVars.map(
-                  (entry) => html`<span class="chip mono">${entry}</span>`,
-                )}
-              </div>
-            </div>
-          `
-        : nothing}
-      ${callbackUrl
-        ? html`
-            <div class="alisio-auth-setup__block">
-              <div class="label">${text.setupCallback}</div>
-              <div class="alisio-auth-setup__callback mono">${callbackUrl}</div>
-              <div class="alisio-auth-setup__hint">${text.setupCallbackHint}</div>
-            </div>
-          `
-        : nothing}
-    </section>
   `;
 }
 
@@ -320,49 +219,33 @@ export function renderAuthentications(props: {
   account: AlisioAccountState | null;
   connectorCatalog: AlisioConnectorDefinition[];
   connectorAuthorizations: AlisioConnectorAuthorization[];
-  setupGuide: ConnectorSetupGuide | null;
+  setupGuide: AlisioConnectorsBeginResult | null;
   search: string;
   categoryFilter: string;
   onSearchChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
+  onOpenChannels: () => void;
   onDismissSetupGuide: () => void;
   onOpenSupportUrl: (url: string) => void;
 }) {
   const text = {
+    eyebrow: t("alisio.authentications.eyebrow"),
     title: t("alisio.authentications.title"),
     subtitle: t("alisio.authentications.subtitle"),
     loading: t("alisio.authentications.loading"),
-    connected: t("alisio.authentications.connected"),
-    connectedHint: t("alisio.authentications.connectedHint"),
-    ready: t("alisio.authentications.ready"),
-    readyHint: t("alisio.authentications.readyHint"),
-    account: t("alisio.authentications.account"),
-    localAccount: t("alisio.authentications.localAccount"),
-    notConfiguredYet: t("alisio.authentications.notConfiguredYet"),
+    summaryConnected: t("alisio.authentications.summary.connected"),
+    summaryReady: t("alisio.authentications.summary.ready"),
+    summaryAttention: t("alisio.authentications.summary.attention"),
+    openChannels: t("alisio.authentications.openChannels"),
     authorizedTitle: t("alisio.authentications.authorizedTitle"),
     authorizedSubtitle: t("alisio.authentications.authorizedSubtitle"),
-    emptyAuthorized: t("alisio.authentications.emptyAuthorized"),
-    catalogTitle: t("alisio.authentications.catalogTitle"),
-    catalogSubtitle: t("alisio.authentications.catalogSubtitle"),
     searchPlaceholder: t("alisio.authentications.searchPlaceholder"),
+    availableTitle: t("alisio.authentications.availableTitle"),
+    emptyFiltered: t("alisio.authentications.emptyFiltered"),
     revoke: t("alisio.authentications.actions.revoke"),
     reconnect: t("alisio.authentications.actions.reconnect"),
-    inReviewHint: t("alisio.authentications.hints.inReview"),
-    unavailableHint: t("alisio.authentications.hints.unavailable"),
-    needsReconnectHint: t("alisio.authentications.hints.needsReconnect"),
-    setupMissingConfigTitle: t("alisio.authentications.setupGuide.missingConfigTitle"),
-    setupReviewTitle: t("alisio.authentications.setupGuide.reviewTitle"),
-    setupUnavailableTitle: t("alisio.authentications.setupGuide.unavailableTitle"),
-    setupMissingConfigBody: t("alisio.authentications.setupGuide.missingConfigBody"),
-    setupReviewBody: t("alisio.authentications.setupGuide.reviewBody"),
-    setupUnavailableBody: t("alisio.authentications.setupGuide.unavailableBody"),
-    setupEnvVars: t("alisio.authentications.setupGuide.envVars"),
-    setupCallback: t("alisio.authentications.setupGuide.callback"),
-    setupCallbackHint: t("alisio.authentications.setupGuide.callbackHint"),
-    setupSupport: t("alisio.authentications.setupGuide.support"),
-    dismiss: t("alisio.authentications.setupGuide.dismiss"),
   };
   const categories = categoryLabels();
 
@@ -375,7 +258,7 @@ export function renderAuthentications(props: {
       authorization: authorization ?? {
         connectorId: definition.id,
         state: "not_connected",
-        health: definition.availability === "ready" ? "needs_reconnect" : definition.availability,
+        health: definition.availability === "ready" ? "config_missing" : definition.availability,
         scopes: definition.scopes,
       },
       status: resolveConnectorStatus({ definition, authorization }),
@@ -383,93 +266,92 @@ export function renderAuthentications(props: {
   });
 
   const visibleRows = filterRows(rows, props.search, props.categoryFilter);
-  const connectedRows = rows.filter((row) => row.status === "connected");
-  const setupDefinition = props.setupGuide
-    ? props.connectorCatalog.find((entry) => entry.id === props.setupGuide?.connectorId)
-    : null;
+  const connectedRows = visibleRows.filter((row) => row.status === "connected");
+  const availableRows = visibleRows.filter((row) => row.status !== "connected");
   const sections = CATEGORY_ORDER.map((category) => ({
     id: category,
     label: categories[category],
-    rows: visibleRows.filter((row) => row.definition.category === category),
+    rows: availableRows.filter((row) => row.definition.category === category),
   })).filter((section) => section.rows.length > 0);
+  const summary = {
+    connected: rows.filter((row) => row.status === "connected").length,
+    ready: rows.filter((row) => row.status === "ready").length,
+    attention: rows.filter((row) => row.status === "needs_reconnect").length,
+  };
+  const hasVisibleRows = connectedRows.length > 0 || sections.length > 0;
 
   return html`
     <section class="alisio-page alisio-auth-page">
-      <div class="alisio-page__hero card alisio-auth-hero">
-        <div class="alisio-auth-hero__copy">
-          <div class="alisio-page__eyebrow">Tools</div>
-          <div class="card-title">${text.title}</div>
-          <div class="card-sub">${text.subtitle}</div>
+      <section class="card">
+        <div class="alisio-page__eyebrow">${text.eyebrow}</div>
+        <div
+          class="row"
+          style="justify-content: space-between; align-items: flex-start; gap: 16px;"
+        >
+          <div class="alisio-auth-page__copy">
+            <div class="card-title">${text.title}</div>
+            <div class="card-sub">${text.subtitle}</div>
+          </div>
+          <button class="btn btn--sm" @click=${props.onOpenChannels}>${text.openChannels}</button>
         </div>
-        <div class="alisio-metrics">
-          <div class="agent-kv">
-            <div class="label">${text.connected}</div>
-            <div>${connectedRows.length}</div>
-            <div class="agent-kv-sub">${text.connectedHint}</div>
-          </div>
-          <div class="agent-kv">
-            <div class="label">${text.ready}</div>
-            <div>${rows.filter((row) => row.status === "ready").length}</div>
-            <div class="agent-kv-sub">${text.readyHint}</div>
-          </div>
-          <div class="agent-kv">
-            <div class="label">${text.account}</div>
-            <div>${props.account?.profile.displayName ?? text.localAccount}</div>
-            <div class="agent-kv-sub">${props.account?.profile.email ?? text.notConfiguredYet}</div>
-          </div>
+        <div
+          style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 18px;"
+        >
+          <article class="list-item">
+            <div class="list-title">${summary.connected}</div>
+            <div class="list-sub">${text.summaryConnected}</div>
+          </article>
+          <article class="list-item">
+            <div class="list-title">${summary.ready}</div>
+            <div class="list-sub">${text.summaryReady}</div>
+          </article>
+          <article class="list-item">
+            <div class="list-title">${summary.attention}</div>
+            <div class="list-sub">${text.summaryAttention}</div>
+          </article>
         </div>
-      </div>
+      </section>
 
-      ${props.setupGuide
-        ? renderSetupGuide(
-            props.setupGuide,
-            { ...props, connectorTitle: setupDefinition?.title },
-            text,
-          )
+      <header class="alisio-auth-page__header">
+        <div class="alisio-auth-page__copy">
+          <div class="card-title">${text.availableTitle}</div>
+        </div>
+        <div class="alisio-auth-page__filters">
+          <label class="field alisio-filter alisio-filter--search">
+            <input
+              type="search"
+              placeholder=${text.searchPlaceholder}
+              .value=${props.search}
+              @input=${(event: Event) =>
+                props.onSearchChange((event.target as HTMLInputElement).value)}
+            />
+          </label>
+          <label class="field alisio-filter">
+            <select
+              .value=${props.categoryFilter}
+              @change=${(event: Event) =>
+                props.onCategoryChange((event.target as HTMLSelectElement).value)}
+            >
+              ${Object.entries(categories).map(
+                ([value, label]) => html`<option value=${value}>${label}</option>`,
+              )}
+            </select>
+          </label>
+        </div>
+      </header>
+
+      ${props.error
+        ? html`<div class="callout danger alisio-auth-page__error">${props.error}</div>`
         : nothing}
-
-      <div class="card alisio-auth-toolbar">
-        <div class="alisio-section-head">
-          <div>
-            <div class="card-title">${text.catalogTitle}</div>
-            <div class="card-sub">${text.catalogSubtitle}</div>
-          </div>
-          <div class="alisio-filters">
-            <label class="field alisio-filter alisio-filter--search">
-              <input
-                type="search"
-                placeholder=${text.searchPlaceholder}
-                .value=${props.search}
-                @input=${(event: Event) =>
-                  props.onSearchChange((event.target as HTMLInputElement).value)}
-              />
-            </label>
-            <label class="field alisio-filter">
-              <select
-                .value=${props.categoryFilter}
-                @change=${(event: Event) =>
-                  props.onCategoryChange((event.target as HTMLSelectElement).value)}
-              >
-                ${Object.entries(categories).map(
-                  ([value, label]) => html`<option value=${value}>${label}</option>`,
-                )}
-              </select>
-            </label>
-          </div>
-        </div>
-        ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
-      </div>
-
-      <section class="card alisio-auth-section">
-        <div class="alisio-section-head">
-          <div>
-            <div class="card-title">${text.authorizedTitle}</div>
-            <div class="card-sub">${text.authorizedSubtitle}</div>
-          </div>
-        </div>
-        ${connectedRows.length === 0
-          ? html`<div class="empty-state">${text.emptyAuthorized}</div>`
-          : html`
+      ${connectedRows.length > 0
+        ? html`
+            <section class="card alisio-auth-section">
+              <div class="alisio-auth-section__header">
+                <div class="alisio-auth-section__title">
+                  <div class="card-title">${text.authorizedTitle}</div>
+                  <div class="card-sub">${text.authorizedSubtitle}</div>
+                </div>
+              </div>
               <div class="alisio-authorized-grid">
                 ${connectedRows.map((row) =>
                   renderConnectorCard(
@@ -483,37 +365,40 @@ export function renderAuthentications(props: {
                   ),
                 )}
               </div>
-            `}
-      </section>
-
+            </section>
+          `
+        : nothing}
       ${props.loading
-        ? html`<div class="card"><div class="empty-state">${text.loading}</div></div>`
-        : sections.map(
-            (section) => html`
-              <section class="card alisio-auth-section">
-                <div class="alisio-section-head">
-                  <div>
-                    <div class="card-title">${section.label}</div>
-                    <div class="card-sub">
-                      ${section.rows.length} connector${section.rows.length === 1 ? "" : "s"}
+        ? html`<div class="card alisio-auth-section">
+            <div class="empty-state">${text.loading}</div>
+          </div>`
+        : !hasVisibleRows
+          ? html`<div class="card alisio-auth-section">
+              <div class="empty-state">${text.emptyFiltered}</div>
+            </div>`
+          : sections.map(
+              (section) => html`
+                <section class="card alisio-auth-section">
+                  <div class="alisio-auth-section__header">
+                    <div class="alisio-auth-section__title">
+                      <div class="card-title">${section.label}</div>
                     </div>
                   </div>
-                </div>
-                <div class="alisio-auth-grid">
-                  ${section.rows.map((row) =>
-                    renderConnectorCard(
-                      row,
-                      {
-                        onBeginConnector: props.onBeginConnector,
-                        onRevokeConnector: props.onRevokeConnector,
-                      },
-                      text,
-                    ),
-                  )}
-                </div>
-              </section>
-            `,
-          )}
+                  <div class="alisio-auth-grid">
+                    ${section.rows.map((row) =>
+                      renderConnectorCard(
+                        row,
+                        {
+                          onBeginConnector: props.onBeginConnector,
+                          onRevokeConnector: props.onRevokeConnector,
+                        },
+                        text,
+                      ),
+                    )}
+                  </div>
+                </section>
+              `,
+            )}
     </section>
   `;
 }

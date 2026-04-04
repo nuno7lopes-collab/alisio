@@ -20,6 +20,7 @@ export type ToolStreamEntry = {
   name: string;
   args?: unknown;
   output?: string;
+  details?: unknown;
   phase?: "start" | "update" | "result";
   isError?: boolean;
   meta?: string;
@@ -174,6 +175,14 @@ function formatToolOutput(value: unknown): string | null {
   return `${truncated.text}\n\n… truncated (${truncated.total} chars, showing first ${truncated.text.length}).`;
 }
 
+function extractToolOutputDetails(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  return "details" in record ? record.details : undefined;
+}
+
 function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown> {
   const content: Array<Record<string, unknown>> = [];
   content.push({
@@ -181,11 +190,12 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
     name: entry.name,
     arguments: entry.args ?? {},
   });
-  if (entry.output) {
+  if (entry.output || entry.details !== undefined) {
     content.push({
       type: "toolresult",
       name: entry.name,
-      text: entry.output,
+      ...(entry.output ? { text: entry.output } : {}),
+      ...(entry.details !== undefined ? { details: entry.details } : {}),
     });
   }
   return {
@@ -196,6 +206,7 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
     toolPhase: entry.phase,
     toolMeta: entry.meta,
     toolError: entry.isError ?? false,
+    ...(entry.details !== undefined ? { toolResultDetails: entry.details } : {}),
     content,
     timestamp: entry.startedAt,
     __openclaw: {
@@ -447,6 +458,12 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       : phase === "result"
         ? formatToolOutput(data.result)
         : undefined;
+  const details =
+    phase === "update"
+      ? extractToolOutputDetails(data.partialResult)
+      : phase === "result"
+        ? extractToolOutputDetails(data.result)
+        : undefined;
 
   const now = Date.now();
   let entry = host.toolStreamById.get(toolCallId);
@@ -465,6 +482,7 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
       name,
       args,
       output: output || undefined,
+      details,
       phase: phase === "start" || phase === "update" || phase === "result" ? phase : undefined,
       isError: phase === "result" ? isError : false,
       meta,
@@ -481,6 +499,11 @@ export function handleAgentEvent(host: ToolStreamHost, payload?: AgentEventPaylo
     }
     if (output !== undefined) {
       entry.output = output || undefined;
+    }
+    if (phase === "result") {
+      entry.details = details;
+    } else if (details !== undefined) {
+      entry.details = details;
     }
     if (phase === "start" || phase === "update" || phase === "result") {
       entry.phase = phase;

@@ -132,7 +132,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
     ```bash
     curl -fsSL https://openclaw.ai/install.sh | bash
-    openclaw onboard --install-daemon
+    alisio onboard --install-daemon
     ```
 
     The wizard can also build UI assets automatically. After onboarding, you typically run the Gateway on port **18789**.
@@ -764,9 +764,9 @@ for usage/billing and raise limits as needed.
     From git to npm:
 
     ```bash
-    npm install -g openclaw@latest
-    openclaw doctor
-    openclaw gateway restart
+    npm install -g alisio@npm:openclaw@latest
+    alisio doctor
+    alisio gateway restart
     ```
 
     Doctor detects a gateway service entrypoint mismatch and offers to rewrite the service config to match the current install (use `--repair` in automation).
@@ -2772,7 +2772,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
 <AccordionGroup>
   <Accordion title="My skill generated an image/PDF, but nothing was sent">
-    Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [OpenClaw assistant setup](/start/openclaw) and [Agent send](/tools/agent-send).
+    Outbound attachments from the agent must include a `MEDIA:<path-or-url>` line (on its own line). See [Alisio assistant setup](/start/alisio) and [Agent send](/tools/agent-send).
 
     CLI sending:
 

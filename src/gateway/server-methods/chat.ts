@@ -11,8 +11,13 @@ import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
+import { readLocalFileSafely } from "../../infra/fs-safe.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
+import { isWithinDir } from "../../infra/path-safety.js";
+import { detectMime } from "../../media/mime.js";
 import { type SavedMedia, saveMediaBuffer } from "../../media/store.js";
+import { extractOriginalFilename, getMediaDir } from "../../media/store.js";
+import { optimizeImageToJpeg } from "../../media/web-media.js";
 import { createChannelReplyPipeline } from "../../plugin-sdk/channel-reply-pipeline.js";
 import { normalizeInputProvenance, type InputProvenance } from "../../sessions/input-provenance.js";
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
@@ -35,7 +40,11 @@ import {
   isChatStopCommandText,
   resolveChatRunExpiresAtMs,
 } from "../chat-abort.js";
-import { type ChatImageContent, parseMessageWithAttachments } from "../chat-attachments.js";
+import {
+  type ChatImageContent,
+  type ParsedChatAttachment,
+  parseChatAttachments,
+} from "../chat-attachments.js";
 import { stripEnvelopeFromMessage, stripEnvelopeFromMessages } from "../chat-sanitize.js";
 import { augmentChatHistoryWithCliSessionImports } from "../cli-session-history.js";
 import { ADMIN_SCOPE } from "../method-scopes.js";
@@ -98,6 +107,8 @@ type ChatAbortRequester = {
 const CHAT_HISTORY_TEXT_MAX_CHARS = 12_000;
 const CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES = 128 * 1024;
 const CHAT_HISTORY_OVERSIZED_PLACEHOLDER = "[chat.history omitted: message too large]";
+const CHAT_HISTORY_INLINE_IMAGE_MAX_BYTES = 48 * 1024;
+const CHAT_HISTORY_ATTACHMENT_READ_MAX_BYTES = 5_000_000;
 let chatHistoryPlaceholderEmitCount = 0;
 const CHANNEL_AGNOSTIC_SESSION_SCOPES = new Set([
   "main",
@@ -326,21 +337,29 @@ function canInjectSystemProvenance(client: GatewayRequestHandlerOptions["client"
   return scopes.includes(ADMIN_SCOPE);
 }
 
-async function persistChatSendImages(params: {
-  images: ChatImageContent[];
+async function persistChatSendAttachments(params: {
+  attachments: ParsedChatAttachment[];
   client: GatewayRequestHandlerOptions["client"];
   logGateway: GatewayRequestContext["logGateway"];
 }): Promise<SavedMedia[]> {
-  if (params.images.length === 0 || isAcpBridgeClient(params.client)) {
+  if (params.attachments.length === 0 || isAcpBridgeClient(params.client)) {
     return [];
   }
   const saved: SavedMedia[] = [];
-  for (const img of params.images) {
+  for (const attachment of params.attachments) {
     try {
-      saved.push(await saveMediaBuffer(Buffer.from(img.data, "base64"), img.mimeType, "inbound"));
+      saved.push(
+        await saveMediaBuffer(
+          Buffer.from(attachment.base64, "base64"),
+          attachment.mimeType,
+          "inbound",
+          undefined,
+          attachment.fileName,
+        ),
+      );
     } catch (err) {
       params.logGateway.warn(
-        `chat.send: failed to persist inbound image (${img.mimeType}): ${formatForLog(err)}`,
+        `chat.send: failed to persist inbound attachment (${attachment.mimeType}): ${formatForLog(err)}`,
       );
     }
   }
@@ -349,24 +368,28 @@ async function persistChatSendImages(params: {
 
 function buildChatSendTranscriptMessage(params: {
   message: string;
-  savedImages: SavedMedia[];
+  savedAttachments: SavedMedia[];
+  imagePreviews: ChatHistoryImagePreview[];
   timestamp: number;
 }) {
-  const mediaFields = resolveChatSendTranscriptMediaFields(params.savedImages);
+  const mediaFields = resolveChatSendTranscriptMediaFields(params.savedAttachments);
   return {
     role: "user" as const,
     content: params.message,
     timestamp: params.timestamp,
     ...mediaFields,
+    ...(params.imagePreviews.length > 0 ? { MediaPreviewImages: params.imagePreviews } : {}),
   };
 }
 
-function resolveChatSendTranscriptMediaFields(savedImages: SavedMedia[]) {
-  const mediaPaths = savedImages.map((entry) => entry.path);
+function resolveChatSendTranscriptMediaFields(savedAttachments: SavedMedia[]) {
+  const mediaPaths = savedAttachments.map((entry) => entry.path);
   if (mediaPaths.length === 0) {
     return {};
   }
-  const mediaTypes = savedImages.map((entry) => entry.contentType ?? "application/octet-stream");
+  const mediaTypes = savedAttachments.map(
+    (entry) => entry.contentType ?? "application/octet-stream",
+  );
   return {
     MediaPath: mediaPaths[0],
     MediaPaths: mediaPaths,
@@ -394,9 +417,9 @@ async function rewriteChatSendUserTurnMediaPaths(params: {
   transcriptPath: string;
   sessionKey: string;
   message: string;
-  savedImages: SavedMedia[];
+  savedAttachments: SavedMedia[];
 }) {
-  const mediaFields = resolveChatSendTranscriptMediaFields(params.savedImages);
+  const mediaFields = resolveChatSendTranscriptMediaFields(params.savedAttachments);
   if (!("MediaPath" in mediaFields)) {
     return;
   }
@@ -449,6 +472,235 @@ function truncateChatHistoryText(text: string): { text: string; truncated: boole
     text: `${text.slice(0, CHAT_HISTORY_TEXT_MAX_CHARS)}\n...(truncated)...`,
     truncated: true,
   };
+}
+
+type ChatHistoryMediaDescriptor = {
+  path: string;
+  mimeType?: string;
+  fileName?: string;
+};
+
+type ChatHistoryImagePreview = {
+  mimeType: string;
+  data: string;
+};
+
+function normalizeChatHistoryMediaMime(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.split(";")[0]?.trim().toLowerCase();
+  return normalized || undefined;
+}
+
+function resolveChatHistoryMediaDescriptors(
+  message: Record<string, unknown>,
+): ChatHistoryMediaDescriptor[] {
+  const mediaPaths = Array.isArray(message.MediaPaths)
+    ? message.MediaPaths.filter(
+        (value): value is string => typeof value === "string" && value.trim().length > 0,
+      )
+    : [];
+  const mediaTypes = Array.isArray(message.MediaTypes) ? message.MediaTypes : [];
+  if (mediaPaths.length > 0) {
+    return mediaPaths.map((mediaPath, index) => ({
+      path: mediaPath,
+      mimeType:
+        normalizeChatHistoryMediaMime(mediaTypes[index]) ??
+        (mediaPaths.length === 1 ? normalizeChatHistoryMediaMime(message.MediaType) : undefined),
+      fileName: extractOriginalFilename(mediaPath),
+    }));
+  }
+
+  const mediaPath =
+    typeof message.MediaPath === "string" && message.MediaPath.trim().length > 0
+      ? message.MediaPath
+      : undefined;
+  if (!mediaPath) {
+    return [];
+  }
+  return [
+    {
+      path: mediaPath,
+      mimeType: normalizeChatHistoryMediaMime(message.MediaType),
+      fileName: extractOriginalFilename(mediaPath),
+    },
+  ];
+}
+
+async function buildChatHistoryImagePreview(params: {
+  buffer: Buffer;
+  mimeType?: string;
+  filePath?: string;
+  fileName?: string;
+}): Promise<ChatHistoryImagePreview | null> {
+  const detectedMime = normalizeChatHistoryMediaMime(
+    await detectMime({
+      buffer: params.buffer,
+      headerMime: params.mimeType,
+      filePath: params.filePath,
+    }),
+  );
+  if (!detectedMime?.startsWith("image/")) {
+    return null;
+  }
+
+  let previewBuffer = params.buffer;
+  let previewMime = detectedMime;
+  if (previewBuffer.byteLength > CHAT_HISTORY_INLINE_IMAGE_MAX_BYTES) {
+    const optimized = await optimizeImageToJpeg(
+      previewBuffer,
+      CHAT_HISTORY_INLINE_IMAGE_MAX_BYTES,
+      {
+        contentType: detectedMime,
+        fileName: params.fileName,
+      },
+    );
+    previewBuffer = optimized.buffer;
+    previewMime = "image/jpeg";
+  }
+
+  return {
+    mimeType: previewMime,
+    data: previewBuffer.toString("base64"),
+  };
+}
+
+function buildInlineChatHistoryImageBlock(
+  preview: ChatHistoryImagePreview,
+): Record<string, unknown> {
+  return {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: preview.mimeType,
+      data: preview.data,
+    },
+  };
+}
+
+function resolveChatHistoryPersistedImagePreviews(
+  message: Record<string, unknown>,
+): ChatHistoryImagePreview[] {
+  const raw = message.MediaPreviewImages;
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  return raw
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+      const candidate = entry as { mimeType?: unknown; data?: unknown };
+      const mimeType = normalizeChatHistoryMediaMime(candidate.mimeType);
+      const data = typeof candidate.data === "string" ? candidate.data.trim() : "";
+      if (!mimeType?.startsWith("image/") || !data) {
+        return null;
+      }
+      return { mimeType, data };
+    })
+    .filter((entry): entry is ChatHistoryImagePreview => entry !== null);
+}
+
+async function buildInlineChatHistoryImageBlockFromAttachment(
+  attachment: ChatHistoryMediaDescriptor,
+): Promise<Record<string, unknown> | null> {
+  const mediaRoot = path.resolve(getMediaDir());
+  const filePath = path.resolve(attachment.path);
+  if (!isWithinDir(mediaRoot, filePath)) {
+    return null;
+  }
+
+  const { buffer } = await readLocalFileSafely({
+    filePath,
+    maxBytes: CHAT_HISTORY_ATTACHMENT_READ_MAX_BYTES,
+  });
+  const preview = await buildChatHistoryImagePreview({
+    buffer,
+    mimeType: attachment.mimeType,
+    filePath,
+    fileName: attachment.fileName,
+  });
+  if (!preview) {
+    return null;
+  }
+
+  return buildInlineChatHistoryImageBlock(preview);
+}
+
+async function buildPersistedChatImagePreviews(
+  attachments: ParsedChatAttachment[],
+): Promise<ChatHistoryImagePreview[]> {
+  const previews = await Promise.all(
+    attachments.map(async (attachment) => {
+      if (attachment.kind !== "image") {
+        return null;
+      }
+      return await buildChatHistoryImagePreview({
+        buffer: Buffer.from(attachment.base64, "base64"),
+        mimeType: attachment.mimeType,
+        fileName: attachment.fileName,
+      });
+    }),
+  );
+  return previews.filter((preview): preview is ChatHistoryImagePreview => preview !== null);
+}
+
+async function rehydrateChatHistoryMessageMedia(message: unknown): Promise<unknown> {
+  if (!message || typeof message !== "object") {
+    return message;
+  }
+  const entry = message as Record<string, unknown>;
+  if (Array.isArray(entry.content)) {
+    return message;
+  }
+
+  const attachments = resolveChatHistoryMediaDescriptors(entry);
+  if (attachments.length === 0) {
+    return message;
+  }
+
+  const contentBlocks: Array<Record<string, unknown>> = [];
+  if (typeof entry.content === "string" && entry.content.trim().length > 0) {
+    contentBlocks.push({ type: "text", text: entry.content });
+  }
+
+  const persistedPreviews = resolveChatHistoryPersistedImagePreviews(entry);
+  if (persistedPreviews.length > 0) {
+    contentBlocks.push(
+      ...persistedPreviews.map((preview) => buildInlineChatHistoryImageBlock(preview)),
+    );
+  }
+
+  for (const attachment of attachments) {
+    if (persistedPreviews.length > 0) {
+      break;
+    }
+    try {
+      const imageBlock = await buildInlineChatHistoryImageBlockFromAttachment(attachment);
+      if (imageBlock) {
+        contentBlocks.push(imageBlock);
+      }
+    } catch {
+      // Keep history shape unchanged when preview generation fails.
+    }
+  }
+
+  if (contentBlocks.length === 0) {
+    return message;
+  }
+
+  return {
+    ...entry,
+    content: contentBlocks,
+  };
+}
+
+async function rehydrateChatHistoryMessagesWithMedia(messages: unknown[]): Promise<unknown[]> {
+  if (messages.length === 0) {
+    return messages;
+  }
+  return await Promise.all(messages.map((message) => rehydrateChatHistoryMessageMedia(message)));
 }
 
 function sanitizeThinkingSignatureForHistory(value: unknown):
@@ -1219,7 +1471,8 @@ export const chatHandlers: GatewayRequestHandlers = {
     const max = Math.min(hardMax, requested);
     const sliced = rawMessages.length > max ? rawMessages.slice(-max) : rawMessages;
     const sanitized = stripEnvelopeFromMessages(sliced);
-    const normalized = sanitizeChatHistoryMessages(sanitized);
+    const rehydrated = await rehydrateChatHistoryMessagesWithMedia(sanitized);
+    const normalized = sanitizeChatHistoryMessages(rehydrated);
     const maxHistoryBytes = getMaxChatHistoryMessagesBytes();
     const perMessageHardCap = Math.min(CHAT_HISTORY_MAX_SINGLE_MESSAGE_BYTES, maxHistoryBytes);
     const replaced = replaceOversizedChatHistoryMessages({
@@ -1424,14 +1677,20 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
     let parsedMessage = inboundMessage;
     let parsedImages: ChatImageContent[] = [];
+    let parsedAttachments: ParsedChatAttachment[] = [];
     if (normalizedAttachments.length > 0) {
       try {
-        const parsed = await parseMessageWithAttachments(inboundMessage, normalizedAttachments, {
+        parsedAttachments = await parseChatAttachments(normalizedAttachments, {
           maxBytes: 5_000_000,
           log: context.logGateway,
         });
-        parsedMessage = parsed.message;
-        parsedImages = parsed.images;
+        parsedImages = parsedAttachments
+          .filter((attachment) => attachment.kind === "image")
+          .map((attachment) => ({
+            type: "image",
+            data: attachment.base64,
+            mimeType: attachment.mimeType,
+          }));
       } catch (err) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, String(err)));
         return;
@@ -1512,11 +1771,18 @@ export const chatHandlers: GatewayRequestHandlers = {
         status: "started" as const,
       };
       respond(true, ackPayload, undefined, { runId: clientRunId });
-      const persistedImagesPromise = persistChatSendImages({
-        images: parsedImages,
+      const persistedAttachmentsPromise = persistChatSendAttachments({
+        attachments: parsedAttachments,
         client,
         logGateway: context.logGateway,
       });
+      const persistedImagePreviewsPromise = buildPersistedChatImagePreviews(parsedAttachments);
+      const requiresAttachmentMediaContext = parsedAttachments.some(
+        (attachment) => attachment.kind !== "image",
+      );
+      const persistedMediaContextAttachments = requiresAttachmentMediaContext
+        ? await persistedAttachmentsPromise
+        : [];
 
       const trimmedMessage = parsedMessage.trim();
       const injectThinking = Boolean(
@@ -1569,6 +1835,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         SenderName: clientInfo?.displayName,
         SenderUsername: clientInfo?.displayName,
         GatewayClientScopes: client?.connect?.scopes,
+        ...resolveChatSendTranscriptMediaFields(persistedMediaContextAttachments),
       };
 
       const agentId = resolveSessionAgentId({
@@ -1602,13 +1869,15 @@ export const chatHandlers: GatewayRequestHandlers = {
           if (!transcriptPath) {
             return;
           }
-          const persistedImages = await persistedImagesPromise;
+          const persistedAttachments = await persistedAttachmentsPromise;
+          const imagePreviews = await persistedImagePreviewsPromise;
           emitSessionTranscriptUpdate({
             sessionFile: transcriptPath,
             sessionKey,
             message: buildChatSendTranscriptMessage({
               message: parsedMessage,
-              savedImages: persistedImages,
+              savedAttachments: persistedAttachments,
+              imagePreviews,
               timestamp: now,
             }),
           });
@@ -1639,7 +1908,7 @@ export const chatHandlers: GatewayRequestHandlers = {
           transcriptPath,
           sessionKey,
           message: parsedMessage,
-          savedImages: await persistedImagesPromise,
+          savedAttachments: await persistedAttachmentsPromise,
         });
       };
       const dispatcher = createReplyDispatcher({

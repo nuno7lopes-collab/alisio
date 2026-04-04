@@ -11,7 +11,7 @@ import {
 } from "./app-settings.ts";
 import type { ThemeMode, ThemeName } from "./theme.ts";
 
-type Tab = "setup" | "authentications" | "organization" | "chat" | "settings";
+type Tab = "setup" | "authentications" | "organization" | "chat" | "models" | "settings";
 
 type SettingsHost = {
   settings: {
@@ -119,7 +119,7 @@ const createHost = (tab: Tab): SettingsHost => ({
   applySessionKey: "main",
   sessionKey: "main",
   tab,
-  settingsSection: "account",
+  settingsSection: "general",
   connected: false,
   alisioBootstrap: null,
   setupStep: null,
@@ -135,6 +135,30 @@ const createHost = (tab: Tab): SettingsHost => ({
   pendingGatewayUrl: null,
   pendingGatewayToken: null,
 });
+
+function createBootstrapAccount(): NonNullable<
+  import("./types.ts").AlisioBootstrapState["account"]
+> {
+  return {
+    profile: {
+      username: "nuno",
+      displayName: "Nuno",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-01T00:00:00.000Z",
+      plan: "free",
+    },
+    preferences: {
+      language: "pt-PT" as const,
+      theme: "dark" as const,
+    },
+    session: {
+      state: "signed_in" as const,
+      profileCompleted: true,
+    },
+    devices: [],
+  };
+}
 
 describe("setTabFromRoute", () => {
   beforeEach(() => {
@@ -296,7 +320,7 @@ describe("applySettingsFromUrl", () => {
           email: "nuno@alisio.local",
           avatarLabel: "N",
           joinedAt: "2026-04-01T00:00:00.000Z",
-          plan: "Free Plan",
+          plan: "free",
         },
         preferences: {
           language: "pt-PT",
@@ -349,6 +373,54 @@ describe("applySettingsFromUrl", () => {
     expect(host.pendingGatewayUrl).toBe("wss://other-gateway.example/openclaw");
     expect(host.pendingGatewayToken).toBe("abc123");
     expect(window.location.search).toBe("");
+  });
+
+  it("drops a stale runtime setup step once bootstrap is ready", () => {
+    setTestWindowUrl("https://control.example/setup?step=runtime");
+    const host = createHost("setup");
+    host.connected = true;
+    host.setupStep = "runtime";
+    host.alisioBootstrap = {
+      connectionRequired: false,
+      wizardRequired: false,
+      wizardRunning: false,
+      providerReady: true,
+      accountReady: true,
+      startupState: "ready",
+      organizationState: { mode: "none" },
+      connectorSummary: {
+        total: 0,
+        ready: 0,
+        connected: 0,
+        needsReconnect: 0,
+        inReview: 0,
+        unavailable: 0,
+        available: 0,
+      },
+      nextStep: "ready",
+      account: createBootstrapAccount(),
+      ai: { provider: "openai", status: "connected" },
+      connectors: {
+        catalog: [],
+        authorizations: [],
+        summary: {
+          total: 0,
+          ready: 0,
+          connected: 0,
+          needsReconnect: 0,
+          inReview: 0,
+          unavailable: 0,
+          available: 0,
+        },
+      },
+      wizard: { running: false, sessionId: null },
+      models: { total: 0, defaultProvider: "openai", providers: [] },
+      organization: { mode: "none" },
+    };
+
+    syncUrlWithTab(host, "setup", true);
+
+    expect(String(window.location.href)).toBe("https://control.example/setup");
   });
 
   it("prefers fragment tokens over legacy query tokens when both are present", () => {

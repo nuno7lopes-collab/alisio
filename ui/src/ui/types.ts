@@ -43,17 +43,36 @@ export type ChannelsStatusSnapshot = {
   channelLabels: Record<string, string>;
   channelDetailLabels?: Record<string, string>;
   channelSystemImages?: Record<string, string>;
+  wizard?: ChannelsWizardSnapshot;
   channelMeta?: ChannelUiMetaEntry[];
+  channelIssues?: Record<string, ChannelStatusIssue[]>;
   channels: Record<string, unknown>;
   channelAccounts: Record<string, ChannelAccountSnapshot[]>;
   channelDefaultAccountId: Record<string, string>;
+};
+
+export type ChannelsWizardSnapshot = {
+  running: boolean;
+  sessionId?: string | null;
+  channelId?: string | null;
 };
 
 export type ChannelUiMetaEntry = {
   id: string;
   label: string;
   detailLabel: string;
+  blurb?: string;
+  docsPath?: string;
+  docsLabel?: string;
   systemImage?: string;
+};
+
+export type ChannelStatusIssue = {
+  channel: string;
+  accountId: string;
+  kind: "intent" | "permissions" | "config" | "auth" | "runtime";
+  message: string;
+  fix?: string | null;
 };
 
 export const CRON_CHANNEL_LAST = "last";

@@ -61,9 +61,9 @@ enum RemoteGatewayAuthIssue: Equatable {
     var body: String {
         switch self {
         case .tokenRequired:
-            "Paste the token configured on the gateway host. On the gateway host, run `openclaw config get gateway.auth.token`. If the gateway uses an environment variable instead, use `OPENCLAW_GATEWAY_TOKEN`."
+            "Paste the token configured on the gateway host. On the gateway host, run `alisio config get gateway.auth.token`. If the gateway uses an environment variable instead, use `OPENCLAW_GATEWAY_TOKEN`."
         case .tokenMismatch:
-            "Check `gateway.auth.token` or `OPENCLAW_GATEWAY_TOKEN` on the gateway host and try again."
+            "Check `gateway.auth.token` or `OPENCLAW_GATEWAY_TOKEN` on the gateway host and try again with `alisio`."
         case .gatewayTokenNotConfigured:
             "This gateway is set to token auth, but no `gateway.auth.token` is configured on the gateway host. If the gateway uses an environment variable instead, set `OPENCLAW_GATEWAY_TOKEN` before starting the gateway."
         case .setupCodeExpired:
@@ -78,11 +78,11 @@ enum RemoteGatewayAuthIssue: Equatable {
     var footnote: String? {
         switch self {
         case .tokenRequired, .gatewayTokenNotConfigured:
-            "No token yet? Generate one on the gateway host with `openclaw doctor --generate-gateway-token`, then set it as `gateway.auth.token`."
+            "No token yet? Generate one on the gateway host with `alisio doctor --generate-gateway-token`, then set it as `gateway.auth.token`."
         case .setupCodeExpired:
             nil
         case .pairingRequired:
-            "If you do not have another paired Alisio client yet, approve the pending request on the gateway host with `openclaw devices approve`."
+            "If you do not have another paired Alisio client yet, approve the pending request on the gateway host with `alisio devices approve`."
         case .tokenMismatch, .passwordRequired:
             nil
         }

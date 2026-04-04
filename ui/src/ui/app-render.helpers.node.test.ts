@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCronSessionKey,
   parseSessionKey,
+  resolveAlisioOpenAiCallbackUrl,
   resolveSessionDisplayName,
 } from "./app-render.helpers.ts";
 import type { SessionsListResult } from "./types.ts";
@@ -11,6 +12,75 @@ type SessionRow = SessionsListResult["sessions"][number];
 function row(overrides: Partial<SessionRow> & { key: string }): SessionRow {
   return { kind: "direct", updatedAt: 0, ...overrides };
 }
+
+function callbackState(
+  overrides: Partial<Parameters<typeof resolveAlisioOpenAiCallbackUrl>[0]> = {},
+) {
+  return {
+    gatewayBootstrapUrl: null,
+    alisioStartupBootstrap: null,
+    settings: {
+      gatewayUrl: "",
+    },
+    ...overrides,
+  } as Parameters<typeof resolveAlisioOpenAiCallbackUrl>[0];
+}
+
+describe("resolveAlisioOpenAiCallbackUrl", () => {
+  it("prefers the live gateway bootstrap url over the current page origin", () => {
+    expect(
+      resolveAlisioOpenAiCallbackUrl(
+        callbackState({
+          gatewayBootstrapUrl: "ws://127.0.0.1:18789/openclaw/",
+        }),
+        "http://localhost:5173/setup",
+      ),
+    ).toBe("http://127.0.0.1:18789/__alisio/auth/openai/callback");
+  });
+
+  it("falls back to the startup control url when no live gateway bootstrap exists", () => {
+    expect(
+      resolveAlisioOpenAiCallbackUrl(
+        callbackState({
+          alisioStartupBootstrap: {
+            basePath: "/",
+            controlUrl: "wss://gateway.example/openclaw/",
+            startupState: "needs_ai",
+            account: null,
+            ai: null,
+          },
+        }),
+        "http://localhost:5173/setup",
+      ),
+    ).toBe("https://gateway.example/__alisio/auth/openai/callback");
+  });
+
+  it("uses the configured gateway url before falling back to the current page", () => {
+    expect(
+      resolveAlisioOpenAiCallbackUrl(
+        callbackState({
+          settings: {
+            gatewayUrl: "/ws",
+            token: "",
+            sessionKey: "main",
+            lastActiveSessionKey: "main",
+            theme: "claw",
+            themeMode: "system",
+            chatFocusMode: false,
+            chatShowThinking: true,
+            chatShowToolCalls: true,
+            splitRatio: 0.6,
+            navCollapsed: false,
+            navWidth: 280,
+            navGroupsCollapsed: {},
+            borderRadius: 50,
+          },
+        }),
+        "https://control.example/ui/setup",
+      ),
+    ).toBe("https://control.example/__alisio/auth/openai/callback");
+  });
+});
 
 /* ================================================================
  *  parseSessionKey – low-level key → type / fallback mapping

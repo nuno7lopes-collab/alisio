@@ -3,13 +3,25 @@ import {
   buildAgentMainSessionKey,
   parseAgentSessionKey,
 } from "../../../src/routing/session-key.js";
+import {
+  alisioPlanTranslationKey,
+  normalizeAlisioPlan,
+} from "../../../src/shared/alisio-billing.js";
 import { i18n, t } from "../i18n/index.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
+import {
+  buildPendingAlisioConnectorChatResume,
+  clearPendingAlisioConnectorChatResume,
+  readPendingAlisioConnectorChatResume,
+  rememberAlisioConnectorOAuthReturnTo,
+  rememberPendingAlisioConnectorChatResume,
+} from "./alisio-connector-oauth.ts";
+import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import {
   renderChatMobileToggle,
+  resolveAlisioOpenAiCallbackUrl,
   renderTab,
-  renderTopbarThemeModeToggle,
   switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
@@ -19,18 +31,31 @@ import {
   cancelAlisioSetupWizard,
   continueAlisioSetupWizard,
   disconnectAlisioAi,
+  disconnectAlisioAiProfile,
   loadAlisioConnectors,
+  renameAlisioAiProfile,
   requestAlisioPasswordReset,
   refreshAlisioAi,
+  refreshAlisioAiProfile,
   restartAlisioRuntime,
   revokeAlisioConnector,
   saveAlisioAccount,
+  selectAlisioAiProfile,
   signInAlisioAccount,
   signOutAlisioAccount,
   signUpAlisioAccount,
   saveAlisioOrganization,
   startAlisioSetupWizard,
 } from "./controllers/alisio.ts";
+import {
+  cancelChannelSetup,
+  continueChannelSetup,
+  loadChannels,
+  logoutChannelAccount,
+  startChannelSetup,
+  startWebChannelLogin,
+  waitWebChannelLogin,
+} from "./controllers/channels.ts";
 import type { ChatRuntimeSetupHint } from "./controllers/chat.ts";
 import { loadChatHistory } from "./controllers/chat.ts";
 import {
@@ -55,7 +80,13 @@ import {
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
 import { loadNodes } from "./controllers/nodes.ts";
-import { loadProviderUsageStatus } from "./controllers/provider-usage.ts";
+import { applyGatewayAccessMode, loadGatewayAccessMode } from "./controllers/security-access.ts";
+import {
+  installSkill,
+  loadSkills,
+  saveSkillApiKey,
+  updateSkillEnabled,
+} from "./controllers/skills.ts";
 import "./components/dashboard-header.ts";
 import { icons } from "./icons.ts";
 import {
@@ -68,14 +99,24 @@ import {
   setVoiceWake,
 } from "./lume-host.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
+import {
+  closeReservedExternalPopup,
+  navigateReservedExternalPopup,
+  reserveExternalPopup,
+  resolveSafeExternalUrl,
+} from "./open-external-url.ts";
 import { agentLogoUrl } from "./views/agents-utils.ts";
 import { renderAuthentications } from "./views/authentications.ts";
+import { renderCapabilities } from "./views/capabilities.ts";
+import { renderChannels } from "./views/channels.ts";
 import { renderChat } from "./views/chat.ts";
 import { renderCommandPalette } from "./views/command-palette.ts";
 import { renderConnections } from "./views/connections.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
+import { renderModelsHub } from "./views/models.ts";
 import { renderOrganization } from "./views/organization.ts";
+import { renderSecurity } from "./views/security.ts";
 import { renderSettingsHub } from "./views/settings.ts";
 import { renderSetup } from "./views/setup.ts";
 
@@ -155,7 +196,7 @@ function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId:
     window.setTimeout(
       async () => {
         attempts += 1;
-        await loadAlisioConnectors(state);
+        await loadAlisioConnectors(state, { force: true });
         const authorization = state.alisioConnectorAuthorizations.find(
           (entry) => entry.connectorId === connectorId,
         );
@@ -187,9 +228,6 @@ function scheduleOpenAiRefresh(state: AppViewState) {
           aiStatus === "limits_unavailable" ||
           attempts >= maxAttempts
         ) {
-          if (aiStatus === "connected" || aiStatus === "limits_unavailable") {
-            await loadProviderUsageStatus(state, { quiet: true });
-          }
           return;
         }
         tick();
@@ -219,6 +257,100 @@ function resolveAssistantAvatarUrl(state: AppViewState): string | undefined {
   return identity?.avatarUrl;
 }
 
+function shouldReserveConnectorPopup(state: AppViewState, connectorId: string) {
+  const authorization = state.alisioConnectorAuthorizations.find(
+    (entry) => entry.connectorId === connectorId,
+  );
+  if (authorization?.state === "needs_reconnect") {
+    return authorization.health !== "config_missing";
+  }
+  if (authorization?.health === "config_missing") {
+    return false;
+  }
+  const definition = state.alisioConnectorCatalog.find((entry) => entry.id === connectorId);
+  return definition?.availability === "ready";
+}
+
+function beginConnectorFlow(
+  state: AppViewState,
+  connectorId: string,
+  opts?: { resumeChatIntent?: boolean },
+) {
+  state.alisioConnectorsError = null;
+  state.alisioConnectorSetupGuide = null;
+  rememberAlisioConnectorOAuthReturnTo(window.location.href);
+  const existingPendingResume = readPendingAlisioConnectorChatResume();
+  if (opts?.resumeChatIntent) {
+    const pendingResume = buildPendingAlisioConnectorChatResume({
+      connectorId,
+      sessionKey: state.sessionKey,
+      messages: state.chatMessages,
+    });
+    if (pendingResume) {
+      state.pendingConnectorChatResume = rememberPendingAlisioConnectorChatResume(pendingResume);
+    } else {
+      state.pendingConnectorChatResume = null;
+      clearPendingAlisioConnectorChatResume();
+    }
+  } else if (existingPendingResume?.connectorId !== connectorId) {
+    state.pendingConnectorChatResume = null;
+    clearPendingAlisioConnectorChatResume();
+  } else {
+    state.pendingConnectorChatResume = existingPendingResume;
+  }
+  const popup =
+    typeof window.alisioHost?.request === "function" ||
+    !shouldReserveConnectorPopup(state, connectorId)
+      ? null
+      : reserveExternalPopup();
+  void beginAlisioConnector(state, connectorId)
+    .then((result) => {
+      if (!result) {
+        closeReservedExternalPopup(popup);
+        state.alisioConnectorsError = t("alisio.authentications.errors.startFailed");
+        return;
+      }
+      if (result.mode !== "oauth") {
+        closeReservedExternalPopup(popup);
+        state.alisioConnectorsError =
+          result.statusReason === "review_required"
+            ? t("alisio.authentications.errors.reviewPending")
+            : result.statusReason === "missing_token_encryption"
+              ? t("alisio.authentications.errors.missingTokenEncryption")
+              : result.statusReason === "unavailable"
+                ? t("alisio.authentications.errors.unavailable")
+                : t("alisio.authentications.errors.preparing");
+        return;
+      }
+      const targetUrl = result.setupUrl;
+      if (!targetUrl) {
+        closeReservedExternalPopup(popup);
+        state.alisioConnectorsError = t("alisio.authentications.errors.missingUrl");
+        return;
+      }
+      scheduleConnectorAuthorizationRefresh(state, connectorId);
+      if (typeof window.alisioHost?.request === "function") {
+        void openExternal(targetUrl);
+        return;
+      }
+      if (navigateReservedExternalPopup(popup, targetUrl)) {
+        return;
+      }
+      closeReservedExternalPopup(popup);
+      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
+      if (!safeTargetUrl) {
+        state.alisioConnectorsError = t("alisio.authentications.errors.invalidUrl");
+        return;
+      }
+      window.location.assign(safeTargetUrl);
+    })
+    .catch((error) => {
+      closeReservedExternalPopup(popup);
+      state.alisioConnectorsError =
+        error instanceof Error ? error.message : t("alisio.authentications.errors.startFailed");
+    });
+}
+
 export function renderApp(state: AppViewState) {
   const updatableState = state as AppViewState & { requestUpdate?: () => void };
   const requestHostUpdate =
@@ -226,12 +358,8 @@ export function renderApp(state: AppViewState) {
       ? () => updatableState.requestUpdate?.()
       : undefined;
 
-  const setupBlockedByBootstrap = Boolean(
-    state.connected &&
-    state.alisioBootstrap &&
-    (state.alisioBootstrap.connectionRequired || state.alisioBootstrap.startupState !== "ready"),
-  );
-  const shouldShowSetup = !state.connected || state.tab === "setup" || setupBlockedByBootstrap;
+  const setupBlockedByBootstrap = alisioBootstrapBlocksChatAccess(state.alisioBootstrap);
+  const shouldShowSetup = state.tab === "setup" || setupBlockedByBootstrap;
   const setupView = renderSetup({
     connected: state.connected,
     lastError: state.lastError,
@@ -255,6 +383,7 @@ export function renderApp(state: AppViewState) {
     wizardDraftSelectIndex: state.setupWizardDraftSelectIndex,
     wizardDraftMultiIndexes: state.setupWizardDraftMultiIndexes,
     requestedStep: state.setupStep,
+    setupGuide: state.alisioConnectorSetupGuide,
     accountLoading: state.alisioAccountLoading,
     accountError: state.alisioAccountError,
     accountNotice: state.alisioAccountNotice,
@@ -264,6 +393,20 @@ export function renderApp(state: AppViewState) {
     authPassword: state.alisioAuthPassword,
     aiLoading: state.alisioAiLoading,
     aiError: state.alisioAiError,
+    connectorsSearch: state.alisioConnectorsSearch,
+    connectorsCategoryFilter: state.alisioConnectorsCategoryFilter,
+    onConnectorsSearchChange: (value) => {
+      state.alisioConnectorsSearch = value;
+    },
+    onConnectorsCategoryChange: (value) => {
+      state.alisioConnectorsCategoryFilter = value;
+    },
+    onDismissSetupGuide: () => {
+      state.alisioConnectorSetupGuide = null;
+    },
+    onOpenSupportUrl: (targetUrl) => {
+      void openExternal(targetUrl);
+    },
     organizationLoading: state.alisioOrganizationLoading,
     organizationError: state.alisioOrganizationError,
     organization: state.alisioOrganization,
@@ -288,10 +431,9 @@ export function renderApp(state: AppViewState) {
     },
     onConnect: () => state.connect(),
     onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
-    onOpenAuthentications: () => state.setTab("authentications" as import("./navigation.ts").Tab),
+    onOpenChannels: () => state.setTab("channels" as import("./navigation.ts").Tab),
     onOpenSettingsAi: () => {
-      state.settingsSection = "ai";
-      state.setTab("settings" as import("./navigation.ts").Tab);
+      state.setTab("models" as import("./navigation.ts").Tab);
     },
     onOpenSettingsMac: () => {
       state.settingsSection = "mac";
@@ -330,20 +472,7 @@ export function renderApp(state: AppViewState) {
       void saveAlisioOrganization(state, { mode: "none" });
     },
     onBeginConnector: (connectorId) => {
-      void beginAlisioConnector(state, connectorId).then((result) => {
-        const targetUrl = result?.setupUrl;
-        if (!targetUrl) {
-          return;
-        }
-        if (result.mode === "oauth") {
-          scheduleConnectorAuthorizationRefresh(state, connectorId);
-        }
-        if (typeof window.alisioHost?.request === "function") {
-          void openExternal(targetUrl);
-          return;
-        }
-        window.open(targetUrl, "_blank", "noopener,noreferrer");
-      });
+      beginConnectorFlow(state, connectorId);
     },
     onRevokeConnector: (connectorId) => {
       void revokeAlisioConnector(state, connectorId);
@@ -391,19 +520,33 @@ export function renderApp(state: AppViewState) {
       void requestAlisioPasswordReset(state);
     },
     onBeginAiConnect: () => {
-      const callbackUrl = new URL("/__alisio/auth/openai/callback", window.location.origin);
-      void beginAlisioAiConnect(state, callbackUrl.toString()).then((result) => {
-        const targetUrl = result?.setupUrl;
-        if (!targetUrl) {
-          return;
-        }
-        scheduleOpenAiRefresh(state);
-        if (typeof window.alisioHost?.request === "function") {
-          void openExternal(targetUrl);
-          return;
-        }
-        window.open(targetUrl, "_blank", "noopener,noreferrer");
-      });
+      const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
+      const popup =
+        typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
+      void beginAlisioAiConnect(state, callbackUrl.toString())
+        .then((result) => {
+          const targetUrl = result?.setupUrl;
+          if (!targetUrl) {
+            closeReservedExternalPopup(popup);
+            return;
+          }
+          scheduleOpenAiRefresh(state);
+          if (typeof window.alisioHost?.request === "function") {
+            void openExternal(targetUrl);
+            return;
+          }
+          if (navigateReservedExternalPopup(popup, targetUrl)) {
+            return;
+          }
+          closeReservedExternalPopup(popup);
+          const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
+          if (safeTargetUrl) {
+            window.location.assign(safeTargetUrl);
+          }
+        })
+        .catch(() => {
+          closeReservedExternalPopup(popup);
+        });
     },
     onDisconnectAi: () => {
       void disconnectAlisioAi(state);
@@ -437,16 +580,42 @@ export function renderApp(state: AppViewState) {
   const assistantAvatarUrl = resolveAssistantAvatarUrl(state);
   const chatAvatarUrl = state.chatAvatarUrl ?? assistantAvatarUrl ?? null;
   const profile = state.alisioAccount?.profile ?? null;
-  const profileName = profile?.displayName ?? "Nuno";
-  const profileEmail = profile?.email ?? "nuno@alisio.local";
-  const profileAvatarLabel = profile?.avatarLabel ?? "N";
-  const profilePlan = profile?.plan ?? t("alisio.settings.billing.freePlan");
+  const profileName = profile?.displayName ?? "Alisio";
+  const profileEmail = profile?.email ?? "alisio@local";
+  const profileAvatarLabel = profile?.avatarLabel ?? "A";
+  const profilePlan = profile?.plan
+    ? t(alisioPlanTranslationKey(normalizeAlisioPlan(profile.plan)))
+    : t("alisio.settings.billing.freePlan");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
   const execApprovalsTarget =
     state.execApprovalsTarget === "node" && state.execApprovalsTargetNodeId?.trim()
       ? { kind: "node" as const, nodeId: state.execApprovalsTargetNodeId.trim() }
       : ({ kind: "gateway" } as const);
+  const resolveApprovalDecision = async (
+    entry: import("./controllers/exec-approval.ts").ExecApprovalRequest,
+    decision: "allow-once" | "allow-always" | "deny",
+  ) => {
+    if (!state.client || state.execApprovalBusy) {
+      return;
+    }
+    state.execApprovalBusy = true;
+    state.execApprovalError = null;
+    try {
+      await state.client.request(
+        entry.kind === "plugin" ? "plugin.approval.resolve" : "exec.approval.resolve",
+        {
+          id: entry.id,
+          decision,
+        },
+      );
+      state.execApprovalQueue = state.execApprovalQueue.filter((item) => item.id !== entry.id);
+    } catch (err) {
+      state.execApprovalError = `Approval failed: ${String(err)}`;
+    } finally {
+      state.execApprovalBusy = false;
+    }
+  };
   const openSettingsSection = (section: import("./navigation.ts").SettingsSection) => {
     state.settingsSection = section;
     state.setTab("settings" as import("./navigation.ts").Tab);
@@ -476,7 +645,7 @@ export function renderApp(state: AppViewState) {
             /></span>
             <span class="setup-frame__brand-copy">
               <span class="setup-frame__brand-eyebrow">Alisio</span>
-              <span class="setup-frame__brand-title">Setup</span>
+              <span class="setup-frame__brand-title">${t("tabs.setup")}</span>
             </span>
           </a>
           <div class="setup-frame__meta">
@@ -591,10 +760,21 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>
             <div class="sidebar-shell__body">
-              <nav class="sidebar-nav sidebar-nav--product" aria-label="Primary navigation">
+              <nav
+                class="sidebar-nav sidebar-nav--product"
+                aria-label=${t("nav.primaryNavigation")}
+              >
                 ${TAB_GROUPS.map((group) => {
+                  const groupLabel = group.label === "product" ? t("nav.product") : group.label;
                   return html`
                     <section class="nav-section">
+                      ${navCollapsed
+                        ? nothing
+                        : html`
+                            <div class="nav-section__label">
+                              <span class="nav-section__label-text">${groupLabel}</span>
+                            </div>
+                          `}
                       <div class="nav-section__items">
                         ${group.tabs.map((tab) =>
                           renderTab(state, tab, {
@@ -632,7 +812,7 @@ export function renderApp(state: AppViewState) {
                         class="sidebar-footer-compact__upgrade"
                         title=${t("alisio.settings.billing.upgrade")}
                         aria-label=${t("alisio.settings.billing.upgrade")}
-                        @click=${() => openSettingsSection("billing")}
+                        @click=${() => openSettingsSection("account")}
                       >
                         ${icons.spark}
                       </button>
@@ -665,7 +845,7 @@ export function renderApp(state: AppViewState) {
                         <button
                           type="button"
                           class="btn alisio-sidebar-account__upgrade"
-                          @click=${() => openSettingsSection("billing")}
+                          @click=${() => openSettingsSection("account")}
                         >
                           ${t("alisio.settings.billing.upgrade")}
                         </button>
@@ -707,14 +887,19 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>`
           : nothing}
-        <section class="content-header">
+        <section
+          class=${activeTab === "settings"
+            ? "content-header content-header--settings"
+            : "content-header"}
+        >
           <div>
             <div class="page-title">${titleForTab(activeTab)}</div>
-            <div class="page-sub">${subtitleForTab(activeTab)}</div>
+            ${activeTab === "settings"
+              ? nothing
+              : html`<div class="page-sub">${subtitleForTab(activeTab)}</div>`}
           </div>
           <div class="page-meta">
             ${state.lastError ? html`<div class="pill danger">${state.lastError}</div>` : nothing}
-            ${activeTab === "settings" ? renderTopbarThemeModeToggle(state) : nothing}
           </div>
         </section>
         ${activeTab === "authentications"
@@ -740,36 +925,128 @@ export function renderApp(state: AppViewState) {
                 void openExternal(targetUrl);
               },
               onBeginConnector: (connectorId) => {
-                state.alisioConnectorsError = null;
-                state.alisioConnectorSetupGuide = null;
-                void beginAlisioConnector(state, connectorId).then((result) => {
-                  if (!result) {
-                    state.alisioConnectorsError = "Could not start this authentication right now.";
-                    return;
-                  }
-                  if (result.mode !== "oauth") {
-                    state.alisioConnectorSetupGuide = result;
-                    return;
-                  }
-                  state.alisioConnectorSetupGuide = null;
-                  const targetUrl = result.setupUrl;
-                  if (!targetUrl) {
-                    state.alisioConnectorsError =
-                      "Authentication URL is missing for this connector.";
-                    return;
-                  }
-                  if (result.mode === "oauth") {
-                    scheduleConnectorAuthorizationRefresh(state, connectorId);
-                  }
-                  if (typeof window.alisioHost?.request === "function") {
-                    void openExternal(targetUrl);
-                    return;
-                  }
-                  window.open(targetUrl, "_blank", "noopener,noreferrer");
-                });
+                beginConnectorFlow(state, connectorId);
               },
               onRevokeConnector: (connectorId) => {
                 void revokeAlisioConnector(state, connectorId);
+              },
+              onOpenChannels: () => {
+                state.setTab("channels" as import("./navigation.ts").Tab);
+              },
+            })
+          : nothing}
+        ${activeTab === "channels"
+          ? renderChannels({
+              connected: state.connected,
+              loading: state.channelsLoading,
+              error: state.channelsError,
+              snapshot: state.channelsSnapshot,
+              lastSuccess: state.channelsLastSuccess,
+              busyKey: state.channelsBusyKey,
+              actionMessage: state.channelsActionMessage,
+              loginQrDataUrl: state.channelsLoginQrDataUrl,
+              loginConnected: state.channelsLoginConnected,
+              setupLoading: state.channelsSetupLoading ?? false,
+              setupSubmitting: state.channelsSetupSubmitting ?? false,
+              setupSessionId: state.channelsSetupSessionId ?? null,
+              setupStep: state.channelsSetupStep ?? null,
+              setupStatus: state.channelsSetupStatus ?? null,
+              setupError: state.channelsSetupError ?? null,
+              setupDraftText: state.channelsSetupDraftText ?? "",
+              setupDraftConfirm: state.channelsSetupDraftConfirm ?? false,
+              setupDraftSelectIndex: state.channelsSetupDraftSelectIndex ?? 0,
+              setupDraftMultiIndexes: state.channelsSetupDraftMultiIndexes ?? [],
+              setupChannelId: state.channelsSetupChannelId ?? null,
+              onRefresh: () => {
+                void loadChannels(state, true);
+              },
+              onStartChannelSetup: (channelId) => {
+                void startChannelSetup(state, channelId);
+              },
+              onContinueSetup: (answer) => {
+                void continueChannelSetup(state, answer);
+              },
+              onCancelSetup: () => {
+                void cancelChannelSetup(state);
+              },
+              onSetupDraftTextChange: (value) => {
+                state.channelsSetupDraftText = value;
+              },
+              onSetupDraftConfirmChange: (value) => {
+                state.channelsSetupDraftConfirm = value;
+              },
+              onSetupDraftSelectIndexChange: (value) => {
+                state.channelsSetupDraftSelectIndex = value;
+              },
+              onSetupDraftMultiIndexesChange: (value) => {
+                state.channelsSetupDraftMultiIndexes = value;
+              },
+              onStartWhatsAppLink: (force) => {
+                void startWebChannelLogin(state, { force });
+              },
+              onWaitWhatsAppLink: () => {
+                void waitWebChannelLogin(state);
+              },
+              onLogoutChannel: (channelId, accountId) => {
+                void logoutChannelAccount(state, { channelId, accountId });
+              },
+              onOpenSupportUrl: (targetUrl) => {
+                void openExternal(targetUrl);
+              },
+            })
+          : nothing}
+        ${activeTab === "capabilities"
+          ? renderCapabilities({
+              connected: state.connected,
+              loading: state.skillsLoading,
+              report: state.skillsReport,
+              error: state.skillsError,
+              filter: state.skillsFilter,
+              statusFilter: state.skillsStatusFilter,
+              edits: state.skillEdits,
+              busyKey: state.skillsBusyKey,
+              messages: state.skillMessages,
+              detailKey: state.skillsDetailKey,
+              channelsSnapshot: state.channelsSnapshot,
+              connectorCatalog: state.alisioConnectorCatalog,
+              connectorAuthorizations: state.alisioConnectorAuthorizations,
+              onFilterChange: (value) => {
+                state.skillsFilter = value;
+              },
+              onStatusFilterChange: (value) => {
+                state.skillsStatusFilter = value;
+              },
+              onRefresh: () => {
+                void Promise.allSettled([
+                  loadChannels(state, false),
+                  loadAlisioConnectors(state),
+                  refreshAlisioAi(state),
+                  loadSkills(state),
+                ]);
+              },
+              onToggle: (skillKey, enabled) => {
+                void updateSkillEnabled(state, skillKey, enabled);
+              },
+              onEdit: (skillKey, value) => {
+                state.skillEdits = { ...state.skillEdits, [skillKey]: value };
+              },
+              onSaveKey: (skillKey) => {
+                void saveSkillApiKey(state, skillKey);
+              },
+              onInstall: (skillKey, name, installId) => {
+                void installSkill(state, skillKey, name, installId);
+              },
+              onDetailOpen: (skillKey) => {
+                state.skillsDetailKey = skillKey;
+              },
+              onDetailClose: () => {
+                state.skillsDetailKey = null;
+              },
+              onOpenChannels: () => {
+                state.setTab("channels" as import("./navigation.ts").Tab);
+              },
+              onOpenAuthentications: () => {
+                state.setTab("authentications" as import("./navigation.ts").Tab);
               },
             })
           : nothing}
@@ -890,6 +1167,68 @@ export function renderApp(state: AppViewState) {
               },
             })
           : nothing}
+        ${activeTab === "security"
+          ? renderSecurity({
+              loading: state.nodesLoading || state.configLoading,
+              nodes: state.nodes,
+              configSnapshot: state.configSnapshot,
+              configForm: state.configForm,
+              configLoading: state.configLoading,
+              configSaving: state.configSaving,
+              execApprovalsLoading: state.execApprovalsLoading,
+              execApprovalsSaving: state.execApprovalsSaving,
+              execApprovalsDirty: state.execApprovalsDirty,
+              execApprovalsSnapshot: state.execApprovalsSnapshot,
+              execApprovalsForm: state.execApprovalsForm,
+              execApprovalsSelectedAgent: state.execApprovalsSelectedAgent,
+              execApprovalsTarget: state.execApprovalsTarget,
+              execApprovalsTargetNodeId: state.execApprovalsTargetNodeId,
+              execApprovalQueue: state.execApprovalQueue,
+              execApprovalBusy: state.execApprovalBusy,
+              execApprovalError: state.execApprovalError,
+              gatewayAccessModeLoading: state.gatewayAccessModeLoading,
+              gatewayAccessModeBusy: state.gatewayAccessModeBusy,
+              gatewayAccessMode: state.gatewayAccessMode,
+              onRefresh: () => {
+                void Promise.allSettled([
+                  loadNodes(state),
+                  loadConfig(state),
+                  loadExecApprovals(state, execApprovalsTarget),
+                  loadGatewayAccessMode(state),
+                ]);
+              },
+              onLoadExecApprovals: () => {
+                void loadExecApprovals(state, execApprovalsTarget);
+              },
+              onExecApprovalsTargetChange: (kind, nodeId) => {
+                state.execApprovalsTarget = kind;
+                state.execApprovalsTargetNodeId = kind === "node" ? nodeId : null;
+                const nextTarget =
+                  kind === "node" && nodeId?.trim()
+                    ? { kind: "node" as const, nodeId: nodeId.trim() }
+                    : ({ kind: "gateway" } as const);
+                void loadExecApprovals(state, nextTarget);
+              },
+              onExecApprovalsSelectAgent: (agentId) => {
+                state.execApprovalsSelectedAgent = agentId;
+              },
+              onExecApprovalsPatch: (path, value) => {
+                updateExecApprovalsFormValue(state, path, value);
+              },
+              onExecApprovalsRemove: (path) => {
+                removeExecApprovalsFormValue(state, path);
+              },
+              onSaveExecApprovals: () => {
+                void saveExecApprovals(state, execApprovalsTarget);
+              },
+              onResolveApproval: (entry, decision) => {
+                void resolveApprovalDecision(entry, decision);
+              },
+              onApplyAccessMode: (mode) => {
+                void applyGatewayAccessMode(state, mode);
+              },
+            })
+          : nothing}
         ${activeTab === "organization"
           ? renderOrganization({
               loading: state.alisioOrganizationLoading,
@@ -964,6 +1303,9 @@ export function renderApp(state: AppViewState) {
               queue: state.chatQueue,
               connected: state.connected,
               canSend: state.connected,
+              accessMode: state.gatewayAccessMode,
+              accessModeLoading: state.gatewayAccessModeLoading,
+              accessModeBusy: state.gatewayAccessModeBusy,
               disabledReason: chatDisabledReason,
               error: state.lastError,
               runtimeSetupHint: chatRuntimeSetupHint,
@@ -971,7 +1313,11 @@ export function renderApp(state: AppViewState) {
               focusMode: chatFocus,
               onRefresh: () => {
                 state.resetToolStream();
-                return Promise.all([loadChatHistory(state), refreshChatAvatar(state)]);
+                return Promise.all([
+                  loadChatHistory(state),
+                  refreshChatAvatar(state),
+                  loadGatewayAccessMode(state),
+                ]);
               },
               onToggleFocusMode: () => {
                 state.applySettings({
@@ -979,12 +1325,18 @@ export function renderApp(state: AppViewState) {
                   chatFocusMode: !state.settings.chatFocusMode,
                 });
               },
+              onApplyAccessMode: (mode) => {
+                void applyGatewayAccessMode(state, mode);
+              },
               onChatScroll: (event) => state.handleChatScroll(event),
               getDraft: () => state.chatMessage,
               onDraftChange: (next) => (state.chatMessage = next),
               onOpenRuntimeSetup: () => {
                 state.setupStep = state.alisioBootstrap?.nextStep ?? "runtime";
                 state.setTab("setup" as import("./navigation.ts").Tab);
+              },
+              onBeginConnector: (connectorId) => {
+                beginConnectorFlow(state, connectorId, { resumeChatIntent: true });
               },
               onRequestUpdate: requestHostUpdate,
               attachments: state.chatAttachments,
@@ -1045,6 +1397,39 @@ export function renderApp(state: AppViewState) {
               basePath: state.basePath ?? "",
             })
           : nothing}
+        ${activeTab === "models"
+          ? renderModelsHub({
+              bootstrap: state.alisioBootstrap,
+              account: state.alisioAccount,
+              nodes: state.nodes,
+              aiLoading: state.alisioAiLoading,
+              aiError: state.alisioAiError,
+              expandedProfileId: state.modelsExpandedProfileId,
+              onToggleProfile: (profileId) => {
+                state.modelsExpandedProfileId =
+                  state.modelsExpandedProfileId === profileId ? null : profileId;
+              },
+              onConnectAi: () => {
+                const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
+                void beginAlisioAiConnect(state, callbackUrl).then(() => {
+                  scheduleOpenAiRefresh(state);
+                });
+              },
+              onSelectAiProfile: (profileId) => {
+                state.modelsExpandedProfileId = profileId;
+                void selectAlisioAiProfile(state, profileId);
+              },
+              onDisconnectAiProfile: (profileId) => {
+                void disconnectAlisioAiProfile(state, profileId);
+              },
+              onRefreshAiProfile: (profileId) => {
+                void refreshAlisioAiProfile(state, profileId);
+              },
+              onRenameAiProfile: (profileId, label) => {
+                void renameAlisioAiProfile(state, profileId, label);
+              },
+            })
+          : nothing}
         ${activeTab === "settings"
           ? renderSettingsHub({
               section: state.settingsSection,
@@ -1059,9 +1444,6 @@ export function renderApp(state: AppViewState) {
               bootstrap: state.alisioBootstrap,
               aiLoading: state.alisioAiLoading,
               aiError: state.alisioAiError,
-              providerUsageLoading: state.providerUsageLoading,
-              providerUsageError: state.providerUsageError,
-              providerUsageSummary: state.providerUsageSummary,
               doctorLoading: state.alisioDoctorLoading,
               doctorError: state.alisioDoctorError,
               doctor: state.alisioDoctor,
@@ -1110,28 +1492,51 @@ export function renderApp(state: AppViewState) {
                 void requestAlisioPasswordReset(state);
               },
               onConnectAi: () => {
-                const callbackUrl = new URL(
-                  "/__alisio/auth/openai/callback",
-                  window.location.origin,
-                );
-                void beginAlisioAiConnect(state, callbackUrl.toString()).then((result) => {
-                  const targetUrl = result?.setupUrl;
-                  if (!targetUrl) {
-                    return;
-                  }
-                  scheduleOpenAiRefresh(state);
-                  if (typeof window.alisioHost?.request === "function") {
-                    void openExternal(targetUrl);
-                    return;
-                  }
-                  window.open(targetUrl, "_blank", "noopener,noreferrer");
-                });
+                const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
+                const popup =
+                  typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
+                void beginAlisioAiConnect(state, callbackUrl.toString())
+                  .then((result) => {
+                    const targetUrl = result?.setupUrl;
+                    if (!targetUrl) {
+                      closeReservedExternalPopup(popup);
+                      return;
+                    }
+                    scheduleOpenAiRefresh(state);
+                    if (typeof window.alisioHost?.request === "function") {
+                      void openExternal(targetUrl);
+                      return;
+                    }
+                    if (navigateReservedExternalPopup(popup, targetUrl)) {
+                      return;
+                    }
+                    closeReservedExternalPopup(popup);
+                    const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
+                    if (safeTargetUrl) {
+                      window.location.assign(safeTargetUrl);
+                    }
+                  })
+                  .catch(() => {
+                    closeReservedExternalPopup(popup);
+                  });
               },
               onDisconnectAi: () => {
                 void disconnectAlisioAi(state);
               },
               onRefreshAi: () => {
-                void Promise.allSettled([refreshAlisioAi(state), loadProviderUsageStatus(state)]);
+                void refreshAlisioAi(state);
+              },
+              onSelectAiProfile: (profileId) => {
+                void selectAlisioAiProfile(state, profileId);
+              },
+              onDisconnectAiProfile: (profileId) => {
+                void disconnectAlisioAiProfile(state, profileId);
+              },
+              onRefreshAiProfile: (profileId) => {
+                void refreshAlisioAiProfile(state, profileId);
+              },
+              onRenameAiProfile: (profileId, label) => {
+                void renameAlisioAiProfile(state, profileId, label);
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

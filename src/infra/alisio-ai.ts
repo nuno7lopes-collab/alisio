@@ -1,14 +1,44 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { refreshOpenAICodexToken } from "@mariozechner/pi-ai/oauth";
-import { ensureAuthProfileStore, saveAuthProfileStore } from "../agents/auth-profiles.js";
-import { OPENAI_CODEX_DEFAULT_PROFILE_ID } from "../agents/auth-profiles/constants.js";
-import { updateConfig } from "../commands/models/shared.js";
+import {
+  ensureAuthProfileStore,
+  listProfilesForProvider,
+  saveAuthProfileStore,
+  updateRuntimeAuthProfileStoreSnapshot,
+} from "../agents/auth-profiles.js";
+import { loadValidConfigOrThrow, updateConfig } from "../commands/models/shared.js";
+import type { OpenClawConfig } from "../config/config.js";
 import { isLoopbackHost } from "../gateway/net.js";
 import { applyDefaultModel } from "../plugins/provider-auth-choice-helpers.js";
-import { writeOAuthCredentials } from "../plugins/provider-auth-helpers.js";
-import { applyAuthProfileConfig } from "../plugins/provider-auth-helpers.js";
-import { fetchCodexUsage } from "./provider-usage.fetch.codex.js";
+import {
+  ALISIO_AI_TELEMETRY_TTL_MS,
+  buildAlisioAiLocalTelemetry,
+  buildAlisioAiTelemetryWindow,
+  type AlisioAiLocalTelemetry,
+  type AlisioAiStatus,
+  type AlisioStoredWorkerAiCredential,
+} from "./alisio-ai-state.js";
+import { fetchCodexUsageTelemetry } from "./provider-usage.fetch.codex.js";
+
+export type {
+  AlisioAiCanonicalIdentity,
+  AlisioAiLimits,
+  AlisioAiProfileState,
+  AlisioAiRuntimeBindingState,
+  AlisioAiState,
+  AlisioAiStatus,
+  AlisioAiTelemetryWindow,
+  AlisioAiUsageWindow,
+  AlisioAiWorkerCredentialState,
+  AlisioAiLocalTelemetry,
+  AlisioStoredAiProfile,
+  AlisioStoredAiState,
+  AlisioStoredRuntimeBinding,
+  AlisioStoredWorkerAiCredential,
+  AlisioAiOwnerContext,
+  AlisioLegacyStoredAiSession,
+} from "./alisio-ai-state.js";
 
 const OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
 const OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
@@ -16,48 +46,7 @@ const OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const OPENAI_SCOPE = "openid profile email offline_access";
 const OPENAI_LOOPBACK_REDIRECT_URI = "http://localhost:1455/auth/callback";
 const OPENAI_AUTH_CLAIM_PATH = "https://api.openai.com/auth";
-const LIMITS_REFRESH_TTL_MS = 10 * 60 * 1000;
-
-export type AlisioAiStatus =
-  | "disconnected"
-  | "connecting"
-  | "connected"
-  | "limits_unavailable"
-  | "expired";
-
-export type AlisioAiUsageWindow = {
-  label: string;
-  usedPercent: number;
-  resetAt?: number;
-};
-
-export type AlisioAiLimits = {
-  windows: AlisioAiUsageWindow[];
-  lastRefreshedAt: string;
-};
-
-export type AlisioAiState = {
-  provider: "openai";
-  status: AlisioAiStatus;
-  email?: string;
-  accountId?: string;
-  planLabel?: string;
-  connectedAt?: string;
-  limits?: AlisioAiLimits;
-};
-
-export type AlisioStoredAiSession = {
-  provider: "openai";
-  status: AlisioAiStatus;
-  accessToken?: string;
-  refreshToken?: string;
-  expiresAt?: string;
-  email?: string;
-  accountId?: string;
-  planLabel?: string;
-  connectedAt?: string;
-  limits?: AlisioAiLimits;
-};
+const OPENAI_PROFILE_CLAIM_PATH = "https://api.openai.com/profile";
 
 export type AlisioPendingAiAuthorization = {
   provider: "openai";
@@ -91,8 +80,35 @@ export class AlisioAiError extends Error {
   }
 }
 
+type OpenAiRedirectProxy = {
+  server: Server;
+  callbackUrl: string;
+};
+
+type OpenAiIdentityFields = {
+  accountId?: string;
+  accountUserId?: string;
+  userId?: string;
+  email?: string;
+  planType?: string;
+};
+
+let openAiRedirectProxy: OpenAiRedirectProxy | null = null;
+
+function normalizeOptionalString(value: string | null | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function normalizeOptionalEmail(value: string | null | undefined): string | undefined {
+  const normalized = normalizeOptionalString(value);
+  return normalized ? normalized.toLowerCase() : undefined;
+}
+
 function buildCodeVerifier() {
-  // Keep verifier shape aligned with @mariozechner/pi-ai's OpenAI Codex OAuth flow.
   return randomBytes(32).toString("base64url");
 }
 
@@ -101,8 +117,6 @@ function buildCodeChallenge(verifier: string) {
 }
 
 function buildStateToken() {
-  // OpenAI's hosted auth flow appears sensitive to the exact request shape.
-  // Mirror the upstream flow here to avoid hidden compatibility drift.
   return randomBytes(16).toString("hex");
 }
 
@@ -123,46 +137,218 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
-function resolveOpenAiAccountId(accessToken: string) {
-  const payload = decodeJwtPayload(accessToken);
-  const auth = payload?.[OPENAI_AUTH_CLAIM_PATH];
-  if (!auth || typeof auth !== "object") {
-    return undefined;
-  }
-  const accountId = (auth as Record<string, unknown>).chatgpt_account_id;
-  return typeof accountId === "string" && accountId.trim() ? accountId.trim() : undefined;
-}
-
-function resolveOpenAiEmail(accessToken: string) {
-  const payload = decodeJwtPayload(accessToken);
-  const candidates = [payload?.email, payload?.preferred_username, payload?.sub];
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.includes("@")) {
-      return candidate.trim().toLowerCase();
-    }
-  }
-  return undefined;
-}
-
-function normalizeLimitsSnapshot(
-  snapshot: Awaited<ReturnType<typeof fetchCodexUsage>>,
-): AlisioAiLimits {
+function mergeOpenAiIdentity(
+  primary: OpenAiIdentityFields,
+  secondary: OpenAiIdentityFields,
+): OpenAiIdentityFields {
   return {
-    windows: snapshot.windows.map((window) => ({
-      label: window.label,
-      usedPercent: window.usedPercent,
-      ...(typeof window.resetAt === "number" ? { resetAt: window.resetAt } : {}),
-    })),
-    lastRefreshedAt: new Date().toISOString(),
+    ...((primary.accountId ?? secondary.accountId)
+      ? { accountId: primary.accountId ?? secondary.accountId }
+      : {}),
+    ...((primary.accountUserId ?? secondary.accountUserId)
+      ? { accountUserId: primary.accountUserId ?? secondary.accountUserId }
+      : {}),
+    ...((primary.userId ?? secondary.userId) ? { userId: primary.userId ?? secondary.userId } : {}),
+    ...((primary.email ?? secondary.email) ? { email: primary.email ?? secondary.email } : {}),
+    ...((primary.planType ?? secondary.planType)
+      ? { planType: primary.planType ?? secondary.planType }
+      : {}),
   };
 }
 
-type OpenAiRedirectProxy = {
-  server: Server;
-  callbackUrl: string;
-};
+export function resolveAlisioOpenAiTokenIdentity(token: string): OpenAiIdentityFields {
+  const payload = decodeJwtPayload(token);
+  if (!payload) {
+    return {};
+  }
+  const auth =
+    payload?.[OPENAI_AUTH_CLAIM_PATH] && typeof payload[OPENAI_AUTH_CLAIM_PATH] === "object"
+      ? (payload[OPENAI_AUTH_CLAIM_PATH] as Record<string, unknown>)
+      : undefined;
+  const profile =
+    payload?.[OPENAI_PROFILE_CLAIM_PATH] && typeof payload[OPENAI_PROFILE_CLAIM_PATH] === "object"
+      ? (payload[OPENAI_PROFILE_CLAIM_PATH] as Record<string, unknown>)
+      : undefined;
+  const accountId = normalizeOptionalString(
+    typeof auth?.chatgpt_account_id === "string"
+      ? auth.chatgpt_account_id
+      : typeof auth?.account_id === "string"
+        ? auth.account_id
+        : undefined,
+  );
+  const accountUserId = normalizeOptionalString(
+    typeof auth?.chatgpt_account_user_id === "string"
+      ? auth.chatgpt_account_user_id
+      : typeof auth?.account_user_id === "string"
+        ? auth.account_user_id
+        : undefined,
+  );
+  const userId = normalizeOptionalString(
+    typeof auth?.chatgpt_user_id === "string"
+      ? auth.chatgpt_user_id
+      : typeof auth?.user_id === "string"
+        ? auth.user_id
+        : typeof payload?.user_id === "string"
+          ? payload.user_id
+          : typeof payload?.uid === "string"
+            ? payload.uid
+            : typeof payload?.sub === "string" && !payload.sub.includes("@")
+              ? payload.sub
+              : undefined,
+  );
+  const emailCandidates = [
+    profile?.email,
+    payload?.email,
+    payload?.preferred_username,
+    payload?.sub,
+  ];
+  let email: string | undefined;
+  for (const candidate of emailCandidates) {
+    if (typeof candidate === "string" && candidate.includes("@")) {
+      email = normalizeOptionalEmail(candidate);
+      break;
+    }
+  }
+  const planType = normalizeOptionalString(
+    typeof auth?.chatgpt_plan_type === "string" ? auth.chatgpt_plan_type : undefined,
+  );
+  return {
+    ...(accountId ? { accountId } : {}),
+    ...(accountUserId ? { accountUserId } : {}),
+    ...(userId ? { userId } : {}),
+    ...(email ? { email } : {}),
+    ...(planType ? { planType } : {}),
+  };
+}
 
-let openAiRedirectProxy: OpenAiRedirectProxy | null = null;
+function resolveOpenAiIdentity(accessToken: string, idToken?: string): OpenAiIdentityFields {
+  const accessIdentity = resolveAlisioOpenAiTokenIdentity(accessToken);
+  const idIdentity = idToken ? resolveAlisioOpenAiTokenIdentity(idToken) : {};
+  return mergeOpenAiIdentity(accessIdentity, idIdentity);
+}
+
+function normalizeOpenAiLocalTelemetryPlanType(
+  telemetry: AlisioAiLocalTelemetry | undefined,
+  planType: string | undefined,
+): AlisioAiLocalTelemetry | undefined {
+  if (!telemetry) {
+    return undefined;
+  }
+  if (!planType || telemetry.planType) {
+    return telemetry;
+  }
+  return {
+    ...telemetry,
+    planType,
+  };
+}
+
+function normalizeOpenAiTelemetry(params: {
+  telemetry: Awaited<ReturnType<typeof fetchCodexUsageTelemetry>>;
+  observedAt: string;
+  error?: string;
+}): AlisioAiLocalTelemetry {
+  const observedAtMs = Date.parse(params.observedAt);
+  return buildAlisioAiLocalTelemetry({
+    source: "official",
+    observedAt: params.observedAt,
+    staleAt: new Date(observedAtMs + ALISIO_AI_TELEMETRY_TTL_MS).toISOString(),
+    ...(params.telemetry.planType ? { planType: params.telemetry.planType } : {}),
+    ...(params.telemetry.primaryWindow
+      ? {
+          primaryWindow: buildAlisioAiTelemetryWindow({
+            durationMinutes: params.telemetry.primaryWindow.durationMinutes,
+            usedPercent: params.telemetry.primaryWindow.usedPercent,
+            resetAt: params.telemetry.primaryWindow.resetAt,
+          }),
+        }
+      : {}),
+    ...(params.telemetry.secondaryWindow
+      ? {
+          secondaryWindow: buildAlisioAiTelemetryWindow({
+            durationMinutes: params.telemetry.secondaryWindow.durationMinutes,
+            usedPercent: params.telemetry.secondaryWindow.usedPercent,
+            resetAt: params.telemetry.secondaryWindow.resetAt,
+          }),
+        }
+      : {}),
+    ...(typeof params.telemetry.credits === "number" ? { credits: params.telemetry.credits } : {}),
+    ...(params.error ? { lastError: params.error } : {}),
+  });
+}
+
+function prioritizeLocalOpenAiAuthProfile(authProfileId: string): void {
+  updateRuntimeAuthProfileStoreSnapshot({
+    updater: (store) => {
+      const provider = "openai-codex";
+      const existingOrder = Array.isArray(store.order?.[provider]) ? store.order[provider] : [];
+      const knownProfiles = listProfilesForProvider(store, provider);
+      const nextOrder = [
+        authProfileId,
+        ...existingOrder.filter((entry) => entry !== authProfileId),
+        ...knownProfiles.filter(
+          (entry) => entry !== authProfileId && !existingOrder.includes(entry),
+        ),
+      ];
+      store.order = {
+        ...store.order,
+        [provider]: nextOrder,
+      };
+      store.lastGood = {
+        ...store.lastGood,
+        [provider]: authProfileId,
+      };
+    },
+  });
+}
+
+function removePersistedAlisioOpenAiAuthProfiles(authProfileIds: readonly string[]): void {
+  if (authProfileIds.length === 0) {
+    return;
+  }
+  const store = ensureAuthProfileStore();
+  let changed = false;
+  for (const authProfileId of authProfileIds) {
+    if (store.profiles[authProfileId]) {
+      delete store.profiles[authProfileId];
+      changed = true;
+    }
+    if (store.lastGood?.["openai-codex"] === authProfileId) {
+      delete store.lastGood["openai-codex"];
+      changed = true;
+    }
+    if (store.order?.["openai-codex"]?.includes(authProfileId)) {
+      store.order["openai-codex"] = store.order["openai-codex"].filter(
+        (entry) => entry !== authProfileId,
+      );
+      if (store.order["openai-codex"].length === 0) {
+        delete store.order["openai-codex"];
+      }
+      changed = true;
+    }
+    if (store.usageStats?.[authProfileId]) {
+      delete store.usageStats[authProfileId];
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveAuthProfileStore(store);
+  }
+}
+
+function hasAlisioDefaultOpenAiModel(cfg: OpenClawConfig): boolean {
+  const primary = cfg.agents?.defaults?.model;
+  const primaryModel =
+    primary && typeof primary === "object" && "primary" in primary
+      ? primary.primary
+      : typeof primary === "string"
+        ? primary
+        : undefined;
+  return (
+    primaryModel === "openai-codex/gpt-5.4" &&
+    Boolean(cfg.agents?.defaults?.models?.["openai-codex/gpt-5.4"])
+  );
+}
 
 function isOpenAiLocalCallbackTarget(callbackUrl: URL): boolean {
   return isLoopbackHost(callbackUrl.hostname);
@@ -242,7 +428,6 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
   };
 
   try {
-    // Listen on the IPv6 wildcard first so localhost works for both ::1 and 127.0.0.1.
     const server = await listen("::");
     openAiRedirectProxy = {
       server,
@@ -339,6 +524,7 @@ async function exchangeOpenAiCode(params: {
   return {
     accessToken: body.access_token,
     refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+    idToken: typeof body.id_token === "string" ? body.id_token : undefined,
     expiresAt:
       typeof body.expires_in === "number"
         ? new Date(Date.now() + body.expires_in * 1000).toISOString()
@@ -346,20 +532,30 @@ async function exchangeOpenAiCode(params: {
   };
 }
 
-async function fetchOpenAiLimits(
+async function fetchOpenAiTelemetry(
   accessToken: string,
   accountId: string | undefined,
   fetchImpl: typeof fetch,
-): Promise<{ limits?: AlisioAiLimits; planLabel?: string; status: AlisioAiStatus }> {
+): Promise<{ localTelemetry?: AlisioAiLocalTelemetry; status: AlisioAiStatus }> {
+  const observedAt = new Date().toISOString();
   try {
-    const usage = await fetchCodexUsage(accessToken, accountId, 5_000, fetchImpl);
+    const telemetry = await fetchCodexUsageTelemetry(accessToken, accountId, 5_000, fetchImpl);
     return {
-      limits: normalizeLimitsSnapshot(usage),
-      planLabel: usage.plan,
+      localTelemetry: normalizeOpenAiTelemetry({
+        telemetry,
+        observedAt,
+      }),
       status: "connected",
     };
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     return {
+      localTelemetry: buildAlisioAiLocalTelemetry({
+        source: "official",
+        observedAt,
+        staleAt: new Date(Date.parse(observedAt) + ALISIO_AI_TELEMETRY_TTL_MS).toISOString(),
+        lastError: message,
+      }),
       status: "limits_unavailable",
     };
   }
@@ -369,172 +565,219 @@ export async function completeAlisioOpenAiAuthorization(params: {
   pending: AlisioPendingAiAuthorization;
   code: string;
   fetchImpl?: typeof fetch;
-}): Promise<AlisioStoredAiSession> {
+}): Promise<
+  Pick<
+    AlisioStoredWorkerAiCredential,
+    | "provider"
+    | "runtimeState"
+    | "accessToken"
+    | "refreshToken"
+    | "expiresAt"
+    | "email"
+    | "accountId"
+    | "accountUserId"
+    | "userId"
+    | "connectedAt"
+    | "localTelemetry"
+  >
+> {
   const fetchImpl = params.fetchImpl ?? fetch;
   const token = await exchangeOpenAiCode({
     pending: params.pending,
     code: params.code,
     fetchImpl,
   });
-  const accountId = resolveOpenAiAccountId(token.accessToken);
-  const email = resolveOpenAiEmail(token.accessToken);
-  const usage = await fetchOpenAiLimits(token.accessToken, accountId, fetchImpl);
+  const identity = resolveOpenAiIdentity(token.accessToken, token.idToken);
+  const usage = await fetchOpenAiTelemetry(token.accessToken, identity.accountId, fetchImpl);
   return {
     provider: "openai",
-    status: usage.status,
+    runtimeState: usage.status,
     accessToken: token.accessToken,
     refreshToken: token.refreshToken,
     expiresAt: token.expiresAt,
-    email,
-    accountId,
-    planLabel: usage.planLabel,
+    ...(identity.email ? { email: identity.email } : {}),
+    ...(identity.accountId ? { accountId: identity.accountId } : {}),
+    ...(identity.accountUserId ? { accountUserId: identity.accountUserId } : {}),
+    ...(identity.userId ? { userId: identity.userId } : {}),
     connectedAt: new Date().toISOString(),
-    ...(usage.limits ? { limits: usage.limits } : {}),
+    ...(normalizeOpenAiLocalTelemetryPlanType(usage.localTelemetry, identity.planType)
+      ? {
+          localTelemetry: normalizeOpenAiLocalTelemetryPlanType(
+            usage.localTelemetry,
+            identity.planType,
+          ),
+        }
+      : {}),
   };
 }
 
 export async function refreshAlisioOpenAiSession(params: {
-  session: AlisioStoredAiSession;
+  credential: AlisioStoredWorkerAiCredential;
   fetchImpl?: typeof fetch;
-}): Promise<AlisioStoredAiSession> {
+}): Promise<AlisioStoredWorkerAiCredential> {
   const fetchImpl = params.fetchImpl ?? fetch;
   const now = Date.now();
-  let next = { ...params.session };
+  let next = { ...params.credential };
+  let tokenIdentity = next.accessToken ? resolveAlisioOpenAiTokenIdentity(next.accessToken) : {};
+  next = {
+    ...next,
+    ...(tokenIdentity.accountId ? { accountId: tokenIdentity.accountId } : {}),
+    ...(tokenIdentity.accountUserId ? { accountUserId: tokenIdentity.accountUserId } : {}),
+    ...(tokenIdentity.userId ? { userId: tokenIdentity.userId } : {}),
+    ...(tokenIdentity.email ? { email: tokenIdentity.email } : {}),
+    ...(normalizeOpenAiLocalTelemetryPlanType(next.localTelemetry, tokenIdentity.planType)
+      ? {
+          localTelemetry: normalizeOpenAiLocalTelemetryPlanType(
+            next.localTelemetry,
+            tokenIdentity.planType,
+          ),
+        }
+      : {}),
+  };
   const expiresAtMs = next.expiresAt ? Date.parse(next.expiresAt) : Number.NaN;
   if (
     next.refreshToken &&
-    (!Number.isFinite(expiresAtMs) || expiresAtMs - now <= 60_000 || next.status === "expired")
+    (!Number.isFinite(expiresAtMs) ||
+      expiresAtMs - now <= 60_000 ||
+      next.runtimeState === "expired")
   ) {
     try {
       const refreshed = await refreshOpenAICodexToken(next.refreshToken);
+      tokenIdentity = resolveOpenAiIdentity(refreshed.access);
       next = {
         ...next,
-        status: "connected",
+        runtimeState: "connected",
         accessToken: refreshed.access,
         refreshToken: refreshed.refresh,
         expiresAt: new Date(refreshed.expires).toISOString(),
-        accountId:
-          typeof refreshed.accountId === "string" && refreshed.accountId.trim()
-            ? refreshed.accountId
-            : next.accountId,
-        email:
-          typeof refreshed.email === "string" && refreshed.email.trim()
-            ? refreshed.email.trim().toLowerCase()
-            : next.email,
+        ...(tokenIdentity.accountId ? { accountId: tokenIdentity.accountId } : {}),
+        ...(tokenIdentity.accountUserId ? { accountUserId: tokenIdentity.accountUserId } : {}),
+        ...(tokenIdentity.userId ? { userId: tokenIdentity.userId } : {}),
+        ...(tokenIdentity.email ? { email: tokenIdentity.email } : {}),
+        ...(normalizeOpenAiLocalTelemetryPlanType(next.localTelemetry, tokenIdentity.planType)
+          ? {
+              localTelemetry: normalizeOpenAiLocalTelemetryPlanType(
+                next.localTelemetry,
+                tokenIdentity.planType,
+              ),
+            }
+          : {}),
       };
     } catch {
       return {
         ...next,
-        status: "expired",
+        runtimeState: "expired",
       };
     }
   }
 
-  const lastRefreshedAt = next.limits?.lastRefreshedAt
-    ? Date.parse(next.limits.lastRefreshedAt)
+  const observedAtMs = next.localTelemetry?.observedAt
+    ? Date.parse(next.localTelemetry.observedAt)
     : 0;
-  if (!lastRefreshedAt || now - lastRefreshedAt >= LIMITS_REFRESH_TTL_MS) {
-    const usage = await fetchOpenAiLimits(next.accessToken ?? "", next.accountId, fetchImpl);
+  if (!observedAtMs || now - observedAtMs >= ALISIO_AI_TELEMETRY_TTL_MS) {
+    const usage = await fetchOpenAiTelemetry(
+      next.accessToken ?? "",
+      next.accountId ?? tokenIdentity.accountId,
+      fetchImpl,
+    );
     next = {
       ...next,
-      status: usage.status,
-      planLabel: usage.planLabel ?? next.planLabel,
-      ...(usage.limits ? { limits: usage.limits } : {}),
+      runtimeState: usage.status,
+      ...(normalizeOpenAiLocalTelemetryPlanType(usage.localTelemetry, tokenIdentity.planType)
+        ? {
+            localTelemetry: normalizeOpenAiLocalTelemetryPlanType(
+              usage.localTelemetry,
+              tokenIdentity.planType,
+            ),
+          }
+        : {}),
     };
   }
 
   return next;
 }
 
-export function toAlisioAiState(session: AlisioStoredAiSession | null | undefined): AlisioAiState {
-  if (!session) {
-    return {
-      provider: "openai",
-      status: "disconnected",
-    };
-  }
-  return {
-    provider: "openai",
-    status: session.status,
-    ...(session.email ? { email: session.email } : {}),
-    ...(session.accountId ? { accountId: session.accountId } : {}),
-    ...(session.planLabel ? { planLabel: session.planLabel } : {}),
-    ...(session.connectedAt ? { connectedAt: session.connectedAt } : {}),
-    ...(session.limits ? { limits: session.limits } : {}),
-  };
-}
-
-export async function applyAlisioOpenAiRuntime(session: AlisioStoredAiSession): Promise<void> {
-  if (!session.accessToken || !session.refreshToken) {
+export async function applyAlisioOpenAiRuntime(
+  credential: Pick<
+    AlisioStoredWorkerAiCredential,
+    "authProfileId" | "accessToken" | "refreshToken" | "expiresAt" | "accountId" | "email"
+  >,
+  options?: { displayName?: string },
+): Promise<void> {
+  if (!credential.accessToken || !credential.refreshToken) {
     throw new AlisioAiError(
       "runtime_apply_failed",
       "The OpenAI session is incomplete and cannot be applied to the runtime.",
     );
   }
-  await writeOAuthCredentials(
-    "openai-codex",
-    {
-      access: session.accessToken,
-      refresh: session.refreshToken,
-      expires: session.expiresAt ? Date.parse(session.expiresAt) : Date.now() + 60 * 60 * 1000,
-      ...(session.accountId ? { accountId: session.accountId } : {}),
-      ...(session.email ? { email: session.email } : {}),
+  const accessToken = credential.accessToken;
+  const refreshToken = credential.refreshToken;
+
+  const authProfileId = normalizeOptionalString(credential.authProfileId);
+  if (!authProfileId) {
+    throw new AlisioAiError(
+      "runtime_apply_failed",
+      "The OpenAI runtime binding is missing its local auth profile id.",
+    );
+  }
+
+  removePersistedAlisioOpenAiAuthProfiles([authProfileId]);
+  updateRuntimeAuthProfileStoreSnapshot({
+    updater: (store) => {
+      store.profiles[authProfileId] = {
+        type: "oauth",
+        provider: "openai-codex",
+        access: accessToken,
+        refresh: refreshToken,
+        expires: credential.expiresAt
+          ? Date.parse(credential.expiresAt)
+          : Date.now() + 60 * 60 * 1000,
+        ...(credential.accountId ? { accountId: credential.accountId } : {}),
+        ...(credential.email ? { email: credential.email } : {}),
+        ...(options?.displayName ? { displayName: options.displayName } : {}),
+      };
     },
-    undefined,
-    {
-      profileName: "default",
-      displayName: "Alisio OpenAI",
-      syncSiblingAgents: true,
-    },
-  );
-  await updateConfig((cfg) => {
-    const withProfile = applyAuthProfileConfig(cfg, {
-      profileId: OPENAI_CODEX_DEFAULT_PROFILE_ID,
-      provider: "openai-codex",
-      mode: "oauth",
-      ...(session.email ? { email: session.email } : {}),
-      displayName: "Alisio OpenAI",
-    });
-    return applyDefaultModel(withProfile, "openai-codex/gpt-5.4");
   });
+  prioritizeLocalOpenAiAuthProfile(authProfileId);
+
+  const currentConfig = await loadValidConfigOrThrow();
+  if (!hasAlisioDefaultOpenAiModel(currentConfig)) {
+    await updateConfig((cfg) => applyDefaultModel(cfg, "openai-codex/gpt-5.4"));
+  }
 }
 
-export async function clearAlisioOpenAiRuntime(): Promise<void> {
+export async function clearAlisioOpenAiRuntime(params?: {
+  authProfileIds?: string[];
+}): Promise<void> {
   await stopOpenAiRedirectProxy();
-  const store = ensureAuthProfileStore();
-  delete store.profiles[OPENAI_CODEX_DEFAULT_PROFILE_ID];
-  if (store.lastGood?.["openai-codex"] === OPENAI_CODEX_DEFAULT_PROFILE_ID) {
-    delete store.lastGood["openai-codex"];
-  }
-  if (store.order?.["openai-codex"]) {
-    store.order["openai-codex"] = store.order["openai-codex"].filter(
-      (entry) => entry !== OPENAI_CODEX_DEFAULT_PROFILE_ID,
-    );
-    if (store.order["openai-codex"].length === 0) {
-      delete store.order["openai-codex"];
-    }
-  }
-  saveAuthProfileStore(store);
 
-  await updateConfig((cfg) => {
-    const profiles = { ...cfg.auth?.profiles };
-    delete profiles[OPENAI_CODEX_DEFAULT_PROFILE_ID];
-    const order = { ...cfg.auth?.order };
-    if (Array.isArray(order["openai-codex"])) {
-      order["openai-codex"] = order["openai-codex"].filter(
-        (entry) => entry !== OPENAI_CODEX_DEFAULT_PROFILE_ID,
-      );
-      if (order["openai-codex"].length === 0) {
-        delete order["openai-codex"];
+  const authProfileIds = (params?.authProfileIds ?? [])
+    .map((entry) => normalizeOptionalString(entry))
+    .filter((entry): entry is string => Boolean(entry));
+  if (authProfileIds.length === 0) {
+    return;
+  }
+
+  removePersistedAlisioOpenAiAuthProfiles(authProfileIds);
+  updateRuntimeAuthProfileStoreSnapshot({
+    updater: (store) => {
+      for (const authProfileId of authProfileIds) {
+        delete store.profiles[authProfileId];
+        if (store.lastGood?.["openai-codex"] === authProfileId) {
+          delete store.lastGood["openai-codex"];
+        }
+        if (store.order?.["openai-codex"]) {
+          store.order["openai-codex"] = store.order["openai-codex"].filter(
+            (entry) => entry !== authProfileId,
+          );
+          if (store.order["openai-codex"].length === 0) {
+            delete store.order["openai-codex"];
+          }
+        }
+        if (store.usageStats?.[authProfileId]) {
+          delete store.usageStats[authProfileId];
+        }
       }
-    }
-    return {
-      ...cfg,
-      auth: {
-        ...cfg.auth,
-        ...(Object.keys(profiles).length > 0 ? { profiles } : { profiles: undefined }),
-        ...(Object.keys(order).length > 0 ? { order } : { order: undefined }),
-      },
-    };
-  }).catch(() => undefined);
+    },
+  });
 }

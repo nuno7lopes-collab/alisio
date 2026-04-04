@@ -27,6 +27,7 @@ export {
   loadAuthProfileStoreForSecretsRuntime,
   loadAuthProfileStoreForRuntime,
   replaceRuntimeAuthProfileStoreSnapshots,
+  updateRuntimeAuthProfileStoreSnapshot,
   loadAuthProfileStore,
   saveAuthProfileStore,
 } from "./auth-profiles/store.js";

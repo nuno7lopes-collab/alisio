@@ -170,5 +170,6 @@ export type OnboardOptions = {
   nodeManager?: NodeManagerChoice;
   remoteUrl?: string;
   remoteToken?: string;
+  remotePassword?: string;
   json?: boolean;
 };

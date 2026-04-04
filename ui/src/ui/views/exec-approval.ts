@@ -1,11 +1,12 @@
 import { html, nothing } from "lit";
+import { t } from "../../i18n/index.ts";
 import type { AppViewState } from "../app-view-state.ts";
 import type {
   ExecApprovalRequest,
   ExecApprovalRequestPayload,
 } from "../controllers/exec-approval.ts";
 
-function formatRemaining(ms: number): string {
+export function formatApprovalRemaining(ms: number): string {
   const remaining = Math.max(0, ms);
   const totalSeconds = Math.floor(remaining / 1000);
   if (totalSeconds < 60) {
@@ -60,14 +61,17 @@ export function renderExecApprovalPrompt(state: AppViewState) {
   }
   const request = active.request;
   const remainingMs = active.expiresAtMs - Date.now();
-  const remaining = remainingMs > 0 ? `expires in ${formatRemaining(remainingMs)}` : "expired";
+  const remaining =
+    remainingMs > 0
+      ? t("alisio.security.queue.expiresIn", { value: formatApprovalRemaining(remainingMs) })
+      : t("alisio.security.queue.expired");
   const queueCount = state.execApprovalQueue.length;
   const isPlugin = active.kind === "plugin";
   const title = isPlugin
-    ? (active.pluginTitle ?? "Plugin approval needed")
-    : "Exec approval needed";
+    ? (active.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
+    : t("alisio.security.queue.execApproval");
   return html`
-    <div class="exec-approval-overlay" role="dialog" aria-live="polite">
+    <div class="exec-approval-overlay" role="dialog" aria-modal="true" aria-live="polite">
       <div class="exec-approval-card">
         <div class="exec-approval-header">
           <div>
@@ -75,7 +79,9 @@ export function renderExecApprovalPrompt(state: AppViewState) {
             <div class="exec-approval-sub">${remaining}</div>
           </div>
           ${queueCount > 1
-            ? html`<div class="exec-approval-queue">${queueCount} pending</div>`
+            ? html`<div class="exec-approval-queue">
+                ${t("alisio.security.queue.pendingCount", { count: String(queueCount) })}
+              </div>`
             : nothing}
         </div>
         ${isPlugin ? renderPluginBody(active) : renderExecBody(request)}
@@ -88,21 +94,21 @@ export function renderExecApprovalPrompt(state: AppViewState) {
             ?disabled=${state.execApprovalBusy}
             @click=${() => state.handleExecApprovalDecision("allow-once")}
           >
-            Allow once
+            ${t("alisio.security.queue.allowOnce")}
           </button>
           <button
             class="btn"
             ?disabled=${state.execApprovalBusy}
             @click=${() => state.handleExecApprovalDecision("allow-always")}
           >
-            Always allow
+            ${t("alisio.security.queue.allowAlways")}
           </button>
           <button
             class="btn danger"
             ?disabled=${state.execApprovalBusy}
             @click=${() => state.handleExecApprovalDecision("deny")}
           >
-            Deny
+            ${t("alisio.security.queue.deny")}
           </button>
         </div>
       </div>

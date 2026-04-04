@@ -1,5 +1,5 @@
 import { hasEffectivePairedDeviceRole, type PairedDevice } from "../infra/device-pairing.js";
-import type { NodeListNode } from "../shared/node-list-types.js";
+import type { NodeCapabilitySummary, NodeListNode } from "../shared/node-list-types.js";
 import type { NodeSession } from "./node-registry.js";
 
 export type KnownNodeCatalog = {
@@ -21,6 +21,47 @@ function uniqueSortedStrings(...items: Array<readonly string[] | undefined>): st
     }
   }
   return [...values].toSorted((left, right) => left.localeCompare(right));
+}
+
+type NodeCapabilityLike = {
+  id: string;
+  title?: string;
+  description?: string;
+  version?: number;
+  risk?: string;
+  streaming?: boolean;
+  interactive?: boolean;
+  supportsCancel?: boolean;
+  supportsResume?: boolean;
+  requiresCommands?: string[];
+  tags?: string[];
+};
+
+function normalizeCapabilityRisk(value: NodeCapabilityLike["risk"]): NodeCapabilitySummary["risk"] {
+  return value === "low" || value === "medium" || value === "high" ? value : undefined;
+}
+
+function mergeCapabilities(...items: Array<readonly NodeCapabilityLike[] | undefined>) {
+  const byId = new Map<string, NodeCapabilitySummary>();
+  for (const item of items) {
+    if (!item) {
+      continue;
+    }
+    for (const capability of item) {
+      const id = capability.id?.trim();
+      if (!id || byId.has(id)) {
+        continue;
+      }
+      byId.set(id, {
+        ...capability,
+        id,
+        risk: normalizeCapabilityRisk(capability.risk),
+        requiresCommands: uniqueSortedStrings(capability.requiresCommands),
+        tags: uniqueSortedStrings(capability.tags),
+      });
+    }
+  }
+  return [...byId.values()].toSorted((left, right) => left.id.localeCompare(right.id));
 }
 
 function buildPairedNodeRecord(entry: PairedDevice): NodeListNode {
@@ -64,6 +105,7 @@ function buildKnownNodeEntry(params: {
     modelIdentifier: live?.modelIdentifier ?? paired?.modelIdentifier,
     remoteIp: live?.remoteIp ?? paired?.remoteIp,
     caps: uniqueSortedStrings(live?.caps, paired?.caps),
+    capabilities: mergeCapabilities(live?.capabilities, paired?.capabilities),
     commands: uniqueSortedStrings(live?.commands, paired?.commands),
     pathEnv: live?.pathEnv,
     permissions: live?.permissions ?? paired?.permissions,

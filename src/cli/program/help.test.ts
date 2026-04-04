@@ -32,6 +32,7 @@ vi.mock("../../infra/git-commit.js", () => ({
 }));
 
 vi.mock("../cli-name.js", () => ({
+  PUBLIC_CLI_NAME: "alisio",
   resolveCliName: () => "openclaw",
   replaceCliName: (cmd: string) => cmd,
 }));

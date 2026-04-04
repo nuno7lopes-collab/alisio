@@ -135,6 +135,53 @@ function resolvePinnedClientMetadata(params: {
   };
 }
 
+function filterDeclaredNodeCapabilities(params: {
+  capabilities: ConnectParams["capabilities"];
+  allowedCommands: readonly string[];
+}) {
+  const allowedCommands = new Set(
+    (params.allowedCommands ?? []).map((command) => command.trim()).filter(Boolean),
+  );
+  const filtered: NonNullable<ConnectParams["capabilities"]> = [];
+  const seen = new Set<string>();
+  for (const capability of params.capabilities ?? []) {
+    const id = String(capability?.id ?? "").trim();
+    if (!id || seen.has(id)) {
+      continue;
+    }
+    const requiresCommands = Array.from(
+      new Set(
+        (capability?.requiresCommands ?? [])
+          .map((command) => command.trim())
+          .filter((command) => command.length > 0),
+      ),
+    ).toSorted((left, right) => left.localeCompare(right));
+    if (!requiresCommands.every((command) => allowedCommands.has(command))) {
+      continue;
+    }
+    seen.add(id);
+    filtered.push({
+      id,
+      title: capability.title?.trim() || undefined,
+      description: capability.description?.trim() || undefined,
+      version: typeof capability.version === "number" ? capability.version : undefined,
+      risk:
+        capability.risk === "low" || capability.risk === "medium" || capability.risk === "high"
+          ? capability.risk
+          : undefined,
+      streaming: capability.streaming === true,
+      interactive: capability.interactive === true,
+      supportsCancel: capability.supportsCancel === true,
+      supportsResume: capability.supportsResume === true,
+      requiresCommands,
+      tags: Array.from(
+        new Set((capability.tags ?? []).map((tag) => tag.trim()).filter(Boolean)),
+      ).toSorted((left, right) => left.localeCompare(right)),
+    });
+  }
+  return filtered;
+}
+
 export function attachGatewayWsMessageHandler(params: {
   socket: WebSocket;
   upgradeReq: IncomingMessage;
@@ -976,6 +1023,10 @@ export function attachGatewayWsMessageHandler(params: {
                 (pairedCommands === null || pairedCommands.has(cmd)),
             );
           connectParams.commands = filtered;
+          connectParams.capabilities = filterDeclaredNodeCapabilities({
+            capabilities: connectParams.capabilities,
+            allowedCommands: filtered,
+          });
         }
 
         const shouldTrackPresence = !isGatewayCliClient(connectParams.client);

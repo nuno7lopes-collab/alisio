@@ -21,15 +21,25 @@ export async function runNonInteractiveRemoteSetup(params: {
     runtime.exit(1);
     return;
   }
+  const remoteToken = opts.remoteToken?.trim();
+  const remotePassword = opts.remotePassword?.trim();
+  if (remoteToken && remotePassword) {
+    runtime.error("Use either --remote-token or --remote-password, not both.");
+    runtime.exit(1);
+    return;
+  }
 
+  const existingRemote = baseConfig.gateway?.remote ?? {};
   let nextConfig: OpenClawConfig = {
     ...baseConfig,
     gateway: {
       ...baseConfig.gateway,
       mode: "remote",
       remote: {
+        ...existingRemote,
         url: remoteUrl,
-        token: opts.remoteToken?.trim() || undefined,
+        ...(remoteToken ? { token: remoteToken, password: undefined } : {}),
+        ...(remotePassword ? { password: remotePassword, token: undefined } : {}),
       },
     },
   };
@@ -40,10 +50,15 @@ export async function runNonInteractiveRemoteSetup(params: {
   });
   logConfigUpdated(runtime);
 
+  const auth = nextConfig.gateway?.remote?.password
+    ? "password"
+    : nextConfig.gateway?.remote?.token
+      ? "token"
+      : "none";
   const payload = {
     mode,
     remoteUrl,
-    auth: opts.remoteToken ? "token" : "none",
+    auth,
   };
   if (opts.json) {
     writeRuntimeJson(runtime, payload);

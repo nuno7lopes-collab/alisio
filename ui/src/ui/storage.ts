@@ -25,9 +25,10 @@ type PersistedUiSettings = Omit<UiSettings, "token" | "sessionKey" | "lastActive
   sessionKey?: string;
   lastActiveSessionKey?: string;
   sessionsByGateway?: Record<string, ScopedSessionSelection>;
+  chatPresentationModeVersion?: number;
 };
 
-import { isSupportedLocale } from "../i18n/index.ts";
+import { isSupportedLocale, loadPersistedLocale } from "../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { inferBasePathFromPathname } from "./navigation.ts";
@@ -256,6 +257,15 @@ export function loadSettings(): UiSettings {
       (parsed as { theme?: unknown }).theme,
       (parsed as { themeMode?: unknown }).themeMode,
     );
+    const locale = isSupportedLocale(parsed.locale)
+      ? parsed.locale
+      : (loadPersistedLocale() ?? undefined);
+    const chatPresentationModeVersion =
+      typeof parsed.chatPresentationModeVersion === "number"
+        ? parsed.chatPresentationModeVersion
+        : 0;
+    const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
+    const shouldMigrateLocale = !isSupportedLocale(parsed.locale) && locale !== undefined;
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.
@@ -270,8 +280,9 @@ export function loadSettings(): UiSettings {
         typeof parsed.chatShowThinking === "boolean"
           ? parsed.chatShowThinking
           : defaults.chatShowThinking,
-      chatShowToolCalls:
-        typeof parsed.chatShowToolCalls === "boolean"
+      chatShowToolCalls: shouldMigrateChatPresentation
+        ? true
+        : typeof parsed.chatShowToolCalls === "boolean"
           ? parsed.chatShowToolCalls
           : defaults.chatShowToolCalls,
       splitRatio:
@@ -296,9 +307,9 @@ export function loadSettings(): UiSettings {
         parsed.borderRadius <= 100
           ? snapBorderRadius(parsed.borderRadius)
           : defaults.borderRadius,
-      locale: isSupportedLocale(parsed.locale) ? parsed.locale : undefined,
+      locale,
     };
-    if ("token" in parsed) {
+    if ("token" in parsed || shouldMigrateChatPresentation || shouldMigrateLocale) {
       persistSettings(settings);
     }
     return settings;
@@ -354,6 +365,7 @@ function persistSettings(next: UiSettings) {
     chatFocusMode: next.chatFocusMode,
     chatShowThinking: next.chatShowThinking,
     chatShowToolCalls: next.chatShowToolCalls,
+    chatPresentationModeVersion: 2,
     splitRatio: next.splitRatio,
     navCollapsed: next.navCollapsed,
     navWidth: next.navWidth,

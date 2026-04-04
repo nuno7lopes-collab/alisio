@@ -31,7 +31,12 @@ const mockState = vi.hoisted(() => ({
     messageId?: string;
   }>,
   savedMediaResults: [] as Array<{ path: string; contentType?: string }>,
-  savedMediaCalls: [] as Array<{ contentType?: string; subdir?: string; size: number }>,
+  savedMediaCalls: [] as Array<{
+    contentType?: string;
+    subdir?: string;
+    size: number;
+    originalFilename?: string;
+  }>,
   saveMediaWait: null as Promise<void> | null,
   activeSaveMediaCalls: 0,
   maxActiveSaveMediaCalls: 0,
@@ -120,28 +125,41 @@ vi.mock("../../media/store.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../../media/store.js")>();
   return {
     ...original,
-    saveMediaBuffer: vi.fn(async (buffer: Buffer, contentType?: string, subdir?: string) => {
-      mockState.activeSaveMediaCalls += 1;
-      mockState.maxActiveSaveMediaCalls = Math.max(
-        mockState.maxActiveSaveMediaCalls,
-        mockState.activeSaveMediaCalls,
-      );
-      if (mockState.saveMediaWait) {
-        await mockState.saveMediaWait;
-      }
-      mockState.savedMediaCalls.push({ contentType, subdir, size: buffer.byteLength });
-      const next = mockState.savedMediaResults.shift();
-      try {
-        return {
-          id: "saved-media",
-          path: next?.path ?? `/tmp/${mockState.savedMediaCalls.length}.png`,
+    saveMediaBuffer: vi.fn(
+      async (
+        buffer: Buffer,
+        contentType?: string,
+        subdir?: string,
+        _maxBytes?: number,
+        originalFilename?: string,
+      ) => {
+        mockState.activeSaveMediaCalls += 1;
+        mockState.maxActiveSaveMediaCalls = Math.max(
+          mockState.maxActiveSaveMediaCalls,
+          mockState.activeSaveMediaCalls,
+        );
+        if (mockState.saveMediaWait) {
+          await mockState.saveMediaWait;
+        }
+        mockState.savedMediaCalls.push({
+          contentType,
+          subdir,
           size: buffer.byteLength,
-          contentType: next?.contentType ?? contentType,
-        };
-      } finally {
-        mockState.activeSaveMediaCalls -= 1;
-      }
-    }),
+          originalFilename,
+        });
+        const next = mockState.savedMediaResults.shift();
+        try {
+          return {
+            id: "saved-media",
+            path: next?.path ?? `/tmp/${mockState.savedMediaCalls.length}.png`,
+            size: buffer.byteLength,
+            contentType: next?.contentType ?? contentType,
+          };
+        } finally {
+          mockState.activeSaveMediaCalls -= 1;
+        }
+      },
+    ),
   };
 });
 
@@ -1545,6 +1563,7 @@ describe("chat directive tag stripping for non-streaming final payloads", () => 
             MediaPaths?: string[];
             MediaType?: string;
             MediaTypes?: string[];
+            MediaPreviewImages?: Array<{ mimeType?: string; data?: string }>;
           }
         | undefined;
       expect(message).toBeDefined();
@@ -1556,9 +1575,79 @@ describe("chat directive tag stripping for non-streaming final payloads", () => 
       ]);
       expect(message?.MediaType).toBe("image/png");
       expect(message?.MediaTypes).toEqual(["image/png", "image/jpeg"]);
+      expect(message?.MediaPreviewImages).toEqual([
+        expect.objectContaining({
+          mimeType: "image/png",
+          data: expect.any(String),
+        }),
+        expect.objectContaining({
+          mimeType: "image/jpeg",
+          data: expect.any(String),
+        }),
+      ]);
       expect(mockState.lastDispatchCtx?.MediaPath).toBeUndefined();
       expect(mockState.lastDispatchCtx?.MediaPaths).toBeUndefined();
       expect(mockState.lastDispatchImages).toHaveLength(2);
+    });
+  });
+
+  it("passes non-image attachments through transcript and dispatch media context", async () => {
+    createTranscriptFixture("openclaw-chat-send-user-transcript-documents-");
+    mockState.finalText = "ok";
+    mockState.savedMediaResults = [
+      { path: "/tmp/chat-send-brief.pdf", contentType: "application/pdf" },
+    ];
+    const respond = vi.fn();
+    const context = createChatContext();
+
+    await runNonStreamingChatSend({
+      context,
+      respond,
+      idempotencyKey: "idem-user-transcript-documents",
+      message: "resume isto",
+      requestParams: {
+        attachments: [
+          {
+            mimeType: "application/pdf",
+            fileName: "brief.pdf",
+            content: Buffer.from("%PDF-1.4\n").toString("base64"),
+          },
+        ],
+      },
+      expectBroadcast: false,
+    });
+
+    await waitForAssertion(() => {
+      const userUpdate = mockState.emittedTranscriptUpdates.find(
+        (update) =>
+          typeof update.message === "object" &&
+          update.message !== null &&
+          (update.message as { role?: unknown }).role === "user",
+      );
+      expect(mockState.savedMediaCalls).toEqual([
+        expect.objectContaining({
+          contentType: "application/pdf",
+          subdir: "inbound",
+          originalFilename: "brief.pdf",
+        }),
+      ]);
+      expect(mockState.lastDispatchCtx).toMatchObject({
+        MediaPath: "/tmp/chat-send-brief.pdf",
+        MediaPaths: ["/tmp/chat-send-brief.pdf"],
+        MediaType: "application/pdf",
+        MediaTypes: ["application/pdf"],
+      });
+      expect(mockState.lastDispatchImages).toBeUndefined();
+      expect(userUpdate).toMatchObject({
+        message: {
+          role: "user",
+          content: "resume isto",
+          MediaPath: "/tmp/chat-send-brief.pdf",
+          MediaPaths: ["/tmp/chat-send-brief.pdf"],
+          MediaType: "application/pdf",
+          MediaTypes: ["application/pdf"],
+        },
+      });
     });
   });
 

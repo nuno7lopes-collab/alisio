@@ -13,18 +13,20 @@ enum CLIInstaller {
         fileManager: FileManager) -> String?
     {
         for basePath in searchPaths {
-            let candidate = URL(fileURLWithPath: basePath).appendingPathComponent("openclaw").path
-            var isDirectory: ObjCBool = false
+            for commandName in ["alisio", "openclaw"] {
+                let candidate = URL(fileURLWithPath: basePath).appendingPathComponent(commandName).path
+                var isDirectory: ObjCBool = false
 
-            guard fileManager.fileExists(atPath: candidate, isDirectory: &isDirectory),
-                  !isDirectory.boolValue
-            else {
-                continue
+                guard fileManager.fileExists(atPath: candidate, isDirectory: &isDirectory),
+                      !isDirectory.boolValue
+                else {
+                    continue
+                }
+
+                guard fileManager.isExecutableFile(atPath: candidate) else { continue }
+
+                return candidate
             }
-
-            guard fileManager.isExecutableFile(atPath: candidate) else { continue }
-
-            return candidate
         }
 
         return nil
@@ -37,14 +39,14 @@ enum CLIInstaller {
     static func install(statusHandler: @escaping @MainActor @Sendable (String) async -> Void) async {
         let expected = GatewayEnvironment.expectedGatewayVersionString() ?? "latest"
         let prefix = Self.installPrefix()
-        await statusHandler("Installing openclaw CLI…")
+        await statusHandler("Installing Alisio CLI…")
         let cmd = self.installScriptCommand(version: expected, prefix: prefix)
         let response = await ShellExecutor.runDetailed(command: cmd, cwd: nil, env: nil, timeout: 900)
 
         if response.success {
             let parsed = self.parseInstallEvents(response.stdout)
             let installedVersion = parsed.last { $0.event == "done" }?.version
-            let summary = installedVersion.map { "Installed openclaw \($0)." } ?? "Installed openclaw."
+            let summary = installedVersion.map { "Installed Alisio \($0)." } ?? "Installed Alisio."
             await statusHandler(summary)
             return
         }

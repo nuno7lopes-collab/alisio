@@ -13,6 +13,8 @@ import { runRuntimePostBuild } from "./runtime-postbuild.mjs";
 
 const buildScript = "scripts/tsdown-build.mjs";
 const compilerArgs = [buildScript, "--no-clean"];
+const RUNTIME_ARTIFACT_RETRY_CODES = new Set(["EEXIST", "ENOENT", "ENOTEMPTY", "EPERM", "EBUSY"]);
+const RUNTIME_ARTIFACT_RETRY_DELAYS_MS = [40, 120, 240];
 
 const runNodeSourceRoots = ["src", BUNDLED_PLUGIN_ROOT_DIR];
 const runNodeConfigFiles = ["tsconfig.json", "package.json", "tsdown.config.ts"];
@@ -243,6 +245,11 @@ const logRunner = (message, deps) => {
   deps.stderr.write(`[openclaw] ${message}\n`);
 };
 
+const sleep = (delayMs) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, delayMs);
+  });
+
 const runOpenClaw = async (deps) => {
   const nodeProcess = deps.spawn(deps.execPath, ["openclaw.mjs", ...deps.args], {
     cwd: deps.cwd,
@@ -260,17 +267,36 @@ const runOpenClaw = async (deps) => {
   return res.exitCode ?? 1;
 };
 
-const syncRuntimeArtifacts = (deps) => {
-  try {
-    runRuntimePostBuild({ cwd: deps.cwd });
-  } catch (error) {
-    logRunner(
-      `Failed to write runtime build artifacts: ${error?.message ?? "unknown error"}`,
-      deps,
-    );
-    return false;
+const isRetryableRuntimeArtifactError = (error) => {
+  const code = error?.code;
+  if (typeof code === "string" && RUNTIME_ARTIFACT_RETRY_CODES.has(code)) {
+    return true;
   }
-  return true;
+  const message = String(error?.message ?? "");
+  return [...RUNTIME_ARTIFACT_RETRY_CODES].some((candidate) => message.includes(candidate));
+};
+
+const syncRuntimeArtifacts = async (deps) => {
+  for (let attempt = 0; attempt <= RUNTIME_ARTIFACT_RETRY_DELAYS_MS.length; attempt += 1) {
+    try {
+      deps.runtimePostBuild({ cwd: deps.cwd });
+      return true;
+    } catch (error) {
+      if (
+        isRetryableRuntimeArtifactError(error) &&
+        attempt < RUNTIME_ARTIFACT_RETRY_DELAYS_MS.length
+      ) {
+        await deps.sleep(RUNTIME_ARTIFACT_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      logRunner(
+        `Failed to write runtime build artifacts: ${error?.message ?? "unknown error"}`,
+        deps,
+      );
+      return false;
+    }
+  }
+  return false;
 };
 
 const writeBuildStamp = (deps) => {
@@ -296,6 +322,8 @@ export async function runNodeMain(params = {}) {
     cwd: params.cwd ?? process.cwd(),
     args: params.args ?? process.argv.slice(2),
     env: params.env ? { ...params.env } : { ...process.env },
+    runtimePostBuild: params.runtimePostBuild ?? runRuntimePostBuild,
+    sleep: params.sleep ?? sleep,
   };
 
   deps.distRoot = path.join(deps.cwd, "dist");
@@ -308,7 +336,7 @@ export async function runNodeMain(params = {}) {
   deps.configFiles = runNodeConfigFiles.map((filePath) => path.join(deps.cwd, filePath));
 
   if (!shouldBuild(deps)) {
-    if (!syncRuntimeArtifacts(deps)) {
+    if (!(await syncRuntimeArtifacts(deps))) {
       return 1;
     }
     return await runOpenClaw(deps);
@@ -332,7 +360,7 @@ export async function runNodeMain(params = {}) {
   if (buildRes.exitCode !== 0 && buildRes.exitCode !== null) {
     return buildRes.exitCode;
   }
-  if (!syncRuntimeArtifacts(deps)) {
+  if (!(await syncRuntimeArtifacts(deps))) {
     return 1;
   }
   writeBuildStamp(deps);

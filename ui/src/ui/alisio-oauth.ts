@@ -67,11 +67,14 @@ export function subscribeAlisioOpenAiOAuthSignals(onSignal: OpenAiOAuthSignalHan
     return () => undefined;
   }
 
+  let lastSignalId: string | null = null;
   const handleSignal = (raw: unknown) => {
     const signal = parseOpenAiOAuthSignal(raw);
-    if (signal) {
-      onSignal(signal);
+    if (!signal || signal.signalId === lastSignalId) {
+      return;
     }
+    lastSignalId = signal.signalId;
+    onSignal(signal);
   };
 
   const handleStorage = (event: StorageEvent) => {
@@ -102,6 +105,12 @@ export function subscribeAlisioOpenAiOAuthSignals(onSignal: OpenAiOAuthSignalHan
   window.addEventListener("storage", handleStorage);
   channel?.addEventListener("message", handleMessage as EventListener);
   legacyChannel?.addEventListener("message", handleMessage as EventListener);
+  try {
+    handleSignal(window.localStorage.getItem(ALISIO_OPENAI_OAUTH_STORAGE_KEY));
+    handleSignal(window.localStorage.getItem(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY));
+  } catch {
+    // Ignore storage access failures.
+  }
 
   return () => {
     window.removeEventListener("storage", handleStorage);

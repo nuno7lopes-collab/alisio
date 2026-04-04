@@ -11,13 +11,14 @@ import {
 import type { AuthProfileStore, OAuthCredential } from "./types.js";
 
 type ExternalCliSyncOptions = {
+  allowKeychainPrompt?: boolean;
   log?: boolean;
 };
 
 type ExternalCliSyncProvider = {
   profileId: string;
   provider: string;
-  readCredentials: () => OAuthCredential | null;
+  readCredentials: (options: ExternalCliSyncOptions) => OAuthCredential | null;
 };
 
 function areOAuthCredentialsEquivalent(
@@ -76,7 +77,11 @@ const EXTERNAL_CLI_SYNC_PROVIDERS: ExternalCliSyncProvider[] = [
   {
     profileId: OPENAI_CODEX_DEFAULT_PROFILE_ID,
     provider: "openai-codex",
-    readCredentials: () => readCodexCliCredentialsCached({ ttlMs: EXTERNAL_CLI_SYNC_TTL_MS }),
+    readCredentials: (options) =>
+      readCodexCliCredentialsCached({
+        ttlMs: EXTERNAL_CLI_SYNC_TTL_MS,
+        allowKeychainPrompt: options.allowKeychainPrompt,
+      }),
   },
 ];
 
@@ -88,7 +93,7 @@ function syncExternalCliCredentialsForProvider(
 ): boolean {
   const { profileId, provider, readCredentials } = providerConfig;
   const existing = store.profiles[profileId];
-  const creds = readCredentials();
+  const creds = readCredentials(options);
   if (!creds) {
     return false;
   }

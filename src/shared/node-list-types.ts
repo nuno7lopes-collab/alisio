@@ -1,3 +1,17 @@
+export type NodeCapabilitySummary = {
+  id: string;
+  title?: string;
+  description?: string;
+  version?: number;
+  risk?: "low" | "medium" | "high";
+  streaming?: boolean;
+  interactive?: boolean;
+  supportsCancel?: boolean;
+  supportsResume?: boolean;
+  requiresCommands?: string[];
+  tags?: string[];
+};
+
 export type NodeListNode = {
   nodeId: string;
   displayName?: string;
@@ -12,6 +26,7 @@ export type NodeListNode = {
   modelIdentifier?: string;
   pathEnv?: string;
   caps?: string[];
+  capabilities?: NodeCapabilitySummary[];
   commands?: string[];
   permissions?: Record<string, boolean>;
   paired?: boolean;

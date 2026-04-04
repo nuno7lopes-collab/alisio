@@ -9,6 +9,27 @@ const NodePendingWorkPrioritySchema = Type.String({
   enum: ["normal", "high"],
 });
 
+export const NodeCapabilityRiskSchema = Type.String({
+  enum: ["low", "medium", "high"],
+});
+
+export const NodeCapabilityManifestSchema = Type.Object(
+  {
+    id: NonEmptyString,
+    title: Type.Optional(NonEmptyString),
+    description: Type.Optional(Type.String({ minLength: 1 })),
+    version: Type.Optional(Type.Integer({ minimum: 1 })),
+    risk: Type.Optional(NodeCapabilityRiskSchema),
+    streaming: Type.Optional(Type.Boolean()),
+    interactive: Type.Optional(Type.Boolean()),
+    supportsCancel: Type.Optional(Type.Boolean()),
+    supportsResume: Type.Optional(Type.Boolean()),
+    requiresCommands: Type.Optional(Type.Array(NonEmptyString)),
+    tags: Type.Optional(Type.Array(NonEmptyString)),
+  },
+  { additionalProperties: false },
+);
+
 export const NodePairRequestParamsSchema = Type.Object(
   {
     nodeId: NonEmptyString,
@@ -94,6 +115,49 @@ export const NodeInvokeResultParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const NodeTaskStartParamsSchema = Type.Object(
+  {
+    nodeId: NonEmptyString,
+    capabilityId: NonEmptyString,
+    input: Type.Optional(Type.Unknown()),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    idempotencyKey: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const NodeTaskEventParamsSchema = Type.Object(
+  {
+    taskId: NonEmptyString,
+    nodeId: NonEmptyString,
+    kind: NonEmptyString,
+    seq: Type.Optional(Type.Integer({ minimum: 0 })),
+    payload: Type.Optional(Type.Unknown()),
+    payloadJSON: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const NodeTaskResultParamsSchema = Type.Object(
+  {
+    taskId: NonEmptyString,
+    nodeId: NonEmptyString,
+    ok: Type.Boolean(),
+    payload: Type.Optional(Type.Unknown()),
+    payloadJSON: Type.Optional(Type.String()),
+    error: Type.Optional(
+      Type.Object(
+        {
+          code: Type.Optional(NonEmptyString),
+          message: Type.Optional(NonEmptyString),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const NodeEventParamsSchema = Type.Object(
   {
     event: NonEmptyString,
@@ -159,6 +223,18 @@ export const NodeInvokeRequestEventSchema = Type.Object(
     nodeId: NonEmptyString,
     command: NonEmptyString,
     paramsJSON: Type.Optional(Type.String()),
+    timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    idempotencyKey: Type.Optional(NonEmptyString),
+  },
+  { additionalProperties: false },
+);
+
+export const NodeTaskRequestEventSchema = Type.Object(
+  {
+    taskId: NonEmptyString,
+    nodeId: NonEmptyString,
+    capabilityId: NonEmptyString,
+    inputJSON: Type.Optional(Type.String()),
     timeoutMs: Type.Optional(Type.Integer({ minimum: 0 })),
     idempotencyKey: Type.Optional(NonEmptyString),
   },

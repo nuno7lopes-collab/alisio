@@ -157,17 +157,22 @@ export function buildExecApprovalPendingReplyPayload(
   if (warningText) {
     lines.push(warningText);
   }
-  lines.push("Approval required.");
-  lines.push("Run:");
-  lines.push(buildFence(`/approve ${approvalCommandId} allow-once`, "txt"));
-  lines.push("Pending command:");
+  lines.push("Approval required for this command:");
   lines.push(buildFence(params.command, "sh"));
-  lines.push("Other options:");
   lines.push(
-    buildFence(
-      `/approve ${approvalCommandId} allow-always\n/approve ${approvalCommandId} deny`,
-      "txt",
-    ),
+    `Approve once: \`${buildApprovalDecisionCommandValue({
+      approvalId: approvalCommandId,
+      decision: "allow-once",
+    })}\``,
+  );
+  lines.push(
+    `Other: \`${buildApprovalDecisionCommandValue({
+      approvalId: approvalCommandId,
+      decision: "allow-always",
+    })}\` or \`${buildApprovalDecisionCommandValue({
+      approvalId: approvalCommandId,
+      decision: "deny",
+    })}\``,
   );
   const info: string[] = [];
   info.push(`Host: ${params.host}`);
@@ -183,7 +188,7 @@ export function buildExecApprovalPendingReplyPayload(
     );
   }
   info.push(`Full id: \`${params.approvalId}\``);
-  lines.push(info.join("\n"));
+  lines.push(info.join(" · "));
 
   return {
     text: lines.join("\n\n"),
@@ -219,14 +224,14 @@ export function buildExecApprovalUnavailableReplyPayload(
       `Exec approval is required, but chat exec approvals are not enabled on ${params.channelLabel ?? "this platform"}.`,
     );
     lines.push(
-      "Approve it from the Web UI or terminal UI, or enable Discord or Telegram exec approvals. If those accounts already know your owner ID via allowFrom, OpenClaw can infer approvers automatically.",
+      "Approve it from the Web UI or terminal UI, or enable Discord or Telegram exec approvals. If those accounts already know your owner ID via allowFrom, Alisio can infer approvers automatically.",
     );
   } else if (params.reason === "initiating-platform-unsupported") {
     lines.push(
       `Exec approval is required, but ${params.channelLabel ?? "this platform"} does not support chat exec approvals.`,
     );
     lines.push(
-      "Approve it from the Web UI or terminal UI, or enable Discord or Telegram exec approvals. If those accounts already know your owner ID via allowFrom, OpenClaw can infer approvers automatically.",
+      "Approve it from the Web UI or terminal UI, or enable Discord or Telegram exec approvals. If those accounts already know your owner ID via allowFrom, Alisio can infer approvers automatically.",
     );
   } else {
     lines.push(

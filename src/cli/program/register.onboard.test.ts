@@ -170,6 +170,16 @@ describe("registerOnboardCommand", () => {
     );
   });
 
+  it("forwards --remote-password", async () => {
+    await runCli(["onboard", "--remote-password", "remote-secret"]);
+    expect(setupWizardCommandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        remotePassword: "remote-secret", // pragma: allowlist secret
+      }),
+      runtime,
+    );
+  });
+
   it("reports errors via runtime on setup wizard command failures", async () => {
     setupWizardCommandMock.mockRejectedValueOnce(new Error("setup failed"));
 

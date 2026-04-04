@@ -220,4 +220,23 @@ describe("syncExternalCliCredentials", () => {
       });
     },
   );
+
+  it("forwards allowKeychainPrompt=false to the Codex sync reader", () => {
+    mocks.readCodexCliCredentialsCached.mockReturnValue(
+      makeOAuthCredential({
+        provider: "openai-codex",
+      }),
+    );
+
+    const store = makeStore();
+    const mutated = syncExternalCliCredentials(store, { allowKeychainPrompt: false });
+
+    expect(mutated).toBe(true);
+    expect(mocks.readCodexCliCredentialsCached).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ttlMs: expect.any(Number),
+        allowKeychainPrompt: false,
+      }),
+    );
+  });
 });

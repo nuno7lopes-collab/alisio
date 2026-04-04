@@ -1,5 +1,13 @@
+/* @vitest-environment jsdom */
+
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { openExternalUrlSafe, resolveSafeExternalUrl } from "./open-external-url.ts";
+import {
+  closeReservedExternalPopup,
+  navigateReservedExternalPopup,
+  openExternalUrlSafe,
+  reserveExternalPopup,
+  resolveSafeExternalUrl,
+} from "./open-external-url.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -104,5 +112,66 @@ describe("openExternalUrlSafe", () => {
     );
     expect(opened).toBe(openedLikeProxy);
     expect(openedLikeProxy.opener).toBeNull();
+  });
+});
+
+describe("reserveExternalPopup", () => {
+  it("opens a blank popup synchronously and nulls opener", () => {
+    const write = vi.fn();
+    const close = vi.fn();
+    const openedLikeProxy = {
+      opener: { postMessage: () => void 0 },
+      document: { write, close },
+    } as unknown as WindowProxy;
+    const openMock = vi
+      .spyOn(window, "open")
+      .mockImplementation(() => openedLikeProxy as unknown as Window);
+
+    const opened = reserveExternalPopup();
+
+    expect(openMock).toHaveBeenCalledWith("about:blank", "_blank", "popup,width=520,height=720");
+    expect(opened).toBe(openedLikeProxy);
+    expect(openedLikeProxy.opener).toBeNull();
+    expect(write).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+});
+
+describe("navigateReservedExternalPopup", () => {
+  it("navigates an existing popup to a validated URL", () => {
+    const replace = vi.fn();
+    const popup = {
+      location: { replace },
+    } as unknown as WindowProxy;
+
+    expect(
+      navigateReservedExternalPopup(popup, "https://example.com/oauth?client_id=abc", {
+        baseHref: "https://openclaw.ai/chat",
+      }),
+    ).toBe(true);
+    expect(replace).toHaveBeenCalledWith("https://example.com/oauth?client_id=abc");
+  });
+
+  it("refuses to navigate blocked or invalid targets", () => {
+    const replace = vi.fn();
+    const popup = {
+      location: { replace },
+    } as unknown as WindowProxy;
+
+    expect(
+      navigateReservedExternalPopup(popup, "javascript:alert(1)", {
+        baseHref: "https://openclaw.ai/chat",
+      }),
+    ).toBe(false);
+    expect(navigateReservedExternalPopup(null, "https://example.com/oauth")).toBe(false);
+    expect(replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("closeReservedExternalPopup", () => {
+  it("closes a reserved popup safely", () => {
+    const close = vi.fn();
+    closeReservedExternalPopup({ close } as unknown as WindowProxy);
+    expect(close).toHaveBeenCalledOnce();
   });
 });

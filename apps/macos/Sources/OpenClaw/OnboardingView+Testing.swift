@@ -31,18 +31,12 @@ extension OnboardingView {
             expected: true)
         view.showAdvancedConnection = true
         view.preferredGatewayID = gateway.stableID
-        view.cliInstalled = true
-        view.cliInstallLocation = "/usr/local/bin/openclaw"
-        view.cliStatus = "Installed"
         view.workspacePath = "/tmp/openclaw"
-        view.workspaceStatus = "Saved workspace"
         view.state.connectionMode = .local
         _ = view.welcomePage()
         _ = view.connectionPage()
         _ = view.wizardPage()
         _ = view.permissionsPage()
-        _ = view.cliPage()
-        _ = view.workspacePage()
         _ = view.readyPage()
 
         view.selectLocalGateway()
@@ -51,7 +45,6 @@ extension OnboardingView {
 
         view.state.connectionMode = .remote
         _ = view.connectionPage()
-        _ = view.workspacePage()
 
         view.state.connectionMode = .unconfigured
         _ = view.connectionPage()

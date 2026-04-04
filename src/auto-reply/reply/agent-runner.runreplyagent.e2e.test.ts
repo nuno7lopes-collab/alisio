@@ -2,9 +2,11 @@ import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import * as sessions from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
+import { registerMemoryFlushPlanResolver } from "../../plugins/memory-state.js";
 import { withStateDirEnv } from "../../test-helpers/state-dir-env.js";
 import type { TemplateContext } from "../templating.js";
 import type { GetReplyOptions } from "../types.js";
@@ -16,6 +18,48 @@ import {
   type QueueSettings,
 } from "./queue.js";
 import { createMockTypingController } from "./test-helpers.js";
+
+function buildTestMemoryFlushPlan(params: { cfg?: OpenClawConfig; nowMs?: number }) {
+  const defaults = params.cfg?.agents?.defaults?.compaction?.memoryFlush;
+  if (defaults?.enabled === false) {
+    return null;
+  }
+  const nowMs = Number.isFinite(params.nowMs) ? (params.nowMs as number) : Date.now();
+  const dateStamp = new Date(nowMs).toISOString().slice(0, 10);
+  const relativePath = `memory/${dateStamp}.md`;
+  const requiredPromptHints = [
+    `Store durable memories only in ${relativePath} (create memory/ if needed).`,
+    "Treat workspace bootstrap/reference files such as MEMORY.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.",
+    "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.",
+  ].join("\n");
+  const requiredSystemHints = [
+    "The session is near auto-compaction; capture durable memories to disk.",
+    "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).",
+    "Treat workspace bootstrap/reference files such as MEMORY.md, SOUL.md, TOOLS.md, and AGENTS.md as read-only during this flush; never overwrite, replace, or edit them.",
+    "If memory/YYYY-MM-DD.md already exists, APPEND new content only and do not overwrite existing entries.",
+  ].join("\n");
+  const ensureNoReply = (text: string) =>
+    text.includes("NO_REPLY") ? text : `${text}\n\nIf nothing to store, reply with NO_REPLY.`;
+  const prompt = [
+    ensureNoReply(defaults?.prompt?.trim() || "Pre-compaction memory flush."),
+    requiredPromptHints,
+    `Current time: ${new Date(nowMs).toISOString()}`,
+  ]
+    .join("\n")
+    .replaceAll("YYYY-MM-DD", dateStamp);
+  const systemPrompt = [
+    ensureNoReply(defaults?.systemPrompt?.trim() || "Pre-compaction memory flush turn."),
+    requiredSystemHints,
+  ].join("\n");
+  return {
+    softThresholdTokens: defaults?.softThresholdTokens ?? 4_000,
+    forceFlushTranscriptBytes: Number(defaults?.forceFlushTranscriptBytes ?? 2 * 1024 * 1024),
+    reserveTokensFloor: params.cfg?.agents?.defaults?.compaction?.reserveTokensFloor ?? 20_000,
+    prompt,
+    systemPrompt,
+    relativePath,
+  };
+}
 
 type AgentRunParams = {
   onPartialReply?: (payload: { text?: string }) => Promise<void> | void;
@@ -111,6 +155,7 @@ beforeEach(() => {
   vi.mocked(refreshQueuedFollowupSession).mockClear();
   vi.mocked(scheduleFollowupDrain).mockClear();
   vi.stubEnv("OPENCLAW_TEST_FAST", "1");
+  registerMemoryFlushPlanResolver(buildTestMemoryFlushPlan);
 });
 
 function createMinimalRun(params?: {
@@ -1764,6 +1809,17 @@ describe("runReplyAgent memory flush", () => {
       const baseRun = createBaseRun({
         storePath,
         sessionEntry,
+        config: {
+          agents: {
+            defaults: {
+              cliBackends: {
+                "codex-cli": {
+                  command: "codex",
+                },
+              },
+            },
+          },
+        },
         runOverrides: { provider: "codex-cli" },
       });
 

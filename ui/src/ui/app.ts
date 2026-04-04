@@ -1,7 +1,16 @@
 import { LitElement } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.js";
+import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
+import {
+  clearPendingAlisioConnectorChatResume,
+  readPendingAlisioConnectorChatResume,
+  refreshAfterAlisioConnectorOAuth,
+  subscribeAlisioConnectorOAuthSignals,
+  type PendingAlisioConnectorChatResume,
+  type AlisioConnectorOAuthSignal,
+} from "./alisio-connector-oauth.ts";
 import {
   refreshAfterAlisioOpenAiOAuth,
   subscribeAlisioOpenAiOAuthSignals,
@@ -55,6 +64,7 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import "./lume-host.ts";
+import type { SecurityAccessMode } from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
@@ -108,7 +118,7 @@ export class OpenClawApp extends LitElement {
   }
   @state() password = "";
   @state() tab: Tab = "chat";
-  @state() settingsSection: SettingsSection = "account";
+  @state() settingsSection: SettingsSection = "general";
   @state() connected = false;
   @state() theme: ThemeName = this.settings.theme ?? "claw";
   @state() themeMode: ThemeMode = this.settings.themeMode ?? "system";
@@ -159,6 +169,7 @@ export class OpenClawApp extends LitElement {
   @state() alisioConnectorAuthorizations: import("./types.ts").AlisioConnectorAuthorization[] = [];
   @state() alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null =
     null;
+  pendingConnectorChatResume: PendingAlisioConnectorChatResume | null = null;
   @state() alisioConnectorsSearch = "";
   @state() alisioConnectorsCategoryFilter = "all";
   @state() alisioOrganizationDraftMode: "create" | "join" = "create";
@@ -197,6 +208,7 @@ export class OpenClawApp extends LitElement {
   @state() chatAttachments: ChatAttachment[] = [];
   @state() chatManualRefreshInFlight = false;
   @state() navDrawerOpen = false;
+  @state() modelsExpandedProfileId: string | null | undefined = undefined;
 
   onSlashAction?: (action: string) => void;
 
@@ -207,7 +219,7 @@ export class OpenClawApp extends LitElement {
   @state() splitRatio = this.settings.splitRatio;
 
   @state() nodesLoading = false;
-  @state() nodes: Array<Record<string, unknown>> = [];
+  @state() nodes: NodeListNode[] = [];
   @state() devicesLoading = false;
   @state() devicesError: string | null = null;
   @state() devicesList: DevicePairingList | null = null;
@@ -222,6 +234,9 @@ export class OpenClawApp extends LitElement {
   @state() execApprovalQueue: ExecApprovalRequest[] = [];
   @state() execApprovalBusy = false;
   @state() execApprovalError: string | null = null;
+  @state() gatewayAccessModeLoading = false;
+  @state() gatewayAccessModeBusy = false;
+  @state() gatewayAccessMode: SecurityAccessMode | null = null;
   @state() gatewayBootstrapUrl: string | null = null;
   @state() gatewayBootstrapToken: string | null = null;
   @state() pendingGatewayUrl: string | null = null;
@@ -273,6 +288,21 @@ export class OpenClawApp extends LitElement {
   @state() channelsSnapshot: ChannelsStatusSnapshot | null = null;
   @state() channelsError: string | null = null;
   @state() channelsLastSuccess: number | null = null;
+  @state() channelsBusyKey: string | null = null;
+  @state() channelsActionMessage: string | null = null;
+  @state() channelsLoginQrDataUrl: string | null = null;
+  @state() channelsLoginConnected: boolean | null = null;
+  @state() channelsSetupLoading = false;
+  @state() channelsSetupSubmitting = false;
+  @state() channelsSetupSessionId: string | null = null;
+  @state() channelsSetupStep: import("./types.ts").WizardStep | null = null;
+  @state() channelsSetupStatus: string | null = null;
+  @state() channelsSetupError: string | null = null;
+  @state() channelsSetupDraftText = "";
+  @state() channelsSetupDraftConfirm = false;
+  @state() channelsSetupDraftSelectIndex = 0;
+  @state() channelsSetupDraftMultiIndexes: number[] = [];
+  @state() channelsSetupChannelId: string | null = null;
 
   @state() presenceLoading = false;
   @state() presenceEntries: PresenceEntry[] = [];
@@ -478,8 +508,11 @@ export class OpenClawApp extends LitElement {
   private popStateHandler = () =>
     onPopStateInternal(this as unknown as Parameters<typeof onPopStateInternal>[0]);
   private topbarObserver: ResizeObserver | null = null;
+  private connectorOAuthCleanup: (() => void) | null = null;
+  private connectorOAuthRefreshInFlight = false;
   private openAiOAuthCleanup: (() => void) | null = null;
   private openAiOAuthRefreshInFlight = false;
+  private execApprovalTicker: number | null = null;
   private globalKeydownHandler = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === "k") {
       e.preventDefault();
@@ -515,6 +548,10 @@ export class OpenClawApp extends LitElement {
       }
     };
     document.addEventListener("keydown", this.globalKeydownHandler);
+    this.pendingConnectorChatResume = readPendingAlisioConnectorChatResume();
+    this.connectorOAuthCleanup = subscribeAlisioConnectorOAuthSignals((signal) => {
+      void this.refreshAfterConnectorOAuth(signal);
+    });
     this.openAiOAuthCleanup = subscribeAlisioOpenAiOAuthSignals(() => {
       void this.refreshAfterOpenAiOAuth();
     });
@@ -527,14 +564,29 @@ export class OpenClawApp extends LitElement {
 
   disconnectedCallback() {
     document.removeEventListener("keydown", this.globalKeydownHandler);
+    this.connectorOAuthCleanup?.();
+    this.connectorOAuthCleanup = null;
     this.openAiOAuthCleanup?.();
     this.openAiOAuthCleanup = null;
+    if (this.execApprovalTicker != null) {
+      window.clearInterval(this.execApprovalTicker);
+      this.execApprovalTicker = null;
+    }
     handleDisconnected(this as unknown as Parameters<typeof handleDisconnected>[0]);
     super.disconnectedCallback();
   }
 
   protected updated(changed: Map<PropertyKey, unknown>) {
     handleUpdated(this as unknown as Parameters<typeof handleUpdated>[0], changed);
+    if (changed.has("execApprovalQueue")) {
+      if (this.execApprovalQueue.length > 0 && this.execApprovalTicker == null) {
+        this.execApprovalTicker = window.setInterval(() => this.requestUpdate(), 1000);
+      }
+      if (this.execApprovalQueue.length === 0 && this.execApprovalTicker != null) {
+        window.clearInterval(this.execApprovalTicker);
+        this.execApprovalTicker = null;
+      }
+    }
     if (!changed.has("sessionKey") || this.agentsPanel !== "tools") {
       return;
     }
@@ -571,6 +623,56 @@ export class OpenClawApp extends LitElement {
     } finally {
       this.openAiOAuthRefreshInFlight = false;
     }
+  }
+
+  private async refreshAfterConnectorOAuth(signal?: AlisioConnectorOAuthSignal) {
+    if (this.connectorOAuthRefreshInFlight) {
+      return;
+    }
+    this.connectorOAuthRefreshInFlight = true;
+    try {
+      await refreshAfterAlisioConnectorOAuth(
+        this as unknown as Parameters<typeof refreshAfterAlisioConnectorOAuth>[0],
+      );
+      await this.retryPendingConnectorChatResume(signal);
+    } catch (error) {
+      this.lastError = `Connector connection refresh failed: ${String(error)}`;
+    } finally {
+      this.connectorOAuthRefreshInFlight = false;
+    }
+  }
+
+  private async retryPendingConnectorChatResume(signal?: AlisioConnectorOAuthSignal) {
+    const pending = this.pendingConnectorChatResume ?? readPendingAlisioConnectorChatResume();
+    if (!pending) {
+      this.pendingConnectorChatResume = null;
+      return;
+    }
+    if (signal && signal.connectorId !== pending.connectorId) {
+      this.pendingConnectorChatResume = pending;
+      return;
+    }
+    const authorization = this.alisioConnectorAuthorizations.find(
+      (entry) => entry.connectorId === pending.connectorId,
+    );
+    if (authorization?.state !== "connected") {
+      this.pendingConnectorChatResume = pending;
+      return;
+    }
+
+    this.pendingConnectorChatResume = null;
+    clearPendingAlisioConnectorChatResume();
+    if (pending.sessionKey.trim() && pending.sessionKey !== this.sessionKey) {
+      this.sessionKey = pending.sessionKey;
+      this.applySettings({
+        ...this.settings,
+        sessionKey: pending.sessionKey,
+        lastActiveSessionKey: pending.sessionKey,
+      });
+    }
+    await this.handleSendChat(pending.message, {
+      attachments: pending.attachments,
+    });
   }
 
   handleChatScroll(event: Event) {

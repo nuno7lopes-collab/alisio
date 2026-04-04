@@ -14,7 +14,7 @@ export type AlisioHttpBootstrapAccount = {
   displayName: string;
   email: string;
   avatarLabel: string;
-  plan: string;
+  plan: import("../shared/alisio-billing.js").AlisioPlan;
 } | null;
 
 export type AlisioHttpBootstrapAi = {
@@ -27,7 +27,11 @@ export type AlisioHttpBootstrapAi = {
 export type AlisioHttpBootstrap = {
   basePath: string;
   controlUrl: string;
+  connectionRequired?: boolean;
   startupState: import("../infra/alisio-store.js").AlisioStartupState;
+  providerReady?: boolean;
+  accountReady?: boolean;
+  nextStep?: import("../infra/alisio-store.js").AlisioBootstrapStep;
   account: AlisioHttpBootstrapAccount;
   ai: AlisioHttpBootstrapAi;
   bootstrapToken?: string;

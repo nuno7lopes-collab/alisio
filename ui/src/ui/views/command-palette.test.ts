@@ -7,10 +7,12 @@ describe("command palette", () => {
     const labels = items.map((item) => item.label);
 
     expect(labels).toContain("Chat");
+    expect(labels).toContain("Channels");
+    expect(labels).toContain("Capabilities");
     expect(labels).toContain("Connections");
-    expect(labels).toContain("Integrations");
+    expect(labels).toContain("Apps");
     expect(labels).toContain("Workspace");
-    expect(labels).toContain("Preferences");
+    expect(labels).toContain("Settings");
     expect(items.some((item) => item.category === "skills")).toBe(false);
   });
 });

@@ -42,16 +42,9 @@ final class OnboardingController {
 struct OnboardingView: View {
     @State var currentPage = 0
     @State var isRequesting = false
-    @State var installingCLI = false
-    @State var cliStatus: String?
-    @State var copied = false
     @State var monitoringPermissions = false
     @State var monitoringDiscovery = false
-    @State var cliInstalled = false
-    @State var cliInstallLocation: String?
     @State var workspacePath: String = ""
-    @State var workspaceStatus: String?
-    @State var workspaceApplying = false
     @State var showAdvancedConnection = false
     @State var preferredGatewayID: String?
     @State var remoteProbeState: RemoteOnboardingProbeState = .idle
@@ -116,7 +109,7 @@ struct OnboardingView: View {
 
     var devLinkCommand: String {
         let version = GatewayEnvironment.expectedGatewayVersionString() ?? "latest"
-        return "npm install -g openclaw@\(version)"
+        return "npm install -g alisio@npm:openclaw@\(version)"
     }
 
     struct LocalGatewayProbe: Equatable {

@@ -116,6 +116,7 @@ export function renderMessageGroup(
     onOpenSidebar?: (content: string) => void;
     showReasoning: boolean;
     showToolCalls?: boolean;
+    onBeginConnector?: (connectorId: string) => void;
     assistantName?: string;
     assistantAvatar?: string | null;
     basePath?: string;
@@ -168,6 +169,7 @@ export function renderMessageGroup(
               isStreaming: group.isStreaming && index === group.messages.length - 1,
               showReasoning: opts.showReasoning,
               showToolCalls: opts.showToolCalls ?? true,
+              onBeginConnector: opts.onBeginConnector,
             },
             opts.onOpenSidebar,
           ),
@@ -548,8 +550,12 @@ function renderMessageImages(images: ImageBlock[]) {
 }
 
 /** Render tool cards inside a collapsed `<details>` element. */
-function renderToolCards(toolCards: ToolCard[], onOpenSidebar?: (content: string) => void) {
-  return renderToolCardStack(toolCards, onOpenSidebar);
+function renderToolCards(
+  toolCards: ToolCard[],
+  onOpenSidebar?: (content: string) => void,
+  onBeginConnector?: (connectorId: string) => void,
+) {
+  return renderToolCardStack(toolCards, onOpenSidebar, onBeginConnector);
 }
 
 /**
@@ -650,7 +656,7 @@ function renderThinkingPanel(message: unknown) {
         <span>Done</span>
       </span>
       <span class="chat-thinking-summary__preview"
-        >Raw internal reasoning stays hidden. Tool calls below show the execution trace.</span
+        >O raciocínio interno fica escondido. As ações aparecem abaixo em cartões recolhidos.</span
       >
     </div>
   `;
@@ -658,7 +664,12 @@ function renderThinkingPanel(message: unknown) {
 
 function renderGroupedMessage(
   message: unknown,
-  opts: { isStreaming: boolean; showReasoning: boolean; showToolCalls?: boolean },
+  opts: {
+    isStreaming: boolean;
+    showReasoning: boolean;
+    showToolCalls?: boolean;
+    onBeginConnector?: (connectorId: string) => void;
+  },
   onOpenSidebar?: (content: string) => void,
 ) {
   const m = message as Record<string, unknown>;
@@ -692,7 +703,7 @@ function renderGroupedMessage(
     .join(" ");
 
   if (!markdown && hasToolCards && isToolResult) {
-    return renderToolCards(toolCards, onOpenSidebar);
+    return renderToolCards(toolCards, onOpenSidebar, opts.onBeginConnector);
   }
 
   // Suppress empty bubbles when tool cards are the only content and toggle is off
@@ -716,20 +727,24 @@ function renderGroupedMessage(
         ? html`
             <div class="chat-tool-msg-body chat-tool-msg-body--flat">
               ${renderMessageImages(images)} ${thinkingPanel}
-              ${jsonResult
-                ? html`<details class="chat-json-collapse">
-                    <summary class="chat-json-summary">
-                      <span class="chat-json-badge">JSON</span>
-                      <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
-                    </summary>
-                    <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
-                  </details>`
-                : markdown
-                  ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
-                      ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
-                    </div>`
-                  : nothing}
-              ${hasToolCards ? renderToolCards(toolCards, onOpenSidebar) : nothing}
+              ${hasToolCards
+                ? nothing
+                : jsonResult
+                  ? html`<details class="chat-json-collapse">
+                      <summary class="chat-json-summary">
+                        <span class="chat-json-badge">JSON</span>
+                        <span class="chat-json-label">${jsonSummaryLabel(jsonResult.parsed)}</span>
+                      </summary>
+                      <pre class="chat-json-content"><code>${jsonResult.pretty}</code></pre>
+                    </details>`
+                  : markdown
+                    ? html`<div class="chat-text" dir="${detectTextDirection(markdown)}">
+                        ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
+                      </div>`
+                    : nothing}
+              ${hasToolCards
+                ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
+                : nothing}
             </div>
           `
         : html`
@@ -747,7 +762,9 @@ function renderGroupedMessage(
                     ${unsafeHTML(toSanitizedMarkdownHtml(markdown))}
                   </div>`
                 : nothing}
-            ${hasToolCards ? renderToolCards(toolCards, onOpenSidebar) : nothing}
+            ${hasToolCards
+              ? renderToolCardStack(toolCards, onOpenSidebar, opts.onBeginConnector)
+              : nothing}
           `}
     </div>
   `;

@@ -674,10 +674,10 @@ See [Plugins](/tools/plugin).
 
 ### Automatic dependency install
 
-When you install OpenClaw globally with `npm install -g openclaw`, the acpx
+When you install Alisio globally with `npm install -g alisio@npm:openclaw@latest`, the acpx
 runtime dependencies (platform-specific binaries) are installed automatically
 via a postinstall hook. If the automatic install fails, the gateway still starts
-normally and reports the missing dependency through `openclaw acp doctor`.
+normally and reports the missing dependency through `alisio acp doctor`.
 
 ### Plugin tools MCP bridge
 

@@ -248,4 +248,4 @@ This approach complements the Docker setup above with reproducible deployments, 
 
 - Set up messaging channels: [Channels](/channels)
 - Configure the Gateway: [Gateway configuration](/gateway/configuration)
-- Keep OpenClaw up to date: [Updating](/install/updating)
+- Keep Alisio up to date: [Updating](/install/updating)

@@ -25,6 +25,48 @@ type SessionDefaultsSnapshot = {
   mainKey?: string;
 };
 
+function resolveGatewayHttpOrigin(rawUrl: string, pageHref: string): string | null {
+  try {
+    const parsed = new URL(rawUrl, pageHref);
+    let protocol = parsed.protocol;
+    if (protocol === "ws:") {
+      protocol = "http:";
+    } else if (protocol === "wss:") {
+      protocol = "https:";
+    }
+    if (protocol !== "http:" && protocol !== "https:") {
+      return null;
+    }
+    return `${protocol}//${parsed.host}`;
+  } catch {
+    return null;
+  }
+}
+
+export function resolveAlisioOpenAiCallbackUrl(
+  state: Pick<AppViewState, "gatewayBootstrapUrl" | "alisioStartupBootstrap" | "settings">,
+  pageHref?: string,
+): string {
+  const currentPageHref =
+    pageHref ?? (typeof window === "undefined" ? "http://localhost/" : window.location.href);
+  const gatewayCandidates = [
+    state.gatewayBootstrapUrl,
+    state.alisioStartupBootstrap?.controlUrl,
+    state.settings.gatewayUrl,
+  ];
+  for (const candidate of gatewayCandidates) {
+    const trimmed = candidate?.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const origin = resolveGatewayHttpOrigin(trimmed, currentPageHref);
+    if (origin) {
+      return new URL("/__alisio/auth/openai/callback", origin).toString();
+    }
+  }
+  return new URL("/__alisio/auth/openai/callback", currentPageHref).toString();
+}
+
 function resolveSidebarChatSessionKey(state: AppViewState): string {
   const snapshot = state.hello?.snapshot as
     | { sessionDefaults?: SessionDefaultsSnapshot }
@@ -69,6 +111,7 @@ export function renderTab(
     <a
       href=${href}
       class="nav-item nav-item--${variant} ${isActive ? "nav-item--active" : ""}"
+      data-tab=${publicTabFor(tab)}
       aria-current=${isActive ? "page" : "false"}
       @click=${(event: MouseEvent) => {
         if (
@@ -396,8 +439,8 @@ export function renderChatMobileToggle(state: AppViewState) {
             }
           }
         }}
-        title="Chat settings"
-        aria-label="Chat settings"
+        title=${t("alisio.shell.chatSettings")}
+        aria-label=${t("alisio.shell.chatSettings")}
       >
         <svg
           width="18"
@@ -543,7 +586,7 @@ function renderChatModelSelect(state: AppViewState) {
     <label class="field chat-controls__session chat-controls__model">
       <select
         data-chat-model-select="true"
-        aria-label="Chat model"
+        aria-label=${t("chat.modelSelect")}
         ?disabled=${disabled}
         @change=${async (e: Event) => {
           const next = (e.target as HTMLSelectElement).value.trim();
@@ -595,6 +638,31 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
 }
 
 /* ── Channel display labels ────────────────────────────── */
+function channelLabel(channel: string): string {
+  switch (channel) {
+    case "bluebubbles":
+      return "iMessage";
+    case "telegram":
+      return "Telegram";
+    case "discord":
+      return "Discord";
+    case "signal":
+      return "Signal";
+    case "slack":
+      return "Slack";
+    case "whatsapp":
+      return "WhatsApp";
+    case "matrix":
+      return "Matrix";
+    case "email":
+      return t("alisio.shell.channels.email");
+    case "sms":
+      return t("alisio.shell.channels.sms");
+    default:
+      return capitalize(channel);
+  }
+}
+
 const CHANNEL_LABELS: Record<string, string> = {
   bluebubbles: "iMessage",
   telegram: "Telegram",
@@ -630,17 +698,23 @@ export function parseSessionKey(key: string): SessionKeyInfo {
 
   // ── Main session ─────────────────────────────────
   if (key === "main" || key === "agent:main:main") {
-    return { prefix: "", fallbackName: "Main Session" };
+    return { prefix: "", fallbackName: t("alisio.shell.sessions.main") };
   }
 
   // ── Subagent ─────────────────────────────────────
   if (key.includes(":subagent:")) {
-    return { prefix: "Subagent:", fallbackName: "Subagent:" };
+    return {
+      prefix: `${t("alisio.shell.sessions.subagentPrefix")}:`,
+      fallbackName: `${t("alisio.shell.sessions.subagentPrefix")}:`,
+    };
   }
 
   // ── Cron job ─────────────────────────────────────
   if (normalized.startsWith("cron:") || key.includes(":cron:")) {
-    return { prefix: "Cron:", fallbackName: "Cron Job:" };
+    return {
+      prefix: `${t("alisio.shell.sessions.cronPrefix")}:`,
+      fallbackName: `${t("alisio.shell.sessions.cronJob")}:`,
+    };
   }
 
   // ── Direct chat  (agent:<x>:<channel>:direct:<id>) ──
@@ -648,22 +722,28 @@ export function parseSessionKey(key: string): SessionKeyInfo {
   if (directMatch) {
     const channel = directMatch[1];
     const identifier = directMatch[2];
-    const channelLabel = CHANNEL_LABELS[channel] ?? capitalize(channel);
-    return { prefix: "", fallbackName: `${channelLabel} · ${identifier}` };
+    const resolvedChannelLabel = channelLabel(channel);
+    return { prefix: "", fallbackName: `${resolvedChannelLabel} · ${identifier}` };
   }
 
   // ── Group chat  (agent:<x>:<channel>:group:<id>) ────
   const groupMatch = key.match(/^agent:[^:]+:([^:]+):group:(.+)$/);
   if (groupMatch) {
     const channel = groupMatch[1];
-    const channelLabel = CHANNEL_LABELS[channel] ?? capitalize(channel);
-    return { prefix: "", fallbackName: `${channelLabel} Group` };
+    const resolvedChannelLabel = channelLabel(channel);
+    return {
+      prefix: "",
+      fallbackName: t("alisio.shell.sessions.channelGroup", { channel: resolvedChannelLabel }),
+    };
   }
 
   // ── Channel-prefixed legacy keys (e.g. "bluebubbles:g-…") ──
   for (const ch of KNOWN_CHANNEL_KEYS) {
     if (key === ch || key.startsWith(`${ch}:`)) {
-      return { prefix: "", fallbackName: `${CHANNEL_LABELS[ch]} Session` };
+      return {
+        prefix: "",
+        fallbackName: t("alisio.shell.sessions.channelSession", { channel: channelLabel(ch) }),
+      };
     }
   }
 
@@ -768,7 +848,7 @@ export function resolveSessionOptionGroups(
           `agent:${parsed.agentId.toLowerCase()}`,
           resolveAgentGroupLabel(state, parsed.agentId),
         )
-      : ensureGroup("other", "Other Sessions");
+      : ensureGroup("other", t("alisio.shell.sessions.other"));
     const scopeLabel = parsed?.rest?.trim() || key;
     const label = resolveSessionScopedOptionLabel(key, row, parsed?.rest);
     group.options.push({
@@ -913,18 +993,25 @@ const THEME_OPTIONS: ThemeOption[] = [
   { id: "dash", label: "Dash", icon: "📊" },
 ];
 
-type ThemeModeOption = { id: ThemeMode; label: string; short: string };
-const THEME_MODE_OPTIONS: ThemeModeOption[] = [
-  { id: "system", label: "System", short: "SYS" },
-  { id: "light", label: "Light", short: "LIGHT" },
-  { id: "dark", label: "Dark", short: "DARK" },
-];
-
 function currentThemeIcon(theme: ThemeName): string {
   return THEME_OPTIONS.find((o) => o.id === theme)?.icon ?? "🎨";
 }
 
 export function renderTopbarThemeModeToggle(state: AppViewState) {
+  const modeOptions = [
+    {
+      id: "system" as const,
+      label: t("alisio.shell.colorModes.system"),
+    },
+    {
+      id: "light" as const,
+      label: t("alisio.shell.colorModes.light"),
+    },
+    {
+      id: "dark" as const,
+      label: t("alisio.shell.colorModes.dark"),
+    },
+  ];
   const modeIcon = (mode: ThemeMode) => {
     if (mode === "system") {
       return icons.monitor;
@@ -943,8 +1030,8 @@ export function renderTopbarThemeModeToggle(state: AppViewState) {
   };
 
   return html`
-    <div class="topbar-theme-mode" role="group" aria-label="Color mode">
-      ${THEME_MODE_OPTIONS.map(
+    <div class="topbar-theme-mode" role="group" aria-label=${t("alisio.shell.colorMode")}>
+      ${modeOptions.map(
         (opt) => html`
           <button
             type="button"
@@ -952,7 +1039,7 @@ export function renderTopbarThemeModeToggle(state: AppViewState) {
               ? "topbar-theme-mode__btn--active"
               : ""}"
             title=${opt.label}
-            aria-label="Color mode: ${opt.label}"
+            aria-label=${t("alisio.shell.colorModeItem", { label: opt.label })}
             aria-pressed=${opt.id === state.themeMode}
             @click=${(e: Event) => applyMode(opt.id, e)}
           >
@@ -1009,11 +1096,11 @@ export function renderThemeToggle(state: AppViewState) {
   };
 
   return html`
-    <div class="theme-orb" aria-label="Theme">
+    <div class="theme-orb" aria-label=${t("alisio.shell.theme")}>
       <button
         type="button"
         class="theme-orb__trigger"
-        title="Theme"
+        title=${t("alisio.shell.theme")}
         aria-haspopup="menu"
         aria-expanded="false"
         @click=${toggleOpen}

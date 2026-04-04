@@ -141,7 +141,7 @@ enum GatewayEnvironment {
                     nodeVersion: runtime.version.description,
                     gatewayVersion: nil,
                     requiredGateway: expectedString,
-                    message: "openclaw CLI not found in PATH; install the CLI.")
+                    message: "Alisio CLI not found in PATH; install the CLI.")
             }
 
             let installed = gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }
@@ -266,7 +266,7 @@ enum GatewayEnvironment {
                 ("npm", ["npm", "install", "-g", "openclaw@\(target)"])
             }
 
-        statusHandler("Installing openclaw@\(target) via \(label)…")
+        statusHandler("Installing Alisio CLI via \(label)…")
 
         func summarize(_ text: String) -> String? {
             let lines = text
@@ -280,7 +280,7 @@ enum GatewayEnvironment {
 
         let response = await ShellExecutor.runDetailed(command: cmd, cwd: nil, env: ["PATH": preferred], timeout: 300)
         if response.success {
-            statusHandler("Installed openclaw@\(target)")
+            statusHandler("Installed Alisio CLI")
         } else {
             if response.timedOut {
                 statusHandler("Install failed: timed out. Check your internet connection and try again.")
@@ -304,8 +304,11 @@ enum GatewayEnvironment {
         guard var normalized = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !normalized.isEmpty else {
             return nil
         }
-        if normalized.lowercased().hasPrefix("openclaw ") {
+        let lowercased = normalized.lowercased()
+        if lowercased.hasPrefix("openclaw ") {
             normalized = String(normalized.dropFirst("openclaw ".count))
+        } else if lowercased.hasPrefix("alisio ") {
+            normalized = String(normalized.dropFirst("alisio ".count))
         }
         return normalized
     }

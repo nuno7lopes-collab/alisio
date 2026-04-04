@@ -1,4 +1,5 @@
 import { estimateBase64DecodedBytes } from "../media/base64.js";
+import { kindFromMime } from "../media/mime.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
 
 export type ChatAttachment = {
@@ -14,6 +15,15 @@ export type ChatImageContent = {
   mimeType: string;
 };
 
+export type ParsedChatAttachment = {
+  label: string;
+  fileName?: string;
+  mimeType: string;
+  base64: string;
+  sizeBytes: number;
+  kind: "image" | "audio" | "video" | "document" | "unknown";
+};
+
 export type ParsedMessageWithImages = {
   message: string;
   images: ChatImageContent[];
@@ -25,6 +35,7 @@ type AttachmentLog = {
 
 type NormalizedAttachment = {
   label: string;
+  fileName?: string;
   mime: string;
   base64: string;
 };
@@ -35,10 +46,6 @@ function normalizeMime(mime?: string): string | undefined {
   }
   const cleaned = mime.split(";")[0]?.trim().toLowerCase();
   return cleaned || undefined;
-}
-
-function isImageMime(mime?: string): boolean {
-  return typeof mime === "string" && mime.startsWith("image/");
 }
 
 function isValidBase64(value: string): boolean {
@@ -70,7 +77,13 @@ function normalizeAttachment(
       base64 = dataUrlMatch[1];
     }
   }
-  return { label, mime, base64 };
+  return {
+    label,
+    fileName:
+      typeof att.fileName === "string" && att.fileName.trim() ? att.fileName.trim() : undefined,
+    mime,
+    base64,
+  };
 }
 
 function validateAttachmentBase64OrThrow(
@@ -89,6 +102,63 @@ function validateAttachmentBase64OrThrow(
   return sizeBytes;
 }
 
+function resolveParsedAttachmentKind(mimeType: string): ParsedChatAttachment["kind"] {
+  const kind = kindFromMime(mimeType);
+  if (kind === "image" || kind === "audio" || kind === "video") {
+    return kind;
+  }
+  if (mimeType === "application/octet-stream") {
+    return "unknown";
+  }
+  return "document";
+}
+
+export async function parseChatAttachments(
+  attachments: ChatAttachment[] | undefined,
+  opts?: { maxBytes?: number; log?: AttachmentLog },
+): Promise<ParsedChatAttachment[]> {
+  const maxBytes = opts?.maxBytes ?? 5_000_000;
+  const log = opts?.log;
+  if (!attachments || attachments.length === 0) {
+    return [];
+  }
+
+  const parsed: ParsedChatAttachment[] = [];
+
+  for (const [idx, att] of attachments.entries()) {
+    if (!att) {
+      continue;
+    }
+    const normalized = normalizeAttachment(att, idx, {
+      stripDataUrlPrefix: true,
+      requireImageMime: false,
+    });
+    const sizeBytes = validateAttachmentBase64OrThrow(normalized, { maxBytes });
+    const providedMime = normalizeMime(normalized.mime);
+    const sniffedMime = normalizeMime(await sniffMimeFromBase64(normalized.base64));
+    if (sniffedMime && providedMime && sniffedMime !== providedMime) {
+      log?.warn(
+        `attachment ${normalized.label}: mime mismatch (${providedMime} -> ${sniffedMime}), using sniffed`,
+      );
+    } else if (!sniffedMime && !providedMime) {
+      log?.warn(
+        `attachment ${normalized.label}: unable to detect mime type, defaulting to application/octet-stream`,
+      );
+    }
+    const mimeType = sniffedMime ?? providedMime ?? "application/octet-stream";
+    parsed.push({
+      label: normalized.label,
+      ...(normalized.fileName ? { fileName: normalized.fileName } : {}),
+      mimeType,
+      base64: normalized.base64,
+      sizeBytes,
+      kind: resolveParsedAttachmentKind(mimeType),
+    });
+  }
+
+  return parsed;
+}
+
 /**
  * Parse attachments and extract images as structured content blocks.
  * Returns the message text and an array of image content blocks
@@ -99,47 +169,26 @@ export async function parseMessageWithAttachments(
   attachments: ChatAttachment[] | undefined,
   opts?: { maxBytes?: number; log?: AttachmentLog },
 ): Promise<ParsedMessageWithImages> {
-  const maxBytes = opts?.maxBytes ?? 5_000_000; // decoded bytes (5,000,000)
-  const log = opts?.log;
-  if (!attachments || attachments.length === 0) {
+  const parsedAttachments = await parseChatAttachments(attachments, opts);
+  if (parsedAttachments.length === 0) {
     return { message, images: [] };
   }
 
-  const images: ChatImageContent[] = [];
-
-  for (const [idx, att] of attachments.entries()) {
-    if (!att) {
-      continue;
-    }
-    const normalized = normalizeAttachment(att, idx, {
-      stripDataUrlPrefix: true,
-      requireImageMime: false,
-    });
-    validateAttachmentBase64OrThrow(normalized, { maxBytes });
-    const { base64: b64, label, mime } = normalized;
-
-    const providedMime = normalizeMime(mime);
-    const sniffedMime = normalizeMime(await sniffMimeFromBase64(b64));
-    if (sniffedMime && !isImageMime(sniffedMime)) {
-      log?.warn(`attachment ${label}: detected non-image (${sniffedMime}), dropping`);
-      continue;
-    }
-    if (!sniffedMime && !isImageMime(providedMime)) {
-      log?.warn(`attachment ${label}: unable to detect image mime type, dropping`);
-      continue;
-    }
-    if (sniffedMime && providedMime && sniffedMime !== providedMime) {
-      log?.warn(
-        `attachment ${label}: mime mismatch (${providedMime} -> ${sniffedMime}), using sniffed`,
+  const images = parsedAttachments
+    .filter((attachment) => {
+      if (attachment.kind === "image") {
+        return true;
+      }
+      opts?.log?.warn(
+        `attachment ${attachment.label}: detected non-image (${attachment.mimeType}), dropping from image blocks`,
       );
-    }
-
-    images.push({
-      type: "image",
-      data: b64,
-      mimeType: sniffedMime ?? providedMime ?? mime,
-    });
-  }
+      return false;
+    })
+    .map((attachment) => ({
+      type: "image" as const,
+      data: attachment.base64,
+      mimeType: attachment.mimeType,
+    }));
 
   return { message, images };
 }

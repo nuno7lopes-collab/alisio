@@ -19,7 +19,11 @@ export function renderOrganization(props: {
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
   const membershipLabel =
-    membership === "owner" ? "Owner" : membership === "member" ? "Member" : "Personal";
+    membership === "owner"
+      ? t("alisio.organization.membership.owner")
+      : membership === "member"
+        ? t("alisio.organization.membership.member")
+        : t("alisio.organization.membership.personal");
   const text = {
     title: t("alisio.organization.title"),
     subtitle: t("alisio.organization.subtitle"),
@@ -40,12 +44,16 @@ export function renderOrganization(props: {
     invitationPlaceholder: t("alisio.organization.invitationPlaceholder"),
     submitCreate: t("alisio.organization.submitCreate"),
     submitJoin: t("alisio.organization.submitJoin"),
+    keepPersonalTitle: t("alisio.organization.keepPersonalTitle"),
+    keepPersonalBody: t("alisio.organization.keepPersonalBody"),
+    afterFirstChatTitle: t("alisio.organization.afterFirstChatTitle"),
+    afterFirstChatBody: t("alisio.organization.afterFirstChatBody"),
   };
 
   return html`
     <section class="alisio-page">
       <div class="card alisio-organization-hero">
-        <div class="alisio-page__eyebrow">Organization</div>
+        <div class="alisio-page__eyebrow">${text.title}</div>
         <div class="alisio-organization-hero__topbar">
           <div>
             <div class="card-title">${text.title}</div>
@@ -78,11 +86,8 @@ export function renderOrganization(props: {
                       : nothing}
                   </div>
                   <div class="card alisio-organization-panel">
-                    <div class="card-title">Keep it personal for now</div>
-                    <div class="card-sub">
-                      Organizations are optional in the first run. You can come back later without
-                      blocking the chat.
-                    </div>
+                    <div class="card-title">${text.keepPersonalTitle}</div>
+                    <div class="card-sub">${text.keepPersonalBody}</div>
                     <div class="row">
                       <button class="btn" @click=${props.onResetOrganization}>
                         ${text.leaveForNow}
@@ -153,11 +158,8 @@ export function renderOrganization(props: {
                     </div>
                   </div>
                   <div class="card alisio-organization-panel alisio-organization-panel--muted">
-                    <div class="card-title">After your first chat</div>
-                    <div class="card-sub">
-                      Use organizations when you want shared access, team billing, or admin
-                      controls. It is not required to start using Alisio.
-                    </div>
+                    <div class="card-title">${text.afterFirstChatTitle}</div>
+                    <div class="card-sub">${text.afterFirstChatBody}</div>
                   </div>
                 </div>
               `}

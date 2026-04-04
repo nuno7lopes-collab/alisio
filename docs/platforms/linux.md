@@ -16,8 +16,8 @@ Native Linux companion apps are planned. Contributions are welcome if you want t
 ## Beginner quick path (VPS)
 
 1. Install Node 24 (recommended; Node 22 LTS, currently `22.14+`, still works for compatibility)
-2. `npm i -g openclaw@latest`
-3. `openclaw onboard --install-daemon`
+2. `npm i -g alisio@npm:openclaw@latest`
+3. `alisio onboard --install-daemon`
 4. From your laptop: `ssh -N -L 18789:127.0.0.1:18789 <user>@<host>`
 5. Open `http://127.0.0.1:18789/` and paste your token
 
@@ -39,19 +39,19 @@ Full Linux server guide: [Linux Server](/vps). Step-by-step VPS example: [exe.de
 Use one of these:
 
 ```
-openclaw onboard --install-daemon
+alisio onboard --install-daemon
 ```
 
 Or:
 
 ```
-openclaw gateway install
+alisio gateway install
 ```
 
 Or:
 
 ```
-openclaw configure
+alisio configure
 ```
 
 Select **Gateway service** when prompted.
@@ -59,7 +59,7 @@ Select **Gateway service** when prompted.
 Repair/migrate:
 
 ```
-openclaw doctor
+alisio doctor
 ```
 
 ## System control (systemd user unit)

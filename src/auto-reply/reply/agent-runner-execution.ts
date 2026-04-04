@@ -494,7 +494,8 @@ export async function runAgentTurnWithFallback(params: {
                       }
                     }
                     const completed = evt.data?.completed === true;
-                    if (phase === "end" && completed) {
+                    const willRetry = evt.data?.willRetry === true;
+                    if (phase === "end" && (completed || !willRetry)) {
                       attemptCompactionCount += 1;
                       await params.opts?.onCompactionEnd?.();
                     }

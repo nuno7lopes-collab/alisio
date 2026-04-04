@@ -179,6 +179,24 @@ describe("gateway config methods", () => {
     expect(res.ok).toBe(false);
     expect(res.error?.message ?? "").toContain("raw must be an object");
   });
+
+  it("treats empty config.patch as a no-op without scheduling restart", async () => {
+    const res = await rpcReq<{
+      changed?: boolean;
+      changedPaths?: string[];
+      restart?: unknown;
+      sentinel?: unknown;
+    }>(requireWs(), "config.patch", {
+      raw: "{}",
+      baseHash: await getConfigHash(),
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.payload?.changed).toBe(false);
+    expect(res.payload?.changedPaths).toEqual([]);
+    expect(res.payload?.restart).toBeNull();
+    expect(res.payload?.sentinel).toBeNull();
+  });
 });
 
 describe("gateway server sessions", () => {

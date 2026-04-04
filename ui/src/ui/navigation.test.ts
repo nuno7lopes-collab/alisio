@@ -28,7 +28,11 @@ describe("iconForTab", () => {
   it("returns stable icons for known tabs", () => {
     expect(iconForTab("setup")).toBe("terminal");
     expect(iconForTab("chat")).toBe("messageSquare");
+    expect(iconForTab("models")).toBe("brain");
+    expect(iconForTab("channels")).toBe("radio");
+    expect(iconForTab("capabilities")).toBe("spark");
     expect(iconForTab("connections")).toBe("monitor");
+    expect(iconForTab("security")).toBe("shield");
     expect(iconForTab("authentications")).toBe("link");
     expect(iconForTab("organization")).toBe("barChart");
     expect(iconForTab("settings")).toBe("settings");
@@ -53,10 +57,14 @@ describe("titleForTab", () => {
   it("returns expected titles", () => {
     expect(titleForTab("setup")).toBe("Setup");
     expect(titleForTab("chat")).toBe("Chat");
+    expect(titleForTab("models")).toBe("Models");
+    expect(titleForTab("channels")).toBe("Channels");
+    expect(titleForTab("capabilities")).toBe("Capabilities");
     expect(titleForTab("connections")).toBe("Connections");
-    expect(titleForTab("authentications")).toBe("Integrations");
-    expect(titleForTab("organization")).toBe("Workspace");
-    expect(titleForTab("settings")).toBe("Preferences");
+    expect(titleForTab("security")).toBe("Security");
+    expect(titleForTab("authentications")).toBe("Apps");
+    expect(titleForTab("organization")).toBe("Organization");
+    expect(titleForTab("settings")).toBe("Settings");
   });
 });
 
@@ -69,11 +77,15 @@ describe("subtitleForTab", () => {
   });
 
   it("returns descriptive subtitles", () => {
-    expect(subtitleForTab("setup")).toContain("runtime");
+    expect(subtitleForTab("setup")).toContain("OpenAI");
     expect(subtitleForTab("chat")).toContain("tool");
+    expect(subtitleForTab("models")).toContain("ChatGPT");
+    expect(subtitleForTab("channels")).toContain("WhatsApp");
+    expect(subtitleForTab("capabilities")).toContain("simpler");
     expect(subtitleForTab("connections")).toContain("Devices");
-    expect(subtitleForTab("authentications")).toContain("authorization");
-    expect(subtitleForTab("settings")).toContain("native");
+    expect(subtitleForTab("security")).toContain("Approvals");
+    expect(subtitleForTab("authentications")).toContain("apps");
+    expect(subtitleForTab("settings")).toContain("General");
   });
 });
 
@@ -118,7 +130,11 @@ describe("pathForTab", () => {
   it("returns correct path without base", () => {
     expect(pathForTab("setup")).toBe("/setup");
     expect(pathForTab("chat")).toBe("/chat");
+    expect(pathForTab("models")).toBe("/models");
+    expect(pathForTab("channels")).toBe("/channels");
+    expect(pathForTab("capabilities")).toBe("/capabilities");
     expect(pathForTab("connections")).toBe("/connections");
+    expect(pathForTab("security")).toBe("/security");
     expect(pathForTab("authentications")).toBe("/authentications");
     expect(pathForTab("organization")).toBe("/organization");
   });
@@ -133,6 +149,10 @@ describe("tabFromPath", () => {
   it("returns tab for valid path", () => {
     expect(tabFromPath("/setup")).toBe("setup");
     expect(tabFromPath("/chat")).toBe("chat");
+    expect(tabFromPath("/models")).toBe("models");
+    expect(tabFromPath("/channels")).toBe("channels");
+    expect(tabFromPath("/capabilities")).toBe("capabilities");
+    expect(tabFromPath("/security")).toBe("security");
     expect(tabFromPath("/authentications")).toBe("authentications");
     expect(tabFromPath("/organization")).toBe("organization");
   });
@@ -162,8 +182,8 @@ describe("tabFromPath", () => {
     expect(tabFromPath("/cron")).toBe("chat");
     expect(tabFromPath("/automations")).toBe("chat");
     expect(tabFromPath("/agents")).toBe("chat");
-    expect(tabFromPath("/skills")).toBe("chat");
-    expect(tabFromPath("/channels")).toBe("organization");
+    expect(tabFromPath("/skills")).toBe("capabilities");
+    expect(tabFromPath("/channels")).toBe("channels");
     expect(tabFromPath("/instances")).toBe("organization");
     expect(tabFromPath("/usage")).toBe("organization");
     expect(tabFromPath("/config")).toBe("settings");
@@ -178,6 +198,7 @@ describe("inferBasePathFromPathname", () => {
   it("returns empty string for direct tab path", () => {
     expect(inferBasePathFromPathname("/setup")).toBe("");
     expect(inferBasePathFromPathname("/chat")).toBe("");
+    expect(inferBasePathFromPathname("/models")).toBe("");
     expect(inferBasePathFromPathname("/authentications")).toBe("");
     expect(inferBasePathFromPathname("/overview")).toBe("");
   });

@@ -1,12 +1,15 @@
-import { createHash, randomBytes } from "node:crypto";
+import { execFileSync, execSync } from "node:child_process";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
   deriveAlisioAvatarLabel,
   normalizeAlisioUsername,
   validateAlisioAccountDraft,
 } from "../shared/alisio-account.js";
+import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
 import {
   AlisioAccountCloudError,
   completeAlisioCloudAccountProfile,
@@ -21,16 +24,33 @@ import {
   type AlisioStoredPasswordCredential,
 } from "./alisio-account-cloud.js";
 import {
+  buildAlisioAiLocalTelemetry,
+  buildAlisioAiProfileId,
+  buildAlisioWorkerAuthProfileId,
+  buildAlisioWorkerCredentialId,
+  resolveAggregatedTelemetry,
+  resolveAlisioAiCanonicalIdentity,
+  resolveAlisioAiProfileLabel,
+  selectBestWorkerCredentialForProfile,
+  toAlisioAiState,
+  type AlisioAiCredentialSelection,
+  type AlisioAiLocalTelemetry,
+  type AlisioAiState,
+  type AlisioLegacyStoredAiSession,
+  type AlisioStoredAiProfile,
+  type AlisioStoredRuntimeBinding,
+  type AlisioStoredWorkerAiCredential,
+  type AlisioAiOwnerContext,
+} from "./alisio-ai-state.js";
+import {
   AlisioAiError,
   applyAlisioOpenAiRuntime,
   buildAlisioOpenAiAuthorization,
   clearAlisioOpenAiRuntime,
   completeAlisioOpenAiAuthorization,
   refreshAlisioOpenAiSession,
-  toAlisioAiState,
-  type AlisioAiState,
-  type AlisioPendingAiAuthorization,
-  type AlisioStoredAiSession,
+  resolveAlisioOpenAiTokenIdentity,
+  type AlisioStoredAiState,
 } from "./alisio-ai.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 
@@ -38,11 +58,17 @@ export type AlisioConnectorCategory = "social" | "google" | "productivity" | "de
 
 export type AlisioConnectorAvailability = "ready" | "in_review" | "unavailable";
 export type AlisioAuthorizationState = "not_connected" | "connected" | "needs_reconnect";
-export type AlisioAuthorizationHealth = "healthy" | "needs_reconnect" | "in_review" | "unavailable";
+export type AlisioAuthorizationHealth =
+  | "healthy"
+  | "needs_reconnect"
+  | "config_missing"
+  | "in_review"
+  | "unavailable";
 export type AlisioConnectorBeginMode = "oauth" | "setup";
 export type AlisioConnectorBeginReason =
   | "ready_for_oauth"
   | "missing_client_config"
+  | "missing_token_encryption"
   | "review_required"
   | "unavailable";
 export type AlisioOAuthProvider = "google" | "github" | "notion" | "vercel";
@@ -141,8 +167,8 @@ export type AlisioLocalAccountProfile = {
   avatarLabel: string;
   avatarUrl?: string;
   joinedAt: string;
-  plan: string;
-  backend?: "supabase" | "local-dev";
+  plan: AlisioPlan;
+  backend?: "supabase";
 };
 
 export type AlisioLocalUserPreferences = {
@@ -155,7 +181,7 @@ export type AlisioAccountSession = {
   profileCompleted: boolean;
   signedInAt?: string;
   signedOutAt?: string;
-  backend?: "supabase" | "local-dev";
+  backend?: "supabase";
 };
 
 export type AlisioLocalDeviceSession = {
@@ -201,21 +227,29 @@ export type AlisioStoredState = {
     passwordCredential?: AlisioStoredPasswordCredential;
   };
   organization: AlisioOrganizationMembershipState;
-  ai?: {
-    session?: AlisioStoredAiSession;
-    pending?: AlisioPendingAiAuthorization;
-  };
+  ai?: AlisioStoredAiState;
   authorizations: Record<string, AlisioConnectorAuthorization>;
   oauthCredentials: Record<
     string,
     {
       provider: AlisioOAuthProvider;
-      accessToken: string;
+      accessToken?: string;
       refreshToken?: string;
+      accessTokenEncrypted?: {
+        iv: string;
+        tag: string;
+        ciphertext: string;
+      };
+      refreshTokenEncrypted?: {
+        iv: string;
+        tag: string;
+        ciphertext: string;
+      };
       tokenType?: string;
       scope?: string;
       expiresAt?: string;
       createdAt: string;
+      refreshedAt?: string;
     }
   >;
   pendingAuthorizations: Record<
@@ -224,6 +258,7 @@ export type AlisioStoredState = {
       connectorId: string;
       provider: AlisioOAuthProvider;
       redirectUri: string;
+      requestedScopes: string[];
       createdAt: string;
       codeVerifier?: string;
     }
@@ -271,9 +306,31 @@ export type AlisioOAuthCallbackResult =
       message: string;
     };
 
+export type AlisioGmailSendResult =
+  | {
+      ok: true;
+      status: "sent";
+      connectorId: "gmail-send";
+      messageId: string;
+      threadId?: string;
+      to: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject: string;
+    }
+  | {
+      ok: false;
+      status: "auth_required" | "send_failed";
+      connectorId: "gmail-send";
+      message: string;
+      reconnectRequired?: boolean;
+      providerReason?: string;
+    };
+
 type AlisioOAuthTokenSet = {
   accessToken: string;
   refreshToken?: string;
+  idToken?: string;
   tokenType?: string;
   scope?: string;
   expiresIn?: number;
@@ -281,7 +338,16 @@ type AlisioOAuthTokenSet = {
 
 const STORE_FILENAME = "alisio/state.json";
 const PENDING_AUTHORIZATION_TTL_MS = 15 * 60 * 1000;
+const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY";
+const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "OpenClaw Alisio Connector Token Encryption";
+const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const withLock = createAsyncLock();
+
+type AlisioEncryptedToken = {
+  iv: string;
+  tag: string;
+  ciphertext: string;
+};
 
 const CONNECTOR_CATALOG: readonly AlisioConnectorDefinition[] = [
   {
@@ -505,6 +571,468 @@ function stateFilePath(env: NodeJS.ProcessEnv = process.env) {
   return path.join(resolveStateDir(env), STORE_FILENAME);
 }
 
+function decodeConnectorTokenEncryptionKey(raw: string) {
+  const decoders = [
+    () => Buffer.from(raw, "base64"),
+    () => Buffer.from(raw, "hex"),
+    () => Buffer.from(raw, "utf8"),
+  ];
+  for (const decode of decoders) {
+    try {
+      const key = decode();
+      if (key.byteLength === 32) {
+        return key;
+      }
+    } catch {
+      // Try the next supported encoding.
+    }
+  }
+  return null;
+}
+
+function shouldUseConnectorTokenKeychain(env: NodeJS.ProcessEnv) {
+  return process.platform === "darwin" && !("VITEST" in env);
+}
+
+function hasUsableConnectorTokenKeychain(
+  env: NodeJS.ProcessEnv,
+  execFileSyncImpl: typeof execFileSync = execFileSync,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform !== "darwin" || "VITEST" in env) {
+    return false;
+  }
+  try {
+    const result = execFileSyncImpl("security", ["default-keychain", "-d", "user"], {
+      encoding: "utf8",
+      timeout: 5_000,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    return result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+function resolveConnectorTokenKeychainAccount(env: NodeJS.ProcessEnv) {
+  const stateRoot = resolveStateDir(env);
+  const hash = createHash("sha256").update(path.resolve(stateRoot)).digest("hex");
+  return `state|${hash.slice(0, 16)}`;
+}
+
+function readConnectorTokenKeychainSecret(
+  env: NodeJS.ProcessEnv,
+  execSyncImpl: typeof execSync = execSync,
+  execFileSyncImpl: typeof execFileSync = execFileSync,
+) {
+  if (!hasUsableConnectorTokenKeychain(env, execFileSyncImpl)) {
+    return null;
+  }
+  const account = resolveConnectorTokenKeychainAccount(env);
+  try {
+    const secret = execSyncImpl(
+      `security find-generic-password -s "${ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE}" -a "${account}" -w`,
+      {
+        encoding: "utf8",
+        timeout: 5_000,
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    ).trim();
+    return secret || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeConnectorTokenKeychainSecret(
+  env: NodeJS.ProcessEnv,
+  value: string,
+  execFileSyncImpl: typeof execFileSync = execFileSync,
+) {
+  if (!hasUsableConnectorTokenKeychain(env, execFileSyncImpl)) {
+    return false;
+  }
+  const account = resolveConnectorTokenKeychainAccount(env);
+  try {
+    execFileSyncImpl(
+      "security",
+      [
+        "add-generic-password",
+        "-U",
+        "-s",
+        ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE,
+        "-a",
+        account,
+        "-w",
+        value,
+      ],
+      {
+        encoding: "utf8",
+        timeout: 5_000,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveConnectorTokenEncryptionKey(
+  env: NodeJS.ProcessEnv,
+  options?: { createIfMissing?: boolean },
+) {
+  const raw = env[CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV]?.trim() || "";
+  if (raw) {
+    return decodeConnectorTokenEncryptionKey(raw);
+  }
+  const keychainSecret = readConnectorTokenKeychainSecret(env);
+  if (keychainSecret) {
+    return decodeConnectorTokenEncryptionKey(keychainSecret);
+  }
+  if (!options?.createIfMissing || !shouldUseConnectorTokenKeychain(env)) {
+    return null;
+  }
+  const generated = randomBytes(32).toString("base64");
+  if (!writeConnectorTokenKeychainSecret(env, generated)) {
+    return null;
+  }
+  return Buffer.from(generated, "base64");
+}
+
+export const __testing = {
+  hasUsableConnectorTokenKeychain,
+};
+
+function encryptConnectorToken(plaintext: string, env: NodeJS.ProcessEnv) {
+  const key = resolveConnectorTokenEncryptionKey(env, { createIfMissing: true });
+  if (!key) {
+    return null;
+  }
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+  };
+}
+
+function decryptConnectorToken(
+  encrypted:
+    | {
+        iv: string;
+        tag: string;
+        ciphertext: string;
+      }
+    | undefined,
+  env: NodeJS.ProcessEnv,
+) {
+  if (!encrypted) {
+    return null;
+  }
+  const key = resolveConnectorTokenEncryptionKey(env);
+  if (!key) {
+    return null;
+  }
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(encrypted.iv, "base64"));
+    decipher.setAuthTag(Buffer.from(encrypted.tag, "base64"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encrypted.ciphertext, "base64")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
+function readStoredAccessToken(
+  credential:
+    | {
+        accessToken?: string;
+        accessTokenEncrypted?: {
+          iv: string;
+          tag: string;
+          ciphertext: string;
+        };
+      }
+    | undefined,
+  env: NodeJS.ProcessEnv,
+) {
+  if (!credential) {
+    return null;
+  }
+  if (typeof credential.accessToken === "string" && credential.accessToken.trim()) {
+    return credential.accessToken;
+  }
+  return decryptConnectorToken(credential.accessTokenEncrypted, env);
+}
+
+function readStoredRefreshToken(
+  credential:
+    | {
+        refreshToken?: string;
+        refreshTokenEncrypted?: {
+          iv: string;
+          tag: string;
+          ciphertext: string;
+        };
+      }
+    | undefined,
+  env: NodeJS.ProcessEnv,
+) {
+  if (!credential) {
+    return null;
+  }
+  if (typeof credential.refreshToken === "string" && credential.refreshToken.trim()) {
+    return credential.refreshToken;
+  }
+  return decryptConnectorToken(credential.refreshTokenEncrypted, env);
+}
+
+function buildStoredOAuthCredential(params: {
+  provider: AlisioOAuthProvider;
+  accessToken: string;
+  refreshToken?: string;
+  tokenType?: string;
+  scope?: string;
+  expiresAt?: string;
+  createdAt: string;
+  refreshedAt?: string;
+  env: NodeJS.ProcessEnv;
+}) {
+  const accessTokenEncrypted = encryptConnectorToken(params.accessToken, params.env);
+  const refreshTokenEncrypted = params.refreshToken
+    ? encryptConnectorToken(params.refreshToken, params.env)
+    : null;
+  if (!accessTokenEncrypted || (params.refreshToken && !refreshTokenEncrypted)) {
+    throw new Error(
+      `${CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV} must be configured with a valid 32-byte key.`,
+    );
+  }
+  return {
+    provider: params.provider,
+    accessTokenEncrypted,
+    ...(refreshTokenEncrypted ? { refreshTokenEncrypted } : {}),
+    ...(params.tokenType ? { tokenType: params.tokenType } : {}),
+    ...(params.scope ? { scope: params.scope } : {}),
+    ...(params.expiresAt ? { expiresAt: params.expiresAt } : {}),
+    createdAt: params.createdAt,
+    ...(params.refreshedAt ? { refreshedAt: params.refreshedAt } : {}),
+  };
+}
+
+function hydrateStoredTokenSecrets<
+  T extends {
+    accessToken?: string;
+    accessTokenEncrypted?: AlisioEncryptedToken;
+    refreshToken?: string;
+    refreshTokenEncrypted?: AlisioEncryptedToken;
+  },
+>(credential: T | undefined, env: NodeJS.ProcessEnv) {
+  if (!credential) {
+    return undefined;
+  }
+  const accessToken = readStoredAccessToken(credential, env);
+  const refreshToken = readStoredRefreshToken(credential, env);
+  const {
+    accessTokenEncrypted: _ignoredAccessTokenEncrypted,
+    refreshTokenEncrypted: _ignoredRefreshTokenEncrypted,
+    ...rest
+  } = credential;
+  return {
+    ...rest,
+    ...(accessToken ? { accessToken } : {}),
+    ...(refreshToken ? { refreshToken } : {}),
+  } as T;
+}
+
+function serializeStoredTokenSecrets<
+  T extends {
+    accessToken?: string;
+    accessTokenEncrypted?: AlisioEncryptedToken;
+    refreshToken?: string;
+    refreshTokenEncrypted?: AlisioEncryptedToken;
+  },
+>(credential: T | undefined, env: NodeJS.ProcessEnv) {
+  if (!credential) {
+    return undefined;
+  }
+  const { accessToken, accessTokenEncrypted, refreshToken, refreshTokenEncrypted, ...rest } =
+    credential;
+  const next: T = { ...rest } as T;
+
+  if (typeof accessToken === "string" && accessToken.trim()) {
+    const encrypted = encryptConnectorToken(accessToken, env);
+    if (encrypted) {
+      next.accessTokenEncrypted = encrypted;
+    } else {
+      next.accessToken = accessToken;
+    }
+  } else if (accessTokenEncrypted) {
+    next.accessTokenEncrypted = accessTokenEncrypted;
+  }
+
+  if (typeof refreshToken === "string" && refreshToken.trim()) {
+    const encrypted = encryptConnectorToken(refreshToken, env);
+    if (encrypted) {
+      next.refreshTokenEncrypted = encrypted;
+    } else {
+      next.refreshToken = refreshToken;
+    }
+  } else if (refreshTokenEncrypted) {
+    next.refreshTokenEncrypted = refreshTokenEncrypted;
+  }
+
+  return next;
+}
+
+function hydrateStoredAiSecrets(
+  ai: AlisioStoredState["ai"] | undefined,
+  env: NodeJS.ProcessEnv,
+): AlisioStoredState["ai"] | undefined {
+  if (!ai) {
+    return ai;
+  }
+  return {
+    ...ai,
+    ...(ai.workerCredentials
+      ? {
+          workerCredentials: Object.fromEntries(
+            Object.entries(ai.workerCredentials).map(([workerCredentialId, credential]) => [
+              workerCredentialId,
+              hydrateStoredTokenSecrets(credential, env) ?? credential,
+            ]),
+          ),
+        }
+      : {}),
+  };
+}
+
+function serializeStoredAiSecrets(
+  ai: AlisioStoredState["ai"] | undefined,
+  env: NodeJS.ProcessEnv,
+): AlisioStoredState["ai"] | undefined {
+  if (!ai) {
+    return ai;
+  }
+  return {
+    ...ai,
+    ...(ai.workerCredentials
+      ? {
+          workerCredentials: Object.fromEntries(
+            Object.entries(ai.workerCredentials).map(([workerCredentialId, credential]) => [
+              workerCredentialId,
+              serializeStoredTokenSecrets(credential, env) ?? credential,
+            ]),
+          ),
+        }
+      : {}),
+  };
+}
+
+function isOAuthCredentialExpired(expiresAt: string | undefined, now = Date.now()) {
+  if (!expiresAt) {
+    return false;
+  }
+  const expiresAtMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresAtMs)) {
+    return true;
+  }
+  return expiresAtMs <= now + 60_000;
+}
+
+function splitGrantedScopes(scope: string | undefined) {
+  if (!scope?.trim()) {
+    return [];
+  }
+  return scope
+    .split(/[\s,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+const GOOGLE_OAUTH_SCOPE_ALIASES = new Map<string, readonly string[]>([
+  ["email", ["email", "https://www.googleapis.com/auth/userinfo.email"]],
+  [
+    "https://www.googleapis.com/auth/userinfo.email",
+    ["email", "https://www.googleapis.com/auth/userinfo.email"],
+  ],
+  ["profile", ["profile", "https://www.googleapis.com/auth/userinfo.profile"]],
+  [
+    "https://www.googleapis.com/auth/userinfo.profile",
+    ["profile", "https://www.googleapis.com/auth/userinfo.profile"],
+  ],
+]);
+
+const GOOGLE_IDENTITY_SCOPES = new Set(["openid", "email", "profile"]);
+
+function expandComparableOAuthScopes(provider: AlisioOAuthProvider, scopes: readonly string[]) {
+  const expanded = new Set<string>();
+  for (const scope of scopes) {
+    expanded.add(scope);
+    if (provider !== "google") {
+      continue;
+    }
+    for (const alias of GOOGLE_OAUTH_SCOPE_ALIASES.get(scope) ?? []) {
+      expanded.add(alias);
+    }
+  }
+  return expanded;
+}
+
+function resolveOAuthScopesRequiredForValidation(
+  provider: AlisioOAuthProvider,
+  requestedScopes: readonly string[],
+) {
+  if (provider !== "google") {
+    return [...requestedScopes];
+  }
+  const resourceScopes = requestedScopes.filter((scope) => !GOOGLE_IDENTITY_SCOPES.has(scope));
+  return resourceScopes.length > 0 ? resourceScopes : [...requestedScopes];
+}
+
+function normalizeStoredOAuthScopes(
+  provider: AlisioOAuthProvider,
+  scopes: readonly string[],
+  fallback: readonly string[],
+) {
+  const source = scopes.length > 0 ? scopes : [...fallback];
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const scope of source) {
+    const next =
+      provider === "google" && scope === "https://www.googleapis.com/auth/userinfo.email"
+        ? "email"
+        : provider === "google" && scope === "https://www.googleapis.com/auth/userinfo.profile"
+          ? "profile"
+          : scope;
+    if (seen.has(next)) {
+      continue;
+    }
+    seen.add(next);
+    normalized.push(next);
+  }
+  return normalized;
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const [, payload] = token.split(".");
+  if (!payload) {
+    return null;
+  }
+  try {
+    const raw = Buffer.from(payload, "base64url").toString("utf8");
+    const decoded = JSON.parse(raw) as Record<string, unknown>;
+    return decoded && typeof decoded === "object" ? decoded : null;
+  } catch {
+    return null;
+  }
+}
+
 function titleCaseUser(input: string) {
   return input
     .split(/[\s._-]+/)
@@ -539,7 +1067,7 @@ function buildDefaultState(): AlisioStoredState {
         email: `${username}@alisio.local`,
         avatarLabel: displayName.slice(0, 1).toUpperCase() || "A",
         joinedAt: new Date().toISOString(),
-        plan: "Free Plan",
+        plan: "free",
         backend,
       },
       preferences: {
@@ -629,11 +1157,74 @@ function normalizeStoredAccountSession(
         ? session.profileCompleted
         : fallback.profileCompleted,
     backend:
-      session?.backend === "supabase" || session?.backend === "local-dev"
+      session?.backend === "supabase"
         ? session.backend
         : (profile.backend ?? resolveAlisioAccountBackend(env)),
     ...(typeof session?.signedInAt === "string" ? { signedInAt: session.signedInAt } : {}),
     ...(typeof session?.signedOutAt === "string" ? { signedOutAt: session.signedOutAt } : {}),
+  };
+}
+
+function migrateLegacyLocalDevAccountState(
+  loaded: AlisioStoredState,
+  defaults: AlisioStoredState,
+): AlisioStoredState {
+  const legacySessionBackend = (loaded.account?.session as { backend?: string } | undefined)
+    ?.backend;
+  const legacyCloudBackend = (loaded.account?.cloudSession as { backend?: string } | undefined)
+    ?.backend;
+  const legacyProfileBackend = (loaded.account?.profile as { backend?: string } | undefined)
+    ?.backend;
+  const hasLegacyLocalDevAccount =
+    legacySessionBackend === "local-dev" ||
+    legacyCloudBackend === "local-dev" ||
+    legacyProfileBackend === "local-dev";
+  if (!hasLegacyLocalDevAccount) {
+    return loaded;
+  }
+
+  const preservedEmail =
+    loaded.account?.profile?.email?.trim() ||
+    loaded.account?.cloudSession?.email?.trim() ||
+    defaults.account.profile.email;
+  const signedOutAt = new Date().toISOString();
+  const { passwordCredential: _ignoredLegacyPasswordCredential, ...legacyAccountWithoutPassword } =
+    loaded.account ?? {};
+  const { userId: _ignoredLegacyUserId, ...legacyProfileWithoutUserId } =
+    loaded.account?.profile ?? {};
+
+  return {
+    ...loaded,
+    account: {
+      ...legacyAccountWithoutPassword,
+      profile: {
+        ...defaults.account.profile,
+        ...legacyProfileWithoutUserId,
+        email: preservedEmail,
+        backend: "supabase",
+      },
+      preferences: {
+        ...defaults.account.preferences,
+        ...loaded.account?.preferences,
+      },
+      session: {
+        state: "signed_out",
+        profileCompleted: false,
+        backend: "supabase",
+        signedOutAt,
+      },
+      cloudSession: {
+        backend: "supabase",
+        state: "signed_out",
+        email: preservedEmail,
+        signedOutAt,
+      },
+    },
+    organization: { mode: "none" },
+    ai: {},
+    authorizations: {},
+    oauthCredentials: {},
+    pendingAuthorizations: {},
   };
 }
 
@@ -648,6 +1239,72 @@ export function hasRestorableAlisioAccount(
   return session.profileCompleted || isAccountProvisioned(profile, env);
 }
 
+function hasSignedInAlisioAccountSession(
+  state: Pick<AlisioStoredState, "account"> | Pick<AlisioAccountState, "session">,
+) {
+  const session = "account" in state ? state.account.session : state.session;
+  return session.state === "signed_in";
+}
+
+function hasReadyAlisioAccountSession(
+  state: Pick<AlisioStoredState, "account"> | Pick<AlisioAccountState, "session">,
+) {
+  const session = "account" in state ? state.account.session : state.session;
+  return session.state === "signed_in" && session.profileCompleted;
+}
+
+function resolveAlisioAccountScopeKey(input: {
+  session?: Pick<AlisioStoredCloudSession, "userId" | "email">;
+  profile?: Pick<AlisioLocalAccountProfile | AlisioCloudAccountProfile, "email">;
+}) {
+  const userId = input.session?.userId?.trim();
+  if (userId) {
+    return `user:${userId}`;
+  }
+  const email =
+    input.session?.email?.trim().toLowerCase() || input.profile?.email?.trim().toLowerCase() || "";
+  return email ? `email:${email}` : null;
+}
+
+function shouldResetAccountScopedState(
+  state: AlisioStoredState,
+  next: {
+    session?: AlisioStoredCloudSession;
+    profile?: AlisioLocalAccountProfile | AlisioCloudAccountProfile;
+  },
+) {
+  const currentKey = resolveAlisioAccountScopeKey({
+    session: state.account.cloudSession,
+    profile: state.account.profile,
+  });
+  const nextKey = resolveAlisioAccountScopeKey(next);
+  return Boolean(currentKey && nextKey && currentKey !== nextKey);
+}
+
+function resetStoredAccountScopedState(state: AlisioStoredState) {
+  state.organization = { mode: "none" };
+  state.ai = {};
+  state.authorizations = {};
+  state.oauthCredentials = {};
+  state.pendingAuthorizations = {};
+}
+
+function assertAlisioAccountSetupAccess(
+  state: Pick<AlisioStoredState, "account">,
+  context: "OpenAI" | "organization" | "connector",
+) {
+  if (!hasSignedInAlisioAccountSession(state)) {
+    throw new AlisioAccountValidationError(
+      `Sign in to your Alisio account before continuing ${context} setup.`,
+    );
+  }
+  if (!hasReadyAlisioAccountSession(state)) {
+    throw new AlisioAccountValidationError(
+      `Finish your Alisio account profile before continuing ${context} setup.`,
+    );
+  }
+}
+
 function toLocalAccountProfile(profile: AlisioCloudAccountProfile): AlisioLocalAccountProfile {
   return {
     ...(profile.userId ? { userId: profile.userId } : {}),
@@ -657,7 +1314,7 @@ function toLocalAccountProfile(profile: AlisioCloudAccountProfile): AlisioLocalA
     avatarLabel: profile.avatarLabel,
     ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
     joinedAt: profile.joinedAt,
-    plan: profile.plan,
+    plan: normalizeAlisioPlan(profile.plan),
     backend: profile.backend,
   };
 }
@@ -671,9 +1328,18 @@ function toCloudAccountProfile(profile: AlisioLocalAccountProfile): AlisioCloudA
     avatarLabel: profile.avatarLabel,
     ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
     joinedAt: profile.joinedAt,
-    plan: profile.plan,
+    plan: normalizeAlisioPlan(profile.plan),
     profileCompleted: true,
-    backend: profile.backend ?? "local-dev",
+    backend: profile.backend ?? "supabase",
+  };
+}
+
+function normalizeStoredAccountProfile(
+  profile: AlisioLocalAccountProfile,
+): AlisioLocalAccountProfile {
+  return {
+    ...profile,
+    plan: normalizeAlisioPlan(profile.plan),
   };
 }
 
@@ -737,29 +1403,23 @@ function summarizeConnectorAuthorizations(
   return summary;
 }
 
-export async function getAlisioBootstrapSummary(
-  params: {
-    env?: NodeJS.ProcessEnv;
-    wizardRunning?: boolean;
-    providerReady?: boolean;
-    connectionRequired?: boolean;
-  } = {},
-): Promise<AlisioBootstrapSummary> {
-  const env = params.env ?? process.env;
-  const [account, ai, organization, authorizations] = await Promise.all([
-    getAlisioAccountState(env),
-    getAlisioAiState(env),
-    getAlisioOrganizationState(env),
-    listAlisioConnectorAuthorizations(env),
-  ]);
-  const accountReady = account.session.state === "signed_in" && account.session.profileCompleted;
-  const providerReady = params.providerReady ?? isAlisioAiReady(ai);
-  const connectorSummary = summarizeConnectorAuthorizations(authorizations);
+function buildAlisioBootstrapSummary(params: {
+  account: AlisioAccountState;
+  ai: AlisioAiState;
+  organization: AlisioOrganizationMembershipState;
+  authorizations: readonly AlisioConnectorAuthorization[];
+  wizardRunning?: boolean;
+  providerReady?: boolean;
+  connectionRequired?: boolean;
+}): AlisioBootstrapSummary {
+  const accountReady = hasReadyAlisioAccountSession(params.account);
+  const providerReady = params.providerReady ?? isAlisioAiReady(params.ai);
+  const connectorSummary = summarizeConnectorAuthorizations(params.authorizations);
   const startupState: AlisioStartupState = params.connectionRequired
     ? "signed_out"
-    : account.session.state !== "signed_in"
+    : params.account.session.state !== "signed_in"
       ? "signed_out"
-      : !account.session.profileCompleted
+      : !params.account.session.profileCompleted
         ? "needs_profile"
         : !providerReady
           ? "needs_ai"
@@ -771,7 +1431,7 @@ export async function getAlisioBootstrapSummary(
       ? "account"
       : startupState === "needs_ai"
         ? "runtime"
-        : organization.mode === "none"
+        : params.organization.mode === "none"
           ? "organization"
           : connectorSummary.connected === 0 && connectorSummary.ready > 0
             ? "connectors"
@@ -786,10 +1446,54 @@ export async function getAlisioBootstrapSummary(
     providerReady,
     accountReady,
     startupState,
-    organizationState: organization,
+    organizationState: params.organization,
     connectorSummary,
     nextStep,
   };
+}
+
+export async function loadAlisioBootstrapState(
+  params: {
+    env?: NodeJS.ProcessEnv;
+    wizardRunning?: boolean;
+    providerReady?: boolean;
+    connectionRequired?: boolean;
+  } = {},
+): Promise<{
+  snapshot: AlisioBootstrapSnapshot;
+  summary: AlisioBootstrapSummary;
+}> {
+  const snapshot = await loadAlisioBootstrapSnapshot(params.env);
+  return {
+    snapshot,
+    summary: buildAlisioBootstrapSummary({
+      account: snapshot.account,
+      ai: snapshot.ai,
+      organization: snapshot.organization,
+      authorizations: snapshot.connectors.authorizations,
+      wizardRunning: params.wizardRunning,
+      providerReady: params.providerReady,
+      connectionRequired: params.connectionRequired,
+    }),
+  };
+}
+
+export async function getAlisioBootstrapSummary(
+  params: {
+    env?: NodeJS.ProcessEnv;
+    wizardRunning?: boolean;
+    providerReady?: boolean;
+    connectionRequired?: boolean;
+  } = {},
+): Promise<AlisioBootstrapSummary> {
+  return (
+    await loadAlisioBootstrapState({
+      env: params.env,
+      wizardRunning: params.wizardRunning,
+      providerReady: params.providerReady,
+      connectionRequired: params.connectionRequired,
+    })
+  ).summary;
 }
 
 export async function getAlisioDoctorSummary(
@@ -801,7 +1505,14 @@ export async function getAlisioDoctorSummary(
     gatewayHealthy?: boolean;
   } = {},
 ): Promise<AlisioDoctorSummary> {
-  const bootstrap = await getAlisioBootstrapSummary(params);
+  const runtimeEnv = params.env ?? process.env;
+  const { summary: bootstrap } = await loadAlisioBootstrapState({
+    env: runtimeEnv,
+    wizardRunning: params.wizardRunning,
+    providerReady: params.providerReady,
+    connectionRequired: params.connectionRequired,
+  });
+  const doctorState = await loadStoredState(runtimeEnv);
   const issues: AlisioDoctorIssue[] = [];
 
   if (bootstrap.connectionRequired) {
@@ -878,6 +1589,19 @@ export async function getAlisioDoctorSummary(
     });
   }
 
+  if (
+    !resolveConnectorTokenEncryptionKey(runtimeEnv) &&
+    hasAlisioSensitiveLocalTokens(doctorState)
+  ) {
+    issues.push({
+      code: "local_token_encryption_not_configured",
+      severity: "warning",
+      title: "Local token encryption not configured",
+      message: `${CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV} is not configured, so persisted Alisio session tokens on this device cannot be encrypted at rest yet.`,
+      step: "permissions",
+    });
+  }
+
   const ok = !issues.some((issue) => issue.severity === "error");
   return {
     ok,
@@ -894,55 +1618,611 @@ export async function getAlisioDoctorSummary(
   };
 }
 
+function hasAlisioSensitiveLocalTokens(state: AlisioStoredState) {
+  if (
+    state.account.cloudSession?.state === "signed_in" &&
+    (state.account.cloudSession.accessToken || state.account.cloudSession.refreshToken)
+  ) {
+    return true;
+  }
+  return Object.values(state.ai?.workerCredentials ?? {}).some((credential) =>
+    Boolean(credential.accessToken || credential.refreshToken),
+  );
+}
+
+function currentWorkerId() {
+  return currentDevice().id;
+}
+
+function resolveAlisioAiOwnerContext(params: {
+  profile: AlisioLocalAccountProfile;
+  cloudSession?: AlisioStoredCloudSession;
+  organization: AlisioOrganizationMembershipState;
+}): AlisioAiOwnerContext {
+  const organizationName = params.organization.organizationName?.trim().toLowerCase();
+  if (params.organization.mode !== "none" && organizationName) {
+    return {
+      scope: "organization",
+      ownerKey: `organization:${organizationName}`,
+    };
+  }
+  const rawUserKey =
+    params.cloudSession?.userId?.trim() ||
+    params.profile.userId?.trim() ||
+    params.profile.email.trim().toLowerCase() ||
+    "anonymous";
+  return {
+    scope: "user",
+    ownerKey: rawUserKey.startsWith("user:") ? rawUserKey : `user:${rawUserKey}`,
+  };
+}
+
+function resolveLegacyTelemetryDurationMinutes(label: string): number | undefined {
+  const normalized = label.trim().toLowerCase();
+  if (!normalized) {
+    return undefined;
+  }
+  if (normalized === "week") {
+    return 10080;
+  }
+  if (normalized === "day") {
+    return 1440;
+  }
+  const hourMatch = /^(\d+)\s*h$/.exec(normalized);
+  if (hourMatch) {
+    return Number(hourMatch[1]) * 60;
+  }
+  const minuteMatch = /^(\d+)\s*min$/.exec(normalized);
+  if (minuteMatch) {
+    return Number(minuteMatch[1]);
+  }
+  const dayMatch = /^(\d+)\s*d$/.exec(normalized);
+  if (dayMatch) {
+    return Number(dayMatch[1]) * 24 * 60;
+  }
+  return undefined;
+}
+
+function buildLegacyTelemetryWindow(
+  durationMinutes: number,
+  usedPercent: number,
+  resetAt?: number,
+) {
+  return {
+    durationMinutes,
+    usedPercent,
+    ...(typeof resetAt === "number" ? { resetAt } : {}),
+  };
+}
+
+function legacySessionToLocalTelemetry(
+  session: AlisioLegacyStoredAiSession | undefined,
+): AlisioAiLocalTelemetry | undefined {
+  if (!session?.limits?.lastRefreshedAt) {
+    return undefined;
+  }
+  const typedWindows = session.limits.windows
+    .map((window) => {
+      const durationMinutes = resolveLegacyTelemetryDurationMinutes(window.label);
+      if (!durationMinutes) {
+        return null;
+      }
+      return buildLegacyTelemetryWindow(durationMinutes, window.usedPercent, window.resetAt);
+    })
+    .filter(
+      (
+        entry,
+      ): entry is {
+        durationMinutes: number;
+        usedPercent: number;
+        resetAt?: number;
+      } => Boolean(entry),
+    )
+    .toSorted((left, right) => left.durationMinutes - right.durationMinutes);
+  const primaryWindow = typedWindows[0];
+  const secondaryWindow = typedWindows[1];
+  return buildAlisioAiLocalTelemetry({
+    source: "heuristic",
+    observedAt: session.limits.lastRefreshedAt,
+    staleAt: new Date(Date.parse(session.limits.lastRefreshedAt) + 10 * 60 * 1000).toISOString(),
+    ...(session.planLabel ? { planType: session.planLabel } : {}),
+    ...(primaryWindow
+      ? {
+          primaryWindow: {
+            label:
+              primaryWindow.durationMinutes === 300
+                ? "5h"
+                : primaryWindow.durationMinutes === 10080
+                  ? "Week"
+                  : `${primaryWindow.durationMinutes} min`,
+            durationMinutes: primaryWindow.durationMinutes,
+            usedPercent: primaryWindow.usedPercent,
+            remainingPercent: Math.max(0, 100 - primaryWindow.usedPercent),
+            ...(typeof primaryWindow.resetAt === "number"
+              ? { resetAt: primaryWindow.resetAt }
+              : {}),
+          },
+        }
+      : {}),
+    ...(secondaryWindow
+      ? {
+          secondaryWindow: {
+            label:
+              secondaryWindow.durationMinutes === 300
+                ? "5h"
+                : secondaryWindow.durationMinutes === 10080
+                  ? "Week"
+                  : `${secondaryWindow.durationMinutes} min`,
+            durationMinutes: secondaryWindow.durationMinutes,
+            usedPercent: secondaryWindow.usedPercent,
+            remainingPercent: Math.max(0, 100 - secondaryWindow.usedPercent),
+            ...(typeof secondaryWindow.resetAt === "number"
+              ? { resetAt: secondaryWindow.resetAt }
+              : {}),
+          },
+        }
+      : {}),
+  });
+}
+
+function reconcileStoredAiState(state: AlisioStoredAiState | undefined, _workerId: string) {
+  if (!state) {
+    return;
+  }
+  const aiProfiles = { ...state.aiProfiles };
+  const workerCredentials = { ...state.workerCredentials };
+  const runtimeBindings = { ...state.runtimeBindings };
+
+  for (const [workerCredentialId, credential] of Object.entries(workerCredentials)) {
+    if (!aiProfiles[credential.aiProfileId]) {
+      delete workerCredentials[workerCredentialId];
+    }
+  }
+
+  for (const [aiProfileId, profile] of Object.entries(aiProfiles)) {
+    const relatedCredentials = Object.values(workerCredentials).filter(
+      (credential) => credential.aiProfileId === aiProfileId,
+    );
+    if (relatedCredentials.length === 0) {
+      delete aiProfiles[aiProfileId];
+      continue;
+    }
+    aiProfiles[aiProfileId] = {
+      ...profile,
+      ...(resolveAggregatedTelemetry(relatedCredentials)
+        ? { aggregatedTelemetry: resolveAggregatedTelemetry(relatedCredentials) }
+        : {}),
+    };
+  }
+
+  for (const [bindingWorkerId, binding] of Object.entries(runtimeBindings)) {
+    const credential = workerCredentials[binding.workerCredentialId];
+    if (!credential) {
+      delete runtimeBindings[bindingWorkerId];
+      continue;
+    }
+    runtimeBindings[bindingWorkerId] = {
+      ...binding,
+      authProfileId: credential.authProfileId,
+    };
+  }
+
+  state.aiProfiles = Object.keys(aiProfiles).length > 0 ? aiProfiles : undefined;
+  state.workerCredentials =
+    Object.keys(workerCredentials).length > 0 ? workerCredentials : undefined;
+  state.runtimeBindings = Object.keys(runtimeBindings).length > 0 ? runtimeBindings : undefined;
+}
+
+function storedAiStatusPriority(status: AlisioStoredWorkerAiCredential["runtimeState"]): number {
+  switch (status) {
+    case "connected":
+      return 5;
+    case "limits_unavailable":
+      return 4;
+    case "connecting":
+      return 3;
+    case "expired":
+      return 2;
+    case "disconnected":
+    default:
+      return 1;
+  }
+}
+
+function selectPreferredLocalTelemetry(
+  left: AlisioAiLocalTelemetry | undefined,
+  right: AlisioAiLocalTelemetry | undefined,
+): AlisioAiLocalTelemetry | undefined {
+  if (!left) {
+    return right;
+  }
+  if (!right) {
+    return left;
+  }
+  const leftObserved = Date.parse(left.observedAt);
+  const rightObserved = Date.parse(right.observedAt);
+  if (
+    (Number.isFinite(rightObserved) ? rightObserved : 0) >=
+    (Number.isFinite(leftObserved) ? leftObserved : 0)
+  ) {
+    return right;
+  }
+  return left;
+}
+
+function normalizeCredentialFromAccessToken(
+  credential: AlisioStoredWorkerAiCredential,
+): AlisioStoredWorkerAiCredential {
+  const tokenIdentity = credential.accessToken
+    ? resolveAlisioOpenAiTokenIdentity(credential.accessToken)
+    : {};
+  return {
+    ...credential,
+    ...((tokenIdentity.email ?? credential.email)
+      ? { email: tokenIdentity.email ?? credential.email }
+      : {}),
+    ...((tokenIdentity.accountId ?? credential.accountId)
+      ? { accountId: tokenIdentity.accountId ?? credential.accountId }
+      : {}),
+    ...((tokenIdentity.accountUserId ?? credential.accountUserId)
+      ? { accountUserId: tokenIdentity.accountUserId ?? credential.accountUserId }
+      : {}),
+    ...((tokenIdentity.userId ?? credential.userId)
+      ? { userId: tokenIdentity.userId ?? credential.userId }
+      : {}),
+    ...(credential.localTelemetry || tokenIdentity.planType
+      ? {
+          localTelemetry: buildAlisioAiLocalTelemetry({
+            source: credential.localTelemetry?.source ?? "heuristic",
+            observedAt: credential.localTelemetry?.observedAt,
+            staleAt: credential.localTelemetry?.staleAt,
+            planType: credential.localTelemetry?.planType ?? tokenIdentity.planType,
+            primaryWindow: credential.localTelemetry?.primaryWindow,
+            secondaryWindow: credential.localTelemetry?.secondaryWindow,
+            credits: credential.localTelemetry?.credits,
+            lastError: credential.localTelemetry?.lastError,
+          }),
+        }
+      : {}),
+  };
+}
+
+function mergeStoredAiProfileRecord(
+  existing: AlisioStoredAiProfile | undefined,
+  incoming: AlisioStoredAiProfile,
+): AlisioStoredAiProfile {
+  if (!existing) {
+    return incoming;
+  }
+  return {
+    ...existing,
+    ...incoming,
+    label: existing.label ?? incoming.label,
+    createdAt:
+      Date.parse(existing.createdAt) <= Date.parse(incoming.createdAt)
+        ? existing.createdAt
+        : incoming.createdAt,
+    aggregatedTelemetry: selectPreferredLocalTelemetry(
+      existing.aggregatedTelemetry,
+      incoming.aggregatedTelemetry,
+    ),
+  };
+}
+
+function mergeStoredWorkerCredentialRecord(
+  existing: AlisioStoredWorkerAiCredential | undefined,
+  incoming: AlisioStoredWorkerAiCredential,
+): AlisioStoredWorkerAiCredential {
+  if (!existing) {
+    return incoming;
+  }
+  const existingConnectedAt = Date.parse(existing.connectedAt ?? existing.createdAt);
+  const incomingConnectedAt = Date.parse(incoming.connectedAt ?? incoming.createdAt);
+  const preferIncoming =
+    (Number.isFinite(incomingConnectedAt) ? incomingConnectedAt : 0) >=
+    (Number.isFinite(existingConnectedAt) ? existingConnectedAt : 0);
+  const preferred = preferIncoming ? incoming : existing;
+  const fallback = preferIncoming ? existing : incoming;
+  return {
+    ...existing,
+    ...incoming,
+    aiProfileId: incoming.aiProfileId,
+    workerId: incoming.workerId,
+    authProfileId: existing.authProfileId || incoming.authProfileId,
+    runtimeState:
+      storedAiStatusPriority(incoming.runtimeState) >= storedAiStatusPriority(existing.runtimeState)
+        ? incoming.runtimeState
+        : existing.runtimeState,
+    accessToken: preferred.accessToken ?? fallback.accessToken,
+    refreshToken: preferred.refreshToken ?? fallback.refreshToken,
+    expiresAt: preferred.expiresAt ?? fallback.expiresAt,
+    email: incoming.email ?? existing.email,
+    accountId: incoming.accountId ?? existing.accountId,
+    accountUserId: incoming.accountUserId ?? existing.accountUserId,
+    userId: incoming.userId ?? existing.userId,
+    connectedAt: preferred.connectedAt ?? fallback.connectedAt,
+    createdAt:
+      Date.parse(existing.createdAt) <= Date.parse(incoming.createdAt)
+        ? existing.createdAt
+        : incoming.createdAt,
+    localTelemetry: selectPreferredLocalTelemetry(existing.localTelemetry, incoming.localTelemetry),
+  };
+}
+
+function rebuildStoredAiStateForOwner(
+  state: NonNullable<AlisioStoredState["ai"]>,
+  owner: AlisioAiOwnerContext,
+) {
+  const originalProfiles = state.aiProfiles ?? {};
+  const originalBindings = state.runtimeBindings ?? {};
+  const rebuiltProfiles: Record<string, AlisioStoredAiProfile> = {};
+  const rebuiltCredentials: Record<string, AlisioStoredWorkerAiCredential> = {};
+  const workerCredentialIdMap = new Map<string, string>();
+
+  for (const [previousWorkerCredentialId, rawCredential] of Object.entries(
+    state.workerCredentials ?? {},
+  )) {
+    const credential = normalizeCredentialFromAccessToken(rawCredential);
+    const identity = resolveAlisioAiCanonicalIdentity({
+      accountUserId: credential.accountUserId,
+      userId: credential.userId,
+      accountId: credential.accountId,
+      email: credential.email,
+    });
+    const aiProfileId = buildAlisioAiProfileId({
+      ownerKey: owner.ownerKey,
+      canonicalIdentityKey: identity.canonicalIdentityKey,
+    });
+    const workerCredentialId = buildAlisioWorkerCredentialId({
+      workerId: credential.workerId,
+      aiProfileId,
+    });
+    const sourceProfile =
+      originalProfiles[rawCredential.aiProfileId] ?? originalProfiles[aiProfileId];
+    const createdAt =
+      credential.createdAt ||
+      sourceProfile?.createdAt ||
+      credential.connectedAt ||
+      new Date().toISOString();
+
+    workerCredentialIdMap.set(previousWorkerCredentialId, workerCredentialId);
+    rebuiltProfiles[aiProfileId] = mergeStoredAiProfileRecord(rebuiltProfiles[aiProfileId], {
+      provider: "openai",
+      scope: owner.scope,
+      ownerKey: owner.ownerKey,
+      canonicalIdentityKey: identity.canonicalIdentityKey,
+      identity,
+      ...(sourceProfile?.label ? { label: sourceProfile.label } : {}),
+      createdAt,
+      ...(sourceProfile?.aggregatedTelemetry
+        ? { aggregatedTelemetry: sourceProfile.aggregatedTelemetry }
+        : {}),
+    });
+    rebuiltCredentials[workerCredentialId] = mergeStoredWorkerCredentialRecord(
+      rebuiltCredentials[workerCredentialId],
+      {
+        ...credential,
+        aiProfileId,
+        authProfileId:
+          credential.authProfileId || buildAlisioWorkerAuthProfileId(workerCredentialId),
+        createdAt,
+      },
+    );
+  }
+
+  const rebuiltBindings: Record<string, AlisioStoredRuntimeBinding> = {};
+  for (const [bindingWorkerId, binding] of Object.entries(originalBindings)) {
+    const remappedWorkerCredentialId =
+      workerCredentialIdMap.get(binding.workerCredentialId) ?? binding.workerCredentialId;
+    const credential = rebuiltCredentials[remappedWorkerCredentialId];
+    if (!credential) {
+      continue;
+    }
+    rebuiltBindings[bindingWorkerId] = {
+      workerId: binding.workerId,
+      workerCredentialId: remappedWorkerCredentialId,
+      authProfileId: credential.authProfileId,
+      boundAt: binding.boundAt,
+    };
+  }
+
+  state.aiProfiles = Object.keys(rebuiltProfiles).length > 0 ? rebuiltProfiles : undefined;
+  state.workerCredentials =
+    Object.keys(rebuiltCredentials).length > 0 ? rebuiltCredentials : undefined;
+  state.runtimeBindings = Object.keys(rebuiltBindings).length > 0 ? rebuiltBindings : undefined;
+}
+
 async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredState> {
-  const loaded = await readJsonFile<AlisioStoredState>(stateFilePath(env));
+  const rawLoaded = await readJsonFile<AlisioStoredState>(stateFilePath(env));
+  const runtimeEnv = env ?? process.env;
   const defaults = buildDefaultState();
-  if (!loaded || loaded.version !== 1) {
+  if (!rawLoaded || rawLoaded.version !== 1) {
     return defaults;
   }
+  const loaded = migrateLegacyLocalDevAccountState(rawLoaded, defaults);
+  const loadedAccountWithoutSecrets = { ...loaded.account };
+  const loadedCloudSession = hydrateStoredTokenSecrets(
+    loadedAccountWithoutSecrets.cloudSession,
+    runtimeEnv,
+  );
+  delete loadedAccountWithoutSecrets.cloudSession;
+  delete loadedAccountWithoutSecrets.passwordCredential;
+  const mergedProfile = {
+    ...defaults.account.profile,
+    ...loaded.account?.profile,
+  };
+  const mergedOrganization = {
+    ...defaults.organization,
+    ...loaded.organization,
+  };
+  const mergedSession = normalizeStoredAccountSession(loaded.account?.session, mergedProfile, env);
+  const defaultAiState: AlisioStoredAiState = defaults.ai ?? {};
+  const nextAi = normalizeStoredAiState(
+    hydrateStoredAiSecrets(loaded.ai, runtimeEnv),
+    defaultAiState,
+    {
+      owner: resolveAlisioAiOwnerContext({
+        profile: mergedProfile,
+        cloudSession: loadedCloudSession,
+        organization: mergedOrganization,
+      }),
+      workerId: currentWorkerId(),
+    },
+  );
   return {
     ...defaults,
     ...loaded,
     account: {
       ...defaults.account,
-      ...loaded.account,
-      profile: {
-        ...defaults.account.profile,
-        ...loaded.account?.profile,
-      },
+      ...loadedAccountWithoutSecrets,
+      profile: normalizeStoredAccountProfile(mergedProfile),
       preferences: {
         ...defaults.account.preferences,
         ...loaded.account?.preferences,
       },
-      session: normalizeStoredAccountSession(
-        loaded.account?.session,
-        {
-          ...defaults.account.profile,
-          ...loaded.account?.profile,
-        },
-        env,
-      ),
-      ...(loaded.account?.cloudSession ? { cloudSession: loaded.account.cloudSession } : {}),
-      ...(loaded.account?.passwordCredential
-        ? { passwordCredential: loaded.account.passwordCredential }
-        : {}),
+      session: mergedSession,
+      ...(loadedCloudSession ? { cloudSession: loadedCloudSession } : {}),
     },
-    organization: {
-      ...defaults.organization,
-      ...loaded.organization,
-    },
-    ai: {
-      ...defaults.ai,
-      ...loaded.ai,
-    },
+    organization: mergedOrganization,
+    ai: nextAi,
     authorizations: loaded.authorizations ?? {},
     oauthCredentials: loaded.oauthCredentials ?? {},
     pendingAuthorizations: loaded.pendingAuthorizations ?? {},
   };
 }
 
+function normalizeStoredAiState(
+  loaded: AlisioStoredState["ai"] | undefined,
+  defaults: NonNullable<AlisioStoredState["ai"]>,
+  params: { owner: AlisioAiOwnerContext; workerId: string },
+): NonNullable<AlisioStoredState["ai"]> {
+  const next: NonNullable<AlisioStoredState["ai"]> = {
+    ...defaults,
+    ...(loaded?.pending ? { pending: loaded.pending } : {}),
+    ...(loaded?.aiProfiles ? { aiProfiles: { ...loaded.aiProfiles } } : {}),
+    ...(loaded?.workerCredentials ? { workerCredentials: { ...loaded.workerCredentials } } : {}),
+    ...(loaded?.runtimeBindings ? { runtimeBindings: { ...loaded.runtimeBindings } } : {}),
+  };
+  const legacyProfiles = { ...loaded?.profiles };
+  if (loaded?.session) {
+    const legacySessionIdentity = resolveAlisioAiCanonicalIdentity({
+      accountUserId: loaded.session.accountUserId,
+      userId: loaded.session.userId,
+      accountId: loaded.session.accountId,
+      email: loaded.session.email,
+    });
+    legacyProfiles[
+      loaded.activeProfileId?.trim() ||
+        buildAlisioAiProfileId({
+          ownerKey: params.owner.ownerKey,
+          canonicalIdentityKey: legacySessionIdentity.canonicalIdentityKey,
+        })
+    ] = loaded.session;
+  }
+
+  const runtimeBindingCandidates: Array<{
+    workerId: string;
+    workerCredentialId: string;
+    authProfileId: string;
+    boundAt: string;
+  }> = [];
+  for (const [legacyProfileId, session] of Object.entries(legacyProfiles)) {
+    const identity = resolveAlisioAiCanonicalIdentity({
+      accountUserId: session.accountUserId,
+      userId: session.userId,
+      accountId: session.accountId,
+      email: session.email,
+    });
+    const aiProfileId = buildAlisioAiProfileId({
+      ownerKey: params.owner.ownerKey,
+      canonicalIdentityKey: identity.canonicalIdentityKey,
+    });
+    const workerCredentialId = buildAlisioWorkerCredentialId({
+      workerId: params.workerId,
+      aiProfileId,
+    });
+    const authProfileId =
+      next.workerCredentials?.[workerCredentialId]?.authProfileId ??
+      buildAlisioWorkerAuthProfileId(workerCredentialId);
+    const createdAt = session.connectedAt ?? new Date().toISOString();
+    next.aiProfiles = {
+      ...next.aiProfiles,
+      [aiProfileId]: {
+        provider: "openai",
+        scope: params.owner.scope,
+        ownerKey: params.owner.ownerKey,
+        canonicalIdentityKey: identity.canonicalIdentityKey,
+        identity,
+        label: session.label,
+        createdAt,
+        ...(legacySessionToLocalTelemetry(session)
+          ? { aggregatedTelemetry: legacySessionToLocalTelemetry(session) }
+          : {}),
+      } satisfies AlisioStoredAiProfile,
+    };
+    next.workerCredentials = {
+      ...next.workerCredentials,
+      [workerCredentialId]: {
+        provider: "openai",
+        aiProfileId,
+        workerId: params.workerId,
+        authProfileId,
+        runtimeState: session.status,
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        expiresAt: session.expiresAt,
+        email: session.email,
+        accountId: session.accountId,
+        accountUserId: session.accountUserId,
+        userId: session.userId,
+        connectedAt: session.connectedAt,
+        createdAt,
+        ...(legacySessionToLocalTelemetry(session)
+          ? { localTelemetry: legacySessionToLocalTelemetry(session) }
+          : {}),
+      } satisfies AlisioStoredWorkerAiCredential,
+    };
+    if (loaded?.activeProfileId?.trim() === legacyProfileId.trim()) {
+      runtimeBindingCandidates.push({
+        workerId: params.workerId,
+        workerCredentialId,
+        authProfileId,
+        boundAt: session.connectedAt ?? createdAt,
+      });
+    }
+  }
+
+  if (runtimeBindingCandidates.length > 0) {
+    const preferredBinding = runtimeBindingCandidates[0];
+    next.runtimeBindings = {
+      ...next.runtimeBindings,
+      [params.workerId]: preferredBinding,
+    };
+  }
+  rebuildStoredAiStateForOwner(next, params.owner);
+  reconcileStoredAiState(next, params.workerId);
+  return next;
+}
+
 async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
-  await writeJsonAtomic(stateFilePath(env), state, { trailingNewline: true });
+  const runtimeEnv = env ?? process.env;
+  const serializedCloudSession = serializeStoredTokenSecrets(
+    state.account.cloudSession,
+    runtimeEnv,
+  );
+  const serializedAi = serializeStoredAiSecrets(state.ai, runtimeEnv);
+  await writeJsonAtomic(
+    stateFilePath(env),
+    {
+      ...state,
+      account: {
+        ...state.account,
+        ...(serializedCloudSession ? { cloudSession: serializedCloudSession } : {}),
+      },
+      ...(serializedAi ? { ai: serializedAi } : {}),
+    },
+    { trailingNewline: true },
+  );
 }
 
 function currentDevice(): AlisioLocalDeviceSession {
@@ -967,27 +2247,344 @@ export function summarizeAlisioConnectorAuthorizations(
   return summarizeConnectorAuthorizations(authorizations);
 }
 
+function resolveBoundWorkerCredential(
+  state: AlisioStoredState,
+  workerId: string,
+): { workerCredentialId: string; credential: AlisioStoredWorkerAiCredential } | null {
+  const runtimeBinding = state.ai?.runtimeBindings?.[workerId];
+  if (runtimeBinding) {
+    const boundCredential = state.ai?.workerCredentials?.[runtimeBinding.workerCredentialId];
+    if (boundCredential) {
+      return {
+        workerCredentialId: runtimeBinding.workerCredentialId,
+        credential: boundCredential,
+      };
+    }
+  }
+  return selectBestWorkerCredentialForWorker(state, workerId);
+}
+
+function compareAiCredentialSelections(
+  left: AlisioAiCredentialSelection,
+  right: AlisioAiCredentialSelection,
+): number {
+  if (left.manualPreference !== right.manualPreference) {
+    return left.manualPreference ? -1 : 1;
+  }
+  if (left.tokenReady !== right.tokenReady) {
+    return left.tokenReady ? -1 : 1;
+  }
+  if (left.inCooldown !== right.inCooldown) {
+    return left.inCooldown ? 1 : -1;
+  }
+  if (left.primaryRemainingPercent !== right.primaryRemainingPercent) {
+    return right.primaryRemainingPercent - left.primaryRemainingPercent;
+  }
+  if (left.secondaryRemainingPercent !== right.secondaryRemainingPercent) {
+    return right.secondaryRemainingPercent - left.secondaryRemainingPercent;
+  }
+  if (left.recentFailures !== right.recentFailures) {
+    return left.recentFailures - right.recentFailures;
+  }
+  if (left.recentSuccess !== right.recentSuccess) {
+    return left.recentSuccess ? -1 : 1;
+  }
+  const statusPriority: Record<AlisioAiCredentialSelection["runtimeState"], number> = {
+    connected: 5,
+    limits_unavailable: 4,
+    connecting: 3,
+    expired: 2,
+    disconnected: 1,
+  };
+  return statusPriority[right.runtimeState] - statusPriority[left.runtimeState];
+}
+
+function selectBestWorkerCredentialForWorker(
+  state: AlisioStoredState,
+  workerId: string,
+): { workerCredentialId: string; credential: AlisioStoredWorkerAiCredential } | null {
+  const authStore = ensureAuthProfileStore();
+  const candidates = Object.keys(state.ai?.aiProfiles ?? {})
+    .map((aiProfileId) =>
+      selectBestWorkerCredentialForProfile({
+        aiProfileId,
+        workerId,
+        state: state.ai,
+        authStore,
+      }),
+    )
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        workerCredentialId: string;
+        record: AlisioStoredWorkerAiCredential;
+        score: AlisioAiCredentialSelection;
+      } => Boolean(candidate),
+    )
+    .toSorted((left, right) => compareAiCredentialSelections(left.score, right.score));
+  const best = candidates[0];
+  if (!best) {
+    return null;
+  }
+  return {
+    workerCredentialId: best.workerCredentialId,
+    credential: best.record,
+  };
+}
+
+function setRuntimeBinding(
+  state: AlisioStoredState,
+  workerId: string,
+  binding: AlisioStoredRuntimeBinding | null,
+) {
+  if (!state.ai) {
+    state.ai = {};
+  }
+  if (!state.ai.runtimeBindings) {
+    state.ai.runtimeBindings = {};
+  }
+  if (binding) {
+    state.ai.runtimeBindings[workerId] = binding;
+  } else {
+    delete state.ai.runtimeBindings[workerId];
+    if (Object.keys(state.ai.runtimeBindings).length === 0) {
+      delete state.ai.runtimeBindings;
+    }
+  }
+}
+
+function ensureStoredAiState(state: AlisioStoredState): NonNullable<AlisioStoredState["ai"]> {
+  if (!state.ai) {
+    state.ai = {};
+  }
+  return state.ai;
+}
+
+function resolveCurrentOwnerContext(state: AlisioStoredState): AlisioAiOwnerContext {
+  return resolveAlisioAiOwnerContext({
+    profile: state.account.profile,
+    cloudSession: state.account.cloudSession,
+    organization: state.organization,
+  });
+}
+
+function collectStoredAiAuthProfileIds(state: AlisioStoredState): string[] {
+  const ids = new Set<string>();
+  for (const credential of Object.values(state.ai?.workerCredentials ?? {})) {
+    if (credential.authProfileId) {
+      ids.add(credential.authProfileId);
+    }
+  }
+  return [...ids];
+}
+
+function buildDefaultConnectorAuthorization(
+  connector: AlisioConnectorDefinition,
+  env: NodeJS.ProcessEnv,
+): AlisioConnectorAuthorization {
+  return {
+    connectorId: connector.id,
+    state: "not_connected",
+    health: resolveDefaultConnectorAuthorizationHealth(connector, env),
+    scopes: connector.scopes,
+  };
+}
+
+function buildDefaultConnectorAuthorizations(
+  env: NodeJS.ProcessEnv = process.env,
+): AlisioConnectorAuthorization[] {
+  return CONNECTOR_CATALOG.map((connector) => buildDefaultConnectorAuthorization(connector, env));
+}
+
+function resolveSelectedWorkerCredentialRecord(
+  selection:
+    | { workerCredentialId: string; credential: AlisioStoredWorkerAiCredential }
+    | { workerCredentialId: string; record: AlisioStoredWorkerAiCredential },
+): { workerCredentialId: string; credential: AlisioStoredWorkerAiCredential } {
+  return {
+    workerCredentialId: selection.workerCredentialId,
+    credential: "credential" in selection ? selection.credential : selection.record,
+  };
+}
+
+function upsertWorkerCredentialForOwner(params: {
+  state: AlisioStoredState;
+  owner: AlisioAiOwnerContext;
+  workerId: string;
+  credential: Pick<
+    AlisioStoredWorkerAiCredential,
+    | "provider"
+    | "runtimeState"
+    | "accessToken"
+    | "refreshToken"
+    | "expiresAt"
+    | "email"
+    | "accountId"
+    | "accountUserId"
+    | "userId"
+    | "connectedAt"
+    | "localTelemetry"
+  >;
+}) {
+  const aiState = ensureStoredAiState(params.state);
+  const identity = resolveAlisioAiCanonicalIdentity({
+    accountUserId: params.credential.accountUserId,
+    userId: params.credential.userId,
+    accountId: params.credential.accountId,
+    email: params.credential.email,
+  });
+  const aiProfileId = buildAlisioAiProfileId({
+    ownerKey: params.owner.ownerKey,
+    canonicalIdentityKey: identity.canonicalIdentityKey,
+  });
+  const workerCredentialId = buildAlisioWorkerCredentialId({
+    workerId: params.workerId,
+    aiProfileId,
+  });
+  const existingProfile = aiState.aiProfiles?.[aiProfileId];
+  const existingCredential = aiState.workerCredentials?.[workerCredentialId];
+  const createdAt =
+    existingCredential?.createdAt ??
+    existingProfile?.createdAt ??
+    params.credential.connectedAt ??
+    new Date().toISOString();
+  const authProfileId =
+    existingCredential?.authProfileId ?? buildAlisioWorkerAuthProfileId(workerCredentialId);
+  const nextCredential: AlisioStoredWorkerAiCredential = {
+    provider: "openai",
+    aiProfileId,
+    workerId: params.workerId,
+    authProfileId,
+    runtimeState: params.credential.runtimeState,
+    ...(params.credential.accessToken ? { accessToken: params.credential.accessToken } : {}),
+    ...(params.credential.refreshToken ? { refreshToken: params.credential.refreshToken } : {}),
+    ...(params.credential.expiresAt ? { expiresAt: params.credential.expiresAt } : {}),
+    ...((params.credential.email ?? identity.email)
+      ? { email: params.credential.email ?? identity.email }
+      : {}),
+    ...((params.credential.accountId ?? identity.accountId)
+      ? { accountId: params.credential.accountId ?? identity.accountId }
+      : {}),
+    ...((params.credential.accountUserId ?? identity.accountUserId)
+      ? { accountUserId: params.credential.accountUserId ?? identity.accountUserId }
+      : {}),
+    ...((params.credential.userId ?? identity.userId)
+      ? { userId: params.credential.userId ?? identity.userId }
+      : {}),
+    ...(params.credential.connectedAt
+      ? { connectedAt: params.credential.connectedAt }
+      : existingCredential?.connectedAt
+        ? { connectedAt: existingCredential.connectedAt }
+        : {}),
+    createdAt,
+    ...(params.credential.localTelemetry
+      ? { localTelemetry: params.credential.localTelemetry }
+      : existingCredential?.localTelemetry
+        ? { localTelemetry: existingCredential.localTelemetry }
+        : {}),
+  };
+  aiState.aiProfiles = {
+    ...aiState.aiProfiles,
+    [aiProfileId]: {
+      provider: "openai",
+      scope: params.owner.scope,
+      ownerKey: params.owner.ownerKey,
+      canonicalIdentityKey: identity.canonicalIdentityKey,
+      identity,
+      ...(existingProfile?.label ? { label: existingProfile.label } : {}),
+      createdAt: existingProfile?.createdAt ?? createdAt,
+    },
+  };
+  aiState.workerCredentials = {
+    ...aiState.workerCredentials,
+    [workerCredentialId]: nextCredential,
+  };
+  return {
+    aiProfileId,
+    workerCredentialId,
+    authProfileId,
+    profile:
+      aiState.aiProfiles[aiProfileId] ??
+      ({
+        provider: "openai",
+        scope: params.owner.scope,
+        ownerKey: params.owner.ownerKey,
+        canonicalIdentityKey: identity.canonicalIdentityKey,
+        identity,
+        createdAt,
+      } satisfies AlisioStoredAiProfile),
+    credential: nextCredential,
+  };
+}
+
 async function refreshStoredAiState(
   state: AlisioStoredState,
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,
 ) {
-  const session = state.ai?.session;
-  if (!session) {
+  if (!hasReadyAlisioAccountSession(state)) {
+    const authProfileIds = collectStoredAiAuthProfileIds(state);
+    if (authProfileIds.length > 0) {
+      await clearAlisioOpenAiRuntime({ authProfileIds }).catch(() => undefined);
+    }
+    return state;
+  }
+  const workerId = currentWorkerId();
+  const bound = resolveBoundWorkerCredential(state, workerId);
+  if (!bound) {
     return state;
   }
   const refreshed = await refreshAlisioOpenAiSession({
-    session,
+    credential: bound.credential,
     fetchImpl,
   });
-  if (!state.ai) {
-    state.ai = {};
+  ensureStoredAiState(state).workerCredentials = {
+    ...state.ai?.workerCredentials,
+    [bound.workerCredentialId]: refreshed,
+  };
+  setRuntimeBinding(state, workerId, {
+    workerId,
+    workerCredentialId: bound.workerCredentialId,
+    authProfileId: refreshed.authProfileId,
+    boundAt:
+      state.ai?.runtimeBindings?.[workerId]?.boundAt ??
+      refreshed.connectedAt ??
+      new Date().toISOString(),
+  });
+  reconcileStoredAiState(state.ai, workerId);
+  if (refreshed.runtimeState === "expired" || refreshed.runtimeState === "disconnected") {
+    const fallback = selectBestWorkerCredentialForWorker(state, workerId);
+    if (!fallback || fallback.workerCredentialId === bound.workerCredentialId) {
+      setRuntimeBinding(state, workerId, null);
+    } else {
+      setRuntimeBinding(state, workerId, {
+        workerId,
+        workerCredentialId: fallback.workerCredentialId,
+        authProfileId: fallback.credential.authProfileId,
+        boundAt: new Date().toISOString(),
+      });
+    }
   }
-  state.ai.session = refreshed;
-  if (isAlisioAiReady(toAlisioAiState(refreshed))) {
-    await applyAlisioOpenAiRuntime(refreshed).catch(() => undefined);
-  } else if (refreshed.status === "expired" || refreshed.status === "disconnected") {
-    await clearAlisioOpenAiRuntime().catch(() => undefined);
+  const derivedState = toAlisioAiState({
+    state: state.ai,
+    workerId,
+    authStore: ensureAuthProfileStore(),
+  });
+  const activeCredential = resolveBoundWorkerCredential(state, workerId);
+  if (activeCredential && isAlisioAiReady(derivedState)) {
+    await applyAlisioOpenAiRuntime(activeCredential.credential, {
+      displayName: state.ai?.aiProfiles?.[activeCredential.credential.aiProfileId]
+        ? resolveAlisioAiProfileLabel({
+            profile: state.ai.aiProfiles[activeCredential.credential.aiProfileId],
+            credential: activeCredential.credential,
+          })
+        : (activeCredential.credential.email ?? "OpenAI"),
+    }).catch(() => undefined);
+  } else if (refreshed.runtimeState === "expired" || refreshed.runtimeState === "disconnected") {
+    await clearAlisioOpenAiRuntime({
+      authProfileIds: [refreshed.authProfileId],
+    }).catch(() => undefined);
   }
   return state;
 }
@@ -1018,12 +2615,17 @@ async function hydrateStoredAccountState(
     return state;
   } catch (error) {
     if (error instanceof AlisioAccountCloudError && error.code === "session_refresh_failed") {
+      const authProfileIds = collectStoredAiAuthProfileIds(state);
       state.account.cloudSession = {
-        ...(state.account.cloudSession ?? {
-          backend: resolveAlisioAccountBackend(env),
-          state: "signed_out" as const,
-        }),
+        backend: state.account.cloudSession?.backend ?? resolveAlisioAccountBackend(env),
         state: "signed_out",
+        ...(state.account.cloudSession?.userId
+          ? { userId: state.account.cloudSession.userId }
+          : {}),
+        ...(state.account.cloudSession?.email ? { email: state.account.cloudSession.email } : {}),
+        ...(state.account.cloudSession?.signedInAt
+          ? { signedInAt: state.account.cloudSession.signedInAt }
+          : {}),
         signedOutAt: new Date().toISOString(),
       };
       state.account.session = {
@@ -1031,10 +2633,10 @@ async function hydrateStoredAccountState(
         state: "signed_out",
         signedOutAt: new Date().toISOString(),
       };
-      if (state.ai?.session) {
-        delete state.ai.session;
-        await clearAlisioOpenAiRuntime().catch(() => undefined);
+      if (state.ai) {
+        delete state.ai.pending;
       }
+      await clearAlisioOpenAiRuntime({ authProfileIds }).catch(() => undefined);
       return state;
     }
     throw error;
@@ -1048,7 +2650,14 @@ async function loadHydratedStoredState(
   return withLock(async () => {
     const state = await loadStoredState(env);
     await hydrateStoredAccountState(state, env, fetchImpl);
-    await refreshStoredAiState(state, env, fetchImpl);
+    if (hasReadyAlisioAccountSession(state)) {
+      await refreshStoredAiState(state, env, fetchImpl);
+    } else {
+      const authProfileIds = collectStoredAiAuthProfileIds(state);
+      if (authProfileIds.length > 0) {
+        await clearAlisioOpenAiRuntime({ authProfileIds }).catch(() => undefined);
+      }
+    }
     await persistState(state, env);
     return state;
   });
@@ -1087,7 +2696,17 @@ export async function getAlisioAccountState(env?: NodeJS.ProcessEnv): Promise<Al
 
 export async function getAlisioAiState(env?: NodeJS.ProcessEnv): Promise<AlisioAiState> {
   const state = await loadHydratedStoredState(env);
-  return toAlisioAiState(state.ai?.session);
+  if (!hasReadyAlisioAccountSession(state)) {
+    return {
+      provider: "openai",
+      status: "disconnected",
+    };
+  }
+  return toAlisioAiState({
+    state: state.ai,
+    workerId: currentWorkerId(),
+    authStore: ensureAuthProfileStore(),
+  });
 }
 
 export async function updateAlisioAccountProfile(
@@ -1126,6 +2745,13 @@ export async function updateAlisioAccountProfile(
           }
         : {}),
     };
+    if (
+      state.account.cloudSession?.state === "signed_in" &&
+      state.account.cloudSession.backend === "supabase"
+    ) {
+      nextProfile.email =
+        state.account.cloudSession.email?.trim().toLowerCase() || state.account.profile.email;
+    }
     const validationError = validateAlisioAccountDraft(nextProfile);
     if (validationError) {
       throw new AlisioAccountValidationError(validationError);
@@ -1185,6 +2811,14 @@ export async function signUpAlisioAccount(
       password: input.password,
       env,
     });
+    if (
+      shouldResetAccountScopedState(state, {
+        session: result.session,
+        profile: result.profile,
+      })
+    ) {
+      resetStoredAccountScopedState(state);
+    }
     state.account.profile = toLocalAccountProfile(result.profile);
     state.account.cloudSession = result.session;
     state.account.session = toAccountSessionFromCloud(
@@ -1192,7 +2826,6 @@ export async function signUpAlisioAccount(
       result.profile.profileCompleted,
       state.account.session,
     );
-    state.account.passwordCredential = result.localPasswordCredential;
     await persistState(state, env);
     return {
       profile: state.account.profile,
@@ -1212,7 +2845,6 @@ export async function signInAlisioAccount(
     const result = await signInAlisioCloudAccount({
       email: input.email,
       password: input.password,
-      localPasswordCredential: state.account.passwordCredential,
       env,
     });
     const mergedProfile =
@@ -1228,6 +2860,14 @@ export async function signInAlisioAccount(
               result.profile.profileCompleted || state.account.session.profileCompleted,
           }
         : result.profile;
+    if (
+      shouldResetAccountScopedState(state, {
+        session: result.session,
+        profile: normalizeStoredAccountProfile(mergedProfile),
+      })
+    ) {
+      resetStoredAccountScopedState(state);
+    }
     state.account.profile = toLocalAccountProfile(mergedProfile);
     state.account.cloudSession = result.session;
     state.account.session = toAccountSessionFromCloud(
@@ -1248,6 +2888,7 @@ export async function signInAlisioAccount(
 export async function signOutAlisioAccount(env?: NodeJS.ProcessEnv): Promise<AlisioAccountState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    const authProfileIds = collectStoredAiAuthProfileIds(state);
     if (state.account.cloudSession) {
       await signOutAlisioCloudAccount({
         session: state.account.cloudSession,
@@ -1268,13 +2909,10 @@ export async function signOutAlisioAccount(env?: NodeJS.ProcessEnv): Promise<Ali
       signedOutAt: new Date().toISOString(),
       backend: state.account.cloudSession.backend,
     };
-    if (state.ai?.session) {
-      delete state.ai.session;
-    }
-    if (state.ai?.pending) {
+    if (state.ai) {
       delete state.ai.pending;
     }
-    await clearAlisioOpenAiRuntime().catch(() => undefined);
+    await clearAlisioOpenAiRuntime({ authProfileIds }).catch(() => undefined);
     await persistState(state, env);
     return {
       profile: state.account.profile,
@@ -1293,6 +2931,7 @@ export async function beginAlisioAiConnect(
 ): Promise<{ setupUrl: string }> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "OpenAI");
     const authorization = await buildAlisioOpenAiAuthorization({
       callbackUrl: input.callbackUrl,
     });
@@ -1319,6 +2958,7 @@ export async function completeAlisioAiConnect(
 ): Promise<AlisioAiState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "OpenAI");
     const pending = state.ai?.pending;
     if (!pending || !input.stateToken?.trim() || pending.stateToken !== input.stateToken.trim()) {
       throw new AlisioAiError("invalid_callback", "The OpenAI sign-in request is no longer valid.");
@@ -1328,7 +2968,6 @@ export async function completeAlisioAiConnect(
         delete state.ai.pending;
       }
       await persistState(state, env);
-      await clearAlisioOpenAiRuntime().catch(() => undefined);
       throw new AlisioAiError(
         "invalid_callback",
         input.errorDescription?.trim() || input.error.trim(),
@@ -1342,55 +2981,297 @@ export async function completeAlisioAiConnect(
       code: input.code.trim(),
       fetchImpl,
     });
-    if (!state.ai) {
-      state.ai = {};
-    }
-    state.ai.session = session;
-    delete state.ai.pending;
+    const workerId = currentWorkerId();
+    const owner = resolveCurrentOwnerContext(state);
+    const nextEntry = upsertWorkerCredentialForOwner({
+      state,
+      owner,
+      workerId,
+      credential: session,
+    });
+    ensureStoredAiState(state);
+    delete state.ai?.pending;
+    setRuntimeBinding(state, workerId, {
+      workerId,
+      workerCredentialId: nextEntry.workerCredentialId,
+      authProfileId: nextEntry.authProfileId,
+      boundAt: session.connectedAt ?? new Date().toISOString(),
+    });
+    reconcileStoredAiState(state.ai, workerId);
     await persistState(state, env);
-    await applyAlisioOpenAiRuntime(session);
-    return toAlisioAiState(session);
+    await applyAlisioOpenAiRuntime(nextEntry.credential, {
+      displayName: resolveAlisioAiProfileLabel({
+        profile: nextEntry.profile,
+        credential: nextEntry.credential,
+      }),
+    });
+    return toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
   });
 }
 
-export async function disconnectAlisioAi(env?: NodeJS.ProcessEnv): Promise<AlisioAiState> {
+export async function disconnectAlisioAi(
+  input?: { profileId?: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioAiState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
-    if (state.ai?.session) {
-      delete state.ai.session;
+    assertAlisioAccountSetupAccess(state, "OpenAI");
+    const workerId = currentWorkerId();
+    const activeState = toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
+    const targetProfileId = input?.profileId?.trim() || activeState.activeProfileId || "";
+    ensureStoredAiState(state);
+    delete state.ai?.pending;
+    const removedAuthProfileIds = Object.entries(state.ai?.workerCredentials ?? {})
+      .filter(
+        ([, credential]) =>
+          credential.aiProfileId === targetProfileId && credential.workerId === workerId,
+      )
+      .map(([workerCredentialId, credential]) => {
+        delete state.ai?.workerCredentials?.[workerCredentialId];
+        return credential.authProfileId;
+      });
+    for (const [bindingWorkerId, binding] of Object.entries(state.ai?.runtimeBindings ?? {})) {
+      if (
+        binding.workerCredentialId &&
+        !state.ai?.workerCredentials?.[binding.workerCredentialId]
+      ) {
+        delete state.ai?.runtimeBindings?.[bindingWorkerId];
+      }
     }
-    if (state.ai?.pending) {
-      delete state.ai.pending;
+    if (
+      targetProfileId &&
+      !Object.values(state.ai?.workerCredentials ?? {}).some(
+        (credential) => credential.aiProfileId === targetProfileId,
+      )
+    ) {
+      delete state.ai?.aiProfiles?.[targetProfileId];
     }
-    await clearAlisioOpenAiRuntime().catch(() => undefined);
+    const nextCredential = selectBestWorkerCredentialForWorker(state, workerId);
+    if (nextCredential) {
+      setRuntimeBinding(state, workerId, {
+        workerId,
+        workerCredentialId: nextCredential.workerCredentialId,
+        authProfileId: nextCredential.credential.authProfileId,
+        boundAt: new Date().toISOString(),
+      });
+    } else {
+      setRuntimeBinding(state, workerId, null);
+    }
+    reconcileStoredAiState(state.ai, workerId);
+    await clearAlisioOpenAiRuntime({ authProfileIds: removedAuthProfileIds }).catch(
+      () => undefined,
+    );
+    const nextActive = resolveBoundWorkerCredential(state, workerId);
+    if (nextActive) {
+      await applyAlisioOpenAiRuntime(nextActive.credential, {
+        displayName: state.ai?.aiProfiles?.[nextActive.credential.aiProfileId]
+          ? resolveAlisioAiProfileLabel({
+              profile: state.ai.aiProfiles[nextActive.credential.aiProfileId],
+              credential: nextActive.credential,
+            })
+          : (nextActive.credential.email ?? "OpenAI"),
+      }).catch(() => undefined);
+    }
     await persistState(state, env);
-    return toAlisioAiState(null);
+    return toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
   });
 }
 
-export async function refreshAlisioAiLimits(
+export async function selectAlisioAiProfile(
+  input: { profileId: string },
   env?: NodeJS.ProcessEnv,
   fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioAiState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const session = state.ai?.session;
-    if (!session) {
-      return toAlisioAiState(null);
+    assertAlisioAccountSetupAccess(state, "OpenAI");
+    const workerId = currentWorkerId();
+    const profileId = input.profileId.trim();
+    if (!state.ai?.aiProfiles?.[profileId]) {
+      throw new AlisioAiError("invalid_callback", "The selected OpenAI profile no longer exists.");
+    }
+    const targetCredential = selectBestWorkerCredentialForProfile({
+      aiProfileId: profileId,
+      workerId,
+      state: state.ai,
+      authStore: ensureAuthProfileStore(),
+    });
+    if (!targetCredential) {
+      throw new AlisioAiError(
+        "invalid_callback",
+        "The selected OpenAI profile is not available on this worker.",
+      );
     }
     const refreshed = await refreshAlisioOpenAiSession({
-      session,
+      credential: targetCredential.record,
       fetchImpl,
     });
-    if (!state.ai) {
-      state.ai = {};
-    }
-    state.ai.session = refreshed;
+    ensureStoredAiState(state).workerCredentials = {
+      ...state.ai?.workerCredentials,
+      [targetCredential.workerCredentialId]: refreshed,
+    };
+    setRuntimeBinding(state, workerId, {
+      workerId,
+      workerCredentialId: targetCredential.workerCredentialId,
+      authProfileId: refreshed.authProfileId,
+      boundAt: new Date().toISOString(),
+    });
+    reconcileStoredAiState(state.ai, workerId);
     await persistState(state, env);
-    if (isAlisioAiReady(toAlisioAiState(refreshed))) {
-      await applyAlisioOpenAiRuntime(refreshed).catch(() => undefined);
+    const nextState = toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
+    if (isAlisioAiReady(nextState)) {
+      await applyAlisioOpenAiRuntime(refreshed, {
+        displayName: state.ai?.aiProfiles?.[profileId]
+          ? resolveAlisioAiProfileLabel({
+              profile: state.ai.aiProfiles[profileId],
+              credential: refreshed,
+            })
+          : (refreshed.email ?? "OpenAI"),
+      }).catch(() => undefined);
+    } else {
+      await clearAlisioOpenAiRuntime({
+        authProfileIds: [refreshed.authProfileId],
+      }).catch(() => undefined);
     }
-    return toAlisioAiState(refreshed);
+    return nextState;
+  });
+}
+
+export async function renameAlisioAiProfile(
+  input: { profileId: string; label: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioAiState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "OpenAI");
+    const workerId = currentWorkerId();
+    const profileId = input.profileId.trim();
+    const profile = state.ai?.aiProfiles?.[profileId];
+    if (!profile) {
+      throw new AlisioAiError("invalid_callback", "The selected OpenAI profile no longer exists.");
+    }
+    const _representative = selectBestWorkerCredentialForProfile({
+      aiProfileId: profileId,
+      workerId,
+      state: state.ai,
+      authStore: ensureAuthProfileStore(),
+    })?.record;
+    const nextCustomLabel = input.label.trim();
+    const { label: _previousLabel, ...profileWithoutLabel } = profile;
+    const nextProfile = nextCustomLabel
+      ? {
+          ...profileWithoutLabel,
+          label: nextCustomLabel,
+        }
+      : profileWithoutLabel;
+    ensureStoredAiState(state).aiProfiles = {
+      ...state.ai?.aiProfiles,
+      [profileId]: nextProfile,
+    };
+    reconcileStoredAiState(state.ai, workerId);
+    await persistState(state, env);
+    const active = resolveBoundWorkerCredential(state, workerId);
+    const nextState = toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
+    if (active && active.credential.aiProfileId === profileId && isAlisioAiReady(nextState)) {
+      await applyAlisioOpenAiRuntime(active.credential, {
+        displayName: resolveAlisioAiProfileLabel({
+          profile: nextProfile,
+          credential: active.credential,
+        }),
+      }).catch(() => undefined);
+    }
+    return nextState;
+  });
+}
+
+export async function refreshAlisioAiLimits(
+  input?: { profileId?: string },
+  env?: NodeJS.ProcessEnv,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioAiState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "OpenAI");
+    const workerId = currentWorkerId();
+    const requestedProfileId = input?.profileId?.trim();
+    const selectedCredential = requestedProfileId
+      ? selectBestWorkerCredentialForProfile({
+          aiProfileId: requestedProfileId,
+          workerId,
+          state: state.ai,
+          authStore: ensureAuthProfileStore(),
+        })
+      : (resolveBoundWorkerCredential(state, workerId) ??
+        selectBestWorkerCredentialForWorker(state, workerId));
+    if (!selectedCredential) {
+      return toAlisioAiState({
+        state: state.ai,
+        workerId,
+        authStore: ensureAuthProfileStore(),
+      });
+    }
+    const resolvedSelection = resolveSelectedWorkerCredentialRecord(selectedCredential);
+    const refreshed = await refreshAlisioOpenAiSession({
+      credential: resolvedSelection.credential,
+      fetchImpl,
+    });
+    ensureStoredAiState(state).workerCredentials = {
+      ...state.ai?.workerCredentials,
+      [resolvedSelection.workerCredentialId]: refreshed,
+    };
+    if (
+      state.ai?.runtimeBindings?.[workerId]?.workerCredentialId ===
+      resolvedSelection.workerCredentialId
+    ) {
+      setRuntimeBinding(state, workerId, {
+        workerId,
+        workerCredentialId: resolvedSelection.workerCredentialId,
+        authProfileId: refreshed.authProfileId,
+        boundAt: state.ai.runtimeBindings[workerId]?.boundAt ?? new Date().toISOString(),
+      });
+    }
+    reconcileStoredAiState(state.ai, workerId);
+    await persistState(state, env);
+    const nextState = toAlisioAiState({
+      state: state.ai,
+      workerId,
+      authStore: ensureAuthProfileStore(),
+    });
+    if (
+      state.ai?.runtimeBindings?.[workerId]?.workerCredentialId ===
+        resolvedSelection.workerCredentialId &&
+      isAlisioAiReady(nextState)
+    ) {
+      await applyAlisioOpenAiRuntime(refreshed, {
+        displayName: state.ai?.aiProfiles?.[refreshed.aiProfileId]
+          ? resolveAlisioAiProfileLabel({
+              profile: state.ai.aiProfiles[refreshed.aiProfileId],
+              credential: refreshed,
+            })
+          : (refreshed.email ?? "OpenAI"),
+      }).catch(() => undefined);
+    }
+    return nextState;
   });
 }
 
@@ -1398,6 +3279,9 @@ export async function getAlisioOrganizationState(
   env?: NodeJS.ProcessEnv,
 ): Promise<AlisioOrganizationMembershipState> {
   const state = await loadStoredState(env);
+  if (!hasReadyAlisioAccountSession(state)) {
+    return { mode: "none" };
+  }
   return state.organization;
 }
 
@@ -1410,6 +3294,7 @@ export async function setAlisioOrganizationState(
 ): Promise<AlisioOrganizationMembershipState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
     state.organization = input;
     await persistState(state, env);
     return state.organization;
@@ -1417,27 +3302,264 @@ export async function setAlisioOrganizationState(
 }
 
 export async function listAlisioConnectorAuthorizations(
-  env?: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioConnectorAuthorization[]> {
-  const state = await loadStoredState(env);
-  return CONNECTOR_CATALOG.map((connector) => {
-    const existing = state.authorizations[connector.id];
-    if (existing) {
-      return existing;
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    if (!hasReadyAlisioAccountSession(state)) {
+      return buildDefaultConnectorAuthorizations(env);
     }
-    const fallbackHealth: AlisioAuthorizationHealth =
-      connector.availability === "ready"
-        ? "needs_reconnect"
-        : connector.availability === "in_review"
-          ? "in_review"
-          : "unavailable";
-    return {
-      connectorId: connector.id,
-      state: "not_connected",
-      health: fallbackHealth,
-      scopes: connector.scopes,
-    };
+    let changed = false;
+    for (const connector of CONNECTOR_CATALOG) {
+      const existing = state.authorizations[connector.id];
+      const credential = state.oauthCredentials[connector.id];
+      if (!existing) {
+        continue;
+      }
+      if (!credential) {
+        if (existing.state === "connected") {
+          markAuthorizationNeedsReconnect(state, connector, existing);
+          changed = true;
+        }
+        continue;
+      }
+      const legacyPlaintext =
+        typeof credential.accessToken === "string" || typeof credential.refreshToken === "string";
+      const wasExpired = isOAuthCredentialExpired(credential.expiresAt);
+      const refreshed = await refreshStoredConnectorCredential({
+        state,
+        connector,
+        existingAuthorization: existing,
+        env,
+        fetchImpl,
+      });
+      if (!refreshed) {
+        changed = true;
+        continue;
+      }
+      if (legacyPlaintext || wasExpired) {
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await persistState(state, env);
+    }
+
+    return CONNECTOR_CATALOG.map((connector) => {
+      const existing = state.authorizations[connector.id];
+      if (existing) {
+        return existing;
+      }
+      return buildDefaultConnectorAuthorization(connector, env);
+    });
   });
+}
+
+export async function getAlisioConnectorAccessToken(
+  connectorId: string,
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string | null> {
+  const result = await getAlisioConnectorAccessTokenStatus(connectorId, env, fetchImpl);
+  return result.accessToken;
+}
+
+async function getAlisioConnectorAccessTokenStatus(
+  connectorId: string,
+  env: NodeJS.ProcessEnv,
+  fetchImpl: typeof fetch,
+): Promise<{ accessToken: string | null; reconnectRequired: boolean }> {
+  return withLock(async () => {
+    const connector = CONNECTOR_CATALOG.find((entry) => entry.id === connectorId.trim());
+    if (!connector) {
+      return { accessToken: null, reconnectRequired: false };
+    }
+    const state = await loadStoredState(env);
+    if (!hasReadyAlisioAccountSession(state)) {
+      return { accessToken: null, reconnectRequired: false };
+    }
+    const authorizationState = state.authorizations[connector.id]?.state ?? "not_connected";
+    const refreshed = await refreshStoredConnectorCredential({
+      state,
+      connector,
+      existingAuthorization: state.authorizations[connector.id],
+      env,
+      fetchImpl,
+    });
+    if (!refreshed) {
+      await persistState(state, env);
+      const nextAuthorizationState =
+        state.authorizations[connector.id]?.state ?? authorizationState;
+      return {
+        accessToken: null,
+        reconnectRequired: nextAuthorizationState === "needs_reconnect",
+      };
+    }
+    const accessToken = readStoredAccessToken(refreshed, env);
+    if (!accessToken) {
+      markAuthorizationNeedsReconnect(state, connector, state.authorizations[connector.id]);
+      delete state.oauthCredentials[connector.id];
+      await persistState(state, env);
+      return { accessToken: null, reconnectRequired: true };
+    }
+    await persistState(state, env);
+    return { accessToken, reconnectRequired: false };
+  });
+}
+
+function extractProviderErrorMessage(body: unknown, fallback: string) {
+  if (!body || typeof body !== "object") {
+    return fallback;
+  }
+  const error = (body as { error?: unknown }).error;
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  if (error && typeof error === "object") {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message.trim()) {
+      return message.trim();
+    }
+  }
+  const message = (body as { message?: unknown }).message;
+  if (typeof message === "string" && message.trim()) {
+    return message.trim();
+  }
+  return fallback;
+}
+
+function extractProviderErrorReason(body: unknown) {
+  if (!body || typeof body !== "object") {
+    return undefined;
+  }
+  const error = (body as { error?: unknown }).error;
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+  const errors = (error as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) {
+    return undefined;
+  }
+  const reason = errors.find((entry): entry is { reason: string } =>
+    Boolean(
+      entry &&
+      typeof entry === "object" &&
+      typeof (entry as { reason?: unknown }).reason === "string" &&
+      (entry as { reason: string }).reason.trim(),
+    ),
+  )?.reason;
+  return reason?.trim() || undefined;
+}
+
+export async function sendAlisioGmailMessage(
+  input: {
+    to: string;
+    subject: string;
+    body: string;
+    cc?: string;
+    bcc?: string;
+    replyTo?: string;
+    threadId?: string;
+    bodyFormat?: "text" | "html";
+  },
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioGmailSendResult> {
+  let payload:
+    | {
+        raw: string;
+        to: string[];
+        cc?: string[];
+        bcc?: string[];
+      }
+    | undefined;
+  try {
+    payload = buildRawGmailMessage(input);
+  } catch (error) {
+    return {
+      ok: false,
+      status: "send_failed",
+      connectorId: GMAIL_SEND_CONNECTOR_ID,
+      message: error instanceof Error ? error.message : "Invalid Gmail message payload.",
+    };
+  }
+
+  const authorization = await getAlisioConnectorAccessTokenStatus(
+    GMAIL_SEND_CONNECTOR_ID,
+    env,
+    fetchImpl,
+  );
+  if (!authorization.accessToken) {
+    return {
+      ok: false,
+      status: "auth_required",
+      connectorId: GMAIL_SEND_CONNECTOR_ID,
+      message: authorization.reconnectRequired
+        ? "Gmail Send authorization is no longer valid. Reconnect Gmail Send in Apps."
+        : "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+      reconnectRequired: authorization.reconnectRequired,
+    };
+  }
+
+  try {
+    const response = await fetchImpl(
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${authorization.accessToken}`,
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          raw: payload.raw,
+          ...(input.threadId?.trim() ? { threadId: input.threadId.trim() } : {}),
+        }),
+      },
+    );
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !body || typeof body.id !== "string") {
+      const providerReason = extractProviderErrorReason(body);
+      const reconnectRequired =
+        response.status === 401 ||
+        providerReason === "authError" ||
+        providerReason === "insufficientPermissions";
+      const message =
+        providerReason === "insufficientPermissions"
+          ? "Gmail Send needs to be reconnected with the Gmail send permission."
+          : reconnectRequired
+            ? "Gmail Send authorization is no longer valid. Reconnect Gmail Send in Apps."
+            : extractProviderErrorMessage(body, "Gmail rejected the send request.");
+      return {
+        ok: false,
+        status: reconnectRequired ? "auth_required" : "send_failed",
+        connectorId: GMAIL_SEND_CONNECTOR_ID,
+        message,
+        ...(reconnectRequired ? { reconnectRequired: true } : {}),
+        ...(providerReason ? { providerReason } : {}),
+      };
+    }
+    return {
+      ok: true,
+      status: "sent",
+      connectorId: GMAIL_SEND_CONNECTOR_ID,
+      messageId: body.id,
+      ...(typeof body.threadId === "string" ? { threadId: body.threadId } : {}),
+      to: payload.to,
+      ...(payload.cc ? { cc: payload.cc } : {}),
+      ...(payload.bcc ? { bcc: payload.bcc } : {}),
+      subject: input.subject,
+    };
+  } catch {
+    return {
+      ok: false,
+      status: "send_failed",
+      connectorId: GMAIL_SEND_CONNECTOR_ID,
+      message: "Gmail could not be reached right now. Try again in a moment.",
+    };
+  }
 }
 
 function buildStateToken() {
@@ -1450,6 +3572,76 @@ function buildCodeVerifier() {
 
 function buildCodeChallenge(verifier: string) {
   return createHash("sha256").update(verifier).digest("base64url");
+}
+
+function assertSafeMailHeader(value: string, label: string) {
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`${label} contains invalid line breaks.`);
+  }
+}
+
+function parseMailRecipientList(value: string | undefined, label: string, required = false) {
+  const normalized = (value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (required && normalized.length === 0) {
+    throw new Error(`${label} required.`);
+  }
+  for (const recipient of normalized) {
+    assertSafeMailHeader(recipient, label);
+  }
+  return normalized;
+}
+
+function encodeMimeHeaderValue(value: string) {
+  assertSafeMailHeader(value, "subject");
+  return /^[\x20-\x7E]*$/.test(value)
+    ? value
+    : `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
+
+function foldBase64Content(value: string) {
+  return value.replace(/.{1,76}/g, "$&\r\n").trimEnd();
+}
+
+function buildRawGmailMessage(input: {
+  to: string;
+  subject: string;
+  body: string;
+  cc?: string;
+  bcc?: string;
+  replyTo?: string;
+  bodyFormat?: "text" | "html";
+}) {
+  const to = parseMailRecipientList(input.to, "to", true);
+  const cc = parseMailRecipientList(input.cc, "cc");
+  const bcc = parseMailRecipientList(input.bcc, "bcc");
+  const replyTo = input.replyTo?.trim();
+  if (replyTo) {
+    assertSafeMailHeader(replyTo, "replyTo");
+  }
+  const contentType = input.bodyFormat === "html" ? "text/html" : "text/plain";
+  const bodyBase64 = foldBase64Content(Buffer.from(input.body, "utf8").toString("base64"));
+  const lines = [
+    `To: ${to.join(", ")}`,
+    ...(cc.length > 0 ? [`Cc: ${cc.join(", ")}`] : []),
+    ...(bcc.length > 0 ? [`Bcc: ${bcc.join(", ")}`] : []),
+    ...(replyTo ? [`Reply-To: ${replyTo}`] : []),
+    `Subject: ${encodeMimeHeaderValue(input.subject)}`,
+    "MIME-Version: 1.0",
+    `Content-Type: ${contentType}; charset=UTF-8`,
+    "Content-Transfer-Encoding: base64",
+    "",
+    bodyBase64,
+    "",
+  ];
+  return {
+    raw: Buffer.from(lines.join("\r\n"), "utf8").toString("base64url"),
+    to,
+    ...(cc.length > 0 ? { cc } : {}),
+    ...(bcc.length > 0 ? { bcc } : {}),
+  };
 }
 
 function resolveConnectorOAuthProvider(connectorId: string): AlisioOAuthProvider | null {
@@ -1492,12 +3684,14 @@ function providerRequiredEnvVars(provider: AlisioOAuthProvider) {
         "ALISIO_GOOGLE_CLIENT_ID",
         "ALISIO_GOOGLE_CLIENT_SECRET",
         "ALISIO_GOOGLE_REDIRECT_URI",
+        CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV,
       ];
     case "github":
       return [
         "ALISIO_GITHUB_CLIENT_ID",
         "ALISIO_GITHUB_CLIENT_SECRET",
         "ALISIO_GITHUB_REDIRECT_URI",
+        CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV,
       ];
     case "notion":
       return [
@@ -1579,6 +3773,36 @@ function providerSupportsRealCallback(
   return provider === "google" || provider === "github";
 }
 
+function isProviderClientConfigReady(provider: AlisioOAuthProvider, env: NodeJS.ProcessEnv) {
+  if (!providerSupportsRealCallback(provider)) {
+    return false;
+  }
+  const config = resolveOAuthClientConfig(provider, env);
+  return Boolean(
+    config.clientId &&
+    config.clientSecret &&
+    config.redirectUri &&
+    resolveConnectorTokenEncryptionKey(env),
+  );
+}
+
+function resolveDefaultConnectorAuthorizationHealth(
+  connector: AlisioConnectorDefinition,
+  env: NodeJS.ProcessEnv,
+): AlisioAuthorizationHealth {
+  if (connector.availability === "in_review") {
+    return "in_review";
+  }
+  if (connector.availability === "unavailable") {
+    return "unavailable";
+  }
+  const provider = resolveConnectorOAuthProvider(connector.id);
+  if (!provider || !providerSupportsRealCallback(provider)) {
+    return "config_missing";
+  }
+  return isProviderClientConfigReady(provider, env) ? "healthy" : "config_missing";
+}
+
 function buildAuthorizationUrl(params: {
   provider: AlisioOAuthProvider;
   clientId: string;
@@ -1587,10 +3811,6 @@ function buildAuthorizationUrl(params: {
   stateToken: string;
   codeVerifier?: string;
 }) {
-  const authScopes =
-    params.provider === "github"
-      ? ["repo", "read:user", "user:email", "read:org", "gist"]
-      : params.scopes;
   const url = new URL(
     params.provider === "google"
       ? "https://accounts.google.com/o/oauth2/v2/auth"
@@ -1607,8 +3827,11 @@ function buildAuthorizationUrl(params: {
   if (params.provider === "google") {
     url.searchParams.set("response_type", "code");
     url.searchParams.set("access_type", "offline");
-    url.searchParams.set("prompt", "consent");
-    url.searchParams.set("scope", authScopes.join(" "));
+    // For Google connectors we want the explicit account chooser first and
+    // then the consent screen, matching the native Gmail/Calendar connection UX.
+    url.searchParams.set("prompt", "select_account consent");
+    url.searchParams.set("include_granted_scopes", "true");
+    url.searchParams.set("scope", params.scopes.join(" "));
     if (params.codeVerifier) {
       url.searchParams.set("code_challenge", buildCodeChallenge(params.codeVerifier));
       url.searchParams.set("code_challenge_method", "S256");
@@ -1617,7 +3840,12 @@ function buildAuthorizationUrl(params: {
   }
 
   if (params.provider === "github") {
-    url.searchParams.set("scope", authScopes.join(" "));
+    url.searchParams.set("scope", params.scopes.join(" "));
+    url.searchParams.set("prompt", "select_account");
+    if (params.codeVerifier) {
+      url.searchParams.set("code_challenge", buildCodeChallenge(params.codeVerifier));
+      url.searchParams.set("code_challenge_method", "S256");
+    }
     return url.toString();
   }
 
@@ -1627,19 +3855,58 @@ function buildAuthorizationUrl(params: {
     return url.toString();
   }
 
-  url.searchParams.set("scope", authScopes.join(" "));
+  url.searchParams.set("scope", params.scopes.join(" "));
   return url.toString();
 }
 
-function parseGrantedScopes(scope: string | undefined, fallback: readonly string[]) {
-  if (!scope?.trim()) {
-    return [...fallback];
+function resolveRequestedOAuthScopes(connector: AlisioConnectorDefinition) {
+  if (connector.id === "github") {
+    return ["repo", "read:user", "user:email", "read:org", "gist"];
   }
+  return connector.scopes;
+}
+
+function hasRequiredOAuthScopes(
+  provider: AlisioOAuthProvider,
+  grantedScopes: string[],
+  requestedScopes: readonly string[],
+) {
+  if (grantedScopes.length === 0) {
+    return true;
+  }
+  const granted = expandComparableOAuthScopes(provider, grantedScopes);
+  return resolveOAuthScopesRequiredForValidation(provider, requestedScopes).every((scope) =>
+    granted.has(scope),
+  );
+}
+
+function markAuthorizationNeedsReconnect(
+  state: AlisioStoredState,
+  connector: AlisioConnectorDefinition,
+  existing?: AlisioConnectorAuthorization,
+) {
+  const next: AlisioConnectorAuthorization = {
+    connectorId: connector.id,
+    state: "needs_reconnect",
+    health: "needs_reconnect",
+    scopes: existing?.scopes ?? connector.scopes,
+    ...(existing?.connectedAt ? { connectedAt: existing.connectedAt } : {}),
+    ...(existing?.connectedAccount ? { connectedAccount: existing.connectedAccount } : {}),
+  };
+  state.authorizations[connector.id] = next;
+  return next;
+}
+
+function parseGrantedScopes(
+  provider: AlisioOAuthProvider,
+  scope: string | undefined,
+  fallback: readonly string[],
+) {
   const normalized = scope
-    .split(/[\s,]+/)
+    ?.split(/[\s,]+/)
     .map((entry) => entry.trim())
     .filter(Boolean);
-  return normalized.length > 0 ? normalized : [...fallback];
+  return normalizeStoredOAuthScopes(provider, normalized ?? [], fallback);
 }
 
 function isPendingAuthorizationExpired(createdAt: string, now = Date.now()) {
@@ -1659,6 +3926,8 @@ export async function beginAlisioConnectorSetup(
     if (!connector) {
       return null;
     }
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "connector");
     const provider = resolveConnectorOAuthProvider(connector.id);
     const providerGuide =
       provider == null
@@ -1721,14 +3990,26 @@ export async function beginAlisioConnectorSetup(
         ...providerGuide,
       };
     }
+    if (!resolveConnectorTokenEncryptionKey(env)) {
+      return {
+        connectorId: connector.id,
+        availability: connector.availability,
+        mode: "setup",
+        statusReason: "missing_token_encryption",
+        setupUrl: connector.setupUrl,
+        ...providerGuide,
+      };
+    }
 
-    const state = await loadStoredState(env);
     const stateToken = buildStateToken();
-    const codeVerifier = provider === "google" ? buildCodeVerifier() : undefined;
+    const codeVerifier =
+      provider === "google" || provider === "github" ? buildCodeVerifier() : undefined;
+    const requestedScopes = resolveRequestedOAuthScopes(connector);
     state.pendingAuthorizations[stateToken] = {
       connectorId: connector.id,
       provider,
       redirectUri: config.redirectUri,
+      requestedScopes,
       createdAt: new Date().toISOString(),
       ...(codeVerifier ? { codeVerifier } : {}),
     };
@@ -1745,7 +4026,7 @@ export async function beginAlisioConnectorSetup(
         provider,
         clientId: config.clientId,
         redirectUri: config.redirectUri,
-        scopes: connector.scopes,
+        scopes: requestedScopes,
         stateToken,
         codeVerifier,
       }),
@@ -1784,6 +4065,42 @@ async function exchangeGoogleAuthorizationCode(params: {
     return {
       accessToken: body.access_token,
       refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
+      idToken: typeof body.id_token === "string" ? body.id_token : undefined,
+      tokenType: typeof body.token_type === "string" ? body.token_type : undefined,
+      scope: typeof body.scope === "string" ? body.scope : undefined,
+      expiresIn: typeof body.expires_in === "number" ? body.expires_in : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function refreshGoogleAuthorizationCode(params: {
+  config: ReturnType<typeof resolveOAuthClientConfig>;
+  refreshToken: string;
+  fetchImpl: typeof fetch;
+}): Promise<AlisioOAuthTokenSet | null> {
+  try {
+    const response = await params.fetchImpl("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        accept: "application/json",
+      },
+      body: new URLSearchParams({
+        client_id: params.config.clientId,
+        client_secret: params.config.clientSecret,
+        grant_type: "refresh_token",
+        refresh_token: params.refreshToken,
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!response.ok || !body || typeof body.access_token !== "string") {
+      return null;
+    }
+    return {
+      accessToken: body.access_token,
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : undefined,
       tokenType: typeof body.token_type === "string" ? body.token_type : undefined,
       scope: typeof body.scope === "string" ? body.scope : undefined,
       expiresIn: typeof body.expires_in === "number" ? body.expires_in : undefined,
@@ -1797,6 +4114,7 @@ async function exchangeGitHubAuthorizationCode(params: {
   config: ReturnType<typeof resolveOAuthClientConfig>;
   code: string;
   stateToken: string;
+  codeVerifier?: string;
   fetchImpl: typeof fetch;
 }): Promise<AlisioOAuthTokenSet | null> {
   try {
@@ -1813,6 +4131,7 @@ async function exchangeGitHubAuthorizationCode(params: {
         code: params.code,
         redirect_uri: params.config.redirectUri,
         state: params.stateToken,
+        ...(params.codeVerifier ? { code_verifier: params.codeVerifier } : {}),
       }),
     });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
@@ -1830,7 +4149,11 @@ async function exchangeGitHubAuthorizationCode(params: {
   }
 }
 
-async function fetchGoogleAccount(params: { accessToken: string; fetchImpl: typeof fetch }) {
+async function fetchGoogleAccount(params: {
+  accessToken: string;
+  idToken?: string;
+  fetchImpl: typeof fetch;
+}) {
   try {
     const response = await params.fetchImpl("https://openidconnect.googleapis.com/v1/userinfo", {
       headers: {
@@ -1839,20 +4162,33 @@ async function fetchGoogleAccount(params: { accessToken: string; fetchImpl: type
       },
     });
     const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-    if (!response.ok || !body) {
-      return null;
+    if (response.ok && body) {
+      return {
+        label:
+          (typeof body.name === "string" && body.name.trim()) ||
+          (typeof body.email === "string" && body.email.trim()) ||
+          "Google account",
+        email: typeof body.email === "string" ? body.email : undefined,
+        handle: typeof body.sub === "string" ? body.sub : undefined,
+      } satisfies AlisioConnectedAccount;
     }
-    return {
-      label:
-        (typeof body.name === "string" && body.name.trim()) ||
-        (typeof body.email === "string" && body.email.trim()) ||
-        "Google account",
-      email: typeof body.email === "string" ? body.email : undefined,
-      handle: typeof body.sub === "string" ? body.sub : undefined,
-    } satisfies AlisioConnectedAccount;
   } catch {
+    // Fall through to the ID token fallback below.
+  }
+
+  const idPayload = params.idToken ? decodeJwtPayload(params.idToken) : null;
+  if (!idPayload) {
     return null;
   }
+  const label =
+    (typeof idPayload.name === "string" && idPayload.name.trim()) ||
+    (typeof idPayload.email === "string" && idPayload.email.trim()) ||
+    "Google account";
+  return {
+    label,
+    email: typeof idPayload.email === "string" ? idPayload.email : undefined,
+    handle: typeof idPayload.sub === "string" ? idPayload.sub : undefined,
+  } satisfies AlisioConnectedAccount;
 }
 
 async function fetchGitHubPrimaryEmail(params: { accessToken: string; fetchImpl: typeof fetch }) {
@@ -1905,6 +4241,134 @@ async function fetchGitHubAccount(params: { accessToken: string; fetchImpl: type
   }
 }
 
+async function refreshStoredConnectorCredential(params: {
+  state: AlisioStoredState;
+  connector: AlisioConnectorDefinition;
+  existingAuthorization?: AlisioConnectorAuthorization;
+  env: NodeJS.ProcessEnv;
+  fetchImpl: typeof fetch;
+}) {
+  const credential = params.state.oauthCredentials[params.connector.id];
+  if (!credential) {
+    return null;
+  }
+  if (!isOAuthCredentialExpired(credential.expiresAt)) {
+    if (!readStoredAccessToken(credential, params.env)) {
+      markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
+      delete params.state.oauthCredentials[params.connector.id];
+      return null;
+    }
+    if (typeof credential.accessToken === "string" || typeof credential.refreshToken === "string") {
+      if (!resolveConnectorTokenEncryptionKey(params.env)) {
+        return credential;
+      }
+      const accessToken = readStoredAccessToken(credential, params.env);
+      if (!accessToken) {
+        markAuthorizationNeedsReconnect(
+          params.state,
+          params.connector,
+          params.existingAuthorization,
+        );
+        delete params.state.oauthCredentials[params.connector.id];
+        return null;
+      }
+      const refreshToken = readStoredRefreshToken(credential, params.env);
+      const normalized = buildStoredOAuthCredential({
+        provider: credential.provider,
+        accessToken,
+        ...(refreshToken ? { refreshToken } : {}),
+        ...(credential.tokenType ? { tokenType: credential.tokenType } : {}),
+        ...(credential.scope ? { scope: credential.scope } : {}),
+        ...(credential.expiresAt ? { expiresAt: credential.expiresAt } : {}),
+        createdAt: credential.createdAt,
+        ...(credential.refreshedAt ? { refreshedAt: credential.refreshedAt } : {}),
+        env: params.env,
+      });
+      params.state.oauthCredentials[params.connector.id] = normalized;
+      return normalized;
+    }
+    return credential;
+  }
+
+  if (credential.provider !== "google") {
+    markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
+    return null;
+  }
+
+  const refreshToken = readStoredRefreshToken(credential, params.env);
+  if (!refreshToken) {
+    markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
+    return null;
+  }
+
+  const config = resolveOAuthClientConfig("google", params.env);
+  if (!config.clientId || !config.clientSecret || !config.redirectUri) {
+    markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
+    return null;
+  }
+
+  const refreshed = await refreshGoogleAuthorizationCode({
+    config,
+    refreshToken,
+    fetchImpl: params.fetchImpl,
+  });
+  if (!refreshed) {
+    markAuthorizationNeedsReconnect(params.state, params.connector, params.existingAuthorization);
+    delete params.state.oauthCredentials[params.connector.id];
+    return null;
+  }
+
+  const next = buildStoredOAuthCredential({
+    provider: "google",
+    accessToken: refreshed.accessToken,
+    refreshToken: refreshed.refreshToken ?? refreshToken,
+    tokenType: refreshed.tokenType ?? credential.tokenType,
+    scope: refreshed.scope ?? credential.scope,
+    expiresAt:
+      typeof refreshed.expiresIn === "number"
+        ? new Date(Date.now() + refreshed.expiresIn * 1000).toISOString()
+        : credential.expiresAt,
+    createdAt: credential.createdAt,
+    refreshedAt: new Date().toISOString(),
+    env: params.env,
+  });
+  params.state.oauthCredentials[params.connector.id] = next;
+  const existing = params.existingAuthorization ?? params.state.authorizations[params.connector.id];
+  if (existing) {
+    params.state.authorizations[params.connector.id] = {
+      ...existing,
+      state: "connected",
+      health: "healthy",
+      scopes: parseGrantedScopes(
+        next.provider,
+        next.scope,
+        resolveRequestedOAuthScopes(params.connector),
+      ),
+    };
+  }
+  return next;
+}
+
+async function revokeGoogleOAuthCredential(params: {
+  token: string;
+  fetchImpl: typeof fetch;
+}): Promise<void> {
+  try {
+    await params.fetchImpl("https://oauth2.googleapis.com/revoke", {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        accept: "application/json",
+      },
+      body: new URLSearchParams({
+        token: params.token,
+      }),
+    });
+  } catch {
+    // Best-effort revoke only.
+  }
+}
+
 export async function completeAlisioConnectorAuthorizationFromCallback(
   input: {
     provider: string;
@@ -1932,6 +4396,7 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
   }
   return withLock(async () => {
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "connector");
     const pending = state.pendingAuthorizations[input.stateToken!];
     if (!pending) {
       return {
@@ -2003,6 +4468,7 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
             config,
             code: input.code.trim(),
             stateToken: input.stateToken!,
+            codeVerifier: pending.codeVerifier,
             fetchImpl,
           });
     if (!exchanged) {
@@ -2012,20 +4478,6 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
         ok: false,
         reason: "token_exchange_failed",
         message: "Failed to exchange OAuth code for an access token.",
-      } satisfies AlisioOAuthCallbackResult;
-    }
-
-    const connectedAccount =
-      pending.provider === "google"
-        ? await fetchGoogleAccount({ accessToken: exchanged.accessToken, fetchImpl })
-        : await fetchGitHubAccount({ accessToken: exchanged.accessToken, fetchImpl });
-    if (!connectedAccount) {
-      delete state.pendingAuthorizations[input.stateToken!];
-      await persistState(state, env);
-      return {
-        ok: false,
-        reason: "profile_fetch_failed",
-        message: "OAuth token exchange succeeded, but the account profile could not be loaded.",
       } satisfies AlisioOAuthCallbackResult;
     }
 
@@ -2040,27 +4492,62 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
       } satisfies AlisioOAuthCallbackResult;
     }
 
+    const requestedScopes =
+      Array.isArray(pending.requestedScopes) && pending.requestedScopes.length > 0
+        ? pending.requestedScopes
+        : resolveRequestedOAuthScopes(connector);
+    const grantedScopes = splitGrantedScopes(exchanged.scope);
+    if (!hasRequiredOAuthScopes(pending.provider, grantedScopes, requestedScopes)) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "token_exchange_failed",
+        message: "OAuth completed without the scopes required for this connector.",
+      } satisfies AlisioOAuthCallbackResult;
+    }
+
+    const connectedAccount =
+      pending.provider === "google"
+        ? await fetchGoogleAccount({
+            accessToken: exchanged.accessToken,
+            idToken: exchanged.idToken,
+            fetchImpl,
+          })
+        : await fetchGitHubAccount({ accessToken: exchanged.accessToken, fetchImpl });
+    if (!connectedAccount) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "profile_fetch_failed",
+        message: "OAuth token exchange succeeded, but the account profile could not be loaded.",
+      } satisfies AlisioOAuthCallbackResult;
+    }
+
     const connectedAt = new Date().toISOString();
     const authorization: AlisioConnectorAuthorization = {
       connectorId: connector.id,
       state: "connected",
       health: "healthy",
       connectedAt,
-      scopes: parseGrantedScopes(exchanged.scope, connector.scopes),
+      scopes: parseGrantedScopes(pending.provider, exchanged.scope, requestedScopes),
       connectedAccount,
     };
     state.authorizations[connector.id] = authorization;
-    state.oauthCredentials[connector.id] = {
+    state.oauthCredentials[connector.id] = buildStoredOAuthCredential({
       provider: pending.provider,
       accessToken: exchanged.accessToken,
-      ...(exchanged.refreshToken ? { refreshToken: exchanged.refreshToken } : {}),
-      ...(exchanged.tokenType ? { tokenType: exchanged.tokenType } : {}),
-      ...(exchanged.scope ? { scope: exchanged.scope } : {}),
-      ...(typeof exchanged.expiresIn === "number"
-        ? { expiresAt: new Date(Date.now() + exchanged.expiresIn * 1000).toISOString() }
-        : {}),
+      refreshToken: exchanged.refreshToken,
+      tokenType: exchanged.tokenType,
+      scope: exchanged.scope,
+      expiresAt:
+        typeof exchanged.expiresIn === "number"
+          ? new Date(Date.now() + exchanged.expiresIn * 1000).toISOString()
+          : undefined,
       createdAt: connectedAt,
-    };
+      env,
+    });
     delete state.pendingAuthorizations[input.stateToken!];
     await persistState(state, env);
     return {
@@ -2087,6 +4574,7 @@ export async function completeAlisioConnectorAuthorization(
       return null;
     }
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "connector");
     const connectedAccount =
       input.account ??
       ({
@@ -2109,7 +4597,8 @@ export async function completeAlisioConnectorAuthorization(
 
 export async function revokeAlisioConnectorAuthorization(
   connectorId: string,
-  env?: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<AlisioConnectorAuthorization | null> {
   return withLock(async () => {
     const connector = CONNECTOR_CATALOG.find((entry) => entry.id === connectorId.trim());
@@ -2117,6 +4606,18 @@ export async function revokeAlisioConnectorAuthorization(
       return null;
     }
     const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "connector");
+    const credential = state.oauthCredentials[connector.id];
+    if (credential?.provider === "google") {
+      const tokenForRevoke =
+        readStoredRefreshToken(credential, env) ?? readStoredAccessToken(credential, env);
+      if (tokenForRevoke) {
+        await revokeGoogleOAuthCredential({
+          token: tokenForRevoke,
+          fetchImpl,
+        });
+      }
+    }
     delete state.authorizations[connector.id];
     delete state.oauthCredentials[connector.id];
     await persistState(state, env);

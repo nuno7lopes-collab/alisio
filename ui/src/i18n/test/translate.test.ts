@@ -33,7 +33,7 @@ describe("i18n", () => {
 
   it("loads Alisio product copy in pt-PT and es", async () => {
     await translate.i18n.setLocale("pt-PT");
-    expect(translate.t("alisio.authentications.title")).toBe("As tuas autorizações");
+    expect(translate.t("alisio.authentications.title")).toBe("Apps");
     expect(translate.t("alisio.organization.title")).toBe("Organização");
     expect(translate.t("alisio.settings.title")).toBe("Definições");
     expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Português (Portugal)");
@@ -41,7 +41,7 @@ describe("i18n", () => {
     expect(translate.t("alisio.login.gatewayUrl")).toBe("URL da workspace");
 
     await translate.i18n.setLocale("es");
-    expect(translate.t("alisio.authentications.title")).toBe("Tus autorizaciones");
+    expect(translate.t("alisio.authentications.title")).toBe("Apps");
     expect(translate.t("alisio.organization.title")).toBe("Organización");
     expect(translate.t("alisio.settings.title")).toBe("Ajustes");
     expect(translate.t("alisio.settings.language.options.ptPT")).toBe("Portugués (Portugal)");

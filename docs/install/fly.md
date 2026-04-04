@@ -498,4 +498,4 @@ See [Fly.io pricing](https://fly.io/docs/about/pricing/) for details.
 
 - Set up messaging channels: [Channels](/channels)
 - Configure the Gateway: [Gateway configuration](/gateway/configuration)
-- Keep OpenClaw up to date: [Updating](/install/updating)
+- Keep Alisio up to date: [Updating](/install/updating)

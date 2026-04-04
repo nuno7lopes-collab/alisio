@@ -21,4 +21,6 @@ export function runNodeMain(params?: {
   args?: string[];
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
+  runtimePostBuild?: (params?: { cwd?: string }) => void;
+  sleep?: (delayMs: number) => Promise<void>;
 }): Promise<number>;

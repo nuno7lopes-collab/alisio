@@ -1,64 +1,77 @@
 import { html, nothing } from "lit";
+import {
+  alisioPlanTranslationKey,
+  normalizeAlisioPlan,
+} from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import type { SettingsSection } from "../navigation.ts";
 import type {
   AlisioAccountState,
+  AlisioAiState,
   AlisioBootstrapState,
   AlisioDoctorSummaryState,
   NativeShellPermission,
   NativeShellState,
-  ProviderUsageSnapshot,
-  ProviderUsageSummary,
 } from "../types.ts";
 
-const PUBLIC_SETTINGS_SECTIONS = [
-  "appearance",
-  "language",
-  "account",
-  "ai",
-  "security",
-  "devices",
-  "billing",
-  "support",
-  "mac",
-  "advanced",
-] as const;
+const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
 
 type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
-const SETTINGS_SECTION_LABELS: Record<PublicSettingsSection, string> = {
-  appearance: t("alisio.settings.sections.appearance"),
-  language: t("alisio.settings.sections.language"),
-  account: t("alisio.settings.sections.account"),
-  ai: "AI",
-  security: t("alisio.settings.sections.security"),
-  devices: t("alisio.settings.sections.devices"),
-  billing: t("alisio.settings.sections.billing"),
-  support: t("alisio.settings.sections.support"),
-  mac: t("alisio.settings.sections.mac"),
-  advanced: "Advanced",
-};
-
 const SETTINGS_SECTION_ICONS = {
-  appearance: icons.sun,
-  language: icons.globe,
+  general: icons.sun,
   account: icons.user,
-  ai: icons.spark,
-  security: icons.shield,
-  devices: icons.smartphone,
-  billing: icons.spark,
-  support: icons.messageSquare,
   mac: icons.terminal,
-  advanced: icons.settings,
+  support: icons.messageSquare,
 } as const;
 
 function settingsSectionLabel(section: PublicSettingsSection) {
-  return SETTINGS_SECTION_LABELS[section] ?? section;
+  switch (section) {
+    case "general":
+      return t("alisio.settings.sections.general");
+    case "account":
+      return t("alisio.settings.sections.account");
+    case "mac":
+      return t("alisio.settings.sections.mac");
+    case "support":
+      return t("alisio.settings.sections.support");
+  }
+  return section;
 }
 
 function settingsSectionIcon(section: PublicSettingsSection) {
   return SETTINGS_SECTION_ICONS[section] ?? icons.settings;
+}
+
+function resolveVisibleSection(section: SettingsSection): PublicSettingsSection {
+  switch (section) {
+    case "general":
+    case "appearance":
+    case "language":
+      return "general";
+    case "account":
+    case "security":
+    case "devices":
+    case "billing":
+    case "advanced":
+    case "workspace":
+    case "automation":
+    case "debug":
+    case "logs":
+      return "account";
+    case "ai":
+    case "aiAgents":
+      return "account";
+    case "mac":
+    case "infrastructure":
+      return "mac";
+    case "support":
+    case "communications":
+      return "support";
+    default:
+      return "general";
+  }
 }
 
 function renderDoctorCard(props: {
@@ -68,31 +81,43 @@ function renderDoctorCard(props: {
   onReconnectRuntime: () => void;
   onOpenSetup: () => void;
 }) {
+  const text = {
+    loading: t("alisio.settings.doctor.loading"),
+    healthy: t("alisio.settings.doctor.healthy"),
+    needsAttention: t("alisio.settings.doctor.needsAttention"),
+    title: t("alisio.settings.doctor.title"),
+    openChecks: t("alisio.settings.doctor.openChecks", {
+      count: String(props.doctor?.issues.length ?? 0),
+    }),
+    restartRuntime: t("alisio.settings.doctor.restartRuntime"),
+    openSetup: t("alisio.settings.doctor.openSetup"),
+  };
   if (props.doctorError) {
     return html`<div class="callout danger">${props.doctorError}</div>`;
   }
   if (props.doctorLoading) {
-    return html`<div class="alisio-settings-doctor"><p>Loading system checks…</p></div>`;
+    return html`<div class="alisio-settings-doctor"><p>${text.loading}</p></div>`;
   }
   if (!props.doctor) {
     return nothing;
   }
 
-  const statusText = props.doctor.ok ? "Healthy" : "Needs attention";
-  const summary = props.doctor.ok
-    ? "The essential setup path is healthy."
-    : "There are still a few setup issues worth closing.";
-
+  const statusText = props.doctor.ok ? text.healthy : text.needsAttention;
+  const compact = props.doctor.ok && props.doctor.issues.length === 0;
   return html`
-    <section class="alisio-settings-doctor ${props.doctor.ok ? "is-ok" : "is-attention"}">
+    <section
+      class="alisio-settings-doctor ${props.doctor.ok ? "is-ok" : "is-attention"} ${compact
+        ? "alisio-settings-doctor--compact"
+        : ""}"
+    >
       <div class="alisio-settings-doctor__head">
         <div>
-          <h3>System health</h3>
-          <p>${summary}</p>
+          <h3>${text.title}</h3>
+          ${compact ? nothing : html`<p>${text.openChecks}</p>`}
         </div>
         <span class="alisio-settings-doctor__status">${statusText}</span>
       </div>
-      ${props.doctor.issues.length > 0
+      ${!compact && props.doctor.issues.length > 0
         ? html`
             <div class="alisio-settings-doctor__issues">
               ${props.doctor.issues.slice(0, 4).map(
@@ -106,10 +131,18 @@ function renderDoctorCard(props: {
             </div>
           `
         : nothing}
-      <div class="alisio-settings-doctor__actions">
-        <button class="btn" @click=${props.onReconnectRuntime}>Restart runtime</button>
-        <button class="btn" @click=${props.onOpenSetup}>Open setup</button>
-      </div>
+      ${compact
+        ? html`
+            <div class="alisio-settings-doctor__actions">
+              <button class="btn btn--sm" @click=${props.onOpenSetup}>${text.openSetup}</button>
+            </div>
+          `
+        : html`
+            <div class="alisio-settings-doctor__actions">
+              <button class="btn" @click=${props.onReconnectRuntime}>${text.restartRuntime}</button>
+              <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
+            </div>
+          `}
     </section>
   `;
 }
@@ -315,26 +348,31 @@ function renderAppearanceSection(props: {
 }) {
   const text = {
     title: t("alisio.settings.appearance.title"),
-    subtitle: t("alisio.settings.appearance.subtitle"),
     system: t("alisio.settings.appearance.options.system"),
     light: t("alisio.settings.appearance.options.light"),
     dark: t("alisio.settings.appearance.options.dark"),
   };
   return html`
-    <div class="card alisio-settings-card">
-      <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
-      <div class="alisio-settings-options">
-        ${(["system", "light", "dark"] as const).map(
-          (mode) => html`
-            <button
-              class="chip ${props.themeMode === mode ? "chip-active" : ""}"
-              @click=${() => props.onThemeModeChange(mode)}
-            >
-              ${mode === "system" ? text.system : mode === "light" ? text.light : text.dark}
-            </button>
-          `,
-        )}
+    <div class="card alisio-settings-card alisio-settings-card--setting-row">
+      <div class="alisio-settings-setting-row">
+        <div class="alisio-settings-setting__lead">
+          <span class="alisio-settings-setting__icon" aria-hidden="true">${icons.sun}</span>
+          <div class="alisio-settings-setting__content">
+            <div class="card-title">${text.title}</div>
+          </div>
+        </div>
+        <div class="alisio-settings-options" role="tablist" aria-label=${text.title}>
+          ${(["system", "light", "dark"] as const).map(
+            (mode) => html`
+              <button
+                class="chip ${props.themeMode === mode ? "chip-active" : ""}"
+                @click=${() => props.onThemeModeChange(mode)}
+              >
+                ${mode === "system" ? text.system : mode === "light" ? text.light : text.dark}
+              </button>
+            `,
+          )}
+        </div>
       </div>
     </div>
   `;
@@ -346,27 +384,32 @@ function renderLanguageSection(props: {
 }) {
   const text = {
     title: t("alisio.settings.language.title"),
-    subtitle: t("alisio.settings.language.subtitle"),
     displayLanguage: t("alisio.settings.language.displayLanguage"),
   };
   return html`
-    <div class="card alisio-settings-card">
-      <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
-      <label class="field" style="margin-top: 16px;">
-        <span>${text.displayLanguage}</span>
-        <select
-          .value=${props.locale ?? "en"}
-          @change=${(event: Event) =>
-            props.onLocaleChange(
-              (event.target as HTMLSelectElement).value as "en" | "pt-PT" | "es",
+    <div class="card alisio-settings-card alisio-settings-card--setting-row">
+      <div class="alisio-settings-setting-row">
+        <div class="alisio-settings-setting__lead">
+          <span class="alisio-settings-setting__icon" aria-hidden="true">${icons.globe}</span>
+          <div class="alisio-settings-setting__content">
+            <div class="card-title">${text.title}</div>
+          </div>
+        </div>
+        <label class="field alisio-settings-field--inline">
+          <span>${text.displayLanguage}</span>
+          <select
+            .value=${props.locale ?? "en"}
+            @change=${(event: Event) =>
+              props.onLocaleChange(
+                (event.target as HTMLSelectElement).value as "en" | "pt-PT" | "es",
+              )}
+          >
+            ${languageOptions().map(
+              (option) => html`<option value=${option.value}>${option.label}</option>`,
             )}
-        >
-          ${languageOptions().map(
-            (option) => html`<option value=${option.value}>${option.label}</option>`,
-          )}
-        </select>
-      </label>
+          </select>
+        </label>
+      </div>
     </div>
   `;
 }
@@ -395,12 +438,15 @@ function renderAccountSection(props: {
     username: t("alisio.settings.account.username"),
     email: t("alisio.settings.account.email"),
     avatarLabel: t("alisio.settings.account.avatarLabel"),
+    emailManagedByCloud: t("alisio.settings.account.emailManagedByCloud"),
+    resetPassword: t("alisio.settings.account.resetPassword"),
+    signOut: t("alisio.settings.account.signOut"),
   };
   const joinedFormatter = new Intl.DateTimeFormat(props.locale ?? undefined);
+  const emailManagedByCloud = props.account?.session.backend === "supabase";
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
       ${props.accountError
         ? html`<div class="callout danger" style="margin-top: 16px;">${props.accountError}</div>`
         : nothing}
@@ -456,11 +502,15 @@ function renderAccountSection(props: {
                   <input
                     type="email"
                     .value=${props.account?.profile.email ?? ""}
+                    ?disabled=${emailManagedByCloud}
                     @change=${(event: Event) =>
                       props.onSaveField({
                         email: (event.target as HTMLInputElement).value,
                       })}
                   />
+                  ${emailManagedByCloud
+                    ? html`<small class="field-note">${text.emailManagedByCloud}</small>`
+                    : nothing}
                 </label>
                 <label class="field">
                   <span>${text.avatarLabel}</span>
@@ -477,9 +527,9 @@ function renderAccountSection(props: {
               </div>
               <div class="row" style="margin-top: 16px;">
                 <button class="btn" @click=${props.onRequestPasswordReset}>
-                  Send password reset email
+                  ${text.resetPassword}
                 </button>
-                <button class="btn danger" @click=${props.onSignOut}>Sign out</button>
+                <button class="btn danger" @click=${props.onSignOut}>${text.signOut}</button>
               </div>
             </div>
           `}
@@ -487,270 +537,360 @@ function renderAccountSection(props: {
   `;
 }
 
-function renderAiSection(props: {
+export function renderAiSection(props: {
   bootstrap: AlisioBootstrapState | null;
   aiLoading: boolean;
   aiError: string | null;
-  providerUsageLoading: boolean;
-  providerUsageError: string | null;
-  providerUsageSummary: ProviderUsageSummary | null;
   onConnect: () => void;
   onDisconnect: () => void;
   onRefresh: () => void;
+  onSelectProfile: (profileId: string) => void;
+  onDisconnectProfile: (profileId: string) => void;
+  onRefreshProfile: (profileId: string) => void;
+  onRenameProfile: (profileId: string, label: string) => void;
 }) {
   const ai = props.bootstrap?.ai;
-  const runtimeWindows = ai?.limits?.windows ?? [];
-  const providerSnapshots = [...(props.providerUsageSummary?.providers ?? [])].toSorted(
-    (left, right) => {
-      const leftPeak = Math.max(...left.windows.map((window) => window.usedPercent), 0);
-      const rightPeak = Math.max(...right.windows.map((window) => window.usedPercent), 0);
-      return rightPeak - leftPeak;
-    },
-  );
-  const statusLabel =
-    ai?.status === "connected"
-      ? "Connected"
-      : ai?.status === "limits_unavailable"
-        ? "Connected (limits unavailable)"
-        : ai?.status === "connecting"
-          ? "Connecting"
-          : ai?.status === "expired"
-            ? "Expired"
-            : "Disconnected";
+  type Profile = NonNullable<AlisioAiState["profiles"]>[number];
+  const text = {
+    noAccount: t("alisio.settings.ai.noAccount"),
+    connectedOn: t("alisio.settings.ai.connectedOn"),
+    resetsIn: t("alisio.settings.ai.resetsIn"),
+    connectAnother: t("alisio.settings.ai.connectAnother"),
+    connectOpenAi: t("alisio.settings.ai.connect"),
+    profilesTitle: t("alisio.settings.ai.profilesTitle"),
+    profilesSubtitle: t("alisio.settings.ai.profilesSubtitle"),
+    profile: t("alisio.settings.ai.profile"),
+    profiles: t("alisio.settings.ai.profiles"),
+    noProfiles: t("alisio.settings.ai.noProfiles"),
+    rename: t("alisio.settings.ai.rename"),
+    renamePrompt: t("alisio.settings.ai.renamePrompt"),
+    personal: t("alisio.settings.ai.personal"),
+    team: t("alisio.settings.ai.team"),
+    available: t("alisio.settings.ai.available"),
+    recentlyConnected: t("alisio.settings.ai.recentlyConnected"),
+    live: t("alisio.settings.ai.live"),
+    now: t("alisio.settings.ai.now"),
+    minutesSuffix: t("alisio.settings.ai.minutesSuffix"),
+    hoursSuffix: t("alisio.settings.ai.hoursSuffix"),
+    daysSuffix: t("alisio.settings.ai.daysSuffix"),
+  };
+  const activeProfileId = ai?.binding ? ai.activeProfileId : undefined;
+  const technicalLabelPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const resolveProfileEmail = (profile: Profile | null | undefined) =>
+    profile?.email ?? profile?.identity.email;
+  const resolveProfileKindKey = (profile: Profile | null | undefined) => {
+    const plan = (profile?.planLabel ?? profile?.aggregatedTelemetry?.planType ?? "").toLowerCase();
+    return /(team|business|enterprise|edu|organization|org|workspace)/.test(plan)
+      ? "team"
+      : "personal";
+  };
+  const resolveProfileKind = (profile: Profile | null | undefined) =>
+    resolveProfileKindKey(profile) === "team" ? text.team : text.personal;
+  const resolveProfileCustomName = (profile: Profile | null | undefined) => {
+    const label = profile?.label?.trim();
+    const email = resolveProfileEmail(profile)?.toLowerCase();
+    const technicalCandidates = new Set(
+      [
+        profile?.accountId,
+        profile?.accountUserId,
+        profile?.userId,
+        profile?.identity.accountId,
+        profile?.identity.accountUserId,
+        profile?.identity.userId,
+      ]
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.trim().toLowerCase()),
+    );
+    if (!label) {
+      return undefined;
+    }
+    const normalizedLabel = label.toLowerCase();
+    if (
+      normalizedLabel === resolveProfileKind(profile).toLowerCase() ||
+      (email && normalizedLabel === email) ||
+      technicalCandidates.has(normalizedLabel) ||
+      normalizedLabel.startsWith("alisio-openai:") ||
+      normalizedLabel === "default" ||
+      technicalLabelPattern.test(normalizedLabel)
+    ) {
+      return undefined;
+    }
+    return label;
+  };
+  const resolveProfileDisplayName = (profile: Profile | null | undefined) =>
+    resolveProfileCustomName(profile) ?? resolveProfileKind(profile);
+  const resolveProfileTitle = (profile: Profile | null | undefined) =>
+    resolveProfileEmail(profile) ?? profile?.label ?? text.noAccount;
+  const resolveProfilePlanLabel = (profile: Profile | null | undefined) => {
+    const planLabel = profile?.planLabel?.trim();
+    if (!planLabel) {
+      return undefined;
+    }
+    const normalizedPlan = planLabel.toLowerCase();
+    if (normalizedPlan === resolveProfileKind(profile).toLowerCase()) {
+      return undefined;
+    }
+    const customName = resolveProfileCustomName(profile)?.toLowerCase();
+    if (customName && normalizedPlan === customName) {
+      return undefined;
+    }
+    return planLabel;
+  };
+  const profiles = [...(ai?.profiles ?? [])].toSorted((left, right) => {
+    if (left.profileId === activeProfileId) {
+      return -1;
+    }
+    if (right.profileId === activeProfileId) {
+      return 1;
+    }
+    return resolveProfileTitle(left).localeCompare(resolveProfileTitle(right));
+  });
 
   const formatReset = (resetAt?: number) => {
     if (typeof resetAt !== "number") {
-      return "live";
+      return text.live;
     }
     const diffMs = resetAt - Date.now();
     if (diffMs <= 0) {
-      return "now";
+      return text.now;
     }
     const diffHours = Math.floor(diffMs / 3_600_000);
     const diffMinutes = Math.floor((diffMs % 3_600_000) / 60_000);
     if (diffHours <= 0) {
-      return `${Math.max(diffMinutes, 1)}m`;
+      return `${Math.max(diffMinutes, 1)}${text.minutesSuffix}`;
     }
     if (diffHours < 24) {
-      return diffMinutes > 0 ? `${diffHours}h ${diffMinutes}m` : `${diffHours}h`;
+      return diffMinutes > 0
+        ? `${diffHours}${text.hoursSuffix} ${diffMinutes}${text.minutesSuffix}`
+        : `${diffHours}${text.hoursSuffix}`;
     }
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d`;
+    return `${diffDays}${text.daysSuffix}`;
   };
 
-  const usageTone = (usedPercent: number) => {
-    if (usedPercent >= 85) {
+  const usageTone = (remainingPercent: number) => {
+    if (remainingPercent <= 15) {
       return "is-critical";
     }
-    if (usedPercent >= 60) {
+    if (remainingPercent <= 40) {
       return "is-warm";
     }
     return "is-healthy";
   };
 
+  const formatConnectedAt = (value?: string) => {
+    if (!value) {
+      return text.recentlyConnected;
+    }
+    const timestamp = Date.parse(value);
+    if (Number.isNaN(timestamp)) {
+      return text.recentlyConnected;
+    }
+    return new Intl.DateTimeFormat(props.bootstrap?.account?.preferences?.language ?? undefined, {
+      dateStyle: "medium",
+    }).format(timestamp);
+  };
+  const resolveProfileUsageWindows = (profile: Profile | null | undefined) => {
+    const telemetryWindows = [
+      profile?.aggregatedTelemetry?.primaryWindow,
+      profile?.aggregatedTelemetry?.secondaryWindow,
+    ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+    if (telemetryWindows.length > 0) {
+      return telemetryWindows.map((window) => ({
+        label: window.label,
+        remainingPercent: window.remainingPercent,
+        resetAt: window.resetAt,
+      }));
+    }
+    return (profile?.limits?.windows ?? ai?.limits?.windows ?? []).map((window) => ({
+      label: window.label,
+      remainingPercent: Math.max(0, Math.min(100, 100 - window.usedPercent)),
+      resetAt: window.resetAt,
+    }));
+  };
+  const requestRename = (profile: Profile) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const nextLabel = window.prompt(text.renamePrompt, resolveProfileDisplayName(profile));
+    if (nextLabel === null) {
+      return;
+    }
+    props.onRenameProfile(profile.profileId, nextLabel);
+  };
+
   return html`
     <section class="alisio-settings-ai">
-      <div class="card alisio-settings-card alisio-settings-card--hero">
-        <div class="alisio-settings-ai__hero">
-          <div>
-            <div class="alisio-page__eyebrow">Runtime</div>
-            <div class="card-title">AI providers</div>
-            <div class="card-sub">
-              Runtime auth, provider accounts, weekly quotas, and short-cycle limits in one place.
-            </div>
-          </div>
-          <div class="alisio-settings-ai__hero-metrics">
-            <div class="alisio-settings-ai__metric">
-              <strong>${providerSnapshots.length}</strong>
-              <span>tracked accounts</span>
-            </div>
-            <div class="alisio-settings-ai__metric">
-              <strong>${runtimeWindows.length}</strong>
-              <span>runtime windows</span>
-            </div>
-          </div>
-        </div>
-      </div>
       ${props.aiError
         ? html`<div class="callout danger" style="margin-top: 16px;">${props.aiError}</div>`
         : nothing}
-      ${props.providerUsageError
-        ? html`<div class="callout danger" style="margin-top: 16px;">
-            ${props.providerUsageError}
-          </div>`
-        : nothing}
-      <div class="alisio-settings-ai__grid">
-        <article class="card alisio-settings-card alisio-settings-ai__runtime">
-          <div class="alisio-settings-ai__card-head">
-            <div>
-              <div class="card-title">OpenAI runtime</div>
-              <div class="card-sub">
-                The account used by Alisio during setup and first-run chat.
+      <article class="card alisio-settings-card alisio-settings-ai__profiles">
+        <div class="alisio-settings-ai__card-head">
+          <div>
+            <div class="card-title">${text.profilesTitle}</div>
+            <div class="card-sub">${text.profilesSubtitle}</div>
+          </div>
+          <div class="alisio-settings-ai__actions">
+            <span class="pill"
+              >${profiles.length} ${profiles.length === 1 ? text.profile : text.profiles}</span
+            >
+            <button
+              class="btn ${profiles.length === 0 ? "primary" : ""}"
+              ?disabled=${props.aiLoading}
+              @click=${props.onConnect}
+            >
+              ${profiles.length === 0 ? text.connectOpenAi : text.connectAnother}
+            </button>
+          </div>
+        </div>
+        ${profiles.length === 0
+          ? html` <div class="alisio-settings-ai__empty">${text.noProfiles}</div> `
+          : html`
+              <div class="alisio-settings-ai__profile-list">
+                ${profiles.map((profile) =>
+                  renderAiProfileCard(profile, {
+                    active: profile.profileId === activeProfileId,
+                    loading: props.aiLoading,
+                    formatConnectedAt,
+                    formatReset,
+                    resolveProfileTitle,
+                    resolveProfileDisplayName,
+                    resolveProfilePlanLabel,
+                    resolveProfileUsageWindows,
+                    usageTone,
+                    onSelect: () => props.onSelectProfile(profile.profileId),
+                    onRefresh: () => props.onRefreshProfile(profile.profileId),
+                    onDisconnect: () => props.onDisconnectProfile(profile.profileId),
+                    onRename: () => requestRename(profile),
+                  }),
+                )}
               </div>
-            </div>
-            <span class="pill">${statusLabel}</span>
-          </div>
-          <div class="alisio-settings-ai__runtime-account">
-            <strong>${ai?.email ?? "No OpenAI account connected yet."}</strong>
-            <span>${ai?.planLabel ?? "OAuth runtime profile"}</span>
-          </div>
-          ${runtimeWindows.length > 0
-            ? html`
-                <div class="alisio-settings-ai__windows">
-                  ${runtimeWindows.map(
-                    (window) => html`
-                      <div class="alisio-settings-ai__window ${usageTone(window.usedPercent)}">
-                        <div class="alisio-settings-ai__window-top">
-                          <span>${window.label}</span>
-                          <strong>${Math.round(window.usedPercent)}%</strong>
-                        </div>
-                        <div class="alisio-settings-ai__window-bar">
-                          <span style=${`width:${Math.max(4, window.usedPercent)}%`}></span>
-                        </div>
-                        <div class="alisio-settings-ai__window-meta">
-                          resets in ${formatReset(window.resetAt)}
-                        </div>
-                      </div>
-                    `,
-                  )}
-                </div>
-              `
-            : html`
-                <div class="alisio-settings-ai__empty">
-                  Connect the runtime or refresh limits to load the active windows.
-                </div>
-              `}
-          <div class="row" style="margin-top: 16px;">
-            ${ai?.status === "connected" || ai?.status === "limits_unavailable"
-              ? html`
-                  <button class="btn" ?disabled=${props.aiLoading} @click=${props.onRefresh}>
-                    ${props.providerUsageLoading ? "Refreshing…" : "Refresh telemetry"}
-                  </button>
-                  <button
-                    class="btn danger"
-                    ?disabled=${props.aiLoading}
-                    @click=${props.onDisconnect}
-                  >
-                    Disconnect OpenAI
-                  </button>
-                `
-              : html`
-                  <button
-                    class="btn primary"
-                    ?disabled=${props.aiLoading}
-                    @click=${props.onConnect}
-                  >
-                    Connect OpenAI
-                  </button>
-                `}
-          </div>
-        </article>
-        <article class="card alisio-settings-card alisio-settings-ai__accounts">
-          <div class="alisio-settings-ai__card-head">
-            <div>
-              <div class="card-title">Provider telemetry</div>
-              <div class="card-sub">
-                Real quota windows from your configured provider accounts and profiles.
-              </div>
-            </div>
-            <span class="pill">${props.providerUsageLoading ? "Syncing" : "Live"}</span>
-          </div>
-          ${providerSnapshots.length === 0
-            ? html`
-                <div class="alisio-settings-ai__empty">
-                  No provider usage is available yet. Connect an account or add a configured
-                  provider key to start tracking weekly and short-cycle limits.
-                </div>
-              `
-            : html`
-                <div class="alisio-settings-ai__provider-list">
-                  ${providerSnapshots.map((snapshot) =>
-                    renderProviderUsageCard(snapshot, { formatReset, usageTone }),
-                  )}
-                </div>
-              `}
-        </article>
-      </div>
+            `}
+      </article>
     </section>
   `;
 }
 
-function renderProviderUsageCard(
-  snapshot: ProviderUsageSnapshot,
-  helpers: {
+export function renderAiProfileCard(
+  profile: NonNullable<AlisioAiState["profiles"]>[number],
+  props: {
+    active: boolean;
+    loading: boolean;
+    formatConnectedAt: (value?: string) => string;
     formatReset: (resetAt?: number) => string;
-    usageTone: (usedPercent: number) => string;
+    resolveProfileTitle: (profile: NonNullable<AlisioAiState["profiles"]>[number]) => string;
+    resolveProfileDisplayName: (profile: NonNullable<AlisioAiState["profiles"]>[number]) => string;
+    resolveProfilePlanLabel: (
+      profile: NonNullable<AlisioAiState["profiles"]>[number],
+    ) => string | undefined;
+    resolveProfileUsageWindows: (
+      profile: NonNullable<AlisioAiState["profiles"]>[number],
+    ) => Array<{ label: string; remainingPercent: number; resetAt?: number }>;
+    usageTone: (remainingPercent: number) => string;
+    onSelect: () => void;
+    onRefresh: () => void;
+    onDisconnect: () => void;
+    onRename: () => void;
   },
 ) {
+  const text = {
+    ready: t("alisio.settings.ai.profileStatus.ready"),
+    connected: t("alisio.settings.ai.profileStatus.connected"),
+    connecting: t("alisio.settings.ai.profileStatus.connecting"),
+    expired: t("alisio.settings.ai.profileStatus.expired"),
+    disconnected: t("alisio.settings.ai.profileStatus.disconnected"),
+    oauthProfile: t("alisio.settings.ai.oauthProfile"),
+    active: t("alisio.settings.ai.active"),
+    connectedOn: t("alisio.settings.ai.connectedOn"),
+    activeProfileButton: t("alisio.settings.ai.activeProfileButton"),
+    activate: t("alisio.settings.ai.activate"),
+    refresh: t("alisio.settings.ai.refresh"),
+    rename: t("alisio.settings.ai.rename"),
+    remove: t("alisio.settings.ai.remove"),
+    available: t("alisio.settings.ai.available"),
+    resetsIn: t("alisio.settings.ai.resetsIn"),
+  };
+  const statusLabel =
+    profile.status === "connected"
+      ? text.ready
+      : profile.status === "limits_unavailable"
+        ? text.connected
+        : profile.status === "connecting"
+          ? text.connecting
+          : profile.status === "expired"
+            ? text.expired
+            : text.disconnected;
+  const usageWindows = props.resolveProfileUsageWindows(profile);
+
   return html`
-    <article class="alisio-provider-card">
-      <div class="alisio-provider-card__head">
+    <article class="alisio-settings-ai__profile ${props.active ? "is-active" : ""}">
+      <div class="alisio-settings-ai__profile-head">
         <div>
-          <div class="alisio-provider-card__title">${snapshot.displayName}</div>
-          <div class="alisio-provider-card__identity">
-            ${snapshot.accountLabel ?? snapshot.profileId ?? "Primary account"}
+          <div class="alisio-settings-ai__profile-title">${props.resolveProfileTitle(profile)}</div>
+          <div class="alisio-settings-ai__profile-subtitle">
+            ${props.resolveProfileDisplayName(profile)}
           </div>
         </div>
-        ${snapshot.plan ? html`<span class="pill">${snapshot.plan}</span>` : nothing}
+        <div class="alisio-settings-ai__profile-badges">
+          ${props.active ? html`<span class="pill">${text.active}</span>` : nothing}
+          <span class="pill ${profile.status === "expired" ? "danger" : ""}">${statusLabel}</span>
+        </div>
       </div>
-      ${snapshot.accountEmail && snapshot.accountEmail !== snapshot.accountLabel
-        ? html`<div class="alisio-provider-card__meta">${snapshot.accountEmail}</div>`
-        : nothing}
-      ${snapshot.error
-        ? html`<div class="callout danger" style="margin-top: 12px;">${snapshot.error}</div>`
-        : snapshot.windows.length === 0
-          ? html`<div class="alisio-settings-ai__empty" style="margin-top: 12px;">
-              No quota data available for this account.
-            </div>`
-          : html`
-              <div class="alisio-settings-ai__windows" style="margin-top: 14px;">
-                ${snapshot.windows.map(
-                  (window) => html`
-                    <div
-                      class="alisio-settings-ai__window ${helpers.usageTone(window.usedPercent)}"
-                    >
-                      <div class="alisio-settings-ai__window-top">
-                        <span>${window.label}</span>
-                        <strong>${Math.round(window.usedPercent)}%</strong>
-                      </div>
-                      <div class="alisio-settings-ai__window-bar">
-                        <span style=${`width:${Math.max(4, window.usedPercent)}%`}></span>
-                      </div>
-                      <div class="alisio-settings-ai__window-meta">
-                        resets in ${helpers.formatReset(window.resetAt)}
-                      </div>
+      <div class="alisio-settings-ai__profile-meta">
+        ${props.resolveProfilePlanLabel(profile)
+          ? html`<span>${props.resolveProfilePlanLabel(profile)}</span>`
+          : nothing}
+        <span>${text.connectedOn} ${props.formatConnectedAt(profile.connectedAt)}</span>
+      </div>
+      ${usageWindows.length > 0
+        ? html`
+            <div class="alisio-settings-ai__windows">
+              ${usageWindows.map(
+                (window) => html`
+                  <div
+                    class="alisio-settings-ai__window ${props.usageTone(window.remainingPercent)}"
+                  >
+                    <div class="alisio-settings-ai__window-top">
+                      <span>${window.label}</span>
+                      <strong>${Math.round(window.remainingPercent)}%</strong>
                     </div>
-                  `,
-                )}
-              </div>
+                    <div class="alisio-settings-ai__window-bar">
+                      <span style=${`width:${Math.max(4, window.remainingPercent)}%`}></span>
+                    </div>
+                    <div class="alisio-settings-ai__window-meta">
+                      ${text.available} · ${text.resetsIn} ${props.formatReset(window.resetAt)}
+                    </div>
+                  </div>
+                `,
+              )}
+            </div>
+          `
+        : nothing}
+      <div class="alisio-settings-ai__profile-actions">
+        ${props.active
+          ? html`<button class="btn" disabled>${text.activeProfileButton}</button>`
+          : html`
+              <button class="btn" ?disabled=${props.loading} @click=${props.onSelect}>
+                ${text.activate}
+              </button>
             `}
-    </article>
-  `;
-}
-
-function renderSecuritySection() {
-  const text = {
-    title: t("alisio.settings.security.title"),
-    subtitle: t("alisio.settings.security.subtitle"),
-    password: t("alisio.settings.security.password"),
-    placeholder: t("alisio.settings.security.placeholder"),
-  };
-  return html`
-    <div class="card alisio-settings-card">
-      <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
-      <div class="list-item" style="margin-top: 16px;">
-        <div class="list-title">${text.password}</div>
-        <div class="list-sub">${text.placeholder}</div>
+        <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
+          ${text.refresh}
+        </button>
+        <button class="btn" ?disabled=${props.loading} @click=${props.onRename}>
+          ${text.rename}
+        </button>
+        <button class="btn danger" ?disabled=${props.loading} @click=${props.onDisconnect}>
+          ${text.remove}
+        </button>
       </div>
-    </div>
+    </article>
   `;
 }
 
 function renderDevicesSection(props: { account: AlisioAccountState | null }) {
   const text = {
     title: t("alisio.settings.devices.title"),
-    subtitle: t("alisio.settings.devices.subtitle"),
     thisDevice: t("alisio.settings.devices.thisDevice"),
     linkedDevice: t("alisio.settings.devices.linkedDevice"),
     active: t("alisio.settings.devices.active"),
@@ -759,7 +899,6 @@ function renderDevicesSection(props: { account: AlisioAccountState | null }) {
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
       ${(props.account?.devices ?? []).length === 0
         ? html`<div class="empty-state" style="margin-top: 16px;">${text.empty}</div>`
         : html`
@@ -784,18 +923,19 @@ function renderDevicesSection(props: { account: AlisioAccountState | null }) {
 function renderBillingSection(props: { account: AlisioAccountState | null }) {
   const text = {
     title: t("alisio.settings.billing.title"),
-    subtitle: t("alisio.settings.billing.subtitle"),
     upgrade: t("alisio.settings.billing.upgrade"),
     note: t("alisio.settings.billing.note"),
     freePlan: t("alisio.settings.billing.freePlan"),
   };
+  const planLabel = props.account?.profile.plan
+    ? t(alisioPlanTranslationKey(normalizeAlisioPlan(props.account.profile.plan)))
+    : text.freePlan;
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
       <div class="alisio-settings-billing" style="margin-top: 16px;">
         <div class="list-item">
-          <div class="list-title">${props.account?.profile.plan ?? text.freePlan}</div>
+          <div class="list-title">${planLabel}</div>
           <div class="list-sub">${text.note}</div>
         </div>
         <button class="btn primary">${text.upgrade}</button>
@@ -807,13 +947,11 @@ function renderBillingSection(props: { account: AlisioAccountState | null }) {
 function renderSupportSection() {
   const text = {
     title: t("alisio.settings.support.title"),
-    subtitle: t("alisio.settings.support.subtitle"),
     email: t("alisio.settings.support.email"),
   };
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
-      <div class="card-sub">${text.subtitle}</div>
       <div class="list-item" style="margin-top: 16px;">
         <div class="list-title">${text.email}</div>
         <div class="list-sub">
@@ -824,23 +962,34 @@ function renderSupportSection() {
   `;
 }
 
-function renderAdvancedSection(props: { onOpenSetup: () => void }) {
+function renderRuntimeSection(props: { onOpenSetup: () => void }) {
+  const text = {
+    title: t("alisio.settings.runtime.title"),
+    setupTitle: t("alisio.settings.runtime.setupTitle"),
+    setupSubtitle: t("alisio.settings.runtime.setupSubtitle"),
+    openSetup: t("alisio.settings.runtime.openSetup"),
+  };
   return html`
     <div class="card alisio-settings-card">
-      <div class="card-title">Advanced</div>
-      <div class="card-sub">
-        Manual gateway and connection controls stay out of the normal onboarding path.
-      </div>
+      <div class="card-title">${text.title}</div>
       <div class="list-item" style="margin-top: 16px;">
-        <div class="list-title">Connection</div>
-        <div class="list-sub">
-          Use the setup flow if you need to connect to another gateway or use a legacy tokenized
-          link.
-        </div>
+        <div class="list-title">${text.setupTitle}</div>
+        <div class="list-sub">${text.setupSubtitle}</div>
       </div>
       <div class="row" style="margin-top: 16px;">
-        <button class="btn" @click=${props.onOpenSetup}>Open setup</button>
+        <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
       </div>
+    </div>
+  `;
+}
+
+function renderMainSection(title: string, content: unknown) {
+  return html`
+    <div class="alisio-settings-section">
+      <div class="alisio-settings-section__header">
+        <h2>${title}</h2>
+      </div>
+      <div class="alisio-settings-section__body">${content}</div>
     </div>
   `;
 }
@@ -855,9 +1004,6 @@ export function renderSettingsHub(props: {
   bootstrap: AlisioBootstrapState | null;
   aiLoading: boolean;
   aiError: string | null;
-  providerUsageLoading: boolean;
-  providerUsageError: string | null;
-  providerUsageSummary: ProviderUsageSummary | null;
   doctorLoading: boolean;
   doctorError: string | null;
   doctor: AlisioDoctorSummaryState | null;
@@ -887,70 +1033,72 @@ export function renderSettingsHub(props: {
   onConnectAi: () => void;
   onDisconnectAi: () => void;
   onRefreshAi: () => void;
+  onSelectAiProfile: (profileId: string) => void;
+  onDisconnectAiProfile: (profileId: string) => void;
+  onRefreshAiProfile: (profileId: string) => void;
+  onRenameAiProfile: (profileId: string, label: string) => void;
 }) {
-  const text = {
-    title: t("alisio.settings.title"),
-    subtitle: t("alisio.settings.subtitle"),
-  };
+  const activeSection = resolveVisibleSection(props.section);
+  const showDoctor =
+    props.doctorLoading ||
+    props.doctorError != null ||
+    (props.doctor != null && (!props.doctor.ok || activeSection === "mac"));
   const sectionContent = (() => {
-    switch (props.section) {
-      case "appearance":
-        return renderAppearanceSection({
-          themeMode: props.themeMode,
-          onThemeModeChange: props.onThemeModeChange,
-        });
-      case "language":
-        return renderLanguageSection({
-          locale: props.locale,
-          onLocaleChange: props.onLocaleChange,
-        });
+    switch (activeSection) {
+      case "general":
+        return renderMainSection(
+          settingsSectionLabel("general"),
+          html`
+            ${renderAppearanceSection({
+              themeMode: props.themeMode,
+              onThemeModeChange: props.onThemeModeChange,
+            })}
+            ${renderLanguageSection({
+              locale: props.locale,
+              onLocaleChange: props.onLocaleChange,
+            })}
+          `,
+        );
       case "account":
-        return renderAccountSection({
-          accountLoading: props.accountLoading,
-          accountError: props.accountError,
-          accountNotice: props.accountNotice,
-          account: props.account,
-          locale: props.locale,
-          onSaveField: props.onSaveAccountField,
-          onSignOut: props.onSignOutAccount,
-          onRequestPasswordReset: props.onRequestPasswordReset,
-        });
-      case "ai":
-        return renderAiSection({
-          bootstrap: props.bootstrap,
-          aiLoading: props.aiLoading,
-          aiError: props.aiError,
-          providerUsageLoading: props.providerUsageLoading,
-          providerUsageError: props.providerUsageError,
-          providerUsageSummary: props.providerUsageSummary,
-          onConnect: props.onConnectAi,
-          onDisconnect: props.onDisconnectAi,
-          onRefresh: props.onRefreshAi,
-        });
-      case "security":
-        return renderSecuritySection();
-      case "devices":
-        return renderDevicesSection({ account: props.account });
-      case "billing":
-        return renderBillingSection({ account: props.account });
-      case "support":
-        return renderSupportSection();
+        return renderMainSection(
+          settingsSectionLabel("account"),
+          html`
+            ${renderAccountSection({
+              accountLoading: props.accountLoading,
+              accountError: props.accountError,
+              accountNotice: props.accountNotice,
+              account: props.account,
+              locale: props.locale,
+              onSaveField: props.onSaveAccountField,
+              onSignOut: props.onSignOutAccount,
+              onRequestPasswordReset: props.onRequestPasswordReset,
+            })}
+            ${renderDevicesSection({ account: props.account })}
+            ${renderBillingSection({ account: props.account })}
+          `,
+        );
       case "mac":
-        return renderMacSection({
-          nativeShellLoading: props.nativeShellLoading,
-          nativeShellError: props.nativeShellError,
-          nativeShellState: props.nativeShellState,
-          onRefreshNative: props.onRefreshNative,
-          onSetLaunchAtLogin: props.onSetLaunchAtLogin,
-          onRequestPermission: props.onRequestPermission,
-          onSetVoiceWake: props.onSetVoiceWake,
-          onOpenNativeSettings: props.onOpenNativeSettings,
-          onRevealLogs: props.onRevealLogs,
-        });
-      case "advanced":
-        return renderAdvancedSection({
-          onOpenSetup: props.onOpenSetup,
-        });
+        return renderMainSection(
+          settingsSectionLabel("mac"),
+          html`
+            ${renderMacSection({
+              nativeShellLoading: props.nativeShellLoading,
+              nativeShellError: props.nativeShellError,
+              nativeShellState: props.nativeShellState,
+              onRefreshNative: props.onRefreshNative,
+              onSetLaunchAtLogin: props.onSetLaunchAtLogin,
+              onRequestPermission: props.onRequestPermission,
+              onSetVoiceWake: props.onSetVoiceWake,
+              onOpenNativeSettings: props.onOpenNativeSettings,
+              onRevealLogs: props.onRevealLogs,
+            })}
+            ${renderRuntimeSection({
+              onOpenSetup: props.onOpenSetup,
+            })}
+          `,
+        );
+      case "support":
+        return renderMainSection(settingsSectionLabel("support"), renderSupportSection());
       default:
         return nothing;
     }
@@ -958,22 +1106,13 @@ export function renderSettingsHub(props: {
 
   return html`
     <section class="alisio-page alisio-settings-page">
-      <div class="card alisio-settings-hero">
-        <div class="alisio-page__eyebrow">Settings</div>
-        <div class="card-title">${text.title}</div>
-        <div class="card-sub">${text.subtitle}</div>
-      </div>
-      <div class="alisio-settings-shell">
-        <aside class="card alisio-settings-sidebar">
-          <div class="alisio-settings-sidebar__head">
-            <div class="card-title">Browse</div>
-            <div class="card-sub">Account, AI, product preferences, and advanced controls.</div>
-          </div>
-          <nav class="alisio-settings-links" aria-label="Settings sections">
+      <div class="alisio-settings-frame">
+        <aside class="alisio-settings-sidebar">
+          <nav class="alisio-settings-links" aria-label=${t("alisio.settings.sections.ariaLabel")}>
             ${PUBLIC_SETTINGS_SECTIONS.map(
               (section) => html`
                 <button
-                  class="alisio-settings-link ${props.section === section
+                  class="alisio-settings-link ${activeSection === section
                     ? "alisio-settings-link--active"
                     : ""}"
                   @click=${() => props.onSectionChange(section)}
@@ -986,13 +1125,15 @@ export function renderSettingsHub(props: {
               `,
             )}
           </nav>
-          ${renderDoctorCard({
-            doctorLoading: props.doctorLoading,
-            doctorError: props.doctorError,
-            doctor: props.doctor,
-            onReconnectRuntime: props.onReconnectRuntime,
-            onOpenSetup: props.onOpenSetup,
-          })}
+          ${showDoctor
+            ? renderDoctorCard({
+                doctorLoading: props.doctorLoading,
+                doctorError: props.doctorError,
+                doctor: props.doctor,
+                onReconnectRuntime: props.onReconnectRuntime,
+                onOpenSetup: props.onOpenSetup,
+              })
+            : nothing}
         </aside>
         <div class="alisio-settings-main">${sectionContent}</div>
       </div>

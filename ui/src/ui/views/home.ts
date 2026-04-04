@@ -91,7 +91,7 @@ export function renderHome(props: {
         <div class="row" style="margin-top: 18px; gap: 10px; flex-wrap: wrap;">
           <button class="btn" @click=${() => props.onNavigate("chat")}>Open Chat</button>
           <button class="btn" @click=${() => props.onNavigate("authentications")}>
-            Review Authentications
+            Review Apps
           </button>
           <button class="btn" @click=${() => props.onNavigate("automations")}>
             Open Automations

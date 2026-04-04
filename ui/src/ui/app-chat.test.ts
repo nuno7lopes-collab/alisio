@@ -39,10 +39,13 @@ function makeHost(overrides?: Partial<ChatHost>): ChatHost {
     chatModelOverrides: {},
     chatModelsLoading: false,
     chatModelCatalog: [],
+    toolStreamById: new Map(),
+    toolStreamOrder: [],
+    toolStreamSyncTimer: null,
     refreshSessionsAfterChat: new Set<string>(),
     updateComplete: Promise.resolve(),
     ...overrides,
-  };
+  } as unknown as ChatHost;
 }
 
 describe("refreshChatAvatar", () => {
@@ -210,6 +213,54 @@ describe("handleSendChat", () => {
         id: "queued",
         text: "follow up",
       }),
+    ]);
+  });
+
+  it("uses override attachments when replaying a message after connector auth", async () => {
+    const sendChatMessageMock = vi.fn(async () => "run-override");
+    vi.doMock("./controllers/chat.ts", async () => {
+      const actual =
+        await vi.importActual<typeof import("./controllers/chat.ts")>("./controllers/chat.ts");
+      return {
+        ...actual,
+        sendChatMessage: sendChatMessageMock,
+      };
+    });
+    await loadChatHelpers();
+
+    const host = makeHost({
+      client: { request: vi.fn() } as unknown as ChatHost["client"],
+      chatMessage: "rascunho local",
+      chatAttachments: [
+        {
+          id: "draft-1",
+          dataUrl: "data:image/jpeg;base64,draft",
+          mimeType: "image/jpeg",
+        },
+      ],
+    });
+    const replayAttachments = [
+      {
+        id: "resume-1",
+        dataUrl: "data:image/png;base64,resume",
+        mimeType: "image/png",
+      },
+    ];
+
+    await handleSendChat(host, "Reenvia este pedido", { attachments: replayAttachments });
+
+    expect(sendChatMessageMock).toHaveBeenCalledWith(
+      host,
+      "Reenvia este pedido",
+      replayAttachments,
+    );
+    expect(host.chatMessage).toBe("rascunho local");
+    expect(host.chatAttachments).toEqual([
+      {
+        id: "draft-1",
+        dataUrl: "data:image/jpeg;base64,draft",
+        mimeType: "image/jpeg",
+      },
     ]);
   });
 });

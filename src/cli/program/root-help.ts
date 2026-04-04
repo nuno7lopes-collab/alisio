@@ -1,5 +1,4 @@
 import { Command } from "commander";
-import { getPluginCliCommandDescriptors } from "../../plugins/cli.js";
 import { VERSION } from "../../version.js";
 import { getCoreCliCommandDescriptors } from "./core-command-descriptors.js";
 import { configureProgramHelp } from "./help.js";
@@ -26,14 +25,6 @@ async function buildRootHelpProgram(): Promise<Command> {
     program.command(command.name).description(command.description);
     existingCommands.add(command.name);
   }
-  for (const command of await getPluginCliCommandDescriptors()) {
-    if (existingCommands.has(command.name)) {
-      continue;
-    }
-    program.command(command.name).description(command.description);
-    existingCommands.add(command.name);
-  }
-
   return program;
 }
 

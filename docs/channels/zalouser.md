@@ -140,7 +140,7 @@ Example:
 
 ## Multi-account
 
-Accounts map to `zalouser` profiles in OpenClaw state. Example:
+Accounts map to `zalouser` profiles in Alisio state. Example:
 
 ```json5
 {

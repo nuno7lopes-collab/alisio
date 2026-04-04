@@ -110,7 +110,7 @@ function createChatHeaderState(
       navGroupsCollapsed: {},
       borderRadius: 50,
       chatFocusMode: false,
-      chatShowThinking: false,
+      chatShowThinking: true,
     },
     chatMessage: "",
     chatStream: null,
@@ -154,7 +154,7 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     sessionKey: "main",
     onSessionKeyChange: () => undefined,
     thinkingLevel: null,
-    showThinking: false,
+    showThinking: true,
     showToolCalls: true,
     loading: false,
     sending: false,
@@ -182,6 +182,7 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     onToggleFocusMode: () => undefined,
     onDraftChange: () => undefined,
     onOpenRuntimeSetup: () => undefined,
+    onBeginConnector: () => undefined,
     onSend: () => undefined,
     onQueueRemove: () => undefined,
     onNewSession: () => undefined,
@@ -193,6 +194,68 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
 }
 
 describe("chat view", () => {
+  it("renders quick access controls in the composer and wires their actions", () => {
+    const container = document.createElement("div");
+    const onApplyAccessMode = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          accessMode: "custom",
+          onApplyAccessMode,
+        }),
+      ),
+      container,
+    );
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+    );
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]?.textContent).toContain("Predefined permissions");
+    expect(buttons[1]?.textContent).toContain("Full access");
+
+    buttons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    buttons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(onApplyAccessMode).toHaveBeenNthCalledWith(1, "recommended");
+    expect(onApplyAccessMode).toHaveBeenNthCalledWith(2, "full-access");
+  });
+
+  it("disables the already active quick access mode in chat", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          accessMode: "recommended",
+          onApplyAccessMode: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+    );
+    expect(buttons[0]?.disabled).toBe(true);
+    expect(buttons[1]?.disabled).toBe(false);
+  });
+
+  it("does not render a security shortcut in the chat access strip", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          accessMode: "custom",
+          onApplyAccessMode: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("Custom");
+    expect(container.textContent).not.toContain("pending");
+  });
+
   it("shows a runtime setup callout instead of the raw error when setup is missing", () => {
     const container = document.createElement("div");
     const onOpenRuntimeSetup = vi.fn();
@@ -220,6 +283,63 @@ describe("chat view", () => {
     expect(button).not.toBeNull();
     button?.dispatchEvent(new MouseEvent("click"));
     expect(onOpenRuntimeSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a connector auth CTA in chat tool cards and wires the connector flow", () => {
+    const container = document.createElement("div");
+    const onBeginConnector = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          toolMessages: [
+            {
+              role: "assistant",
+              toolCallId: "tool-gmail-auth",
+              toolPhase: "result",
+              toolResultDetails: {
+                ok: false,
+                status: "auth_required",
+                connectorId: "gmail-send",
+                message: "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+                reconnectRequired: false,
+              },
+              content: [
+                {
+                  type: "toolcall",
+                  name: "gmail_send",
+                  arguments: { to: "nuno@example.com", subject: "Hello" },
+                },
+                {
+                  type: "toolresult",
+                  name: "gmail_send",
+                  text: "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+                  details: {
+                    ok: false,
+                    status: "auth_required",
+                    connectorId: "gmail-send",
+                    message:
+                      "Gmail Send is not connected in Alisio. Connect Gmail Send in Apps first.",
+                    reconnectRequired: false,
+                  },
+                },
+              ],
+              timestamp: Date.now(),
+              __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+            },
+          ],
+          onBeginConnector,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Connect Google");
+    const button = Array.from(container.querySelectorAll("button")).find((entry) =>
+      entry.textContent?.includes("Connect Google"),
+    );
+    expect(button).not.toBeUndefined();
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
   });
 
   it("hides the context notice when only cumulative inputTokens exceed the limit", () => {

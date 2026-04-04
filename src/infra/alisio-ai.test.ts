@@ -1,7 +1,17 @@
+import fs from "node:fs/promises";
 import net from "node:net";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
+import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
+import { createAuthTestLifecycle, setupAuthTestEnv } from "../commands/test-wizard-helpers.js";
+import { resolveConfigPath } from "../config/paths.js";
 import { withTempDir } from "../test-helpers/temp-dir.js";
-import { buildAlisioOpenAiAuthorization } from "./alisio-ai.js";
+import {
+  applyAlisioOpenAiRuntime,
+  buildAlisioOpenAiAuthorization,
+  resolveAlisioOpenAiTokenIdentity,
+} from "./alisio-ai.js";
 import { beginAlisioAiConnect, disconnectAlisioAi } from "./alisio-store.js";
 
 async function getFreePort(): Promise<number> {
@@ -20,7 +30,86 @@ async function getFreePort(): Promise<number> {
   });
 }
 
+function createJwt(payload: Record<string, unknown>) {
+  const encode = (value: Record<string, unknown>) =>
+    Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.signature`;
+}
+
+async function createReadyAlisioAccountEnv(root: string): Promise<NodeJS.ProcessEnv> {
+  const env = {
+    OPENCLAW_STATE_DIR: root,
+    ALISIO_SUPABASE_URL: "https://example.supabase.co",
+    ALISIO_SUPABASE_ANON_KEY: "anon-key",
+  } as NodeJS.ProcessEnv;
+  const statePath = path.join(root, "alisio", "state.json");
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  await fs.writeFile(
+    statePath,
+    JSON.stringify(
+      {
+        version: 1,
+        account: {
+          profile: {
+            userId: "user-1",
+            username: "nuno",
+            displayName: "Nuno Lopes",
+            email: "nuno@example.com",
+            avatarLabel: "N",
+            joinedAt: "2026-04-04T15:00:00.000Z",
+            plan: "free",
+            backend: "supabase",
+          },
+          preferences: {
+            language: "pt-PT",
+            theme: "dark",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            signedInAt: "2026-04-04T15:00:00.000Z",
+            backend: "supabase",
+          },
+        },
+        organization: {
+          mode: "none",
+        },
+        ai: {},
+        authorizations: {},
+        oauthCredentials: {},
+        pendingAuthorizations: {},
+      },
+      null,
+      2,
+    ),
+  );
+  return env;
+}
+
 describe("Alisio OpenAI connect", () => {
+  it("extracts canonical account identity and email from OpenAI token claims", () => {
+    const token = createJwt({
+      sub: "google-oauth2|shared-user",
+      "https://api.openai.com/auth": {
+        chatgpt_account_id: "acct_123",
+        chatgpt_account_user_id: "account-user-123",
+        chatgpt_user_id: "google-oauth2|shared-user",
+        chatgpt_plan_type: "team",
+      },
+      "https://api.openai.com/profile": {
+        email: "Nuno7Lopes@gmail.com",
+      },
+    });
+
+    expect(resolveAlisioOpenAiTokenIdentity(token)).toEqual({
+      accountId: "acct_123",
+      accountUserId: "account-user-123",
+      userId: "google-oauth2|shared-user",
+      email: "nuno7lopes@gmail.com",
+      planType: "team",
+    });
+  });
+
   it("matches the upstream OpenAI Codex OAuth request shape", async () => {
     const result = await buildAlisioOpenAiAuthorization({
       callbackUrl: "https://example.com/__alisio/auth/openai/callback",
@@ -41,10 +130,9 @@ describe("Alisio OpenAI connect", () => {
     await withTempDir({ prefix: "alisio-ai-" }, async (root) => {
       const callbackPort = await getFreePort();
       const callbackUrl = `http://127.0.0.1:${callbackPort}/__alisio/auth/openai/callback`;
+      const env = await createReadyAlisioAccountEnv(root);
 
-      const begin = await beginAlisioAiConnect({ callbackUrl }, {
-        OPENCLAW_STATE_DIR: root,
-      } as NodeJS.ProcessEnv);
+      const begin = await beginAlisioAiConnect({ callbackUrl }, env);
 
       const setupUrl = new URL(begin.setupUrl);
       expect(setupUrl.searchParams.get("redirect_uri")).toBe("http://localhost:1455/auth/callback");
@@ -63,22 +151,97 @@ describe("Alisio OpenAI connect", () => {
         `http://127.0.0.1:${callbackPort}/__alisio/auth/openai/callback?code=test-code&state=${state}`,
       );
 
-      await disconnectAlisioAi({ OPENCLAW_STATE_DIR: root } as NodeJS.ProcessEnv);
+      await disconnectAlisioAi(undefined, env);
     });
   });
 
   it("keeps remote callback URLs unchanged", async () => {
     await withTempDir({ prefix: "alisio-ai-" }, async (root) => {
       const callbackUrl = "https://example.com/__alisio/auth/openai/callback";
-      const begin = await beginAlisioAiConnect({ callbackUrl }, {
-        OPENCLAW_STATE_DIR: root,
-      } as NodeJS.ProcessEnv);
+      const env = await createReadyAlisioAccountEnv(root);
+      const begin = await beginAlisioAiConnect({ callbackUrl }, env);
 
       const setupUrl = new URL(begin.setupUrl);
       expect(setupUrl.searchParams.get("redirect_uri")).toBe(callbackUrl);
       expect(setupUrl.searchParams.get("originator")).toBe("pi");
 
-      await disconnectAlisioAi({ OPENCLAW_STATE_DIR: root } as NodeJS.ProcessEnv);
+      await disconnectAlisioAi(undefined, env);
     });
+  });
+
+  it("keeps active OpenAI runtime profiles in memory without persisting auth store secrets", async () => {
+    const lifecycle = createAuthTestLifecycle([
+      "OPENCLAW_STATE_DIR",
+      "OPENCLAW_AGENT_DIR",
+      "PI_CODING_AGENT_DIR",
+      "OPENCLAW_CONFIG_PATH",
+    ]);
+    const env = await setupAuthTestEnv("alisio-runtime-");
+    lifecycle.setStateDir(env.stateDir);
+    try {
+      const configPath = resolveConfigPath(process.env);
+      await applyAlisioOpenAiRuntime(
+        {
+          authProfileId: "openai-codex:alisio-primary",
+          accessToken: "access-primary",
+          refreshToken: "refresh-primary",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          email: "primary@example.com",
+        },
+        { displayName: "Primary" },
+      );
+      const configAfterPrimary = await fs.readFile(configPath, "utf8");
+      await applyAlisioOpenAiRuntime(
+        {
+          authProfileId: "openai-codex:alisio-secondary",
+          accessToken: "access-secondary",
+          refreshToken: "refresh-secondary",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          email: "secondary@example.com",
+        },
+        { displayName: "Secondary" },
+      );
+      const configAfterSecondary = await fs.readFile(configPath, "utf8");
+
+      await expect(fs.readFile(resolveAuthStorePath(env.agentDir), "utf8")).rejects.toThrow(
+        /ENOENT/,
+      );
+
+      const runtimeStore = ensureAuthProfileStore(env.agentDir, {
+        allowKeychainPrompt: false,
+      });
+      expect(runtimeStore.profiles["openai-codex:alisio-primary"]).toMatchObject({
+        type: "oauth",
+        email: "primary@example.com",
+        displayName: "Primary",
+      });
+      expect(runtimeStore.profiles["openai-codex:alisio-secondary"]).toMatchObject({
+        type: "oauth",
+        email: "secondary@example.com",
+        displayName: "Secondary",
+      });
+      expect(runtimeStore.order?.["openai-codex"]).toEqual([
+        "openai-codex:alisio-secondary",
+        "openai-codex:alisio-primary",
+      ]);
+      expect(configAfterSecondary).toBe(configAfterPrimary);
+
+      const config = JSON.parse(configAfterSecondary) as {
+        agents?: {
+          defaults?: {
+            model?: string | { primary?: string };
+            models?: Record<string, unknown>;
+          };
+        };
+        auth?: { profiles?: Record<string, unknown>; order?: Record<string, string[]> };
+      };
+      expect(config.agents?.defaults?.model).toEqual({ primary: "openai-codex/gpt-5.4" });
+      expect(config.agents?.defaults?.models?.["openai-codex/gpt-5.4"]).toEqual({});
+      expect(config.auth?.profiles?.["openai-codex:alisio-primary"]).toBeUndefined();
+      expect(config.auth?.profiles?.["openai-codex:alisio-secondary"]).toBeUndefined();
+      expect(config.auth?.order?.["openai-codex"]).toBeUndefined();
+    } finally {
+      await lifecycle.cleanup();
+    }
   });
 });

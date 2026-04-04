@@ -40,14 +40,18 @@ export function buildAlisioOpenAiOAuthCompletionScript(signal: AlisioOpenAiOAuth
   const payload = JSON.stringify(signal).replaceAll("<", "\\u003c");
   const storageKey = JSON.stringify(ALISIO_OPENAI_OAUTH_STORAGE_KEY);
   const channelName = JSON.stringify(ALISIO_OPENAI_OAUTH_CHANNEL);
+  const legacyStorageKey = JSON.stringify(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY);
+  const legacyChannelName = JSON.stringify(LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL);
   return [
     "(function(){",
     `var payload=${payload};`,
     `var storageKey=${storageKey};`,
     `var channelName=${channelName};`,
-    "try{localStorage.setItem(storageKey, JSON.stringify(payload));localStorage.removeItem(storageKey);}catch(_error){}",
-    "try{if(typeof BroadcastChannel==='function'){var channel=new BroadcastChannel(channelName);channel.postMessage(payload);channel.close();}}catch(_error){}",
-    "try{window.close();}catch(_error){}",
+    `var legacyStorageKey=${legacyStorageKey};`,
+    `var legacyChannelName=${legacyChannelName};`,
+    "try{var serialized=JSON.stringify(payload);localStorage.setItem(storageKey, serialized);localStorage.setItem(legacyStorageKey, serialized);}catch(_error){}",
+    "try{if(typeof BroadcastChannel==='function'){var channel=new BroadcastChannel(channelName);channel.postMessage(payload);channel.close();var legacyChannel=new BroadcastChannel(legacyChannelName);legacyChannel.postMessage(payload);legacyChannel.close();}}catch(_error){}",
+    "try{setTimeout(function(){window.close();},120);}catch(_error){try{window.close();}catch(_error2){}}",
     "})();",
   ].join("");
 }

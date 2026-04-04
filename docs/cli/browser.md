@@ -1,15 +1,15 @@
 ---
-summary: "CLI reference for `openclaw browser` (profiles, tabs, actions, Chrome MCP, and CDP)"
+summary: "CLI reference for `alisio browser` (profiles, tabs, actions, Chrome MCP, and CDP)"
 read_when:
-  - You use `openclaw browser` and want examples for common tasks
+  - You use `alisio browser` and want examples for common tasks
   - You want to control a browser running on another machine via a node host
   - You want to attach to your local signed-in Chrome via Chrome MCP
 title: "browser"
 ---
 
-# `openclaw browser`
+# `alisio browser`
 
-Manage OpenClaw’s browser control server and run browser actions (tabs, snapshots, screenshots, navigation, clicks, typing).
+Manage Alisio’s browser control server and run browser actions (tabs, snapshots, screenshots, navigation, clicks, typing).
 
 Related:
 
@@ -26,15 +26,15 @@ Related:
 ## Quick start (local)
 
 ```bash
-openclaw browser profiles
-openclaw browser --browser-profile openclaw start
-openclaw browser --browser-profile openclaw open https://example.com
-openclaw browser --browser-profile openclaw snapshot
+alisio browser profiles
+alisio browser --browser-profile openclaw start
+alisio browser --browser-profile openclaw open https://example.com
+alisio browser --browser-profile openclaw snapshot
 ```
 
 ## If the command is missing
 
-If `openclaw browser` is an unknown command, check `plugins.allow` in
+If `alisio browser` is an unknown command, check `plugins.allow` in
 `~/.openclaw/openclaw.json`.
 
 When `plugins.allow` is present, the bundled browser plugin must be listed
@@ -57,30 +57,30 @@ Related: [Browser tool](/tools/browser#missing-browser-command-or-tool)
 
 Profiles are named browser routing configs. In practice:
 
-- `openclaw`: launches or attaches to a dedicated OpenClaw-managed Chrome instance (isolated user data dir).
+- `openclaw`: launches or attaches to a dedicated Alisio-managed Chrome instance (isolated user data dir).
 - `user`: controls your existing signed-in Chrome session via Chrome DevTools MCP.
 - custom CDP profiles: point at a local or remote CDP endpoint.
 
 ```bash
-openclaw browser profiles
-openclaw browser create-profile --name work --color "#FF5A36"
-openclaw browser create-profile --name chrome-live --driver existing-session
-openclaw browser delete-profile --name work
+alisio browser profiles
+alisio browser create-profile --name work --color "#FF5A36"
+alisio browser create-profile --name chrome-live --driver existing-session
+alisio browser delete-profile --name work
 ```
 
 Use a specific profile:
 
 ```bash
-openclaw browser --browser-profile work tabs
+alisio browser --browser-profile work tabs
 ```
 
 ## Tabs
 
 ```bash
-openclaw browser tabs
-openclaw browser open https://docs.openclaw.ai
-openclaw browser focus <targetId>
-openclaw browser close <targetId>
+alisio browser tabs
+alisio browser open https://docs.openclaw.ai
+alisio browser focus <targetId>
+alisio browser close <targetId>
 ```
 
 ## Snapshot / screenshot / actions
@@ -88,21 +88,21 @@ openclaw browser close <targetId>
 Snapshot:
 
 ```bash
-openclaw browser snapshot
+alisio browser snapshot
 ```
 
 Screenshot:
 
 ```bash
-openclaw browser screenshot
+alisio browser screenshot
 ```
 
 Navigate/click/type (ref-based UI automation):
 
 ```bash
-openclaw browser navigate https://example.com
-openclaw browser click <ref>
-openclaw browser type <ref> "hello"
+alisio browser navigate https://example.com
+alisio browser click <ref>
+alisio browser type <ref> "hello"
 ```
 
 ## Existing Chrome via MCP
@@ -110,10 +110,10 @@ openclaw browser type <ref> "hello"
 Use the built-in `user` profile, or create your own `existing-session` profile:
 
 ```bash
-openclaw browser --browser-profile user tabs
-openclaw browser create-profile --name chrome-live --driver existing-session
-openclaw browser create-profile --name brave-live --driver existing-session --user-data-dir "~/Library/Application Support/BraveSoftware/Brave-Browser"
-openclaw browser --browser-profile chrome-live tabs
+alisio browser --browser-profile user tabs
+alisio browser create-profile --name chrome-live --driver existing-session
+alisio browser create-profile --name brave-live --driver existing-session --user-data-dir "~/Library/Application Support/BraveSoftware/Brave-Browser"
+alisio browser --browser-profile chrome-live tabs
 ```
 
 This path is host-only. For Docker, headless servers, Browserless, or other remote setups, use a CDP profile instead.

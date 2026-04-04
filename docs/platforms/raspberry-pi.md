@@ -240,7 +240,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart openclaw
 ```
 
-If possible, keep OpenClaw state/cache on SSD-backed storage to avoid SD-card
+If possible, keep Alisio state/cache on SSD-backed storage to avoid SD-card
 random-I/O bottlenecks during cold starts.
 
 How `Restart=` policies help automated recovery:

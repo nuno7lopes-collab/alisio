@@ -59,6 +59,12 @@ import type { OpenClawConfig } from "../src/config/config.js";
 import type { OutboundSendDeps } from "../src/infra/outbound/deliver.js";
 import { installProcessWarningFilter } from "../src/infra/warning-filter.js";
 import type { PluginRegistry } from "../src/plugins/registry.js";
+import {
+  getActivePluginRegistry,
+  releasePinnedPluginChannelRegistry,
+  releasePinnedPluginHttpRouteRegistry,
+  setActivePluginRegistry,
+} from "../src/plugins/runtime.js";
 import { createTestRegistry } from "../src/test-utils/channel-plugins.js";
 import { cleanupSessionStateForTest } from "../src/test-utils/session-state-cleanup.js";
 import { withIsolatedTestHome } from "./test-env.js";
@@ -67,32 +73,6 @@ import { withIsolatedTestHome } from "./test-env.js";
 const testEnv = withIsolatedTestHome();
 
 installProcessWarningFilter();
-
-const REGISTRY_STATE = Symbol.for("openclaw.pluginRegistryState");
-
-type RegistryState = {
-  registry: PluginRegistry | null;
-  httpRouteRegistry: PluginRegistry | null;
-  httpRouteRegistryPinned: boolean;
-  key: string | null;
-  version: number;
-};
-
-const globalRegistryState = (() => {
-  const globalState = globalThis as typeof globalThis & {
-    [REGISTRY_STATE]?: RegistryState;
-  };
-  if (!globalState[REGISTRY_STATE]) {
-    globalState[REGISTRY_STATE] = {
-      registry: null,
-      httpRouteRegistry: null,
-      httpRouteRegistryPinned: false,
-      key: null,
-      version: 0,
-    };
-  }
-  return globalState[REGISTRY_STATE];
-})();
 
 const pickSendFn = (id: ChannelId, deps?: OutboundSendDeps) => {
   return deps?.[id] as ((...args: unknown[]) => Promise<unknown>) | undefined;
@@ -312,10 +292,9 @@ const DEFAULT_PLUGIN_REGISTRY = new Proxy({} as PluginRegistry, {
 });
 
 function installDefaultPluginRegistry(): void {
-  globalRegistryState.registry = DEFAULT_PLUGIN_REGISTRY;
-  if (!globalRegistryState.httpRouteRegistryPinned) {
-    globalRegistryState.httpRouteRegistry = DEFAULT_PLUGIN_REGISTRY;
-  }
+  releasePinnedPluginHttpRouteRegistry();
+  releasePinnedPluginChannelRegistry();
+  setActivePluginRegistry(DEFAULT_PLUGIN_REGISTRY);
 }
 
 beforeAll(() => {
@@ -327,10 +306,8 @@ afterEach(async () => {
   resetContextWindowCacheForTest();
   resetModelsJsonReadyCacheForTest();
   resetSessionWriteLockStateForTest();
-  if (globalRegistryState.registry !== DEFAULT_PLUGIN_REGISTRY) {
+  if (getActivePluginRegistry() !== DEFAULT_PLUGIN_REGISTRY) {
     installDefaultPluginRegistry();
-    globalRegistryState.key = null;
-    globalRegistryState.version += 1;
   }
 });
 

@@ -15,6 +15,7 @@ import {
   type ExecSecurity,
 } from "../infra/exec-approvals.js";
 import { logWarn } from "../logger.js";
+import { INTERNAL_MESSAGE_CHANNEL, normalizeMessageChannel } from "../utils/message-channel.js";
 import { sendExecApprovalFollowup } from "./bash-tools.exec-approval-followup.js";
 import {
   type ExecApprovalRegistration,
@@ -221,6 +222,43 @@ export async function resolveApprovalDecisionOrUndefined(params: {
   } catch {
     params.onFailure();
     return undefined;
+  }
+}
+
+export function shouldWaitForInlineExecApproval(params: { turnSourceChannel?: string }): boolean {
+  const channel = normalizeMessageChannel(params.turnSourceChannel);
+  return channel === INTERNAL_MESSAGE_CHANNEL || channel === "tui";
+}
+
+export async function waitForExecApprovalDecisionOrThrow(params: {
+  approvalId: string;
+  preResolvedDecision: string | null | undefined;
+  signal?: AbortSignal;
+}): Promise<string | null> {
+  const waitPromise = resolveRegisteredExecApprovalDecision({
+    approvalId: params.approvalId,
+    preResolvedDecision: params.preResolvedDecision,
+  });
+  if (!params.signal) {
+    return await waitPromise;
+  }
+  if (params.signal.aborted) {
+    throw params.signal.reason ?? new Error("Approval cancelled (run aborted)");
+  }
+  let onAbort: (() => void) | undefined;
+  try {
+    return await Promise.race([
+      waitPromise,
+      new Promise<never>((_, reject) => {
+        onAbort = () =>
+          reject(params.signal?.reason ?? new Error("Approval cancelled (run aborted)"));
+        params.signal?.addEventListener("abort", onAbort, { once: true });
+      }),
+    ]);
+  } finally {
+    if (onAbort) {
+      params.signal.removeEventListener("abort", onAbort);
+    }
   }
 }
 

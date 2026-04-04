@@ -32,6 +32,13 @@ const PALETTE_ITEMS: PaletteItem[] = [
     action: "nav:chat",
   },
   {
+    id: "nav-channels",
+    label: "Channels",
+    icon: "radio",
+    category: "navigation",
+    action: "nav:channels",
+  },
+  {
     id: "nav-connections",
     label: "Connections",
     icon: "monitor",
@@ -40,10 +47,17 @@ const PALETTE_ITEMS: PaletteItem[] = [
   },
   {
     id: "nav-authentications",
-    label: "Integrations",
+    label: "Apps",
     icon: "link",
     category: "navigation",
     action: "nav:authentications",
+  },
+  {
+    id: "nav-capabilities",
+    label: "Capabilities",
+    icon: "spark",
+    category: "navigation",
+    action: "nav:capabilities",
   },
   {
     id: "nav-organization",
@@ -54,7 +68,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
   },
   {
     id: "nav-settings",
-    label: "Preferences",
+    label: "Settings",
     icon: "settings",
     category: "navigation",
     action: "nav:settings",

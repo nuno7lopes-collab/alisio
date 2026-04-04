@@ -57,10 +57,8 @@ extension OnboardingView {
         }
         .task {
             await self.refreshPerms()
-            self.refreshCLIStatus()
             await self.loadWorkspaceDefaults()
             await self.ensureDefaultWorkspace()
-            self.refreshBootstrapStatus()
             self.preferredGatewayID = GatewayDiscoveryPreferences.preferredStableID()
             self.syncShellOnboardingState()
         }

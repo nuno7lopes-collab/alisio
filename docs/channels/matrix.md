@@ -422,11 +422,11 @@ OpenClaw currently provides that in Node by:
 
 This is compatibility/storage plumbing, not a custom crypto implementation.
 The snapshot file is sensitive runtime state and is stored with restrictive file permissions.
-Under OpenClaw's security model, the gateway host and local OpenClaw state directory are already inside the trusted operator boundary, so this is primarily an operational durability concern rather than a separate remote trust boundary.
+Under Alisio's security model, the gateway host and local Alisio state directory are already inside the trusted operator boundary, so this is primarily an operational durability concern rather than a separate remote trust boundary.
 
 Planned improvement:
 
-- add SecretRef support for persistent Matrix key material so recovery keys and related store-encryption secrets can be sourced from OpenClaw secrets providers instead of only local files
+- add SecretRef support for persistent Matrix key material so recovery keys and related store-encryption secrets can be sourced from Alisio secrets providers instead of only local files
 
 ## Profile management
 

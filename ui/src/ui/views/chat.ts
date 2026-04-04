@@ -4,7 +4,8 @@ import { repeat } from "lit/directives/repeat.js";
 import { t } from "../../i18n/index.ts";
 import {
   CHAT_ATTACHMENT_ACCEPT,
-  isSupportedChatAttachmentMimeType,
+  isImageChatAttachmentMimeType,
+  isSupportedChatAttachmentFile,
 } from "../chat/attachment-support.ts";
 import { DeletedMessages } from "../chat/deleted-messages.ts";
 import {
@@ -26,6 +27,7 @@ import {
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
 import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
+import type { SecurityAccessMode } from "../controllers/security-access.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
@@ -72,6 +74,9 @@ export type ChatProps = {
   queue: ChatQueueItem[];
   connected: boolean;
   canSend: boolean;
+  accessMode?: SecurityAccessMode | null;
+  accessModeLoading?: boolean;
+  accessModeBusy?: boolean;
   disabledReason: string | null;
   error: string | null;
   runtimeSetupHint?: ChatRuntimeSetupHint | null;
@@ -89,9 +94,11 @@ export type ChatProps = {
   onScrollToBottom?: () => void;
   onRefresh: () => void;
   onToggleFocusMode: () => void;
+  onApplyAccessMode?: (mode: Exclude<SecurityAccessMode, "custom">) => void;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
   onOpenRuntimeSetup?: () => void;
+  onBeginConnector?: (connectorId: string) => void;
   onRequestUpdate?: () => void;
   onSend: () => void;
   onAbort?: () => void;
@@ -170,6 +177,7 @@ function getDeletedMessages(sessionKey: string): DeletedMessages {
 interface ChatEphemeralState {
   sttRecording: boolean;
   sttInterimText: string;
+  composerNotice: string | null;
   slashMenuOpen: boolean;
   slashMenuItems: SlashCommandDef[];
   slashMenuIndex: number;
@@ -185,6 +193,7 @@ function createChatEphemeralState(): ChatEphemeralState {
   return {
     sttRecording: false,
     sttInterimText: "",
+    composerNotice: null,
     slashMenuOpen: false,
     slashMenuItems: [],
     slashMenuIndex: 0,
@@ -215,6 +224,17 @@ export const cleanupChatModuleState = resetChatViewState;
 function adjustTextareaHeight(el: HTMLTextAreaElement) {
   el.style.height = "auto";
   el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+}
+
+function setComposerNotice(message: string | null) {
+  vs.composerNotice = message?.trim() ? message : null;
+}
+
+function buildUnsupportedAttachmentsNotice(count: number): string | null {
+  if (count <= 0) {
+    return null;
+  }
+  return chatText("compose.unsupportedAttachments", { count: String(count) });
 }
 
 function renderCompactionIndicator(status: CompactionIndicatorStatus | null | undefined) {
@@ -397,7 +417,7 @@ function generateAttachmentId(): string {
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function handlePaste(e: ClipboardEvent, props: ChatProps) {
+function handlePaste(e: ClipboardEvent, props: ChatProps, requestUpdate: () => void) {
   const items = e.clipboardData?.items;
   if (!items || !props.onAttachmentsChange) {
     return;
@@ -413,6 +433,7 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
     return;
   }
   e.preventDefault();
+  setComposerNotice(null);
   for (const item of imageItems) {
     const file = item.getAsFile();
     if (!file) {
@@ -425,15 +446,17 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
         id: generateAttachmentId(),
         dataUrl,
         mimeType: file.type,
+        ...(file.name ? { fileName: file.name } : {}),
       };
       const current = props.attachments ?? [];
       props.onAttachmentsChange?.([...current, newAttachment]);
+      requestUpdate();
     });
     reader.readAsDataURL(file);
   }
 }
 
-function handleFileSelect(e: Event, props: ChatProps) {
+function handleFileSelect(e: Event, props: ChatProps, requestUpdate: () => void) {
   const input = e.target as HTMLInputElement;
   if (!input.files || !props.onAttachmentsChange) {
     return;
@@ -441,8 +464,10 @@ function handleFileSelect(e: Event, props: ChatProps) {
   const current = props.attachments ?? [];
   const additions: ChatAttachment[] = [];
   let pending = 0;
+  let unsupported = 0;
   for (const file of input.files) {
-    if (!isSupportedChatAttachmentMimeType(file.type)) {
+    if (!isSupportedChatAttachmentFile(file)) {
+      unsupported++;
       continue;
     }
     pending++;
@@ -452,18 +477,25 @@ function handleFileSelect(e: Event, props: ChatProps) {
         id: generateAttachmentId(),
         dataUrl: reader.result as string,
         mimeType: file.type,
+        ...(file.name ? { fileName: file.name } : {}),
       });
       pending--;
       if (pending === 0) {
         props.onAttachmentsChange?.([...current, ...additions]);
+        setComposerNotice(buildUnsupportedAttachmentsNotice(unsupported));
+        requestUpdate();
       }
     });
     reader.readAsDataURL(file);
   }
+  if (pending === 0) {
+    setComposerNotice(buildUnsupportedAttachmentsNotice(unsupported));
+    requestUpdate();
+  }
   input.value = "";
 }
 
-function handleDrop(e: DragEvent, props: ChatProps) {
+function handleDrop(e: DragEvent, props: ChatProps, requestUpdate: () => void) {
   e.preventDefault();
   const files = e.dataTransfer?.files;
   if (!files || !props.onAttachmentsChange) {
@@ -472,8 +504,10 @@ function handleDrop(e: DragEvent, props: ChatProps) {
   const current = props.attachments ?? [];
   const additions: ChatAttachment[] = [];
   let pending = 0;
+  let unsupported = 0;
   for (const file of files) {
-    if (!isSupportedChatAttachmentMimeType(file.type)) {
+    if (!isSupportedChatAttachmentFile(file)) {
+      unsupported++;
       continue;
     }
     pending++;
@@ -483,13 +517,20 @@ function handleDrop(e: DragEvent, props: ChatProps) {
         id: generateAttachmentId(),
         dataUrl: reader.result as string,
         mimeType: file.type,
+        ...(file.name ? { fileName: file.name } : {}),
       });
       pending--;
       if (pending === 0) {
         props.onAttachmentsChange?.([...current, ...additions]);
+        setComposerNotice(buildUnsupportedAttachmentsNotice(unsupported));
+        requestUpdate();
       }
     });
     reader.readAsDataURL(file);
+  }
+  if (pending === 0) {
+    setComposerNotice(buildUnsupportedAttachmentsNotice(unsupported));
+    requestUpdate();
   }
 }
 
@@ -503,7 +544,15 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
       ${attachments.map(
         (att) => html`
           <div class="chat-attachment-thumb alisio-chat__attachment-thumb">
-            <img src=${att.dataUrl} alt=${chatText("attachments.preview")} />
+            ${isImageChatAttachmentMimeType(att.mimeType)
+              ? html`<img src=${att.dataUrl} alt=${chatText("attachments.preview")} />`
+              : att.mimeType.startsWith("audio/")
+                ? html`<audio controls src=${att.dataUrl}></audio>`
+                : html`
+                    <div class="chat-attachment-file" title=${att.fileName ?? att.mimeType}>
+                      <span>${att.fileName ?? att.mimeType}</span>
+                    </div>
+                  `}
             <button
               class="chat-attachment-remove alisio-chat__attachment-remove"
               type="button"
@@ -518,6 +567,36 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
           </div>
         `,
       )}
+    </div>
+  `;
+}
+
+function renderAccessStrip(props: ChatProps): TemplateResult | typeof nothing {
+  if (!props.onApplyAccessMode) {
+    return nothing;
+  }
+  const selectedMode = props.accessMode ?? null;
+  const busy = Boolean(props.accessModeBusy || props.accessModeLoading);
+  const disabled = !props.connected || busy;
+
+  return html`
+    <div class="alisio-chat__access-strip" role="group" aria-label=${chatText("access.aria")}>
+      <button
+        type="button"
+        class="alisio-chat__access-pill ${selectedMode === "recommended" ? "is-active" : ""}"
+        ?disabled=${disabled || !props.onApplyAccessMode || selectedMode === "recommended"}
+        @click=${() => props.onApplyAccessMode?.("recommended")}
+      >
+        <span>${t("alisio.security.access.recommended.title")}</span>
+      </button>
+      <button
+        type="button"
+        class="alisio-chat__access-pill ${selectedMode === "full-access" ? "is-active" : ""}"
+        ?disabled=${disabled || !props.onApplyAccessMode || selectedMode === "full-access"}
+        @click=${() => props.onApplyAccessMode?.("full-access")}
+      >
+        <span>${t("alisio.security.access.fullAccess.label")}</span>
+      </button>
     </div>
   `;
 }
@@ -1059,6 +1138,7 @@ export function renderChat(props: ChatProps) {
                 onOpenSidebar: props.onOpenSidebar,
                 showReasoning,
                 showToolCalls: props.showToolCalls,
+                onBeginConnector: props.onBeginConnector,
                 assistantName: props.assistantName,
                 assistantAvatar: assistantIdentity.avatar,
                 basePath: props.basePath,
@@ -1210,13 +1290,16 @@ export function renderChat(props: ChatProps) {
     adjustTextareaHeight(target);
     updateSlashMenu(target.value, requestUpdate);
     inputHistory.reset();
+    if (vs.composerNotice) {
+      setComposerNotice(null);
+    }
     props.onDraftChange(target.value);
   };
 
   return html`
     <section
       class="card chat alisio-chat ${isEmpty ? "alisio-chat--empty" : ""}"
-      @drop=${(e: DragEvent) => handleDrop(e, props)}
+      @drop=${(e: DragEvent) => handleDrop(e, props, requestUpdate)}
       @dragover=${(e: DragEvent) => e.preventDefault()}
     >
       ${props.disabledReason ? html`<div class="callout">${props.disabledReason}</div>` : nothing}
@@ -1224,6 +1307,7 @@ export function renderChat(props: ChatProps) {
       ${props.error && !props.runtimeSetupHint
         ? html`<div class="callout danger">${props.error}</div>`
         : nothing}
+      ${vs.composerNotice ? html`<div class="callout">${vs.composerNotice}</div>` : nothing}
       ${props.focusMode
         ? html`
             <button
@@ -1287,7 +1371,7 @@ export function renderChat(props: ChatProps) {
                       <div class="chat-queue__text">
                         ${item.text ||
                         (item.attachments?.length
-                          ? chatText("compose.imageAttachment", {
+                          ? chatText("compose.fileAttachment", {
                               count: String(item.attachments.length),
                             })
                           : "")}
@@ -1321,13 +1405,14 @@ export function renderChat(props: ChatProps) {
       <!-- Input bar -->
       <div class="agent-chat__input alisio-chat__composer">
         ${renderSlashMenu(requestUpdate, props)} ${renderAttachmentPreview(props)}
+        ${renderAccessStrip(props)}
 
         <input
           type="file"
           accept=${CHAT_ATTACHMENT_ACCEPT}
           multiple
           class="agent-chat__file-input"
-          @change=${(e: Event) => handleFileSelect(e, props)}
+          @change=${(e: Event) => handleFileSelect(e, props, requestUpdate)}
         />
 
         ${vs.sttRecording && vs.sttInterimText
@@ -1342,7 +1427,7 @@ export function renderChat(props: ChatProps) {
           ?disabled=${!props.connected}
           @keydown=${handleKeyDown}
           @input=${handleInput}
-          @paste=${(e: ClipboardEvent) => handlePaste(e, props)}
+          @paste=${(e: ClipboardEvent) => handlePaste(e, props, requestUpdate)}
           placeholder=${vs.sttRecording ? chatText("compose.listening") : placeholder}
           rows="1"
         ></textarea>
@@ -1387,6 +1472,7 @@ export function renderChat(props: ChatProps) {
                             requestUpdate();
                           },
                           onStart: () => {
+                            setComposerNotice(null);
                             vs.sttRecording = true;
                             requestUpdate();
                           },
@@ -1395,9 +1481,14 @@ export function renderChat(props: ChatProps) {
                             vs.sttInterimText = "";
                             requestUpdate();
                           },
-                          onError: () => {
+                          onError: (error) => {
                             vs.sttRecording = false;
                             vs.sttInterimText = "";
+                            setComposerNotice(
+                              error === "not-allowed" || error === "service-not-allowed"
+                                ? chatText("compose.voiceInputBlocked")
+                                : chatText("compose.voiceInputFailed"),
+                            );
                             requestUpdate();
                           },
                         });

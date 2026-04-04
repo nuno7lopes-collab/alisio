@@ -306,6 +306,54 @@ describe("run-node script", () => {
     });
   });
 
+  it("retries transient runtime artifact collisions before failing", async () => {
+    await withTempDir(async (tmp) => {
+      await setupTrackedProject(tmp, {
+        files: {
+          [ROOT_SRC]: "export const value = 1;\n",
+        },
+        oldPaths: [ROOT_SRC, ROOT_TSCONFIG, ROOT_PACKAGE],
+        buildPaths: [DIST_ENTRY, BUILD_STAMP],
+      });
+
+      const { spawnCalls, spawn, spawnSync } = createSpawnRecorder({
+        gitHead: "abc123\n",
+        gitStatus: "",
+      });
+      const sleepCalls: number[] = [];
+      let attempts = 0;
+
+      const exitCode = await runNodeMain({
+        cwd: tmp,
+        args: ["status"],
+        env: {
+          ...process.env,
+          OPENCLAW_RUNNER_LOG: "0",
+        },
+        spawn,
+        spawnSync,
+        execPath: process.execPath,
+        runtimePostBuild: () => {
+          attempts += 1;
+          if (attempts < 3) {
+            const error = new Error("ENOTEMPTY: directory not empty, rename temp -> final");
+            // @ts-expect-error test shim for Node fs error shape
+            error.code = "ENOTEMPTY";
+            throw error;
+          }
+        },
+        sleep: async (delayMs) => {
+          sleepCalls.push(delayMs);
+        },
+      });
+
+      expect(exitCode).toBe(0);
+      expect(attempts).toBe(3);
+      expect(sleepCalls).toEqual([40, 120]);
+      expect(spawnCalls).toEqual([statusCommandSpawn()]);
+    });
+  });
+
   it("rebuilds when extension sources are newer than the build stamp", async () => {
     await withTempDir(async (tmp) => {
       await setupTrackedProject(tmp, {

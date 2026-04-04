@@ -2,12 +2,7 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
-import {
-  getAlisioAccountState,
-  getAlisioAiState,
-  getAlisioBootstrapSummary,
-  hasRestorableAlisioAccount,
-} from "../infra/alisio-store.js";
+import { hasRestorableAlisioAccount, loadAlisioBootstrapState } from "../infra/alisio-store.js";
 import { matchBoundaryFileOpenFailure, openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
   isPackageProvenControlUiRootSync,
@@ -131,6 +126,9 @@ function applyControlUiSecurityHeaders(res: ServerResponse) {
   res.setHeader("Content-Security-Policy", buildControlUiCspHeader());
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer");
+  // The Control UI supports browser-native speech input. Override the global
+  // gateway baseline so gateway-served chat pages can request microphone access.
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown) {
@@ -193,16 +191,22 @@ export async function handleAlisioBootstrapHttpRequest(
     return true;
   }
 
-  const account = await getAlisioAccountState();
-  const ai = await getAlisioAiState();
-  const bootstrap = await getAlisioBootstrapSummary({
+  const runtimeSetup = await opts.loadRuntimeSetup();
+  const { snapshot, summary } = await loadAlisioBootstrapState({
     wizardRunning: false,
+    providerReady: runtimeSetup.providerReady,
     connectionRequired: false,
   });
+  const account = snapshot.account;
+  const ai = snapshot.ai;
   const body: AlisioHttpBootstrap = {
     basePath,
     controlUrl: resolveWebSocketUrl(req, basePath),
-    startupState: bootstrap.startupState,
+    connectionRequired: summary.connectionRequired,
+    startupState: summary.startupState,
+    providerReady: summary.providerReady,
+    accountReady: summary.accountReady,
+    nextStep: summary.nextStep,
     account: hasRestorableAlisioAccount(account.profile, account.session)
       ? {
           username: account.profile.username,

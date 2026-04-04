@@ -145,7 +145,7 @@ describe("handleConnected", () => {
             displayName: "Nuno",
             email: "nuno@example.com",
             avatarLabel: "N",
-            plan: "Free Plan",
+            plan: "free",
           },
           ai: null,
           bootstrapToken: "ticket",

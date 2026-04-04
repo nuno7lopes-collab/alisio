@@ -41,6 +41,10 @@ describe("tsdown config", () => {
       expect.arrayContaining([
         "agents/auth-profiles.runtime",
         "agents/pi-model-discovery-runtime",
+        "auto-reply/reply/abort.runtime",
+        "auto-reply/reply/dispatch-acp.runtime",
+        "auto-reply/reply/get-reply-from-config.runtime",
+        "auto-reply/reply/route-reply.runtime",
         "index",
         "commands/status.summary.runtime",
         "plugins/provider-runtime.runtime",
@@ -48,6 +52,7 @@ describe("tsdown config", () => {
         "plugins/runtime/index",
         "plugin-sdk/compat",
         "plugin-sdk/index",
+        "tts/tts.runtime",
         bundledEntry("openai"),
         bundledEntry("matrix"),
         bundledEntry("msteams"),

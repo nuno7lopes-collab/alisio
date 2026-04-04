@@ -1,5 +1,5 @@
 ---
-summary: "Advanced setup and development workflows for OpenClaw"
+summary: "Advanced setup and development workflows for Alisio"
 read_when:
   - Setting up a new machine
   - You want “latest + greatest” without breaking your personal setup
@@ -35,16 +35,16 @@ If you want “100% tailored to me” _and_ easy updates, keep your customizatio
 Bootstrap once:
 
 ```bash
-openclaw setup
+alisio setup
 ```
 
 From inside this repo, use the local CLI entry:
 
 ```bash
-openclaw setup
+alisio setup
 ```
 
-If you don’t have a global install yet, run it via `pnpm openclaw setup`.
+If you don’t have a global install yet, run it via `pnpm alisio setup`.
 
 ## Run the Gateway from this repo
 
@@ -56,24 +56,24 @@ node openclaw.mjs gateway --port 18789 --verbose
 
 ## Stable workflow (macOS app first)
 
-1. Install + launch **OpenClaw.app** (menu bar).
+1. Install + launch **Alisio.app** (menu bar).
 2. Complete the onboarding/permissions checklist (TCC prompts).
 3. Ensure Gateway is **Local** and running (the app manages it).
 4. Link surfaces (example: WhatsApp):
 
 ```bash
-openclaw channels login
+alisio channels login
 ```
 
 5. Sanity check:
 
 ```bash
-openclaw health
+alisio health
 ```
 
 If onboarding is not available in your build:
 
-- Run `openclaw setup`, then `openclaw channels login`, then start the Gateway manually (`openclaw gateway`).
+- Run `alisio setup`, then `alisio channels login`, then start the Gateway manually (`alisio gateway`).
 
 ## Bleeding edge workflow (Gateway in a terminal)
 
@@ -99,7 +99,7 @@ config, and bundled-plugin metadata changes.
 
 ### 2) Point the macOS app at your running Gateway
 
-In **OpenClaw.app**:
+In **Alisio.app**:
 
 - Connection Mode: **Local**
   The app will attach to the running gateway on the configured port.
@@ -110,7 +110,7 @@ In **OpenClaw.app**:
 - Or via CLI:
 
 ```bash
-openclaw health
+alisio health
 ```
 
 ### Common footguns
@@ -160,5 +160,5 @@ user service (no lingering needed). See [Gateway runbook](/gateway) for the syst
 - [Gateway runbook](/gateway) (flags, supervision, ports)
 - [Gateway configuration](/gateway/configuration) (config schema + examples)
 - [Discord](/channels/discord) and [Telegram](/channels/telegram) (reply tags + replyToMode settings)
-- [OpenClaw assistant setup](/start/openclaw)
+- [Alisio assistant setup](/start/alisio)
 - [macOS app](/platforms/macos) (gateway lifecycle)

@@ -9,6 +9,7 @@ import { truncateText } from "../format.ts";
 import { icons } from "../icons.ts";
 import { formatToolDetail, resolveToolDisplay } from "../tool-display.ts";
 import type { ToolCard } from "../types/chat-types.ts";
+import { connectorBrandStyle, getConnectorBranding } from "../views/connector-branding.ts";
 import { extractTextCached } from "./message-extract.ts";
 import { isToolResultMessage } from "./message-normalizer.ts";
 import { formatToolOutputForSidebar } from "./tool-helpers.ts";
@@ -17,6 +18,7 @@ type ToolTimelineEntry = {
   name: string;
   args?: unknown;
   text?: unknown;
+  details?: unknown;
   toolCallId?: string;
   phase?: "start" | "update" | "result";
   isError?: boolean;
@@ -32,6 +34,13 @@ type ToolState = {
 };
 
 const TOOL_CARD_VALUE_CHAR_LIMIT = 4_000;
+
+type ConnectorAuthRequiredDetails = {
+  status: "auth_required";
+  connectorId: string;
+  message?: string;
+  reconnectRequired?: boolean;
+};
 
 function extractToolMessageMeta(message: unknown): {
   toolCallId?: string;
@@ -94,6 +103,21 @@ const extractStandaloneToolResultValue = (message: unknown): unknown => {
   return extractTextCached(message) ?? undefined;
 };
 
+const extractStandaloneToolResultDetails = (message: unknown): unknown => {
+  const m = message as Record<string, unknown>;
+  if ("toolResultDetails" in m) {
+    return m.toolResultDetails;
+  }
+  if ("details" in m) {
+    return m.details;
+  }
+  const result = m.result;
+  if (result && typeof result === "object" && "details" in (result as Record<string, unknown>)) {
+    return (result as Record<string, unknown>).details;
+  }
+  return undefined;
+};
+
 const extractToolResultValue = (item: Record<string, unknown>): unknown => {
   if (typeof item.text === "string") {
     return item.text;
@@ -127,6 +151,133 @@ const extractToolResultValue = (item: Record<string, unknown>): unknown => {
   }
   return undefined;
 };
+
+const extractToolResultDetails = (item: Record<string, unknown>): unknown => {
+  if ("details" in item) {
+    return item.details;
+  }
+  if ("toolResultDetails" in item) {
+    return item.toolResultDetails;
+  }
+  return undefined;
+};
+
+function readConnectorAuthRequiredDetails(value: unknown): ConnectorAuthRequiredDetails | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  if (record.status !== "auth_required") {
+    return null;
+  }
+  const connectorId =
+    typeof record.connectorId === "string" && record.connectorId.trim()
+      ? record.connectorId.trim()
+      : null;
+  if (!connectorId) {
+    return null;
+  }
+  return {
+    status: "auth_required",
+    connectorId,
+    ...(typeof record.message === "string" && record.message.trim()
+      ? { message: record.message.trim() }
+      : {}),
+    ...(typeof record.reconnectRequired === "boolean"
+      ? { reconnectRequired: record.reconnectRequired }
+      : {}),
+  };
+}
+
+function humanizeConnectorId(connectorId: string): string {
+  const words = connectorId.split("-").filter(Boolean);
+  if (words.length === 0) {
+    return connectorId;
+  }
+  return words
+    .map((part) => {
+      const normalized = part.toLowerCase();
+      if (normalized === "gmail") {
+        return "Gmail";
+      }
+      if (normalized === "github") {
+        return "GitHub";
+      }
+      if (normalized === "youtube") {
+        return "YouTube";
+      }
+      if (normalized === "google") {
+        return "Google";
+      }
+      return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    })
+    .join(" ");
+}
+
+function resolveConnectorProviderLabel(connectorId: string): string {
+  if (
+    connectorId.startsWith("gmail-") ||
+    connectorId.startsWith("google-") ||
+    connectorId === "youtube"
+  ) {
+    return "Google";
+  }
+  if (connectorId === "github") {
+    return "GitHub";
+  }
+  if (connectorId === "notion") {
+    return "Notion";
+  }
+  if (connectorId === "vercel") {
+    return "Vercel";
+  }
+  if (connectorId === "facebook" || connectorId === "instagram") {
+    return "Meta";
+  }
+  return humanizeConnectorId(connectorId);
+}
+
+function renderConnectorAuthCallout(
+  details: ConnectorAuthRequiredDetails,
+  onBeginConnector?: (connectorId: string) => void,
+) {
+  const providerLabel = resolveConnectorProviderLabel(details.connectorId);
+  const branding = getConnectorBranding(details.connectorId, providerLabel);
+  return html`
+    <div class="callout chat-tool-auth-callout" style=${connectorBrandStyle(branding)}>
+      <div class="chat-tool-auth-callout__head">
+        <span class="chat-tool-auth-callout__icon">
+          <img src=${branding.logoUrl} alt="" loading="lazy" decoding="async" />
+        </span>
+        <div class="chat-tool-auth-callout__copy">
+          <div class="chat-tool-auth-callout__title">
+            ${humanizeConnectorId(details.connectorId)}
+          </div>
+          ${details.message
+            ? html`<div class="chat-tool-auth-callout__text">${details.message}</div>`
+            : nothing}
+        </div>
+      </div>
+      ${onBeginConnector
+        ? html`
+            <div class="chat-tool-auth-callout__actions">
+              <button
+                class="btn btn--xs primary"
+                type="button"
+                @click=${(event: Event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onBeginConnector(details.connectorId);
+                }}
+              >
+                ${details.reconnectRequired ? "Reconnect" : "Connect"} ${providerLabel}
+              </button>
+            </div>
+          `
+        : nothing}
+    </div>
+  `;
+}
 
 export function extractToolCards(message: unknown): ToolCard[] {
   const m = message as Record<string, unknown>;
@@ -163,6 +314,7 @@ export function extractToolCards(message: unknown): ToolCard[] {
       kind: "result",
       name,
       text,
+      details: extractToolResultDetails(item),
       toolCallId,
       phase: messageMeta.phase,
       isError: messageMeta.isError,
@@ -180,6 +332,7 @@ export function extractToolCards(message: unknown): ToolCard[] {
       kind: "result",
       name,
       text,
+      details: extractStandaloneToolResultDetails(message),
       toolCallId: messageMeta.toolCallId,
       phase: messageMeta.phase,
       isError: messageMeta.isError,
@@ -239,6 +392,7 @@ function mergeToolCards(cards: ToolCard[]): ToolTimelineEntry[] {
       entries.push({
         name: card.name,
         text: card.text,
+        details: card.details,
         toolCallId: card.toolCallId,
         phase: card.phase,
         isError: card.isError,
@@ -249,6 +403,7 @@ function mergeToolCards(cards: ToolCard[]): ToolTimelineEntry[] {
 
     const entry = entries[matchedIndex];
     entry.text = card.text ?? entry.text;
+    entry.details = card.details ?? entry.details;
     entry.phase = card.phase ?? entry.phase;
     entry.isError = card.isError ?? entry.isError;
     entry.meta = card.meta ?? entry.meta;
@@ -258,6 +413,14 @@ function mergeToolCards(cards: ToolCard[]): ToolTimelineEntry[] {
 }
 
 function resolveToolState(entry: ToolTimelineEntry): ToolState {
+  const authRequired = readConnectorAuthRequiredDetails(entry.details);
+  if (authRequired) {
+    return {
+      label: authRequired.reconnectRequired ? "Reconnect" : "Needs auth",
+      tone: "error",
+      icon: "x",
+    };
+  }
   const outputText = stringifyToolValue(entry.text);
   if (entry.phase === "start" || entry.phase === "update") {
     return { label: "Running", tone: "active", icon: "loader" };
@@ -318,15 +481,18 @@ function formatToolSectionValue(value: unknown): {
 function renderToolTimelineEntry(
   entry: ToolTimelineEntry,
   onOpenSidebar?: (content: string) => void,
+  onBeginConnector?: (connectorId: string) => void,
 ) {
   const display = resolveToolDisplay({ name: entry.name, args: entry.args, meta: entry.meta });
   const detail = formatToolDetail(display);
   const input = formatToolSectionValue(entry.args);
   const output = formatToolSectionValue(entry.text);
   const state = resolveToolState(entry);
+  const authRequired = readConnectorAuthRequiredDetails(entry.details);
   const openText = output.full ?? input.full;
   const canOpenSidebar = Boolean(onOpenSidebar && openText);
-  const shouldOpen = state.tone !== "done";
+  // Keep tool cards collapsed by default; users can expand them manually if needed.
+  const shouldOpen = false;
   const openSidebar = () => {
     if (!canOpenSidebar || !openText) {
       return;
@@ -370,8 +536,9 @@ function renderToolTimelineEntry(
         </span>
       </summary>
       <div class="chat-tool-card__body">
+        ${authRequired ? renderConnectorAuthCallout(authRequired, onBeginConnector) : nothing}
         ${input.preview ? renderToolSection("Input", input.preview, "input") : nothing}
-        ${output.preview
+        ${!authRequired && output.preview
           ? renderToolSection(
               state.tone === "error" ? "Error" : "Output",
               output.preview,
@@ -402,14 +569,19 @@ function renderToolTimelineEntry(
   `;
 }
 
-export function renderToolCardSidebar(card: ToolCard, onOpenSidebar?: (content: string) => void) {
+export function renderToolCardSidebar(
+  card: ToolCard,
+  onOpenSidebar?: (content: string) => void,
+  onBeginConnector?: (connectorId: string) => void,
+) {
   const [entry] = mergeToolCards([card]);
-  return renderToolTimelineEntry(entry, onOpenSidebar);
+  return renderToolTimelineEntry(entry, onOpenSidebar, onBeginConnector);
 }
 
 export function renderToolCardStack(
   toolCards: ToolCard[],
   onOpenSidebar?: (content: string) => void,
+  onBeginConnector?: (connectorId: string) => void,
 ) {
   const entries = mergeToolCards(toolCards);
   if (entries.length === 0) {
@@ -417,7 +589,7 @@ export function renderToolCardStack(
   }
   return html`
     <div class="chat-tool-stack">
-      ${entries.map((entry) => renderToolTimelineEntry(entry, onOpenSidebar))}
+      ${entries.map((entry) => renderToolTimelineEntry(entry, onOpenSidebar, onBeginConnector))}
     </div>
   `;
 }

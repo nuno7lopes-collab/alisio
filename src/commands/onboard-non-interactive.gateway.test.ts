@@ -418,6 +418,58 @@ describe("onboard (non-interactive): gateway and remote auth", () => {
     });
   }, 60_000);
 
+  it("writes gateway.remote url/password and callGateway uses them", async () => {
+    await withStateDir("state-remote-password-", async () => {
+      const port = getPseudoPort(31_000);
+      const password = "pw_remote_123";
+      await runNonInteractiveSetup(
+        {
+          nonInteractive: true,
+          mode: "remote",
+          remoteUrl: `ws://127.0.0.1:${port}`,
+          remotePassword: password,
+          authChoice: "skip",
+          json: true,
+        },
+        runtime,
+      );
+
+      const cfg = await readJsonFile<{
+        gateway?: { mode?: string; remote?: { url?: string; password?: string } };
+      }>(resolveConfigPath());
+
+      expect(cfg.gateway?.mode).toBe("remote");
+      expect(cfg.gateway?.remote?.url).toBe(`ws://127.0.0.1:${port}`);
+      expect(cfg.gateway?.remote?.password).toBe(password);
+
+      gatewayClientCalls.length = 0;
+      const health = await callGateway<{ ok?: boolean }>({ method: "health" });
+      expect(health?.ok).toBe(true);
+      const lastCall = gatewayClientCalls[gatewayClientCalls.length - 1];
+      expect(lastCall?.url).toBe(`ws://127.0.0.1:${port}`);
+      expect(lastCall?.password).toBe(password);
+    });
+  }, 60_000);
+
+  it("rejects conflicting remote auth flags", async () => {
+    await withStateDir("state-remote-auth-conflict-", async () => {
+      await expect(
+        runNonInteractiveSetup(
+          {
+            nonInteractive: true,
+            mode: "remote",
+            remoteUrl: "ws://127.0.0.1:18789",
+            remoteToken: "tok_remote_123",
+            remotePassword: "pw_remote_123",
+            authChoice: "skip",
+            json: true,
+          },
+          runtime,
+        ),
+      ).rejects.toThrow("Use either --remote-token or --remote-password, not both.");
+    });
+  }, 60_000);
+
   it("explains local health failure when no daemon was requested", async () => {
     await withStateDir("state-local-health-hint-", async (stateDir) => {
       waitForGatewayReachableMock = vi.fn(async () => ({

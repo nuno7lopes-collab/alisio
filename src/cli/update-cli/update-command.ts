@@ -29,12 +29,15 @@ import {
 import {
   collectInstalledGlobalPackageErrors,
   canResolveRegistryVersionForPackageTarget,
+  CORE_PACKAGE_NAME,
   createGlobalInstallEnv,
   cleanupGlobalRenameDirs,
   globalInstallArgs,
+  PUBLIC_PACKAGE_NAME,
   resolveExpectedInstalledVersionFromSpec,
   resolveGlobalInstallSpec,
   resolveGlobalPackageRoot,
+  resolveGlobalPackageSpecifierName,
 } from "../../infra/update-global.js";
 import { runGatewayUpdate, type UpdateRunResult } from "../../infra/update-runner.js";
 import { syncPluginsForUpdateChannel, updateNpmInstalledPlugins } from "../../plugins/update.js";
@@ -55,12 +58,10 @@ import {
 import { createUpdateProgress, printResult } from "./progress.js";
 import { prepareRestartScript, runRestartScript } from "./restart-helper.js";
 import {
-  DEFAULT_PACKAGE_NAME,
   createGlobalCommandRunner,
   ensureGitCheckout,
   normalizeTag,
   parseTimeoutMsOrExit,
-  readPackageName,
   readPackageVersion,
   resolveGitInstallDir,
   resolveGlobalManager,
@@ -103,6 +104,9 @@ const UPDATE_QUIPS = [
   "Molting complete. Please don't look at my soft shell phase.",
   "Version bump! Same chaos energy, fewer crashes (probably).",
 ];
+
+const PUBLIC_NPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest`;
+const PUBLIC_PNPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest`;
 
 function pickUpdateQuip(): string {
   return UPDATE_QUIPS[Math.floor(Math.random() * UPDATE_QUIPS.length)] ?? "Update complete.";
@@ -160,11 +164,11 @@ async function resolvePackageRuntimePreflightError(params: {
   }
   const targetLabel = status.version ?? target;
   return [
-    `Node ${process.versions.node ?? "unknown"} is too old for openclaw@${targetLabel}.`,
+    `Node ${process.versions.node ?? "unknown"} is too old for ${PUBLIC_PACKAGE_NAME}@${targetLabel}.`,
     `The requested package requires ${status.nodeEngine}.`,
-    "Upgrade Node to 22.14+ or Node 24, then rerun `openclaw update`.",
-    "Bare `npm i -g openclaw` can silently install an older compatible release.",
-    "After upgrading Node, use `npm i -g openclaw@latest`.",
+    "Upgrade Node to 22.14+ or Node 24, then rerun `alisio update`.",
+    `Bare \`npm i -g ${PUBLIC_PACKAGE_NAME}\` can silently install an older compatible release.`,
+    `After upgrading Node, use \`npm i -g ${PUBLIC_NPM_INSTALL_LATEST}\`.`,
   ].join("\n");
 }
 
@@ -352,9 +356,8 @@ async function runPackageInstallUpdate(params: {
   const runCommand = createGlobalCommandRunner();
 
   const pkgRoot = await resolveGlobalPackageRoot(manager, runCommand, params.timeoutMs);
-  const packageName =
-    (pkgRoot ? await readPackageName(pkgRoot) : await readPackageName(params.root)) ??
-    DEFAULT_PACKAGE_NAME;
+  const installedPackageName = resolveGlobalPackageSpecifierName(pkgRoot ?? params.root);
+  const packageName = PUBLIC_PACKAGE_NAME;
   const installSpec = resolveGlobalInstallSpec({
     packageName,
     tag: params.tag,
@@ -363,10 +366,12 @@ async function runPackageInstallUpdate(params: {
 
   const beforeVersion = pkgRoot ? await readPackageVersion(pkgRoot) : null;
   if (pkgRoot) {
-    await cleanupGlobalRenameDirs({
-      globalRoot: path.dirname(pkgRoot),
-      packageName,
-    });
+    for (const renameName of new Set([installedPackageName, packageName])) {
+      await cleanupGlobalRenameDirs({
+        globalRoot: path.dirname(pkgRoot),
+        packageName: renameName,
+      });
+    }
   }
 
   const updateStep = await runUpdateStep({
@@ -381,7 +386,10 @@ async function runPackageInstallUpdate(params: {
   let afterVersion = beforeVersion;
 
   const verifiedPackageRoot =
-    (await resolveGlobalPackageRoot(manager, runCommand, params.timeoutMs)) ?? pkgRoot;
+    (await resolveGlobalPackageRoot(manager, runCommand, params.timeoutMs, [
+      installedPackageName,
+      packageName,
+    ])) ?? pkgRoot;
   if (verifiedPackageRoot) {
     afterVersion = await readPackageVersion(verifiedPackageRoot);
     const expectedVersion = resolveExpectedInstalledVersionFromSpec(packageName, installSpec);
@@ -813,7 +821,7 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
       currentVersion != null &&
       (targetVersion == null || (cmp != null && cmp > 0));
     packageInstallSpec = resolveGlobalInstallSpec({
-      packageName: DEFAULT_PACKAGE_NAME,
+      packageName: PUBLIC_PACKAGE_NAME,
       tag,
       env: process.env,
     });
@@ -935,7 +943,7 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
 
   const showProgress = !opts.json && process.stdout.isTTY;
   if (!opts.json) {
-    defaultRuntime.log(theme.heading("Updating OpenClaw..."));
+    defaultRuntime.log(theme.heading("Updating Alisio..."));
     defaultRuntime.log("");
   }
 
@@ -1003,12 +1011,12 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
     if (result.reason === "not-git-install") {
       defaultRuntime.log(
         theme.warn(
-          `Skipped: this OpenClaw install isn't a git checkout, and the package manager couldn't be detected. Update via your package manager, then run \`${replaceCliName(formatCliCommand("openclaw doctor"), CLI_NAME)}\` and \`${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}\`.`,
+          `Skipped: this Alisio install isn't a git checkout, and the package manager couldn't be detected. Update via your package manager, then run \`${replaceCliName(formatCliCommand("openclaw doctor"), CLI_NAME)}\` and \`${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}\`.`,
         ),
       );
       defaultRuntime.log(
         theme.muted(
-          `Examples: \`${replaceCliName("npm i -g openclaw@latest", CLI_NAME)}\` or \`${replaceCliName("pnpm add -g openclaw@latest", CLI_NAME)}\``,
+          `Examples: \`npm i -g ${PUBLIC_NPM_INSTALL_LATEST}\` or \`pnpm add -g ${PUBLIC_PNPM_INSTALL_LATEST}\``,
         ),
       );
     }

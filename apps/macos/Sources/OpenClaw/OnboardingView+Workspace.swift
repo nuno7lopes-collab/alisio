@@ -6,7 +6,6 @@ extension OnboardingView {
         let configured = await self.loadAgentWorkspace()
         let url = AgentWorkspace.resolveWorkspaceURL(from: configured)
         self.workspacePath = AgentWorkspace.displayPath(for: url)
-        self.refreshBootstrapStatus()
     }
 
     func ensureDefaultWorkspace() async {
@@ -14,52 +13,14 @@ extension OnboardingView {
         let configured = await self.loadAgentWorkspace()
         let url = AgentWorkspace.resolveWorkspaceURL(from: configured)
         let safety = AgentWorkspace.bootstrapSafety(for: url)
-        if let reason = safety.unsafeReason {
-            self.workspaceStatus = "Workspace not touched: \(reason)"
-        } else {
-            do {
-                _ = try AgentWorkspace.bootstrap(workspaceURL: url)
-                if (configured ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    await self.saveAgentWorkspace(AgentWorkspace.displayPath(for: url))
-                }
-            } catch {
-                self.workspaceStatus = "Failed to create workspace: \(error.localizedDescription)"
-            }
-        }
-        self.refreshBootstrapStatus()
-    }
-
-    func refreshBootstrapStatus() {
-        _ = AgentWorkspace.resolveWorkspaceURL(from: self.workspacePath)
-    }
-
-    var workspaceBootstrapCommand: String {
-        let template = AgentWorkspace.defaultTemplate().trimmingCharacters(in: .whitespacesAndNewlines)
-        return """
-        mkdir -p ~/.openclaw/workspace
-        cat > ~/.openclaw/workspace/AGENTS.md <<'EOF'
-        \(template)
-        EOF
-        """
-    }
-
-    func applyWorkspace() async {
-        guard !self.workspaceApplying else { return }
-        self.workspaceApplying = true
-        defer { self.workspaceApplying = false }
-
+        guard safety.unsafeReason == nil else { return }
         do {
-            let url = AgentWorkspace.resolveWorkspaceURL(from: self.workspacePath)
-            if let reason = AgentWorkspace.bootstrapSafety(for: url).unsafeReason {
-                self.workspaceStatus = "Workspace not created: \(reason)"
-                return
-            }
             _ = try AgentWorkspace.bootstrap(workspaceURL: url)
-            self.workspacePath = AgentWorkspace.displayPath(for: url)
-            self.workspaceStatus = "Workspace ready at \(self.workspacePath)"
-            self.refreshBootstrapStatus()
+            if (configured ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                await self.saveAgentWorkspace(AgentWorkspace.displayPath(for: url))
+            }
         } catch {
-            self.workspaceStatus = "Failed to create workspace: \(error.localizedDescription)"
+            return
         }
     }
 
@@ -70,11 +31,7 @@ extension OnboardingView {
 
     @discardableResult
     func saveAgentWorkspace(_ workspace: String?) async -> Bool {
-        let (success, errorMessage) = await OnboardingView.buildAndSaveWorkspace(workspace)
-
-        if let errorMessage {
-            self.workspaceStatus = errorMessage
-        }
+        let (success, _) = await OnboardingView.buildAndSaveWorkspace(workspace)
         return success
     }
 

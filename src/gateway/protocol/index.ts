@@ -13,8 +13,12 @@ import {
   AlisioAiDisconnectParamsSchema,
   type AlisioAiGetParams,
   AlisioAiGetParamsSchema,
+  type AlisioAiRenameProfileParams,
+  AlisioAiRenameProfileParamsSchema,
   type AlisioAiRefreshLimitsParams,
   AlisioAiRefreshLimitsParamsSchema,
+  type AlisioAiSelectProfileParams,
+  AlisioAiSelectProfileParamsSchema,
   type AlisioAiState,
   AlisioAiStateSchema,
   type AlisioAccountGetParams,
@@ -224,6 +228,8 @@ import {
   LogsTailResultSchema,
   type ModelsListParams,
   ModelsListParamsSchema,
+  type NodeCapabilityManifest,
+  NodeCapabilityManifestSchema,
   type NodeDescribeParams,
   NodeDescribeParamsSchema,
   type NodeEventParams,
@@ -240,6 +246,12 @@ import {
   NodeInvokeParamsSchema,
   type NodeInvokeResultParams,
   NodeInvokeResultParamsSchema,
+  type NodeTaskEventParams,
+  NodeTaskEventParamsSchema,
+  type NodeTaskResultParams,
+  NodeTaskResultParamsSchema,
+  type NodeTaskStartParams,
+  NodeTaskStartParamsSchema,
   type NodeListParams,
   NodeListParamsSchema,
   type NodePendingAckParams,
@@ -404,6 +416,12 @@ export const validateAlisioAiDisconnectParams = ajv.compile<AlisioAiDisconnectPa
 export const validateAlisioAiRefreshLimitsParams = ajv.compile<AlisioAiRefreshLimitsParams>(
   AlisioAiRefreshLimitsParamsSchema,
 );
+export const validateAlisioAiRenameProfileParams = ajv.compile<AlisioAiRenameProfileParams>(
+  AlisioAiRenameProfileParamsSchema,
+);
+export const validateAlisioAiSelectProfileParams = ajv.compile<AlisioAiSelectProfileParams>(
+  AlisioAiSelectProfileParamsSchema,
+);
 export const validateAlisioBootstrapGetParams = ajv.compile<AlisioBootstrapGetParams>(
   AlisioBootstrapGetParamsSchema,
 );
@@ -485,6 +503,13 @@ export const validateNodeDescribeParams = ajv.compile<NodeDescribeParams>(NodeDe
 export const validateNodeInvokeParams = ajv.compile<NodeInvokeParams>(NodeInvokeParamsSchema);
 export const validateNodeInvokeResultParams = ajv.compile<NodeInvokeResultParams>(
   NodeInvokeResultParamsSchema,
+);
+export const validateNodeTaskStartParams =
+  ajv.compile<NodeTaskStartParams>(NodeTaskStartParamsSchema);
+export const validateNodeTaskEventParams =
+  ajv.compile<NodeTaskEventParams>(NodeTaskEventParamsSchema);
+export const validateNodeTaskResultParams = ajv.compile<NodeTaskResultParams>(
+  NodeTaskResultParamsSchema,
 );
 export const validateNodeEventParams = ajv.compile<NodeEventParams>(NodeEventParamsSchema);
 export const validateNodePendingDrainParams = ajv.compile<NodePendingDrainParams>(
@@ -702,7 +727,9 @@ export {
   AlisioAiBeginConnectResultSchema,
   AlisioAiCompleteConnectParamsSchema,
   AlisioAiDisconnectParamsSchema,
+  AlisioAiRenameProfileParamsSchema,
   AlisioAiRefreshLimitsParamsSchema,
+  AlisioAiSelectProfileParamsSchema,
   AlisioOrganizationGetParamsSchema,
   AlisioOrganizationSetParamsSchema,
   AlisioConnectorsCatalogParamsSchema,
@@ -723,9 +750,13 @@ export {
   NodePairApproveParamsSchema,
   NodePairRejectParamsSchema,
   NodePairVerifyParamsSchema,
+  NodeCapabilityManifestSchema,
   NodeListParamsSchema,
   NodePendingAckParamsSchema,
   NodeInvokeParamsSchema,
+  NodeTaskStartParamsSchema,
+  NodeTaskEventParamsSchema,
+  NodeTaskResultParamsSchema,
   NodePendingDrainParamsSchema,
   NodePendingDrainResultSchema,
   NodePendingEnqueueParamsSchema,
@@ -846,7 +877,9 @@ export type {
   AlisioAiBeginConnectResult,
   AlisioAiCompleteConnectParams,
   AlisioAiDisconnectParams,
+  AlisioAiRenameProfileParams,
   AlisioAiRefreshLimitsParams,
+  AlisioAiSelectProfileParams,
   AlisioOrganizationGetParams,
   AlisioOrganizationSetParams,
   AlisioConnectorsCatalogParams,
@@ -919,11 +952,15 @@ export type {
   SkillsBinsResult,
   SkillsInstallParams,
   SkillsUpdateParams,
+  NodeCapabilityManifest,
   NodePairRejectParams,
   NodePairVerifyParams,
   NodeListParams,
   NodeInvokeParams,
   NodeInvokeResultParams,
+  NodeTaskStartParams,
+  NodeTaskEventParams,
+  NodeTaskResultParams,
   NodeEventParams,
   NodePendingDrainParams,
   NodePendingDrainResult,

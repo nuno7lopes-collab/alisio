@@ -169,7 +169,27 @@ export const ChannelUiMetaSchema = Type.Object(
     id: NonEmptyString,
     label: NonEmptyString,
     detailLabel: NonEmptyString,
+    blurb: Type.Optional(Type.String()),
+    docsPath: Type.Optional(Type.String()),
+    docsLabel: Type.Optional(Type.String()),
     systemImage: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelStatusIssueSchema = Type.Object(
+  {
+    channel: NonEmptyString,
+    accountId: NonEmptyString,
+    kind: Type.Union([
+      Type.Literal("intent"),
+      Type.Literal("permissions"),
+      Type.Literal("config"),
+      Type.Literal("auth"),
+      Type.Literal("runtime"),
+    ]),
+    message: NonEmptyString,
+    fix: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -182,6 +202,7 @@ export const ChannelsStatusResultSchema = Type.Object(
     channelDetailLabels: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
     channelSystemImages: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
     channelMeta: Type.Optional(Type.Array(ChannelUiMetaSchema)),
+    channelIssues: Type.Optional(Type.Record(NonEmptyString, Type.Array(ChannelStatusIssueSchema))),
     channels: Type.Record(NonEmptyString, Type.Unknown()),
     channelAccounts: Type.Record(NonEmptyString, Type.Array(ChannelAccountSnapshotSchema)),
     channelDefaultAccountId: Type.Record(NonEmptyString, NonEmptyString),

@@ -23,6 +23,8 @@ export const CLI_DEFAULT_OPERATOR_SCOPES: OperatorScope[] = [
 
 const NODE_ROLE_METHODS = new Set([
   "node.invoke.result",
+  "node.task.event",
+  "node.task.result",
   "node.event",
   "node.pending.drain",
   "node.canvas.capability.refresh",
@@ -118,6 +120,8 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.ai.completeConnect",
     "alisio.ai.disconnect",
     "alisio.ai.refreshLimits",
+    "alisio.ai.renameProfile",
+    "alisio.ai.selectProfile",
     "alisio.organization.set",
     "alisio.connectors.begin",
     "alisio.connectors.complete",
@@ -131,6 +135,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "tts.setProvider",
     "voicewake.set",
     "node.invoke",
+    "node.task.start",
     "node.pair.approve",
     "chat.send",
     "chat.abort",

@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import OpenClawDiscovery
 import OpenClawIPC
@@ -61,13 +60,5 @@ extension OnboardingView {
         LumeWindowManager.shared.shellState.completeOnboarding()
         LumeWindowManager.shared.showPreferredChat()
         OnboardingController.shared.close()
-    }
-
-    func copyToPasteboard(_ text: String) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(text, forType: .string)
-        self.copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self.copied = false }
     }
 }

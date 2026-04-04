@@ -24,13 +24,80 @@ function findWizardSessionOrRespond(params: {
   context: GatewayRequestContext;
   respond: RespondFn;
   sessionId: string;
-}): WizardSession | null {
-  const session = params.context.wizardSessions.get(params.sessionId);
+}): { session: WizardSession; surface: "onboarding" | "channel" } | null {
+  const session =
+    params.context.wizardSessions.get(params.sessionId) ??
+    params.context.channelWizardSessions.get(params.sessionId);
   if (!session) {
     params.respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "wizard not found"));
     return null;
   }
-  return session;
+  return {
+    session,
+    surface: params.context.wizardSessions.has(params.sessionId) ? "onboarding" : "channel",
+  };
+}
+
+function hasRunningWizard(context: GatewayRequestContext) {
+  for (const [, session] of context.wizardSessions) {
+    if (session.getStatus() === "running") {
+      return true;
+    }
+  }
+  for (const [, session] of context.channelWizardSessions) {
+    if (session.getStatus() === "running") {
+      return true;
+    }
+  }
+  return false;
+}
+
+function cancelWizardSession(
+  context: GatewayRequestContext,
+  sessionId: string,
+  surface: "onboarding" | "channel",
+) {
+  const session =
+    surface === "channel"
+      ? context.channelWizardSessions.get(sessionId)
+      : context.wizardSessions.get(sessionId);
+  if (!session) {
+    return;
+  }
+  session.cancel();
+  if (surface === "channel") {
+    context.purgeChannelWizardSession(sessionId);
+    return;
+  }
+  context.purgeWizardSession(sessionId);
+}
+
+async function resumeRunningChannelWizard(
+  context: GatewayRequestContext,
+  channelId: string,
+): Promise<{ sessionId: string; result: Awaited<ReturnType<WizardSession["next"]>> } | null> {
+  const running = context.getRunningChannelWizard();
+  if (!running) {
+    return null;
+  }
+  if (running.channelId !== channelId) {
+    cancelWizardSession(context, running.sessionId, "channel");
+    return null;
+  }
+  const session = context.channelWizardSessions.get(running.sessionId);
+  if (!session) {
+    context.purgeChannelWizardSession(running.sessionId);
+    return null;
+  }
+  const result = await session.next();
+  if (result.done) {
+    context.purgeChannelWizardSession(running.sessionId);
+    return null;
+  }
+  return {
+    sessionId: running.sessionId,
+    result,
+  };
 }
 
 export const wizardHandlers: GatewayRequestHandlers = {
@@ -38,8 +105,40 @@ export const wizardHandlers: GatewayRequestHandlers = {
     if (!assertValidParams(params, validateWizardStartParams, "wizard.start", respond)) {
       return;
     }
-    const running = context.findRunningWizard();
-    if (running) {
+    const surface = params.surface === "channel" ? "channel" : "onboarding";
+    if (surface === "channel") {
+      const channel = typeof params.channel === "string" ? params.channel.trim() : "";
+      if (!channel) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "wizard.start channel is required"),
+        );
+        return;
+      }
+      const resumed = await resumeRunningChannelWizard(context, channel);
+      if (resumed) {
+        respond(true, { sessionId: resumed.sessionId, ...resumed.result }, undefined);
+        return;
+      }
+      const runningOnboardingSessionId = context.findRunningWizard();
+      if (runningOnboardingSessionId) {
+        cancelWizardSession(context, runningOnboardingSessionId, "onboarding");
+      }
+      const sessionId = randomUUID();
+      const session = new WizardSession((prompter) =>
+        context.channelWizardRunner({ channel }, defaultRuntime, prompter),
+      );
+      context.channelWizardSessions.set(sessionId, session);
+      context.rememberChannelWizardSession(sessionId, { channelId: channel });
+      const result = await session.next();
+      if (result.done) {
+        context.purgeChannelWizardSession(sessionId);
+      }
+      respond(true, { sessionId, ...result }, undefined);
+      return;
+    }
+    if (hasRunningWizard(context)) {
       respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, "wizard already running"));
       return;
     }
@@ -63,10 +162,11 @@ export const wizardHandlers: GatewayRequestHandlers = {
       return;
     }
     const sessionId = params.sessionId;
-    const session = findWizardSessionOrRespond({ context, respond, sessionId });
-    if (!session) {
+    const resolved = findWizardSessionOrRespond({ context, respond, sessionId });
+    if (!resolved) {
       return;
     }
+    const { session, surface } = resolved;
     const answer = params.answer as { stepId?: string; value?: unknown } | undefined;
     if (answer) {
       if (session.getStatus() !== "running") {
@@ -82,7 +182,11 @@ export const wizardHandlers: GatewayRequestHandlers = {
     }
     const result = await session.next();
     if (result.done) {
-      context.purgeWizardSession(sessionId);
+      if (surface === "channel") {
+        context.purgeChannelWizardSession(sessionId);
+      } else {
+        context.purgeWizardSession(sessionId);
+      }
     }
     respond(true, result, undefined);
   },
@@ -91,13 +195,18 @@ export const wizardHandlers: GatewayRequestHandlers = {
       return;
     }
     const sessionId = params.sessionId;
-    const session = findWizardSessionOrRespond({ context, respond, sessionId });
-    if (!session) {
+    const resolved = findWizardSessionOrRespond({ context, respond, sessionId });
+    if (!resolved) {
       return;
     }
+    const { session, surface } = resolved;
     session.cancel();
     const status = readWizardStatus(session);
-    context.wizardSessions.delete(sessionId);
+    if (surface === "channel") {
+      context.purgeChannelWizardSession(sessionId);
+    } else {
+      context.purgeWizardSession(sessionId);
+    }
     respond(true, status, undefined);
   },
   "wizard.status": ({ params, respond, context }) => {
@@ -105,13 +214,18 @@ export const wizardHandlers: GatewayRequestHandlers = {
       return;
     }
     const sessionId = params.sessionId;
-    const session = findWizardSessionOrRespond({ context, respond, sessionId });
-    if (!session) {
+    const resolved = findWizardSessionOrRespond({ context, respond, sessionId });
+    if (!resolved) {
       return;
     }
+    const { session, surface } = resolved;
     const status = readWizardStatus(session);
     if (status.status !== "running") {
-      context.wizardSessions.delete(sessionId);
+      if (surface === "channel") {
+        context.purgeChannelWizardSession(sessionId);
+      } else {
+        context.purgeWizardSession(sessionId);
+      }
     }
     respond(true, status, undefined);
   },

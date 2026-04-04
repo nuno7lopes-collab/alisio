@@ -5,6 +5,10 @@ import {
   completeAlisioConnectorAuthorizationFromCallback,
 } from "../infra/alisio-store.js";
 import {
+  buildAlisioConnectorOAuthCompletionScript,
+  buildAlisioConnectorOAuthSignal,
+} from "../shared/alisio-connector-oauth.js";
+import {
   buildAlisioOpenAiOAuthCompletionScript,
   buildAlisioOpenAiOAuthSignal,
 } from "../shared/alisio-openai-oauth.js";
@@ -158,6 +162,14 @@ export async function handleAlisioOAuthHttpRequest(
     200,
     "Alisio connection completed",
     `${result.authorization.connectorId} is now connected for ${accountLabel}. You can return to Alisio.`,
+    [
+      `<script>${buildAlisioConnectorOAuthCompletionScript(
+        buildAlisioConnectorOAuthSignal({
+          connectorId: result.authorization.connectorId,
+          provider,
+        }),
+      )}</script>`,
+    ],
   );
   return true;
 }

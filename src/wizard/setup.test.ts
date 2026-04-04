@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWizardPrompter as buildWizardPrompter } from "../../test/helpers/wizard-prompter.js";
 import { DEFAULT_BOOTSTRAP_FILENAME } from "../agents/workspace.js";
 import type { PluginCompatibilityNotice } from "../plugins/status.js";
@@ -267,6 +267,25 @@ describe("runSetupWizard", () => {
     suiteCase = 0;
   });
 
+  beforeEach(() => {
+    setupChannels.mockClear();
+    setupSkills.mockClear();
+    healthCommand.mockClear();
+    runTui.mockClear();
+    promptAuthChoiceGrouped.mockClear();
+    applyAuthChoice.mockClear();
+    promptDefaultModel.mockClear();
+    promptCustomApiConfig.mockClear();
+    configureGatewayForSetup.mockClear();
+    finalizeSetupWizard.mockClear();
+    setupInternalHooks.mockClear();
+    ensureWorkspaceAndSessions.mockClear();
+    writeConfigFile.mockClear();
+    probeGatewayReachable.mockClear();
+    buildPluginCompatibilityNotices.mockClear();
+    formatPluginCompatibilityNotice.mockClear();
+  });
+
   async function makeCaseDir(prefix: string): Promise<string> {
     const dir = path.join(suiteRoot, `${prefix}${++suiteCase}`);
     await fs.mkdir(dir, { recursive: true });
@@ -329,7 +348,6 @@ describe("runSetupWizard", () => {
         flow: "quickstart",
         authChoice: "skip",
         installDaemon: false,
-        skipProviders: true,
         skipSkills: true,
         skipSearch: true,
         skipHealth: true,
@@ -340,10 +358,43 @@ describe("runSetupWizard", () => {
     );
 
     expect(select).not.toHaveBeenCalled();
-    expect(setupChannels).not.toHaveBeenCalled();
     expect(setupSkills).not.toHaveBeenCalled();
     expect(healthCommand).not.toHaveBeenCalled();
     expect(runTui).not.toHaveBeenCalled();
+  });
+
+  it("prompts channel accounts during onboarding setup", async () => {
+    setupChannels.mockClear();
+    const select = vi.fn(
+      async (_params: WizardSelectParams<unknown>) => "quickstart",
+    ) as unknown as WizardPrompter["select"];
+    const multiselect: WizardPrompter["multiselect"] = vi.fn(async () => []);
+    const prompter = buildWizardPrompter({ select, multiselect });
+    const runtime = createRuntime({ throwsOnExit: true });
+
+    await runSetupWizard(
+      {
+        acceptRisk: true,
+        flow: "quickstart",
+        authChoice: "skip",
+        installDaemon: false,
+        skipSkills: true,
+        skipSearch: true,
+        skipHealth: true,
+        skipUi: true,
+      },
+      runtime,
+      prompter,
+    );
+
+    expect(setupChannels).toHaveBeenCalledWith(
+      expect.anything(),
+      runtime,
+      prompter,
+      expect.objectContaining({
+        promptAccountIds: true,
+      }),
+    );
   });
 
   async function runTuiHatchTest(params: {

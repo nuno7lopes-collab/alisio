@@ -1,3 +1,4 @@
+import { t } from "../i18n/index.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import type { IconName } from "./icons.js";
 
@@ -6,7 +7,11 @@ export { normalizeBasePath } from "./base-path.ts";
 const PUBLIC_TABS = [
   "setup",
   "chat",
+  "models",
+  "channels",
+  "capabilities",
   "connections",
+  "security",
   "authentications",
   "organization",
   "settings",
@@ -16,24 +21,29 @@ const LEGACY_TABS = ["home", "sessions", "automations", "agents"] as const;
 export const TAB_GROUPS = [
   {
     label: "product",
-    tabs: ["chat", "connections", "authentications", "organization", "settings"],
+    tabs: [
+      "chat",
+      "models",
+      "channels",
+      "authentications",
+      "capabilities",
+      "connections",
+      "security",
+      "organization",
+      "settings",
+    ],
   },
 ] as const;
 
-const PUBLIC_SETTINGS_SECTIONS = [
-  "ai",
+const PUBLIC_SETTINGS_SECTIONS = ["general", "ai", "account", "mac", "support"] as const;
+
+const LEGACY_SETTINGS_SECTIONS = [
   "appearance",
   "language",
-  "account",
   "security",
   "devices",
   "billing",
-  "support",
-  "mac",
   "advanced",
-] as const;
-
-const LEGACY_SETTINGS_SECTIONS = [
   "workspace",
   "communications",
   "automation",
@@ -57,7 +67,11 @@ export function normalizePublicTab(tab: Tab): PublicTab {
   switch (tab) {
     case "setup":
     case "authentications":
+    case "channels":
+    case "models":
+    case "capabilities":
     case "connections":
+    case "security":
     case "organization":
     case "settings":
     case "chat":
@@ -78,7 +92,11 @@ export function publicTabFor(tab: Tab): PublicTab {
 const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
   setup: "/setup",
   chat: "/chat",
+  models: "/models",
+  channels: "/channels",
+  capabilities: "/capabilities",
   connections: "/connections",
+  security: "/security",
   authentications: "/authentications",
   organization: "/organization",
   settings: "/settings",
@@ -106,9 +124,10 @@ const LEGACY_PATH_ALIASES = new Map<string, PublicTab>([
   ["/cron", "chat"],
   ["/automations", "chat"],
   ["/agents", "chat"],
-  ["/skills", "chat"],
+  ["/skills", "capabilities"],
   ["/connections", "connections"],
-  ["/channels", "organization"],
+  ["/security", "security"],
+  ["/channels", "channels"],
   ["/instances", "organization"],
   ["/usage", "organization"],
   ["/nodes", "connections"],
@@ -117,17 +136,17 @@ const LEGACY_PATH_ALIASES = new Map<string, PublicTab>([
   ["/appearance", "settings"],
   ["/automation", "settings"],
   ["/infrastructure", "settings"],
-  ["/ai-agents", "settings"],
+  ["/ai-agents", "models"],
   ["/debug", "settings"],
   ["/logs", "settings"],
 ]);
 const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
   ["/config", "account"],
   ["/communications", "support"],
-  ["/appearance", "appearance"],
+  ["/appearance", "general"],
   ["/automation", "account"],
   ["/infrastructure", "mac"],
-  ["/ai-agents", "account"],
+  ["/ai-agents", "ai"],
   ["/debug", "account"],
   ["/logs", "account"],
   ["/nodes", "mac"],
@@ -178,7 +197,28 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
   if (PUBLIC_SETTINGS_SECTIONS.includes(normalized as PublicSettingsSection)) {
     return normalized as PublicSettingsSection;
   }
-  return "account";
+  switch (normalized) {
+    case "appearance":
+    case "language":
+      return "general";
+    case "security":
+    case "devices":
+    case "billing":
+    case "advanced":
+    case "automation":
+    case "workspace":
+    case "debug":
+    case "logs":
+      return "account";
+    case "communications":
+      return "support";
+    case "infrastructure":
+      return "mac";
+    case "aiAgents":
+      return "ai";
+    default:
+      return "general";
+  }
 }
 
 export function settingsSectionFromPath(pathname: string, basePath = ""): SettingsSection | null {
@@ -196,7 +236,7 @@ export function settingsSectionFromPath(pathname: string, basePath = ""): Settin
     normalized = normalized.slice(0, -"/index.html".length) || "/";
   }
   if (normalized === "/settings") {
-    return "account";
+    return "general";
   }
   return LEGACY_SETTINGS_PATHS.get(normalized) ?? null;
 }
@@ -229,8 +269,16 @@ export function iconForTab(tab: Tab): IconName {
       return "terminal";
     case "authentications":
       return "link";
+    case "channels":
+      return "radio";
+    case "models":
+      return "brain";
+    case "capabilities":
+      return "spark";
     case "connections":
       return "monitor";
+    case "security":
+      return "shield";
     case "organization":
       return "barChart";
     case "chat":
@@ -245,37 +293,53 @@ export function iconForTab(tab: Tab): IconName {
 export function titleForTab(tab: Tab) {
   switch (normalizePublicTab(tab)) {
     case "setup":
-      return "Setup";
+      return t("tabs.setup");
     case "chat":
-      return "Chat";
+      return t("tabs.chat");
+    case "models":
+      return t("tabs.models");
+    case "channels":
+      return t("tabs.channels");
+    case "capabilities":
+      return t("tabs.capabilities");
     case "connections":
-      return "Connections";
+      return t("tabs.connections");
+    case "security":
+      return t("tabs.security");
     case "authentications":
-      return "Integrations";
+      return t("tabs.authentications");
     case "organization":
-      return "Workspace";
+      return t("tabs.organization");
     case "settings":
-      return "Preferences";
+      return t("tabs.settings");
     default:
-      return "Chat";
+      return t("tabs.chat");
   }
 }
 
 export function subtitleForTab(tab: Tab) {
   switch (normalizePublicTab(tab)) {
     case "setup":
-      return "Connect your runtime, account, organization, connectors, and permissions.";
+      return t("subtitles.setup");
     case "chat":
-      return "Minimal chat, context, and live tool execution.";
+      return t("subtitles.chat");
+    case "models":
+      return t("subtitles.models");
+    case "channels":
+      return t("subtitles.channels");
+    case "capabilities":
+      return t("subtitles.capabilities");
     case "connections":
-      return "Devices, nodes, bindings, and runtime connectivity.";
+      return t("subtitles.connections");
+    case "security":
+      return t("subtitles.security");
     case "authentications":
-      return "Connected apps, authorization state, and reconnect actions.";
+      return t("subtitles.authentications");
     case "organization":
-      return "Team access, membership, and shared workspace context.";
+      return t("subtitles.organization");
     case "settings":
-      return "Account, AI runtime, appearance, and native controls.";
+      return t("subtitles.settings");
     default:
-      return "Conversations, context, and tool calls.";
+      return t("subtitles.chat");
   }
 }

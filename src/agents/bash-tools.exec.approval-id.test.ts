@@ -709,6 +709,140 @@ describe("exec approvals", () => {
     expect(calls).toContain("exec.approval.waitDecision");
   });
 
+  it("waits inline for Web UI gateway approvals and only finishes after approval", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const calls: string[] = [];
+    let resolveDecision: ((value: { decision: string }) => void) | undefined;
+    const decisionPromise = new Promise<{ decision: string }>((resolve) => {
+      resolveDecision = resolve;
+    });
+
+    vi.mocked(callGatewayTool).mockImplementation(async (method, _opts, params) => {
+      calls.push(method);
+      if (method === "exec.approval.request") {
+        return acceptedApprovalResponse(params);
+      }
+      if (method === "exec.approval.waitDecision") {
+        return await decisionPromise;
+      }
+      return { ok: true };
+    });
+
+    const tool = createExecTool({
+      host: "gateway",
+      ask: "always",
+      security: "full",
+      approvalRunningNoticeMs: 0,
+      messageProvider: "webchat",
+    });
+
+    let settled = false;
+    const executePromise = tool.execute("call-inline-webchat-gateway", {
+      command: "printf approved",
+    });
+    void executePromise.finally(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await expect
+      .poll(() => calls.slice(), { timeout: 5_000, interval: 50 })
+      .toEqual(["exec.approval.request", "exec.approval.waitDecision"]);
+
+    resolveDecision?.({ decision: "allow-once" });
+    const result = await executePromise;
+
+    expect(result.details.status).toBe("completed");
+    expect(getResultText(result)).toContain("approved");
+  });
+
+  it("returns a synchronous failure when a Web UI approval is denied", async () => {
+    vi.mocked(callGatewayTool).mockImplementation(async (method, _opts, params) => {
+      if (method === "exec.approval.request") {
+        return acceptedApprovalResponse(params);
+      }
+      if (method === "exec.approval.waitDecision") {
+        return { decision: "deny" };
+      }
+      return { ok: true };
+    });
+
+    const tool = createExecTool({
+      host: "gateway",
+      ask: "always",
+      security: "full",
+      approvalRunningNoticeMs: 0,
+      messageProvider: "webchat",
+    });
+
+    const result = await tool.execute("call-inline-webchat-deny", {
+      command: "printf denied",
+    });
+
+    expect(result.details.status).toBe("failed");
+    expect(getResultText(result)).toContain("Approval denied. Command did not run.");
+  });
+
+  it("waits inline for Web UI node approvals and resumes the command after approval", async () => {
+    const calls: string[] = [];
+    let resolveDecision: ((value: { decision: string }) => void) | undefined;
+    const decisionPromise = new Promise<{ decision: string }>((resolve) => {
+      resolveDecision = resolve;
+    });
+
+    vi.mocked(callGatewayTool).mockImplementation(async (method, _opts, params) => {
+      calls.push(method);
+      if (method === "node.invoke") {
+        const invoke = params as { command?: string };
+        if (invoke.command === "system.run.prepare") {
+          return buildPreparedSystemRunPayload(params);
+        }
+        if (invoke.command === "system.run") {
+          return { payload: { success: true, stdout: "node-ok", exitCode: 0 } };
+        }
+      }
+      if (method === "exec.approval.request") {
+        return acceptedApprovalResponse(params);
+      }
+      if (method === "exec.approval.waitDecision") {
+        return await decisionPromise;
+      }
+      return { ok: true };
+    });
+
+    const tool = createExecTool({
+      host: "node",
+      ask: "always",
+      security: "full",
+      approvalRunningNoticeMs: 0,
+      messageProvider: "webchat",
+    });
+
+    let settled = false;
+    const executePromise = tool.execute("call-inline-webchat-node", { command: "echo node" });
+    void executePromise.finally(() => {
+      settled = true;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    await expect
+      .poll(() => calls.includes("exec.approval.waitDecision"), { timeout: 5_000, interval: 50 })
+      .toBe(true);
+
+    resolveDecision?.({ decision: "allow-once" });
+    const result = await executePromise;
+
+    expect(result.details.status).toBe("completed");
+    expect(getResultText(result)).toContain("node-ok");
+  });
+
   it("fails fast when approval registration fails", async () => {
     vi.mocked(callGatewayTool).mockImplementation(async (method) => {
       if (method === "exec.approval.request") {

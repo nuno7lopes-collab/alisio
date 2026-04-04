@@ -1,4 +1,5 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
+import { alisioBootstrapBlocksChatAccess, resolveBlockingSetupStep } from "./alisio-setup-state.ts";
 import { refreshChat } from "./app-chat.ts";
 import {
   startLogsPolling,
@@ -25,7 +26,7 @@ import { loadExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
-import { loadProviderUsageStatus } from "./controllers/provider-usage.ts";
+import { loadGatewayAccessMode } from "./controllers/security-access.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
@@ -82,10 +83,7 @@ type SettingsHost = {
 function bootstrapBlocksChatAccess(
   bootstrap: import("./types.ts").AlisioBootstrapState | null | undefined,
 ) {
-  if (!bootstrap) {
-    return false;
-  }
-  return bootstrap.connectionRequired || bootstrap.startupState !== "ready";
+  return alisioBootstrapBlocksChatAccess(bootstrap);
 }
 
 function normalizeSetupStep(
@@ -110,21 +108,11 @@ function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootst
   if (!host.connected) {
     return requestedStep === "ready" ? "gateway" : (requestedStep ?? "gateway");
   }
-  if (host.alisioBootstrap?.startupState === "signed_out") {
-    return "account";
-  }
-  if (host.alisioBootstrap?.startupState === "needs_profile") {
-    return "account";
-  }
-  if (host.alisioBootstrap?.startupState === "needs_ai") {
-    return "runtime";
-  }
-  if (requestedStep) {
-    return requestedStep;
-  }
-  const bootstrapStep = normalizeSetupStep(host.alisioBootstrap?.nextStep);
-  if (bootstrapStep && bootstrapStep !== "ready") {
-    return bootstrapStep;
+  if (bootstrapBlocksChatAccess(host.alisioBootstrap)) {
+    return resolveBlockingSetupStep({
+      connected: host.connected,
+      bootstrap: host.alisioBootstrap,
+    });
   }
   return null;
 }
@@ -301,16 +289,40 @@ export async function refreshActiveTab(host: SettingsHost) {
       loadAlisioConnectors(host as unknown as OpenClawApp),
     ]);
   }
+  if (host.tab === "channels") {
+    await loadChannels(host as unknown as OpenClawApp, false);
+  }
+  if (host.tab === "models") {
+    await Promise.allSettled([
+      loadAlisioBootstrap(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as OpenClawApp),
+      loadNodes(host as unknown as OpenClawApp),
+    ]);
+  }
+  if (host.tab === "capabilities") {
+    await Promise.allSettled([
+      loadSkills(host as unknown as OpenClawApp),
+      loadChannels(host as unknown as OpenClawApp, false),
+      loadAlisioConnectors(host as unknown as OpenClawApp),
+    ]);
+  }
   if (host.tab === "connections") {
+    await Promise.allSettled([
+      loadNodes(host as unknown as OpenClawApp),
+      loadDevices(host as unknown as OpenClawApp),
+      loadConfig(host as unknown as OpenClawApp),
+    ]);
+  }
+  if (host.tab === "security") {
     const execTarget =
       host.execApprovalsTarget === "node" && host.execApprovalsTargetNodeId?.trim()
         ? { kind: "node" as const, nodeId: host.execApprovalsTargetNodeId.trim() }
         : ({ kind: "gateway" } as const);
     await Promise.allSettled([
       loadNodes(host as unknown as OpenClawApp),
-      loadDevices(host as unknown as OpenClawApp),
       loadConfig(host as unknown as OpenClawApp),
       loadExecApprovals(host as unknown as OpenClawApp, execTarget),
+      loadGatewayAccessMode(host as unknown as OpenClawApp),
     ]);
   }
   if (host.tab === "organization") {
@@ -322,13 +334,17 @@ export async function refreshActiveTab(host: SettingsHost) {
   if (host.tab === "chat") {
     await loadAlisioBootstrap(host as unknown as OpenClawApp);
     if (bootstrapBlocksChatAccess(host.alisioBootstrap)) {
-      host.setupStep = !host.connected ? "gateway" : (host.alisioBootstrap?.nextStep ?? "runtime");
+      host.setupStep = resolveBlockingSetupStep({
+        connected: host.connected,
+        bootstrap: host.alisioBootstrap,
+      });
       host.setTab?.("setup");
       return;
     }
     await Promise.allSettled([
       refreshChat(host as unknown as Parameters<typeof refreshChat>[0]),
       loadAlisioAccount(host as unknown as OpenClawApp),
+      loadGatewayAccessMode(host as unknown as OpenClawApp),
     ]);
     scheduleChatScroll(
       host as unknown as Parameters<typeof scheduleChatScroll>[0],
@@ -340,12 +356,6 @@ export async function refreshActiveTab(host: SettingsHost) {
       loadAlisioAccount(host as unknown as OpenClawApp),
       loadAlisioDoctorSummary(host as unknown as OpenClawApp),
     ]);
-    if (host.settingsSection === "ai") {
-      await Promise.allSettled([
-        loadAlisioBootstrap(host as unknown as OpenClawApp),
-        loadProviderUsageStatus(host as unknown as OpenClawApp),
-      ]);
-    }
     if (host.settingsSection === "debug") {
       await loadDebug(host as unknown as OpenClawApp);
       host.eventLog = host.eventLogBuffer;
@@ -557,7 +567,7 @@ export function syncUrlWithTab(host: SettingsHost, tab: Tab, replace: boolean) {
     url.searchParams.delete("session");
   }
   if (tab === "settings") {
-    if (host.settingsSection === "account") {
+    if (host.settingsSection === "general") {
       url.searchParams.delete("section");
     } else {
       url.searchParams.set("section", host.settingsSection);

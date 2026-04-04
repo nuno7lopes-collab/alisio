@@ -194,7 +194,7 @@ If the old store reports room keys that were never backed up, OpenClaw warns ins
 - Meaning: OpenClaw detected old Matrix state, but the migration is still blocked on missing identity or credential data.
 - What to do: finish Matrix login or config setup, then rerun `openclaw doctor --fix` or restart the gateway.
 
-`Legacy Matrix encrypted state was detected, but the Matrix plugin helper is unavailable. Install or repair @openclaw/matrix so OpenClaw can inspect the old rust crypto store before upgrading.`
+`Legacy Matrix encrypted state was detected, but the Matrix plugin helper is unavailable. Install or repair @openclaw/matrix so Alisio can inspect the old rust crypto store before upgrading.`
 
 - Meaning: OpenClaw found old encrypted Matrix state, but it could not load the helper entrypoint from the Matrix plugin that normally inspects that store.
 - What to do: reinstall or repair the Matrix plugin (`openclaw plugins install @openclaw/matrix`, or `openclaw plugins install ./path/to/local/matrix-plugin` for a repo checkout), then rerun `openclaw doctor --fix` or restart the gateway.

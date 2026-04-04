@@ -13,8 +13,10 @@ export type CommandRunner = (
   options: { timeoutMs: number; cwd?: string; env?: NodeJS.ProcessEnv },
 ) => Promise<{ stdout: string; stderr: string; code: number | null }>;
 
-const PRIMARY_PACKAGE_NAME = "openclaw";
-const ALL_PACKAGE_NAMES = [PRIMARY_PACKAGE_NAME] as const;
+export const CORE_PACKAGE_NAME = "openclaw";
+export const PUBLIC_PACKAGE_NAME = "alisio";
+const PRIMARY_PACKAGE_NAME = CORE_PACKAGE_NAME;
+const ALL_PACKAGE_NAMES = [PUBLIC_PACKAGE_NAME, PRIMARY_PACKAGE_NAME] as const;
 const GLOBAL_RENAME_PREFIX = ".";
 export const OPENCLAW_MAIN_PACKAGE_SPEC = "github:openclaw/openclaw#main";
 const NPM_GLOBAL_INSTALL_QUIET_FLAGS = ["--no-fund", "--no-audit", "--loglevel=error"] as const;
@@ -25,6 +27,42 @@ const NPM_GLOBAL_INSTALL_OMIT_OPTIONAL_FLAGS = [
 
 function normalizePackageTarget(value: string): string {
   return value.trim();
+}
+
+function normalizeKnownPackageName(value?: string | null): string | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  return ALL_PACKAGE_NAMES.includes(normalized as (typeof ALL_PACKAGE_NAMES)[number])
+    ? normalized
+    : null;
+}
+
+function resolveInstallSpecPrefixes(packageName: string): string[] {
+  const normalizedPackageName = normalizeKnownPackageName(packageName) ?? packageName.trim();
+  if (!normalizedPackageName) {
+    return [];
+  }
+  if (normalizedPackageName === PUBLIC_PACKAGE_NAME) {
+    return [`${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`, `${CORE_PACKAGE_NAME}@`];
+  }
+  if (normalizedPackageName === CORE_PACKAGE_NAME) {
+    return [`${CORE_PACKAGE_NAME}@`, `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`];
+  }
+  return [`${normalizedPackageName}@`];
+}
+
+function resolvePackageRootSearchOrder(preferredPackageNames?: readonly string[]): string[] {
+  const preferred = (preferredPackageNames ?? [])
+    .map((value) => normalizeKnownPackageName(value))
+    .filter((value): value is string => Boolean(value));
+  return Array.from(new Set([...preferred, ...ALL_PACKAGE_NAMES]));
+}
+
+export function resolveGlobalPackageSpecifierName(packageRoot?: string | null): string {
+  const normalized = normalizeKnownPackageName(packageRoot ? path.basename(packageRoot) : null);
+  return normalized === PUBLIC_PACKAGE_NAME ? PUBLIC_PACKAGE_NAME : CORE_PACKAGE_NAME;
 }
 
 export function isMainPackageTarget(value: string): boolean {
@@ -47,12 +85,14 @@ export function resolveExpectedInstalledVersionFromSpec(
   packageName: string,
   spec: string,
 ): string | null {
-  const normalizedPackageName = packageName.trim();
   const normalizedSpec = normalizePackageTarget(spec);
-  if (!normalizedPackageName || !normalizedSpec.startsWith(`${normalizedPackageName}@`)) {
+  const matchingPrefix = resolveInstallSpecPrefixes(packageName).find((prefix) =>
+    normalizedSpec.startsWith(prefix),
+  );
+  if (!matchingPrefix) {
     return null;
   }
-  const rawVersion = normalizedSpec.slice(normalizedPackageName.length + 1).trim();
+  const rawVersion = normalizedSpec.slice(matchingPrefix.length).trim();
   if (
     !rawVersion ||
     rawVersion.includes("/") ||
@@ -147,7 +187,11 @@ export function resolveGlobalInstallSpec(params: {
   if (isExplicitPackageInstallSpec(target)) {
     return target;
   }
-  return `${params.packageName}@${target}`;
+  const normalizedPackageName = normalizeKnownPackageName(params.packageName);
+  if (normalizedPackageName === PUBLIC_PACKAGE_NAME) {
+    return `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@${target}`;
+  }
+  return `${normalizedPackageName ?? params.packageName}@${target}`;
 }
 
 export async function createGlobalInstallEnv(
@@ -201,10 +245,17 @@ export async function resolveGlobalPackageRoot(
   manager: GlobalInstallManager,
   runCommand: CommandRunner,
   timeoutMs: number,
+  preferredPackageNames?: readonly string[],
 ): Promise<string | null> {
   const root = await resolveGlobalRoot(manager, runCommand, timeoutMs);
   if (!root) {
     return null;
+  }
+  for (const name of resolvePackageRootSearchOrder(preferredPackageNames)) {
+    const candidate = path.join(root, name);
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
   }
   return path.join(root, PRIMARY_PACKAGE_NAME);
 }
