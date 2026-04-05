@@ -1,7 +1,5 @@
 import { html, nothing } from "lit";
 import {
-  ALISIO_USERNAME_MAX_LENGTH,
-  ALISIO_USERNAME_MIN_LENGTH,
   validateAlisioEmail,
   validateAlisioAccountDraft,
 } from "../../../../src/shared/alisio-account.js";
@@ -25,11 +23,14 @@ import type {
   NativeShellState,
   WizardStep,
 } from "../types.ts";
+import { renderAccountProfileFields } from "./account-profile-fields.ts";
 import {
   buildConnectorRows,
   connectorStatusHint,
   connectorStatusLabel,
 } from "./connector-state.ts";
+import { renderSkeletonListItem, renderSkeletonStatCards } from "./loading-skeleton.ts";
+import { nativeShellPermissionLabel } from "./native-shell-permissions.ts";
 import { renderOrganization } from "./organization.ts";
 
 type SetupProps = {
@@ -298,8 +299,8 @@ function renderAccountStep(props: SetupProps) {
           ${props.accountLoading
             ? t("alisio.setup.account.working")
             : authMode === "sign-up"
-              ? (submitBlocker ?? t("alisio.setup.account.createAction"))
-              : (submitBlocker ?? t("alisio.setup.account.signInAction"))}
+              ? t("alisio.setup.account.createAction")
+              : t("alisio.setup.account.signInAction")}
         </button>
         ${authMode === "sign-in"
           ? html`
@@ -352,51 +353,20 @@ function renderProfileStep(props: SetupProps) {
       <div class="card-sub">${t("alisio.setup.profile.subtitle")}</div>
       ${renderCallout("danger", props.accountError ?? validation)}
       <div class="alisio-settings-form" style="margin-top: 16px;">
-        <label class="field">
-          <span>${t("alisio.setup.profile.name")}</span>
-          <input
-            type="text"
-            .value=${profile?.displayName ?? ""}
-            @input=${(event: Event) =>
-              props.onAccountFieldChange("displayName", (event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field">
-          <span>${t("alisio.setup.profile.username")}</span>
-          <input
-            type="text"
-            minlength=${String(ALISIO_USERNAME_MIN_LENGTH)}
-            maxlength=${String(ALISIO_USERNAME_MAX_LENGTH)}
-            .value=${profile?.username ?? ""}
-            @input=${(event: Event) =>
-              props.onAccountFieldChange("username", (event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field">
-          <span>${t("alisio.setup.profile.email")}</span>
-          <input
-            type="email"
-            .value=${profile?.email ?? props.authEmail}
-            ?disabled=${emailManagedByCloud}
-            @input=${(event: Event) =>
-              props.onAccountFieldChange("email", (event.target as HTMLInputElement).value)}
-          />
-          ${emailManagedByCloud
-            ? html`
-                <small class="field-note">${t("alisio.setup.profile.emailManagedByCloud")}</small>
-              `
-            : nothing}
-        </label>
-        <label class="field">
-          <span>${t("alisio.setup.profile.avatar")}</span>
-          <input
-            type="text"
-            maxlength="2"
-            .value=${profile?.avatarLabel ?? ""}
-            @input=${(event: Event) =>
-              props.onAccountFieldChange("avatarLabel", (event.target as HTMLInputElement).value)}
-          />
-        </label>
+        ${renderAccountProfileFields({
+          profile: profile ?? null,
+          emailFallback: props.authEmail,
+          emailManagedByCloud,
+          mode: "live",
+          labels: {
+            displayName: t("alisio.setup.profile.name"),
+            username: t("alisio.setup.profile.username"),
+            email: t("alisio.setup.profile.email"),
+            avatarLabel: t("alisio.setup.profile.avatar"),
+            emailManagedByCloud: t("alisio.setup.profile.emailManagedByCloud"),
+          },
+          onFieldChange: props.onAccountFieldChange,
+        })}
       </div>
       <div class="row" style="margin-top: 16px;">
         <button class="btn primary" ?disabled=${Boolean(validation)} @click=${props.onSaveAccount}>
@@ -471,38 +441,22 @@ function renderAiStep(props: SetupProps) {
   `;
 }
 
-function permissionLabel(permission: NativeShellPermission) {
-  switch (permission) {
-    case "notifications":
-      return t("alisio.settings.mac.permissions.notifications");
-    case "appleScript":
-      return t("alisio.settings.mac.permissions.appleScript");
-    case "accessibility":
-      return t("alisio.settings.mac.permissions.accessibility");
-    case "screenRecording":
-      return t("alisio.settings.mac.permissions.screenRecording");
-    case "microphone":
-      return t("alisio.settings.mac.permissions.microphone");
-    case "speechRecognition":
-      return t("alisio.settings.mac.permissions.speechRecognition");
-    case "camera":
-      return t("alisio.settings.mac.permissions.camera");
-    case "location":
-      return t("alisio.settings.mac.permissions.location");
-  }
-}
-
 function renderPermissionsStep(props: SetupProps) {
   const state = props.nativeShellState;
+  const showInitialLoading = props.nativeShellLoading && !state && !props.nativeShellError;
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">${t("alisio.setup.permissions.title")}</div>
       <div class="card-sub">${t("alisio.setup.permissions.subtitle")}</div>
       ${renderCallout("danger", props.nativeShellError)}
-      ${props.nativeShellLoading
+      ${showInitialLoading
         ? html`
-            <div class="empty-state" style="margin-top: 16px;">
-              ${t("alisio.setup.permissions.loading")}
+            <div role="status" aria-label=${t("alisio.setup.permissions.loading")}>
+              <div class="loading-state__list" style="margin-top: 16px;">
+                ${renderSkeletonListItem({ lines: ["short", "medium", "short"], aside: "button" })}
+                ${renderSkeletonListItem({ lines: ["short", "long"], aside: "button" })}
+                ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+              </div>
             </div>
           `
         : !state
@@ -534,7 +488,7 @@ function renderPermissionsStep(props: SetupProps) {
                 ${MAC_PERMISSION_ORDER.map(
                   (permission) => html`
                     <div class="list-item">
-                      <div class="list-title">${permissionLabel(permission)}</div>
+                      <div class="list-title">${nativeShellPermissionLabel(permission)}</div>
                       <div class="list-sub">
                         ${state.permissions[permission]
                           ? t("alisio.settings.mac.granted")
@@ -643,6 +597,10 @@ function renderConnectorsStep(props: SetupProps) {
     definitions: props.connectorCatalog,
     authorizations: props.connectorAuthorizations,
   });
+  const showInitialLoading =
+    props.connectorsLoading &&
+    props.connectorCatalog.length === 0 &&
+    props.connectorAuthorizations.length === 0;
   const visibleRows = connectorRows.filter(
     (row) =>
       row.status === "ready" ||
@@ -657,26 +615,32 @@ function renderConnectorsStep(props: SetupProps) {
       <div class="card-title">${t("alisio.setup.steps.connectors")}</div>
       <div class="card-sub">${t("alisio.authentications.subtitle")}</div>
       ${renderCallout("danger", props.connectorsError)}
-      <div
-        style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 16px;"
-      >
-        <article class="list-item">
-          <div class="list-title">${connectorSummary.connected}</div>
-          <div class="list-sub">${t("alisio.authentications.summary.connected")}</div>
-        </article>
-        <article class="list-item">
-          <div class="list-title">${connectorSummary.ready}</div>
-          <div class="list-sub">${t("alisio.authentications.summary.ready")}</div>
-        </article>
-        <article class="list-item">
-          <div class="list-title">${connectorSummary.needsReconnect}</div>
-          <div class="list-sub">${t("alisio.authentications.summary.attention")}</div>
-        </article>
+      <div class="alisio-summary-grid">
+        ${showInitialLoading
+          ? renderSkeletonStatCards(3)
+          : html`
+              <article class="list-item">
+                <div class="list-title">${connectorSummary.connected}</div>
+                <div class="list-sub">${t("alisio.authentications.summary.connected")}</div>
+              </article>
+              <article class="list-item">
+                <div class="list-title">${connectorSummary.ready}</div>
+                <div class="list-sub">${t("alisio.authentications.summary.ready")}</div>
+              </article>
+              <article class="list-item">
+                <div class="list-title">${connectorSummary.needsReconnect}</div>
+                <div class="list-sub">${t("alisio.authentications.summary.attention")}</div>
+              </article>
+            `}
       </div>
-      ${props.connectorsLoading
+      ${showInitialLoading
         ? html`
-            <div class="empty-state" style="margin-top: 16px;">
-              ${t("alisio.authentications.loading")}
+            <div role="status" aria-label=${t("alisio.authentications.loading")}>
+              <div class="loading-state__list" style="margin-top: 16px;">
+                ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "pill" })}
+                ${renderSkeletonListItem({ lines: ["short", "medium", "short"], aside: "button" })}
+                ${renderSkeletonListItem({ lines: ["long", "medium", "short"], aside: "button" })}
+              </div>
             </div>
           `
         : visibleRows.length === 0

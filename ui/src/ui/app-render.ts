@@ -75,6 +75,7 @@ import {
 import {
   approveDevicePairing,
   loadDevices,
+  removeDevicePairing,
   rejectDevicePairing,
   revokeDeviceToken,
   rotateDeviceToken,
@@ -87,6 +88,11 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
+import {
+  approveNodePairing,
+  loadNodePairings,
+  rejectNodePairing,
+} from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { applyGatewayAccessMode, loadGatewayAccessMode } from "./controllers/security-access.ts";
 import {
@@ -1109,9 +1115,13 @@ export function renderApp(state: AppViewState) {
               assistantAgentId: state.assistantAgentId,
               loading: state.nodesLoading,
               nodes: state.nodes,
+              nodesError: state.nodesError,
               devicesLoading: state.devicesLoading,
               devicesError: state.devicesError,
               devicesList: state.devicesList,
+              nodePairingsLoading: state.nodePairingsLoading,
+              nodePairingsError: state.nodePairingsError,
+              nodePairingsList: state.nodePairingsList,
               configForm: state.configForm,
               configLoading: state.configLoading,
               configSaving: state.configSaving,
@@ -1129,6 +1139,7 @@ export function renderApp(state: AppViewState) {
                 void Promise.allSettled([
                   loadNodes(state),
                   loadDevices(state),
+                  loadNodePairings(state),
                   loadConfig(state),
                   loadSelectedExecApprovals(state),
                 ]);
@@ -1136,11 +1147,23 @@ export function renderApp(state: AppViewState) {
               onDevicesRefresh: () => {
                 void loadDevices(state);
               },
+              onNodePairingsRefresh: () => {
+                void Promise.allSettled([loadNodes(state), loadNodePairings(state)]);
+              },
               onDeviceApprove: (requestId) => {
                 void approveDevicePairing(state, requestId);
               },
               onDeviceReject: (requestId) => {
                 void rejectDevicePairing(state, requestId);
+              },
+              onDeviceRemove: (deviceId) => {
+                void removeDevicePairing(state, deviceId);
+              },
+              onNodeApprove: (requestId) => {
+                void Promise.allSettled([approveNodePairing(state, requestId), loadNodes(state)]);
+              },
+              onNodeReject: (requestId) => {
+                void Promise.allSettled([rejectNodePairing(state, requestId), loadNodes(state)]);
               },
               onDeviceRotate: (deviceId, role, scopes) => {
                 void rotateDeviceToken(state, { deviceId, role, scopes });
@@ -1556,22 +1579,27 @@ export function renderApp(state: AppViewState) {
               accountError: state.alisioAccountError,
               accountNotice: state.alisioAccountNotice,
               account: state.alisioAccount,
-              bootstrap: state.alisioBootstrap,
-              aiLoading: state.alisioAiLoading,
-              aiError: state.alisioAiError,
               doctorLoading: state.alisioDoctorLoading,
               doctorError: state.alisioDoctorError,
               doctor: state.alisioDoctor,
               locale: state.settings.locale,
+              theme: state.theme,
               themeMode: state.themeMode,
+              borderRadius: state.settings.borderRadius,
               onLocaleChange: (locale) => {
                 void i18n.setLocale(locale);
                 state.applySettings({ ...state.settings, locale });
                 void saveAlisioAccount(state, { language: locale });
               },
+              onThemeChange: (theme, context) => {
+                state.setTheme(theme, context);
+              },
               onThemeModeChange: (themeMode) => {
                 state.setThemeMode(themeMode);
                 void saveAlisioAccount(state, { theme: themeMode });
+              },
+              onBorderRadiusChange: (borderRadius) => {
+                state.setBorderRadius(borderRadius);
               },
               onSaveAccountField: (patch) => {
                 void saveAlisioAccount(state, patch);
@@ -1605,28 +1633,6 @@ export function renderApp(state: AppViewState) {
               },
               onRequestPasswordReset: () => {
                 void requestAlisioPasswordReset(state);
-              },
-              onConnectAi: () => {
-                const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
-                beginOpenAiConnectFlow(state, callbackUrl.toString());
-              },
-              onDisconnectAi: () => {
-                void disconnectAlisioAi(state);
-              },
-              onRefreshAi: () => {
-                void refreshAlisioAi(state);
-              },
-              onSelectAiProfile: (profileId) => {
-                void selectAlisioAiProfile(state, profileId);
-              },
-              onDisconnectAiProfile: (profileId) => {
-                void disconnectAlisioAiProfile(state, profileId);
-              },
-              onRefreshAiProfile: (profileId) => {
-                void refreshAlisioAiProfile(state, profileId);
-              },
-              onRenameAiProfile: (profileId, label) => {
-                void renameAlisioAiProfile(state, profileId, label);
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

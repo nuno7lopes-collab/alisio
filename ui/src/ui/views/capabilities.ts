@@ -306,9 +306,7 @@ export function renderCapabilities(props: CapabilitiesProps) {
           </button>
         </div>
 
-        <div
-          style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 18px;"
-        >
+        <div class="alisio-summary-grid alisio-summary-grid--spacious">
           <article class="list-item">
             <div class="list-title">${statusCounts.ready}</div>
             <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>

@@ -1,4 +1,5 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
+import { i18n, isSupportedLocale } from "../i18n/index.ts";
 import {
   alisioBootstrapBlocksChatAccess,
   isPostReadySetupStep,
@@ -30,6 +31,7 @@ import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadModels as loadChatModels } from "./controllers/models.ts";
+import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadGatewayAccessMode } from "./controllers/security-access.ts";
@@ -66,6 +68,7 @@ type SettingsHost = {
   setTab?: (tab: Tab) => void;
   settingsSection: SettingsSection;
   connected: boolean;
+  alisioAccount?: import("./types.ts").AlisioAccountState | null;
   alisioBootstrap?: import("./types.ts").AlisioBootstrapState | null;
   setupStep?: import("./types.ts").AlisioBootstrapStep | null;
   chatHasAutoScrolled: boolean;
@@ -147,6 +150,7 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
     host.theme = next.theme;
     host.themeMode = next.themeMode;
     applyResolvedTheme(host, resolveTheme(next.theme, next.themeMode));
+    syncSystemThemeListener(host);
   }
   applyBorderRadius(next.borderRadius);
   host.applySessionKey = host.settings.lastActiveSessionKey;
@@ -343,6 +347,7 @@ export async function refreshActiveTab(host: SettingsHost) {
     await Promise.allSettled([
       loadNodes(host as unknown as OpenClawApp),
       loadDevices(host as unknown as OpenClawApp),
+      loadNodePairings(host as unknown as OpenClawApp),
       loadConfig(host as unknown as OpenClawApp),
     ]);
   }
@@ -419,6 +424,43 @@ export function syncThemeWithSettings(host: SettingsHost) {
   syncSystemThemeListener(host);
 }
 
+function resolveSignedInPreferences(host: SettingsHost) {
+  const account = host.alisioAccount ?? host.alisioBootstrap?.account ?? null;
+  if (!account || account.session.state !== "signed_in") {
+    return null;
+  }
+  return account.preferences;
+}
+
+export async function syncAccountPreferences(host: SettingsHost) {
+  const preferences = resolveSignedInPreferences(host);
+  if (!preferences) {
+    return;
+  }
+
+  const nextLocale = isSupportedLocale(preferences.language)
+    ? preferences.language
+    : host.settings.locale;
+  const nextThemeMode = preferences.theme;
+
+  if (nextLocale === host.settings.locale && nextThemeMode === host.settings.themeMode) {
+    return;
+  }
+
+  const localeSync =
+    isSupportedLocale(nextLocale) && nextLocale !== host.settings.locale
+      ? i18n.setLocale(nextLocale)
+      : undefined;
+
+  applySettings(host, {
+    ...host.settings,
+    locale: nextLocale,
+    themeMode: nextThemeMode,
+  });
+
+  await localeSync;
+}
+
 export function attachThemeListener(host: SettingsHost) {
   syncSystemThemeListener(host);
 }
@@ -474,11 +516,11 @@ function syncSystemThemeListener(host: SettingsHost) {
   }
 
   const mql = globalThis.matchMedia("(prefers-color-scheme: light)");
-  const onChange = () => {
+  const onChange = (event: Pick<MediaQueryList, "matches">) => {
     if (host.themeMode !== "system") {
       return;
     }
-    applyResolvedTheme(host, resolveTheme(host.theme, "system"));
+    applyResolvedTheme(host, resolveTheme(host.theme, event.matches ? "light" : "dark"));
   };
   if (typeof mql.addEventListener === "function") {
     mql.addEventListener("change", onChange);

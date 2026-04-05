@@ -126,23 +126,29 @@ describe("Alisio OpenAI connect", () => {
     expect(setupUrl.searchParams.get("state")).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it("relays local browser callbacks through localhost:1455", async () => {
+  it("relays local browser callbacks through the configured localhost relay", async () => {
     await withTempDir({ prefix: "alisio-ai-" }, async (root) => {
       const callbackPort = await getFreePort();
+      const relayPort = await getFreePort();
       const callbackUrl = `http://127.0.0.1:${callbackPort}/__alisio/auth/openai/callback`;
       const env = await createReadyAlisioAccountEnv(root);
 
-      const begin = await beginAlisioAiConnect({ callbackUrl }, env);
+      const begin = await buildAlisioOpenAiAuthorization({
+        callbackUrl,
+        loopbackPort: relayPort,
+      });
 
       const setupUrl = new URL(begin.setupUrl);
-      expect(setupUrl.searchParams.get("redirect_uri")).toBe("http://localhost:1455/auth/callback");
+      expect(setupUrl.searchParams.get("redirect_uri")).toBe(
+        `http://localhost:${relayPort}/auth/callback`,
+      );
       expect(setupUrl.searchParams.get("originator")).toBe("pi");
 
       const state = setupUrl.searchParams.get("state");
       expect(state).toBeTruthy();
 
       const response = await fetch(
-        `http://localhost:1455/auth/callback?code=test-code&state=${state}`,
+        `http://localhost:${relayPort}/auth/callback?code=test-code&state=${state}`,
         { redirect: "manual" },
       );
 
@@ -151,6 +157,8 @@ describe("Alisio OpenAI connect", () => {
         `http://127.0.0.1:${callbackPort}/__alisio/auth/openai/callback?code=test-code&state=${state}`,
       );
 
+      const storedBegin = await beginAlisioAiConnect({ callbackUrl }, env);
+      expect(storedBegin.setupUrl).toContain("originator=pi");
       await disconnectAlisioAi(undefined, env);
     });
   });

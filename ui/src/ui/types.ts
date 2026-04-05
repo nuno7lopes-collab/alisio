@@ -118,6 +118,7 @@ export type ChannelAccountSnapshot = {
   cliPath?: string | null;
   dbPath?: string | null;
   port?: number | null;
+  self?: WhatsAppSelf | null;
   probe?: unknown;
   audit?: unknown;
   application?: unknown;

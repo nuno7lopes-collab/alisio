@@ -1,10 +1,8 @@
 import { html } from "lit";
 import { t } from "../../i18n/index.ts";
+import { renderSkeletonStatCards } from "./loading-skeleton.ts";
+import { countConnectedNodes, countReadyExecNodes } from "./nodes-shared.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
-
-function countConnectedNodes(nodes: Array<Record<string, unknown>>) {
-  return nodes.filter((node) => Boolean(node.connected) || Boolean(node.online)).length;
-}
 
 function countPendingDevices(props: NodesProps) {
   return props.devicesList?.pending?.length ?? 0;
@@ -12,6 +10,10 @@ function countPendingDevices(props: NodesProps) {
 
 function countPairedDevices(props: NodesProps) {
   return props.devicesList?.paired?.length ?? 0;
+}
+
+function countPendingNodeRequests(props: NodesProps) {
+  return props.nodePairingsList?.pending?.length ?? 0;
 }
 
 function renderOverviewCard(params: {
@@ -34,9 +36,13 @@ export function renderConnections(props: NodesProps) {
   const pendingDevices = countPendingDevices(props);
   const pairedDevices = countPairedDevices(props);
   const connectedNodes = countConnectedNodes(props.nodes);
-  const syncLabel = props.configDirty
-    ? t("alisio.connections.unsaved")
-    : t("alisio.connections.synced");
+  const execReadyNodes = countReadyExecNodes(props.nodes);
+  const pendingNodes = countPendingNodeRequests(props);
+  const showOverviewLoading =
+    (props.loading || props.devicesLoading || props.nodePairingsLoading) &&
+    props.nodes.length === 0 &&
+    !props.devicesList &&
+    !props.nodePairingsList;
   const text = {
     eyebrow: t("alisio.connections.eyebrow"),
     title: t("alisio.connections.title"),
@@ -48,8 +54,13 @@ export function renderConnections(props: NodesProps) {
     pendingDevices: t("alisio.connections.pendingDevices"),
     pairedDevices: t("alisio.connections.pairedDevices"),
     liveNodes: t("alisio.connections.liveNodes"),
-    bindingState: t("alisio.connections.bindingState"),
+    execReady: t("alisio.connections.nodes.execReady"),
+    pendingNodes: t("alisio.connections.pendingNodes"),
   };
+  const runtimeDetail =
+    pendingNodes > 0
+      ? `${execReadyNodes} ${text.execReady} · ${pendingNodes} ${text.pendingNodes}`
+      : `${execReadyNodes} ${text.execReady}`;
 
   return html`
     <section class="alisio-page alisio-connections-page">
@@ -65,18 +76,22 @@ export function renderConnections(props: NodesProps) {
           </button>
         </div>
         <div class="alisio-connections-overview">
-          ${renderOverviewCard({
-            label: text.devicesTitle,
-            value: pairedDevices,
-            headline: text.pairedDevices,
-            detail: `${pendingDevices} ${text.pendingDevices}`,
-          })}
-          ${renderOverviewCard({
-            label: text.runtimeTitle,
-            value: connectedNodes,
-            headline: text.liveNodes,
-            detail: `${syncLabel} · ${text.bindingState}`,
-          })}
+          ${showOverviewLoading
+            ? renderSkeletonStatCards(2)
+            : html`
+                ${renderOverviewCard({
+                  label: text.devicesTitle,
+                  value: pairedDevices,
+                  headline: text.pairedDevices,
+                  detail: `${pendingDevices} ${text.pendingDevices}`,
+                })}
+                ${renderOverviewCard({
+                  label: text.runtimeTitle,
+                  value: connectedNodes,
+                  headline: text.liveNodes,
+                  detail: runtimeDetail,
+                })}
+              `}
         </div>
       </div>
       <div class="alisio-connections-stack">

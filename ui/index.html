@@ -12,7 +12,14 @@
       (function () {
         var THEMES = { claw: 1, knot: 1, dash: 1 };
         var MODES = { system: 1, light: 1, dark: 1 };
+        // Keep this legacy map aligned with ui/src/ui/theme.ts so the first paint
+        // matches the hydrated app state for migrated settings.
         var LEGACY = {
+          defaultTheme: "claw:dark",
+          docsTheme: "claw:light",
+          lightTheme: "knot:dark",
+          landingTheme: "knot:dark",
+          newTheme: "knot:dark",
           dark: "claw:dark",
           light: "claw:light",
           openknot: "knot:dark",
@@ -58,6 +65,8 @@
             "data-theme-mode",
             resolved.indexOf("light") !== -1 ? "light" : "dark",
           );
+          document.documentElement.style.colorScheme =
+            resolved.indexOf("light") !== -1 ? "light" : "dark";
         } catch (e) {}
       })();
     </script>

@@ -1,6 +1,12 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
 import type { AlisioOrganizationMembershipState } from "../types.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonLines,
+  renderSkeletonListItem,
+  renderSkeletonPill,
+} from "./loading-skeleton.ts";
 
 export function renderOrganization(props: {
   loading: boolean;
@@ -18,6 +24,7 @@ export function renderOrganization(props: {
 }) {
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
+  const showInitialLoading = props.loading && !props.organization && !props.error;
   const membershipLabel =
     membership === "owner"
       ? t("alisio.organization.membership.owner")
@@ -59,11 +66,28 @@ export function renderOrganization(props: {
             <div class="card-title">${text.title}</div>
             <div class="card-sub">${text.subtitle}</div>
           </div>
-          <span class="pill">${membershipLabel}</span>
+          ${showInitialLoading
+            ? renderSkeletonPill()
+            : html`<span class="pill">${membershipLabel}</span>`}
         </div>
         ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
-        ${props.loading
-          ? html`<div class="empty-state" style="margin-top: 20px;">${text.loading}</div>`
+        ${showInitialLoading
+          ? html`
+              <div class="alisio-organization-grid" role="status" aria-label=${text.loading}>
+                <div class="card alisio-organization-panel">
+                  ${renderSkeletonLines(["medium", "long"], { compact: true })}
+                  <div class="loading-state__list">
+                    ${renderSkeletonListItem({ lines: ["short", "long", "medium"], aside: "pill" })}
+                    ${renderSkeletonListItem({ lines: ["medium", "short"] })}
+                  </div>
+                </div>
+                <div class="card alisio-organization-panel alisio-organization-panel--muted">
+                  ${renderSkeletonLines(["short", "medium"], { compact: true })}
+                  ${renderSkeletonLines(["full", "long", "medium"])}
+                  <div class="row">${renderSkeletonButton({ wide: true })}</div>
+                </div>
+              </div>
+            `
           : hasOrganization
             ? html`
                 <div class="alisio-organization-grid">

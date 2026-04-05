@@ -22,8 +22,8 @@ struct VoiceWakeSettings: View {
     @State private var micRefreshTask: Task<Void, Never>?
     @State private var availableLocales: [Locale] = []
     @State private var triggerEntries: [TriggerEntry] = []
-    private let fieldLabelWidth: CGFloat = 140
-    private let controlWidth: CGFloat = 240
+    private let fieldLabelWidth: CGFloat = 150
+    private let controlWidth: CGFloat = 300
     private let isPreview = ProcessInfo.processInfo.isPreview
 
     private struct AudioInputDevice: Identifiable, Equatable {
@@ -41,6 +41,25 @@ struct VoiceWakeSettings: View {
 
     private var voiceWakeBinding: Binding<Bool> {
         MicRefreshSupport.voiceWakeBinding(for: self.state)
+    }
+
+    private var availableLocaleIDs: [String] {
+        self.availableLocales.map(\.identifier)
+    }
+
+    private var resolvedLocaleSelection: VoiceWakeLocaleSelection {
+        resolveVoiceWakeLocaleSelection(
+            primary: self.state.voiceWakeLocaleID,
+            additional: self.state.voiceWakeAdditionalLocaleIDs,
+            availableLocaleIDs: self.availableLocaleIDs)
+    }
+
+    private var primaryLocaleBinding: Binding<String> {
+        Binding(
+            get: { self.resolvedLocaleSelection.primary },
+            set: { newValue in
+                self.applyLocaleSelection(primary: newValue, additional: self.state.voiceWakeAdditionalLocaleIDs)
+            })
     }
 
     var body: some View {
@@ -269,7 +288,8 @@ struct VoiceWakeSettings: View {
                 try await self.tester.start(
                     triggers: triggers,
                     micID: self.state.voiceWakeMicID.isEmpty ? nil : self.state.voiceWakeMicID,
-                    localeID: self.state.voiceWakeLocaleID,
+                    primaryLocaleID: self.resolvedLocaleSelection.primary,
+                    additionalLocaleIDs: self.resolvedLocaleSelection.additional,
                     onUpdate: { newState in
                         DispatchQueue.main.async { [self] in
                             self.testState = newState
@@ -420,53 +440,57 @@ struct VoiceWakeSettings: View {
     }
 
     private var localePicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
                 Text("Recognition language")
                     .font(.callout.weight(.semibold))
                     .frame(width: self.fieldLabelWidth, alignment: .leading)
-                Picker("Language", selection: self.$state.voiceWakeLocaleID) {
-                    let current = Locale(identifier: Locale.current.identifier)
-                    Text("\(self.friendlyName(for: current)) (System)").tag(Locale.current.identifier)
-                    ForEach(self.availableLocales.map(\.identifier), id: \.self) { id in
-                        if id != Locale.current.identifier {
-                            Text(self.friendlyName(for: Locale(identifier: id))).tag(id)
+
+                if self.availableLocaleIDs.isEmpty {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(width: self.controlWidth, alignment: .leading)
+                } else {
+                    Picker("Language", selection: self.primaryLocaleBinding) {
+                        ForEach(self.availableLocaleIDs, id: \.self) { id in
+                            Text(self.primaryLocaleLabel(for: id)).tag(id)
                         }
                     }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .frame(width: self.controlWidth, alignment: .leading)
                 }
-                .labelsHidden()
-                .frame(width: self.controlWidth)
             }
 
-            if !self.state.voiceWakeAdditionalLocaleIDs.isEmpty {
+            let additional = self.resolvedLocaleSelection.additional
+            if !additional.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Additional languages")
                         .font(.footnote.weight(.semibold))
                     ForEach(
-                        Array(self.state.voiceWakeAdditionalLocaleIDs.enumerated()),
+                        Array(additional.enumerated()),
                         id: \.offset)
                     { idx, localeID in
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
+                            Text("\(idx + 2)")
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 18, alignment: .trailing)
+
                             Picker("Extra \(idx + 1)", selection: Binding(
                                 get: { localeID },
-                                set: { newValue in
-                                    guard self.state
-                                        .voiceWakeAdditionalLocaleIDs.indices
-                                        .contains(idx) else { return }
-                                    self.state
-                                        .voiceWakeAdditionalLocaleIDs[idx] =
-                                        newValue
-                                })) {
-                                    ForEach(self.availableLocales.map(\.identifier), id: \.self) { id in
-                                        Text(self.friendlyName(for: Locale(identifier: id))).tag(id)
-                                    }
+                                set: { newValue in self.updateAdditionalLocale(at: idx, to: newValue) }
+                            )) {
+                                ForEach(self.additionalLocaleChoices(for: localeID), id: \.self) { id in
+                                    Text(self.localeLabel(for: id)).tag(id)
                                 }
-                                .labelsHidden()
-                                    .frame(width: 220)
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .frame(width: self.controlWidth, alignment: .leading)
 
                             Button {
-                                guard self.state.voiceWakeAdditionalLocaleIDs.indices.contains(idx) else { return }
-                                self.state.voiceWakeAdditionalLocaleIDs.remove(at: idx)
+                                self.removeAdditionalLocale(at: idx)
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -476,32 +500,100 @@ struct VoiceWakeSettings: View {
                     }
 
                     Button {
-                        if let first = availableLocales.first {
-                            self.state.voiceWakeAdditionalLocaleIDs.append(first.identifier)
-                        }
+                        self.addAdditionalLocale()
                     } label: {
                         Label("Add language", systemImage: "plus")
                     }
-                    .disabled(self.availableLocales.isEmpty)
+                    .disabled(self.nextAdditionalLocaleID() == nil)
                 }
-                .padding(.top, 4)
+                .padding(.leading, self.fieldLabelWidth + 10)
             } else {
-                Button {
-                    if let first = availableLocales.first {
-                        self.state.voiceWakeAdditionalLocaleIDs.append(first.identifier)
+                HStack(spacing: 10) {
+                    Color.clear.frame(width: self.fieldLabelWidth, height: 1)
+                    Button {
+                        self.addAdditionalLocale()
+                    } label: {
+                        Label("Add language", systemImage: "plus")
                     }
-                } label: {
-                    Label("Add additional language", systemImage: "plus")
+                    .buttonStyle(.link)
+                    .disabled(self.nextAdditionalLocaleID() == nil)
                 }
-                .buttonStyle(.link)
-                .disabled(self.availableLocales.isEmpty)
-                .padding(.top, 4)
             }
 
-            Text("Languages are tried in order. Models may need a first-use download on macOS 26.")
+            Text(
+                "Wake-word recognition tries languages in order. macOS may download a speech model the first time you use one.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func applyLocaleSelection(primary: String, additional: [String]) {
+        let selection = resolveVoiceWakeLocaleSelection(
+            primary: primary,
+            additional: additional,
+            availableLocaleIDs: self.availableLocaleIDs)
+        guard selection.primary != self.state.voiceWakeLocaleID ||
+            selection.additional != self.state.voiceWakeAdditionalLocaleIDs
+        else { return }
+        self.state.voiceWakeLocaleID = selection.primary
+        self.state.voiceWakeAdditionalLocaleIDs = selection.additional
+    }
+
+    private func addAdditionalLocale() {
+        guard let next = self.nextAdditionalLocaleID() else { return }
+        var additional = self.resolvedLocaleSelection.additional
+        additional.append(next)
+        self.applyLocaleSelection(primary: self.resolvedLocaleSelection.primary, additional: additional)
+    }
+
+    private func updateAdditionalLocale(at index: Int, to newValue: String) {
+        var additional = self.resolvedLocaleSelection.additional
+        guard additional.indices.contains(index) else { return }
+        additional[index] = newValue
+        self.applyLocaleSelection(primary: self.resolvedLocaleSelection.primary, additional: additional)
+    }
+
+    private func removeAdditionalLocale(at index: Int) {
+        var additional = self.resolvedLocaleSelection.additional
+        guard additional.indices.contains(index) else { return }
+        additional.remove(at: index)
+        self.applyLocaleSelection(primary: self.resolvedLocaleSelection.primary, additional: additional)
+    }
+
+    private func nextAdditionalLocaleID() -> String? {
+        let used = Set(self.resolvedLocaleSelection.ordered.compactMap(canonicalVoiceWakeLocaleIdentifier))
+        return self.availableLocaleIDs.first { candidate in
+            guard let canonical = canonicalVoiceWakeLocaleIdentifier(candidate) else { return false }
+            return !used.contains(canonical)
+        }
+    }
+
+    private func additionalLocaleChoices(for current: String) -> [String] {
+        let currentCanonical = canonicalVoiceWakeLocaleIdentifier(current)
+        let used = Set(
+            self.resolvedLocaleSelection.ordered
+                .compactMap(canonicalVoiceWakeLocaleIdentifier)
+                .filter { $0 != currentCanonical })
+
+        return self.availableLocaleIDs.filter { candidate in
+            guard let canonical = canonicalVoiceWakeLocaleIdentifier(candidate) else { return false }
+            return canonical == currentCanonical || !used.contains(canonical)
+        }
+    }
+
+    private func localeLabel(for localeID: String) -> String {
+        voiceWakeLocaleDisplayName(localeID)
+    }
+
+    private func primaryLocaleLabel(for localeID: String) -> String {
+        guard let systemCanonical = canonicalVoiceWakeLocaleIdentifier(Locale.current.identifier),
+              let localeCanonical = canonicalVoiceWakeLocaleIdentifier(localeID),
+              systemCanonical == localeCanonical
+        else {
+            return self.localeLabel(for: localeID)
+        }
+        return "\(self.localeLabel(for: localeID)) (System)"
     }
 
     @MainActor
@@ -555,28 +647,12 @@ struct VoiceWakeSettings: View {
     private func loadLocalesIfNeeded() async {
         guard self.availableLocales.isEmpty else { return }
         self.availableLocales = Array(SFSpeechRecognizer.supportedLocales()).sorted { lhs, rhs in
-            self.friendlyName(for: lhs)
-                .localizedCaseInsensitiveCompare(self.friendlyName(for: rhs)) == .orderedAscending
+            voiceWakeLocaleDisplayName(lhs.identifier)
+                .localizedCaseInsensitiveCompare(voiceWakeLocaleDisplayName(rhs.identifier)) == .orderedAscending
         }
-    }
-
-    private func friendlyName(for locale: Locale) -> String {
-        let cleanedID = normalizeLocaleIdentifier(locale.identifier)
-        let cleanLocale = Locale(identifier: cleanedID)
-
-        if let langCode = cleanLocale.language.languageCode?.identifier,
-           let lang = cleanLocale.localizedString(forLanguageCode: langCode),
-           let regionCode = cleanLocale.region?.identifier,
-           let region = cleanLocale.localizedString(forRegionCode: regionCode)
-        {
-            return "\(lang) (\(region))"
-        }
-        if let langCode = cleanLocale.language.languageCode?.identifier,
-           let lang = cleanLocale.localizedString(forLanguageCode: langCode)
-        {
-            return lang
-        }
-        return cleanLocale.localizedString(forIdentifier: cleanedID) ?? cleanedID
+        self.applyLocaleSelection(
+            primary: self.state.voiceWakeLocaleID,
+            additional: self.state.voiceWakeAdditionalLocaleIDs)
     }
 
     private var levelMeter: some View {
@@ -637,10 +713,16 @@ extension VoiceWakeSettings {
         state.swabbleEnabled = true
         state.voicePushToTalkEnabled = true
         state.swabbleTriggerWords = ["Claude", "Hey"]
+        state.voiceWakeLocaleID = "en_US"
+        state.voiceWakeAdditionalLocaleIDs = ["pt_PT"]
 
         let view = VoiceWakeSettings(state: state, isActive: true)
         view.availableMics = [AudioInputDevice(uid: "mic-1", name: "Built-in")]
-        view.availableLocales = [Locale(identifier: "en_US")]
+        view.availableLocales = [
+            Locale(identifier: "de_DE"),
+            Locale(identifier: "en_US"),
+            Locale(identifier: "pt_PT"),
+        ]
         view.meterLevel = 0.42
         view.meterError = "No input"
         view.testState = .detected("ok")
@@ -658,6 +740,9 @@ extension VoiceWakeSettings {
         if let entryId = view.triggerEntries.first?.id {
             view.removeWord(id: entryId)
         }
+        view.addAdditionalLocale()
+        view.updateAdditionalLocale(at: 0, to: "de_DE")
+        view.removeAdditionalLocale(at: 0)
     }
 }
 #endif

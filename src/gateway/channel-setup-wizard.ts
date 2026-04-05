@@ -41,6 +41,7 @@ export async function runChannelSetupWizard(params: {
   let resolvedAccountId: string | undefined;
 
   const nextConfig = await setupChannels(cfg, params.runtime, params.prompter, {
+    surface: "channel",
     allowDisable: false,
     skipConfirm: true,
     skipStatusNote: true,

@@ -44,7 +44,7 @@ const OPENAI_AUTHORIZE_URL = "https://auth.openai.com/oauth/authorize";
 const OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
 const OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const OPENAI_SCOPE = "openid profile email offline_access";
-const OPENAI_LOOPBACK_REDIRECT_URI = "http://localhost:1455/auth/callback";
+const OPENAI_LOOPBACK_REDIRECT_PORT = 1455;
 const OPENAI_AUTH_CLAIM_PATH = "https://api.openai.com/auth";
 const OPENAI_PROFILE_CLAIM_PATH = "https://api.openai.com/profile";
 
@@ -83,6 +83,7 @@ export class AlisioAiError extends Error {
 type OpenAiRedirectProxy = {
   server: Server;
   callbackUrl: string;
+  port: number;
 };
 
 type OpenAiIdentityFields = {
@@ -365,14 +366,22 @@ async function stopOpenAiRedirectProxy(): Promise<void> {
   }).catch(() => undefined);
 }
 
-async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
+function buildOpenAiLoopbackRedirectUri(port = OPENAI_LOOPBACK_REDIRECT_PORT) {
+  return `http://localhost:${port}/auth/callback`;
+}
+
+async function ensureOpenAiRedirectProxy(callbackUrl: string, port: number): Promise<void> {
   const target = new URL(callbackUrl);
+  const relayBaseUrl = buildOpenAiLoopbackRedirectUri(port);
   if (!/^https?:$/.test(target.protocol)) {
     throw new AlisioAiError("connect_failed", "The OpenAI callback must use http or https.");
   }
 
   if (openAiRedirectProxy) {
-    if (openAiRedirectProxy.callbackUrl !== target.toString()) {
+    if (
+      openAiRedirectProxy.callbackUrl !== target.toString() ||
+      openAiRedirectProxy.port !== port
+    ) {
       await stopOpenAiRedirectProxy();
     } else {
       return;
@@ -382,7 +391,7 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
   const createRelayServer = () =>
     createServer((req, res) => {
       try {
-        const requestUrl = new URL(req.url ?? "/", OPENAI_LOOPBACK_REDIRECT_URI);
+        const requestUrl = new URL(req.url ?? "/", relayBaseUrl);
         if (requestUrl.pathname !== "/auth/callback") {
           res.statusCode = 404;
           res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -419,7 +428,7 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
       };
       server.once("error", handleError);
       server.once("listening", handleListening);
-      server.listen({ port: 1455, host });
+      server.listen({ port, host });
     }).catch((error) => {
       server.close(() => undefined);
       throw error;
@@ -432,6 +441,7 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
     openAiRedirectProxy = {
       server,
       callbackUrl: target.toString(),
+      port,
     };
     return;
   } catch (error) {
@@ -440,7 +450,7 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
     if (code !== "EAFNOSUPPORT" && code !== "EADDRNOTAVAIL") {
       throw new AlisioAiError(
         "connect_failed",
-        `Could not start the local OpenAI callback relay on localhost:1455: ${String(error)}`,
+        `Could not start the local OpenAI callback relay on localhost:${port}: ${String(error)}`,
       );
     }
   }
@@ -450,28 +460,35 @@ async function ensureOpenAiRedirectProxy(callbackUrl: string): Promise<void> {
     openAiRedirectProxy = {
       server,
       callbackUrl: target.toString(),
+      port,
     };
   } catch (error) {
     throw new AlisioAiError(
       "connect_failed",
-      `Could not start the local OpenAI callback relay on localhost:1455: ${String(error)}`,
+      `Could not start the local OpenAI callback relay on localhost:${port}: ${String(error)}`,
     );
   }
 }
 
-export async function buildAlisioOpenAiAuthorization(params: { callbackUrl: string }): Promise<{
+export async function buildAlisioOpenAiAuthorization(params: {
+  callbackUrl: string;
+  loopbackPort?: number;
+}): Promise<{
   pending: AlisioPendingAiAuthorization;
   setupUrl: string;
 }> {
   const callbackUrl = new URL(params.callbackUrl);
+  const loopbackPort = params.loopbackPort ?? OPENAI_LOOPBACK_REDIRECT_PORT;
   if (!/^https?:$/.test(callbackUrl.protocol)) {
     throw new AlisioAiError("connect_failed", "The OpenAI callback must use http or https.");
   }
 
   const useLocalRelay = isOpenAiLocalCallbackTarget(callbackUrl);
-  const redirectUri = useLocalRelay ? OPENAI_LOOPBACK_REDIRECT_URI : callbackUrl.toString();
+  const redirectUri = useLocalRelay
+    ? buildOpenAiLoopbackRedirectUri(loopbackPort)
+    : callbackUrl.toString();
   if (useLocalRelay) {
-    await ensureOpenAiRedirectProxy(callbackUrl.toString());
+    await ensureOpenAiRedirectProxy(callbackUrl.toString(), loopbackPort);
   }
 
   const codeVerifier = buildCodeVerifier();

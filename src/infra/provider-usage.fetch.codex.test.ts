@@ -136,7 +136,7 @@ describe("fetchCodexUsage", () => {
     expect(result.windows).toEqual([]);
   });
 
-  it("falls back invalid credit strings to a zero balance", async () => {
+  it("omits malformed credit balances instead of inventing a dollar value", async () => {
     const mockFetch = createProviderUsageFetch(async () =>
       makeResponse(200, {
         plan_type: "Plus",
@@ -145,6 +145,6 @@ describe("fetchCodexUsage", () => {
     );
 
     const result = await fetchCodexUsage("token", undefined, 5000, mockFetch);
-    expect(result.plan).toBe("Plus ($0.00)");
+    expect(result.plan).toBe("Plus");
   });
 });

@@ -352,20 +352,6 @@
     text-align: left;
   }
 
-  .topbar-theme-mode {
-    display: none;
-  }
-
-  .sidebar-mode-switch {
-    display: block;
-  }
-
-  .sidebar-mode-switch .topbar-theme-mode {
-    display: inline-flex;
-    width: 100%;
-    justify-content: center;
-  }
-
   .topbar-status .pill {
     padding: 4px 8px;
     font-size: 11px;
@@ -736,12 +722,6 @@
     border-radius: var(--radius-md);
     font-size: 11px;
   }
-
-  .theme-orb__trigger {
-    width: 26px;
-    height: 26px;
-    font-size: 13px;
-  }
 }
 
 /* Small mobile */
@@ -808,12 +788,6 @@
   .topbar-status .pill {
     padding: 3px 6px;
     font-size: 10px;
-  }
-
-  .theme-orb__trigger {
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
   }
 }
 

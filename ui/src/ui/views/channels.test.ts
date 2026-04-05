@@ -3,11 +3,17 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
-import { continueChannelSetup, loadChannels, startChannelSetup } from "../controllers/channels.ts";
+import {
+  continueChannelSetup,
+  loadChannels,
+  startChannelSetup,
+  startWebChannelLogin,
+  waitWebChannelLogin,
+} from "../controllers/channels.ts";
 import { countConnectedChannelAccounts, summarizeChannelsSnapshot } from "./channel-display.ts";
 import { renderChannels } from "./channels.ts";
 
-function findButton(container: HTMLElement, label: string) {
+function findButton(container: ParentNode, label: string) {
   return [...container.querySelectorAll("button")].find((button) =>
     button.textContent?.includes(label),
   );
@@ -221,10 +227,83 @@ describe("channels view", () => {
 
     expect(container.querySelector(".qr-wrap img")).not.toBeNull();
     expect(container.textContent).toContain(
-      "Scan this QR code in WhatsApp to link the number to Alisio.",
+      "Scan this QR code in WhatsApp to finish linking the number to Alisio.",
     );
     findButton(container, "Show QR")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onStartWhatsAppLink).toHaveBeenCalledWith(false, "default");
+  });
+
+  it("mostra o QR apenas para a conta WhatsApp activa", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          loginQrDataUrl: "data:image/png;base64,abc",
+          loginAccountId: "work",
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["whatsapp"],
+            channelLabels: { whatsapp: "WhatsApp" },
+            channelDetailLabels: { whatsapp: "Phone link and QR pairing" },
+            channelMeta: [
+              {
+                id: "whatsapp",
+                label: "WhatsApp",
+                detailLabel: "Phone link and QR pairing",
+                docsPath: "/channels/whatsapp",
+              },
+            ],
+            channels: {
+              whatsapp: {
+                configured: true,
+                linked: false,
+                connected: false,
+                setupAvailable: true,
+                linkMode: "qr",
+              },
+            },
+            channelAccounts: {
+              whatsapp: [
+                {
+                  accountId: "default",
+                  name: "Personal",
+                  configured: true,
+                  linked: false,
+                  running: true,
+                  self: {
+                    e164: "+351911111111",
+                  },
+                },
+                {
+                  accountId: "work",
+                  name: "Work",
+                  configured: true,
+                  linked: true,
+                  connected: true,
+                  self: {
+                    e164: "+351922222222",
+                  },
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              whatsapp: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    const accounts = [...container.querySelectorAll(".channel-account")];
+    expect(accounts).toHaveLength(2);
+    expect(accounts[0]?.textContent).toContain("+351911111111");
+    expect(accounts[0]?.querySelector(".qr-wrap img")).toBeNull();
+    expect(accounts[0]?.textContent).toContain("Show QR");
+    expect(accounts[1]?.textContent).toContain("+351922222222");
+    expect(accounts[1]?.querySelector(".qr-wrap img")).not.toBeNull();
+    expect(container.textContent).not.toContain("false");
   });
 
   it("starts the real setup flow for channels that are not configured yet", () => {
@@ -463,6 +542,65 @@ describe("channels view", () => {
       new MouseEvent("click", { bubbles: true }),
     );
     expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.openclaw.ai/channels/telegram");
+  });
+
+  it("evita duplicar os passos compactos quando o setup do canal já está aberto", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          setupSessionId: "wiz-telegram-1",
+          setupChannelId: "telegram",
+          setupStep: {
+            id: "step-token",
+            type: "text",
+            title: "Telegram bot token",
+            message: "Paste the token from BotFather",
+            sensitive: true,
+          },
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channels: {
+              telegram: {
+                configured: false,
+                linked: false,
+                running: false,
+                setupAvailable: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: false,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    const matchingSteps = [...container.querySelectorAll(".channel-step__text")].filter((step) =>
+      step.textContent?.includes("Create the bot in BotFather."),
+    );
+    expect(matchingSteps).toHaveLength(1);
   });
 
   it("keeps channel summary helpers aligned with setup-only and running states", () => {
@@ -733,6 +871,177 @@ describe("channels view", () => {
     expect(state.channelsActionMessage).toBe(
       "Channel saved. The gateway is restarting to apply the connection.",
     );
+  });
+
+  it("salta o passo legado de login inline do WhatsApp e responde false", async () => {
+    const snapshot = {
+      ts: Date.now(),
+      wizard: {
+        running: false,
+        sessionId: null,
+        channelId: null,
+      },
+      channelOrder: ["whatsapp"],
+      channelLabels: { whatsapp: "WhatsApp" },
+      channelDetailLabels: { whatsapp: "WhatsApp" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async (method: string) => {
+      if (method === "wizard.start") {
+        return {
+          sessionId: "wiz-whatsapp-1",
+          done: false,
+          status: "running",
+          step: {
+            id: "step-link",
+            type: "confirm",
+            message: "Link WhatsApp now (QR)?",
+            initialValue: true,
+          },
+        };
+      }
+      if (method === "wizard.next") {
+        return {
+          done: true,
+          status: "done",
+        };
+      }
+      return snapshot;
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+    });
+
+    await startChannelSetup(state, "whatsapp");
+
+    expect(request).toHaveBeenNthCalledWith(1, "wizard.start", {
+      surface: "channel",
+      channel: "whatsapp",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "wizard.next", {
+      sessionId: "wiz-whatsapp-1",
+      answer: {
+        stepId: "step-link",
+        value: false,
+      },
+    });
+    expect(state.channelsActionMessage).toBe(
+      "Channel saved. Open the WhatsApp QR when you are ready to finish linking.",
+    );
+  });
+
+  it("limpa o QR stale quando arrancar o login WhatsApp falha", async () => {
+    const request = vi.fn(async () => {
+      throw new Error("boom");
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsLoginQrDataUrl: "data:image/png;base64,stale",
+      channelsLoginConnected: true,
+      channelsLoginAccountId: "work",
+    });
+
+    await startWebChannelLogin(state, { accountId: "work" });
+
+    expect(request).toHaveBeenCalledWith("web.login.start", {
+      force: false,
+      timeoutMs: 30_000,
+      accountId: "work",
+    });
+    expect(state.channelsLoginQrDataUrl).toBeNull();
+    expect(state.channelsLoginConnected).toBeNull();
+    expect(state.channelsLoginAccountId).toBeNull();
+    expect(state.channelsError).toBe("boom");
+  });
+
+  it("mantém o estado ocupado enquanto o wait automático do WhatsApp fica pendente", async () => {
+    let resolveWait!: (value: { connected?: boolean; accountId?: string | null }) => void;
+    const waitPromise = new Promise<{ connected?: boolean; accountId?: string | null }>(
+      (resolve) => {
+        resolveWait = resolve;
+      },
+    );
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["whatsapp"],
+      channelLabels: { whatsapp: "WhatsApp" },
+      channelDetailLabels: { whatsapp: "WhatsApp" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async (method: string) => {
+      if (method === "web.login.start") {
+        return {
+          qrDataUrl: "data:image/png;base64,new",
+          accountId: "default",
+          connected: false,
+        };
+      }
+      if (method === "web.login.wait") {
+        return await waitPromise;
+      }
+      return snapshot;
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+    });
+
+    await startWebChannelLogin(state);
+
+    expect(state.channelsBusyKey).toBe("whatsapp:wait");
+
+    resolveWait({ connected: false, accountId: "default" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+
+  it("reutiliza a conta activa ao esperar pelo login WhatsApp", async () => {
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["whatsapp"],
+      channelLabels: { whatsapp: "WhatsApp" },
+      channelDetailLabels: { whatsapp: "WhatsApp" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async (method: string) => {
+      if (method === "web.login.wait") {
+        return {
+          connected: true,
+          message: "linked",
+          accountId: "work",
+        };
+      }
+      return snapshot;
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsLoginQrDataUrl: "data:image/png;base64,active",
+      channelsLoginConnected: false,
+      channelsLoginAccountId: "work",
+    });
+
+    await waitWebChannelLogin(state);
+
+    expect(request).toHaveBeenNthCalledWith(1, "web.login.wait", {
+      timeoutMs: 120_000,
+      accountId: "work",
+    });
+    expect(state.channelsLoginQrDataUrl).toBeNull();
+    expect(state.channelsLoginConnected).toBe(true);
+    expect(state.channelsLoginAccountId).toBeNull();
   });
 
   it("cancela um wizard antigo do onboarding antes de arrancar o setup do canal", async () => {

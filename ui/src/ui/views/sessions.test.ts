@@ -56,6 +56,38 @@ function buildProps(result: SessionsListResult): SessionsProps {
   };
 }
 
+function buildLoadingProps(overrides: Partial<SessionsProps> = {}): SessionsProps {
+  return {
+    loading: true,
+    result: null,
+    error: null,
+    activeMinutes: "",
+    limit: "120",
+    includeGlobal: false,
+    includeUnknown: false,
+    basePath: "",
+    searchQuery: "",
+    sortColumn: "updated",
+    sortDir: "desc",
+    page: 0,
+    pageSize: 10,
+    selectedKeys: new Set<string>(),
+    onFiltersChange: () => undefined,
+    onSearchChange: () => undefined,
+    onSortChange: () => undefined,
+    onPageChange: () => undefined,
+    onPageSizeChange: () => undefined,
+    onRefresh: () => undefined,
+    onPatch: () => undefined,
+    onToggleSelect: () => undefined,
+    onSelectPage: () => undefined,
+    onDeselectPage: () => undefined,
+    onDeselectAll: () => undefined,
+    onDeleteSelected: () => undefined,
+    ...overrides,
+  };
+}
+
 describe("sessions view", () => {
   it("renders verbose=full without falling back to inherit", async () => {
     const container = document.createElement("div");
@@ -164,5 +196,14 @@ describe("sessions view", () => {
     expect(onDeselectPage).toHaveBeenCalledWith(["page-0"]);
     expect(onDeselectAll).not.toHaveBeenCalled();
     expect(onSelectPage).not.toHaveBeenCalled();
+  });
+
+  it("renders a skeleton table instead of an empty result before sessions load", async () => {
+    const container = document.createElement("div");
+    render(renderSessions(buildLoadingProps()), container);
+    await Promise.resolve();
+
+    expect(container.querySelectorAll(".loading-state__table-row").length).toBeGreaterThan(1);
+    expect(container.textContent).not.toContain("No sessions found.");
   });
 });

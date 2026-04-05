@@ -381,9 +381,13 @@ actor VoicePushToTalk {
     @MainActor
     private func makeConfig() -> Config {
         let state = AppStateStore.shared
+        let localeSelection = resolveVoiceWakeLocaleSelection(
+            primary: state.voiceWakeLocaleID,
+            additional: state.voiceWakeAdditionalLocaleIDs,
+            availableLocaleIDs: Array(SFSpeechRecognizer.supportedLocales()).map(\.identifier))
         return Config(
             micID: state.voiceWakeMicID.isEmpty ? nil : state.voiceWakeMicID,
-            localeID: state.voiceWakeLocaleID,
+            localeID: localeSelection.primary,
             triggerChime: state.voiceWakeTriggerChime,
             sendChime: state.voiceWakeSendChime)
     }

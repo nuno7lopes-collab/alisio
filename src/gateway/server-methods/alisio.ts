@@ -785,8 +785,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
           current: true,
           connected: true,
           backend: ALISIO_LOCAL_MODEL_BACKEND,
+          runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
           runtimeStatus: currentInspection.status,
           runtimeMessage: currentInspection.message,
+          supportsInstall: true,
           installedModels: currentInspection.models,
           hardware: currentInspection.hardware,
           recommendations: currentRecommendations.recommendations,
@@ -801,6 +803,13 @@ export const alisioHandlers: GatewayRequestHandlers = {
             const supportsOpenAiCatalog = node.capabilities.some(
               (capability) => capability.id === "model.catalog.openai.v1",
             );
+            const supportsInstall = node.capabilities.some(
+              (capability) => capability.id === "model.manage.llamacpp.v1",
+            );
+            const runtimeKind =
+              supportsLlamaCatalog || supportsInstall
+                ? ALISIO_LOCAL_MODEL_BACKEND
+                : ("openai-compatible" as const);
             const capabilityId = supportsLlamaCatalog
               ? "model.catalog.llamacpp.v1"
               : supportsOpenAiCatalog
@@ -814,8 +823,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
                 current: false,
                 connected: true,
                 backend: ALISIO_LOCAL_MODEL_BACKEND,
+                runtimeKind,
                 runtimeStatus: "not_configured" as const,
-                runtimeMessage: "local model runtime not configured on this computer",
+                runtimeMessage: "no model source is configured on this computer",
+                supportsInstall,
                 installedModels: [],
                 recommendations: [],
               };
@@ -835,8 +846,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
                 current: false,
                 connected: true,
                 backend: ALISIO_LOCAL_MODEL_BACKEND,
+                runtimeKind,
                 runtimeStatus: "error" as const,
                 runtimeMessage: task.error.message,
+                supportsInstall,
                 installedModels: [],
                 recommendations: [],
               };
@@ -858,10 +871,17 @@ export const alisioHandlers: GatewayRequestHandlers = {
                     hardware?: AlisioModelHardwareProfile;
                   })
                 : null;
-            const recommendations = buildTargetRecommendations({
-              hardware: payload?.hardware,
-              catalog,
-            });
+            const recommendations =
+              runtimeKind === ALISIO_LOCAL_MODEL_BACKEND && supportsInstall
+                ? buildTargetRecommendations({
+                    hardware: payload?.hardware,
+                    catalog,
+                  })
+                : {
+                    recommendations: [],
+                    bestModelId: undefined,
+                    bestModelName: undefined,
+                  };
             return {
               targetId: node.nodeId,
               label: node.displayName ?? node.platform ?? node.nodeId,
@@ -869,11 +889,13 @@ export const alisioHandlers: GatewayRequestHandlers = {
               current: false,
               connected: true,
               backend: ALISIO_LOCAL_MODEL_BACKEND,
+              runtimeKind,
               runtimeStatus: payload?.status ?? "error",
               runtimeMessage:
                 payload?.message ??
                 result.error?.message ??
                 (!result.ok ? "failed to read local model runtime" : undefined),
+              supportsInstall,
               installedModels:
                 payload?.models?.filter(
                   (model): model is { id: string; name: string; ownedBy?: string } =>

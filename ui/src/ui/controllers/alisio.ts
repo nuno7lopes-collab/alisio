@@ -1,5 +1,9 @@
 import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
 import {
+  ALISIO_LOCAL_MODEL_BACKEND,
+  listPublishedAlisioLocalModels,
+} from "../../../../src/shared/alisio-local-models.js";
+import {
   alisioBootstrapBlocksChatAccess,
   isPostReadySetupStep,
   resolveBlockingSetupStep,
@@ -99,19 +103,24 @@ const CONNECTORS_CACHE_TTL_MS = 15_000;
 
 function buildLegacyModelsState(state: AlisioState): AlisioModelsState {
   const devices = state.alisioBootstrap?.account.devices ?? state.alisioAccount?.devices ?? [];
+  const catalog = listPublishedAlisioLocalModels().map(
+    ({ sourceUri: _sourceUri, ...entry }) => entry,
+  );
   return {
-    backend: "llama.cpp",
-    catalog: [],
+    backend: ALISIO_LOCAL_MODEL_BACKEND,
+    catalog,
     targets: devices.map((device) => ({
       targetId: device.id,
       label: device.label,
       platform: device.platform,
       current: device.current,
       connected: true,
-      backend: "llama.cpp",
+      backend: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
       runtimeStatus: "not_configured",
       runtimeMessage:
-        "Actualiza o gateway para a versão mais recente para activar o catálogo completo de modelos.",
+        "Actualiza a gateway para a versão mais recente para activar instalações e sincronização de modelos.",
+      supportsInstall: false,
       installedModels: [],
       recommendations: [],
     })),
@@ -520,6 +529,7 @@ export async function signUpAlisioAccount(state: AlisioState) {
       email,
       password,
     });
+    state.alisioAuthEmail = state.alisioAccount.profile.email;
     state.alisioAuthMode = "sign-in";
     state.alisioAuthPassword = "";
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
@@ -549,6 +559,7 @@ export async function signInAlisioAccount(state: AlisioState) {
       email,
       password,
     });
+    state.alisioAuthEmail = state.alisioAccount.profile.email;
     state.alisioAuthPassword = "";
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
@@ -575,26 +586,20 @@ export async function saveAlisioAccount(
       "Alisio is still reconnecting. Wait a moment, then save your profile again.";
     return;
   }
-  const currentProfile = state.alisioAccount?.profile;
-  const nextProfile = {
-    username: patch.username ?? currentProfile?.username ?? "",
-    displayName: patch.displayName ?? currentProfile?.displayName ?? "",
-    email: patch.email ?? currentProfile?.email ?? "",
-    avatarLabel: patch.avatarLabel ?? currentProfile?.avatarLabel ?? "",
-    avatarUrl: patch.avatarUrl ?? currentProfile?.avatarUrl ?? "",
-  };
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
-    state.alisioAccount = await state.client.request<AlisioAccountState>(
-      "alisio.account.completeProfile",
-      {
-        ...nextProfile,
-        ...(patch.language ? { language: patch.language } : {}),
-        ...(patch.theme ? { theme: patch.theme } : {}),
-      },
-    );
+    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.update", {
+      ...(typeof patch.username === "string" ? { username: patch.username } : {}),
+      ...(typeof patch.displayName === "string" ? { displayName: patch.displayName } : {}),
+      ...(typeof patch.email === "string" ? { email: patch.email } : {}),
+      ...(typeof patch.avatarLabel === "string" ? { avatarLabel: patch.avatarLabel } : {}),
+      ...(typeof patch.avatarUrl === "string" ? { avatarUrl: patch.avatarUrl } : {}),
+      ...(patch.language ? { language: patch.language } : {}),
+      ...(patch.theme ? { theme: patch.theme } : {}),
+    });
+    state.alisioAuthEmail = state.alisioAccount.profile.email;
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioAccountError = String(error);
@@ -643,7 +648,12 @@ export async function requestAlisioPasswordReset(state: AlisioState) {
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
-    const email = state.alisioAuthEmail.trim();
+    const email = state.alisioAccount?.profile.email?.trim() || state.alisioAuthEmail.trim() || "";
+    if (!email) {
+      state.alisioAccountError = "Enter the email for your Alisio account first.";
+      return;
+    }
+    state.alisioAuthEmail = email;
     const result = await state.client.request<{ message: string; ok: true }>(
       "alisio.account.requestPasswordReset",
       { email },

@@ -14,36 +14,39 @@ enum VoiceWakeTestState: Equatable {
 }
 
 final class VoiceWakeTester {
-    private let recognizer: SFSpeechRecognizer?
     private var audioEngine: AVAudioEngine?
-    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
-    private var recognitionTask: SFSpeechRecognitionTask?
+    private var recognitionContexts: [String: RecognitionContext] = [:]
     private var isStopping = false
     private var isFinalizing = false
-    private var detectionStart: Date?
     private var lastHeard: Date?
     private var lastLoggedText: String?
     private var lastLoggedAt: Date?
-    private var lastTranscript: String?
-    private var lastTranscriptAt: Date?
-    private var silenceTask: Task<Void, Never>?
+    private var lastTranscriptByLocale: [String: String] = [:]
+    private var lastTranscriptAtByLocale: [String: Date] = [:]
+    private var silenceTasksByLocale: [String: Task<Void, Never>] = [:]
     private var currentTriggers: [String] = []
     private var holdingAfterDetect = false
     private var detectedText: String?
     private let logger = Logger(subsystem: "ai.openclaw", category: "voicewake")
     private let silenceWindow: TimeInterval = 1.0
 
-    init(locale: Locale = .current) {
-        self.recognizer = SFSpeechRecognizer(locale: locale)
+    private struct RecognitionContext {
+        let localeID: String
+        let recognizer: SFSpeechRecognizer
+        let request: SFSpeechAudioBufferRecognitionRequest
+        let task: SFSpeechRecognitionTask
     }
+
+    init() {}
 
     func start(
         triggers: [String],
         micID: String?,
-        localeID: String?,
+        primaryLocaleID: String?,
+        additionalLocaleIDs: [String],
         onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void) async throws
     {
-        guard self.recognitionTask == nil else { return }
+        guard self.recognitionContexts.isEmpty else { return }
         self.isStopping = false
         self.isFinalizing = false
         self.holdingAfterDetect = false
@@ -51,20 +54,14 @@ final class VoiceWakeTester {
         self.lastHeard = nil
         self.lastLoggedText = nil
         self.lastLoggedAt = nil
-        self.lastTranscript = nil
-        self.lastTranscriptAt = nil
-        self.silenceTask?.cancel()
-        self.silenceTask = nil
+        self.lastTranscriptByLocale.removeAll()
+        self.lastTranscriptAtByLocale.removeAll()
+        self.cancelAllSilenceTasks()
         self.currentTriggers = triggers
-        let chosenLocale = localeID.flatMap { Locale(identifier: $0) } ?? Locale.current
-        let recognizer = SFSpeechRecognizer(locale: chosenLocale)
-        guard let recognizer, recognizer.isAvailable else {
-            throw NSError(
-                domain: "VoiceWakeTester",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Speech recognition unavailable"])
-        }
-        recognizer.defaultTaskHint = .dictation
+        let localeSelection = resolveVoiceWakeLocaleSelection(
+            primary: primaryLocaleID ?? Locale.current.identifier,
+            additional: additionalLocaleIDs,
+            availableLocaleIDs: Array(SFSpeechRecognizer.supportedLocales()).map(\.identifier))
 
         guard Self.hasPrivacyStrings else {
             throw NSError(
@@ -87,7 +84,6 @@ final class VoiceWakeTester {
         }
 
         self.logInputSelection(preferredMicID: micID)
-        self.configureSession(preferredMicID: micID)
 
         guard AudioInputDeviceObserver.hasUsableDefaultInputDevice() else {
             self.audioEngine = nil
@@ -100,11 +96,6 @@ final class VoiceWakeTester {
         let engine = AVAudioEngine()
         self.audioEngine = engine
 
-        self.recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        self.recognitionRequest?.shouldReportPartialResults = true
-        self.recognitionRequest?.taskHint = .dictation
-        let request = self.recognitionRequest
-
         let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
         guard format.channelCount > 0, format.sampleRate > 0 else {
@@ -114,56 +105,32 @@ final class VoiceWakeTester {
                 code: 4,
                 userInfo: [NSLocalizedDescriptionKey: "No audio input available"])
         }
+        let contexts = self.buildRecognitionContexts(
+            localeIDs: localeSelection.ordered,
+            triggers: triggers,
+            onUpdate: onUpdate)
+        guard !contexts.isEmpty else {
+            throw NSError(
+                domain: "VoiceWakeTester",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Speech recognition unavailable"])
+        }
+        let requests = contexts.values.map(\.request)
         inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request] buffer, _ in
-            request?.append(buffer)
+        inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { [requests] buffer, _ in
+            for request in requests {
+                request.append(buffer)
+            }
         }
 
         engine.prepare()
         try engine.start()
+        self.recognitionContexts = contexts
         DispatchQueue.main.async {
             onUpdate(.listening)
         }
 
-        self.detectionStart = Date()
-        self.lastHeard = self.detectionStart
-
-        guard let request = recognitionRequest else { return }
-
-        self.recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            guard let self, !self.isStopping else { return }
-            let text = result?.bestTranscription.formattedString ?? ""
-            let segments = result.map { WakeWordSpeechSegments.from(
-                transcription: $0.bestTranscription,
-                transcript: text) } ?? []
-            let isFinal = result?.isFinal ?? false
-            let gateConfig = WakeWordGateConfig(triggers: triggers)
-            var match = WakeWordGate.match(transcript: text, segments: segments, config: gateConfig)
-            if match == nil, isFinal {
-                match = VoiceWakeRecognitionDebugSupport.textOnlyFallbackMatch(
-                    transcript: text,
-                    triggers: triggers,
-                    config: gateConfig,
-                    trimWake: WakeWordGate.stripWake)
-            }
-            self.maybeLogDebug(
-                transcript: text,
-                segments: segments,
-                triggers: triggers,
-                match: match,
-                isFinal: isFinal)
-            let errorMessage = error?.localizedDescription
-
-            Task { [weak self] in
-                guard let self, !self.isStopping else { return }
-                await self.handleResult(
-                    match: match,
-                    text: text,
-                    isFinal: isFinal,
-                    errorMessage: errorMessage,
-                    onUpdate: onUpdate)
-            }
-        }
+        self.lastHeard = Date()
     }
 
     func stop() {
@@ -171,12 +138,14 @@ final class VoiceWakeTester {
     }
 
     func finalize(timeout: TimeInterval = 1.5) {
-        guard self.recognitionTask != nil else {
+        guard !self.recognitionContexts.isEmpty else {
             self.stop(force: true)
             return
         }
         self.isFinalizing = true
-        self.recognitionRequest?.endAudio()
+        for context in self.recognitionContexts.values {
+            context.request.endAudio()
+        }
         if let engine = self.audioEngine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
@@ -193,10 +162,11 @@ final class VoiceWakeTester {
     private func stop(force: Bool) {
         if force { self.isStopping = true }
         self.isFinalizing = false
-        self.recognitionRequest?.endAudio()
-        self.recognitionTask?.cancel()
-        self.recognitionTask = nil
-        self.recognitionRequest = nil
+        for context in self.recognitionContexts.values {
+            context.request.endAudio()
+            context.task.cancel()
+        }
+        self.recognitionContexts.removeAll()
         if let engine = self.audioEngine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()
@@ -205,17 +175,16 @@ final class VoiceWakeTester {
         self.holdingAfterDetect = false
         self.detectedText = nil
         self.lastHeard = nil
-        self.detectionStart = nil
         self.lastLoggedText = nil
         self.lastLoggedAt = nil
-        self.lastTranscript = nil
-        self.lastTranscriptAt = nil
-        self.silenceTask?.cancel()
-        self.silenceTask = nil
+        self.lastTranscriptByLocale.removeAll()
+        self.lastTranscriptAtByLocale.removeAll()
+        self.cancelAllSilenceTasks()
         self.currentTriggers = []
     }
 
     private func handleResult(
+        localeID: String,
         match: WakeWordGateMatch?,
         text: String,
         isFinal: Bool,
@@ -224,8 +193,8 @@ final class VoiceWakeTester {
     {
         if !text.isEmpty {
             self.lastHeard = Date()
-            self.lastTranscript = text
-            self.lastTranscriptAt = Date()
+            self.lastTranscriptByLocale[localeID] = text
+            self.lastTranscriptAtByLocale[localeID] = Date()
         }
         if self.holdingAfterDetect {
             return
@@ -233,7 +202,9 @@ final class VoiceWakeTester {
         if let match, !match.command.isEmpty {
             self.holdingAfterDetect = true
             self.detectedText = match.command
-            self.logger.info("voice wake detected (test) (len=\(match.command.count))")
+            self.logger.info(
+                "voice wake detected (test) locale=\(localeID, privacy: .public) " +
+                    "(len=\(match.command.count))")
             await MainActor.run { AppStateStore.shared.triggerVoiceEars(ttl: nil) }
             self.stop()
             await MainActor.run {
@@ -244,6 +215,7 @@ final class VoiceWakeTester {
         }
         if !isFinal, !text.isEmpty {
             self.scheduleSilenceCheck(
+                localeID: localeID,
                 triggers: self.currentTriggers,
                 onUpdate: onUpdate)
         }
@@ -251,16 +223,24 @@ final class VoiceWakeTester {
             Task { @MainActor in onUpdate(.finalizing) }
         }
         if let errorMessage {
+            if self.recognitionContexts.count > 1 {
+                self.logger.debug(
+                    "voice wake test ignored locale error locale=\(localeID, privacy: .public) " +
+                        "\(errorMessage, privacy: .public)")
+                return
+            }
             self.stop(force: true)
             Task { @MainActor in onUpdate(.failed(errorMessage)) }
             return
         }
         if isFinal {
-            self.stop(force: true)
-            let state: VoiceWakeTestState = text.isEmpty
-                ? .failed("No speech detected")
-                : .failed("No trigger heard: “\(text)”")
-            Task { @MainActor in onUpdate(state) }
+            if self.recognitionContexts.count <= 1 {
+                self.stop(force: true)
+                let state: VoiceWakeTestState = text.isEmpty
+                    ? .failed("No speech detected")
+                    : .failed("No trigger heard: “\(text)”")
+                Task { @MainActor in onUpdate(state) }
+            }
         } else {
             let state: VoiceWakeTestState = text.isEmpty ? .listening : .hearing(text)
             Task { @MainActor in onUpdate(state) }
@@ -268,6 +248,7 @@ final class VoiceWakeTester {
     }
 
     private func maybeLogDebug(
+        localeID: String,
         transcript: String,
         segments: [WakeWordSegment],
         triggers: [String],
@@ -291,7 +272,8 @@ final class VoiceWakeTester {
         let matchSummary = VoiceWakeRecognitionDebugSupport.matchSummary(match)
 
         self.logger.debug(
-            "voicewake test transcript='\(transcript, privacy: .private)' textOnly=\(summary.textOnly) " +
+            "voicewake test locale=\(localeID, privacy: .public) " +
+                "transcript='\(transcript, privacy: .private)' textOnly=\(summary.textOnly) " +
                 "isFinal=\(isFinal) timing=\(summary.timingCount)/\(segments.count) " +
                 "\(matchSummary) gaps=[\(gaps, privacy: .private)] segments=[\(segmentSummary, privacy: .private)]")
     }
@@ -360,45 +342,23 @@ final class VoiceWakeTester {
         }
     }
 
-    private func holdUntilSilence(onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void) {
-        Task { [weak self] in
-            guard let self else { return }
-            let detectedAt = Date()
-            let hardStop = detectedAt.addingTimeInterval(6) // cap overall listen after trigger
-
-            while !self.isStopping {
-                let now = Date()
-                if now >= hardStop { break }
-                if let last = self.lastHeard, now.timeIntervalSince(last) >= silenceWindow {
-                    break
-                }
-                try? await Task.sleep(nanoseconds: 200_000_000)
-            }
-            if !self.isStopping {
-                self.stop()
-                await MainActor.run { AppStateStore.shared.stopVoiceEars() }
-                if let detectedText {
-                    self.logger.info("voice wake hold finished; len=\(detectedText.count)")
-                    Task { @MainActor in onUpdate(.detected(detectedText)) }
-                }
-            }
-        }
-    }
-
     private func scheduleSilenceCheck(
+        localeID: String,
         triggers: [String],
         onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void)
     {
-        self.silenceTask?.cancel()
-        let lastSeenAt = self.lastTranscriptAt
-        let lastText = self.lastTranscript
-        self.silenceTask = Task { [weak self] in
+        self.cancelSilenceTask(for: localeID)
+        let lastSeenAt = self.lastTranscriptAtByLocale[localeID]
+        let lastText = self.lastTranscriptByLocale[localeID]
+        self.silenceTasksByLocale[localeID] = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: UInt64(self.silenceWindow * 1_000_000_000))
             guard !Task.isCancelled else { return }
             guard !self.isStopping, !self.holdingAfterDetect else { return }
             guard let lastSeenAt, let lastText else { return }
-            guard self.lastTranscriptAt == lastSeenAt, self.lastTranscript == lastText else { return }
+            guard self.lastTranscriptAtByLocale[localeID] == lastSeenAt,
+                  self.lastTranscriptByLocale[localeID] == lastText
+            else { return }
             guard let match = VoiceWakeRecognitionDebugSupport.textOnlyFallbackMatch(
                 transcript: lastText,
                 triggers: triggers,
@@ -407,7 +367,9 @@ final class VoiceWakeTester {
             else { return }
             self.holdingAfterDetect = true
             self.detectedText = match.command
-            self.logger.info("voice wake detected (test, silence) (len=\(match.command.count))")
+            self.logger.info(
+                "voice wake detected (test, silence) locale=\(localeID, privacy: .public) " +
+                    "(len=\(match.command.count))")
             await MainActor.run { AppStateStore.shared.triggerVoiceEars(ttl: nil) }
             self.stop()
             await MainActor.run {
@@ -417,15 +379,88 @@ final class VoiceWakeTester {
         }
     }
 
-    private func configureSession(preferredMicID: String?) {
-        _ = preferredMicID
-    }
-
     private func logInputSelection(preferredMicID: String?) {
         let preferred = (preferredMicID?.isEmpty == false) ? preferredMicID! : "system-default"
         self.logger.info(
             "voicewake test input preferred=\(preferred, privacy: .public) " +
                 "\(AudioInputDeviceObserver.defaultInputDeviceSummary(), privacy: .public)")
+    }
+
+    private func buildRecognitionContexts(
+        localeIDs: [String],
+        triggers: [String],
+        onUpdate: @escaping @Sendable (VoiceWakeTestState) -> Void) -> [String: RecognitionContext]
+    {
+        var contexts: [String: RecognitionContext] = [:]
+
+        for localeID in localeIDs {
+            let locale = Locale(identifier: localeID)
+            guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
+                self.logger.debug("voice wake test locale unavailable: \(localeID, privacy: .public)")
+                continue
+            }
+            recognizer.defaultTaskHint = .dictation
+
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.shouldReportPartialResults = true
+            request.taskHint = .dictation
+
+            let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                guard let self, !self.isStopping else { return }
+                let text = result?.bestTranscription.formattedString ?? ""
+                let segments = result.map { WakeWordSpeechSegments.from(
+                    transcription: $0.bestTranscription,
+                    transcript: text) } ?? []
+                let isFinal = result?.isFinal ?? false
+                let gateConfig = WakeWordGateConfig(triggers: triggers)
+                var match = WakeWordGate.match(transcript: text, segments: segments, config: gateConfig)
+                if match == nil, isFinal {
+                    match = VoiceWakeRecognitionDebugSupport.textOnlyFallbackMatch(
+                        transcript: text,
+                        triggers: triggers,
+                        config: gateConfig,
+                        trimWake: WakeWordGate.stripWake)
+                }
+                self.maybeLogDebug(
+                    localeID: localeID,
+                    transcript: text,
+                    segments: segments,
+                    triggers: triggers,
+                    match: match,
+                    isFinal: isFinal)
+                let errorMessage = error?.localizedDescription
+
+                Task { [weak self] in
+                    guard let self, !self.isStopping else { return }
+                    await self.handleResult(
+                        localeID: localeID,
+                        match: match,
+                        text: text,
+                        isFinal: isFinal,
+                        errorMessage: errorMessage,
+                        onUpdate: onUpdate)
+                }
+            }
+
+            contexts[localeID] = RecognitionContext(
+                localeID: localeID,
+                recognizer: recognizer,
+                request: request,
+                task: task)
+        }
+
+        return contexts
+    }
+
+    private func cancelSilenceTask(for localeID: String) {
+        self.silenceTasksByLocale.removeValue(forKey: localeID)?.cancel()
+    }
+
+    private func cancelAllSilenceTasks() {
+        for task in self.silenceTasksByLocale.values {
+            task.cancel()
+        }
+        self.silenceTasksByLocale.removeAll()
     }
 
     private nonisolated static func ensurePermissions() async throws -> Bool {

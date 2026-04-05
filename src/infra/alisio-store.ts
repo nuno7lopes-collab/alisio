@@ -1475,6 +1475,77 @@ function toAccountSessionFromCloud(
   };
 }
 
+function hasAccountProfilePatch(
+  patch: Partial<
+    Pick<
+      AlisioLocalAccountProfile,
+      "username" | "displayName" | "email" | "avatarLabel" | "avatarUrl"
+    >
+  >,
+) {
+  return (
+    "username" in patch ||
+    "displayName" in patch ||
+    "email" in patch ||
+    "avatarLabel" in patch ||
+    "avatarUrl" in patch
+  );
+}
+
+function didAlisioAccountProfileChange(
+  current: AlisioLocalAccountProfile,
+  next: AlisioLocalAccountProfile,
+) {
+  return (
+    current.username !== next.username ||
+    current.displayName !== next.displayName ||
+    current.email !== next.email ||
+    current.avatarLabel !== next.avatarLabel ||
+    (current.avatarUrl ?? "") !== (next.avatarUrl ?? "")
+  );
+}
+
+async function repairSignedInCloudProfileFromStoredProfile(params: {
+  state: AlisioStoredState;
+  result: {
+    session: AlisioStoredCloudSession;
+    profile: AlisioCloudAccountProfile;
+  };
+  env?: NodeJS.ProcessEnv;
+}) {
+  const signedInEmail = params.result.session.email?.trim().toLowerCase() || "";
+  const storedEmail = params.state.account.profile.email.trim().toLowerCase();
+  if (
+    !signedInEmail ||
+    storedEmail !== signedInEmail ||
+    params.result.profile.profileCompleted ||
+    !params.state.account.session.profileCompleted
+  ) {
+    return params.result.profile;
+  }
+
+  const repairProfile = {
+    ...params.state.account.profile,
+    email: signedInEmail,
+  };
+  const validationError = validateAlisioAccountDraft(repairProfile);
+  if (validationError) {
+    return params.result.profile;
+  }
+
+  return await completeAlisioCloudAccountProfile({
+    session: params.result.session,
+    email: repairProfile.email,
+    username: repairProfile.username,
+    displayName: repairProfile.displayName,
+    avatarLabel: repairProfile.avatarLabel,
+    avatarUrl: repairProfile.avatarUrl,
+    joinedAt: repairProfile.joinedAt,
+    plan: repairProfile.plan,
+    env: params.env,
+  });
+}
+
 function isAlisioAiReady(state: AlisioAiState | null | undefined) {
   return state?.status === "connected" || state?.status === "limits_unavailable";
 }
@@ -2954,6 +3025,7 @@ export async function updateAlisioAccountProfile(
 ): Promise<AlisioAccountState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    const profilePatchRequested = hasAccountProfilePatch(patch);
     const nextProfile = {
       ...state.account.profile,
       ...(typeof patch.username === "string"
@@ -2985,39 +3057,46 @@ export async function updateAlisioAccountProfile(
       nextProfile.email =
         state.account.cloudSession.email?.trim().toLowerCase() || state.account.profile.email;
     }
-    const validationError = validateAlisioAccountDraft(nextProfile);
-    if (validationError) {
-      throw new AlisioAccountValidationError(validationError);
-    }
-    const profilePayload = {
-      ...nextProfile,
-      avatarLabel: deriveAlisioAvatarLabel(nextProfile),
-    };
-    if (state.account.cloudSession?.state === "signed_in") {
-      const completedProfile = await completeAlisioCloudAccountProfile({
-        session: state.account.cloudSession,
-        email: profilePayload.email,
-        username: profilePayload.username,
-        displayName: profilePayload.displayName,
-        avatarLabel: profilePayload.avatarLabel,
-        avatarUrl: profilePayload.avatarUrl,
-        joinedAt: state.account.profile.joinedAt,
-        plan: state.account.profile.plan,
-        env,
-      });
-      state.account.profile = toLocalAccountProfile(completedProfile);
-      state.account.session = toAccountSessionFromCloud(
-        state.account.cloudSession,
-        completedProfile.profileCompleted,
-        state.account.session,
-      );
-    } else {
-      state.account.profile = profilePayload;
-      state.account.session = {
-        ...state.account.session,
-        profileCompleted: true,
+    const profileChanged = didAlisioAccountProfileChange(state.account.profile, nextProfile);
+    const shouldPersistProfile =
+      profileChanged || (profilePatchRequested && !state.account.session.profileCompleted);
+
+    if (shouldPersistProfile) {
+      const validationError = validateAlisioAccountDraft(nextProfile);
+      if (validationError) {
+        throw new AlisioAccountValidationError(validationError);
+      }
+      const profilePayload = {
+        ...nextProfile,
+        avatarLabel: deriveAlisioAvatarLabel(nextProfile),
       };
+      if (state.account.cloudSession?.state === "signed_in") {
+        const completedProfile = await completeAlisioCloudAccountProfile({
+          session: state.account.cloudSession,
+          email: profilePayload.email,
+          username: profilePayload.username,
+          displayName: profilePayload.displayName,
+          avatarLabel: profilePayload.avatarLabel,
+          avatarUrl: profilePayload.avatarUrl,
+          joinedAt: state.account.profile.joinedAt,
+          plan: state.account.profile.plan,
+          env,
+        });
+        state.account.profile = toLocalAccountProfile(completedProfile);
+        state.account.session = toAccountSessionFromCloud(
+          state.account.cloudSession,
+          completedProfile.profileCompleted,
+          state.account.session,
+        );
+      } else {
+        state.account.profile = profilePayload;
+        state.account.session = {
+          ...state.account.session,
+          profileCompleted: true,
+        };
+      }
     }
+
     state.account.preferences = {
       ...state.account.preferences,
       ...(patch.language ? { language: patch.language } : {}),
@@ -3080,32 +3159,24 @@ export async function signInAlisioAccount(
       password: input.password,
       env,
     });
-    const mergedProfile =
-      state.account.profile.email.trim().toLowerCase() === input.email.trim().toLowerCase()
-        ? {
-            ...result.profile,
-            joinedAt: state.account.profile.joinedAt || result.profile.joinedAt,
-            avatarLabel: state.account.profile.avatarLabel || result.profile.avatarLabel,
-            avatarUrl: state.account.profile.avatarUrl || result.profile.avatarUrl,
-            displayName: state.account.profile.displayName || result.profile.displayName,
-            username: state.account.profile.username || result.profile.username,
-            profileCompleted:
-              result.profile.profileCompleted || state.account.session.profileCompleted,
-          }
-        : result.profile;
+    const restoredProfile = await repairSignedInCloudProfileFromStoredProfile({
+      state,
+      result,
+      env,
+    });
     if (
       shouldResetAccountScopedState(state, {
         session: result.session,
-        profile: normalizeStoredAccountProfile(mergedProfile),
+        profile: normalizeStoredAccountProfile(toLocalAccountProfile(restoredProfile)),
       })
     ) {
       resetStoredAccountScopedState(state);
     }
-    state.account.profile = toLocalAccountProfile(mergedProfile);
+    state.account.profile = toLocalAccountProfile(restoredProfile);
     state.account.cloudSession = result.session;
     state.account.session = toAccountSessionFromCloud(
       result.session,
-      mergedProfile.profileCompleted,
+      restoredProfile.profileCompleted,
       state.account.session,
     );
     await persistState(state, env);

@@ -131,6 +131,10 @@ const RemoteModelServerKindSchema = Type.Union([
   Type.Literal("openai-compatible"),
   Type.Literal("ollama"),
 ]);
+const LocalModelTargetRuntimeKindSchema = Type.Union([
+  Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+  Type.Literal("openai-compatible"),
+]);
 
 const ModelRecommendationGradeSchema = Type.Union([
   Type.Literal("recommended"),
@@ -584,8 +588,10 @@ export const AlisioModelsTargetSchema = Type.Object(
     current: Type.Boolean(),
     connected: Type.Boolean(),
     backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    runtimeKind: LocalModelTargetRuntimeKindSchema,
     runtimeStatus: LocalModelRuntimeStatusSchema,
     runtimeMessage: Type.Optional(Type.String()),
+    supportsInstall: Type.Boolean(),
     installedModels: Type.Array(AlisioInstalledLocalModelSchema),
     hardware: Type.Optional(AlisioModelHardwareSchema),
     recommendations: Type.Array(AlisioModelRecommendationSchema),

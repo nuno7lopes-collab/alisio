@@ -4,6 +4,7 @@ import { icons } from "../icons.ts";
 import { pathForTab } from "../navigation.ts";
 import { formatSessionTokens } from "../presenter.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
+import { renderSkeletonLines, renderSkeletonTable } from "./loading-skeleton.ts";
 
 export type SessionsProps = {
   loading: boolean;
@@ -182,6 +183,7 @@ function paginateRows<T>(rows: T[], page: number, pageSize: number): T[] {
 }
 
 export function renderSessions(props: SessionsProps) {
+  const showInitialLoading = props.loading && !props.result;
   const rawRows = props.result?.sessions ?? [];
   const filtered = filterRows(rawRows, props.searchQuery);
   const sorted = sortRows(filtered, props.sortColumn, props.sortDir);
@@ -227,63 +229,77 @@ export function renderSessions(props: SessionsProps) {
       </div>
 
       <div class="filters" style="margin-bottom: 12px;">
-        <label class="field-inline">
-          <span>Active</span>
-          <input
-            style="width: 72px;"
-            placeholder="min"
-            .value=${props.activeMinutes}
-            @input=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: (e.target as HTMLInputElement).value,
-                limit: props.limit,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-        </label>
-        <label class="field-inline">
-          <span>Limit</span>
-          <input
-            style="width: 64px;"
-            .value=${props.limit}
-            @input=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: (e.target as HTMLInputElement).value,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-        </label>
-        <label class="field-inline checkbox">
-          <input
-            type="checkbox"
-            .checked=${props.includeGlobal}
-            @change=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: props.limit,
-                includeGlobal: (e.target as HTMLInputElement).checked,
-                includeUnknown: props.includeUnknown,
-              })}
-          />
-          <span>Global</span>
-        </label>
-        <label class="field-inline checkbox">
-          <input
-            type="checkbox"
-            .checked=${props.includeUnknown}
-            @change=${(e: Event) =>
-              props.onFiltersChange({
-                activeMinutes: props.activeMinutes,
-                limit: props.limit,
-                includeGlobal: props.includeGlobal,
-                includeUnknown: (e.target as HTMLInputElement).checked,
-              })}
-          />
-          <span>Unknown</span>
-        </label>
+        ${showInitialLoading
+          ? html`
+              <div class="loading-state__lines" style="min-width: 180px;">
+                ${renderSkeletonLines(["short", "medium"], { compact: true })}
+              </div>
+              <div class="loading-state__lines" style="min-width: 160px;">
+                ${renderSkeletonLines(["short", "short"], { compact: true })}
+              </div>
+              <div class="loading-state__lines" style="min-width: 140px;">
+                ${renderSkeletonLines(["medium"], { compact: true })}
+              </div>
+            `
+          : html`
+              <label class="field-inline">
+                <span>Active</span>
+                <input
+                  style="width: 72px;"
+                  placeholder="min"
+                  .value=${props.activeMinutes}
+                  @input=${(e: Event) =>
+                    props.onFiltersChange({
+                      activeMinutes: (e.target as HTMLInputElement).value,
+                      limit: props.limit,
+                      includeGlobal: props.includeGlobal,
+                      includeUnknown: props.includeUnknown,
+                    })}
+                />
+              </label>
+              <label class="field-inline">
+                <span>Limit</span>
+                <input
+                  style="width: 64px;"
+                  .value=${props.limit}
+                  @input=${(e: Event) =>
+                    props.onFiltersChange({
+                      activeMinutes: props.activeMinutes,
+                      limit: (e.target as HTMLInputElement).value,
+                      includeGlobal: props.includeGlobal,
+                      includeUnknown: props.includeUnknown,
+                    })}
+                />
+              </label>
+              <label class="field-inline checkbox">
+                <input
+                  type="checkbox"
+                  .checked=${props.includeGlobal}
+                  @change=${(e: Event) =>
+                    props.onFiltersChange({
+                      activeMinutes: props.activeMinutes,
+                      limit: props.limit,
+                      includeGlobal: (e.target as HTMLInputElement).checked,
+                      includeUnknown: props.includeUnknown,
+                    })}
+                />
+                <span>Global</span>
+              </label>
+              <label class="field-inline checkbox">
+                <input
+                  type="checkbox"
+                  .checked=${props.includeUnknown}
+                  @change=${(e: Event) =>
+                    props.onFiltersChange({
+                      activeMinutes: props.activeMinutes,
+                      limit: props.limit,
+                      includeGlobal: props.includeGlobal,
+                      includeUnknown: (e.target as HTMLInputElement).checked,
+                    })}
+                />
+                <span>Unknown</span>
+              </label>
+            `}
       </div>
 
       ${props.error
@@ -319,67 +335,81 @@ export function renderSessions(props: SessionsProps) {
           : nothing}
 
         <div class="data-table-container">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th class="data-table-checkbox-col">
-                  ${paginated.length > 0
-                    ? html`<input
-                        type="checkbox"
-                        .checked=${paginated.length > 0 &&
-                        paginated.every((r) => props.selectedKeys.has(r.key))}
-                        .indeterminate=${paginated.some((r) => props.selectedKeys.has(r.key)) &&
-                        !paginated.every((r) => props.selectedKeys.has(r.key))}
-                        @change=${() => {
-                          const allSelected = paginated.every((r) => props.selectedKeys.has(r.key));
-                          if (allSelected) {
-                            props.onDeselectPage(paginated.map((r) => r.key));
-                          } else {
-                            props.onSelectPage(paginated.map((r) => r.key));
-                          }
-                        }}
-                        aria-label="Select all on page"
-                      />`
-                    : nothing}
-                </th>
-                ${sortHeader("key", "Key", "data-table-key-col")}
-                <th>Label</th>
-                ${sortHeader("kind", "Kind")} ${sortHeader("updated", "Updated")}
-                ${sortHeader("tokens", "Tokens")}
-                <th>Thinking</th>
-                <th>Fast</th>
-                <th>Verbose</th>
-                <th>Reasoning</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${paginated.length === 0
-                ? html`
+          ${showInitialLoading
+            ? html`
+                <div role="status" aria-label="Loading sessions">
+                  ${renderSkeletonTable({
+                    rows: 6,
+                    columns: ["short", "long", "medium", "short", "short", "short"],
+                  })}
+                </div>
+              `
+            : html`
+                <table class="data-table">
+                  <thead>
                     <tr>
-                      <td
-                        colspan="10"
-                        style="text-align: center; padding: 48px 16px; color: var(--muted)"
-                      >
-                        No sessions found.
-                      </td>
+                      <th class="data-table-checkbox-col">
+                        ${paginated.length > 0
+                          ? html`<input
+                              type="checkbox"
+                              .checked=${paginated.length > 0 &&
+                              paginated.every((r) => props.selectedKeys.has(r.key))}
+                              .indeterminate=${paginated.some((r) =>
+                                props.selectedKeys.has(r.key),
+                              ) && !paginated.every((r) => props.selectedKeys.has(r.key))}
+                              @change=${() => {
+                                const allSelected = paginated.every((r) =>
+                                  props.selectedKeys.has(r.key),
+                                );
+                                if (allSelected) {
+                                  props.onDeselectPage(paginated.map((r) => r.key));
+                                } else {
+                                  props.onSelectPage(paginated.map((r) => r.key));
+                                }
+                              }}
+                              aria-label="Select all on page"
+                            />`
+                          : nothing}
+                      </th>
+                      ${sortHeader("key", "Key", "data-table-key-col")}
+                      <th>Label</th>
+                      ${sortHeader("kind", "Kind")} ${sortHeader("updated", "Updated")}
+                      ${sortHeader("tokens", "Tokens")}
+                      <th>Thinking</th>
+                      <th>Fast</th>
+                      <th>Verbose</th>
+                      <th>Reasoning</th>
                     </tr>
-                  `
-                : paginated.map((row) =>
-                    renderRow(
-                      row,
-                      props.basePath,
-                      props.onPatch,
-                      props.selectedKeys.has(row.key),
-                      props.onToggleSelect,
-                      props.loading,
-                      props.onNavigateToChat,
-                    ),
-                  )}
-            </tbody>
-          </table>
+                  </thead>
+                  <tbody>
+                    ${paginated.length === 0
+                      ? html`
+                          <tr>
+                            <td
+                              colspan="10"
+                              style="text-align: center; padding: 48px 16px; color: var(--muted)"
+                            >
+                              No sessions found.
+                            </td>
+                          </tr>
+                        `
+                      : paginated.map((row) =>
+                          renderRow(
+                            row,
+                            props.basePath,
+                            props.onPatch,
+                            props.selectedKeys.has(row.key),
+                            props.onToggleSelect,
+                            props.loading,
+                            props.onNavigateToChat,
+                          ),
+                        )}
+                  </tbody>
+                </table>
+              `}
         </div>
 
-        ${totalRows > 0
+        ${totalRows > 0 && !showInitialLoading
           ? html`
               <div class="data-table-pagination">
                 <div class="data-table-pagination__info">

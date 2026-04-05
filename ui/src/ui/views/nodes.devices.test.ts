@@ -1,18 +1,25 @@
 /* @vitest-environment jsdom */
 import { render } from "lit";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderConnections } from "./connections.ts";
 import { renderNodes, type NodesProps } from "./nodes.ts";
 
 function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
-  return {
+  const base: NodesProps = {
     assistantName: "Alisio",
     assistantAgentId: "main",
     loading: false,
     nodes: [],
+    nodesError: null,
     devicesLoading: false,
     devicesError: null,
     devicesList: {
+      pending: [],
+      paired: [],
+    },
+    nodePairingsLoading: false,
+    nodePairingsError: null,
+    nodePairingsList: {
       pending: [],
       paired: [],
     },
@@ -31,8 +38,12 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     execApprovalsTargetNodeId: null,
     onRefresh: () => undefined,
     onDevicesRefresh: () => undefined,
+    onNodePairingsRefresh: () => undefined,
     onDeviceApprove: () => undefined,
     onDeviceReject: () => undefined,
+    onDeviceRemove: () => undefined,
+    onNodeApprove: () => undefined,
+    onNodeReject: () => undefined,
     onDeviceRotate: () => undefined,
     onDeviceRevoke: () => undefined,
     onLoadConfig: () => undefined,
@@ -45,8 +56,8 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     onExecApprovalsPatch: () => undefined,
     onExecApprovalsRemove: () => undefined,
     onSaveExecApprovals: () => undefined,
-    ...overrides,
   };
+  return { ...base, ...overrides };
 }
 
 describe("nodes devices pending rendering", () => {
@@ -131,6 +142,10 @@ describe("nodes devices pending rendering", () => {
               },
             ],
           },
+          nodePairingsList: {
+            pending: [],
+            paired: [],
+          },
         }),
       ),
       container,
@@ -144,6 +159,42 @@ describe("nodes devices pending rendering", () => {
     expect(text).toContain("Nodes and execution");
     expect(text).toContain("Execution");
     expect(text).toContain("Nodes");
+    expect(text).toContain("Node requests");
+  });
+
+  it("lets the operator remove a linked device from the paired list", () => {
+    const onDeviceRemove = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderNodes(
+        baseProps({
+          devicesList: {
+            pending: [],
+            paired: [
+              {
+                deviceId: "device-1",
+                displayName: "Studio Mac",
+                roles: ["operator"],
+                scopes: ["operator.read"],
+                tokens: [],
+              },
+            ],
+          },
+          onDeviceRemove,
+        }),
+      ),
+      container,
+    );
+
+    const removeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Remove device"),
+    );
+    expect(removeButton).toBeDefined();
+
+    removeButton?.click();
+
+    expect(onDeviceRemove).toHaveBeenCalledWith("device-1");
   });
 
   it("summarizes node details instead of listing raw capability chips", () => {
@@ -213,5 +264,60 @@ describe("nodes devices pending rendering", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Runner");
     expect(text).toContain("follows default (Runner · node-1)");
+  });
+
+  it("shows loading skeletons instead of empty counters during the first load", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          loading: true,
+          devicesLoading: true,
+          devicesList: null,
+          nodePairingsLoading: true,
+          nodePairingsList: null,
+          nodes: [],
+          configForm: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__stat-card").length).toBeGreaterThan(1);
+    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+  });
+
+  it("renders pending node approvals with approve and reject actions", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          nodePairingsList: {
+            pending: [
+              {
+                requestId: "node-req-1",
+                nodeId: "node-1",
+                displayName: "Runner",
+                platform: "darwin",
+                version: "1.2.3",
+                commands: ["system.run"],
+                ts: Date.now(),
+              },
+            ],
+            paired: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Node requests");
+    expect(text).toContain("Runner");
+    expect(text).toContain("1 commands");
+    expect(text).toContain("Approve");
+    expect(text).toContain("Reject");
   });
 });

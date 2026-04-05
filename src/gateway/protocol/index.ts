@@ -640,6 +640,9 @@ export const validateTalkSpeakResult = ajv.compile<TalkSpeakResult>(TalkSpeakRes
 export const validateChannelsStatusParams = ajv.compile<ChannelsStatusParams>(
   ChannelsStatusParamsSchema,
 );
+export const validateChannelsStatusResult = ajv.compile<ChannelsStatusResult>(
+  ChannelsStatusResultSchema,
+);
 export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
 );

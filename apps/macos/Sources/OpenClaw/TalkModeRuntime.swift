@@ -180,7 +180,13 @@ actor TalkModeRuntime {
         self.recognitionGeneration &+= 1
         let generation = self.recognitionGeneration
 
-        let locale = await MainActor.run { AppStateStore.shared.voiceWakeLocaleID }
+        let locale = await MainActor.run {
+            let state = AppStateStore.shared
+            return resolveVoiceWakeLocaleSelection(
+                primary: state.voiceWakeLocaleID,
+                additional: state.voiceWakeAdditionalLocaleIDs,
+                availableLocaleIDs: Array(SFSpeechRecognizer.supportedLocales()).map(\.identifier)).primary
+        }
         self.recognizer = SFSpeechRecognizer(locale: Locale(identifier: locale))
         guard let recognizer, recognizer.isAvailable else {
             self.logger.error("talk recognizer unavailable")

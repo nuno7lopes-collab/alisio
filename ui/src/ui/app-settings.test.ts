@@ -1,6 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { i18n } from "../i18n/index.ts";
 import { createStorageMock } from "../test-helpers/storage.ts";
 import {
   applyResolvedTheme,
@@ -8,6 +9,8 @@ import {
   applySettingsFromUrl,
   attachThemeListener,
   setTabFromRoute,
+  syncAccountPreferences,
+  syncTabWithLocation,
   syncUrlWithTab,
   syncThemeWithSettings,
 } from "./app-settings.ts";
@@ -31,6 +34,7 @@ type SettingsHost = {
     navWidth: number;
     navGroupsCollapsed: Record<string, boolean>;
     borderRadius: number;
+    locale?: string;
   };
   theme: ThemeName & ThemeMode;
   themeMode: ThemeMode;
@@ -40,6 +44,7 @@ type SettingsHost = {
   tab: Tab;
   settingsSection: import("./navigation.ts").SettingsSection;
   connected: boolean;
+  alisioAccount?: import("./types.ts").AlisioAccountState | null;
   alisioBootstrap?: import("./types.ts").AlisioBootstrapState | null;
   setupStep?: import("./types.ts").AlisioBootstrapStep | null;
   chatHasAutoScrolled: boolean;
@@ -49,6 +54,7 @@ type SettingsHost = {
   basePath: string;
   themeMedia: MediaQueryList | null;
   themeMediaHandler: ((event: MediaQueryListEvent) => void) | null;
+  systemThemeCleanup?: (() => void) | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
   pendingGatewayUrl?: string | null;
@@ -114,6 +120,7 @@ const createHost = (tab: Tab): SettingsHost => ({
     navWidth: 220,
     navGroupsCollapsed: {},
     borderRadius: 50,
+    locale: "en",
   },
   theme: "claw" as unknown as ThemeName & ThemeMode,
   themeMode: "system",
@@ -123,6 +130,7 @@ const createHost = (tab: Tab): SettingsHost => ({
   tab,
   settingsSection: "general",
   connected: false,
+  alisioAccount: null,
   alisioBootstrap: null,
   setupStep: null,
   chatHasAutoScrolled: false,
@@ -132,6 +140,7 @@ const createHost = (tab: Tab): SettingsHost => ({
   basePath: "",
   themeMedia: null,
   themeMediaHandler: null,
+  systemThemeCleanup: null,
   logsPollInterval: null,
   debugPollInterval: null,
   pendingGatewayUrl: null,
@@ -168,8 +177,9 @@ describe("setTabFromRoute", () => {
     vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllGlobals();
+    await i18n.setLocale("en");
   });
 
   it("starts and stops log polling based on the tab", () => {
@@ -214,6 +224,22 @@ describe("setTabFromRoute", () => {
     expect(host.themeResolved).toBe("openknot-light");
   });
 
+  it("re-syncs the system theme listener when applySettings changes themeMode", () => {
+    const host = createHost("chat");
+    const cleanup = vi.fn();
+    host.themeMode = "system";
+    host.settings.themeMode = "system";
+    host.systemThemeCleanup = cleanup;
+
+    applySettings(host, {
+      ...host.settings,
+      themeMode: "light",
+    });
+
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(host.systemThemeCleanup).toBeNull();
+  });
+
   it("syncs both theme family and mode from persisted settings", () => {
     const host = createHost("chat");
     host.settings.theme = "dash";
@@ -247,7 +273,7 @@ describe("setTabFromRoute", () => {
 
     attachThemeListener(host);
     listeners[0]?.({ matches: true } as MediaQueryListEvent);
-    expect(host.themeResolved).toBe("openknot");
+    expect(host.themeResolved).toBe("openknot-light");
 
     listeners[0]?.({ matches: false } as MediaQueryListEvent);
     expect(host.themeResolved).toBe("openknot");
@@ -267,6 +293,52 @@ describe("setTabFromRoute", () => {
     expect(root.dataset.theme).toBe("dash-light");
     expect(root.style.colorScheme).toBe("light");
   });
+
+  it("syncs signed-in account preferences into local appearance settings", async () => {
+    const host = createHost("chat");
+    host.settings.themeMode = "dark";
+    host.themeMode = "dark";
+    host.settings.locale = "en";
+    host.alisioAccount = {
+      ...createBootstrapAccount(),
+      preferences: {
+        language: "pt-PT",
+        theme: "light",
+      },
+    };
+
+    await syncAccountPreferences(host);
+
+    expect(host.settings.themeMode).toBe("light");
+    expect(host.themeMode).toBe("light");
+    expect(host.themeResolved).toBe("light");
+    expect(host.settings.locale).toBe("pt-PT");
+    expect(document.documentElement.dataset.themeMode).toBe("light");
+    expect(document.documentElement.lang).toBe("pt-PT");
+  });
+
+  it("ignores signed-out account preferences for local appearance state", async () => {
+    const host = createHost("chat");
+    host.settings.themeMode = "dark";
+    host.themeMode = "dark";
+    host.settings.locale = "en";
+    host.alisioAccount = {
+      ...createBootstrapAccount(),
+      preferences: {
+        language: "pt-PT",
+        theme: "light",
+      },
+      session: {
+        state: "signed_out",
+        profileCompleted: false,
+      },
+    };
+
+    await syncAccountPreferences(host);
+
+    expect(host.settings.themeMode).toBe("dark");
+    expect(host.settings.locale).toBe("en");
+  });
 });
 
 describe("applySettingsFromUrl", () => {
@@ -277,9 +349,10 @@ describe("applySettingsFromUrl", () => {
     setTestWindowUrl("https://control.example/ui/home");
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    await i18n.setLocale("en");
   });
 
   it("hydrates query token params and strips them from the URL", () => {
@@ -290,6 +363,17 @@ describe("applySettingsFromUrl", () => {
     applySettingsFromUrl(host);
 
     expect(host.settings.token).toBe("abc123");
+    expect(window.location.search).toBe("");
+  });
+
+  it("drops legacy ai settings queries back to the published general section", () => {
+    setTestWindowUrl("https://control.example/settings?section=ai");
+    const host = createHost("settings");
+
+    syncTabWithLocation(host, true);
+
+    expect(host.tab).toBe("settings");
+    expect(host.settingsSection).toBe("general");
     expect(window.location.search).toBe("");
   });
 

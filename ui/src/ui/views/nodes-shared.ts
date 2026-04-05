@@ -11,6 +11,31 @@ export type ConfigAgentOption = {
   record: Record<string, unknown>;
 };
 
+export function isConnectedNode(node: Record<string, unknown>) {
+  return Boolean(node.connected) || Boolean(node.online);
+}
+
+export function nodeSupportsRequiredCommands(
+  node: Record<string, unknown>,
+  requiredCommands: readonly string[],
+) {
+  const required = new Set(requiredCommands);
+  const commands = Array.isArray(node.commands) ? node.commands : [];
+  return commands.some((cmd) => required.has(String(cmd)));
+}
+
+export function nodeSupportsExec(node: Record<string, unknown>) {
+  return nodeSupportsRequiredCommands(node, ["system.run"]);
+}
+
+export function countConnectedNodes(nodes: Array<Record<string, unknown>>) {
+  return nodes.filter((node) => isConnectedNode(node)).length;
+}
+
+export function countReadyExecNodes(nodes: Array<Record<string, unknown>>) {
+  return nodes.filter((node) => isConnectedNode(node) && nodeSupportsExec(node)).length;
+}
+
 export function resolveConfigAgents(config: Record<string, unknown> | null): ConfigAgentOption[] {
   const agentsNode = (config?.agents ?? {}) as Record<string, unknown>;
   const list = Array.isArray(agentsNode.list) ? agentsNode.list : [];
@@ -36,14 +61,15 @@ export function resolveConfigAgents(config: Record<string, unknown> | null): Con
 export function resolveNodeTargets(
   nodes: Array<Record<string, unknown>>,
   requiredCommands: string[],
+  opts?: { requireConnected?: boolean },
 ): NodeTargetOption[] {
-  const required = new Set(requiredCommands);
   const list: NodeTargetOption[] = [];
 
   for (const node of nodes) {
-    const commands = Array.isArray(node.commands) ? node.commands : [];
-    const supports = commands.some((cmd) => required.has(String(cmd)));
-    if (!supports) {
+    if (!nodeSupportsRequiredCommands(node, requiredCommands)) {
+      continue;
+    }
+    if (opts?.requireConnected && !isConnectedNode(node)) {
       continue;
     }
 

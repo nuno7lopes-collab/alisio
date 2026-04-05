@@ -10,6 +10,7 @@ export type ChannelSetupPlugin = Pick<
 >;
 
 export type SetupChannelsOptions = {
+  surface?: "onboarding" | "channel";
   allowDisable?: boolean;
   allowSignalInstall?: boolean;
   onSelection?: (selection: ChannelId[]) => void;

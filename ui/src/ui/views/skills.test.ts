@@ -128,6 +128,23 @@ describe("renderSkills", () => {
 
     expect(onDetailClose).toHaveBeenCalledTimes(1);
   });
+
+  it("renders loading skeleton rows before the report arrives", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSkills(
+        createProps({
+          loading: true,
+          report: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
+    expect(container.textContent).not.toContain("No skills found.");
+  });
 });
 
 function installDialogMethod(

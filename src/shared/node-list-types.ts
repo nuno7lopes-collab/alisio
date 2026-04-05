@@ -43,6 +43,12 @@ export type PendingRequest = {
   version?: string;
   coreVersion?: string;
   uiVersion?: string;
+  deviceFamily?: string;
+  modelIdentifier?: string;
+  caps?: string[];
+  capabilities?: NodeCapabilitySummary[];
+  commands?: string[];
+  permissions?: Record<string, boolean>;
   remoteIp?: string;
   isRepair?: boolean;
   ts: number;

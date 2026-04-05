@@ -1,9 +1,9 @@
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing } from "lit";
 import { icons } from "../icons.ts";
-import { BORDER_RADIUS_STOPS, type BorderRadiusStop } from "../storage.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeMode, ThemeName } from "../theme.ts";
 import type { ConfigUiHints } from "../types.ts";
+import { renderAppearanceControls } from "./appearance.ts";
 import {
   countSensitiveConfigValues,
   humanize,
@@ -14,14 +14,6 @@ import {
   type JsonSchema,
 } from "./config-form.shared.ts";
 import { analyzeConfigSchema, renderConfigForm, SECTION_META } from "./config-form.ts";
-
-const BORDER_RADIUS_LABELS: Record<BorderRadiusStop, string> = {
-  0: "None",
-  25: "Slight",
-  50: "Default",
-  75: "Round",
-  100: "Full",
-};
 
 export type ConfigProps = {
   raw: string;
@@ -561,72 +553,17 @@ function renderDiffValue(path: string, value: unknown, _uiHints: ConfigUiHints):
   return truncateValue(value);
 }
 
-type ThemeOption = { id: ThemeName; label: string; description: string; icon: TemplateResult };
-const THEME_OPTIONS: ThemeOption[] = [
-  { id: "claw", label: "Claw", description: "Chroma family", icon: icons.zap },
-  { id: "knot", label: "Knot", description: "Black & red", icon: icons.link },
-  { id: "dash", label: "Dash", description: "Chocolate blueprint", icon: icons.barChart },
-];
-
 function renderAppearanceSection(props: ConfigProps) {
   return html`
     <div class="settings-appearance">
-      <div class="settings-appearance__section">
-        <h3 class="settings-appearance__heading">Theme</h3>
-        <p class="settings-appearance__hint">Choose a theme family.</p>
-        <div class="settings-theme-grid">
-          ${THEME_OPTIONS.map(
-            (opt) => html`
-              <button
-                class="settings-theme-card ${opt.id === props.theme
-                  ? "settings-theme-card--active"
-                  : ""}"
-                title=${opt.description}
-                @click=${(e: Event) => {
-                  if (opt.id !== props.theme) {
-                    const context: ThemeTransitionContext = {
-                      element: (e.currentTarget as HTMLElement) ?? undefined,
-                    };
-                    props.setTheme(opt.id, context);
-                  }
-                }}
-              >
-                <span class="settings-theme-card__icon" aria-hidden="true">${opt.icon}</span>
-                <span class="settings-theme-card__label">${opt.label}</span>
-                ${opt.id === props.theme
-                  ? html`<span class="settings-theme-card__check" aria-hidden="true"
-                      >${icons.check}</span
-                    >`
-                  : nothing}
-              </button>
-            `,
-          )}
-        </div>
-      </div>
-
-      <div class="settings-appearance__section">
-        <h3 class="settings-appearance__heading">Roundness</h3>
-        <p class="settings-appearance__hint">Adjust corner radius across the UI.</p>
-        <div class="settings-roundness">
-          <div class="settings-roundness__options">
-            ${BORDER_RADIUS_STOPS.map(
-              (stop) => html`
-                <button
-                  type="button"
-                  class="settings-roundness__btn ${stop === props.borderRadius ? "active" : ""}"
-                  @click=${() => props.setBorderRadius(stop)}
-                >
-                  <span
-                    class="settings-roundness__swatch"
-                    style="border-radius: ${Math.round(10 * (stop / 50))}px"
-                  ></span>
-                  <span class="settings-roundness__label">${BORDER_RADIUS_LABELS[stop]}</span>
-                </button>
-              `,
-            )}
-          </div>
-        </div>
-      </div>
+      ${renderAppearanceControls({
+        theme: props.theme,
+        themeMode: props.themeMode,
+        borderRadius: props.borderRadius,
+        onThemeChange: props.setTheme,
+        onThemeModeChange: props.setThemeMode,
+        onBorderRadiusChange: props.setBorderRadius,
+      })}
 
       <div class="settings-appearance__section">
         <h3 class="settings-appearance__heading">Connection</h3>

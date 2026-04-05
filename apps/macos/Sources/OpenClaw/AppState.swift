@@ -126,9 +126,16 @@ final class AppState {
     }
 
     var voiceWakeAdditionalLocaleIDs: [String] {
-        didSet { self.ifNotPreview { UserDefaults.standard.set(
-            self.voiceWakeAdditionalLocaleIDs,
-            forKey: voiceWakeAdditionalLocalesKey) } }
+        didSet {
+            self.ifNotPreview {
+                UserDefaults.standard.set(
+                    self.voiceWakeAdditionalLocaleIDs,
+                    forKey: voiceWakeAdditionalLocalesKey)
+                if self.swabbleEnabled {
+                    Task { await VoiceWakeRuntime.shared.refresh(state: self) }
+                }
+            }
+        }
     }
 
     var voicePushToTalkEnabled: Bool {
@@ -271,9 +278,11 @@ final class AppState {
         self.showDockIcon = UserDefaults.standard.bool(forKey: showDockIconKey)
         self.voiceWakeMicID = UserDefaults.standard.string(forKey: voiceWakeMicKey) ?? ""
         self.voiceWakeMicName = UserDefaults.standard.string(forKey: voiceWakeMicNameKey) ?? ""
-        self.voiceWakeLocaleID = UserDefaults.standard.string(forKey: voiceWakeLocaleKey) ?? Locale.current.identifier
-        self.voiceWakeAdditionalLocaleIDs = UserDefaults.standard
-            .stringArray(forKey: voiceWakeAdditionalLocalesKey) ?? []
+        let storedLocaleSelection = resolveVoiceWakeLocaleSelection(
+            primary: UserDefaults.standard.string(forKey: voiceWakeLocaleKey) ?? Locale.current.identifier,
+            additional: UserDefaults.standard.stringArray(forKey: voiceWakeAdditionalLocalesKey) ?? [])
+        self.voiceWakeLocaleID = storedLocaleSelection.primary
+        self.voiceWakeAdditionalLocaleIDs = storedLocaleSelection.additional
         self.voicePushToTalkEnabled = UserDefaults.standard
             .object(forKey: voicePushToTalkEnabledKey) as? Bool ?? false
         self.talkEnabled = UserDefaults.standard.bool(forKey: talkEnabledKey)

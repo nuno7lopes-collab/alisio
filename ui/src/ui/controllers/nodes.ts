@@ -6,8 +6,19 @@ export type NodesState = {
   connected: boolean;
   nodesLoading: boolean;
   nodes: NodeListNode[];
-  lastError: string | null;
+  nodesError?: string | null;
+  lastError?: string | null;
 };
+
+function setNodesError(state: NodesState, value: string | null) {
+  if ("nodesError" in state) {
+    state.nodesError = value;
+    return;
+  }
+  if ("lastError" in state) {
+    state.lastError = value;
+  }
+}
 
 export async function loadNodes(state: NodesState, opts?: { quiet?: boolean }) {
   if (!state.client || !state.connected) {
@@ -18,14 +29,14 @@ export async function loadNodes(state: NodesState, opts?: { quiet?: boolean }) {
   }
   state.nodesLoading = true;
   if (!opts?.quiet) {
-    state.lastError = null;
+    setNodesError(state, null);
   }
   try {
     const res = await state.client.request<{ nodes?: NodeListNode[] }>("node.list", {});
     state.nodes = Array.isArray(res.nodes) ? res.nodes : [];
   } catch (err) {
     if (!opts?.quiet) {
-      state.lastError = String(err);
+      setNodesError(state, String(err));
     }
   } finally {
     state.nodesLoading = false;

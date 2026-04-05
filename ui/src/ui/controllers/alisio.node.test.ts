@@ -4,6 +4,8 @@ import {
   loadAlisioBootstrap,
   loadAlisioConnectors,
   loadAlisioDoctorSummary,
+  requestAlisioPasswordReset,
+  saveAlisioAccount,
   signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
@@ -303,5 +305,104 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAuthPassword).toBe("");
     expect(state.setupStep).toBe("account");
     expect(state.setTab).toHaveBeenCalledWith("setup");
+  });
+
+  it("usa o endpoint de update para gravar a conta e sincroniza o email actual", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.update") {
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAccount: {
+        profile: {
+          email: "draft@example.com",
+          displayName: "Draft",
+          username: "draft",
+          avatarLabel: "D",
+          joinedAt: "2026-04-05T09:00:00.000Z",
+          plan: "free",
+        },
+        preferences: {
+          language: "pt-PT",
+          theme: "dark",
+        },
+        session: {
+          state: "signed_in",
+          profileCompleted: true,
+          backend: "supabase",
+        },
+        devices: [],
+      } as unknown as AlisioState["alisioAccount"],
+    });
+
+    await saveAlisioAccount(state, { language: "en" });
+
+    expect(request).toHaveBeenCalledWith("alisio.account.update", { language: "en" });
+    expect(state.alisioAuthEmail).toBe("owner@example.com");
+  });
+
+  it("pede reset da palavra-passe com o email actual da conta", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.requestPasswordReset") {
+        expect(params).toEqual({ email: "owner@example.com" });
+        return {
+          ok: true,
+          message: "Reset sent",
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAuthEmail: "",
+      alisioAccount: {
+        profile: {
+          email: "owner@example.com",
+        },
+      } as unknown as AlisioState["alisioAccount"],
+    });
+
+    await requestAlisioPasswordReset(state);
+
+    expect(state.alisioAuthEmail).toBe("owner@example.com");
+    expect(state.alisioAccountNotice).toBe("Reset sent");
+    expect(state.alisioAccountError).toBeNull();
   });
 });

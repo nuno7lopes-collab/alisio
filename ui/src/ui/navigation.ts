@@ -35,7 +35,7 @@ export const TAB_GROUPS = [
   },
 ] as const;
 
-const PUBLIC_SETTINGS_SECTIONS = ["general", "ai", "account", "mac", "support"] as const;
+const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
 
 const LEGACY_SETTINGS_SECTIONS = [
   "appearance",
@@ -48,7 +48,6 @@ const LEGACY_SETTINGS_SECTIONS = [
   "communications",
   "automation",
   "infrastructure",
-  "aiAgents",
   "debug",
   "logs",
 ] as const;
@@ -146,7 +145,6 @@ const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
   ["/appearance", "general"],
   ["/automation", "account"],
   ["/infrastructure", "mac"],
-  ["/ai-agents", "ai"],
   ["/debug", "account"],
   ["/logs", "account"],
   ["/nodes", "mac"],
@@ -214,8 +212,6 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
       return "support";
     case "infrastructure":
       return "mac";
-    case "aiAgents":
-      return "ai";
     default:
       return "general";
   }

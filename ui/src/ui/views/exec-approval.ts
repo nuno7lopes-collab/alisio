@@ -22,11 +22,23 @@ export function formatApprovalRemaining(ms: number): string {
   return `${hours}h`;
 }
 
-function renderMetaRow(label: string, value?: string | null) {
+function renderMetaRow(
+  label: string,
+  value?: string | null,
+  opts: { tone?: "code" | "text" } = {},
+) {
   if (!value) {
     return nothing;
   }
-  return html`<div class="exec-approval-meta-row"><span>${label}</span><span>${value}</span></div>`;
+  const tone = opts.tone ?? "text";
+  return html`
+    <div class="exec-approval-meta-row">
+      <span>${label}</span>
+      <span class="exec-approval-meta-row__value exec-approval-meta-row__value--${tone}">
+        ${value}
+      </span>
+    </div>
+  `;
 }
 
 type ApprovalPromptIdentity = Pick<AppViewState, "assistantName" | "assistantAgentId">;
@@ -38,8 +50,9 @@ function renderExecBody(request: ExecApprovalRequestPayload, identity: ApprovalP
     <div class="exec-approval-command mono">${request.command}</div>
     <div class="exec-approval-meta">
       ${renderMetaRow("Host", request.host)} ${renderMetaRow("Agent", agentLabel)}
-      ${renderMetaRow("Session", sessionLabel)} ${renderMetaRow("CWD", request.cwd)}
-      ${renderMetaRow("Resolved", request.resolvedPath)}
+      ${renderMetaRow("Session", sessionLabel)}
+      ${renderMetaRow("CWD", request.cwd, { tone: "code" })}
+      ${renderMetaRow("Resolved", request.resolvedPath, { tone: "code" })}
       ${renderMetaRow("Security", request.security)} ${renderMetaRow("Ask", request.ask)}
     </div>
   `;
@@ -60,8 +73,8 @@ ${active.pluginDescription}</pre
       : nothing}
     <div class="exec-approval-meta">
       ${renderMetaRow("Severity", active.pluginSeverity)}
-      ${renderMetaRow("Plugin", active.pluginId)} ${renderMetaRow("Agent", agentLabel)}
-      ${renderMetaRow("Session", sessionLabel)}
+      ${renderMetaRow("Plugin", active.pluginId, { tone: "code" })}
+      ${renderMetaRow("Agent", agentLabel)} ${renderMetaRow("Session", sessionLabel)}
     </div>
   `;
 }

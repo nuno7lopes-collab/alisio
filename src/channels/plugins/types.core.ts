@@ -197,6 +197,10 @@ export type ChannelAccountSnapshot = {
   cliPath?: string | null;
   dbPath?: string | null;
   port?: number | null;
+  self?: {
+    e164?: string | null;
+    jid?: string | null;
+  } | null;
   probe?: unknown;
   lastProbeAt?: number | null;
   audit?: unknown;

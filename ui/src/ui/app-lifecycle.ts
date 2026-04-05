@@ -13,6 +13,7 @@ import {
   attachThemeListener,
   detachThemeListener,
   inferBasePath,
+  syncAccountPreferences,
   syncTabWithLocation,
   syncThemeWithSettings,
 } from "./app-settings.ts";
@@ -109,6 +110,9 @@ export function handleDisconnected(host: LifecycleHost) {
 }
 
 export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unknown>) {
+  if (changed.has("alisioAccount") || changed.has("alisioBootstrap")) {
+    void syncAccountPreferences(host as unknown as Parameters<typeof syncAccountPreferences>[0]);
+  }
   if (host.tab === "chat" && host.chatManualRefreshInFlight) {
     return;
   }

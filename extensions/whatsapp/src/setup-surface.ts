@@ -302,7 +302,7 @@ export const whatsappSetupWizard: ChannelSetupWizard = {
   resolveShouldPromptAccountIds: ({ options, shouldPromptAccountIds }) =>
     Boolean(shouldPromptAccountIds || options?.promptWhatsAppAccountId),
   credentials: [],
-  finalize: async ({ cfg, accountId, forceAllowFrom, prompter, runtime }) => {
+  finalize: async ({ cfg, accountId, forceAllowFrom, prompter, runtime, options }) => {
     let next =
       accountId === DEFAULT_ACCOUNT_ID
         ? cfg
@@ -317,8 +317,9 @@ export const whatsappSetupWizard: ChannelSetupWizard = {
       cfg: next,
       accountId,
     });
+    const deferLinkToChannelsUi = options?.surface === "channel";
 
-    if (!linked) {
+    if (!linked && !deferLinkToChannelsUi) {
       await prompter.note(
         [
           "Scan the QR with WhatsApp on your phone.",
@@ -329,22 +330,24 @@ export const whatsappSetupWizard: ChannelSetupWizard = {
       );
     }
 
-    const wantsLink = await prompter.confirm({
-      message: linked ? "WhatsApp already linked. Re-link now?" : "Link WhatsApp now (QR)?",
-      initialValue: !linked,
-    });
-    if (wantsLink) {
-      try {
-        await loginWeb(false, undefined, runtime, accountId);
-      } catch (error) {
-        runtime.error(`WhatsApp login failed: ${String(error)}`);
-        await prompter.note(`Docs: ${formatDocsLink("/whatsapp", "whatsapp")}`, "WhatsApp help");
+    if (!deferLinkToChannelsUi) {
+      const wantsLink = await prompter.confirm({
+        message: linked ? "WhatsApp already linked. Re-link now?" : "Link WhatsApp now (QR)?",
+        initialValue: !linked,
+      });
+      if (wantsLink) {
+        try {
+          await loginWeb(false, undefined, runtime, accountId);
+        } catch (error) {
+          runtime.error(`WhatsApp login failed: ${String(error)}`);
+          await prompter.note(`Docs: ${formatDocsLink("/whatsapp", "whatsapp")}`, "WhatsApp help");
+        }
+      } else if (!linked) {
+        await prompter.note(
+          `Run \`${formatCliCommand("openclaw channels login")}\` later to link WhatsApp.`,
+          "WhatsApp",
+        );
       }
-    } else if (!linked) {
-      await prompter.note(
-        `Run \`${formatCliCommand("openclaw channels login")}\` later to link WhatsApp.`,
-        "WhatsApp",
-      );
     }
 
     next = await promptWhatsAppDmAccess({

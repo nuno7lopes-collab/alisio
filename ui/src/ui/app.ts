@@ -63,6 +63,7 @@ import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./contro
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
+import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
 import type { SecurityAccessMode } from "./controllers/security-access.ts";
 import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
@@ -70,7 +71,7 @@ import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { ModelsServerDraft } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
-import { VALID_THEME_NAMES, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
+import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
 import type {
   AgentsListResult,
   AgentsFilesListResult,
@@ -123,7 +124,6 @@ export class OpenClawApp extends LitElement {
   @state() theme: ThemeName = this.settings.theme ?? "claw";
   @state() themeMode: ThemeMode = this.settings.themeMode ?? "system";
   @state() themeResolved: ResolvedTheme = "dark";
-  @state() themeOrder: ThemeName[] = this.buildThemeOrder(this.theme);
   @state() hello: GatewayHelloOk | null = null;
   @state() lastError: string | null = null;
   @state() lastErrorCode: string | null = null;
@@ -225,9 +225,13 @@ export class OpenClawApp extends LitElement {
 
   @state() nodesLoading = false;
   @state() nodes: NodeListNode[] = [];
+  @state() nodesError: string | null = null;
   @state() devicesLoading = false;
   @state() devicesError: string | null = null;
   @state() devicesList: DevicePairingList | null = null;
+  @state() nodePairingsLoading = false;
+  @state() nodePairingsError: string | null = null;
+  @state() nodePairingsList: RuntimeNodePairingList | null = null;
   @state() execApprovalsLoading = false;
   @state() execApprovalsSaving = false;
   @state() execApprovalsDirty = false;
@@ -731,7 +735,6 @@ export class OpenClawApp extends LitElement {
 
   setTheme(next: ThemeName, context?: Parameters<typeof setThemeInternal>[2]) {
     setThemeInternal(this as unknown as Parameters<typeof setThemeInternal>[0], next, context);
-    this.themeOrder = this.buildThemeOrder(next);
   }
 
   setThemeMode(next: ThemeMode, context?: Parameters<typeof setThemeModeInternal>[2]) {
@@ -748,12 +751,6 @@ export class OpenClawApp extends LitElement {
       borderRadius: value,
     });
     this.requestUpdate();
-  }
-
-  buildThemeOrder(active: ThemeName): ThemeName[] {
-    const all = [...VALID_THEME_NAMES];
-    const rest = all.filter((id) => id !== active);
-    return [active, ...rest];
   }
 
   async loadOverview() {

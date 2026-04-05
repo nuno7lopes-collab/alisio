@@ -6,6 +6,7 @@ import type { CronModelSuggestionsState, CronState } from "./controllers/cron.ts
 import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
+import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
 import type { SecurityAccessMode } from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
@@ -55,7 +56,6 @@ export type AppViewState = {
   theme: ThemeName;
   themeMode: ThemeMode;
   themeResolved: ResolvedTheme;
-  themeOrder: ThemeName[];
   hello: GatewayHelloOk | null;
   lastError: string | null;
   lastErrorCode: string | null;
@@ -140,6 +140,7 @@ export type AppViewState = {
   chatManualRefreshInFlight: boolean;
   nodesLoading: boolean;
   nodes: NodeListNode[];
+  nodesError: string | null;
   chatNewMessagesBelow: boolean;
   navDrawerOpen: boolean;
   sidebarOpen: boolean;
@@ -150,6 +151,9 @@ export type AppViewState = {
   devicesLoading: boolean;
   devicesError: string | null;
   devicesList: DevicePairingList | null;
+  nodePairingsLoading: boolean;
+  nodePairingsError: string | null;
+  nodePairingsList: RuntimeNodePairingList | null;
   execApprovalsLoading: boolean;
   execApprovalsSaving: boolean;
   execApprovalsDirty: boolean;

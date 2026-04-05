@@ -395,6 +395,27 @@ describe("whatsapp setup wizard", () => {
       "WhatsApp",
     );
   });
+
+  it("defers QR linking when the setup runs from the channel surface", async () => {
+    hoisted.pathExists.mockResolvedValue(false);
+    const harness = createSeparatePhoneHarness({
+      selectValues: ["separate", "disabled"],
+    });
+
+    await runConfigureWithHarness({
+      harness,
+      options: {
+        surface: "channel",
+      },
+    });
+
+    expect(hoisted.loginWeb).not.toHaveBeenCalled();
+    expect(harness.confirm).not.toHaveBeenCalled();
+    expect(harness.note).not.toHaveBeenCalledWith(
+      expect.stringContaining("openclaw channels login"),
+      "WhatsApp",
+    );
+  });
 });
 
 describe("whatsapp group policy", () => {

@@ -36,6 +36,7 @@ import {
   removeExecApproval,
 } from "./controllers/exec-approval.ts";
 import { loadHealthState } from "./controllers/health.ts";
+import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadSessions, subscribeSessions } from "./controllers/sessions.ts";
 import { clearDeviceAuthToken } from "./device-auth.ts";
@@ -309,6 +310,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       void loadHealthState(host as unknown as OpenClawApp);
       void loadNodes(host as unknown as OpenClawApp, { quiet: true });
       void loadDevices(host as unknown as OpenClawApp, { quiet: true });
+      void loadNodePairings(host as unknown as OpenClawApp, { quiet: true });
       void loadAlisioBootstrap(host as unknown as OpenClawApp);
       void loadAlisioDoctorSummary(host as unknown as OpenClawApp);
       void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0]);
@@ -515,6 +517,19 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
 
   if (evt.event === "device.pair.requested" || evt.event === "device.pair.resolved") {
     void loadDevices(host as unknown as OpenClawApp, { quiet: true });
+  }
+
+  if (evt.event === "node.pair.requested") {
+    void loadNodePairings(host as unknown as OpenClawApp, { quiet: true });
+    return;
+  }
+
+  if (evt.event === "node.pair.resolved") {
+    void Promise.allSettled([
+      loadNodePairings(host as unknown as OpenClawApp, { quiet: true }),
+      loadNodes(host as unknown as OpenClawApp, { quiet: true }),
+    ]);
+    return;
   }
 
   if (evt.event === "exec.approval.requested") {

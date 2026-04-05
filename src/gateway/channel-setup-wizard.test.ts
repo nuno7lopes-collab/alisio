@@ -65,6 +65,7 @@ describe("runChannelSetupWizard", () => {
       expect.anything(),
       expect.anything(),
       expect.objectContaining({
+        surface: "channel",
         skipSelectionPrompt: true,
         initialSelection: ["telegram"],
       }),
@@ -92,6 +93,15 @@ describe("runChannelSetupWizard", () => {
       startChannel,
     });
 
+    expect(mocks.setupChannels).toHaveBeenCalledWith(
+      {},
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        surface: "channel",
+        initialSelection: ["whatsapp"],
+      }),
+    );
     expect(startChannel).toHaveBeenCalledWith("whatsapp", "default");
     expect(outro).toHaveBeenCalledWith(
       "Configuração guardada. Continua no QR para concluir a ligação do WhatsApp.",

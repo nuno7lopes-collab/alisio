@@ -1,6 +1,10 @@
 import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
-import { formatValidationErrors, validateTalkConfigResult } from "./index.js";
+import {
+  formatValidationErrors,
+  validateChannelsStatusResult,
+  validateTalkConfigResult,
+} from "./index.js";
 
 const makeError = (overrides: Partial<ErrorObject>): ErrorObject => ({
   keyword: "type",
@@ -115,5 +119,51 @@ describe("validateTalkConfigResult", () => {
         },
       }),
     ).toBe(false);
+  });
+});
+
+describe("validateChannelsStatusResult", () => {
+  it("aceita snapshots de canais com wizard em curso", () => {
+    expect(
+      validateChannelsStatusResult({
+        ts: Date.now(),
+        channelOrder: ["telegram"],
+        channelLabels: { telegram: "Telegram" },
+        channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+        channelSystemImages: {},
+        wizard: {
+          running: true,
+          sessionId: "wiz-telegram-1",
+          channelId: "telegram",
+        },
+        channelMeta: [
+          {
+            id: "telegram",
+            label: "Telegram",
+            detailLabel: "Bot, groups, and direct messages",
+            docsPath: "/channels/telegram",
+          },
+        ],
+        channelIssues: {},
+        channels: {
+          telegram: {
+            configured: false,
+            setupAvailable: true,
+            linkMode: "wizard",
+          },
+        },
+        channelAccounts: {
+          telegram: [
+            {
+              accountId: "default",
+              configured: false,
+            },
+          ],
+        },
+        channelDefaultAccountId: {
+          telegram: "default",
+        },
+      }),
+    ).toBe(true);
   });
 });

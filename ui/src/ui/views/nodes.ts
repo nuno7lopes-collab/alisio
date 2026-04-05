@@ -7,18 +7,36 @@ import type {
   PendingDevice,
 } from "../controllers/devices.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
+import type { PendingNodePairing, RuntimeNodePairingList } from "../controllers/node-pairing.ts";
 import { formatRelativeTimestamp, formatList } from "../format.ts";
 import { icons } from "../icons.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonListItem,
+  renderSkeletonPill,
+  renderSkeletonStatCards,
+} from "./loading-skeleton.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
-import { resolveConfigAgents, resolveNodeTargets, type NodeTargetOption } from "./nodes-shared.ts";
+import {
+  countConnectedNodes,
+  countReadyExecNodes,
+  nodeSupportsExec,
+  resolveConfigAgents,
+  resolveNodeTargets,
+  type NodeTargetOption,
+} from "./nodes-shared.ts";
 export type NodesProps = {
   assistantName: string;
   assistantAgentId: string | null;
   loading: boolean;
   nodes: Array<Record<string, unknown>>;
+  nodesError: string | null;
   devicesLoading: boolean;
   devicesError: string | null;
   devicesList: DevicePairingList | null;
+  nodePairingsLoading: boolean;
+  nodePairingsError: string | null;
+  nodePairingsList: RuntimeNodePairingList | null;
   configForm: Record<string, unknown> | null;
   configLoading: boolean;
   configSaving: boolean;
@@ -34,8 +52,12 @@ export type NodesProps = {
   execApprovalsTargetNodeId: string | null;
   onRefresh: () => void;
   onDevicesRefresh: () => void;
+  onNodePairingsRefresh: () => void;
   onDeviceApprove: (requestId: string) => void;
   onDeviceReject: (requestId: string) => void;
+  onDeviceRemove: (deviceId: string) => void;
+  onNodeApprove: (requestId: string) => void;
+  onNodeReject: (requestId: string) => void;
   onDeviceRotate: (deviceId: string, role: string, scopes?: string[]) => void;
   onDeviceRevoke: (deviceId: string, role: string) => void;
   onLoadConfig: () => void;
@@ -75,6 +97,7 @@ function renderDevices(props: NodesProps) {
   const list = props.devicesList ?? { pending: [], paired: [] };
   const pending = Array.isArray(list.pending) ? list.pending : [];
   const paired = Array.isArray(list.paired) ? list.paired : [];
+  const showLoading = props.devicesLoading && !props.devicesList && !props.devicesError;
   const text = {
     title: t("alisio.connections.devices.title"),
     subtitle: t("alisio.connections.devices.subtitle"),
@@ -104,43 +127,80 @@ function renderDevices(props: NodesProps) {
         </button>
       </div>
       <div class="alisio-connections-panel__summary">
-        ${renderPanelSummaryItem(pending.length, text.pending)}
-        ${renderPanelSummaryItem(paired.length, text.paired)}
+        ${showLoading
+          ? renderSkeletonStatCards(2)
+          : html`
+              ${renderPanelSummaryItem(pending.length, text.pending)}
+              ${renderPanelSummaryItem(paired.length, text.paired)}
+            `}
       </div>
       ${props.devicesError
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.devicesError}</div>`
         : nothing}
-      <div class="alisio-connections-sections">
-        <section class="alisio-connections-subsection">
-          <div class="alisio-connections-subsection__head">
-            <span class="alisio-connections-subsection__title">${text.pending}</span>
-            <span class="alisio-connections-subsection__count">${pending.length}</span>
-          </div>
-          <div class="list">
-            ${pending.length === 0
-              ? html`<div class="alisio-connections-empty">${text.pendingEmpty}</div>`
-              : pending.map((req) => renderPendingDevice(req, props))}
-          </div>
-        </section>
-        <section class="alisio-connections-subsection">
-          <div class="alisio-connections-subsection__head">
-            <span class="alisio-connections-subsection__title">${text.paired}</span>
-            <span class="alisio-connections-subsection__count">${paired.length}</span>
-          </div>
-          <div class="list">
-            ${paired.length === 0
-              ? html`<div class="alisio-connections-empty">${text.empty}</div>`
-              : paired.map((device) => renderPairedDevice(device, props))}
-          </div>
-        </section>
-      </div>
+      ${showLoading
+        ? html`
+            <div class="alisio-connections-sections" role="status" aria-label=${text.loading}>
+              <section class="alisio-connections-subsection">
+                <div class="alisio-connections-subsection__head">
+                  <span class="alisio-connections-subsection__title">${text.pending}</span>
+                  ${renderSkeletonPill({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+                </div>
+              </section>
+              <section class="alisio-connections-subsection">
+                <div class="alisio-connections-subsection__head">
+                  <span class="alisio-connections-subsection__title">${text.paired}</span>
+                  ${renderSkeletonPill({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"] })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium", "long"] })}
+                </div>
+              </section>
+            </div>
+          `
+        : html`
+            <div class="alisio-connections-sections">
+              <section class="alisio-connections-subsection">
+                <div class="alisio-connections-subsection__head">
+                  <span class="alisio-connections-subsection__title">${text.pending}</span>
+                  <span class="alisio-connections-subsection__count">${pending.length}</span>
+                </div>
+                <div class="list">
+                  ${pending.length === 0
+                    ? html`<div class="alisio-connections-empty">${text.pendingEmpty}</div>`
+                    : pending.map((req) => renderPendingDevice(req, props))}
+                </div>
+              </section>
+              <section class="alisio-connections-subsection">
+                <div class="alisio-connections-subsection__head">
+                  <span class="alisio-connections-subsection__title">${text.paired}</span>
+                  <span class="alisio-connections-subsection__count">${paired.length}</span>
+                </div>
+                <div class="list">
+                  ${paired.length === 0
+                    ? html`<div class="alisio-connections-empty">${text.empty}</div>`
+                    : paired.map((device) => renderPairedDevice(device, props))}
+                </div>
+              </section>
+            </div>
+          `}
     </section>
   `;
 }
 
 function renderRuntime(props: NodesProps, state: BindingState) {
   const connectedNodes = countConnectedNodes(props.nodes);
-  const execNodes = resolveExecNodes(props.nodes).length;
+  const execReadyNodes = countReadyExecNodes(props.nodes);
+  const pendingNodeRequests = props.nodePairingsList?.pending ?? [];
+  const showLoading =
+    (props.loading || props.nodePairingsLoading) &&
+    props.nodes.length === 0 &&
+    !props.configForm &&
+    !props.nodePairingsList;
   const text = {
     title: t("alisio.connections.runtimeTitle"),
     subtitle: t("alisio.connections.runtimeSubtitle"),
@@ -148,11 +208,8 @@ function renderRuntime(props: NodesProps, state: BindingState) {
     refresh: t("common.refresh"),
     liveNodes: t("alisio.connections.liveNodes"),
     execReady: t("alisio.connections.nodes.execReady"),
-    syncState: t("alisio.connections.bindingState"),
-    synced: t("alisio.connections.synced"),
-    unsaved: t("alisio.connections.unsaved"),
+    pendingNodes: t("alisio.connections.pendingNodes"),
   };
-  const syncLabel = state.configDirty ? text.unsaved : text.synced;
   return html`
     <section class="card alisio-connections-panel">
       <div class="alisio-connections-panel__head">
@@ -168,14 +225,169 @@ function renderRuntime(props: NodesProps, state: BindingState) {
         </button>
       </div>
       <div class="alisio-connections-panel__summary">
-        ${renderPanelSummaryItem(connectedNodes, text.liveNodes)}
-        ${renderPanelSummaryItem(execNodes, text.execReady)}
-        ${renderPanelSummaryItem(syncLabel, text.syncState)}
+        ${showLoading
+          ? renderSkeletonStatCards(3)
+          : html`
+              ${renderPanelSummaryItem(connectedNodes, text.liveNodes)}
+              ${renderPanelSummaryItem(execReadyNodes, text.execReady)}
+              ${renderPanelSummaryItem(pendingNodeRequests.length, text.pendingNodes)}
+            `}
       </div>
-      <div class="alisio-connections-runtime-stack">
-        ${renderBindings(state)} ${renderNodeList(props)}
-      </div>
+      ${props.nodesError ? html`<div class="callout danger">${props.nodesError}</div>` : nothing}
+      ${props.nodePairingsError
+        ? html`<div class="callout danger">${props.nodePairingsError}</div>`
+        : nothing}
+      ${showLoading
+        ? html`
+            <div class="alisio-connections-runtime-stack" role="status" aria-label=${text.loading}>
+              <section class="alisio-connections-subpanel">
+                <div class="alisio-connections-subpanel__head">
+                  <div>
+                    <div class="alisio-connections-subpanel__title">
+                      ${t("alisio.connections.nodes.pendingTitle")}
+                    </div>
+                    <div class="alisio-connections-subpanel__subtitle">
+                      ${t("alisio.connections.nodes.pendingSubtitle")}
+                    </div>
+                  </div>
+                  ${renderSkeletonPill({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
+                </div>
+              </section>
+              <section class="alisio-connections-subpanel">
+                <div class="alisio-connections-subpanel__head">
+                  <div>
+                    <div class="alisio-connections-subpanel__title">
+                      ${t("alisio.connections.bindings.title")}
+                    </div>
+                    <div class="alisio-connections-subpanel__subtitle">
+                      ${t("alisio.connections.bindings.subtitle")}
+                    </div>
+                  </div>
+                  ${renderSkeletonButton({ small: true })}
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "pill" })}
+                  ${renderSkeletonListItem({ lines: ["short", "medium", "long"], aside: "pill" })}
+                </div>
+              </section>
+              <section class="alisio-connections-subpanel">
+                <div class="alisio-connections-subpanel__head">
+                  <div>
+                    <div class="alisio-connections-subpanel__title">
+                      ${t("alisio.connections.nodes.title")}
+                    </div>
+                    <div class="alisio-connections-subpanel__subtitle">
+                      ${t("alisio.connections.nodes.subtitle")}
+                    </div>
+                  </div>
+                </div>
+                <div class="loading-state__list">
+                  ${renderSkeletonListItem({ lines: ["medium", "long", "short"] })}
+                  ${renderSkeletonListItem({ lines: ["long", "medium", "short"] })}
+                </div>
+              </section>
+            </div>
+          `
+        : html`
+            <div class="alisio-connections-runtime-stack">
+              ${renderPendingNodeRequests(props)} ${renderBindings(state)} ${renderNodeList(props)}
+            </div>
+          `}
     </section>
+  `;
+}
+
+function renderPendingNodeRequests(props: NodesProps) {
+  const list = props.nodePairingsList ?? { pending: [], paired: [] };
+  const pending = Array.isArray(list.pending) ? list.pending : [];
+  const showLoading =
+    props.nodePairingsLoading && !props.nodePairingsList && !props.nodePairingsError;
+  const text = {
+    title: t("alisio.connections.nodes.pendingTitle"),
+    subtitle: t("alisio.connections.nodes.pendingSubtitle"),
+    pendingEmpty: t("alisio.connections.nodes.pendingEmpty"),
+    loading: t("alisio.connections.loading"),
+    refresh: t("common.refresh"),
+  };
+  return html`
+    <section class="alisio-connections-subpanel">
+      <div class="alisio-connections-subpanel__head">
+        <div>
+          <div class="alisio-connections-subpanel__title">${text.title}</div>
+          <div class="alisio-connections-subpanel__subtitle">${text.subtitle}</div>
+        </div>
+        <button
+          class="btn btn--ghost btn--sm"
+          ?disabled=${props.nodePairingsLoading}
+          @click=${props.onNodePairingsRefresh}
+        >
+          ${props.nodePairingsLoading ? text.loading : text.refresh}
+        </button>
+      </div>
+      ${showLoading
+        ? html`
+            <div class="loading-state__list" role="status" aria-label=${text.loading}>
+              ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
+              ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+            </div>
+          `
+        : html`
+            <div class="list">
+              ${pending.length === 0
+                ? html`<div class="alisio-connections-empty">${text.pendingEmpty}</div>`
+                : pending.map((request) => renderPendingNodeRequest(request, props))}
+            </div>
+          `}
+    </section>
+  `;
+}
+
+function renderPendingNodeRequest(req: PendingNodePairing, props: NodesProps) {
+  const title = req.displayName?.trim() || req.nodeId;
+  const age = typeof req.ts === "number" ? formatRelativeTimestamp(req.ts) : t("common.na");
+  const capabilityCount = Array.isArray(req.caps) ? req.caps.length : 0;
+  const commandCount = Array.isArray(req.commands) ? req.commands.length : 0;
+  const details = [
+    typeof req.platform === "string" && req.platform.trim() ? req.platform.trim() : null,
+    typeof req.version === "string" && req.version.trim() ? req.version.trim() : null,
+    typeof req.remoteIp === "string" && req.remoteIp.trim() ? req.remoteIp.trim() : null,
+    commandCount > 0
+      ? t("alisio.connections.nodes.commandsCount", { count: String(commandCount) })
+      : null,
+    capabilityCount > 0
+      ? t("alisio.connections.nodes.capabilitiesCount", { count: String(capabilityCount) })
+      : null,
+    t("alisio.connections.nodes.requestedAge", { age }),
+    req.isRepair ? t("alisio.connections.nodes.repair") : null,
+  ].filter((value): value is string => Boolean(value));
+  return html`
+    <div class="list-item alisio-connections-entry alisio-connections-entry--pending">
+      <div class="list-main">
+        <div class="alisio-connections-entry__head">
+          <div class="list-title">${title}</div>
+          <div class="alisio-connections-entry__pills">
+            <span class="pill pill--in-review">${t("alisio.connections.pendingNodes")}</span>
+          </div>
+        </div>
+        <div class="list-sub mono alisio-connections-entry__identifier">${req.nodeId}</div>
+        ${details.length > 0
+          ? html`<div class="alisio-connections-entry__note">${details.join(" · ")}</div>`
+          : nothing}
+      </div>
+      <div class="list-meta alisio-connections-entry__actions">
+        <div class="row alisio-connections-action-row">
+          <button class="btn btn--sm primary" @click=${() => props.onNodeApprove(req.requestId)}>
+            ${t("alisio.connections.nodes.approve")}
+          </button>
+          <button class="btn btn--sm" @click=${() => props.onNodeReject(req.requestId)}>
+            ${t("alisio.connections.nodes.reject")}
+          </button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -205,7 +417,7 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
         </div>
       </div>
       <div class="list-meta alisio-connections-entry__actions">
-        <div class="row" style="justify-content: flex-end; gap: 8px; flex-wrap: wrap;">
+        <div class="row alisio-connections-action-row">
           <button class="btn btn--sm primary" @click=${() => props.onDeviceApprove(req.requestId)}>
             ${t("alisio.connections.devices.approve")}
           </button>
@@ -241,18 +453,23 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
         <div class="alisio-connections-entry__note">${roles} · ${scopes}</div>
         ${tokens.length === 0
           ? html`
-              <div class="alisio-connections-empty" style="margin-top: 10px;">
+              <div class="alisio-connections-empty alisio-connections-empty--compact">
                 ${t("alisio.connections.devices.tokensNone")}
               </div>
             `
           : html`
-              <div class="muted" style="margin-top: 10px;">
+              <div class="muted alisio-connections-entry__section-label">
                 ${t("alisio.connections.devices.tokens")}
               </div>
               <div class="alisio-token-list">
                 ${tokens.map((token) => renderTokenRow(device.deviceId, token, props))}
               </div>
             `}
+        <div class="alisio-connections-entry__footer">
+          <button class="btn btn--sm danger" @click=${() => props.onDeviceRemove(device.deviceId)}>
+            ${t("alisio.connections.devices.remove")}
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -276,7 +493,7 @@ function renderTokenRow(deviceId: string, token: DeviceTokenSummary, props: Node
         </div>
         <div class="alisio-token-row__subtitle">${scopes} · ${when}</div>
       </div>
-      <div class="row" style="justify-content: flex-end; gap: 6px; flex-wrap: wrap;">
+      <div class="row alisio-connections-action-row">
         <button
           class="btn btn--sm"
           @click=${() => props.onDeviceRotate(deviceId, token.role, token.scopes)}
@@ -370,8 +587,11 @@ function renderBindings(state: BindingState) {
     agent: t("alisio.connections.bindings.agent"),
     usesDefault: t("alisio.connections.bindings.usesDefault"),
     override: t("alisio.connections.bindings.override"),
+    synced: t("alisio.connections.synced"),
+    unsaved: t("alisio.connections.unsaved"),
   };
   const defaultLabel = resolveNodeLabel(state.nodes, state.defaultBinding, text.anyNode);
+  const syncLabel = state.configDirty ? text.unsaved : text.synced;
   return html`
     <section class="alisio-connections-subpanel">
       <div class="alisio-connections-subpanel__head">
@@ -379,25 +599,41 @@ function renderBindings(state: BindingState) {
           <div class="alisio-connections-subpanel__title">${text.title}</div>
           <div class="alisio-connections-subpanel__subtitle">${text.subtitle}</div>
         </div>
-        <button
-          class="btn btn--sm"
-          ?disabled=${state.disabled || !state.configDirty}
-          @click=${state.onSave}
-        >
-          ${state.configSaving ? text.saving : text.save}
-        </button>
+        <div class="alisio-connections-subpanel__actions">
+          ${state.ready
+            ? html`
+                <span class="pill ${state.configDirty ? "pill--in-review" : "pill--connected"}">
+                  ${syncLabel}
+                </span>
+              `
+            : nothing}
+          <button
+            class="btn btn--sm"
+            ?disabled=${state.disabled || !state.configDirty}
+            @click=${state.onSave}
+          >
+            ${state.configSaving ? text.saving : text.save}
+          </button>
+        </div>
       </div>
 
       ${state.formMode === "raw"
         ? html` <div class="callout warn" style="margin-top: 12px">${text.rawMode}</div> `
         : nothing}
       ${!state.ready
-        ? html`<div class="alisio-connections-empty">
-            <div>${text.loadConfig}</div>
-            <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
-              ${state.configLoading ? text.loading : text.loadConfig}
-            </button>
-          </div>`
+        ? state.configLoading
+          ? html`
+              <div class="loading-state__list" role="status" aria-label=${text.loading}>
+                ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
+                ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "button" })}
+              </div>
+            `
+          : html`<div class="alisio-connections-empty">
+              <div>${text.loadConfig}</div>
+              <button class="btn" ?disabled=${state.configLoading} @click=${state.onLoadConfig}>
+                ${state.configLoading ? text.loading : text.loadConfig}
+              </button>
+            </div>`
         : html`
             <div class="alisio-binding-list">
               <div class="list-item alisio-binding-row">
@@ -591,10 +827,6 @@ function resolveAgentBindings(config: Record<string, unknown> | null): {
   return { defaultBinding, agents };
 }
 
-function countConnectedNodes(nodes: Array<Record<string, unknown>>) {
-  return nodes.filter((node) => Boolean(node.connected) || Boolean(node.online)).length;
-}
-
 function resolveNodeCapabilityCount(node: Record<string, unknown>) {
   const capabilities = Array.isArray(node.capabilities) ? node.capabilities : [];
   if (capabilities.length > 0) {
@@ -605,13 +837,6 @@ function resolveNodeCapabilityCount(node: Record<string, unknown>) {
 
 function resolveNodeCommandCount(node: Record<string, unknown>) {
   return Array.isArray(node.commands) ? node.commands.length : 0;
-}
-
-function nodeSupportsExec(node: Record<string, unknown>) {
-  return (
-    Array.isArray(node.commands) &&
-    node.commands.some((command) => String(command) === "system.run")
-  );
 }
 
 function renderNode(node: Record<string, unknown>) {

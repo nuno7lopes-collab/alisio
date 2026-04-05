@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import type { LogEntry, LogLevel } from "../types.ts";
+import { renderSkeletonTable } from "./loading-skeleton.ts";
 
 const LEVELS: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal"];
 
@@ -45,6 +46,8 @@ function matchesFilter(entry: LogEntry, needle: string) {
 export function renderLogs(props: LogsProps) {
   const needle = props.filterText.trim().toLowerCase();
   const levelFiltered = LEVELS.some((level) => !props.levelFilters[level]);
+  const showInitialLoading =
+    props.loading && !props.error && !props.file && props.entries.length === 0;
   const filtered = props.entries.filter((entry) => {
     if (entry.level && !props.levelFilters[entry.level]) {
       return false;
@@ -129,18 +132,27 @@ export function renderLogs(props: LogsProps) {
         : nothing}
 
       <div class="log-stream" style="margin-top: 12px;" @scroll=${props.onScroll}>
-        ${filtered.length === 0
-          ? html` <div class="muted" style="padding: 12px">No log entries.</div> `
-          : filtered.map(
-              (entry) => html`
-                <div class="log-row">
-                  <div class="log-time mono">${formatTime(entry.time)}</div>
-                  <div class="log-level ${entry.level ?? ""}">${entry.level ?? ""}</div>
-                  <div class="log-subsystem mono">${entry.subsystem ?? ""}</div>
-                  <div class="log-message mono">${entry.message ?? entry.raw}</div>
-                </div>
-              `,
-            )}
+        ${showInitialLoading
+          ? html`
+              <div role="status" aria-label="Loading logs">
+                ${renderSkeletonTable({
+                  rows: 6,
+                  columns: ["short", "short", "medium", "long"],
+                })}
+              </div>
+            `
+          : filtered.length === 0
+            ? html` <div class="muted" style="padding: 12px">No log entries.</div> `
+            : filtered.map(
+                (entry) => html`
+                  <div class="log-row">
+                    <div class="log-time mono">${formatTime(entry.time)}</div>
+                    <div class="log-level ${entry.level ?? ""}">${entry.level ?? ""}</div>
+                    <div class="log-subsystem mono">${entry.subsystem ?? ""}</div>
+                    <div class="log-message mono">${entry.message ?? entry.raw}</div>
+                  </div>
+                `,
+              )}
       </div>
     </section>
   `;

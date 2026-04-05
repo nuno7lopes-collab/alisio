@@ -1,13 +1,25 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import { icons } from "../icons.ts";
 import type {
   ChannelAccountSnapshot,
   ChannelStatusIssue,
   ChannelsStatusSnapshot,
-  ChannelUiMetaEntry,
   WizardStep,
 } from "../types.ts";
-import { channelAccountLooksConnected, summarizeChannelsSnapshot } from "./channel-display.ts";
+import {
+  formatChannelLastActivity,
+  formatLastActivity,
+  formatTimestamp,
+  resolveAccountFlags,
+  resolveAccountIdentifier,
+  resolveChannelFlags,
+  resolveChannelIdentifier,
+  resolveChannelIssues,
+  resolveChannelRows,
+  summarizeChannelsSnapshot,
+  type ResolvedChannelRow,
+} from "./channel-display.ts";
 
 type WizardAnswer = {
   stepId: string;
@@ -50,16 +62,6 @@ type ChannelsProps = {
   onOpenSupportUrl: (url: string) => void;
 };
 
-type ResolvedChannelRow = {
-  id: string;
-  meta: ChannelUiMetaEntry;
-  summary: Record<string, unknown>;
-  issues: ChannelStatusIssue[];
-  accounts: ChannelAccountSnapshot[];
-  defaultAccountId: string | null;
-  defaultAccount: ChannelAccountSnapshot | null;
-};
-
 type ChannelVisualStatus = {
   key: "connected" | "attention" | "linked" | "ready" | "notConfigured";
   label: string;
@@ -71,32 +73,14 @@ type ChannelRequirements = {
   items: string[];
 };
 
+const CHANNEL_REQUIREMENT_KEYS: Partial<Record<string, readonly string[]>> = {
+  telegram: ["steps.telegram.0", "steps.telegram.1", "steps.telegram.2"],
+  discord: ["steps.discord.0", "steps.discord.1", "steps.discord.2"],
+  whatsapp: ["steps.whatsapp.0", "steps.whatsapp.1", "steps.whatsapp.2"],
+};
+
 function channelText(key: string, params?: Record<string, string>) {
   return t(`alisio.channels.${key}`, params);
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-}
-
-function readBoolean(record: Record<string, unknown>, key: string): boolean {
-  return record[key] === true;
-}
-
-function readString(record: Record<string, unknown>, key: string): string | null {
-  const value = record[key];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function readNestedString(value: unknown, keys: string[]): string | null {
-  let current = value;
-  for (const key of keys) {
-    if (!current || typeof current !== "object") {
-      return null;
-    }
-    current = (current as Record<string, unknown>)[key];
-  }
-  return typeof current === "string" && current.trim() ? current.trim() : null;
 }
 
 function buildChannelDocsUrl(docsPath?: string): string | null {
@@ -110,202 +94,41 @@ function buildChannelDocsUrl(docsPath?: string): string | null {
   return `https://docs.openclaw.ai${raw.startsWith("/") ? raw : `/${raw}`}`;
 }
 
-function formatTimestamp(value: number | null | undefined): string | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return null;
-  }
-  return new Intl.DateTimeFormat(undefined, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(value);
-}
-
-function formatLastActivity(account: ChannelAccountSnapshot | null): string | null {
-  if (!account) {
-    return null;
-  }
-  const lastActivity = [account.lastInboundAt, account.lastOutboundAt]
-    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
-    .toSorted((left, right) => right - left)[0];
-  return formatTimestamp(lastActivity);
-}
-
-function deriveChannelMeta(
-  snapshot: ChannelsStatusSnapshot | null,
-  channelId: string,
-): ChannelUiMetaEntry {
-  const label = snapshot?.channelLabels?.[channelId] ?? channelId;
-  const detailLabel = snapshot?.channelDetailLabels?.[channelId] ?? channelText("noDetails");
-  const systemImage = snapshot?.channelSystemImages?.[channelId];
-  return {
-    id: channelId,
-    label,
-    detailLabel,
-    ...(typeof systemImage === "string" && systemImage.trim() ? { systemImage } : {}),
-  };
-}
-
 function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | null {
   const localized = channelText(`descriptions.${row.id}`);
   return localized !== `alisio.channels.descriptions.${row.id}` ? localized : null;
 }
 
-function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): ResolvedChannelRow[] {
-  if (!snapshot) {
-    return [];
+function isLegacyWhatsAppInlineLinkStep(
+  channelId: string | null | undefined,
+  step: WizardStep | null | undefined,
+) {
+  if (channelId?.trim() !== "whatsapp" || step?.type !== "confirm") {
+    return false;
   }
-  const order = snapshot.channelOrder ?? [];
-  const metaById = new Map<string, ChannelUiMetaEntry>();
-  for (const entry of snapshot.channelMeta ?? []) {
-    metaById.set(entry.id, entry);
-  }
-  const ids = [...order];
-  for (const entry of snapshot.channelMeta ?? []) {
-    if (!ids.includes(entry.id)) {
-      ids.push(entry.id);
-    }
-  }
-  for (const channelId of Object.keys(snapshot.channels ?? {})) {
-    if (!ids.includes(channelId)) {
-      ids.push(channelId);
-    }
-  }
-  return ids.map((channelId) => {
-    const accounts = snapshot.channelAccounts[channelId] ?? [];
-    const defaultAccountId = snapshot.channelDefaultAccountId[channelId] ?? null;
-    const defaultAccount =
-      accounts.find((entry) => entry.accountId === defaultAccountId) ?? accounts[0] ?? null;
-    return {
-      id: channelId,
-      meta: metaById.get(channelId) ?? deriveChannelMeta(snapshot, channelId),
-      summary: asRecord(snapshot.channels[channelId]),
-      issues: snapshot.channelIssues?.[channelId] ?? [],
-      accounts,
-      defaultAccountId,
-      defaultAccount,
-    };
-  });
+  return /\b(?:re-)?link whatsapp now\b/i.test(step.message?.trim() ?? "");
 }
 
-function resolveChannelIdentifier(row: ResolvedChannelRow): string | null {
-  const summary = row.summary;
-  const account = row.defaultAccount;
-  const probe = asRecord(account?.probe);
-  const summarySelf = asRecord(summary.self);
-
-  if (row.id === "telegram") {
-    const bot = asRecord(probe.bot);
-    const username = readString(bot, "username");
-    return username ? `@${username.replace(/^@+/, "")}` : null;
+function resolveChannelIcon(row: ResolvedChannelRow) {
+  switch (row.id) {
+    case "telegram":
+      return icons.paperPlane;
+    case "discord":
+      return icons.chatBubbles;
+    case "whatsapp":
+      return icons.messageSquare;
+    default:
+      return icons.link;
   }
-  if (row.id === "discord") {
-    const bot = asRecord(probe.bot);
-    return readString(bot, "username");
-  }
-  if (row.id === "whatsapp") {
-    return (
-      readString(summarySelf, "e164") ??
-      readString(summarySelf, "jid") ??
-      account?.name?.trim() ??
-      null
-    );
-  }
-  return account?.name?.trim() ?? null;
 }
 
-function resolveAccountIdentifier(
-  row: ResolvedChannelRow,
-  account: ChannelAccountSnapshot,
-): string | null {
-  const probe = asRecord(account.probe);
-  if (row.id === "telegram") {
-    const username = readNestedString(probe, ["bot", "username"]);
-    return username ? `@${username.replace(/^@+/, "")}` : null;
-  }
-  if (row.id === "discord") {
-    return readNestedString(probe, ["bot", "username"]);
-  }
-  if (row.id === "whatsapp") {
-    return (
-      readNestedString(account, ["self", "e164"]) ??
-      readNestedString(account, ["self", "jid"]) ??
-      (row.defaultAccountId === account.accountId ? resolveChannelIdentifier(row) : null)
-    );
-  }
-  return account.name?.trim() ?? null;
+function renderChannelIcon(row: ResolvedChannelRow) {
+  return html`<span class="channel-card__icon" aria-hidden="true"
+    >${resolveChannelIcon(row)}</span
+  >`;
 }
 
-function resolveChannelFlags(row: ResolvedChannelRow) {
-  const summary = row.summary;
-  const configured =
-    readBoolean(summary, "configured") ||
-    row.accounts.some((account) => account.configured === true);
-  const linked =
-    readBoolean(summary, "linked") || row.accounts.some((account) => account.linked === true);
-  const connected =
-    readBoolean(summary, "connected") ||
-    readBoolean(summary, "running") ||
-    row.accounts.some((account) => channelAccountLooksConnected(account));
-  const attention =
-    row.issues.length > 0 ||
-    row.accounts.some((account) => Boolean(account.lastError?.trim())) ||
-    Boolean(readString(summary, "lastError"));
-  const setupAvailable =
-    readBoolean(summary, "setupAvailable") ||
-    row.id === "telegram" ||
-    row.id === "whatsapp" ||
-    row.id === "discord";
-  const logoutAvailable =
-    readBoolean(summary, "logoutAvailable") || row.id === "telegram" || row.id === "whatsapp";
-  const linkMode = readString(summary, "linkMode") ?? (row.id === "whatsapp" ? "qr" : "wizard");
-  const setupOnly = readBoolean(summary, "setupOnly");
-
-  return {
-    configured,
-    linked,
-    connected,
-    attention,
-    setupAvailable,
-    logoutAvailable,
-    linkMode,
-    setupOnly,
-  };
-}
-
-function resolveAccountIssues(
-  row: ResolvedChannelRow,
-  account: ChannelAccountSnapshot,
-): ChannelStatusIssue[] {
-  return row.issues.filter((issue) => issue.accountId === account.accountId);
-}
-
-function resolveAccountFlags(
-  row: ResolvedChannelRow,
-  account: ChannelAccountSnapshot,
-): ReturnType<typeof resolveChannelFlags> {
-  const channelFlags = resolveChannelFlags(row);
-  const isDefaultAccount = row.defaultAccountId === account.accountId;
-  const summary = row.summary;
-  return {
-    ...channelFlags,
-    configured:
-      account.configured === true || (isDefaultAccount && readBoolean(summary, "configured")),
-    linked: account.linked === true || (isDefaultAccount && readBoolean(summary, "linked")),
-    connected:
-      channelAccountLooksConnected(account) ||
-      (isDefaultAccount && (readBoolean(summary, "connected") || readBoolean(summary, "running"))),
-    attention:
-      resolveAccountIssues(row, account).length > 0 ||
-      Boolean(account.lastError?.trim()) ||
-      (isDefaultAccount && Boolean(readString(summary, "lastError"))),
-  };
-}
-
-function resolveChannelStatus(row: ResolvedChannelRow): ChannelVisualStatus {
-  const flags = resolveChannelFlags(row);
+function resolveVisualStatus(flags: ReturnType<typeof resolveChannelFlags>): ChannelVisualStatus {
   if (flags.attention) {
     return {
       key: "attention",
@@ -339,80 +162,28 @@ function resolveChannelStatus(row: ResolvedChannelRow): ChannelVisualStatus {
     label: channelText("status.notConfigured"),
     className: "chip",
   };
+}
+
+function resolveChannelStatus(row: ResolvedChannelRow): ChannelVisualStatus {
+  return resolveVisualStatus(resolveChannelFlags(row));
 }
 
 function resolveAccountStatus(
   row: ResolvedChannelRow,
   account: ChannelAccountSnapshot,
 ): ChannelVisualStatus {
-  const flags = resolveAccountFlags(row, account);
-  if (flags.attention) {
-    return {
-      key: "attention",
-      label: channelText("status.attention"),
-      className: "chip chip-warn",
-    };
-  }
-  if (flags.connected) {
-    return {
-      key: "connected",
-      label: channelText("status.connected"),
-      className: "chip chip-ok",
-    };
-  }
-  if (flags.linked) {
-    return {
-      key: "linked",
-      label: channelText("status.linked"),
-      className: "chip chip-active",
-    };
-  }
-  if (flags.configured) {
-    return {
-      key: "ready",
-      label: channelText("status.ready"),
-      className: "chip",
-    };
-  }
-  return {
-    key: "notConfigured",
-    label: channelText("status.notConfigured"),
-    className: "chip",
-  };
+  return resolveVisualStatus(resolveAccountFlags(row, account));
 }
 
 function resolveChannelRequirements(row: ResolvedChannelRow): ChannelRequirements | null {
-  if (row.id === "telegram") {
-    return {
-      title: channelText("stepsTitle"),
-      items: [
-        channelText("steps.telegram.0"),
-        channelText("steps.telegram.1"),
-        channelText("steps.telegram.2"),
-      ],
-    };
+  const keys = CHANNEL_REQUIREMENT_KEYS[row.id];
+  if (!keys) {
+    return null;
   }
-  if (row.id === "discord") {
-    return {
-      title: channelText("stepsTitle"),
-      items: [
-        channelText("steps.discord.0"),
-        channelText("steps.discord.1"),
-        channelText("steps.discord.2"),
-      ],
-    };
-  }
-  if (row.id === "whatsapp") {
-    return {
-      title: channelText("stepsTitle"),
-      items: [
-        channelText("steps.whatsapp.0"),
-        channelText("steps.whatsapp.1"),
-        channelText("steps.whatsapp.2"),
-      ],
-    };
-  }
-  return null;
+  return {
+    title: channelText("stepsTitle"),
+    items: keys.map((key) => channelText(key)),
+  };
 }
 
 function resolveSetupAction(
@@ -473,6 +244,12 @@ function buildWizardAnswer(props: ChannelsProps): WizardAnswer | undefined {
   const step = props.setupStep;
   if (!step) {
     return undefined;
+  }
+  if (isLegacyWhatsAppInlineLinkStep(props.setupChannelId, step)) {
+    return {
+      stepId: step.id,
+      value: false,
+    };
   }
   if (step.type === "text") {
     return {
@@ -612,6 +389,9 @@ function renderSetupOption(params: {
 }
 
 function renderWizardStep(step: WizardStep, props: ChannelsProps) {
+  if (isLegacyWhatsAppInlineLinkStep(props.setupChannelId, step)) {
+    return renderSetupNoteMessage(channelText("setupWhatsappQrHandledInChannels"));
+  }
   const message = step.message?.trim() || "";
   if (step.type === "text") {
     return html`
@@ -716,8 +496,15 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
 
   return html`
     <section class="card channel-setup-panel">
-      <div class="alisio-page__eyebrow">${channelText("setupEyebrow")}</div>
-      <div class="card-title">${channelText("setupTitle", { channel: String(channelLabel) })}</div>
+      <div class="channel-setup-panel__header">
+        ${selectedRow ? renderChannelIcon(selectedRow) : nothing}
+        <div class="channel-setup-panel__header-copy">
+          <div class="alisio-page__eyebrow">${channelText("setupEyebrow")}</div>
+          <div class="card-title">
+            ${channelText("setupTitle", { channel: String(channelLabel) })}
+          </div>
+        </div>
+      </div>
       <div class="channel-setup-panel__body">
         ${requirements
           ? html`<aside class="channel-setup-panel__guide">
@@ -739,7 +526,7 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
                 ${renderWizardStep(step, props)}
               `
             : nothing}
-          <div class="row" style="gap: 10px; flex-wrap: wrap;">
+          <div class="row channel-setup-panel__actions">
             <button
               class="btn btn--sm primary"
               ?disabled=${!canContinue || props.setupSubmitting}
@@ -786,14 +573,12 @@ function renderIssueList(issues: ChannelStatusIssue[]) {
     return nothing;
   }
   return html`
-    <div style="display: grid; gap: 10px; margin-top: 14px;">
+    <div class="channel-issue-list">
       ${issues.map(
         (issue) => html`
-          <div class="list-item">
-            <div class="list-main">
-              <div class="list-title">${issue.message}</div>
-              ${issue.fix ? html`<div class="list-sub">${issue.fix}</div>` : nothing}
-            </div>
+          <div class="channel-issue">
+            <div class="channel-issue__message">${issue.message}</div>
+            ${issue.fix ? html`<div class="channel-issue__fix">${issue.fix}</div>` : nothing}
           </div>
         `,
       )}
@@ -826,11 +611,11 @@ function renderWhatsAppQr(accountId: string, props: ChannelsProps) {
     return nothing;
   }
   return html`
-    <div class="qr-wrap" style="margin-top: 16px;">
+    <div class="qr-wrap channel-qr">
       <img src=${props.loginQrDataUrl} alt="WhatsApp QR" />
     </div>
-    <div class="card-sub" style="margin-top: 12px;">${channelText("qrHelp")}</div>
-    <div class="row" style="gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+    <div class="card-sub channel-qr__help">${channelText("qrHelp")}</div>
+    <div class="row channel-qr__actions">
       <button
         class="btn btn--sm"
         ?disabled=${props.busyKey === "whatsapp:wait"}
@@ -852,7 +637,7 @@ function renderAccountBlock(
   props: ChannelsProps,
 ) {
   const status = resolveAccountStatus(row, account);
-  const issues = resolveAccountIssues(row, account);
+  const issues = resolveChannelIssues(row, account.accountId);
   const identifier = resolveAccountIdentifier(row, account);
   const lastActivity = formatLastActivity(account);
   const flags = resolveAccountFlags(row, account);
@@ -881,35 +666,36 @@ function renderAccountBlock(
       </div>
 
       ${renderIssueList(issues)} ${renderWhatsAppQr(account.accountId, props)}
-      ${(accountAction || canLogout) &&
-      html`
-        <div class="row channel-account__actions">
-          ${accountAction
-            ? html`
-                <button
-                  class="btn btn--sm primary"
-                  ?disabled=${accountAction.busy}
-                  @click=${accountAction.action}
-                >
-                  ${accountAction.label}
-                </button>
-              `
-            : nothing}
-          ${canLogout
-            ? html`
-                <button
-                  class="btn btn--sm danger"
-                  ?disabled=${props.busyKey === `${row.id}:logout`}
-                  @click=${() => {
-                    props.onLogoutChannel(row.id, account.accountId);
-                  }}
-                >
-                  ${channelText("logout")}
-                </button>
-              `
-            : nothing}
-        </div>
-      `}
+      ${accountAction || canLogout
+        ? html`
+            <div class="row channel-account__actions">
+              ${accountAction
+                ? html`
+                    <button
+                      class="btn btn--sm primary"
+                      ?disabled=${accountAction.busy}
+                      @click=${accountAction.action}
+                    >
+                      ${accountAction.label}
+                    </button>
+                  `
+                : nothing}
+              ${canLogout
+                ? html`
+                    <button
+                      class="btn btn--sm danger"
+                      ?disabled=${props.busyKey === `${row.id}:logout`}
+                      @click=${() => {
+                        props.onLogoutChannel(row.id, account.accountId);
+                      }}
+                    >
+                      ${channelText("logout")}
+                    </button>
+                  `
+                : nothing}
+            </div>
+          `
+        : nothing}
     </section>
   `;
 }
@@ -919,6 +705,8 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
   const docsUrl = buildChannelDocsUrl(row.meta.docsPath);
   const setupAction = resolveSetupAction(row, props);
   const flags = resolveChannelFlags(row);
+  const identifier = resolveChannelIdentifier(row);
+  const lastActivity = formatChannelLastActivity(row);
   const requirements = resolveChannelRequirements(row);
   const description =
     resolveLocalizedChannelDescription(row) ??
@@ -929,15 +717,27 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
     requirements && props.setupChannelId !== row.id && (!flags.connected || row.issues.length > 0);
 
   return html`
-    <article class="card">
+    <article class="card channel-card">
       <div class="channel-card__header">
-        <div>
-          <div class="card-title">${row.meta.label}</div>
-          <div class="card-sub channel-card__description">${description}</div>
+        <div class="channel-card__identity">
+          ${renderChannelIcon(row)}
+          <div class="channel-card__title-wrap">
+            <div class="channel-card__eyebrow">${row.meta.detailLabel}</div>
+            <div class="card-title">${row.meta.label}</div>
+          </div>
         </div>
         <span class=${status.className}>${status.label}</span>
       </div>
-
+      <div class="card-sub channel-card__description">${description}</div>
+      ${(identifier || lastActivity) &&
+      html`
+        <div class="chip-row channel-card__summary">
+          ${identifier ? html`<span class="chip">${identifier}</span>` : nothing}
+          ${lastActivity
+            ? html`<span class="chip">${channelText("lastActivity")}: ${lastActivity}</span>`
+            : nothing}
+        </div>
+      `}
       ${showCompactRequirements ? renderChannelSteps(requirements, { compact: true }) : nothing}
 
       <div class="channel-card__accounts">
@@ -980,12 +780,9 @@ export function renderChannels(props: ChannelsProps) {
 
   return html`
     <section class="alisio-page">
-      <section class="card">
+      <section class="card channel-hero">
         <div class="alisio-page__eyebrow">${channelText("eyebrow")}</div>
-        <div
-          class="row"
-          style="justify-content: space-between; align-items: flex-start; gap: 16px;"
-        >
+        <div class="row channel-hero__top">
           <div>
             <div class="card-title">${channelText("title")}</div>
             <div class="card-sub">${channelText("subtitle")}</div>
@@ -1009,7 +806,9 @@ export function renderChannels(props: ChannelsProps) {
             <div class="channel-summary-card__label">${channelText("attentionChannels")}</div>
           </article>
           <article class="channel-summary-card">
-            <div class="channel-summary-card__value">${lastChecked ?? "—"}</div>
+            <div class="channel-summary-card__value channel-summary-card__value--timestamp">
+              ${lastChecked ?? "—"}
+            </div>
             <div class="channel-summary-card__label">${channelText("lastChecked")}</div>
           </article>
         </div>
@@ -1044,9 +843,7 @@ export function renderChannels(props: ChannelsProps) {
       ${renderSetupPanel(props, rows)}
       ${rows.length > 0
         ? html`
-            <section
-              style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));"
-            >
+            <section class="channels-grid">
               ${rows.map((row) => renderChannelCard(row, props))}
             </section>
           `
@@ -1056,12 +853,20 @@ export function renderChannels(props: ChannelsProps) {
             </section>
           `}
 
-      <section class="card">
+      <section class="card channel-session-card">
         <div class="card-title">${channelText("sessionTitle")}</div>
-        <div class="card-sub" style="margin-top: 10px;">${channelText("sessionBody")}</div>
-        <div class="chip-row" style="margin-top: 14px;">
-          <span class="chip">${channelText("sessionDirect")}</span>
-          <span class="chip">${channelText("sessionGroups")}</span>
+        <div class="card-sub channel-session-card__description">${channelText("sessionBody")}</div>
+        <div class="channel-session-card__grid">
+          <div class="channel-session-card__item">
+            <span class="channel-session-card__icon" aria-hidden="true">${icons.link}</span>
+            <span class="channel-session-card__text">${channelText("sessionDirect")}</span>
+          </div>
+          <div class="channel-session-card__item">
+            <span class="channel-session-card__icon" aria-hidden="true">
+              ${icons.messageSquare}
+            </span>
+            <span class="channel-session-card__text">${channelText("sessionGroups")}</span>
+          </div>
         </div>
       </section>
     </section>

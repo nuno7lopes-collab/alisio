@@ -24,6 +24,17 @@ export type ChannelSnapshotSummary = {
   connectedAccounts: number;
 };
 
+export type ChannelFlags = {
+  configured: boolean;
+  linked: boolean;
+  connected: boolean;
+  attention: boolean;
+  setupAvailable: boolean;
+  logoutAvailable: boolean;
+  linkMode: string;
+  setupOnly: boolean;
+};
+
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
@@ -35,6 +46,17 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean {
 function readString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNestedString(value: unknown, keys: string[]): string | null {
+  let current = value;
+  for (const key of keys) {
+    if (!current || typeof current !== "object") {
+      return null;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" && current.trim() ? current.trim() : null;
 }
 
 function deriveChannelMeta(
@@ -102,31 +124,147 @@ export function channelAccountLooksConnected(
   return account.connected === true || account.running === true || probeOk;
 }
 
-function rowLooksConnected(row: ResolvedChannelRow): boolean {
+export function formatTimestamp(value: number | null | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return null;
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(value);
+}
+
+function resolveLatestActivityAt(accounts: readonly ChannelAccountSnapshot[]): number | null {
+  const values = accounts
+    .flatMap((account) => [account.lastInboundAt, account.lastOutboundAt])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    .toSorted((left, right) => right - left);
+  return values[0] ?? null;
+}
+
+export function formatLastActivity(account: ChannelAccountSnapshot | null): string | null {
+  if (!account) {
+    return null;
+  }
+  return formatTimestamp(resolveLatestActivityAt([account]));
+}
+
+export function formatChannelLastActivity(row: ResolvedChannelRow): string | null {
+  return formatTimestamp(resolveLatestActivityAt(row.accounts));
+}
+
+export function resolveChannelIssues(row: ResolvedChannelRow, accountId?: string | null) {
+  if (!accountId) {
+    return row.issues;
+  }
+  return row.issues.filter((issue) => issue.accountId === accountId);
+}
+
+export function resolveChannelFlags(row: ResolvedChannelRow): ChannelFlags {
   const summary = row.summary;
-  return (
+  const configured =
+    readBoolean(summary, "configured") ||
+    row.accounts.some((account) => account.configured === true);
+  const linked =
+    readBoolean(summary, "linked") || row.accounts.some((account) => account.linked === true);
+  const connected =
     readBoolean(summary, "connected") ||
     readBoolean(summary, "running") ||
-    row.accounts.some((account) => channelAccountLooksConnected(account))
-  );
-}
-
-function rowNeedsAttention(row: ResolvedChannelRow): boolean {
-  return (
+    row.accounts.some((account) => channelAccountLooksConnected(account));
+  const attention =
     row.issues.length > 0 ||
     row.accounts.some((account) => Boolean(account.lastError?.trim())) ||
-    Boolean(readString(row.summary, "lastError"))
-  );
+    Boolean(readString(summary, "lastError"));
+  const setupAvailable =
+    readBoolean(summary, "setupAvailable") ||
+    row.id === "telegram" ||
+    row.id === "whatsapp" ||
+    row.id === "discord";
+  const logoutAvailable =
+    readBoolean(summary, "logoutAvailable") || row.id === "telegram" || row.id === "whatsapp";
+  return {
+    configured,
+    linked,
+    connected,
+    attention,
+    setupAvailable,
+    logoutAvailable,
+    linkMode: readString(summary, "linkMode") ?? (row.id === "whatsapp" ? "qr" : "wizard"),
+    setupOnly: readBoolean(summary, "setupOnly"),
+  };
 }
 
-function rowIsActive(row: ResolvedChannelRow): boolean {
-  return (
-    rowLooksConnected(row) ||
-    readBoolean(row.summary, "linked") ||
-    readBoolean(row.summary, "configured") ||
-    row.accounts.some((account) => account.linked === true || account.configured === true) ||
-    rowNeedsAttention(row)
-  );
+export function resolveAccountFlags(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): ChannelFlags {
+  const channelFlags = resolveChannelFlags(row);
+  const isDefaultAccount = row.defaultAccountId === account.accountId;
+  const summary = row.summary;
+  return {
+    ...channelFlags,
+    configured:
+      account.configured === true || (isDefaultAccount && readBoolean(summary, "configured")),
+    linked: account.linked === true || (isDefaultAccount && readBoolean(summary, "linked")),
+    connected:
+      channelAccountLooksConnected(account) ||
+      (isDefaultAccount && (readBoolean(summary, "connected") || readBoolean(summary, "running"))),
+    attention:
+      resolveChannelIssues(row, account.accountId).length > 0 ||
+      Boolean(account.lastError?.trim()) ||
+      (isDefaultAccount && Boolean(readString(summary, "lastError"))),
+  };
+}
+
+export function resolveChannelIdentifier(row: ResolvedChannelRow): string | null {
+  const summary = row.summary;
+  const account = row.defaultAccount;
+  const probe = asRecord(account?.probe);
+  const summarySelf = asRecord(summary.self);
+
+  if (row.id === "telegram") {
+    const username = readNestedString(probe, ["bot", "username"]);
+    return username ? `@${username.replace(/^@+/, "")}` : null;
+  }
+  if (row.id === "discord") {
+    const username = readNestedString(probe, ["bot", "username"]);
+    return username ? `@${username.replace(/^@+/, "")}` : null;
+  }
+  if (row.id === "whatsapp") {
+    return (
+      readString(summarySelf, "e164") ??
+      readString(summarySelf, "jid") ??
+      account?.name?.trim() ??
+      null
+    );
+  }
+  return account?.name?.trim() ?? null;
+}
+
+export function resolveAccountIdentifier(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+): string | null {
+  const probe = asRecord(account.probe);
+  if (row.id === "telegram") {
+    const username = readNestedString(probe, ["bot", "username"]);
+    return username ? `@${username.replace(/^@+/, "")}` : null;
+  }
+  if (row.id === "discord") {
+    const username = readNestedString(probe, ["bot", "username"]);
+    return username ? `@${username.replace(/^@+/, "")}` : null;
+  }
+  if (row.id === "whatsapp") {
+    return (
+      readNestedString(account, ["self", "e164"]) ??
+      readNestedString(account, ["self", "jid"]) ??
+      (row.defaultAccountId === account.accountId ? resolveChannelIdentifier(row) : null)
+    );
+  }
+  return account.name?.trim() ?? null;
 }
 
 export function countConnectedChannelAccounts(snapshot: ChannelsStatusSnapshot | null): number {
@@ -145,9 +283,12 @@ export function summarizeChannelsSnapshot(
   return {
     rows,
     totalChannels: rows.length,
-    connectedChannels: rows.filter((row) => rowLooksConnected(row)).length,
-    attentionChannels: rows.filter((row) => rowNeedsAttention(row)).length,
-    activeChannels: rows.filter((row) => rowIsActive(row)).length,
+    connectedChannels: rows.filter((row) => resolveChannelFlags(row).connected).length,
+    attentionChannels: rows.filter((row) => resolveChannelFlags(row).attention).length,
+    activeChannels: rows.filter((row) => {
+      const flags = resolveChannelFlags(row);
+      return flags.connected || flags.linked || flags.configured || flags.attention;
+    }).length,
     connectedAccounts: countConnectedChannelAccounts(snapshot),
   };
 }

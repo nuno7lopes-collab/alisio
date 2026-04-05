@@ -13,6 +13,12 @@ import {
   connectorStatusLabel,
   type ConnectorRow,
 } from "./connector-state.ts";
+import {
+  renderSkeletonButton,
+  renderSkeletonLines,
+  renderSkeletonPill,
+  renderSkeletonStatCards,
+} from "./loading-skeleton.ts";
 
 const CATEGORY_ORDER = ["social", "google", "productivity", "development"] as const;
 
@@ -204,6 +210,8 @@ export function renderAuthentications(props: {
   const categories = categoryLabels();
 
   const rows = buildConnectorRows(props.connectorCatalog, props.connectorAuthorizations);
+  const showInitialLoading =
+    props.loading && rows.length === 0 && props.connectorCatalog.length === 0;
 
   const visibleRows = filterRows(rows, props.search, props.categoryFilter);
   const connectedRows = visibleRows.filter((row) => row.status === "connected");
@@ -234,21 +242,23 @@ export function renderAuthentications(props: {
           </div>
           <button class="btn btn--sm" @click=${props.onOpenChannels}>${text.openChannels}</button>
         </div>
-        <div
-          style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); margin-top: 18px;"
-        >
-          <article class="list-item">
-            <div class="list-title">${summary.connected}</div>
-            <div class="list-sub">${text.summaryConnected}</div>
-          </article>
-          <article class="list-item">
-            <div class="list-title">${summary.ready}</div>
-            <div class="list-sub">${text.summaryReady}</div>
-          </article>
-          <article class="list-item">
-            <div class="list-title">${summary.attention}</div>
-            <div class="list-sub">${text.summaryAttention}</div>
-          </article>
+        <div class="alisio-summary-grid alisio-summary-grid--spacious">
+          ${showInitialLoading
+            ? renderSkeletonStatCards(3)
+            : html`
+                <article class="list-item">
+                  <div class="list-title">${summary.connected}</div>
+                  <div class="list-sub">${text.summaryConnected}</div>
+                </article>
+                <article class="list-item">
+                  <div class="list-title">${summary.ready}</div>
+                  <div class="list-sub">${text.summaryReady}</div>
+                </article>
+                <article class="list-item">
+                  <div class="list-title">${summary.attention}</div>
+                  <div class="list-sub">${text.summaryAttention}</div>
+                </article>
+              `}
         </div>
       </section>
 
@@ -309,9 +319,40 @@ export function renderAuthentications(props: {
           `
         : nothing}
       ${props.loading
-        ? html`<div class="card alisio-auth-section">
-            <div class="empty-state">${text.loading}</div>
-          </div>`
+        ? html`
+            <div class="card alisio-auth-section" role="status" aria-label=${text.loading}>
+              <div class="alisio-auth-grid">
+                ${Array.from(
+                  { length: 3 },
+                  () => html`
+                    <article class="alisio-auth-card">
+                      <div class="alisio-auth-card__main">
+                        <div class="alisio-auth-card__head">
+                          <div class="alisio-auth-card__brand">
+                            <div class="skeleton loading-state__icon-square"></div>
+                            <div class="alisio-auth-card__brand-copy">
+                              ${renderSkeletonLines(["medium", "long"], { compact: true })}
+                            </div>
+                          </div>
+                          ${renderSkeletonPill()}
+                        </div>
+                        <div class="chip-row" style="margin-top: 12px;">
+                          ${renderSkeletonPill({ small: true })}
+                          ${renderSkeletonPill({ small: true })}
+                        </div>
+                        <div class="muted" style="margin-top: 10px;">
+                          ${renderSkeletonLines(["full", "medium"], { compact: true })}
+                        </div>
+                      </div>
+                      <div class="alisio-auth-card__aside">
+                        ${renderSkeletonButton({ small: true })}
+                      </div>
+                    </article>
+                  `,
+                )}
+              </div>
+            </div>
+          `
         : !hasVisibleRows
           ? html`<div class="card alisio-auth-section">
               <div class="empty-state">${text.emptyFiltered}</div>

@@ -3,6 +3,7 @@
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import type { AlisioBootstrapState, NativeShellState } from "../types.ts";
+import { renderOrganization } from "./organization.ts";
 import { renderSetup } from "./setup.ts";
 
 function createNativeShellState(): NativeShellState {
@@ -96,6 +97,37 @@ function createReadyBootstrap(overrides: Partial<AlisioBootstrapState> = {}): Al
 }
 
 describe("setup view", () => {
+  it("keeps the current organization visible while organization refresh is in flight", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization({
+        loading: true,
+        error: null,
+        organization: {
+          mode: "owner",
+          organizationName: "Team Orbit",
+          inviteEmail: "team@example.com",
+        },
+        draftMode: "create",
+        organizationName: "",
+        inviteEmail: "",
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Team Orbit");
+    expect(container.textContent).toContain("team@example.com");
+    expect(container.textContent).toContain("Leave for now");
+    expect(container.querySelector(".loading-state__list-item")).toBeNull();
+  });
+
   it("renders the web-first setup flow and key steps", () => {
     const container = document.createElement("div");
     render(
@@ -316,6 +348,102 @@ describe("setup view", () => {
 
     expect(container.textContent).toContain("You are ready");
     expect(container.textContent).not.toContain("Create organization");
+  });
+
+  it("renders connector skeletons instead of zeroed summary cards during connector loading", () => {
+    const container = document.createElement("div");
+    render(
+      renderSetup({
+        connected: true,
+        lastError: null,
+        bootstrapLoading: false,
+        bootstrapError: null,
+        bootstrap: createReadyBootstrap({ nextStep: "connectors" }),
+        startupLoading: false,
+        startupError: null,
+        startupBootstrap: null,
+        doctorLoading: false,
+        doctorError: null,
+        doctor: null,
+        wizardLoading: false,
+        wizardSubmitting: false,
+        wizardSessionId: null,
+        wizardStep: null,
+        wizardStatus: null,
+        wizardError: null,
+        wizardDraftText: "",
+        wizardDraftConfirm: false,
+        wizardDraftSelectIndex: 0,
+        wizardDraftMultiIndexes: [],
+        requestedStep: "connectors",
+        setupGuide: null,
+        accountLoading: false,
+        accountError: null,
+        accountNotice: null,
+        account: null,
+        authMode: "sign-up",
+        authEmail: "",
+        authPassword: "",
+        aiLoading: false,
+        aiError: null,
+        connectorsSearch: "",
+        connectorsCategoryFilter: "all",
+        onConnectorsSearchChange: vi.fn(),
+        onConnectorsCategoryChange: vi.fn(),
+        onDismissSetupGuide: vi.fn(),
+        onOpenSupportUrl: vi.fn(),
+        organizationLoading: false,
+        organizationError: null,
+        organization: { mode: "none" },
+        organizationDraftMode: "create",
+        organizationName: "",
+        organizationInviteEmail: "",
+        connectorsLoading: true,
+        connectorsError: null,
+        connectorCatalog: [],
+        connectorAuthorizations: [],
+        nativeShellLoading: false,
+        nativeShellError: null,
+        nativeShellState: createNativeShellState(),
+        onAuthModeChange: vi.fn(),
+        onAuthEmailChange: vi.fn(),
+        onAuthPasswordChange: vi.fn(),
+        onConnect: vi.fn(),
+        onOpenWorkspace: vi.fn(),
+        onOpenChannels: vi.fn(),
+        onOpenSettingsAi: vi.fn(),
+        onOpenSettingsMac: vi.fn(),
+        onSetLaunchAtLogin: vi.fn(),
+        onRequestPermission: vi.fn(),
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+        onStartWizard: vi.fn(),
+        onContinueWizard: vi.fn(),
+        onCancelWizard: vi.fn(),
+        onWizardDraftTextChange: vi.fn(),
+        onWizardDraftConfirmChange: vi.fn(),
+        onWizardDraftSelectIndexChange: vi.fn(),
+        onWizardDraftMultiIndexesChange: vi.fn(),
+        onAccountFieldChange: vi.fn(),
+        onSignUpAccount: vi.fn(),
+        onSignInAccount: vi.fn(),
+        onRequestPasswordReset: vi.fn(),
+        onBeginAiConnect: vi.fn(),
+        onDisconnectAi: vi.fn(),
+        onRefreshAi: vi.fn(),
+        onSaveAccount: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
+    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
   });
 
   it("ignores a stale runtime step once setup is already ready", () => {

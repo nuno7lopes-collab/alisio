@@ -1,3 +1,4 @@
+import { t } from "../../i18n/index.ts";
 import { clearDeviceAuthToken, storeDeviceAuthToken } from "../device-auth.ts";
 import { loadOrCreateDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
@@ -47,6 +48,26 @@ export type DevicesState = {
   devicesList: DevicePairingList | null;
 };
 
+function collectPairedDeviceRoles(device: PairedDevice | null | undefined): string[] {
+  const roles = new Set<string>();
+
+  for (const role of device?.roles ?? []) {
+    const trimmed = role.trim();
+    if (trimmed) {
+      roles.add(trimmed);
+    }
+  }
+
+  for (const token of device?.tokens ?? []) {
+    const trimmed = token.role.trim();
+    if (trimmed) {
+      roles.add(trimmed);
+    }
+  }
+
+  return [...roles];
+}
+
 export async function loadDevices(state: DevicesState, opts?: { quiet?: boolean }) {
   if (!state.client || !state.connected) {
     return;
@@ -61,7 +82,7 @@ export async function loadDevices(state: DevicesState, opts?: { quiet?: boolean 
   try {
     const res = await state.client.request<{
       pending?: Array<PendingDevice>;
-      paired?: Array<PendingDevice>;
+      paired?: Array<PairedDevice>;
     }>("device.pair.list", {});
     state.devicesList = {
       pending: Array.isArray(res?.pending) ? res.pending : [],
@@ -92,12 +113,42 @@ export async function rejectDevicePairing(state: DevicesState, requestId: string
   if (!state.client || !state.connected) {
     return;
   }
-  const confirmed = window.confirm("Reject this device pairing request?");
+  const confirmed = window.confirm(t("alisio.connections.devices.rejectConfirm"));
   if (!confirmed) {
     return;
   }
   try {
     await state.client.request("device.pair.reject", { requestId });
+    await loadDevices(state);
+  } catch (err) {
+    state.devicesError = String(err);
+  }
+}
+
+export async function removeDevicePairing(state: DevicesState, deviceId: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  const trimmed = deviceId.trim();
+  if (!trimmed) {
+    return;
+  }
+  const confirmed = window.confirm(
+    t("alisio.connections.devices.removeConfirm", { deviceId: trimmed }),
+  );
+  if (!confirmed) {
+    return;
+  }
+  try {
+    await state.client.request("device.pair.remove", { deviceId: trimmed });
+    const identity = await loadOrCreateDeviceIdentity();
+    if (trimmed === identity.deviceId) {
+      const pairedDevice =
+        state.devicesList?.paired.find((entry) => entry.deviceId === trimmed) ?? null;
+      for (const role of collectPairedDeviceRoles(pairedDevice)) {
+        clearDeviceAuthToken({ deviceId: identity.deviceId, role });
+      }
+    }
     await loadDevices(state);
   } catch (err) {
     state.devicesError = String(err);
@@ -129,7 +180,7 @@ export async function rotateDeviceToken(
           scopes: res.scopes ?? params.scopes ?? [],
         });
       }
-      window.prompt("New device token (copy and store securely):", res.token);
+      window.prompt(t("alisio.connections.devices.rotatePrompt"), res.token);
     }
     await loadDevices(state);
   } catch (err) {
@@ -144,7 +195,12 @@ export async function revokeDeviceToken(
   if (!state.client || !state.connected) {
     return;
   }
-  const confirmed = window.confirm(`Revoke token for ${params.deviceId} (${params.role})?`);
+  const confirmed = window.confirm(
+    t("alisio.connections.devices.revokeConfirm", {
+      deviceId: params.deviceId,
+      role: params.role,
+    }),
+  );
   if (!confirmed) {
     return;
   }

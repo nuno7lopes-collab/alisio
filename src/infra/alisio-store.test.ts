@@ -1397,6 +1397,126 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("keeps local preferences updates off the Supabase write path", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const fetchMock = vi.fn<typeof fetch>();
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const account = await updateAlisioAccountProfile(
+          {
+            language: "en",
+            theme: "system",
+          },
+          env,
+        );
+
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(account.preferences).toMatchObject({
+          language: "en",
+          theme: "system",
+        });
+        expect(account.profile.displayName).toBe("Nuno Lopes");
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  it("repairs an incomplete cloud profile from the stored account when the same user signs in", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const statePath = alisioStateFile(root);
+      const persisted = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+      persisted.account.session = {
+        state: "signed_out",
+        profileCompleted: true,
+        backend: "supabase",
+        signedOutAt: "2026-04-05T09:00:00.000Z",
+      };
+      persisted.account.cloudSession = {
+        backend: "supabase",
+        state: "signed_out",
+        userId: "user-1",
+        email: "nuno@example.com",
+        signedOutAt: "2026-04-05T09:00:00.000Z",
+      };
+      await fs.writeFile(statePath, JSON.stringify(persisted, null, 2));
+
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "supabase-access",
+              refresh_token: "supabase-refresh",
+              expires_in: 3600,
+              token_type: "bearer",
+              user: {
+                id: "user-1",
+                email: "nuno@example.com",
+                created_at: "2026-04-04T15:00:00.000Z",
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              {
+                user_id: "user-1",
+                email: "nuno@example.com",
+                display_name: "Cloud Seed",
+                username: "cloud.seed",
+                avatar_label: "CS",
+                joined_at: "2026-04-04T15:00:00.000Z",
+                plan: "Free Plan",
+                profile_completed: false,
+              },
+            ]),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockImplementationOnce(async (_input, init) => {
+          const payload = parseJsonBody(init?.body);
+          expect(payload.email).toBe("nuno@example.com");
+          expect(payload.display_name).toBe("Nuno Lopes");
+          expect(payload.username).toBe("nuno");
+          expect(payload.profile_completed).toBe(true);
+          return new Response(JSON.stringify([payload]), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+        });
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const account = await signInAlisioAccount(
+          {
+            email: "nuno@example.com",
+            password: "password123",
+          },
+          env,
+        );
+
+        expect(account.session).toMatchObject({
+          state: "signed_in",
+          profileCompleted: true,
+          backend: "supabase",
+        });
+        expect(account.profile).toMatchObject({
+          email: "nuno@example.com",
+          displayName: "Nuno Lopes",
+          username: "nuno",
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
   it("normalizes legacy stored plan labels to canonical Alisio plans", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const statePath = alisioStateFile(root);

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { parseThemeSelection, resolveSystemTheme, resolveTheme } from "./theme.ts";
 
@@ -32,5 +33,16 @@ describe("parseThemeSelection", () => {
       theme: "dash",
       mode: "dark",
     });
+  });
+});
+
+describe("theme bootstrap", () => {
+  it("keeps the inline first-paint legacy aliases aligned with the runtime parser", () => {
+    const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+
+    for (const alias of ["defaultTheme", "docsTheme", "lightTheme", "landingTheme", "newTheme"]) {
+      expect(html).toContain(`${alias}:`);
+    }
+    expect(html).toContain("document.documentElement.style.colorScheme");
   });
 });

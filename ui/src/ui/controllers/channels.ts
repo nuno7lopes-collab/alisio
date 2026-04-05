@@ -47,6 +47,16 @@ function valuesEqual(left: unknown, right: unknown) {
   }
 }
 
+function isLegacyWhatsAppInlineLinkStep(
+  channelId: string | null | undefined,
+  step: WizardStep | null | undefined,
+) {
+  if (channelId?.trim() !== "whatsapp" || step?.type !== "confirm") {
+    return false;
+  }
+  return /\b(?:re-)?link whatsapp now\b/i.test(step.message?.trim() ?? "");
+}
+
 export async function loadChannels(
   state: ChannelsState,
   probe: boolean,
@@ -294,7 +304,12 @@ function syncSetupDraftState(state: ChannelsState, step: WizardStep | null) {
     state,
     step.type === "text" && typeof step.initialValue === "string" ? step.initialValue : "",
   );
-  setSetupDraftConfirm(state, step.type === "confirm" ? Boolean(step.initialValue) : false);
+  setSetupDraftConfirm(
+    state,
+    step.type === "confirm" && !isLegacyWhatsAppInlineLinkStep(state.channelsSetupChannelId, step)
+      ? Boolean(step.initialValue)
+      : false,
+  );
   if (Array.isArray(step.options) && step.options.length > 0) {
     const selectIndex = step.options.findIndex((option) =>
       valuesEqual(option.value, step.initialValue),
@@ -358,18 +373,27 @@ async function advanceChannelSetupPastPassiveSteps(
   let current = result;
   let sessionId =
     "sessionId" in current ? current.sessionId : (state.channelsSetupSessionId ?? null);
-  while (
-    !("done" in current && current.done) &&
-    current.status === "running" &&
-    current.step?.type === "note" &&
-    typeof sessionId === "string" &&
-    current.step.id.trim()
-  ) {
+  while (!("done" in current && current.done) && current.status === "running") {
+    const step = current.step ?? null;
+    const shouldAutoAdvanceNote = step?.type === "note";
+    const shouldAutoSkipLegacyWhatsAppLink = isLegacyWhatsAppInlineLinkStep(
+      state.channelsSetupChannelId,
+      step,
+    );
+    if (
+      !step ||
+      (!shouldAutoAdvanceNote && !shouldAutoSkipLegacyWhatsAppLink) ||
+      typeof sessionId !== "string" ||
+      !step.id.trim()
+    ) {
+      break;
+    }
     current = await withTimeout(
       state.client.request<WizardNextResult>("wizard.next", {
         sessionId,
         answer: {
-          stepId: current.step.id,
+          stepId: step.id,
+          ...(shouldAutoSkipLegacyWhatsAppLink ? { value: false } : {}),
         },
       }),
       CHANNEL_SETUP_REQUEST_TIMEOUT_MS,
@@ -632,7 +656,9 @@ export async function startWebChannelLogin(
     setLoginAccountId(state, null);
     state.channelsError = getErrorMessage(err);
   } finally {
-    setBusyKey(state, null);
+    if (state.channelsBusyKey === "whatsapp:start") {
+      setBusyKey(state, null);
+    }
   }
 }
 

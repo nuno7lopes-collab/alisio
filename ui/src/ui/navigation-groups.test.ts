@@ -61,7 +61,8 @@ describe("TAB_GROUPS", () => {
     expect(navigation.settingsSectionFromPath("/appearance")).toBe("general");
     expect(navigation.settingsSectionFromPath("/automation")).toBe("account");
     expect(navigation.settingsSectionFromPath("/infrastructure")).toBe("mac");
-    expect(navigation.settingsSectionFromPath("/ai-agents")).toBe("ai");
+    expect(navigation.settingsSectionFromPath("/ai-agents")).toBeNull();
     expect(navigation.settingsSectionFromPath("/config")).toBe("account");
+    expect(navigation.normalizeSettingsSection("ai")).toBe("general");
   });
 });

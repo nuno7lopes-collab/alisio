@@ -157,6 +157,15 @@ export const ChannelAccountSnapshotSchema = Type.Object(
     cliPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     dbPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
     port: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.Null()])),
+    self: Type.Optional(
+      Type.Object(
+        {
+          e164: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          jid: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     probe: Type.Optional(Type.Unknown()),
     audit: Type.Optional(Type.Unknown()),
     application: Type.Optional(Type.Unknown()),
@@ -201,6 +210,16 @@ export const ChannelsStatusResultSchema = Type.Object(
     channelLabels: Type.Record(NonEmptyString, NonEmptyString),
     channelDetailLabels: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
     channelSystemImages: Type.Optional(Type.Record(NonEmptyString, NonEmptyString)),
+    wizard: Type.Optional(
+      Type.Object(
+        {
+          running: Type.Boolean(),
+          sessionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          channelId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+        },
+        { additionalProperties: false },
+      ),
+    ),
     channelMeta: Type.Optional(Type.Array(ChannelUiMetaSchema)),
     channelIssues: Type.Optional(Type.Record(NonEmptyString, Type.Array(ChannelStatusIssueSchema))),
     channels: Type.Record(NonEmptyString, Type.Unknown()),

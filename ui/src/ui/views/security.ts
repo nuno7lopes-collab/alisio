@@ -9,6 +9,7 @@ import {
 import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
+import { resolveNodeTargets } from "./nodes-shared.ts";
 import { resolveSessionDisplayName } from "./session-display.ts";
 
 type ExecAsk = "off" | "on-miss" | "always";
@@ -58,7 +59,15 @@ function resolveTargetLabel(props: SecurityProps) {
   if (props.execApprovalsTarget !== "node") {
     return t("alisio.security.targets.gateway");
   }
-  return props.execApprovalsTargetNodeId?.trim() || t("alisio.security.targets.node");
+  const nodeId = props.execApprovalsTargetNodeId?.trim() || "";
+  if (!nodeId) {
+    return t("alisio.security.targets.node");
+  }
+  return (
+    resolveNodeTargets(props.nodes, ["system.execApprovals.get", "system.execApprovals.set"]).find(
+      (node) => node.id === nodeId,
+    )?.label ?? nodeId
+  );
 }
 
 function accessModeLabel(mode: SecurityAccessMode) {
@@ -100,14 +109,21 @@ function renderSecuritySummaryChip(value: string | number, label: string) {
   `;
 }
 
-function renderApprovalMeta(label: string, value: string | null | undefined) {
+function renderApprovalMeta(
+  label: string,
+  value: string | null | undefined,
+  opts: { tone?: "code" | "text" } = {},
+) {
   if (!value) {
     return nothing;
   }
+  const tone = opts.tone ?? "text";
   return html`
     <div class="exec-approval-meta-row">
       <span>${label}</span>
-      <span>${value}</span>
+      <span class="exec-approval-meta-row__value exec-approval-meta-row__value--${tone}">
+        ${value}
+      </span>
     </div>
   `;
 }
@@ -152,10 +168,14 @@ ${entry.pluginDescription}</pre
       <div class="exec-approval-meta">
         ${renderApprovalMeta(t("alisio.security.queue.labels.type"), entry.kind)}
         ${renderApprovalMeta(t("alisio.connections.execApprovals.host"), entry.request.host)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId)}
+        ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId, {
+          tone: "code",
+        })}
         ${renderApprovalMeta(t("alisio.security.queue.labels.agent"), agentLabel)}
         ${renderApprovalMeta(t("alisio.security.queue.labels.session"), sessionLabel)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.cwd"), entry.request.cwd)}
+        ${renderApprovalMeta(t("alisio.security.queue.labels.cwd"), entry.request.cwd, {
+          tone: "code",
+        })}
         ${renderApprovalMeta(
           t("alisio.connections.execApprovals.security"),
           entry.request.security,
@@ -206,6 +226,7 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
             </span>`
           : nothing}
       </div>
+      <div class="alisio-security-panel__note">${t("alisio.security.queue.waitingGuarantee")}</div>
       ${props.execApprovalError
         ? html`<div class="callout danger">${props.execApprovalError}</div>`
         : nothing}
@@ -317,6 +338,7 @@ export function renderSecurity(props: SecurityProps) {
   return html`
     <section class="alisio-page alisio-security-page">
       <div class="card alisio-connections-hero alisio-security-hero alisio-security-shell">
+        <div class="alisio-page__eyebrow">${t("alisio.security.eyebrow")}</div>
         <div class="alisio-connections-hero__head">
           <div>
             <div class="card-title">${t("alisio.security.title")}</div>

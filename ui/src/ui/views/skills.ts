@@ -2,6 +2,7 @@ import { html, nothing } from "lit";
 import type { SkillMessageMap } from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
 import type { SkillStatusEntry, SkillStatusReport } from "../types.ts";
+import { renderSkeletonListItem } from "./loading-skeleton.ts";
 import { groupSkills } from "./skills-grouping.ts";
 import {
   buildSkillStatusCounts,
@@ -43,6 +44,7 @@ const STATUS_TABS: StatusTabDef[] = [
 ];
 
 export function renderSkills(props: SkillsProps) {
+  const showInitialLoading = props.loading && props.connected && !props.report;
   const skills = props.report?.skills ?? [];
   const statusCounts = buildSkillStatusCounts(skills);
 
@@ -119,31 +121,46 @@ export function renderSkills(props: SkillsProps) {
       ${props.error
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.error}</div>`
         : nothing}
-      ${filtered.length === 0
+      ${showInitialLoading
         ? html`
-            <div class="muted" style="margin-top: 16px">
-              ${!props.connected && !props.report
-                ? "Not connected to gateway."
-                : "No skills found."}
+            <div
+              class="agent-skills-groups"
+              style="margin-top: 16px;"
+              role="status"
+              aria-label="Loading skills"
+            >
+              <div class="loading-state__list">
+                ${renderSkeletonListItem({ lines: ["medium", "long"] })}
+                ${renderSkeletonListItem({ lines: ["long", "medium"] })}
+                ${renderSkeletonListItem({ lines: ["short", "medium"] })}
+              </div>
             </div>
           `
-        : html`
-            <div class="agent-skills-groups" style="margin-top: 16px;">
-              ${groups.map((group) => {
-                return html`
-                  <details class="agent-skills-group" open>
-                    <summary class="agent-skills-header">
-                      <span>${group.label}</span>
-                      <span class="muted">${group.skills.length}</span>
-                    </summary>
-                    <div class="list skills-grid">
-                      ${group.skills.map((skill) => renderSkill(skill, props))}
-                    </div>
-                  </details>
-                `;
-              })}
-            </div>
-          `}
+        : filtered.length === 0
+          ? html`
+              <div class="muted" style="margin-top: 16px">
+                ${!props.connected && !props.report
+                  ? "Not connected to gateway."
+                  : "No skills found."}
+              </div>
+            `
+          : html`
+              <div class="agent-skills-groups" style="margin-top: 16px;">
+                ${groups.map((group) => {
+                  return html`
+                    <details class="agent-skills-group" open>
+                      <summary class="agent-skills-header">
+                        <span>${group.label}</span>
+                        <span class="muted">${group.skills.length}</span>
+                      </summary>
+                      <div class="list skills-grid">
+                        ${group.skills.map((skill) => renderSkill(skill, props))}
+                      </div>
+                    </details>
+                  `;
+                })}
+              </div>
+            `}
     </section>
 
     ${detailSkill ? renderSkillDetail(detailSkill, props) : nothing}

@@ -363,6 +363,13 @@ describe("renderSecurity", () => {
     render(
       renderSecurity({
         ...createProps(),
+        nodes: [
+          {
+            nodeId: "node-1",
+            displayName: "Runner",
+            commands: ["system.execApprovals.get", "system.execApprovals.set"],
+          },
+        ],
         execApprovalsTarget: "node",
         execApprovalsTargetNodeId: "node-1",
         execApprovalsSnapshot: {
@@ -386,6 +393,7 @@ describe("renderSecurity", () => {
     const stats = container.querySelector(".alisio-security-summary");
     expect(stats?.textContent).toContain("Always");
     expect(stats?.textContent).not.toContain("On miss");
+    expect(stats?.textContent).toContain("Runner · node-1");
   });
 });
 

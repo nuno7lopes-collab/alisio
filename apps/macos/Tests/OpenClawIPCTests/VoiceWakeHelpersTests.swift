@@ -32,4 +32,29 @@ struct VoiceWakeHelpersTests {
         #expect(normalizeLocaleIdentifier("de-DE-u-co-phonebk") == "de-DE")
         #expect(normalizeLocaleIdentifier("ja-JP-t-ja") == "ja-JP")
     }
+
+    @Test func `canonical locale trims and canonicalizes separators`() {
+        #expect(canonicalVoiceWakeLocaleIdentifier(" en-US ") == "en_US")
+    }
+
+    @Test func `resolve locale selection dedupes primary and additional values`() {
+        let selection = resolveVoiceWakeLocaleSelection(
+            primary: "en-US",
+            additional: ["de-DE", "en_US", " pt-PT "],
+            availableLocaleIDs: ["de_DE", "en_US", "pt_PT"])
+
+        #expect(selection.primary == "en_US")
+        #expect(selection.additional == ["de_DE", "pt_PT"])
+        #expect(selection.ordered == ["en_US", "de_DE", "pt_PT"])
+    }
+
+    @Test func `resolve locale selection falls back to supported same language`() {
+        let selection = resolveVoiceWakeLocaleSelection(
+            primary: "pt-PT",
+            additional: ["es-ES"],
+            availableLocaleIDs: ["pt_BR", "en_US"])
+
+        #expect(selection.primary == "pt_BR")
+        #expect(selection.additional.isEmpty)
+    }
 }

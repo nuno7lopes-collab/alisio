@@ -82,7 +82,9 @@ function createModelsState(): AlisioModelsState {
         current: true,
         connected: true,
         backend: "llama.cpp",
+        runtimeKind: "llama.cpp",
         runtimeStatus: "ready",
+        supportsInstall: true,
         installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
         recommendations: [
           {
@@ -99,6 +101,34 @@ function createModelsState(): AlisioModelsState {
           architecture: "arm64",
           totalMemoryGb: 36,
           cpuCores: 10,
+        },
+      },
+      {
+        targetId: "remote-1",
+        label: "Studio Mac",
+        platform: "darwin",
+        current: false,
+        connected: true,
+        backend: "llama.cpp",
+        runtimeKind: "llama.cpp",
+        runtimeStatus: "ready",
+        supportsInstall: true,
+        installedModels: [{ id: "qwen3-8b-q4-k-m", name: "Qwen3 8B", ownedBy: "llama.cpp" }],
+        recommendations: [
+          {
+            modelId: "qwen3-8b-q4-k-m",
+            grade: "recommended",
+            label: "Recommended",
+            reason: "Good fit",
+          },
+        ],
+        bestModelId: "qwen3-8b-q4-k-m",
+        bestModelName: "Qwen3 8B",
+        hardware: {
+          platform: "darwin",
+          architecture: "arm64",
+          totalMemoryGb: 24,
+          cpuCores: 8,
         },
       },
     ],
@@ -168,8 +198,8 @@ describe("renderModelsHub", () => {
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).toContain("OpenAI Codex");
-    expect(container.textContent).toContain("OpenAI Alt");
+    expect(container.textContent).toContain("OpenAI");
+    expect(container.textContent).toContain("Server");
     expect(container.textContent).toContain("Local");
 
     const localCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
@@ -185,18 +215,84 @@ describe("renderModelsHub", () => {
     expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
   });
 
+  it("keeps the rename action visible for connected OpenAI profiles", () => {
+    const props = createProps();
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).some((button) =>
+        button.textContent?.includes("Rename"),
+      ),
+    ).toBe(true);
+  });
+
   it("renders only the selected local provider surface", () => {
     const props = createProps({ selectedProviderId: "local" });
     const container = document.createElement("div");
 
     render(renderModelsHub(props), container);
 
+    const targetTitles = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__target .list-title"),
+    ).map((element) => element.textContent?.trim() ?? "");
+
+    expect(container.textContent).toContain("This Mac");
     expect(container.textContent).toContain("Qwen3 8B");
     expect(container.textContent).toContain("Install");
     expect(container.textContent).not.toContain("alice@example.com");
+    expect(targetTitles).toContain("This Mac");
+    expect(targetTitles).not.toContain("Studio Mac");
   });
 
-  it("renders the inline OpenAI Alt form and wires edits", () => {
+  it("renders linked computers and remote endpoints in the server surface", () => {
+    const props = createProps({ selectedProviderId: "server" });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Studio Mac");
+    expect(container.textContent).toContain("Home Lab");
+    expect(container.textContent).toContain("gpt-oss-20b");
+  });
+
+  it("uses a generic empty-state copy for linked OpenAI-compatible targets", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            targetId: "remote-openai",
+            label: "Edge Box",
+            platform: "linux",
+            current: false,
+            connected: true,
+            backend: "llama.cpp",
+            runtimeKind: "openai-compatible",
+            runtimeStatus: "ready",
+            supportsInstall: false,
+            installedModels: [],
+            recommendations: [],
+          },
+        ],
+        servers: [],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("No models are available here yet.");
+    expect(container.textContent).not.toContain(
+      "There are no installed models on this computer yet.",
+    );
+  });
+
+  it("renders the inline server form and wires edits", () => {
     const props = createProps({
       selectedProviderId: "server",
       serverDraft: {
@@ -222,5 +318,61 @@ describe("renderModelsHub", () => {
     );
     expect(saveButton).toBeDefined();
     expect(saveButton?.disabled).toBe(true);
+  });
+
+  it("keeps the endpoints group visible even when only linked computers exist", () => {
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...createModelsState(),
+        servers: [],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Linked computers");
+    expect(container.textContent).toContain("Endpoints");
+    expect(container.textContent).toContain("Studio Mac");
+    expect(container.textContent).toContain(
+      "You have not added any remote endpoints yet. You can also use a linked computer shown above.",
+    );
+  });
+
+  it("shows local loading skeletons before the models catalog arrives", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+      modelsLoading: true,
+      models: null,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+    expect(container.textContent).not.toContain("No local models");
+  });
+
+  it("hides OpenAI model controls until an account is actually connected", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          provider: "openai",
+          status: "disconnected",
+        },
+      } as AlisioBootstrapState,
+      selectedProviderId: "openai",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain(
+      "No OpenAI accounts have been connected in Alisio yet.",
+    );
+    expect(container.querySelector(".alisio-models__chooser")).toBeNull();
+    expect(container.textContent).not.toContain("gpt-5.4 · openai-codex");
   });
 });

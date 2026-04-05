@@ -238,4 +238,33 @@ describe("authentications view", () => {
     expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(1);
     expect(container.textContent).toContain("Already connected");
   });
+
+  it("renders skeleton stats and cards during the initial loading state", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderAuthentications({
+        loading: true,
+        error: null,
+        account: null,
+        connectorCatalog: [],
+        connectorAuthorizations: [],
+        setupGuide: null,
+        search: "",
+        categoryFilter: "all",
+        onSearchChange: vi.fn(),
+        onCategoryChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector: vi.fn(),
+        onOpenChannels: vi.fn(),
+        onDismissSetupGuide: vi.fn(),
+        onOpenSupportUrl: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
+    expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(3);
+    expect(container.textContent).not.toContain("0");
+  });
 });
