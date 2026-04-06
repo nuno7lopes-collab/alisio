@@ -6,6 +6,10 @@ export function isAlisioPlan(value: string): value is AlisioPlan {
   return (ALISIO_PLAN_VALUES as readonly string[]).includes(value);
 }
 
+export function isAlisioPaidPlan(plan: AlisioPlan): boolean {
+  return plan === "plus";
+}
+
 export function normalizeAlisioPlan(value: string | null | undefined): AlisioPlan {
   const normalized = value?.trim().toLowerCase() || "";
   switch (normalized) {

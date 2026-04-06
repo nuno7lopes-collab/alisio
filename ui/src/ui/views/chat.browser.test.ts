@@ -95,6 +95,8 @@ async function renderContextNoticeChat() {
 describe("chat context notice", () => {
   afterEach(() => {
     document.body.innerHTML = "";
+    document.documentElement.style.removeProperty("--warn");
+    document.documentElement.style.removeProperty("--danger");
   });
 
   it("falls back to default notice colors when theme vars are not hex", async () => {
@@ -107,9 +109,26 @@ describe("chat context notice", () => {
     expect(notice?.style.getPropertyValue("--ctx-color")).toContain("rgb(");
     expect(notice?.style.getPropertyValue("--ctx-color")).not.toContain("NaN");
     expect(notice?.style.getPropertyValue("--ctx-bg")).not.toContain("NaN");
+  });
 
-    document.documentElement.style.removeProperty("--warn");
-    document.documentElement.style.removeProperty("--danger");
+  it("recomputes notice colors after theme tokens change", async () => {
+    document.documentElement.style.setProperty("--warn", "#ff8800");
+    document.documentElement.style.setProperty("--danger", "#cc2200");
+    const first = await renderContextNoticeChat();
+    const firstColor = first
+      .querySelector<HTMLElement>(".context-notice")
+      ?.style.getPropertyValue("--ctx-color");
+
+    document.documentElement.style.setProperty("--warn", "#0f9d58");
+    document.documentElement.style.setProperty("--danger", "#1a73e8");
+    const second = await renderContextNoticeChat();
+    const secondColor = second
+      .querySelector<HTMLElement>(".context-notice")
+      ?.style.getPropertyValue("--ctx-color");
+
+    expect(firstColor).toContain("rgb(");
+    expect(secondColor).toContain("rgb(");
+    expect(secondColor).not.toBe(firstColor);
   });
 
   it("keeps the warning icon badge-sized", async () => {
@@ -125,5 +144,19 @@ describe("chat context notice", () => {
     expect(iconStyle.width).toBe("16px");
     expect(iconStyle.height).toBe("16px");
     expect(icon.getBoundingClientRect().width).toBeLessThan(24);
+  });
+
+  it("allows the notice copy to wrap instead of overflowing narrow layouts", async () => {
+    const container = await renderContextNoticeChat();
+
+    const notice = container.querySelector<HTMLElement>(".context-notice");
+    expect(notice).not.toBeNull();
+    if (!notice) {
+      return;
+    }
+
+    const noticeStyle = getComputedStyle(notice);
+    expect(noticeStyle.flexWrap).toBe("wrap");
+    expect(noticeStyle.whiteSpace).toBe("normal");
   });
 });

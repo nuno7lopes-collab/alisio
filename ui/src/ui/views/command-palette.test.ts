@@ -11,7 +11,7 @@ describe("command palette", () => {
     expect(labels).toContain("Capabilities");
     expect(labels).toContain("Connections");
     expect(labels).toContain("Apps");
-    expect(labels).toContain("Workspace");
+    expect(labels).toContain("Organization");
     expect(labels).toContain("Settings");
     expect(items.some((item) => item.category === "skills")).toBe(false);
   });

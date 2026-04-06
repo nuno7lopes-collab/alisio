@@ -21,6 +21,7 @@ describe("TAB_GROUPS", () => {
     const product = navigation.TAB_GROUPS.find((group) => group.label === "product");
     expect(product?.tabs).toEqual([
       "chat",
+      "memory",
       "models",
       "channels",
       "authentications",
@@ -63,6 +64,7 @@ describe("TAB_GROUPS", () => {
     expect(navigation.settingsSectionFromPath("/infrastructure")).toBe("mac");
     expect(navigation.settingsSectionFromPath("/ai-agents")).toBeNull();
     expect(navigation.settingsSectionFromPath("/config")).toBe("account");
+    expect(navigation.normalizeSettingsSection("billing")).toBe("billing");
     expect(navigation.normalizeSettingsSection("ai")).toBe("general");
   });
 });

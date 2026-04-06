@@ -146,7 +146,7 @@
     align-items: stretch;
   }
 
-  .alisio-sidebar-account__upgrade {
+  .alisio-sidebar-account__plans {
     width: 100%;
     justify-content: center;
   }
@@ -207,6 +207,10 @@
   .alisio-auth-hero,
   .alisio-organization-grid {
     grid-template-columns: 1fr;
+  }
+
+  .alisio-organization-actions {
+    width: 100%;
   }
 
   .alisio-auth-setup__header {
@@ -342,9 +346,12 @@
     flex: 1;
   }
 
-  .alisio-settings-billing {
-    flex-direction: column;
-    align-items: stretch;
+  .alisio-billing-plan-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alisio-billing-actions > * {
+    width: 100%;
   }
 
   .alisio-auth-card__hint {

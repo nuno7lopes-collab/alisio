@@ -26,15 +26,24 @@ describe("resolveOpenClawMetadata install validation", () => {
   it("accepts safe install specs", () => {
     const install = resolveInstall({
       metadata:
-        '{"openclaw":{"install":[{"kind":"brew","formula":"python@3.12"},{"kind":"node","package":"@scope/pkg@1.2.3"},{"kind":"go","module":"example.com/tool/cmd@v1.2.3"},{"kind":"uv","package":"uvicorn[standard]==0.31.0"},{"kind":"download","url":"https://example.com/tool.tar.gz"}]}}',
+        '{"openclaw":{"install":[{"kind":"apt","package":"gh"},{"kind":"brew","formula":"python@3.12"},{"kind":"node","package":"@scope/pkg@1.2.3"},{"kind":"npm","package":"@xdevplatform/xurl"},{"kind":"go","module":"example.com/tool/cmd@v1.2.3"},{"kind":"uv","package":"uvicorn[standard]==0.31.0"},{"kind":"download","url":"https://example.com/tool.tar.gz"}]}}',
     });
     expect(install).toEqual([
+      { kind: "apt", package: "gh" },
       { kind: "brew", formula: "python@3.12" },
       { kind: "node", package: "@scope/pkg@1.2.3" },
+      { kind: "node", package: "@xdevplatform/xurl" },
       { kind: "go", module: "example.com/tool/cmd@v1.2.3" },
       { kind: "uv", package: "uvicorn[standard]==0.31.0" },
       { kind: "download", url: "https://example.com/tool.tar.gz" },
     ]);
+  });
+
+  it("drops unsafe apt package values", () => {
+    const install = resolveInstall({
+      metadata: '{"openclaw":{"install":[{"kind":"apt","package":"gh curl"}]}}',
+    });
+    expect(install).toBeUndefined();
   });
 
   it("drops unsafe brew formula values", () => {

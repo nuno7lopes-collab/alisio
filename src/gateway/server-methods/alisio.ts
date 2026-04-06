@@ -100,6 +100,12 @@ type RemoteServerInspection = {
   models: Array<{ id: string; name: string; ownedBy?: string }>;
 };
 
+type ListedModel = {
+  id: string;
+  name: string;
+  ownedBy?: string;
+};
+
 function normalizeRemoteServerModels(payload: unknown, kind: "openai-compatible" | "ollama") {
   if (!payload || typeof payload !== "object") {
     return [];
@@ -159,6 +165,50 @@ function resolveRemoteServerModelUrls(baseUrl: string, kind: "openai-compatible"
   return normalizedBaseUrl.endsWith("/v1")
     ? [`${normalizedBaseUrl}/models`]
     : [`${normalizedBaseUrl}/models`, `${normalizedBaseUrl}/v1/models`];
+}
+
+function normalizeListedModels(models: readonly ListedModel[] | undefined): ListedModel[] {
+  const byKey = new Map<string, ListedModel>();
+  for (const model of models ?? []) {
+    const id = String(model?.id ?? "").trim();
+    const name = String(model?.name ?? "").trim();
+    if (!id || !name) {
+      continue;
+    }
+    const key = id.toLowerCase();
+    if (byKey.has(key)) {
+      continue;
+    }
+    byKey.set(key, {
+      id,
+      name,
+      ...(model.ownedBy?.trim() ? { ownedBy: model.ownedBy.trim() } : {}),
+    });
+  }
+  return [...byKey.values()].toSorted(
+    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+  );
+}
+
+function sortModelTargets<
+  T extends {
+    current: boolean;
+    label?: string;
+    targetId: string;
+  },
+>(targets: readonly T[]): T[] {
+  return [...targets].toSorted((left, right) => {
+    if (left.current && !right.current) {
+      return -1;
+    }
+    if (right.current && !left.current) {
+      return 1;
+    }
+    return (
+      (left.label ?? left.targetId).localeCompare(right.label ?? right.targetId) ||
+      left.targetId.localeCompare(right.targetId)
+    );
+  });
 }
 
 async function inspectRemoteModelServer(server: {
@@ -896,11 +946,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
                 result.error?.message ??
                 (!result.ok ? "failed to read local model runtime" : undefined),
               supportsInstall,
-              installedModels:
+              installedModels: normalizeListedModels(
                 payload?.models?.filter(
                   (model): model is { id: string; name: string; ownedBy?: string } =>
                     typeof model?.id === "string" && typeof model?.name === "string",
                 ) ?? [],
+              ),
               hardware: payload?.hardware,
               recommendations: recommendations.recommendations,
               bestModelId: recommendations.bestModelId,
@@ -921,14 +972,17 @@ export const alisioHandlers: GatewayRequestHandlers = {
             hasApiKey: Boolean(server.apiKey?.trim() || server.apiKeyEncrypted),
             status: inspection.status,
             message: inspection.message,
-            models: inspection.models,
+            models: normalizeListedModels(inspection.models),
           };
         }),
       );
       const result = {
         backend: ALISIO_LOCAL_MODEL_BACKEND,
         catalog: catalog.map(({ sourceUri: _sourceUri, ...entry }) => entry),
-        targets,
+        targets: sortModelTargets(targets).map((target) => ({
+          ...target,
+          installedModels: normalizeListedModels(target.installedModels),
+        })),
         servers,
       };
       if (!validateAlisioModelsResult(result)) {

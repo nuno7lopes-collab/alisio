@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { alisioPlanTranslationKey, isAlisioPlan, normalizeAlisioPlan } from "./alisio-billing.js";
+import {
+  alisioPlanTranslationKey,
+  isAlisioPaidPlan,
+  isAlisioPlan,
+  normalizeAlisioPlan,
+} from "./alisio-billing.js";
 
 describe("alisio-billing", () => {
   it("normalizes legacy and canonical plan labels", () => {
@@ -14,6 +19,11 @@ describe("alisio-billing", () => {
     expect(isAlisioPlan("free")).toBe(true);
     expect(isAlisioPlan("plus")).toBe(true);
     expect(isAlisioPlan("Free Plan")).toBe(false);
+  });
+
+  it("detects paid plans explicitly", () => {
+    expect(isAlisioPaidPlan("free")).toBe(false);
+    expect(isAlisioPaidPlan("plus")).toBe(true);
   });
 
   it("maps plans to billing translation keys", () => {

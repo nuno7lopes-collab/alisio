@@ -6,6 +6,11 @@ import { SafeOpenError } from "../../infra/fs-safe.js";
 /* Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
+type MockDirent = Pick<
+  import("node:fs").Dirent,
+  "name" | "isFile" | "isDirectory" | "isSymbolicLink"
+>;
+
 const mocks = vi.hoisted(() => ({
   loadConfigReturn: {} as Record<string, unknown>,
   listAgentEntries: vi.fn(() => [] as Array<{ agentId: string }>),
@@ -29,10 +34,16 @@ const mocks = vi.hoisted(() => ({
   fsMkdir: vi.fn(async () => undefined),
   fsAppendFile: vi.fn(async () => {}),
   fsReadFile: vi.fn(async () => ""),
-  fsStat: vi.fn(async (..._args: unknown[]) => null as import("node:fs").Stats | null),
-  fsLstat: vi.fn(async (..._args: unknown[]) => null as import("node:fs").Stats | null),
+  fsReaddir: vi.fn<() => Promise<MockDirent[]>>(async () => []),
+  fsStat: vi.fn<(target: string) => Promise<import("node:fs").Stats | null>>(
+    async (_target: string) => null,
+  ),
+  fsLstat: vi.fn<(target: string) => Promise<import("node:fs").Stats | null>>(
+    async (_target: string) => null,
+  ),
   fsRealpath: vi.fn(async (p: string) => p),
   fsReadlink: vi.fn(async () => ""),
+  fsUnlink: vi.fn(async () => undefined),
   fsOpen: vi.fn(async () => ({}) as unknown),
   appendFileWithinRoot: vi.fn(async () => {}),
   writeFileWithinRoot: vi.fn(async () => {}),
@@ -104,10 +115,12 @@ vi.mock("node:fs/promises", async () => {
     mkdir: mocks.fsMkdir,
     appendFile: mocks.fsAppendFile,
     readFile: mocks.fsReadFile,
+    readdir: mocks.fsReaddir,
     stat: mocks.fsStat,
     lstat: mocks.fsLstat,
     realpath: mocks.fsRealpath,
     readlink: mocks.fsReadlink,
+    unlink: mocks.fsUnlink,
     open: mocks.fsOpen,
   };
   return { ...patched, default: patched };
@@ -162,12 +175,26 @@ function makeFileStat(params?: {
 }): import("node:fs").Stats {
   return {
     isFile: () => true,
+    isDirectory: () => false,
     isSymbolicLink: () => false,
     size: params?.size ?? 10,
     mtimeMs: params?.mtimeMs ?? 1234,
     dev: params?.dev ?? 1,
     ino: params?.ino ?? 1,
     nlink: params?.nlink ?? 1,
+  } as unknown as import("node:fs").Stats;
+}
+
+function makeDirectoryStat(): import("node:fs").Stats {
+  return {
+    isFile: () => false,
+    isDirectory: () => true,
+    isSymbolicLink: () => false,
+    size: 0,
+    mtimeMs: 0,
+    dev: 1,
+    ino: 1,
+    nlink: 1,
   } as unknown as import("node:fs").Stats;
 }
 
@@ -242,7 +269,9 @@ beforeEach(() => {
   mocks.fsLstat.mockImplementation(async () => {
     throw createEnoentError();
   });
+  mocks.fsReaddir.mockResolvedValue([]);
   mocks.fsRealpath.mockImplementation(async (p: string) => p);
+  mocks.fsUnlink.mockResolvedValue(undefined);
   mocks.fsOpen.mockImplementation(
     async () =>
       ({
@@ -658,6 +687,71 @@ describe("agents.files.list", () => {
   });
 });
 
+describe("agents.files.list memory scope", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadConfigReturn = {};
+    mocks.isWorkspaceSetupCompleted.mockReset().mockResolvedValue(false);
+    mocks.fsReaddir.mockResolvedValue([
+      {
+        name: "2026-04-05.md",
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      },
+      {
+        name: "2026-04-03-ideas.md",
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false,
+      },
+    ]);
+    const fileStats = new Map<string, import("node:fs").Stats>([
+      ["/workspace/test-agent/MEMORY.md", makeFileStat({ size: 20, mtimeMs: 4_000 })],
+      ["/workspace/test-agent/memory", makeDirectoryStat()],
+      ["/workspace/test-agent/memory/2026-04-05.md", makeFileStat({ size: 11, mtimeMs: 9_000 })],
+      [
+        "/workspace/test-agent/memory/2026-04-03-ideas.md",
+        makeFileStat({ size: 14, mtimeMs: 7_000 }),
+      ],
+    ]);
+    mocks.fsLstat.mockImplementation(async (target: string) => {
+      const stat = fileStats.get(target);
+      if (stat) {
+        return stat;
+      }
+      throw createEnoentError();
+    });
+    mocks.fsStat.mockImplementation(async (target: string) => {
+      const stat = fileStats.get(target);
+      if (stat) {
+        return stat;
+      }
+      throw createEnoentError();
+    });
+  });
+
+  it("returns long-term memory plus markdown notes sorted by recency", async () => {
+    const { respond, promise } = makeCall("agents.files.list", {
+      agentId: "main",
+      scope: "memory",
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        files: [
+          expect.objectContaining({ name: "MEMORY.md", missing: false }),
+          expect.objectContaining({ name: "memory/2026-04-05.md", missing: false }),
+          expect.objectContaining({ name: "memory/2026-04-03-ideas.md", missing: false }),
+        ],
+      }),
+      undefined,
+    );
+  });
+});
+
 describe("agents.files.get/set symlink safety", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -751,6 +845,73 @@ describe("agents.files.get/set symlink safety", () => {
     );
   });
 
+  it("allows nested memory note reads and writes", async () => {
+    const workspace = "/workspace/test-agent";
+    const notePath = path.join(workspace, "memory", "2026-04-05.md");
+    const noteStat = makeFileStat({ size: 12, mtimeMs: 2_400, dev: 9, ino: 43 });
+
+    agentsTesting.setDepsForTests({
+      readLocalFileSafely: async () => ({
+        buffer: Buffer.from("memory note\n"),
+        realPath: notePath,
+        stat: noteStat,
+      }),
+      resolveAgentWorkspaceFilePath: async ({ name }) => ({
+        kind: "ready",
+        requestPath: path.join(workspace, name),
+        ioPath: notePath,
+        workspaceReal: workspace,
+      }),
+    });
+    mocks.fsLstat.mockImplementation(async (target: string) => {
+      if (target === notePath) {
+        return noteStat;
+      }
+      throw createEnoentError();
+    });
+    mocks.fsStat.mockImplementation(async (target: string) => {
+      if (target === notePath) {
+        return noteStat;
+      }
+      throw createEnoentError();
+    });
+
+    const getCall = makeCall("agents.files.get", {
+      agentId: "main",
+      name: "memory/2026-04-05.md",
+    });
+    await getCall.promise;
+    expect(getCall.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        file: expect.objectContaining({
+          name: "memory/2026-04-05.md",
+          missing: false,
+          content: "memory note\n",
+        }),
+      }),
+      undefined,
+    );
+
+    const setCall = makeCall("agents.files.set", {
+      agentId: "main",
+      name: "memory/2026-04-05.md",
+      content: "updated memory\n",
+    });
+    await setCall.promise;
+    expect(setCall.respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        file: expect.objectContaining({
+          name: "memory/2026-04-05.md",
+          missing: false,
+          content: "updated memory\n",
+        }),
+      }),
+      undefined,
+    );
+  });
+
   function mockHardlinkedWorkspaceAlias() {
     const workspace = "/workspace/test-agent";
     const candidate = path.resolve(workspace, "AGENTS.md");
@@ -782,4 +943,59 @@ describe("agents.files.get/set symlink safety", () => {
       }
     },
   );
+});
+
+describe("agents.files.delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadConfigReturn = {};
+    mocks.fsMkdir.mockResolvedValue(undefined);
+  });
+
+  it("rejects deleting long-term memory files", async () => {
+    const { respond, promise } = makeCall("agents.files.delete", {
+      agentId: "main",
+      name: "MEMORY.md",
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({ message: expect.stringContaining("cannot delete durable memory") }),
+    );
+  });
+
+  it("deletes scoped memory notes", async () => {
+    const workspace = "/workspace/test-agent";
+    const notePath = path.join(workspace, "memory", "2026-04-05.md");
+
+    agentsTesting.setDepsForTests({
+      resolveAgentWorkspaceFilePath: async ({ name }) => ({
+        kind: "ready",
+        requestPath: path.join(workspace, name),
+        ioPath: notePath,
+        workspaceReal: workspace,
+      }),
+    });
+
+    const { respond, promise } = makeCall("agents.files.delete", {
+      agentId: "main",
+      name: "memory/2026-04-05.md",
+    });
+    await promise;
+
+    expect(mocks.fsUnlink).toHaveBeenCalledWith(notePath);
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        agentId: "main",
+        workspace,
+        name: "memory/2026-04-05.md",
+        deleted: true,
+      },
+      undefined,
+    );
+  });
 });

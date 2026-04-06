@@ -3,6 +3,7 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
+import { makeChannelBusyKey } from "../channels-shared.ts";
 import {
   continueChannelSetup,
   loadChannels,
@@ -29,7 +30,6 @@ function createProps(overrides?: Record<string, unknown>) {
     busyKey: null,
     actionMessage: null,
     loginQrDataUrl: null,
-    loginConnected: null,
     loginAccountId: null,
     setupLoading: false,
     setupSubmitting: false,
@@ -75,7 +75,6 @@ function createChannelsControllerState(
     channelsBusyKey: null,
     channelsActionMessage: null,
     channelsLoginQrDataUrl: null,
-    channelsLoginConnected: null,
     channelsLoginAccountId: null,
     channelsSetupLoading: false,
     channelsSetupSubmitting: false,
@@ -183,7 +182,6 @@ describe("channels view", () => {
       renderChannels(
         createProps({
           loginQrDataUrl: "data:image/png;base64,abc",
-          loginConnected: false,
           onStartWhatsAppLink,
           snapshot: {
             ts: Date.now(),
@@ -227,10 +225,11 @@ describe("channels view", () => {
 
     expect(container.querySelector(".qr-wrap img")).not.toBeNull();
     expect(container.textContent).toContain(
-      "Scan this QR code in WhatsApp to finish linking the number to Alisio.",
+      "Scan this QR in WhatsApp to link the number to Alisio.",
     );
     findButton(container, "Show QR")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onStartWhatsAppLink).toHaveBeenCalledWith(false, "default");
+    expect(findButton(container, "Configure")).toBeUndefined();
   });
 
   it("mostra o QR apenas para a conta WhatsApp activa", () => {
@@ -304,6 +303,188 @@ describe("channels view", () => {
     expect(accounts[1]?.textContent).toContain("+351922222222");
     expect(accounts[1]?.querySelector(".qr-wrap img")).not.toBeNull();
     expect(container.textContent).not.toContain("false");
+  });
+
+  it("não replica o QR do WhatsApp para Telegram ou Discord quando a conta activa é default", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          loginQrDataUrl: "data:image/png;base64,abc",
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram", "whatsapp", "discord"],
+            channelLabels: {
+              telegram: "Telegram",
+              whatsapp: "WhatsApp",
+              discord: "Discord",
+            },
+            channelDetailLabels: {
+              telegram: "Telegram",
+              whatsapp: "WhatsApp",
+              discord: "Discord",
+            },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Telegram",
+                docsPath: "/channels/telegram",
+              },
+              {
+                id: "whatsapp",
+                label: "WhatsApp",
+                detailLabel: "WhatsApp",
+                docsPath: "/channels/whatsapp",
+              },
+              {
+                id: "discord",
+                label: "Discord",
+                detailLabel: "Discord",
+                docsPath: "/channels/discord",
+              },
+            ],
+            channels: {
+              telegram: { configured: true, linked: true, connected: true, setupAvailable: true },
+              whatsapp: {
+                configured: true,
+                linked: false,
+                running: true,
+                setupAvailable: true,
+                linkMode: "qr",
+              },
+              discord: { configured: true, linked: true, connected: true, setupAvailable: true },
+            },
+            channelAccounts: {
+              telegram: [{ accountId: "default", configured: true, linked: true, connected: true }],
+              whatsapp: [{ accountId: "default", configured: true, linked: false, running: true }],
+              discord: [{ accountId: "default", configured: true, linked: true, connected: true }],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+              whatsapp: "default",
+              discord: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    const cards = [...container.querySelectorAll(".channel-card")];
+    expect(cards).toHaveLength(3);
+    expect(cards[0]?.textContent).toContain("Telegram");
+    expect(cards[0]?.querySelector(".qr-wrap img")).toBeNull();
+    expect(cards[1]?.textContent).toContain("WhatsApp");
+    expect(cards[1]?.querySelector(".qr-wrap img")).not.toBeNull();
+    expect(cards[2]?.textContent).toContain("Discord");
+    expect(cards[2]?.querySelector(".qr-wrap img")).toBeNull();
+    expect(container.querySelectorAll(".qr-wrap img")).toHaveLength(1);
+  });
+
+  it("mostra 'Edit channel' no WhatsApp já ligado sem duplicar a acção de QR", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["whatsapp"],
+            channelLabels: { whatsapp: "WhatsApp" },
+            channelDetailLabels: { whatsapp: "Phone link and QR pairing" },
+            channelMeta: [
+              {
+                id: "whatsapp",
+                label: "WhatsApp",
+                detailLabel: "Phone link and QR pairing",
+                docsPath: "/channels/whatsapp",
+              },
+            ],
+            channels: {
+              whatsapp: {
+                configured: true,
+                linked: true,
+                connected: true,
+                setupAvailable: true,
+                linkMode: "qr",
+              },
+            },
+            channelAccounts: {
+              whatsapp: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  linked: true,
+                  connected: true,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              whatsapp: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(findButton(container, "Show QR")).toBeUndefined();
+    expect(findButton(container, "Relink")).not.toBeNull();
+    expect(findButton(container, "Edit channel")).not.toBeNull();
+  });
+
+  it("oculta a mensagem global de acção enquanto o QR do WhatsApp está visível", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          actionMessage: "Still waiting for the QR scan.",
+          loginQrDataUrl: "data:image/png;base64,abc",
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["whatsapp"],
+            channelLabels: { whatsapp: "WhatsApp" },
+            channelDetailLabels: { whatsapp: "WhatsApp" },
+            channelMeta: [
+              {
+                id: "whatsapp",
+                label: "WhatsApp",
+                detailLabel: "WhatsApp",
+                docsPath: "/channels/whatsapp",
+              },
+            ],
+            channels: {
+              whatsapp: {
+                configured: true,
+                linked: false,
+                running: true,
+                setupAvailable: true,
+                linkMode: "qr",
+              },
+            },
+            channelAccounts: {
+              whatsapp: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  running: true,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              whatsapp: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".channel-feedback--ok")).toBeNull();
+    expect(container.textContent).not.toContain("Still waiting for the QR scan.");
   });
 
   it("starts the real setup flow for channels that are not configured yet", () => {
@@ -838,6 +1019,56 @@ describe("channels view", () => {
     expect(state.channelsSetupDraftText).toBe("");
   });
 
+  it("limpa o QR guardado localmente quando o snapshot já mostra o WhatsApp ligado", async () => {
+    const snapshot = {
+      ts: Date.now(),
+      wizard: {
+        running: false,
+        sessionId: null,
+        channelId: null,
+      },
+      channelOrder: ["whatsapp"],
+      channelLabels: { whatsapp: "WhatsApp" },
+      channelDetailLabels: { whatsapp: "WhatsApp" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {
+        whatsapp: {
+          configured: true,
+          linked: true,
+          connected: true,
+          setupAvailable: true,
+          linkMode: "qr",
+        },
+      },
+      channelAccounts: {
+        whatsapp: [
+          {
+            accountId: "work",
+            configured: true,
+            linked: true,
+            connected: true,
+          },
+        ],
+      },
+      channelDefaultAccountId: {
+        whatsapp: "work",
+      },
+    };
+    const request = vi.fn(async () => snapshot);
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsLoginQrDataUrl: "data:image/png;base64,stale",
+      channelsLoginAccountId: "work",
+    });
+
+    await loadChannels(state, true);
+
+    expect(state.channelsLoginQrDataUrl).toBeNull();
+    expect(state.channelsLoginAccountId).toBeNull();
+  });
+
   it("troca o erro esperado de restart por uma mensagem neutra depois de guardar", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "wizard.next") {
@@ -942,7 +1173,6 @@ describe("channels view", () => {
     const state = createChannelsControllerState({
       client: { request } as never,
       channelsLoginQrDataUrl: "data:image/png;base64,stale",
-      channelsLoginConnected: true,
       channelsLoginAccountId: "work",
     });
 
@@ -954,7 +1184,6 @@ describe("channels view", () => {
       accountId: "work",
     });
     expect(state.channelsLoginQrDataUrl).toBeNull();
-    expect(state.channelsLoginConnected).toBeNull();
     expect(state.channelsLoginAccountId).toBeNull();
     expect(state.channelsError).toBe("boom");
   });
@@ -997,7 +1226,13 @@ describe("channels view", () => {
 
     await startWebChannelLogin(state);
 
-    expect(state.channelsBusyKey).toBe("whatsapp:wait");
+    expect(state.channelsBusyKey).toBe(
+      makeChannelBusyKey({
+        channelId: "whatsapp",
+        action: "login-wait",
+        accountId: "default",
+      }),
+    );
 
     resolveWait({ connected: false, accountId: "default" });
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -1029,7 +1264,6 @@ describe("channels view", () => {
     const state = createChannelsControllerState({
       client: { request } as never,
       channelsLoginQrDataUrl: "data:image/png;base64,active",
-      channelsLoginConnected: false,
       channelsLoginAccountId: "work",
     });
 
@@ -1040,7 +1274,6 @@ describe("channels view", () => {
       accountId: "work",
     });
     expect(state.channelsLoginQrDataUrl).toBeNull();
-    expect(state.channelsLoginConnected).toBe(true);
     expect(state.channelsLoginAccountId).toBeNull();
   });
 

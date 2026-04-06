@@ -158,6 +158,7 @@ export class OpenClawApp extends LitElement {
   @state() alisioAuthMode: "sign-up" | "sign-in" = "sign-up";
   @state() alisioAuthEmail = "";
   @state() alisioAuthPassword = "";
+  @state() alisioAuthPasswordVisible = false;
   @state() alisioAiLoading = false;
   @state() alisioAiError: string | null = null;
   @state() providerUsageLoading = false;
@@ -300,7 +301,6 @@ export class OpenClawApp extends LitElement {
   @state() channelsBusyKey: string | null = null;
   @state() channelsActionMessage: string | null = null;
   @state() channelsLoginQrDataUrl: string | null = null;
-  @state() channelsLoginConnected: boolean | null = null;
   @state() channelsLoginAccountId: string | null = null;
   @state() channelsSetupLoading = false;
   @state() channelsSetupSubmitting = false;
@@ -323,6 +323,20 @@ export class OpenClawApp extends LitElement {
   @state() agentsList: AgentsListResult | null = null;
   @state() agentsError: string | null = null;
   @state() agentsSelectedId: string | null = null;
+  @state() memorySelectedAgentId: string | null = null;
+  @state() memoryAgentId: string | null = null;
+  @state() memoryLoading = false;
+  @state() memoryError: string | null = null;
+  @state() memoryList: AgentsFilesListResult | null = null;
+  @state() memoryContents: Record<string, string> = {};
+  @state() memoryDrafts: Record<string, string> = {};
+  @state() memoryActive: string | null = null;
+  @state() memorySaving = false;
+  @state() memoryDeleting = false;
+  @state() memorySearchQuery = "";
+  @state() memoryComposerOpen = false;
+  @state() memoryComposerDate = new Date().toISOString().slice(0, 10);
+  @state() memoryComposerTitle = "";
   @state() toolsCatalogLoading = false;
   @state() toolsCatalogError: string | null = null;
   @state() toolsCatalogResult: ToolsCatalogResult | null = null;

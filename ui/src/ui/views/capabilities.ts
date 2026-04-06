@@ -11,6 +11,13 @@ import type {
 } from "../types.ts";
 import { summarizeChannelsSnapshot } from "./channel-display.ts";
 import {
+  renderSkeletonButton,
+  renderSkeletonLines,
+  renderSkeletonPill,
+  renderSkeletonStatCards,
+  renderSkeletonListItem,
+} from "./loading-skeleton.ts";
+import {
   buildSkillStatusCounts,
   renderSkillDetailDialog,
   skillMatchesStatus,
@@ -211,17 +218,17 @@ function buildCapabilityCards(props: CapabilitiesProps): CapabilityCard[] {
 
 function renderCapabilityCard(card: CapabilityCard) {
   return html`
-    <article class="card">
-      <div class="row" style="justify-content: space-between; align-items: flex-start; gap: 12px;">
+    <article class="card capability-card">
+      <div class="row capability-card__header">
         <div class="card-title">${card.title}</div>
         <span class=${capabilityStatusClass(card.status)}
           >${capabilityStatusLabel(card.status)}</span
         >
       </div>
-      <div class="card-sub" style="margin-top: 10px;">${card.body}</div>
+      <div class="card-sub capability-card__body">${card.body}</div>
       ${card.action && card.actionLabel
         ? html`
-            <div style="margin-top: 16px;">
+            <div class="capability-card__action">
               <button class="btn btn--sm" @click=${card.action}>${card.actionLabel}</button>
             </div>
           `
@@ -230,18 +237,37 @@ function renderCapabilityCard(card: CapabilityCard) {
   `;
 }
 
+function renderCapabilitySkeletonCard() {
+  return html`
+    <article class="card capability-card capability-card--loading" aria-hidden="true">
+      <div class="row capability-card__header">
+        ${renderSkeletonLines(["medium"], { compact: true })} ${renderSkeletonPill({ small: true })}
+      </div>
+      <div class="capability-card__body">
+        ${renderSkeletonLines(["full", "long"], { compact: true })}
+      </div>
+      <div class="capability-card__action">${renderSkeletonButton({ small: true })}</div>
+    </article>
+  `;
+}
+
 function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
   return html`
-    <div class="list-item list-item-clickable" @click=${() => props.onDetailOpen(skill.skillKey)}>
+    <div
+      class="list-item list-item-clickable capability-skill-row"
+      @click=${() => props.onDetailOpen(skill.skillKey)}
+    >
       <div class="list-main">
-        <div class="list-title" style="display: flex; align-items: center; gap: 8px;">
+        <div class="list-title capability-skill-row__title">
           <span class="statusDot ${skillStatusClass(skill)}"></span>
           ${skill.emoji ? html`<span>${skill.emoji}</span>` : nothing}
           <span>${skill.name}</span>
         </div>
-        <div class="list-sub">${clampText(skill.description, 140)}</div>
+        <div class="list-sub capability-skill-row__description">
+          ${clampText(skill.description, 140)}
+        </div>
       </div>
-      <div class="list-meta">
+      <div class="list-meta capability-skill-row__meta">
         <span
           class=${capabilityStatusClass(
             skill.disabled || skill.blockedByAllowlist || !skill.eligible ? "needs-setup" : "ready",
@@ -259,6 +285,7 @@ function renderSkillDetail(skill: SkillStatusEntry, props: CapabilitiesProps) {
 }
 
 export function renderCapabilities(props: CapabilitiesProps) {
+  const showInitialLoading = props.loading && props.connected && !props.report;
   const skills = props.report?.skills ?? [];
   const statusCounts = buildSkillStatusCounts(skills);
 
@@ -287,10 +314,7 @@ export function renderCapabilities(props: CapabilitiesProps) {
     <section class="alisio-page" style="display: grid; gap: 16px;">
       <div class="card">
         <div class="alisio-page__eyebrow">${t("alisio.capabilities.eyebrow")}</div>
-        <div
-          class="row"
-          style="justify-content: space-between; align-items: flex-start; gap: 16px;"
-        >
+        <div class="row capabilities-hero">
           <div>
             <div class="card-title">${t("alisio.capabilities.title")}</div>
             <div class="card-sub">${t("alisio.capabilities.subtitle")}</div>
@@ -307,22 +331,28 @@ export function renderCapabilities(props: CapabilitiesProps) {
         </div>
 
         <div class="alisio-summary-grid alisio-summary-grid--spacious">
-          <article class="list-item">
-            <div class="list-title">${statusCounts.ready}</div>
-            <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>
-          </article>
-          <article class="list-item">
-            <div class="list-title">${statusCounts["needs-setup"] + statusCounts.disabled}</div>
-            <div class="list-sub">${t("alisio.capabilities.summary.needsSetup")}</div>
-          </article>
-          <article class="list-item">
-            <div class="list-title">${connectedApps}</div>
-            <div class="list-sub">${t("alisio.capabilities.summary.connectedApps")}</div>
-          </article>
-          <article class="list-item">
-            <div class="list-title">${channels.connected}</div>
-            <div class="list-sub">${t("alisio.capabilities.summary.liveChannels")}</div>
-          </article>
+          ${showInitialLoading
+            ? renderSkeletonStatCards(4)
+            : html`
+                <article class="list-item">
+                  <div class="list-title">${statusCounts.ready}</div>
+                  <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>
+                </article>
+                <article class="list-item">
+                  <div class="list-title">
+                    ${statusCounts["needs-setup"] + statusCounts.disabled}
+                  </div>
+                  <div class="list-sub">${t("alisio.capabilities.summary.needsSetup")}</div>
+                </article>
+                <article class="list-item">
+                  <div class="list-title">${connectedApps}</div>
+                  <div class="list-sub">${t("alisio.capabilities.summary.connectedApps")}</div>
+                </article>
+                <article class="list-item">
+                  <div class="list-title">${channels.connected}</div>
+                  <div class="list-sub">${t("alisio.capabilities.summary.liveChannels")}</div>
+                </article>
+              `}
         </div>
 
         ${props.error
@@ -330,17 +360,14 @@ export function renderCapabilities(props: CapabilitiesProps) {
           : nothing}
       </div>
 
-      <div
-        style="display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));"
-      >
-        ${capabilityCards.map((card) => renderCapabilityCard(card))}
+      <div class="capabilities-card-grid">
+        ${showInitialLoading
+          ? Array.from({ length: 6 }, () => renderCapabilitySkeletonCard())
+          : capabilityCards.map((card) => renderCapabilityCard(card))}
       </div>
 
       <section class="card">
-        <div
-          class="row"
-          style="justify-content: space-between; gap: 16px; align-items: flex-start;"
-        >
+        <div class="row capabilities-advanced-header">
           <div>
             <div class="card-title">${t("alisio.capabilities.advancedTitle")}</div>
             <div class="card-sub">${t("alisio.capabilities.advancedSubtitle")}</div>
@@ -364,10 +391,7 @@ export function renderCapabilities(props: CapabilitiesProps) {
           )}
         </div>
 
-        <div
-          class="filters"
-          style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px;"
-        >
+        <div class="filters capabilities-filters">
           <label class="field" style="flex: 1; min-width: 220px;">
             <input
               .value=${props.filter}
@@ -382,19 +406,31 @@ export function renderCapabilities(props: CapabilitiesProps) {
           </div>
         </div>
 
-        ${filteredSkills.length === 0
+        ${showInitialLoading
           ? html`
-              <div class="muted" style="margin-top: 16px;">
-                ${!props.connected && !props.report
-                  ? t("alisio.capabilities.notConnected")
-                  : t("alisio.capabilities.empty")}
+              <div
+                class="capabilities-skeleton-list"
+                role="status"
+                aria-label="Loading capabilities"
+              >
+                ${renderSkeletonListItem({ lines: ["medium", "long"], aside: "pill" })}
+                ${renderSkeletonListItem({ lines: ["long", "medium"], aside: "pill" })}
+                ${renderSkeletonListItem({ lines: ["short", "medium"], aside: "pill" })}
               </div>
             `
-          : html`
-              <div class="list" style="margin-top: 16px;">
-                ${filteredSkills.map((skill) => renderSkillCard(skill, props))}
-              </div>
-            `}
+          : filteredSkills.length === 0
+            ? html`
+                <div class="muted" style="margin-top: 16px;">
+                  ${!props.connected && !props.report
+                    ? t("alisio.capabilities.notConnected")
+                    : t("alisio.capabilities.empty")}
+                </div>
+              `
+            : html`
+                <div class="list capabilities-skill-list">
+                  ${filteredSkills.map((skill) => renderSkillCard(skill, props))}
+                </div>
+              `}
       </section>
 
       ${detailSkill ? renderSkillDetail(detailSkill, props) : nothing}

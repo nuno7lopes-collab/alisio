@@ -44,6 +44,7 @@ import {
   formatValidationErrors,
   validateAgentsCreateParams,
   validateAgentsDeleteParams,
+  validateAgentsFilesDeleteParams,
   validateAgentsFilesGetParams,
   validateAgentsFilesListParams,
   validateAgentsFilesSetParams,
@@ -99,9 +100,37 @@ const MEMORY_FILE_NAMES = [DEFAULT_MEMORY_FILENAME, DEFAULT_MEMORY_ALT_FILENAME]
 
 const ALLOWED_FILE_NAMES = new Set<string>([...BOOTSTRAP_FILE_NAMES, ...MEMORY_FILE_NAMES]);
 
+type AgentFilesScope = "core" | "memory";
+
+function normalizeWorkspaceFileName(rawName: unknown): string {
+  const name = (
+    typeof rawName === "string" || typeof rawName === "number" ? String(rawName) : ""
+  ).trim();
+  return name.replace(/\\/g, "/").replace(/^\.?\//, "");
+}
+
+function isAllowedMemoryNoteFileName(name: string): boolean {
+  if (!name || !name.startsWith("memory/") || !name.toLowerCase().endsWith(".md")) {
+    return false;
+  }
+  const segments = name.split("/");
+  return segments.every((segment) => Boolean(segment) && segment !== "." && segment !== "..");
+}
+
+function isSupportedAgentWorkspaceFileName(
+  name: string,
+  options?: { allowMemoryNotes?: boolean },
+): boolean {
+  if (ALLOWED_FILE_NAMES.has(name)) {
+    return true;
+  }
+  return Boolean(options?.allowMemoryNotes && isAllowedMemoryNoteFileName(name));
+}
+
 function resolveAgentWorkspaceFileOrRespondError(
   params: Record<string, unknown>,
   respond: RespondFn,
+  options?: { allowMemoryNotes?: boolean },
 ): {
   cfg: ReturnType<typeof loadConfig>;
   agentId: string;
@@ -118,11 +147,8 @@ function resolveAgentWorkspaceFileOrRespondError(
     respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown agent id"));
     return null;
   }
-  const rawName = params.name;
-  const name = (
-    typeof rawName === "string" || typeof rawName === "number" ? String(rawName) : ""
-  ).trim();
-  if (!ALLOWED_FILE_NAMES.has(name)) {
+  const name = normalizeWorkspaceFileName(params.name);
+  if (!isSupportedAgentWorkspaceFileName(name, options)) {
     respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, `unsupported file "${name}"`));
     return null;
   }
@@ -301,7 +327,126 @@ async function statFileSafely(filePath: string): Promise<FileMeta | null> {
   }
 }
 
-async function listAgentFiles(workspaceDir: string, options?: { hideBootstrap?: boolean }) {
+async function statDirectorySafely(
+  dirPath: string,
+): Promise<Awaited<ReturnType<typeof fs.lstat>> | null> {
+  try {
+    const stat = await fs.lstat(dirPath);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      return null;
+    }
+    return stat;
+  } catch {
+    return null;
+  }
+}
+
+async function walkMemoryDirectory(
+  workspaceDir: string,
+  currentDir: string,
+  files: Array<{
+    name: string;
+    path: string;
+    missing: false;
+    size: number;
+    updatedAtMs: number;
+  }>,
+) {
+  const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    const absolutePath = path.join(currentDir, entry.name);
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
+    if (entry.isDirectory()) {
+      await walkMemoryDirectory(workspaceDir, absolutePath, files);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) {
+      continue;
+    }
+    const meta = await statFileSafely(absolutePath);
+    if (!meta) {
+      continue;
+    }
+    files.push({
+      name: path.relative(workspaceDir, absolutePath).replace(/\\/g, "/"),
+      path: absolutePath,
+      missing: false,
+      size: meta.size,
+      updatedAtMs: meta.updatedAtMs,
+    });
+  }
+}
+
+async function listAgentMemoryFiles(workspaceDir: string) {
+  const files: Array<{
+    name: string;
+    path: string;
+    missing: boolean;
+    size?: number;
+    updatedAtMs?: number;
+  }> = [];
+
+  let hasLongTermFile = false;
+  for (const name of MEMORY_FILE_NAMES) {
+    const resolved = await resolveAgentWorkspaceFilePath({
+      workspaceDir,
+      name,
+      allowMissing: true,
+    });
+    const meta = resolved.kind === "ready" ? await statFileSafely(resolved.ioPath) : null;
+    if (!meta) {
+      continue;
+    }
+    hasLongTermFile = true;
+    files.push({
+      name,
+      path: resolved.requestPath,
+      missing: false,
+      size: meta.size,
+      updatedAtMs: meta.updatedAtMs,
+    });
+  }
+
+  if (!hasLongTermFile) {
+    files.push({
+      name: DEFAULT_MEMORY_FILENAME,
+      path: path.join(workspaceDir, DEFAULT_MEMORY_FILENAME),
+      missing: true,
+    });
+  }
+
+  const memoryDir = path.join(workspaceDir, "memory");
+  if (await statDirectorySafely(memoryDir)) {
+    const noteFiles: Array<{
+      name: string;
+      path: string;
+      missing: false;
+      size: number;
+      updatedAtMs: number;
+    }> = [];
+    await walkMemoryDirectory(workspaceDir, memoryDir, noteFiles);
+    noteFiles.sort((left, right) => {
+      if (left.updatedAtMs !== right.updatedAtMs) {
+        return right.updatedAtMs - left.updatedAtMs;
+      }
+      return left.name.localeCompare(right.name);
+    });
+    files.push(...noteFiles);
+  }
+
+  return files;
+}
+
+async function listAgentFiles(
+  workspaceDir: string,
+  options?: { hideBootstrap?: boolean; scope?: AgentFilesScope },
+) {
+  if (options?.scope === "memory") {
+    return await listAgentMemoryFiles(workspaceDir);
+  }
+
   const files: Array<{
     name: string;
     path: string;
@@ -764,7 +909,8 @@ export const agentsHandlers: GatewayRequestHandlers = {
     } catch {
       // Fall back to showing BOOTSTRAP if workspace state cannot be read.
     }
-    const files = await listAgentFiles(workspaceDir, { hideBootstrap });
+    const scope = params.scope === "memory" ? "memory" : "core";
+    const files = await listAgentFiles(workspaceDir, { hideBootstrap, scope });
     respond(true, { agentId, workspace: workspaceDir, files }, undefined);
   },
   "agents.files.get": async ({ params, respond }) => {
@@ -772,7 +918,9 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.get", validateAgentsFilesGetParams.errors);
       return;
     }
-    const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond);
+    const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
+      allowMemoryNotes: true,
+    });
     if (!resolved) {
       return;
     }
@@ -823,7 +971,9 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respondInvalidMethodParams(respond, "agents.files.set", validateAgentsFilesSetParams.errors);
       return;
     }
-    const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond);
+    const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
+      allowMemoryNotes: true,
+    });
     if (!resolved) {
       return;
     }
@@ -877,5 +1027,67 @@ export const agentsHandlers: GatewayRequestHandlers = {
       },
       undefined,
     );
+  },
+  "agents.files.delete": async ({ params, respond }) => {
+    if (!validateAgentsFilesDeleteParams(params)) {
+      respondInvalidMethodParams(
+        respond,
+        "agents.files.delete",
+        validateAgentsFilesDeleteParams.errors,
+      );
+      return;
+    }
+    const resolved = resolveAgentWorkspaceFileOrRespondError(params, respond, {
+      allowMemoryNotes: true,
+    });
+    if (!resolved) {
+      return;
+    }
+    const { agentId, workspaceDir, name } = resolved;
+    if (!isAllowedMemoryNoteFileName(name)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `cannot delete durable memory file "${name}"; clear its contents instead`,
+        ),
+      );
+      return;
+    }
+
+    const resolvedPath = await resolveWorkspaceFilePathOrRespond({
+      respond,
+      workspaceDir,
+      name,
+    });
+    if (!resolvedPath) {
+      return;
+    }
+    if (resolvedPath.kind === "missing") {
+      respond(
+        true,
+        { ok: true, agentId, workspace: workspaceDir, name, deleted: false },
+        undefined,
+      );
+      return;
+    }
+
+    try {
+      await fs.unlink(resolvedPath.ioPath);
+    } catch (err) {
+      if (isNotFoundPathError(err)) {
+        respond(
+          true,
+          { ok: true, agentId, workspace: workspaceDir, name, deleted: false },
+          undefined,
+        );
+        return;
+      }
+      respondWorkspaceFileUnsafe(respond, name);
+      return;
+    }
+
+    respond(true, { ok: true, agentId, workspace: workspaceDir, name, deleted: true }, undefined);
   },
 };

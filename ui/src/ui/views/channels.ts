@@ -1,5 +1,10 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
+import {
+  isChannelBusyKey,
+  isLegacyWhatsAppInlineLinkStep,
+  normalizeChannelAccountId,
+} from "../channels-shared.ts";
 import { icons } from "../icons.ts";
 import type {
   ChannelAccountSnapshot,
@@ -35,7 +40,6 @@ type ChannelsProps = {
   busyKey: string | null;
   actionMessage: string | null;
   loginQrDataUrl: string | null;
-  loginConnected: boolean | null;
   loginAccountId: string | null;
   setupLoading: boolean;
   setupSubmitting: boolean;
@@ -73,6 +77,20 @@ type ChannelRequirements = {
   items: string[];
 };
 
+type ChannelActionButton = {
+  label: string;
+  action: () => void;
+  busy: boolean;
+  emphasis: "primary" | "secondary";
+};
+
+type WhatsAppLinkState = {
+  showQr: boolean;
+  qrDataUrl: string | null;
+  linkAction: ChannelActionButton;
+  waitBusy: boolean;
+};
+
 const CHANNEL_REQUIREMENT_KEYS: Partial<Record<string, readonly string[]>> = {
   telegram: ["steps.telegram.0", "steps.telegram.1", "steps.telegram.2"],
   discord: ["steps.discord.0", "steps.discord.1", "steps.discord.2"],
@@ -99,14 +117,12 @@ function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | n
   return localized !== `alisio.channels.descriptions.${row.id}` ? localized : null;
 }
 
-function isLegacyWhatsAppInlineLinkStep(
-  channelId: string | null | undefined,
-  step: WizardStep | null | undefined,
-) {
-  if (channelId?.trim() !== "whatsapp" || step?.type !== "confirm") {
-    return false;
+function resolveLocalizedChannelDetailLabel(row: ResolvedChannelRow): string {
+  const localized = channelText(`detailLabels.${row.id}`);
+  if (localized !== `alisio.channels.detailLabels.${row.id}`) {
+    return localized;
   }
-  return /\b(?:re-)?link whatsapp now\b/i.test(step.message?.trim() ?? "");
+  return row.meta.detailLabel;
 }
 
 function resolveChannelIcon(row: ResolvedChannelRow) {
@@ -126,6 +142,20 @@ function renderChannelIcon(row: ResolvedChannelRow) {
   return html`<span class="channel-card__icon" aria-hidden="true"
     >${resolveChannelIcon(row)}</span
   >`;
+}
+
+function renderSummaryTimestamp(value: string | null) {
+  if (!value) {
+    return "—";
+  }
+  const [date, time] = value.split(",");
+  if (!time) {
+    return value;
+  }
+  return html`
+    <span class="channel-summary-card__date">${date.trim()}</span>
+    <span class="channel-summary-card__time">${time.trim()}</span>
+  `;
 }
 
 function resolveVisualStatus(flags: ReturnType<typeof resolveChannelFlags>): ChannelVisualStatus {
@@ -186,10 +216,23 @@ function resolveChannelRequirements(row: ResolvedChannelRow): ChannelRequirement
   };
 }
 
+function shouldPreferInlineWhatsAppLinkAction(row: ResolvedChannelRow, props: ChannelsProps) {
+  if (row.id !== "whatsapp") {
+    return false;
+  }
+  return row.accounts.some((account) => {
+    const action = resolveWhatsAppLinkState(row, account, props);
+    if (!action) {
+      return false;
+    }
+    return !resolveAccountFlags(row, account).linked;
+  });
+}
+
 function resolveSetupAction(
   row: ResolvedChannelRow,
   props: ChannelsProps,
-): { label: string; action: () => void; busy: boolean } | null {
+): ChannelActionButton | null {
   const flags = resolveChannelFlags(row);
   const isSetupBusy =
     props.setupLoading ||
@@ -199,6 +242,24 @@ function resolveSetupAction(
 
   if (!flags.setupAvailable) {
     return null;
+  }
+  if (shouldPreferInlineWhatsAppLinkAction(row, props)) {
+    return null;
+  }
+
+  const hasConfiguredAccount = row.accounts.some(
+    (account) => account.configured === true || account.linked === true,
+  );
+  const isNativeQrChannel = flags.linkMode === "qr";
+  if (isNativeQrChannel && hasConfiguredAccount && !flags.setupOnly) {
+    return {
+      label: channelText("editChannelAction"),
+      action: () => {
+        props.onStartChannelSetup(row.id);
+      },
+      busy: isSetupBusy,
+      emphasis: "secondary",
+    };
   }
 
   return {
@@ -213,14 +274,15 @@ function resolveSetupAction(
       props.onStartChannelSetup(row.id);
     },
     busy: isSetupBusy,
+    emphasis: "primary",
   };
 }
 
-function resolveWhatsAppAccountAction(
+function resolveWhatsAppLinkState(
   row: ResolvedChannelRow,
   account: ChannelAccountSnapshot,
   props: ChannelsProps,
-): { label: string; action: () => void; busy: boolean } | null {
+): WhatsAppLinkState | null {
   if (row.id !== "whatsapp") {
     return null;
   }
@@ -228,15 +290,35 @@ function resolveWhatsAppAccountAction(
   if (!flags.configured && !flags.linked) {
     return null;
   }
-  const busy =
-    (props.busyKey === "whatsapp:start" || props.busyKey === "whatsapp:wait") &&
-    (props.loginAccountId ?? row.defaultAccountId ?? "default") === account.accountId;
   return {
-    label: flags.linked ? channelText("relink") : channelText("showQr"),
-    action: () => {
-      props.onStartWhatsAppLink(flags.linked, account.accountId);
+    showQr:
+      Boolean(props.loginQrDataUrl) &&
+      normalizeChannelAccountId(props.loginAccountId) ===
+        normalizeChannelAccountId(account.accountId),
+    qrDataUrl: props.loginQrDataUrl,
+    linkAction: {
+      label: flags.linked ? channelText("relink") : channelText("showQr"),
+      action: () => {
+        props.onStartWhatsAppLink(flags.linked, account.accountId);
+      },
+      busy:
+        isChannelBusyKey(props.busyKey, {
+          channelId: "whatsapp",
+          action: "login-start",
+          accountId: account.accountId,
+        }) ||
+        isChannelBusyKey(props.busyKey, {
+          channelId: "whatsapp",
+          action: "login-wait",
+          accountId: account.accountId,
+        }),
+      emphasis: "primary",
     },
-    busy,
+    waitBusy: isChannelBusyKey(props.busyKey, {
+      channelId: "whatsapp",
+      action: "login-wait",
+      accountId: account.accountId,
+    }),
   };
 }
 
@@ -568,20 +650,33 @@ function renderSetupPanel(props: ChannelsProps, rows: ResolvedChannelRow[]) {
   `;
 }
 
-function renderIssueList(issues: ChannelStatusIssue[]) {
+function resolveUiIssueFix(row: ResolvedChannelRow, issue: ChannelStatusIssue): string | null {
+  const fix = issue.fix?.trim() || null;
+  if (row.id === "whatsapp" && issue.kind === "auth") {
+    const message = issue.message.trim();
+    if (/not linked|logged out/i.test(message)) {
+      const localized = channelText("issueFixes.whatsappLink");
+      return localized !== "alisio.channels.issueFixes.whatsappLink" ? localized : fix;
+    }
+  }
+  return fix;
+}
+
+function renderIssueList(row: ResolvedChannelRow, issues: ChannelStatusIssue[]) {
   if (issues.length === 0) {
     return nothing;
   }
   return html`
     <div class="channel-issue-list">
-      ${issues.map(
-        (issue) => html`
+      ${issues.map((issue) => {
+        const fix = resolveUiIssueFix(row, issue);
+        return html`
           <div class="channel-issue">
             <div class="channel-issue__message">${issue.message}</div>
-            ${issue.fix ? html`<div class="channel-issue__fix">${issue.fix}</div>` : nothing}
+            ${fix ? html`<div class="channel-issue__fix">${fix}</div>` : nothing}
           </div>
-        `,
-      )}
+        `;
+      })}
     </div>
   `;
 }
@@ -605,27 +700,24 @@ function renderChannelSteps(requirements: ChannelRequirements, opts?: { compact?
   `;
 }
 
-function renderWhatsAppQr(accountId: string, props: ChannelsProps) {
-  const activeAccountId = props.loginAccountId?.trim() || "default";
-  if (!props.loginQrDataUrl || activeAccountId !== accountId) {
+function renderWhatsAppQr(linkState: WhatsAppLinkState, accountId: string, props: ChannelsProps) {
+  if (!linkState.showQr || !linkState.qrDataUrl) {
     return nothing;
   }
   return html`
     <div class="qr-wrap channel-qr">
-      <img src=${props.loginQrDataUrl} alt="WhatsApp QR" />
+      <img src=${linkState.qrDataUrl} alt="WhatsApp QR" />
     </div>
     <div class="card-sub channel-qr__help">${channelText("qrHelp")}</div>
     <div class="row channel-qr__actions">
       <button
         class="btn btn--sm"
-        ?disabled=${props.busyKey === "whatsapp:wait"}
+        ?disabled=${linkState.waitBusy}
         @click=${() => {
           props.onWaitWhatsAppLink(accountId);
         }}
       >
-        ${props.busyKey === "whatsapp:wait"
-          ? channelText("checkingLink")
-          : channelText("checkLink")}
+        ${linkState.waitBusy ? channelText("checkingLink") : channelText("checkLink")}
       </button>
     </div>
   `;
@@ -641,7 +733,7 @@ function renderAccountBlock(
   const identifier = resolveAccountIdentifier(row, account);
   const lastActivity = formatLastActivity(account);
   const flags = resolveAccountFlags(row, account);
-  const accountAction = resolveWhatsAppAccountAction(row, account, props);
+  const whatsappLinkState = resolveWhatsAppLinkState(row, account, props);
   const canLogout =
     flags.logoutAvailable && (flags.linked || flags.connected) && Boolean(account.accountId);
   const accountLabel =
@@ -665,18 +757,19 @@ function renderAccountBlock(
           : html`<span class="chip">${channelText("activityNone")}</span>`}
       </div>
 
-      ${renderIssueList(issues)} ${renderWhatsAppQr(account.accountId, props)}
-      ${accountAction || canLogout
+      ${renderIssueList(row, issues)}
+      ${whatsappLinkState ? renderWhatsAppQr(whatsappLinkState, account.accountId, props) : nothing}
+      ${whatsappLinkState || canLogout
         ? html`
             <div class="row channel-account__actions">
-              ${accountAction
+              ${whatsappLinkState
                 ? html`
                     <button
                       class="btn btn--sm primary"
-                      ?disabled=${accountAction.busy}
-                      @click=${accountAction.action}
+                      ?disabled=${whatsappLinkState.linkAction.busy}
+                      @click=${whatsappLinkState.linkAction.action}
                     >
-                      ${accountAction.label}
+                      ${whatsappLinkState.linkAction.label}
                     </button>
                   `
                 : nothing}
@@ -684,7 +777,11 @@ function renderAccountBlock(
                 ? html`
                     <button
                       class="btn btn--sm danger"
-                      ?disabled=${props.busyKey === `${row.id}:logout`}
+                      ?disabled=${isChannelBusyKey(props.busyKey, {
+                        channelId: row.id,
+                        action: "logout",
+                        accountId: account.accountId,
+                      })}
                       @click=${() => {
                         props.onLogoutChannel(row.id, account.accountId);
                       }}
@@ -713,6 +810,9 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
     row.meta.blurb?.trim() ??
     row.meta.detailLabel ??
     channelText("noDetails");
+  const detailLabel = resolveLocalizedChannelDetailLabel(row);
+  const eyebrow =
+    detailLabel.trim().toLowerCase() === row.meta.label.trim().toLowerCase() ? null : detailLabel;
   const showCompactRequirements =
     requirements && props.setupChannelId !== row.id && (!flags.connected || row.issues.length > 0);
 
@@ -722,7 +822,7 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
         <div class="channel-card__identity">
           ${renderChannelIcon(row)}
           <div class="channel-card__title-wrap">
-            <div class="channel-card__eyebrow">${row.meta.detailLabel}</div>
+            ${eyebrow ? html`<div class="channel-card__eyebrow">${eyebrow}</div>` : nothing}
             <div class="card-title">${row.meta.label}</div>
           </div>
         </div>
@@ -748,7 +848,7 @@ function renderChannelCard(row: ResolvedChannelRow, props: ChannelsProps) {
         ${setupAction
           ? html`
               <button
-                class="btn btn--sm primary"
+                class="btn btn--sm ${setupAction.emphasis === "primary" ? "primary" : ""}"
                 ?disabled=${setupAction.busy}
                 @click=${setupAction.action}
               >
@@ -777,6 +877,8 @@ export function renderChannels(props: ChannelsProps) {
   const rows = resolveChannelRows(props.snapshot);
   const summary = summarizeChannelsSnapshot(props.snapshot);
   const lastChecked = formatTimestamp(props.lastSuccess ?? props.snapshot?.ts ?? null);
+  const hasVisibleWhatsAppQr = Boolean(props.loginQrDataUrl);
+  const shouldShowActionMessage = Boolean(props.actionMessage) && !hasVisibleWhatsAppQr;
 
   return html`
     <section class="alisio-page">
@@ -807,16 +909,16 @@ export function renderChannels(props: ChannelsProps) {
           </article>
           <article class="channel-summary-card">
             <div class="channel-summary-card__value channel-summary-card__value--timestamp">
-              ${lastChecked ?? "—"}
+              ${renderSummaryTimestamp(lastChecked)}
             </div>
             <div class="channel-summary-card__label">${channelText("lastChecked")}</div>
           </article>
         </div>
 
-        ${props.actionMessage || props.error
+        ${shouldShowActionMessage || props.error
           ? html`
               <div class="channel-feedback-stack">
-                ${props.actionMessage
+                ${shouldShowActionMessage
                   ? html`
                       <div class="channel-feedback channel-feedback--ok">
                         ${props.actionMessage}

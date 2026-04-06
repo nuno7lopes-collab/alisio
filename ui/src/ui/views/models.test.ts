@@ -215,17 +215,46 @@ describe("renderModelsHub", () => {
     expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
   });
 
-  it("keeps the rename action visible for connected OpenAI profiles", () => {
+  it("hides the rename action for personal OpenAI profiles", () => {
     const props = createProps();
     const container = document.createElement("div");
 
     render(renderModelsHub(props), container);
 
-    expect(
-      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).some((button) =>
-        button.textContent?.includes("Rename"),
-      ),
-    ).toBe(true);
+    expect(container.textContent).not.toContain("Rename");
+  });
+
+  it("keeps the rename action visible for team OpenAI profiles", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          profiles: [
+            {
+              profileId: "profile-1",
+              label: "Workspace Alpha",
+              provider: "openai",
+              scope: "organization",
+              ownerKey: "organization:1",
+              canonicalIdentityKey: "organization:1",
+              identity: {
+                email: "workspace@example.com",
+              },
+              status: "connected",
+              email: "workspace@example.com",
+              connectedAt: "2026-04-04T12:00:00.000Z",
+              planLabel: "Team",
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Rename");
   });
 
   it("renders only the selected local provider surface", () => {
@@ -239,6 +268,7 @@ describe("renderModelsHub", () => {
     ).map((element) => element.textContent?.trim() ?? "");
 
     expect(container.textContent).toContain("This Mac");
+    expect(container.textContent).toContain("macOS");
     expect(container.textContent).toContain("Qwen3 8B");
     expect(container.textContent).toContain("Install");
     expect(container.textContent).not.toContain("alice@example.com");

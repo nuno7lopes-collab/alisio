@@ -242,7 +242,7 @@ describe("control UI routing", () => {
 
     expect(app.querySelector(".sidebar-footer-compact")).not.toBeNull();
     expect(app.querySelector(".sidebar-footer-compact__account")).not.toBeNull();
-    expect(app.querySelector(".sidebar-footer-compact__upgrade")).not.toBeNull();
+    expect(app.querySelector(".sidebar-footer-compact__plans")).not.toBeNull();
   });
 
   it("keeps the collapsed desktop sidebar compact", async () => {

@@ -374,8 +374,7 @@ final class NodePairingApprovalPrompter {
             return
         }
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized ||
-            settings.authorizationStatus == .provisional
+        guard NotificationPermissionRuntimeSupport.isAuthorized(settings.authorizationStatus)
         else {
             return
         }

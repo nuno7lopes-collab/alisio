@@ -72,6 +72,7 @@ function selectPreferredInstallSpec(
     indexed.find((item) => item.spec.kind === kind);
 
   const brewSpec = findKind("brew");
+  const aptSpec = findKind("apt");
   const nodeSpec = findKind("node");
   const goSpec = findKind("go");
   const uvSpec = findKind("uv");
@@ -85,11 +86,13 @@ function selectPreferredInstallSpec(
     () => nodeSpec,
     // Only prefer brew when available to avoid guaranteed failure on Linux/Docker.
     () => (brewAvailable ? brewSpec : undefined),
+    () => (process.platform === "linux" ? aptSpec : undefined),
     () => goSpec,
     // Prefer download over an unavailable brew spec.
     () => downloadSpec,
     // Last resort: surface descriptive brew-missing error instead of "no installer found".
     () => brewSpec,
+    () => (process.platform === "linux" ? aptSpec : undefined),
     () => indexed[0],
   ];
 
@@ -122,6 +125,9 @@ function normalizeInstallOptions(
   const platform = process.platform;
   const filtered = install.filter((spec) => {
     const osList = spec.os ?? [];
+    if (spec.kind === "apt" && platform !== "linux") {
+      return false;
+    }
     return osList.length === 0 || osList.includes(platform);
   });
   if (filtered.length === 0) {
@@ -136,7 +142,9 @@ function normalizeInstallOptions(
       label = `Install ${spec.package} (${prefs.nodeManager})`;
     }
     if (!label) {
-      if (spec.kind === "brew" && spec.formula) {
+      if (spec.kind === "apt" && spec.package) {
+        label = `Install ${spec.package} (apt)`;
+      } else if (spec.kind === "brew" && spec.formula) {
         label = `Install ${spec.formula} (brew)`;
       } else if (spec.kind === "node" && spec.package) {
         label = `Install ${spec.package} (${prefs.nodeManager})`;

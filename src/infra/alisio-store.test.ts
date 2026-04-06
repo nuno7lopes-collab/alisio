@@ -16,6 +16,8 @@ import {
   getAlisioDoctorSummary,
   getAlisioOrganizationState,
   loadAlisioBootstrapSnapshot,
+  listAlisioRemoteModelServers,
+  saveAlisioRemoteModelServer,
   listAlisioConnectorAuthorizations,
   renameAlisioAiProfile,
   revokeAlisioConnectorAuthorization,
@@ -108,6 +110,56 @@ async function createReadyAlisioAccountEnv(
   );
   return env;
 }
+
+describe("Alisio organization state", () => {
+  it("normalizes organization values before persisting them", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+
+      await setAlisioOrganizationState(
+        {
+          mode: "member",
+          organizationName: "  OpenClaw  ",
+          inviteEmail: "  team@example.com  ",
+        },
+        env,
+      );
+
+      expect(await getAlisioOrganizationState(env)).toEqual({
+        mode: "member",
+        organizationName: "OpenClaw",
+        inviteEmail: "team@example.com",
+      });
+    });
+  });
+
+  it("rejects blank organization names and invalid invitation emails", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+
+      await expect(
+        setAlisioOrganizationState(
+          {
+            mode: "owner",
+            organizationName: "   ",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Organization name is required.");
+
+      await expect(
+        setAlisioOrganizationState(
+          {
+            mode: "member",
+            organizationName: "OpenClaw",
+            inviteEmail: "not-an-email",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Invitation email must be a valid email address.");
+    });
+  });
+});
 
 describe("beginAlisioConnectorSetup", () => {
   it("treats the connector token keychain as unavailable when macOS has no default user keychain", () => {
@@ -2634,6 +2686,38 @@ describe("Alisio OpenAI profiles", () => {
       );
       expect(state.activeProfileId).not.toBe(targetProfileId);
       expect(state.profiles?.map((profile) => profile.email)).toEqual(["nuno@work.example"]);
+    });
+  });
+});
+
+describe("Alisio remote model servers", () => {
+  it("rejects duplicate remote endpoints for the same kind", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+
+      await saveAlisioRemoteModelServer(
+        {
+          label: "GPU Box",
+          kind: "openai-compatible",
+          baseUrl: "https://models.example.com/v1/",
+        },
+        env,
+      );
+
+      await expect(
+        saveAlisioRemoteModelServer(
+          {
+            label: "GPU Box 2",
+            kind: "openai-compatible",
+            baseUrl: "https://models.example.com/v1",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Esse servidor já foi adicionado.");
+
+      const servers = await listAlisioRemoteModelServers(env);
+      expect(servers).toHaveLength(1);
+      expect(servers[0]?.baseUrl).toBe("https://models.example.com/v1");
     });
   });
 });

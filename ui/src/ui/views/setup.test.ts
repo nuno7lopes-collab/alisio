@@ -6,6 +6,8 @@ import type { AlisioBootstrapState, NativeShellState } from "../types.ts";
 import { renderOrganization } from "./organization.ts";
 import { renderSetup } from "./setup.ts";
 
+type SetupRenderProps = Parameters<typeof renderSetup>[0];
+
 function createNativeShellState(): NativeShellState {
   return {
     platform: "macos",
@@ -96,12 +98,112 @@ function createReadyBootstrap(overrides: Partial<AlisioBootstrapState> = {}): Al
   };
 }
 
+function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRenderProps {
+  return {
+    connected: true,
+    lastError: null,
+    bootstrapLoading: false,
+    bootstrapError: null,
+    bootstrap: null,
+    startupLoading: false,
+    startupError: null,
+    startupBootstrap: {
+      basePath: "/",
+      controlUrl: "ws://127.0.0.1:18789/",
+      startupState: "signed_out",
+      account: null,
+      ai: null,
+    },
+    doctorLoading: false,
+    doctorError: null,
+    doctor: null,
+    wizardLoading: false,
+    wizardSubmitting: false,
+    wizardSessionId: null,
+    wizardStep: null,
+    wizardStatus: null,
+    wizardError: null,
+    wizardDraftText: "",
+    wizardDraftConfirm: false,
+    wizardDraftSelectIndex: 0,
+    wizardDraftMultiIndexes: [],
+    requestedStep: "account",
+    setupGuide: null,
+    accountLoading: false,
+    accountError: null,
+    accountNotice: null,
+    account: null,
+    authMode: "sign-up",
+    authEmail: "nuno@example.com",
+    authPassword: "password123",
+    authPasswordVisible: false,
+    aiLoading: false,
+    aiError: null,
+    connectorsSearch: "",
+    connectorsCategoryFilter: "all",
+    onConnectorsSearchChange: vi.fn(),
+    onConnectorsCategoryChange: vi.fn(),
+    onDismissSetupGuide: vi.fn(),
+    onOpenSupportUrl: vi.fn(),
+    organizationLoading: false,
+    organizationError: null,
+    organization: { mode: "none" },
+    organizationDraftMode: "create",
+    organizationName: "",
+    organizationInviteEmail: "",
+    connectorsLoading: false,
+    connectorsError: null,
+    connectorCatalog: [],
+    connectorAuthorizations: [],
+    nativeShellLoading: false,
+    nativeShellError: null,
+    nativeShellState: createNativeShellState(),
+    onAuthModeChange: vi.fn(),
+    onAuthEmailChange: vi.fn(),
+    onAuthPasswordChange: vi.fn(),
+    onAuthPasswordVisibilityToggle: vi.fn(),
+    onConnect: vi.fn(),
+    onOpenWorkspace: vi.fn(),
+    onOpenChannels: vi.fn(),
+    onOpenSettingsAi: vi.fn(),
+    onOpenSettingsMac: vi.fn(),
+    onSetLaunchAtLogin: vi.fn(),
+    onRequestPermission: vi.fn(),
+    onDraftModeChange: vi.fn(),
+    onOrganizationNameChange: vi.fn(),
+    onInviteEmailChange: vi.fn(),
+    onCreateOrganization: vi.fn(),
+    onJoinOrganization: vi.fn(),
+    onResetOrganization: vi.fn(),
+    onBeginConnector: vi.fn(),
+    onRevokeConnector: vi.fn(),
+    onStartWizard: vi.fn(),
+    onContinueWizard: vi.fn(),
+    onCancelWizard: vi.fn(),
+    onWizardDraftTextChange: vi.fn(),
+    onWizardDraftConfirmChange: vi.fn(),
+    onWizardDraftSelectIndexChange: vi.fn(),
+    onWizardDraftMultiIndexesChange: vi.fn(),
+    onAccountFieldChange: vi.fn(),
+    onSignUpAccount: vi.fn(),
+    onSignInAccount: vi.fn(),
+    onRequestPasswordReset: vi.fn(),
+    onBeginAiConnect: vi.fn(),
+    onDisconnectAi: vi.fn(),
+    onRefreshAi: vi.fn(),
+    onSaveAccount: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("setup view", () => {
   it("keeps the current organization visible while organization refresh is in flight", () => {
     const container = document.createElement("div");
 
     render(
       renderOrganization({
+        connected: true,
+        accountReady: true,
         loading: true,
         error: null,
         organization: {
@@ -126,6 +228,92 @@ describe("setup view", () => {
     expect(container.textContent).toContain("team@example.com");
     expect(container.textContent).toContain("Leave for now");
     expect(container.querySelector(".loading-state__list-item")).toBeNull();
+  });
+
+  it("keeps the organization form visible while a create or join save is in flight", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization({
+        connected: true,
+        accountReady: true,
+        loading: true,
+        error: null,
+        organization: null,
+        draftMode: "join",
+        organizationName: "Team Orbit",
+        inviteEmail: "team@example.com",
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Join organization");
+    expect(container.textContent).toContain("Saving…");
+    expect(container.querySelector(".loading-state__list-item")).toBeNull();
+  });
+
+  it("blocks organization edits until the gateway is connected", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization({
+        connected: false,
+        accountReady: false,
+        loading: false,
+        error: null,
+        organization: null,
+        draftMode: "create",
+        organizationName: "Team Orbit",
+        inviteEmail: "",
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain(
+      "Reconnect to the gateway before editing organizations.",
+    );
+    const action = container.querySelector<HTMLButtonElement>(".btn.primary");
+    expect(action?.disabled).toBe(true);
+  });
+
+  it("validates invitation emails before enabling join", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization({
+        connected: true,
+        accountReady: true,
+        loading: false,
+        error: null,
+        organization: null,
+        draftMode: "join",
+        organizationName: "Team Orbit",
+        inviteEmail: "invalid-email",
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Use a valid invitation email.");
+    const action = container.querySelector<HTMLButtonElement>(".btn.primary");
+    expect(action?.disabled).toBe(true);
   });
 
   it("renders the web-first setup flow and key steps", () => {
@@ -251,7 +439,46 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Password");
     expect(container.textContent).toContain("Use the email you want to use to sign in to Alisio.");
     expect(container.textContent).toContain("Reconnect Alisio");
-    expect(container.textContent).toContain("Alisio should connect automatically on this host.");
+    expect(container.textContent).toContain("Wait for Alisio to connect automatically");
+  });
+
+  it("submete o formulário de autenticação quando o utilizador carrega Enter", () => {
+    const container = document.createElement("div");
+    const onSignInAccount = vi.fn();
+
+    render(
+      renderSetup(
+        createSetupProps({
+          authMode: "sign-in",
+          onSignInAccount,
+        }),
+      ),
+      container,
+    );
+
+    const form = container.querySelector(".alisio-setup-account");
+    expect(form).not.toBeNull();
+
+    form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    expect(onSignInAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("desactiva os campos da conta enquanto um pedido está em curso", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSetup(
+        createSetupProps({
+          accountLoading: true,
+        }),
+      ),
+      container,
+    );
+
+    const fieldset = container.querySelector(".alisio-setup-account__fields");
+    expect(fieldset).not.toBeNull();
+    expect(fieldset?.hasAttribute("disabled")).toBe(true);
   });
 
   it("shows the ready step instead of organization once onboarding is already complete", () => {

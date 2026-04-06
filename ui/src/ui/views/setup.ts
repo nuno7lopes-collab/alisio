@@ -10,6 +10,7 @@ import {
   resolveCurrentStartupState,
   resolveDisplayedSetupStep,
 } from "../alisio-setup-state.ts";
+import { icons } from "../icons.ts";
 import type {
   AlisioAccountState,
   AlisioBootstrapState,
@@ -30,7 +31,11 @@ import {
   connectorStatusLabel,
 } from "./connector-state.ts";
 import { renderSkeletonListItem, renderSkeletonStatCards } from "./loading-skeleton.ts";
-import { nativeShellPermissionLabel } from "./native-shell-permissions.ts";
+import {
+  nativeShellPermissionDescription,
+  nativeShellPermissionLabel,
+  NATIVE_SHELL_PERMISSION_ORDER,
+} from "./native-shell-permissions.ts";
 import { renderOrganization } from "./organization.ts";
 
 type SetupProps = {
@@ -64,6 +69,7 @@ type SetupProps = {
   authMode: "sign-up" | "sign-in";
   authEmail: string;
   authPassword: string;
+  authPasswordVisible?: boolean;
   aiLoading: boolean;
   aiError: string | null;
   connectorsSearch: string;
@@ -88,6 +94,7 @@ type SetupProps = {
   onAuthModeChange: (value: "sign-up" | "sign-in") => void;
   onAuthEmailChange: (value: string) => void;
   onAuthPasswordChange: (value: string) => void;
+  onAuthPasswordVisibilityToggle?: () => void;
   onConnect: () => void;
   onOpenWorkspace: () => void;
   onOpenChannels: () => void;
@@ -149,17 +156,6 @@ function currentAiStatus(props: SetupProps) {
   return props.bootstrap?.ai.status ?? props.startupBootstrap?.ai?.status ?? "disconnected";
 }
 
-const MAC_PERMISSION_ORDER: readonly NativeShellPermission[] = [
-  "notifications",
-  "appleScript",
-  "accessibility",
-  "screenRecording",
-  "microphone",
-  "speechRecognition",
-  "camera",
-  "location",
-];
-
 function setupStepLabel(step: AlisioBootstrapStep | null) {
   switch (step) {
     case "gateway":
@@ -204,16 +200,23 @@ function renderAccountStep(props: SetupProps) {
   const emailError = validateAlisioEmail(authEmail);
   const suggestedEmail =
     props.account?.profile.email ?? props.startupBootstrap?.account?.email ?? "";
+  const passwordVisible = props.authPasswordVisible ?? false;
   const canSubmit = props.connected && !emailError && authPassword.trim().length > 0;
-  const submitBlocker = !props.connected
-    ? t("alisio.setup.account.waitForConnection")
-    : authEmail.trim().length === 0
-      ? t("alisio.setup.account.enterEmail")
-      : emailError
-        ? t("alisio.setup.account.validEmail")
-        : authPassword.trim().length === 0
-          ? t("alisio.setup.account.enterPassword")
-          : null;
+  const statusMessage =
+    props.accountError ??
+    props.accountNotice ??
+    (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading || !canSubmit) {
+      return;
+    }
+    if (authMode === "sign-up") {
+      props.onSignUpAccount();
+      return;
+    }
+    props.onSignInAccount();
+  };
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">
@@ -222,98 +225,125 @@ function renderAccountStep(props: SetupProps) {
           : t("alisio.setup.account.signInTitle")}
       </div>
       <div class="card-sub">${t("alisio.setup.account.subtitle")}</div>
-      ${suggestedEmail && !authEmail.trim()
-        ? html`
-            <div class="callout info">
-              ${t("alisio.setup.account.savedAccount", { email: suggestedEmail })}
-            </div>
-          `
-        : nothing}
-      ${renderCallout("danger", props.accountError)}
-      ${authEmail.trim() && emailError
-        ? html`<div class="callout danger">${emailError}</div>`
-        : nothing}
-      ${renderCallout("info", props.accountNotice)}
-      ${!props.connected
-        ? html` <div class="callout info">${t("alisio.setup.account.autoConnectHint")}</div> `
-        : nothing}
-      <div class="row" style="margin-top: 16px;">
+      <div class="alisio-setup-account__mode">
         <button
+          type="button"
           class="chip ${authMode === "sign-up" ? "chip-active" : ""}"
+          aria-pressed=${authMode === "sign-up"}
           @click=${() => props.onAuthModeChange("sign-up")}
         >
           ${t("alisio.setup.account.createTab")}
         </button>
         <button
+          type="button"
           class="chip ${authMode === "sign-in" ? "chip-active" : ""}"
+          aria-pressed=${authMode === "sign-in"}
           @click=${() => props.onAuthModeChange("sign-in")}
         >
           ${t("alisio.setup.account.signInTab")}
         </button>
       </div>
-      <div class="alisio-settings-form" style="margin-top: 16px;">
-        <label class="field">
-          <span>${t("alisio.setup.account.email")}</span>
-          <input
-            type="email"
-            autocomplete="email"
-            placeholder=${t("alisio.setup.account.emailPlaceholder")}
-            .value=${authEmail}
-            @input=${(event: Event) =>
-              props.onAuthEmailChange((event.target as HTMLInputElement).value)}
-          />
-          <small class="field-note">${t("alisio.setup.account.emailNote")}</small>
-        </label>
-        <label class="field">
-          <span>${t("alisio.setup.account.password")}</span>
-          <input
-            type="password"
-            autocomplete=${authMode === "sign-up" ? "new-password" : "current-password"}
-            placeholder=${authMode === "sign-up"
-              ? t("alisio.setup.account.createPasswordPlaceholder")
-              : t("alisio.setup.account.passwordPlaceholder")}
-            .value=${authPassword}
-            @input=${(event: Event) =>
-              props.onAuthPasswordChange((event.target as HTMLInputElement).value)}
-          />
-        </label>
-      </div>
-      ${submitBlocker
-        ? html`<div class="callout info" style="margin-top: 16px;">${submitBlocker}</div>`
-        : nothing}
-      <div class="row" style="margin-top: 16px;">
-        ${!props.connected
-          ? html`
-              <button class="btn" ?disabled=${props.startupLoading} @click=${props.onConnect}>
-                ${props.startupLoading
-                  ? t("alisio.setup.account.connecting")
-                  : t("alisio.setup.gateway.reconnect")}
-              </button>
-            `
-          : nothing}
-        <button
-          class="btn primary"
-          ?disabled=${props.accountLoading || !canSubmit}
-          @click=${authMode === "sign-up" ? props.onSignUpAccount : props.onSignInAccount}
+      <form class="alisio-setup-account" @submit=${handleSubmit}>
+        <fieldset
+          class="form-fieldset-reset alisio-setup-account__fields"
+          ?disabled=${props.accountLoading}
         >
-          ${props.accountLoading
-            ? t("alisio.setup.account.working")
-            : authMode === "sign-up"
-              ? t("alisio.setup.account.createAction")
-              : t("alisio.setup.account.signInAction")}
-        </button>
-        ${authMode === "sign-in"
-          ? html`
+          <label class="field">
+            <span>${t("alisio.setup.account.email")}</span>
+            <input
+              type="email"
+              autocomplete="email"
+              autocapitalize="none"
+              spellcheck="false"
+              inputmode="email"
+              enterkeyhint="next"
+              aria-invalid=${authEmail.trim() && emailError ? "true" : "false"}
+              placeholder=${t("alisio.setup.account.emailPlaceholder")}
+              .value=${authEmail}
+              @input=${(event: Event) =>
+                props.onAuthEmailChange((event.target as HTMLInputElement).value)}
+            />
+            <small class="field-note">${t("alisio.setup.account.emailNote")}</small>
+            ${suggestedEmail && !authEmail.trim()
+              ? html`
+                  <small class="field-note">
+                    ${t("alisio.setup.account.savedAccount", { email: suggestedEmail })}
+                  </small>
+                `
+              : nothing}
+            ${authEmail.trim() && emailError
+              ? html`<small class="field-note field-note--danger">${emailError}</small>`
+              : nothing}
+          </label>
+          <label class="field">
+            <span>${t("alisio.setup.account.password")}</span>
+            <div class="field-secret-row">
+              <input
+                type=${passwordVisible ? "text" : "password"}
+                autocomplete=${authMode === "sign-up" ? "new-password" : "current-password"}
+                autocapitalize="none"
+                spellcheck="false"
+                enterkeyhint="go"
+                placeholder=${authMode === "sign-up"
+                  ? t("alisio.setup.account.createPasswordPlaceholder")
+                  : t("alisio.setup.account.passwordPlaceholder")}
+                .value=${authPassword}
+                @input=${(event: Event) =>
+                  props.onAuthPasswordChange((event.target as HTMLInputElement).value)}
+              />
               <button
-                class="btn"
-                ?disabled=${props.accountLoading || !authEmail.trim() || Boolean(emailError)}
-                @click=${props.onRequestPasswordReset}
+                type="button"
+                class="btn btn--sm btn--icon ${passwordVisible ? "active" : ""}"
+                aria-label=${passwordVisible ? "Hide password" : "Show password"}
+                aria-pressed=${passwordVisible}
+                @click=${() => props.onAuthPasswordVisibilityToggle?.()}
               >
-                ${t("alisio.setup.account.resetPassword")}
+                ${passwordVisible ? icons.eyeOff : icons.eye}
               </button>
+            </div>
+          </label>
+        </fieldset>
+        ${statusMessage
+          ? html`
+              <div class="callout ${props.accountError ? "danger" : "info"}">${statusMessage}</div>
             `
           : nothing}
-      </div>
+        <div class="alisio-setup-actions">
+          ${!props.connected
+            ? html`
+                <button
+                  type="button"
+                  class="btn"
+                  ?disabled=${props.startupLoading}
+                  @click=${props.onConnect}
+                >
+                  ${props.startupLoading
+                    ? t("alisio.setup.account.connecting")
+                    : t("alisio.setup.gateway.reconnect")}
+                </button>
+              `
+            : nothing}
+          <button class="btn primary" type="submit" ?disabled=${props.accountLoading || !canSubmit}>
+            ${props.accountLoading
+              ? t("alisio.setup.account.working")
+              : authMode === "sign-up"
+                ? t("alisio.setup.account.createAction")
+                : t("alisio.setup.account.signInAction")}
+          </button>
+          ${authMode === "sign-in"
+            ? html`
+                <button
+                  type="button"
+                  class="btn"
+                  ?disabled=${props.accountLoading || !authEmail.trim() || Boolean(emailError)}
+                  @click=${props.onRequestPasswordReset}
+                >
+                  ${t("alisio.setup.account.resetPassword")}
+                </button>
+              `
+            : nothing}
+        </div>
+      </form>
     </section>
   `;
 }
@@ -347,32 +377,50 @@ function renderProfileStep(props: SetupProps) {
   const profile = props.account?.profile;
   const validation = accountValidationMessage(props);
   const emailManagedByCloud = props.account?.session.backend === "supabase";
+  const handleSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading || validation) {
+      return;
+    }
+    props.onSaveAccount();
+  };
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">${t("alisio.setup.profile.title")}</div>
       <div class="card-sub">${t("alisio.setup.profile.subtitle")}</div>
       ${renderCallout("danger", props.accountError ?? validation)}
-      <div class="alisio-settings-form" style="margin-top: 16px;">
-        ${renderAccountProfileFields({
-          profile: profile ?? null,
-          emailFallback: props.authEmail,
-          emailManagedByCloud,
-          mode: "live",
-          labels: {
-            displayName: t("alisio.setup.profile.name"),
-            username: t("alisio.setup.profile.username"),
-            email: t("alisio.setup.profile.email"),
-            avatarLabel: t("alisio.setup.profile.avatar"),
-            emailManagedByCloud: t("alisio.setup.profile.emailManagedByCloud"),
-          },
-          onFieldChange: props.onAccountFieldChange,
-        })}
-      </div>
-      <div class="row" style="margin-top: 16px;">
-        <button class="btn primary" ?disabled=${Boolean(validation)} @click=${props.onSaveAccount}>
-          ${t("alisio.setup.profile.save")}
-        </button>
-      </div>
+      <form class="alisio-setup-account" @submit=${handleSubmit}>
+        <fieldset
+          class="form-fieldset-reset alisio-setup-account__fields"
+          ?disabled=${props.accountLoading}
+        >
+          ${renderAccountProfileFields({
+            profile: profile ?? null,
+            emailFallback: props.authEmail,
+            emailManagedByCloud,
+            mode: "live",
+            labels: {
+              displayName: t("alisio.setup.profile.name"),
+              username: t("alisio.setup.profile.username"),
+              email: t("alisio.setup.profile.email"),
+              avatarLabel: t("alisio.setup.profile.avatar"),
+              emailManagedByCloud: t("alisio.setup.profile.emailManagedByCloud"),
+            },
+            onFieldChange: props.onAccountFieldChange,
+          })}
+        </fieldset>
+        <div class="alisio-setup-actions">
+          <button
+            class="btn primary"
+            type="submit"
+            ?disabled=${props.accountLoading || Boolean(validation)}
+          >
+            ${props.accountLoading
+              ? t("alisio.setup.account.working")
+              : t("alisio.setup.profile.save")}
+          </button>
+        </div>
+      </form>
     </section>
   `;
 }
@@ -485,19 +533,30 @@ function renderPermissionsStep(props: SetupProps) {
                 </div>
               </div>
               <div style="display: grid; gap: 12px; margin-top: 16px;">
-                ${MAC_PERMISSION_ORDER.map(
+                ${NATIVE_SHELL_PERMISSION_ORDER.map(
                   (permission) => html`
                     <div class="list-item">
-                      <div class="list-title">${nativeShellPermissionLabel(permission)}</div>
-                      <div class="list-sub">
-                        ${state.permissions[permission]
-                          ? t("alisio.settings.mac.granted")
-                          : t("alisio.settings.mac.needsApproval")}
+                      <div
+                        class="row"
+                        style="justify-content: space-between; align-items: flex-start; gap: 12px;"
+                      >
+                        <div>
+                          <div class="list-title">${nativeShellPermissionLabel(permission)}</div>
+                          <div class="list-sub">
+                            ${nativeShellPermissionDescription(permission)}
+                          </div>
+                        </div>
+                        ${renderStatusPill(
+                          state.permissions[permission]
+                            ? t("alisio.settings.mac.granted")
+                            : t("alisio.settings.mac.needsApproval"),
+                          state.permissions[permission] ? "ok" : "warn",
+                        )}
                       </div>
                       ${state.permissions[permission]
                         ? nothing
                         : html`
-                            <div class="row" style="margin-top: 8px;">
+                            <div class="row" style="margin-top: 12px;">
                               <button
                                 class="btn btn--sm"
                                 @click=${() => props.onRequestPermission(permission)}
@@ -700,7 +759,13 @@ function renderConnectorsStep(props: SetupProps) {
 }
 
 function renderOrganizationStep(props: SetupProps) {
+  const accountReady = Boolean(
+    props.bootstrap?.accountReady ||
+    (props.account?.session.state === "signed_in" && props.account.session.profileCompleted),
+  );
   return renderOrganization({
+    connected: props.connected,
+    accountReady,
     loading: props.organizationLoading,
     error: props.organizationError,
     organization: props.organization,

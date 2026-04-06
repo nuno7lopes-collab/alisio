@@ -158,9 +158,13 @@
   border: 1px solid color-mix(in srgb, var(--ctx-color, #d97706) 35%, transparent);
   background: var(--ctx-bg, rgba(217, 119, 6, 0.12));
   color: var(--ctx-color, #d97706);
+  max-width: min(100%, 720px);
   font-size: 13px;
   line-height: 1.2;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
   user-select: none;
   animation: fade-in 0.2s var(--ease-out);
 }
@@ -175,6 +179,17 @@
 .context-notice__detail {
   color: color-mix(in srgb, currentColor 72%, var(--muted));
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .context-notice {
+    gap: 6px;
+    padding: 8px 12px;
+  }
+
+  .context-notice__detail {
+    width: 100%;
+  }
 }
 
 /* Chat compose - sticky at bottom */

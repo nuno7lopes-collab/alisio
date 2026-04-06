@@ -4,6 +4,37 @@ import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import { renderSettingsHub } from "./settings.ts";
 
+function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["account"]> {
+  return {
+    profile: {
+      username: "nuno",
+      displayName: "Nuno",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-01T00:00:00.000Z",
+      plan: "free",
+    },
+    preferences: {
+      language: "en",
+      theme: "dark",
+    },
+    session: {
+      state: "signed_in",
+      profileCompleted: true,
+    },
+    devices: [
+      {
+        id: "device-1",
+        label: "Nuno's Mac",
+        platform: "macOS",
+        current: true,
+        status: "active",
+        lastSeenAt: "2026-04-05T10:00:00.000Z",
+      },
+    ],
+  };
+}
+
 function createProps(
   overrides: Partial<Parameters<typeof renderSettingsHub>[0]> = {},
 ): Parameters<typeof renderSettingsHub>[0] {
@@ -101,5 +132,47 @@ describe("renderSettingsHub", () => {
     expect(onThemeChange.mock.calls[0]?.[0]).toBe("knot");
     expect(onThemeModeChange).toHaveBeenCalledWith("light");
     expect(onBorderRadiusChange).toHaveBeenCalledWith(75);
+  });
+
+  it("opens billing as a focused subsection with honest support CTA copy", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "billing",
+          account: createAccount(),
+        }),
+      ),
+      container,
+    );
+
+    const cardTitles = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-settings-card .card-title"),
+    ).map((element) => element.textContent?.trim() ?? "");
+
+    expect(cardTitles[0]).toBe("Billing");
+    expect(container.textContent).toContain("Current plan");
+    expect(container.textContent).toContain("Contact support");
+    expect(container.textContent).not.toContain("Upgrade plan");
+    expect(container.querySelector('a[href^="mailto:support@alisio.pt"]')).not.toBeNull();
+  });
+
+  it("does not show a fake free-plan fallback while account data is still loading", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "billing",
+          accountLoading: true,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Billing");
+    expect(container.textContent).not.toContain("Free Plan");
+    expect(container.querySelector('a[href^="mailto:support@alisio.pt"]')).toBeNull();
   });
 });

@@ -127,6 +127,50 @@ struct MacNodeRuntimeTests {
         #expect(!payload.base64.isEmpty)
     }
 
+    @Test func `handle invoke location accepts while using authorization`() async {
+        @MainActor
+        final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
+            func recordScreen(
+                screenIndex _: Int?,
+                durationMs _: Int?,
+                fps _: Double?,
+                includeAudio _: Bool?,
+                outPath _: String?) async throws -> (path: String, hasAudio: Bool)
+            {
+                Issue.record("recordScreen should not be called for location tests")
+                return ("", false)
+            }
+
+            func locationAuthorizationStatus() -> CLAuthorizationStatus {
+                .authorized
+            }
+
+            func locationAccuracyAuthorization() -> CLAccuracyAuthorization {
+                .reducedAccuracy
+            }
+
+            func currentLocation(
+                desiredAccuracy _: OpenClawLocationAccuracy,
+                maxAgeMs _: Int?,
+                timeoutMs _: Int?) async throws -> CLLocation
+            {
+                CLLocation(latitude: 38.7223, longitude: -9.1393)
+            }
+        }
+
+        await TestIsolation.withUserDefaultsValues([
+            locationModeKey: OpenClawLocationMode.whileUsing.rawValue,
+            locationPreciseKey: false,
+        ]) {
+            let services = await MainActor.run { FakeMainActorServices() }
+            let runtime = MacNodeRuntime(makeMainActorServices: { services })
+            let response = await runtime.handleInvoke(
+                BridgeInvokeRequest(id: "req-location", command: OpenClawLocationCommand.get.rawValue))
+
+            #expect(response.ok == true)
+        }
+    }
+
     @Test func `handle invoke browser proxy uses injected request`() async {
         let runtime = MacNodeRuntime(browserProxyRequest: { paramsJSON in
             #expect(paramsJSON?.contains("/tabs") == true)

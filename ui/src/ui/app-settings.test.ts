@@ -16,7 +16,7 @@ import {
 } from "./app-settings.ts";
 import type { ThemeMode, ThemeName } from "./theme.ts";
 
-type Tab = "setup" | "authentications" | "organization" | "chat" | "models" | "settings";
+type Tab = "setup" | "authentications" | "organization" | "chat" | "memory" | "models" | "settings";
 
 type SettingsHost = {
   settings: {
@@ -375,6 +375,17 @@ describe("applySettingsFromUrl", () => {
     expect(host.tab).toBe("settings");
     expect(host.settingsSection).toBe("general");
     expect(window.location.search).toBe("");
+  });
+
+  it("preserves the billing subsection query when present", () => {
+    setTestWindowUrl("https://control.example/settings?section=billing");
+    const host = createHost("settings");
+
+    syncTabWithLocation(host, true);
+
+    expect(host.tab).toBe("settings");
+    expect(host.settingsSection).toBe("billing");
+    expect(window.location.search).toBe("?section=billing");
   });
 
   it("persists the focused setup step in the URL", () => {

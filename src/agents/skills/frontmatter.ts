@@ -25,6 +25,7 @@ export function parseFrontmatter(content: string): ParsedSkillFrontmatter {
 }
 
 const BREW_FORMULA_PATTERN = /^[A-Za-z0-9][A-Za-z0-9@+._/-]*$/;
+const APT_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9.+:-]*$/;
 const GO_MODULE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._~+\-/]*(?:@[A-Za-z0-9][A-Za-z0-9._~+\-/]*)?$/;
 const UV_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\-[\]=<>!~+,]*$/;
 
@@ -54,6 +55,20 @@ function normalizeSafeNpmSpec(raw: unknown): string | undefined {
     return undefined;
   }
   return spec;
+}
+
+function normalizeSafeAptPackage(raw: unknown): string | undefined {
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const pkg = raw.trim();
+  if (!pkg || pkg.startsWith("-") || pkg.includes("\\") || pkg.includes("/")) {
+    return undefined;
+  }
+  if (!APT_PACKAGE_PATTERN.test(pkg)) {
+    return undefined;
+  }
+  return pkg;
 }
 
 function normalizeSafeGoModule(raw: unknown): string | undefined {
@@ -109,14 +124,23 @@ function normalizeSafeDownloadUrl(raw: unknown): string | undefined {
 }
 
 function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
-  const parsed = parseOpenClawManifestInstallBase(input, ["brew", "node", "go", "uv", "download"]);
+  const parsed = parseOpenClawManifestInstallBase(input, [
+    "apt",
+    "brew",
+    "node",
+    "npm",
+    "go",
+    "uv",
+    "download",
+  ]);
   if (!parsed) {
     return undefined;
   }
   const { raw } = parsed;
+  const normalizedKind = parsed.kind === "npm" ? "node" : parsed.kind;
   const spec = applyOpenClawManifestInstallCommonFields<SkillInstallSpec>(
     {
-      kind: parsed.kind as SkillInstallSpec["kind"],
+      kind: normalizedKind as SkillInstallSpec["kind"],
     },
     parsed,
   );
@@ -132,7 +156,12 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   if (!spec.formula && cask) {
     spec.formula = cask;
   }
-  if (spec.kind === "node") {
+  if (spec.kind === "apt") {
+    const pkg = normalizeSafeAptPackage(raw.package);
+    if (pkg) {
+      spec.package = pkg;
+    }
+  } else if (spec.kind === "node") {
     const pkg = normalizeSafeNpmSpec(raw.package);
     if (pkg) {
       spec.package = pkg;
@@ -164,6 +193,9 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
     spec.targetDir = raw.targetDir;
   }
 
+  if (spec.kind === "apt" && !spec.package) {
+    return undefined;
+  }
   if (spec.kind === "brew" && !spec.formula) {
     return undefined;
   }

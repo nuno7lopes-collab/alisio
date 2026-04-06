@@ -1,4 +1,10 @@
 import { t } from "../../i18n/index.ts";
+import {
+  isLegacyWhatsAppInlineLinkStep,
+  makeChannelBusyKey,
+  normalizeChannelAccountId,
+  readRunningChannelWizard,
+} from "../channels-shared.ts";
 import type {
   WizardNextResult,
   WizardStartResult,
@@ -47,16 +53,6 @@ function valuesEqual(left: unknown, right: unknown) {
   }
 }
 
-function isLegacyWhatsAppInlineLinkStep(
-  channelId: string | null | undefined,
-  step: WizardStep | null | undefined,
-) {
-  if (channelId?.trim() !== "whatsapp" || step?.type !== "confirm") {
-    return false;
-  }
-  return /\b(?:re-)?link whatsapp now\b/i.test(step.message?.trim() ?? "");
-}
-
 export async function loadChannels(
   state: ChannelsState,
   probe: boolean,
@@ -85,6 +81,7 @@ export async function loadChannels(
     });
     state.channelsSnapshot = res;
     state.channelsLastSuccess = Date.now();
+    reconcileWhatsAppLoginState(state, res);
     const runningWizard = readRunningChannelWizard(res);
     if (
       !runningWizard &&
@@ -155,23 +152,6 @@ function isExpectedGatewayRestartMessage(message: string | null | undefined) {
   return typeof message === "string" && /gateway closed \(1012\): service restart/i.test(message);
 }
 
-function readRunningChannelWizard(snapshot: ChannelsStatusSnapshot | null): {
-  sessionId: string;
-  channelId: string | null;
-} | null {
-  const wizard = snapshot?.wizard;
-  if (!wizard?.running || typeof wizard.sessionId !== "string" || !wizard.sessionId.trim()) {
-    return null;
-  }
-  return {
-    sessionId: wizard.sessionId.trim(),
-    channelId:
-      typeof wizard.channelId === "string" && wizard.channelId.trim()
-        ? wizard.channelId.trim()
-        : null,
-  };
-}
-
 function setBusyKey(state: ChannelsState, value: string | null) {
   if ("channelsBusyKey" in state) {
     state.channelsBusyKey = value;
@@ -187,12 +167,6 @@ function setActionMessage(state: ChannelsState, value: string | null) {
 function setLoginQrDataUrl(state: ChannelsState, value: string | null) {
   if ("channelsLoginQrDataUrl" in state) {
     state.channelsLoginQrDataUrl = value;
-  }
-}
-
-function setLoginConnected(state: ChannelsState, value: boolean | null) {
-  if ("channelsLoginConnected" in state) {
-    state.channelsLoginConnected = value;
   }
 }
 
@@ -265,6 +239,51 @@ function setSetupDraftMultiIndexes(state: ChannelsState, value: number[]) {
 function setSetupChannelId(state: ChannelsState, value: string | null) {
   if ("channelsSetupChannelId" in state) {
     state.channelsSetupChannelId = value;
+  }
+}
+
+function findWhatsAppSnapshotAccount(
+  state: ChannelsState,
+  snapshot: ChannelsStatusSnapshot | null,
+) {
+  const accountId = state.channelsLoginAccountId;
+  if (!snapshot || !accountId?.trim()) {
+    return null;
+  }
+  const accounts = snapshot.channelAccounts?.whatsapp;
+  if (!Array.isArray(accounts)) {
+    return null;
+  }
+  const normalizedAccountId = normalizeChannelAccountId(accountId);
+  return (
+    accounts.find(
+      (account) => normalizeChannelAccountId(account.accountId) === normalizedAccountId,
+    ) ?? null
+  );
+}
+
+function clearWhatsAppLoginState(state: ChannelsState) {
+  setLoginQrDataUrl(state, null);
+  setLoginAccountId(state, null);
+}
+
+function reconcileWhatsAppLoginState(
+  state: ChannelsState,
+  snapshot: ChannelsStatusSnapshot | null,
+) {
+  if (!state.channelsLoginQrDataUrl && !state.channelsLoginAccountId) {
+    return;
+  }
+  const activeAccount = findWhatsAppSnapshotAccount(state, snapshot);
+  if (!activeAccount) {
+    if (!snapshot?.channelAccounts?.whatsapp) {
+      return;
+    }
+    clearWhatsAppLoginState(state);
+    return;
+  }
+  if (activeAccount.linked === true || activeAccount.connected === true) {
+    clearWhatsAppLoginState(state);
   }
 }
 
@@ -486,9 +505,7 @@ async function finalizeChannelSetup(
           : t("alisio.channels.setupSaved"),
     );
     if (info.channelId === "whatsapp") {
-      setLoginQrDataUrl(state, null);
-      setLoginConnected(state, null);
-      setLoginAccountId(state, null);
+      clearWhatsAppLoginState(state);
     }
   }
   if (info.status !== "running") {
@@ -628,7 +645,14 @@ export async function startWebChannelLogin(
   if (!state.client || !state.connected) {
     return;
   }
-  setBusyKey(state, "whatsapp:start");
+  const accountId = normalizeChannelAccountId(opts?.accountId ?? state.channelsLoginAccountId);
+  const busyKey = makeChannelBusyKey({
+    channelId: "whatsapp",
+    action: "login-start",
+    accountId,
+  });
+  setBusyKey(state, busyKey);
+  setLoginAccountId(state, accountId);
   state.channelsError = null;
   try {
     const result = await state.client.request<WebLoginStartResult>("web.login.start", {
@@ -636,27 +660,19 @@ export async function startWebChannelLogin(
       timeoutMs: 30_000,
       ...(opts?.accountId?.trim() ? { accountId: opts.accountId.trim() } : {}),
     });
-    const accountId = result.accountId?.trim() || null;
+    const resolvedAccountId = result.accountId?.trim() || accountId;
     setActionMessage(state, result.message?.trim() || null);
     setLoginQrDataUrl(state, result.qrDataUrl?.trim() || null);
-    setLoginAccountId(state, result.qrDataUrl?.trim() ? accountId : null);
-    setLoginConnected(
-      state,
-      typeof result.connected === "boolean"
-        ? result.connected
-        : (state.channelsLoginConnected ?? null),
-    );
+    setLoginAccountId(state, result.qrDataUrl?.trim() ? resolvedAccountId : null);
     await loadChannels(state, true);
     if ((opts?.autoWait ?? true) && result.qrDataUrl) {
-      void waitWebChannelLogin(state, { accountId: accountId ?? opts?.accountId });
+      void waitWebChannelLogin(state, { accountId: resolvedAccountId });
     }
   } catch (err) {
-    setLoginQrDataUrl(state, null);
-    setLoginConnected(state, null);
-    setLoginAccountId(state, null);
+    clearWhatsAppLoginState(state);
     state.channelsError = getErrorMessage(err);
   } finally {
-    if (state.channelsBusyKey === "whatsapp:start") {
+    if (state.channelsBusyKey === busyKey) {
       setBusyKey(state, null);
     }
   }
@@ -669,7 +685,14 @@ export async function waitWebChannelLogin(
   if (!state.client || !state.connected) {
     return;
   }
-  setBusyKey(state, "whatsapp:wait");
+  const accountId = normalizeChannelAccountId(opts?.accountId ?? state.channelsLoginAccountId);
+  const busyKey = makeChannelBusyKey({
+    channelId: "whatsapp",
+    action: "login-wait",
+    accountId,
+  });
+  setBusyKey(state, busyKey);
+  setLoginAccountId(state, accountId);
   state.channelsError = null;
   try {
     const result = await state.client.request<WebLoginWaitResult>("web.login.wait", {
@@ -680,21 +703,19 @@ export async function waitWebChannelLogin(
     });
     setActionMessage(state, result.message?.trim() || null);
     const connected = typeof result.connected === "boolean" ? result.connected : false;
-    setLoginConnected(state, connected);
     if (connected) {
-      setLoginQrDataUrl(state, null);
-      setLoginAccountId(state, null);
+      clearWhatsAppLoginState(state);
     } else if (!state.channelsLoginAccountId && result.accountId?.trim()) {
       setLoginAccountId(state, result.accountId.trim());
     }
     await loadChannels(state, true);
   } catch (err) {
-    setLoginQrDataUrl(state, null);
-    setLoginConnected(state, null);
-    setLoginAccountId(state, null);
+    clearWhatsAppLoginState(state);
     state.channelsError = getErrorMessage(err);
   } finally {
-    setBusyKey(state, null);
+    if (state.channelsBusyKey === busyKey) {
+      setBusyKey(state, null);
+    }
   }
 }
 
@@ -715,7 +736,12 @@ export async function logoutChannelAccount(
   if (!state.client || !state.connected) {
     return;
   }
-  setBusyKey(state, `${params.channelId}:logout`);
+  const busyKey = makeChannelBusyKey({
+    channelId: params.channelId,
+    action: "logout",
+    accountId: params.accountId,
+  });
+  setBusyKey(state, busyKey);
   state.channelsError = null;
   try {
     const result = await state.client.request<ChannelLogoutResult>("channels.logout", {
@@ -724,14 +750,14 @@ export async function logoutChannelAccount(
     });
     setActionMessage(state, formatLogoutMessage(params.channelId, result));
     if (params.channelId === "whatsapp") {
-      setLoginQrDataUrl(state, null);
-      setLoginConnected(state, false);
-      setLoginAccountId(state, null);
+      clearWhatsAppLoginState(state);
     }
     await loadChannels(state, true);
   } catch (err) {
     state.channelsError = getErrorMessage(err);
   } finally {
-    setBusyKey(state, null);
+    if (state.channelsBusyKey === busyKey) {
+      setBusyKey(state, null);
+    }
   }
 }

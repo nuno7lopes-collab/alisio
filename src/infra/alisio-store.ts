@@ -8,6 +8,7 @@ import {
   deriveAlisioAvatarLabel,
   normalizeAlisioUsername,
   validateAlisioAccountDraft,
+  validateAlisioEmail,
 } from "../shared/alisio-account.js";
 import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.js";
 import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
@@ -2928,6 +2929,15 @@ export async function saveAlisioRemoteModelServer(
     if (!baseUrl) {
       throw new AlisioAccountValidationError("Indica o endereço do servidor.");
     }
+    const duplicate = Object.values(state.modelServers ?? {}).find(
+      (server) =>
+        server.serverId !== serverId &&
+        server.kind === input.kind &&
+        normalizeRemoteModelServerBaseUrl(server.baseUrl).toLowerCase() === baseUrl.toLowerCase(),
+    );
+    if (duplicate) {
+      throw new AlisioAccountValidationError("Esse servidor já foi adicionado.");
+    }
     const nextServer: AlisioRemoteModelServer = {
       serverId,
       label,
@@ -3589,6 +3599,39 @@ export async function getAlisioOrganizationState(
   return state.organization;
 }
 
+function normalizeAlisioOrganizationStateInput(
+  input:
+    | { mode: "none" }
+    | { mode: "owner"; organizationName: string }
+    | { mode: "member"; organizationName: string; inviteEmail?: string },
+): AlisioOrganizationMembershipState {
+  if (input.mode === "none") {
+    return { mode: "none" };
+  }
+  const organizationName = input.organizationName.trim();
+  if (!organizationName) {
+    throw new Error("Organization name is required.");
+  }
+  if (input.mode === "owner") {
+    return {
+      mode: "owner",
+      organizationName,
+    };
+  }
+  const inviteEmail = input.inviteEmail?.trim();
+  if (inviteEmail) {
+    const inviteEmailError = validateAlisioEmail(inviteEmail);
+    if (inviteEmailError) {
+      throw new Error("Invitation email must be a valid email address.");
+    }
+  }
+  return {
+    mode: "member",
+    organizationName,
+    ...(inviteEmail ? { inviteEmail } : {}),
+  };
+}
+
 export async function setAlisioOrganizationState(
   input:
     | { mode: "none" }
@@ -3599,7 +3642,7 @@ export async function setAlisioOrganizationState(
   return withLock(async () => {
     const state = await loadStoredState(env);
     assertAlisioAccountSetupAccess(state, "organization");
-    state.organization = input;
+    state.organization = normalizeAlisioOrganizationStateInput(input);
     await persistState(state, env);
     return state.organization;
   });

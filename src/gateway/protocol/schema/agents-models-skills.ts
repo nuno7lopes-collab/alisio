@@ -239,9 +239,12 @@ export const AgentsFileEntrySchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const AgentsFilesScopeSchema = Type.Union([Type.Literal("core"), Type.Literal("memory")]);
+
 export const AgentsFilesListParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,
+    scope: Type.Optional(AgentsFilesScopeSchema),
   },
   { additionalProperties: false },
 );
@@ -287,6 +290,25 @@ export const AgentsFilesSetResultSchema = Type.Object(
     agentId: NonEmptyString,
     workspace: NonEmptyString,
     file: AgentsFileEntrySchema,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsFilesDeleteParamsSchema = Type.Object(
+  {
+    agentId: NonEmptyString,
+    name: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+
+export const AgentsFilesDeleteResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    agentId: NonEmptyString,
+    workspace: NonEmptyString,
+    name: NonEmptyString,
+    deleted: Type.Boolean(),
   },
   { additionalProperties: false },
 );

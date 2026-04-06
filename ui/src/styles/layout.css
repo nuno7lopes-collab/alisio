@@ -896,7 +896,7 @@
 }
 
 .sidebar-footer-compact__account,
-.sidebar-footer-compact__upgrade {
+.sidebar-footer-compact__plans {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -914,7 +914,7 @@
 }
 
 .sidebar-footer-compact__account:hover,
-.sidebar-footer-compact__upgrade:hover {
+.sidebar-footer-compact__plans:hover {
   border-color: color-mix(in srgb, var(--border-strong) 62%, transparent);
   background: color-mix(in srgb, var(--bg-hover) 54%, transparent);
   color: var(--text-strong);
@@ -956,7 +956,7 @@
   background: var(--ok);
 }
 
-.sidebar-footer-compact__upgrade {
+.sidebar-footer-compact__plans {
   width: 40px;
   height: 40px;
   border-radius: 12px;
@@ -964,7 +964,7 @@
   box-shadow: none;
 }
 
-.sidebar-footer-compact__upgrade svg {
+.sidebar-footer-compact__plans svg {
   width: 16px;
   height: 16px;
   stroke: currentColor;
@@ -1049,7 +1049,7 @@
   gap: 8px;
 }
 
-.alisio-sidebar-account__upgrade {
+.alisio-sidebar-account__plans {
   width: 100%;
   min-height: 32px;
   justify-content: center;
@@ -1658,29 +1658,31 @@
 
 .alisio-organization-hero {
   display: grid;
-  gap: 18px;
+  gap: 20px;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 22px 24px;
+  padding: 24px 24px;
 }
 
 .alisio-organization-hero__topbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 .alisio-organization-grid {
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 18px;
+  align-items: start;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
 }
 
 .alisio-organization-panel {
   display: grid;
-  gap: 16px;
-  padding: 18px 20px;
+  gap: 14px;
+  padding: 20px;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: 20px;
   background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
@@ -1692,10 +1694,13 @@
 }
 
 .alisio-organization-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 18px;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 0;
+}
+
+.alisio-organization-actions .chip {
+  min-height: 34px;
 }
 
 .alisio-settings-options {
@@ -1730,13 +1735,22 @@
 .alisio-settings-form {
   display: grid;
   gap: 14px;
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .alisio-organization-current {
   display: grid;
   gap: 16px;
   margin-top: 18px;
+}
+
+.alisio-organization-panel__action {
+  align-items: flex-start;
+}
+
+.alisio-organization-form .field input {
+  min-height: 42px;
+  line-height: 1.4;
 }
 
 .alisio-settings-account {
@@ -2095,11 +2109,116 @@
   font-weight: 700;
 }
 
+.alisio-settings-card--focused {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border-strong) 66%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .alisio-settings-billing {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.alisio-billing-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-billing-summary__label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.alisio-billing-summary__value {
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.alisio-billing-summary__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alisio-billing-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alisio-billing-plan {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg) 36%, transparent);
+}
+
+.alisio-billing-plan.is-current {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border-strong) 76%);
+  background: color-mix(in srgb, var(--accent-subtle) 62%, var(--bg-elevated) 38%);
+}
+
+.alisio-billing-plan.is-muted {
+  background: color-mix(in srgb, var(--bg-elevated) 56%, transparent);
+}
+
+.alisio-billing-plan__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 10px;
+}
+
+.alisio-billing-plan__title {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.alisio-billing-plan__body {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-billing-plan__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 9px;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.alisio-billing-plan.is-current .alisio-billing-plan__badge {
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: color-mix(in srgb, var(--text-strong) 78%, var(--accent) 22%);
+}
+
+.alisio-billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* Chat view header adjustments */

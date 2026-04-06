@@ -172,19 +172,21 @@ function renderSkill(skill: SkillStatusEntry, props: SkillsProps) {
   const dotClass = skillStatusClass(skill);
 
   return html`
-    <div class="list-item list-item-clickable" @click=${() => props.onDetailOpen(skill.skillKey)}>
+    <div
+      class="list-item list-item-clickable capability-skill-row"
+      @click=${() => props.onDetailOpen(skill.skillKey)}
+    >
       <div class="list-main">
-        <div class="list-title" style="display: flex; align-items: center; gap: 8px;">
+        <div class="list-title capability-skill-row__title">
           <span class="statusDot ${dotClass}"></span>
           ${skill.emoji ? html`<span>${skill.emoji}</span>` : nothing}
           <span>${skill.name}</span>
         </div>
-        <div class="list-sub">${clampText(skill.description, 140)}</div>
+        <div class="list-sub capability-skill-row__description">
+          ${clampText(skill.description, 140)}
+        </div>
       </div>
-      <div
-        class="list-meta"
-        style="display: flex; align-items: center; justify-content: flex-end; gap: 10px;"
-      >
+      <div class="list-meta capability-skill-row__meta">
         <label class="skill-toggle-wrap" @click=${(e: Event) => e.stopPropagation()}>
           <input
             type="checkbox"

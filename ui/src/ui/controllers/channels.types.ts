@@ -15,7 +15,6 @@ export type ChannelsState = {
   channelsBusyKey?: string | null;
   channelsActionMessage?: string | null;
   channelsLoginQrDataUrl?: string | null;
-  channelsLoginConnected?: boolean | null;
   channelsLoginAccountId?: string | null;
   channelsSetupLoading?: boolean;
   channelsSetupSubmitting?: boolean;

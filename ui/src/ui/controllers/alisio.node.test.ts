@@ -6,6 +6,8 @@ import {
   loadAlisioDoctorSummary,
   requestAlisioPasswordReset,
   saveAlisioAccount,
+  saveAlisioOrganization,
+  signInAlisioAccount,
   signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
@@ -46,11 +48,15 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioAuthMode: "sign-in",
     alisioAuthEmail: "",
     alisioAuthPassword: "",
+    alisioAuthPasswordVisible: false,
     alisioAiLoading: false,
     alisioAiError: null,
     alisioOrganizationLoading: false,
     alisioOrganizationError: null,
     alisioOrganization: null,
+    alisioOrganizationDraftMode: "create",
+    alisioOrganizationName: "",
+    alisioOrganizationInviteEmail: "",
     alisioConnectorsLoading: false,
     alisioConnectorsError: null,
     alisioConnectorCatalog: [],
@@ -289,6 +295,7 @@ describe("alisio controller reconnect safety", () => {
       setupWizardError: "stale",
       setupWizardDraftText: "draft",
       alisioAuthPassword: "secret",
+      alisioAuthPasswordVisible: true,
     });
 
     await signOutAlisioAccount(state);
@@ -303,8 +310,135 @@ describe("alisio controller reconnect safety", () => {
     expect(state.setupWizardStatus).toBeNull();
     expect(state.setupWizardDraftText).toBe("");
     expect(state.alisioAuthPassword).toBe("");
+    expect(state.alisioAuthPasswordVisible).toBe(false);
     expect(state.setupStep).toBe("account");
     expect(state.setTab).toHaveBeenCalledWith("setup");
+  });
+
+  it("ignora um save antigo da conta quando chega um pedido mais recente", async () => {
+    const firstRequest = deferred<never>();
+    const firstClient = createClient(
+      vi.fn(async (method: string) => {
+        if (method !== "alisio.account.update") {
+          throw new Error(`unexpected method: ${method}`);
+        }
+        await firstRequest.promise;
+        return {
+          profile: {
+            email: "stale@example.com",
+            displayName: "Stale",
+            username: "stale",
+            avatarLabel: "S",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }),
+    );
+    const state = createState({
+      client: firstClient,
+      alisioAccount: {
+        profile: {
+          email: "owner@example.com",
+          displayName: "Owner",
+          username: "owner",
+          avatarLabel: "O",
+          joinedAt: "2026-04-05T09:00:00.000Z",
+          plan: "free",
+        },
+        preferences: {
+          language: "en",
+          theme: "system",
+        },
+        session: {
+          state: "signed_in",
+          profileCompleted: true,
+          backend: "supabase",
+        },
+        devices: [],
+      } as unknown as AlisioState["alisioAccount"],
+    });
+
+    const firstSave = saveAlisioAccount(state, { displayName: "Stale" });
+    expect(state.alisioAccountLoading).toBe(true);
+
+    const secondClient = createClient(
+      vi.fn(async (method: string) => {
+        if (method === "alisio.account.update") {
+          return {
+            profile: {
+              email: "owner@example.com",
+              displayName: "Fresh",
+              username: "owner",
+              avatarLabel: "O",
+              joinedAt: "2026-04-05T09:00:00.000Z",
+              plan: "free",
+            },
+            preferences: {
+              language: "en",
+              theme: "system",
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+              backend: "supabase",
+            },
+            devices: [],
+          };
+        }
+        if (method === "alisio.bootstrap.get") {
+          return {
+            account: {
+              profile: {
+                email: "owner@example.com",
+                displayName: "Fresh",
+                username: "owner",
+                avatarLabel: "O",
+                joinedAt: "2026-04-05T09:00:00.000Z",
+                plan: "free",
+              },
+              preferences: {
+                language: "en",
+                theme: "system",
+              },
+              session: {
+                state: "signed_in",
+                profileCompleted: true,
+                backend: "supabase",
+              },
+              devices: [],
+            },
+            organization: { mode: "none" as const },
+            connectors: { catalog: [], authorizations: [], summary: [] },
+            wizard: { running: false, sessionId: null },
+          };
+        }
+        if (method === "alisio.doctor.summary") {
+          return { ok: true, issues: [] };
+        }
+        throw new Error(`unexpected method: ${method}`);
+      }),
+    );
+    state.client = secondClient;
+
+    await saveAlisioAccount(state, { displayName: "Fresh" });
+
+    firstRequest.reject(new Error("gateway closed (1012): service restart"));
+    await firstSave;
+
+    expect(state.alisioAccountError).toBeNull();
+    expect(state.alisioAccount?.profile.displayName).toBe("Fresh");
+    expect(state.alisioAccountLoading).toBe(false);
   });
 
   it("usa o endpoint de update para gravar a conta e sincroniza o email actual", async () => {
@@ -404,5 +538,132 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAuthEmail).toBe("owner@example.com");
     expect(state.alisioAccountNotice).toBe("Reset sent");
     expect(state.alisioAccountError).toBeNull();
+  });
+
+  it("limpa a palavra-passe visível depois de iniciar sessão", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.signIn") {
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAuthEmail: "owner@example.com",
+      alisioAuthPassword: "secret",
+      alisioAuthPasswordVisible: true,
+    });
+
+    await signInAlisioAccount(state);
+
+    expect(state.alisioAuthPassword).toBe("");
+    expect(state.alisioAuthPasswordVisible).toBe(false);
+    expect(state.alisioAccountError).toBeNull();
+  });
+});
+
+describe("alisio organization draft sync", () => {
+  it("limpa o draft local depois de sair da organização", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.organization.set") {
+        return { mode: "none" as const };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "nuno@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioOrganization: { mode: "owner", organizationName: "Team Orbit" },
+      alisioOrganizationDraftMode: "join",
+      alisioOrganizationName: "Draft Team",
+      alisioOrganizationInviteEmail: "invite@example.com",
+    });
+
+    await saveAlisioOrganization(state, { mode: "none" });
+
+    expect(state.alisioOrganization).toEqual({ mode: "none" });
+    expect(state.alisioOrganizationDraftMode).toBe("create");
+    expect(state.alisioOrganizationName).toBe("");
+    expect(state.alisioOrganizationInviteEmail).toBe("");
+  });
+
+  it("preserva o draft local quando o bootstrap confirma que ainda não há organização", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "nuno@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioOrganization: { mode: "none" },
+      alisioOrganizationDraftMode: "join",
+      alisioOrganizationName: "Team Orbit",
+      alisioOrganizationInviteEmail: "invite@example.com",
+    });
+
+    await loadAlisioBootstrap(state);
+
+    expect(state.alisioOrganization).toEqual({ mode: "none" });
+    expect(state.alisioOrganizationDraftMode).toBe("join");
+    expect(state.alisioOrganizationName).toBe("Team Orbit");
+    expect(state.alisioOrganizationInviteEmail).toBe("invite@example.com");
   });
 });

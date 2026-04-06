@@ -147,6 +147,24 @@ describe("renderCapabilities", () => {
     expect(container.textContent).toContain("Managed by Alisio");
     expect(container.textContent).not.toContain("openclaw-managed");
   });
+
+  it("renders loading skeletons before the skills report arrives", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderCapabilities(
+        createProps({
+          loading: true,
+          report: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(4);
+    expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
+    expect(container.textContent).not.toContain("No capabilities matched your filters.");
+  });
 });
 
 function installDialogMethod(

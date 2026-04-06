@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { validateAlisioEmail } from "../../../../src/shared/alisio-account.js";
 import { t } from "../../i18n/index.ts";
 import type { AlisioOrganizationMembershipState } from "../types.ts";
 import {
@@ -9,6 +10,8 @@ import {
 } from "./loading-skeleton.ts";
 
 export function renderOrganization(props: {
+  connected: boolean;
+  accountReady: boolean;
   loading: boolean;
   error: string | null;
   organization: AlisioOrganizationMembershipState | null;
@@ -24,7 +27,21 @@ export function renderOrganization(props: {
 }) {
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
-  const showInitialLoading = props.loading && !props.organization && !props.error;
+  const trimmedOrganizationName = props.organizationName.trim();
+  const trimmedInviteEmail = props.inviteEmail.trim();
+  const inviteEmailError =
+    props.draftMode === "join" && trimmedInviteEmail && validateAlisioEmail(trimmedInviteEmail)
+      ? t("alisio.organization.invitationInvalid")
+      : null;
+  const canEditOrganization = props.connected && props.accountReady && !props.loading;
+  const canSubmitDraft =
+    canEditOrganization && trimmedOrganizationName.length > 0 && !inviteEmailError;
+  const showInitialLoading =
+    props.loading &&
+    !props.organization &&
+    !props.error &&
+    !trimmedOrganizationName &&
+    !trimmedInviteEmail;
   const membershipLabel =
     membership === "owner"
       ? t("alisio.organization.membership.owner")
@@ -49,8 +66,13 @@ export function renderOrganization(props: {
     joinPlaceholder: t("alisio.organization.joinPlaceholder"),
     invitationEmail: t("alisio.organization.invitationEmail"),
     invitationPlaceholder: t("alisio.organization.invitationPlaceholder"),
+    invitationHint: t("alisio.organization.invitationHint"),
+    invitationInvalid: t("alisio.organization.invitationInvalid"),
     submitCreate: t("alisio.organization.submitCreate"),
     submitJoin: t("alisio.organization.submitJoin"),
+    saving: t("alisio.organization.saving"),
+    reconnectHint: t("alisio.organization.reconnectHint"),
+    accountHint: t("alisio.organization.accountHint"),
     keepPersonalTitle: t("alisio.organization.keepPersonalTitle"),
     keepPersonalBody: t("alisio.organization.keepPersonalBody"),
     afterFirstChatTitle: t("alisio.organization.afterFirstChatTitle"),
@@ -68,9 +90,15 @@ export function renderOrganization(props: {
           </div>
           ${showInitialLoading
             ? renderSkeletonPill()
-            : html`<span class="pill">${membershipLabel}</span>`}
+            : html`<span class="pill ${hasOrganization ? "pill--ready" : ""}"
+                >${membershipLabel}</span
+              >`}
         </div>
         ${props.error ? html`<div class="callout danger">${props.error}</div>` : nothing}
+        ${!props.connected ? html`<div class="callout info">${text.reconnectHint}</div>` : nothing}
+        ${props.connected && !props.accountReady && !showInitialLoading
+          ? html`<div class="callout info">${text.accountHint}</div>`
+          : nothing}
         ${showInitialLoading
           ? html`
               <div class="alisio-organization-grid" role="status" aria-label=${text.loading}>
@@ -112,8 +140,12 @@ export function renderOrganization(props: {
                   <div class="card alisio-organization-panel">
                     <div class="card-title">${text.keepPersonalTitle}</div>
                     <div class="card-sub">${text.keepPersonalBody}</div>
-                    <div class="row">
-                      <button class="btn" @click=${props.onResetOrganization}>
+                    <div class="row alisio-organization-panel__action">
+                      <button
+                        class="btn"
+                        ?disabled=${!canEditOrganization}
+                        @click=${props.onResetOrganization}
+                      >
                         ${text.leaveForNow}
                       </button>
                     </div>
@@ -123,15 +155,17 @@ export function renderOrganization(props: {
             : html`
                 <div class="alisio-organization-grid">
                   <div class="card alisio-organization-panel">
-                    <div class="alisio-organization-actions">
+                    <div class="alisio-organization-actions alisio-settings-options">
                       <button
                         class="chip ${props.draftMode === "create" ? "chip-active" : ""}"
+                        ?disabled=${!canEditOrganization}
                         @click=${() => props.onDraftModeChange("create")}
                       >
                         ${text.createOrganization}
                       </button>
                       <button
                         class="chip ${props.draftMode === "join" ? "chip-active" : ""}"
+                        ?disabled=${!canEditOrganization}
                         @click=${() => props.onDraftModeChange("join")}
                       >
                         ${text.joinOrganization}
@@ -142,10 +176,12 @@ export function renderOrganization(props: {
                         <span>${text.organizationName}</span>
                         <input
                           type="text"
+                          autocomplete="organization"
                           placeholder=${props.draftMode === "create"
                             ? text.createPlaceholder
                             : text.joinPlaceholder}
                           .value=${props.organizationName}
+                          ?disabled=${!canEditOrganization}
                           @input=${(event: Event) =>
                             props.onOrganizationNameChange(
                               (event.target as HTMLInputElement).value,
@@ -158,25 +194,35 @@ export function renderOrganization(props: {
                               <span>${text.invitationEmail}</span>
                               <input
                                 type="email"
+                                autocomplete="email"
                                 placeholder=${text.invitationPlaceholder}
                                 .value=${props.inviteEmail}
+                                ?disabled=${!canEditOrganization}
                                 @input=${(event: Event) =>
                                   props.onInviteEmailChange(
                                     (event.target as HTMLInputElement).value,
                                   )}
                               />
+                              <small class="field-note">${text.invitationHint}</small>
                             </label>
                           `
+                        : nothing}
+                      ${inviteEmailError
+                        ? html`<div class="callout danger">${text.invitationInvalid}</div>`
                         : nothing}
                       <div class="row">
                         <button
                           class="btn primary"
-                          ?disabled=${!props.organizationName.trim()}
+                          ?disabled=${!canSubmitDraft}
                           @click=${props.draftMode === "create"
                             ? props.onCreateOrganization
                             : props.onJoinOrganization}
                         >
-                          ${props.draftMode === "create" ? text.submitCreate : text.submitJoin}
+                          ${props.loading
+                            ? text.saving
+                            : props.draftMode === "create"
+                              ? text.submitCreate
+                              : text.submitJoin}
                         </button>
                       </div>
                     </div>

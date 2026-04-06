@@ -27,12 +27,12 @@ struct PermissionManagerTests {
     @Test func `location status matches authorization always`() async {
         let status = CLLocationManager().authorizationStatus
         let results = await PermissionManager.status([.location])
-        #expect(results[.location] == (status == .authorizedAlways))
+        #expect(results[.location] == PermissionManager.isLocationAuthorized(status: status, requireAlways: false))
     }
 
     @Test func `ensure location non interactive matches authorization always`() async {
         let status = CLLocationManager().authorizationStatus
         let ensured = await PermissionManager.ensure([.location], interactive: false)
-        #expect(ensured[.location] == (status == .authorizedAlways))
+        #expect(ensured[.location] == PermissionManager.isLocationAuthorized(status: status, requireAlways: false))
     }
 }

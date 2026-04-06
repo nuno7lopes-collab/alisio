@@ -586,39 +586,18 @@ extension OnboardingView {
         self.onboardingPage {
             Text("Grant permissions")
                 .font(.largeTitle.weight(.semibold))
-            Text("These macOS permissions let Alisio automate apps and capture context on this Mac.")
+            Text("Turn on the macOS access Alisio needs on this Mac. You can change any of it later.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
                 .fixedSize(horizontal: false, vertical: true)
 
-            self.onboardingCard(spacing: 8, padding: 12) {
-                ForEach(Capability.allCases, id: \.self) { cap in
-                    PermissionRow(
-                        capability: cap,
-                        status: self.permissionMonitor.status[cap] ?? false,
-                        compact: true)
-                    {
-                        Task { await self.request(cap) }
-                    }
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                        Task { await self.refreshPerms() }
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .help("Refresh status")
-                    if self.isRequesting {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-                .padding(.top, 4)
+            self.onboardingCard(spacing: 12, padding: 14) {
+                PermissionStatusList(
+                    status: self.permissionMonitor.status,
+                    refresh: self.refreshPerms,
+                    compact: true)
             }
         }
     }

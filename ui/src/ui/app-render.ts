@@ -28,6 +28,14 @@ import {
 import type { AppViewState } from "./app-view-state.ts";
 import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import {
+  loadAgentMemoryFiles,
+  loadAgentMemoryFileContent,
+  saveAgentMemoryFile,
+  deleteAgentMemoryFile,
+  resolvePreferredMemoryAgentId,
+} from "./controllers/agent-memory.ts";
+import { loadAgents } from "./controllers/agents.ts";
+import {
   beginAlisioAiConnect,
   beginAlisioConnector,
   cancelAlisioSetupWizard,
@@ -103,7 +111,6 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
-import "./components/dashboard-header.ts";
 import {
   loadNativeShellState,
   openExternal,
@@ -113,6 +120,9 @@ import {
   setLaunchAtLogin,
   setVoiceWake,
 } from "./lume-host.ts";
+import "./components/dashboard-header.ts";
+import { PRIMARY_MEMORY_FILE_NAME } from "./memory-files.ts";
+import { buildMemoryNoteName } from "./memory-files.ts";
 import type { ModelsServerDraft } from "./models-view-types.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
 import {
@@ -130,6 +140,7 @@ import { renderCommandPalette } from "./views/command-palette.ts";
 import { renderConnections } from "./views/connections.ts";
 import { renderExecApprovalPrompt } from "./views/exec-approval.ts";
 import { renderGatewayUrlConfirmation } from "./views/gateway-url-confirmation.ts";
+import { renderMemoryHub } from "./views/memory.ts";
 import { renderModelsHub } from "./views/models.ts";
 import { renderOrganization } from "./views/organization.ts";
 import { renderSecurity } from "./views/security.ts";
@@ -446,6 +457,7 @@ export function renderApp(state: AppViewState) {
     authMode: state.alisioAuthMode,
     authEmail: state.alisioAuthEmail,
     authPassword: state.alisioAuthPassword,
+    authPasswordVisible: state.alisioAuthPasswordVisible,
     aiLoading: state.alisioAiLoading,
     aiError: state.alisioAiError,
     connectorsSearch: state.alisioConnectorsSearch,
@@ -476,13 +488,28 @@ export function renderApp(state: AppViewState) {
     nativeShellError: state.nativeShellError,
     nativeShellState: state.nativeShellState,
     onAuthModeChange: (value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
+      state.alisioAuthPasswordVisible = false;
+      if (state.alisioAuthMode !== value) {
+        state.alisioAuthMode = value;
+        state.alisioAuthPassword = "";
+        return;
+      }
       state.alisioAuthMode = value;
     },
     onAuthEmailChange: (value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
       state.alisioAuthEmail = value;
     },
     onAuthPasswordChange: (value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
       state.alisioAuthPassword = value;
+    },
+    onAuthPasswordVisibilityToggle: () => {
+      state.alisioAuthPasswordVisible = !state.alisioAuthPasswordVisible;
     },
     onConnect: () => state.connect(),
     onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
@@ -554,6 +581,8 @@ export function renderApp(state: AppViewState) {
       state.setupWizardDraftMultiIndexes = value;
     },
     onAccountFieldChange: (field, value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
       if (!state.alisioAccount) {
         return;
       }
@@ -646,7 +675,7 @@ export function renderApp(state: AppViewState) {
   const profileAvatarLabel = profile?.avatarLabel ?? "A";
   const profilePlan = profile?.plan
     ? t(alisioPlanTranslationKey(normalizeAlisioPlan(profile.plan)))
-    : t("alisio.settings.billing.freePlan");
+    : t("alisio.settings.sections.account");
   const appLogoUrl = agentLogoUrl(state.basePath ?? "");
   const connectionLabel = state.connected ? t("common.online") : t("common.offline");
   const execApprovalsTarget = resolveSelectedExecApprovalsTarget(state);
@@ -686,6 +715,30 @@ export function renderApp(state: AppViewState) {
     state.agentsList?.defaultId ??
     state.agentsList?.agents?.[0]?.id ??
     null;
+  const resolvedMemoryAgentId = resolvePreferredMemoryAgentId({
+    agentsList: state.agentsList,
+    memorySelectedAgentId: state.memorySelectedAgentId,
+    sessionKey: state.sessionKey,
+    assistantAgentId: state.assistantAgentId,
+  });
+  const refreshMemory = () => {
+    void (async () => {
+      await loadAgents(state);
+      const agentId = resolvePreferredMemoryAgentId({
+        agentsList: state.agentsList,
+        memorySelectedAgentId: state.memorySelectedAgentId,
+        sessionKey: state.sessionKey,
+        assistantAgentId: state.assistantAgentId,
+      });
+      if (!agentId) {
+        return;
+      }
+      state.memorySelectedAgentId = agentId;
+      await loadAgentMemoryFiles(state, agentId, {
+        preferredName: state.memoryActive,
+      });
+    })();
+  };
   if (shouldShowSetup) {
     return html`
       <section class="setup-frame">
@@ -867,10 +920,10 @@ export function renderApp(state: AppViewState) {
                       </button>
                       <button
                         type="button"
-                        class="sidebar-footer-compact__upgrade"
-                        title=${t("alisio.settings.billing.upgrade")}
-                        aria-label=${t("alisio.settings.billing.upgrade")}
-                        @click=${() => openSettingsSection("account")}
+                        class="sidebar-footer-compact__plans"
+                        title=${t("alisio.settings.billing.title")}
+                        aria-label=${t("alisio.settings.billing.title")}
+                        @click=${() => openSettingsSection("billing")}
                       >
                         ${icons.spark}
                       </button>
@@ -902,10 +955,10 @@ export function renderApp(state: AppViewState) {
                         </div>
                         <button
                           type="button"
-                          class="btn alisio-sidebar-account__upgrade"
-                          @click=${() => openSettingsSection("account")}
+                          class="btn alisio-sidebar-account__plans"
+                          @click=${() => openSettingsSection("billing")}
                         >
-                          ${t("alisio.settings.billing.upgrade")}
+                          ${t("alisio.settings.billing.title")}
                         </button>
                       </div>
                     </div>
@@ -1003,7 +1056,6 @@ export function renderApp(state: AppViewState) {
               busyKey: state.channelsBusyKey,
               actionMessage: state.channelsActionMessage,
               loginQrDataUrl: state.channelsLoginQrDataUrl,
-              loginConnected: state.channelsLoginConnected,
               loginAccountId: state.channelsLoginAccountId,
               setupLoading: state.channelsSetupLoading ?? false,
               setupSubmitting: state.channelsSetupSubmitting ?? false,
@@ -1301,6 +1353,12 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "organization"
           ? renderOrganization({
+              connected: state.connected,
+              accountReady: Boolean(
+                (state.alisioAccount?.session.state === "signed_in" &&
+                  state.alisioAccount.session.profileCompleted) ||
+                state.alisioBootstrap?.accountReady,
+              ),
               loading: state.alisioOrganizationLoading,
               error: state.alisioOrganizationError,
               organization: state.alisioOrganization,
@@ -1465,6 +1523,110 @@ export function renderApp(state: AppViewState) {
               assistantName: state.assistantName,
               assistantAvatar: state.assistantAvatar,
               basePath: state.basePath ?? "",
+            })
+          : nothing}
+        ${activeTab === "memory"
+          ? renderMemoryHub({
+              agentsLoading: state.agentsLoading,
+              agentsError: state.agentsError,
+              agentsList: state.agentsList,
+              selectedAgentId: resolvedMemoryAgentId,
+              memoryLoading: state.memoryLoading,
+              memoryError: state.memoryError,
+              memoryList: state.memoryList,
+              memoryActive: state.memoryActive,
+              memoryContents: state.memoryContents,
+              memoryDrafts: state.memoryDrafts,
+              memorySaving: state.memorySaving,
+              memoryDeleting: state.memoryDeleting,
+              searchQuery: state.memorySearchQuery,
+              composerOpen: state.memoryComposerOpen,
+              composerDate: state.memoryComposerDate,
+              composerTitle: state.memoryComposerTitle,
+              onSelectAgent: (agentId) => {
+                state.memorySelectedAgentId = agentId;
+                state.memoryComposerOpen = false;
+                state.memoryComposerTitle = "";
+                void loadAgentMemoryFiles(state, agentId, {
+                  preferredName: PRIMARY_MEMORY_FILE_NAME,
+                });
+              },
+              onRefresh: refreshMemory,
+              onSearchChange: (value) => {
+                state.memorySearchQuery = value;
+              },
+              onSelectFile: (name) => {
+                const agentId = resolvedMemoryAgentId;
+                if (!agentId) {
+                  return;
+                }
+                state.memoryActive = name;
+                void loadAgentMemoryFileContent(state, agentId, name, {
+                  preserveDraft: true,
+                });
+              },
+              onDraftChange: (name, content) => {
+                state.memoryDrafts = { ...state.memoryDrafts, [name]: content };
+              },
+              onResetFile: (name) => {
+                state.memoryDrafts = {
+                  ...state.memoryDrafts,
+                  [name]: state.memoryContents[name] ?? "",
+                };
+              },
+              onSaveFile: (name) => {
+                const agentId = resolvedMemoryAgentId;
+                if (!agentId) {
+                  return;
+                }
+                void saveAgentMemoryFile(state, agentId, name, state.memoryDrafts[name] ?? "");
+              },
+              onDeleteFile: (name) => {
+                const agentId = resolvedMemoryAgentId;
+                if (!agentId) {
+                  return;
+                }
+                void (async () => {
+                  await deleteAgentMemoryFile(state, agentId, name);
+                  await loadAgentMemoryFiles(state, agentId, {
+                    preferredName: PRIMARY_MEMORY_FILE_NAME,
+                  });
+                })();
+              },
+              onComposerOpenChange: (open) => {
+                state.memoryComposerOpen = open;
+                if (!open) {
+                  state.memoryComposerTitle = "";
+                }
+              },
+              onComposerDateChange: (value) => {
+                state.memoryComposerDate = value;
+              },
+              onComposerTitleChange: (value) => {
+                state.memoryComposerTitle = value;
+              },
+              onCreateNote: () => {
+                const agentId = resolvedMemoryAgentId;
+                if (!agentId) {
+                  return;
+                }
+                const noteName = buildMemoryNoteName(
+                  state.memoryComposerDate,
+                  state.memoryComposerTitle,
+                  state.memoryList?.files.map((entry) => entry.name) ?? [],
+                );
+                const seededContent = state.memoryComposerTitle.trim()
+                  ? `# ${state.memoryComposerTitle.trim()}\n\n`
+                  : "";
+                void (async () => {
+                  await saveAgentMemoryFile(state, agentId, noteName, seededContent);
+                  state.memoryComposerOpen = false;
+                  state.memoryComposerTitle = "";
+                  await loadAgentMemoryFiles(state, agentId, {
+                    preferredName: noteName,
+                  });
+                })();
+              },
             })
           : nothing}
         ${activeTab === "models"

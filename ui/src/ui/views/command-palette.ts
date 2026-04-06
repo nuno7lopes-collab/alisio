@@ -61,7 +61,7 @@ const PALETTE_ITEMS: PaletteItem[] = [
   },
   {
     id: "nav-organization",
-    label: "Workspace",
+    label: "Organization",
     icon: "barChart",
     category: "navigation",
     action: "nav:organization",

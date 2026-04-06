@@ -132,7 +132,9 @@ final class MacNodeModeCoordinator {
     }
 
     private func currentPermissions() async -> [String: Bool] {
-        let statuses = await PermissionManager.status()
+        let rawLocationMode = UserDefaults.standard.string(forKey: locationModeKey) ?? "off"
+        let locationMode = OpenClawLocationMode(rawValue: rawLocationMode) ?? .off
+        let statuses = await PermissionManager.status(locationMode: locationMode)
         return Dictionary(uniqueKeysWithValues: statuses.map { ($0.key.rawValue, $0.value) })
     }
 

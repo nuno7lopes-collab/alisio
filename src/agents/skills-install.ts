@@ -176,6 +176,7 @@ function buildNodeInstallCommand(packageName: string, prefs: SkillsInstallPrefer
 
 // Strict allowlist patterns to prevent option injection and malicious package names.
 const SAFE_BREW_FORMULA = /^[a-z0-9][a-z0-9+._@-]*(\/[a-z0-9][a-z0-9+._@-]*){0,2}$/;
+const SAFE_APT_PACKAGE = /^[a-z0-9][a-z0-9.+:-]*$/i;
 const SAFE_NODE_PACKAGE = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+(@[a-z0-9^~>=<.*|-]+)?$/;
 const SAFE_GO_MODULE = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*@[a-z0-9v._-]+$/;
 const SAFE_UV_PACKAGE =
@@ -200,6 +201,16 @@ function buildInstallCommand(
   error?: string;
 } {
   switch (spec.kind) {
+    case "apt": {
+      if (!spec.package) {
+        return { argv: null, error: "missing apt package" };
+      }
+      const err = assertSafeInstallerValue(spec.package, "apt package", SAFE_APT_PACKAGE);
+      if (err) {
+        return { argv: null, error: err };
+      }
+      return { argv: ["apt-get", "install", "-y", spec.package.trim()] };
+    }
     case "brew": {
       if (!spec.formula) {
         return { argv: null, error: "missing brew formula" };
@@ -248,6 +259,61 @@ function buildInstallCommand(
     default:
       return { argv: null, error: "unsupported installer" };
   }
+}
+
+async function installPackagesViaApt(params: {
+  packages: string[];
+  timeoutMs: number;
+  failureMessage: string;
+  manualInstallHint: string;
+}): Promise<SkillInstallResult | undefined> {
+  if (!hasBinary("apt-get")) {
+    return createInstallFailure({ message: params.manualInstallHint });
+  }
+
+  const aptInstallArgv = ["apt-get", "install", "-y", ...params.packages];
+  const aptUpdateArgv = ["apt-get", "update", "-qq"];
+  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+  if (isRoot) {
+    await runBestEffortCommand(aptUpdateArgv, { timeoutMs: params.timeoutMs });
+    const aptResult = await runCommandSafely(aptInstallArgv, { timeoutMs: params.timeoutMs });
+    if (aptResult.code === 0) {
+      return undefined;
+    }
+    return createInstallFailure({
+      message: params.failureMessage,
+      ...aptResult,
+    });
+  }
+
+  if (!hasBinary("sudo")) {
+    return createInstallFailure({
+      message: `${params.manualInstallHint} (sudo is not installed)`,
+    });
+  }
+
+  const sudoCheck = await runCommandSafely(["sudo", "-n", "true"], {
+    timeoutMs: 5_000,
+  });
+  if (sudoCheck.code !== 0) {
+    return createInstallFailure({
+      message: `${params.manualInstallHint} (sudo is unavailable or requires a password)`,
+      ...sudoCheck,
+    });
+  }
+
+  await runBestEffortCommand(["sudo", ...aptUpdateArgv], { timeoutMs: params.timeoutMs });
+  const aptResult = await runCommandSafely(["sudo", ...aptInstallArgv], {
+    timeoutMs: params.timeoutMs,
+  });
+  if (aptResult.code === 0) {
+    return undefined;
+  }
+
+  return createInstallFailure({
+    message: params.failureMessage,
+    ...aptResult,
+  });
 }
 
 async function resolveBrewBinDir(timeoutMs: number, brewExe?: string): Promise<string | undefined> {
@@ -380,56 +446,46 @@ async function ensureUvInstalled(params: {
 }
 
 async function installGoViaApt(timeoutMs: number): Promise<SkillInstallResult | undefined> {
-  const aptInstallArgv = ["apt-get", "install", "-y", "golang-go"];
-  const aptUpdateArgv = ["apt-get", "update", "-qq"];
-  const aptFailureMessage =
-    "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install";
-
-  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
-  if (isRoot) {
-    // Best effort: fresh containers often need package indexes populated.
-    await runBestEffortCommand(aptUpdateArgv, { timeoutMs });
-    const aptResult = await runCommandSafely(aptInstallArgv, { timeoutMs });
-    if (aptResult.code === 0) {
-      return undefined;
-    }
-    return createInstallFailure({
-      message: aptFailureMessage,
-      ...aptResult,
-    });
-  }
-
-  if (!hasBinary("sudo")) {
-    return createInstallFailure({
-      message:
-        "go not installed — apt-get is available but sudo is not installed. Install manually: https://go.dev/doc/install",
-    });
-  }
-
-  const sudoCheck = await runCommandSafely(["sudo", "-n", "true"], {
-    timeoutMs: 5_000,
-  });
-  if (sudoCheck.code !== 0) {
-    return createInstallFailure({
-      message:
-        "go not installed — apt-get is available but sudo is not usable (missing or requires a password). Install manually: https://go.dev/doc/install",
-      ...sudoCheck,
-    });
-  }
-
-  // Best effort: fresh containers often need package indexes populated.
-  await runBestEffortCommand(["sudo", ...aptUpdateArgv], { timeoutMs });
-  const aptResult = await runCommandSafely(["sudo", ...aptInstallArgv], {
+  return installPackagesViaApt({
+    packages: ["golang-go"],
     timeoutMs,
+    failureMessage:
+      "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install",
+    manualInstallHint: "go not installed — install manually: https://go.dev/doc/install",
   });
-  if (aptResult.code === 0) {
-    return undefined;
+}
+
+async function installAptPackage(spec: SkillInstallSpec, timeoutMs: number) {
+  if (process.platform !== "linux") {
+    return createInstallFailure({
+      message: "apt installers are only available on Linux",
+    });
+  }
+  const packageName = spec.package?.trim();
+  if (!packageName) {
+    return createInstallFailure({ message: "missing apt package" });
+  }
+  const err = assertSafeInstallerValue(packageName, "apt package", SAFE_APT_PACKAGE);
+  if (err) {
+    return createInstallFailure({ message: err });
   }
 
-  return createInstallFailure({
-    message: aptFailureMessage,
-    ...aptResult,
+  const installFailure = await installPackagesViaApt({
+    packages: [packageName],
+    timeoutMs,
+    failureMessage: `Failed to install ${packageName} (apt)`,
+    manualInstallHint: `Install manually with apt: sudo apt-get update && sudo apt-get install -y ${packageName}`,
   });
+  if (installFailure) {
+    return installFailure;
+  }
+  return {
+    ok: true,
+    message: "Installed",
+    stdout: "",
+    stderr: "",
+    code: 0,
+  };
 }
 
 async function ensureGoInstalled(params: {
@@ -576,6 +632,9 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
   if (spec.kind === "download") {
     const downloadResult = await installDownloadSpec({ entry, spec, timeoutMs });
     return withWarnings(downloadResult, warnings);
+  }
+  if (spec.kind === "apt") {
+    return withWarnings(await installAptPackage(spec, timeoutMs), warnings);
   }
 
   const prefs = resolveSkillsInstallPreferences(params.config);

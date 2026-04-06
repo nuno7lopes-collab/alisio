@@ -131,6 +131,10 @@ import {
   AgentsDeleteParamsSchema,
   type AgentsDeleteResult,
   AgentsDeleteResultSchema,
+  type AgentsFilesDeleteParams,
+  AgentsFilesDeleteParamsSchema,
+  type AgentsFilesDeleteResult,
+  AgentsFilesDeleteResultSchema,
   type AgentsFilesGetParams,
   AgentsFilesGetParamsSchema,
   type AgentsFilesGetResult,
@@ -543,6 +547,9 @@ export const validateAgentsFilesGetParams = ajv.compile<AgentsFilesGetParams>(
 export const validateAgentsFilesSetParams = ajv.compile<AgentsFilesSetParams>(
   AgentsFilesSetParamsSchema,
 );
+export const validateAgentsFilesDeleteParams = ajv.compile<AgentsFilesDeleteParams>(
+  AgentsFilesDeleteParamsSchema,
+);
 export const validateNodePairRequestParams = ajv.compile<NodePairRequestParams>(
   NodePairRequestParamsSchema,
 );
@@ -892,6 +899,8 @@ export {
   AgentsFilesGetResultSchema,
   AgentsFilesSetParamsSchema,
   AgentsFilesSetResultSchema,
+  AgentsFilesDeleteParamsSchema,
+  AgentsFilesDeleteResultSchema,
   AgentsListParamsSchema,
   AgentsListResultSchema,
   ModelsListParamsSchema,
@@ -1038,6 +1047,8 @@ export type {
   AgentsFilesGetResult,
   AgentsFilesSetParams,
   AgentsFilesSetResult,
+  AgentsFilesDeleteParams,
+  AgentsFilesDeleteResult,
   AgentsListParams,
   AgentsListResult,
   SkillsStatusParams,

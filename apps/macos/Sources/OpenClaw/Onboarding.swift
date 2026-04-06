@@ -41,7 +41,6 @@ final class OnboardingController {
 
 struct OnboardingView: View {
     @State var currentPage = 0
-    @State var isRequesting = false
     @State var monitoringPermissions = false
     @State var monitoringDiscovery = false
     @State var workspacePath: String = ""

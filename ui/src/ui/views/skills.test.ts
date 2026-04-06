@@ -145,6 +145,46 @@ describe("renderSkills", () => {
     expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
     expect(container.textContent).not.toContain("No skills found.");
   });
+
+  it("humanizes missing requirements in the skill detail dialog", async () => {
+    const container = document.createElement("div");
+
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderSkills(
+        createProps({
+          detailKey: "repo-skill",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                eligible: false,
+                missing: {
+                  bins: ["gh"],
+                  env: ["OPENAI_API_KEY"],
+                  config: ["browser.enabled"],
+                  os: ["linux"],
+                },
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Binary: gh");
+    expect(text).toContain("Environment variable: OPENAI_API_KEY");
+    expect(text).toContain("Config: browser.enabled");
+    expect(text).toContain("Supported OS: linux");
+    expect(text).not.toContain("bin:gh");
+  });
 });
 
 function installDialogMethod(

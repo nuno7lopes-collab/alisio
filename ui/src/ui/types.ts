@@ -450,6 +450,14 @@ export type AgentsFilesSetResult = {
   file: AgentFileEntry;
 };
 
+export type AgentsFilesDeleteResult = {
+  ok: true;
+  agentId: string;
+  workspace: string;
+  name: string;
+  deleted: boolean;
+};
+
 export type SessionRunStatus = "running" | "done" | "failed" | "killed" | "timeout";
 
 export type GatewaySessionRow = {
@@ -656,7 +664,7 @@ export type SkillsStatusConfigCheck = {
 
 export type SkillInstallOption = {
   id: string;
-  kind: "brew" | "node" | "go" | "uv";
+  kind: "apt" | "brew" | "node" | "go" | "uv" | "download";
   label: string;
   bins: string[];
 };

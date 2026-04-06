@@ -23,8 +23,9 @@ function makeEntry(params: {
   requires?: { bins?: string[]; env?: string[]; config?: string[] };
   install?: Array<{
     id: string;
-    kind: "brew" | "download";
+    kind: "apt" | "brew" | "download";
     bins?: string[];
+    package?: string;
     formula?: string;
     os?: string[];
     url?: string;
@@ -205,6 +206,47 @@ describe("buildWorkspaceSkillStatus", () => {
       expect(skill?.install.map((opt) => opt.id)).toEqual(["win"]);
     } else {
       expect(skill?.install).toEqual([]);
+    }
+  });
+
+  it("prefers apt installers on Linux when brew is unavailable", () => {
+    const entry = makeEntry({
+      name: "github-cli",
+      requires: {
+        bins: ["gh"],
+      },
+      install: [
+        {
+          id: "brew",
+          kind: "brew",
+          formula: "gh",
+          bins: ["gh"],
+          label: "Install gh (brew)",
+        },
+        {
+          id: "apt",
+          kind: "apt",
+          bins: ["gh"],
+          package: "gh",
+          label: "Install gh (apt)",
+        },
+      ],
+    });
+
+    const report = withEnv({ PATH: "" }, () =>
+      buildWorkspaceSkillStatus("/tmp/ws", {
+        entries: [entry],
+      }),
+    );
+    const skill = report.skills.find((reportEntry) => reportEntry.name === "github-cli");
+
+    expect(skill).toBeDefined();
+    if (process.platform === "linux") {
+      expect(skill?.install[0]?.id).toBe("apt");
+      expect(skill?.install[0]?.kind).toBe("apt");
+    } else {
+      expect(skill?.install[0]?.id).toBe("brew");
+      expect(skill?.install.some((option) => option.kind === "apt")).toBe(false);
     }
   });
 });

@@ -1,20 +1,10 @@
 import Foundation
-import OpenClawIPC
 
 extension OnboardingView {
     @MainActor
     func refreshPerms() async {
         await self.permissionMonitor.refreshNow()
         self.syncShellOnboardingState()
-    }
-
-    @MainActor
-    func request(_ cap: Capability) async {
-        guard !self.isRequesting else { return }
-        self.isRequesting = true
-        defer { isRequesting = false }
-        _ = await PermissionManager.ensure([cap], interactive: true)
-        await self.refreshPerms()
     }
 
     func updatePermissionMonitoring(for pageIndex: Int) {

@@ -207,6 +207,7 @@ function createChatEphemeralState(): ChatEphemeralState {
 }
 
 const vs = createChatEphemeralState();
+let activeEphemeralSessionKey: string | null = null;
 
 /**
  * Reset chat view ephemeral state when navigating away.
@@ -216,10 +217,22 @@ export function resetChatViewState() {
   if (vs.sttRecording) {
     stopStt();
   }
+  activeEphemeralSessionKey = null;
   Object.assign(vs, createChatEphemeralState());
 }
 
 export const cleanupChatModuleState = resetChatViewState;
+
+function syncChatViewStateForSession(sessionKey: string) {
+  if (activeEphemeralSessionKey === sessionKey) {
+    return;
+  }
+  if (vs.sttRecording) {
+    stopStt();
+  }
+  activeEphemeralSessionKey = sessionKey;
+  Object.assign(vs, createChatEphemeralState());
+}
 
 function adjustTextareaHeight(el: HTMLTextAreaElement) {
   el.style.height = "auto";
@@ -322,27 +335,16 @@ function parseHexRgb(hex: string): [number, number, number] | null {
   return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
 }
 
-let cachedThemeNoticeColors: {
-  warnHex: string;
-  dangerHex: string;
-  warnRgb: [number, number, number];
-  dangerRgb: [number, number, number];
-} | null = null;
-
 function getThemeNoticeColors() {
-  if (cachedThemeNoticeColors) {
-    return cachedThemeNoticeColors;
-  }
   const rootStyle = getComputedStyle(document.documentElement);
   const warnHex = rootStyle.getPropertyValue("--warn").trim() || "#f59e0b";
   const dangerHex = rootStyle.getPropertyValue("--danger").trim() || "#ef4444";
-  cachedThemeNoticeColors = {
+  return {
     warnHex,
     dangerHex,
     warnRgb: parseHexRgb(warnHex) ?? [245, 158, 11],
     dangerRgb: parseHexRgb(dangerHex) ?? [239, 68, 68],
   };
-  return cachedThemeNoticeColors;
 }
 
 function renderContextNotice(
@@ -999,6 +1001,8 @@ function renderSlashMenu(
 }
 
 export function renderChat(props: ChatProps) {
+  syncChatViewStateForSession(props.sessionKey);
+
   const canCompose = props.connected;
   const isBusy = props.sending || props.stream !== null;
   const canAbort = Boolean(props.canAbort && props.onAbort);
@@ -1031,6 +1035,7 @@ export function renderChat(props: ChatProps) {
 
   const requestUpdate = props.onRequestUpdate ?? (() => {});
   const getDraft = props.getDraft ?? (() => props.draft);
+  let fileInputEl: HTMLInputElement | null = null;
 
   const splitRatio = props.splitRatio ?? 0.6;
   const sidebarOpen = Boolean(props.sidebarOpen && props.onCloseSidebar);
@@ -1412,6 +1417,9 @@ export function renderChat(props: ChatProps) {
           accept=${CHAT_ATTACHMENT_ACCEPT}
           multiple
           class="agent-chat__file-input"
+          ${ref((el) => {
+            fileInputEl = el as HTMLInputElement | null;
+          })}
           @change=${(e: Event) => handleFileSelect(e, props, requestUpdate)}
         />
 
@@ -1437,7 +1445,7 @@ export function renderChat(props: ChatProps) {
             <button
               class="agent-chat__input-btn"
               @click=${() => {
-                document.querySelector<HTMLInputElement>(".agent-chat__file-input")?.click();
+                fileInputEl?.click();
               }}
               title=${chatText("compose.attachFile")}
               aria-label=${chatText("compose.attachFile")}

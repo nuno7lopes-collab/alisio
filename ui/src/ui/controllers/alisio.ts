@@ -63,11 +63,15 @@ export type AlisioState = {
   alisioAuthMode: "sign-up" | "sign-in";
   alisioAuthEmail: string;
   alisioAuthPassword: string;
+  alisioAuthPasswordVisible?: boolean;
   alisioAiLoading: boolean;
   alisioAiError: string | null;
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
+  alisioOrganizationDraftMode: "create" | "join";
+  alisioOrganizationName: string;
+  alisioOrganizationInviteEmail: string;
   alisioConnectorsLoading: boolean;
   alisioConnectorsError: string | null;
   alisioConnectorCatalog: AlisioConnectorDefinition[];
@@ -209,6 +213,31 @@ function syncWizardDraftState(state: AlisioState, step: WizardStep | null) {
   state.setupWizardDraftMultiIndexes = [];
 }
 
+function syncOrganizationDraftState(
+  state: AlisioState,
+  organization: AlisioOrganizationMembershipState | null,
+  options?: { resetWhenNone?: boolean },
+) {
+  if (organization?.mode === "owner") {
+    state.alisioOrganizationDraftMode = "create";
+    state.alisioOrganizationName = organization.organizationName ?? "";
+    state.alisioOrganizationInviteEmail = "";
+    return;
+  }
+  if (organization?.mode === "member") {
+    state.alisioOrganizationDraftMode = "join";
+    state.alisioOrganizationName = organization.organizationName ?? "";
+    state.alisioOrganizationInviteEmail = organization.inviteEmail ?? "";
+    return;
+  }
+  if (!options?.resetWhenNone) {
+    return;
+  }
+  state.alisioOrganizationDraftMode = "create";
+  state.alisioOrganizationName = "";
+  state.alisioOrganizationInviteEmail = "";
+}
+
 function syncSetupRoute(state: AlisioState) {
   if (typeof state.setTab !== "function") {
     return;
@@ -233,12 +262,16 @@ function syncSetupRoute(state: AlisioState) {
 }
 
 function applyBootstrapSnapshot(state: AlisioState, bootstrap: AlisioBootstrapState) {
+  const previousOrganizationMode = state.alisioOrganization?.mode ?? "none";
   state.alisioBootstrap = bootstrap;
   state.alisioAccount = bootstrap.account;
   if (!state.alisioAuthEmail && bootstrap.account.profile.email) {
     state.alisioAuthEmail = bootstrap.account.profile.email;
   }
   state.alisioOrganization = bootstrap.organization;
+  syncOrganizationDraftState(state, bootstrap.organization, {
+    resetWhenNone: previousOrganizationMode !== "none",
+  });
   state.alisioConnectorCatalog = [...bootstrap.connectors.catalog];
   state.alisioConnectorAuthorizations = [...bootstrap.connectors.authorizations];
   if (
@@ -259,6 +292,7 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioBootstrap = null;
   state.alisioOrganization = null;
   state.alisioOrganizationError = null;
+  syncOrganizationDraftState(state, null, { resetWhenNone: true });
   state.alisioConnectorCatalog = [];
   state.alisioConnectorAuthorizations = [];
   state.alisioConnectorsError = null;
@@ -511,61 +545,83 @@ export async function loadAlisioAccount(state: AlisioState) {
 }
 
 export async function signUpAlisioAccount(state: AlisioState) {
-  if (state.alisioAccountLoading) {
-    return;
-  }
   if (!state.client || !state.connected) {
     state.alisioAccountError =
       "Alisio is still reconnecting. Wait a moment, then try creating your account again.";
     return;
   }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
     const email = state.alisioAuthEmail.trim();
     const password = state.alisioAuthPassword;
-    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.signUp", {
+    const account = await request.client.request<AlisioAccountState>("alisio.account.signUp", {
       email,
       password,
     });
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccount = account;
     state.alisioAuthEmail = state.alisioAccount.profile.email;
     state.alisioAuthMode = "sign-in";
     state.alisioAuthPassword = "";
+    state.alisioAuthPasswordVisible = false;
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     state.alisioAccountError = String(error);
   } finally {
-    state.alisioAccountLoading = false;
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
   }
 }
 
 export async function signInAlisioAccount(state: AlisioState) {
-  if (state.alisioAccountLoading) {
-    return;
-  }
   if (!state.client || !state.connected) {
     state.alisioAccountError =
       "Alisio is still reconnecting. Wait a moment, then try signing in again.";
     return;
   }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
     const email = state.alisioAuthEmail.trim();
     const password = state.alisioAuthPassword;
-    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.signIn", {
+    const account = await request.client.request<AlisioAccountState>("alisio.account.signIn", {
       email,
       password,
     });
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccount = account;
     state.alisioAuthEmail = state.alisioAccount.profile.email;
     state.alisioAuthPassword = "";
+    state.alisioAuthPasswordVisible = false;
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     state.alisioAccountError = String(error);
   } finally {
-    state.alisioAccountLoading = false;
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
   }
 }
 
@@ -586,11 +642,15 @@ export async function saveAlisioAccount(
       "Alisio is still reconnecting. Wait a moment, then save your profile again.";
     return;
   }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
-    state.alisioAccount = await state.client.request<AlisioAccountState>("alisio.account.update", {
+    const account = await request.client.request<AlisioAccountState>("alisio.account.update", {
       ...(typeof patch.username === "string" ? { username: patch.username } : {}),
       ...(typeof patch.displayName === "string" ? { displayName: patch.displayName } : {}),
       ...(typeof patch.email === "string" ? { email: patch.email } : {}),
@@ -599,49 +659,75 @@ export async function saveAlisioAccount(
       ...(patch.language ? { language: patch.language } : {}),
       ...(patch.theme ? { theme: patch.theme } : {}),
     });
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccount = account;
     state.alisioAuthEmail = state.alisioAccount.profile.email;
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     state.alisioAccountError = String(error);
   } finally {
-    state.alisioAccountLoading = false;
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
   }
 }
 
 export async function signOutAlisioAccount(state: AlisioState) {
-  if (!state.client || !state.connected || state.alisioAccountLoading) {
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "Alisio is still reconnecting. Wait a moment, then try signing out again.";
+    return;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
     return;
   }
   state.alisioAccountLoading = true;
   state.alisioAccountError = null;
   state.alisioAccountNotice = null;
   try {
-    state.alisioAccount = await state.client.request<AlisioAccountState>(
-      "alisio.account.signOut",
-      {},
-    );
+    const account = await request.client.request<AlisioAccountState>("alisio.account.signOut", {});
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccount = account;
     const identity = await loadOrCreateDeviceIdentity().catch(() => null);
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     if (identity?.deviceId) {
       clearDeviceAuthToken({ deviceId: identity.deviceId, role: "operator" });
     }
     resetSignedOutAccountState(state);
     state.setupStep = "account";
     state.alisioAuthPassword = "";
+    state.alisioAuthPasswordVisible = false;
     state.setTab?.("setup");
   } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     state.alisioAccountError = String(error);
   } finally {
-    state.alisioAccountLoading = false;
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
   }
 }
 
 export async function requestAlisioPasswordReset(state: AlisioState) {
-  if (state.alisioAccountLoading) {
-    return;
-  }
   if (!state.client || !state.connected) {
     state.alisioAccountError =
       "Alisio is still reconnecting. Wait a moment, then request a password reset again.";
+    return;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
     return;
   }
   state.alisioAccountLoading = true;
@@ -654,15 +740,25 @@ export async function requestAlisioPasswordReset(state: AlisioState) {
       return;
     }
     state.alisioAuthEmail = email;
-    const result = await state.client.request<{ message: string; ok: true }>(
+    const result = await request.client.request<{ message: string; ok: true }>(
       "alisio.account.requestPasswordReset",
       { email },
     );
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAuthPassword = "";
+    state.alisioAuthPasswordVisible = false;
     state.alisioAccountNotice = result.message;
   } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
     state.alisioAccountError = String(error);
   } finally {
-    state.alisioAccountLoading = false;
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
   }
 }
 
@@ -823,7 +919,11 @@ export async function loadAlisioOrganization(state: AlisioState) {
     if (!isTrackedRequestCurrent(state, organizationRequests, request)) {
       return;
     }
+    const previousOrganizationMode = state.alisioOrganization?.mode ?? "none";
     state.alisioOrganization = result;
+    syncOrganizationDraftState(state, result, {
+      resetWhenNone: previousOrganizationMode !== "none",
+    });
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     if (!isTrackedRequestCurrent(state, organizationRequests, request)) {
@@ -854,6 +954,9 @@ export async function saveAlisioOrganization(
       "alisio.organization.set",
       next,
     );
+    syncOrganizationDraftState(state, state.alisioOrganization, {
+      resetWhenNone: state.alisioOrganization?.mode === "none",
+    });
     await Promise.allSettled([loadAlisioBootstrap(state), loadAlisioDoctorSummary(state)]);
   } catch (error) {
     state.alisioOrganizationError = String(error);

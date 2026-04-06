@@ -38,11 +38,14 @@ export function renderConnections(props: NodesProps) {
   const connectedNodes = countConnectedNodes(props.nodes);
   const execReadyNodes = countReadyExecNodes(props.nodes);
   const pendingNodes = countPendingNodeRequests(props);
+  const refreshing =
+    props.loading ||
+    props.devicesLoading ||
+    props.nodePairingsLoading ||
+    props.configLoading ||
+    props.execApprovalsLoading;
   const showOverviewLoading =
-    (props.loading || props.devicesLoading || props.nodePairingsLoading) &&
-    props.nodes.length === 0 &&
-    !props.devicesList &&
-    !props.nodePairingsList;
+    refreshing && props.nodes.length === 0 && !props.devicesList && !props.nodePairingsList;
   const text = {
     eyebrow: t("alisio.connections.eyebrow"),
     title: t("alisio.connections.title"),
@@ -71,8 +74,8 @@ export function renderConnections(props: NodesProps) {
             <div class="card-title">${text.title}</div>
             <div class="card-sub">${text.subtitle}</div>
           </div>
-          <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
-            ${props.loading ? text.refreshing : text.refreshAll}
+          <button class="btn" ?disabled=${refreshing} @click=${props.onRefresh}>
+            ${refreshing ? text.refreshing : text.refreshAll}
           </button>
         </div>
         <div class="alisio-connections-overview">

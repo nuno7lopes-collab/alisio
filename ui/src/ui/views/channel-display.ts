@@ -178,13 +178,8 @@ export function resolveChannelFlags(row: ResolvedChannelRow): ChannelFlags {
     row.issues.length > 0 ||
     row.accounts.some((account) => Boolean(account.lastError?.trim())) ||
     Boolean(readString(summary, "lastError"));
-  const setupAvailable =
-    readBoolean(summary, "setupAvailable") ||
-    row.id === "telegram" ||
-    row.id === "whatsapp" ||
-    row.id === "discord";
-  const logoutAvailable =
-    readBoolean(summary, "logoutAvailable") || row.id === "telegram" || row.id === "whatsapp";
+  const setupAvailable = readBoolean(summary, "setupAvailable");
+  const logoutAvailable = readBoolean(summary, "logoutAvailable");
   return {
     configured,
     linked,
@@ -192,7 +187,7 @@ export function resolveChannelFlags(row: ResolvedChannelRow): ChannelFlags {
     attention,
     setupAvailable,
     logoutAvailable,
-    linkMode: readString(summary, "linkMode") ?? (row.id === "whatsapp" ? "qr" : "wizard"),
+    linkMode: readString(summary, "linkMode") ?? "wizard",
     setupOnly: readBoolean(summary, "setupOnly"),
   };
 }

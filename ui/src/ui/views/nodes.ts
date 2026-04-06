@@ -14,12 +14,10 @@ import {
   renderSkeletonButton,
   renderSkeletonListItem,
   renderSkeletonPill,
-  renderSkeletonStatCards,
 } from "./loading-skeleton.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
 import {
-  countConnectedNodes,
-  countReadyExecNodes,
+  isConnectedNode,
   nodeSupportsExec,
   resolveConfigAgents,
   resolveNodeTargets,
@@ -84,13 +82,8 @@ export function renderNodes(props: NodesProps, opts?: { includeExecApprovals?: b
   `;
 }
 
-function renderPanelSummaryItem(value: number | string, label: string) {
-  return html`
-    <div class="alisio-connections-summary-pill">
-      <strong>${value}</strong>
-      <span>${label}</span>
-    </div>
-  `;
+function renderPanelCount(value: number | string) {
+  return html`<span class="alisio-connections-subsection__count">${value}</span>`;
 }
 
 function renderDevices(props: NodesProps) {
@@ -125,14 +118,6 @@ function renderDevices(props: NodesProps) {
         >
           ${props.devicesLoading ? text.loading : text.refresh}
         </button>
-      </div>
-      <div class="alisio-connections-panel__summary">
-        ${showLoading
-          ? renderSkeletonStatCards(2)
-          : html`
-              ${renderPanelSummaryItem(pending.length, text.pending)}
-              ${renderPanelSummaryItem(paired.length, text.paired)}
-            `}
       </div>
       ${props.devicesError
         ? html`<div class="callout danger" style="margin-top: 12px;">${props.devicesError}</div>`
@@ -193,22 +178,15 @@ function renderDevices(props: NodesProps) {
 }
 
 function renderRuntime(props: NodesProps, state: BindingState) {
-  const connectedNodes = countConnectedNodes(props.nodes);
-  const execReadyNodes = countReadyExecNodes(props.nodes);
-  const pendingNodeRequests = props.nodePairingsList?.pending ?? [];
+  const refreshing =
+    props.loading || props.nodePairingsLoading || props.configLoading || props.execApprovalsLoading;
   const showLoading =
-    (props.loading || props.nodePairingsLoading) &&
-    props.nodes.length === 0 &&
-    !props.configForm &&
-    !props.nodePairingsList;
+    refreshing && props.nodes.length === 0 && !props.configForm && !props.nodePairingsList;
   const text = {
     title: t("alisio.connections.runtimeTitle"),
     subtitle: t("alisio.connections.runtimeSubtitle"),
     loading: t("alisio.connections.loading"),
     refresh: t("common.refresh"),
-    liveNodes: t("alisio.connections.liveNodes"),
-    execReady: t("alisio.connections.nodes.execReady"),
-    pendingNodes: t("alisio.connections.pendingNodes"),
   };
   return html`
     <section class="card alisio-connections-panel">
@@ -220,18 +198,9 @@ function renderRuntime(props: NodesProps, state: BindingState) {
             <div class="card-sub">${text.subtitle}</div>
           </div>
         </div>
-        <button class="btn btn--ghost" ?disabled=${props.loading} @click=${props.onRefresh}>
-          ${props.loading ? text.loading : text.refresh}
+        <button class="btn btn--ghost" ?disabled=${refreshing} @click=${props.onRefresh}>
+          ${refreshing ? text.loading : text.refresh}
         </button>
-      </div>
-      <div class="alisio-connections-panel__summary">
-        ${showLoading
-          ? renderSkeletonStatCards(3)
-          : html`
-              ${renderPanelSummaryItem(connectedNodes, text.liveNodes)}
-              ${renderPanelSummaryItem(execReadyNodes, text.execReady)}
-              ${renderPanelSummaryItem(pendingNodeRequests.length, text.pendingNodes)}
-            `}
       </div>
       ${props.nodesError ? html`<div class="callout danger">${props.nodesError}</div>` : nothing}
       ${props.nodePairingsError
@@ -303,8 +272,8 @@ function renderRuntime(props: NodesProps, state: BindingState) {
 function renderPendingNodeRequests(props: NodesProps) {
   const list = props.nodePairingsList ?? { pending: [], paired: [] };
   const pending = Array.isArray(list.pending) ? list.pending : [];
-  const showLoading =
-    props.nodePairingsLoading && !props.nodePairingsList && !props.nodePairingsError;
+  const refreshing = props.loading || props.nodePairingsLoading;
+  const showLoading = refreshing && !props.nodePairingsList && !props.nodePairingsError;
   const text = {
     title: t("alisio.connections.nodes.pendingTitle"),
     subtitle: t("alisio.connections.nodes.pendingSubtitle"),
@@ -319,13 +288,16 @@ function renderPendingNodeRequests(props: NodesProps) {
           <div class="alisio-connections-subpanel__title">${text.title}</div>
           <div class="alisio-connections-subpanel__subtitle">${text.subtitle}</div>
         </div>
-        <button
-          class="btn btn--ghost btn--sm"
-          ?disabled=${props.nodePairingsLoading}
-          @click=${props.onNodePairingsRefresh}
-        >
-          ${props.nodePairingsLoading ? text.loading : text.refresh}
-        </button>
+        <div class="alisio-connections-subpanel__meta">
+          ${renderPanelCount(pending.length)}
+          <button
+            class="btn btn--ghost btn--sm"
+            ?disabled=${refreshing}
+            @click=${props.onNodePairingsRefresh}
+          >
+            ${refreshing ? text.loading : text.refresh}
+          </button>
+        </div>
       </div>
       ${showLoading
         ? html`
@@ -364,7 +336,9 @@ function renderPendingNodeRequest(req: PendingNodePairing, props: NodesProps) {
     req.isRepair ? t("alisio.connections.nodes.repair") : null,
   ].filter((value): value is string => Boolean(value));
   return html`
-    <div class="list-item alisio-connections-entry alisio-connections-entry--pending">
+    <div
+      class="list-item alisio-connections-entry alisio-connections-entry--pending alisio-connections-entry--split"
+    >
       <div class="list-main">
         <div class="alisio-connections-entry__head">
           <div class="list-title">${title}</div>
@@ -399,7 +373,9 @@ function renderPendingDevice(req: PendingDevice, props: NodesProps) {
   const repair = req.isRepair ? ` · ${t("alisio.connections.devices.repair")}` : "";
   const ip = req.remoteIp ? ` · ${req.remoteIp}` : "";
   return html`
-    <div class="list-item alisio-connections-entry alisio-connections-entry--pending">
+    <div
+      class="list-item alisio-connections-entry alisio-connections-entry--pending alisio-connections-entry--split"
+    >
       <div class="list-main">
         <div class="alisio-connections-entry__head">
           <div class="list-title">${name}</div>
@@ -437,7 +413,7 @@ function renderPairedDevice(device: PairedDevice, props: NodesProps) {
   const scopes = t("alisio.connections.devices.scopes", { values: formatList(device.scopes) });
   const tokens = Array.isArray(device.tokens) ? device.tokens : [];
   return html`
-    <div class="list-item alisio-connections-entry">
+    <div class="list-item alisio-connections-entry alisio-connections-entry--single">
       <div class="list-main">
         <div class="alisio-connections-entry__head">
           <div class="list-title">${name}</div>
@@ -636,7 +612,7 @@ function renderBindings(state: BindingState) {
             </div>`
         : html`
             <div class="alisio-binding-list">
-              <div class="list-item alisio-binding-row">
+              <div class="list-item alisio-binding-row alisio-binding-row--split">
                 <div class="list-main">
                   <div class="alisio-connections-entry__head">
                     <div class="list-title">${text.defaultBinding}</div>
@@ -697,7 +673,7 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
   );
   const overrideLabel = resolveNodeLabel(state.nodes, agent.binding, agent.binding ?? "");
   return html`
-    <div class="list-item alisio-binding-row">
+    <div class="list-item alisio-binding-row alisio-binding-row--split">
       <div class="list-main">
         <div class="alisio-connections-entry__head">
           <div class="list-title">${label}</div>
@@ -745,6 +721,9 @@ function renderAgentBinding(agent: BindingAgent, state: BindingState) {
 }
 
 function renderNodeList(props: NodesProps) {
+  const pairedRuntimeNodes = new Map(
+    (props.nodePairingsList?.paired ?? []).map((node) => [node.nodeId, node]),
+  );
   const text = {
     nodesTitle: t("alisio.connections.nodes.title"),
     nodesSubtitle: t("alisio.connections.nodes.subtitle"),
@@ -757,11 +736,12 @@ function renderNodeList(props: NodesProps) {
           <div class="alisio-connections-subpanel__title">${text.nodesTitle}</div>
           <div class="alisio-connections-subpanel__subtitle">${text.nodesSubtitle}</div>
         </div>
+        ${renderPanelCount(props.nodes.length)}
       </div>
       <div class="alisio-node-list">
         ${props.nodes.length === 0
           ? html`<div class="alisio-connections-empty">${text.noNodes}</div>`
-          : props.nodes.map((node) => renderNode(node))}
+          : props.nodes.map((node) => renderNode(node, pairedRuntimeNodes))}
       </div>
     </section>
   `;
@@ -839,16 +819,44 @@ function resolveNodeCommandCount(node: Record<string, unknown>) {
   return Array.isArray(node.commands) ? node.commands.length : 0;
 }
 
-function renderNode(node: Record<string, unknown>) {
-  const connected = Boolean(node.connected);
+function renderNode(
+  node: Record<string, unknown>,
+  pairedRuntimeNodes: Map<string, RuntimeNodePairingList["paired"][number]>,
+) {
+  const connected = isConnectedNode(node);
   const paired = Boolean(node.paired);
+  const nodeId = typeof node.nodeId === "string" ? node.nodeId : "";
   const title =
-    (typeof node.displayName === "string" && node.displayName.trim()) ||
-    (typeof node.nodeId === "string" ? node.nodeId : "unknown");
+    (typeof node.displayName === "string" && node.displayName.trim()) || nodeId || "unknown";
+  const pairedInfo = nodeId ? pairedRuntimeNodes.get(nodeId) : undefined;
   const capabilityCount = resolveNodeCapabilityCount(node);
   const commandCount = resolveNodeCommandCount(node);
   const execReady = nodeSupportsExec(node);
+  const connectedAtMs = typeof node.connectedAtMs === "number" ? node.connectedAtMs : null;
+  const lastConnectedAtMs =
+    typeof pairedInfo?.lastConnectedAtMs === "number" ? pairedInfo.lastConnectedAtMs : null;
+  const approvedAtMs =
+    typeof pairedInfo?.approvedAtMs === "number"
+      ? pairedInfo.approvedAtMs
+      : typeof node.approvedAtMs === "number"
+        ? node.approvedAtMs
+        : null;
+  const timingDetail =
+    connected && connectedAtMs != null
+      ? t("alisio.connections.nodes.connectedAge", {
+          age: formatRelativeTimestamp(connectedAtMs, { dateFallback: true }),
+        })
+      : !connected && lastConnectedAtMs != null
+        ? t("alisio.connections.nodes.lastSeen", {
+            age: formatRelativeTimestamp(lastConnectedAtMs, { dateFallback: true }),
+          })
+        : approvedAtMs != null
+          ? t("alisio.connections.nodes.approvedAge", {
+              age: formatRelativeTimestamp(approvedAtMs, { dateFallback: true }),
+            })
+          : null;
   const details = [
+    timingDetail,
     typeof node.remoteIp === "string" && node.remoteIp.trim() ? node.remoteIp.trim() : null,
     typeof node.version === "string" && node.version.trim() ? node.version.trim() : null,
     execReady ? t("alisio.connections.nodes.execReady") : null,
@@ -864,9 +872,7 @@ function renderNode(node: Record<string, unknown>) {
       <div class="alisio-node-card__head">
         <div class="list-main">
           <div class="list-title">${title}</div>
-          <div class="list-sub mono alisio-connections-entry__identifier">
-            ${typeof node.nodeId === "string" ? node.nodeId : ""}
-          </div>
+          <div class="list-sub mono alisio-connections-entry__identifier">${nodeId}</div>
         </div>
         <div class="alisio-node-card__status">
           <span class="pill ${connected ? "pill--connected" : "pill--needs-reconnect"}">

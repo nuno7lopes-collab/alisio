@@ -15,6 +15,8 @@ import {
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { OpenClawApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
+import { loadAgentMemoryFiles, resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
+import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
   loadAlisioAccount,
@@ -39,6 +41,7 @@ import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
 import { loadNativeShellState } from "./lume-host.ts";
+import { PRIMARY_MEMORY_FILE_NAME } from "./memory-files.ts";
 import {
   inferBasePathFromPathname,
   normalizePath,
@@ -76,7 +79,10 @@ type SettingsHost = {
   eventLog: unknown[];
   eventLogBuffer: unknown[];
   basePath: string;
+  assistantAgentId?: string | null;
   agentsList?: AgentsListResult | null;
+  memorySelectedAgentId?: string | null;
+  memoryActive?: string | null;
   agentsSelectedId?: string | null;
   agentsPanel?: "overview" | "files" | "tools" | "skills" | "channels" | "cron";
   pendingGatewayUrl?: string | null;
@@ -335,6 +341,21 @@ export async function refreshActiveTab(host: SettingsHost) {
         }
       })(),
     ]);
+  }
+  if (host.tab === "memory") {
+    await loadAgents(host as unknown as OpenClawApp);
+    const agentId = resolvePreferredMemoryAgentId({
+      agentsList: host.agentsList ?? null,
+      memorySelectedAgentId: host.memorySelectedAgentId ?? null,
+      sessionKey: host.sessionKey,
+      assistantAgentId: host.assistantAgentId ?? null,
+    });
+    if (agentId) {
+      host.memorySelectedAgentId = agentId;
+      await loadAgentMemoryFiles(host as unknown as OpenClawApp, agentId, {
+        preferredName: host.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
+      });
+    }
   }
   if (host.tab === "capabilities") {
     await Promise.allSettled([

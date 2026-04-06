@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import { render } from "lit";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { renderChatSessionSelect } from "../app-render.helpers.ts";
 import type { AppViewState } from "../app-view-state.ts";
@@ -14,7 +14,7 @@ import {
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ModelCatalogEntry } from "../types.ts";
 import type { SessionsListResult } from "../types.ts";
-import { renderChat, type ChatProps } from "./chat.ts";
+import { cleanupChatModuleState, renderChat, type ChatProps } from "./chat.ts";
 
 function createSessions(): SessionsListResult {
   return {
@@ -193,6 +193,11 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
   };
 }
 
+afterEach(() => {
+  cleanupChatModuleState();
+  document.body.innerHTML = "";
+});
+
 describe("chat view", () => {
   it("renders quick access controls in the composer and wires their actions", () => {
     const container = document.createElement("div");
@@ -254,6 +259,75 @@ describe("chat view", () => {
 
     expect(container.textContent).not.toContain("Custom");
     expect(container.textContent).not.toContain("pending");
+  });
+
+  it("resets transient search UI when switching sessions", () => {
+    const container = document.createElement("div");
+    let props = createProps({
+      sessionKey: "main",
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Primeira sessao" }],
+          timestamp: 1,
+        },
+      ],
+    });
+    const rerender = () => {
+      render(
+        renderChat({
+          ...props,
+          onRequestUpdate: rerender,
+        }),
+        container,
+      );
+    };
+
+    rerender();
+
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(composer).not.toBeNull();
+    composer?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "f", ctrlKey: true, bubbles: true }),
+    );
+
+    expect(container.querySelector(".agent-chat__search-bar")).not.toBeNull();
+
+    props = createProps({
+      sessionKey: "agent:alpha:main",
+      messages: [],
+    });
+    rerender();
+
+    expect(container.querySelector(".agent-chat__search-bar")).toBeNull();
+    expect(container.textContent).not.toContain("No matching messages");
+  });
+
+  it("opens the file picker for the active composer instead of the first chat on the page", () => {
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    document.body.append(first, second);
+
+    render(renderChat(createProps({ sessionKey: "main" })), first);
+    render(renderChat(createProps({ sessionKey: "agent:alpha:main" })), second);
+
+    const firstInput = first.querySelector<HTMLInputElement>(".agent-chat__file-input");
+    const secondInput = second.querySelector<HTMLInputElement>(".agent-chat__file-input");
+    expect(firstInput).not.toBeNull();
+    expect(secondInput).not.toBeNull();
+    if (!firstInput || !secondInput) {
+      return;
+    }
+
+    const firstClick = vi.spyOn(firstInput, "click");
+    const secondClick = vi.spyOn(secondInput, "click");
+
+    const attachButton = second.querySelector<HTMLButtonElement>(".agent-chat__input-btn");
+    expect(attachButton).not.toBeNull();
+    attachButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(firstClick).not.toHaveBeenCalled();
+    expect(secondClick).toHaveBeenCalledTimes(1);
   });
 
   it("shows a runtime setup callout instead of the raw error when setup is missing", () => {

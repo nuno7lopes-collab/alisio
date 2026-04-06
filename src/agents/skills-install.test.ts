@@ -24,7 +24,11 @@ vi.mock("../security/skill-scanner.js", async (importOriginal) => ({
   scanDirectoryWithSummary: (...args: unknown[]) => scanDirectoryWithSummaryMock(...args),
 }));
 
-async function writeInstallableSkill(workspaceDir: string, name: string): Promise<string> {
+async function writeInstallableSkill(
+  workspaceDir: string,
+  name: string,
+  metadataJson = '{"openclaw":{"install":[{"id":"deps","kind":"node","package":"example-package"}]}}',
+): Promise<string> {
   const skillDir = path.join(workspaceDir, "skills", name);
   await fs.mkdir(skillDir, { recursive: true });
   await fs.writeFile(
@@ -32,7 +36,7 @@ async function writeInstallableSkill(workspaceDir: string, name: string): Promis
     `---
 name: ${name}
 description: test skill
-metadata: {"openclaw":{"install":[{"id":"deps","kind":"node","package":"example-package"}]}}
+metadata: ${metadataJson}
 ---
 
 # ${name}
@@ -222,6 +226,73 @@ describe("installSkill code safety scanning", () => {
       expect(result.ok).toBe(false);
       expect(result.message).toBe("Blocked by enterprise policy");
       expect(runCommandWithTimeoutMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it("installs apt-backed skills through sudo on Linux", async () => {
+    await withWorkspaceCase(async ({ workspaceDir }) => {
+      const fakeBinDir = await fs.mkdtemp(path.join(workspaceDir, "fake-bin-"));
+      await fs.writeFile(path.join(fakeBinDir, "apt-get"), "#!/bin/sh\nexit 0\n", {
+        mode: 0o755,
+      });
+      await fs.writeFile(path.join(fakeBinDir, "sudo"), "#!/bin/sh\nexit 0\n", {
+        mode: 0o755,
+      });
+      await writeInstallableSkill(
+        workspaceDir,
+        "apt-skill",
+        '{"openclaw":{"install":[{"id":"deps","kind":"apt","package":"gh"}]}}',
+      );
+
+      const previousPath = process.env.PATH;
+      const originalPlatform = Object.getOwnPropertyDescriptor(process, "platform");
+      Object.defineProperty(process, "platform", {
+        configurable: true,
+        value: "linux",
+      });
+      process.env.PATH = previousPath
+        ? `${fakeBinDir}${path.delimiter}${previousPath}`
+        : fakeBinDir;
+      runCommandWithTimeoutMock.mockResolvedValue({
+        code: 0,
+        stdout: "ok",
+        stderr: "",
+        signal: null,
+        killed: false,
+      });
+
+      try {
+        const timeoutMs = 123_456;
+        const result = await installSkill({
+          workspaceDir,
+          skillName: "apt-skill",
+          installId: "deps",
+          timeoutMs,
+        });
+
+        expect(result.ok).toBe(true);
+        expect(result.message).toBe("Installed");
+        expect(runCommandWithTimeoutMock).toHaveBeenNthCalledWith(
+          1,
+          ["sudo", "-n", "true"],
+          expect.objectContaining({ timeoutMs: 5_000 }),
+        );
+        expect(runCommandWithTimeoutMock).toHaveBeenNthCalledWith(
+          2,
+          ["sudo", "apt-get", "update", "-qq"],
+          expect.objectContaining({ timeoutMs }),
+        );
+        expect(runCommandWithTimeoutMock).toHaveBeenNthCalledWith(
+          3,
+          ["sudo", "apt-get", "install", "-y", "gh"],
+          expect.objectContaining({ timeoutMs }),
+        );
+      } finally {
+        process.env.PATH = previousPath;
+        if (originalPlatform) {
+          Object.defineProperty(process, "platform", originalPlatform);
+        }
+      }
     });
   });
 });

@@ -7,6 +7,7 @@ export { normalizeBasePath } from "./base-path.ts";
 const PUBLIC_TABS = [
   "setup",
   "chat",
+  "memory",
   "models",
   "channels",
   "capabilities",
@@ -23,6 +24,7 @@ export const TAB_GROUPS = [
     label: "product",
     tabs: [
       "chat",
+      "memory",
       "models",
       "channels",
       "authentications",
@@ -66,6 +68,7 @@ export function normalizePublicTab(tab: Tab): PublicTab {
   switch (tab) {
     case "setup":
     case "authentications":
+    case "memory":
     case "channels":
     case "models":
     case "capabilities":
@@ -91,6 +94,7 @@ export function publicTabFor(tab: Tab): PublicTab {
 const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
   setup: "/setup",
   chat: "/chat",
+  memory: "/memory",
   models: "/models",
   channels: "/channels",
   capabilities: "/capabilities",
@@ -196,12 +200,13 @@ export function normalizeSettingsSection(value: string | null | undefined): Sett
     return normalized as PublicSettingsSection;
   }
   switch (normalized) {
+    case "billing":
+      return "billing";
     case "appearance":
     case "language":
       return "general";
     case "security":
     case "devices":
-    case "billing":
     case "advanced":
     case "automation":
     case "workspace":
@@ -265,6 +270,8 @@ export function iconForTab(tab: Tab): IconName {
       return "terminal";
     case "authentications":
       return "link";
+    case "memory":
+      return "book";
     case "channels":
       return "radio";
     case "models":
@@ -292,6 +299,8 @@ export function titleForTab(tab: Tab) {
       return t("tabs.setup");
     case "chat":
       return t("tabs.chat");
+    case "memory":
+      return t("tabs.memory");
     case "models":
       return t("tabs.models");
     case "channels":
@@ -319,6 +328,8 @@ export function subtitleForTab(tab: Tab) {
       return t("subtitles.setup");
     case "chat":
       return t("subtitles.chat");
+    case "memory":
+      return t("subtitles.memory");
     case "models":
       return t("subtitles.models");
     case "channels":

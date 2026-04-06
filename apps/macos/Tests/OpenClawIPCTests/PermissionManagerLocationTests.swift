@@ -10,6 +10,12 @@ struct PermissionManagerLocationTests {
     }
 
     @Test
+    func `authorized counts only for while using`() {
+        #expect(PermissionManager.isLocationAuthorized(status: .authorized, requireAlways: false))
+        #expect(!PermissionManager.isLocationAuthorized(status: .authorized, requireAlways: true))
+    }
+
+    @Test
     func `other statuses not authorized`() {
         #expect(!PermissionManager.isLocationAuthorized(status: .notDetermined, requireAlways: false))
         #expect(!PermissionManager.isLocationAuthorized(status: .denied, requireAlways: false))

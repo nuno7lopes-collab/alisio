@@ -1,6 +1,7 @@
 import { html, nothing } from "lit";
 import {
   alisioPlanTranslationKey,
+  isAlisioPaidPlan,
   normalizeAlisioPlan,
 } from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
@@ -23,7 +24,11 @@ import {
   renderSkeletonListItem,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
-import { nativeShellPermissionLabel } from "./native-shell-permissions.ts";
+import {
+  nativeShellPermissionDescription,
+  nativeShellPermissionLabel,
+  NATIVE_SHELL_PERMISSION_ORDER,
+} from "./native-shell-permissions.ts";
 
 const PUBLIC_SETTINGS_SECTIONS = ["general", "account", "mac", "support"] as const;
 
@@ -176,16 +181,34 @@ function languageOptions() {
   ] as const;
 }
 
-const PERMISSION_ORDER: readonly NativeShellPermission[] = [
-  "notifications",
-  "appleScript",
-  "accessibility",
-  "screenRecording",
-  "microphone",
-  "speechRecognition",
-  "camera",
-  "location",
-] as const;
+const BILLING_SUPPORT_EMAIL = "support@alisio.pt";
+const BILLING_SUPPORT_HREF = `mailto:${BILLING_SUPPORT_EMAIL}?subject=Alisio%20Billing`;
+
+function resolveBillingPlan(account: AlisioAccountState | null | undefined) {
+  return normalizeAlisioPlan(account?.profile.plan);
+}
+
+function renderSettingsCardSkeleton(params: {
+  title: string;
+  subtitle?: string;
+  rows?: number;
+  button?: boolean;
+}) {
+  return html`
+    <div class="card alisio-settings-card" role="status" aria-label=${params.title}>
+      <div class="card-title">${params.title}</div>
+      ${params.subtitle ? html`<div class="card-sub">${params.subtitle}</div>` : nothing}
+      <div class="loading-state__list" style="margin-top: 16px;">
+        ${Array.from({ length: params.rows ?? 2 }, () =>
+          renderSkeletonListItem({ lines: ["short", "medium"], aside: "pill" }),
+        )}
+      </div>
+      ${params.button
+        ? html`<div class="row" style="margin-top: 16px;">${renderSkeletonButton()}</div>`
+        : nothing}
+    </div>
+  `;
+}
 
 function renderMacSection(props: {
   nativeShellLoading: boolean;
@@ -322,17 +345,25 @@ function renderMacSection(props: {
       <div style="margin-top: 20px;">
         <div class="label">${text.permissions}</div>
         <div style="display: grid; gap: 12px; margin-top: 12px;">
-          ${PERMISSION_ORDER.map(
+          ${NATIVE_SHELL_PERMISSION_ORDER.map(
             (permission) => html`
               <div class="list-item">
-                <div class="list-title">${nativeShellPermissionLabel(permission)}</div>
-                <div class="list-sub">
-                  ${state.permissions[permission] ? text.granted : text.needsApproval}
+                <div
+                  class="row"
+                  style="justify-content: space-between; align-items: flex-start; gap: 12px;"
+                >
+                  <div>
+                    <div class="list-title">${nativeShellPermissionLabel(permission)}</div>
+                    <div class="list-sub">${nativeShellPermissionDescription(permission)}</div>
+                  </div>
+                  <span class="pill">
+                    ${state.permissions[permission] ? text.granted : text.needsApproval}
+                  </span>
                 </div>
                 ${state.permissions[permission]
                   ? nothing
                   : html`
-                      <div class="row" style="margin-top: 8px;">
+                      <div class="row" style="margin-top: 12px;">
                         <button
                           class="btn btn--sm"
                           @click=${() => props.onRequestPermission(permission)}
@@ -470,7 +501,10 @@ function renderAccountSection(props: {
             </div>
           `
         : html`
-            <div class="alisio-settings-account">
+            <div
+              class="alisio-settings-account"
+              aria-busy=${props.accountLoading ? "true" : "false"}
+            >
               <div class="alisio-profile-pill">
                 <span class="alisio-profile-pill__avatar"
                   >${props.account?.profile.avatarLabel ?? "A"}</span
@@ -488,7 +522,10 @@ function renderAccountSection(props: {
                   </div>
                 </div>
               </div>
-              <div class="alisio-settings-form">
+              <fieldset
+                class="form-fieldset-reset alisio-settings-form"
+                ?disabled=${props.accountLoading}
+              >
                 ${renderAccountProfileFields({
                   profile: props.account?.profile ?? null,
                   emailManagedByCloud,
@@ -517,12 +554,22 @@ function renderAccountSection(props: {
                     }
                   },
                 })}
-              </div>
+              </fieldset>
               <div class="row" style="margin-top: 16px;">
-                <button class="btn" @click=${props.onRequestPasswordReset}>
+                <button
+                  class="btn"
+                  ?disabled=${props.accountLoading}
+                  @click=${props.onRequestPasswordReset}
+                >
                   ${text.resetPassword}
                 </button>
-                <button class="btn danger" @click=${props.onSignOut}>${text.signOut}</button>
+                <button
+                  class="btn danger"
+                  ?disabled=${props.accountLoading}
+                  @click=${props.onSignOut}
+                >
+                  ${text.signOut}
+                </button>
               </div>
             </div>
           `}
@@ -530,22 +577,34 @@ function renderAccountSection(props: {
   `;
 }
 
-function renderDevicesSection(props: { account: AlisioAccountState | null }) {
+function renderDevicesSection(props: { account: AlisioAccountState | null; loading: boolean }) {
   const text = {
     title: t("alisio.settings.devices.title"),
+    subtitle: t("alisio.settings.devices.subtitle"),
     thisDevice: t("alisio.settings.devices.thisDevice"),
     linkedDevice: t("alisio.settings.devices.linkedDevice"),
     active: t("alisio.settings.devices.active"),
     empty: t("alisio.settings.devices.empty"),
   };
+  if (props.loading) {
+    return renderSettingsCardSkeleton({
+      title: text.title,
+      subtitle: text.subtitle,
+      rows: 2,
+    });
+  }
+  if (!props.account) {
+    return nothing;
+  }
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
-      ${(props.account?.devices ?? []).length === 0
+      <div class="card-sub">${text.subtitle}</div>
+      ${(props.account.devices ?? []).length === 0
         ? html`<div class="empty-state" style="margin-top: 16px;">${text.empty}</div>`
         : html`
             <div style="display: grid; gap: 12px; margin-top: 16px;">
-              ${(props.account?.devices ?? []).map(
+              ${props.account.devices.map(
                 (device) => html`
                   <div class="list-item">
                     <div class="list-title">${device.label}</div>
@@ -562,25 +621,84 @@ function renderDevicesSection(props: { account: AlisioAccountState | null }) {
   `;
 }
 
-function renderBillingSection(props: { account: AlisioAccountState | null }) {
+function renderBillingSection(props: {
+  account: AlisioAccountState | null;
+  loading: boolean;
+  focused: boolean;
+}) {
   const text = {
     title: t("alisio.settings.billing.title"),
-    upgrade: t("alisio.settings.billing.upgrade"),
+    subtitle: t("alisio.settings.billing.subtitle"),
+    currentPlan: t("alisio.settings.billing.currentPlan"),
+    active: t("alisio.settings.billing.active"),
+    comingSoon: t("alisio.settings.billing.comingSoon"),
+    freeDescription: t("alisio.settings.billing.freeDescription"),
+    plusDescription: t("alisio.settings.billing.plusDescription"),
     note: t("alisio.settings.billing.note"),
+    plusActiveNote: t("alisio.settings.billing.plusActiveNote"),
+    contactSupport: t("alisio.settings.billing.contactSupport"),
     freePlan: t("alisio.settings.billing.freePlan"),
+    plusPlan: t("alisio.settings.billing.plusPlan"),
   };
-  const planLabel = props.account?.profile.plan
-    ? t(alisioPlanTranslationKey(normalizeAlisioPlan(props.account.profile.plan)))
-    : text.freePlan;
+  if (props.loading) {
+    return renderSettingsCardSkeleton({
+      title: text.title,
+      subtitle: text.subtitle,
+      rows: 2,
+      button: true,
+    });
+  }
+  if (!props.account) {
+    return nothing;
+  }
+  const currentPlan = resolveBillingPlan(props.account);
+  const planLabel = t(alisioPlanTranslationKey(currentPlan));
+  const isPlusActive = isAlisioPaidPlan(currentPlan);
   return html`
-    <div class="card alisio-settings-card">
+    <div class="card alisio-settings-card ${props.focused ? "alisio-settings-card--focused" : ""}">
       <div class="card-title">${text.title}</div>
-      <div class="alisio-settings-billing" style="margin-top: 16px;">
-        <div class="list-item">
-          <div class="list-title">${planLabel}</div>
-          <div class="list-sub">${text.note}</div>
+      <div class="card-sub">${text.subtitle}</div>
+      <div class="alisio-settings-billing">
+        <div class="alisio-billing-summary">
+          <span class="alisio-billing-summary__label">${text.currentPlan}</span>
+          <strong class="alisio-billing-summary__value">${planLabel}</strong>
+          <p class="alisio-billing-summary__note">
+            ${isPlusActive ? text.plusActiveNote : text.note}
+          </p>
         </div>
-        <button class="btn primary">${text.upgrade}</button>
+        <div class="alisio-billing-plan-grid">
+          <article
+            class="alisio-billing-plan ${currentPlan === "free" ? "is-current" : ""}"
+            aria-current=${currentPlan === "free" ? "true" : "false"}
+          >
+            <div class="alisio-billing-plan__top">
+              <div>
+                <div class="alisio-billing-plan__title">${text.freePlan}</div>
+                <div class="alisio-billing-plan__body">${text.freeDescription}</div>
+              </div>
+              ${currentPlan === "free"
+                ? html`<span class="alisio-billing-plan__badge">${text.active}</span>`
+                : nothing}
+            </div>
+          </article>
+          <article
+            class="alisio-billing-plan ${currentPlan === "plus" ? "is-current" : "is-muted"}"
+            aria-current=${currentPlan === "plus" ? "true" : "false"}
+          >
+            <div class="alisio-billing-plan__top">
+              <div>
+                <div class="alisio-billing-plan__title">${text.plusPlan}</div>
+                <div class="alisio-billing-plan__body">${text.plusDescription}</div>
+              </div>
+              <span class="alisio-billing-plan__badge">
+                ${currentPlan === "plus" ? text.active : text.comingSoon}
+              </span>
+            </div>
+          </article>
+        </div>
+        <div class="alisio-billing-actions">
+          <a class="btn" href=${BILLING_SUPPORT_HREF}>${text.contactSupport}</a>
+        </div>
       </div>
     </div>
   `;
@@ -675,6 +793,7 @@ export function renderSettingsHub(props: {
   onReconnectRuntime: () => void;
 }) {
   const activeSection = resolveVisibleSection(props.section);
+  const billingFocused = props.section === "billing";
   const showDoctor =
     props.doctorLoading ||
     props.doctorError != null ||
@@ -702,20 +821,49 @@ export function renderSettingsHub(props: {
       case "account":
         return renderMainSection(
           settingsSectionLabel("account"),
-          html`
-            ${renderAccountSection({
-              accountLoading: props.accountLoading,
-              accountError: props.accountError,
-              accountNotice: props.accountNotice,
-              account: props.account,
-              locale: props.locale,
-              onSaveField: props.onSaveAccountField,
-              onSignOut: props.onSignOutAccount,
-              onRequestPasswordReset: props.onRequestPasswordReset,
-            })}
-            ${renderDevicesSection({ account: props.account })}
-            ${renderBillingSection({ account: props.account })}
-          `,
+          billingFocused
+            ? html`
+                ${renderBillingSection({
+                  account: props.account,
+                  loading: props.accountLoading,
+                  focused: true,
+                })}
+                ${renderAccountSection({
+                  accountLoading: props.accountLoading,
+                  accountError: props.accountError,
+                  accountNotice: props.accountNotice,
+                  account: props.account,
+                  locale: props.locale,
+                  onSaveField: props.onSaveAccountField,
+                  onSignOut: props.onSignOutAccount,
+                  onRequestPasswordReset: props.onRequestPasswordReset,
+                })}
+                ${renderDevicesSection({
+                  account: props.account,
+                  loading: props.accountLoading,
+                })}
+              `
+            : html`
+                ${renderAccountSection({
+                  accountLoading: props.accountLoading,
+                  accountError: props.accountError,
+                  accountNotice: props.accountNotice,
+                  account: props.account,
+                  locale: props.locale,
+                  onSaveField: props.onSaveAccountField,
+                  onSignOut: props.onSignOutAccount,
+                  onRequestPasswordReset: props.onRequestPasswordReset,
+                })}
+                ${renderDevicesSection({
+                  account: props.account,
+                  loading: props.accountLoading,
+                })}
+                ${renderBillingSection({
+                  account: props.account,
+                  loading: props.accountLoading,
+                  focused: false,
+                })}
+              `,
         );
       case "mac":
         return renderMainSection(

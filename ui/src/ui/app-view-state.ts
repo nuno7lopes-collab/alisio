@@ -85,6 +85,7 @@ export type AppViewState = {
   alisioAuthMode: "sign-up" | "sign-in";
   alisioAuthEmail: string;
   alisioAuthPassword: string;
+  alisioAuthPasswordVisible: boolean;
   alisioAiLoading: boolean;
   alisioAiError: string | null;
   providerUsageLoading: boolean;
@@ -218,7 +219,6 @@ export type AppViewState = {
   channelsBusyKey: string | null;
   channelsActionMessage: string | null;
   channelsLoginQrDataUrl: string | null;
-  channelsLoginConnected: boolean | null;
   channelsLoginAccountId: string | null;
   channelsSetupLoading?: boolean;
   channelsSetupSubmitting?: boolean;
@@ -240,6 +240,20 @@ export type AppViewState = {
   agentsList: AgentsListResult | null;
   agentsError: string | null;
   agentsSelectedId: string | null;
+  memorySelectedAgentId: string | null;
+  memoryAgentId: string | null;
+  memoryLoading: boolean;
+  memoryError: string | null;
+  memoryList: AgentsFilesListResult | null;
+  memoryContents: Record<string, string>;
+  memoryDrafts: Record<string, string>;
+  memoryActive: string | null;
+  memorySaving: boolean;
+  memoryDeleting: boolean;
+  memorySearchQuery: string;
+  memoryComposerOpen: boolean;
+  memoryComposerDate: string;
+  memoryComposerTitle: string;
   toolsCatalogLoading: boolean;
   toolsCatalogError: string | null;
   toolsCatalogResult: ToolsCatalogResult | null;

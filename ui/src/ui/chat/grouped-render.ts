@@ -367,25 +367,37 @@ function renderDeleteButton(onDelete: () => void, side: DeleteConfirmSide) {
           const yes = popover.querySelector(".chat-delete-confirm__yes")!;
           const check = popover.querySelector(".chat-delete-confirm__check") as HTMLInputElement;
 
-          cancel.addEventListener("click", () => popover.remove());
+          let closeOnOutside: ((evt: MouseEvent) => void) | null = null;
+          const cleanup = () => {
+            popover.remove();
+            if (closeOnOutside) {
+              document.removeEventListener("click", closeOnOutside, true);
+              closeOnOutside = null;
+            }
+          };
+
+          cancel.addEventListener("click", cleanup);
           yes.addEventListener("click", () => {
             if (check.checked) {
               try {
                 getSafeLocalStorage()?.setItem(SKIP_DELETE_CONFIRM_KEY, "1");
               } catch {}
             }
-            popover.remove();
+            cleanup();
             onDelete();
           });
 
           // Close on click outside
-          const closeOnOutside = (evt: MouseEvent) => {
+          closeOnOutside = (evt: MouseEvent) => {
             if (!popover.contains(evt.target as Node) && evt.target !== btn) {
-              popover.remove();
-              document.removeEventListener("click", closeOnOutside, true);
+              cleanup();
             }
           };
-          requestAnimationFrame(() => document.addEventListener("click", closeOnOutside, true));
+          requestAnimationFrame(() => {
+            if (closeOnOutside) {
+              document.addEventListener("click", closeOnOutside, true);
+            }
+          });
         }}
       >
         ${icons.trash ?? icons.x}

@@ -2396,7 +2396,7 @@ export type PluginHookBeforeInstallBuiltinScan = {
 
 export type PluginHookBeforeInstallSkillInstallSpec = {
   id?: string;
-  kind: "brew" | "node" | "go" | "uv" | "download";
+  kind: "apt" | "brew" | "node" | "go" | "uv" | "download";
   label?: string;
   bins?: string[];
   os?: string[];

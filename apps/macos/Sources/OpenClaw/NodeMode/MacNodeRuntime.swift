@@ -265,14 +265,7 @@ actor MacNodeRuntime {
             (Self.locationPreciseEnabled() ? .precise : .balanced)
         let services = await self.mainActorServices()
         let status = await services.locationAuthorizationStatus()
-        let hasPermission = switch mode {
-        case .always:
-            status == .authorizedAlways
-        case .whileUsing:
-            status == .authorizedAlways
-        case .off:
-            false
-        }
+        let hasPermission = PermissionManager.isLocationAuthorized(status: status, mode: mode)
         if !hasPermission {
             return BridgeInvokeResponse(
                 id: req.id,

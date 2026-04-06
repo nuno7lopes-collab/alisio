@@ -18,6 +18,8 @@ type SkillDetailDialogProps = {
   onDetailClose: () => void;
 };
 
+type SkillMissingKind = "bin" | "env" | "config" | "os";
+
 export function buildSkillStatusCounts(
   skills: SkillStatusEntry[],
 ): Record<SkillsStatusFilter, number> {
@@ -86,6 +88,10 @@ export function humanizeSkillSource(source: string) {
   }
 }
 
+function formatSkillMissingItem(kind: SkillMissingKind, value: string) {
+  return t(`alisio.capabilities.detail.requirement.${kind}`, { value });
+}
+
 function skillStatusChipClass(skill: SkillStatusEntry) {
   if (skill.disabled || skill.blockedByAllowlist || !skill.eligible) {
     return "chip chip-warn";
@@ -102,10 +108,10 @@ function safeExternalHref(raw?: string): string | null {
 
 export function computeSkillMissing(skill: SkillStatusEntry): string[] {
   return [
-    ...skill.missing.bins.map((b) => `bin:${b}`),
-    ...skill.missing.env.map((e) => `env:${e}`),
-    ...skill.missing.config.map((c) => `config:${c}`),
-    ...skill.missing.os.map((o) => `os:${o}`),
+    ...skill.missing.bins.map((value) => formatSkillMissingItem("bin", value)),
+    ...skill.missing.env.map((value) => formatSkillMissingItem("env", value)),
+    ...skill.missing.config.map((value) => formatSkillMissingItem("config", value)),
+    ...skill.missing.os.map((value) => formatSkillMissingItem("os", value)),
   ];
 }
 
@@ -155,7 +161,7 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
 
   return html`
     <dialog
-      class="md-preview-dialog"
+      class="md-preview-dialog md-preview-dialog--skill"
       ${ref(ensureModalOpen)}
       @click=${(event: Event) => {
         const dialog = event.currentTarget as HTMLDialogElement;
@@ -165,14 +171,11 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
       }}
       @close=${props.onDetailClose}
     >
-      <div class="md-preview-dialog__panel">
-        <div class="md-preview-dialog__header">
-          <div
-            class="md-preview-dialog__title"
-            style="display: flex; align-items: center; gap: 8px;"
-          >
+      <div class="md-preview-dialog__panel md-preview-dialog__panel--skill">
+        <div class="md-preview-dialog__header md-preview-dialog__header--skill">
+          <div class="md-preview-dialog__title skill-detail__title">
             <span class="statusDot ${skillStatusClass(skill)}"></span>
-            ${skill.emoji ? html`<span style="font-size: 18px;">${skill.emoji}</span>` : nothing}
+            ${skill.emoji ? html`<span class="skill-detail__emoji">${skill.emoji}</span>` : nothing}
             <span>${skill.name}</span>
           </div>
           <button
@@ -184,36 +187,40 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
             ${t("alisio.capabilities.detail.close")}
           </button>
         </div>
-        <div class="md-preview-dialog__body" style="display: grid; gap: 16px;">
-          <div>
-            <div style="font-size: 14px; line-height: 1.5; color: var(--text);">
-              ${skill.description}
+        <div class="md-preview-dialog__body md-preview-dialog__body--skill">
+          <div class="skill-detail__body">
+            <div class="skill-detail__intro">
+              <div class="skill-detail__lead">${skill.description}</div>
             </div>
             ${renderSkillStatusChips({ skill, showBundledBadge })}
           </div>
 
           ${missing.length > 0
             ? html`
-                <div
-                  class="callout"
-                  style="border-color: var(--warn-subtle); background: var(--warn-subtle); color: var(--warn);"
-                >
-                  <div style="font-weight: 600; margin-bottom: 4px;">
+                <div class="callout skill-detail__callout skill-detail__callout--warn">
+                  <div class="skill-detail__section-title">
                     ${t("alisio.capabilities.detail.missingTitle")}
                   </div>
-                  <div>${missing.join(", ")}</div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${missing.map((item) => html`<span class="chip chip-warn">${item}</span>`)}
+                  </div>
                 </div>
               `
             : nothing}
           ${reasons.length > 0
             ? html`
-                <div class="muted" style="font-size: 13px;">
-                  ${t("alisio.capabilities.detail.reasonsTitle")}: ${reasons.join(", ")}
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.reasonsTitle")}
+                  </div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${reasons.map((reason) => html`<span class="chip">${reason}</span>`)}
+                  </div>
                 </div>
               `
             : nothing}
 
-          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div class="skill-detail__toggle-row">
             <label class="skill-toggle-wrap">
               <input
                 type="checkbox"
@@ -224,7 +231,7 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                   props.onToggle(skill.skillKey, (event.target as HTMLInputElement).checked)}
               />
             </label>
-            <span style="font-size: 13px; font-weight: 500;">
+            <span class="skill-detail__toggle-label">
               ${skill.disabled
                 ? t("alisio.capabilities.detail.disabled")
                 : t("alisio.capabilities.detail.enabled")}
@@ -249,13 +256,11 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
             : nothing}
           ${skill.primaryEnv
             ? html`
-                <div style="display: grid; gap: 8px;">
+                <div class="skill-detail__section">
                   <label class="field">
                     <span>
                       ${t("alisio.capabilities.detail.apiKey")}
-                      <span class="muted" style="font-weight: normal; font-size: 0.88em;">
-                        (${skill.primaryEnv})
-                      </span>
+                      <span class="muted skill-detail__field-meta"> (${skill.primaryEnv}) </span>
                     </span>
                     <input
                       type="password"
@@ -264,14 +269,14 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                         props.onEdit(skill.skillKey, (event.target as HTMLInputElement).value)}
                     />
                   </label>
-                  <div class="muted" style="font-size: 13px;">
+                  <div class="muted skill-detail__field-note">
                     ${t("alisio.capabilities.detail.apiKeyHint")}
                   </div>
                   ${(() => {
                     const href = safeExternalHref(skill.homepage);
                     return href
                       ? html`
-                          <div class="muted" style="font-size: 13px;">
+                          <div class="muted skill-detail__field-note">
                             ${t("alisio.capabilities.detail.getKey")}:
                             <a href=${href} target="_blank" rel="noopener noreferrer"
                               >${skill.homepage}</a
@@ -291,11 +296,11 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
               `
             : nothing}
 
-          <div
-            style="border-top: 1px solid var(--border); padding-top: 12px; display: grid; gap: 6px; font-size: 12px; color: var(--muted);"
-          >
+          <div class="skill-detail__meta">
             <div>
-              <span style="font-weight: 600;">${t("alisio.capabilities.detail.source")}:</span>
+              <span class="skill-detail__meta-label"
+                >${t("alisio.capabilities.detail.source")}:</span
+              >
               ${humanizeSkillSource(skill.source)}
             </div>
             ${(() => {

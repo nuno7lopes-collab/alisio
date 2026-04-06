@@ -131,6 +131,9 @@ function resolveProfileEmail(profile: AiProfile | null | undefined) {
 }
 
 function resolveProfileKindKey(profile: AiProfile | null | undefined) {
+  if (profile?.scope === "organization" || profile?.ownerKey?.startsWith("organization:")) {
+    return "team";
+  }
   const plan = (profile?.planLabel ?? profile?.aggregatedTelemetry?.planType ?? "").toLowerCase();
   return /(team|business|enterprise|edu|organization|org|workspace)/.test(plan)
     ? "team"
@@ -140,6 +143,10 @@ function resolveProfileKindKey(profile: AiProfile | null | undefined) {
 function resolveProfileKind(profile: AiProfile | null | undefined) {
   const text = aiText();
   return resolveProfileKindKey(profile) === "team" ? text.team : text.personal;
+}
+
+function profileSupportsRename(profile: AiProfile | null | undefined) {
+  return resolveProfileKindKey(profile) === "team";
 }
 
 function resolveProfileCustomName(profile: AiProfile | null | undefined) {
@@ -279,6 +286,34 @@ function formatHardwareSummary(target: LocalModelTarget) {
     return null;
   }
   return `${text.hardware} · ${target.hardware.totalMemoryGb} GB RAM · ${target.hardware.cpuCores} CPU`;
+}
+
+function formatPlatformLabel(platform: string | null | undefined) {
+  const normalized = String(platform ?? "")
+    .trim()
+    .toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized === "darwin" || normalized === "macos" || normalized === "mac") {
+    return "macOS";
+  }
+  if (normalized === "win32" || normalized === "windows") {
+    return "Windows";
+  }
+  if (normalized === "linux") {
+    return "Linux";
+  }
+  if (normalized === "ios" || normalized === "iphone") {
+    return "iPhone";
+  }
+  if (normalized === "ipados" || normalized === "ipad") {
+    return "iPad";
+  }
+  if (normalized === "android") {
+    return "Android";
+  }
+  return platform?.trim() ?? "";
 }
 
 function resolveTargetRecommendationLabel(target: LocalModelTarget) {
@@ -505,14 +540,21 @@ function renderTargetCard(props: {
 }) {
   const text = modelsText();
   return html`
-    <div class="alisio-models__target">
+    <div
+      class="alisio-models__target ${props.target.current ? "is-current" : ""} ${props.target
+        .runtimeStatus === "error"
+        ? "is-error"
+        : props.target.runtimeStatus === "ready"
+          ? "is-ready"
+          : ""}"
+    >
       <div class="alisio-models__target-head">
         <div>
           <div class="list-title">${props.target.label}</div>
           <div class="list-sub">
             ${[
               props.target.current ? text.currentComputer : text.linkedComputer,
-              props.target.platform,
+              formatPlatformLabel(props.target.platform),
             ]
               .filter(Boolean)
               .join(" · ")}
@@ -777,6 +819,7 @@ function renderAiProfileCard(
             : text.disconnected;
   const usageWindows = resolveProfileUsageWindows(profile, props.ai);
   const planLabel = resolveProfilePlanLabel(profile);
+  const canRename = profileSupportsRename(profile);
 
   return html`
     <article
@@ -852,9 +895,13 @@ function renderAiProfileCard(
                 <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
                   ${text.refresh}
                 </button>
-                <button class="btn" ?disabled=${props.loading} @click=${props.onRename}>
-                  ${text.rename}
-                </button>
+                ${canRename
+                  ? html`
+                      <button class="btn" ?disabled=${props.loading} @click=${props.onRename}>
+                        ${text.rename}
+                      </button>
+                    `
+                  : nothing}
                 <button class="btn danger" ?disabled=${props.loading} @click=${props.onDisconnect}>
                   ${text.remove}
                 </button>

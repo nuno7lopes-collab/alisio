@@ -28,6 +28,7 @@ describe("iconForTab", () => {
   it("returns stable icons for known tabs", () => {
     expect(iconForTab("setup")).toBe("terminal");
     expect(iconForTab("chat")).toBe("messageSquare");
+    expect(iconForTab("memory")).toBe("book");
     expect(iconForTab("models")).toBe("brain");
     expect(iconForTab("channels")).toBe("radio");
     expect(iconForTab("capabilities")).toBe("spark");
@@ -57,6 +58,7 @@ describe("titleForTab", () => {
   it("returns expected titles", () => {
     expect(titleForTab("setup")).toBe("Setup");
     expect(titleForTab("chat")).toBe("Chat");
+    expect(titleForTab("memory")).toBe("Memory");
     expect(titleForTab("models")).toBe("Models");
     expect(titleForTab("channels")).toBe("Channels");
     expect(titleForTab("capabilities")).toBe("Capabilities");
@@ -79,6 +81,7 @@ describe("subtitleForTab", () => {
   it("returns descriptive subtitles", () => {
     expect(subtitleForTab("setup")).toContain("OpenAI");
     expect(subtitleForTab("chat")).toContain("tool");
+    expect(subtitleForTab("memory")).toContain("memory");
     expect(subtitleForTab("models")).toContain("ChatGPT");
     expect(subtitleForTab("channels")).toContain("WhatsApp");
     expect(subtitleForTab("capabilities")).toContain("simpler");
@@ -130,6 +133,7 @@ describe("pathForTab", () => {
   it("returns correct path without base", () => {
     expect(pathForTab("setup")).toBe("/setup");
     expect(pathForTab("chat")).toBe("/chat");
+    expect(pathForTab("memory")).toBe("/memory");
     expect(pathForTab("models")).toBe("/models");
     expect(pathForTab("channels")).toBe("/channels");
     expect(pathForTab("capabilities")).toBe("/capabilities");
@@ -149,6 +153,7 @@ describe("tabFromPath", () => {
   it("returns tab for valid path", () => {
     expect(tabFromPath("/setup")).toBe("setup");
     expect(tabFromPath("/chat")).toBe("chat");
+    expect(tabFromPath("/memory")).toBe("memory");
     expect(tabFromPath("/models")).toBe("models");
     expect(tabFromPath("/channels")).toBe("channels");
     expect(tabFromPath("/capabilities")).toBe("capabilities");

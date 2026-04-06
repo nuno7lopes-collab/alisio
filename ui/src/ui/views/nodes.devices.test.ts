@@ -227,6 +227,30 @@ describe("nodes devices pending rendering", () => {
     expect(text).not.toContain("browser");
   });
 
+  it("uses the shared live-node heuristic when a node reports online without connected", () => {
+    const container = document.createElement("div");
+    render(
+      renderNodes(
+        baseProps({
+          nodes: [
+            {
+              nodeId: "node-1",
+              displayName: "Runner",
+              online: true,
+              paired: true,
+              commands: ["system.run"],
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("connected");
+    expect(text).not.toContain("offline");
+  });
+
   it("uses node labels in execution routing summaries", () => {
     const container = document.createElement("div");
     render(
