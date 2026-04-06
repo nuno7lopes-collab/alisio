@@ -13,6 +13,8 @@ export type AlisioBootstrapState =
 export type AlisioModelsState = import("../../../src/gateway/protocol/index.js").AlisioModelsResult;
 export type AlisioModelsInstallResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsInstallResult;
+export type AlisioModelsUninstallResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsUninstallResult;
 export type AlisioModelsServerSaveResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsServerSaveResult;
 export type AlisioModelsServerRemoveResult =
@@ -21,6 +23,8 @@ export type AlisioModelsServerSelectResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsServerSelectResult;
 export type AlisioDoctorSummaryState =
   import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
+export type MemoryStatusState = import("../../../src/gateway/protocol/index.js").MemoryStatusResult;
+export type MemorySyncResult = import("../../../src/gateway/protocol/index.js").MemorySyncResult;
 export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;
 export type AlisioConnectedAccount =
   import("../../../src/infra/alisio-store.js").AlisioConnectedAccount;
@@ -104,6 +108,8 @@ export type ChannelAccountSnapshot = {
   lastProbeAt?: number | null;
   mode?: string | null;
   dmPolicy?: string | null;
+  dmOnboardingState?: "waiting_for_first_dm" | "pending_approval" | null;
+  pendingPairingRequests?: number | null;
   allowFrom?: string[] | null;
   tokenSource?: string | null;
   botTokenSource?: string | null;
@@ -686,12 +692,14 @@ export type SkillStatusEntry = {
   eligible: boolean;
   requirements: {
     bins: string[];
+    anyBins: string[];
     env: string[];
     config: string[];
     os: string[];
   };
   missing: {
     bins: string[];
+    anyBins: string[];
     env: string[];
     config: string[];
     os: string[];
@@ -734,6 +742,7 @@ export type ModelCatalogEntry = {
   id: string;
   name: string;
   provider: string;
+  providerLabel?: string;
   contextWindow?: number;
   reasoning?: boolean;
   input?: Array<"text" | "image" | "document">;

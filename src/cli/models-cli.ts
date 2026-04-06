@@ -308,6 +308,10 @@ export function registerModelsCli(program: Command) {
     .option("--provider <id>", "Provider id registered by a plugin")
     .option("--method <id>", "Provider auth method id")
     .option("--set-default", "Apply the provider's default model recommendation", false)
+    .option(
+      "--model <id>",
+      "Set a specific default model for this provider (requires --set-default)",
+    )
     .action(async (opts) => {
       await runModelsCommand(async () => {
         await modelsAuthLoginCommand(
@@ -315,6 +319,7 @@ export function registerModelsCli(program: Command) {
             provider: opts.provider as string | undefined,
             method: opts.method as string | undefined,
             setDefault: Boolean(opts.setDefault),
+            model: opts.model as string | undefined,
           },
           defaultRuntime,
         );

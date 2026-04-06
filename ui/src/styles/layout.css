@@ -1738,6 +1738,25 @@
   margin-top: 14px;
 }
 
+.alisio-settings-form .field {
+  gap: 8px;
+}
+
+.alisio-settings-form .field input,
+.alisio-settings-form .field textarea,
+.alisio-settings-form .field select {
+  min-height: 44px;
+  padding: 11px 13px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.alisio-settings-form .field-secret-row .btn--icon {
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
 .alisio-organization-current {
   display: grid;
   gap: 16px;
@@ -2085,11 +2104,12 @@
 }
 
 .alisio-profile-pill {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  min-height: 64px;
-  padding: 12px 14px;
+  gap: 12px 14px;
+  min-height: 68px;
+  padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   border-radius: 18px;
   background: color-mix(in srgb, var(--bg) 42%, transparent);
@@ -2107,6 +2127,52 @@
   border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   color: var(--text-strong);
   font-weight: 700;
+}
+
+.alisio-profile-pill__identity {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-profile-pill__agent {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 8px 10px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+}
+
+.alisio-profile-pill__agent-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.alisio-profile-pill__agent-name {
+  max-width: 100%;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  .alisio-profile-pill {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .alisio-profile-pill__agent {
+    grid-column: 1 / -1;
+  }
 }
 
 .alisio-settings-card--focused {

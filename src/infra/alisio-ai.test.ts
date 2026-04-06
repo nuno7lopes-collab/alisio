@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveAuthStorePath } from "../agents/auth-profiles/paths.js";
 import { createAuthTestLifecycle, setupAuthTestEnv } from "../commands/test-wizard-helpers.js";
@@ -10,6 +10,7 @@ import { withTempDir } from "../test-helpers/temp-dir.js";
 import {
   applyAlisioOpenAiRuntime,
   buildAlisioOpenAiAuthorization,
+  refreshAlisioOpenAiSession,
   resolveAlisioOpenAiTokenIdentity,
 } from "./alisio-ai.js";
 import { beginAlisioAiConnect, disconnectAlisioAi } from "./alisio-store.js";
@@ -108,6 +109,79 @@ describe("Alisio OpenAI connect", () => {
       email: "nuno7lopes@gmail.com",
       planType: "team",
     });
+  });
+
+  it("forces a fresh telemetry fetch when requested even if cached telemetry is still fresh", async () => {
+    const accessToken = createJwt({
+      sub: "google-oauth2|shared-user",
+      "https://api.openai.com/auth": {
+        chatgpt_account_id: "acct_123",
+        chatgpt_account_user_id: "account-user-123",
+        chatgpt_user_id: "google-oauth2|shared-user",
+        chatgpt_plan_type: "team",
+      },
+      "https://api.openai.com/profile": {
+        email: "Nuno7Lopes@gmail.com",
+      },
+    });
+    const credential = {
+      provider: "openai" as const,
+      aiProfileId: "profile-1",
+      workerId: "local:test",
+      authProfileId: "openai-codex:test",
+      runtimeState: "connected" as const,
+      accessToken,
+      refreshToken: "refresh-token",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      createdAt: new Date().toISOString(),
+      localTelemetry: {
+        source: "official" as const,
+        planType: "team",
+        observedAt: new Date().toISOString(),
+        staleAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        primaryWindow: {
+          label: "5h",
+          durationMinutes: 300,
+          usedPercent: 10,
+          remainingPercent: 90,
+        },
+      },
+    };
+    const fetchImpl = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({
+          plan_type: "pro",
+          rate_limit: {
+            primary_window: {
+              limit_window_seconds: 18_000,
+              used_percent: 75,
+              reset_at: Math.round(Date.now() / 1000) + 1800,
+            },
+          },
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+
+    const cached = await refreshAlisioOpenAiSession({
+      credential,
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(cached.localTelemetry?.planType).toBe("team");
+
+    const refreshed = await refreshAlisioOpenAiSession({
+      credential,
+      fetchImpl: fetchImpl as typeof fetch,
+      forceTelemetry: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(refreshed.localTelemetry?.planType).toBe("pro");
+    expect(refreshed.localTelemetry?.primaryWindow?.usedPercent).toBe(75);
+    expect(refreshed.localTelemetry?.primaryWindow?.remainingPercent).toBe(25);
   });
 
   it("matches the upstream OpenAI Codex OAuth request shape", async () => {
@@ -248,6 +322,61 @@ describe("Alisio OpenAI connect", () => {
       expect(config.auth?.profiles?.["openai-codex:alisio-primary"]).toBeUndefined();
       expect(config.auth?.profiles?.["openai-codex:alisio-secondary"]).toBeUndefined();
       expect(config.auth?.order?.["openai-codex"]).toBeUndefined();
+    } finally {
+      await lifecycle.cleanup();
+    }
+  });
+
+  it("preserves an explicit OpenAI Codex model instead of forcing gpt-5.4", async () => {
+    const lifecycle = createAuthTestLifecycle([
+      "OPENCLAW_STATE_DIR",
+      "OPENCLAW_AGENT_DIR",
+      "PI_CODING_AGENT_DIR",
+      "OPENCLAW_CONFIG_PATH",
+    ]);
+    const env = await setupAuthTestEnv("alisio-runtime-preserve-");
+    lifecycle.setStateDir(env.stateDir);
+    try {
+      const configPath = resolveConfigPath(process.env);
+      await fs.writeFile(
+        configPath,
+        JSON.stringify(
+          {
+            agents: {
+              defaults: {
+                model: {
+                  primary: "openai-codex/gpt-5.3-codex",
+                },
+              },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await applyAlisioOpenAiRuntime(
+        {
+          authProfileId: "openai-codex:alisio-primary",
+          accessToken: "access-primary",
+          refreshToken: "refresh-primary",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          email: "primary@example.com",
+        },
+        { displayName: "Primary" },
+      );
+
+      const config = JSON.parse(await fs.readFile(configPath, "utf8")) as {
+        agents?: {
+          defaults?: {
+            model?: string | { primary?: string };
+            models?: Record<string, unknown>;
+          };
+        };
+      };
+      expect(config.agents?.defaults?.model).toEqual({ primary: "openai-codex/gpt-5.3-codex" });
+      expect(config.agents?.defaults?.models?.["openai-codex/gpt-5.3-codex"]).toEqual({});
+      expect(config.agents?.defaults?.models?.["openai-codex/gpt-5.4"]).toBeUndefined();
     } finally {
       await lifecycle.cleanup();
     }

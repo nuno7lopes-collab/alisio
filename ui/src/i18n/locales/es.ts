@@ -39,6 +39,7 @@ export const es: TranslationMap = {
     sessions: "Sesiones",
     automations: "Automatizaciones",
     chat: "Chat",
+    memory: "Memoria",
     settings: "Ajustes",
   },
   subtitles: {
@@ -54,7 +55,8 @@ export const es: TranslationMap = {
     organization: "Sistemas del workspace, canales y estado de entrega.",
     sessions: "Inspeccionar sesiones activas y ajustar valores predeterminados por sesión.",
     automations: "Programar despertares y ejecuciones recurrentes de agentes.",
-    chat: "Sesión de chat directa con la puerta de enlace para intervenciones rápidas.",
+    chat: "Chat directo con Alisio para intervenciones rápidas.",
+    memory: "Memoria a largo plazo, notas diarias y contexto editable en un solo lugar.",
     settings: "Configuración del workspace, cuenta y shell nativa.",
   },
   alisio: {
@@ -144,7 +146,7 @@ export const es: TranslationMap = {
       compose: {
         placeholderWithAttachments: "Añade un mensaje o adjunta más archivos...",
         placeholder: "Mensaje para {assistant} (Enter para enviar)",
-        placeholderDisconnected: "Conéctate a la puerta de enlace para empezar a chatear...",
+        placeholderDisconnected: "Conéctate a Alisio para empezar a chatear...",
         listening: "Escuchando...",
         attachFile: "Adjuntar archivo",
         unsupportedAttachments: "{count} archivo(s) no compatible(s) en el chat.",
@@ -172,16 +174,116 @@ export const es: TranslationMap = {
       queue: {
         title: "En cola ({count})",
         remove: "Eliminar mensaje en cola",
+        pendingCurrent: "Esperando a que termine la respuesta actual",
+        pendingNext: "Siguiente en la cola",
+        ready: "Listo para enviar",
       },
       newMessages: "Nuevos mensajes",
       focus: {
         exit: "Salir del modo de enfoque",
+      },
+      runStatus: {
+        thinking: "Pensando",
+        tools: "Ejecutando herramientas",
+        writing: "Escribiendo respuesta",
+        finalizing: "Preparando la respuesta final",
+        activeTools: "{count} activas",
+        completedTools: "{count} completadas",
+      },
+      thinkingPanel: {
+        label: "Pensando",
+        summary: "Resumen",
+        hidden: "Oculto",
+        done: "Hecho",
+        hiddenPreview:
+          "El razonamiento interno permanece oculto. Las acciones aparecen debajo en tarjetas plegadas.",
       },
       history: {
         notice: "Mostrando los últimos {shown} mensajes ({hidden} ocultos).",
       },
       divider: {
         compaction: "Compactación",
+      },
+    },
+    memory: {
+      agent: "Agente",
+      loading: "Cargando memoria",
+      workspace: "Workspace",
+      longTerm: "Memoria a largo plazo",
+      notes: "Notas",
+      noteCount: "Notas",
+      longTermCount: "Archivos persistentes",
+      lastUpdated: "Última actualización",
+      updatedNever: "Nunca actualizado",
+      searchPlaceholder: "Buscar notas...",
+      mainMemory: "Memoria principal",
+      legacyMemory: "Memoria antigua",
+      note: "Nota",
+      missing: "Falta",
+      unsaved: "Sin guardar",
+      newNote: "Nueva nota",
+      noteDate: "Fecha",
+      noteTitle: "Título",
+      noteTitlePlaceholder: "¿Qué ocurrió?",
+      notePath: "Ruta",
+      createNote: "Crear nota",
+      cancelCreate: "Cancelar",
+      content: "Contenido",
+      preview: "Vista previa",
+      reset: "Restablecer",
+      save: "Guardar",
+      saving: "Guardando...",
+      delete: "Eliminar",
+      deleting: "Eliminando...",
+      previewEmpty: "Escribe Markdown para previsualizar la nota aquí.",
+      missingHint: "Este archivo todavía no existe. Guardarlo lo crea en el workspace.",
+      noNotes: "Todavía no hay notas.",
+      noMatches: "Ninguna nota coincide con esa búsqueda.",
+      emptyAgents: "No hay agentes disponibles.",
+      deleteConfirm: "¿Eliminar esta nota de forma permanente?",
+      syncNow: "Sincronizar ahora",
+      syncing: "Sincronizando...",
+      statusLoading: "Cargando estado de la memoria",
+      backend: "Backend",
+      provider: "Proveedor",
+      indexed: "Indexado",
+      embedding: "Embeddings",
+      sourcesLabel: "Fuentes",
+      extraPaths: "Rutas extra",
+      clean: "Limpio",
+      dirty: "Pendiente",
+      ready: "Listo",
+      unavailable: "No disponible",
+      runtimeUnavailable: "El estado del runtime todavía no está disponible para este agente.",
+      runtimeTitle: "Runtime de memoria",
+      runtimeSubtitle:
+        "Indexación, embeddings, almacenamiento y comportamiento de sincronización para este agente.",
+      watch: "Watch",
+      watchOn: "Activo",
+      watchOff: "Desactivado",
+      searchSync: "Sync de búsqueda",
+      searchSyncOn: "Al buscar",
+      searchSyncOff: "Solo manual",
+      store: "Almacenamiento",
+      vector: "Vector",
+      fts: "FTS",
+      builtin: "Integrado",
+      settings: {
+        title: "Ajustes de memoria",
+        subtitle:
+          "Ajusta backend, valores predeterminados y comportamiento por agente sin salir de esta pestaña.",
+        unavailable: "Los ajustes de memoria todavía no están disponibles en este workspace.",
+        save: "Guardar ajustes",
+        saving: "Guardando...",
+        unsaved: "Sin guardar",
+        backendTitle: "Backend y almacenamiento",
+        backendHelp: "Define cómo se guarda, indexa y embebe la memoria.",
+        defaultsTitle: "Comportamiento de búsqueda por defecto",
+        defaultsHelp:
+          "Estos valores por defecto se aplican a los agentes que no tienen un override específico.",
+        agentTitle: "Overrides del agente",
+        agentHelp: "Sobrescribe la búsqueda de memoria solo para el agente seleccionado.",
+        agentHelpNamed: "Sobrescribe la búsqueda de memoria solo para {agent}.",
       },
     },
     authentications: {
@@ -247,7 +349,7 @@ export const es: TranslationMap = {
         reviewTitle: "El despliegue del conector sigue en progreso",
         unavailableTitle: "El conector todavía no está disponible",
         missingConfigBody:
-          "Este conector ya usa el flujo OAuth nativo de Alisio, pero la app del proveedor todavía no está configurada en este gateway.",
+          "Este conector ya usa el flujo OAuth nativo de Alisio, pero la app del proveedor todavía no está configurada en este workspace de Alisio.",
         missingTokenEncryptionBody:
           "Este conector no puede guardar tokens OAuth de forma segura en este Mac ahora mismo. Restaura el keychain de inicio de sesión o configura ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY antes de volver a intentarlo.",
         reviewBody:
@@ -283,7 +385,7 @@ export const es: TranslationMap = {
       connectedChannels: "Conectados ahora",
       attentionChannels: "Necesitan atención",
       lastChecked: "Última comprobación",
-      disconnected: "Vuelve a conectar con el gateway para gestionar canales externos.",
+      disconnected: "Vuelve a conectar con Alisio para gestionar canales externos.",
       empty: "Este runtime todavía no ha publicado canales aquí.",
       channelAccount: "Cuenta",
       noAccount: "Cuenta por defecto",
@@ -319,13 +421,13 @@ export const es: TranslationMap = {
       setupSaved: "Canal guardado. Está listo para aparecer aquí.",
       setupSavedQr:
         "Canal guardado. Abre el QR de WhatsApp cuando estés listo para terminar la vinculación.",
-      setupRestarting: "Canal guardado. La gateway se está reiniciando para aplicar la conexión.",
+      setupRestarting: "Canal guardado. Alisio se está reiniciando para aplicar la conexión.",
       stepsTitle: "3 pasos",
       steps: {
         telegram: {
           0: "Crea el bot en BotFather.",
           1: "Pega aquí el token del bot.",
-          2: "Envía el primer mensaje al bot para vincularlo con Alisio.",
+          2: "Envía /start al bot para que Alisio detecte tu cuenta de Telegram.",
         },
         discord: {
           0: "Crea el bot en Discord Developer Portal.",
@@ -354,11 +456,21 @@ export const es: TranslationMap = {
           "Funciona con tu propio número; un teléfono separado sigue siendo la opción más limpia.",
         discord: "Lleva Alisio a DMs, canales e hilos de Discord sin ruido extra para el operador.",
       },
+      dmOnboarding: {
+        waitingForFirstDm:
+          "El token ya está guardado. Envía /start al bot desde la cuenta de Telegram que lo va a usar.",
+        pendingApprovalOne:
+          "Hay 1 solicitud de acceso de Telegram esperando aprobación antes de que pueda empezar el primer chat.",
+        pendingApprovalMany:
+          "Hay {count} solicitudes de acceso de Telegram esperando aprobación antes de que pueda empezar el primer chat.",
+      },
       status: {
         connected: "Activo",
         attention: "Necesita atención",
         linked: "Vinculado",
+        pendingApproval: "Pendiente de aprobación",
         ready: "Configurado",
+        waitingForFirstDm: "Esperando el primer mensaje",
         notConfigured: "Sin configurar",
       },
     },
@@ -368,6 +480,21 @@ export const es: TranslationMap = {
         disabled: "Capacidad desactivada",
         saved: "API key guardada. Esta capacidad está lista para usar.",
         installed: "Instalada y lista",
+      },
+      detail: {
+        requirement: {
+          anyBin: "Cualquiera de estos binarios: {value}",
+        },
+      },
+      sources: {
+        project: "De este proyecto",
+        personal: "De skills personales",
+        extra: "Directorio extra de skills",
+      },
+      groups: {
+        project: "Skills del proyecto",
+        personal: "Skills personales",
+        plugins: "Skills de plugins",
       },
     },
     organization: {
@@ -444,9 +571,9 @@ export const es: TranslationMap = {
           dark: "Oscuro",
         },
         themes: {
-          claw: "Claw",
-          knot: "Knot",
-          dash: "Dash",
+          claw: "Amber",
+          knot: "Violet",
+          dash: "Bronze",
         },
         roundnessOptions: {
           none: "Ninguno",
@@ -559,7 +686,10 @@ export const es: TranslationMap = {
         emptyServers:
           "Todavía no has añadido ningún endpoint remoto. También puedes usar un ordenador vinculado que aparezca arriba.",
         install: "Instalar",
+        installing: "Instalando…",
         installed: "Instalado",
+        uninstall: "Desinstalar",
+        uninstalling: "Eliminando…",
         backend: "Runtime local",
         installedModels: "Modelos instalados",
         availableModels: "Modelos disponibles",
@@ -598,13 +728,16 @@ export const es: TranslationMap = {
         openAiCompatible: "OpenAI-compatible",
         ollama: "Ollama",
         noServerModels: "Todavía no se han podido listar modelos de este servidor.",
+        defaultModel: "Modelo por defecto",
         activeModel: "Modelo activo",
+        currentChat: "Este chat",
         chooseModel: "Elige el modelo",
         autoModel: "Automático",
         noModelChoices: "Todavía no hay modelos disponibles aquí.",
         modelsAvailable: "modelos disponibles",
         server: "servidor",
         servers: "servidores",
+        recommendedToInstall: "Recomendados para instalar",
       },
       security: {
         title: "Seguridad",
@@ -642,7 +775,7 @@ export const es: TranslationMap = {
       runtime: {
         title: "Runtime",
         setupTitle: "Configuración de la conexión",
-        setupSubtitle: "Abre el flujo de configuración para otro gateway o un enlace manual.",
+        setupSubtitle: "Abre el flujo de configuración para otro workspace o un enlace manual.",
         openSetup: "Abrir configuración",
       },
       mac: {
@@ -832,7 +965,7 @@ export const es: TranslationMap = {
         targetTitle: "Objetivo",
         targetSubtitle: "Gateway edita aprobaciones locales; node edita el nodo seleccionado.",
         host: "Host",
-        gateway: "Gateway",
+        gateway: "Alisio",
         node: "Nodo",
         selectNode: "Seleccionar nodo",
         noNodes: "Todavía no hay nodos anunciando aprobaciones exec.",
@@ -979,9 +1112,9 @@ export const es: TranslationMap = {
       gateway: {
         title: "Reconectar Alisio",
         subtitle:
-          "El gateway local todavía no está conectado. Reconéctalo para continuar la configuración y llegar a los pasos de cuenta, runtime y workspace.",
+          "Alisio local todavía no está conectado. Reconéctalo para continuar la configuración y llegar a los pasos de cuenta, runtime y workspace.",
         savedAccount:
-          "Encontramos una cuenta guardada para {email}. Cuando el gateway vuelva a estar online, podrás continuar con esa cuenta.",
+          "Encontramos una cuenta guardada para {email}. Cuando Alisio vuelva a estar online, podrás continuar con esa cuenta.",
         reconnect: "Reconectar Alisio",
       },
       account: {
@@ -1072,10 +1205,10 @@ export const es: TranslationMap = {
   },
   overview: {
     access: {
-      title: "Acceso a la puerta de enlace",
+      title: "Conexión del workspace",
       subtitle: "Dónde se conecta el panel y cómo se autentica.",
       wsUrl: "URL de WebSocket",
-      token: "Token de la puerta de enlace",
+      token: "Token de acceso",
       password: "Contraseña (no se guarda)", // pragma: allowlist secret
       sessionKey: "Clave de sesión predeterminada",
       language: "Idioma",
@@ -1084,7 +1217,7 @@ export const es: TranslationMap = {
     },
     snapshot: {
       title: "Instantánea",
-      subtitle: "Información más reciente del saludo con la puerta de enlace.",
+      subtitle: "Información más reciente del handshake del workspace.",
       status: "Estado",
       uptime: "Tiempo de actividad",
       tickInterval: "Intervalo de tick",
@@ -1095,7 +1228,7 @@ export const es: TranslationMap = {
       instances: "Instancias",
       instancesHint: "Balizas de presencia en los últimos 5 minutos.",
       sessions: "Sesiones",
-      sessionsHint: "Claves de sesión recientes rastreadas por la puerta de enlace.",
+      sessionsHint: "Claves de sesión recientes rastreadas por este workspace.",
       cron: "Cron",
       cronNext: "Próximo despertar {time}",
     },
@@ -1104,7 +1237,7 @@ export const es: TranslationMap = {
       subtitle: "Recordatorios rápidos para configuraciones de control remoto.",
       tailscaleTitle: "Tailscale serve",
       tailscaleText:
-        "Prefiere el modo serve para mantener la puerta de enlace en loopback con autenticación tailnet.",
+        "Prefiere el modo serve para mantener Alisio en loopback con autenticación tailnet.",
       sessionTitle: "Higiene de sesión",
       sessionText: "Usa /new o sessions.patch para reiniciar el contexto.",
       cronTitle: "Recordatorios de Cron",
@@ -1112,12 +1245,12 @@ export const es: TranslationMap = {
     },
     auth: {
       required:
-        "Esta puerta de enlace requiere autenticación. Añade un token o contraseña y haz clic en Conectar.",
+        "Este workspace requiere autenticación. Añade un token o contraseña y haz clic en Conectar.",
       failed:
         "Autenticación fallida. Vuelve a copiar una URL con token mediante {command}, o actualiza el token y haz clic en Conectar.",
     },
     pairing: {
-      hint: "Este dispositivo necesita aprobación de emparejamiento del host de la puerta de enlace.",
+      hint: "Este dispositivo necesita aprobación de emparejamiento del host de Alisio.",
       mobileHint:
         "¿En el móvil? Copia la URL completa (incluyendo #token=...) desde la app de escritorio de Alisio en tu ordenador.",
     },
@@ -1127,7 +1260,7 @@ export const es: TranslationMap = {
     },
   },
   chat: {
-    disconnected: "Desconectado de la puerta de enlace.",
+    disconnected: "Desconectado de Alisio.",
     refreshTitle: "Actualizar datos del chat",
     thinkingToggle: "Alternar salida de pensamiento/trabajo del asistente",
     toolCallsToggle: "Alternar llamadas a herramientas y resultados de herramientas",

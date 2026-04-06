@@ -3,8 +3,8 @@
 import { render } from "lit";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../ui/src/i18n/index.ts";
-import type { AlisioBootstrapState } from "../ui/src/ui/types.ts";
-import { renderSettingsHub } from "../ui/src/ui/views/settings.ts";
+import type { AlisioBootstrapState, AlisioModelsState } from "../ui/src/ui/types.ts";
+import { renderModelsHub } from "../ui/src/ui/views/models.ts";
 
 function createBootstrapAccount() {
   return {
@@ -163,50 +163,59 @@ function createBootstrap(overrides: Partial<AlisioBootstrapState> = {}): AlisioB
   };
 }
 
-function renderAiSettings(
-  overrides: Partial<Parameters<typeof renderSettingsHub>[0]> = {},
+function createModelsState(): AlisioModelsState {
+  return {
+    backend: "llama.cpp",
+    catalog: [],
+    targets: [],
+    servers: [],
+  } as AlisioModelsState;
+}
+
+function renderAiModels(
+  overrides: Partial<Parameters<typeof renderModelsHub>[0]> = {},
   bootstrap: AlisioBootstrapState = createBootstrap(),
 ) {
   const container = document.createElement("div");
   render(
-    renderSettingsHub({
-      section: "ai",
-      onSectionChange: vi.fn(),
-      accountLoading: false,
-      accountError: null,
-      accountNotice: null,
-      account: bootstrap.account,
+    renderModelsHub({
       bootstrap,
+      models: createModelsState(),
+      modelsLoading: false,
+      modelsError: null,
+      modelOperations: {},
       aiLoading: false,
       aiError: null,
-      doctorLoading: false,
-      doctorError: null,
-      doctor: null,
-      locale: "en",
-      themeMode: "dark",
-      nativeShellLoading: false,
-      nativeShellError: null,
-      nativeShellState: null,
-      onLocaleChange: vi.fn(),
-      onThemeModeChange: vi.fn(),
-      onSaveAccountField: vi.fn(),
-      onRefreshNative: vi.fn(),
-      onSetLaunchAtLogin: vi.fn(),
-      onRequestPermission: vi.fn(),
-      onSetVoiceWake: vi.fn(),
-      onOpenNativeSettings: vi.fn(),
-      onRevealLogs: vi.fn(),
-      onOpenSetup: vi.fn(),
-      onSignOutAccount: vi.fn(),
-      onRequestPasswordReset: vi.fn(),
-      onReconnectRuntime: vi.fn(),
+      expandedProfileId: "team-profile",
+      selectedProviderId: "openai",
+      chatModelOptions: [{ value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" }],
+      currentChatModelOverrideValue: "",
+      defaultChatModelValue: "openai-codex/gpt-5.4",
+      defaultChatModelDisplay: "gpt-5.4 · openai-codex",
+      defaultChatModelLabel: "Default (gpt-5.4 · openai-codex)",
+      effectiveChatModelValue: "openai-codex/gpt-5.4",
+      effectiveChatModelLabel: "gpt-5.4 · openai-codex",
+      modelPickerBusy: false,
+      serverDraft: null,
+      onToggleProfile: vi.fn(),
+      onSelectProvider: vi.fn(),
       onConnectAi: vi.fn(),
-      onDisconnectAi: vi.fn(),
-      onRefreshAi: vi.fn(),
+      onRefreshAllAiProfiles: vi.fn(),
+      onSelectDefaultChatModel: vi.fn(),
+      onSelectChatModel: vi.fn(),
       onSelectAiProfile: vi.fn(),
       onDisconnectAiProfile: vi.fn(),
       onRefreshAiProfile: vi.fn(),
       onRenameAiProfile: vi.fn(),
+      onInstallModel: vi.fn(),
+      onUninstallModel: vi.fn(),
+      onStartCreateServer: vi.fn(),
+      onStartEditServer: vi.fn(),
+      onChangeServerDraft: vi.fn(),
+      onCancelServerDraft: vi.fn(),
+      onSubmitServerDraft: vi.fn(),
+      onRemoveServer: vi.fn(),
+      onSelectServer: vi.fn(),
       ...overrides,
     }),
     container,
@@ -220,7 +229,7 @@ describe("settings AI view", () => {
   });
 
   it("renders a single accounts surface and highlights the bound active account", () => {
-    const container = renderAiSettings();
+    const container = renderAiModels();
 
     expect(container.querySelector(".alisio-settings-ai__runtime")).toBeNull();
     const cards = Array.from(
@@ -249,7 +258,7 @@ describe("settings AI view", () => {
   it("uses the human display name as the rename default instead of duplicating the email", () => {
     const onRenameAiProfile = vi.fn();
     const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Ops Team");
-    const container = renderAiSettings({ onRenameAiProfile });
+    const container = renderAiModels({ onRenameAiProfile });
 
     const activeCardRenameButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>(
@@ -275,7 +284,7 @@ describe("settings AI view", () => {
         binding: undefined,
       },
     });
-    const container = renderAiSettings({}, bootstrap);
+    const container = renderAiModels({}, bootstrap);
 
     expect(container.querySelector(".alisio-settings-ai__profile.is-active")).toBeNull();
     expect(container.textContent).toContain("Activate");

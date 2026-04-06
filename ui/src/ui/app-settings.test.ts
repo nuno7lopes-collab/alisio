@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../i18n/index.ts";
 import { createStorageMock } from "../test-helpers/storage.ts";
 import {
+  applyBorderRadius,
   applyResolvedTheme,
   applySettings,
   applySettingsFromUrl,
@@ -292,6 +293,17 @@ describe("setTabFromRoute", () => {
     expect(host.themeResolved).toBe("dash-light");
     expect(root.dataset.theme).toBe("dash-light");
     expect(root.style.colorScheme).toBe("light");
+  });
+
+  it("fixes the border radius tokens to the round preset", () => {
+    applyBorderRadius(0);
+    expect(document.documentElement.style.getPropertyValue("--radius-sm")).toBe("9px");
+    expect(document.documentElement.style.getPropertyValue("--radius-md")).toBe("15px");
+
+    applyBorderRadius(100);
+    expect(document.documentElement.style.getPropertyValue("--radius-sm")).toBe("9px");
+    expect(document.documentElement.style.getPropertyValue("--radius-md")).toBe("15px");
+    expect(document.documentElement.style.getPropertyValue("--radius-full")).toBe("9999px");
   });
 
   it("syncs signed-in account preferences into local appearance settings", async () => {

@@ -1,3 +1,5 @@
+import { generateSecureBrowserUuid } from "./secure-browser-random.js";
+
 export const ALISIO_OPENAI_OAUTH_STORAGE_KEY = "alisio:alisio-openai-oauth:v1";
 export const ALISIO_OPENAI_OAUTH_CHANNEL = "alisio:alisio-openai-oauth:v1";
 export const LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY = "openclaw:alisio-openai-oauth:v1";
@@ -10,18 +12,10 @@ export type AlisioOpenAiOAuthSignal = {
   createdAtMs: number;
 };
 
-function buildFallbackSignalId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
 export function buildAlisioOpenAiOAuthSignal(now = Date.now()): AlisioOpenAiOAuthSignal {
-  const signalId =
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : buildFallbackSignalId();
   return {
     type: ALISIO_OPENAI_OAUTH_SIGNAL_TYPE,
-    signalId,
+    signalId: generateSecureBrowserUuid(),
     createdAtMs: now,
   };
 }

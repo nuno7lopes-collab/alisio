@@ -40,4 +40,21 @@ describe("resolveAssistantIdentity avatar normalization", () => {
 
     expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe("avatars/openclaw.png");
   });
+
+  it("falls back to the Alisio account agent name when no configured identity exists", () => {
+    const cfg: OpenClawConfig = {};
+
+    expect(
+      resolveAssistantIdentity({
+        cfg,
+        workspaceDir: "",
+        accountProfile: {
+          agentName: "Muse",
+        },
+      }),
+    ).toMatchObject({
+      name: "Muse",
+      avatar: "M",
+    });
+  });
 });

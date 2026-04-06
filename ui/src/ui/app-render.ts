@@ -20,9 +20,11 @@ import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import {
   renderChatMobileToggle,
+  resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   renderTab,
   setActiveChatModel,
+  setDefaultChatModel,
   switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
@@ -36,6 +38,8 @@ import {
 } from "./controllers/agent-memory.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
+  beginAlisioAccountEmailAuth,
+  beginAlisioAccountGoogleAuth,
   beginAlisioAiConnect,
   beginAlisioConnector,
   cancelAlisioSetupWizard,
@@ -43,23 +47,24 @@ import {
   disconnectAlisioAi,
   disconnectAlisioAiProfile,
   installAlisioModel,
+  loadAlisioAccount,
   loadAlisioConnectors,
   removeAlisioModelsServer,
   renameAlisioAiProfile,
-  requestAlisioPasswordReset,
   refreshAlisioAi,
   refreshAlisioAiProfile,
+  requestAlisioPasswordReset,
   restartAlisioRuntime,
   revokeAlisioConnector,
   saveAlisioAccount,
   saveAlisioModelsServer,
   selectAlisioAiProfile,
   selectAlisioModelsServer,
-  signInAlisioAccount,
   signOutAlisioAccount,
-  signUpAlisioAccount,
   saveAlisioOrganization,
   startAlisioSetupWizard,
+  uninstallAlisioModel,
+  verifyAlisioAccountEmailAuth,
 } from "./controllers/alisio.ts";
 import {
   cancelChannelSetup,
@@ -96,6 +101,7 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
+import { loadMemoryStatus, syncMemoryNow } from "./controllers/memory-runtime.ts";
 import {
   approveNodePairing,
   loadNodePairings,
@@ -279,6 +285,31 @@ function scheduleOpenAiRefresh(state: AppViewState) {
   tick();
 }
 
+function scheduleAccountRefresh(state: AppViewState) {
+  let attempts = 0;
+  const maxAttempts = 45;
+
+  const tick = () => {
+    window.setTimeout(
+      async () => {
+        attempts += 1;
+        await loadAlisioAccount(state);
+        const accountState =
+          state.alisioBootstrap?.account.session.state ??
+          state.alisioAccount?.session.state ??
+          null;
+        if (accountState === "signed_in" || attempts >= maxAttempts) {
+          return;
+        }
+        tick();
+      },
+      attempts === 0 ? 1000 : 2000,
+    );
+  };
+
+  tick();
+}
+
 function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
   const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
   void beginAlisioAiConnect(state, callbackUrl)
@@ -289,6 +320,34 @@ function beginOpenAiConnectFlow(state: AppViewState, callbackUrl: string) {
         return;
       }
       scheduleOpenAiRefresh(state);
+      if (typeof window.alisioHost?.request === "function") {
+        void openExternal(targetUrl);
+        return;
+      }
+      if (navigateReservedExternalPopup(popup, targetUrl)) {
+        return;
+      }
+      closeReservedExternalPopup(popup);
+      const safeTargetUrl = resolveSafeExternalUrl(targetUrl, window.location.href);
+      if (safeTargetUrl) {
+        window.location.assign(safeTargetUrl);
+      }
+    })
+    .catch(() => {
+      closeReservedExternalPopup(popup);
+    });
+}
+
+function beginAccountGoogleConnectFlow(state: AppViewState, callbackUrl: string) {
+  const popup = typeof window.alisioHost?.request === "function" ? null : reserveExternalPopup();
+  void beginAlisioAccountGoogleAuth(state, callbackUrl)
+    .then((result) => {
+      const targetUrl = result?.setupUrl;
+      if (!targetUrl) {
+        closeReservedExternalPopup(popup);
+        return;
+      }
+      scheduleAccountRefresh(state);
       if (typeof window.alisioHost?.request === "function") {
         void openExternal(targetUrl);
         return;
@@ -454,10 +513,13 @@ export function renderApp(state: AppViewState) {
     accountError: state.alisioAccountError,
     accountNotice: state.alisioAccountNotice,
     account: state.alisioAccount,
-    authMode: state.alisioAuthMode,
     authEmail: state.alisioAuthEmail,
-    authPassword: state.alisioAuthPassword,
-    authPasswordVisible: state.alisioAuthPasswordVisible,
+    authPendingEmail: state.alisioAuthPendingEmail,
+    authCode: state.alisioAuthCode,
+    authStage: state.alisioAuthStage,
+    termsAccepted: state.alisioTermsAccepted,
+    marketingOptIn: state.alisioMarketingOptIn,
+    birthdate: state.alisioBirthdate,
     aiLoading: state.alisioAiLoading,
     aiError: state.alisioAiError,
     connectorsSearch: state.alisioConnectorsSearch,
@@ -487,29 +549,65 @@ export function renderApp(state: AppViewState) {
     nativeShellLoading: state.nativeShellLoading,
     nativeShellError: state.nativeShellError,
     nativeShellState: state.nativeShellState,
-    onAuthModeChange: (value) => {
-      state.alisioAccountError = null;
-      state.alisioAccountNotice = null;
-      state.alisioAuthPasswordVisible = false;
-      if (state.alisioAuthMode !== value) {
-        state.alisioAuthMode = value;
-        state.alisioAuthPassword = "";
-        return;
-      }
-      state.alisioAuthMode = value;
-    },
     onAuthEmailChange: (value) => {
       state.alisioAccountError = null;
       state.alisioAccountNotice = null;
       state.alisioAuthEmail = value;
     },
-    onAuthPasswordChange: (value) => {
+    onAuthPendingEmailChange: (value) => {
       state.alisioAccountError = null;
       state.alisioAccountNotice = null;
-      state.alisioAuthPassword = value;
+      state.alisioAuthPendingEmail = value;
     },
-    onAuthPasswordVisibilityToggle: () => {
-      state.alisioAuthPasswordVisible = !state.alisioAuthPasswordVisible;
+    onAuthCodeChange: (value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
+      state.alisioAuthCode = value;
+    },
+    onAuthStageChange: (value) => {
+      state.alisioAccountError = null;
+      state.alisioAccountNotice = null;
+      state.alisioAuthStage = value;
+      if (value === "entry") {
+        state.alisioAuthCode = "";
+        state.alisioAuthPendingEmail = state.alisioAuthEmail;
+      }
+    },
+    onTermsAcceptedChange: (value) => {
+      state.alisioTermsAccepted = value;
+      if (state.alisioAccount) {
+        state.alisioAccount = {
+          ...state.alisioAccount,
+          profile: {
+            ...state.alisioAccount.profile,
+            termsAcceptedAt: value ? new Date().toISOString() : undefined,
+          },
+        };
+      }
+    },
+    onMarketingOptInChange: (value) => {
+      state.alisioMarketingOptIn = value;
+      if (state.alisioAccount) {
+        state.alisioAccount = {
+          ...state.alisioAccount,
+          profile: {
+            ...state.alisioAccount.profile,
+            marketingOptIn: value,
+          },
+        };
+      }
+    },
+    onBirthdateChange: (value) => {
+      state.alisioBirthdate = value;
+      if (state.alisioAccount) {
+        state.alisioAccount = {
+          ...state.alisioAccount,
+          profile: {
+            ...state.alisioAccount.profile,
+            birthdate: value || undefined,
+          },
+        };
+      }
     },
     onConnect: () => state.connect(),
     onOpenWorkspace: () => state.setTab("chat" as import("./navigation.ts").Tab),
@@ -594,14 +692,15 @@ export function renderApp(state: AppViewState) {
         },
       };
     },
-    onSignUpAccount: () => {
-      void signUpAlisioAccount(state);
+    onBeginEmailAuth: () => {
+      void beginAlisioAccountEmailAuth(state);
     },
-    onSignInAccount: () => {
-      void signInAlisioAccount(state);
+    onVerifyEmailAuth: () => {
+      void verifyAlisioAccountEmailAuth(state);
     },
-    onRequestPasswordReset: () => {
-      void requestAlisioPasswordReset(state);
+    onBeginGoogleAuth: () => {
+      const callbackUrl = resolveAlisioAccountCallbackUrl(state);
+      beginAccountGoogleConnectFlow(state, callbackUrl);
     },
     onBeginAiConnect: () => {
       const callbackUrl = resolveAlisioOpenAiCallbackUrl(state);
@@ -647,8 +746,14 @@ export function renderApp(state: AppViewState) {
         username: profile.username,
         displayName: profile.displayName,
         email: profile.email,
+        agentName: profile.agentName,
         avatarLabel: profile.avatarLabel,
         avatarUrl: profile.avatarUrl,
+        termsAcceptedAt: state.alisioTermsAccepted
+          ? (profile.termsAcceptedAt ?? new Date().toISOString())
+          : "",
+        marketingOptIn: state.alisioMarketingOptIn,
+        birthdate: state.alisioBirthdate,
       });
     },
   });
@@ -734,9 +839,12 @@ export function renderApp(state: AppViewState) {
         return;
       }
       state.memorySelectedAgentId = agentId;
-      await loadAgentMemoryFiles(state, agentId, {
-        preferredName: state.memoryActive,
-      });
+      await Promise.allSettled([
+        loadAgentMemoryFiles(state, agentId, {
+          preferredName: state.memoryActive,
+        }),
+        loadMemoryStatus(state, agentId, { reset: true }),
+      ]);
     })();
   };
   if (shouldShowSetup) {
@@ -1402,6 +1510,7 @@ export function renderApp(state: AppViewState) {
                 state.chatStream = null;
                 state.chatStreamStartedAt = null;
                 state.chatRunId = null;
+                state.chatFinalizing = false;
                 state.chatQueue = [];
                 state.resetToolStream();
                 state.resetChatScroll();
@@ -1419,6 +1528,7 @@ export function renderApp(state: AppViewState) {
               showToolCalls,
               loading: state.chatLoading,
               sending: state.chatSending,
+              finalizing: state.chatFinalizing,
               compactionStatus: state.compactionStatus,
               fallbackStatus: state.fallbackStatus,
               assistantAvatarUrl: chatAvatarUrl,
@@ -1440,9 +1550,10 @@ export function renderApp(state: AppViewState) {
               sessions: state.sessionsResult,
               focusMode: chatFocus,
               onRefresh: () => {
-                state.resetToolStream();
                 return Promise.all([
-                  loadChatHistory(state),
+                  loadChatHistory(state, {
+                    preserveEphemeral: Boolean(state.chatRunId || state.chatFinalizing),
+                  }),
                   refreshChatAvatar(state),
                   loadGatewayAccessMode(state),
                 ]);
@@ -1483,6 +1594,7 @@ export function renderApp(state: AppViewState) {
                   state.chatMessages = [];
                   state.chatStream = null;
                   state.chatRunId = null;
+                  state.chatFinalizing = false;
                   await loadChatHistory(state);
                 } catch (err) {
                   state.lastError = String(err);
@@ -1493,8 +1605,13 @@ export function renderApp(state: AppViewState) {
               onAgentChange: (agentId: string) => {
                 state.sessionKey = buildAgentMainSessionKey({ agentId });
                 state.chatMessages = [];
+                state.chatAttachments = [];
                 state.chatStream = null;
                 state.chatRunId = null;
+                state.chatFinalizing = false;
+                state.chatQueue = [];
+                state.chatStreamStartedAt = null;
+                state.resetToolStream();
                 state.applySettings({
                   ...state.settings,
                   sessionKey: state.sessionKey,
@@ -1539,6 +1656,17 @@ export function renderApp(state: AppViewState) {
               memoryDrafts: state.memoryDrafts,
               memorySaving: state.memorySaving,
               memoryDeleting: state.memoryDeleting,
+              memoryStatusLoading: state.memoryStatusLoading,
+              memoryStatusError: state.memoryStatusError,
+              memoryStatus: state.memoryStatus,
+              memorySyncing: state.memorySyncing,
+              memorySyncAvailable: state.memorySyncAvailable,
+              configLoading: state.configLoading || state.configSchemaLoading,
+              configSaving: state.configSaving,
+              configDirty: state.configFormDirty,
+              configSchema: state.configSchema,
+              configUiHints: state.configUiHints,
+              configForm: state.configForm,
               searchQuery: state.memorySearchQuery,
               composerOpen: state.memoryComposerOpen,
               composerDate: state.memoryComposerDate,
@@ -1547,9 +1675,12 @@ export function renderApp(state: AppViewState) {
                 state.memorySelectedAgentId = agentId;
                 state.memoryComposerOpen = false;
                 state.memoryComposerTitle = "";
-                void loadAgentMemoryFiles(state, agentId, {
-                  preferredName: PRIMARY_MEMORY_FILE_NAME,
-                });
+                void Promise.allSettled([
+                  loadAgentMemoryFiles(state, agentId, {
+                    preferredName: PRIMARY_MEMORY_FILE_NAME,
+                  }),
+                  loadMemoryStatus(state, agentId, { reset: true }),
+                ]);
               },
               onRefresh: refreshMemory,
               onSearchChange: (value) => {
@@ -1579,7 +1710,10 @@ export function renderApp(state: AppViewState) {
                 if (!agentId) {
                   return;
                 }
-                void saveAgentMemoryFile(state, agentId, name, state.memoryDrafts[name] ?? "");
+                void (async () => {
+                  await saveAgentMemoryFile(state, agentId, name, state.memoryDrafts[name] ?? "");
+                  await loadMemoryStatus(state, agentId);
+                })();
               },
               onDeleteFile: (name) => {
                 const agentId = resolvedMemoryAgentId;
@@ -1588,9 +1722,12 @@ export function renderApp(state: AppViewState) {
                 }
                 void (async () => {
                   await deleteAgentMemoryFile(state, agentId, name);
-                  await loadAgentMemoryFiles(state, agentId, {
-                    preferredName: PRIMARY_MEMORY_FILE_NAME,
-                  });
+                  await Promise.allSettled([
+                    loadAgentMemoryFiles(state, agentId, {
+                      preferredName: PRIMARY_MEMORY_FILE_NAME,
+                    }),
+                    loadMemoryStatus(state, agentId, { reset: true }),
+                  ]);
                 })();
               },
               onComposerOpenChange: (open) => {
@@ -1622,9 +1759,52 @@ export function renderApp(state: AppViewState) {
                   await saveAgentMemoryFile(state, agentId, noteName, seededContent);
                   state.memoryComposerOpen = false;
                   state.memoryComposerTitle = "";
+                  await Promise.allSettled([
+                    loadAgentMemoryFiles(state, agentId, {
+                      preferredName: noteName,
+                    }),
+                    loadMemoryStatus(state, agentId, { reset: true }),
+                  ]);
+                })();
+              },
+              onSync: () => {
+                const agentId = resolvedMemoryAgentId;
+                if (!agentId) {
+                  return;
+                }
+                void (async () => {
+                  await syncMemoryNow(state, agentId);
                   await loadAgentMemoryFiles(state, agentId, {
-                    preferredName: noteName,
+                    preferredName: state.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
                   });
+                })();
+              },
+              onConfigPatch: (path, value) => {
+                if (path[0] === "agent") {
+                  const agentId = resolvedMemoryAgentId;
+                  if (!agentId) {
+                    return;
+                  }
+                  const targetIndex = ensureAgentConfigEntry(state, agentId);
+                  if (targetIndex < 0) {
+                    return;
+                  }
+                  updateConfigFormValue(
+                    state,
+                    ["agents", "list", targetIndex, "memorySearch", ...path.slice(1)],
+                    value,
+                  );
+                  return;
+                }
+                updateConfigFormValue(state, path, value);
+              },
+              onSaveSettings: () => {
+                const agentId = resolvedMemoryAgentId;
+                void (async () => {
+                  await saveConfig(state);
+                  if (agentId) {
+                    await loadMemoryStatus(state, agentId, { reset: true });
+                  }
                 })();
               },
             })
@@ -1635,6 +1815,7 @@ export function renderApp(state: AppViewState) {
               models: state.alisioModels,
               modelsLoading: state.alisioModelsLoading,
               modelsError: state.alisioModelsError,
+              modelOperations: state.alisioModelOperations,
               aiLoading: state.alisioAiLoading,
               aiError: state.alisioAiError,
               expandedProfileId: state.modelsExpandedProfileId,
@@ -1669,16 +1850,23 @@ export function renderApp(state: AppViewState) {
               chatModelOptions: chatModelSelectState.options,
               currentChatModelOverrideValue: chatModelSelectState.currentOverride,
               defaultChatModelValue: chatModelSelectState.defaultModel,
+              defaultChatModelDisplay: chatModelSelectState.defaultDisplay,
               defaultChatModelLabel: chatModelSelectState.defaultLabel,
               effectiveChatModelValue,
               effectiveChatModelLabel,
               modelPickerBusy: state.chatModelsLoading || state.sessionsLoading,
               serverDraft: state.modelsServerDraft,
+              onSelectDefaultChatModel: (modelValue) => {
+                void setDefaultChatModel(state, modelValue);
+              },
               onSelectChatModel: (modelValue) => {
                 void setActiveChatModel(state, modelValue);
               },
               onInstallModel: (targetId, modelId) => {
                 void installAlisioModel(state, { targetId, modelId });
+              },
+              onUninstallModel: (targetId, modelId) => {
+                void uninstallAlisioModel(state, { targetId, modelId });
               },
               onStartCreateServer: () => {
                 state.modelsServerDraft = createModelsServerDraft();
@@ -1715,9 +1903,6 @@ export function renderApp(state: AppViewState) {
                     state.modelsServerDraft = null;
                   }
                 })();
-              },
-              onSaveServer: (params) => {
-                void saveAlisioModelsServer(state, params);
               },
               onRemoveServer: (serverId) => {
                 if (state.modelsServerDraft?.serverId === serverId) {

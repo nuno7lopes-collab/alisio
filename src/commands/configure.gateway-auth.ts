@@ -8,6 +8,7 @@ import type { RuntimeEnv } from "../runtime.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { promptAuthChoiceGrouped } from "./auth-choice-prompt.js";
 import { applyAuthChoice, resolvePreferredProviderForAuthChoice } from "./auth-choice.js";
+import { resolveAuthChoiceModelSelectionPolicy } from "./auth-choice.model-selection.js";
 import {
   applyModelAllowlist,
   applyModelFallbacksFromSelection,
@@ -129,6 +130,32 @@ export async function promptAuthConfig(
       setDefaultModel: true,
     });
     next = applied.config;
+
+    const modelSelectionPolicy = await resolveAuthChoiceModelSelectionPolicy({
+      authChoice,
+      config: next,
+      workspaceDir: resolveDefaultAgentWorkspaceDir(),
+      env: process.env,
+      resolvePreferredProviderForAuthChoice,
+    });
+    if (modelSelectionPolicy.promptWhenAuthChoiceProvided) {
+      const modelSelection = await promptDefaultModel({
+        config: next,
+        prompter,
+        allowKeep: modelSelectionPolicy.allowKeepCurrent,
+        ignoreAllowlist: true,
+        includeProviderPluginSetups: true,
+        preferredProvider: modelSelectionPolicy.preferredProvider,
+        workspaceDir: resolveDefaultAgentWorkspaceDir(),
+        runtime,
+      });
+      if (modelSelection.config) {
+        next = modelSelection.config;
+      }
+      if (modelSelection.model) {
+        next = applyPrimaryModel(next, modelSelection.model);
+      }
+    }
   } else {
     const modelSelection = await promptDefaultModel({
       config: next,

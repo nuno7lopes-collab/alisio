@@ -1,9 +1,12 @@
 import { listChannelPlugins } from "../channels/plugins/index.js";
-import { GATEWAY_EVENT_UPDATE_AVAILABLE } from "./events.js";
+import { GATEWAY_EVENT_ALISIO_MODELS_OPERATION, GATEWAY_EVENT_UPDATE_AVAILABLE } from "./events.js";
 
 const BASE_METHODS = [
   "health",
   "alisio.account.get",
+  "alisio.account.beginEmailAuth",
+  "alisio.account.verifyEmailAuth",
+  "alisio.account.beginGoogleAuth",
   "alisio.account.requestPasswordReset",
   "alisio.account.signUp",
   "alisio.account.signIn",
@@ -20,6 +23,7 @@ const BASE_METHODS = [
   "alisio.bootstrap.get",
   "alisio.models.get",
   "alisio.models.install",
+  "alisio.models.uninstall",
   "alisio.models.server.save",
   "alisio.models.server.remove",
   "alisio.models.server.select",
@@ -33,6 +37,8 @@ const BASE_METHODS = [
   "alisio.connectors.complete",
   "alisio.connectors.revoke",
   "doctor.memory.status",
+  "memory.status",
+  "memory.sync",
   "logs.tail",
   "channels.status",
   "channels.logout",
@@ -180,5 +186,6 @@ export const GATEWAY_EVENTS = [
   "exec.approval.resolved",
   "plugin.approval.requested",
   "plugin.approval.resolved",
+  GATEWAY_EVENT_ALISIO_MODELS_OPERATION,
   GATEWAY_EVENT_UPDATE_AVAILABLE,
 ];

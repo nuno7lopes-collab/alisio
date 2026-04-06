@@ -32,12 +32,14 @@ function createSkill(overrides: Partial<SkillStatusEntry> = {}): SkillStatusEntr
     eligible: true,
     requirements: {
       bins: [],
+      anyBins: [],
       env: ["OPENAI_API_KEY"],
       config: [],
       os: [],
     },
     missing: {
       bins: [],
+      anyBins: [],
       env: [],
       config: [],
       os: [],
@@ -146,6 +148,53 @@ describe("renderCapabilities", () => {
     expect(saveButton?.disabled).toBe(false);
     expect(container.textContent).toContain("Managed by Alisio");
     expect(container.textContent).not.toContain("openclaw-managed");
+  });
+
+  it("renders any-bin requirements and project skill sources in the detail dialog", async () => {
+    const container = document.createElement("div");
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderCapabilities(
+        createProps({
+          detailKey: "repo-skill",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                source: "agents-skills-project",
+                eligible: false,
+                install: [
+                  {
+                    id: "ffmpeg",
+                    kind: "brew",
+                    label: "Install ffmpeg",
+                    bins: ["ffmpeg"],
+                  },
+                ],
+                missing: {
+                  bins: [],
+                  anyBins: ["ffmpeg", "sox"],
+                  env: [],
+                  config: [],
+                  os: [],
+                },
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Any of these binaries: ffmpeg, sox");
+    expect(text).toContain("From this project");
+    expect(text).toContain("Install ffmpeg");
   });
 
   it("renders loading skeletons before the skills report arrives", () => {

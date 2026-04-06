@@ -1,16 +1,24 @@
 import { html } from "lit";
 import {
+  ALISIO_AGENT_NAME_MAX_LENGTH,
   ALISIO_USERNAME_MAX_LENGTH,
   ALISIO_USERNAME_MIN_LENGTH,
+  resolveAlisioAgentName,
 } from "../../../../src/shared/alisio-account.js";
 
-type AccountProfileField = "username" | "displayName" | "email" | "avatarLabel";
+export type AccountProfileField =
+  | "username"
+  | "displayName"
+  | "email"
+  | "agentName"
+  | "avatarLabel";
 
 type AccountProfileFieldsProps = {
   profile: {
     username?: string;
     displayName?: string;
     email?: string;
+    agentName?: string;
     avatarLabel?: string;
   } | null;
   emailFallback?: string;
@@ -18,6 +26,7 @@ type AccountProfileFieldsProps = {
   mode: "live" | "commit";
   labels: {
     displayName: string;
+    agentName?: string;
     username: string;
     email: string;
     avatarLabel: string;
@@ -35,6 +44,11 @@ function handleFieldChange(
 }
 
 export function renderAccountProfileFields(props: AccountProfileFieldsProps) {
+  const agentNameValue =
+    props.profile?.agentName === undefined
+      ? resolveAlisioAgentName(undefined)
+      : props.profile.agentName;
+
   return html`
     <label class="field">
       <span>${props.labels.displayName}</span>
@@ -56,6 +70,32 @@ export function renderAccountProfileFields(props: AccountProfileFieldsProps) {
             />
           `}
     </label>
+    ${props.labels.agentName
+      ? html`
+          <label class="field">
+            <span>${props.labels.agentName}</span>
+            ${props.mode === "live"
+              ? html`
+                  <input
+                    type="text"
+                    autocomplete="nickname"
+                    maxlength=${String(ALISIO_AGENT_NAME_MAX_LENGTH)}
+                    .value=${agentNameValue ?? ""}
+                    @input=${(event: Event) => handleFieldChange(props, "agentName", event)}
+                  />
+                `
+              : html`
+                  <input
+                    type="text"
+                    autocomplete="nickname"
+                    maxlength=${String(ALISIO_AGENT_NAME_MAX_LENGTH)}
+                    .value=${agentNameValue ?? ""}
+                    @change=${(event: Event) => handleFieldChange(props, "agentName", event)}
+                  />
+                `}
+          </label>
+        `
+      : null}
     <label class="field">
       <span>${props.labels.username}</span>
       ${props.mode === "live"

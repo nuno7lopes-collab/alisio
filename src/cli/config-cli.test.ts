@@ -138,6 +138,9 @@ describe("config cli", () => {
   });
 
   beforeEach(() => {
+    vi.unstubAllEnvs();
+    delete process.env.OPENCLAW_CONTAINER;
+    delete process.env.OPENCLAW_CONTAINER_HINT;
     vi.clearAllMocks();
     resetRuntimeCapture();
     mockReadBestEffortRuntimeConfigSchema.mockResolvedValue({
@@ -581,13 +584,13 @@ describe("config cli", () => {
       expect(helpText).toContain("--batch-json");
       expect(helpText).toContain("--dry-run");
       expect(helpText).toContain("--allow-exec");
-      expect(helpText).toContain("openclaw config set gateway.port 19001 --strict-json");
+      expect(helpText).toContain("alisio config set gateway.port 19001 --strict-json");
       expect(helpText).toContain(
-        "openclaw config set channels.discord.token --ref-provider default --ref-source",
+        "alisio config set channels.discord.token --ref-provider default --ref-source",
       );
       expect(helpText).toContain("--ref-id DISCORD_BOT_TOKEN");
       expect(helpText).toContain(
-        "openclaw config set --batch-file ./config-set.batch.json --dry-run",
+        "alisio config set --batch-file ./config-set.batch.json --dry-run",
       );
     });
   });

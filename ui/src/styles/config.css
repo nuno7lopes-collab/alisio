@@ -589,7 +589,7 @@
   --theme-preview-bg: #080808;
   --theme-preview-rail: #111113;
   --theme-preview-panel: #141416;
-  --theme-preview-accent: #e5243b;
+  --theme-preview-accent: #8b5cf6;
   --theme-preview-border: #2a2a30;
 }
 
@@ -663,9 +663,17 @@
     transform var(--duration-fast) ease;
 }
 
+.settings-roundness__btn--fixed {
+  cursor: default;
+}
+
 .settings-roundness__btn:hover {
   background: var(--bg-hover);
   transform: translateY(-1px);
+}
+
+.settings-roundness__btn--fixed:hover {
+  transform: none;
 }
 
 .settings-roundness__btn:focus-visible {
@@ -684,6 +692,7 @@
   height: 20px;
   background: var(--bg-muted);
   border: 1.5px solid var(--border-strong);
+  border-radius: var(--radius-full);
   transition: border-radius var(--duration-fast) ease;
 }
 

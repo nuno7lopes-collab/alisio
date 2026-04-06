@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { expectPairingReplyText } from "../../test/helpers/pairing-reply.js";
+import { formatCliCommand } from "../cli/command-format.js";
 import { captureEnv } from "../test-utils/env.js";
 import { buildPairingReply } from "./pairing-messages.js";
 
@@ -50,10 +51,9 @@ describe("buildPairingReply", () => {
   ] as const;
 
   function expectPairingApproveCommand(text: string, testCase: (typeof pairingReplyCases)[number]) {
-    const commandRe = new RegExp(
-      `(?:openclaw|openclaw) --profile isolated pairing approve ${testCase.channel} ${testCase.code}`,
+    expect(text).toContain(
+      formatCliCommand(`openclaw pairing approve ${testCase.channel} ${testCase.code}`),
     );
-    expect(text).toMatch(commandRe);
   }
 
   function expectProfileAwarePairingReply(testCase: (typeof pairingReplyCases)[number]) {

@@ -29,6 +29,8 @@ export type ChannelFlags = {
   linked: boolean;
   connected: boolean;
   attention: boolean;
+  dmOnboardingState: "waiting_for_first_dm" | "pending_approval" | null;
+  pendingPairingRequests: number;
   setupAvailable: boolean;
   logoutAvailable: boolean;
   linkMode: string;
@@ -46,6 +48,19 @@ function readBoolean(record: Record<string, unknown>, key: string): boolean {
 function readString(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function readNullableDmOnboardingState(
+  record: Record<string, unknown>,
+  key: string,
+): "waiting_for_first_dm" | "pending_approval" | null {
+  const value = record[key];
+  return value === "waiting_for_first_dm" || value === "pending_approval" ? value : null;
+}
+
+function readNullableNumber(record: Record<string, unknown>, key: string): number | null {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function readNestedString(value: unknown, keys: string[]): string | null {
@@ -180,11 +195,15 @@ export function resolveChannelFlags(row: ResolvedChannelRow): ChannelFlags {
     Boolean(readString(summary, "lastError"));
   const setupAvailable = readBoolean(summary, "setupAvailable");
   const logoutAvailable = readBoolean(summary, "logoutAvailable");
+  const dmOnboardingState = readNullableDmOnboardingState(summary, "dmOnboardingState");
+  const pendingPairingRequests = readNullableNumber(summary, "pendingPairingRequests") ?? 0;
   return {
     configured,
     linked,
     connected,
     attention,
+    dmOnboardingState,
+    pendingPairingRequests,
     setupAvailable,
     logoutAvailable,
     linkMode: readString(summary, "linkMode") ?? "wizard",
@@ -211,6 +230,11 @@ export function resolveAccountFlags(
       resolveChannelIssues(row, account.accountId).length > 0 ||
       Boolean(account.lastError?.trim()) ||
       (isDefaultAccount && Boolean(readString(summary, "lastError"))),
+    dmOnboardingState:
+      account.dmOnboardingState ?? (isDefaultAccount ? channelFlags.dmOnboardingState : null),
+    pendingPairingRequests:
+      account.pendingPairingRequests ??
+      (isDefaultAccount ? channelFlags.pendingPairingRequests : 0),
   };
 }
 

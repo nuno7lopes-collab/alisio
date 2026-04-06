@@ -5,6 +5,7 @@ export type GatewayWsClient = {
   socket: WebSocket;
   connect: ConnectParams;
   connId: string;
+  eventSeq?: number;
   presenceKey?: string;
   clientIp?: string;
   canvasHostUrl?: string;

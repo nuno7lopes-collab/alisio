@@ -1,5 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import {
+  ALISIO_AGENT_NAME_MAX_LENGTH,
   ALISIO_USERNAME_ALLOWED_PATTERN_SOURCE,
   ALISIO_USERNAME_MAX_LENGTH,
   ALISIO_USERNAME_MIN_LENGTH,
@@ -68,6 +69,7 @@ const AccountSessionStateSchema = Type.Union([
   Type.Literal("signed_out"),
   Type.Literal("signed_in"),
 ]);
+const AccountAuthMethodSchema = Type.Union([Type.Literal("email"), Type.Literal("google")]);
 
 const AccountBackendSchema = Type.Literal("supabase");
 const AccountPlanSchema = Type.Union(ALISIO_PLAN_VALUES.map((entry) => Type.Literal(entry)));
@@ -203,8 +205,12 @@ export const AlisioLocalAccountProfileSchema = Type.Object(
     }),
     displayName: NonEmptyString,
     email: NonEmptyString,
+    agentName: Type.Optional(Type.String({ maxLength: ALISIO_AGENT_NAME_MAX_LENGTH })),
     avatarLabel: NonEmptyString,
     avatarUrl: Type.Optional(Type.String()),
+    termsAcceptedAt: Type.Optional(Type.String()),
+    marketingOptIn: Type.Optional(Type.Boolean()),
+    birthdate: Type.Optional(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
     joinedAt: NonEmptyString,
     plan: AccountPlanSchema,
     backend: Type.Optional(AccountBackendSchema),
@@ -224,6 +230,7 @@ export const AlisioAccountSessionSchema = Type.Object(
   {
     state: AccountSessionStateSchema,
     profileCompleted: Type.Boolean(),
+    authMethod: Type.Optional(AccountAuthMethodSchema),
     signedInAt: Type.Optional(Type.String()),
     signedOutAt: Type.Optional(Type.String()),
     backend: Type.Optional(AccountBackendSchema),
@@ -391,8 +398,12 @@ export const AlisioAccountUpdateParamsSchema = Type.Object(
     ),
     displayName: Type.Optional(Type.String()),
     email: Type.Optional(Type.String()),
+    agentName: Type.Optional(Type.String({ maxLength: ALISIO_AGENT_NAME_MAX_LENGTH })),
     avatarLabel: Type.Optional(Type.String()),
     avatarUrl: Type.Optional(Type.String()),
+    termsAcceptedAt: Type.Optional(Type.String()),
+    marketingOptIn: Type.Optional(Type.Boolean()),
+    birthdate: Type.Optional(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
     language: Type.Optional(PreferredLanguageSchema),
     theme: Type.Optional(PreferredThemeSchema),
   },
@@ -408,10 +419,48 @@ export const AlisioAccountCompleteProfileParamsSchema = Type.Object(
     }),
     displayName: NonEmptyString,
     email: NonEmptyString,
+    agentName: Type.Optional(Type.String({ maxLength: ALISIO_AGENT_NAME_MAX_LENGTH })),
     avatarLabel: Type.Optional(Type.String()),
     avatarUrl: Type.Optional(Type.String()),
+    termsAcceptedAt: Type.Optional(Type.String()),
+    marketingOptIn: Type.Optional(Type.Boolean()),
+    birthdate: Type.Optional(Type.String({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" })),
     language: Type.Optional(PreferredLanguageSchema),
     theme: Type.Optional(PreferredThemeSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAccountEmailAuthBeginParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountEmailAuthBeginResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    email: NonEmptyString,
+    message: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountEmailAuthVerifyParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+    code: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountGoogleAuthBeginParamsSchema = Type.Object(
+  {
+    callbackUrl: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountGoogleAuthBeginResultSchema = Type.Object(
+  {
+    setupUrl: NonEmptyString,
   },
   { additionalProperties: false },
 );
@@ -585,6 +634,7 @@ export const AlisioModelsTargetSchema = Type.Object(
     targetId: NonEmptyString,
     label: NonEmptyString,
     platform: Type.Optional(Type.String()),
+    chatProviderId: Type.Optional(NonEmptyString),
     current: Type.Boolean(),
     connected: Type.Boolean(),
     backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
@@ -617,10 +667,27 @@ export const AlisioModelsInstallResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioModelsUninstallParamsSchema = Type.Object(
+  {
+    targetId: NonEmptyString,
+    modelId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsUninstallResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
+    targetId: NonEmptyString,
+    modelId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
 export const AlisioRemoteModelServerSchema = Type.Object(
   {
     serverId: NonEmptyString,
     label: NonEmptyString,
+    chatProviderId: Type.Optional(NonEmptyString),
     kind: RemoteModelServerKindSchema,
     baseUrl: NonEmptyString,
     active: Type.Boolean(),

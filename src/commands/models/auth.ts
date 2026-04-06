@@ -23,6 +23,7 @@ import { formatCliCommand } from "../../cli/command-format.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
+import { runProviderModelSelectedHook } from "../../plugins/provider-auth-choice.runtime.js";
 import { applyAuthProfileConfig } from "../../plugins/provider-auth-helpers.js";
 import { resolvePluginProviders } from "../../plugins/providers.runtime.js";
 import type {
@@ -33,6 +34,7 @@ import type {
 import type { RuntimeEnv } from "../../runtime.js";
 import { stylePromptHint, stylePromptMessage } from "../../terminal/prompt-style.js";
 import { createClackPrompter } from "../../wizard/clack-prompter.js";
+import { promptDefaultModel } from "../model-picker.js";
 import { isRemoteEnvironment } from "../oauth-env.js";
 import { createVpsAwareOAuthHandlers } from "../oauth-flow.js";
 import { openUrl } from "../onboard-helpers.js";
@@ -217,31 +219,19 @@ async function persistProviderAuthResult(params: {
   runtime: RuntimeEnv;
   prompter: ReturnType<typeof createClackPrompter>;
   setDefault?: boolean;
+  defaultModel?: string;
+  skipProfileWrite?: boolean;
 }) {
-  for (const profile of params.result.profiles) {
-    upsertAuthProfile({
-      profileId: profile.profileId,
-      credential: profile.credential,
-      agentDir: params.agentDir,
-    });
+  if (!params.skipProfileWrite) {
+    persistAuthProfiles(params.result, params.agentDir);
   }
 
+  const resolvedDefaultModel = params.defaultModel ?? params.result.defaultModel;
   await updateConfig((cfg) => {
-    let next = cfg;
-    if (params.result.configPatch) {
-      next = mergeConfigPatch(next, params.result.configPatch);
-    }
-    for (const profile of params.result.profiles) {
-      next = applyAuthProfileConfig(next, {
-        profileId: profile.profileId,
-        provider: profile.credential.provider,
-        mode: credentialMode(profile.credential),
-      });
-    }
-    if (params.setDefault && params.result.defaultModel) {
-      next = applyDefaultModel(next, params.result.defaultModel);
-    }
-    return next;
+    return applyProviderAuthResultConfig(cfg, params.result, {
+      setDefault: params.setDefault,
+      defaultModel: resolvedDefaultModel,
+    });
   });
 
   logConfigUpdated(params.runtime);
@@ -250,16 +240,72 @@ async function persistProviderAuthResult(params: {
       `Auth profile: ${profile.profileId} (${profile.credential.provider}/${credentialMode(profile.credential)})`,
     );
   }
-  if (params.result.defaultModel) {
+  if (resolvedDefaultModel) {
     params.runtime.log(
       params.setDefault
-        ? `Default model set to ${params.result.defaultModel}`
-        : `Default model available: ${params.result.defaultModel} (use --set-default to apply)`,
+        ? `Default model set to ${resolvedDefaultModel}`
+        : `Default model available: ${resolvedDefaultModel} (use --set-default to apply)`,
     );
   }
   if (params.result.notes && params.result.notes.length > 0) {
     await params.prompter.note(params.result.notes.join("\n"), "Provider notes");
   }
+}
+
+function persistAuthProfiles(result: ProviderAuthResult, agentDir: string) {
+  for (const profile of result.profiles) {
+    upsertAuthProfile({
+      profileId: profile.profileId,
+      credential: profile.credential,
+      agentDir,
+    });
+  }
+}
+
+function applyProviderAuthResultConfig(
+  cfg: OpenClawConfig,
+  result: ProviderAuthResult,
+  params?: {
+    setDefault?: boolean;
+    defaultModel?: string;
+  },
+): OpenClawConfig {
+  let next = cfg;
+  if (result.configPatch) {
+    next = mergeConfigPatch(next, result.configPatch);
+  }
+  for (const profile of result.profiles) {
+    next = applyAuthProfileConfig(next, {
+      profileId: profile.profileId,
+      provider: profile.credential.provider,
+      mode: credentialMode(profile.credential),
+    });
+  }
+  if (params?.setDefault && params.defaultModel) {
+    next = applyDefaultModel(next, params.defaultModel);
+  }
+  return next;
+}
+
+function normalizeSelectedDefaultModel(
+  rawModel: string | undefined,
+  provider: ProviderPlugin,
+): string {
+  const trimmed = rawModel?.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (!trimmed.includes("/")) {
+    return `${provider.id}/${trimmed}`;
+  }
+  const separator = trimmed.indexOf("/");
+  const providerId = normalizeProviderId(trimmed.slice(0, separator));
+  if (providerId !== normalizeProviderId(provider.id)) {
+    throw new Error(
+      `Model "${trimmed}" does not belong to provider "${provider.id}". Use ${provider.id}/<model>.`,
+    );
+  }
+  return trimmed;
 }
 
 async function runProviderAuthMethod(params: {
@@ -271,6 +317,7 @@ async function runProviderAuthMethod(params: {
   runtime: RuntimeEnv;
   prompter: ReturnType<typeof createClackPrompter>;
   setDefault?: boolean;
+  model?: string;
 }) {
   await clearStaleProfileLockouts(params.provider.id, params.agentDir);
 
@@ -291,12 +338,54 @@ async function runProviderAuthMethod(params: {
     },
   });
 
+  let selectedDefaultModel = normalizeSelectedDefaultModel(params.model, params.provider);
+  let selectedModelHookHandled = false;
+
+  if (params.setDefault) {
+    persistAuthProfiles(result, params.agentDir);
+    const authAwareConfig = applyProviderAuthResultConfig(params.config, result);
+    if (!selectedDefaultModel) {
+      const modelSelectionPolicy =
+        params.method.wizard?.modelSelection ?? params.provider.wizard?.setup?.modelSelection;
+      if (modelSelectionPolicy?.promptWhenAuthChoiceProvided) {
+        const modelSelection = await promptDefaultModel({
+          config: authAwareConfig,
+          prompter: params.prompter,
+          allowKeep: modelSelectionPolicy.allowKeepCurrent ?? true,
+          ignoreAllowlist: true,
+          preferredProvider: params.provider.id,
+          agentDir: params.agentDir,
+          workspaceDir: params.workspaceDir,
+          runtime: params.runtime,
+        });
+        if (modelSelection.model) {
+          selectedDefaultModel = modelSelection.model;
+          selectedModelHookHandled = true;
+        }
+      }
+    }
+
+    const finalDefaultModel = selectedDefaultModel || result.defaultModel;
+    if (finalDefaultModel && !selectedModelHookHandled) {
+      await runProviderModelSelectedHook({
+        config: authAwareConfig,
+        model: finalDefaultModel,
+        prompter: params.prompter,
+        agentDir: params.agentDir,
+        workspaceDir: params.workspaceDir,
+        env: process.env,
+      });
+    }
+  }
+
   await persistProviderAuthResult({
     result,
     agentDir: params.agentDir,
     runtime: params.runtime,
     prompter: params.prompter,
     setDefault: params.setDefault,
+    defaultModel: selectedDefaultModel || result.defaultModel,
+    skipProfileWrite: params.setDefault,
   });
 }
 
@@ -498,6 +587,7 @@ type LoginOptions = {
   provider?: string;
   method?: string;
   setDefault?: boolean;
+  model?: string;
   yes?: boolean;
 };
 
@@ -539,6 +629,9 @@ function credentialMode(credential: AuthProfileCredential): "api_key" | "oauth" 
 export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: RuntimeEnv) {
   if (!process.stdin.isTTY) {
     throw new Error("models auth login requires an interactive TTY.");
+  }
+  if (opts.model?.trim() && !opts.setDefault) {
+    throw new Error("--model requires --set-default.");
   }
 
   const { config, agentDir, workspaceDir, providers } = await resolveModelsAuthContext();
@@ -586,5 +679,6 @@ export async function modelsAuthLoginCommand(opts: LoginOptions, runtime: Runtim
     runtime,
     prompter,
     setDefault: opts.setDefault,
+    model: opts.model,
   });
 }

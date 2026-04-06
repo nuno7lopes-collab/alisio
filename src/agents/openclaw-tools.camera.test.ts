@@ -229,7 +229,7 @@ describe("nodes camera_snap", () => {
 
     expectNoImages(result);
     expect(result.content ?? []).toEqual([]);
-    expect(expectFirstMediaUrl(result)).toMatch(/openclaw-camera-snap-front-.*\.jpg$/);
+    expect(expectFirstMediaUrl(result)).toMatch(/alisio-camera-snap-front-.*\.jpg$/);
   });
 
   it("passes deviceId when provided", async () => {
@@ -396,7 +396,7 @@ describe("nodes photos_latest", () => {
       height: 1,
       createdAt: "2026-03-04T00:00:00Z",
     });
-    expect(expectFirstMediaUrl(result)).toMatch(/openclaw-camera-snap-.*\.jpg$/);
+    expect(expectFirstMediaUrl(result)).toMatch(/alisio-camera-snap-.*\.jpg$/);
   });
 
   it("includes inline image blocks when model has vision", async () => {
@@ -405,7 +405,7 @@ describe("nodes photos_latest", () => {
     const result = await executePhotosLatest({ modelHasVision: true });
 
     expectSingleImage(result, { mimeType: "image/jpeg" });
-    expect(expectFirstMediaUrl(result)).toMatch(/openclaw-camera-snap-.*\.jpg$/);
+    expect(expectFirstMediaUrl(result)).toMatch(/alisio-camera-snap-.*\.jpg$/);
   });
 });
 

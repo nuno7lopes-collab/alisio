@@ -205,7 +205,7 @@ describe("alisio-account-cloud", () => {
     const restored = await restoreAlisioCloudAccountSession({
       session: {
         ...createSupabaseSession(),
-        expiresAt: "2026-04-04T23:30:00.000Z",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
       },
       profile: createSupabaseProfile(),
       env: SUPABASE_ENV,

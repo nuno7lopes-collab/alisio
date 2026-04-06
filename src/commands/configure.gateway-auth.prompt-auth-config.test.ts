@@ -175,4 +175,39 @@ describe("promptAuthConfig", () => {
       }),
     );
   });
+
+  it("prompts for a model after provider auth when the provider requests it", async () => {
+    mocks.promptAuthChoiceGrouped.mockResolvedValue("openai-codex");
+    mocks.resolvePreferredProviderForAuthChoice.mockResolvedValue("openai-codex");
+    mocks.applyAuthChoice.mockResolvedValue({ config: {} });
+    mocks.promptDefaultModel.mockResolvedValue({ model: "openai-codex/gpt-5.4-mini" });
+    mocks.promptModelAllowlist.mockResolvedValue({ models: undefined });
+    mocks.resolveProviderPluginChoice.mockReturnValue({
+      provider: {
+        id: "openai-codex",
+        label: "OpenAI Codex",
+        auth: [],
+      },
+      method: {
+        id: "oauth",
+        label: "OAuth",
+        kind: "oauth",
+      },
+      wizard: {
+        modelSelection: {
+          promptWhenAuthChoiceProvided: true,
+          allowKeepCurrent: false,
+        },
+      },
+    });
+
+    await promptAuthConfig({}, makeRuntime(), noopPrompter);
+
+    expect(mocks.promptDefaultModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowKeep: false,
+        preferredProvider: "openai-codex",
+      }),
+    );
+  });
 });

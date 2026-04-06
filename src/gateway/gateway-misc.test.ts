@@ -180,6 +180,18 @@ type TestSocket = {
   close: (code: number, reason: string) => void;
 };
 
+function parseSentEvent(socket: TestSocket, callIndex = 0) {
+  return JSON.parse(
+    ((socket.send as unknown as ReturnType<typeof vi.fn>).mock.calls[callIndex]?.[0] ??
+      "{}") as string,
+  ) as {
+    type?: string;
+    event?: string;
+    seq?: number;
+    payload?: unknown;
+  };
+}
+
 describe("gateway broadcaster", () => {
   it("filters approval and pairing events by scope", () => {
     const approvalsSocket: TestSocket = {
@@ -229,6 +241,107 @@ describe("gateway broadcaster", () => {
     expect(readSocket.send).toHaveBeenCalledTimes(1);
     expect(approvalsSocket.send).toHaveBeenCalledTimes(1);
     expect(pairingSocket.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps seq monotonic per delivered client stream", () => {
+    const approvalsSocket: TestSocket = {
+      bufferedAmount: 0,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    const pairingSocket: TestSocket = {
+      bufferedAmount: 0,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    const readSocket: TestSocket = {
+      bufferedAmount: 0,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+
+    const clients = new Set<GatewayWsClient>([
+      {
+        socket: approvalsSocket as unknown as GatewayWsClient["socket"],
+        connect: { role: "operator", scopes: ["operator.approvals"] } as GatewayWsClient["connect"],
+        connId: "c-approvals",
+      },
+      {
+        socket: pairingSocket as unknown as GatewayWsClient["socket"],
+        connect: { role: "operator", scopes: ["operator.pairing"] } as GatewayWsClient["connect"],
+        connId: "c-pairing",
+      },
+      {
+        socket: readSocket as unknown as GatewayWsClient["socket"],
+        connect: { role: "operator", scopes: ["operator.read"] } as GatewayWsClient["connect"],
+        connId: "c-read",
+      },
+    ]);
+
+    const { broadcast } = createGatewayBroadcaster({ clients });
+
+    broadcast("exec.approval.requested", { id: "1" });
+    broadcast("device.pair.requested", { requestId: "r1" });
+    broadcast("presence", { presence: [] });
+
+    expect(parseSentEvent(approvalsSocket, 0)).toMatchObject({
+      event: "exec.approval.requested",
+      seq: 1,
+    });
+    expect(parseSentEvent(approvalsSocket, 1)).toMatchObject({
+      event: "presence",
+      seq: 2,
+    });
+    expect(parseSentEvent(pairingSocket, 0)).toMatchObject({
+      event: "device.pair.requested",
+      seq: 1,
+    });
+    expect(parseSentEvent(pairingSocket, 1)).toMatchObject({
+      event: "presence",
+      seq: 2,
+    });
+    expect(parseSentEvent(readSocket, 0)).toMatchObject({
+      event: "presence",
+      seq: 1,
+    });
+  });
+
+  it("does not consume seq for dropIfSlow events a client never received", () => {
+    const slowSocket: TestSocket = {
+      bufferedAmount: 60 * 1024 * 1024,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+    const fastSocket: TestSocket = {
+      bufferedAmount: 0,
+      send: vi.fn(),
+      close: vi.fn(),
+    };
+
+    const clients = new Set<GatewayWsClient>([
+      {
+        socket: slowSocket as unknown as GatewayWsClient["socket"],
+        connect: { role: "operator", scopes: ["operator.admin"] } as GatewayWsClient["connect"],
+        connId: "c-slow",
+      },
+      {
+        socket: fastSocket as unknown as GatewayWsClient["socket"],
+        connect: { role: "operator", scopes: ["operator.admin"] } as GatewayWsClient["connect"],
+        connId: "c-fast",
+      },
+    ]);
+
+    const { broadcast } = createGatewayBroadcaster({ clients });
+
+    broadcast("tick", { ts: 1 }, { dropIfSlow: true });
+    expect(slowSocket.send).not.toHaveBeenCalled();
+    expect(parseSentEvent(fastSocket, 0)).toMatchObject({ event: "tick", seq: 1 });
+
+    slowSocket.bufferedAmount = 0;
+    broadcast("presence", { presence: [] });
+
+    expect(parseSentEvent(slowSocket, 0)).toMatchObject({ event: "presence", seq: 1 });
+    expect(parseSentEvent(fastSocket, 1)).toMatchObject({ event: "presence", seq: 2 });
   });
 });
 

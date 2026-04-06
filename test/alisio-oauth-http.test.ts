@@ -1,9 +1,13 @@
+import fs from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { handleAlisioOAuthHttpRequest } from "../src/gateway/alisio-oauth-http.js";
 import { makeMockHttpResponse } from "../src/gateway/test-http-response.js";
 import { beginAlisioConnectorSetup } from "../src/infra/alisio-store.js";
 import { withTempDir } from "../src/test-helpers/temp-dir.js";
+
+const CONNECTOR_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 
 function makeRequest(url: string, method = "GET") {
   return {
@@ -12,15 +16,77 @@ function makeRequest(url: string, method = "GET") {
   } as IncomingMessage;
 }
 
+async function createReadyAlisioAccountEnv(
+  root: string,
+  extra: Record<string, string> = {},
+): Promise<NodeJS.ProcessEnv> {
+  const env = {
+    OPENCLAW_STATE_DIR: root,
+    ALISIO_SUPABASE_URL: "https://example.supabase.co",
+    ALISIO_SUPABASE_ANON_KEY: "anon-key",
+    ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
+    ...extra,
+  } as NodeJS.ProcessEnv;
+  const statePath = path.join(root, "alisio", "state.json");
+  await fs.mkdir(path.dirname(statePath), { recursive: true });
+  await fs.writeFile(
+    statePath,
+    JSON.stringify(
+      {
+        version: 1,
+        account: {
+          profile: {
+            userId: "user-1",
+            username: "nuno",
+            displayName: "Nuno Lopes",
+            email: "nuno@example.com",
+            avatarLabel: "N",
+            joinedAt: "2026-04-04T15:00:00.000Z",
+            plan: "Free Plan",
+            backend: "supabase",
+          },
+          preferences: {
+            language: "pt-PT",
+            theme: "dark",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            signedInAt: "2026-04-04T15:00:00.000Z",
+            backend: "supabase",
+          },
+          cloudSession: {
+            backend: "supabase",
+            state: "signed_out",
+            userId: "user-1",
+            email: "nuno@example.com",
+            signedInAt: "2026-04-04T15:00:00.000Z",
+            signedOutAt: "2026-04-04T15:05:00.000Z",
+          },
+        },
+        organization: {
+          mode: "none",
+        },
+        ai: {},
+        authorizations: {},
+        oauthCredentials: {},
+        pendingAuthorizations: {},
+      },
+      null,
+      2,
+    ),
+  );
+  return env;
+}
+
 describe("handleAlisioOAuthHttpRequest", () => {
   it("completes a Google OAuth callback and renders a success page", async () => {
     await withTempDir({ prefix: "alisio-oauth-http-" }, async (root) => {
-      const env = {
-        OPENCLAW_STATE_DIR: root,
+      const env = await createReadyAlisioAccountEnv(root, {
         ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
         ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
         ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
-      } as NodeJS.ProcessEnv;
+      });
       const begin = await beginAlisioConnectorSetup("google-calendar", env);
       const stateToken = new URL(begin?.setupUrl ?? "").searchParams.get("state");
       const fetchMock = vi
@@ -32,7 +98,7 @@ describe("handleAlisioOAuthHttpRequest", () => {
               refresh_token: "google-refresh",
               expires_in: 3600,
               token_type: "Bearer",
-              scope: "openid email",
+              scope: "openid email https://www.googleapis.com/auth/calendar",
             }),
             { status: 200, headers: { "content-type": "application/json" } },
           ),
@@ -82,12 +148,11 @@ describe("handleAlisioOAuthHttpRequest", () => {
 
   it("escapes provider error text before rendering callback HTML", async () => {
     await withTempDir({ prefix: "alisio-oauth-http-" }, async (root) => {
-      const env = {
-        OPENCLAW_STATE_DIR: root,
+      const env = await createReadyAlisioAccountEnv(root, {
         ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
         ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
         ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
-      } as NodeJS.ProcessEnv;
+      });
       const begin = await beginAlisioConnectorSetup("google-calendar", env);
       const stateToken = new URL(begin?.setupUrl ?? "").searchParams.get("state");
       const { res, end } = makeMockHttpResponse();

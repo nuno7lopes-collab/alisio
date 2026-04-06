@@ -212,6 +212,7 @@ export async function handleAlisioBootstrapHttpRequest(
           username: account.profile.username,
           displayName: account.profile.displayName,
           email: account.profile.email,
+          ...(account.profile.agentName ? { agentName: account.profile.agentName } : {}),
           avatarLabel: account.profile.avatarLabel,
           plan: account.profile.plan,
         }

@@ -11,6 +11,7 @@ import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
+import { augmentConfigWithAlisioRemoteProvider } from "../../infra/alisio-remote-model-provider.js";
 import { readLocalFileSafely } from "../../infra/fs-safe.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
 import { isWithinDir } from "../../infra/path-safety.js";
@@ -23,6 +24,10 @@ import { normalizeInputProvenance, type InputProvenance } from "../../sessions/i
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
 import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
+import {
+  ALISIO_REMOTE_PROVIDER_ID,
+  isAlisioDynamicProvider,
+} from "../../shared/alisio-remote-model-provider.js";
 import {
   stripInlineDirectiveTagsForDisplay,
   stripInlineDirectiveTagsFromMessageForDisplay,
@@ -74,6 +79,7 @@ import {
 import { formatForLog } from "../ws-log.js";
 import { injectTimestamp, timestampOptsFromConfig } from "./agent-timestamp.js";
 import { setGatewayDedupeEntry } from "./agent-wait-dedupe.js";
+import { publishAlisioDynamicModelProvidersForContext } from "./alisio.js";
 import { normalizeRpcAttachmentsToChatAttachments } from "./attachment-normalize.js";
 import { appendInjectedAssistantMessageToTranscript } from "./chat-transcript-inject.js";
 import type {
@@ -1697,7 +1703,23 @@ export const chatHandlers: GatewayRequestHandlers = {
       }
     }
     const rawSessionKey = p.sessionKey;
-    const { cfg, entry, canonicalKey: sessionKey } = loadSessionEntry(rawSessionKey);
+    const loadedSession = loadSessionEntry(rawSessionKey);
+    let cfg = loadedSession.cfg;
+    const { entry, canonicalKey: sessionKey } = loadedSession;
+    const resolvedEntryAgentId = resolveSessionAgentId({
+      sessionKey,
+      config: cfg,
+    });
+    const resolvedSessionModel = resolveSessionModelRef(cfg, entry, resolvedEntryAgentId);
+    if (resolvedSessionModel.provider === ALISIO_REMOTE_PROVIDER_ID) {
+      cfg = await augmentConfigWithAlisioRemoteProvider({
+        config: cfg,
+        requiredModelIds: [resolvedSessionModel.model],
+        inspect: false,
+      });
+    } else if (isAlisioDynamicProvider(resolvedSessionModel.provider)) {
+      await publishAlisioDynamicModelProvidersForContext(context);
+    }
     const timeoutMs = resolveAgentTimeoutMs({
       cfg,
       overrideMs: p.timeoutMs,
@@ -1838,10 +1860,7 @@ export const chatHandlers: GatewayRequestHandlers = {
         ...resolveChatSendTranscriptMediaFields(persistedMediaContextAttachments),
       };
 
-      const agentId = resolveSessionAgentId({
-        sessionKey,
-        config: cfg,
-      });
+      const agentId = resolvedEntryAgentId;
       const { onModelSelected, ...replyPipeline } = createChannelReplyPipeline({
         cfg,
         agentId,

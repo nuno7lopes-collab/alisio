@@ -678,4 +678,49 @@ describe("GatewayClient connect auth payload", () => {
       failureDetails: { code: "AUTH_TOKEN_MISMATCH", canRetryWithDeviceToken: true },
     });
   });
+
+  it("resets seq-gap tracking after reconnect hello", async () => {
+    vi.useFakeTimers();
+    const onGap = vi.fn();
+    const client = new GatewayClient({
+      url: "ws://127.0.0.1:18789",
+      onGap,
+    });
+
+    const { ws: ws1, connect: firstConnect } = startClientAndConnect({ client });
+    ws1.emitMessage(
+      JSON.stringify({
+        type: "res",
+        id: firstConnect.id,
+        ok: true,
+        payload: { type: "hello-ok", protocol: 3 },
+      }),
+    );
+    ws1.emitMessage(JSON.stringify({ type: "event", event: "presence", seq: 5, payload: {} }));
+    expect(onGap).not.toHaveBeenCalled();
+
+    ws1.emitClose(1006, "");
+    await vi.advanceTimersByTimeAsync(1000);
+
+    const ws2 = getLatestWs();
+    ws2.emitOpen();
+    emitConnectChallenge(ws2, "nonce-2");
+    const secondConnect = connectRequestFrom(ws2);
+    ws2.emitMessage(
+      JSON.stringify({
+        type: "res",
+        id: secondConnect.id,
+        ok: true,
+        payload: { type: "hello-ok", protocol: 3 },
+      }),
+    );
+    ws2.emitMessage(JSON.stringify({ type: "event", event: "presence", seq: 12, payload: {} }));
+    expect(onGap).not.toHaveBeenCalled();
+
+    ws2.emitMessage(JSON.stringify({ type: "event", event: "presence", seq: 14, payload: {} }));
+    expect(onGap).toHaveBeenCalledWith({ expected: 13, received: 14 });
+
+    client.stop();
+    vi.useRealTimers();
+  });
 });

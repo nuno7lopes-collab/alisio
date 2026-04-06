@@ -11,14 +11,23 @@ type PollingHost = {
   settingsSection?: string;
 };
 
+function shouldPollNodes(host: PollingHost) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return false;
+  }
+  return host.tab === "connections" || host.tab === "security";
+}
+
 export function startNodesPolling(host: PollingHost) {
   if (host.nodesPollInterval != null) {
     return;
   }
-  host.nodesPollInterval = window.setInterval(
-    () => void loadNodes(host as unknown as OpenClawApp, { quiet: true }),
-    5000,
-  );
+  host.nodesPollInterval = window.setInterval(() => {
+    if (!shouldPollNodes(host)) {
+      return;
+    }
+    void loadNodes(host as unknown as OpenClawApp, { quiet: true });
+  }, 5000);
 }
 
 export function stopNodesPolling(host: PollingHost) {

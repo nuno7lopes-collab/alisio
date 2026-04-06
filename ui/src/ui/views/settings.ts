@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { resolveAlisioAgentName } from "../../../../src/shared/alisio-account.js";
 import {
   alisioPlanTranslationKey,
   isAlisioPaidPlan,
@@ -7,7 +8,6 @@ import {
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import type { SettingsSection } from "../navigation.ts";
-import type { BorderRadiusStop } from "../storage.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeName } from "../theme.ts";
 import type {
@@ -390,7 +390,7 @@ function renderAppearanceSection(props: {
   borderRadius: number;
   onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
-  onBorderRadiusChange: (value: BorderRadiusStop) => void;
+  onBorderRadiusChange: (value: number) => void;
 }) {
   return html`
     <div class="settings-appearance">
@@ -451,6 +451,7 @@ function renderAccountSection(props: {
     username?: string;
     displayName?: string;
     email?: string;
+    agentName?: string;
     avatarLabel?: string;
   }) => void;
   locale?: string;
@@ -463,6 +464,7 @@ function renderAccountSection(props: {
     loading: t("alisio.settings.account.loading"),
     localUser: t("alisio.settings.account.localUser"),
     displayName: t("alisio.settings.account.displayName"),
+    agentName: t("alisio.settings.account.agentName"),
     username: t("alisio.settings.account.username"),
     email: t("alisio.settings.account.email"),
     avatarLabel: t("alisio.settings.account.avatarLabel"),
@@ -509,7 +511,7 @@ function renderAccountSection(props: {
                 <span class="alisio-profile-pill__avatar"
                   >${props.account?.profile.avatarLabel ?? "A"}</span
                 >
-                <div>
+                <div class="alisio-profile-pill__identity">
                   <div class="list-title">
                     ${props.account?.profile.displayName ?? text.localUser}
                   </div>
@@ -520,6 +522,12 @@ function renderAccountSection(props: {
                       ),
                     })}
                   </div>
+                </div>
+                <div class="alisio-profile-pill__agent">
+                  <span class="alisio-profile-pill__agent-label">${text.agentName}</span>
+                  <strong class="alisio-profile-pill__agent-name"
+                    >${resolveAlisioAgentName(props.account?.profile.agentName)}</strong
+                  >
                 </div>
               </div>
               <fieldset
@@ -532,6 +540,7 @@ function renderAccountSection(props: {
                   mode: "commit",
                   labels: {
                     displayName: text.displayName,
+                    agentName: text.agentName,
                     username: text.username,
                     email: text.email,
                     avatarLabel: text.avatarLabel,
@@ -547,6 +556,9 @@ function renderAccountSection(props: {
                         return;
                       case "email":
                         props.onSaveField({ email: value });
+                        return;
+                      case "agentName":
+                        props.onSaveField({ agentName: value });
                         return;
                       case "avatarLabel":
                         props.onSaveField({ avatarLabel: value });
@@ -771,11 +783,12 @@ export function renderSettingsHub(props: {
   onLocaleChange: (value: "en" | "pt-PT" | "es") => void;
   onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
-  onBorderRadiusChange: (value: BorderRadiusStop) => void;
+  onBorderRadiusChange: (value: number) => void;
   onSaveAccountField: (patch: {
     username?: string;
     displayName?: string;
     email?: string;
+    agentName?: string;
     avatarLabel?: string;
   }) => void;
   nativeShellLoading: boolean;

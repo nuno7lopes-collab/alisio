@@ -102,13 +102,18 @@ describe("renderSettingsHub", () => {
 
     expect(container.textContent).toContain("Theme");
     expect(container.textContent).toContain("Language");
-    expect(container.textContent).toContain("Claw");
-    expect(container.textContent).toContain("Knot");
-    expect(container.textContent).toContain("Dash");
+    expect(container.textContent).toContain("Amber");
+    expect(container.textContent).toContain("Violet");
+    expect(container.textContent).toContain("Bronze");
+    expect(container.textContent).toContain("Round");
+    expect(container.textContent).not.toContain("None");
+    expect(container.textContent).not.toContain("Slight");
+    expect(container.textContent).not.toContain("Default");
+    expect(container.textContent).not.toContain("Full");
     expect(options).toEqual(["English", "Portuguese (Portugal)", "Spanish"]);
   });
 
-  it("wires theme family, mode, and roundness controls through the general section", () => {
+  it("wires theme family and mode controls through the general section", () => {
     const container = document.createElement("div");
     const onThemeChange = vi.fn();
     const onThemeModeChange = vi.fn();
@@ -127,11 +132,11 @@ describe("renderSettingsHub", () => {
 
     container.querySelector<HTMLElement>('[data-theme-option="knot"]')?.click();
     container.querySelector<HTMLElement>('[data-theme-mode="light"]')?.click();
-    container.querySelector<HTMLElement>('[data-radius-option="75"]')?.click();
 
     expect(onThemeChange.mock.calls[0]?.[0]).toBe("knot");
     expect(onThemeModeChange).toHaveBeenCalledWith("light");
-    expect(onBorderRadiusChange).toHaveBeenCalledWith(75);
+    expect(onBorderRadiusChange).not.toHaveBeenCalled();
+    expect(container.querySelectorAll("[data-radius-option]")).toHaveLength(0);
   });
 
   it("opens billing as a focused subsection with honest support CTA copy", () => {
@@ -174,5 +179,24 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).toContain("Billing");
     expect(container.textContent).not.toContain("Free Plan");
     expect(container.querySelector('a[href^="mailto:support@alisio.pt"]')).toBeNull();
+  });
+
+  it("renders the agent name field in the account section", () => {
+    const container = document.createElement("div");
+    const account = createAccount();
+    account.profile.agentName = "Muse";
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
+          account,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Agent name");
+    expect(container.textContent).toContain("Muse");
   });
 });

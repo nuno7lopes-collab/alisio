@@ -424,6 +424,7 @@ describe("GatewayBrowserClient", () => {
 
     const client = new GatewayBrowserClient({
       url: "ws://127.0.0.1:18789",
+      connectChallengeTimeoutMs: 750,
       token: "shared-auth-token",
     });
 
@@ -435,6 +436,74 @@ describe("GatewayBrowserClient", () => {
     await vi.advanceTimersByTimeAsync(750);
 
     expect(ws.sent).toHaveLength(0);
+
+    vi.useRealTimers();
+  });
+
+  it("waits for connect.challenge before sending connect", async () => {
+    vi.useFakeTimers();
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      connectChallengeTimeoutMs: 5_000,
+      token: "shared-auth-token",
+    });
+
+    client.start();
+    const ws = getLatestWebSocket();
+    ws.emitOpen();
+
+    await vi.advanceTimersByTimeAsync(750);
+    expect(ws.sent).toHaveLength(0);
+
+    ws.emitMessage({
+      type: "event",
+      event: "connect.challenge",
+      payload: { nonce: "nonce-1" },
+    });
+    await vi.waitFor(() => expect(ws.sent.length).toBeGreaterThan(0));
+
+    expect(parseLatestConnectFrame(ws).method).toBe("connect");
+
+    vi.useRealTimers();
+  });
+
+  it("resets seq-gap tracking after reconnect hello", async () => {
+    vi.useFakeTimers();
+    const onGap = vi.fn();
+
+    const client = new GatewayBrowserClient({
+      url: "ws://127.0.0.1:18789",
+      token: "shared-auth-token",
+      onGap,
+    });
+
+    const { ws: ws1, connectFrame: firstConnect } = await startConnect(client);
+    ws1.emitMessage({
+      type: "res",
+      id: firstConnect.id,
+      ok: true,
+      payload: { type: "hello-ok", protocol: 3 },
+    });
+    ws1.emitMessage({ type: "event", event: "presence", seq: 5, payload: {} });
+    expect(onGap).not.toHaveBeenCalled();
+
+    ws1.emitClose(1006, "");
+    await vi.advanceTimersByTimeAsync(800);
+
+    const ws2 = getLatestWebSocket();
+    const { connectFrame: secondConnect } = await continueConnect(ws2, "nonce-2");
+    ws2.emitMessage({
+      type: "res",
+      id: secondConnect.id,
+      ok: true,
+      payload: { type: "hello-ok", protocol: 3 },
+    });
+    ws2.emitMessage({ type: "event", event: "presence", seq: 12, payload: {} });
+    expect(onGap).not.toHaveBeenCalled();
+
+    ws2.emitMessage({ type: "event", event: "presence", seq: 14, payload: {} });
+    expect(onGap).toHaveBeenCalledWith({ expected: 13, received: 14 });
 
     vi.useRealTimers();
   });

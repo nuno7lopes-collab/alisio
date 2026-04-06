@@ -178,4 +178,62 @@ describe("loadControlUiBootstrapConfig", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("uses the Alisio account agent name when the bootstrap identity is still the default", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          basePath: "/openclaw",
+          assistantName: "Assistant",
+          assistantAvatar: "A",
+          assistantAgentId: "main",
+          serverVersion: "2026.3.7",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            basePath: "/openclaw",
+            controlUrl: "ws://127.0.0.1:18789/openclaw/",
+            startupState: "ready",
+            account: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@alisio.local",
+              agentName: "Muse",
+              avatarLabel: "N",
+              plan: "free",
+            },
+            ai: {
+              provider: "openai",
+              status: "connected",
+            },
+            bootstrapToken: "bootstrap-123",
+          }),
+      });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state: ControlUiBootstrapState = {
+      basePath: "/openclaw",
+      assistantName: "Assistant",
+      assistantAvatar: "A",
+      assistantAgentId: null,
+      serverVersion: null,
+      alisioStartupLoading: false,
+      alisioStartupError: null,
+      alisioStartupBootstrap: null,
+      gatewayBootstrapUrl: null,
+      gatewayBootstrapToken: null,
+    };
+
+    await loadControlUiBootstrapConfig(state);
+
+    expect(state.assistantName).toBe("Muse");
+    expect(state.assistantAvatar).toBe("M");
+
+    vi.unstubAllGlobals();
+  });
 });

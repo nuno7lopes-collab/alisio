@@ -159,6 +159,7 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     loading: false,
     sending: false,
     canAbort: false,
+    finalizing: false,
     compactionStatus: null,
     fallbackStatus: null,
     messages: [],
@@ -398,7 +399,7 @@ describe("chat view", () => {
                 },
               ],
               timestamp: Date.now(),
-              __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
             },
           ],
           onBeginConnector,
@@ -535,6 +536,36 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("190k / 200k");
   });
 
+  it("hides the context notice while the run is still finalizing", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          finalizing: true,
+          sessions: {
+            ts: 0,
+            path: "",
+            count: 1,
+            defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: 200_000 },
+            sessions: [
+              {
+                key: "main",
+                kind: "direct",
+                updatedAt: null,
+                totalTokens: 190_000,
+                contextTokens: 200_000,
+              },
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("95% context used");
+    expect(container.textContent).not.toContain("190k / 200k");
+  });
+
   it("uses the assistant avatar URL for the welcome state when the identity avatar is only initials", () => {
     const container = document.createElement("div");
     render(
@@ -583,7 +614,7 @@ describe("chat view", () => {
           assistantName: "Assistant",
           assistantAvatar: "A",
           assistantAvatarUrl: null,
-          basePath: "/openclaw/",
+          basePath: "/alisio/",
         }),
       ),
       container,
@@ -593,7 +624,7 @@ describe("chat view", () => {
       ".agent-chat__welcome .agent-chat__avatar--logo img",
     );
     expect(logoImage).not.toBeNull();
-    expect(logoImage?.getAttribute("src")).toBe("/openclaw/favicon.svg");
+    expect(logoImage?.getAttribute("src")).toBe("/alisio/favicon.svg");
   });
 
   it("keeps grouped assistant avatar fallbacks under the mounted base path", () => {
@@ -604,7 +635,7 @@ describe("chat view", () => {
           assistantName: "Assistant",
           assistantAvatar: "A",
           assistantAvatarUrl: null,
-          basePath: "/openclaw/",
+          basePath: "/alisio/",
           messages: [
             {
               role: "assistant",
@@ -621,7 +652,7 @@ describe("chat view", () => {
       ".chat-group.assistant .chat-avatar--logo",
     );
     expect(groupedLogo).not.toBeNull();
-    expect(groupedLogo?.getAttribute("src")).toBe("/openclaw/favicon.svg");
+    expect(groupedLogo?.getAttribute("src")).toBe("/alisio/favicon.svg");
   });
 
   it("renders compacting indicator as a badge", () => {
@@ -776,6 +807,144 @@ describe("chat view", () => {
     expect(container.textContent).not.toContain("New session");
   });
 
+  it("shows a visible thinking indicator before the first streamed tokens arrive", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          canAbort: true,
+          sending: true,
+          stream: "",
+          streamStartedAt: 1000,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-run-status")).not.toBeNull();
+    expect(container.textContent).toContain("Thinking");
+  });
+
+  it("keeps run activity visible after tools finish and before the final assistant message lands", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          canAbort: true,
+          sending: true,
+          toolMessages: [
+            {
+              role: "assistant",
+              toolCallId: "tool-read",
+              toolPhase: "result",
+              content: [
+                {
+                  type: "toolcall",
+                  name: "Read",
+                  arguments: {},
+                },
+                {
+                  type: "toolresult",
+                  name: "Read",
+                  text: "done",
+                },
+              ],
+              timestamp: 1000,
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-run-status")).not.toBeNull();
+    expect(container.textContent).toContain("Preparing final response");
+  });
+
+  it("keeps a finalizing indicator visible even after the live run id is gone", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          finalizing: true,
+          toolMessages: [
+            {
+              role: "assistant",
+              toolCallId: "tool-read",
+              toolPhase: "result",
+              content: [
+                {
+                  type: "toolcall",
+                  name: "Read",
+                  arguments: {},
+                },
+                {
+                  type: "toolresult",
+                  name: "Read",
+                  text: "done",
+                },
+              ],
+              timestamp: 1000,
+              __alisio: { kind: "tool-stream", phase: "result", isError: false },
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-run-status")).not.toBeNull();
+    expect(container.textContent).toContain("Preparing final response");
+  });
+
+  it("labels queued work so the user can tell what depends on the current run", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          finalizing: true,
+          queue: [
+            {
+              id: "pending",
+              text: "/steer tighten the plan",
+              createdAt: 1,
+              pendingRunId: "run-1",
+            },
+            {
+              id: "queued",
+              text: "follow up",
+              createdAt: 2,
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Waiting for the current reply to finish");
+    expect(container.textContent).toContain("Next in line");
+  });
+
+  it("hides assistant message actions while the streamed answer is still being written", () => {
+    const container = document.createElement("div");
+    render(
+      renderChat(
+        createProps({
+          canAbort: true,
+          sending: true,
+          stream: "Draft response in progress",
+          streamStartedAt: 1000,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.querySelector(".chat-bubble-actions")).toBeNull();
+    expect(container.querySelector(".chat-group-footer--active")).not.toBeNull();
+    expect(container.textContent).toContain("Writing response");
+  });
+
   it("keeps secondary composer actions hidden when aborting is unavailable", () => {
     const container = document.createElement("div");
     const onNewSession = vi.fn();
@@ -857,6 +1026,7 @@ describe("chat view", () => {
 
   it("opens delete confirm on the left for user messages", () => {
     try {
+      getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
       getSafeLocalStorage()?.removeItem("openclaw:skipDeleteConfirm");
     } catch {
       /* noop */
@@ -890,6 +1060,7 @@ describe("chat view", () => {
 
   it("opens delete confirm on the right for assistant messages", () => {
     try {
+      getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
       getSafeLocalStorage()?.removeItem("openclaw:skipDeleteConfirm");
     } catch {
       /* noop */

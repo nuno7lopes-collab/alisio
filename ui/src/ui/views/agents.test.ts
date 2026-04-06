@@ -18,12 +18,14 @@ function createSkill() {
     eligible: true,
     requirements: {
       bins: [],
+      anyBins: [],
       env: [],
       config: [],
       os: [],
     },
     missing: {
       bins: [],
+      anyBins: [],
       env: [],
       config: [],
       os: [],

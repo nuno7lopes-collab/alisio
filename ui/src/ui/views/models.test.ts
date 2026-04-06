@@ -83,6 +83,7 @@ function createModelsState(): AlisioModelsState {
         connected: true,
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
+        chatProviderId: "alisio-local-current",
         runtimeStatus: "ready",
         supportsInstall: true,
         installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
@@ -111,6 +112,7 @@ function createModelsState(): AlisioModelsState {
         connected: true,
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
+        chatProviderId: "alisio-target-remote-1-llama",
         runtimeStatus: "ready",
         supportsInstall: true,
         installedModels: [{ id: "qwen3-8b-q4-k-m", name: "Qwen3 8B", ownedBy: "llama.cpp" }],
@@ -136,6 +138,7 @@ function createModelsState(): AlisioModelsState {
       {
         serverId: "server-1",
         label: "Home Lab",
+        chatProviderId: "alisio-server-server-1",
         kind: "openai-compatible",
         baseUrl: "http://127.0.0.1:8080/v1",
         active: true,
@@ -153,6 +156,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     models: createModelsState(),
     modelsLoading: false,
     modelsError: null,
+    modelOperations: {},
     aiLoading: false,
     aiError: null,
     expandedProfileId: "profile-1",
@@ -161,9 +165,22 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
       { value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" },
       { value: "openai-codex/gpt-5.3-codex", label: "gpt-5.3-codex · openai-codex" },
       { value: "anthropic/claude-sonnet-4-5", label: "claude-sonnet-4-5 · anthropic" },
+      {
+        value: "alisio-local-current/qwen3-4b-q4-k-m",
+        label: "Qwen3 4B · This Mac",
+      },
+      {
+        value: "alisio-target-remote-1-llama/qwen3-8b-q4-k-m",
+        label: "Qwen3 8B · Studio Mac",
+      },
+      {
+        value: "alisio-server-server-1/gpt-oss-20b",
+        label: "gpt-oss-20b · Home Lab",
+      },
     ],
     currentChatModelOverrideValue: "",
     defaultChatModelValue: "openai-codex/gpt-5.4",
+    defaultChatModelDisplay: "gpt-5.4 · openai-codex",
     defaultChatModelLabel: "Default (gpt-5.4 · openai-codex)",
     effectiveChatModelValue: "openai-codex/gpt-5.4",
     effectiveChatModelLabel: "gpt-5.4 · openai-codex",
@@ -173,18 +190,19 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     onSelectProvider: vi.fn(),
     onConnectAi: vi.fn(),
     onRefreshAllAiProfiles: vi.fn(),
+    onSelectDefaultChatModel: vi.fn(),
     onSelectChatModel: vi.fn(),
     onSelectAiProfile: vi.fn(),
     onDisconnectAiProfile: vi.fn(),
     onRefreshAiProfile: vi.fn(),
     onRenameAiProfile: vi.fn(),
     onInstallModel: vi.fn(),
+    onUninstallModel: vi.fn(),
     onStartCreateServer: vi.fn(),
     onStartEditServer: vi.fn(),
     onChangeServerDraft: vi.fn(),
     onCancelServerDraft: vi.fn(),
     onSubmitServerDraft: vi.fn(),
-    onSaveServer: vi.fn(),
     onRemoveServer: vi.fn(),
     onSelectServer: vi.fn(),
     ...overrides,
@@ -192,7 +210,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
 }
 
 describe("renderModelsHub", () => {
-  it("renders provider cards and wires OpenAI model selection", () => {
+  it("renders provider cards and wires OpenAI default and session model selection", () => {
     const props = createProps();
     const container = document.createElement("div");
 
@@ -208,10 +226,13 @@ describe("renderModelsHub", () => {
     localCard?.click();
     expect(props.onSelectProvider).toHaveBeenCalledWith("local");
 
-    const switchModelButton = Array.from(
+    const allModelButtons = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.includes("gpt-5.3-codex"));
-    switchModelButton?.click();
+    ).filter((button) => button.textContent?.includes("gpt-5.3-codex"));
+    allModelButtons[0]?.click();
+    expect(props.onSelectDefaultChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
+
+    allModelButtons[1]?.click();
     expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
   });
 
@@ -271,9 +292,47 @@ describe("renderModelsHub", () => {
     expect(container.textContent).toContain("macOS");
     expect(container.textContent).toContain("Qwen3 8B");
     expect(container.textContent).toContain("Install");
+    expect(container.textContent).toContain("Uninstall");
     expect(container.textContent).not.toContain("alice@example.com");
     expect(targetTitles).toContain("This Mac");
     expect(targetTitles).not.toContain("Studio Mac");
+
+    const localChip = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
+    ).find((button) => button.textContent?.includes("Qwen3 4B"));
+    localChip?.click();
+
+    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-local-current/qwen3-4b-q4-k-m");
+  });
+
+  it("shows install progress and wires uninstall for local models", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+      modelOperations: {
+        "current::qwen3-8b-q4-k-m": {
+          targetId: "current",
+          modelId: "qwen3-8b-q4-k-m",
+          action: "install",
+          phase: "running",
+          percent: 42,
+          downloadedSize: 2_100_000_000,
+          totalSize: 5_100_000_000,
+          updatedAt: Date.now(),
+        },
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Installing");
+    expect(container.textContent).toContain("42%");
+
+    const uninstallButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("Uninstall"));
+    uninstallButton?.click();
+    expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
   });
 
   it("renders linked computers and remote endpoints in the server surface", () => {
@@ -285,6 +344,26 @@ describe("renderModelsHub", () => {
     expect(container.textContent).toContain("Studio Mac");
     expect(container.textContent).toContain("Home Lab");
     expect(container.textContent).toContain("gpt-oss-20b");
+  });
+
+  it("permite escolher um modelo do endpoint activo na superfície de servidor", () => {
+    const props = createProps({
+      selectedProviderId: "server",
+      currentChatModelOverrideValue: "alisio-server-server-1/gpt-oss-20b",
+      effectiveChatModelValue: "alisio-server-server-1/gpt-oss-20b",
+      effectiveChatModelLabel: "gpt-oss-20b · Home Lab",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const remoteChip = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
+    ).find((button) => button.textContent?.includes("gpt-oss-20b"));
+    remoteChip?.click();
+
+    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-server-server-1/gpt-oss-20b");
+    expect(container.textContent).toContain("Choose model");
   });
 
   it("uses a generic empty-state copy for linked OpenAI-compatible targets", () => {

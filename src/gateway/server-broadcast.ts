@@ -19,6 +19,7 @@ const EVENT_SCOPE_GUARDS: Record<string, string[]> = {
   "node.pair.requested": [PAIRING_SCOPE],
   "node.pair.resolved": [PAIRING_SCOPE],
   "node.task.updated": [WRITE_SCOPE],
+  "alisio.models.operation": [WRITE_SCOPE],
   "sessions.changed": [READ_SCOPE],
   "session.message": [READ_SCOPE],
   "session.tool": [READ_SCOPE],
@@ -67,8 +68,6 @@ function hasEventScope(client: GatewayWsClient, event: string): boolean {
 }
 
 export function createGatewayBroadcaster(params: { clients: Set<GatewayWsClient> }) {
-  let seq = 0;
-
   const broadcastInternal = (
     event: string,
     payload: unknown,
@@ -79,38 +78,21 @@ export function createGatewayBroadcaster(params: { clients: Set<GatewayWsClient>
       return;
     }
     const isTargeted = Boolean(targetConnIds);
-    const eventSeq = isTargeted ? undefined : ++seq;
-    const frame = JSON.stringify({
-      type: "event",
-      event,
-      payload,
-      seq: eventSeq,
-      stateVersion: opts?.stateVersion,
-    });
-    if (shouldLogWs()) {
-      const logMeta: Record<string, unknown> = {
-        event,
-        seq: eventSeq ?? "targeted",
-        clients: params.clients.size,
-        targets: targetConnIds ? targetConnIds.size : undefined,
-        dropIfSlow: opts?.dropIfSlow,
-        presenceVersion: opts?.stateVersion?.presence,
-        healthVersion: opts?.stateVersion?.health,
-      };
-      if (event === "agent") {
-        Object.assign(logMeta, summarizeAgentEventForWsLog(payload));
-      }
-      logWs("out", "event", logMeta);
-    }
+    let delivered = 0;
+    let skippedByScope = 0;
+    let droppedSlow = 0;
+    let closedSlow = 0;
     for (const c of params.clients) {
       if (targetConnIds && !targetConnIds.has(c.connId)) {
         continue;
       }
       if (!hasEventScope(c, event)) {
+        skippedByScope += 1;
         continue;
       }
       const slow = c.socket.bufferedAmount > MAX_BUFFERED_BYTES;
       if (slow && opts?.dropIfSlow) {
+        droppedSlow += 1;
         continue;
       }
       if (slow) {
@@ -119,13 +101,46 @@ export function createGatewayBroadcaster(params: { clients: Set<GatewayWsClient>
         } catch {
           /* ignore */
         }
+        closedSlow += 1;
         continue;
       }
+      const eventSeq = isTargeted ? undefined : (c.eventSeq ?? 0) + 1;
       try {
-        c.socket.send(frame);
+        c.socket.send(
+          JSON.stringify({
+            type: "event",
+            event,
+            payload,
+            seq: eventSeq,
+            stateVersion: opts?.stateVersion,
+          }),
+        );
+        if (typeof eventSeq === "number") {
+          c.eventSeq = eventSeq;
+        }
+        delivered += 1;
       } catch {
         /* ignore */
       }
+    }
+    if (shouldLogWs()) {
+      const logMeta: Record<string, unknown> = {
+        event,
+        seq: isTargeted ? "targeted" : "per-client",
+        clients: params.clients.size,
+        targets: targetConnIds ? targetConnIds.size : undefined,
+        delivered,
+        skippedByScope: skippedByScope || undefined,
+        droppedSlow: droppedSlow || undefined,
+        closedSlow: closedSlow || undefined,
+        dropIfSlow: opts?.dropIfSlow,
+        presenceVersion: opts?.stateVersion?.presence,
+        healthVersion: opts?.stateVersion?.health,
+      };
+      if (event === "agent") {
+        Object.assign(logMeta, summarizeAgentEventForWsLog(payload));
+      }
+      logWs("out", "event", logMeta);
     }
   };
 

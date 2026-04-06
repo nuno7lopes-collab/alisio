@@ -18,7 +18,7 @@ type SkillDetailDialogProps = {
   onDetailClose: () => void;
 };
 
-type SkillMissingKind = "bin" | "env" | "config" | "os";
+type SkillMissingKind = "bin" | "anyBin" | "env" | "config" | "os";
 
 export function buildSkillStatusCounts(
   skills: SkillStatusEntry[],
@@ -81,8 +81,14 @@ export function humanizeSkillSource(source: string) {
       return t("alisio.capabilities.sources.managed");
     case "openclaw-workspace":
       return t("alisio.capabilities.sources.workspace");
+    case "agents-skills-project":
+      return t("alisio.capabilities.sources.project");
+    case "agents-skills-personal":
+      return t("alisio.capabilities.sources.personal");
     case "openclaw-plugin":
       return t("alisio.capabilities.sources.plugin");
+    case "openclaw-extra":
+      return t("alisio.capabilities.sources.extra");
     default:
       return t("alisio.capabilities.sources.external");
   }
@@ -109,6 +115,9 @@ function safeExternalHref(raw?: string): string | null {
 export function computeSkillMissing(skill: SkillStatusEntry): string[] {
   return [
     ...skill.missing.bins.map((value) => formatSkillMissingItem("bin", value)),
+    ...(skill.missing.anyBins.length > 0
+      ? [formatSkillMissingItem("anyBin", skill.missing.anyBins.join(", "))]
+      : []),
     ...skill.missing.env.map((value) => formatSkillMissingItem("env", value)),
     ...skill.missing.config.map((value) => formatSkillMissingItem("config", value)),
     ...skill.missing.os.map((value) => formatSkillMissingItem("os", value)),
@@ -148,7 +157,8 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const hasEditedValue = Object.hasOwn(props.edits, skill.skillKey);
   const apiKey = hasEditedValue ? (props.edits[skill.skillKey] ?? "") : "";
   const message = props.messages[skill.skillKey] ?? null;
-  const canInstall = skill.install.length > 0 && skill.missing.bins.length > 0;
+  const canInstall =
+    skill.install.length > 0 && (skill.missing.bins.length > 0 || skill.missing.anyBins.length > 0);
   const showBundledBadge = Boolean(skill.bundled && skill.source !== "openclaw-bundled");
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);

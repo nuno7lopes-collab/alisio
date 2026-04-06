@@ -174,6 +174,128 @@ describe("channels view", () => {
     expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.openclaw.ai/channels/telegram");
   });
 
+  it("marks Telegram as waiting for the first DM instead of fully configured", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channelIssues: {},
+            channels: {
+              telegram: {
+                configured: true,
+                dmOnboardingState: "waiting_for_first_dm",
+                setupAvailable: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  dmOnboardingState: "waiting_for_first_dm",
+                  pendingPairingRequests: 0,
+                  probe: {
+                    ok: true,
+                    bot: {
+                      username: "alizia_bot",
+                    },
+                  },
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Waiting for first message");
+    expect(container.textContent).toContain(
+      "Token saved. Send a message to the bot from the Telegram account that should use it.",
+    );
+    expect(findButton(container, "Finish setup")).toBeDefined();
+  });
+
+  it("shows Telegram pending approval state on the channel card", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderChannels(
+        createProps({
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channelIssues: {
+              telegram: [
+                {
+                  channel: "telegram",
+                  accountId: "default",
+                  kind: "intent",
+                  message: "2 pending Telegram DM approval requests waiting for approval.",
+                  fix: "Open Telegram setup again and send a message from the account that should use the bot. OpenClaw will finish the first approval automatically.",
+                },
+              ],
+            },
+            channels: {
+              telegram: {
+                configured: true,
+                dmOnboardingState: "pending_approval",
+                pendingPairingRequests: 2,
+                setupAvailable: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  dmOnboardingState: "pending_approval",
+                  pendingPairingRequests: 2,
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Pending approval");
+    expect(container.textContent).toContain(
+      "2 Telegram access requests are waiting for approval before the first chat can start.",
+    );
+  });
+
   it("keeps the native WhatsApp QR flow exposed", () => {
     const container = document.createElement("div");
     const onStartWhatsAppLink = vi.fn();
@@ -1100,7 +1222,7 @@ describe("channels view", () => {
 
     expect(state.channelsError).toBeNull();
     expect(state.channelsActionMessage).toBe(
-      "Channel saved. The gateway is restarting to apply the connection.",
+      "Channel saved. Alisio is restarting to apply the connection.",
     );
   });
 

@@ -2,7 +2,7 @@
 
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatHost } from "./app-chat.ts";
-import { refreshChatAvatar } from "./app-chat.ts";
+import { refreshChat, refreshChatAvatar } from "./app-chat.ts";
 
 const { setLastActiveSessionKeyMock } = vi.hoisted(() => ({
   setLastActiveSessionKeyMock: vi.fn(),
@@ -14,10 +14,11 @@ vi.mock("./app-settings.ts", () => ({
 
 let handleSendChat: typeof import("./app-chat.ts").handleSendChat;
 let clearPendingQueueItemsForRun: typeof import("./app-chat.ts").clearPendingQueueItemsForRun;
+let isChatBusy: typeof import("./app-chat.ts").isChatBusy;
 
 async function loadChatHelpers(): Promise<void> {
   vi.resetModules();
-  ({ handleSendChat, clearPendingQueueItemsForRun } = await import("./app-chat.ts"));
+  ({ handleSendChat, clearPendingQueueItemsForRun, isChatBusy } = await import("./app-chat.ts"));
 }
 
 function makeHost(overrides?: Partial<ChatHost>): ChatHost {
@@ -25,6 +26,7 @@ function makeHost(overrides?: Partial<ChatHost>): ChatHost {
     client: null,
     chatMessages: [],
     chatStream: null,
+    chatFinalizing: false,
     connected: true,
     chatMessage: "",
     chatAttachments: [],
@@ -77,14 +79,68 @@ describe("refreshChatAvatar", () => {
     });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
-    const host = makeHost({ basePath: "/openclaw/", sessionKey: "agent:ops:main" });
+    const host = makeHost({ basePath: "/alisio/", sessionKey: "agent:ops:main" });
     await refreshChatAvatar(host);
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/openclaw/avatar/ops?meta=1",
+      "/alisio/avatar/ops?meta=1",
       expect.objectContaining({ method: "GET" }),
     );
     expect(host.chatAvatarUrl).toBeNull();
+  });
+});
+
+describe("refreshChat", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("can refresh side data without reloading chat history", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const request = vi.fn(async (method: string, params?: unknown) => {
+      if (method === "sessions.list") {
+        expect(params).toEqual({
+          includeGlobal: true,
+          includeUnknown: true,
+        });
+        return {
+          ts: 0,
+          path: "",
+          count: 0,
+          defaults: { modelProvider: "openai", model: "gpt-5", contextTokens: null },
+          sessions: [],
+        };
+      }
+      if (method === "models.list") {
+        return { models: [] };
+      }
+      if (method === "chat.history") {
+        throw new Error("chat.history should not run when includeHistory is false");
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+
+    const host = makeHost({
+      client: { request } as unknown as ChatHost["client"],
+      sessionKey: "main",
+    });
+
+    await refreshChat(host, { includeHistory: false, scheduleScroll: false });
+
+    expect(request).not.toHaveBeenCalledWith("chat.history", expect.anything());
+    expect(request).toHaveBeenCalledWith(
+      "sessions.list",
+      expect.objectContaining({
+        includeGlobal: true,
+        includeUnknown: true,
+      }),
+    );
+    expect(request).toHaveBeenCalledWith("models.list", {});
   });
 });
 
@@ -211,6 +267,28 @@ describe("handleSendChat", () => {
     expect(host.chatQueue).toEqual([
       expect.objectContaining({
         id: "queued",
+        text: "follow up",
+      }),
+    ]);
+  });
+
+  it("treats silent finalization as a busy state", () => {
+    const host = makeHost({ chatFinalizing: true });
+
+    expect(isChatBusy(host)).toBe(true);
+  });
+
+  it("queues a new message while the previous run is still finalizing", async () => {
+    const host = makeHost({
+      client: { request: vi.fn() } as unknown as ChatHost["client"],
+      chatFinalizing: true,
+      chatMessage: "follow up",
+    });
+
+    await handleSendChat(host);
+
+    expect(host.chatQueue).toEqual([
+      expect.objectContaining({
         text: "follow up",
       }),
     ]);

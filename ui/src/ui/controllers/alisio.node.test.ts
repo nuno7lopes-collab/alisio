@@ -7,6 +7,7 @@ import {
   requestAlisioPasswordReset,
   saveAlisioAccount,
   saveAlisioOrganization,
+  selectAlisioModelsServer,
   signInAlisioAccount,
   signOutAlisioAccount,
   type AlisioState,
@@ -41,14 +42,22 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioModelsLoading: false,
     alisioModelsError: null,
     alisioModels: null,
+    alisioModelOperations: {},
+    chatModelCatalog: [],
+    modelsExpandedProfileId: undefined,
+    modelsSelectedProviderId: undefined,
+    modelsServerDraft: null,
     alisioAccountLoading: false,
     alisioAccountError: null,
     alisioAccountNotice: null,
     alisioAccount: null,
-    alisioAuthMode: "sign-in",
     alisioAuthEmail: "",
-    alisioAuthPassword: "",
-    alisioAuthPasswordVisible: false,
+    alisioAuthPendingEmail: "",
+    alisioAuthCode: "",
+    alisioAuthStage: "entry",
+    alisioTermsAccepted: false,
+    alisioMarketingOptIn: false,
+    alisioBirthdate: "",
     alisioAiLoading: false,
     alisioAiError: null,
     alisioOrganizationLoading: false,
@@ -117,6 +126,10 @@ describe("alisio controller reconnect safety", () => {
             profile: {
               email: "",
             },
+            session: {
+              state: "signed_out",
+              profileCompleted: false,
+            },
           },
           organization: { mode: "none" },
           connectors: { catalog: [], authorizations: [], summary: [] },
@@ -133,6 +146,10 @@ describe("alisio controller reconnect safety", () => {
       account: {
         profile: {
           email: "nuno7lopes@gmail.com",
+        },
+        session: {
+          state: "signed_out" as const,
+          profileCompleted: false,
         },
       },
       organization: { mode: "none" as const },
@@ -152,6 +169,47 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioBootstrap).toEqual(secondBootstrap);
     expect(state.alisioAuthEmail).toBe("nuno7lopes@gmail.com");
     expect(state.alisioBootstrapLoading).toBe(false);
+  });
+
+  it("reutiliza bootstrap recente e evita novo fetch imediato", async () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValue(1_000);
+    const request = vi.fn(async () => ({
+      account: {
+        profile: {
+          email: "nuno@example.com",
+        },
+        session: {
+          state: "signed_out" as const,
+          profileCompleted: false,
+        },
+      },
+      organization: { mode: "none" as const },
+      connectors: { catalog: [], authorizations: [], summary: [] },
+      wizard: { running: false, sessionId: null },
+    }));
+    const state = createState({ client: createClient(request) });
+
+    await loadAlisioBootstrap(state);
+    nowSpy.mockReturnValue(2_000);
+    await loadAlisioBootstrap(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    nowSpy.mockRestore();
+  });
+
+  it("reutiliza doctor recente e evita novo fetch imediato", async () => {
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy.mockReturnValue(1_000);
+    const request = vi.fn(async () => ({ ok: true, issues: [] }));
+    const state = createState({ client: createClient(request) });
+
+    await loadAlisioDoctorSummary(state);
+    nowSpy.mockReturnValue(2_000);
+    await loadAlisioDoctorSummary(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    nowSpy.mockRestore();
   });
 
   it("ignora um erro antigo ao refrescar telemetria AI depois de reconectar", async () => {
@@ -202,6 +260,49 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAiLoading).toBe(false);
   });
 
+  it("aplica a resposta do refresh AI directamente no bootstrap sem refetch extra", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.ai.refreshLimits") {
+        return {
+          provider: "openai",
+          status: "connected",
+          email: "updated@example.com",
+          planLabel: "team",
+          profiles: [],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioBootstrap: {
+        account: {
+          profile: {
+            email: "nuno@example.com",
+          },
+        },
+        ai: {
+          provider: "openai",
+          status: "disconnected",
+        },
+        organization: { mode: "none" },
+        connectors: { catalog: [], authorizations: [], summary: [] },
+        wizard: { running: false, sessionId: null },
+      } as unknown as AlisioState["alisioBootstrap"],
+    });
+
+    await refreshAlisioAiProfile(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.ai.refreshLimits", {});
+    expect(state.alisioBootstrap?.ai).toMatchObject({
+      provider: "openai",
+      status: "connected",
+      email: "updated@example.com",
+      planLabel: "team",
+    });
+  });
+
   it("reutiliza os connectors do bootstrap e evita novo fetch imediato", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "alisio.bootstrap.get") {
@@ -209,6 +310,10 @@ describe("alisio controller reconnect safety", () => {
           account: {
             profile: {
               email: "",
+            },
+            session: {
+              state: "signed_out" as const,
+              profileCompleted: false,
             },
           },
           organization: { mode: "none" as const },
@@ -285,6 +390,47 @@ describe("alisio controller reconnect safety", () => {
         providerLabel: "Google",
         statusReason: "missing_client_config",
       } as unknown as AlisioState["alisioConnectorSetupGuide"],
+      alisioModelsLoading: true,
+      alisioModelsError: "stale models",
+      alisioModels: {
+        backend: "llama.cpp",
+        catalog: [],
+        targets: [],
+        servers: [
+          {
+            serverId: "server-1",
+            label: "Home Lab",
+            kind: "openai-compatible",
+            baseUrl: "http://192.168.1.50:1234",
+            active: true,
+            hasApiKey: false,
+            status: "ready",
+            models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
+          },
+        ],
+      } as unknown as AlisioState["alisioModels"],
+      alisioModelOperations: {
+        "current::qwen3-8b": {
+          targetId: "current",
+          modelId: "qwen3-8b",
+          action: "install",
+          phase: "running",
+          updatedAt: Date.now(),
+        },
+      },
+      chatModelCatalog: [
+        { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
+        { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
+      ],
+      modelsExpandedProfileId: "profile-1",
+      modelsSelectedProviderId: "server",
+      modelsServerDraft: {
+        mode: "create",
+        label: "Draft",
+        kind: "openai-compatible",
+        baseUrl: "http://192.168.1.50:1234",
+        apiKey: "",
+      },
       setupWizardSessionId: "wizard-1",
       setupWizardStatus: "running",
       setupWizardStep: {
@@ -294,25 +440,86 @@ describe("alisio controller reconnect safety", () => {
       } as NonNullable<AlisioState["setupWizardStep"]>,
       setupWizardError: "stale",
       setupWizardDraftText: "draft",
-      alisioAuthPassword: "secret",
-      alisioAuthPasswordVisible: true,
+      alisioAuthPendingEmail: "owner@example.com",
+      alisioAuthCode: "654321",
+      alisioAuthStage: "email-code",
+      alisioTermsAccepted: true,
+      alisioMarketingOptIn: true,
+      alisioBirthdate: "1990-04-06",
     });
 
     await signOutAlisioAccount(state);
 
     expect(state.alisioBootstrap).toBeNull();
+    expect(state.alisioModelsLoading).toBe(false);
+    expect(state.alisioModelsError).toBeNull();
+    expect(state.alisioModels).toBeNull();
+    expect(state.alisioModelOperations).toEqual({});
     expect(state.alisioOrganization).toBeNull();
     expect(state.alisioConnectorCatalog).toEqual([]);
     expect(state.alisioConnectorAuthorizations).toEqual([]);
     expect(state.alisioConnectorSetupGuide).toBeNull();
+    expect(state.chatModelCatalog).toEqual([
+      { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
+    ]);
+    expect(state.modelsExpandedProfileId).toBeUndefined();
+    expect(state.modelsSelectedProviderId).toBeUndefined();
+    expect(state.modelsServerDraft).toBeNull();
     expect(state.setupWizardSessionId).toBeNull();
     expect(state.setupWizardStep).toBeNull();
     expect(state.setupWizardStatus).toBeNull();
     expect(state.setupWizardDraftText).toBe("");
-    expect(state.alisioAuthPassword).toBe("");
-    expect(state.alisioAuthPasswordVisible).toBe(false);
+    expect(state.alisioAuthCode).toBe("");
+    expect(state.alisioAuthStage).toBe("entry");
+    expect(state.alisioTermsAccepted).toBe(false);
+    expect(state.alisioMarketingOptIn).toBe(false);
+    expect(state.alisioBirthdate).toBe("");
     expect(state.setupStep).toBe("account");
     expect(state.setTab).toHaveBeenCalledWith("setup");
+  });
+
+  it("actualiza o catálogo do picker de chat quando muda o endpoint activo", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.models.server.select") {
+        return { ok: true, serverId: "server-2" };
+      }
+      if (method === "alisio.models.get") {
+        return {
+          backend: "llama.cpp",
+          catalog: [],
+          targets: [],
+          servers: [
+            {
+              serverId: "server-2",
+              label: "Studio",
+              kind: "openai-compatible",
+              baseUrl: "http://192.168.1.60:1234",
+              active: true,
+              hasApiKey: false,
+              status: "ready",
+              models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
+            },
+          ],
+        };
+      }
+      if (method === "models.list") {
+        return {
+          models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" }],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      chatModelCatalog: [{ id: "gpt-5.4", name: "gpt-5.4", provider: "openai" }],
+    });
+
+    await selectAlisioModelsServer(state, "server-2");
+
+    expect(state.alisioModels?.servers[0]?.serverId).toBe("server-2");
+    expect(state.chatModelCatalog).toEqual([
+      { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
+    ]);
   });
 
   it("ignora um save antigo da conta quando chega um pedido mais recente", async () => {
@@ -540,9 +747,13 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAccountError).toBeNull();
   });
 
-  it("limpa a palavra-passe visível depois de iniciar sessão", async () => {
-    const request = vi.fn(async (method: string) => {
-      if (method === "alisio.account.signIn") {
+  it("limpa o código pendente depois de verificar o email", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.verifyEmailAuth") {
+        expect(params).toEqual({
+          email: "owner@example.com",
+          code: "123456",
+        });
         return {
           profile: {
             email: "owner@example.com",
@@ -584,14 +795,15 @@ describe("alisio controller reconnect safety", () => {
     const state = createState({
       client: createClient(request),
       alisioAuthEmail: "owner@example.com",
-      alisioAuthPassword: "secret",
-      alisioAuthPasswordVisible: true,
+      alisioAuthPendingEmail: "owner@example.com",
+      alisioAuthCode: "123456",
+      alisioAuthStage: "email-code",
     });
 
     await signInAlisioAccount(state);
 
-    expect(state.alisioAuthPassword).toBe("");
-    expect(state.alisioAuthPasswordVisible).toBe(false);
+    expect(state.alisioAuthCode).toBe("");
+    expect(state.alisioAuthStage).toBe("entry");
     expect(state.alisioAccountError).toBeNull();
   });
 });

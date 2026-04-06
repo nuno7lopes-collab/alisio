@@ -334,21 +334,21 @@ export function renderCapabilities(props: CapabilitiesProps) {
           ${showInitialLoading
             ? renderSkeletonStatCards(4)
             : html`
-                <article class="list-item">
+                <article class="list-item capabilities-summary-card">
                   <div class="list-title">${statusCounts.ready}</div>
                   <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>
                 </article>
-                <article class="list-item">
+                <article class="list-item capabilities-summary-card">
                   <div class="list-title">
                     ${statusCounts["needs-setup"] + statusCounts.disabled}
                   </div>
                   <div class="list-sub">${t("alisio.capabilities.summary.needsSetup")}</div>
                 </article>
-                <article class="list-item">
+                <article class="list-item capabilities-summary-card">
                   <div class="list-title">${connectedApps}</div>
                   <div class="list-sub">${t("alisio.capabilities.summary.connectedApps")}</div>
                 </article>
-                <article class="list-item">
+                <article class="list-item capabilities-summary-card">
                   <div class="list-title">${channels.connected}</div>
                   <div class="list-sub">${t("alisio.capabilities.summary.liveChannels")}</div>
                 </article>

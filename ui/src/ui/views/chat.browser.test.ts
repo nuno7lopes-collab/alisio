@@ -92,6 +92,19 @@ async function renderContextNoticeChat() {
   return container;
 }
 
+async function renderWideChat() {
+  const container = document.createElement("div");
+  container.style.width = "1400px";
+  container.style.minHeight = "900px";
+  document.body.style.margin = "0";
+  document.body.append(container);
+  render(renderChat(createProps()), container);
+  await new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+  return container;
+}
+
 describe("chat context notice", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -158,5 +171,24 @@ describe("chat context notice", () => {
     const noticeStyle = getComputedStyle(notice);
     expect(noticeStyle.flexWrap).toBe("wrap");
     expect(noticeStyle.whiteSpace).toBe("normal");
+  });
+
+  it("keeps the composer centered on wide chat layouts", async () => {
+    const container = await renderWideChat();
+
+    const chat = container.querySelector<HTMLElement>(".alisio-chat");
+    const composer = container.querySelector<HTMLElement>(".alisio-chat__composer");
+    expect(chat).not.toBeNull();
+    expect(composer).not.toBeNull();
+    if (!chat || !composer) {
+      return;
+    }
+
+    const chatRect = chat.getBoundingClientRect();
+    const composerRect = composer.getBoundingClientRect();
+    const chatCenter = chatRect.left + chatRect.width / 2;
+    const composerCenter = composerRect.left + composerRect.width / 2;
+
+    expect(Math.abs(chatCenter - composerCenter)).toBeLessThan(1);
   });
 });

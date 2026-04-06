@@ -1,4 +1,5 @@
 import type { GatewayBrowserClient } from "../gateway.ts";
+import { isLongTermMemoryFileName, isMemoryNoteFileName } from "../memory-files.ts";
 import type {
   AgentFileEntry,
   AgentsFilesGetResult,
@@ -43,8 +44,11 @@ export async function loadAgentFiles(state: AgentFilesState, agentId: string) {
       agentId,
     });
     if (res) {
-      state.agentFilesList = res;
-      if (state.agentFileActive && !res.files.some((file) => file.name === state.agentFileActive)) {
+      const files = res.files.filter(
+        (file) => !isLongTermMemoryFileName(file.name) && !isMemoryNoteFileName(file.name),
+      );
+      state.agentFilesList = { ...res, files };
+      if (state.agentFileActive && !files.some((file) => file.name === state.agentFileActive)) {
         state.agentFileActive = null;
       }
     }

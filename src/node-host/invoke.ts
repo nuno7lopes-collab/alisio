@@ -6,6 +6,7 @@ import {
   chatWithInstalledAlisioLocalModel,
   inspectManagedLocalModelRuntime,
   installAlisioLocalModel,
+  uninstallAlisioLocalModel,
 } from "../infra/alisio-local-llama-runtime.js";
 import {
   inspectLocalModelRuntime,
@@ -702,7 +703,7 @@ async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRe
     await sendInvalidTaskRequestResult(client, frame, err);
     return;
   }
-  if (input.action !== "install") {
+  if (input.action !== "install" && input.action !== "uninstall") {
     await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "unsupported local model action");
     return;
   }
@@ -713,20 +714,80 @@ async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRe
   }
 
   try {
-    const model = await installAlisioLocalModel({ modelId, env: process.env });
+    if (input.action === "install") {
+      await sendTaskEvent(client, frame, {
+        kind: "status",
+        seq: 1,
+        payload: {
+          action: "install",
+          modelId,
+          phase: "started",
+        },
+      });
+    } else {
+      await sendTaskEvent(client, frame, {
+        kind: "status",
+        seq: 1,
+        payload: {
+          action: "uninstall",
+          modelId,
+          phase: "started",
+        },
+      });
+    }
+
+    const model =
+      input.action === "install"
+        ? await installAlisioLocalModel({
+            modelId,
+            env: process.env,
+            onProgress: ({ downloadedSize, totalSize }) => {
+              const percent =
+                totalSize > 0
+                  ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                  : undefined;
+              void sendTaskEvent(client, frame, {
+                kind: "progress",
+                payload: {
+                  action: "install",
+                  modelId,
+                  phase: "running",
+                  downloadedSize,
+                  totalSize,
+                  percent,
+                },
+              });
+            },
+          })
+        : await uninstallAlisioLocalModel({
+            modelId,
+            env: process.env,
+          });
+
     await sendTaskEvent(client, frame, {
       kind: "completed",
-      seq: 1,
+      seq: 2,
       payload: {
         ok: true,
+        action: input.action,
         model,
       },
     });
     await sendJsonTaskResult(client, frame, {
       ok: true,
+      action: input.action,
       model,
     });
   } catch (error) {
+    await sendTaskEvent(client, frame, {
+      kind: "failed",
+      payload: {
+        action: input.action,
+        modelId,
+        phase: "failed",
+        message: String(error),
+      },
+    });
     await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(error));
   }
 }

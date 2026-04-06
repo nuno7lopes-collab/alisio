@@ -1,7 +1,6 @@
 import { html } from "lit";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
-import { BORDER_RADIUS_STOPS, type BorderRadiusStop } from "../storage.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
 import type { ThemeMode, ThemeName } from "../theme.ts";
 
@@ -17,21 +16,13 @@ const THEME_OPTIONS: AppearanceThemeOption[] = [
   { id: "dash", labelKey: "alisio.settings.appearance.themes.dash", icon: icons.barChart },
 ];
 
-const BORDER_RADIUS_LABEL_KEYS: Record<BorderRadiusStop, string> = {
-  0: "alisio.settings.appearance.roundnessOptions.none",
-  25: "alisio.settings.appearance.roundnessOptions.slight",
-  50: "alisio.settings.appearance.roundnessOptions.default",
-  75: "alisio.settings.appearance.roundnessOptions.round",
-  100: "alisio.settings.appearance.roundnessOptions.full",
-};
-
 export type AppearanceControlsProps = {
   theme: ThemeName;
   themeMode: ThemeMode;
   borderRadius: number;
   onThemeChange: (theme: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (mode: ThemeMode) => void;
-  onBorderRadiusChange: (value: BorderRadiusStop) => void;
+  onBorderRadiusChange: (value: number) => void;
 };
 
 export function renderAppearanceControls(props: AppearanceControlsProps) {
@@ -132,33 +123,14 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
       </h3>
       <div
         class="settings-roundness__options"
-        role="radiogroup"
         aria-label=${t("alisio.settings.appearance.roundnessTitle")}
       >
-        ${BORDER_RADIUS_STOPS.map((stop) => {
-          const active = stop === props.borderRadius;
-          return html`
-            <button
-              type="button"
-              class="settings-roundness__btn ${active ? "active" : ""}"
-              role="radio"
-              aria-checked=${active}
-              data-radius-option=${String(stop)}
-              @click=${() => {
-                if (active) {
-                  return;
-                }
-                props.onBorderRadiusChange(stop);
-              }}
-            >
-              <span
-                class="settings-roundness__swatch"
-                style="border-radius: ${Math.round(10 * (stop / 50))}px"
-              ></span>
-              <span class="settings-roundness__label">${t(BORDER_RADIUS_LABEL_KEYS[stop])}</span>
-            </button>
-          `;
-        })}
+        <div class="settings-roundness__btn settings-roundness__btn--fixed active">
+          <span class="settings-roundness__swatch"></span>
+          <span class="settings-roundness__label">
+            ${t("alisio.settings.appearance.roundnessOptions.round")}
+          </span>
+        </div>
       </div>
     </div>
   `;

@@ -98,6 +98,15 @@ function toInstalledModel(record: InstalledLocalModelRecord): AlisioInstalledLoc
   };
 }
 
+async function hasUsableInstalledModelFile(record: InstalledLocalModelRecord) {
+  try {
+    const stats = await fs.stat(record.modelPath);
+    return stats.isFile() && stats.size > 0;
+  } catch {
+    return false;
+  }
+}
+
 export async function listInstalledAlisioLocalModels(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<AlisioInstalledLocalModel[]> {
@@ -106,13 +115,11 @@ export async function listInstalledAlisioLocalModels(
   const retained: InstalledLocalModelRecord[] = [];
 
   for (const record of manifest.installed) {
-    try {
-      await fs.access(record.modelPath);
+    if (await hasUsableInstalledModelFile(record)) {
       retained.push(record);
       installed.push(toInstalledModel(record));
-    } catch {
-      // Drop manifest entries whose local file vanished.
     }
+    // Drop manifest entries whose local file vanished or is unusable.
   }
 
   if (retained.length !== manifest.installed.length) {
@@ -213,6 +220,29 @@ export async function installAlisioLocalModel(params: {
   installed.push(nextRecord);
   await writeInstalledManifest({ version: MANIFEST_VERSION, installed }, env);
   return toInstalledModel(nextRecord);
+}
+
+export async function uninstallAlisioLocalModel(params: {
+  modelId: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<AlisioInstalledLocalModel> {
+  const env = params.env ?? process.env;
+  const manifest = await readInstalledManifest(env);
+  const record = manifest.installed.find((entry) => entry.modelId === params.modelId);
+  if (!record) {
+    throw new Error(`local model is not installed on this computer: ${params.modelId}`);
+  }
+
+  const remaining = manifest.installed.filter((entry) => entry.modelId !== params.modelId);
+  await writeInstalledManifest({ version: MANIFEST_VERSION, installed: remaining }, env);
+
+  const stillReferenced = remaining.some((entry) => entry.modelPath === record.modelPath);
+  if (!stillReferenced) {
+    loadedModelPromises.delete(record.modelPath);
+    await fs.rm(record.modelPath, { force: true }).catch(() => undefined);
+  }
+
+  return toInstalledModel(record);
 }
 
 function coerceMessageText(content: unknown): string {

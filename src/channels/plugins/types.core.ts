@@ -176,6 +176,8 @@ export type ChannelAccountSnapshot = {
   lastRunActivityAt?: number | null;
   mode?: string;
   dmPolicy?: string;
+  dmOnboardingState?: "waiting_for_first_dm" | "pending_approval" | null;
+  pendingPairingRequests?: number | null;
   allowFrom?: string[];
   tokenSource?: string;
   botTokenSource?: string;

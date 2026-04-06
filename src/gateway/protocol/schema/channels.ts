@@ -148,6 +148,14 @@ export const ChannelAccountSnapshotSchema = Type.Object(
     lastProbeAt: Type.Optional(Type.Integer({ minimum: 0 })),
     mode: Type.Optional(Type.String()),
     dmPolicy: Type.Optional(Type.String()),
+    dmOnboardingState: Type.Optional(
+      Type.Union([
+        Type.Literal("waiting_for_first_dm"),
+        Type.Literal("pending_approval"),
+        Type.Null(),
+      ]),
+    ),
+    pendingPairingRequests: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.Null()])),
     allowFrom: Type.Optional(Type.Array(Type.String())),
     tokenSource: Type.Optional(Type.String()),
     botTokenSource: Type.Optional(Type.String()),

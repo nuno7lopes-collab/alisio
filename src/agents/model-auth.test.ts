@@ -534,6 +534,16 @@ describe("resolveApiKeyForProvider – synthetic local auth for custom providers
     expect(auth.apiKey).toBe(CUSTOM_LOCAL_AUTH_MARKER);
   });
 
+  it("synthesizes a local auth marker for private LAN endpoints", async () => {
+    const auth = await resolveCustomProviderAuth(
+      "my-lan",
+      "http://192.168.1.24:1234/v1",
+      "gpt-oss-20b",
+      "gpt-oss-20b",
+    );
+    expect(auth.apiKey).toBe(CUSTOM_LOCAL_AUTH_MARKER);
+  });
+
   it("does not synthesize auth for remote custom providers without apiKey", async () => {
     await expect(
       resolveApiKeyForProvider({

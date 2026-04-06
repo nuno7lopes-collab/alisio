@@ -24,7 +24,13 @@ import {
 import { createQuietRuntime, requireValidConfigFileSnapshot } from "./agents.command-shared.js";
 import { applyAgentConfig, findAgentEntryIndex, listAgentEntries } from "./agents.config.js";
 import { promptAuthChoiceGrouped } from "./auth-choice-prompt.js";
-import { applyAuthChoice, warnIfModelConfigLooksOff } from "./auth-choice.js";
+import {
+  applyAuthChoice,
+  resolvePreferredProviderForAuthChoice,
+  warnIfModelConfigLooksOff,
+} from "./auth-choice.js";
+import { resolveAuthChoiceModelSelectionPolicy } from "./auth-choice.model-selection.js";
+import { promptDefaultModel } from "./model-picker.js";
 import { setupChannels } from "./onboard-channels.js";
 import { ensureWorkspaceAndSessions } from "./onboard-helpers.js";
 import type { ChannelChoice } from "./onboard-types.js";
@@ -284,10 +290,40 @@ export async function agentsAddCommand(
         agentId,
       });
       nextConfig = authResult.config;
-      if (authResult.agentModelOverride) {
+      const modelSelectionPolicy =
+        authChoice === "skip"
+          ? undefined
+          : await resolveAuthChoiceModelSelectionPolicy({
+              authChoice,
+              config: nextConfig,
+              workspaceDir,
+              env: process.env,
+              resolvePreferredProviderForAuthChoice,
+            });
+      let agentModelOverride = authResult.agentModelOverride;
+      if (modelSelectionPolicy?.promptWhenAuthChoiceProvided) {
+        const modelSelection = await promptDefaultModel({
+          config: nextConfig,
+          prompter,
+          allowKeep: modelSelectionPolicy.allowKeepCurrent,
+          ignoreAllowlist: true,
+          includeProviderPluginSetups: true,
+          preferredProvider: modelSelectionPolicy.preferredProvider,
+          agentDir,
+          workspaceDir,
+          runtime,
+        });
+        if (modelSelection.config) {
+          nextConfig = modelSelection.config;
+        }
+        if (modelSelection.model) {
+          agentModelOverride = modelSelection.model;
+        }
+      }
+      if (agentModelOverride) {
         nextConfig = applyAgentConfig(nextConfig, {
           agentId,
-          model: authResult.agentModelOverride,
+          model: agentModelOverride,
         });
       }
     }

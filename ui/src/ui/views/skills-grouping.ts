@@ -9,15 +9,30 @@ export type SkillGroup = {
 
 const SKILL_SOURCE_GROUPS: Array<{ id: string; labelKey: string; sources: string[] }> = [
   {
+    id: "project",
+    labelKey: "alisio.capabilities.groups.project",
+    sources: ["agents-skills-project"],
+  },
+  {
     id: "workspace",
     labelKey: "alisio.capabilities.groups.workspace",
     sources: ["openclaw-workspace"],
+  },
+  {
+    id: "personal",
+    labelKey: "alisio.capabilities.groups.personal",
+    sources: ["agents-skills-personal"],
   },
   { id: "built-in", labelKey: "alisio.capabilities.groups.builtIn", sources: ["openclaw-bundled"] },
   {
     id: "installed",
     labelKey: "alisio.capabilities.groups.installed",
     sources: ["openclaw-managed"],
+  },
+  {
+    id: "plugins",
+    labelKey: "alisio.capabilities.groups.plugins",
+    sources: ["openclaw-plugin"],
   },
   { id: "extra", labelKey: "alisio.capabilities.groups.extra", sources: ["openclaw-extra"] },
 ];

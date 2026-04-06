@@ -84,4 +84,40 @@ describe("openai codex provider", () => {
       "Deprecated profile. Run `openclaw models auth login --provider openai-codex` or `openclaw configure`.",
     );
   });
+
+  it("forces model selection after ChatGPT OAuth setup", () => {
+    const provider = buildOpenAICodexProviderPlugin();
+
+    expect(provider.wizard?.setup?.modelSelection).toEqual({
+      promptWhenAuthChoiceProvided: true,
+      allowKeepCurrent: false,
+    });
+  });
+
+  it("resolves gpt-5.4-mini with Codex transport metadata", () => {
+    const provider = buildOpenAICodexProviderPlugin();
+
+    const resolved = provider.resolveDynamicModel?.({
+      modelId: "gpt-5.4-mini",
+      modelRegistry: {
+        find: () => undefined,
+      },
+    } as never);
+
+    expect(resolved).toMatchObject({
+      id: "gpt-5.4-mini",
+      provider: "openai-codex",
+      api: "openai-codex-responses",
+      baseUrl: "https://chatgpt.com/backend-api",
+      input: ["text", "image"],
+      contextWindow: 272000,
+      maxTokens: 128000,
+      cost: {
+        input: 0.75,
+        output: 4.5,
+        cacheRead: 0.075,
+        cacheWrite: 0,
+      },
+    });
+  });
 });

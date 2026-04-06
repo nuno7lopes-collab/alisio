@@ -1237,7 +1237,11 @@ export async function startGatewayServer(
       cronStorePath,
       execApprovalManager,
       pluginApprovalManager,
-      loadGatewayModelCatalog,
+      loadGatewayModelCatalog: () =>
+        loadGatewayModelCatalog({
+          nodeRegistry,
+          env: process.env,
+        }),
       getHealthCache,
       refreshHealthSnapshot: refreshGatewayHealthSnapshot,
       logHealth,

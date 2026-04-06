@@ -5,7 +5,7 @@
 .alisio-memory-shell {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
-  gap: 20px;
+  gap: 24px;
   align-items: start;
 }
 
@@ -16,11 +16,13 @@
 
 .alisio-memory-sidebar {
   display: grid;
-  gap: 16px;
+  gap: 18px;
 }
 
 .alisio-memory-sidebar__top,
 .alisio-memory-group,
+.alisio-memory-runtime,
+.alisio-memory-settings,
 .alisio-memory-panel,
 .alisio-memory-preview,
 .alisio-memory-composer,
@@ -33,6 +35,8 @@
 
 .alisio-memory-sidebar__top,
 .alisio-memory-group,
+.alisio-memory-runtime,
+.alisio-memory-settings,
 .alisio-memory-composer,
 .alisio-memory-stat,
 .alisio-memory-header,
@@ -44,7 +48,7 @@
 .alisio-memory-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
 }
 
@@ -86,13 +90,13 @@
 
 .alisio-memory-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 12px;
 }
 
 .alisio-memory-stat {
   display: grid;
-  gap: 4px;
+  gap: 6px;
 }
 
 .alisio-memory-stat__label {
@@ -138,14 +142,14 @@
 
 .alisio-memory-file-list {
   display: grid;
-  gap: 8px;
+  gap: 9px;
 }
 
 .alisio-memory-file {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   width: 100%;
   padding: 12px 14px;
   border-radius: var(--radius-md);
@@ -178,12 +182,14 @@
 }
 
 .alisio-memory-file__title {
+  display: -webkit-box;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .alisio-memory-file__meta,
@@ -195,6 +201,8 @@
 
 .alisio-memory-file__status {
   white-space: nowrap;
+  text-align: right;
+  padding-top: 2px;
 }
 
 .alisio-memory-empty {
@@ -208,7 +216,109 @@
 
 .alisio-memory-main {
   display: grid;
+  gap: 18px;
+}
+
+.alisio-memory-runtime,
+.alisio-memory-settings {
+  display: grid;
   gap: 16px;
+}
+
+.alisio-memory-runtime__header,
+.alisio-memory-settings__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.alisio-memory-runtime__copy,
+.alisio-memory-settings__copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.alisio-memory-runtime__copy h3,
+.alisio-memory-settings__copy h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.alisio-memory-runtime__copy p,
+.alisio-memory-settings__copy p {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.alisio-memory-runtime__actions,
+.alisio-memory-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.alisio-memory-runtime__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 12px;
+}
+
+.alisio-memory-runtime__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.alisio-memory-runtime__meta-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--panel-elevated) 78%, transparent);
+}
+
+.alisio-memory-runtime__meta-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.alisio-memory-runtime__meta-value {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.alisio-memory-runtime__meta-detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.alisio-memory-runtime__empty,
+.alisio-memory-settings__empty {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .alisio-memory-header {
@@ -242,8 +352,8 @@
 .alisio-memory-header__copy h2 {
   margin: 0;
   font-size: clamp(22px, 2vw, 28px);
-  line-height: 1.12;
-  letter-spacing: -0.03em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
 }
 
 .alisio-memory-header__copy p {
@@ -281,7 +391,7 @@
 .alisio-memory-editor {
   display: grid;
   grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
-  gap: 16px;
+  gap: 18px;
 }
 
 .alisio-memory-editor__pane,
@@ -298,7 +408,8 @@
 .alisio-memory-textarea {
   min-height: 540px;
   resize: vertical;
-  font: 500 14px/1.68 var(--mono);
+  font: 500 14px/1.72 var(--mono);
+  letter-spacing: 0;
 }
 
 .alisio-memory-preview {
@@ -367,8 +478,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .alisio-memory-file {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .alisio-memory-file__status {
+    white-space: normal;
+    text-align: left;
+  }
+
   .alisio-memory-header {
     padding: 16px;
+    flex-direction: column;
+  }
+
+  .alisio-memory-runtime__header,
+  .alisio-memory-settings__header {
     flex-direction: column;
   }
 
@@ -377,12 +502,25 @@
     justify-content: stretch;
   }
 
+  .alisio-memory-runtime__actions,
+  .alisio-memory-settings__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
   .alisio-memory-header__actions .btn {
+    flex: 1 1 auto;
+  }
+
+  .alisio-memory-runtime__actions .btn,
+  .alisio-memory-settings__actions .btn {
     flex: 1 1 auto;
   }
 
   .alisio-memory-sidebar__top,
   .alisio-memory-group,
+  .alisio-memory-runtime,
+  .alisio-memory-settings,
   .alisio-memory-composer,
   .alisio-memory-stat,
   .alisio-memory-header,

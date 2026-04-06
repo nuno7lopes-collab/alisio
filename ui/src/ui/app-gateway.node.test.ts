@@ -5,6 +5,7 @@ import { connectGateway, resolveControlUiClientVersion } from "./app-gateway.ts"
 import type { GatewayHelloOk } from "./gateway.ts";
 
 const loadChatHistoryMock = vi.hoisted(() => vi.fn(async () => undefined));
+const refreshActiveTabMock = vi.hoisted(() => vi.fn());
 const loadControlUiBootstrapConfigMock = vi.hoisted(() =>
   vi.fn(
     async (state: {
@@ -133,6 +134,14 @@ vi.mock("./controllers/control-ui-bootstrap.ts", async (importOriginal) => {
   };
 });
 
+vi.mock("./app-settings.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./app-settings.ts")>();
+  return {
+    ...actual,
+    refreshActiveTab: refreshActiveTabMock,
+  };
+});
+
 vi.mock("./device-auth.ts", () => ({
   clearDeviceAuthToken: clearDeviceAuthTokenMock,
 }));
@@ -141,22 +150,48 @@ vi.mock("./device-identity.ts", () => ({
   loadOrCreateDeviceIdentity: loadOrCreateDeviceIdentityMock,
 }));
 
-function createHost() {
+type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
+  basePath: string;
+  chatMessage: string;
+  chatMessages: unknown[];
+  chatAttachments: unknown[];
+  chatQueue: Array<{
+    id: string;
+    text: string;
+    createdAt: number;
+    pendingRunId?: string;
+  }>;
+  chatToolMessages: unknown[];
+  chatStreamSegments: Array<{ text: string; ts: number }>;
+  chatStream: string | null;
+  chatStreamStartedAt: number | null;
+  chatSending: boolean;
+  toolStreamById: Map<string, unknown>;
+  toolStreamOrder: string[];
+  toolStreamSyncTimer: number | null;
+};
+
+function createHost(): GatewayTestHost {
   return {
     settings: {
       gatewayUrl: "ws://127.0.0.1:18789",
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
-      theme: "system",
+      theme: "claw",
+      themeMode: "system",
       chatFocusMode: false,
       chatShowThinking: true,
+      chatShowToolCalls: true,
       splitRatio: 0.6,
       navCollapsed: false,
+      navWidth: 280,
       navGroupsCollapsed: {},
       borderRadius: 50,
     },
     password: "",
+    gatewayBootstrapUrl: null,
+    gatewayBootstrapToken: null,
     clientInstanceId: "instance-test",
     client: null,
     connected: false,
@@ -172,6 +207,9 @@ function createHost() {
     agentsLoading: false,
     agentsList: null,
     agentsError: null,
+    healthLoading: false,
+    healthResult: null,
+    healthError: null,
     debugHealth: null,
     assistantName: "Alisio",
     assistantAvatar: null,
@@ -188,6 +226,7 @@ function createHost() {
     chatStream: null,
     chatStreamStartedAt: null,
     chatRunId: null,
+    chatFinalizing: false,
     chatSending: false,
     toolStreamById: new Map(),
     toolStreamOrder: [],
@@ -196,7 +235,8 @@ function createHost() {
     execApprovalQueue: [],
     execApprovalError: null,
     updateAvailable: null,
-  } as unknown as Parameters<typeof connectGateway>[0];
+    alisioModelOperations: {},
+  };
 }
 
 function connectHostGateway() {
@@ -230,6 +270,7 @@ describe("connectGateway", () => {
   beforeEach(() => {
     gatewayClientInstances.length = 0;
     loadChatHistoryMock.mockClear();
+    refreshActiveTabMock.mockClear();
     loadControlUiBootstrapConfigMock.mockClear();
     clearDeviceAuthTokenMock.mockClear();
     loadOrCreateDeviceIdentityMock.mockClear();
@@ -252,7 +293,7 @@ describe("connectGateway", () => {
     secondClient.emitGap(20, 24);
     expect(gatewayClientInstances).toHaveLength(3);
     expect(secondClient.stop).toHaveBeenCalledTimes(1);
-    expect(host.lastError).toBeNull();
+    expect(host.lastError).toBe("Resyncing live state…");
   });
 
   it("prefers bootstrap auth over stale shared token settings for automatic local startup", () => {
@@ -336,6 +377,96 @@ describe("connectGateway", () => {
     expect(chatHost.chatQueue).toHaveLength(0);
   });
 
+  it("holds queued work until the final history reload finishes", async () => {
+    let resolveHistory!: () => void;
+    loadChatHistoryMock.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveHistory = () => resolve(undefined);
+        }),
+    );
+
+    const { host, client } = connectHostGateway();
+    client.emitHello();
+
+    host.chatRunId = "run-1";
+    host.chatQueue = [
+      {
+        id: "queued",
+        text: "follow up",
+        createdAt: 2,
+      },
+    ];
+
+    emitToolResultEvent(client);
+    client.emitEvent({
+      event: "chat",
+      payload: {
+        runId: "run-1",
+        sessionKey: "main",
+        state: "final",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Done" }],
+        },
+      },
+    });
+
+    const chatSendCalls = () =>
+      client.request.mock.calls.filter(([method]) => method === "chat.send");
+
+    expect(host.chatFinalizing).toBe(true);
+    expect(host.chatMessages).toEqual([]);
+    expect(chatSendCalls()).toHaveLength(0);
+
+    resolveHistory();
+
+    await vi.waitFor(() => {
+      expect(host.chatFinalizing).toBe(false);
+      expect(chatSendCalls()).toHaveLength(1);
+    });
+  });
+
+  it("skips chat history reload on transparent reconnect when the chat was idle", () => {
+    const host = createHost();
+    host.tab = "chat";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitHello();
+    expect(refreshActiveTabMock).toHaveBeenLastCalledWith(host, { includeChatHistory: true });
+
+    refreshActiveTabMock.mockClear();
+    client.emitClose({ code: 1006 });
+    client.emitHello();
+
+    expect(refreshActiveTabMock).toHaveBeenCalledTimes(1);
+    expect(refreshActiveTabMock).toHaveBeenCalledWith(host, { includeChatHistory: false });
+    expect(loadChatHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it("reloads chat history after transparent reconnect when a run was interrupted", () => {
+    const host = createHost();
+    host.tab = "chat";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitHello();
+    refreshActiveTabMock.mockClear();
+
+    host.chatRunId = "run-1";
+    host.chatStream = "partial reply";
+    client.emitClose({ code: 1006 });
+    client.emitHello();
+
+    expect(refreshActiveTabMock).toHaveBeenCalledTimes(1);
+    expect(refreshActiveTabMock).toHaveBeenCalledWith(host, { includeChatHistory: true });
+  });
+
   it("ignores stale client onEvent callbacks after reconnect", () => {
     const host = createHost();
 
@@ -403,7 +534,7 @@ describe("connectGateway", () => {
     expect(host.lastErrorCode).toBeNull();
 
     secondClient.emitClose({ code: 1005 });
-    expect(host.lastError).toBe("disconnected (1005): no reason");
+    expect(host.lastError).toBe("Reconnecting…");
     expect(host.lastErrorCode).toBeNull();
   });
 
@@ -604,7 +735,7 @@ describe("connectGateway", () => {
     client.emitClose({ code: 1006 });
 
     expect(host.lastError).toBe(
-      "Restarting: config change requires gateway restart (plugins.installs)",
+      "Restarting: config change requires Alisio restart (plugins.installs)",
     );
     expect(host.lastErrorCode).toBeNull();
   });
@@ -631,7 +762,21 @@ describe("connectGateway", () => {
     expect(host.lastError).toBeNull();
 
     client.emitClose({ code: 1006 });
-    expect(host.lastError).toBe("disconnected (1006): no reason");
+    expect(host.lastError).toBe("Reconnecting…");
+  });
+
+  it("keeps a concise resync status while reconnecting after an event gap", () => {
+    const host = createHost();
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitGap(7, 10);
+
+    expect(gatewayClientInstances).toHaveLength(2);
+    expect(host.lastError).toBe("Resyncing live state…");
+    expect(host.lastErrorCode).toBeNull();
   });
 
   it("keeps shutdown restart reasons on service restart closes", () => {
@@ -650,7 +795,7 @@ describe("connectGateway", () => {
     });
     client.emitClose({ code: 1012, reason: "service restart" });
 
-    expect(host.lastError).toBe("Restarting: gateway restarting");
+    expect(host.lastError).toBe("Restarting: Alisio is restarting");
     expect(host.lastErrorCode).toBeNull();
   });
 
@@ -670,7 +815,7 @@ describe("connectGateway", () => {
     });
     client.emitClose({ code: 1001, reason: "going away" });
 
-    expect(host.lastError).toBe("Restarting: gateway restarting");
+    expect(host.lastError).toBe("Restarting: Alisio is restarting");
     expect(host.lastErrorCode).toBeNull();
   });
 
@@ -738,7 +883,8 @@ describe("connectGateway", () => {
   });
 
   it("reloads chat history once after the final chat event when tool output was used", () => {
-    const { client } = connectHostGateway();
+    const { host, client } = connectHostGateway();
+    host.chatRunId = "engine-run-1";
     emitToolResultEvent(client);
 
     client.emitEvent({
@@ -756,6 +902,34 @@ describe("connectGateway", () => {
 
     expect(loadChatHistoryMock).toHaveBeenCalledTimes(1);
   });
+
+  it("reloads secondary-run history without clearing the active run state", () => {
+    const { host, client } = connectHostGateway();
+    host.chatRunId = "run-live";
+    host.chatStream = "Still working";
+    host.chatStreamStartedAt = 12;
+    host.toolStreamOrder = ["tool-live"];
+
+    client.emitEvent({
+      event: "chat",
+      payload: {
+        runId: "run-announce",
+        sessionKey: "main",
+        state: "final",
+      },
+    });
+
+    expect(loadChatHistoryMock).toHaveBeenCalledWith(
+      host,
+      expect.objectContaining({
+        silent: true,
+        preserveEphemeral: true,
+      }),
+    );
+    expect(host.chatRunId).toBe("run-live");
+    expect(host.chatStream).toBe("Still working");
+    expect(host.chatFinalizing).toBe(false);
+  });
 });
 
 describe("resolveControlUiClientVersion", () => {
@@ -764,7 +938,7 @@ describe("resolveControlUiClientVersion", () => {
       resolveControlUiClientVersion({
         gatewayUrl: "ws://localhost:8787",
         serverVersion: "2026.3.7",
-        pageUrl: "http://localhost:8787/openclaw/",
+        pageUrl: "http://localhost:8787/alisio/",
       }),
     ).toBe("2026.3.7");
   });
@@ -774,7 +948,7 @@ describe("resolveControlUiClientVersion", () => {
       resolveControlUiClientVersion({
         gatewayUrl: "/ws",
         serverVersion: "2026.3.7",
-        pageUrl: "https://control.example.com/openclaw/",
+        pageUrl: "https://control.example.com/alisio/",
       }),
     ).toBe("2026.3.7");
   });
@@ -784,7 +958,7 @@ describe("resolveControlUiClientVersion", () => {
       resolveControlUiClientVersion({
         gatewayUrl: "https://control.example.com/ws",
         serverVersion: "2026.3.7",
-        pageUrl: "https://control.example.com/openclaw/",
+        pageUrl: "https://control.example.com/alisio/",
       }),
     ).toBe("2026.3.7");
   });
@@ -794,7 +968,7 @@ describe("resolveControlUiClientVersion", () => {
       resolveControlUiClientVersion({
         gatewayUrl: "wss://gateway.example.com",
         serverVersion: "2026.3.7",
-        pageUrl: "https://control.example.com/openclaw/",
+        pageUrl: "https://control.example.com/alisio/",
       }),
     ).toBeUndefined();
   });

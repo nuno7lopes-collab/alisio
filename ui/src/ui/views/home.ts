@@ -51,7 +51,7 @@ export function renderHome(props: {
         <div class="card-sub">
           ${props.connected
             ? "One surface for your person agent, sessions, authentications, and automations."
-            : "Connect to the gateway to hydrate the person agent workspace."}
+            : "Connect to Alisio to hydrate the person agent workspace."}
         </div>
         <div class="agents-overview-grid" style="margin-top: 16px;">
           <div class="agent-kv">

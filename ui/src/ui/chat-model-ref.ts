@@ -142,8 +142,10 @@ export function formatChatModelDisplay(value: string): string {
 
 export function buildChatModelOption(entry: ModelCatalogEntry): { value: string; label: string } {
   const provider = entry.provider?.trim();
+  const providerLabel = entry.providerLabel?.trim() || provider;
+  const modelLabel = entry.name?.trim() || entry.id;
   return {
     value: buildQualifiedChatModelValue(entry.id, provider),
-    label: provider ? `${entry.id} · ${provider}` : entry.id,
+    label: provider ? `${modelLabel} · ${providerLabel}` : modelLabel,
   };
 }

@@ -148,10 +148,10 @@ function resolveNodeHostCapabilities(params: {
     {
       id: "model.manage.llamacpp.v1",
       title: "Gestao de modelos locais",
-      description: "Instala modelos llama.cpp aprovados neste computador ligado.",
+      description: "Instala e remove modelos llama.cpp aprovados neste computador ligado.",
       version: 1,
       risk: "medium",
-      streaming: false,
+      streaming: true,
       interactive: false,
       supportsCancel: false,
       supportsResume: false,

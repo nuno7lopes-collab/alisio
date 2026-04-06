@@ -269,6 +269,7 @@ export type ChannelSetupWizard = {
   textInputs?: ChannelSetupWizardTextInput[];
   finalize?: ChannelSetupWizardFinalize;
   completionNote?: ChannelSetupWizardNote;
+  afterConfigWritten?: ChannelSetupWizardAdapter["afterConfigWritten"];
   dmPolicy?: ChannelSetupDmPolicy;
   allowFrom?: ChannelSetupWizardAllowFrom;
   groupAccess?: ChannelSetupWizardGroupAccess;
@@ -863,6 +864,7 @@ export function buildChannelSetupWizardAdapterFromSetupWizard(params: {
 
       return { cfg: next, accountId };
     },
+    afterConfigWritten: wizard.afterConfigWritten,
     dmPolicy: wizard.dmPolicy,
     disable: wizard.disable,
     onAccountRecorded: wizard.onAccountRecorded,

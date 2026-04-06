@@ -19,6 +19,7 @@ function createState(overrides: Partial<ChatState> = {}): ChatState {
     chatSending: false,
     chatStream: null,
     chatStreamStartedAt: null,
+    chatFinalizing: false,
     chatThinkingLevel: null,
     client: null,
     connected: true,
@@ -553,6 +554,52 @@ describe("loadChatHistory", () => {
 
     // text takes precedence — "real reply" is NOT silent, so message is kept.
     expect(state.chatMessages).toHaveLength(1);
+  });
+
+  it("preserves ephemeral streaming state when requested", async () => {
+    const request = vi.fn().mockResolvedValue({
+      messages: [{ role: "assistant", content: [{ type: "text", text: "Done" }] }],
+      thinkingLevel: "high",
+    });
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+      chatRunId: "run-1",
+      chatStream: "Working...",
+      chatStreamStartedAt: 123,
+      chatFinalizing: true,
+    });
+
+    await loadChatHistory(state, { preserveEphemeral: true });
+
+    expect(state.chatMessages).toEqual([
+      { role: "assistant", content: [{ type: "text", text: "Done" }] },
+    ]);
+    expect(state.chatThinkingLevel).toBe("high");
+    expect(state.chatStream).toBe("Working...");
+    expect(state.chatStreamStartedAt).toBe(123);
+    expect(state.chatFinalizing).toBe(true);
+  });
+
+  it("does not toggle chatLoading for silent history refreshes", async () => {
+    let resolveRequest!: (value: { messages: unknown[] }) => void;
+    const request = vi.fn(
+      () =>
+        new Promise<{ messages: unknown[] }>((resolve) => {
+          resolveRequest = resolve;
+        }),
+    );
+    const state = createState({
+      client: { request } as unknown as ChatState["client"],
+      connected: true,
+    });
+
+    const pending = loadChatHistory(state, { silent: true });
+
+    expect(state.chatLoading).toBe(false);
+    resolveRequest({ messages: [] });
+    await pending;
+    expect(state.chatLoading).toBe(false);
   });
 });
 

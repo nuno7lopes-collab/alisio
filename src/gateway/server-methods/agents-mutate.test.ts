@@ -82,7 +82,7 @@ vi.mock("../../config/sessions/paths.js", () => ({
   resolveSessionTranscriptsDirForAgent: mocks.resolveSessionTranscriptsDirForAgent,
 }));
 
-vi.mock("../../browser/trash.js", () => ({
+vi.mock("../../plugin-sdk/browser-runtime.js", () => ({
   movePathToTrash: mocks.movePathToTrash,
 }));
 

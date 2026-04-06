@@ -2,6 +2,7 @@ import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import type { OpenClawConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.js";
+import { resolveAlisioDynamicProviderConfig } from "../../infra/alisio-model-providers.js";
 import {
   applyProviderResolvedModelCompatWithPlugins,
   applyProviderResolvedTransportWithPlugin,
@@ -12,6 +13,7 @@ import {
   runProviderDynamicModel,
   normalizeProviderResolvedModelWithPlugin,
 } from "../../plugins/provider-runtime.js";
+import type { ProviderRuntimeProviderConfig } from "../../plugins/types.js";
 import { resolveOpenClawAgentDir } from "../agent-paths.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { buildModelAliasLines } from "../model-alias-lines.js";
@@ -32,8 +34,12 @@ type InlineModelEntry = Omit<ModelDefinitionConfig, "api"> & {
 };
 type InlineProviderConfig = {
   baseUrl?: string;
-  api?: ModelDefinitionConfig["api"];
-  models?: ModelDefinitionConfig[];
+  api?: Api;
+  models?: Array<
+    Omit<ModelDefinitionConfig, "api"> & {
+      api?: Api;
+    }
+  >;
   headers?: unknown;
 };
 
@@ -89,7 +95,13 @@ function resolveRuntimeHooks(params?: {
   return params?.runtimeHooks ?? DEFAULT_PROVIDER_RUNTIME_HOOKS;
 }
 
-function normalizeResolvedTransportApi(api: unknown): ModelDefinitionConfig["api"] | undefined {
+function normalizeResolvedTransportApi(api: unknown): Api | undefined {
+  return typeof api === "string" && api.trim() ? (api as Api) : undefined;
+}
+
+function normalizeProviderRuntimeApi(
+  api: unknown,
+): ProviderRuntimeProviderConfig["api"] | undefined {
   switch (api) {
     case "anthropic-messages":
     case "bedrock-converse-stream":
@@ -124,6 +136,23 @@ function sanitizeModelHeaders(
     next[headerName] = headerValue;
   }
   return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function toProviderRuntimeProviderConfig(
+  providerConfig: InlineProviderConfig | undefined,
+): ProviderRuntimeProviderConfig | undefined {
+  if (!providerConfig) {
+    return undefined;
+  }
+  return {
+    baseUrl: providerConfig.baseUrl,
+    api: normalizeProviderRuntimeApi(providerConfig.api),
+    models: providerConfig.models?.map(({ api, ...model }) => {
+      const runtimeApi = normalizeProviderRuntimeApi(api);
+      return runtimeApi ? { ...model, api: runtimeApi } : model;
+    }),
+    headers: providerConfig.headers,
+  };
 }
 
 function applyResolvedTransportFallback(params: {
@@ -279,7 +308,11 @@ function resolveConfiguredProviderConfig(
   if (exactProviderConfig) {
     return exactProviderConfig;
   }
-  return findNormalizedProviderValue(configuredProviders, provider);
+  const normalizedMatch = findNormalizedProviderValue(configuredProviders, provider);
+  if (normalizedMatch) {
+    return normalizedMatch;
+  }
+  return resolveAlisioDynamicProviderConfig(provider);
 }
 
 function applyConfiguredProviderOverrides(params: {
@@ -484,7 +517,7 @@ function resolvePluginDynamicModelWithRegistry(params: {
       provider,
       modelId,
       modelRegistry,
-      providerConfig,
+      providerConfig: toProviderRuntimeProviderConfig(providerConfig),
     },
   }) as Model<Api> | undefined;
   if (!pluginDynamicModel) {
@@ -688,7 +721,7 @@ export async function resolveModelAsync(
         provider,
         modelId,
         modelRegistry,
-        providerConfig,
+        providerConfig: toProviderRuntimeProviderConfig(providerConfig),
       },
     });
     return resolveModelWithRegistry({

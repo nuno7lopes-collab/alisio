@@ -17,6 +17,7 @@ import {
   syncTabWithLocation,
   syncThemeWithSettings,
 } from "./app-settings.ts";
+import { loadAssistantIdentity } from "./controllers/assistant-identity.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
 import type { Tab } from "./navigation.ts";
 
@@ -33,8 +34,8 @@ type LifecycleHost = {
   assistantAvatar: string | null;
   assistantAgentId: string | null;
   serverVersion: string | null;
-  alisioAuthMode?: "sign-up" | "sign-in";
   alisioAuthEmail?: string;
+  alisioAuthPendingEmail?: string;
   alisioStartupLoading: boolean;
   alisioStartupError: string | null;
   alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null;
@@ -72,8 +73,8 @@ export function handleConnected(host: LifecycleHost) {
       if (!host.alisioAuthEmail?.trim()) {
         host.alisioAuthEmail = restoredEmail;
       }
-      if (host.alisioStartupBootstrap?.startupState === "signed_out") {
-        host.alisioAuthMode = "sign-in";
+      if (!host.alisioAuthPendingEmail?.trim()) {
+        host.alisioAuthPendingEmail = restoredEmail;
       }
     }
     const startupState = host.alisioStartupBootstrap?.startupState ?? null;
@@ -112,6 +113,9 @@ export function handleDisconnected(host: LifecycleHost) {
 export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unknown>) {
   if (changed.has("alisioAccount") || changed.has("alisioBootstrap")) {
     void syncAccountPreferences(host as unknown as Parameters<typeof syncAccountPreferences>[0]);
+  }
+  if (changed.has("alisioAccount")) {
+    void loadAssistantIdentity(host as unknown as Parameters<typeof loadAssistantIdentity>[0]);
   }
   if (host.tab === "chat" && host.chatManualRefreshInFlight) {
     return;

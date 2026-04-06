@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BARE_SESSION_RESET_PROMPT } from "../../auto-reply/reply/session-reset-prompt.js";
 import { findTaskByRunId, resetTaskRegistryForTests } from "../../tasks/task-registry.js";
@@ -1068,5 +1070,68 @@ describe("gateway agent handler", () => {
         message: expect.stringContaining("malformed session key"),
       }),
     );
+  });
+
+  it("uses the Alisio account agent name as the identity fallback", async () => {
+    await withTempDir({ prefix: "openclaw-gateway-agent-identity-" }, async (root) => {
+      process.env.OPENCLAW_STATE_DIR = root;
+      const statePath = path.join(root, "alisio", "state.json");
+      await fs.mkdir(path.dirname(statePath), { recursive: true });
+      await fs.writeFile(
+        statePath,
+        JSON.stringify(
+          {
+            version: 1,
+            account: {
+              profile: {
+                userId: "user-1",
+                username: "nuno",
+                displayName: "Nuno Lopes",
+                email: "nuno@example.com",
+                agentName: "Muse",
+                avatarLabel: "N",
+                joinedAt: "2026-04-04T15:00:00.000Z",
+                plan: "free",
+                backend: "supabase",
+              },
+              preferences: {
+                language: "pt-PT",
+                theme: "dark",
+              },
+              session: {
+                state: "signed_in",
+                profileCompleted: false,
+                backend: "supabase",
+              },
+            },
+            organization: {
+              mode: "none",
+            },
+            ai: {},
+            authorizations: {},
+            oauthCredentials: {},
+            pendingAuthorizations: {},
+          },
+          null,
+          2,
+        ),
+      );
+
+      const respond = await invokeAgentIdentityGet(
+        {
+          agentId: "main",
+        },
+        { reqId: "agent-identity-fallback" },
+      );
+
+      expect(respond).toHaveBeenCalledWith(
+        true,
+        expect.objectContaining({
+          name: "Muse",
+          avatar: "M",
+        }),
+        undefined,
+      );
+    });
   });
 });

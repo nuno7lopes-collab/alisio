@@ -41,6 +41,7 @@ import {
   validateRequestFrame,
   validateResponseFrame,
 } from "./protocol/index.js";
+import { isTerminalGatewayAuthDetailCode } from "./reconnect-policy.js";
 
 type Pending = {
   resolve: (value: unknown) => void;
@@ -491,6 +492,7 @@ export class GatewayClient {
         this.pendingDeviceTokenRetry = false;
         this.deviceTokenRetryBudgetUsed = false;
         this.pendingConnectErrorDetailCode = null;
+        this.lastSeq = null;
         const authInfo = helloOk?.auth;
         if (authInfo?.deviceToken && this.opts.deviceIdentity) {
           storeDeviceAuthToken({
@@ -535,19 +537,7 @@ export class GatewayClient {
   }
 
   private shouldPauseReconnectAfterAuthFailure(detailCode: string | null): boolean {
-    if (!detailCode) {
-      return false;
-    }
-    if (
-      detailCode === ConnectErrorDetailCodes.AUTH_TOKEN_MISSING ||
-      detailCode === ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID ||
-      detailCode === ConnectErrorDetailCodes.AUTH_PASSWORD_MISSING ||
-      detailCode === ConnectErrorDetailCodes.AUTH_PASSWORD_MISMATCH ||
-      detailCode === ConnectErrorDetailCodes.AUTH_RATE_LIMITED ||
-      detailCode === ConnectErrorDetailCodes.PAIRING_REQUIRED ||
-      detailCode === ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED ||
-      detailCode === ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED
-    ) {
+    if (isTerminalGatewayAuthDetailCode(detailCode)) {
       return true;
     }
     if (detailCode !== ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH) {
@@ -716,6 +706,7 @@ export class GatewayClient {
   }
 
   private beginPreauthHandshake() {
+    this.lastSeq = null;
     this.connectNonce = null;
     this.connectSent = false;
     this.armConnectChallengeTimeout();

@@ -1,9 +1,15 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { AlisioAccountCloudError } from "../infra/alisio-account-cloud.js";
 import { AlisioAiError } from "../infra/alisio-ai.js";
 import {
+  completeAlisioAccountGoogleAuthFromCallback,
   completeAlisioAiConnect,
   completeAlisioConnectorAuthorizationFromCallback,
 } from "../infra/alisio-store.js";
+import {
+  buildAlisioAccountAuthCompletionScript,
+  buildAlisioAccountAuthSignal,
+} from "../shared/alisio-account-auth.js";
 import {
   buildAlisioConnectorOAuthCompletionScript,
   buildAlisioConnectorOAuthSignal,
@@ -13,7 +19,7 @@ import {
   buildAlisioOpenAiOAuthSignal,
 } from "../shared/alisio-openai-oauth.js";
 
-type SupportedProvider = "google" | "github" | "openai";
+type SupportedProvider = "google" | "github" | "openai" | "account-google";
 
 function resolveProviderFromPath(pathname: string): SupportedProvider | null {
   if (pathname === "/oauth/google/callback") {
@@ -24,6 +30,9 @@ function resolveProviderFromPath(pathname: string): SupportedProvider | null {
   }
   if (pathname === "/__alisio/auth/openai/callback") {
     return "openai";
+  }
+  if (pathname === "/__alisio/auth/account/callback") {
+    return "account-google";
   }
   return null;
 }
@@ -133,6 +142,37 @@ export async function handleAlisioOAuthHttpRequest(
       const message =
         error instanceof AlisioAiError ? error.message : "OpenAI could not be connected.";
       sendHtml(res, 400, "Alisio could not connect OpenAI", message);
+      return true;
+    }
+  }
+
+  if (provider === "account-google") {
+    try {
+      await completeAlisioAccountGoogleAuthFromCallback(
+        {
+          stateToken: url.searchParams.get("account_state"),
+          code: url.searchParams.get("code"),
+          error: url.searchParams.get("error"),
+          errorDescription: url.searchParams.get("error_description"),
+        },
+        env,
+        fetchImpl,
+      );
+      sendHtml(
+        res,
+        200,
+        "Alisio account connected",
+        "Your Google account is now connected to Alisio. You can return to the app.",
+        [
+          `<script>${buildAlisioAccountAuthCompletionScript(
+            buildAlisioAccountAuthSignal("google"),
+          )}</script>`,
+        ],
+      );
+      return true;
+    } catch (error) {
+      const message = error instanceof AlisioAccountCloudError ? error.message : String(error);
+      sendHtml(res, 400, "Alisio account connection failed", message);
       return true;
     }
   }

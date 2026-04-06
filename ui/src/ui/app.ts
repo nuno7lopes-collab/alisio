@@ -4,6 +4,10 @@ import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.j
 import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
 import {
+  refreshAfterAlisioAccountAuth,
+  subscribeAlisioAccountAuthSignals,
+} from "./alisio-account-auth.ts";
+import {
   clearPendingAlisioConnectorChatResume,
   readPendingAlisioConnectorChatResume,
   refreshAfterAlisioConnectorOAuth,
@@ -68,9 +72,10 @@ import type { SecurityAccessMode } from "./controllers/security-access.ts";
 import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { ModelsServerDraft } from "./models-view-types.ts";
+import { todayMemoryDate } from "./memory-files.ts";
+import type { ModelsOperationMap, ModelsServerDraft } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
-import { loadSettings, type UiSettings } from "./storage.ts";
+import { FIXED_BORDER_RADIUS, loadSettings, type UiSettings } from "./storage.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
 import type {
   AgentsListResult,
@@ -155,10 +160,13 @@ export class OpenClawApp extends LitElement {
   @state() alisioAccountError: string | null = null;
   @state() alisioAccountNotice: string | null = null;
   @state() alisioAccount: import("./types.ts").AlisioAccountState | null = null;
-  @state() alisioAuthMode: "sign-up" | "sign-in" = "sign-up";
   @state() alisioAuthEmail = "";
-  @state() alisioAuthPassword = "";
-  @state() alisioAuthPasswordVisible = false;
+  @state() alisioAuthPendingEmail = "";
+  @state() alisioAuthCode = "";
+  @state() alisioAuthStage: "entry" | "email-code" = "entry";
+  @state() alisioTermsAccepted = false;
+  @state() alisioMarketingOptIn = false;
+  @state() alisioBirthdate = "";
   @state() alisioAiLoading = false;
   @state() alisioAiError: string | null = null;
   @state() providerUsageLoading = false;
@@ -201,6 +209,7 @@ export class OpenClawApp extends LitElement {
   @state() chatStream: string | null = null;
   @state() chatStreamStartedAt: number | null = null;
   @state() chatRunId: string | null = null;
+  @state() chatFinalizing = false;
   @state() compactionStatus: CompactionStatus | null = null;
   @state() fallbackStatus: FallbackStatus | null = null;
   @state() chatAvatarUrl: string | null = null;
@@ -215,6 +224,7 @@ export class OpenClawApp extends LitElement {
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
   @state() modelsSelectedProviderId: "openai" | "server" | "local" | null | undefined = undefined;
   @state() modelsServerDraft: ModelsServerDraft | null | undefined = undefined;
+  @state() alisioModelOperations: ModelsOperationMap = {};
 
   onSlashAction?: (action: string) => void;
 
@@ -333,9 +343,14 @@ export class OpenClawApp extends LitElement {
   @state() memoryActive: string | null = null;
   @state() memorySaving = false;
   @state() memoryDeleting = false;
+  @state() memoryStatusLoading = false;
+  @state() memoryStatusError: string | null = null;
+  @state() memoryStatus: import("./types.ts").MemoryStatusState | null = null;
+  @state() memorySyncing = false;
+  @state() memorySyncAvailable = false;
   @state() memorySearchQuery = "";
   @state() memoryComposerOpen = false;
-  @state() memoryComposerDate = new Date().toISOString().slice(0, 10);
+  @state() memoryComposerDate = todayMemoryDate();
   @state() memoryComposerTitle = "";
   @state() toolsCatalogLoading = false;
   @state() toolsCatalogError: string | null = null;
@@ -534,6 +549,8 @@ export class OpenClawApp extends LitElement {
   private topbarObserver: ResizeObserver | null = null;
   private connectorOAuthCleanup: (() => void) | null = null;
   private connectorOAuthRefreshInFlight = false;
+  private accountAuthCleanup: (() => void) | null = null;
+  private accountAuthRefreshInFlight = false;
   private openAiOAuthCleanup: (() => void) | null = null;
   private openAiOAuthRefreshInFlight = false;
   private execApprovalTicker: number | null = null;
@@ -576,6 +593,9 @@ export class OpenClawApp extends LitElement {
     this.connectorOAuthCleanup = subscribeAlisioConnectorOAuthSignals((signal) => {
       void this.refreshAfterConnectorOAuth(signal);
     });
+    this.accountAuthCleanup = subscribeAlisioAccountAuthSignals(() => {
+      void this.refreshAfterAccountAuth();
+    });
     this.openAiOAuthCleanup = subscribeAlisioOpenAiOAuthSignals(() => {
       void this.refreshAfterOpenAiOAuth();
     });
@@ -590,6 +610,8 @@ export class OpenClawApp extends LitElement {
     document.removeEventListener("keydown", this.globalKeydownHandler);
     this.connectorOAuthCleanup?.();
     this.connectorOAuthCleanup = null;
+    this.accountAuthCleanup?.();
+    this.accountAuthCleanup = null;
     this.openAiOAuthCleanup?.();
     this.openAiOAuthCleanup = null;
     if (this.execApprovalTicker != null) {
@@ -646,6 +668,22 @@ export class OpenClawApp extends LitElement {
       this.lastError = `OpenAI connection refresh failed: ${String(error)}`;
     } finally {
       this.openAiOAuthRefreshInFlight = false;
+    }
+  }
+
+  private async refreshAfterAccountAuth() {
+    if (this.accountAuthRefreshInFlight) {
+      return;
+    }
+    this.accountAuthRefreshInFlight = true;
+    try {
+      await refreshAfterAlisioAccountAuth(
+        this as unknown as Parameters<typeof refreshAfterAlisioAccountAuth>[0],
+      );
+    } catch (error) {
+      this.lastError = `Account connection refresh failed: ${String(error)}`;
+    } finally {
+      this.accountAuthRefreshInFlight = false;
     }
   }
 
@@ -759,10 +797,10 @@ export class OpenClawApp extends LitElement {
     );
   }
 
-  setBorderRadius(value: number) {
+  setBorderRadius(_value: number) {
     applySettingsInternal(this as unknown as Parameters<typeof applySettingsInternal>[0], {
       ...this.settings,
-      borderRadius: value,
+      borderRadius: FIXED_BORDER_RADIUS,
     });
     this.requestUpdate();
   }

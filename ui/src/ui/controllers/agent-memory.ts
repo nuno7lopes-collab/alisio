@@ -1,6 +1,11 @@
 import { resolveAgentIdFromSessionKey } from "../../../../src/routing/session-key.js";
+import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
-import { PRIMARY_MEMORY_FILE_NAME } from "../memory-files.ts";
+import {
+  isLongTermMemoryFileName,
+  isMemoryNoteFileName,
+  PRIMARY_MEMORY_FILE_NAME,
+} from "../memory-files.ts";
 import type {
   AgentsFilesDeleteResult,
   AgentsFilesGetResult,
@@ -23,6 +28,151 @@ export type AgentMemoryState = {
   memoryDeleting: boolean;
 };
 
+type TrackedRequest = {
+  client: GatewayBrowserClient;
+  token: symbol;
+};
+
+const listRequests = new WeakMap<AgentMemoryState, TrackedRequest>();
+const contentRequests = new WeakMap<AgentMemoryState, TrackedRequest>();
+const saveRequests = new WeakMap<AgentMemoryState, TrackedRequest>();
+const deleteRequests = new WeakMap<AgentMemoryState, TrackedRequest>();
+
+function beginTrackedRequest(
+  state: AgentMemoryState,
+  requests: WeakMap<AgentMemoryState, TrackedRequest>,
+): TrackedRequest | null {
+  if (!state.client || !state.connected) {
+    return null;
+  }
+  const request: TrackedRequest = {
+    client: state.client,
+    token: Symbol("agent-memory-request"),
+  };
+  requests.set(state, request);
+  return request;
+}
+
+function isTrackedRequestCurrent(
+  state: AgentMemoryState,
+  requests: WeakMap<AgentMemoryState, TrackedRequest>,
+  request: TrackedRequest,
+): boolean {
+  const current = requests.get(state);
+  return current?.token === request.token && state.client === request.client;
+}
+
+function finishTrackedRequest(
+  state: AgentMemoryState,
+  requests: WeakMap<AgentMemoryState, TrackedRequest>,
+  request: TrackedRequest,
+) {
+  if (requests.get(state)?.token === request.token) {
+    requests.delete(state);
+  }
+}
+
+function syncMemoryLoadingState(state: AgentMemoryState) {
+  state.memoryLoading = listRequests.has(state) || contentRequests.has(state);
+}
+
+function isSelectedMemoryAgent(state: AgentMemoryState, agentId: string) {
+  return !state.memorySelectedAgentId || state.memorySelectedAgentId === agentId;
+}
+
+function compareMemoryFiles(
+  left: AgentsFilesListResult["files"][number],
+  right: AgentsFilesListResult["files"][number],
+) {
+  const leftLongTerm = isLongTermMemoryFileName(left.name);
+  const rightLongTerm = isLongTermMemoryFileName(right.name);
+  if (leftLongTerm || rightLongTerm) {
+    if (leftLongTerm && rightLongTerm) {
+      if (left.name === PRIMARY_MEMORY_FILE_NAME) {
+        return -1;
+      }
+      if (right.name === PRIMARY_MEMORY_FILE_NAME) {
+        return 1;
+      }
+      return left.name.localeCompare(right.name);
+    }
+    return leftLongTerm ? -1 : 1;
+  }
+  const leftUpdatedAt = left.updatedAtMs ?? 0;
+  const rightUpdatedAt = right.updatedAtMs ?? 0;
+  if (leftUpdatedAt !== rightUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt;
+  }
+  return left.name.localeCompare(right.name);
+}
+
+function isMemoryScopeUnsupportedError(err: unknown) {
+  if (!(err instanceof GatewayRequestError)) {
+    return false;
+  }
+  const message = err.message.toLowerCase();
+  return (
+    message.includes("invalid agents.files.list params") &&
+    message.includes("unexpected property") &&
+    message.includes("scope")
+  );
+}
+
+function filterMemoryFiles(files: AgentsFilesListResult["files"]): AgentsFilesListResult["files"] {
+  return files
+    .filter((file) => isLongTermMemoryFileName(file.name) || isMemoryNoteFileName(file.name))
+    .toSorted(compareMemoryFiles);
+}
+
+function mergeCompatibilityMemoryFiles(params: {
+  nextList: AgentsFilesListResult;
+  previousList: AgentsFilesListResult | null;
+}): AgentsFilesListResult {
+  if (params.previousList?.agentId !== params.nextList.agentId) {
+    return params.nextList;
+  }
+  const files = new Map(params.nextList.files.map((file) => [file.name, file]));
+  for (const file of params.previousList.files) {
+    if (isMemoryNoteFileName(file.name) && !files.has(file.name)) {
+      files.set(file.name, file);
+    }
+  }
+  return {
+    ...params.nextList,
+    files: [...files.values()].toSorted(compareMemoryFiles),
+  };
+}
+
+async function requestMemoryFileList(
+  client: GatewayBrowserClient,
+  agentId: string,
+  previousList: AgentsFilesListResult | null,
+): Promise<AgentsFilesListResult | null> {
+  try {
+    return await client.request<AgentsFilesListResult | null>("agents.files.list", {
+      agentId,
+      scope: "memory",
+    });
+  } catch (err) {
+    if (!isMemoryScopeUnsupportedError(err)) {
+      throw err;
+    }
+    const fallback = await client.request<AgentsFilesListResult | null>("agents.files.list", {
+      agentId,
+    });
+    if (!fallback) {
+      return fallback;
+    }
+    return mergeCompatibilityMemoryFiles({
+      nextList: {
+        ...fallback,
+        files: filterMemoryFiles(fallback.files),
+      },
+      previousList,
+    });
+  }
+}
+
 function mergeFileEntry(
   list: AgentsFilesListResult | null,
   entry: AgentsFilesGetResult["file"],
@@ -34,6 +184,7 @@ function mergeFileEntry(
   const nextFiles = hasEntry
     ? list.files.map((file) => (file.name === entry.name ? entry : file))
     : [...list.files, entry];
+  nextFiles.sort(compareMemoryFiles);
   return { ...list, files: nextFiles };
 }
 
@@ -89,23 +240,24 @@ export async function loadAgentMemoryFiles(
   options?: { preferredName?: string | null },
 ) {
   const resolvedAgentId = agentId.trim();
-  if (!state.client || !state.connected || !resolvedAgentId || state.memoryLoading) {
+  if (!resolvedAgentId) {
+    return;
+  }
+  const request = beginTrackedRequest(state, listRequests);
+  if (!request) {
     return;
   }
   if (state.memoryAgentId !== resolvedAgentId) {
     clearMemoryAgentData(state, resolvedAgentId);
   }
   state.memorySelectedAgentId = resolvedAgentId;
-  state.memoryLoading = true;
+  syncMemoryLoadingState(state);
   state.memoryError = null;
 
   let nextActiveName: string | null = null;
   try {
-    const res = await state.client.request<AgentsFilesListResult | null>("agents.files.list", {
-      agentId: resolvedAgentId,
-      scope: "memory",
-    });
-    if (!res) {
+    const res = await requestMemoryFileList(request.client, resolvedAgentId, state.memoryList);
+    if (!res || !isTrackedRequestCurrent(state, listRequests, request)) {
       return;
     }
     state.memoryAgentId = resolvedAgentId;
@@ -116,12 +268,15 @@ export async function loadAgentMemoryFiles(
     );
     state.memoryActive = nextActiveName;
   } catch (err) {
-    state.memoryError = String(err);
+    if (isTrackedRequestCurrent(state, listRequests, request)) {
+      state.memoryError = String(err);
+    }
   } finally {
-    state.memoryLoading = false;
+    finishTrackedRequest(state, listRequests, request);
+    syncMemoryLoadingState(state);
   }
 
-  if (nextActiveName) {
+  if (nextActiveName && isSelectedMemoryAgent(state, resolvedAgentId)) {
     await loadAgentMemoryFileContent(state, resolvedAgentId, nextActiveName, {
       preserveDraft: true,
     });
@@ -136,31 +291,35 @@ export async function loadAgentMemoryFileContent(
 ) {
   const resolvedAgentId = agentId.trim();
   const resolvedName = name.trim();
-  if (
-    !state.client ||
-    !state.connected ||
-    !resolvedAgentId ||
-    !resolvedName ||
-    state.memoryLoading
-  ) {
+  if (!resolvedAgentId || !resolvedName) {
+    return;
+  }
+  const request = beginTrackedRequest(state, contentRequests);
+  if (!request) {
     return;
   }
   if (state.memoryAgentId !== resolvedAgentId) {
     clearMemoryAgentData(state, resolvedAgentId);
   }
+  state.memoryActive = resolvedName;
   if (!options?.force && Object.hasOwn(state.memoryContents, resolvedName)) {
-    state.memoryActive = resolvedName;
+    finishTrackedRequest(state, contentRequests, request);
+    syncMemoryLoadingState(state);
     return;
   }
 
-  state.memoryLoading = true;
+  syncMemoryLoadingState(state);
   state.memoryError = null;
   try {
-    const res = await state.client.request<AgentsFilesGetResult | null>("agents.files.get", {
+    const res = await request.client.request<AgentsFilesGetResult | null>("agents.files.get", {
       agentId: resolvedAgentId,
       name: resolvedName,
     });
-    if (!res?.file) {
+    if (
+      !res?.file ||
+      !isTrackedRequestCurrent(state, contentRequests, request) ||
+      !isSelectedMemoryAgent(state, resolvedAgentId)
+    ) {
       return;
     }
     const content = res.file.content ?? "";
@@ -180,9 +339,12 @@ export async function loadAgentMemoryFileContent(
     }
     state.memoryActive = resolvedName;
   } catch (err) {
-    state.memoryError = String(err);
+    if (isTrackedRequestCurrent(state, contentRequests, request)) {
+      state.memoryError = String(err);
+    }
   } finally {
-    state.memoryLoading = false;
+    finishTrackedRequest(state, contentRequests, request);
+    syncMemoryLoadingState(state);
   }
 }
 
@@ -194,24 +356,26 @@ export async function saveAgentMemoryFile(
 ) {
   const resolvedAgentId = agentId.trim();
   const resolvedName = name.trim();
-  if (
-    !state.client ||
-    !state.connected ||
-    !resolvedAgentId ||
-    !resolvedName ||
-    state.memorySaving
-  ) {
+  if (!resolvedAgentId || !resolvedName || state.memorySaving) {
+    return;
+  }
+  const request = beginTrackedRequest(state, saveRequests);
+  if (!request) {
     return;
   }
   state.memorySaving = true;
   state.memoryError = null;
   try {
-    const res = await state.client.request<AgentsFilesSetResult | null>("agents.files.set", {
+    const res = await request.client.request<AgentsFilesSetResult | null>("agents.files.set", {
       agentId: resolvedAgentId,
       name: resolvedName,
       content,
     });
-    if (!res?.file) {
+    if (
+      !res?.file ||
+      !isTrackedRequestCurrent(state, saveRequests, request) ||
+      !isSelectedMemoryAgent(state, resolvedAgentId)
+    ) {
       return;
     }
     state.memoryAgentId = resolvedAgentId;
@@ -220,9 +384,14 @@ export async function saveAgentMemoryFile(
     state.memoryDrafts = { ...state.memoryDrafts, [resolvedName]: content };
     state.memoryActive = resolvedName;
   } catch (err) {
-    state.memoryError = String(err);
+    if (isTrackedRequestCurrent(state, saveRequests, request)) {
+      state.memoryError = String(err);
+    }
   } finally {
-    state.memorySaving = false;
+    finishTrackedRequest(state, saveRequests, request);
+    if (!saveRequests.has(state)) {
+      state.memorySaving = false;
+    }
   }
 }
 
@@ -233,24 +402,35 @@ export async function deleteAgentMemoryFile(
 ) {
   const resolvedAgentId = agentId.trim();
   const resolvedName = name.trim();
-  if (
-    !state.client ||
-    !state.connected ||
-    !resolvedAgentId ||
-    !resolvedName ||
-    state.memoryDeleting
-  ) {
+  if (!resolvedAgentId || !resolvedName || state.memoryDeleting) {
+    return;
+  }
+  const request = beginTrackedRequest(state, deleteRequests);
+  if (!request) {
     return;
   }
   state.memoryDeleting = true;
   state.memoryError = null;
   try {
-    const res = await state.client.request<AgentsFilesDeleteResult | null>("agents.files.delete", {
-      agentId: resolvedAgentId,
-      name: resolvedName,
-    });
-    if (!res?.ok) {
+    const res = await request.client.request<AgentsFilesDeleteResult | null>(
+      "agents.files.delete",
+      {
+        agentId: resolvedAgentId,
+        name: resolvedName,
+      },
+    );
+    if (
+      !res?.ok ||
+      !isTrackedRequestCurrent(state, deleteRequests, request) ||
+      !isSelectedMemoryAgent(state, resolvedAgentId)
+    ) {
       return;
+    }
+    if (state.memoryList?.agentId === resolvedAgentId) {
+      state.memoryList = {
+        ...state.memoryList,
+        files: state.memoryList.files.filter((file) => file.name !== resolvedName),
+      };
     }
     delete state.memoryContents[resolvedName];
     delete state.memoryDrafts[resolvedName];
@@ -258,8 +438,13 @@ export async function deleteAgentMemoryFile(
       state.memoryActive = null;
     }
   } catch (err) {
-    state.memoryError = String(err);
+    if (isTrackedRequestCurrent(state, deleteRequests, request)) {
+      state.memoryError = String(err);
+    }
   } finally {
-    state.memoryDeleting = false;
+    finishTrackedRequest(state, deleteRequests, request);
+    if (!deleteRequests.has(state)) {
+      state.memoryDeleting = false;
+    }
   }
 }

@@ -19,6 +19,7 @@ import {
   listAlisioRemoteModelServers,
   saveAlisioRemoteModelServer,
   listAlisioConnectorAuthorizations,
+  refreshAlisioAiLimits,
   renameAlisioAiProfile,
   revokeAlisioConnectorAuthorization,
   setAlisioOrganizationState,
@@ -1312,6 +1313,7 @@ describe("beginAlisioConnectorSetup", () => {
             username: "other",
             displayName: "Other User",
             email: "other@example.com",
+            termsAcceptedAt: "2026-04-04T16:05:00.000Z",
           },
           env,
         );
@@ -1337,6 +1339,7 @@ describe("beginAlisioConnectorSetup", () => {
           username: "Nuno.Lopes",
           displayName: "Nuno Lopes",
           email: "nuno@example.com",
+          termsAcceptedAt: "2026-04-04T16:00:00.000Z",
         },
         {
           OPENCLAW_STATE_DIR: root,
@@ -1344,6 +1347,28 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       expect(account.profile.username).toBe("nuno.lopes");
+    });
+  });
+
+  it("persists a custom Alisio agent name on the local account profile", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = {
+        OPENCLAW_STATE_DIR: root,
+      } as NodeJS.ProcessEnv;
+
+      const account = await updateAlisioAccountProfile(
+        {
+          username: "nuno",
+          displayName: "Nuno Lopes",
+          email: "nuno@example.com",
+          agentName: "Muse",
+          termsAcceptedAt: "2026-04-04T16:00:00.000Z",
+        },
+        env,
+      );
+
+      expect(account.profile.agentName).toBe("Muse");
+      expect((await getAlisioAccountState(env)).profile.agentName).toBe("Muse");
     });
   });
 
@@ -2242,6 +2267,243 @@ describe("beginAlisioConnectorSetup", () => {
 });
 
 describe("Alisio OpenAI profiles", () => {
+  it("refreshes every current-worker OpenAI profile when refreshing limits globally", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const statePath = alisioStateFile(root);
+      const workerId = `local:${os.hostname().trim().toLowerCase() || "this device"}`;
+      const observedAt = new Date().toISOString();
+      const staleAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const personalToken = createJwt({
+        sub: "google-oauth2|personal-user",
+        "https://api.openai.com/auth": {
+          chatgpt_account_id: "acct_personal",
+          chatgpt_account_user_id: "account-user-personal",
+          chatgpt_user_id: "google-oauth2|personal-user",
+          chatgpt_plan_type: "team",
+        },
+        "https://api.openai.com/profile": {
+          email: "personal@example.com",
+        },
+      });
+      const workToken = createJwt({
+        sub: "google-oauth2|work-user",
+        "https://api.openai.com/auth": {
+          chatgpt_account_id: "acct_work",
+          chatgpt_account_user_id: "account-user-work",
+          chatgpt_user_id: "google-oauth2|work-user",
+          chatgpt_plan_type: "enterprise",
+        },
+        "https://api.openai.com/profile": {
+          email: "work@example.com",
+        },
+      });
+      await fs.writeFile(
+        statePath,
+        JSON.stringify(
+          {
+            version: 1,
+            account: {
+              profile: {
+                userId: "user-1",
+                username: "nuno",
+                displayName: "Nuno Lopes",
+                email: "nuno@example.com",
+                avatarLabel: "N",
+                joinedAt: "2026-04-04T15:00:00.000Z",
+                plan: "Free Plan",
+                backend: "supabase",
+              },
+              preferences: {
+                language: "pt-PT",
+                theme: "dark",
+              },
+              session: {
+                state: "signed_in",
+                profileCompleted: true,
+                signedInAt: "2026-04-04T15:00:00.000Z",
+                backend: "supabase",
+              },
+              cloudSession: {
+                backend: "supabase",
+                state: "signed_out",
+                userId: "user-1",
+                email: "nuno@example.com",
+                signedInAt: "2026-04-04T15:00:00.000Z",
+                signedOutAt: "2026-04-04T15:05:00.000Z",
+              },
+            },
+            organization: {
+              mode: "none",
+            },
+            ai: {
+              aiProfiles: {
+                "alisio-openai:personal": {
+                  provider: "openai",
+                  scope: "user",
+                  ownerKey: "user:nuno@example.com",
+                  canonicalIdentityKey: "account_user_id:account-user-personal",
+                  identity: {
+                    accountId: "acct_personal",
+                    accountUserId: "account-user-personal",
+                    userId: "google-oauth2|personal-user",
+                    email: "personal@example.com",
+                    canonicalIdentityKey: "account_user_id:account-user-personal",
+                    source: "account_user_id",
+                  },
+                  createdAt: "2026-04-03T20:00:00.000Z",
+                },
+                "alisio-openai:work": {
+                  provider: "openai",
+                  scope: "organization",
+                  ownerKey: "organization:openclaw",
+                  canonicalIdentityKey: "account_user_id:account-user-work",
+                  identity: {
+                    accountId: "acct_work",
+                    accountUserId: "account-user-work",
+                    userId: "google-oauth2|work-user",
+                    email: "work@example.com",
+                    canonicalIdentityKey: "account_user_id:account-user-work",
+                    source: "account_user_id",
+                  },
+                  createdAt: "2026-04-03T20:05:00.000Z",
+                },
+              },
+              workerCredentials: {
+                "worker-credential-personal": {
+                  provider: "openai",
+                  aiProfileId: "alisio-openai:personal",
+                  workerId,
+                  authProfileId: "openai-codex:personal",
+                  runtimeState: "connected",
+                  accessToken: personalToken,
+                  refreshToken: "refresh-personal",
+                  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                  email: "personal@example.com",
+                  accountId: "acct_personal",
+                  accountUserId: "account-user-personal",
+                  userId: "google-oauth2|personal-user",
+                  connectedAt: "2026-04-03T20:00:00.000Z",
+                  createdAt: "2026-04-03T20:00:00.000Z",
+                  localTelemetry: {
+                    source: "official",
+                    observedAt,
+                    staleAt,
+                    planType: "starter",
+                    primaryWindow: {
+                      label: "5h",
+                      durationMinutes: 300,
+                      usedPercent: 10,
+                      remainingPercent: 90,
+                    },
+                  },
+                },
+                "worker-credential-work": {
+                  provider: "openai",
+                  aiProfileId: "alisio-openai:work",
+                  workerId,
+                  authProfileId: "openai-codex:work",
+                  runtimeState: "connected",
+                  accessToken: workToken,
+                  refreshToken: "refresh-work",
+                  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                  email: "work@example.com",
+                  accountId: "acct_work",
+                  accountUserId: "account-user-work",
+                  userId: "google-oauth2|work-user",
+                  connectedAt: "2026-04-03T20:05:00.000Z",
+                  createdAt: "2026-04-03T20:05:00.000Z",
+                  localTelemetry: {
+                    source: "official",
+                    observedAt,
+                    staleAt,
+                    planType: "starter",
+                    primaryWindow: {
+                      label: "5h",
+                      durationMinutes: 300,
+                      usedPercent: 15,
+                      remainingPercent: 85,
+                    },
+                  },
+                },
+              },
+              runtimeBindings: {
+                [workerId]: {
+                  workerId,
+                  workerCredentialId: "worker-credential-personal",
+                  authProfileId: "openai-codex:personal",
+                  boundAt: "2026-04-03T20:00:00.000Z",
+                },
+              },
+            },
+            authorizations: {},
+            oauthCredentials: {},
+            pendingAuthorizations: {},
+          },
+          null,
+          2,
+        ),
+      );
+
+      const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const headers =
+          init?.headers instanceof Headers
+            ? Object.fromEntries(init.headers.entries())
+            : ((init?.headers as Record<string, string> | undefined) ?? {});
+        const authHeader = headers.Authorization ?? headers.authorization;
+        if (authHeader === `Bearer ${personalToken}`) {
+          return new Response(
+            JSON.stringify({
+              plan_type: "team",
+              rate_limit: {
+                primary_window: {
+                  limit_window_seconds: 18_000,
+                  used_percent: 80,
+                  reset_at: Math.round(Date.now() / 1000) + 1_800,
+                },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        if (authHeader === `Bearer ${workToken}`) {
+          return new Response(
+            JSON.stringify({
+              plan_type: "enterprise",
+              rate_limit: {
+                primary_window: {
+                  limit_window_seconds: 18_000,
+                  used_percent: 20,
+                  reset_at: Math.round(Date.now() / 1000) + 3_600,
+                },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          );
+        }
+        throw new Error(`unexpected authorization header: ${String(authHeader)}`);
+      });
+
+      const result = await refreshAlisioAiLimits(undefined, env, fetchImpl as typeof fetch);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(
+        result.profiles?.find((profile) => profile.email === "personal@example.com")
+          ?.aggregatedTelemetry?.primaryWindow?.usedPercent,
+      ).toBe(80);
+      expect(
+        result.profiles?.find((profile) => profile.email === "personal@example.com")?.planLabel,
+      ).toBe("team");
+      expect(
+        result.profiles?.find((profile) => profile.email === "work@example.com")
+          ?.aggregatedTelemetry?.primaryWindow?.usedPercent,
+      ).toBe(20);
+      expect(
+        result.profiles?.find((profile) => profile.email === "work@example.com")?.planLabel,
+      ).toBe("enterprise");
+    });
+  });
+
   it("rehydrates stored worker credentials with real token identity and hides technical labels", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const statePath = alisioStateFile(root);

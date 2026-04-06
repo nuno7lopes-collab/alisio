@@ -19,7 +19,7 @@ import {
 } from "openclaw/plugin-sdk/provider-model-shared";
 import { createOpenAIAttributionHeadersWrapper } from "openclaw/plugin-sdk/provider-stream";
 import { fetchCodexUsage } from "openclaw/plugin-sdk/provider-usage";
-import { OPENAI_CODEX_DEFAULT_MODEL } from "./default-models.js";
+import { OPENAI_CODEX_DEFAULT_MODEL, OPENAI_CODEX_DEFAULT_MODEL_ID } from "./default-models.js";
 import { resolveCodexAuthIdentity } from "./openai-codex-auth-identity.js";
 import { buildOpenAICodexProvider } from "./openai-codex-catalog.js";
 import {
@@ -31,8 +31,9 @@ import {
 
 const PROVIDER_ID = "openai-codex";
 const OPENAI_CODEX_BASE_URL = "https://chatgpt.com/backend-api";
-const OPENAI_CODEX_GPT_54_MODEL_ID = "gpt-5.4";
-const OPENAI_CODEX_GPT_54_CONTEXT_TOKENS = 1_050_000;
+const OPENAI_CODEX_GPT_54_MODEL_ID = OPENAI_CODEX_DEFAULT_MODEL_ID;
+const OPENAI_CODEX_GPT_54_MINI_MODEL_ID = "gpt-5.4-mini";
+const OPENAI_CODEX_GPT_54_CONTEXT_TOKENS = 272_000;
 const OPENAI_CODEX_GPT_54_MAX_TOKENS = 128_000;
 const OPENAI_CODEX_GPT_54_TEMPLATE_MODEL_IDS = ["gpt-5.3-codex", "gpt-5.2-codex"] as const;
 const OPENAI_CODEX_GPT_53_MODEL_ID = "gpt-5.3-codex";
@@ -40,6 +41,30 @@ const OPENAI_CODEX_GPT_53_SPARK_MODEL_ID = "gpt-5.3-codex-spark";
 const OPENAI_CODEX_GPT_53_SPARK_CONTEXT_TOKENS = 128_000;
 const OPENAI_CODEX_GPT_53_SPARK_MAX_TOKENS = 128_000;
 const OPENAI_CODEX_TEMPLATE_MODEL_IDS = ["gpt-5.2-codex"] as const;
+const OPENAI_CODEX_GPT_54_COST = {
+  input: 2.5,
+  output: 15,
+  cacheRead: 0.25,
+  cacheWrite: 0,
+} as const;
+const OPENAI_CODEX_GPT_54_MINI_COST = {
+  input: 0.75,
+  output: 4.5,
+  cacheRead: 0.075,
+  cacheWrite: 0,
+} as const;
+const OPENAI_CODEX_GPT_53_COST = {
+  input: 1.75,
+  output: 14,
+  cacheRead: 0.175,
+  cacheWrite: 0,
+} as const;
+const OPENAI_CODEX_GPT_53_SPARK_COST = {
+  input: 0,
+  output: 0,
+  cacheRead: 0,
+  cacheWrite: 0,
+} as const;
 const OPENAI_CODEX_XHIGH_MODEL_IDS = [
   OPENAI_CODEX_GPT_54_MODEL_ID,
   OPENAI_CODEX_GPT_53_MODEL_ID,
@@ -49,11 +74,17 @@ const OPENAI_CODEX_XHIGH_MODEL_IDS = [
 ] as const;
 const OPENAI_CODEX_MODERN_MODEL_IDS = [
   OPENAI_CODEX_GPT_54_MODEL_ID,
+  OPENAI_CODEX_GPT_54_MINI_MODEL_ID,
   "gpt-5.2",
   "gpt-5.2-codex",
   OPENAI_CODEX_GPT_53_MODEL_ID,
   OPENAI_CODEX_GPT_53_SPARK_MODEL_ID,
 ] as const;
+
+type CodexForwardCompatEntry = {
+  templateIds: readonly string[];
+  patch: Partial<ProviderRuntimeModel>;
+};
 
 function isOpenAICodexBaseUrl(baseUrl?: string): boolean {
   const trimmed = baseUrl?.trim();
@@ -82,35 +113,96 @@ function normalizeCodexTransport(model: ProviderRuntimeModel): ProviderRuntimeMo
   };
 }
 
+function resolveCodexForwardCompatEntry(modelId: string): CodexForwardCompatEntry | undefined {
+  const lower = modelId.trim().toLowerCase();
+  if (lower === OPENAI_CODEX_GPT_54_MODEL_ID) {
+    return {
+      templateIds: OPENAI_CODEX_GPT_54_TEMPLATE_MODEL_IDS,
+      patch: {
+        api: "openai-codex-responses",
+        provider: PROVIDER_ID,
+        baseUrl: OPENAI_CODEX_BASE_URL,
+        reasoning: true,
+        input: ["text", "image"],
+        cost: OPENAI_CODEX_GPT_54_COST,
+        contextWindow: OPENAI_CODEX_GPT_54_CONTEXT_TOKENS,
+        maxTokens: OPENAI_CODEX_GPT_54_MAX_TOKENS,
+      },
+    };
+  }
+  if (lower === OPENAI_CODEX_GPT_54_MINI_MODEL_ID) {
+    return {
+      templateIds: OPENAI_CODEX_GPT_54_TEMPLATE_MODEL_IDS,
+      patch: {
+        api: "openai-codex-responses",
+        provider: PROVIDER_ID,
+        baseUrl: OPENAI_CODEX_BASE_URL,
+        reasoning: true,
+        input: ["text", "image"],
+        cost: OPENAI_CODEX_GPT_54_MINI_COST,
+        contextWindow: OPENAI_CODEX_GPT_54_CONTEXT_TOKENS,
+        maxTokens: OPENAI_CODEX_GPT_54_MAX_TOKENS,
+      },
+    };
+  }
+  if (lower === OPENAI_CODEX_GPT_53_SPARK_MODEL_ID) {
+    return {
+      templateIds: [OPENAI_CODEX_GPT_53_MODEL_ID, ...OPENAI_CODEX_TEMPLATE_MODEL_IDS],
+      patch: {
+        api: "openai-codex-responses",
+        provider: PROVIDER_ID,
+        baseUrl: OPENAI_CODEX_BASE_URL,
+        reasoning: true,
+        input: ["text"],
+        cost: OPENAI_CODEX_GPT_53_SPARK_COST,
+        contextWindow: OPENAI_CODEX_GPT_53_SPARK_CONTEXT_TOKENS,
+        maxTokens: OPENAI_CODEX_GPT_53_SPARK_MAX_TOKENS,
+      },
+    };
+  }
+  if (lower === OPENAI_CODEX_GPT_53_MODEL_ID) {
+    return {
+      templateIds: OPENAI_CODEX_TEMPLATE_MODEL_IDS,
+      patch: {
+        api: "openai-codex-responses",
+        provider: PROVIDER_ID,
+        baseUrl: OPENAI_CODEX_BASE_URL,
+        reasoning: true,
+        input: ["text", "image"],
+        cost: OPENAI_CODEX_GPT_53_COST,
+        contextWindow: OPENAI_CODEX_GPT_54_CONTEXT_TOKENS,
+        maxTokens: OPENAI_CODEX_GPT_54_MAX_TOKENS,
+      },
+    };
+  }
+  return undefined;
+}
+
+function buildCodexForwardCompatFallback(
+  modelId: string,
+  patch: Partial<ProviderRuntimeModel>,
+): ProviderRuntimeModel {
+  return normalizeModelCompat({
+    id: modelId,
+    name: modelId,
+    api: "openai-codex-responses",
+    provider: PROVIDER_ID,
+    baseUrl: OPENAI_CODEX_BASE_URL,
+    reasoning: true,
+    input: ["text", "image"],
+    cost: OPENAI_CODEX_GPT_53_SPARK_COST,
+    contextWindow: patch.contextWindow ?? DEFAULT_CONTEXT_TOKENS,
+    maxTokens: patch.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
+    ...patch,
+  } as ProviderRuntimeModel);
+}
+
 function resolveCodexForwardCompatModel(
   ctx: ProviderResolveDynamicModelContext,
 ): ProviderRuntimeModel | undefined {
   const trimmedModelId = ctx.modelId.trim();
-  const lower = trimmedModelId.toLowerCase();
-
-  let templateIds: readonly string[];
-  let patch: Partial<ProviderRuntimeModel> | undefined;
-  if (lower === OPENAI_CODEX_GPT_54_MODEL_ID) {
-    templateIds = OPENAI_CODEX_GPT_54_TEMPLATE_MODEL_IDS;
-    patch = {
-      contextWindow: OPENAI_CODEX_GPT_54_CONTEXT_TOKENS,
-      maxTokens: OPENAI_CODEX_GPT_54_MAX_TOKENS,
-    };
-  } else if (lower === OPENAI_CODEX_GPT_53_SPARK_MODEL_ID) {
-    templateIds = [OPENAI_CODEX_GPT_53_MODEL_ID, ...OPENAI_CODEX_TEMPLATE_MODEL_IDS];
-    patch = {
-      api: "openai-codex-responses",
-      provider: PROVIDER_ID,
-      baseUrl: OPENAI_CODEX_BASE_URL,
-      reasoning: true,
-      input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: OPENAI_CODEX_GPT_53_SPARK_CONTEXT_TOKENS,
-      maxTokens: OPENAI_CODEX_GPT_53_SPARK_MAX_TOKENS,
-    };
-  } else if (lower === OPENAI_CODEX_GPT_53_MODEL_ID) {
-    templateIds = OPENAI_CODEX_TEMPLATE_MODEL_IDS;
-  } else {
+  const entry = resolveCodexForwardCompatEntry(trimmedModelId);
+  if (!entry) {
     return undefined;
   }
 
@@ -118,22 +210,10 @@ function resolveCodexForwardCompatModel(
     cloneFirstTemplateModel({
       providerId: PROVIDER_ID,
       modelId: trimmedModelId,
-      templateIds,
+      templateIds: entry.templateIds,
       ctx,
-      patch,
-    }) ??
-    normalizeModelCompat({
-      id: trimmedModelId,
-      name: trimmedModelId,
-      api: "openai-codex-responses",
-      provider: PROVIDER_ID,
-      baseUrl: OPENAI_CODEX_BASE_URL,
-      reasoning: true,
-      input: ["text", "image"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: patch?.contextWindow ?? DEFAULT_CONTEXT_TOKENS,
-      maxTokens: patch?.maxTokens ?? DEFAULT_CONTEXT_TOKENS,
-    } as ProviderRuntimeModel)
+      patch: entry.patch,
+    }) ?? buildCodexForwardCompatFallback(trimmedModelId, entry.patch)
   );
 }
 
@@ -223,6 +303,10 @@ export function buildOpenAICodexProviderPlugin(): ProviderPlugin {
         choiceLabel: "OpenAI Codex (ChatGPT OAuth)",
         choiceHint: "Browser sign-in",
         methodId: "oauth",
+        modelSelection: {
+          promptWhenAuthChoiceProvided: true,
+          allowKeepCurrent: false,
+        },
       },
     },
     catalog: {
@@ -269,32 +353,32 @@ export function buildOpenAICodexProviderPlugin(): ProviderPlugin {
       await fetchCodexUsage(ctx.token, ctx.accountId, ctx.timeoutMs, ctx.fetchFn),
     refreshOAuth: async (cred) => await refreshOpenAICodexOAuthCredential(cred),
     augmentModelCatalog: (ctx) => {
-      const gpt54Template = findCatalogTemplate({
-        entries: ctx.entries,
-        providerId: PROVIDER_ID,
-        templateIds: OPENAI_CODEX_GPT_54_TEMPLATE_MODEL_IDS,
-      });
-      const sparkTemplate = findCatalogTemplate({
-        entries: ctx.entries,
-        providerId: PROVIDER_ID,
-        templateIds: [OPENAI_CODEX_GPT_53_MODEL_ID, ...OPENAI_CODEX_TEMPLATE_MODEL_IDS],
-      });
-      return [
-        gpt54Template
-          ? {
-              ...gpt54Template,
-              id: OPENAI_CODEX_GPT_54_MODEL_ID,
-              name: OPENAI_CODEX_GPT_54_MODEL_ID,
-            }
-          : undefined,
-        sparkTemplate
-          ? {
-              ...sparkTemplate,
-              id: OPENAI_CODEX_GPT_53_SPARK_MODEL_ID,
-              name: OPENAI_CODEX_GPT_53_SPARK_MODEL_ID,
-            }
-          : undefined,
-      ].filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
+      const compatModelIds = [
+        OPENAI_CODEX_GPT_54_MODEL_ID,
+        OPENAI_CODEX_GPT_54_MINI_MODEL_ID,
+        OPENAI_CODEX_GPT_53_SPARK_MODEL_ID,
+      ] as const;
+
+      return compatModelIds
+        .map((modelId) => {
+          const entry = resolveCodexForwardCompatEntry(modelId);
+          if (!entry) {
+            return undefined;
+          }
+          const template = findCatalogTemplate({
+            entries: ctx.entries,
+            providerId: PROVIDER_ID,
+            templateIds: entry.templateIds,
+          });
+          if (!template) {
+            return undefined;
+          }
+          return buildCodexForwardCompatFallback(modelId, {
+            ...(template as Partial<ProviderRuntimeModel>),
+            ...entry.patch,
+          });
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
     },
   };
 }

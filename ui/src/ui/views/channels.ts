@@ -67,7 +67,14 @@ type ChannelsProps = {
 };
 
 type ChannelVisualStatus = {
-  key: "connected" | "attention" | "linked" | "ready" | "notConfigured";
+  key:
+    | "connected"
+    | "attention"
+    | "linked"
+    | "ready"
+    | "notConfigured"
+    | "waitingForFirstDm"
+    | "pendingApproval";
   label: string;
   className: string;
 };
@@ -159,6 +166,20 @@ function renderSummaryTimestamp(value: string | null) {
 }
 
 function resolveVisualStatus(flags: ReturnType<typeof resolveChannelFlags>): ChannelVisualStatus {
+  if (flags.dmOnboardingState === "pending_approval") {
+    return {
+      key: "pendingApproval",
+      label: channelText("status.pendingApproval"),
+      className: "chip chip-warn",
+    };
+  }
+  if (flags.dmOnboardingState === "waiting_for_first_dm") {
+    return {
+      key: "waitingForFirstDm",
+      label: channelText("status.waitingForFirstDm"),
+      className: "chip chip-active",
+    };
+  }
   if (flags.attention) {
     return {
       key: "attention",
@@ -195,14 +216,25 @@ function resolveVisualStatus(flags: ReturnType<typeof resolveChannelFlags>): Cha
 }
 
 function resolveChannelStatus(row: ResolvedChannelRow): ChannelVisualStatus {
-  return resolveVisualStatus(resolveChannelFlags(row));
+  const onboardingOnlyIssues = row.issues.every((issue) => issue.kind === "intent");
+  const flags = resolveChannelFlags(row);
+  if (flags.dmOnboardingState && onboardingOnlyIssues) {
+    return resolveVisualStatus({ ...flags, attention: false });
+  }
+  return resolveVisualStatus(flags);
 }
 
 function resolveAccountStatus(
   row: ResolvedChannelRow,
   account: ChannelAccountSnapshot,
 ): ChannelVisualStatus {
-  return resolveVisualStatus(resolveAccountFlags(row, account));
+  const accountIssues = resolveChannelIssues(row, account.accountId);
+  const onboardingOnlyIssues = accountIssues.every((issue) => issue.kind === "intent");
+  const flags = resolveAccountFlags(row, account);
+  if (flags.dmOnboardingState && onboardingOnlyIssues) {
+    return resolveVisualStatus({ ...flags, attention: false });
+  }
+  return resolveVisualStatus(flags);
 }
 
 function resolveChannelRequirements(row: ResolvedChannelRow): ChannelRequirements | null {
@@ -267,15 +299,33 @@ function resolveSetupAction(
       ? flags.configured || flags.attention
         ? channelText("fixSetup")
         : channelText("finishSetup")
-      : flags.configured || flags.attention
-        ? channelText("configureAction")
-        : channelText("connectAction"),
+      : flags.dmOnboardingState
+        ? channelText("finishSetup")
+        : flags.configured || flags.attention
+          ? channelText("configureAction")
+          : channelText("connectAction"),
     action: () => {
       props.onStartChannelSetup(row.id);
     },
     busy: isSetupBusy,
     emphasis: "primary",
   };
+}
+
+function resolveTelegramDmOnboardingCopy(
+  account: ChannelAccountSnapshot,
+  flags: ReturnType<typeof resolveAccountFlags>,
+) {
+  if (flags.dmOnboardingState === "waiting_for_first_dm") {
+    return channelText("dmOnboarding.waitingForFirstDm");
+  }
+  if (flags.dmOnboardingState === "pending_approval") {
+    const count = account.pendingPairingRequests ?? flags.pendingPairingRequests ?? 0;
+    return count === 1
+      ? channelText("dmOnboarding.pendingApprovalOne")
+      : channelText("dmOnboarding.pendingApprovalMany", { count: String(count) });
+  }
+  return null;
 }
 
 function resolveWhatsAppLinkState(
@@ -739,6 +789,7 @@ function renderAccountBlock(
   const accountLabel =
     account.name?.trim() ||
     (account.accountId.trim() === "default" ? channelText("noAccount") : account.accountId.trim());
+  const dmOnboardingCopy = resolveTelegramDmOnboardingCopy(account, flags);
 
   return html`
     <section class="channel-account">
@@ -757,6 +808,9 @@ function renderAccountBlock(
           : html`<span class="chip">${channelText("activityNone")}</span>`}
       </div>
 
+      ${dmOnboardingCopy
+        ? html`<div class="card-sub channel-account__note">${dmOnboardingCopy}</div>`
+        : nothing}
       ${renderIssueList(row, issues)}
       ${whatsappLinkState ? renderWhatsAppQr(whatsappLinkState, account.accountId, props) : nothing}
       ${whatsappLinkState || canLogout

@@ -10,6 +10,7 @@ describe("command palette", () => {
     expect(labels).toContain("Channels");
     expect(labels).toContain("Capabilities");
     expect(labels).toContain("Connections");
+    expect(labels).toContain("Memory");
     expect(labels).toContain("Apps");
     expect(labels).toContain("Organization");
     expect(labels).toContain("Settings");

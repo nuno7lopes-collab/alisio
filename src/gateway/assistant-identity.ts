@@ -3,6 +3,7 @@ import { resolveAgentIdentity } from "../agents/identity.js";
 import { loadAgentIdentity } from "../commands/agents.config.js";
 import type { OpenClawConfig } from "../config/config.js";
 import { normalizeAgentId } from "../routing/session-key.js";
+import { deriveAlisioAvatarLabel, resolveAlisioAgentName } from "../shared/alisio-account.js";
 import { coerceIdentityValue } from "../shared/assistant-identity-values.js";
 import {
   isAvatarHttpUrl,
@@ -82,17 +83,24 @@ export function resolveAssistantIdentity(params: {
   cfg: OpenClawConfig;
   agentId?: string | null;
   workspaceDir?: string | null;
+  accountProfile?: {
+    agentName?: string;
+  } | null;
 }): AssistantIdentity {
   const agentId = normalizeAgentId(params.agentId ?? resolveDefaultAgentId(params.cfg));
   const workspaceDir = params.workspaceDir ?? resolveAgentWorkspaceDir(params.cfg, agentId);
   const configAssistant = params.cfg.ui?.assistant;
   const agentIdentity = resolveAgentIdentity(params.cfg, agentId);
   const fileIdentity = workspaceDir ? loadAgentIdentity(workspaceDir) : null;
+  const accountAgentName = params.accountProfile
+    ? resolveAlisioAgentName(params.accountProfile.agentName)
+    : undefined;
 
   const name =
     coerceIdentityValue(configAssistant?.name, MAX_ASSISTANT_NAME) ??
     coerceIdentityValue(agentIdentity?.name, MAX_ASSISTANT_NAME) ??
     coerceIdentityValue(fileIdentity?.name, MAX_ASSISTANT_NAME) ??
+    coerceIdentityValue(accountAgentName, MAX_ASSISTANT_NAME) ??
     DEFAULT_ASSISTANT_IDENTITY.name;
 
   const avatarCandidates = [
@@ -104,6 +112,14 @@ export function resolveAssistantIdentity(params: {
   ];
   const avatar =
     avatarCandidates.map((candidate) => normalizeAvatarValue(candidate)).find(Boolean) ??
+    normalizeAvatarValue(
+      accountAgentName
+        ? deriveAlisioAvatarLabel({
+            displayName: accountAgentName,
+            username: accountAgentName,
+          })
+        : undefined,
+    ) ??
     DEFAULT_ASSISTANT_IDENTITY.avatar;
 
   const emojiCandidates = [

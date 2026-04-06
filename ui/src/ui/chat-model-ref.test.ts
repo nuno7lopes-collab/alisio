@@ -29,6 +29,20 @@ describe("chat-model-ref helpers", () => {
     });
   });
 
+  it("prefers the provider label when one is available", () => {
+    expect(
+      buildChatModelOption({
+        id: "qwen3-8b-q4-k-m",
+        name: "Qwen3 8B",
+        provider: "alisio-target-studio-mac-llama",
+        providerLabel: "Studio Mac",
+      }),
+    ).toEqual({
+      value: "alisio-target-studio-mac-llama/qwen3-8b-q4-k-m",
+      label: "Qwen3 8B · Studio Mac",
+    });
+  });
+
   it("normalizes raw overrides when the catalog match is unique", () => {
     expect(normalizeChatModelOverrideValue(createChatModelOverride("gpt-5-mini"), catalog)).toBe(
       "openai/gpt-5-mini",

@@ -374,9 +374,14 @@ describe("matrix legacy encrypted-state migration", () => {
 
       const detection = detectLegacyMatrixCrypto({ cfg, env: process.env });
       expect(detection.plans).toHaveLength(0);
-      expect(detection.warnings).toContain(
-        `Legacy Matrix encrypted state path exists but is not a directory: ${path.join(stateDir, "matrix", "crypto")}. OpenClaw skipped automatic crypto migration for that path.`,
-      );
+      expect(
+        detection.warnings.some(
+          (warning) =>
+            warning.includes(
+              `Legacy Matrix encrypted state path exists but is not a directory: ${path.join(stateDir, "matrix", "crypto")}.`,
+            ) && warning.includes("Alisio skipped automatic crypto migration for that path."),
+        ),
+      ).toBe(true);
     });
   });
 

@@ -1,9 +1,11 @@
+import { isIP } from "node:net";
 import path from "node:path";
 import { type Api, type Model } from "@mariozechner/pi-ai";
 import { formatCliCommand } from "../cli/command-format.js";
 import { getRuntimeConfigSnapshot, type OpenClawConfig } from "../config/config.js";
 import type { ModelProviderAuthMode, ModelProviderConfig } from "../config/types.js";
 import { coerceSecretRef } from "../config/types.secrets.js";
+import { resolveAlisioDynamicProviderConfig } from "../infra/alisio-model-providers.js";
 import { getShellEnvAppliedKeys } from "../infra/shell-env.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
@@ -39,6 +41,7 @@ export { requireApiKey, resolveAwsSdkEnvVarName } from "./model-auth-runtime-sha
 export type { ResolvedProviderAuth } from "./model-auth-runtime-shared.js";
 
 const log = createSubsystemLogger("model-auth");
+
 function resolveProviderConfig(
   cfg: OpenClawConfig | undefined,
   provider: string,
@@ -55,10 +58,13 @@ function resolveProviderConfig(
     );
     return matched?.[1];
   }
-  return (
+  const configured =
     (providers[normalized] as ModelProviderConfig | undefined) ??
-    Object.entries(providers).find(([key]) => normalizeProviderId(key) === normalized)?.[1]
-  );
+    Object.entries(providers).find(([key]) => normalizeProviderId(key) === normalized)?.[1];
+  if (configured) {
+    return configured;
+  }
+  return undefined;
 }
 
 export function getCustomProviderApiKey(
@@ -66,7 +72,11 @@ export function getCustomProviderApiKey(
   provider: string,
 ): string | undefined {
   const entry = resolveProviderConfig(cfg, provider);
-  return normalizeOptionalSecretInput(entry?.apiKey);
+  if (entry) {
+    return normalizeOptionalSecretInput(entry.apiKey);
+  }
+  const dynamicEntry = resolveAlisioDynamicProviderConfig(provider);
+  return normalizeOptionalSecretInput(dynamicEntry?.apiKey);
 }
 
 type ResolvedCustomProviderApiKey = {
@@ -126,15 +136,47 @@ function resolveProviderAuthOverride(
 
 function isLocalBaseUrl(baseUrl: string): boolean {
   try {
-    const host = new URL(baseUrl).hostname.toLowerCase();
-    return (
+    const rawHost = new URL(baseUrl).hostname.toLowerCase();
+    const host = rawHost.startsWith("[") && rawHost.endsWith("]") ? rawHost.slice(1, -1) : rawHost;
+    if (
       host === "localhost" ||
-      host === "127.0.0.1" ||
       host === "0.0.0.0" ||
-      host === "[::1]" ||
-      host === "[::ffff:7f00:1]" ||
-      host === "[::ffff:127.0.0.1]"
-    );
+      host === "::1" ||
+      host === "::ffff:7f00:1" ||
+      host === "::ffff:127.0.0.1" ||
+      host.endsWith(".local")
+    ) {
+      return true;
+    }
+    const ipKind = isIP(host);
+    if (ipKind === 4) {
+      const octets = host.split(".").map((part) => Number(part));
+      const [first = 0, second = 0] = octets;
+      return (
+        first === 127 ||
+        first === 10 ||
+        (first === 172 && second >= 16 && second <= 31) ||
+        (first === 192 && second === 168) ||
+        (first === 169 && second === 254) ||
+        (first === 100 && second >= 64 && second <= 127)
+      );
+    }
+    if (ipKind === 6) {
+      return (
+        host.startsWith("fc") ||
+        host.startsWith("fd") ||
+        host.startsWith("fe8") ||
+        host.startsWith("fe9") ||
+        host.startsWith("fea") ||
+        host.startsWith("feb") ||
+        host.startsWith("::ffff:10.") ||
+        host.startsWith("::ffff:172.") ||
+        host.startsWith("::ffff:192.168.") ||
+        host.startsWith("::ffff:169.254.") ||
+        host.startsWith("::ffff:100.")
+      );
+    }
+    return false;
   } catch {
     return false;
   }
@@ -387,6 +429,15 @@ export async function resolveApiKeyForProvider(params: {
   if (customKey) {
     const result = { apiKey: customKey.apiKey, source: customKey.source, mode: "api-key" as const };
     return result;
+  }
+
+  const dynamicProvider = resolveAlisioDynamicProviderConfig(provider);
+  if (dynamicProvider) {
+    return {
+      apiKey: dynamicProvider.apiKey?.trim() || CUSTOM_LOCAL_AUTH_MARKER,
+      source: `alisio dynamic provider:${dynamicProvider.provider}`,
+      mode: "api-key",
+    };
   }
 
   const syntheticLocalAuth = resolveSyntheticLocalProviderAuth({ cfg, provider });

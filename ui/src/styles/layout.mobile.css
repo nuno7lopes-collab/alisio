@@ -645,7 +645,7 @@
     margin: 2px 0 8px;
   }
 
-  .alisio-chat__composer {
+  .alisio-chat .agent-chat__input.alisio-chat__composer {
     width: 100%;
     margin: 0 auto calc(env(safe-area-inset-bottom, 0px) + 6px);
     padding: 7px 10px 7px;
@@ -771,7 +771,7 @@
     padding: 8px 10px;
   }
 
-  .alisio-chat__composer {
+  .alisio-chat .agent-chat__input.alisio-chat__composer {
     padding: 8px;
     border-radius: 18px;
   }

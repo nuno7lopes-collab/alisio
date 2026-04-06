@@ -15,7 +15,10 @@ import {
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { OpenClawApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
+import { loadAgentFiles } from "./controllers/agent-files.ts";
+import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentMemoryFiles, resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
+import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
@@ -26,12 +29,13 @@ import {
   loadAlisioOrganization,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
-import { loadConfig } from "./controllers/config.ts";
+import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
+import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
 import { loadModels as loadChatModels } from "./controllers/models.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
@@ -53,7 +57,7 @@ import {
   type SettingsSection,
   type Tab,
 } from "./navigation.ts";
-import { saveSettings, type UiSettings } from "./storage.ts";
+import { FIXED_BORDER_RADIUS, saveSettings, type UiSettings } from "./storage.ts";
 import { startThemeTransition, type ThemeTransitionContext } from "./theme-transition.ts";
 import { resolveTheme, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
 import type { AgentsListResult, AttentionItem } from "./types.ts";
@@ -299,7 +303,10 @@ export function setThemeMode(
   syncSystemThemeListener(host);
 }
 
-export async function refreshActiveTab(host: SettingsHost) {
+export async function refreshActiveTab(
+  host: SettingsHost,
+  opts?: { includeChatHistory?: boolean },
+) {
   if (host.tab === "setup") {
     await Promise.allSettled([
       loadAlisioBootstrap(host as unknown as OpenClawApp),
@@ -320,30 +327,65 @@ export async function refreshActiveTab(host: SettingsHost) {
   if (host.tab === "models") {
     // Legacy model fallbacks derive local targets from bootstrap/account state.
     // Load bootstrap first so older gateways do not briefly render an empty models view.
+    await loadAlisioBootstrap(host as unknown as OpenClawApp);
+    await loadAlisioModels(host as unknown as OpenClawApp);
+    await loadSessions(host as unknown as OpenClawApp, {
+      activeMinutes: 0,
+      limit: 0,
+      includeGlobal: true,
+      includeUnknown: true,
+    });
+    if (
+      host.connected &&
+      host.client &&
+      (!host.chatModelCatalog || host.chatModelCatalog.length === 0)
+    ) {
+      host.chatModelsLoading = true;
+      try {
+        host.chatModelCatalog = await loadChatModels(host.client);
+      } finally {
+        host.chatModelsLoading = false;
+      }
+    }
+  }
+  if (host.tab === "agents") {
     await Promise.allSettled([
-      loadAlisioBootstrap(host as unknown as OpenClawApp),
-      loadAlisioModels(host as unknown as OpenClawApp),
-      loadSessions(host as unknown as OpenClawApp, {
-        activeMinutes: 0,
-        limit: 0,
-        includeGlobal: true,
-        includeUnknown: true,
-      }),
-      (async () => {
-        if (!host.connected || !host.client) {
-          return;
-        }
-        host.chatModelsLoading = true;
-        try {
-          host.chatModelCatalog = await loadChatModels(host.client);
-        } finally {
-          host.chatModelsLoading = false;
-        }
-      })(),
+      loadAgents(host as unknown as OpenClawApp),
+      loadConfig(host as unknown as OpenClawApp),
     ]);
+    const agentIds = host.agentsList?.agents.map((entry) => entry.id) ?? [];
+    if (agentIds.length > 0) {
+      void loadAgentIdentities(host as unknown as OpenClawApp, agentIds);
+    }
+    const agentId =
+      host.agentsSelectedId ?? host.agentsList?.defaultId ?? host.agentsList?.agents?.[0]?.id;
+    if (agentId) {
+      host.agentsSelectedId = agentId;
+      void loadAgentIdentity(host as unknown as OpenClawApp, agentId);
+      switch (host.agentsPanel) {
+        case "files":
+          await loadAgentFiles(host as unknown as OpenClawApp, agentId);
+          break;
+        case "skills":
+          await loadAgentSkills(host as unknown as OpenClawApp, agentId);
+          break;
+        case "channels":
+          await loadChannels(host as unknown as OpenClawApp, false);
+          break;
+        case "cron":
+          await loadCron(host);
+          break;
+        default:
+          break;
+      }
+    }
   }
   if (host.tab === "memory") {
-    await loadAgents(host as unknown as OpenClawApp);
+    await Promise.allSettled([
+      loadAgents(host as unknown as OpenClawApp),
+      loadConfig(host as unknown as OpenClawApp),
+      loadConfigSchema(host as unknown as OpenClawApp),
+    ]);
     const agentId = resolvePreferredMemoryAgentId({
       agentsList: host.agentsList ?? null,
       memorySelectedAgentId: host.memorySelectedAgentId ?? null,
@@ -352,9 +394,12 @@ export async function refreshActiveTab(host: SettingsHost) {
     });
     if (agentId) {
       host.memorySelectedAgentId = agentId;
-      await loadAgentMemoryFiles(host as unknown as OpenClawApp, agentId, {
-        preferredName: host.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
-      });
+      await Promise.allSettled([
+        loadAgentMemoryFiles(host as unknown as OpenClawApp, agentId, {
+          preferredName: host.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
+        }),
+        loadMemoryStatus(host as unknown as OpenClawApp, agentId, { reset: true }),
+      ]);
     }
   }
   if (host.tab === "capabilities") {
@@ -397,7 +442,9 @@ export async function refreshActiveTab(host: SettingsHost) {
       return;
     }
     await Promise.allSettled([
-      refreshChat(host as unknown as Parameters<typeof refreshChat>[0]),
+      refreshChat(host as unknown as Parameters<typeof refreshChat>[0], {
+        includeHistory: opts?.includeChatHistory ?? true,
+      }),
       loadAlisioAccount(host as unknown as OpenClawApp),
       loadGatewayAccessMode(host as unknown as OpenClawApp),
     ]);
@@ -441,7 +488,7 @@ export function syncThemeWithSettings(host: SettingsHost) {
   host.theme = host.settings.theme ?? "claw";
   host.themeMode = host.settings.themeMode ?? "system";
   applyResolvedTheme(host, resolveTheme(host.theme, host.themeMode));
-  applyBorderRadius(host.settings.borderRadius ?? 50);
+  applyBorderRadius(host.settings.borderRadius ?? FIXED_BORDER_RADIUS);
   syncSystemThemeListener(host);
 }
 
@@ -491,20 +538,19 @@ export function detachThemeListener(host: SettingsHost) {
   host.systemThemeCleanup = null;
 }
 
-const BASE_RADII = { sm: 6, md: 10, lg: 14, xl: 20, full: 9999, default: 10 };
+const FIXED_ROUND_RADII = { sm: 9, md: 15, lg: 21, xl: 30, full: 9999, default: 15 };
 
-export function applyBorderRadius(value: number) {
+export function applyBorderRadius(_value: number) {
   if (typeof document === "undefined") {
     return;
   }
   const root = document.documentElement;
-  const scale = value / 50;
-  root.style.setProperty("--radius-sm", `${Math.round(BASE_RADII.sm * scale)}px`);
-  root.style.setProperty("--radius-md", `${Math.round(BASE_RADII.md * scale)}px`);
-  root.style.setProperty("--radius-lg", `${Math.round(BASE_RADII.lg * scale)}px`);
-  root.style.setProperty("--radius-xl", `${Math.round(BASE_RADII.xl * scale)}px`);
-  root.style.setProperty("--radius-full", `${Math.round(BASE_RADII.full * scale)}px`);
-  root.style.setProperty("--radius", `${Math.round(BASE_RADII.default * scale)}px`);
+  root.style.setProperty("--radius-sm", `${FIXED_ROUND_RADII.sm}px`);
+  root.style.setProperty("--radius-md", `${FIXED_ROUND_RADII.md}px`);
+  root.style.setProperty("--radius-lg", `${FIXED_ROUND_RADII.lg}px`);
+  root.style.setProperty("--radius-xl", `${FIXED_ROUND_RADII.xl}px`);
+  root.style.setProperty("--radius-full", `${FIXED_ROUND_RADII.full}px`);
+  root.style.setProperty("--radius", `${FIXED_ROUND_RADII.default}px`);
 }
 
 export function applyResolvedTheme(host: SettingsHost, resolved: ResolvedTheme) {

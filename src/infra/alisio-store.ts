@@ -5,7 +5,10 @@ import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
+  type AlisioAccountAuthMethod,
   deriveAlisioAvatarLabel,
+  normalizeAlisioAgentName,
+  normalizeAlisioBirthdate,
   normalizeAlisioUsername,
   validateAlisioAccountDraft,
   validateAlisioEmail,
@@ -14,7 +17,11 @@ import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.j
 import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
 import {
   AlisioAccountCloudError,
+  beginAlisioCloudAccountEmailAuth,
+  buildAlisioCloudGoogleAuthUrl,
   completeAlisioCloudAccountProfile,
+  exchangeAlisioCloudGoogleAuthCode,
+  verifyAlisioCloudAccountEmailAuth,
   requestAlisioCloudPasswordReset,
   resolveAlisioAccountBackend,
   restoreAlisioCloudAccountSession,
@@ -166,8 +173,12 @@ export type AlisioLocalAccountProfile = {
   username: string;
   displayName: string;
   email: string;
+  agentName?: string;
   avatarLabel: string;
   avatarUrl?: string;
+  termsAcceptedAt?: string;
+  marketingOptIn?: boolean;
+  birthdate?: string;
   joinedAt: string;
   plan: AlisioPlan;
   backend?: "supabase";
@@ -181,6 +192,7 @@ export type AlisioLocalUserPreferences = {
 export type AlisioAccountSession = {
   state: AlisioAccountSessionState;
   profileCompleted: boolean;
+  authMethod?: AlisioAccountAuthMethod;
   signedInAt?: string;
   signedOutAt?: string;
   backend?: "supabase";
@@ -278,6 +290,15 @@ export type AlisioStoredState = {
       requestedScopes: string[];
       createdAt: string;
       codeVerifier?: string;
+    }
+  >;
+  pendingAccountAuths?: Record<
+    string,
+    {
+      provider: "google";
+      createdAt: string;
+      callbackUrl: string;
+      codeVerifier: string;
     }
   >;
 };
@@ -1178,6 +1199,7 @@ function buildDefaultState(): AlisioStoredState {
         displayName,
         email: `${username}@alisio.local`,
         avatarLabel: displayName.slice(0, 1).toUpperCase() || "A",
+        marketingOptIn: false,
         joinedAt: new Date().toISOString(),
         plan: "free",
         backend,
@@ -1200,6 +1222,7 @@ function buildDefaultState(): AlisioStoredState {
     modelServers: {},
     oauthCredentials: {},
     pendingAuthorizations: {},
+    pendingAccountAuths: {},
   };
 }
 
@@ -1217,6 +1240,7 @@ function resolveDefaultAccountSeed(env: NodeJS.ProcessEnv = process.env) {
     displayName,
     email: `${username}@alisio.local`,
     avatarLabel: displayName.slice(0, 1).toUpperCase() || "A",
+    marketingOptIn: false,
   };
 }
 
@@ -1269,6 +1293,9 @@ function normalizeStoredAccountSession(
       typeof session?.profileCompleted === "boolean"
         ? session.profileCompleted
         : fallback.profileCompleted,
+    ...(session?.authMethod === "email" || session?.authMethod === "google"
+      ? { authMethod: session.authMethod }
+      : {}),
     backend:
       session?.backend === "supabase"
         ? session.backend
@@ -1314,6 +1341,7 @@ function migrateLegacyLocalDevAccountState(
         ...defaults.account.profile,
         ...legacyProfileWithoutUserId,
         email: preservedEmail,
+        marketingOptIn: loaded.account?.profile?.marketingOptIn === true,
         backend: "supabase",
       },
       preferences: {
@@ -1338,6 +1366,7 @@ function migrateLegacyLocalDevAccountState(
     authorizations: {},
     oauthCredentials: {},
     pendingAuthorizations: {},
+    pendingAccountAuths: {},
   };
 }
 
@@ -1400,6 +1429,7 @@ function resetStoredAccountScopedState(state: AlisioStoredState) {
   state.authorizations = {};
   state.oauthCredentials = {};
   state.pendingAuthorizations = {};
+  state.pendingAccountAuths = {};
 }
 
 function assertAlisioAccountSetupAccess(
@@ -1418,17 +1448,43 @@ function assertAlisioAccountSetupAccess(
   }
 }
 
-function toLocalAccountProfile(profile: AlisioCloudAccountProfile): AlisioLocalAccountProfile {
+function withLocalAgentName(
+  profile: AlisioLocalAccountProfile,
+  agentName: string | null | undefined,
+): AlisioLocalAccountProfile {
+  const normalizedAgentName = normalizeAlisioAgentName(agentName);
+  return normalizedAgentName
+    ? {
+        ...profile,
+        agentName: normalizedAgentName,
+      }
+    : profile;
+}
+
+function toLocalAccountProfile(
+  profile: AlisioCloudAccountProfile,
+  opts?: { agentName?: string | null },
+): AlisioLocalAccountProfile {
   return {
-    ...(profile.userId ? { userId: profile.userId } : {}),
-    username: profile.username,
-    displayName: profile.displayName,
-    email: profile.email,
-    avatarLabel: profile.avatarLabel,
-    ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
-    joinedAt: profile.joinedAt,
-    plan: normalizeAlisioPlan(profile.plan),
-    backend: profile.backend,
+    ...withLocalAgentName(
+      {
+        ...(profile.userId ? { userId: profile.userId } : {}),
+        username: profile.username,
+        displayName: profile.displayName,
+        email: profile.email,
+        avatarLabel: profile.avatarLabel,
+        ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+        ...(profile.termsAcceptedAt ? { termsAcceptedAt: profile.termsAcceptedAt } : {}),
+        ...(typeof profile.marketingOptIn === "boolean"
+          ? { marketingOptIn: profile.marketingOptIn }
+          : {}),
+        ...(profile.birthdate ? { birthdate: profile.birthdate } : {}),
+        joinedAt: profile.joinedAt,
+        plan: normalizeAlisioPlan(profile.plan),
+        backend: profile.backend,
+      },
+      opts?.agentName,
+    ),
   };
 }
 
@@ -1439,7 +1495,13 @@ function toCloudAccountProfile(profile: AlisioLocalAccountProfile): AlisioCloudA
     displayName: profile.displayName,
     username: profile.username,
     avatarLabel: profile.avatarLabel,
+    ...(normalizeAlisioAgentName(profile.agentName) ? { agentName: profile.agentName } : {}),
     ...(profile.avatarUrl ? { avatarUrl: profile.avatarUrl } : {}),
+    ...(profile.termsAcceptedAt ? { termsAcceptedAt: profile.termsAcceptedAt } : {}),
+    ...(typeof profile.marketingOptIn === "boolean"
+      ? { marketingOptIn: profile.marketingOptIn }
+      : {}),
+    ...(normalizeAlisioBirthdate(profile.birthdate) ? { birthdate: profile.birthdate } : {}),
     joinedAt: profile.joinedAt,
     plan: normalizeAlisioPlan(profile.plan),
     profileCompleted: true,
@@ -1452,6 +1514,14 @@ function normalizeStoredAccountProfile(
 ): AlisioLocalAccountProfile {
   return {
     ...profile,
+    ...(normalizeAlisioAgentName(profile.agentName)
+      ? { agentName: normalizeAlisioAgentName(profile.agentName) }
+      : {}),
+    ...(profile.termsAcceptedAt?.trim() ? { termsAcceptedAt: profile.termsAcceptedAt.trim() } : {}),
+    ...(typeof profile.marketingOptIn === "boolean"
+      ? { marketingOptIn: profile.marketingOptIn }
+      : {}),
+    ...(normalizeAlisioBirthdate(profile.birthdate) ? { birthdate: profile.birthdate } : {}),
     plan: normalizeAlisioPlan(profile.plan),
   };
 }
@@ -1470,6 +1540,7 @@ function toAccountSessionFromCloud(
   return {
     state: session.state,
     profileCompleted,
+    ...(session.authMethod ? { authMethod: session.authMethod } : {}),
     backend: session.backend,
     ...(session.signedInAt ? { signedInAt: session.signedInAt } : {}),
     ...(session.signedOutAt ? { signedOutAt: session.signedOutAt } : {}),
@@ -1480,7 +1551,15 @@ function hasAccountProfilePatch(
   patch: Partial<
     Pick<
       AlisioLocalAccountProfile,
-      "username" | "displayName" | "email" | "avatarLabel" | "avatarUrl"
+      | "username"
+      | "displayName"
+      | "email"
+      | "agentName"
+      | "avatarLabel"
+      | "avatarUrl"
+      | "termsAcceptedAt"
+      | "marketingOptIn"
+      | "birthdate"
     >
   >,
 ) {
@@ -1488,8 +1567,12 @@ function hasAccountProfilePatch(
     "username" in patch ||
     "displayName" in patch ||
     "email" in patch ||
+    "agentName" in patch ||
     "avatarLabel" in patch ||
-    "avatarUrl" in patch
+    "avatarUrl" in patch ||
+    "termsAcceptedAt" in patch ||
+    "marketingOptIn" in patch ||
+    "birthdate" in patch
   );
 }
 
@@ -1501,8 +1584,12 @@ function didAlisioAccountProfileChange(
     current.username !== next.username ||
     current.displayName !== next.displayName ||
     current.email !== next.email ||
+    (current.agentName ?? "") !== (next.agentName ?? "") ||
     current.avatarLabel !== next.avatarLabel ||
-    (current.avatarUrl ?? "") !== (next.avatarUrl ?? "")
+    (current.avatarUrl ?? "") !== (next.avatarUrl ?? "") ||
+    (current.termsAcceptedAt ?? "") !== (next.termsAcceptedAt ?? "") ||
+    (current.marketingOptIn ?? false) !== (next.marketingOptIn ?? false) ||
+    (current.birthdate ?? "") !== (next.birthdate ?? "")
   );
 }
 
@@ -1539,8 +1626,12 @@ async function repairSignedInCloudProfileFromStoredProfile(params: {
     email: repairProfile.email,
     username: repairProfile.username,
     displayName: repairProfile.displayName,
+    agentName: repairProfile.agentName,
     avatarLabel: repairProfile.avatarLabel,
     avatarUrl: repairProfile.avatarUrl,
+    termsAcceptedAt: repairProfile.termsAcceptedAt,
+    marketingOptIn: repairProfile.marketingOptIn,
+    birthdate: repairProfile.birthdate,
     joinedAt: repairProfile.joinedAt,
     plan: repairProfile.plan,
     env: params.env,
@@ -1661,15 +1752,20 @@ export async function getAlisioDoctorSummary(
     providerReady?: boolean;
     connectionRequired?: boolean;
     gatewayHealthy?: boolean;
+    bootstrap?: AlisioBootstrapSummary;
   } = {},
 ): Promise<AlisioDoctorSummary> {
   const runtimeEnv = params.env ?? process.env;
-  const { summary: bootstrap } = await loadAlisioBootstrapState({
-    env: runtimeEnv,
-    wizardRunning: params.wizardRunning,
-    providerReady: params.providerReady,
-    connectionRequired: params.connectionRequired,
-  });
+  const bootstrap =
+    params.bootstrap ??
+    (
+      await loadAlisioBootstrapState({
+        env: runtimeEnv,
+        wizardRunning: params.wizardRunning,
+        providerReady: params.providerReady,
+        connectionRequired: params.connectionRequired,
+      })
+    ).summary;
   const doctorState = await loadStoredState(runtimeEnv);
   const issues: AlisioDoctorIssue[] = [];
 
@@ -2248,6 +2344,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     modelServers: loadedModelServers,
     oauthCredentials: loaded.oauthCredentials ?? {},
     pendingAuthorizations: loaded.pendingAuthorizations ?? {},
+    pendingAccountAuths: loaded.pendingAccountAuths ?? {},
   };
 }
 
@@ -2493,6 +2590,32 @@ function selectBestWorkerCredentialForWorker(
     workerCredentialId: best.workerCredentialId,
     credential: best.record,
   };
+}
+
+function selectBestWorkerCredentialsForWorker(
+  state: AlisioStoredState,
+  workerId: string,
+): Array<{ workerCredentialId: string; credential: AlisioStoredWorkerAiCredential }> {
+  const authStore = ensureAuthProfileStore();
+  return Object.keys(state.ai?.aiProfiles ?? {})
+    .map((aiProfileId) =>
+      selectBestWorkerCredentialForProfile({
+        aiProfileId,
+        workerId,
+        state: state.ai,
+        authStore,
+      }),
+    )
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        workerCredentialId: string;
+        record: AlisioStoredWorkerAiCredential;
+        score: AlisioAiCredentialSelection;
+      } => Boolean(candidate),
+    )
+    .map((candidate) => resolveSelectedWorkerCredentialRecord(candidate));
 }
 
 function setRuntimeBinding(
@@ -2768,7 +2891,9 @@ async function hydrateStoredAccountState(
       fetchImpl,
     });
     state.account.cloudSession = restored.session;
-    state.account.profile = toLocalAccountProfile(restored.profile);
+    state.account.profile = toLocalAccountProfile(restored.profile, {
+      agentName: state.account.profile.agentName,
+    });
     state.account.session = toAccountSessionFromCloud(
       restored.session,
       restored.profile.profileCompleted,
@@ -2781,6 +2906,9 @@ async function hydrateStoredAccountState(
       state.account.cloudSession = {
         backend: state.account.cloudSession?.backend ?? resolveAlisioAccountBackend(env),
         state: "signed_out",
+        ...(state.account.cloudSession?.authMethod
+          ? { authMethod: state.account.cloudSession.authMethod }
+          : {}),
         ...(state.account.cloudSession?.userId
           ? { userId: state.account.cloudSession.userId }
           : {}),
@@ -2828,12 +2956,30 @@ async function loadHydratedStoredState(
 export async function loadAlisioBootstrapSnapshot(
   env?: NodeJS.ProcessEnv,
 ): Promise<AlisioBootstrapSnapshot> {
-  const [account, ai, organization, authorizations] = await Promise.all([
-    getAlisioAccountState(env),
-    getAlisioAiState(env),
-    getAlisioOrganizationState(env),
-    listAlisioConnectorAuthorizations(env),
+  const runtimeEnv = env ?? process.env;
+  const [state, authorizations] = await Promise.all([
+    loadHydratedStoredState(runtimeEnv),
+    listAlisioConnectorAuthorizations(runtimeEnv),
   ]);
+  const account: AlisioAccountState = {
+    profile: state.account.profile,
+    preferences: state.account.preferences,
+    session: state.account.session,
+    devices: [currentDevice()],
+  };
+  const ai: AlisioAiState = hasReadyAlisioAccountSession(state)
+    ? toAlisioAiState({
+        state: state.ai,
+        workerId: currentWorkerId(),
+        authStore: ensureAuthProfileStore(),
+      })
+    : {
+        provider: "openai",
+        status: "disconnected",
+      };
+  const organization: AlisioOrganizationMembershipState = hasReadyAlisioAccountSession(state)
+    ? state.organization
+    : { mode: "none" };
   return {
     account,
     ai,
@@ -3027,7 +3173,15 @@ export async function updateAlisioAccountProfile(
   patch: Partial<
     Pick<
       AlisioLocalAccountProfile,
-      "username" | "displayName" | "email" | "avatarLabel" | "avatarUrl"
+      | "username"
+      | "displayName"
+      | "email"
+      | "agentName"
+      | "avatarLabel"
+      | "avatarUrl"
+      | "termsAcceptedAt"
+      | "marketingOptIn"
+      | "birthdate"
     >
   > &
     Partial<AlisioLocalUserPreferences>,
@@ -3047,6 +3201,9 @@ export async function updateAlisioAccountProfile(
       ...(typeof patch.email === "string"
         ? { email: patch.email.trim() || state.account.profile.email }
         : {}),
+      ...(typeof patch.agentName === "string"
+        ? { agentName: normalizeAlisioAgentName(patch.agentName) }
+        : {}),
       ...(typeof patch.avatarLabel === "string"
         ? {
             avatarLabel:
@@ -3057,6 +3214,21 @@ export async function updateAlisioAccountProfile(
       ...(typeof patch.avatarUrl === "string"
         ? {
             avatarUrl: patch.avatarUrl.trim() || undefined,
+          }
+        : {}),
+      ...(typeof patch.termsAcceptedAt === "string"
+        ? {
+            termsAcceptedAt: patch.termsAcceptedAt.trim() || undefined,
+          }
+        : {}),
+      ...("marketingOptIn" in patch
+        ? {
+            marketingOptIn: patch.marketingOptIn === true,
+          }
+        : {}),
+      ...(typeof patch.birthdate === "string"
+        ? {
+            birthdate: normalizeAlisioBirthdate(patch.birthdate),
           }
         : {}),
     };
@@ -3076,6 +3248,11 @@ export async function updateAlisioAccountProfile(
       if (validationError) {
         throw new AlisioAccountValidationError(validationError);
       }
+      if (!state.account.session.profileCompleted && !nextProfile.termsAcceptedAt?.trim()) {
+        throw new AlisioAccountValidationError(
+          "Accept the Alisio terms before creating this account.",
+        );
+      }
       const profilePayload = {
         ...nextProfile,
         avatarLabel: deriveAlisioAvatarLabel(nextProfile),
@@ -3086,13 +3263,19 @@ export async function updateAlisioAccountProfile(
           email: profilePayload.email,
           username: profilePayload.username,
           displayName: profilePayload.displayName,
+          agentName: profilePayload.agentName,
           avatarLabel: profilePayload.avatarLabel,
           avatarUrl: profilePayload.avatarUrl,
+          termsAcceptedAt: profilePayload.termsAcceptedAt,
+          marketingOptIn: profilePayload.marketingOptIn,
+          birthdate: profilePayload.birthdate,
           joinedAt: state.account.profile.joinedAt,
           plan: state.account.profile.plan,
           env,
         });
-        state.account.profile = toLocalAccountProfile(completedProfile);
+        state.account.profile = toLocalAccountProfile(completedProfile, {
+          agentName: profilePayload.agentName,
+        });
         state.account.session = toAccountSessionFromCloud(
           state.account.cloudSession,
           completedProfile.profileCompleted,
@@ -3122,39 +3305,220 @@ export async function updateAlisioAccountProfile(
   });
 }
 
+async function applySignedInCloudAccountResult(params: {
+  state: AlisioStoredState;
+  result: {
+    session: AlisioStoredCloudSession;
+    profile: AlisioCloudAccountProfile;
+  };
+  env?: NodeJS.ProcessEnv;
+  repairFromStoredProfile?: boolean;
+}): Promise<AlisioAccountState> {
+  const restoredProfile = params.repairFromStoredProfile
+    ? await repairSignedInCloudProfileFromStoredProfile({
+        state: params.state,
+        result: params.result,
+        env: params.env,
+      })
+    : params.result.profile;
+  const resetScopedState = shouldResetAccountScopedState(params.state, {
+    session: params.result.session,
+    profile: normalizeStoredAccountProfile(
+      toLocalAccountProfile(restoredProfile, {
+        agentName: params.state.account.profile.agentName,
+      }),
+    ),
+  });
+  if (resetScopedState) {
+    resetStoredAccountScopedState(params.state);
+  }
+  params.state.account.profile = toLocalAccountProfile(restoredProfile, {
+    agentName: resetScopedState ? undefined : params.state.account.profile.agentName,
+  });
+  params.state.account.cloudSession = params.result.session;
+  params.state.account.session = toAccountSessionFromCloud(
+    params.result.session,
+    restoredProfile.profileCompleted,
+    params.state.account.session,
+  );
+  await persistState(params.state, params.env);
+  return {
+    profile: params.state.account.profile,
+    preferences: params.state.account.preferences,
+    session: params.state.account.session,
+    devices: [currentDevice()],
+  };
+}
+
+export async function beginAlisioAccountEmailAuth(
+  input: { email: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; email: string; message: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const email = input.email.trim().toLowerCase();
+    if (!email) {
+      throw new AlisioAccountValidationError("Enter the email for your Alisio account first.");
+    }
+    const validationError = validateAlisioEmail(email);
+    if (validationError) {
+      throw new AlisioAccountValidationError(validationError);
+    }
+    state.account.profile = {
+      ...state.account.profile,
+      email,
+    };
+    const result = await beginAlisioCloudAccountEmailAuth({ email, env });
+    await persistState(state, env);
+    return result;
+  });
+}
+
+export async function verifyAlisioAccountEmailAuth(
+  input: { email: string; code: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioAccountState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const email = input.email.trim().toLowerCase();
+    const code = input.code.trim();
+    if (!email) {
+      throw new AlisioAccountValidationError("Enter the email for your Alisio account first.");
+    }
+    const validationError = validateAlisioEmail(email);
+    if (validationError) {
+      throw new AlisioAccountValidationError(validationError);
+    }
+    if (!code) {
+      throw new AlisioAccountValidationError("Enter the verification code from your email.");
+    }
+    return await applySignedInCloudAccountResult({
+      state,
+      result: await verifyAlisioCloudAccountEmailAuth({ email, code, env }),
+      env,
+      repairFromStoredProfile: true,
+    });
+  });
+}
+
+export async function beginAlisioAccountGoogleAuth(
+  input: { callbackUrl: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ setupUrl: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const callbackUrl = input.callbackUrl.trim();
+    if (!callbackUrl) {
+      throw new AlisioAccountValidationError("Alisio needs a callback URL to sign in.");
+    }
+    let callback: URL;
+    try {
+      callback = new URL(callbackUrl);
+    } catch {
+      throw new AlisioAccountValidationError("Alisio needs a valid callback URL to sign in.");
+    }
+    const stateToken = buildStateToken();
+    const codeVerifier = buildCodeVerifier();
+    callback.searchParams.set("account_state", stateToken);
+    callback.searchParams.set("provider", "google");
+    state.pendingAccountAuths = {
+      ...state.pendingAccountAuths,
+      [stateToken]: {
+        provider: "google",
+        createdAt: new Date().toISOString(),
+        callbackUrl: callback.toString(),
+        codeVerifier,
+      },
+    };
+    await persistState(state, env);
+    const result = buildAlisioCloudGoogleAuthUrl({
+      callbackUrl: callback.toString(),
+      codeVerifier,
+      stateToken,
+      env,
+    });
+    return {
+      setupUrl: result.setupUrl,
+    };
+  });
+}
+
+export async function completeAlisioAccountGoogleAuthFromCallback(
+  input: {
+    stateToken?: string | null;
+    code?: string | null;
+    error?: string | null;
+    errorDescription?: string | null;
+  },
+  env: NodeJS.ProcessEnv = process.env,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AlisioAccountState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const stateToken = input.stateToken?.trim();
+    if (!stateToken) {
+      throw new AlisioAccountValidationError("The Google sign-in callback is missing state.");
+    }
+    const pending = state.pendingAccountAuths?.[stateToken];
+    if (!pending) {
+      throw new AlisioAccountValidationError(
+        "This Google sign-in has expired. Start the account sign-in again.",
+      );
+    }
+    if (isPendingAuthorizationExpired(pending.createdAt)) {
+      delete state.pendingAccountAuths?.[stateToken];
+      await persistState(state, env);
+      throw new AlisioAccountValidationError(
+        "This Google sign-in has expired. Start the account sign-in again.",
+      );
+    }
+    if (input.error?.trim()) {
+      delete state.pendingAccountAuths?.[stateToken];
+      await persistState(state, env);
+      throw new AlisioAccountValidationError(
+        input.errorDescription?.trim() || "Google sign-in was cancelled before it completed.",
+      );
+    }
+    const code = input.code?.trim();
+    if (!code) {
+      delete state.pendingAccountAuths?.[stateToken];
+      await persistState(state, env);
+      throw new AlisioAccountValidationError(
+        "Google did not return an authorization code to Alisio.",
+      );
+    }
+
+    const result = await exchangeAlisioCloudGoogleAuthCode({
+      code,
+      codeVerifier: pending.codeVerifier,
+      env,
+      fetchImpl,
+    });
+    delete state.pendingAccountAuths?.[stateToken];
+    return await applySignedInCloudAccountResult({
+      state,
+      result,
+      env,
+      repairFromStoredProfile: true,
+    });
+  });
+}
+
 export async function signUpAlisioAccount(
   input: { email: string; password: string },
   env?: NodeJS.ProcessEnv,
 ): Promise<AlisioAccountState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const result = await signUpAlisioCloudAccount({
-      email: input.email,
-      password: input.password,
+    return await applySignedInCloudAccountResult({
+      state,
+      result: await signUpAlisioCloudAccount({
+        email: input.email,
+        password: input.password,
+        env,
+      }),
       env,
     });
-    if (
-      shouldResetAccountScopedState(state, {
-        session: result.session,
-        profile: result.profile,
-      })
-    ) {
-      resetStoredAccountScopedState(state);
-    }
-    state.account.profile = toLocalAccountProfile(result.profile);
-    state.account.cloudSession = result.session;
-    state.account.session = toAccountSessionFromCloud(
-      result.session,
-      result.profile.profileCompleted,
-      state.account.session,
-    );
-    await persistState(state, env);
-    return {
-      profile: state.account.profile,
-      preferences: state.account.preferences,
-      session: state.account.session,
-      devices: [currentDevice()],
-    };
   });
 }
 
@@ -3164,38 +3528,16 @@ export async function signInAlisioAccount(
 ): Promise<AlisioAccountState> {
   return withLock(async () => {
     const state = await loadStoredState(env);
-    const result = await signInAlisioCloudAccount({
-      email: input.email,
-      password: input.password,
-      env,
-    });
-    const restoredProfile = await repairSignedInCloudProfileFromStoredProfile({
+    return await applySignedInCloudAccountResult({
       state,
-      result,
+      result: await signInAlisioCloudAccount({
+        email: input.email,
+        password: input.password,
+        env,
+      }),
       env,
+      repairFromStoredProfile: true,
     });
-    if (
-      shouldResetAccountScopedState(state, {
-        session: result.session,
-        profile: normalizeStoredAccountProfile(toLocalAccountProfile(restoredProfile)),
-      })
-    ) {
-      resetStoredAccountScopedState(state);
-    }
-    state.account.profile = toLocalAccountProfile(restoredProfile);
-    state.account.cloudSession = result.session;
-    state.account.session = toAccountSessionFromCloud(
-      result.session,
-      restoredProfile.profileCompleted,
-      state.account.session,
-    );
-    await persistState(state, env);
-    return {
-      profile: state.account.profile,
-      preferences: state.account.preferences,
-      session: state.account.session,
-      devices: [currentDevice()],
-    };
   });
 }
 
@@ -3212,6 +3554,9 @@ export async function signOutAlisioAccount(env?: NodeJS.ProcessEnv): Promise<Ali
     state.account.cloudSession = {
       backend: state.account.cloudSession?.backend ?? resolveAlisioAccountBackend(env),
       state: "signed_out",
+      ...(state.account.cloudSession?.authMethod
+        ? { authMethod: state.account.cloudSession.authMethod }
+        : {}),
       ...(state.account.cloudSession?.userId ? { userId: state.account.cloudSession.userId } : {}),
       ...(state.account.profile.email ? { email: state.account.profile.email } : {}),
       signedOutAt: new Date().toISOString(),
@@ -3219,10 +3564,12 @@ export async function signOutAlisioAccount(env?: NodeJS.ProcessEnv): Promise<Ali
     state.account.session = {
       state: "signed_out",
       profileCompleted: state.account.session.profileCompleted,
+      ...(state.account.session.authMethod ? { authMethod: state.account.session.authMethod } : {}),
       signedInAt: state.account.session.signedInAt,
       signedOutAt: new Date().toISOString(),
       backend: state.account.cloudSession.backend,
     };
+    state.pendingAccountAuths = {};
     if (state.ai) {
       delete state.ai.pending;
     }
@@ -3528,39 +3875,76 @@ export async function refreshAlisioAiLimits(
     assertAlisioAccountSetupAccess(state, "OpenAI");
     const workerId = currentWorkerId();
     const requestedProfileId = input?.profileId?.trim();
-    const selectedCredential = requestedProfileId
-      ? selectBestWorkerCredentialForProfile({
-          aiProfileId: requestedProfileId,
-          workerId,
-          state: state.ai,
-          authStore: ensureAuthProfileStore(),
-        })
-      : (resolveBoundWorkerCredential(state, workerId) ??
-        selectBestWorkerCredentialForWorker(state, workerId));
-    if (!selectedCredential) {
+    const refreshSelections = requestedProfileId
+      ? [
+          selectBestWorkerCredentialForProfile({
+            aiProfileId: requestedProfileId,
+            workerId,
+            state: state.ai,
+            authStore: ensureAuthProfileStore(),
+          }),
+        ]
+          .filter(
+            (
+              candidate,
+            ): candidate is {
+              workerCredentialId: string;
+              record: AlisioStoredWorkerAiCredential;
+              score: AlisioAiCredentialSelection;
+            } => Boolean(candidate),
+          )
+          .map((candidate) => resolveSelectedWorkerCredentialRecord(candidate))
+      : (() => {
+          const selections = selectBestWorkerCredentialsForWorker(state, workerId);
+          if (selections.length > 0) {
+            return selections;
+          }
+          const fallback = resolveBoundWorkerCredential(state, workerId);
+          return fallback ? [fallback] : [];
+        })();
+    if (refreshSelections.length === 0) {
       return toAlisioAiState({
         state: state.ai,
         workerId,
         authStore: ensureAuthProfileStore(),
       });
     }
-    const resolvedSelection = resolveSelectedWorkerCredentialRecord(selectedCredential);
-    const refreshed = await refreshAlisioOpenAiSession({
-      credential: resolvedSelection.credential,
-      fetchImpl,
-    });
+
+    const refreshedSelections = await Promise.all(
+      refreshSelections.map(async (selection) => ({
+        workerCredentialId: selection.workerCredentialId,
+        credential: await refreshAlisioOpenAiSession({
+          credential: selection.credential,
+          fetchImpl,
+          forceTelemetry: true,
+        }),
+      })),
+    );
+
     ensureStoredAiState(state).workerCredentials = {
       ...state.ai?.workerCredentials,
-      [resolvedSelection.workerCredentialId]: refreshed,
+      ...Object.fromEntries(
+        refreshedSelections.map((selection) => [
+          selection.workerCredentialId,
+          selection.credential,
+        ]),
+      ),
     };
+    const activeWorkerCredentialId = state.ai?.runtimeBindings?.[workerId]?.workerCredentialId;
+    const activeSelection = activeWorkerCredentialId
+      ? (refreshedSelections.find(
+          (selection) => selection.workerCredentialId === activeWorkerCredentialId,
+        ) ?? null)
+      : null;
     if (
+      activeSelection &&
       state.ai?.runtimeBindings?.[workerId]?.workerCredentialId ===
-      resolvedSelection.workerCredentialId
+        activeSelection.workerCredentialId
     ) {
       setRuntimeBinding(state, workerId, {
         workerId,
-        workerCredentialId: resolvedSelection.workerCredentialId,
-        authProfileId: refreshed.authProfileId,
+        workerCredentialId: activeSelection.workerCredentialId,
+        authProfileId: activeSelection.credential.authProfileId,
         boundAt: state.ai.runtimeBindings[workerId]?.boundAt ?? new Date().toISOString(),
       });
     }
@@ -3572,17 +3956,18 @@ export async function refreshAlisioAiLimits(
       authStore: ensureAuthProfileStore(),
     });
     if (
+      activeSelection &&
       state.ai?.runtimeBindings?.[workerId]?.workerCredentialId ===
-        resolvedSelection.workerCredentialId &&
+        activeSelection.workerCredentialId &&
       isAlisioAiReady(nextState)
     ) {
-      await applyAlisioOpenAiRuntime(refreshed, {
-        displayName: state.ai?.aiProfiles?.[refreshed.aiProfileId]
+      await applyAlisioOpenAiRuntime(activeSelection.credential, {
+        displayName: state.ai?.aiProfiles?.[activeSelection.credential.aiProfileId]
           ? resolveAlisioAiProfileLabel({
-              profile: state.ai.aiProfiles[refreshed.aiProfileId],
-              credential: refreshed,
+              profile: state.ai.aiProfiles[activeSelection.credential.aiProfileId],
+              credential: activeSelection.credential,
             })
-          : (refreshed.email ?? "OpenAI"),
+          : (activeSelection.credential.email ?? "OpenAI"),
       }).catch(() => undefined);
     }
     return nextState;

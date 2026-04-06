@@ -13,10 +13,11 @@ import {
 } from "./chat-model-select-state.ts";
 import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/agents.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
+import { loadConfig } from "./controllers/config.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
-import type { SessionsListResult } from "./types.ts";
+import type { ConfigSnapshot, SessionsListResult } from "./types.ts";
 import { resolveSessionDisplayName } from "./views/session-display.ts";
 export {
   parseSessionKey,
@@ -71,6 +72,30 @@ export function resolveAlisioOpenAiCallbackUrl(
   return new URL("/__alisio/auth/openai/callback", currentPageHref).toString();
 }
 
+export function resolveAlisioAccountCallbackUrl(
+  state: Pick<AppViewState, "gatewayBootstrapUrl" | "alisioStartupBootstrap" | "settings">,
+  pageHref?: string,
+): string {
+  const currentPageHref =
+    pageHref ?? (typeof window === "undefined" ? "http://localhost/" : window.location.href);
+  const gatewayCandidates = [
+    state.gatewayBootstrapUrl,
+    state.alisioStartupBootstrap?.controlUrl,
+    state.settings.gatewayUrl,
+  ];
+  for (const candidate of gatewayCandidates) {
+    const trimmed = candidate?.trim();
+    if (!trimmed) {
+      continue;
+    }
+    const origin = resolveGatewayHttpOrigin(trimmed, currentPageHref);
+    if (origin) {
+      return new URL("/__alisio/auth/account/callback", origin).toString();
+    }
+  }
+  return new URL("/__alisio/auth/account/callback", currentPageHref).toString();
+}
+
 function resolveSidebarChatSessionKey(state: AppViewState): string {
   const snapshot = state.hello?.snapshot as
     | { sessionDefaults?: SessionDefaultsSnapshot }
@@ -89,9 +114,12 @@ function resolveSidebarChatSessionKey(state: AppViewState): string {
 function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string) {
   state.sessionKey = sessionKey;
   state.chatMessage = "";
+  state.chatAttachments = [];
   state.chatStream = null;
   (state as unknown as OpenClawApp).chatStreamStartedAt = null;
   state.chatRunId = null;
+  state.chatFinalizing = false;
+  state.chatQueue = [];
   (state as unknown as OpenClawApp).resetToolStream();
   (state as unknown as OpenClawApp).resetChatScroll();
   state.applySettings({
@@ -287,10 +315,13 @@ export function renderChatControls(state: AppViewState) {
         ?disabled=${state.chatLoading || !state.connected}
         @click=${async () => {
           const app = state as unknown as OpenClawApp;
+          const preserveEphemeral = Boolean(app.chatRunId || app.chatFinalizing);
           app.chatManualRefreshInFlight = true;
           app.chatNewMessagesBelow = false;
           await app.updateComplete;
-          app.resetToolStream();
+          if (!preserveEphemeral) {
+            app.resetToolStream();
+          }
           try {
             await refreshChat(state as unknown as Parameters<typeof refreshChat>[0], {
               scheduleScroll: false,
@@ -549,11 +580,13 @@ export function renderChatMobileToggle(state: AppViewState) {
 export function switchChatSession(state: AppViewState, nextSessionKey: string) {
   state.sessionKey = nextSessionKey;
   state.chatMessage = "";
+  state.chatAttachments = [];
   state.chatStream = null;
   // P1: Clear queued chat items from the previous session
   (state as unknown as { chatQueue: unknown[] }).chatQueue = [];
   (state as unknown as OpenClawApp).chatStreamStartedAt = null;
   state.chatRunId = null;
+  state.chatFinalizing = false;
   (state as unknown as OpenClawApp).resetToolStream();
   (state as unknown as OpenClawApp).resetChatScroll();
   state.applySettings({
@@ -583,7 +616,11 @@ async function refreshSessionOptions(state: AppViewState) {
 function renderChatModelSelect(state: AppViewState) {
   const { currentOverride, defaultLabel, options } = resolveChatModelSelectState(state);
   const busy =
-    state.chatLoading || state.chatSending || Boolean(state.chatRunId) || state.chatStream !== null;
+    state.chatLoading ||
+    state.chatSending ||
+    Boolean(state.chatRunId) ||
+    Boolean(state.chatFinalizing) ||
+    state.chatStream !== null;
   const disabled =
     !state.connected || busy || (state.chatModelsLoading && options.length === 0) || !state.client;
   return html`
@@ -643,6 +680,54 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
 
 export async function setActiveChatModel(state: AppViewState, nextModel: string) {
   await switchChatModel(state, nextModel);
+}
+
+function buildDefaultChatModelPatch(model: string) {
+  return {
+    agents: {
+      defaults: {
+        model: {
+          primary: model,
+        },
+        models: {
+          [model]: {},
+        },
+      },
+    },
+  };
+}
+
+export async function setDefaultChatModel(state: AppViewState, nextModel: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  const trimmedModel = nextModel.trim();
+  if (!trimmedModel) {
+    return;
+  }
+  if (state.configFormDirty) {
+    state.lastError = "Save or reload the config draft before changing the default model.";
+    return;
+  }
+  if (resolveChatModelSelectState(state).defaultModel === trimmedModel) {
+    return;
+  }
+
+  state.lastError = null;
+  try {
+    const snapshot = await state.client.request<ConfigSnapshot>("config.get", {});
+    if (!snapshot.hash) {
+      state.lastError = "Config hash missing; reload and retry.";
+      return;
+    }
+    await state.client.request("config.patch", {
+      raw: JSON.stringify(buildDefaultChatModelPatch(trimmedModel)),
+      baseHash: snapshot.hash,
+    });
+    await Promise.all([loadConfig(state), refreshSessionOptions(state)]);
+  } catch (err) {
+    state.lastError = `Failed to set default model: ${String(err)}`;
+  }
 }
 
 export function isCronSessionKey(key: string): boolean {

@@ -109,6 +109,7 @@ export type ChatState = {
   chatRunId: string | null;
   chatStream: string | null;
   chatStreamStartedAt: number | null;
+  chatFinalizing?: boolean;
   lastError: string | null;
   chatRuntimeSetupHint?: ChatRuntimeSetupHint | null;
 };
@@ -179,11 +180,19 @@ function resolveChatRuntimeSetupHint(error: unknown): ChatRuntimeSetupHint | nul
   };
 }
 
-export async function loadChatHistory(state: ChatState) {
+export async function loadChatHistory(
+  state: ChatState,
+  opts?: { preserveEphemeral?: boolean; silent?: boolean },
+) {
   if (!state.client || !state.connected) {
     return;
   }
-  state.chatLoading = true;
+  const silent = opts?.silent ?? false;
+  const preserveEphemeral =
+    opts?.preserveEphemeral ?? Boolean(state.chatRunId || state.chatFinalizing);
+  if (!silent) {
+    state.chatLoading = true;
+  }
   state.lastError = null;
   state.chatRuntimeSetupHint = null;
   try {
@@ -199,11 +208,14 @@ export async function loadChatHistory(state: ChatState) {
       messages.filter((message) => !isAssistantSilentReply(message)),
     );
     state.chatThinkingLevel = res.thinkingLevel ?? null;
-    // Clear all streaming state — history includes tool results and text
-    // inline, so keeping streaming artifacts would cause duplicates.
-    maybeResetToolStream(state);
-    state.chatStream = null;
-    state.chatStreamStartedAt = null;
+    if (!preserveEphemeral) {
+      // Clear all streaming state — history includes tool results and text
+      // inline, so keeping streaming artifacts would cause duplicates.
+      maybeResetToolStream(state);
+      state.chatStream = null;
+      state.chatStreamStartedAt = null;
+      state.chatFinalizing = false;
+    }
   } catch (err) {
     if (isMissingOperatorReadScopeError(err)) {
       state.chatMessages = [];
@@ -213,7 +225,9 @@ export async function loadChatHistory(state: ChatState) {
       state.lastError = String(err);
     }
   } finally {
-    state.chatLoading = false;
+    if (!silent) {
+      state.chatLoading = false;
+    }
   }
 }
 
@@ -324,6 +338,7 @@ export async function sendChatMessage(
   state.chatSending = true;
   state.lastError = null;
   state.chatRuntimeSetupHint = null;
+  state.chatFinalizing = false;
   const runId = generateUUID();
   state.chatRunId = runId;
   state.chatStream = "";
@@ -363,6 +378,7 @@ export async function sendChatMessage(
     state.chatRunId = null;
     state.chatStream = null;
     state.chatStreamStartedAt = null;
+    state.chatFinalizing = false;
     state.chatRuntimeSetupHint = runtimeSetupHint;
     state.lastError = runtimeSetupHint?.message ?? error;
     if (!runtimeSetupHint) {
@@ -459,11 +475,13 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
+    state.chatFinalizing = false;
   } else if (payload.state === "error") {
     const runtimeSetupHint = resolveChatRuntimeSetupHint(payload.errorMessage ?? "chat error");
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
+    state.chatFinalizing = false;
     state.chatRuntimeSetupHint = runtimeSetupHint;
     state.lastError = runtimeSetupHint?.message ?? payload.errorMessage ?? "chat error";
   }

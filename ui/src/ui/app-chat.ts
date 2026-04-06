@@ -19,6 +19,7 @@ export type ChatHost = {
   client: GatewayBrowserClient | null;
   chatMessages: unknown[];
   chatStream: string | null;
+  chatFinalizing?: boolean;
   connected: boolean;
   chatMessage: string;
   chatAttachments: ChatAttachment[];
@@ -43,7 +44,7 @@ export type ChatHost = {
 export const CHAT_SESSIONS_ACTIVE_MINUTES = 120;
 
 export function isChatBusy(host: ChatHost) {
-  return host.chatSending || Boolean(host.chatRunId);
+  return host.chatSending || Boolean(host.chatRunId) || Boolean(host.chatFinalizing);
 }
 
 export function isChatStopCommand(text: string) {
@@ -150,6 +151,7 @@ async function sendChatMessageNow(
     host.chatAttachments = opts.previousAttachments;
   }
   if (ok) {
+    host.chatFinalizing = false;
     setLastActiveSessionKey(
       host as unknown as Parameters<typeof setLastActiveSessionKey>[0],
       host.sessionKey,
@@ -344,6 +346,7 @@ async function dispatchSlashCommand(
     host.chatRunId = result.trackRunId;
     host.chatStream = "";
     host.chatSending = false;
+    host.chatFinalizing = false;
   }
 
   if (result.pendingCurrentRun && host.chatRunId) {
@@ -374,6 +377,7 @@ async function clearChatHistory(host: ChatHost) {
     host.chatMessages = [];
     host.chatStream = null;
     host.chatRunId = null;
+    host.chatFinalizing = false;
     await loadChatHistory(host as unknown as OpenClawApp);
   } catch (err) {
     host.lastError = String(err);
@@ -392,9 +396,17 @@ function injectCommandResult(host: ChatHost, content: string) {
   ];
 }
 
-export async function refreshChat(host: ChatHost, opts?: { scheduleScroll?: boolean }) {
+export async function refreshChat(
+  host: ChatHost,
+  opts?: { includeHistory?: boolean; scheduleScroll?: boolean },
+) {
+  const includeHistory = opts?.includeHistory ?? true;
   await Promise.all([
-    loadChatHistory(host as unknown as OpenClawApp),
+    includeHistory
+      ? loadChatHistory(host as unknown as OpenClawApp, {
+          preserveEphemeral: Boolean(host.chatRunId || host.chatFinalizing),
+        })
+      : Promise.resolve(),
     loadSessions(host as unknown as OpenClawApp, {
       activeMinutes: 0,
       limit: 0,

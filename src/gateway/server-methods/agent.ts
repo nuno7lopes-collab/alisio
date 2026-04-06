@@ -17,6 +17,7 @@ import {
   updateSessionStore,
 } from "../../config/sessions.js";
 import { registerAgentRunContext } from "../../infra/agent-events.js";
+import { getAlisioAccountState, hasRestorableAlisioAccount } from "../../infra/alisio-store.js";
 import {
   resolveAgentDeliveryPlan,
   resolveAgentOutboundTarget,
@@ -810,7 +811,7 @@ export const agentHandlers: GatewayRequestHandlers = {
       context,
     });
   },
-  "agent.identity.get": ({ params, respond }) => {
+  "agent.identity.get": async ({ params, respond }) => {
     if (!validateAgentIdentityParams(params)) {
       respond(
         false,
@@ -855,7 +856,15 @@ export const agentHandlers: GatewayRequestHandlers = {
       agentId = resolved;
     }
     const cfg = loadConfig();
-    const identity = resolveAssistantIdentity({ cfg, agentId });
+    const account = await getAlisioAccountState().catch(() => null);
+    const identity = resolveAssistantIdentity({
+      cfg,
+      agentId,
+      accountProfile:
+        account && hasRestorableAlisioAccount(account.profile, account.session)
+          ? account.profile
+          : undefined,
+    });
     const avatarValue =
       resolveAssistantAvatarUrl({
         avatar: identity.avatar,

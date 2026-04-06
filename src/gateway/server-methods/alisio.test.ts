@@ -56,7 +56,11 @@ const {
   })),
 }));
 
-const { inspectManagedLocalModelRuntimeMock, installAlisioLocalModelMock } = vi.hoisted(() => ({
+const {
+  inspectManagedLocalModelRuntimeMock,
+  installAlisioLocalModelMock,
+  uninstallAlisioLocalModelMock,
+} = vi.hoisted(() => ({
   inspectManagedLocalModelRuntimeMock: vi.fn(async () => ({
     backend: "llama.cpp" as const,
     status: "not_configured" as const,
@@ -64,6 +68,11 @@ const { inspectManagedLocalModelRuntimeMock, installAlisioLocalModelMock } = vi.
     models: [],
   })),
   installAlisioLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
+    id: modelId,
+    name: modelId,
+    ownedBy: "llama.cpp",
+  })),
+  uninstallAlisioLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
     id: modelId,
     name: modelId,
     ownedBy: "llama.cpp",
@@ -92,6 +101,7 @@ vi.mock("../../infra/alisio-local-llama-runtime.js", async (importOriginal) => {
     ...actual,
     inspectManagedLocalModelRuntime: inspectManagedLocalModelRuntimeMock,
     installAlisioLocalModel: installAlisioLocalModelMock,
+    uninstallAlisioLocalModel: uninstallAlisioLocalModelMock,
   };
 });
 
@@ -105,6 +115,7 @@ function makeContext(): GatewayRequestContext {
     refreshHealthSnapshot: async () => ({ ok: true }) as never,
     loadGatewayModelCatalog: vi.fn(async () => []),
     findRunningWizard: () => null,
+    broadcast: vi.fn(),
     nodeRegistry: new NodeRegistry(),
   } as unknown as GatewayRequestContext;
 }
@@ -217,6 +228,37 @@ describe("alisio gateway methods", () => {
     });
 
     expect(installAlisioLocalModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        modelId: "qwen3-4b-q4-k-m",
+      }),
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      backend: "llama.cpp",
+      targetId: "current",
+      modelId: "qwen3-4b-q4-k-m",
+    });
+  });
+
+  it("uninstalls a published local model on this computer", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.models.uninstall"]({
+      params: {
+        targetId: "current",
+        modelId: "qwen3-4b-q4-k-m",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.models.uninstall", params: {}, id: 8 } as never,
+    });
+
+    expect(uninstallAlisioLocalModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: "qwen3-4b-q4-k-m",
       }),

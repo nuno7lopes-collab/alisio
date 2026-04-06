@@ -11,6 +11,7 @@ import { loadValidConfigOrThrow, updateConfig } from "../commands/models/shared.
 import type { OpenClawConfig } from "../config/config.js";
 import { isLoopbackHost } from "../gateway/net.js";
 import { applyDefaultModel } from "../plugins/provider-auth-choice-helpers.js";
+import { OPENAI_CODEX_DEFAULT_MODEL } from "../plugins/provider-model-defaults.js";
 import {
   ALISIO_AI_TELEMETRY_TTL_MS,
   buildAlisioAiLocalTelemetry,
@@ -337,18 +338,21 @@ function removePersistedAlisioOpenAiAuthProfiles(authProfileIds: readonly string
   }
 }
 
-function hasAlisioDefaultOpenAiModel(cfg: OpenClawConfig): boolean {
+function resolvePrimaryModelRef(cfg: OpenClawConfig): string | undefined {
   const primary = cfg.agents?.defaults?.model;
-  const primaryModel =
-    primary && typeof primary === "object" && "primary" in primary
-      ? primary.primary
-      : typeof primary === "string"
-        ? primary
-        : undefined;
-  return (
-    primaryModel === "openai-codex/gpt-5.4" &&
-    Boolean(cfg.agents?.defaults?.models?.["openai-codex/gpt-5.4"])
-  );
+  return primary && typeof primary === "object" && "primary" in primary
+    ? primary.primary
+    : typeof primary === "string"
+      ? primary
+      : undefined;
+}
+
+function resolveConfiguredOpenAiCodexModel(cfg: OpenClawConfig): string | undefined {
+  const primaryModel = resolvePrimaryModelRef(cfg)?.trim();
+  if (!primaryModel?.toLowerCase().startsWith("openai-codex/")) {
+    return undefined;
+  }
+  return primaryModel;
 }
 
 function isOpenAiLocalCallbackTarget(callbackUrl: URL): boolean {
@@ -631,6 +635,7 @@ export async function completeAlisioOpenAiAuthorization(params: {
 export async function refreshAlisioOpenAiSession(params: {
   credential: AlisioStoredWorkerAiCredential;
   fetchImpl?: typeof fetch;
+  forceTelemetry?: boolean;
 }): Promise<AlisioStoredWorkerAiCredential> {
   const fetchImpl = params.fetchImpl ?? fetch;
   const now = Date.now();
@@ -691,7 +696,7 @@ export async function refreshAlisioOpenAiSession(params: {
   const observedAtMs = next.localTelemetry?.observedAt
     ? Date.parse(next.localTelemetry.observedAt)
     : 0;
-  if (!observedAtMs || now - observedAtMs >= ALISIO_AI_TELEMETRY_TTL_MS) {
+  if (params.forceTelemetry || !observedAtMs || now - observedAtMs >= ALISIO_AI_TELEMETRY_TTL_MS) {
     const usage = await fetchOpenAiTelemetry(
       next.accessToken ?? "",
       next.accountId ?? tokenIdentity.accountId,
@@ -758,8 +763,13 @@ export async function applyAlisioOpenAiRuntime(
   prioritizeLocalOpenAiAuthProfile(authProfileId);
 
   const currentConfig = await loadValidConfigOrThrow();
-  if (!hasAlisioDefaultOpenAiModel(currentConfig)) {
-    await updateConfig((cfg) => applyDefaultModel(cfg, "openai-codex/gpt-5.4"));
+  const configuredOpenAiCodexModel = resolveConfiguredOpenAiCodexModel(currentConfig);
+  if (!configuredOpenAiCodexModel) {
+    await updateConfig((cfg) => applyDefaultModel(cfg, OPENAI_CODEX_DEFAULT_MODEL));
+    return;
+  }
+  if (!currentConfig.agents?.defaults?.models?.[configuredOpenAiCodexModel]) {
+    await updateConfig((cfg) => applyDefaultModel(cfg, configuredOpenAiCodexModel));
   }
 }
 

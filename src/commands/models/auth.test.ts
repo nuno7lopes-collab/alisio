@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   loadValidConfigOrThrow: vi.fn(),
   updateConfig: vi.fn(),
   logConfigUpdated: vi.fn(),
+  runProviderModelSelectedHook: vi.fn(),
+  promptDefaultModel: vi.fn(),
   openUrl: vi.fn(),
   loadAuthProfileStoreForRuntime: vi.fn(),
   listProfilesForProvider: vi.fn(),
@@ -54,9 +56,21 @@ vi.mock("../../plugins/providers.runtime.js", () => ({
   resolvePluginProviders: mocks.resolvePluginProviders,
 }));
 
+vi.mock("../../plugins/provider-auth-choice.runtime.js", () => ({
+  runProviderModelSelectedHook: mocks.runProviderModelSelectedHook,
+}));
+
 vi.mock("../../wizard/clack-prompter.js", () => ({
   createClackPrompter: mocks.createClackPrompter,
 }));
+
+vi.mock("../model-picker.js", async (importActual) => {
+  const actual = await importActual<typeof import("../model-picker.js")>();
+  return {
+    ...actual,
+    promptDefaultModel: mocks.promptDefaultModel,
+  };
+});
 
 vi.mock("./shared.js", async (importActual) => {
   const actual = await importActual<typeof import("./shared.js")>();
@@ -185,6 +199,8 @@ describe("modelsAuthLoginCommand", () => {
     mocks.loadAuthProfileStoreForRuntime.mockReturnValue({ profiles: {}, usageStats: {} });
     mocks.listProfilesForProvider.mockReturnValue([]);
     mocks.clearAuthProfileCooldown.mockResolvedValue(undefined);
+    mocks.runProviderModelSelectedHook.mockResolvedValue(undefined);
+    mocks.promptDefaultModel.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -227,6 +243,73 @@ describe("modelsAuthLoginCommand", () => {
       primary: "openai-codex/gpt-5.4",
     });
     expect(runtime.log).toHaveBeenCalledWith("Default model set to openai-codex/gpt-5.4");
+    expect(mocks.runProviderModelSelectedHook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "openai-codex/gpt-5.4",
+      }),
+    );
+  });
+
+  it("allows an explicit default model override during login", async () => {
+    const runtime = createRuntime();
+
+    await modelsAuthLoginCommand(
+      {
+        provider: "openai-codex",
+        setDefault: true,
+        model: "gpt-5.4-mini",
+      },
+      runtime,
+    );
+
+    expect(lastUpdatedConfig?.agents?.defaults?.model).toEqual({
+      primary: "openai-codex/gpt-5.4-mini",
+    });
+    expect(mocks.runProviderModelSelectedHook).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "openai-codex/gpt-5.4-mini",
+      }),
+    );
+    expect(runtime.log).toHaveBeenCalledWith("Default model set to openai-codex/gpt-5.4-mini");
+  });
+
+  it("prompts for a model when the provider requires post-auth selection", async () => {
+    const runtime = createRuntime();
+    mocks.resolvePluginProviders.mockReturnValue([
+      {
+        id: "openai-codex",
+        label: "OpenAI Codex",
+        auth: [
+          {
+            id: "oauth",
+            label: "OAuth",
+            kind: "oauth",
+            wizard: {
+              modelSelection: {
+                promptWhenAuthChoiceProvided: true,
+                allowKeepCurrent: false,
+              },
+            },
+            run: runProviderAuth,
+          },
+        ],
+      },
+    ]);
+    mocks.promptDefaultModel.mockResolvedValue({
+      model: "openai-codex/gpt-5.4-mini",
+    });
+
+    await modelsAuthLoginCommand({ provider: "openai-codex", setDefault: true }, runtime);
+
+    expect(mocks.promptDefaultModel).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowKeep: false,
+        preferredProvider: "openai-codex",
+      }),
+    );
+    expect(lastUpdatedConfig?.agents?.defaults?.model).toEqual({
+      primary: "openai-codex/gpt-5.4-mini",
+    });
   });
 
   it("supports provider-owned Claude CLI migration without writing auth profiles", async () => {
@@ -333,7 +416,7 @@ describe("modelsAuthLoginCommand", () => {
     const runtime = createRuntime();
 
     await expect(modelsAuthLoginCommand({ provider: "anthropic" }, runtime)).rejects.toThrow(
-      'Unknown provider "anthropic". Loaded providers: openai-codex. Verify plugins via `openclaw plugins list --json`.',
+      'Unknown provider "anthropic". Loaded providers: openai-codex. Verify plugins via `alisio plugins list --json`.',
     );
   });
 

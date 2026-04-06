@@ -3928,6 +3928,101 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                   },
                   additionalProperties: false,
                 },
+                person: {
+                  type: "object",
+                  properties: {
+                    enabled: {
+                      type: "boolean",
+                    },
+                    scope: {
+                      type: "string",
+                      const: "personal_and_work",
+                    },
+                    autonomyMode: {
+                      type: "string",
+                      const: "draft-first",
+                    },
+                    starterPack: {
+                      type: "string",
+                      const: "browser-first",
+                    },
+                    profile: {
+                      type: "object",
+                      properties: {
+                        name: {
+                          type: "string",
+                        },
+                        timezone: {
+                          type: "string",
+                        },
+                        tone: {
+                          type: "string",
+                        },
+                        writingPreferences: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                          },
+                        },
+                        priorities: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                          },
+                        },
+                        routines: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                          },
+                        },
+                        frequentContacts: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                          },
+                        },
+                        frequentContexts: {
+                          type: "array",
+                          items: {
+                            type: "string",
+                          },
+                        },
+                      },
+                      additionalProperties: false,
+                    },
+                    specialists: {
+                      type: "array",
+                      items: {
+                        type: "string",
+                      },
+                    },
+                    memoryScopes: {
+                      type: "array",
+                      items: {
+                        anyOf: [
+                          {
+                            type: "string",
+                            const: "profile_memory",
+                          },
+                          {
+                            type: "string",
+                            const: "working_memory",
+                          },
+                          {
+                            type: "string",
+                            const: "relationship_memory",
+                          },
+                          {
+                            type: "string",
+                            const: "artifact_memory",
+                          },
+                        ],
+                      },
+                    },
+                  },
+                  additionalProperties: false,
+                },
                 groupChat: {
                   type: "object",
                   properties: {

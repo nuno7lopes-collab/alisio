@@ -46,6 +46,13 @@ const PALETTE_ITEMS: PaletteItem[] = [
     action: "nav:connections",
   },
   {
+    id: "nav-memory",
+    label: "Memory",
+    icon: "book",
+    category: "navigation",
+    action: "nav:memory",
+  },
+  {
     id: "nav-authentications",
     label: "Apps",
     icon: "link",

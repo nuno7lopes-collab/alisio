@@ -2,12 +2,24 @@
  * Chat message types for the UI layer.
  */
 
+export type ChatRunActivity = {
+  phase: "thinking" | "tools" | "writing" | "finalizing";
+  activeToolCount: number;
+  completedToolCount: number;
+};
+
 /** Union type for items in the chat thread */
 export type ChatItem =
   | { kind: "message"; key: string; message: unknown }
   | { kind: "divider"; key: string; label: string; timestamp: number }
-  | { kind: "stream"; key: string; text: string; startedAt: number }
-  | { kind: "reading-indicator"; key: string };
+  | {
+      kind: "stream";
+      key: string;
+      text: string;
+      startedAt: number;
+      activity: ChatRunActivity | null;
+    }
+  | { kind: "run-status"; key: string; activity: ChatRunActivity };
 
 /** A group of consecutive messages from the same role (Slack-style layout) */
 export type MessageGroup = {

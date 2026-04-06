@@ -1,4 +1,5 @@
 import { buildDeviceAuthPayload } from "../../../src/gateway/device-auth.js";
+import { resolveConnectChallengeTimeoutMs } from "../../../src/gateway/handshake-timeouts.js";
 import {
   GATEWAY_CLIENT_MODES,
   GATEWAY_CLIENT_NAMES,
@@ -10,6 +11,7 @@ import {
   readConnectErrorRecoveryAdvice,
   readConnectErrorDetailCode,
 } from "../../../src/gateway/protocol/connect-error-details.js";
+import { isTerminalGatewayAuthDetailCode } from "../../../src/gateway/reconnect-policy.js";
 import {
   CONTROL_UI_OPERATOR_ROLE,
   CONTROL_UI_OPERATOR_SCOPES,
@@ -72,17 +74,7 @@ export function isNonRecoverableAuthError(error: GatewayErrorInfo | undefined): 
   if (!error) {
     return false;
   }
-  const code = resolveGatewayErrorDetailCode(error);
-  return (
-    code === ConnectErrorDetailCodes.AUTH_TOKEN_MISSING ||
-    code === ConnectErrorDetailCodes.AUTH_BOOTSTRAP_TOKEN_INVALID ||
-    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISSING ||
-    code === ConnectErrorDetailCodes.AUTH_PASSWORD_MISMATCH ||
-    code === ConnectErrorDetailCodes.AUTH_RATE_LIMITED ||
-    code === ConnectErrorDetailCodes.PAIRING_REQUIRED ||
-    code === ConnectErrorDetailCodes.CONTROL_UI_DEVICE_IDENTITY_REQUIRED ||
-    code === ConnectErrorDetailCodes.DEVICE_IDENTITY_REQUIRED
-  );
+  return isTerminalGatewayAuthDetailCode(resolveGatewayErrorDetailCode(error));
 }
 
 function isTrustedRetryEndpoint(url: string): boolean {
@@ -195,6 +187,7 @@ type DeviceTokenRetryDecision = {
 
 export type GatewayBrowserClientOptions = {
   url: string;
+  connectChallengeTimeoutMs?: number;
   token?: string;
   bootstrapToken?: string;
   password?: string;
@@ -283,6 +276,7 @@ export class GatewayBrowserClient {
   private connectNonce: string | null = null;
   private connectSent = false;
   private connectTimer: number | null = null;
+  private reconnectTimer: number | null = null;
   private backoffMs = 800;
   private pendingConnectError: GatewayErrorInfo | undefined;
   private pendingDeviceTokenRetry = false;
@@ -292,6 +286,10 @@ export class GatewayBrowserClient {
 
   start() {
     this.closed = false;
+    this.lastSeq = null;
+    this.connectNonce = null;
+    this.connectSent = false;
+    this.pendingConnectError = undefined;
     this.connect();
   }
 
@@ -300,6 +298,10 @@ export class GatewayBrowserClient {
     if (this.connectTimer !== null) {
       window.clearTimeout(this.connectTimer);
       this.connectTimer = null;
+    }
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
     this.ws?.close();
     this.ws = null;
@@ -317,13 +319,21 @@ export class GatewayBrowserClient {
     if (this.closed) {
       return;
     }
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.ws = new WebSocket(this.opts.url);
-    this.ws.addEventListener("open", () => this.queueConnect());
+    this.ws.addEventListener("open", () => this.beginPreauthHandshake());
     this.ws.addEventListener("message", (ev) => this.handleMessage(String(ev.data ?? "")));
     this.ws.addEventListener("close", (ev) => {
       const reason = String(ev.reason ?? "");
       const connectError = this.pendingConnectError;
       this.pendingConnectError = undefined;
+      if (this.connectTimer !== null) {
+        window.clearTimeout(this.connectTimer);
+        this.connectTimer = null;
+      }
       this.ws = null;
       this.flushPending(new Error(`gateway closed (${ev.code}): ${reason}`));
       this.opts.onClose?.({ code: ev.code, reason, error: connectError });
@@ -348,9 +358,15 @@ export class GatewayBrowserClient {
     if (this.closed) {
       return;
     }
+    if (this.reconnectTimer !== null) {
+      window.clearTimeout(this.reconnectTimer);
+    }
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 1.7, 15_000);
-    window.setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   private flushPending(err: Error) {
@@ -438,6 +454,7 @@ export class GatewayBrowserClient {
   private handleConnectHello(hello: GatewayHelloOk, plan: ConnectPlan) {
     this.pendingDeviceTokenRetry = false;
     this.deviceTokenRetryBudgetUsed = false;
+    this.lastSeq = null;
     if (hello?.auth?.deviceToken && plan.deviceIdentity) {
       storeDeviceAuthToken({
         deviceId: plan.deviceIdentity.deviceId,
@@ -499,6 +516,14 @@ export class GatewayBrowserClient {
     if (this.connectSent) {
       return;
     }
+    const nonce = this.connectNonce?.trim() ?? "";
+    if (!nonce) {
+      this.closeWithPendingConnectError({
+        code: "CONNECT_CHALLENGE_TIMEOUT",
+        message: "gateway connect challenge missing nonce",
+      });
+      return;
+    }
     this.connectSent = true;
     if (this.connectTimer !== null) {
       window.clearTimeout(this.connectTimer);
@@ -525,10 +550,19 @@ export class GatewayBrowserClient {
       if (evt.event === "connect.challenge") {
         const payload = evt.payload as { nonce?: unknown } | undefined;
         const nonce = payload && typeof payload.nonce === "string" ? payload.nonce : null;
-        if (nonce) {
-          this.connectNonce = nonce;
-          void this.sendConnect();
+        if (!nonce || nonce.trim().length === 0) {
+          this.closeWithPendingConnectError({
+            code: "CONNECT_CHALLENGE_TIMEOUT",
+            message: "gateway connect challenge missing nonce",
+          });
+          return;
         }
+        this.connectNonce = nonce.trim();
+        if (this.connectTimer !== null) {
+          window.clearTimeout(this.connectTimer);
+          this.connectTimer = null;
+        }
+        void this.sendConnect();
         return;
       }
       const seq = typeof evt.seq === "number" ? evt.seq : null;
@@ -620,14 +654,23 @@ export class GatewayBrowserClient {
     return p;
   }
 
-  private queueConnect() {
+  private beginPreauthHandshake() {
+    this.lastSeq = null;
     this.connectNonce = null;
     this.connectSent = false;
     if (this.connectTimer !== null) {
       window.clearTimeout(this.connectTimer);
     }
     this.connectTimer = window.setTimeout(() => {
-      void this.sendConnect();
-    }, 750);
+      this.closeWithPendingConnectError({
+        code: "CONNECT_CHALLENGE_TIMEOUT",
+        message: "gateway connect challenge timeout",
+      });
+    }, resolveConnectChallengeTimeoutMs(this.opts.connectChallengeTimeoutMs));
+  }
+
+  private closeWithPendingConnectError(error: GatewayErrorInfo) {
+    this.pendingConnectError = error;
+    this.ws?.close(CONNECT_FAILED_CLOSE_CODE, "connect failed");
   }
 }

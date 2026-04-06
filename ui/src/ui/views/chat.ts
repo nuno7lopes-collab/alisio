@@ -10,7 +10,7 @@ import {
 import { DeletedMessages } from "../chat/deleted-messages.ts";
 import {
   renderMessageGroup,
-  renderReadingIndicatorGroup,
+  renderRunStatusGroup,
   renderStreamingGroup,
 } from "../chat/grouped-render.ts";
 import { InputHistory } from "../chat/input-history.ts";
@@ -31,7 +31,7 @@ import type { SecurityAccessMode } from "../controllers/security-access.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
-import type { ChatItem, MessageGroup } from "../types/chat-types.ts";
+import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
@@ -62,6 +62,7 @@ export type ChatProps = {
   loading: boolean;
   sending: boolean;
   canAbort?: boolean;
+  finalizing?: boolean;
   compactionStatus?: CompactionIndicatorStatus | null;
   fallbackStatus?: FallbackIndicatorStatus | null;
   messages: unknown[];
@@ -350,7 +351,11 @@ function getThemeNoticeColors() {
 function renderContextNotice(
   session: GatewaySessionRow | undefined,
   defaultContextTokens: number | null,
+  opts?: { hidden?: boolean },
 ) {
+  if (opts?.hidden) {
+    return nothing;
+  }
   if (session?.totalTokensFresh === false) {
     return nothing;
   }
@@ -1004,7 +1009,9 @@ export function renderChat(props: ChatProps) {
   syncChatViewStateForSession(props.sessionKey);
 
   const canCompose = props.connected;
-  const isBusy = props.sending || props.stream !== null;
+  const isBusy = Boolean(
+    props.sending || props.stream !== null || props.canAbort || props.finalizing,
+  );
   const canAbort = Boolean(props.canAbort && props.onAbort);
   const activeSession = props.sessions?.sessions?.find((row) => row.key === props.sessionKey);
   const reasoningLevel = activeSession?.reasoningLevel ?? "off";
@@ -1067,7 +1074,7 @@ export function renderChat(props: ChatProps) {
       @click=${handleCodeBlockCopy}
     >
       <div class="chat-thread-inner alisio-chat__thread">
-        ${props.loading
+        ${props.loading && chatItems.length === 0
           ? html`
               <div class="chat-loading-skeleton" aria-label=${chatText("loading")}>
                 <div class="chat-line assistant">
@@ -1123,13 +1130,14 @@ export function renderChat(props: ChatProps) {
                 </div>
               `;
             }
-            if (item.kind === "reading-indicator") {
-              return renderReadingIndicatorGroup(assistantIdentity, props.basePath);
+            if (item.kind === "run-status") {
+              return renderRunStatusGroup(item.activity, assistantIdentity, props.basePath);
             }
             if (item.kind === "stream") {
               return renderStreamingGroup(
                 item.text,
                 item.startedAt,
+                item.activity,
                 props.onOpenSidebar,
                 assistantIdentity,
                 props.basePath,
@@ -1373,13 +1381,22 @@ export function renderChat(props: ChatProps) {
                 ${props.queue.map(
                   (item) => html`
                     <div class="chat-queue__item">
-                      <div class="chat-queue__text">
-                        ${item.text ||
-                        (item.attachments?.length
-                          ? chatText("compose.fileAttachment", {
-                              count: String(item.attachments.length),
-                            })
-                          : "")}
+                      <div class="chat-queue__body">
+                        <div class="chat-queue__text">
+                          ${item.text ||
+                          (item.attachments?.length
+                            ? chatText("compose.fileAttachment", {
+                                count: String(item.attachments.length),
+                              })
+                            : "")}
+                        </div>
+                        <div class="chat-queue__state">
+                          ${item.pendingRunId
+                            ? chatText("queue.pendingCurrent")
+                            : isBusy
+                              ? chatText("queue.pendingNext")
+                              : chatText("queue.ready")}
+                        </div>
                       </div>
                       <button
                         class="btn chat-queue__remove"
@@ -1398,7 +1415,9 @@ export function renderChat(props: ChatProps) {
         : nothing}
       ${renderFallbackIndicator(props.fallbackStatus)}
       ${renderCompactionIndicator(props.compactionStatus)}
-      ${renderContextNotice(activeSession, props.sessions?.defaults?.contextTokens ?? null)}
+      ${renderContextNotice(activeSession, props.sessions?.defaults?.contextTokens ?? null, {
+        hidden: Boolean(props.canAbort || props.finalizing),
+      })}
       ${props.showNewMessages
         ? html`
             <button class="chat-new-messages" type="button" @click=${props.onScrollToBottom}>
@@ -1558,6 +1577,73 @@ export function renderChat(props: ChatProps) {
 
 const CHAT_HISTORY_RENDER_LIMIT = 200;
 
+function resolveToolPhase(message: unknown): "start" | "update" | "result" | null {
+  const record = message as Record<string, unknown>;
+  if (
+    record.toolPhase === "start" ||
+    record.toolPhase === "update" ||
+    record.toolPhase === "result"
+  ) {
+    return record.toolPhase;
+  }
+  const marker = resolveChatMarker(record);
+  if (marker?.phase === "start" || marker?.phase === "update" || marker?.phase === "result") {
+    return marker.phase;
+  }
+  return null;
+}
+
+function resolveChatMarker(record: Record<string, unknown>): Record<string, unknown> | null {
+  const preferred = record.__alisio;
+  if (preferred && typeof preferred === "object") {
+    return preferred as Record<string, unknown>;
+  }
+  const legacy = record.__openclaw;
+  if (legacy && typeof legacy === "object") {
+    return legacy as Record<string, unknown>;
+  }
+  return null;
+}
+
+function resolveRunActivity(
+  props: Pick<ChatProps, "canAbort" | "finalizing" | "stream" | "toolMessages">,
+) {
+  if (!props.canAbort && !props.finalizing) {
+    return null;
+  }
+
+  let activeToolCount = 0;
+  let completedToolCount = 0;
+  const toolMessages = Array.isArray(props.toolMessages) ? props.toolMessages : [];
+  for (const message of toolMessages) {
+    const phase = resolveToolPhase(message);
+    if (phase === "result") {
+      completedToolCount += 1;
+      continue;
+    }
+    if (phase === "start" || phase === "update") {
+      activeToolCount += 1;
+    }
+  }
+
+  const streamText = typeof props.stream === "string" ? props.stream : null;
+  const phase: ChatRunActivity["phase"] = props.finalizing
+    ? "finalizing"
+    : streamText?.trim()
+      ? "writing"
+      : activeToolCount > 0
+        ? "tools"
+        : completedToolCount > 0
+          ? "finalizing"
+          : "thinking";
+
+  return {
+    phase,
+    activeToolCount,
+    completedToolCount,
+  } satisfies ChatRunActivity;
+}
+
 function groupMessages(items: ChatItem[]): Array<ChatItem | MessageGroup> {
   const result: Array<ChatItem | MessageGroup> = [];
   let currentGroup: MessageGroup | null = null;
@@ -1609,6 +1695,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
   const items: ChatItem[] = [];
   const history = Array.isArray(props.messages) ? props.messages : [];
   const tools = Array.isArray(props.toolMessages) ? props.toolMessages : [];
+  const runActivity = resolveRunActivity(props);
   const historyStart = Math.max(0, history.length - CHAT_HISTORY_RENDER_LIMIT);
   if (historyStart > 0) {
     items.push({
@@ -1628,7 +1715,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
     const msg = history[i];
     const normalized = normalizeMessage(msg);
     const raw = msg as Record<string, unknown>;
-    const marker = raw.__openclaw as Record<string, unknown> | undefined;
+    const marker = resolveChatMarker(raw);
     if (marker && marker.kind === "compaction") {
       items.push({
         kind: "divider",
@@ -1669,6 +1756,7 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
         key: `stream-seg:${props.sessionKey}:${i}`,
         text: segments[i].text,
         startedAt: segments[i].ts,
+        activity: null,
       });
     }
     if (i < tools.length && props.showToolCalls) {
@@ -1688,10 +1776,17 @@ function buildChatItems(props: ChatProps): Array<ChatItem | MessageGroup> {
         key,
         text: props.stream,
         startedAt: props.streamStartedAt ?? Date.now(),
+        activity: runActivity,
       });
-    } else {
-      items.push({ kind: "reading-indicator", key });
+    } else if (runActivity) {
+      items.push({ kind: "run-status", key, activity: runActivity });
     }
+  } else if (runActivity) {
+    items.push({
+      kind: "run-status",
+      key: `run-status:${props.sessionKey}:${tools.length}:${runActivity.phase}`,
+      activity: runActivity,
+    });
   }
 
   return groupMessages(items);

@@ -9,16 +9,18 @@ export function buildPairingReply(params: {
   const { channel, idLine, code } = params;
   const approveCommand = formatCliCommand(`openclaw pairing approve ${channel} ${code}`);
   return [
-    "Alisio: access not configured.",
+    "OpenClaw: this account is not approved yet.",
     "",
     idLine,
+    "",
+    "A bot owner needs to approve this access request before the conversation can start.",
+    "",
     "Pairing code:",
     "```",
     code,
     "```",
     "",
-    "Ask the bot owner to approve with:",
-    formatCliCommand(`openclaw pairing approve ${channel} ${code}`),
+    "If you are the owner, approve it with:",
     "```",
     approveCommand,
     "```",

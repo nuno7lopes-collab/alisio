@@ -10,7 +10,6 @@ import {
   resolveCurrentStartupState,
   resolveDisplayedSetupStep,
 } from "../alisio-setup-state.ts";
-import { icons } from "../icons.ts";
 import type {
   AlisioAccountState,
   AlisioBootstrapState,
@@ -24,7 +23,7 @@ import type {
   NativeShellState,
   WizardStep,
 } from "../types.ts";
-import { renderAccountProfileFields } from "./account-profile-fields.ts";
+import { type AccountProfileField, renderAccountProfileFields } from "./account-profile-fields.ts";
 import {
   buildConnectorRows,
   connectorStatusHint,
@@ -66,10 +65,13 @@ type SetupProps = {
   accountError: string | null;
   accountNotice: string | null;
   account: AlisioAccountState | null;
-  authMode: "sign-up" | "sign-in";
   authEmail: string;
-  authPassword: string;
-  authPasswordVisible?: boolean;
+  authPendingEmail: string;
+  authCode: string;
+  authStage: "entry" | "email-code";
+  termsAccepted: boolean;
+  marketingOptIn: boolean;
+  birthdate: string;
   aiLoading: boolean;
   aiError: string | null;
   connectorsSearch: string;
@@ -91,10 +93,13 @@ type SetupProps = {
   nativeShellLoading: boolean;
   nativeShellError: string | null;
   nativeShellState: NativeShellState | null;
-  onAuthModeChange: (value: "sign-up" | "sign-in") => void;
   onAuthEmailChange: (value: string) => void;
-  onAuthPasswordChange: (value: string) => void;
-  onAuthPasswordVisibilityToggle?: () => void;
+  onAuthPendingEmailChange: (value: string) => void;
+  onAuthCodeChange: (value: string) => void;
+  onAuthStageChange: (value: "entry" | "email-code") => void;
+  onTermsAcceptedChange: (value: boolean) => void;
+  onMarketingOptInChange: (value: boolean) => void;
+  onBirthdateChange: (value: string) => void;
   onConnect: () => void;
   onOpenWorkspace: () => void;
   onOpenChannels: () => void;
@@ -117,13 +122,10 @@ type SetupProps = {
   onWizardDraftConfirmChange: (value: boolean) => void;
   onWizardDraftSelectIndexChange: (value: number) => void;
   onWizardDraftMultiIndexesChange: (value: number[]) => void;
-  onAccountFieldChange: (
-    field: "username" | "displayName" | "email" | "avatarLabel",
-    value: string,
-  ) => void;
-  onSignUpAccount: () => void;
-  onSignInAccount: () => void;
-  onRequestPasswordReset: () => void;
+  onAccountFieldChange: (field: AccountProfileField, value: string) => void;
+  onBeginEmailAuth: () => void;
+  onVerifyEmailAuth: () => void;
+  onBeginGoogleAuth: () => void;
   onBeginAiConnect: () => void;
   onDisconnectAi: () => void;
   onRefreshAi: () => void;
@@ -186,7 +188,9 @@ function accountValidationMessage(props: SetupProps) {
     username: profile.username,
     displayName: profile.displayName,
     email: profile.email,
+    agentName: profile.agentName,
     avatarLabel: profile.avatarLabel,
+    birthdate: profile.birthdate,
   });
 }
 
@@ -194,156 +198,171 @@ function renderAccountStep(props: SetupProps) {
   if (props.account?.session.state === "signed_in" && !props.account.session.profileCompleted) {
     return renderProfileStep(props);
   }
-  const authMode = props.authMode ?? "sign-up";
   const authEmail = props.authEmail ?? "";
-  const authPassword = props.authPassword ?? "";
+  const authPendingEmail = props.authPendingEmail.trim() || authEmail;
+  const authCode = props.authCode ?? "";
   const emailError = validateAlisioEmail(authEmail);
   const suggestedEmail =
     props.account?.profile.email ?? props.startupBootstrap?.account?.email ?? "";
-  const passwordVisible = props.authPasswordVisible ?? false;
-  const canSubmit = props.connected && !emailError && authPassword.trim().length > 0;
+  const isEmailCodeStage = props.authStage === "email-code";
+  const canBeginEmail = props.connected && !emailError;
+  const canVerifyEmail = props.connected && authCode.trim().length > 0;
   const statusMessage =
     props.accountError ??
     props.accountNotice ??
     (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
-  const handleSubmit = (event: Event) => {
+  const handleEntrySubmit = (event: Event) => {
     event.preventDefault();
-    if (props.accountLoading || !canSubmit) {
+    if (props.accountLoading || !canBeginEmail) {
       return;
     }
-    if (authMode === "sign-up") {
-      props.onSignUpAccount();
+    props.onBeginEmailAuth();
+  };
+  const handleCodeSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading || !canVerifyEmail) {
       return;
     }
-    props.onSignInAccount();
+    props.onVerifyEmailAuth();
   };
   return html`
     <section class="card alisio-setup-card">
-      <div class="card-title">
-        ${authMode === "sign-up"
-          ? t("alisio.setup.account.createTitle")
-          : t("alisio.setup.account.signInTitle")}
-      </div>
+      <div class="card-title">${t("alisio.setup.account.title")}</div>
       <div class="card-sub">${t("alisio.setup.account.subtitle")}</div>
-      <div class="alisio-setup-account__mode">
-        <button
-          type="button"
-          class="chip ${authMode === "sign-up" ? "chip-active" : ""}"
-          aria-pressed=${authMode === "sign-up"}
-          @click=${() => props.onAuthModeChange("sign-up")}
-        >
-          ${t("alisio.setup.account.createTab")}
-        </button>
-        <button
-          type="button"
-          class="chip ${authMode === "sign-in" ? "chip-active" : ""}"
-          aria-pressed=${authMode === "sign-in"}
-          @click=${() => props.onAuthModeChange("sign-in")}
-        >
-          ${t("alisio.setup.account.signInTab")}
-        </button>
-      </div>
-      <form class="alisio-setup-account" @submit=${handleSubmit}>
-        <fieldset
-          class="form-fieldset-reset alisio-setup-account__fields"
-          ?disabled=${props.accountLoading}
-        >
-          <label class="field">
-            <span>${t("alisio.setup.account.email")}</span>
-            <input
-              type="email"
-              autocomplete="email"
-              autocapitalize="none"
-              spellcheck="false"
-              inputmode="email"
-              enterkeyhint="next"
-              aria-invalid=${authEmail.trim() && emailError ? "true" : "false"}
-              placeholder=${t("alisio.setup.account.emailPlaceholder")}
-              .value=${authEmail}
-              @input=${(event: Event) =>
-                props.onAuthEmailChange((event.target as HTMLInputElement).value)}
-            />
-            <small class="field-note">${t("alisio.setup.account.emailNote")}</small>
-            ${suggestedEmail && !authEmail.trim()
-              ? html`
-                  <small class="field-note">
-                    ${t("alisio.setup.account.savedAccount", { email: suggestedEmail })}
-                  </small>
-                `
-              : nothing}
-            ${authEmail.trim() && emailError
-              ? html`<small class="field-note field-note--danger">${emailError}</small>`
-              : nothing}
-          </label>
-          <label class="field">
-            <span>${t("alisio.setup.account.password")}</span>
-            <div class="field-secret-row">
-              <input
-                type=${passwordVisible ? "text" : "password"}
-                autocomplete=${authMode === "sign-up" ? "new-password" : "current-password"}
-                autocapitalize="none"
-                spellcheck="false"
-                enterkeyhint="go"
-                placeholder=${authMode === "sign-up"
-                  ? t("alisio.setup.account.createPasswordPlaceholder")
-                  : t("alisio.setup.account.passwordPlaceholder")}
-                .value=${authPassword}
-                @input=${(event: Event) =>
-                  props.onAuthPasswordChange((event.target as HTMLInputElement).value)}
-              />
+      ${statusMessage
+        ? html`
+            <div class="callout ${props.accountError ? "danger" : "info"}">${statusMessage}</div>
+          `
+        : nothing}
+      ${isEmailCodeStage
+        ? html`
+            <form class="alisio-setup-account" @submit=${handleCodeSubmit}>
+              <fieldset
+                class="form-fieldset-reset alisio-setup-account__fields"
+                ?disabled=${props.accountLoading}
+              >
+                <div class="chip-row">
+                  <span class="chip">${authPendingEmail}</span>
+                  <button
+                    type="button"
+                    class="btn btn--sm"
+                    @click=${() => props.onAuthStageChange("entry")}
+                  >
+                    ${t("alisio.setup.account.useAnotherEmail")}
+                  </button>
+                </div>
+                <label class="field">
+                  <span>${t("alisio.setup.account.code")}</span>
+                  <input
+                    type="text"
+                    autocomplete="one-time-code"
+                    autocapitalize="characters"
+                    spellcheck="false"
+                    inputmode="numeric"
+                    enterkeyhint="go"
+                    placeholder=${t("alisio.setup.account.codePlaceholder")}
+                    .value=${authCode}
+                    @input=${(event: Event) =>
+                      props.onAuthCodeChange((event.target as HTMLInputElement).value)}
+                  />
+                  <small class="field-note">${t("alisio.setup.account.codeNote")}</small>
+                </label>
+              </fieldset>
+              <div class="alisio-setup-actions">
+                <button
+                  class="btn primary"
+                  type="submit"
+                  ?disabled=${props.accountLoading || !canVerifyEmail}
+                >
+                  ${props.accountLoading
+                    ? t("alisio.setup.account.working")
+                    : t("alisio.setup.account.verifyAction")}
+                </button>
+                <button
+                  type="button"
+                  class="btn"
+                  ?disabled=${props.accountLoading}
+                  @click=${props.onBeginEmailAuth}
+                >
+                  ${t("alisio.setup.account.resendAction")}
+                </button>
+              </div>
+            </form>
+          `
+        : html`
+            <div class="alisio-setup-account">
               <button
                 type="button"
-                class="btn btn--sm btn--icon ${passwordVisible ? "active" : ""}"
-                aria-label=${passwordVisible ? "Hide password" : "Show password"}
-                aria-pressed=${passwordVisible}
-                @click=${() => props.onAuthPasswordVisibilityToggle?.()}
+                class="btn alisio-setup-account__google"
+                ?disabled=${props.accountLoading || !props.connected}
+                @click=${props.onBeginGoogleAuth}
               >
-                ${passwordVisible ? icons.eyeOff : icons.eye}
+                <span>${t("alisio.setup.account.googleAction")}</span>
               </button>
+              <div class="alisio-setup-account__divider">
+                <span>${t("alisio.setup.account.or")}</span>
+              </div>
+              <form class="alisio-setup-account" @submit=${handleEntrySubmit}>
+                <fieldset
+                  class="form-fieldset-reset alisio-setup-account__fields"
+                  ?disabled=${props.accountLoading}
+                >
+                  <label class="field">
+                    <span>${t("alisio.setup.account.email")}</span>
+                    <input
+                      type="email"
+                      autocomplete="email"
+                      autocapitalize="none"
+                      spellcheck="false"
+                      inputmode="email"
+                      enterkeyhint="go"
+                      aria-invalid=${authEmail.trim() && emailError ? "true" : "false"}
+                      placeholder=${t("alisio.setup.account.emailPlaceholder")}
+                      .value=${authEmail}
+                      @input=${(event: Event) =>
+                        props.onAuthEmailChange((event.target as HTMLInputElement).value)}
+                    />
+                    <small class="field-note">${t("alisio.setup.account.emailNote")}</small>
+                    ${suggestedEmail && !authEmail.trim()
+                      ? html`
+                          <small class="field-note">
+                            ${t("alisio.setup.account.savedAccount", { email: suggestedEmail })}
+                          </small>
+                        `
+                      : nothing}
+                    ${authEmail.trim() && emailError
+                      ? html`<small class="field-note field-note--danger">${emailError}</small>`
+                      : nothing}
+                  </label>
+                </fieldset>
+                <div class="alisio-setup-actions">
+                  ${!props.connected
+                    ? html`
+                        <button
+                          type="button"
+                          class="btn"
+                          ?disabled=${props.startupLoading}
+                          @click=${props.onConnect}
+                        >
+                          ${props.startupLoading
+                            ? t("alisio.setup.account.connecting")
+                            : t("alisio.setup.gateway.reconnect")}
+                        </button>
+                      `
+                    : nothing}
+                  <button
+                    class="btn primary"
+                    type="submit"
+                    ?disabled=${props.accountLoading || !canBeginEmail}
+                  >
+                    ${props.accountLoading
+                      ? t("alisio.setup.account.working")
+                      : t("alisio.setup.account.emailAction")}
+                  </button>
+                </div>
+              </form>
             </div>
-          </label>
-        </fieldset>
-        ${statusMessage
-          ? html`
-              <div class="callout ${props.accountError ? "danger" : "info"}">${statusMessage}</div>
-            `
-          : nothing}
-        <div class="alisio-setup-actions">
-          ${!props.connected
-            ? html`
-                <button
-                  type="button"
-                  class="btn"
-                  ?disabled=${props.startupLoading}
-                  @click=${props.onConnect}
-                >
-                  ${props.startupLoading
-                    ? t("alisio.setup.account.connecting")
-                    : t("alisio.setup.gateway.reconnect")}
-                </button>
-              `
-            : nothing}
-          <button class="btn primary" type="submit" ?disabled=${props.accountLoading || !canSubmit}>
-            ${props.accountLoading
-              ? t("alisio.setup.account.working")
-              : authMode === "sign-up"
-                ? t("alisio.setup.account.createAction")
-                : t("alisio.setup.account.signInAction")}
-          </button>
-          ${authMode === "sign-in"
-            ? html`
-                <button
-                  type="button"
-                  class="btn"
-                  ?disabled=${props.accountLoading || !authEmail.trim() || Boolean(emailError)}
-                  @click=${props.onRequestPasswordReset}
-                >
-                  ${t("alisio.setup.account.resetPassword")}
-                </button>
-              `
-            : nothing}
-        </div>
-      </form>
+          `}
     </section>
   `;
 }
@@ -376,10 +395,15 @@ function renderGatewayStep(props: SetupProps) {
 function renderProfileStep(props: SetupProps) {
   const profile = props.account?.profile;
   const validation = accountValidationMessage(props);
+  const missingTerms = !props.termsAccepted;
   const emailManagedByCloud = props.account?.session.backend === "supabase";
+  const authMethodLabel =
+    props.account?.session.authMethod === "google"
+      ? t("alisio.setup.profile.authMethodGoogle")
+      : t("alisio.setup.profile.authMethodEmail");
   const handleSubmit = (event: Event) => {
     event.preventDefault();
-    if (props.accountLoading || validation) {
+    if (props.accountLoading || validation || missingTerms) {
       return;
     }
     props.onSaveAccount();
@@ -388,12 +412,39 @@ function renderProfileStep(props: SetupProps) {
     <section class="card alisio-setup-card">
       <div class="card-title">${t("alisio.setup.profile.title")}</div>
       <div class="card-sub">${t("alisio.setup.profile.subtitle")}</div>
-      ${renderCallout("danger", props.accountError ?? validation)}
+      <div class="chip-row" style="margin-top: 16px;">
+        <span class="chip">${profile?.email ?? props.authPendingEmail}</span>
+        <span class="chip">${authMethodLabel}</span>
+      </div>
+      ${renderCallout(
+        "danger",
+        props.accountError ??
+          validation ??
+          (missingTerms ? t("alisio.setup.profile.acceptTermsRequired") : null),
+      )}
       <form class="alisio-setup-account" @submit=${handleSubmit}>
         <fieldset
           class="form-fieldset-reset alisio-setup-account__fields"
           ?disabled=${props.accountLoading}
         >
+          <label class="alisio-setup-checkbox">
+            <input
+              type="checkbox"
+              .checked=${props.termsAccepted}
+              @change=${(event: Event) =>
+                props.onTermsAcceptedChange((event.target as HTMLInputElement).checked)}
+            />
+            <span>${t("alisio.setup.profile.termsLabel")}</span>
+          </label>
+          <label class="alisio-setup-checkbox">
+            <input
+              type="checkbox"
+              .checked=${props.marketingOptIn}
+              @change=${(event: Event) =>
+                props.onMarketingOptInChange((event.target as HTMLInputElement).checked)}
+            />
+            <span>${t("alisio.setup.profile.marketingLabel")}</span>
+          </label>
           ${renderAccountProfileFields({
             profile: profile ?? null,
             emailFallback: props.authEmail,
@@ -401,6 +452,7 @@ function renderProfileStep(props: SetupProps) {
             mode: "live",
             labels: {
               displayName: t("alisio.setup.profile.name"),
+              agentName: t("alisio.setup.profile.agentName"),
               username: t("alisio.setup.profile.username"),
               email: t("alisio.setup.profile.email"),
               avatarLabel: t("alisio.setup.profile.avatar"),
@@ -408,12 +460,23 @@ function renderProfileStep(props: SetupProps) {
             },
             onFieldChange: props.onAccountFieldChange,
           })}
+          <label class="field">
+            <span>${t("alisio.setup.profile.birthdate")}</span>
+            <input
+              type="date"
+              autocomplete="bday"
+              .value=${props.birthdate}
+              @input=${(event: Event) =>
+                props.onBirthdateChange((event.target as HTMLInputElement).value)}
+            />
+            <small class="field-note">${t("alisio.setup.profile.birthdateHint")}</small>
+          </label>
         </fieldset>
         <div class="alisio-setup-actions">
           <button
             class="btn primary"
             type="submit"
-            ?disabled=${props.accountLoading || Boolean(validation)}
+            ?disabled=${props.accountLoading || Boolean(validation) || missingTerms}
           >
             ${props.accountLoading
               ? t("alisio.setup.account.working")

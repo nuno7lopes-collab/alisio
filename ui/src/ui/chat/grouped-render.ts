@@ -1,12 +1,13 @@
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { t } from "../../i18n/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import type { AssistantIdentity } from "../assistant-identity.ts";
 import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import { openExternalUrlSafe } from "../open-external-url.ts";
 import { detectTextDirection } from "../text-direction.ts";
-import type { MessageGroup, ToolCard } from "../types/chat-types.ts";
+import type { ChatRunActivity, MessageGroup, ToolCard } from "../types/chat-types.ts";
 import { agentLogoUrl } from "../views/agents-utils.ts";
 import { renderCopyAsMarkdownButton } from "./copy-as-markdown.ts";
 import {
@@ -17,6 +18,8 @@ import {
 import { isToolResultMessage, normalizeRoleForGrouping } from "./message-normalizer.ts";
 import { isTtsSupported, speakText, stopTts, isTtsSpeaking } from "./speech.ts";
 import { extractToolCards, renderToolCardStack } from "./tool-cards.ts";
+
+const chatText = (key: string, params?: Record<string, string>) => t(`alisio.chat.${key}`, params);
 
 type ImageBlock = {
   url: string;
@@ -60,15 +63,56 @@ function extractImages(message: unknown): ImageBlock[] {
   return images;
 }
 
-export function renderReadingIndicatorGroup(assistant?: AssistantIdentity, basePath?: string) {
+function resolveRunActivityLabel(activity: ChatRunActivity): string {
+  switch (activity.phase) {
+    case "tools":
+      return chatText("runStatus.tools");
+    case "writing":
+      return chatText("runStatus.writing");
+    case "finalizing":
+      return chatText("runStatus.finalizing");
+    case "thinking":
+    default:
+      return chatText("runStatus.thinking");
+  }
+}
+
+function resolveRunActivityMeta(activity: ChatRunActivity): string | null {
+  if (activity.phase === "tools" && activity.activeToolCount > 0) {
+    return chatText("runStatus.activeTools", {
+      count: String(activity.activeToolCount),
+    });
+  }
+  if (activity.completedToolCount > 0) {
+    return chatText("runStatus.completedTools", {
+      count: String(activity.completedToolCount),
+    });
+  }
+  return null;
+}
+
+function renderRunActivityChip(activity: ChatRunActivity) {
+  const meta = resolveRunActivityMeta(activity);
+  return html`
+    <span class="chat-run-status__chip" data-phase=${activity.phase}>
+      <span class="chat-run-status__icon" aria-hidden="true">${icons.loader}</span>
+      <span class="chat-run-status__label">${resolveRunActivityLabel(activity)}</span>
+      ${meta ? html`<span class="chat-run-status__meta">${meta}</span>` : nothing}
+    </span>
+  `;
+}
+
+export function renderRunStatusGroup(
+  activity: ChatRunActivity,
+  assistant?: AssistantIdentity,
+  basePath?: string,
+) {
   return html`
     <div class="chat-group assistant">
       ${renderAvatar("assistant", assistant, basePath)}
       <div class="chat-group-messages">
-        <div class="chat-bubble chat-reading-indicator" aria-hidden="true">
-          <span class="chat-reading-indicator__dots">
-            <span></span><span></span><span></span>
-          </span>
+        <div class="chat-run-status" role="status" aria-live="polite">
+          ${renderRunActivityChip(activity)}
         </div>
       </div>
     </div>
@@ -78,16 +122,11 @@ export function renderReadingIndicatorGroup(assistant?: AssistantIdentity, baseP
 export function renderStreamingGroup(
   text: string,
   startedAt: number,
+  activity: ChatRunActivity | null,
   onOpenSidebar?: (content: string) => void,
   assistant?: AssistantIdentity,
   basePath?: string,
 ) {
-  const timestamp = new Date(startedAt).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  const name = assistant?.name ?? "Assistant";
-
   return html`
     <div class="chat-group assistant">
       ${renderAvatar("assistant", assistant, basePath)}
@@ -101,10 +140,11 @@ export function renderStreamingGroup(
           { isStreaming: true, showReasoning: false },
           onOpenSidebar,
         )}
-        <div class="chat-group-footer">
-          <span class="chat-sender-name">${name}</span>
-          <span class="chat-group-timestamp">${timestamp}</span>
-        </div>
+        ${activity
+          ? html`<div class="chat-group-footer chat-group-footer--active">
+              ${renderRunActivityChip(activity)}
+            </div>`
+          : nothing}
       </div>
     </div>
   `;
@@ -317,13 +357,21 @@ function extractGroupText(group: MessageGroup): string {
   return parts.join("\n\n");
 }
 
-const SKIP_DELETE_CONFIRM_KEY = "openclaw:skipDeleteConfirm";
+const SKIP_DELETE_CONFIRM_KEY = "alisio:skipDeleteConfirm";
+const LEGACY_SKIP_DELETE_CONFIRM_KEYS = ["openclaw:skipDeleteConfirm"];
 
 type DeleteConfirmSide = "left" | "right";
 
 function shouldSkipDeleteConfirm(): boolean {
   try {
-    return getSafeLocalStorage()?.getItem(SKIP_DELETE_CONFIRM_KEY) === "1";
+    const storage = getSafeLocalStorage();
+    if (!storage) {
+      return false;
+    }
+    if (storage.getItem(SKIP_DELETE_CONFIRM_KEY) === "1") {
+      return true;
+    }
+    return LEGACY_SKIP_DELETE_CONFIRM_KEYS.some((key) => storage.getItem(key) === "1");
   } catch {
     return false;
   }
@@ -644,11 +692,11 @@ function renderThinkingPanel(message: unknown) {
       <details class="chat-thinking-collapse">
         <summary class="chat-thinking-summary">
           <span class="chat-thinking-summary__icon">${icons.brain}</span>
-          <span class="chat-thinking-summary__label">Thinking</span>
-          <span class="chat-thinking-summary__meta">Summary</span>
+          <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
+          <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.summary")}</span>
           <span class="chat-thinking-summary__state">
             <span class="chat-thinking-summary__state-dot"></span>
-            <span>Done</span>
+            <span>${chatText("thinkingPanel.done")}</span>
           </span>
         </summary>
         <div class="chat-thinking-body chat-text" dir="${detectTextDirection(extractedThinking)}">
@@ -661,15 +709,13 @@ function renderThinkingPanel(message: unknown) {
   return html`
     <div class="chat-thinking-summary-card" role="note">
       <span class="chat-thinking-summary__icon">${icons.brain}</span>
-      <span class="chat-thinking-summary__label">Thinking</span>
-      <span class="chat-thinking-summary__meta">Hidden</span>
+      <span class="chat-thinking-summary__label">${chatText("thinkingPanel.label")}</span>
+      <span class="chat-thinking-summary__meta">${chatText("thinkingPanel.hidden")}</span>
       <span class="chat-thinking-summary__state">
         <span class="chat-thinking-summary__state-dot"></span>
-        <span>Done</span>
+        <span>${chatText("thinkingPanel.done")}</span>
       </span>
-      <span class="chat-thinking-summary__preview"
-        >O raciocínio interno fica escondido. As ações aparecem abaixo em cartões recolhidos.</span
-      >
+      <span class="chat-thinking-summary__preview">${chatText("thinkingPanel.hiddenPreview")}</span>
     </div>
   `;
 }
@@ -702,8 +748,9 @@ function renderGroupedMessage(
   const extractedText = extractTextCached(message);
   const markdownBase = extractedText?.trim() ? extractedText : null;
   const markdown = markdownBase;
-  const canCopyMarkdown = role === "assistant" && Boolean(markdown?.trim());
-  const canExpand = role === "assistant" && Boolean(onOpenSidebar && markdown?.trim());
+  const canCopyMarkdown = role === "assistant" && !opts.isStreaming && Boolean(markdown?.trim());
+  const canExpand =
+    role === "assistant" && !opts.isStreaming && Boolean(onOpenSidebar && markdown?.trim());
   const thinkingPanel =
     opts.showReasoning && role === "assistant" ? renderThinkingPanel(message) : nothing;
 

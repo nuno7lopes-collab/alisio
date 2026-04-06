@@ -189,26 +189,18 @@
 
 /* Theme families override accent tokens while keeping shared surfaces/layout. */
 :root[data-theme="openknot"] {
-  /*
-   * Accent — crimson red on true black
-   *
-   * WCAG 2.1 AA audit (bg = #080808, relative luminance ≈ 0.003):
-   *   --accent #e5243b  L ≈ 0.118  contrast ≈ 5.8:1  AA text ✓
-   *   --accent-hover #f03e52  L ≈ 0.163  contrast ≈ 7.2:1  ✓
-   *   --primary-foreground #fafafa on #e5243b button: 4.6:1 AA ✓
-   *   focus-ring at 70% opacity: ≈ 3.4:1 against bg ✓ (non-text 3:1 required)
-   */
-  --ring: #e5243b;
-  --accent: #e5243b;
-  --accent-hover: #f03e52;
-  --accent-muted: #e5243b;
-  --accent-subtle: rgba(229, 36, 59, 0.12);
-  --accent-glow: rgba(229, 36, 59, 0.24);
-  --primary: #e5243b;
+  /* Accent — vivid violet on true black */
+  --ring: #8b5cf6;
+  --accent: #8b5cf6;
+  --accent-hover: #9f75ff;
+  --accent-muted: #8b5cf6;
+  --accent-subtle: rgba(139, 92, 246, 0.14);
+  --accent-glow: rgba(139, 92, 246, 0.26);
+  --primary: #8b5cf6;
   --primary-foreground: #fafafa;
 
-  /* Focus — crimson ring */
-  --focus: rgba(229, 36, 59, 0.2);
+  /* Focus — violet ring */
+  --focus: rgba(139, 92, 246, 0.22);
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 3px color-mix(in srgb, var(--ring) 70%, transparent);
   --focus-glow: 0 0 0 2px var(--bg), 0 0 0 3px var(--ring), 0 0 16px var(--accent-glow);
 
@@ -247,9 +239,9 @@
 
   --secondary: #111113;
   --secondary-foreground: #f0f0f2;
-  --accent-2: #8b1a2b;
-  --accent-2-muted: rgba(139, 26, 43, 0.7);
-  --accent-2-subtle: rgba(139, 26, 43, 0.12);
+  --accent-2: #5b34ba;
+  --accent-2-muted: rgba(91, 52, 186, 0.72);
+  --accent-2-subtle: rgba(91, 52, 186, 0.12);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
@@ -259,22 +251,14 @@
 }
 
 :root[data-theme="openknot-light"] {
-  /*
-   * Accent — deep red on cool white
-   *
-   * WCAG 2.1 AA audit (bg = #f9f9fb, relative luminance ≈ 0.941):
-   *   --accent #c41e30  L ≈ 0.078  contrast ≈ 7.5:1  AAA text ✓
-   *   --accent-hover #a8192a  L ≈ 0.054  contrast ≈ 9.1:1  ✓
-   *   --primary-foreground #ffffff on #c41e30 button: 5.0:1 AA ✓
-   *   focus-ring at 60% opacity: ≈ 3.2:1 against bg ✓ (non-text 3:1 required)
-   */
-  --ring: #c41e30;
-  --accent: #c41e30;
-  --accent-hover: #a8192a;
-  --accent-muted: #c41e30;
-  --accent-subtle: rgba(196, 30, 48, 0.08);
-  --accent-glow: rgba(196, 30, 48, 0.12);
-  --primary: #c41e30;
+  /* Accent — deep violet on cool white */
+  --ring: #6d28d9;
+  --accent: #6d28d9;
+  --accent-hover: #5b21b6;
+  --accent-muted: #6d28d9;
+  --accent-subtle: rgba(109, 40, 217, 0.08);
+  --accent-glow: rgba(109, 40, 217, 0.12);
+  --primary: #6d28d9;
   --primary-foreground: #ffffff;
 
   /* Surfaces — cool white with subtle warmth */
@@ -313,9 +297,9 @@
 
   --secondary: #f2f2f5;
   --secondary-foreground: #3a3a42;
-  --accent-2: #7a1420;
-  --accent-2-muted: rgba(122, 20, 32, 0.75);
-  --accent-2-subtle: rgba(122, 20, 32, 0.08);
+  --accent-2: #4c1d95;
+  --accent-2-muted: rgba(76, 29, 149, 0.75);
+  --accent-2-subtle: rgba(76, 29, 149, 0.08);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);

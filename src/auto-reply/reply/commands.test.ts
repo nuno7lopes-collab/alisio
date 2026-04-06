@@ -2,12 +2,14 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { telegramCommandTestPlugin } from "../../../extensions/telegram/test-support.js";
 import type { ChannelPlugin } from "../../channels/plugins/types.js";
 import type { OpenClawConfig } from "../../config/config.js";
 import { updateSessionStore, type SessionEntry } from "../../config/sessions.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
-import { loadBundledPluginPublicSurfaceSync } from "../../test-utils/bundled-plugin-public-surface.js";
+import {
+  loadBundledPluginPublicSurfaceSync,
+  loadBundledPluginTestApiSync,
+} from "../../test-utils/bundled-plugin-public-surface.js";
 import { createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { typedCases } from "../../test-utils/typed-cases.js";
 import { INTERNAL_MESSAGE_CHANNEL } from "../../utils/message-channel.js";
@@ -31,6 +33,9 @@ const { whatsappPlugin } = loadBundledPluginPublicSurfaceSync<{
   pluginId: "whatsapp",
   artifactBasename: "index.ts",
 });
+const { telegramCommandTestPlugin } = loadBundledPluginTestApiSync<{
+  telegramCommandTestPlugin: ChannelPlugin;
+}>("telegram");
 
 const readConfigFileSnapshotMock = vi.hoisted(() => vi.fn());
 const validateConfigObjectWithPluginsMock = vi.hoisted(() => vi.fn());

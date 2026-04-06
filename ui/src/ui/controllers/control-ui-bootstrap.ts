@@ -4,6 +4,10 @@ import {
   type AlisioHttpBootstrap,
   type ControlUiBootstrapConfig,
 } from "../../../../src/gateway/control-ui-contract.js";
+import {
+  deriveAlisioAvatarLabel,
+  resolveAlisioAgentName,
+} from "../../../../src/shared/alisio-account.js";
 import { normalizeAssistantIdentity } from "../assistant-identity.ts";
 import { normalizeBasePath } from "../base-path.ts";
 
@@ -100,6 +104,16 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
     state.alisioStartupBootstrap = parsed;
     state.gatewayBootstrapUrl = parsed.controlUrl ?? null;
     state.gatewayBootstrapToken = parsed.bootstrapToken ?? null;
+    if (parsed.account && state.assistantName === "Assistant") {
+      const nextAgentName = resolveAlisioAgentName(parsed.account.agentName);
+      state.assistantName = nextAgentName;
+      if (!state.assistantAvatar || state.assistantAvatar === "A") {
+        state.assistantAvatar = deriveAlisioAvatarLabel({
+          displayName: nextAgentName,
+          username: nextAgentName,
+        });
+      }
+    }
   } catch (error) {
     state.alisioStartupError = String(error);
   } finally {
