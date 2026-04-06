@@ -1,5 +1,6 @@
 import CoreLocation
 import Foundation
+import AppKit
 import OpenClawKit
 
 @MainActor
@@ -13,6 +14,7 @@ protocol MacNodeRuntimeMainActorServices: Sendable {
 
     func locationAuthorizationStatus() -> CLAuthorizationStatus
     func locationAccuracyAuthorization() -> CLAccuracyAuthorization
+    func isApplicationActive() -> Bool
     func currentLocation(
         desiredAccuracy: OpenClawLocationAccuracy,
         maxAgeMs: Int?,
@@ -45,6 +47,10 @@ final class LiveMacNodeRuntimeMainActorServices: MacNodeRuntimeMainActorServices
 
     func locationAccuracyAuthorization() -> CLAccuracyAuthorization {
         self.locationService.accuracyAuthorization()
+    }
+
+    func isApplicationActive() -> Bool {
+        NSApp.isActive
     }
 
     func currentLocation(

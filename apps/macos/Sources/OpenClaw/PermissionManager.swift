@@ -84,11 +84,9 @@ enum PermissionManager {
         }
         let settings = await center.notificationSettings()
 
-        if NotificationPermissionRuntimeSupport.isAuthorized(settings.authorizationStatus) {
-            return true
-        }
-
         switch settings.authorizationStatus {
+        case .authorized, .provisional, .ephemeral:
+            return true
         case .notDetermined:
             guard interactive else { return false }
             let granted = await (try? center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false

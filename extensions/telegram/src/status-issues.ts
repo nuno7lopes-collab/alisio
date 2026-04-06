@@ -13,6 +13,8 @@ type TelegramAccountStatus = {
   accountId?: unknown;
   enabled?: unknown;
   configured?: unknown;
+  dmOnboardingState?: unknown;
+  pendingPairingRequests?: unknown;
   allowUnmentionedGroups?: unknown;
   audit?: unknown;
 };
@@ -38,6 +40,8 @@ function readTelegramAccountStatus(value: ChannelAccountSnapshot): TelegramAccou
     accountId: value.accountId,
     enabled: value.enabled,
     configured: value.configured,
+    dmOnboardingState: value.dmOnboardingState,
+    pendingPairingRequests: value.pendingPairingRequests,
     allowUnmentionedGroups: value.allowUnmentionedGroups,
     audit: value.audit,
   };
@@ -92,6 +96,40 @@ export function collectTelegramStatusIssues(
     const accountId = resolveEnabledConfiguredAccountId(account);
     if (!accountId) {
       continue;
+    }
+
+    const dmOnboardingState =
+      account.dmOnboardingState === "waiting_for_first_dm" ||
+      account.dmOnboardingState === "pending_approval"
+        ? account.dmOnboardingState
+        : null;
+    const pendingPairingRequests =
+      typeof account.pendingPairingRequests === "number" &&
+      Number.isFinite(account.pendingPairingRequests)
+        ? account.pendingPairingRequests
+        : 0;
+    if (dmOnboardingState === "waiting_for_first_dm") {
+      issues.push({
+        channel: "telegram",
+        accountId,
+        kind: "intent",
+        message:
+          "Telegram token is configured, but the first DM is not approved yet. Send a message to the bot from the Telegram account that should use it.",
+        fix: "Keep the Telegram setup open while you send that first message so OpenClaw can authorize it automatically.",
+      });
+    }
+    if (dmOnboardingState === "pending_approval") {
+      const requestLabel =
+        pendingPairingRequests === 1
+          ? "1 pending Telegram DM approval request"
+          : `${pendingPairingRequests} pending Telegram DM approval requests`;
+      issues.push({
+        channel: "telegram",
+        accountId,
+        kind: "intent",
+        message: `${requestLabel} waiting for approval before the first conversation can start.`,
+        fix: "Open Telegram setup again and send a message from the account that should use the bot. OpenClaw will finish the first approval automatically.",
+      });
     }
 
     if (account.allowUnmentionedGroups === true) {

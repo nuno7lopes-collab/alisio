@@ -167,6 +167,67 @@ import Testing
         #expect(resolved.path == bundledRoot.path)
     }
 
+    @Test func `prefers packaged runtime root over stored project root`() throws {
+        let defaults = self.makeDefaults()
+        let stale = try makeTempDirForTests()
+        defaults.set(stale.path, forKey: "openclaw.gatewayProjectRootPath")
+
+        let packagedBundleRoot = try makeTempDirForTests()
+        let bundleURL = packagedBundleRoot.appendingPathComponent("Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/openclaw-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"openclaw"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let resolved = CommandResolver.projectRoot(
+            defaults: defaults,
+            bundleURL: bundleURL,
+            fileManager: FileManager(),
+            homeDirectory: FileManager().homeDirectoryForCurrentUser)
+
+        #expect(resolved.path == packagedRoot.path)
+    }
+
+    @Test func `preferred paths include bundled node bin when packaged runtime provides it`() throws {
+        let packagedBundleRoot = try makeTempDirForTests()
+        let bundleURL = packagedBundleRoot.appendingPathComponent("Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/openclaw-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"openclaw"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+        let bundledNode = packagedRoot.appendingPathComponent("tools/node/bin/node")
+        try makeExecutableForTests(at: bundledNode)
+
+        let paths = CommandResolver.preferredPaths(
+            home: FileManager().homeDirectoryForCurrentUser,
+            current: ["/usr/bin"],
+            projectRoot: packagedRoot,
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(paths.contains(packagedRoot.appendingPathComponent("tools/node/bin").path))
+    }
+
     @Test func `builds SSH command for remote mode`() {
         let defaults = self.makeDefaults()
         defaults.set(AppState.ConnectionMode.remote.rawValue, forKey: connectionModeKey)

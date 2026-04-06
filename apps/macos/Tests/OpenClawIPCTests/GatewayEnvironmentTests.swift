@@ -63,4 +63,32 @@ struct GatewayEnvironmentTests {
             patch: 11))
         #expect(GatewayEnvironment.expectedGatewayVersion(from: nil) == nil)
     }
+
+    @Test func `bundled runtime uses bundled app labels`() throws {
+        let bundleRoot = try makeTempDirForTests()
+        let projectRoot = bundleRoot
+            .appendingPathComponent("Alisio.app", isDirectory: true)
+            .appendingPathComponent("Contents/Resources/openclaw-package", isDirectory: true)
+        try FileManager().createDirectory(at: projectRoot, withIntermediateDirectories: true)
+        try #"{"name":"openclaw"}"#.write(
+            to: projectRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: projectRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: projectRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let label = GatewayEnvironment.gatewayLocationLabel(
+            gatewayBinary: nil,
+            projectRoot: projectRoot,
+            projectEntrypoint: projectRoot.appendingPathComponent("dist/index.js").path)
+        let missingMessage = GatewayEnvironment.missingGatewayMessage(projectRoot: projectRoot)
+
+        #expect(label == "(bundled app runtime)")
+        #expect(missingMessage == "Bundled Alisio runtime missing from app package; rebuild the app.")
+    }
 }

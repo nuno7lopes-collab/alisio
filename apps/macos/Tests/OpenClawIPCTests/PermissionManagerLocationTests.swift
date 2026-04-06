@@ -10,9 +10,9 @@ struct PermissionManagerLocationTests {
     }
 
     @Test
-    func `authorized counts only for while using`() {
+    func `authorized alias counts for both modes on macOS`() {
         #expect(PermissionManager.isLocationAuthorized(status: .authorized, requireAlways: false))
-        #expect(!PermissionManager.isLocationAuthorized(status: .authorized, requireAlways: true))
+        #expect(PermissionManager.isLocationAuthorized(status: .authorized, requireAlways: true))
     }
 
     @Test

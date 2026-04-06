@@ -126,7 +126,7 @@ function expectInboxPairingReplyText(
   const code = text.match(/Pairing code:\s*```[\r\n]+([A-Z2-9]{6,})/)?.[1];
   expect(code).toBeDefined();
   const resolvedCode = params.code ?? code ?? "";
-  expect(text).toContain("OpenClaw: access not configured.");
+  expect(text).toContain("OpenClaw: this account is not approved yet.");
   expect(text).toContain(params.idLine);
   expect(text).toContain("Pairing code:");
   expect(text).toContain(`\n\`\`\`\n${resolvedCode}\n\`\`\`\n`);

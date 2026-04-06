@@ -264,6 +264,15 @@ actor MacNodeRuntime {
         let desired = params.desiredAccuracy ??
             (Self.locationPreciseEnabled() ? .precise : .balanced)
         let services = await self.mainActorServices()
+        let isApplicationActive = await services.isApplicationActive()
+        if mode == .whileUsing, !isApplicationActive {
+            return BridgeInvokeResponse(
+                id: req.id,
+                ok: false,
+                error: OpenClawNodeError(
+                    code: .backgroundUnavailable,
+                    message: "LOCATION_BACKGROUND_UNAVAILABLE: while using location requires OpenClaw to stay active"))
+        }
         let status = await services.locationAuthorizationStatus()
         let hasPermission = PermissionManager.isLocationAuthorized(status: status, mode: mode)
         if !hasPermission {

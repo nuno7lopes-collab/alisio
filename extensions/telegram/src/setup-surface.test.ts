@@ -1,11 +1,23 @@
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/setup";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTestWizardPrompter,
   runSetupWizardFinalize,
   runSetupWizardPrepare,
 } from "../../../test/helpers/plugins/setup-wizard.js";
+const readChannelAllowFromStore = vi.hoisted(() => vi.fn(async () => [] as string[]));
+const listChannelPairingRequests = vi.hoisted(() => vi.fn(async () => [] as Array<{ id: string }>));
+
+vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
+  readChannelAllowFromStore,
+  listChannelPairingRequests,
+}));
+
+import {
+  clearTelegramOwnerAutoApprovalStateForTest,
+  isTelegramOwnerAutoApprovalArmed,
+} from "./owner-auto-approval.js";
 import { resolveTelegramAllowFromEntries } from "./setup-core.js";
 import { telegramSetupWizard } from "./setup-surface.js";
 
@@ -21,14 +33,14 @@ async function runPrepare(cfg: OpenClawConfig, accountId: string) {
 async function runFinalize(cfg: OpenClawConfig, accountId: string) {
   const note = vi.fn(async () => undefined);
 
-  await runSetupWizardFinalize({
+  const result = await runSetupWizardFinalize({
     finalize: telegramSetupWizard.finalize,
     cfg,
     accountId,
     prompter: createTestWizardPrompter({ note }),
   });
 
-  return note;
+  return { note, result };
 }
 
 function expectPreparedResult(
@@ -48,6 +60,14 @@ function expectPreparedResult(
     void | undefined
   >;
 }
+
+beforeEach(() => {
+  clearTelegramOwnerAutoApprovalStateForTest();
+  readChannelAllowFromStore.mockReset();
+  listChannelPairingRequests.mockReset();
+  readChannelAllowFromStore.mockResolvedValue([]);
+  listChannelPairingRequests.mockResolvedValue([]);
+});
 
 describe("telegramSetupWizard.prepare", () => {
   it('adds groups["*"].requireMention=true for fresh setups', async () => {
@@ -93,8 +113,8 @@ describe("telegramSetupWizard.prepare", () => {
 });
 
 describe("telegramSetupWizard.finalize", () => {
-  it("shows global config commands for the default account", async () => {
-    const note = await runFinalize(
+  it("shows first-DM guidance for the default account", async () => {
+    const { note } = await runFinalize(
       {
         channels: {
           telegram: {
@@ -106,17 +126,17 @@ describe("telegramSetupWizard.finalize", () => {
     );
 
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining('openclaw config set channels.telegram.dmPolicy "allowlist"'),
+      expect.stringContaining("OpenClaw will authorize that first direct message automatically."),
       "Telegram DM access warning",
     );
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining(`openclaw config set channels.telegram.allowFrom '["YOUR_USER_ID"]'`),
+      expect.stringContaining("Keep this setup window open until Telegram is ready."),
       "Telegram DM access warning",
     );
   });
 
-  it("shows account-scoped config commands for named accounts", async () => {
-    const note = await runFinalize(
+  it("shows the same onboarding guidance for named accounts", async () => {
+    const { note } = await runFinalize(
       {
         channels: {
           telegram: {
@@ -132,21 +152,49 @@ describe("telegramSetupWizard.finalize", () => {
     );
 
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining(
-        'openclaw config set channels.telegram.accounts.alerts.dmPolicy "allowlist"',
-      ),
+      expect.stringContaining("Open Telegram and send a message to the bot"),
       "Telegram DM access warning",
     );
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining(
-        `openclaw config set channels.telegram.accounts.alerts.allowFrom '["YOUR_USER_ID"]'`,
-      ),
+      expect.stringContaining("Docs: https://docs.openclaw.ai/channels/pairing"),
       "Telegram DM access warning",
     );
   });
 
+  it("reuses a single pending Telegram request to finish setup automatically", async () => {
+    listChannelPairingRequests.mockResolvedValue([{ id: "6074269928" }]);
+
+    const { note, result } = await runFinalize(
+      {
+        channels: {
+          telegram: {
+            botToken: "tok",
+          },
+        },
+      },
+      DEFAULT_ACCOUNT_ID,
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        cfg: expect.objectContaining({
+          channels: expect.objectContaining({
+            telegram: expect.objectContaining({
+              dmPolicy: "allowlist",
+              allowFrom: ["6074269928"],
+            }),
+          }),
+        }),
+      }),
+    );
+    expect(note).toHaveBeenCalledWith(
+      expect.stringContaining("finished the first approval automatically"),
+      "Telegram ready",
+    );
+  });
+
   it("skips the warning when an allowFrom entry already exists", async () => {
-    const note = await runFinalize(
+    const { note } = await runFinalize(
       {
         channels: {
           telegram: {
@@ -159,6 +207,67 @@ describe("telegramSetupWizard.finalize", () => {
     );
 
     expect(note).not.toHaveBeenCalled();
+  });
+});
+
+describe("telegramSetupWizard.afterConfigWritten", () => {
+  it("arms first-DM auto-approval for pairing-based setups", async () => {
+    clearTelegramOwnerAutoApprovalStateForTest();
+
+    await telegramSetupWizard.afterConfigWritten?.({
+      previousCfg: {},
+      cfg: {
+        channels: {
+          telegram: {
+            botToken: "tok",
+          },
+        },
+      },
+      accountId: DEFAULT_ACCOUNT_ID,
+      runtime: {} as never,
+    });
+
+    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(true);
+  });
+
+  it("arms auto-approval even when a stale Telegram request already exists", async () => {
+    clearTelegramOwnerAutoApprovalStateForTest();
+    listChannelPairingRequests.mockResolvedValue([{ id: "6074269928" }]);
+
+    await telegramSetupWizard.afterConfigWritten?.({
+      previousCfg: {},
+      cfg: {
+        channels: {
+          telegram: {
+            botToken: "tok",
+          },
+        },
+      },
+      accountId: DEFAULT_ACCOUNT_ID,
+      runtime: {} as never,
+    });
+
+    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(true);
+  });
+
+  it("does not arm auto-approval when a sender is already approved", async () => {
+    clearTelegramOwnerAutoApprovalStateForTest();
+
+    await telegramSetupWizard.afterConfigWritten?.({
+      previousCfg: {},
+      cfg: {
+        channels: {
+          telegram: {
+            botToken: "tok",
+            allowFrom: ["123"],
+          },
+        },
+      },
+      accountId: DEFAULT_ACCOUNT_ID,
+      runtime: {} as never,
+    });
+
+    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(false);
   });
 });
 

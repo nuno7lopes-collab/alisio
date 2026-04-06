@@ -129,6 +129,7 @@ When a device token is issued, `hello-ok` also includes:
 - **Request**: `{type:"req", id, method, params}`
 - **Response**: `{type:"res", id, ok, payload|error}`
 - **Event**: `{type:"event", event, payload, seq?, stateVersion?}`
+- `event.seq` is monotonic per client connection for delivered broadcast events. Reset gap tracking after every new `hello-ok`, and do not compare `seq` values across different sockets.
 
 Side-effecting methods require **idempotency keys** (see schema).
 

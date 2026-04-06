@@ -3,6 +3,7 @@ import Foundation
 enum CommandResolver {
     private static let projectRootDefaultsKey = "openclaw.gatewayProjectRootPath"
     private static let helperName = "openclaw"
+    private static let bundledPackageDirName = "openclaw-package"
 
     static func gatewayEntrypoint(in root: URL) -> String? {
         let distEntry = root.appendingPathComponent("dist/index.js").path
@@ -52,6 +53,9 @@ enum CommandResolver {
         fileManager: FileManager = .default,
         homeDirectory: URL = FileManager().homeDirectoryForCurrentUser) -> URL
     {
+        if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return bundled
+        }
         if let inferred = self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager) {
             return inferred
         }
@@ -102,17 +106,39 @@ enum CommandResolver {
             .split(separator: ":").map(String.init) ?? []
         let home = FileManager().homeDirectoryForCurrentUser
         let projectRoot = self.projectRoot()
-        return self.preferredPaths(home: home, current: current, projectRoot: projectRoot)
+        return self.preferredPaths(
+            home: home,
+            current: current,
+            projectRoot: projectRoot,
+            bundleURL: Bundle.main.bundleURL)
     }
 
     static func preferredPaths(home: URL, current: [String], projectRoot: URL) -> [String] {
-        var extras = [
+        self.preferredPaths(
+            home: home,
+            current: current,
+            projectRoot: projectRoot,
+            bundleURL: Bundle.main.bundleURL)
+    }
+
+    static func preferredPaths(
+        home: URL,
+        current: [String],
+        projectRoot: URL,
+        bundleURL: URL,
+        fileManager: FileManager = .default) -> [String]
+    {
+        var extras: [String] = []
+        if let bundledNodeBin = self.bundledNodeBinDir(bundleURL: bundleURL, fileManager: fileManager) {
+            extras.append(bundledNodeBin)
+        }
+        extras.append(contentsOf: [
             home.appendingPathComponent("Library/pnpm").path,
             "/opt/homebrew/bin",
             "/usr/local/bin",
             "/usr/bin",
             "/bin",
-        ]
+        ])
         #if DEBUG
         // Dev-only convenience. Avoid project-local PATH hijacking in release builds.
         extras.insert(projectRoot.appendingPathComponent("node_modules/.bin").path, at: 0)
@@ -125,6 +151,41 @@ enum CommandResolver {
         var seen = Set<String>()
         // Preserve order while stripping duplicates so PATH lookups remain deterministic.
         return (extras + current).filter { seen.insert($0).inserted }
+    }
+
+    static func bundledPackageRoot(
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> URL?
+    {
+        guard bundleURL.pathExtension == "app" else { return nil }
+        let candidate = bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Resources", isDirectory: true)
+            .appendingPathComponent(self.bundledPackageDirName, isDirectory: true)
+        guard self.isBundledPackageRoot(candidate, fileManager: fileManager) else { return nil }
+        return candidate
+    }
+
+    static func isBundledPackageRoot(_ candidate: URL, fileManager: FileManager = .default) -> Bool {
+        guard fileManager.fileExists(atPath: candidate.appendingPathComponent("package.json").path) else {
+            return false
+        }
+        return self.gatewayEntrypoint(in: candidate) != nil
+    }
+
+    private static func bundledNodeBinDir(
+        bundleURL: URL,
+        fileManager: FileManager = .default) -> String?
+    {
+        guard let root = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) else {
+            return nil
+        }
+        let binDir = root
+            .appendingPathComponent("tools", isDirectory: true)
+            .appendingPathComponent("node", isDirectory: true)
+            .appendingPathComponent("bin", isDirectory: true)
+        let node = binDir.appendingPathComponent("node")
+        return fileManager.isExecutableFile(atPath: node.path) ? binDir.path : nil
     }
 
     private static func openclawManagedPaths(home: URL) -> [String] {

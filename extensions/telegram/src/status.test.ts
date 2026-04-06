@@ -84,6 +84,43 @@ describe("collectTelegramStatusIssues", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("reports first-DM onboarding states as intent issues", () => {
+    const issues = collectTelegramStatusIssues([
+      {
+        accountId: "main",
+        enabled: true,
+        configured: true,
+        dmOnboardingState: "pending_approval",
+        pendingPairingRequests: 2,
+      } as ChannelAccountSnapshot,
+      {
+        accountId: "backup",
+        enabled: true,
+        configured: true,
+        dmOnboardingState: "waiting_for_first_dm",
+      } as ChannelAccountSnapshot,
+    ]);
+
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          channel: "telegram",
+          accountId: "main",
+          kind: "intent",
+        }),
+        expect.objectContaining({
+          channel: "telegram",
+          accountId: "backup",
+          kind: "intent",
+        }),
+      ]),
+    );
+    expect(issues.some((issue) => issue.message.includes("pending Telegram DM approval"))).toBe(
+      true,
+    );
+    expect(issues.some((issue) => issue.message.includes("Send a message to the bot"))).toBe(true);
+  });
 });
 
 describe("resolveTelegramStatusReactionEmojis", () => {

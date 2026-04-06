@@ -20,7 +20,7 @@ import {
   type RoutePeer,
 } from "openclaw/plugin-sdk/routing";
 import {
-  createComputedAccountStatusAdapter,
+  createAsyncComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
 } from "openclaw/plugin-sdk/status-helpers";
 import {
@@ -49,6 +49,7 @@ import {
   listTelegramDirectoryGroupsFromConfig,
   listTelegramDirectoryPeersFromConfig,
 } from "./directory-config.js";
+import { resolveTelegramDmOnboardingStatus } from "./dm-onboarding-state.js";
 import {
   getTelegramExecApprovalApprovers,
   isTelegramExecApprovalApprover,
@@ -601,10 +602,18 @@ export const telegramPlugin = createChatChannelPlugin({
       listGroups: async (params) => listTelegramDirectoryGroupsFromConfig(params),
     }),
     actions: telegramMessageActions,
-    status: createComputedAccountStatusAdapter<ResolvedTelegramAccount, TelegramProbe, unknown>({
+    status: createAsyncComputedAccountStatusAdapter<
+      ResolvedTelegramAccount,
+      TelegramProbe,
+      unknown
+    >({
       defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID),
       collectStatusIssues: collectTelegramStatusIssues,
-      buildChannelSummary: ({ snapshot }) => buildTokenChannelStatusSummary(snapshot),
+      buildChannelSummary: ({ snapshot }) => ({
+        ...buildTokenChannelStatusSummary(snapshot),
+        dmOnboardingState: snapshot.dmOnboardingState ?? null,
+        pendingPairingRequests: snapshot.pendingPairingRequests ?? 0,
+      }),
       probeAccount: async ({ account, timeoutMs }) =>
         resolveTelegramProbe()(account.token, timeoutMs, {
           accountId: account.accountId,
@@ -667,7 +676,7 @@ export const telegramPlugin = createChatChannelPlugin({
         });
         return { ...audit, unresolvedGroups, hasWildcardUnmentionedGroups };
       },
-      resolveAccountSnapshot: ({ account, cfg, runtime, audit }) => {
+      resolveAccountSnapshot: async ({ account, cfg, runtime, audit }) => {
         const configuredFromStatus = resolveConfiguredFromCredentialStatuses(account);
         const ownerAccountId = findTelegramTokenOwnerAccountId({
           cfg,
@@ -689,6 +698,10 @@ export const telegramPlugin = createChatChannelPlugin({
           Object.entries(groups ?? {}).some(
             ([key, value]) => key !== "*" && value?.requireMention === false,
           );
+        const dmOnboarding = await resolveTelegramDmOnboardingStatus({
+          cfg,
+          accountId: account.accountId,
+        });
         return {
           accountId: account.accountId,
           name: account.name,
@@ -700,6 +713,8 @@ export const telegramPlugin = createChatChannelPlugin({
             mode: runtime?.mode ?? (account.config.webhookUrl ? "webhook" : "polling"),
             audit,
             allowUnmentionedGroups,
+            dmOnboardingState: dmOnboarding?.state ?? null,
+            pendingPairingRequests: dmOnboarding?.pendingPairingRequests ?? 0,
           },
         };
       },

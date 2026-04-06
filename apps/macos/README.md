@@ -20,7 +20,7 @@ scripts/restart-mac.sh --sign      # force code signing (requires cert)
 scripts/package-mac-app.sh
 ```
 
-Creates `dist/OpenClaw.app` and signs it via `scripts/codesign-mac-app.sh`.
+Creates `dist/Alisio.app` and signs it via `scripts/codesign-mac-app.sh`.
 
 ## Signing behavior
 

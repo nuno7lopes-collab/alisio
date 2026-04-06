@@ -16,7 +16,7 @@ final class CLIInstallPrompter {
 
         let alert = NSAlert()
         alert.messageText = "Install Alisio CLI?"
-        alert.informativeText = "Local mode needs the CLI so launchd can run the gateway."
+        alert.informativeText = "Local mode needs a local Alisio runtime so launchd can run the gateway."
         alert.addButton(withTitle: "Install CLI")
         alert.addButton(withTitle: "Not now")
         alert.addButton(withTitle: "Open Settings")
@@ -39,6 +39,7 @@ final class CLIInstallPrompter {
         guard !self.isPrompting else { return false }
         guard AppStateStore.shared.onboardingSeen else { return false }
         guard AppStateStore.shared.connectionMode == .local else { return false }
+        guard CommandResolver.bundledPackageRoot() == nil else { return false }
         guard CLIInstaller.installedLocation() == nil else { return false }
         guard let version = Self.appVersion() else { return false }
         let lastPrompt = UserDefaults.standard.string(forKey: cliInstallPromptedVersionKey)

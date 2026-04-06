@@ -1,3 +1,4 @@
+import { listChannelPairingRequests } from "openclaw/plugin-sdk/conversation-runtime";
 import {
   createAllowFromSection,
   createTopLevelChannelDmPolicy,
@@ -10,13 +11,19 @@ import {
   splitSetupEntries,
 } from "openclaw/plugin-sdk/setup";
 import type { ChannelSetupWizard } from "openclaw/plugin-sdk/setup";
-import { formatCliCommand, formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
+import { formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
 import { inspectTelegramAccount } from "./account-inspect.js";
 import {
   listTelegramAccountIds,
   mergeTelegramAccountConfig,
   resolveTelegramAccount,
 } from "./accounts.js";
+import {
+  resolveTelegramDmOnboardingStatus,
+  type TelegramDmOnboardingStatus,
+} from "./dm-onboarding-state.js";
+import { buildTelegramOwnerAllowlistConfig } from "./owner-allowlist.js";
+import { armTelegramOwnerAutoApproval } from "./owner-auto-approval.js";
 import {
   parseTelegramAllowFromId,
   promptTelegramAllowFromForAccount,
@@ -53,27 +60,81 @@ function ensureTelegramDefaultGroupMentionGate(
   });
 }
 
+async function resolveTelegramConfiguredState(cfg: OpenClawConfig): Promise<{
+  configured: boolean;
+  onboarding: TelegramDmOnboardingStatus | null;
+}> {
+  const configuredAccountIds = listTelegramAccountIds(cfg).filter(
+    (accountId) => inspectTelegramAccount({ cfg, accountId }).configured,
+  );
+  if (configuredAccountIds.length === 0) {
+    return { configured: false, onboarding: null };
+  }
+  for (const accountId of configuredAccountIds) {
+    const onboarding = await resolveTelegramDmOnboardingStatus({ cfg, accountId });
+    if (onboarding) {
+      return { configured: true, onboarding };
+    }
+  }
+  return { configured: true, onboarding: null };
+}
+
 function shouldShowTelegramDmAccessWarning(cfg: OpenClawConfig, accountId: string): boolean {
   const merged = mergeTelegramAccountConfig(cfg, accountId);
   const policy = merged.dmPolicy ?? "pairing";
   const hasAllowFrom =
-    Array.isArray(merged.allowFrom) && merged.allowFrom.some((e) => String(e).trim());
+    Array.isArray(merged.allowFrom) && merged.allowFrom.some((entry) => String(entry).trim());
   return policy === "pairing" && !hasAllowFrom;
 }
 
-function buildTelegramDmAccessWarningLines(accountId: string): string[] {
-  const configBase =
-    accountId === DEFAULT_ACCOUNT_ID
-      ? "channels.telegram"
-      : `channels.telegram.accounts.${accountId}`;
+function buildTelegramDmAccessWarningLines(_accountId: string): string[] {
   return [
-    "Your bot is using DM policy: pairing.",
-    "Any Telegram user who discovers the bot can send pairing requests.",
-    "For private use, configure an allowlist with your Telegram user id:",
-    "  " + formatCliCommand(`openclaw config set ${configBase}.dmPolicy "allowlist"`),
-    "  " + formatCliCommand(`openclaw config set ${configBase}.allowFrom '["YOUR_USER_ID"]'`),
+    "Telegram is connected, but it still needs to identify your account.",
+    "Open Telegram and send a message to the bot from the account that should use it.",
+    "OpenClaw will authorize that first direct message automatically.",
+    "Keep this setup window open until Telegram is ready.",
     `Docs: ${formatDocsLink("/channels/pairing", "channels/pairing")}`,
   ];
+}
+
+async function shouldArmTelegramOwnerAutoApproval(params: {
+  cfg: OpenClawConfig;
+  accountId: string;
+}): Promise<boolean> {
+  const onboarding = await resolveTelegramDmOnboardingStatus(params);
+  return onboarding !== null;
+}
+
+async function resolvePendingTelegramPairingUserIds(accountId: string): Promise<string[]> {
+  const pendingRequests = await listChannelPairingRequests(
+    "telegram",
+    process.env,
+    accountId,
+  ).catch(() => []);
+  return Array.from(
+    new Set(pendingRequests.map((entry) => String(entry.id ?? "").trim()).filter(Boolean)),
+  );
+}
+
+async function maybeAutoApproveExistingTelegramRequest(params: {
+  cfg: OpenClawConfig;
+  accountId: string;
+}): Promise<{ cfg: OpenClawConfig; autoApproved: boolean }> {
+  if (!shouldShowTelegramDmAccessWarning(params.cfg, params.accountId)) {
+    return { cfg: params.cfg, autoApproved: false };
+  }
+  const pendingUserIds = await resolvePendingTelegramPairingUserIds(params.accountId);
+  if (pendingUserIds.length !== 1) {
+    return { cfg: params.cfg, autoApproved: false };
+  }
+  return {
+    cfg: buildTelegramOwnerAllowlistConfig({
+      cfg: params.cfg,
+      accountId: params.accountId,
+      telegramUserId: pendingUserIds[0]!,
+    }),
+    autoApproved: true,
+  };
 }
 
 const dmPolicy = createTopLevelChannelDmPolicy({
@@ -85,22 +146,52 @@ const dmPolicy = createTopLevelChannelDmPolicy({
   promptAllowFrom: promptTelegramAllowFromForAccount,
 });
 
+const baseStatus = createStandardChannelSetupStatus({
+  channelLabel: "Telegram",
+  configuredLabel: "configured",
+  unconfiguredLabel: "needs token",
+  configuredHint: "recommended · configured",
+  unconfiguredHint: "recommended · newcomer-friendly",
+  configuredScore: 1,
+  unconfiguredScore: 10,
+  resolveConfigured: async ({ cfg }) => (await resolveTelegramConfiguredState(cfg)).configured,
+});
+
 export const telegramSetupWizard: ChannelSetupWizard = {
   channel,
-  status: createStandardChannelSetupStatus({
-    channelLabel: "Telegram",
-    configuredLabel: "configured",
-    unconfiguredLabel: "needs token",
-    configuredHint: "recommended · configured",
-    unconfiguredHint: "recommended · newcomer-friendly",
-    configuredScore: 1,
-    unconfiguredScore: 10,
-    resolveConfigured: ({ cfg }) =>
-      listTelegramAccountIds(cfg).some((accountId) => {
-        const account = inspectTelegramAccount({ cfg, accountId });
-        return account.configured;
-      }),
-  }),
+  status: {
+    ...baseStatus,
+    resolveStatusLines: async ({ cfg, configured }) => {
+      if (!configured) {
+        return ["Telegram: needs token"];
+      }
+      const { onboarding } = await resolveTelegramConfiguredState(cfg);
+      if (onboarding?.state === "pending_approval") {
+        const label =
+          onboarding.pendingPairingRequests === 1
+            ? "1 DM approval pending"
+            : `${onboarding.pendingPairingRequests} DM approvals pending`;
+        return [`Telegram: configured, ${label}`];
+      }
+      if (onboarding?.state === "waiting_for_first_dm") {
+        return ["Telegram: configured, waiting for first Telegram DM"];
+      }
+      return ["Telegram: configured"];
+    },
+    resolveSelectionHint: async ({ cfg, configured }) => {
+      if (!configured) {
+        return baseStatus.unconfiguredHint;
+      }
+      const { onboarding } = await resolveTelegramConfiguredState(cfg);
+      if (onboarding?.state === "pending_approval") {
+        return "recommended · pending approval";
+      }
+      if (onboarding?.state === "waiting_for_first_dm") {
+        return "recommended · waiting for first Telegram DM";
+      }
+      return baseStatus.configuredHint;
+    },
+  },
   prepare: async ({ cfg, accountId, credentialValues }) => ({
     cfg: ensureTelegramDefaultGroupMentionGate(cfg, accountId),
     credentialValues,
@@ -159,6 +250,17 @@ export const telegramSetupWizard: ChannelSetupWizard = {
       }),
   }),
   finalize: async ({ cfg, accountId, prompter }) => {
+    const autoApproved = await maybeAutoApproveExistingTelegramRequest({ cfg, accountId });
+    if (autoApproved.autoApproved) {
+      await prompter.note(
+        [
+          "OpenClaw found your previous Telegram message and finished the first approval automatically.",
+          "You can go back to Telegram and start chatting.",
+        ].join("\n"),
+        "Telegram ready",
+      );
+      return { cfg: autoApproved.cfg };
+    }
     if (!shouldShowTelegramDmAccessWarning(cfg, accountId)) {
       return;
     }
@@ -166,6 +268,12 @@ export const telegramSetupWizard: ChannelSetupWizard = {
       buildTelegramDmAccessWarningLines(accountId).join("\n"),
       "Telegram DM access warning",
     );
+  },
+  afterConfigWritten: async ({ cfg, accountId }) => {
+    if (!(await shouldArmTelegramOwnerAutoApproval({ cfg, accountId }))) {
+      return;
+    }
+    armTelegramOwnerAutoApproval({ accountId });
   },
   dmPolicy,
   disable: (cfg) => setSetupChannelEnabled(cfg, channel, false),

@@ -1,5 +1,5 @@
 ---
-summary: "Gateway runtime on macOS (external launchd service)"
+summary: "Gateway runtime on macOS (bundled app runtime with launchd)"
 read_when:
   - Packaging Alisio.app
   - Debugging the macOS gateway launchd service
@@ -7,22 +7,33 @@ read_when:
 title: "Gateway on macOS"
 ---
 
-# Gateway on macOS (external launchd)
+# Gateway on macOS (bundled runtime)
 
-Alisio.app no longer bundles Node/Bun or the Gateway runtime. The macOS app
-expects an **external** `alisio` CLI install, does not spawn the Gateway as a
-child process, and manages a per‑user launchd service to keep the Gateway
-running (or attaches to an existing local Gateway if one is already running).
+Release builds of `Alisio.app` bundle the local Gateway runtime inside the app
+package and manage a per-user launchd service for Local mode. The app still
+prefers attaching to an already-running compatible Gateway when it finds one,
+but a consumer install should not require a separate CLI or Node install.
 
-## Install the CLI (required for local mode)
+Debug or development builds can still fall back to an external `alisio` CLI
+install when the bundled runtime is intentionally skipped.
 
-Node 24 is the default runtime on the Mac. Node 22 LTS, currently `22.14+`, still works for compatibility. Then install `alisio` globally:
+## Local mode in release builds
+
+- `Alisio.app` carries the Gateway package in `Contents/Resources/openclaw-package`
+- release packaging should also embed a compatible Node runtime (`>=22.16.0`)
+- launchd starts the bundled runtime for Local mode
+- if a compatible local Gateway is already listening on the configured port, the app attaches to it instead of starting a duplicate
+
+## External CLI fallback (debug / development only)
+
+If you intentionally build without the bundled runtime, install `alisio`
+globally and let the app target that runtime instead:
 
 ```bash
 npm install -g alisio@npm:openclaw@<version>
 ```
 
-The macOS app’s **Install CLI** button runs the same flow via npm/pnpm (bun not recommended for Gateway runtime).
+The macOS app's **Install CLI** button exists for this fallback path.
 
 ## Launchd (Gateway as LaunchAgent)
 
@@ -42,7 +53,7 @@ Manager:
 
 Behavior:
 
-- “Alisio Active” enables/disables the LaunchAgent.
+- "Alisio Active" enables/disables the LaunchAgent.
 - App quit does **not** stop the gateway (launchd keeps it alive).
 - If a Gateway is already running on the configured port, the app attaches to
   it instead of starting a new one.
@@ -53,10 +64,12 @@ Logging:
 
 ## Version compatibility
 
-The macOS app checks the gateway version against its own version. If they’re
-incompatible, update the global CLI to match the app version.
+The macOS app checks the gateway version against its own version.
 
-## Smoke check
+- bundled release builds should stay in lockstep automatically
+- if you are using the external CLI fallback, update the global CLI to match the app version
+
+## Smoke check (fallback CLI flow)
 
 ```bash
 alisio --version

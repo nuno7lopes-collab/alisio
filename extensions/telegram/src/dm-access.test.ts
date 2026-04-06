@@ -5,6 +5,10 @@ const createChannelPairingChallengeIssuerMock = vi.hoisted(() => vi.fn());
 const upsertChannelPairingRequestMock = vi.hoisted(() =>
   vi.fn(async () => ({ code: "123456", created: true })),
 );
+const addChannelAllowFromStoreEntryMock = vi.hoisted(() =>
+  vi.fn(async () => ({ changed: true, allowFrom: ["12345"] })),
+);
+const persistTelegramOwnerAllowlistFromRuntimeMock = vi.hoisted(() => vi.fn(async () => undefined));
 const withTelegramApiErrorLoggingMock = vi.hoisted(() => vi.fn(async ({ fn }) => await fn()));
 const createPairingPrefixStripperMock = vi.hoisted(
   () => (prefix: RegExp, normalize: (value: string) => string) => (value: string) =>
@@ -20,6 +24,7 @@ vi.mock("openclaw/plugin-sdk/channel-pairing", () => ({
 }));
 
 vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
+  addChannelAllowFromStoreEntry: addChannelAllowFromStoreEntryMock,
   upsertChannelPairingRequest: upsertChannelPairingRequestMock,
   createStaticReplyToModeResolver: (mode: string) => () => mode,
   createTopLevelChannelReplyToModeResolver: () => () => "off",
@@ -31,9 +36,16 @@ vi.mock("./api-logging.js", () => ({
   withTelegramApiErrorLogging: withTelegramApiErrorLoggingMock,
 }));
 
+vi.mock("./owner-allowlist.js", () => ({
+  buildTelegramOwnerAllowlistConfig: (params: { cfg: unknown }) => params.cfg,
+  persistTelegramOwnerAllowlistFromRuntime: persistTelegramOwnerAllowlistFromRuntimeMock,
+}));
+
 import type { Message } from "@grammyjs/types";
 import { normalizeAllowFrom } from "./bot-access.js";
 let enforceTelegramDmAccess: typeof import("./dm-access.js").enforceTelegramDmAccess;
+let armTelegramOwnerAutoApproval: typeof import("./owner-auto-approval.js").armTelegramOwnerAutoApproval;
+let clearTelegramOwnerAutoApprovalStateForTest: typeof import("./owner-auto-approval.js").clearTelegramOwnerAutoApprovalStateForTest;
 
 function createDmMessage(overrides: Partial<Message> = {}): Message {
   return {
@@ -55,6 +67,9 @@ describe("enforceTelegramDmAccess", () => {
   beforeEach(async () => {
     vi.resetModules();
     vi.clearAllMocks();
+    ({ armTelegramOwnerAutoApproval, clearTelegramOwnerAutoApprovalStateForTest } =
+      await import("./owner-auto-approval.js"));
+    clearTelegramOwnerAutoApprovalStateForTest();
     ({ enforceTelegramDmAccess } = await import("./dm-access.js"));
   });
 
@@ -151,5 +166,36 @@ describe("enforceTelegramDmAccess", () => {
       }),
       "telegram pairing request",
     );
+  });
+
+  it("auto-approves the first DM during setup without issuing a pairing challenge", async () => {
+    armTelegramOwnerAutoApproval({ accountId: "main" });
+    const effectiveDmAllow = normalizeAllowFrom([]);
+
+    const allowed = await enforceTelegramDmAccess({
+      isGroup: false,
+      dmPolicy: "pairing",
+      msg: createDmMessage(),
+      chatId: 42,
+      effectiveDmAllow,
+      accountId: "main",
+      bot: { api: { sendMessage: vi.fn(async () => undefined) } } as never,
+      logger: { info: vi.fn() },
+      upsertPairingRequest: upsertChannelPairingRequestMock,
+    });
+
+    expect(allowed).toBe(true);
+    expect(addChannelAllowFromStoreEntryMock).toHaveBeenCalledWith({
+      channel: "telegram",
+      entry: "12345",
+      accountId: "main",
+    });
+    expect(persistTelegramOwnerAllowlistFromRuntimeMock).toHaveBeenCalledWith({
+      accountId: "main",
+      telegramUserId: "12345",
+    });
+    expect(effectiveDmAllow.entries).toContain("12345");
+    expect(effectiveDmAllow.hasEntries).toBe(true);
+    expect(createChannelPairingChallengeIssuerMock).not.toHaveBeenCalled();
   });
 });

@@ -2,11 +2,19 @@ import type { Message } from "@grammyjs/types";
 import type { Bot } from "grammy";
 import { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel-pairing";
 import type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
-import { upsertChannelPairingRequest } from "openclaw/plugin-sdk/conversation-runtime";
+import {
+  addChannelAllowFromStoreEntry,
+  upsertChannelPairingRequest,
+} from "openclaw/plugin-sdk/conversation-runtime";
 import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { resolveSenderAllowMatch, type NormalizedAllowFrom } from "./bot-access.js";
 import { renderTelegramHtmlText } from "./format.js";
+import { persistTelegramOwnerAllowlistFromRuntime } from "./owner-allowlist.js";
+import {
+  disarmTelegramOwnerAutoApproval,
+  isTelegramOwnerAutoApprovalArmed,
+} from "./owner-auto-approval.js";
 
 type TelegramDmAccessLogger = {
   info: (obj: Record<string, unknown>, msg: string) => void;
@@ -80,8 +88,45 @@ export async function enforceTelegramDmAccess(params: {
   }
 
   if (dmPolicy === "pairing") {
+    const telegramUserId = sender.userId ?? sender.candidateId;
+    if (telegramUserId && isTelegramOwnerAutoApprovalArmed({ accountId })) {
+      try {
+        await addChannelAllowFromStoreEntry({
+          channel: "telegram",
+          entry: telegramUserId,
+          accountId,
+        });
+        if (!effectiveDmAllow.entries.includes(telegramUserId)) {
+          effectiveDmAllow.entries.push(telegramUserId);
+        }
+        effectiveDmAllow.hasEntries = true;
+        try {
+          await persistTelegramOwnerAllowlistFromRuntime({
+            accountId,
+            telegramUserId,
+          });
+        } catch (err) {
+          logVerbose(
+            `telegram setup allowlist persistence failed for chat ${chatId}: ${String(err)}`,
+          );
+        }
+        disarmTelegramOwnerAutoApproval(accountId);
+        logger.info(
+          {
+            chatId: String(chatId),
+            senderUserId: sender.userId ?? undefined,
+            username: sender.username || undefined,
+            firstName: sender.firstName,
+            lastName: sender.lastName,
+          },
+          "telegram auto-approved first DM during setup",
+        );
+        return true;
+      } catch (err) {
+        logVerbose(`telegram setup auto-approval failed for chat ${chatId}: ${String(err)}`);
+      }
+    }
     try {
-      const telegramUserId = sender.userId ?? sender.candidateId;
       await createChannelPairingChallengeIssuer({
         channel: "telegram",
         upsertPairingRequest: async ({ id, meta }) =>

@@ -123,6 +123,7 @@ enum GatewayEnvironment {
 
         let projectRoot = CommandResolver.projectRoot()
         let projectEntrypoint = CommandResolver.gatewayEntrypoint(in: projectRoot)
+        let usesBundledRuntime = CommandResolver.isBundledPackageRoot(projectRoot)
 
         switch RuntimeLocator.resolve(searchPaths: CommandResolver.preferredPaths()) {
         case let .failure(err):
@@ -141,7 +142,7 @@ enum GatewayEnvironment {
                     nodeVersion: runtime.version.description,
                     gatewayVersion: nil,
                     requiredGateway: expectedString,
-                    message: "Alisio CLI not found in PATH; install the CLI.")
+                    message: self.missingGatewayMessage(projectRoot: projectRoot))
             }
 
             let installed = gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }
@@ -156,19 +157,18 @@ enum GatewayEnvironment {
                     requiredGateway: expectedText,
                     message: """
                     Gateway version \(installed.description) is incompatible with app \(expectedText);
-                    install or update the global package.
+                    \(self.incompatibleGatewayRemediation(
+                        gatewayBinary: gatewayBin,
+                        projectRoot: projectRoot))
                     """)
             }
 
-            let gatewayLabel = gatewayBin != nil ? "global" : "local"
             let gatewayVersionText = installed?.description ?? "unknown"
-            // Avoid repeating "(local)" twice; if using the local entrypoint, show the path once.
-            let localPathHint = gatewayBin == nil && projectEntrypoint != nil
-                ? " (local: \(projectEntrypoint ?? "unknown"))"
-                : ""
-            let gatewayLabelText = gatewayBin != nil
-                ? "(\(gatewayLabel))"
-                : localPathHint.isEmpty ? "(\(gatewayLabel))" : localPathHint
+            let gatewayLabelText = self.gatewayLocationLabel(
+                gatewayBinary: gatewayBin,
+                projectRoot: projectRoot,
+                projectEntrypoint: projectEntrypoint,
+                usesBundledRuntime: usesBundledRuntime)
             return GatewayEnvironmentStatus(
                 kind: .ok,
                 nodeVersion: runtime.version.description,
@@ -313,6 +313,31 @@ enum GatewayEnvironment {
         return normalized
     }
 
+    static func missingGatewayMessage(projectRoot: URL) -> String {
+        if CommandResolver.isBundledPackageRoot(projectRoot) {
+            return "Bundled Alisio runtime missing from app package; rebuild the app."
+        }
+        return "Alisio CLI not found in PATH; install the CLI."
+    }
+
+    static func gatewayLocationLabel(
+        gatewayBinary: String?,
+        projectRoot: URL,
+        projectEntrypoint: String?,
+        usesBundledRuntime: Bool? = nil) -> String
+    {
+        if gatewayBinary != nil {
+            return "(global CLI)"
+        }
+        if usesBundledRuntime ?? CommandResolver.isBundledPackageRoot(projectRoot) {
+            return "(bundled app runtime)"
+        }
+        if let projectEntrypoint {
+            return " (local: \(projectEntrypoint))"
+        }
+        return "(local runtime)"
+    }
+
     private static func readGatewayVersion(binary: String) -> Semver? {
         let start = Date()
         let process = Process()
@@ -361,5 +386,15 @@ enum GatewayEnvironment {
             let version = json["version"] as? String
         else { return nil }
         return Semver.parse(version)
+    }
+
+    private static func incompatibleGatewayRemediation(gatewayBinary: String?, projectRoot: URL) -> String {
+        if gatewayBinary != nil {
+            return "install or update the global package."
+        }
+        if CommandResolver.isBundledPackageRoot(projectRoot) {
+            return "rebuild the app package."
+        }
+        return "update the local runtime."
     }
 }

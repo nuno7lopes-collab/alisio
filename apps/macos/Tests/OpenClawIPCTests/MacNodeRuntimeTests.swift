@@ -99,6 +99,10 @@ struct MacNodeRuntimeTests {
                 .fullAccuracy
             }
 
+            func isApplicationActive() -> Bool {
+                true
+            }
+
             func currentLocation(
                 desiredAccuracy: OpenClawLocationAccuracy,
                 maxAgeMs: Int?,
@@ -149,6 +153,10 @@ struct MacNodeRuntimeTests {
                 .reducedAccuracy
             }
 
+            func isApplicationActive() -> Bool {
+                true
+            }
+
             func currentLocation(
                 desiredAccuracy _: OpenClawLocationAccuracy,
                 maxAgeMs _: Int?,
@@ -168,6 +176,57 @@ struct MacNodeRuntimeTests {
                 BridgeInvokeRequest(id: "req-location", command: OpenClawLocationCommand.get.rawValue))
 
             #expect(response.ok == true)
+        }
+    }
+
+    @Test func `handle invoke location blocks while using in background`() async {
+        @MainActor
+        final class FakeMainActorServices: MacNodeRuntimeMainActorServices, @unchecked Sendable {
+            func recordScreen(
+                screenIndex _: Int?,
+                durationMs _: Int?,
+                fps _: Double?,
+                includeAudio _: Bool?,
+                outPath _: String?) async throws -> (path: String, hasAudio: Bool)
+            {
+                Issue.record("recordScreen should not be called for location tests")
+                return ("", false)
+            }
+
+            func locationAuthorizationStatus() -> CLAuthorizationStatus {
+                .authorizedAlways
+            }
+
+            func locationAccuracyAuthorization() -> CLAccuracyAuthorization {
+                .reducedAccuracy
+            }
+
+            func isApplicationActive() -> Bool {
+                false
+            }
+
+            func currentLocation(
+                desiredAccuracy _: OpenClawLocationAccuracy,
+                maxAgeMs _: Int?,
+                timeoutMs _: Int?) async throws -> CLLocation
+            {
+                Issue.record("currentLocation should not run while background-restricted")
+                return CLLocation(latitude: 38.7223, longitude: -9.1393)
+            }
+        }
+
+        await TestIsolation.withUserDefaultsValues([
+            locationModeKey: OpenClawLocationMode.whileUsing.rawValue,
+            locationPreciseKey: false,
+        ]) {
+            let services = await MainActor.run { FakeMainActorServices() }
+            let runtime = MacNodeRuntime(makeMainActorServices: { services })
+            let response = await runtime.handleInvoke(
+                BridgeInvokeRequest(id: "req-location-bg", command: OpenClawLocationCommand.get.rawValue))
+
+            #expect(response.ok == false)
+            #expect(response.error?.code == .backgroundUnavailable)
+            #expect(response.error?.message.contains("LOCATION_BACKGROUND_UNAVAILABLE") == true)
         }
     }
 

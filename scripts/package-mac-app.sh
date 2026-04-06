@@ -114,6 +114,40 @@ merge_framework_machos() {
   done < <(find "$primary" -type f -print0)
 }
 
+node_binary_meets_min() {
+  local candidate="$1"
+  "$candidate" -e '
+    const [major, minor, patch] = process.versions.node.split(".").map(Number);
+    const ok = major > 22 || (major === 22 && (minor > 16 || (minor === 16 && patch >= 0)));
+    process.exit(ok ? 0 : 1);
+  ' >/dev/null 2>&1
+}
+
+resolve_bundled_node_source() {
+  if [[ "${SKIP_BUNDLED_NODE:-0}" == "1" ]]; then
+    return 1
+  fi
+
+  local candidate="${BUNDLED_NODE_SOURCE:-}"
+  if [[ -z "$candidate" ]]; then
+    candidate="$(command -v node || true)"
+  fi
+
+  if [[ -z "$candidate" || ! -x "$candidate" ]]; then
+    return 1
+  fi
+
+  if node_binary_meets_min "$candidate"; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  local found_version
+  found_version="$("$candidate" --version 2>/dev/null | tr -d '\r' | head -n 1)"
+  echo "WARN: skipping bundled Node at $candidate ($found_version); need >=22.16.0" >&2
+  return 1
+}
+
 if [[ "${SKIP_PNPM_INSTALL:-0}" != "1" ]]; then
   echo "📦 Ensuring deps (pnpm install)"
   (cd "$ROOT_DIR" && pnpm install --no-frozen-lockfile --config.node-linker=hoisted)
@@ -256,6 +290,45 @@ else
   echo "ERROR: Control UI assets missing at $CONTROL_UI_SRC. Run pnpm ui:build first." >&2
   exit 1
 fi
+
+echo "📦 Copying bundled gateway package"
+BUNDLED_PACKAGE_DEST="$APP_ROOT/Contents/Resources/openclaw-package"
+BUNDLED_PACKAGE_STAGE_ROOT="$(mktemp -d -t openclaw-bundled-package.XXXXXX)"
+BUNDLED_PACKAGE_STAGE="$BUNDLED_PACKAGE_STAGE_ROOT/openclaw-package"
+BUNDLED_NODE_RESOLVED="$(resolve_bundled_node_source || true)"
+rm -rf "$BUNDLED_PACKAGE_DEST"
+mkdir -p "$BUNDLED_PACKAGE_STAGE"
+cp "$ROOT_DIR/package.json" "$BUNDLED_PACKAGE_STAGE/package.json"
+if [ -f "$ROOT_DIR/openclaw.mjs" ]; then
+  cp "$ROOT_DIR/openclaw.mjs" "$BUNDLED_PACKAGE_STAGE/openclaw.mjs"
+fi
+if [ -d "$ROOT_DIR/bin" ]; then
+  (cd "$ROOT_DIR" && tar -cf - bin) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+fi
+(cd "$ROOT_DIR" && tar -cf - \
+  --exclude='dist/Alisio.app' \
+  --exclude='dist/Alisio-*.zip' \
+  --exclude='dist/Alisio-*.dmg' \
+  --exclude='dist/Alisio-*.dSYM.zip' \
+  dist) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+if [ -d "$ROOT_DIR/dist-runtime" ]; then
+  (cd "$ROOT_DIR" && tar -cf - dist-runtime) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+else
+  echo "WARN: dist-runtime missing; bundled gateway runtime may be incomplete" >&2
+fi
+if [ -n "$BUNDLED_NODE_RESOLVED" ]; then
+  echo "📦 Copying bundled Node runtime"
+  mkdir -p "$BUNDLED_PACKAGE_STAGE/tools/node/bin"
+  cp "$BUNDLED_NODE_RESOLVED" "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
+  chmod +x "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
+elif [[ "$BUILD_CONFIG" == "release" ]]; then
+  echo "ERROR: release packaging requires a bundled Node runtime (>=22.16.0)." >&2
+  exit 1
+else
+  echo "WARN: no bundled Node runtime found; this build will rely on Node in PATH." >&2
+fi
+mv "$BUNDLED_PACKAGE_STAGE" "$BUNDLED_PACKAGE_DEST"
+rm -rf "$BUNDLED_PACKAGE_STAGE_ROOT"
 
 echo "📦 Copying OpenClawKit resources"
 OPENCLAWKIT_BUNDLE="$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG/OpenClawKit_OpenClawKit.bundle"
