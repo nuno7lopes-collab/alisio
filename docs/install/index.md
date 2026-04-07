@@ -16,12 +16,12 @@ The fastest way to install. It detects your OS, installs Node if needed, install
 <Tabs>
   <Tab title="macOS / Linux / WSL2">
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash
+    curl -fsSL https://alisio.app/install.sh | bash
     ```
   </Tab>
   <Tab title="Windows (PowerShell)">
     ```powershell
-    iwr -useb https://openclaw.ai/install.ps1 | iex
+    iwr -useb https://alisio.app/install.ps1 | iex
     ```
   </Tab>
 </Tabs>
@@ -31,12 +31,12 @@ To install without running onboarding:
 <Tabs>
   <Tab title="macOS / Linux / WSL2">
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --no-onboard
     ```
   </Tab>
   <Tab title="Windows (PowerShell)">
     ```powershell
-    & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+    & ([scriptblock]::Create((iwr -useb https://alisio.app/install.ps1))) -NoOnboard
     ```
   </Tab>
 </Tabs>
@@ -58,13 +58,13 @@ If you already manage Node yourself:
 <Tabs>
   <Tab title="npm">
     ```bash
-    npm install -g alisio@npm:openclaw@latest
+    npm install -g alisio@npm:alisio@latest
     alisio onboard --install-daemon
     ```
   </Tab>
   <Tab title="pnpm">
     ```bash
-    pnpm add -g alisio@npm:openclaw@latest
+    pnpm add -g alisio@npm:alisio@latest
     pnpm approve-builds -g
     alisio onboard --install-daemon
     ```
@@ -80,7 +80,7 @@ If you already manage Node yourself:
   If `sharp` fails due to a globally installed libvips:
 
 ```bash
-SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g alisio@npm:openclaw@latest
+SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g alisio@npm:alisio@latest
 ```
 
 </Accordion>
@@ -90,8 +90,8 @@ SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm install -g alisio@npm:openclaw@latest
 For contributors or anyone who wants to run from a local checkout:
 
 ```bash
-git clone https://github.com/openclaw/openclaw.git
-cd openclaw
+git clone https://github.com/alisio/alisio.git
+cd alisio
 pnpm install && pnpm ui:build && pnpm build
 pnpm link --global
 alisio onboard --install-daemon
@@ -102,7 +102,7 @@ Or skip the link and use `pnpm alisio ...` from inside the repo. See [Setup](/st
 ### Install from GitHub main
 
 ```bash
-npm install -g github:openclaw/openclaw#main
+npm install -g github:alisio/alisio#main
 ```
 
 ### Containers and package managers
@@ -135,7 +135,7 @@ alisio gateway status # verify the Gateway is running
 
 ## Hosting and deployment
 
-Deploy OpenClaw on a cloud server or VPS:
+Deploy Alisio on a cloud server or VPS:
 
 <CardGroup cols={3}>
   <Card title="VPS" href="/vps">Any Linux VPS</Card>

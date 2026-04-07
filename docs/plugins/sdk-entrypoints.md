@@ -20,13 +20,13 @@ creating them.
 
 ## `definePluginEntry`
 
-**Import:** `openclaw/plugin-sdk/plugin-entry`
+**Import:** `alisio/plugin-sdk/plugin-entry`
 
 For provider plugins, tool plugins, hook plugins, and anything that is **not**
 a messaging channel.
 
 ```typescript
-import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
+import { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
 
 export default definePluginEntry({
   id: "my-plugin",
@@ -43,29 +43,29 @@ export default definePluginEntry({
 });
 ```
 
-| Field          | Type                                                             | Required | Default             |
-| -------------- | ---------------------------------------------------------------- | -------- | ------------------- |
-| `id`           | `string`                                                         | Yes      | —                   |
-| `name`         | `string`                                                         | Yes      | —                   |
-| `description`  | `string`                                                         | Yes      | —                   |
-| `kind`         | `string`                                                         | No       | —                   |
-| `configSchema` | `OpenClawPluginConfigSchema \| () => OpenClawPluginConfigSchema` | No       | Empty object schema |
-| `register`     | `(api: OpenClawPluginApi) => void`                               | Yes      | —                   |
+| Field          | Type                                                         | Required | Default             |
+| -------------- | ------------------------------------------------------------ | -------- | ------------------- |
+| `id`           | `string`                                                     | Yes      | —                   |
+| `name`         | `string`                                                     | Yes      | —                   |
+| `description`  | `string`                                                     | Yes      | —                   |
+| `kind`         | `string`                                                     | No       | —                   |
+| `configSchema` | `AlisioPluginConfigSchema \| () => AlisioPluginConfigSchema` | No       | Empty object schema |
+| `register`     | `(api: AlisioPluginApi) => void`                             | Yes      | —                   |
 
-- `id` must match your `openclaw.plugin.json` manifest.
+- `id` must match your `alisio.plugin.json` manifest.
 - `kind` is for exclusive slots: `"memory"` or `"context-engine"`.
 - `configSchema` can be a function for lazy evaluation.
 
 ## `defineChannelPluginEntry`
 
-**Import:** `openclaw/plugin-sdk/core`
+**Import:** `alisio/plugin-sdk/core`
 
 Wraps `definePluginEntry` with channel-specific wiring. Automatically calls
 `api.registerChannel({ plugin })`, exposes an optional root-help CLI metadata
 seam, and gates `registerFull` on registration mode.
 
 ```typescript
-import { defineChannelPluginEntry } from "openclaw/plugin-sdk/core";
+import { defineChannelPluginEntry } from "alisio/plugin-sdk/core";
 
 export default defineChannelPluginEntry({
   id: "my-channel",
@@ -82,16 +82,16 @@ export default defineChannelPluginEntry({
 });
 ```
 
-| Field                 | Type                                                             | Required | Default             |
-| --------------------- | ---------------------------------------------------------------- | -------- | ------------------- |
-| `id`                  | `string`                                                         | Yes      | —                   |
-| `name`                | `string`                                                         | Yes      | —                   |
-| `description`         | `string`                                                         | Yes      | —                   |
-| `plugin`              | `ChannelPlugin`                                                  | Yes      | —                   |
-| `configSchema`        | `OpenClawPluginConfigSchema \| () => OpenClawPluginConfigSchema` | No       | Empty object schema |
-| `setRuntime`          | `(runtime: PluginRuntime) => void`                               | No       | —                   |
-| `registerCliMetadata` | `(api: OpenClawPluginApi) => void`                               | No       | —                   |
-| `registerFull`        | `(api: OpenClawPluginApi) => void`                               | No       | —                   |
+| Field                 | Type                                                         | Required | Default             |
+| --------------------- | ------------------------------------------------------------ | -------- | ------------------- |
+| `id`                  | `string`                                                     | Yes      | —                   |
+| `name`                | `string`                                                     | Yes      | —                   |
+| `description`         | `string`                                                     | Yes      | —                   |
+| `plugin`              | `ChannelPlugin`                                              | Yes      | —                   |
+| `configSchema`        | `AlisioPluginConfigSchema \| () => AlisioPluginConfigSchema` | No       | Empty object schema |
+| `setRuntime`          | `(runtime: PluginRuntime) => void`                           | No       | —                   |
+| `registerCliMetadata` | `(api: AlisioPluginApi) => void`                             | No       | —                   |
+| `registerFull`        | `(api: AlisioPluginApi) => void`                             | No       | —                   |
 
 - `setRuntime` is called during registration so you can store the runtime reference
   (typically via `createPluginRuntimeStore`). It is skipped during CLI metadata
@@ -110,18 +110,18 @@ export default defineChannelPluginEntry({
 
 ## `defineSetupPluginEntry`
 
-**Import:** `openclaw/plugin-sdk/core`
+**Import:** `alisio/plugin-sdk/core`
 
 For the lightweight `setup-entry.ts` file. Returns just `{ plugin }` with no
 runtime or CLI wiring.
 
 ```typescript
-import { defineSetupPluginEntry } from "openclaw/plugin-sdk/core";
+import { defineSetupPluginEntry } from "alisio/plugin-sdk/core";
 
 export default defineSetupPluginEntry(myChannelPlugin);
 ```
 
-OpenClaw loads this instead of the full entry when a channel is disabled,
+Alisio loads this instead of the full entry when a channel is disabled,
 unconfigured, or when deferred loading is enabled. See
 [Setup and Config](/plugins/sdk-setup#setup-entry) for when this matters.
 
@@ -157,14 +157,14 @@ register(api) {
 For CLI registrars specifically:
 
 - use `descriptors` when the registrar owns one or more root commands and you
-  want OpenClaw to lazy-load the real CLI module on first invocation
+  want Alisio to lazy-load the real CLI module on first invocation
 - make sure those descriptors cover every top-level command root exposed by the
   registrar
 - use `commands` alone only for eager compatibility paths
 
 ## Plugin shapes
 
-OpenClaw classifies loaded plugins by their registration behavior:
+Alisio classifies loaded plugins by their registration behavior:
 
 | Shape                 | Description                                        |
 | --------------------- | -------------------------------------------------- |
@@ -173,7 +173,7 @@ OpenClaw classifies loaded plugins by their registration behavior:
 | **hook-only**         | Only hooks, no capabilities                        |
 | **non-capability**    | Tools/commands/services but no capabilities        |
 
-Use `openclaw plugins inspect <id>` to see a plugin's shape.
+Use `alisio plugins inspect <id>` to see a plugin's shape.
 
 ## Related
 

@@ -14,7 +14,7 @@ read_when:
 The `web_search` tool searches the web using your configured provider and
 returns results. Results are cached by query for 15 minutes (configurable).
 
-OpenClaw also includes `x_search` for X (formerly Twitter) posts and
+Alisio also includes `x_search` for X (formerly Twitter) posts and
 `web_fetch` for lightweight URL fetching. In this phase, `web_fetch` stays
 local while `web_search` and `x_search` can use xAI Responses under the hood.
 
@@ -33,7 +33,7 @@ local while `web_search` and `x_search` can use xAI Responses under the hood.
   </Step>
   <Step title="Configure">
     ```bash
-    openclaw configure --section web
+    alisio configure --section web
     ```
     This stores the key and sets the provider. You can also set an env var
     (e.g. `BRAVE_API_KEY`) and skip this step.
@@ -42,7 +42,7 @@ local while `web_search` and `x_search` can use xAI Responses under the hood.
     The agent can now call `web_search`:
 
     ```javascript
-    await web_search({ query: "OpenClaw plugin SDK" });
+    await web_search({ query: "Alisio plugin SDK" });
     ```
 
     For X posts, use:
@@ -105,7 +105,7 @@ local while `web_search` and `x_search` can use xAI Responses under the hood.
 Provider lists in docs and setup flows are alphabetical. Auto-detection keeps a
 separate precedence order:
 
-If no `provider` is set, OpenClaw checks for API keys in this order and uses
+If no `provider` is set, Alisio checks for API keys in this order and uses
 the first one found:
 
 1. **Brave** -- `BRAVE_API_KEY` or `plugins.entries.brave.config.webSearch.apiKey`
@@ -121,7 +121,7 @@ prompting you to configure one).
 
 <Note>
   All provider key fields support SecretRef objects. In auto-detect mode,
-  OpenClaw resolves only the selected provider key -- non-selected SecretRefs
+  Alisio resolves only the selected provider key -- non-selected SecretRefs
   stay inactive.
 </Note>
 
@@ -149,17 +149,17 @@ examples.
 
 For `x_search`, configure `tools.web.x_search.*` directly. It uses the same
 `XAI_API_KEY` fallback as Grok web search.
-When you choose Grok during `openclaw onboard` or `openclaw configure --section web`,
-OpenClaw can also offer optional `x_search` setup with the same key.
+When you choose Grok during `alisio onboard` or `alisio configure --section web`,
+Alisio can also offer optional `x_search` setup with the same key.
 This is a separate follow-up step inside the Grok path, not a separate top-level
-web-search provider choice. If you pick another provider, OpenClaw does not
+web-search provider choice. If you pick another provider, Alisio does not
 show the `x_search` prompt.
 
 ### Storing API keys
 
 <Tabs>
   <Tab title="Config file">
-    Run `openclaw configure --section web` or set the key directly:
+    Run `alisio configure --section web` or set the key directly:
 
     ```json5
     {
@@ -185,7 +185,7 @@ show the `x_search` prompt.
     export BRAVE_API_KEY="YOUR_KEY"
     ```
 
-    For a gateway install, put it in `~/.openclaw/.env`.
+    For a gateway install, put it in `~/.alisio/.env`.
     See [Env vars](/help/faq#env-vars-and-env-loading).
 
   </Tab>
@@ -218,7 +218,7 @@ show the `x_search` prompt.
 
 `x_search` queries X (formerly Twitter) posts using xAI and returns
 AI-synthesized answers with citations. It accepts natural-language queries and
-optional structured filters. OpenClaw only enables the built-in xAI `x_search`
+optional structured filters. Alisio only enables the built-in xAI `x_search`
 tool on the request that serves this tool call.
 
 <Note>
@@ -283,7 +283,7 @@ await x_search({
 
 ```javascript
 // Basic search
-await web_search({ query: "OpenClaw plugin SDK" });
+await web_search({ query: "Alisio plugin SDK" });
 
 // German-specific search
 await web_search({ query: "TV online schauen", country: "DE", language: "de" });

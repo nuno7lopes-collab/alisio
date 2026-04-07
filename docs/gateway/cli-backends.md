@@ -9,7 +9,7 @@ title: "CLI Backends"
 
 # CLI backends (fallback runtime)
 
-OpenClaw can run **local AI CLIs** as a **text-only fallback** when API providers are down,
+Alisio can run **local AI CLIs** as a **text-only fallback** when API providers are down,
 rate-limited, or temporarily misbehaving. This is intentionally conservative:
 
 - **Tools are disabled** (no tool calls).
@@ -26,13 +26,13 @@ You can use Claude Code CLI **without any config** (the bundled Anthropic plugin
 registers a default backend):
 
 ```bash
-openclaw agent --message "hi" --model claude-cli/opus-4.6
+alisio agent --message "hi" --model claude-cli/opus-4.6
 ```
 
 Codex CLI also works out of the box (via the bundled OpenAI plugin):
 
 ```bash
-openclaw agent --message "hi" --model codex-cli/gpt-5.4
+alisio agent --message "hi" --model codex-cli/gpt-5.4
 ```
 
 If your gateway runs under launchd/systemd and PATH is minimal, add just the
@@ -55,7 +55,7 @@ command path:
 That’s it. No keys, no extra auth config needed beyond the CLI itself.
 
 If you use a bundled CLI backend as the **primary message provider** on a
-gateway host, OpenClaw now auto-loads the owning bundled plugin when your config
+gateway host, Alisio now auto-loads the owning bundled plugin when your config
 explicitly references that backend in a model ref or under
 `agents.defaults.cliBackends`.
 
@@ -84,7 +84,7 @@ Add a CLI backend to your fallback list so it only runs when primary models fail
 Notes:
 
 - If you use `agents.defaults.models` (allowlist), you must include `claude-cli/...`.
-- If the primary provider fails (auth, rate limits, timeouts), OpenClaw will
+- If the primary provider fails (auth, rate limits, timeouts), Alisio will
   try the CLI backend next.
 
 ## Configuration overview
@@ -141,7 +141,7 @@ The provider id becomes the left side of your model ref:
 ## How it works
 
 1. **Selects a backend** based on the provider prefix (`claude-cli/...`).
-2. **Builds a system prompt** using the same OpenClaw prompt + workspace context.
+2. **Builds a system prompt** using the same Alisio prompt + workspace context.
 3. **Executes the CLI** with a session id (if supported) so history stays consistent.
 4. **Parses output** (JSON or plain text) and returns the final text.
 5. **Persists session ids** per backend, so follow-ups reuse the same CLI session.
@@ -168,8 +168,8 @@ imageArg: "--image",
 imageMode: "repeat"
 ```
 
-OpenClaw will write base64 images to temp files. If `imageArg` is set, those
-paths are passed as CLI args. If `imageArg` is missing, OpenClaw appends the
+Alisio will write base64 images to temp files. If `imageArg` is set, those
+paths are passed as CLI args. If `imageArg` is missing, Alisio appends the
 file paths to the prompt (path injection), which is enough for CLIs that auto-
 load local files from plain paths (Claude Code CLI behavior).
 
@@ -233,12 +233,12 @@ CLI backend defaults are now part of the plugin surface:
 
 ## Limitations
 
-- **No OpenClaw tools** (the CLI backend never receives tool calls). Some CLIs
+- **No Alisio tools** (the CLI backend never receives tool calls). Some CLIs
   may still run their own agent tooling.
 - **No streaming** (CLI output is collected then returned).
 - **Structured outputs** depend on the CLI’s JSON format.
 - **Codex CLI sessions** resume via text output (no JSONL), which is less
-  structured than the initial `--json` run. OpenClaw sessions still work
+  structured than the initial `--json` run. Alisio sessions still work
   normally.
 
 ## Troubleshooting

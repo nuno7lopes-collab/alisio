@@ -1,116 +1,129 @@
 ---
-summary: "Get Alisio installed and run your first chat in minutes."
+summary: "Install Alisio on macOS, sign in, choose your AI source, and run the first workflow."
 read_when:
   - First time setup from zero
-  - You want the fastest path to a working chat
+  - You want the real desktop-first path
 title: "Getting Started"
 ---
 
 # Getting Started
 
-Install Alisio, run onboarding, and chat with your AI assistant — all in
-about 5 minutes. By the end you will have a running Gateway, configured auth,
-and a working chat session.
+The recommended path starts with the macOS app.
 
-## What you need
+You install Alisio, sign in, grant the permissions you want, choose how AI should run on that computer, and then connect the channels, apps, and devices you care about.
 
-- **Node.js** — Node 24 recommended (Node 22.14+ also supported)
-- **An API key** from a model provider (Anthropic, OpenAI, Google, etc.) — onboarding will prompt you
+## What You Need
 
-<Tip>
-Check your Node version with `node --version`.
-**Windows users:** both native Windows and WSL2 are supported. WSL2 is more
-stable and recommended for the full experience. See [Windows](/platforms/windows).
-Need to install Node? See [Node setup](/install/node).
-</Tip>
+- **A Mac** for the primary desktop experience
+- **An OpenAI account** or **API key**, if you want hosted AI on day one
+- Optional: **a local model runtime** or **a private server** if you want Alisio to run outside OpenAI
 
-## Quick setup
+## The Recommended Setup
 
 <Steps>
-  <Step title="Install Alisio">
-    <Tabs>
-      <Tab title="macOS / Linux">
-        ```bash
-        curl -fsSL https://openclaw.ai/install.sh | bash
-        ```
-        <img
-  src="/assets/install-script.svg"
-  alt="Install Script Process"
-  className="rounded-lg"
-/>
-      </Tab>
-      <Tab title="Windows (PowerShell)">
-        ```powershell
-        iwr -useb https://openclaw.ai/install.ps1 | iex
-        ```
-      </Tab>
-    </Tabs>
+  <Step title="Install the macOS app">
+    Install **Alisio.app** and launch it.
 
     <Note>
-    Other install methods (Docker, Nix, npm): [Install](/install).
+    Linux, Windows, and headless gateway flows still exist, but they are secondary setup paths. Start there only if you are intentionally running Alisio without the Mac app.
     </Note>
 
   </Step>
-  <Step title="Run onboarding">
-    ```bash
-    alisio onboard --install-daemon
-    ```
 
-    The wizard walks you through choosing a model provider, setting an API key,
-    and configuring the Gateway. It takes about 2 minutes.
+  <Step title="Sign in">
+    Sign in to your Alisio account from the app.
 
-    See [Onboarding (CLI)](/start/wizard) for the full reference.
+    This unlocks the desktop flow for:
 
-  </Step>
-  <Step title="Verify the Gateway is running">
-    ```bash
-    alisio gateway status
-    ```
-
-    You should see the Gateway listening on port 18789.
+    - account identity
+    - OpenAI connection
+    - connector setup
+    - per-computer marketplace installs
 
   </Step>
-  <Step title="Open the dashboard">
-    ```bash
-    alisio dashboard
-    ```
 
-    This opens the Control UI in your browser. If it loads, everything is working.
+  <Step title="Grant macOS permissions">
+    Approve only the permissions you want Alisio to use on this Mac:
+
+    - Notifications
+    - Accessibility
+    - Screen Recording
+    - Microphone
+    - Speech Recognition
+    - Camera
+    - Location
+    - Automation, when you want AppleScript-style workflows
 
   </Step>
-  <Step title="Send your first message">
-    Type a message in the Control UI chat and you should get an AI reply.
 
-    Want to chat from your phone instead? The fastest channel to set up is
-    [Telegram](/channels/telegram) (just a bot token). See [Channels](/channels)
-    for all options.
+  <Step title="Choose your AI source">
+    Pick the first AI source for this computer:
+
+    - **OpenAI**: fastest path, with OAuth or API key
+    - **Local**: run a local model on this Mac
+    - **Server**: connect an Ollama or OpenAI-compatible server you control
+
+    You can add more than one source later and choose fallbacks.
+
+  </Step>
+
+  <Step title="Connect channels, apps, and devices">
+    Add the surfaces Alisio should use:
+
+    - channels for inbound and outbound work
+    - connectors and apps for automation
+    - paired devices for camera, voice, screen, notifications, and local actions
+
+  </Step>
+
+  <Step title="Run the first workflow">
+    Open chat in the app and test one real task:
+
+    - ask a question with OpenAI
+    - run a local workflow
+    - connect a channel
+    - install a skill from the local marketplace
+    - create a simple automation tied to a connector or channel
 
   </Step>
 </Steps>
 
-## What to do next
+## AI Choices In Plain Language
 
 <Columns>
-  <Card title="Connect a channel" href="/channels" icon="message-square">
-    WhatsApp, Telegram, Discord, iMessage, and more.
+  <Card title="OpenAI" href="/concepts/model-providers" icon="sparkles">
+    Best default when you want fast setup and strong hosted models.
   </Card>
-  <Card title="Pairing and safety" href="/channels/pairing" icon="shield">
-    Control who can message your agent.
+  <Card title="Local models" href="/gateway/local-models" icon="cpu">
+    Best when privacy, ownership, or low-latency local loops matter more.
   </Card>
-  <Card title="Configure the Gateway" href="/gateway/configuration" icon="settings">
-    Models, tools, sandbox, and advanced settings.
-  </Card>
-  <Card title="Browse tools" href="/tools" icon="wrench">
-    Browser, exec, web search, skills, and plugins.
+  <Card title="Servers" href="/gateway/local-models" icon="server">
+    Best when another machine should host Ollama or an OpenAI-compatible runtime.
   </Card>
 </Columns>
 
-<Accordion title="Advanced: environment variables">
-  If you run Alisio as a service account or want custom paths:
+## What To Read Next
 
-- `OPENCLAW_HOME` — home directory for internal path resolution
-- `OPENCLAW_STATE_DIR` — override the state directory
-- `OPENCLAW_CONFIG_PATH` — override the config file path
+<Columns>
+  <Card title="Product Overview" href="/start/overview" icon="layout-panel-top">
+    Product framing, use cases, and the minimum sellable product.
+  </Card>
+  <Card title="macOS App" href="/platforms/macos" icon="monitor-smartphone">
+    The main product surface for setup, permissions, and device control.
+  </Card>
+  <Card title="Devices" href="/nodes" icon="smartphone">
+    Pair devices and run device-local actions.
+  </Card>
+  <Card title="Skills" href="/tools/skills" icon="sparkles">
+    Install skills and apps from the local marketplace on each computer.
+  </Card>
+</Columns>
 
-Full reference: [Environment variables](/help/environment).
-</Accordion>
+<Accordion title="Advanced and non-macOS setups">
+  If you are deliberately running Alisio without the macOS app:
+
+- Use [Onboarding Overview](/start/onboarding-overview) to choose the right setup path.
+- Use [Onboarding (CLI)](/start/wizard) for terminal-led setup.
+- Use [Install](/install) for containers, servers, and hosted deployments.
+- Use [Environment](/help/environment) for advanced paths such as `ALISIO_HOME`, `ALISIO_STATE_DIR`, and `ALISIO_CONFIG_PATH`.
+  </Accordion>

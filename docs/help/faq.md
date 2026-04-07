@@ -1,5 +1,5 @@
 ---
-summary: "Frequently asked questions about OpenClaw setup, configuration, and usage"
+summary: "Frequently asked questions about Alisio setup, configuration, and usage"
 read_when:
   - Answering common setup, install, onboarding, or runtime support questions
   - Triaging user-reported issues before deeper debugging
@@ -15,7 +15,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 1. **Quick status (first check)**
 
    ```bash
-   openclaw status
+   alisio status
    ```
 
    Fast local summary: OS + update, gateway/service reachability, agents/sessions, provider config + runtime issues (when gateway is reachable).
@@ -23,7 +23,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 2. **Pasteable report (safe to share)**
 
    ```bash
-   openclaw status --all
+   alisio status --all
    ```
 
    Read-only diagnosis with log tail (tokens redacted).
@@ -31,7 +31,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 3. **Daemon + port state**
 
    ```bash
-   openclaw gateway status
+   alisio gateway status
    ```
 
    Shows supervisor runtime vs RPC reachability, the probe target URL, and which config the service likely used.
@@ -39,7 +39,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 4. **Deep probes**
 
    ```bash
-   openclaw status --deep
+   alisio status --deep
    ```
 
    Runs gateway health checks + provider probes (requires a reachable gateway). See [Health](/gateway/health).
@@ -47,13 +47,13 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 5. **Tail the latest log**
 
    ```bash
-   openclaw logs --follow
+   alisio logs --follow
    ```
 
    If RPC is down, fall back to:
 
    ```bash
-   tail -f "$(ls -t /tmp/openclaw/openclaw-*.log | head -1)"
+   tail -f "$(ls -t /tmp/alisio/alisio-*.log | head -1)"
    ```
 
    File logs are separate from service logs; see [Logging](/logging) and [Troubleshooting](/gateway/troubleshooting).
@@ -61,7 +61,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 6. **Run the doctor (repairs)**
 
    ```bash
-   openclaw doctor
+   alisio doctor
    ```
 
    Repairs/migrates config/state + runs health checks. See [Doctor](/gateway/doctor).
@@ -69,8 +69,8 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 7. **Gateway snapshot**
 
    ```bash
-   openclaw health --json
-   openclaw health --verbose   # shows the target URL + config path on errors
+   alisio health --json
+   alisio health --verbose   # shows the target URL + config path on errors
    ```
 
    Asks the running gateway for a full snapshot (WS-only). See [Health](/gateway/health).
@@ -91,10 +91,10 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     the hackable (git) install:
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --install-method git
     ```
 
-    This installs OpenClaw **from a git checkout**, so the agent can read the code + docs and
+    This installs Alisio **from a git checkout**, so the agent can read the code + docs and
     reason about the exact version you are running. You can always switch back to stable later
     by re-running the installer without `--install-method git`.
 
@@ -102,36 +102,36 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     necessary commands. That keeps changes small and easier to audit.
 
     If you discover a real bug or fix, please file a GitHub issue or send a PR:
-    [https://github.com/openclaw/openclaw/issues](https://github.com/openclaw/openclaw/issues)
-    [https://github.com/openclaw/openclaw/pulls](https://github.com/openclaw/openclaw/pulls)
+    [https://github.com/alisio/alisio/issues](https://github.com/alisio/alisio/issues)
+    [https://github.com/alisio/alisio/pulls](https://github.com/alisio/alisio/pulls)
 
     Start with these commands (share outputs when asking for help):
 
     ```bash
-    openclaw status
-    openclaw models status
-    openclaw doctor
+    alisio status
+    alisio models status
+    alisio doctor
     ```
 
     What they do:
 
-    - `openclaw status`: quick snapshot of gateway/agent health + basic config.
-    - `openclaw models status`: checks provider auth + model availability.
-    - `openclaw doctor`: validates and repairs common config/state issues.
+    - `alisio status`: quick snapshot of gateway/agent health + basic config.
+    - `alisio models status`: checks provider auth + model availability.
+    - `alisio doctor`: validates and repairs common config/state issues.
 
-    Other useful CLI checks: `openclaw status --all`, `openclaw logs --follow`,
-    `openclaw gateway status`, `openclaw health --verbose`.
+    Other useful CLI checks: `alisio status --all`, `alisio logs --follow`,
+    `alisio gateway status`, `alisio health --verbose`.
 
     Quick debug loop: [First 60 seconds if something is broken](#first-60-seconds-if-something-is-broken).
     Install docs: [Install](/install), [Installer flags](/install/installer), [Updating](/install/updating).
 
   </Accordion>
 
-  <Accordion title="Recommended way to install and set up OpenClaw">
+  <Accordion title="Recommended way to install and set up Alisio">
     The repo recommends running from source and using onboarding:
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash
+    curl -fsSL https://alisio.app/install.sh | bash
     alisio onboard --install-daemon
     ```
 
@@ -140,15 +140,15 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     From source (contributors/dev):
 
     ```bash
-    git clone https://github.com/openclaw/openclaw.git
-    cd openclaw
+    git clone https://github.com/alisio/alisio.git
+    cd alisio
     pnpm install
     pnpm build
     pnpm ui:build # auto-installs UI deps on first run
-    openclaw onboard
+    alisio onboard
     ```
 
-    If you don't have a global install yet, run it via `pnpm openclaw onboard`.
+    If you don't have a global install yet, run it via `pnpm alisio onboard`.
 
   </Accordion>
 
@@ -160,13 +160,13 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     **Localhost (same machine):**
 
     - Open `http://127.0.0.1:18789/`.
-    - If it asks for auth, paste the token from `gateway.auth.token` (or `OPENCLAW_GATEWAY_TOKEN`) into Control UI settings.
-    - Retrieve it from the gateway host: `openclaw config get gateway.auth.token` (or generate one: `openclaw doctor --generate-gateway-token`).
+    - If it asks for auth, paste the token from `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) into Control UI settings.
+    - Retrieve it from the gateway host: `alisio config get gateway.auth.token` (or generate one: `alisio doctor --generate-gateway-token`).
 
     **Not on localhost:**
 
-    - **Tailscale Serve** (recommended): keep bind loopback, run `openclaw gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy Control UI/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
-    - **Tailnet bind**: run `openclaw gateway --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:18789/`, paste token in dashboard settings.
+    - **Tailscale Serve** (recommended): keep bind loopback, run `alisio gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy Control UI/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
+    - **Tailnet bind**: run `alisio gateway --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:18789/`, paste token in dashboard settings.
     - **SSH tunnel**: `ssh -N -L 18789:127.0.0.1:18789 user@host` then open `http://127.0.0.1:18789/` and paste the token in Control UI settings.
 
     See [Dashboard](/web/dashboard) and [Web surfaces](/web) for bind modes and auth details.
@@ -209,21 +209,21 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     1. Restart the Gateway:
 
     ```bash
-    openclaw gateway restart
+    alisio gateway restart
     ```
 
     2. Check status + auth:
 
     ```bash
-    openclaw status
-    openclaw models status
-    openclaw logs --follow
+    alisio status
+    alisio models status
+    alisio logs --follow
     ```
 
     3. If it still hangs, run:
 
     ```bash
-    openclaw doctor
+    alisio doctor
     ```
 
     If the Gateway is remote, ensure the tunnel/Tailscale connection is up and that the UI
@@ -236,17 +236,17 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     keeps your bot "exactly the same" (memory, session history, auth, and channel
     state) as long as you copy **both** locations:
 
-    1. Install OpenClaw on the new machine.
-    2. Copy `$OPENCLAW_STATE_DIR` (default: `~/.openclaw`) from the old machine.
-    3. Copy your workspace (default: `~/.openclaw/workspace`).
-    4. Run `openclaw doctor` and restart the Gateway service.
+    1. Install Alisio on the new machine.
+    2. Copy `$ALISIO_STATE_DIR` (default: `~/.alisio`) from the old machine.
+    3. Copy your workspace (default: `~/.alisio/workspace`).
+    4. Run `alisio doctor` and restart the Gateway service.
 
     That preserves config, auth profiles, WhatsApp creds, sessions, and memory. If you're in
     remote mode, remember the gateway host owns the session store and workspace.
 
     **Important:** if you only commit/push your workspace to GitHub, you're backing
     up **memory + bootstrap files**, but **not** session history or auth. Those live
-    under `~/.openclaw/` (for example `~/.openclaw/agents/<agentId>/sessions/`).
+    under `~/.alisio/` (for example `~/.alisio/agents/<agentId>/sessions/`).
 
     Related: [Migrating](/install/migrating), [Where things live on disk](#where-things-live-on-disk),
     [Agent workspace](/concepts/agent-workspace), [Doctor](/gateway/doctor),
@@ -256,7 +256,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   <Accordion title="Where do I see what is new in the latest version?">
     Check the GitHub changelog:
-    [https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md](https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md)
+    [https://github.com/alisio/alisio/blob/main/CHANGELOG.md](https://github.com/alisio/alisio/blob/main/CHANGELOG.md)
 
     Newest entries are at the top. If the top section is marked **Unreleased**, the next dated
     section is the latest shipped version. Entries are grouped by **Highlights**, **Changes**, and
@@ -264,13 +264,13 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   </Accordion>
 
-  <Accordion title="Cannot access docs.openclaw.ai (SSL error)">
-    Some Comcast/Xfinity connections incorrectly block `docs.openclaw.ai` via Xfinity
-    Advanced Security. Disable it or allowlist `docs.openclaw.ai`, then retry.
+  <Accordion title="Cannot access docs.alisio.ai (SSL error)">
+    Some Comcast/Xfinity connections incorrectly block `docs.alisio.ai` via Xfinity
+    Advanced Security. Disable it or allowlist `docs.alisio.ai`, then retry.
     Please help us unblock it by reporting here: [https://spa.xfinity.com/check_url_status](https://spa.xfinity.com/check_url_status).
 
     If you still can't reach the site, the docs are mirrored on GitHub:
-    [https://github.com/openclaw/openclaw/tree/main/docs](https://github.com/openclaw/openclaw/tree/main/docs)
+    [https://github.com/alisio/alisio/tree/main/docs](https://github.com/alisio/alisio/tree/main/docs)
 
   </Accordion>
 
@@ -285,7 +285,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     **same version**.
 
     See what changed:
-    [https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md](https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md)
+    [https://github.com/alisio/alisio/blob/main/CHANGELOG.md](https://github.com/alisio/alisio/blob/main/CHANGELOG.md)
 
     For install one-liners and the difference between beta and dev, see the accordion below.
 
@@ -298,15 +298,15 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     One-liners (macOS/Linux):
 
     ```bash
-    curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --beta
+    curl -fsSL --proto '=https' --tlsv1.2 https://alisio.app/install.sh | bash -s -- --beta
     ```
 
     ```bash
-    curl -fsSL --proto '=https' --tlsv1.2 https://openclaw.ai/install.sh | bash -s -- --install-method git
+    curl -fsSL --proto '=https' --tlsv1.2 https://alisio.app/install.sh | bash -s -- --install-method git
     ```
 
     Windows installer (PowerShell):
-    [https://openclaw.ai/install.ps1](https://openclaw.ai/install.ps1)
+    [https://alisio.app/install.ps1](https://alisio.app/install.ps1)
 
     More detail: [Development channels](/install/development-channels) and [Installer flags](/install/installer).
 
@@ -318,7 +318,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     1. **Dev channel (git checkout):**
 
     ```bash
-    openclaw update --channel dev
+    alisio update --channel dev
     ```
 
     This switches to the `main` branch and updates from source.
@@ -326,7 +326,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     2. **Hackable install (from the installer site):**
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --install-method git
     ```
 
     That gives you a local repo you can edit, then update via git.
@@ -334,8 +334,8 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     If you prefer a clean clone manually, use:
 
     ```bash
-    git clone https://github.com/openclaw/openclaw.git
-    cd openclaw
+    git clone https://github.com/alisio/alisio.git
+    cd alisio
     pnpm install
     pnpm build
     ```
@@ -360,19 +360,19 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     Re-run the installer with **verbose output**:
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --verbose
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --verbose
     ```
 
     Beta install with verbose:
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --beta --verbose
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --beta --verbose
     ```
 
     For a hackable (git) install:
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git --verbose
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --install-method git --verbose
     ```
 
     Windows (PowerShell) equivalent:
@@ -380,7 +380,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     ```powershell
     # install.ps1 has no dedicated -Verbose flag yet.
     Set-PSDebug -Trace 1
-    & ([scriptblock]::Create((iwr -useb https://openclaw.ai/install.ps1))) -NoOnboard
+    & ([scriptblock]::Create((iwr -useb https://alisio.app/install.ps1))) -NoOnboard
     Set-PSDebug -Trace 0
     ```
 
@@ -388,7 +388,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   </Accordion>
 
-  <Accordion title="Windows install says git not found or openclaw not recognized">
+  <Accordion title="Windows install says git not found or alisio not recognized">
     Two common Windows issues:
 
     **1) npm error spawn git / git not found**
@@ -396,7 +396,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     - Install **Git for Windows** and make sure `git` is on your PATH.
     - Close and reopen PowerShell, then re-run the installer.
 
-    **2) openclaw is not recognized after install**
+    **2) alisio is not recognized after install**
 
     - Your npm global bin folder is not on PATH.
     - Check the path:
@@ -433,12 +433,12 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     Then restart the Gateway and retry your command:
 
     ```powershell
-    openclaw gateway restart
+    alisio gateway restart
     ```
 
-    If you still reproduce this on latest OpenClaw, track/report it in:
+    If you still reproduce this on latest Alisio, track/report it in:
 
-    - [Issue #30640](https://github.com/openclaw/openclaw/issues/30640)
+    - [Issue #30640](https://github.com/alisio/alisio/issues/30640)
 
   </Accordion>
 
@@ -447,14 +447,14 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     your bot (or Claude/Codex) _from that folder_ so it can read the repo and answer precisely.
 
     ```bash
-    curl -fsSL https://openclaw.ai/install.sh | bash -s -- --install-method git
+    curl -fsSL https://alisio.app/install.sh | bash -s -- --install-method git
     ```
 
     More detail: [Install](/install) and [Installer flags](/install/installer).
 
   </Accordion>
 
-  <Accordion title="How do I install OpenClaw on Linux?">
+  <Accordion title="How do I install Alisio on Linux?">
     Short answer: follow the Linux guide, then run onboarding.
 
     - Linux quick path + service install: [Linux](/platforms/linux).
@@ -463,7 +463,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   </Accordion>
 
-  <Accordion title="How do I install OpenClaw on a VPS?">
+  <Accordion title="How do I install Alisio on a VPS?">
     Any Linux VPS works. Install on the server, then use SSH/Tailscale to reach the Gateway.
 
     Guides: [exe.dev](/install/exe-dev), [Hetzner](/install/hetzner), [Fly.io](/install/fly).
@@ -492,7 +492,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
 
   </Accordion>
 
-  <Accordion title="Can I ask OpenClaw to update itself?">
+  <Accordion title="Can I ask Alisio to update itself?">
     Short answer: **possible, not recommended**. The update flow can restart the
     Gateway (which drops the active session), may need a clean git checkout, and
     can prompt for confirmation. Safer: run updates from a shell as the operator.
@@ -500,18 +500,18 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     Use the CLI:
 
     ```bash
-    openclaw update
-    openclaw update status
-    openclaw update --channel stable|beta|dev
-    openclaw update --tag <dist-tag|version>
-    openclaw update --no-restart
+    alisio update
+    alisio update status
+    alisio update --channel stable|beta|dev
+    alisio update --tag <dist-tag|version>
+    alisio update --no-restart
     ```
 
     If you must automate from an agent:
 
     ```bash
-    openclaw update --yes --no-restart
-    openclaw gateway restart
+    alisio update --yes --no-restart
+    alisio gateway restart
     ```
 
     Docs: [Update](/cli/update), [Updating](/install/updating).
@@ -519,7 +519,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   </Accordion>
 
   <Accordion title="What does onboarding actually do?">
-    `openclaw onboard` is the recommended setup path. In **local mode** it walks you through:
+    `alisio onboard` is the recommended setup path. In **local mode** it walks you through:
 
     - **Model/auth setup** (provider OAuth/setup-token flows and API keys supported, plus local model options such as LM Studio)
     - **Workspace** location + bootstrap files
@@ -533,13 +533,13 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   </Accordion>
 
   <Accordion title="Do I need a Claude or OpenAI subscription to run this?">
-    No. You can run OpenClaw with **API keys** (Anthropic/OpenAI/others) or with
+    No. You can run Alisio with **API keys** (Anthropic/OpenAI/others) or with
     **local-only models** so your data stays on your device. Subscriptions (Claude
     Pro/Max or OpenAI Codex) are optional ways to authenticate those providers.
 
     If you choose Anthropic subscription auth, decide for yourself whether to use it:
     Anthropic has blocked some subscription usage outside Claude Code in the past.
-    OpenAI Codex OAuth is explicitly supported for external tools like OpenClaw.
+    OpenAI Codex OAuth is explicitly supported for external tools like Alisio.
 
     Docs: [Anthropic](/providers/anthropic), [OpenAI](/providers/openai),
     [Local models](/gateway/local-models), [Models](/concepts/models).
@@ -558,7 +558,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   </Accordion>
 
   <Accordion title="How does Anthropic setup-token auth work?">
-    `claude setup-token` generates a **token string** via the Claude Code CLI (it is not available in the web console). You can run it on **any machine**. Choose **Anthropic token (paste setup-token)** in onboarding or paste it with `openclaw models auth paste-token --provider anthropic`. The token is stored as an auth profile for the **anthropic** provider and used like an API key (no auto-refresh). More detail: [OAuth](/concepts/oauth).
+    `claude setup-token` generates a **token string** via the Claude Code CLI (it is not available in the web console). You can run it on **any machine**. Choose **Anthropic token (paste setup-token)** in onboarding or paste it with `alisio models auth paste-token --provider anthropic`. The token is stored as an auth profile for the **anthropic** provider and used like an API key (no auto-refresh). More detail: [OAuth](/concepts/oauth).
   </Accordion>
 
   <Accordion title="Where do I find an Anthropic setup-token?">
@@ -568,7 +568,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     claude setup-token
     ```
 
-    Copy the token it prints, then choose **Anthropic token (paste setup-token)** in onboarding. If you want to run it on the gateway host, use `openclaw models auth setup-token --provider anthropic`. If you ran `claude setup-token` elsewhere, paste it on the gateway host with `openclaw models auth paste-token --provider anthropic`. See [Anthropic](/providers/anthropic).
+    Copy the token it prints, then choose **Anthropic token (paste setup-token)** in onboarding. If you want to run it on the gateway host, use `alisio models auth setup-token --provider anthropic`. If you ran `claude setup-token` elsewhere, paste it on the gateway host with `alisio models auth paste-token --provider anthropic`. See [Anthropic](/providers/anthropic).
 
   </Accordion>
 
@@ -576,7 +576,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     Yes. You can either:
 
     - use a **setup-token**
-    - reuse a local **Claude CLI** login on the gateway host with `openclaw models auth login --provider anthropic --method cli --set-default`
+    - reuse a local **Claude CLI** login on the gateway host with `alisio models auth login --provider anthropic --method cli --set-default`
 
     Setup-token is still supported. Claude CLI migration is simpler when the gateway host already runs Claude Code. See [Anthropic](/providers/anthropic) and [OAuth](/concepts/oauth).
 
@@ -600,7 +600,7 @@ for usage/billing and raise limits as needed.
     credential is eligible for long-context billing (API key billing or subscription
     with Extra Usage enabled).
 
-    Tip: set a **fallback model** so OpenClaw can keep replying while a provider is rate-limited.
+    Tip: set a **fallback model** so Alisio can keep replying while a provider is rate-limited.
     See [Models](/cli/models), [OAuth](/concepts/oauth), and
     [/gateway/troubleshooting#anthropic-429-extra-usage-required-for-long-context](/gateway/troubleshooting#anthropic-429-extra-usage-required-for-long-context).
 
@@ -611,32 +611,32 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How does Codex auth work?">
-    OpenClaw supports **OpenAI Code (Codex)** via OAuth (ChatGPT sign-in). Onboarding can run the OAuth flow and will set the default model to `openai-codex/gpt-5.4` when appropriate. See [Model providers](/concepts/model-providers) and [Onboarding (CLI)](/start/wizard).
+    Alisio supports **OpenAI Code (Codex)** via OAuth (ChatGPT sign-in). Onboarding can run the OAuth flow and will set the default model to `openai-codex/gpt-5.4` when appropriate. See [Model providers](/concepts/model-providers) and [Onboarding (CLI)](/start/wizard).
   </Accordion>
 
   <Accordion title="Do you support OpenAI subscription auth (Codex OAuth)?">
-    Yes. OpenClaw fully supports **OpenAI Code (Codex) subscription OAuth**.
+    Yes. Alisio fully supports **OpenAI Code (Codex) subscription OAuth**.
     OpenAI explicitly allows subscription OAuth usage in external tools/workflows
-    like OpenClaw. Onboarding can run the OAuth flow for you.
+    like Alisio. Onboarding can run the OAuth flow for you.
 
     See [OAuth](/concepts/oauth), [Model providers](/concepts/model-providers), and [Onboarding (CLI)](/start/wizard).
 
   </Accordion>
 
   <Accordion title="How do I set up Gemini CLI OAuth?">
-    Gemini CLI uses a **plugin auth flow**, not a client id or secret in `openclaw.json`.
+    Gemini CLI uses a **plugin auth flow**, not a client id or secret in `alisio.json`.
 
     Steps:
 
-    1. Enable the plugin: `openclaw plugins enable google`
-    2. Login: `openclaw models auth login --provider google-gemini-cli --set-default`
+    1. Enable the plugin: `alisio plugins enable google`
+    2. Login: `alisio models auth login --provider google-gemini-cli --set-default`
 
     This stores OAuth tokens in auth profiles on the gateway host. Details: [Model providers](/concepts/model-providers).
 
   </Accordion>
 
   <Accordion title="Is a local model OK for casual chats?">
-    Usually no. OpenClaw needs large context + strong safety; small cards truncate and leak. If you must, run the **largest** model build you can locally (LM Studio) and see [/gateway/local-models](/gateway/local-models). Smaller/quantized models increase prompt-injection risk - see [Security](/gateway/security).
+    Usually no. Alisio needs large context + strong safety; small cards truncate and leak. If you must, run the **largest** model build you can locally (LM Studio) and see [/gateway/local-models](/gateway/local-models). Smaller/quantized models increase prompt-injection risk - see [Security](/gateway/security).
   </Accordion>
 
   <Accordion title="How do I keep hosted model traffic in a specific region?">
@@ -644,7 +644,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Do I have to buy a Mac Mini to install this?">
-    No. OpenClaw runs on macOS or Linux (Windows via WSL2). A Mac mini is optional - some people
+    No. Alisio runs on macOS or Linux (Windows via WSL2). A Mac mini is optional - some people
     buy one as an always-on host, but a small VPS, home server, or Raspberry Pi-class box works too.
 
     You only need a Mac **for macOS-only tools**. For iMessage, use [BlueBubbles](/channels/bluebubbles) (recommended) - the BlueBubbles server runs on any Mac, and the Gateway can run on Linux or elsewhere. If you want other macOS-only tools, run the Gateway on a Mac or pair a macOS node.
@@ -667,7 +667,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="If I buy a Mac mini to run OpenClaw, can I connect it to my MacBook Pro?">
+  <Accordion title="If I buy a Mac mini to run Alisio, can I connect it to my MacBook Pro?">
     Yes. The **Mac mini can run the Gateway**, and your MacBook Pro can connect as a
     **node** (companion device). Nodes don't run the Gateway - they provide extra
     capabilities like screen/camera/canvas and `system.run` on that device.
@@ -676,7 +676,7 @@ for usage/billing and raise limits as needed.
 
     - Gateway on the Mac mini (always-on).
     - MacBook Pro runs the macOS app or a node host and pairs to the Gateway.
-    - Use `openclaw nodes status` / `openclaw nodes list` to see it.
+    - Use `alisio nodes status` / `alisio nodes list` to see it.
 
     Docs: [Nodes](/nodes), [Nodes CLI](/cli/nodes).
 
@@ -694,11 +694,11 @@ for usage/billing and raise limits as needed.
   <Accordion title="Telegram: what goes in allowFrom?">
     `channels.telegram.allowFrom` is **the human sender's Telegram user ID** (numeric). It is not the bot username.
 
-    Onboarding accepts `@username` input and resolves it to a numeric ID, but OpenClaw authorization uses numeric IDs only.
+    Onboarding accepts `@username` input and resolves it to a numeric ID, but Alisio authorization uses numeric IDs only.
 
     Safer (no third-party bot):
 
-    - DM your bot, then run `openclaw logs --follow` and read `from.id`.
+    - DM your bot, then run `alisio logs --follow` and read `from.id`.
 
     Official Bot API:
 
@@ -712,7 +712,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can multiple people use one WhatsApp number with different OpenClaw instances?">
+  <Accordion title="Can multiple people use one WhatsApp number with different Alisio instances?">
     Yes, via **multi-agent routing**. Bind each sender's WhatsApp **DM** (peer `kind: "direct"`, sender E.164 like `+15551234567`) to a different `agentId`, so each person gets their own workspace and session store. Replies still come from the **same WhatsApp account**, and DM access control (`channels.whatsapp.dmPolicy` / `channels.whatsapp.allowFrom`) is global per WhatsApp account. See [Multi-Agent Routing](/concepts/multi-agent) and [WhatsApp](/channels/whatsapp).
   </Accordion>
 
@@ -730,7 +730,7 @@ for usage/billing and raise limits as needed.
     brew install <formula>
     ```
 
-    If you run OpenClaw via systemd, ensure the service PATH includes `/home/linuxbrew/.linuxbrew/bin` (or your brew prefix) so `brew`-installed tools resolve in non-login shells.
+    If you run Alisio via systemd, ensure the service PATH includes `/home/linuxbrew/.linuxbrew/bin` (or your brew prefix) so `brew`-installed tools resolve in non-login shells.
     Recent builds also prepend common user bin dirs on Linux systemd services (for example `~/.local/bin`, `~/.npm-global/bin`, `~/.local/share/pnpm`, `~/.bun/bin`) and honor `PNPM_HOME`, `NPM_CONFIG_PREFIX`, `BUN_INSTALL`, `VOLTA_HOME`, `ASDF_DATA_DIR`, `NVM_DIR`, and `FNM_DIR` when set.
 
   </Accordion>
@@ -747,24 +747,24 @@ for usage/billing and raise limits as needed.
 
   <Accordion title="Can I switch between npm and git installs later?">
     Yes. Install the other flavor, then run Doctor so the gateway service points at the new entrypoint.
-    This **does not delete your data** - it only changes the OpenClaw code install. Your state
-    (`~/.openclaw`) and workspace (`~/.openclaw/workspace`) stay untouched.
+    This **does not delete your data** - it only changes the Alisio code install. Your state
+    (`~/.alisio`) and workspace (`~/.alisio/workspace`) stay untouched.
 
     From npm to git:
 
     ```bash
-    git clone https://github.com/openclaw/openclaw.git
-    cd openclaw
+    git clone https://github.com/alisio/alisio.git
+    cd alisio
     pnpm install
     pnpm build
-    openclaw doctor
-    openclaw gateway restart
+    alisio doctor
+    alisio gateway restart
     ```
 
     From git to npm:
 
     ```bash
-    npm install -g alisio@npm:openclaw@latest
+    npm install -g alisio@npm:alisio@latest
     alisio doctor
     alisio gateway restart
     ```
@@ -789,13 +789,13 @@ for usage/billing and raise limits as needed.
     - **Pros:** always-on, stable network, no laptop sleep issues, easier to keep running.
     - **Cons:** often run headless (use screenshots), remote file access only, you must SSH for updates.
 
-    **OpenClaw-specific note:** WhatsApp/Telegram/Slack/Mattermost (plugin)/Discord all work fine from a VPS. The only real trade-off is **headless browser** vs a visible window. See [Browser](/tools/browser).
+    **Alisio-specific note:** WhatsApp/Telegram/Slack/Mattermost (plugin)/Discord all work fine from a VPS. The only real trade-off is **headless browser** vs a visible window. See [Browser](/tools/browser).
 
     **Recommended default:** VPS if you had gateway disconnects before. Local is great when you're actively using the Mac and want local file access or UI automation with a visible browser.
 
   </Accordion>
 
-  <Accordion title="How important is it to run OpenClaw on a dedicated machine?">
+  <Accordion title="How important is it to run Alisio on a dedicated machine?">
     Not required, but **recommended for reliability and isolation**.
 
     - **Dedicated host (VPS/Mac mini/Pi):** always-on, fewer sleep/reboot interruptions, cleaner permissions, easier to keep running.
@@ -807,7 +807,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="What are the minimum VPS requirements and recommended OS?">
-    OpenClaw is lightweight. For a basic Gateway + one chat channel:
+    Alisio is lightweight. For a basic Gateway + one chat channel:
 
     - **Absolute minimum:** 1 vCPU, 1GB RAM, ~500MB disk.
     - **Recommended:** 1-2 vCPU, 2GB RAM or more for headroom (logs, media, multiple channels). Node tools and browser automation can be resource hungry.
@@ -818,7 +818,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can I run OpenClaw in a VM and what are the requirements?">
+  <Accordion title="Can I run Alisio in a VM and what are the requirements?">
     Yes. Treat a VM the same as a VPS: it needs to be always on, reachable, and have enough
     RAM for the Gateway and any channels you enable.
 
@@ -835,15 +835,15 @@ for usage/billing and raise limits as needed.
   </Accordion>
 </AccordionGroup>
 
-## What is OpenClaw?
+## What is Alisio?
 
 <AccordionGroup>
-  <Accordion title="What is OpenClaw, in one paragraph?">
-    OpenClaw is a personal AI assistant you run on your own devices. It replies on the messaging surfaces you already use (WhatsApp, Telegram, Slack, Mattermost (plugin), Discord, Google Chat, Signal, iMessage, WebChat) and can also do voice + a live Canvas on supported platforms. The **Gateway** is the always-on control plane; the assistant is the product.
+  <Accordion title="What is Alisio, in one paragraph?">
+    Alisio is a personal AI assistant you run on your own devices. It replies on the messaging surfaces you already use (WhatsApp, Telegram, Slack, Mattermost (plugin), Discord, Google Chat, Signal, iMessage, WebChat) and can also do voice + a live Canvas on supported platforms. The **Gateway** is the always-on control plane; the assistant is the product.
   </Accordion>
 
   <Accordion title="Value proposition">
-    OpenClaw is not "just a Claude wrapper." It's a **local-first control plane** that lets you run a
+    Alisio is not "just a Claude wrapper." It's a **local-first control plane** that lets you run a
     capable assistant on **your own hardware**, reachable from the chat apps you already use, with
     stateful sessions, memory, and tools - without handing control of your workflows to a hosted
     SaaS.
@@ -879,7 +879,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="What are the top five everyday use cases for OpenClaw?">
+  <Accordion title="What are the top five everyday use cases for Alisio?">
     Everyday wins usually look like:
 
     - **Personal briefings:** summaries of inbox, calendar, and news you care about.
@@ -890,21 +890,21 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can OpenClaw help with lead gen, outreach, ads, and blogs for a SaaS?">
+  <Accordion title="Can Alisio help with lead gen, outreach, ads, and blogs for a SaaS?">
     Yes for **research, qualification, and drafting**. It can scan sites, build shortlists,
     summarize prospects, and write outreach or ad copy drafts.
 
     For **outreach or ad runs**, keep a human in the loop. Avoid spam, follow local laws and
     platform policies, and review anything before it is sent. The safest pattern is to let
-    OpenClaw draft and you approve.
+    Alisio draft and you approve.
 
     Docs: [Security](/gateway/security).
 
   </Accordion>
 
   <Accordion title="What are the advantages vs Claude Code for web development?">
-    OpenClaw is a **personal assistant** and coordination layer, not an IDE replacement. Use
-    Claude Code or Codex for the fastest direct coding loop inside a repo. Use OpenClaw when you
+    Alisio is a **personal assistant** and coordination layer, not an IDE replacement. Use
+    Claude Code or Codex for the fastest direct coding loop inside a repo. Use Alisio when you
     want durable memory, cross-device access, and tool orchestration.
 
     Advantages:
@@ -915,7 +915,7 @@ for usage/billing and raise limits as needed.
     - **Always-on Gateway** (run on a VPS, interact from anywhere)
     - **Nodes** for local browser/screen/camera/exec
 
-    Showcase: [https://openclaw.ai/showcase](https://openclaw.ai/showcase)
+    Showcase: [https://alisio.app/showcase](https://alisio.app/showcase)
 
   </Accordion>
 </AccordionGroup>
@@ -924,11 +924,11 @@ for usage/billing and raise limits as needed.
 
 <AccordionGroup>
   <Accordion title="How do I customize skills without keeping the repo dirty?">
-    Use managed overrides instead of editing the repo copy. Put your changes in `~/.openclaw/skills/<name>/SKILL.md` (or add a folder via `skills.load.extraDirs` in `~/.openclaw/openclaw.json`). Precedence is `<workspace>/skills` > `~/.openclaw/skills` > bundled, so managed overrides win without touching git. Only upstream-worthy edits should live in the repo and go out as PRs.
+    Use managed overrides instead of editing the repo copy. Put your changes in `~/.alisio/skills/<name>/SKILL.md` (or add a folder via `skills.load.extraDirs` in `~/.alisio/alisio.json`). Precedence is `<workspace>/skills` > `~/.alisio/skills` > bundled, so managed overrides win without touching git. Only upstream-worthy edits should live in the repo and go out as PRs.
   </Accordion>
 
   <Accordion title="Can I load skills from a custom folder?">
-    Yes. Add extra directories via `skills.load.extraDirs` in `~/.openclaw/openclaw.json` (lowest precedence). Default precedence remains: `<workspace>/skills` → `~/.openclaw/skills` → bundled → `skills.load.extraDirs`. `clawhub` installs into `./skills` by default, which OpenClaw treats as `<workspace>/skills` on the next session.
+    Yes. Add extra directories via `skills.load.extraDirs` in `~/.alisio/alisio.json` (lowest precedence). Default precedence remains: `<workspace>/skills` → `~/.alisio/skills` → bundled → `skills.load.extraDirs`. `clawhub` installs into `./skills` by default, which Alisio treats as `<workspace>/skills` on the next session.
   </Accordion>
 
   <Accordion title="How can I use different models for different tasks?">
@@ -983,15 +983,15 @@ for usage/billing and raise limits as needed.
 
     Checklist:
 
-    - Confirm cron is enabled (`cron.enabled`) and `OPENCLAW_SKIP_CRON` is not set.
+    - Confirm cron is enabled (`cron.enabled`) and `ALISIO_SKIP_CRON` is not set.
     - Check the Gateway is running 24/7 (no sleep/restarts).
     - Verify timezone settings for the job (`--tz` vs host timezone).
 
     Debug:
 
     ```bash
-    openclaw cron run <jobId> --force
-    openclaw cron runs --id <jobId> --limit 50
+    alisio cron run <jobId> --force
+    alisio cron runs --id <jobId> --limit 50
     ```
 
     Docs: [Cron jobs](/automation/cron-jobs), [Cron vs Heartbeat](/automation/cron-vs-heartbeat).
@@ -999,20 +999,20 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How do I install skills on Linux?">
-    Use native `openclaw skills` commands or drop skills into your workspace. The macOS Skills UI isn't available on Linux.
-    Browse skills at [https://clawhub.com](https://clawhub.com).
+    Use native `alisio skills` commands or drop skills into your workspace. The macOS Skills UI isn't available on Linux.
+    Browse skills at [https://marketplace.local](https://marketplace.local).
 
     ```bash
-    openclaw skills search "calendar"
-    openclaw skills install <skill-slug>
-    openclaw skills update --all
+    alisio skills search "calendar"
+    alisio skills install <skill-slug>
+    alisio skills update --all
     ```
 
     Install the separate `clawhub` CLI only if you want to publish or sync your own skills.
 
   </Accordion>
 
-  <Accordion title="Can OpenClaw run tasks on a schedule or continuously in the background?">
+  <Accordion title="Can Alisio run tasks on a schedule or continuously in the background?">
     Yes. Use the Gateway scheduler:
 
     - **Cron jobs** for scheduled or recurring tasks (persist across restarts).
@@ -1025,7 +1025,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Can I run Apple macOS-only skills from Linux?">
-    Not directly. macOS skills are gated by `metadata.openclaw.os` plus required binaries, and skills only appear in the system prompt when they are eligible on the **Gateway host**. On Linux, `darwin`-only skills (like `apple-notes`, `apple-reminders`, `things-mac`) will not load unless you override the gating.
+    Not directly. macOS skills are gated by `metadata.alisio.os` plus required binaries, and skills only appear in the system prompt when they are eligible on the **Gateway host**. On Linux, `darwin`-only skills (like `apple-notes`, `apple-reminders`, `things-mac`) will not load unless you override the gating.
 
     You have three supported patterns:
 
@@ -1033,7 +1033,7 @@ for usage/billing and raise limits as needed.
     Run the Gateway where the macOS binaries exist, then connect from Linux in [remote mode](#gateway-ports-already-running-and-remote-mode) or over Tailscale. The skills load normally because the Gateway host is macOS.
 
     **Option B - use a macOS node (no SSH).**
-    Run the Gateway on Linux, pair a macOS node (menubar app), and set **Node Run Commands** to "Always Ask" or "Always Allow" on the Mac. OpenClaw can treat macOS-only skills as eligible when the required binaries exist on the node. The agent runs those skills via the `nodes` tool. If you choose "Always Ask", approving "Always Allow" in the prompt adds that command to the allowlist.
+    Run the Gateway on Linux, pair a macOS node (menubar app), and set **Node Run Commands** to "Always Ask" or "Always Allow" on the Mac. Alisio can treat macOS-only skills as eligible when the required binaries exist on the node. The agent runs those skills via the `nodes` tool. If you choose "Always Ask", approving "Always Allow" in the prompt adds that command to the allowlist.
 
     **Option C - proxy macOS binaries over SSH (advanced).**
     Keep the Gateway on Linux, but make the required CLI binaries resolve to SSH wrappers that run on a Mac. Then override the skill to allow Linux so it stays eligible.
@@ -1047,13 +1047,13 @@ for usage/billing and raise limits as needed.
        ```
 
     2. Put the wrapper on `PATH` on the Linux host (for example `~/bin/memo`).
-    3. Override the skill metadata (workspace or `~/.openclaw/skills`) to allow Linux:
+    3. Override the skill metadata (workspace or `~/.alisio/skills`) to allow Linux:
 
        ```markdown
        ---
        name: apple-notes
        description: Manage Apple Notes via the memo CLI on macOS.
-       metadata: { "openclaw": { "os": ["darwin", "linux"], "requires": { "bins": ["memo"] } } }
+       metadata: { "alisio": { "os": ["darwin", "linux"], "requires": { "bins": ["memo"] } } }
        ---
        ```
 
@@ -1080,27 +1080,27 @@ for usage/billing and raise limits as needed.
     Install skills:
 
     ```bash
-    openclaw skills install <skill-slug>
-    openclaw skills update --all
+    alisio skills install <skill-slug>
+    alisio skills update --all
     ```
 
-    Native installs land in the active workspace `skills/` directory. For shared skills across agents, place them in `~/.openclaw/skills/<name>/SKILL.md`. Some skills expect binaries installed via Homebrew; on Linux that means Linuxbrew (see the Homebrew Linux FAQ entry above). See [Skills](/tools/skills) and [ClawHub](/tools/clawhub).
+    Native installs land in the active workspace `skills/` directory. For shared skills across agents, place them in `~/.alisio/skills/<name>/SKILL.md`. Some skills expect binaries installed via Homebrew; on Linux that means Linuxbrew (see the Homebrew Linux FAQ entry above). See [Skills](/tools/skills) and [Marketplace Local](/tools/clawhub).
 
   </Accordion>
 
-  <Accordion title="How do I use my existing signed-in Chrome with OpenClaw?">
+  <Accordion title="How do I use my existing signed-in Chrome with Alisio?">
     Use the built-in `user` browser profile, which attaches through Chrome DevTools MCP:
 
     ```bash
-    openclaw browser --browser-profile user tabs
-    openclaw browser --browser-profile user snapshot
+    alisio browser --browser-profile user tabs
+    alisio browser --browser-profile user snapshot
     ```
 
     If you want a custom name, create an explicit MCP profile:
 
     ```bash
-    openclaw browser create-profile --name chrome-live --driver existing-session
-    openclaw browser --browser-profile chrome-live tabs
+    alisio browser create-profile --name chrome-live --driver existing-session
+    alisio browser --browser-profile chrome-live tabs
     ```
 
     This path is host-local. If the Gateway runs elsewhere, either run a node host on the browser machine or use remote CDP instead.
@@ -1119,8 +1119,8 @@ for usage/billing and raise limits as needed.
     The default image is security-first and runs as the `node` user, so it does not
     include system packages, Homebrew, or bundled browsers. For a fuller setup:
 
-    - Persist `/home/node` with `OPENCLAW_HOME_VOLUME` so caches survive.
-    - Bake system deps into the image with `OPENCLAW_DOCKER_APT_PACKAGES`.
+    - Persist `/home/node` with `ALISIO_HOME_VOLUME` so caches survive.
+    - Bake system deps into the image with `ALISIO_DOCKER_APT_PACKAGES`.
     - Install Playwright browsers via the bundled CLI:
       `node /app/node_modules/playwright-core/cli.js install chromium`
     - Set `PLAYWRIGHT_BROWSERS_PATH` and ensure the path is persisted.
@@ -1145,12 +1145,12 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How does memory work?">
-    OpenClaw memory is just Markdown files in the agent workspace:
+    Alisio memory is just Markdown files in the agent workspace:
 
     - Daily notes in `memory/YYYY-MM-DD.md`
     - Curated long-term notes in `MEMORY.md` (main/private sessions only)
 
-    OpenClaw also runs a **silent pre-compaction memory flush** to remind the model
+    Alisio also runs a **silent pre-compaction memory flush** to remind the model
     to write durable notes before auto-compaction. This only runs when the workspace
     is writable (read-only sandboxes skip it). See [Memory](/concepts/memory).
 
@@ -1184,12 +1184,12 @@ for usage/billing and raise limits as needed.
     Codex CLI login)** does not help for semantic memory search. OpenAI embeddings
     still need a real API key (`OPENAI_API_KEY` or `models.providers.openai.apiKey`).
 
-    If you don't set a provider explicitly, OpenClaw auto-selects a provider when it
+    If you don't set a provider explicitly, Alisio auto-selects a provider when it
     can resolve an API key (auth profiles, `models.providers.*.apiKey`, or env vars).
     It prefers OpenAI if an OpenAI key resolves, otherwise Gemini if a Gemini key
     resolves, then Voyage, then Mistral. If no remote key is available, memory
     search stays disabled until you configure it. If you have a local model path
-    configured and present, OpenClaw
+    configured and present, Alisio
     prefers `local`. Ollama is supported when you explicitly set
     `memorySearch.provider = "ollama"`.
 
@@ -1205,11 +1205,11 @@ for usage/billing and raise limits as needed.
 ## Where things live on disk
 
 <AccordionGroup>
-  <Accordion title="Is all data used with OpenClaw saved locally?">
-    No - **OpenClaw's state is local**, but **external services still see what you send them**.
+  <Accordion title="Is all data used with Alisio saved locally?">
+    No - **Alisio's state is local**, but **external services still see what you send them**.
 
     - **Local by default:** sessions, memory files, config, and workspace live on the Gateway host
-      (`~/.openclaw` + your workspace directory).
+      (`~/.alisio` + your workspace directory).
     - **Remote by necessity:** messages you send to model providers (Anthropic/OpenAI/etc.) go to
       their APIs, and chat platforms (WhatsApp/Telegram/Slack/etc.) store message data on their
       servers.
@@ -1220,41 +1220,41 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Where does OpenClaw store its data?">
-    Everything lives under `$OPENCLAW_STATE_DIR` (default: `~/.openclaw`):
+  <Accordion title="Where does Alisio store its data?">
+    Everything lives under `$ALISIO_STATE_DIR` (default: `~/.alisio`):
 
     | Path                                                            | Purpose                                                            |
     | --------------------------------------------------------------- | ------------------------------------------------------------------ |
-    | `$OPENCLAW_STATE_DIR/openclaw.json`                             | Main config (JSON5)                                                |
-    | `$OPENCLAW_STATE_DIR/credentials/oauth.json`                    | Legacy OAuth import (copied into auth profiles on first use)       |
-    | `$OPENCLAW_STATE_DIR/agents/<agentId>/agent/auth-profiles.json` | Auth profiles (OAuth, API keys, and optional `keyRef`/`tokenRef`)  |
-    | `$OPENCLAW_STATE_DIR/secrets.json`                              | Optional file-backed secret payload for `file` SecretRef providers |
-    | `$OPENCLAW_STATE_DIR/agents/<agentId>/agent/auth.json`          | Legacy compatibility file (static `api_key` entries scrubbed)      |
-    | `$OPENCLAW_STATE_DIR/credentials/`                              | Provider state (e.g. `whatsapp/<accountId>/creds.json`)            |
-    | `$OPENCLAW_STATE_DIR/agents/`                                   | Per-agent state (agentDir + sessions)                              |
-    | `$OPENCLAW_STATE_DIR/agents/<agentId>/sessions/`                | Conversation history & state (per agent)                           |
-    | `$OPENCLAW_STATE_DIR/agents/<agentId>/sessions/sessions.json`   | Session metadata (per agent)                                       |
+    | `$ALISIO_STATE_DIR/alisio.json`                             | Main config (JSON5)                                                |
+    | `$ALISIO_STATE_DIR/credentials/oauth.json`                    | Legacy OAuth import (copied into auth profiles on first use)       |
+    | `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth-profiles.json` | Auth profiles (OAuth, API keys, and optional `keyRef`/`tokenRef`)  |
+    | `$ALISIO_STATE_DIR/secrets.json`                              | Optional file-backed secret payload for `file` SecretRef providers |
+    | `$ALISIO_STATE_DIR/agents/<agentId>/agent/auth.json`          | Legacy compatibility file (static `api_key` entries scrubbed)      |
+    | `$ALISIO_STATE_DIR/credentials/`                              | Provider state (e.g. `whatsapp/<accountId>/creds.json`)            |
+    | `$ALISIO_STATE_DIR/agents/`                                   | Per-agent state (agentDir + sessions)                              |
+    | `$ALISIO_STATE_DIR/agents/<agentId>/sessions/`                | Conversation history & state (per agent)                           |
+    | `$ALISIO_STATE_DIR/agents/<agentId>/sessions/sessions.json`   | Session metadata (per agent)                                       |
 
-    Legacy single-agent path: `~/.openclaw/agent/*` (migrated by `openclaw doctor`).
+    Legacy single-agent path: `~/.alisio/agent/*` (migrated by `alisio doctor`).
 
-    Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agents.defaults.workspace` (default: `~/.openclaw/workspace`).
+    Your **workspace** (AGENTS.md, memory files, skills, etc.) is separate and configured via `agents.defaults.workspace` (default: `~/.alisio/workspace`).
 
   </Accordion>
 
   <Accordion title="Where should AGENTS.md / SOUL.md / USER.md / MEMORY.md live?">
-    These files live in the **agent workspace**, not `~/.openclaw`.
+    These files live in the **agent workspace**, not `~/.alisio`.
 
     - **Workspace (per agent)**: `AGENTS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`,
       `MEMORY.md` (or legacy fallback `memory.md` when `MEMORY.md` is absent),
       `memory/YYYY-MM-DD.md`, optional `HEARTBEAT.md`.
-    - **State dir (`~/.openclaw`)**: config, credentials, auth profiles, sessions, logs,
-      and shared skills (`~/.openclaw/skills`).
+    - **State dir (`~/.alisio`)**: config, credentials, auth profiles, sessions, logs,
+      and shared skills (`~/.alisio/skills`).
 
-    Default workspace is `~/.openclaw/workspace`, configurable via:
+    Default workspace is `~/.alisio/workspace`, configurable via:
 
     ```json5
     {
-      agents: { defaults: { workspace: "~/.openclaw/workspace" } },
+      agents: { defaults: { workspace: "~/.alisio/workspace" } },
     }
     ```
 
@@ -1274,7 +1274,7 @@ for usage/billing and raise limits as needed.
     private (for example GitHub private). This captures memory + AGENTS/SOUL/USER
     files, and lets you restore the assistant's "mind" later.
 
-    Do **not** commit anything under `~/.openclaw` (credentials, sessions, tokens, or encrypted secrets payloads).
+    Do **not** commit anything under `~/.alisio` (credentials, sessions, tokens, or encrypted secrets payloads).
     If you need a full restore, back up both the workspace and the state directory
     separately (see the migration question above).
 
@@ -1282,7 +1282,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="How do I completely uninstall OpenClaw?">
+  <Accordion title="How do I completely uninstall Alisio?">
     See the dedicated guide: [Uninstall](/install/uninstall).
   </Accordion>
 
@@ -1292,7 +1292,7 @@ for usage/billing and raise limits as needed.
     host locations unless sandboxing is enabled. If you need isolation, use
     [`agents.defaults.sandbox`](/gateway/sandboxing) or per-agent sandbox settings. If you
     want a repo to be the default working directory, point that agent's
-    `workspace` to the repo root. The OpenClaw repo is just source code; keep the
+    `workspace` to the repo root. The Alisio repo is just source code; keep the
     workspace separate unless you intentionally want the agent to work inside it.
 
     Example (repo as default cwd):
@@ -1318,18 +1318,18 @@ for usage/billing and raise limits as needed.
 
 <AccordionGroup>
   <Accordion title="What format is the config? Where is it?">
-    OpenClaw reads an optional **JSON5** config from `$OPENCLAW_CONFIG_PATH` (default: `~/.openclaw/openclaw.json`):
+    Alisio reads an optional **JSON5** config from `$ALISIO_CONFIG_PATH` (default: `~/.alisio/alisio.json`):
 
     ```
-    $OPENCLAW_CONFIG_PATH
+    $ALISIO_CONFIG_PATH
     ```
 
-    If the file is missing, it uses safe-ish defaults (including a default workspace of `~/.openclaw/workspace`).
+    If the file is missing, it uses safe-ish defaults (including a default workspace of `~/.alisio/workspace`).
 
   </Accordion>
 
   <Accordion title='I set gateway.bind: "lan" (or "tailnet") and now nothing listens / the UI says unauthorized'>
-    Non-loopback binds **require auth**. Configure `gateway.auth.mode` + `gateway.auth.token` (or use `OPENCLAW_GATEWAY_TOKEN`).
+    Non-loopback binds **require auth**. Configure `gateway.auth.mode` + `gateway.auth.token` (or use `ALISIO_GATEWAY_TOKEN`).
 
     ```json5
     {
@@ -1353,9 +1353,9 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Why do I need a token on localhost now?">
-    OpenClaw enforces token auth by default, including loopback. If no token is configured, gateway startup auto-generates one and saves it to `gateway.auth.token`, so **local WS clients must authenticate**. This blocks other local processes from calling the Gateway.
+    Alisio enforces token auth by default, including loopback. If no token is configured, gateway startup auto-generates one and saves it to `gateway.auth.token`, so **local WS clients must authenticate**. This blocks other local processes from calling the Gateway.
 
-    If you **really** want open loopback, set `gateway.auth.mode: "none"` explicitly in your config. Doctor can generate a token for you any time: `openclaw doctor --generate-gateway-token`.
+    If you **really** want open loopback, set `gateway.auth.mode: "none"` explicitly in your config. Doctor can generate a token for you any time: `alisio doctor --generate-gateway-token`.
 
   </Accordion>
 
@@ -1381,16 +1381,16 @@ for usage/billing and raise limits as needed.
     ```
 
     - `off`: hides tagline text but keeps the banner title/version line.
-    - `default`: uses `All your chats, one OpenClaw.` every time.
+    - `default`: uses `All your chats, one Alisio.` every time.
     - `random`: rotating funny/seasonal taglines (default behavior).
-    - If you want no banner at all, set env `OPENCLAW_HIDE_BANNER=1`.
+    - If you want no banner at all, set env `ALISIO_HIDE_BANNER=1`.
 
   </Accordion>
 
   <Accordion title="How do I enable web search (and web fetch)?">
     `web_fetch` works without an API key. `web_search` requires a key for your
     selected provider (Brave, Gemini, Grok, Kimi, or Perplexity).
-    **Recommended:** run `openclaw configure --section web` and choose a provider.
+    **Recommended:** run `alisio configure --section web` and choose a provider.
     Environment alternatives:
 
     - Brave: `BRAVE_API_KEY`
@@ -1434,7 +1434,7 @@ for usage/billing and raise limits as needed.
 
     - If you use allowlists, add `web_search`/`web_fetch` or `group:web`.
     - `web_fetch` is enabled by default (unless explicitly disabled).
-    - Daemons read env vars from `~/.openclaw/.env` (or the service environment).
+    - Daemons read env vars from `~/.alisio/.env` (or the service environment).
 
     Docs: [Web tools](/tools/web).
 
@@ -1446,15 +1446,15 @@ for usage/billing and raise limits as needed.
 
     Recover:
 
-    - Restore from backup (git or a copied `~/.openclaw/openclaw.json`).
-    - If you have no backup, re-run `openclaw doctor` and reconfigure channels/models.
+    - Restore from backup (git or a copied `~/.alisio/alisio.json`).
+    - If you have no backup, re-run `alisio doctor` and reconfigure channels/models.
     - If this was unexpected, file a bug and include your last known config or any backup.
     - A local coding agent can often reconstruct a working config from logs or history.
 
     Avoid it:
 
-    - Use `openclaw config set` for small changes.
-    - Use `openclaw configure` for interactive edits.
+    - Use `alisio config set` for small changes.
+    - Use `alisio configure` for interactive edits.
 
     Docs: [Config](/cli/config), [Configure](/cli/configure), [Doctor](/gateway/doctor).
 
@@ -1473,7 +1473,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can the OpenClaw browser run headless?">
+  <Accordion title="Can the Alisio browser run headless?">
     Yes. It's a config option:
 
     ```json5
@@ -1530,8 +1530,8 @@ for usage/billing and raise limits as needed.
     5. Approve the node on the Gateway:
 
        ```bash
-       openclaw devices list
-       openclaw devices approve <requestId>
+       alisio devices list
+       alisio devices approve <requestId>
        ```
 
     No separate TCP bridge is required; nodes connect over the Gateway WebSocket.
@@ -1546,9 +1546,9 @@ for usage/billing and raise limits as needed.
   <Accordion title="Tailscale is connected but I get no replies. What now?">
     Check the basics:
 
-    - Gateway is running: `openclaw gateway status`
-    - Gateway health: `openclaw status`
-    - Channel health: `openclaw channels status`
+    - Gateway is running: `alisio gateway status`
+    - Gateway health: `alisio status`
+    - Channel health: `alisio channels status`
 
     Then verify auth and routing:
 
@@ -1560,7 +1560,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can two OpenClaw instances talk to each other (local + VPS)?">
+  <Accordion title="Can two Alisio instances talk to each other (local + VPS)?">
     Yes. There is no built-in "bot-to-bot" bridge, but you can wire it up in a few
     reliable ways:
 
@@ -1568,14 +1568,14 @@ for usage/billing and raise limits as needed.
     Have Bot A send a message to Bot B, then let Bot B reply as usual.
 
     **CLI bridge (generic):** run a script that calls the other Gateway with
-    `openclaw agent --message ... --deliver`, targeting a chat where the other bot
+    `alisio agent --message ... --deliver`, targeting a chat where the other bot
     listens. If one bot is on a remote VPS, point your CLI at that remote Gateway
     via SSH/Tailscale (see [Remote access](/gateway/remote)).
 
     Example pattern (run from a machine that can reach the target Gateway):
 
     ```bash
-    openclaw agent --message "Hello from local bot" --deliver --channel telegram --reply-to <chat-id>
+    alisio agent --message "Hello from local bot" --deliver --channel telegram --reply-to <chat-id>
     ```
 
     Tip: add a guardrail so the two bots do not loop endlessly (mention-only, channel
@@ -1630,7 +1630,7 @@ for usage/billing and raise limits as needed.
   <Accordion title="Minimal sane config for a first install">
     ```json5
     {
-      agents: { defaults: { workspace: "~/.openclaw/workspace" } },
+      agents: { defaults: { workspace: "~/.alisio/workspace" } },
       channels: { whatsapp: { allowFrom: ["+15555550123"] } },
     }
     ```
@@ -1660,7 +1660,7 @@ for usage/billing and raise limits as needed.
     If you want the Control UI without SSH, use Tailscale Serve on the VPS:
 
     ```bash
-    openclaw gateway --tailscale serve
+    alisio gateway --tailscale serve
     ```
 
     This keeps the gateway bound to loopback and exposes HTTPS via Tailscale. See [Tailscale](/gateway/tailscale).
@@ -1678,8 +1678,8 @@ for usage/billing and raise limits as needed.
     3. **Approve the node** on the gateway:
 
        ```bash
-       openclaw devices list
-       openclaw devices approve <requestId>
+       alisio devices list
+       alisio devices approve <requestId>
        ```
 
     Docs: [Gateway protocol](/gateway/protocol), [Discovery](/gateway/discovery), [macOS remote mode](/platforms/mac/remote).
@@ -1701,11 +1701,11 @@ for usage/billing and raise limits as needed.
 ## Env vars and .env loading
 
 <AccordionGroup>
-  <Accordion title="How does OpenClaw load environment variables?">
-    OpenClaw reads env vars from the parent process (shell, launchd/systemd, CI, etc.) and additionally loads:
+  <Accordion title="How does Alisio load environment variables?">
+    Alisio reads env vars from the parent process (shell, launchd/systemd, CI, etc.) and additionally loads:
 
     - `.env` from the current working directory
-    - a global fallback `.env` from `~/.openclaw/.env` (aka `$OPENCLAW_STATE_DIR/.env`)
+    - a global fallback `.env` from `~/.alisio/.env` (aka `$ALISIO_STATE_DIR/.env`)
 
     Neither `.env` file overrides existing env vars.
 
@@ -1727,7 +1727,7 @@ for usage/billing and raise limits as needed.
   <Accordion title="I started the Gateway via the service and my env vars disappeared. What now?">
     Two common fixes:
 
-    1. Put the missing keys in `~/.openclaw/.env` so they're picked up even when the service doesn't inherit your shell env.
+    1. Put the missing keys in `~/.alisio/.env` so they're picked up even when the service doesn't inherit your shell env.
     2. Enable shell import (opt-in convenience):
 
     ```json5
@@ -1742,19 +1742,19 @@ for usage/billing and raise limits as needed.
     ```
 
     This runs your login shell and imports only missing expected keys (never overrides). Env var equivalents:
-    `OPENCLAW_LOAD_SHELL_ENV=1`, `OPENCLAW_SHELL_ENV_TIMEOUT_MS=15000`.
+    `ALISIO_LOAD_SHELL_ENV=1`, `ALISIO_SHELL_ENV_TIMEOUT_MS=15000`.
 
   </Accordion>
 
   <Accordion title='I set COPILOT_GITHUB_TOKEN, but models status shows "Shell env: off." Why?'>
-    `openclaw models status` reports whether **shell env import** is enabled. "Shell env: off"
-    does **not** mean your env vars are missing - it just means OpenClaw won't load
+    `alisio models status` reports whether **shell env import** is enabled. "Shell env: off"
+    does **not** mean your env vars are missing - it just means Alisio won't load
     your login shell automatically.
 
     If the Gateway runs as a service (launchd/systemd), it won't inherit your shell
     environment. Fix by doing one of these:
 
-    1. Put the token in `~/.openclaw/.env`:
+    1. Put the token in `~/.alisio/.env`:
 
        ```
        COPILOT_GITHUB_TOKEN=...
@@ -1766,7 +1766,7 @@ for usage/billing and raise limits as needed.
     Then restart the gateway and recheck:
 
     ```bash
-    openclaw models status
+    alisio models status
     ```
 
     Copilot tokens are read from `COPILOT_GITHUB_TOKEN` (also `GH_TOKEN` / `GITHUB_TOKEN`).
@@ -1798,7 +1798,7 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Is there a way to make a team of OpenClaw instances (one CEO and many agents)?">
+  <Accordion title="Is there a way to make a team of Alisio instances (one CEO and many agents)?">
     Yes, via **multi-agent routing** and **sub-agents**. You can create one coordinator
     agent and several worker agents with their own workspaces and models.
 
@@ -1825,30 +1825,30 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="How do I completely reset OpenClaw but keep it installed?">
+  <Accordion title="How do I completely reset Alisio but keep it installed?">
     Use the reset command:
 
     ```bash
-    openclaw reset
+    alisio reset
     ```
 
     Non-interactive full reset:
 
     ```bash
-    openclaw reset --scope full --yes --non-interactive
+    alisio reset --scope full --yes --non-interactive
     ```
 
     Then re-run setup:
 
     ```bash
-    openclaw onboard --install-daemon
+    alisio onboard --install-daemon
     ```
 
     Notes:
 
     - Onboarding also offers **Reset** if it sees an existing config. See [Onboarding (CLI)](/start/wizard).
-    - If you used profiles (`--profile` / `OPENCLAW_PROFILE`), reset each state dir (defaults are `~/.openclaw-<profile>`).
-    - Dev reset: `openclaw gateway --dev --reset` (dev-only; wipes dev config + credentials + sessions + workspace).
+    - If you used profiles (`--profile` / `ALISIO_PROFILE`), reset each state dir (defaults are `~/.alisio-<profile>`).
+    - Dev reset: `alisio gateway --dev --reset` (dev-only; wipes dev config + credentials + sessions + workspace).
 
   </Accordion>
 
@@ -1904,7 +1904,7 @@ for usage/billing and raise limits as needed.
     ```
 
     If `HEARTBEAT.md` exists but is effectively empty (only blank lines and markdown
-    headers like `# Heading`), OpenClaw skips the heartbeat run to save API calls.
+    headers like `# Heading`), Alisio skips the heartbeat run to save API calls.
     If the file is missing, the heartbeat still runs and the model decides what to do.
 
     Per-agent overrides use `agents.list[].heartbeat`. Docs: [Heartbeat](/gateway/heartbeat).
@@ -1912,7 +1912,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title='Do I need to add a "bot account" to a WhatsApp group?'>
-    No. OpenClaw runs on **your own account**, so if you're in the group, OpenClaw can see it.
+    No. Alisio runs on **your own account**, so if you're in the group, Alisio can see it.
     By default, group replies are blocked until you allow senders (`groupPolicy: "allowlist"`).
 
     If you want only **you** to be able to trigger group replies:
@@ -1934,7 +1934,7 @@ for usage/billing and raise limits as needed.
     Option 1 (fastest): tail logs and send a test message in the group:
 
     ```bash
-    openclaw logs --follow --json
+    alisio logs --follow --json
     ```
 
     Look for `chatId` (or `from`) ending in `@g.us`, like:
@@ -1943,14 +1943,14 @@ for usage/billing and raise limits as needed.
     Option 2 (if already configured/allowlisted): list groups from config:
 
     ```bash
-    openclaw directory groups list --channel whatsapp
+    alisio directory groups list --channel whatsapp
     ```
 
     Docs: [WhatsApp](/channels/whatsapp), [Directory](/cli/directory), [Logs](/cli/logs).
 
   </Accordion>
 
-  <Accordion title="Why does OpenClaw not reply in a group?">
+  <Accordion title="Why does Alisio not reply in a group?">
     Two common causes:
 
     - Mention gating is on (default). You must @mention the bot (or match `mentionPatterns`).
@@ -1967,7 +1967,7 @@ for usage/billing and raise limits as needed.
   <Accordion title="How many workspaces and agents can I create?">
     No hard limits. Dozens (even hundreds) are fine, but watch for:
 
-    - **Disk growth:** sessions + transcripts live under `~/.openclaw/agents/<agentId>/sessions/`.
+    - **Disk growth:** sessions + transcripts live under `~/.alisio/agents/<agentId>/sessions/`.
     - **Token cost:** more agents means more concurrent model usage.
     - **Ops overhead:** per-agent auth profiles, workspaces, and channel routing.
 
@@ -1975,7 +1975,7 @@ for usage/billing and raise limits as needed.
 
     - Keep one **active** workspace per agent (`agents.defaults.workspace`).
     - Prune old sessions (delete JSONL or store entries) if disk grows.
-    - Use `openclaw doctor` to spot stray workspaces and profile mismatches.
+    - Use `alisio doctor` to spot stray workspaces and profile mismatches.
 
   </Accordion>
 
@@ -2004,13 +2004,13 @@ for usage/billing and raise limits as needed.
 
 <AccordionGroup>
   <Accordion title='What is the "default model"?'>
-    OpenClaw's default model is whatever you set as:
+    Alisio's default model is whatever you set as:
 
     ```
     agents.defaults.model.primary
     ```
 
-    Models are referenced as `provider/model` (example: `anthropic/claude-opus-4-6`). If you omit the provider, OpenClaw currently assumes `anthropic` as a temporary deprecation fallback - but you should still **explicitly** set `provider/model`.
+    Models are referenced as `provider/model` (example: `anthropic/claude-opus-4-6`). If you omit the provider, Alisio currently assumes `anthropic` as a temporary deprecation fallback - but you should still **explicitly** set `provider/model`.
 
   </Accordion>
 
@@ -2040,12 +2040,12 @@ for usage/billing and raise limits as needed.
     Safe options:
 
     - `/model` in chat (quick, per-session)
-    - `openclaw models set ...` (updates just model config)
-    - `openclaw configure --section model` (interactive)
-    - edit `agents.defaults.model` in `~/.openclaw/openclaw.json`
+    - `alisio models set ...` (updates just model config)
+    - `alisio configure --section model` (interactive)
+    - edit `agents.defaults.model` in `~/.alisio/alisio.json`
 
     Avoid `config.apply` with a partial object unless you intend to replace the whole config.
-    If you did overwrite config, restore from backup or re-run `openclaw doctor` to repair.
+    If you did overwrite config, restore from backup or re-run `alisio doctor` to repair.
 
     Docs: [Models](/concepts/models), [Configure](/cli/configure), [Config](/cli/config), [Doctor](/gateway/doctor).
 
@@ -2059,14 +2059,14 @@ for usage/billing and raise limits as needed.
     1. Install Ollama from `https://ollama.com/download`
     2. Pull a local model such as `ollama pull glm-4.7-flash`
     3. If you want Ollama Cloud too, run `ollama signin`
-    4. Run `openclaw onboard` and choose `Ollama`
+    4. Run `alisio onboard` and choose `Ollama`
     5. Pick `Local` or `Cloud + Local`
 
     Notes:
 
     - `Cloud + Local` gives you Ollama Cloud models plus your local Ollama models
     - cloud models such as `kimi-k2.5:cloud` do not need a local pull
-    - for manual switching, use `openclaw models list` and `openclaw models set ollama/<model>`
+    - for manual switching, use `alisio models list` and `alisio models set ollama/<model>`
 
     Security note: smaller or heavily quantized models are more vulnerable to prompt
     injection. We strongly recommend **large models** for any bot that can use tools.
@@ -2078,9 +2078,9 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="What do OpenClaw, Flawd, and Krill use for models?">
+  <Accordion title="What do Alisio, Flawd, and Krill use for models?">
     - These deployments can differ and may change over time; there is no fixed provider recommendation.
-    - Check the current runtime setting on each gateway with `openclaw models status`.
+    - Check the current runtime setting on each gateway with `alisio models status`.
     - For security-sensitive/tool-enabled agents, use the strongest latest-generation model available.
   </Accordion>
 
@@ -2160,7 +2160,7 @@ for usage/billing and raise limits as needed.
 
     Fix checklist:
 
-    1. Upgrade to a current OpenClaw release (or run from source `main`), then restart the gateway.
+    1. Upgrade to a current Alisio release (or run from source `main`), then restart the gateway.
     2. Make sure MiniMax is configured (wizard or JSON), or that a MiniMax API key
        exists in env/auth profiles so the provider can be injected.
     3. Use the exact model id (case-sensitive): `minimax/MiniMax-M2.7` or
@@ -2168,7 +2168,7 @@ for usage/billing and raise limits as needed.
     4. Run:
 
        ```bash
-       openclaw models list
+       alisio models list
        ```
 
        and pick from the list (or `/model list` in chat).
@@ -2215,7 +2215,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Are opus / sonnet / gpt built-in shortcuts?">
-    Yes. OpenClaw ships a few default shorthands (only applied when the model exists in `agents.defaults.models`):
+    Yes. Alisio ships a few default shorthands (only applied when the model exists in `agents.defaults.models`):
 
     - `opus` → `anthropic/claude-opus-4-6`
     - `sonnet` → `anthropic/claude-sonnet-4-6`
@@ -2288,12 +2288,12 @@ for usage/billing and raise limits as needed.
     stored in:
 
     ```
-    ~/.openclaw/agents/<agentId>/agent/auth-profiles.json
+    ~/.alisio/agents/<agentId>/agent/auth-profiles.json
     ```
 
     Fix options:
 
-    - Run `openclaw agents add <id>` and configure auth during the wizard.
+    - Run `alisio agents add <id>` and configure auth during the wizard.
     - Or copy `auth-profiles.json` from the main agent's `agentDir` into the new agent's `agentDir`.
 
     Do **not** reuse `agentDir` across agents; it causes auth/session collisions.
@@ -2310,7 +2310,7 @@ for usage/billing and raise limits as needed.
     1. **Auth profile rotation** within the same provider.
     2. **Model fallback** to the next model in `agents.defaults.model.fallbacks`.
 
-    Cooldowns apply to failing profiles (exponential backoff), so OpenClaw can keep responding even when a provider is rate-limited or temporarily failing.
+    Cooldowns apply to failing profiles (exponential backoff), so Alisio can keep responding even when a provider is rate-limited or temporarily failing.
 
   </Accordion>
 
@@ -2320,14 +2320,14 @@ for usage/billing and raise limits as needed.
     **Fix checklist:**
 
     - **Confirm where auth profiles live** (new vs legacy paths)
-      - Current: `~/.openclaw/agents/<agentId>/agent/auth-profiles.json`
-      - Legacy: `~/.openclaw/agent/*` (migrated by `openclaw doctor`)
+      - Current: `~/.alisio/agents/<agentId>/agent/auth-profiles.json`
+      - Legacy: `~/.alisio/agent/*` (migrated by `alisio doctor`)
     - **Confirm your env var is loaded by the Gateway**
-      - If you set `ANTHROPIC_API_KEY` in your shell but run the Gateway via systemd/launchd, it may not inherit it. Put it in `~/.openclaw/.env` or enable `env.shellEnv`.
+      - If you set `ANTHROPIC_API_KEY` in your shell but run the Gateway via systemd/launchd, it may not inherit it. Put it in `~/.alisio/.env` or enable `env.shellEnv`.
     - **Make sure you're editing the correct agent**
       - Multi-agent setups mean there can be multiple `auth-profiles.json` files.
     - **Sanity-check model/auth status**
-      - Use `openclaw models status` to see configured models and whether providers are authenticated.
+      - Use `alisio models status` to see configured models and whether providers are authenticated.
 
     **Fix checklist for "No credentials found for profile anthropic"**
 
@@ -2335,14 +2335,14 @@ for usage/billing and raise limits as needed.
     can't find it in its auth store.
 
     - **Use a setup-token**
-      - Run `claude setup-token`, then paste it with `openclaw models auth setup-token --provider anthropic`.
-      - If the token was created on another machine, use `openclaw models auth paste-token --provider anthropic`.
+      - Run `claude setup-token`, then paste it with `alisio models auth setup-token --provider anthropic`.
+      - If the token was created on another machine, use `alisio models auth paste-token --provider anthropic`.
     - **If you want to use an API key instead**
-      - Put `ANTHROPIC_API_KEY` in `~/.openclaw/.env` on the **gateway host**.
+      - Put `ANTHROPIC_API_KEY` in `~/.alisio/.env` on the **gateway host**.
       - Clear any pinned order that forces a missing profile:
 
         ```bash
-        openclaw models auth order clear --provider anthropic
+        alisio models auth order clear --provider anthropic
         ```
 
     - **Confirm you're running commands on the gateway host**
@@ -2351,7 +2351,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Why did it also try Google Gemini and fail?">
-    If your model config includes Google Gemini as a fallback (or you switched to a Gemini shorthand), OpenClaw will try it during model fallback. If you haven't configured Google credentials, you'll see `No API key found for provider "google"`.
+    If your model config includes Google Gemini as a fallback (or you switched to a Gemini shorthand), Alisio will try it during model fallback. If you haven't configured Google credentials, you'll see `No API key found for provider "google"`.
 
     Fix: either provide Google auth, or remove/avoid Google models in `agents.defaults.model.fallbacks` / aliases so fallback doesn't route there.
 
@@ -2360,7 +2360,7 @@ for usage/billing and raise limits as needed.
     Cause: the session history contains **thinking blocks without signatures** (often from
     an aborted/partial stream). Google Antigravity requires signatures for thinking blocks.
 
-    Fix: OpenClaw now strips unsigned thinking blocks for Google Antigravity Claude. If it still appears, start a **new session** or set `/thinking off` for that agent.
+    Fix: Alisio now strips unsigned thinking blocks for Google Antigravity Claude. If it still appears, start a **new session** or set `/thinking off` for that agent.
 
   </Accordion>
 </AccordionGroup>
@@ -2374,13 +2374,13 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     An auth profile is a named credential record (OAuth or API key) tied to a provider. Profiles live in:
 
     ```
-    ~/.openclaw/agents/<agentId>/agent/auth-profiles.json
+    ~/.alisio/agents/<agentId>/agent/auth-profiles.json
     ```
 
   </Accordion>
 
   <Accordion title="What are typical profile IDs?">
-    OpenClaw uses provider-prefixed IDs like:
+    Alisio uses provider-prefixed IDs like:
 
     - `anthropic:default` (common when no email identity exists)
     - `anthropic:<email>` for OAuth identities
@@ -2391,34 +2391,34 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   <Accordion title="Can I control which auth profile is tried first?">
     Yes. Config supports optional metadata for profiles and an ordering per provider (`auth.order.<provider>`). This does **not** store secrets; it maps IDs to provider/mode and sets rotation order.
 
-    OpenClaw may temporarily skip a profile if it's in a short **cooldown** (rate limits/timeouts/auth failures) or a longer **disabled** state (billing/insufficient credits). To inspect this, run `openclaw models status --json` and check `auth.unusableProfiles`. Tuning: `auth.cooldowns.billingBackoffHours*`.
+    Alisio may temporarily skip a profile if it's in a short **cooldown** (rate limits/timeouts/auth failures) or a longer **disabled** state (billing/insufficient credits). To inspect this, run `alisio models status --json` and check `auth.unusableProfiles`. Tuning: `auth.cooldowns.billingBackoffHours*`.
 
     You can also set a **per-agent** order override (stored in that agent's `auth-profiles.json`) via the CLI:
 
     ```bash
     # Defaults to the configured default agent (omit --agent)
-    openclaw models auth order get --provider anthropic
+    alisio models auth order get --provider anthropic
 
     # Lock rotation to a single profile (only try this one)
-    openclaw models auth order set --provider anthropic anthropic:default
+    alisio models auth order set --provider anthropic anthropic:default
 
     # Or set an explicit order (fallback within provider)
-    openclaw models auth order set --provider anthropic anthropic:work anthropic:default
+    alisio models auth order set --provider anthropic anthropic:work anthropic:default
 
     # Clear override (fall back to config auth.order / round-robin)
-    openclaw models auth order clear --provider anthropic
+    alisio models auth order clear --provider anthropic
     ```
 
     To target a specific agent:
 
     ```bash
-    openclaw models auth order set --provider anthropic --agent main anthropic:default
+    alisio models auth order set --provider anthropic --agent main anthropic:default
     ```
 
   </Accordion>
 
   <Accordion title="OAuth vs API key - what is the difference?">
-    OpenClaw supports both:
+    Alisio supports both:
 
     - **OAuth** often leverages subscription access (where applicable).
     - **API keys** use pay-per-token billing.
@@ -2437,15 +2437,15 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Precedence:
 
     ```
-    --port > OPENCLAW_GATEWAY_PORT > gateway.port > default 18789
+    --port > ALISIO_GATEWAY_PORT > gateway.port > default 18789
     ```
 
   </Accordion>
 
-  <Accordion title='Why does openclaw gateway status say "Runtime: running" but "RPC probe: failed"?'>
+  <Accordion title='Why does alisio gateway status say "Runtime: running" but "RPC probe: failed"?'>
     Because "running" is the **supervisor's** view (launchd/systemd/schtasks). The RPC probe is the CLI actually connecting to the gateway WebSocket and calling `status`.
 
-    Use `openclaw gateway status` and trust these lines:
+    Use `alisio gateway status` and trust these lines:
 
     - `Probe target:` (the URL the probe actually used)
     - `Listening:` (what's actually bound on the port)
@@ -2453,13 +2453,13 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
   </Accordion>
 
-  <Accordion title='Why does openclaw gateway status show "Config (cli)" and "Config (service)" different?'>
-    You're editing one config file while the service is running another (often a `--profile` / `OPENCLAW_STATE_DIR` mismatch).
+  <Accordion title='Why does alisio gateway status show "Config (cli)" and "Config (service)" different?'>
+    You're editing one config file while the service is running another (often a `--profile` / `ALISIO_STATE_DIR` mismatch).
 
     Fix:
 
     ```bash
-    openclaw gateway install --force
+    alisio gateway install --force
     ```
 
     Run that from the same `--profile` / environment you want the service to use.
@@ -2467,13 +2467,13 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   </Accordion>
 
   <Accordion title='What does "another gateway instance is already listening" mean?'>
-    OpenClaw enforces a runtime lock by binding the WebSocket listener immediately on startup (default `ws://127.0.0.1:18789`). If the bind fails with `EADDRINUSE`, it throws `GatewayLockError` indicating another instance is already listening.
+    Alisio enforces a runtime lock by binding the WebSocket listener immediately on startup (default `ws://127.0.0.1:18789`). If the bind fails with `EADDRINUSE`, it throws `GatewayLockError` indicating another instance is already listening.
 
-    Fix: stop the other instance, free the port, or run with `openclaw gateway --port <port>`.
+    Fix: stop the other instance, free the port, or run with `alisio gateway --port <port>`.
 
   </Accordion>
 
-  <Accordion title="How do I run OpenClaw in remote mode (client connects to a Gateway elsewhere)?">
+  <Accordion title="How do I run Alisio in remote mode (client connects to a Gateway elsewhere)?">
     Set `gateway.mode: "remote"` and point to a remote WebSocket URL, optionally with a token/password:
 
     ```json5
@@ -2491,7 +2491,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     Notes:
 
-    - `openclaw gateway` only starts when `gateway.mode` is `local` (or you pass the override flag).
+    - `alisio gateway` only starts when `gateway.mode` is `local` (or you pass the override flag).
     - The macOS app watches the config file and switches modes live when these values change.
 
   </Accordion>
@@ -2506,15 +2506,15 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     Fix:
 
-    - Fastest: `openclaw dashboard` (prints + copies the dashboard URL, tries to open; shows SSH hint if headless).
-    - If you don't have a token yet: `openclaw doctor --generate-gateway-token`.
+    - Fastest: `alisio dashboard` (prints + copies the dashboard URL, tries to open; shows SSH hint if headless).
+    - If you don't have a token yet: `alisio doctor --generate-gateway-token`.
     - If remote, tunnel first: `ssh -N -L 18789:127.0.0.1:18789 user@host` then open `http://127.0.0.1:18789/`.
-    - Set `gateway.auth.token` (or `OPENCLAW_GATEWAY_TOKEN`) on the gateway host.
+    - Set `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) on the gateway host.
     - In the Control UI settings, paste the same token.
     - If mismatch persists after the one retry, rotate/re-approve the paired device token:
-      - `openclaw devices list`
-      - `openclaw devices rotate --device <id> --role operator`
-    - Still stuck? Run `openclaw status --all` and follow [Troubleshooting](/gateway/troubleshooting). See [Dashboard](/web/dashboard) for auth details.
+      - `alisio devices list`
+      - `alisio devices rotate --device <id> --role operator`
+    - Still stuck? Run `alisio status --all` and follow [Troubleshooting](/gateway/troubleshooting). See [Dashboard](/web/dashboard) for auth details.
 
   </Accordion>
 
@@ -2535,18 +2535,18 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     Yes, but you must isolate:
 
-    - `OPENCLAW_CONFIG_PATH` (per-instance config)
-    - `OPENCLAW_STATE_DIR` (per-instance state)
+    - `ALISIO_CONFIG_PATH` (per-instance config)
+    - `ALISIO_STATE_DIR` (per-instance state)
     - `agents.defaults.workspace` (workspace isolation)
     - `gateway.port` (unique ports)
 
     Quick setup (recommended):
 
-    - Use `openclaw --profile <name> ...` per instance (auto-creates `~/.openclaw-<name>`).
+    - Use `alisio --profile <name> ...` per instance (auto-creates `~/.alisio-<name>`).
     - Set a unique `gateway.port` in each profile config (or pass `--port` for manual runs).
-    - Install a per-profile service: `openclaw --profile <name> gateway install`.
+    - Install a per-profile service: `alisio --profile <name> gateway install`.
 
-    Profiles also suffix service names (`ai.openclaw.<profile>`; legacy `com.openclaw.*`, `openclaw-gateway-<profile>.service`, `OpenClaw Gateway (<profile>)`).
+    Profiles also suffix service names (`ai.alisio.<profile>`; legacy `com.alisio.*`, `alisio-gateway-<profile>.service`, `Alisio Gateway (<profile>)`).
     Full guide: [Multiple gateways](/gateway/multiple-gateways).
 
   </Accordion>
@@ -2571,7 +2571,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     If you're using the CLI or TUI, the URL should look like:
 
     ```
-    openclaw tui --url ws://<host>:18789 --token <token>
+    alisio tui --url ws://<host>:18789 --token <token>
     ```
 
     Protocol details: [Gateway protocol](/gateway/protocol).
@@ -2586,7 +2586,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     File logs (structured):
 
     ```
-    /tmp/openclaw/openclaw-YYYY-MM-DD.log
+    /tmp/alisio/alisio-YYYY-MM-DD.log
     ```
 
     You can set a stable path via `logging.file`. File log level is controlled by `logging.level`. Console verbosity is controlled by `--verbose` and `logging.consoleLevel`.
@@ -2594,14 +2594,14 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Fastest log tail:
 
     ```bash
-    openclaw logs --follow
+    alisio logs --follow
     ```
 
     Service/supervisor logs (when the gateway runs via launchd/systemd):
 
-    - macOS: `$OPENCLAW_STATE_DIR/logs/gateway.log` and `gateway.err.log` (default: `~/.openclaw/logs/...`; profiles use `~/.openclaw-<profile>/logs/...`)
-    - Linux: `journalctl --user -u openclaw-gateway[-<profile>].service -n 200 --no-pager`
-    - Windows: `schtasks /Query /TN "OpenClaw Gateway (<profile>)" /V /FO LIST`
+    - macOS: `$ALISIO_STATE_DIR/logs/gateway.log` and `gateway.err.log` (default: `~/.alisio/logs/...`; profiles use `~/.alisio-<profile>/logs/...`)
+    - Linux: `journalctl --user -u alisio-gateway[-<profile>].service -n 200 --no-pager`
+    - Windows: `schtasks /Query /TN "Alisio Gateway (<profile>)" /V /FO LIST`
 
     See [Troubleshooting](/gateway/troubleshooting) for more.
 
@@ -2611,15 +2611,15 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Use the gateway helpers:
 
     ```bash
-    openclaw gateway status
-    openclaw gateway restart
+    alisio gateway status
+    alisio gateway restart
     ```
 
-    If you run the gateway manually, `openclaw gateway --force` can reclaim the port. See [Gateway](/gateway).
+    If you run the gateway manually, `alisio gateway --force` can reclaim the port. See [Gateway](/gateway).
 
   </Accordion>
 
-  <Accordion title="I closed my terminal on Windows - how do I restart OpenClaw?">
+  <Accordion title="I closed my terminal on Windows - how do I restart Alisio?">
     There are **two Windows install modes**:
 
     **1) WSL2 (recommended):** the Gateway runs inside Linux.
@@ -2628,14 +2628,14 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     ```powershell
     wsl
-    openclaw gateway status
-    openclaw gateway restart
+    alisio gateway status
+    alisio gateway restart
     ```
 
     If you never installed the service, start it in the foreground:
 
     ```bash
-    openclaw gateway run
+    alisio gateway run
     ```
 
     **2) Native Windows (not recommended):** the Gateway runs directly in Windows.
@@ -2643,14 +2643,14 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Open PowerShell and run:
 
     ```powershell
-    openclaw gateway status
-    openclaw gateway restart
+    alisio gateway status
+    alisio gateway restart
     ```
 
     If you run it manually (no service), use:
 
     ```powershell
-    openclaw gateway run
+    alisio gateway run
     ```
 
     Docs: [Windows (WSL2)](/platforms/windows), [Gateway service runbook](/gateway).
@@ -2661,10 +2661,10 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Start with a quick health sweep:
 
     ```bash
-    openclaw status
-    openclaw models status
-    openclaw channels status
-    openclaw logs --follow
+    alisio status
+    alisio models status
+    alisio channels status
+    alisio logs --follow
     ```
 
     Common causes:
@@ -2683,15 +2683,15 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   <Accordion title='"Disconnected from gateway: no reason" - what now?'>
     This usually means the UI lost the WebSocket connection. Check:
 
-    1. Is the Gateway running? `openclaw gateway status`
-    2. Is the Gateway healthy? `openclaw status`
-    3. Does the UI have the right token? `openclaw dashboard`
+    1. Is the Gateway running? `alisio gateway status`
+    2. Is the Gateway healthy? `alisio status`
+    3. Does the UI have the right token? `alisio dashboard`
     4. If remote, is the tunnel/Tailscale link up?
 
     Then tail logs:
 
     ```bash
-    openclaw logs --follow
+    alisio logs --follow
     ```
 
     Docs: [Dashboard](/web/dashboard), [Remote access](/gateway/remote), [Troubleshooting](/gateway/troubleshooting).
@@ -2702,13 +2702,13 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Start with logs and channel status:
 
     ```bash
-    openclaw channels status
-    openclaw channels logs --channel telegram
+    alisio channels status
+    alisio channels logs --channel telegram
     ```
 
     Then match the error:
 
-    - `BOT_COMMANDS_TOO_MUCH`: the Telegram menu has too many entries. OpenClaw already trims to the Telegram limit and retries with fewer commands, but some menu entries still need to be dropped. Reduce plugin/skill/custom commands, or disable `channels.telegram.commands.native` if you do not need the menu.
+    - `BOT_COMMANDS_TOO_MUCH`: the Telegram menu has too many entries. Alisio already trims to the Telegram limit and retries with fewer commands, but some menu entries still need to be dropped. Reduce plugin/skill/custom commands, or disable `channels.telegram.commands.native` if you do not need the menu.
     - `TypeError: fetch failed`, `Network request for 'setMyCommands' failed!`, or similar network errors: if you are on a VPS or behind a proxy, confirm outbound HTTPS is allowed and DNS works for `api.telegram.org`.
 
     If the Gateway is remote, make sure you are looking at logs on the Gateway host.
@@ -2721,9 +2721,9 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     First confirm the Gateway is reachable and the agent can run:
 
     ```bash
-    openclaw status
-    openclaw models status
-    openclaw logs --follow
+    alisio status
+    alisio models status
+    alisio logs --follow
     ```
 
     In the TUI, use `/status` to see the current state. If you expect replies in a chat
@@ -2737,8 +2737,8 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     If you installed the service:
 
     ```bash
-    openclaw gateway stop
-    openclaw gateway start
+    alisio gateway stop
+    alisio gateway start
     ```
 
     This stops/starts the **supervised service** (launchd on macOS, systemd on Linux).
@@ -2747,18 +2747,18 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     If you're running in the foreground, stop with Ctrl-C, then:
 
     ```bash
-    openclaw gateway run
+    alisio gateway run
     ```
 
     Docs: [Gateway service runbook](/gateway).
 
   </Accordion>
 
-  <Accordion title="ELI5: openclaw gateway restart vs openclaw gateway">
-    - `openclaw gateway restart`: restarts the **background service** (launchd/systemd).
-    - `openclaw gateway`: runs the gateway **in the foreground** for this terminal session.
+  <Accordion title="ELI5: alisio gateway restart vs alisio gateway">
+    - `alisio gateway restart`: restarts the **background service** (launchd/systemd).
+    - `alisio gateway`: runs the gateway **in the foreground** for this terminal session.
 
-    If you installed the service, use the gateway commands. Use `openclaw gateway` when
+    If you installed the service, use the gateway commands. Use `alisio gateway` when
     you want a one-off, foreground run.
 
   </Accordion>
@@ -2777,7 +2777,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     CLI sending:
 
     ```bash
-    openclaw message send --target +15555550123 --message "Here you go" --media /path/to/file.png
+    alisio message send --target +15555550123 --message "Here you go" --media /path/to/file.png
     ```
 
     Also check:
@@ -2793,16 +2793,16 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 ## Security and access control
 
 <AccordionGroup>
-  <Accordion title="Is it safe to expose OpenClaw to inbound DMs?">
+  <Accordion title="Is it safe to expose Alisio to inbound DMs?">
     Treat inbound DMs as untrusted input. Defaults are designed to reduce risk:
 
     - Default behavior on DM-capable channels is **pairing**:
       - Unknown senders receive a pairing code; the bot does not process their message.
-      - Approve with: `openclaw pairing approve --channel <channel> [--account <id>] <code>`
-      - Pending requests are capped at **3 per channel**; check `openclaw pairing list --channel <channel> [--account <id>]` if a code didn't arrive.
+      - Approve with: `alisio pairing approve --channel <channel> [--account <id>] <code>`
+      - Pending requests are capped at **3 per channel**; check `alisio pairing list --channel <channel> [--account <id>]` if a code didn't arrive.
     - Opening DMs publicly requires explicit opt-in (`dmPolicy: "open"` and allowlist `"*"`).
 
-    Run `openclaw doctor` to surface risky DM policies.
+    Run `alisio doctor` to surface risky DM policies.
 
   </Accordion>
 
@@ -2861,7 +2861,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Check pending requests:
 
     ```bash
-    openclaw pairing list telegram
+    alisio pairing list telegram
     ```
 
     If you want immediate access, allowlist your sender id or set `dmPolicy: "open"`
@@ -2870,18 +2870,18 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   </Accordion>
 
   <Accordion title="WhatsApp: will it message my contacts? How does pairing work?">
-    No. Default WhatsApp DM policy is **pairing**. Unknown senders only get a pairing code and their message is **not processed**. OpenClaw only replies to chats it receives or to explicit sends you trigger.
+    No. Default WhatsApp DM policy is **pairing**. Unknown senders only get a pairing code and their message is **not processed**. Alisio only replies to chats it receives or to explicit sends you trigger.
 
     Approve pairing with:
 
     ```bash
-    openclaw pairing approve whatsapp <code>
+    alisio pairing approve whatsapp <code>
     ```
 
     List pending requests:
 
     ```bash
-    openclaw pairing list whatsapp
+    alisio pairing list whatsapp
     ```
 
     Wizard phone number prompt: it's used to set your **allowlist/owner** so your own DMs are permitted. It's not used for auto-sending. If you run on your personal WhatsApp number, use that number and enable `channels.whatsapp.selfChatMode`.
@@ -2922,8 +2922,8 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     stop current run
     stop agent
     stop the agent
-    stop openclaw
-    openclaw stop
+    stop alisio
+    alisio stop
     stop don't do anything
     stop do not do anything
     stop doing anything
@@ -2951,7 +2951,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   </Accordion>
 
   <Accordion title='How do I send a Discord message from Telegram? ("Cross-context messaging denied")'>
-    OpenClaw blocks **cross-provider** messaging by default. If a tool call is bound
+    Alisio blocks **cross-provider** messaging by default. If a tool call is bound
     to Telegram, it won't send to Discord unless you explicitly allow it.
 
     Enable cross-provider messaging for the agent:
@@ -2991,10 +2991,10 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
 <AccordionGroup>
   <Accordion title='What is the default model for Anthropic with an API key?'>
-    In OpenClaw, credentials and model selection are separate. Setting `ANTHROPIC_API_KEY` (or storing an Anthropic API key in auth profiles) enables authentication, but the actual default model is whatever you configure in `agents.defaults.model.primary` (for example, `anthropic/claude-sonnet-4-6` or `anthropic/claude-opus-4-6`). If you see `No credentials found for profile "anthropic:default"`, it means the Gateway couldn't find Anthropic credentials in the expected `auth-profiles.json` for the agent that's running.
+    In Alisio, credentials and model selection are separate. Setting `ANTHROPIC_API_KEY` (or storing an Anthropic API key in auth profiles) enables authentication, but the actual default model is whatever you configure in `agents.defaults.model.primary` (for example, `anthropic/claude-sonnet-4-6` or `anthropic/claude-opus-4-6`). If you see `No credentials found for profile "anthropic:default"`, it means the Gateway couldn't find Anthropic credentials in the expected `auth-profiles.json` for the agent that's running.
   </Accordion>
 </AccordionGroup>
 
 ---
 
-Still stuck? Ask in [Discord](https://discord.com/invite/clawd) or open a [GitHub discussion](https://github.com/openclaw/openclaw/discussions).
+Still stuck? Ask in [Discord](https://discord.com/invite/clawd) or open a [GitHub discussion](https://github.com/alisio/alisio/discussions).

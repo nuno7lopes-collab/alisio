@@ -31,7 +31,7 @@ See [Development channels](/install/development-channels) for channel semantics.
 ## Alternative: re-run the installer
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
+curl -fsSL https://alisio.app/install.sh | bash
 ```
 
 Add `--no-onboard` to skip onboarding. For source installs, pass `--install-method git --no-onboard`.
@@ -39,16 +39,16 @@ Add `--no-onboard` to skip onboarding. For source installs, pass `--install-meth
 ## Alternative: manual npm or pnpm
 
 ```bash
-npm i -g alisio@npm:openclaw@latest
+npm i -g alisio@npm:alisio@latest
 ```
 
 ```bash
-pnpm add -g alisio@npm:openclaw@latest
+pnpm add -g alisio@npm:alisio@latest
 ```
 
 ## Auto-updater
 
-The auto-updater is off by default. Enable it in `~/.openclaw/openclaw.json`:
+The auto-updater is off by default. Enable it in `~/.alisio/alisio.json`:
 
 ```json5
 {
@@ -103,12 +103,12 @@ alisio health
 ### Pin a version (npm)
 
 ```bash
-npm i -g alisio@npm:openclaw@<version>
+npm i -g alisio@npm:alisio@<version>
 alisio doctor
 alisio gateway restart
 ```
 
-Tip: `npm view openclaw version` shows the current published version.
+Tip: `npm view alisio version` shows the current published version.
 
 ### Pin a commit (source)
 

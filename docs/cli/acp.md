@@ -69,7 +69,7 @@ alisio acp
 alisio acp --url wss://gateway-host:18789 --token <token>
 
 # Remote Gateway (token from file)
-alisio acp --url wss://gateway-host:18789 --token-file ~/.openclaw/gateway.token
+alisio acp --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
 
 # Attach to an existing session key
 alisio acp --session agent:main:main
@@ -90,10 +90,10 @@ It spawns the ACP bridge and lets you type prompts interactively.
 alisio acp client
 
 # Point the spawned bridge at a remote Gateway
-alisio acp client --server-args --url wss://gateway-host:18789 --token-file ~/.openclaw/gateway.token
+alisio acp client --server-args --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
 
 # Override the server command (default: alisio)
-alisio acp client --server "node" --server-args openclaw.mjs acp --url ws://127.0.0.1:19001
+alisio acp client --server "node" --server-args alisio.mjs acp --url ws://127.0.0.1:19001
 ```
 
 Permission model (client debug mode):
@@ -124,7 +124,7 @@ Example direct run (no config write):
 ```bash
 alisio acp --url wss://gateway-host:18789 --token <token>
 # preferred for local process safety
-alisio acp --url wss://gateway-host:18789 --token-file ~/.openclaw/gateway.token
+alisio acp --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
 ```
 
 ## Selecting agents
@@ -154,34 +154,34 @@ gateway-side ACPX plugin bridge instead of trying to pass per-session
 ## Use from `acpx` (Codex, Claude, other ACP clients)
 
 If you want a coding agent such as Codex or Claude Code to talk to your
-Alisio bot over ACP, use `acpx` with its built-in `openclaw` target.
+Alisio bot over ACP, use `acpx` with its built-in `alisio` target.
 
 Typical flow:
 
 1. Run the Gateway and make sure the ACP bridge can reach it.
-2. Point `acpx openclaw` at `alisio acp`.
+2. Point `acpx alisio` at `alisio acp`.
 3. Target the Alisio session key you want the coding agent to use.
 
 Examples:
 
 ```bash
 # One-shot request into your default Alisio ACP session
-acpx openclaw exec "Summarize the active Alisio session state."
+acpx alisio exec "Summarize the active Alisio session state."
 
 # Persistent named session for follow-up turns
-acpx openclaw sessions ensure --name codex-bridge
-acpx openclaw -s codex-bridge --cwd /path/to/repo \
+acpx alisio sessions ensure --name codex-bridge
+acpx alisio -s codex-bridge --cwd /path/to/repo \
   "Ask my Alisio work agent for recent context relevant to this repo."
 ```
 
-If you want `acpx openclaw` to target a specific Gateway and session key every
-time, override the `openclaw` agent command in `~/.acpx/config.json`:
+If you want `acpx alisio` to target a specific Gateway and session key every
+time, override the `alisio` agent command in `~/.acpx/config.json`:
 
 ```json
 {
   "agents": {
-    "openclaw": {
-      "command": "env OPENCLAW_HIDE_BANNER=1 OPENCLAW_SUPPRESS_NOTES=1 openclaw acp --url ws://127.0.0.1:18789 --token-file ~/.openclaw/gateway.token --session agent:main:main"
+    "alisio": {
+      "command": "env ALISIO_HIDE_BANNER=1 ALISIO_SUPPRESS_NOTES=1 alisio acp --url ws://127.0.0.1:18789 --token-file ~/.alisio/gateway.token --session agent:main:main"
     }
   }
 }
@@ -191,7 +191,7 @@ For a repo-local Alisio checkout, use the direct CLI entrypoint instead of the
 dev runner so the ACP stream stays clean. For example:
 
 ```bash
-env OPENCLAW_HIDE_BANNER=1 OPENCLAW_SUPPRESS_NOTES=1 node openclaw.mjs acp ...
+env ALISIO_HIDE_BANNER=1 ALISIO_SUPPRESS_NOTES=1 node alisio.mjs acp ...
 ```
 
 This is the easiest way to let Codex, Claude Code, or another ACP-aware client
@@ -279,18 +279,18 @@ Learn more about session keys at [/concepts/session](/concepts/session).
 Security note:
 
 - `--token` and `--password` can be visible in local process listings on some systems.
-- Prefer `--token-file`/`--password-file` or environment variables (`OPENCLAW_GATEWAY_TOKEN`, `OPENCLAW_GATEWAY_PASSWORD`).
+- Prefer `--token-file`/`--password-file` or environment variables (`ALISIO_GATEWAY_TOKEN`, `ALISIO_GATEWAY_PASSWORD`).
 - Gateway auth resolution follows the shared contract used by other Gateway clients:
-  - local mode: env (`OPENCLAW_GATEWAY_*`) -> `gateway.auth.*` -> `gateway.remote.*` fallback only when `gateway.auth.*` is unset (configured-but-unresolved local SecretRefs fail closed)
+  - local mode: env (`ALISIO_GATEWAY_*`) -> `gateway.auth.*` -> `gateway.remote.*` fallback only when `gateway.auth.*` is unset (configured-but-unresolved local SecretRefs fail closed)
   - remote mode: `gateway.remote.*` with env/config fallback per remote precedence rules
   - `--url` is override-safe and does not reuse implicit config/env credentials; pass explicit `--token`/`--password` (or file variants)
-- ACP runtime backend child processes receive `OPENCLAW_SHELL=acp`, which can be used for context-specific shell/profile rules.
-- `openclaw acp client` sets `OPENCLAW_SHELL=acp-client` on the spawned bridge process.
+- ACP runtime backend child processes receive `ALISIO_SHELL=acp`, which can be used for context-specific shell/profile rules.
+- `alisio acp client` sets `ALISIO_SHELL=acp-client` on the spawned bridge process.
 
 ### `acp client` options
 
 - `--cwd <dir>`: working directory for the ACP session.
-- `--server <command>`: ACP server command (default: `openclaw`).
+- `--server <command>`: ACP server command (default: `alisio`).
 - `--server-args <args...>`: extra arguments passed to the ACP server.
 - `--server-verbose`: enable verbose logging on the ACP server.
 - `--verbose, -v`: verbose client logging.

@@ -15,7 +15,7 @@ One important distinction:
 
 - **Heartbeat** is a scheduled **main-session turn** — no task record created.
 - **Cron (main)** is a scheduled **system event into the main session** — creates a task record with `silent` notify policy.
-- **Cron (isolated)** is a scheduled **background run** — creates a task record tracked in `openclaw tasks`.
+- **Cron (isolated)** is a scheduled **background run** — creates a task record tracked in `alisio tasks`.
 
 All cron job executions (main and isolated) create [task records](/automation/tasks). Heartbeat turns do not. Main-session cron tasks use `silent` notify policy by default so they do not generate notifications.
 
@@ -107,12 +107,12 @@ per-job offset in a 0-5 minute window.
 - **Immediate delivery**: Announce mode posts directly without waiting for heartbeat.
 - **No agent context needed**: Runs even if main session is idle or compacted.
 - **One-shot support**: `--at` for precise future timestamps.
-- **Task tracking**: isolated jobs create [background task](/automation/tasks) records visible in `openclaw tasks` and `openclaw tasks audit`.
+- **Task tracking**: isolated jobs create [background task](/automation/tasks) records visible in `alisio tasks` and `alisio tasks audit`.
 
 ### Cron example: Daily morning briefing
 
 ```bash
-openclaw cron add \
+alisio cron add \
   --name "Morning briefing" \
   --cron "0 7 * * *" \
   --tz "America/New_York" \
@@ -129,7 +129,7 @@ This runs at exactly 7:00 AM New York time, uses Opus for quality, and announces
 ### Cron example: One-shot reminder
 
 ```bash
-openclaw cron add \
+alisio cron add \
   --name "Meeting reminder" \
   --at "20m" \
   --session main \
@@ -188,13 +188,13 @@ The most efficient setup uses **both**:
 
 ```bash
 # Daily morning briefing at 7am
-openclaw cron add --name "Morning brief" --cron "0 7 * * *" --session isolated --message "..." --announce
+alisio cron add --name "Morning brief" --cron "0 7 * * *" --session isolated --message "..." --announce
 
 # Weekly project review on Mondays at 9am
-openclaw cron add --name "Weekly review" --cron "0 9 * * 1" --session isolated --message "..." --model opus
+alisio cron add --name "Weekly review" --cron "0 9 * * 1" --session isolated --message "..." --model opus
 
 # One-shot reminder
-openclaw cron add --name "Call back" --at "2h" --session main --system-event "Call back the client" --wake now
+alisio cron add --name "Call back" --at "2h" --session main --system-event "Call back the client" --wake now
 ```
 
 ## Lobster: Deterministic workflows with approvals
@@ -236,7 +236,7 @@ Both heartbeat and cron can interact with the main session, but differently:
 | Context                    | Full                            | Full                     | None (isolated) / Cumulative (custom)           |
 | Model                      | Main session model              | Main session model       | Can override                                    |
 | Output                     | Delivered if not `HEARTBEAT_OK` | Heartbeat prompt + event | Announce summary (default)                      |
-| [Tasks](/automation/tasks) | No task record                  | Task record (silent)     | Task record (visible in `openclaw tasks`)       |
+| [Tasks](/automation/tasks) | No task record                  | Task record (silent)     | Task record (visible in `alisio tasks`)         |
 
 ### When to use main session cron
 
@@ -247,7 +247,7 @@ Use `--session main` with `--system-event` when you want:
 - No separate isolated run
 
 ```bash
-openclaw cron add \
+alisio cron add \
   --name "Check project" \
   --every "4h" \
   --session main \
@@ -265,7 +265,7 @@ Use `--session isolated` when you want:
 - History that doesn't clutter main session
 
 ```bash
-openclaw cron add \
+alisio cron add \
   --name "Deep analysis" \
   --cron "0 6 * * 0" \
   --session isolated \

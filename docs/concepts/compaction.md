@@ -1,5 +1,5 @@
 ---
-summary: "How OpenClaw summarizes long conversations to stay within model limits"
+summary: "How Alisio summarizes long conversations to stay within model limits"
 read_when:
   - You want to understand auto-compaction and /compact
   - You are debugging long sessions hitting context limits
@@ -9,7 +9,7 @@ title: "Compaction"
 # Compaction
 
 Every model has a context window -- the maximum number of tokens it can process.
-When a conversation approaches that limit, OpenClaw **compacts** older messages
+When a conversation approaches that limit, Alisio **compacts** older messages
 into a summary so the chat can continue.
 
 ## How it works
@@ -25,10 +25,10 @@ model sees on the next turn.
 
 Auto-compaction is on by default. It runs when the session nears the context
 limit, or when the model returns a context-overflow error (in which case
-OpenClaw compacts and retries).
+Alisio compacts and retries).
 
 <Info>
-Before compacting, OpenClaw automatically reminds the agent to save important
+Before compacting, Alisio automatically reminds the agent to save important
 notes to [memory](/concepts/memory) files. This prevents context loss.
 </Info>
 

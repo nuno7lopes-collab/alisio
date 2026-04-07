@@ -7,7 +7,7 @@ title: "Tlon"
 
 # Tlon (plugin)
 
-Tlon is a decentralized messenger built on Urbit. OpenClaw connects to your Urbit ship and can
+Tlon is a decentralized messenger built on Urbit. Alisio connects to your Urbit ship and can
 respond to DMs and group chat messages. Group replies require an @ mention by default and can
 be further restricted via allowlists.
 
@@ -21,13 +21,13 @@ Tlon ships as a plugin and is not bundled with the core install.
 Install via CLI (npm registry):
 
 ```bash
-openclaw plugins install @openclaw/tlon
+alisio plugins install @alisio/tlon
 ```
 
 Local checkout (when running from a git repo):
 
 ```bash
-openclaw plugins install ./path/to/local/tlon-plugin
+alisio plugins install ./path/to/local/tlon-plugin
 ```
 
 Details: [Plugins](/tools/plugin)
@@ -58,7 +58,7 @@ Minimal config (single account):
 
 ## Private/LAN ships
 
-By default, OpenClaw blocks private/internal hostnames and IP ranges for SSRF protection.
+By default, Alisio blocks private/internal hostnames and IP ranges for SSRF protection.
 If your ship is running on a private network (localhost, LAN IP, or internal hostname),
 you must explicitly opt in:
 
@@ -197,7 +197,7 @@ Auto-accept group invites:
 
 ## Delivery targets (CLI/cron)
 
-Use these with `openclaw message send` or cron delivery:
+Use these with `alisio message send` or cron delivery:
 
 - DM: `~sampel-palnet` or `dm/~sampel-palnet`
 - Group: `chat/~host-ship/channel` or `group:~host-ship/channel`
@@ -234,10 +234,10 @@ The skill is automatically available when the plugin is installed.
 Run this ladder first:
 
 ```bash
-openclaw status
-openclaw gateway status
-openclaw logs --follow
-openclaw doctor
+alisio status
+alisio gateway status
+alisio logs --follow
+alisio doctor
 ```
 
 Common failures:
@@ -271,7 +271,7 @@ Provider options:
 ## Notes
 
 - Group replies require a mention (e.g. `~your-bot-ship`) to respond.
-- Thread replies: if the inbound message is in a thread, OpenClaw replies in-thread.
+- Thread replies: if the inbound message is in a thread, Alisio replies in-thread.
 - Rich text: Markdown formatting (bold, italic, code, headers, lists) is converted to Tlon's native format.
 - Images: URLs are uploaded to Tlon storage and embedded as image blocks.
 

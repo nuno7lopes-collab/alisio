@@ -16,6 +16,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 ## Start here
 
 - [Index](/)
+- [Product Overview](/start/overview)
 - [Getting Started](/start/getting-started)
 - [Onboarding](/start/onboarding)
 - [Onboarding (CLI)](/start/wizard)
@@ -176,7 +177,7 @@ Use these hubs to discover every page, including deep dives and reference docs t
 ## Workspace + templates
 
 - [Skills](/tools/skills)
-- [ClawHub](/tools/clawhub)
+- [Local Marketplace](/tools/clawhub)
 - [Skills config](/tools/skills-config)
 - [Default AGENTS](/reference/AGENTS.default)
 - [Templates: AGENTS](/reference/templates/AGENTS)

@@ -1,110 +1,112 @@
-## OpenClaw Vision
+## Alisio Vision
 
-OpenClaw is the AI that actually does things.
-It runs on your devices, in your channels, with your rules.
+Alisio is the AI workspace that lives on your computer.
 
-This document explains the current state and direction of the project.
-We are still early, so iteration is fast.
-Project overview and developer docs: [`README.md`](README.md)
+The product is desktop-first, macOS-first, and personal by default. The app is the main surface. The CLI exists for operations, automation, and remote administration, but it is no longer the story we lead with.
+
+Project overview: [`README.md`](README.md)
 Contribution guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
-OpenClaw started as a personal playground to learn AI and build something genuinely useful:
-an assistant that can run real tasks on a real computer.
-It evolved through several names and shells: Warelay -> Clawdbot -> Moltbot -> OpenClaw.
+## Product Direction
 
-The goal: a personal assistant that is easy to use, supports a wide range of platforms, and respects privacy and security.
+Alisio should feel like one coherent system:
 
-The current focus is:
+- a desktop app that owns the first-run experience
+- an AI layer that can use OpenAI, local runtimes, or operator-managed servers
+- a local marketplace on each computer for skills, apps, and integrations
+- channels and connectors that bring in work and send work back out
+- devices that extend the system with local capabilities and permissions
 
-Priority:
+```mermaid
+flowchart LR
+  A["Alisio on macOS"] --> B["OpenAI"]
+  A --> C["Local models"]
+  A --> D["Operator-managed servers"]
+  A --> E["Channels and connectors"]
+  A --> F["Paired devices"]
+  A --> G["Local marketplace"]
+  E --> H["Automations"]
+  F --> H
+  G --> H
+```
 
-- Security and safe defaults
-- Bug fixes and stability
-- Setup reliability and first-run UX
+## Current Priorities
 
-Next priorities:
+- Make the macOS setup path reliable enough that most users never need the terminal
+- Keep OpenAI setup simple while making local and server-backed AI first-class
+- Make device permissions and device-local actions explicit, visible, and useful
+- Turn channels and connectors into practical automation surfaces
+- Keep the product understandable for non-developers without removing depth for operators
 
-- Supporting all major model providers
-- Improving support for major messaging channels (and adding a few high-demand ones)
-- Performance and test infrastructure
-- Better computer-use and agent harness capabilities
-- Ergonomics across CLI and web frontend
-- Companion apps on macOS, iOS, Android, Windows, and Linux
+## Trust Model
 
-Contribution rules:
+Alisio is still a personal-assistant trust model.
 
-- One PR = one issue/topic. Do not bundle multiple unrelated fixes/features.
-- PRs over ~5,000 changed lines are reviewed only in exceptional circumstances.
-- Do not open large batches of tiny PRs at once; each PR has review cost.
-- For very small related fixes, grouping into one focused PR is encouraged.
+That means:
 
-## Security
+- one trusted operator boundary by default
+- strong defaults around permissions, device access, and message ingress
+- clear escalation when a setup becomes multi-user, remote, or exposed to untrusted input
 
-Security in OpenClaw is a deliberate tradeoff: strong defaults without killing capability.
-The goal is to stay powerful for real work while making risky paths explicit and operator-controlled.
+Security is still a core concern, but it should not force users into a terminal-first setup just to understand what is happening.
 
-Canonical security policy and reporting:
+## AI Strategy
 
-- [`SECURITY.md`](SECURITY.md)
+Alisio should make three AI paths feel equally intentional:
 
-We prioritize secure defaults, but also expose clear knobs for trusted high-power workflows.
+1. **OpenAI** for fast, high-quality hosted setup
+2. **Local** for privacy, ownership, and offline or low-latency loops on capable machines
+3. **Servers** for Ollama and OpenAI-compatible deployments on another machine or inside a private network
 
-## Plugins & Memory
+The user should be able to mix these paths, switch between them, and set fallbacks without learning internal config structure first.
 
-OpenClaw has an extensive plugin API.
-Core stays lean; optional capability should usually ship as plugins.
+## Marketplace And Extensibility
 
-Preferred plugin path is npm package distribution plus local extension loading for development.
-If you build a plugin, host and maintain it in your own repository.
-The bar for adding optional plugins to core is intentionally high.
-Plugin docs: [`docs/tools/plugin.md`](docs/tools/plugin.md)
-Community plugin listing + PR bar: https://docs.openclaw.ai/plugins/community
+The marketplace is local-first.
 
-Memory is a special plugin slot where only one memory plugin can be active at a time.
-Today we ship multiple memory options; over time we plan to converge on one recommended default path.
+Each computer should be able to carry its own set of:
 
-### Skills
+- skills
+- apps
+- connectors
+- runtime-specific add-ons
 
-We still ship some bundled skills for baseline UX.
-New skills should be published to ClawHub first (`clawhub.ai`), not added to core by default.
-Core skill additions should be rare and require a strong product or security reason.
+Core stays opinionated and small. Optional capability should usually live outside the base product and be installable where it runs.
 
-### MCP Support
+## Devices, Channels, And Automations
 
-OpenClaw supports MCP through `mcporter`: https://github.com/steipete/mcporter
+Devices are not a side feature. They are part of the product model.
 
-This keeps MCP integration flexible and decoupled from core runtime:
+- macOS is the primary device shell
+- iPhone and Android extend capture, voice, camera, and mobile presence
+- channels are both inboxes and delivery targets
+- connectors and channels should compose into real automations
 
-- add or change MCP servers without restarting the gateway
-- keep core tool/context surface lean
-- reduce MCP churn impact on core stability and security
+The product should make it obvious which actions run:
 
-For now, we prefer this bridge model over building first-class MCP runtime into core.
-If there is an MCP server or feature `mcporter` does not support yet, please open an issue there.
+- on this Mac
+- on another paired device
+- in a local runtime
+- on a remote server
 
-### Setup
+## What We Will Not Optimize For
 
-OpenClaw is currently terminal-first by design.
-This keeps setup explicit: users see docs, auth, permissions, and security posture up front.
+- A terminal-only first impression
+- A cloud-only control plane
+- A single global marketplace that ignores per-computer reality
+- Hiding permissions, trust boundaries, or automation consequences behind vague UX
+- Forcing users to choose between hosted AI and local AI when both can coexist
 
-Long term, we want easier onboarding flows as hardening matures.
-We do not want convenience wrappers that hide critical security decisions from users.
+## Implementation Stance
 
-### Why TypeScript?
+TypeScript remains the practical implementation language for the control plane, tooling, protocol surfaces, and extensibility model.
 
-OpenClaw is primarily an orchestration system: prompts, tools, protocols, and integrations.
-TypeScript was chosen to keep OpenClaw hackable by default.
-It is widely known, fast to iterate in, and easy to read, modify, and extend.
+That is an implementation choice, not the product identity.
 
-## What We Will Not Merge (For Now)
+The product identity is:
 
-- New core skills when they can live on ClawHub
-- Full-doc translation sets for all docs (deferred; we plan AI-generated translations later)
-- Commercial service integrations that do not clearly fit the model-provider category
-- Wrapper channels around already supported channels without a clear capability or security gap
-- First-class MCP runtime in core when `mcporter` already provides the integration path
-- Agent-hierarchy frameworks (manager-of-managers / nested planner trees) as a default architecture
-- Heavy orchestration layers that duplicate existing agent and tool infrastructure
-
-This list is a roadmap guardrail, not a law of physics.
-Strong user demand and strong technical rationale can change it.
+- desktop-first
+- personal by default
+- local-aware
+- automation-capable
+- composable through channels, connectors, devices, and skills

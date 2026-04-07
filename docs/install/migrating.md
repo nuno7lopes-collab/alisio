@@ -1,28 +1,28 @@
 ---
-summary: "Move (migrate) an OpenClaw install from one machine to another"
+summary: "Move (migrate) an Alisio install from one machine to another"
 read_when:
-  - You are moving OpenClaw to a new laptop/server
+  - You are moving Alisio to a new laptop/server
   - You want to preserve sessions, auth, and channel logins (WhatsApp, etc.)
 title: "Migration Guide"
 ---
 
-# Migrating OpenClaw to a New Machine
+# Migrating Alisio to a New Machine
 
-This guide moves an OpenClaw gateway to a new machine without redoing onboarding.
+This guide moves an Alisio gateway to a new machine without redoing onboarding.
 
 ## What Gets Migrated
 
-When you copy the **state directory** (`~/.openclaw/` by default) and your **workspace**, you preserve:
+When you copy the **state directory** (`~/.alisio/` by default) and your **workspace**, you preserve:
 
-- **Config** -- `openclaw.json` and all gateway settings
+- **Config** -- `alisio.json` and all gateway settings
 - **Auth** -- API keys, OAuth tokens, credential profiles
 - **Sessions** -- conversation history and agent state
 - **Channel state** -- WhatsApp login, Telegram session, etc.
 - **Workspace files** -- `MEMORY.md`, `USER.md`, skills, and prompts
 
 <Tip>
-Run `openclaw status` on the old machine to confirm your state directory path.
-Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_DIR`.
+Run `alisio status` on the old machine to confirm your state directory path.
+Custom profiles use `~/.alisio-<profile>/` or a path set via `ALISIO_STATE_DIR`.
 </Tip>
 
 ## Migration Steps
@@ -32,18 +32,18 @@ Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_D
     On the **old** machine, stop the gateway so files are not changing mid-copy, then archive:
 
     ```bash
-    openclaw gateway stop
+    alisio gateway stop
     cd ~
-    tar -czf openclaw-state.tgz .openclaw
+    tar -czf alisio-state.tgz .alisio
     ```
 
-    If you use multiple profiles (e.g. `~/.openclaw-work`), archive each separately.
+    If you use multiple profiles (e.g. `~/.alisio-work`), archive each separately.
 
   </Step>
 
-  <Step title="Install OpenClaw on the new machine">
+  <Step title="Install Alisio on the new machine">
     [Install](/install) the CLI (and Node if needed) on the new machine.
-    It is fine if onboarding creates a fresh `~/.openclaw/` -- you will overwrite it next.
+    It is fine if onboarding creates a fresh `~/.alisio/` -- you will overwrite it next.
   </Step>
 
   <Step title="Copy state directory and workspace">
@@ -51,7 +51,7 @@ Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_D
 
     ```bash
     cd ~
-    tar -xzf openclaw-state.tgz
+    tar -xzf alisio-state.tgz
     ```
 
     Ensure hidden directories were included and file ownership matches the user that will run the gateway.
@@ -62,9 +62,9 @@ Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_D
     On the new machine, run [Doctor](/gateway/doctor) to apply config migrations and repair services:
 
     ```bash
-    openclaw doctor
-    openclaw gateway restart
-    openclaw status
+    alisio doctor
+    alisio gateway restart
+    alisio status
     ```
 
   </Step>
@@ -74,12 +74,12 @@ Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_D
 
 <AccordionGroup>
   <Accordion title="Profile or state-dir mismatch">
-    If the old gateway used `--profile` or `OPENCLAW_STATE_DIR` and the new one does not,
+    If the old gateway used `--profile` or `ALISIO_STATE_DIR` and the new one does not,
     channels will appear logged out and sessions will be empty.
-    Launch the gateway with the **same** profile or state-dir you migrated, then rerun `openclaw doctor`.
+    Launch the gateway with the **same** profile or state-dir you migrated, then rerun `alisio doctor`.
   </Accordion>
 
-  <Accordion title="Copying only openclaw.json">
+  <Accordion title="Copying only alisio.json">
     The config file alone is not enough. Credentials live under `credentials/`, and agent
     state lives under `agents/`. Always migrate the **entire** state directory.
   </Accordion>
@@ -104,7 +104,7 @@ Custom profiles use `~/.openclaw-<profile>/` or a path set via `OPENCLAW_STATE_D
 
 On the new machine, confirm:
 
-- [ ] `openclaw status` shows the gateway running
+- [ ] `alisio status` shows the gateway running
 - [ ] Channels are still connected (no re-pairing needed)
 - [ ] The dashboard opens and shows existing sessions
 - [ ] Workspace files (memory, configs) are present

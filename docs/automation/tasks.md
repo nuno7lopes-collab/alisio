@@ -26,40 +26,40 @@ Not every agent run creates a task. Heartbeat turns and normal interactive chat 
 - ACP, subagents, all cron jobs, and CLI operations create tasks. Heartbeat turns do not.
 - Each task moves through `queued → running → terminal` (succeeded, failed, timed_out, cancelled, or lost).
 - Completion notifications are delivered directly to a channel or queued for the next heartbeat.
-- `openclaw tasks list` shows all tasks; `openclaw tasks audit` surfaces issues.
+- `alisio tasks list` shows all tasks; `alisio tasks audit` surfaces issues.
 - Terminal records are kept for 7 days, then automatically pruned.
 
 ## Quick start
 
 ```bash
 # List all tasks (newest first)
-openclaw tasks list
+alisio tasks list
 
 # Filter by runtime or status
-openclaw tasks list --runtime acp
-openclaw tasks list --status running
+alisio tasks list --runtime acp
+alisio tasks list --status running
 
 # Show details for a specific task (by ID, run ID, or session key)
-openclaw tasks show <lookup>
+alisio tasks show <lookup>
 
 # Cancel a running task (kills the child session)
-openclaw tasks cancel <lookup>
+alisio tasks cancel <lookup>
 
 # Change notification policy for a task
-openclaw tasks notify <lookup> state_changes
+alisio tasks notify <lookup> state_changes
 
 # Run a health audit
-openclaw tasks audit
+alisio tasks audit
 ```
 
 ## What creates a task
 
-| Source                 | Runtime type | When a task record is created                          | Default notify policy |
-| ---------------------- | ------------ | ------------------------------------------------------ | --------------------- |
-| ACP background runs    | `acp`        | Spawning a child ACP session                           | `done_only`           |
-| Subagent orchestration | `subagent`   | Spawning a subagent via `sessions_spawn`               | `done_only`           |
-| Cron jobs (all types)  | `cron`       | Every cron execution (main-session and isolated)       | `silent`              |
-| CLI operations         | `cli`        | `openclaw agent` commands that run through the gateway | `done_only`           |
+| Source                 | Runtime type | When a task record is created                        | Default notify policy |
+| ---------------------- | ------------ | ---------------------------------------------------- | --------------------- |
+| ACP background runs    | `acp`        | Spawning a child ACP session                         | `done_only`           |
+| Subagent orchestration | `subagent`   | Spawning a subagent via `sessions_spawn`             | `done_only`           |
+| Cron jobs (all types)  | `cron`       | Every cron execution (main-session and isolated)     | `silent`              |
+| CLI operations         | `cli`        | `alisio agent` commands that run through the gateway | `done_only`           |
 
 Main-session cron tasks use `silent` notify policy by default — they create records for tracking but do not generate notifications. Isolated cron tasks also default to `silent` but are more visible because they run in their own session.
 
@@ -90,14 +90,14 @@ stateDiagram-v2
 | `succeeded` | Completed successfully                                                     |
 | `failed`    | Completed with an error                                                    |
 | `timed_out` | Exceeded the configured timeout                                            |
-| `cancelled` | Stopped by the operator via `openclaw tasks cancel`                        |
+| `cancelled` | Stopped by the operator via `alisio tasks cancel`                          |
 | `lost`      | Backing child session disappeared (detected after a 5-minute grace period) |
 
 Transitions happen automatically — when the associated agent run ends, the task status updates to match.
 
 ## Delivery and notifications
 
-When a task reaches a terminal state, OpenClaw notifies you. There are two delivery paths:
+When a task reaches a terminal state, Alisio notifies you. There are two delivery paths:
 
 **Direct delivery** — if the task has a channel target (the `requesterOrigin`), the completion message goes straight to that channel (Telegram, Discord, Slack, etc.).
 
@@ -120,7 +120,7 @@ Control how much you hear about each task:
 Change the policy while a task is running:
 
 ```bash
-openclaw tasks notify <lookup> state_changes
+alisio tasks notify <lookup> state_changes
 ```
 
 ## CLI reference
@@ -128,7 +128,7 @@ openclaw tasks notify <lookup> state_changes
 ### `tasks list`
 
 ```bash
-openclaw tasks list [--runtime <acp|subagent|cron|cli>] [--status <status>] [--json]
+alisio tasks list [--runtime <acp|subagent|cron|cli>] [--status <status>] [--json]
 ```
 
 Output columns: Task ID, Kind, Status, Delivery, Run ID, Child Session, Summary.
@@ -136,7 +136,7 @@ Output columns: Task ID, Kind, Status, Delivery, Run ID, Child Session, Summary.
 ### `tasks show`
 
 ```bash
-openclaw tasks show <lookup>
+alisio tasks show <lookup>
 ```
 
 The lookup token accepts a task ID, run ID, or session key. Shows the full record including timing, delivery state, error, and terminal summary.
@@ -144,7 +144,7 @@ The lookup token accepts a task ID, run ID, or session key. Shows the full recor
 ### `tasks cancel`
 
 ```bash
-openclaw tasks cancel <lookup>
+alisio tasks cancel <lookup>
 ```
 
 For ACP and subagent tasks, this kills the child session. Status transitions to `cancelled` and a delivery notification is sent.
@@ -152,16 +152,16 @@ For ACP and subagent tasks, this kills the child session. Status transitions to 
 ### `tasks notify`
 
 ```bash
-openclaw tasks notify <lookup> <done_only|state_changes|silent>
+alisio tasks notify <lookup> <done_only|state_changes|silent>
 ```
 
 ### `tasks audit`
 
 ```bash
-openclaw tasks audit [--json]
+alisio tasks audit [--json]
 ```
 
-Surfaces operational issues. Findings also appear in `openclaw status` when issues are detected.
+Surfaces operational issues. Findings also appear in `alisio status` when issues are detected.
 
 | Finding                   | Severity | Trigger                                               |
 | ------------------------- | -------- | ----------------------------------------------------- |
@@ -174,7 +174,7 @@ Surfaces operational issues. Findings also appear in `openclaw status` when issu
 
 ## Status integration (task pressure)
 
-`openclaw status` includes an at-a-glance task summary:
+`alisio status` includes an at-a-glance task summary:
 
 ```
 Tasks: 3 queued · 2 running · 1 issues
@@ -193,7 +193,7 @@ The summary reports:
 Task records persist in SQLite at:
 
 ```
-$OPENCLAW_STATE_DIR/tasks/runs.sqlite
+$ALISIO_STATE_DIR/tasks/runs.sqlite
 ```
 
 The registry loads into memory at gateway start and syncs writes to SQLite for durability across restarts.
@@ -212,7 +212,7 @@ A sweeper runs every **60 seconds** and handles three things:
 
 ### Tasks and cron
 
-A cron job **definition** lives in `~/.openclaw/cron/jobs.json`. **Every** cron execution creates a task record — both main-session and isolated. Main-session cron tasks default to `silent` notify policy so they track without generating notifications.
+A cron job **definition** lives in `~/.alisio/cron/jobs.json`. **Every** cron execution creates a task record — both main-session and isolated. Main-session cron tasks default to `silent` notify policy so they track without generating notifications.
 
 See [Cron Jobs](/automation/cron-jobs).
 

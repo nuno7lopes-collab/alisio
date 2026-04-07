@@ -16,7 +16,7 @@ Native Linux companion apps are planned. Contributions are welcome if you want t
 ## Beginner quick path (VPS)
 
 1. Install Node 24 (recommended; Node 22 LTS, currently `22.14+`, still works for compatibility)
-2. `npm i -g alisio@npm:openclaw@latest`
+2. `npm i -g alisio@npm:alisio@latest`
 3. `alisio onboard --install-daemon`
 4. From your laptop: `ssh -N -L 18789:127.0.0.1:18789 <user>@<host>`
 5. Open `http://127.0.0.1:18789/` and paste your token
@@ -64,22 +64,22 @@ alisio doctor
 
 ## System control (systemd user unit)
 
-OpenClaw installs a systemd **user** service by default. Use a **system**
+Alisio installs a systemd **user** service by default. Use a **system**
 service for shared or always-on servers. The full unit example and guidance
 live in the [Gateway runbook](/gateway).
 
 Minimal setup:
 
-Create `~/.config/systemd/user/openclaw-gateway[-<profile>].service`:
+Create `~/.config/systemd/user/alisio-gateway[-<profile>].service`:
 
 ```
 [Unit]
-Description=OpenClaw Gateway (profile: <profile>, v<version>)
+Description=Alisio Gateway (profile: <profile>, v<version>)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/openclaw gateway --port 18789
+ExecStart=/usr/local/bin/alisio gateway --port 18789
 Restart=always
 RestartSec=5
 
@@ -90,5 +90,5 @@ WantedBy=default.target
 Enable it:
 
 ```
-systemctl --user enable --now openclaw-gateway[-<profile>].service
+systemctl --user enable --now alisio-gateway[-<profile>].service
 ```

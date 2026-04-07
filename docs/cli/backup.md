@@ -17,7 +17,7 @@ alisio backup create --dry-run --json
 alisio backup create --verify
 alisio backup create --no-include-workspace
 alisio backup create --only-config
-alisio backup verify ./2026-03-09T00-00-00.000Z-openclaw-backup.tar.gz
+alisio backup verify ./2026-03-09T00-00-00.000Z-alisio-backup.tar.gz
 ```
 
 ## Notes
@@ -35,7 +35,7 @@ alisio backup verify ./2026-03-09T00-00-00.000Z-openclaw-backup.tar.gz
 
 `alisio backup create` plans backup sources from your local Alisio install:
 
-- The state directory returned by Alisio's local state resolver, usually `~/.openclaw`
+- The state directory returned by Alisio's local state resolver, usually `~/.alisio`
 - The active config file path
 - The OAuth / credentials directory
 - Workspace directories discovered from the current config, unless you pass `--no-include-workspace`

@@ -8,7 +8,7 @@ read_when:
 
 # Release Policy
 
-OpenClaw has three public release lanes:
+Alisio has three public release lanes:
 
 - stable: tagged releases that publish to npm `latest` and mirror the same version onto `beta` unless `beta` already points at a newer prerelease
 - beta: prerelease tags that publish to npm `beta`
@@ -26,7 +26,7 @@ OpenClaw has three public release lanes:
 - `latest` means the current stable npm release
 - `beta` means the current beta install target, which may point to either the active prerelease or the latest promoted stable build
 - Stable and stable correction releases publish to npm `latest` and also retag npm `beta` to that same non-beta version after promotion, unless `beta` already points at a newer prerelease
-- Every OpenClaw release ships the npm package and macOS app together
+- Every Alisio release ships the npm package and macOS app together
 
 ## Release cadence
 
@@ -40,10 +40,10 @@ OpenClaw has three public release lanes:
 - Run `pnpm build` before `pnpm release:check` so the expected `dist/*` release
   artifacts exist for the pack validation step
 - Run `pnpm release:check` before every tagged release
-- Run `RELEASE_TAG=vYYYY.M.D node --import tsx scripts/openclaw-npm-release-check.ts`
+- Run `RELEASE_TAG=vYYYY.M.D node --import tsx scripts/alisio-npm-release-check.ts`
   (or the matching beta/correction tag) before approval
 - After npm publish, run
-  `node --import tsx scripts/openclaw-npm-postpublish-verify.ts YYYY.M.D`
+  `node --import tsx scripts/alisio-npm-postpublish-verify.ts YYYY.M.D`
   (or the matching beta/correction version) to verify the published registry
   install path in a fresh temp prefix
 - For stable correction releases like `YYYY.M.D-N`, the post-publish verifier
@@ -62,11 +62,11 @@ OpenClaw has three public release lanes:
 
 ## Public references
 
-- [`.github/workflows/openclaw-npm-release.yml`](https://github.com/openclaw/openclaw/blob/main/.github/workflows/openclaw-npm-release.yml)
-- [`scripts/openclaw-npm-release-check.ts`](https://github.com/openclaw/openclaw/blob/main/scripts/openclaw-npm-release-check.ts)
-- [`scripts/package-mac-dist.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/package-mac-dist.sh)
-- [`scripts/make_appcast.sh`](https://github.com/openclaw/openclaw/blob/main/scripts/make_appcast.sh)
+- [`.github/workflows/alisio-npm-release.yml`](https://github.com/alisio/alisio/blob/main/.github/workflows/alisio-npm-release.yml)
+- [`scripts/alisio-npm-release-check.ts`](https://github.com/alisio/alisio/blob/main/scripts/alisio-npm-release-check.ts)
+- [`scripts/package-mac-dist.sh`](https://github.com/alisio/alisio/blob/main/scripts/package-mac-dist.sh)
+- [`scripts/make_appcast.sh`](https://github.com/alisio/alisio/blob/main/scripts/make_appcast.sh)
 
 Maintainers use the private release docs in
-[`openclaw/maintainers/release/README.md`](https://github.com/openclaw/maintainers/blob/main/release/README.md)
+[`alisio/maintainers/release/README.md`](https://github.com/alisio/maintainers/blob/main/release/README.md)
 for the actual runbook.

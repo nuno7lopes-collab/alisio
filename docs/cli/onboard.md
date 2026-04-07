@@ -27,7 +27,7 @@ alisio onboard --mode remote --remote-url wss://gateway-host:18789
 ```
 
 For plaintext private-network `ws://` targets (trusted networks only), set
-`OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1` in the onboarding process environment.
+`ALISIO_ALLOW_INSECURE_PRIVATE_WS=1` in the onboarding process environment.
 
 Non-interactive custom provider:
 
@@ -92,12 +92,12 @@ Remote gateway auth options in non-interactive mode:
 Example:
 
 ```bash
-export OPENCLAW_GATEWAY_TOKEN="your-token"
+export ALISIO_GATEWAY_TOKEN="your-token"
 alisio onboard --non-interactive \
   --mode local \
   --auth-choice skip \
   --gateway-auth token \
-  --gateway-token-ref-env OPENCLAW_GATEWAY_TOKEN \
+  --gateway-token-ref-env ALISIO_GATEWAY_TOKEN \
   --accept-risk
 ```
 
@@ -105,7 +105,7 @@ alisio onboard --non-interactive \
 alisio onboard --non-interactive \
   --mode remote \
   --remote-url ws://127.0.0.1:18789 \
-  --remote-password "$OPENCLAW_GATEWAY_PASSWORD" \
+  --remote-password "$ALISIO_GATEWAY_PASSWORD" \
   --accept-risk
 ```
 

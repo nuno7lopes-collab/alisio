@@ -4,7 +4,7 @@ sidebarTitle: "SDK Overview"
 summary: "Import map, registration API reference, and SDK architecture"
 read_when:
   - You need to know which SDK subpath to import from
-  - You want a reference for all registration methods on OpenClawPluginApi
+  - You want a reference for all registration methods on AlisioPluginApi
   - You are looking up a specific SDK export
 ---
 
@@ -25,8 +25,8 @@ reference for **what to import** and **what you can register**.
 Always import from a specific subpath:
 
 ```typescript
-import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { defineChannelPluginEntry } from "openclaw/plugin-sdk/core";
+import { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
+import { defineChannelPluginEntry } from "alisio/plugin-sdk/core";
 ```
 
 Each subpath is a small, self-contained module. This keeps startup fast and
@@ -116,7 +116,7 @@ subpaths is in `scripts/lib/plugin-sdk-entrypoints.json`.
 
 ## Registration API
 
-The `register(api)` callback receives an `OpenClawPluginApi` object with these
+The `register(api)` callback receives an `AlisioPluginApi` object with these
 methods:
 
 ### Capability registration
@@ -190,7 +190,7 @@ AI CLI backend such as `claude-cli` or `codex-cli`.
 
 - The backend `id` becomes the provider prefix in model refs like `claude-cli/opus`.
 - The backend `config` uses the same shape as `agents.defaults.cliBackends.<id>`.
-- User config still wins. OpenClaw merges `agents.defaults.cliBackends.<id>` over the
+- User config still wins. Alisio merges `agents.defaults.cliBackends.<id>` over the
   plugin default before running the CLI.
 - Use `normalizeConfig` when a backend needs compatibility rewrites after merge
   (for example normalizing old flag shapes).
@@ -245,7 +245,7 @@ AI CLI backend such as `claude-cli` or `codex-cli`.
 | `api.description`        | `string?`                 | Plugin description (optional)                                    |
 | `api.source`             | `string`                  | Plugin source path                                               |
 | `api.rootDir`            | `string?`                 | Plugin root directory (optional)                                 |
-| `api.config`             | `OpenClawConfig`          | Current config snapshot                                          |
+| `api.config`             | `AlisioConfig`            | Current config snapshot                                          |
 | `api.pluginConfig`       | `Record<string, unknown>` | Plugin-specific config from `plugins.entries.<id>.config`        |
 | `api.runtime`            | `PluginRuntime`           | [Runtime helpers](/plugins/sdk-runtime)                          |
 | `api.logger`             | `PluginLogger`            | Scoped logger (`debug`, `info`, `warn`, `error`)                 |
@@ -265,15 +265,15 @@ my-plugin/
 ```
 
 <Warning>
-  Never import your own plugin through `openclaw/plugin-sdk/<your-plugin>`
+  Never import your own plugin through `alisio/plugin-sdk/<your-plugin>`
   from production code. Route internal imports through `./api.ts` or
   `./runtime-api.ts`. The SDK path is the external contract only.
 </Warning>
 
 <Warning>
-  Extension production code should also avoid `openclaw/plugin-sdk/<other-plugin>`
+  Extension production code should also avoid `alisio/plugin-sdk/<other-plugin>`
   imports. If a helper is truly shared, promote it to a neutral SDK subpath
-  such as `openclaw/plugin-sdk/speech`, `.../provider-model-shared`, or another
+  such as `alisio/plugin-sdk/speech`, `.../provider-model-shared`, or another
   capability-oriented surface instead of coupling two plugins together.
 </Warning>
 

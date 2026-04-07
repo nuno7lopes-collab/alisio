@@ -8,7 +8,7 @@ title: "Session Tools"
 
 # Session Tools
 
-OpenClaw gives agents tools to work across sessions -- listing conversations,
+Alisio gives agents tools to work across sessions -- listing conversations,
 reading history, sending messages to other sessions, and spawning sub-agents.
 
 ## Available tools
@@ -41,7 +41,7 @@ the response:
   immediately.
 - **Wait for reply:** set a timeout and get the response inline.
 
-After the target responds, OpenClaw can run a **reply-back loop** where the
+After the target responds, Alisio can run a **reply-back loop** where the
 agents alternate messages (up to 5 turns). The target agent can reply
 `REPLY_SKIP` to stop early.
 

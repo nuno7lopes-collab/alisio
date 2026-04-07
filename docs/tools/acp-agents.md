@@ -1,5 +1,5 @@
 ---
-summary: "Use ACP runtime sessions for Codex, Claude Code, Cursor, Gemini CLI, OpenClaw ACP, and other harness agents"
+summary: "Use ACP runtime sessions for Codex, Claude Code, Cursor, Gemini CLI, Alisio ACP, and other harness agents"
 read_when:
   - Running coding harnesses through ACP
   - Setting up conversation-bound ACP sessions on messaging channels
@@ -11,12 +11,12 @@ title: "ACP Agents"
 
 # ACP agents
 
-[Agent Client Protocol (ACP)](https://agentclientprotocol.com/) sessions let OpenClaw run external coding harnesses (for example Pi, Claude Code, Codex, Cursor, Copilot, OpenClaw ACP, OpenCode, Gemini CLI, and other supported ACPX harnesses) through an ACP backend plugin.
+[Agent Client Protocol (ACP)](https://agentclientprotocol.com/) sessions let Alisio run external coding harnesses (for example Pi, Claude Code, Codex, Cursor, Copilot, Alisio ACP, OpenCode, Gemini CLI, and other supported ACPX harnesses) through an ACP backend plugin.
 
-If you ask OpenClaw in plain language to "run this in Codex" or "start Claude Code in a thread", OpenClaw should route that request to the ACP runtime (not the native sub-agent runtime). Each ACP session spawn is tracked as a [background task](/automation/tasks).
+If you ask Alisio in plain language to "run this in Codex" or "start Claude Code in a thread", Alisio should route that request to the ACP runtime (not the native sub-agent runtime). Each ACP session spawn is tracked as a [background task](/automation/tasks).
 
 If you want Codex or Claude Code to connect as an external MCP client directly
-to existing OpenClaw channel conversations, use [`openclaw mcp serve`](/cli/mcp)
+to existing Alisio channel conversations, use [`alisio mcp serve`](/cli/mcp)
 instead of ACP.
 
 ## Fast operator flow
@@ -49,7 +49,7 @@ Examples of natural requests:
 - "Bind this iMessage chat to Codex and keep follow-ups in the same workspace."
 - "Use Gemini CLI for this task in a thread, then keep follow-ups in that same thread."
 
-What OpenClaw should do:
+What Alisio should do:
 
 1. Pick `runtime: "acp"`.
 2. Resolve the requested harness target (`agentId`, for example `codex`).
@@ -59,11 +59,11 @@ What OpenClaw should do:
 
 ## ACP versus sub-agents
 
-Use ACP when you want an external harness runtime. Use sub-agents when you want OpenClaw-native delegated runs.
+Use ACP when you want an external harness runtime. Use sub-agents when you want Alisio-native delegated runs.
 
 | Area          | ACP session                           | Sub-agent run                      |
 | ------------- | ------------------------------------- | ---------------------------------- |
-| Runtime       | ACP backend plugin (for example acpx) | OpenClaw native sub-agent runtime  |
+| Runtime       | ACP backend plugin (for example acpx) | Alisio native sub-agent runtime    |
 | Session key   | `agent:<agentId>:acp:<uuid>`          | `agent:<agentId>:subagent:<uuid>`  |
 | Main commands | `/acp ...`                            | `/subagents ...`                   |
 | Spawn tool    | `sessions_spawn` with `runtime:"acp"` | `sessions_spawn` (default runtime) |
@@ -78,7 +78,7 @@ Use `/acp spawn <harness> --bind here` when you want the current conversation to
 
 Behavior:
 
-- OpenClaw keeps owning the channel transport, auth, safety, and delivery.
+- Alisio keeps owning the channel transport, auth, safety, and delivery.
 - The current conversation is pinned to the spawned ACP session key.
 - Follow-up messages in that conversation route to the same ACP session.
 - `/new` and `/reset` reset the same bound ACP session in place.
@@ -94,14 +94,14 @@ What this means in practice:
 Mental model:
 
 - chat surface: where people keep talking (`Discord channel`, `Telegram topic`, `iMessage chat`)
-- ACP session: the durable Codex/Claude/Gemini runtime state OpenClaw routes to
+- ACP session: the durable Codex/Claude/Gemini runtime state Alisio routes to
 - child thread/topic: an optional extra messaging surface created only by `--thread ...`
 - runtime workspace: the filesystem location where the harness runs (`cwd`, repo checkout, backend workspace)
 
 Examples:
 
 - `/acp spawn codex --bind here`: keep this chat, spawn or attach a Codex ACP session, and route future messages here to it
-- `/acp spawn codex --thread auto`: OpenClaw may create a child thread/topic and bind the ACP session there
+- `/acp spawn codex --thread auto`: Alisio may create a child thread/topic and bind the ACP session there
 - `/acp spawn codex --bind here --cwd /workspace/repo`: same chat binding as above, but Codex runs in `/workspace/repo`
 
 Current-conversation binding support:
@@ -109,25 +109,25 @@ Current-conversation binding support:
 - Chat/message channels that advertise current-conversation binding support can use `--bind here` through the shared conversation-binding path.
 - Channels with custom thread/topic semantics can still provide channel-specific canonicalization behind the same shared interface.
 - `--bind here` always means "bind the current conversation in place".
-- Generic current-conversation binds use the shared OpenClaw binding store and survive normal gateway restarts.
+- Generic current-conversation binds use the shared Alisio binding store and survive normal gateway restarts.
 
 Notes:
 
 - `--bind here` and `--thread ...` are mutually exclusive on `/acp spawn`.
-- On Discord, `--bind here` binds the current channel or thread in place. `spawnAcpSessions` is only required when OpenClaw needs to create a child thread for `--thread auto|here`.
-- If the active channel does not expose current-conversation ACP bindings, OpenClaw returns a clear unsupported message.
+- On Discord, `--bind here` binds the current channel or thread in place. `spawnAcpSessions` is only required when Alisio needs to create a child thread for `--thread auto|here`.
+- If the active channel does not expose current-conversation ACP bindings, Alisio returns a clear unsupported message.
 - `resume` and "new session" questions are ACP-session questions, not channel questions. You can reuse or replace runtime state without changing the current chat surface.
 
 ### Thread-bound sessions
 
 When thread bindings are enabled for a channel adapter, ACP sessions can be bound to threads:
 
-- OpenClaw binds a thread to a target ACP session.
+- Alisio binds a thread to a target ACP session.
 - Follow-up messages in that thread route to the bound ACP session.
 - ACP output is delivered back to the same thread.
 - Unfocus/close/archive/idle-timeout or max-age expiry removes the binding.
 
-Thread binding support is adapter-specific. If the active channel adapter does not support thread bindings, OpenClaw returns a clear unsupported/unavailable message.
+Thread binding support is adapter-specific. If the active channel adapter does not support thread bindings, Alisio returns a clear unsupported/unavailable message.
 
 Required feature flags for thread-bound ACP:
 
@@ -159,7 +159,7 @@ For non-ephemeral workflows, configure persistent ACP bindings in top-level `bin
     Prefer `chat_id:*` or `chat_identifier:*` for stable group bindings.
   - iMessage DM/group chat: `match.channel="imessage"` + `match.peer.id="<handle|chat_id:*|chat_guid:*|chat_identifier:*>"`
     Prefer `chat_id:*` for stable group bindings.
-- `bindings[].agentId` is the owning OpenClaw agent id.
+- `bindings[].agentId` is the owning Alisio agent id.
 - Optional ACP overrides live under `bindings[].acp`:
   - `mode` (`persistent` or `oneshot`)
   - `label`
@@ -196,7 +196,7 @@ Example:
             agent: "codex",
             backend: "acpx",
             mode: "persistent",
-            cwd: "/workspace/openclaw",
+            cwd: "/workspace/alisio",
           },
         },
       },
@@ -264,7 +264,7 @@ Example:
 
 Behavior:
 
-- OpenClaw ensures the configured ACP session exists before use.
+- Alisio ensures the configured ACP session exists before use.
 - Messages in that channel or topic route to the configured ACP session.
 - In bound conversations, `/new` and `/reset` reset the same ACP session key in place.
 - Temporary runtime bindings (for example created by thread-focus flows) still apply where present.
@@ -288,7 +288,7 @@ Use `runtime: "acp"` to start an ACP session from an agent turn or tool call.
 Notes:
 
 - `runtime` defaults to `subagent`, so set `runtime: "acp"` explicitly for ACP sessions.
-- If `agentId` is omitted, OpenClaw uses `acp.defaultAgent` when configured.
+- If `agentId` is omitted, Alisio uses `acp.defaultAgent` when configured.
 - `mode: "session"` requires `thread: true` to keep a persistent bound conversation.
 
 Interface details:
@@ -299,7 +299,7 @@ Interface details:
 - `thread` (optional, default `false`): request thread binding flow where supported.
 - `mode` (optional): `run` (one-shot) or `session` (persistent).
   - default is `run`
-  - if `thread: true` and mode omitted, OpenClaw may default to persistent behavior per runtime path
+  - if `thread: true` and mode omitted, Alisio may default to persistent behavior per runtime path
   - `mode: "session"` requires `thread: true`
 - `cwd` (optional): requested runtime working directory (validated by backend/runtime policy).
 - `label` (optional): operator-facing label used in session/banner text.
@@ -329,7 +329,7 @@ Common use cases:
 Notes:
 
 - `resumeSessionId` requires `runtime: "acp"` — returns an error if used with the sub-agent runtime.
-- `resumeSessionId` restores the upstream ACP conversation history; `thread` and `mode` still apply normally to the new OpenClaw session you are creating, so `mode: "session"` still requires `thread: true`.
+- `resumeSessionId` restores the upstream ACP conversation history; `thread` and `mode` still apply normally to the new Alisio session you are creating, so `mode: "session"` still requires `thread: true`.
 - The target agent must support `session/load` (Codex and Claude Code do).
 - If the session ID isn't found, the spawn fails with a clear error — no silent fallback to a new session.
 
@@ -375,7 +375,7 @@ Notes:
 
 ## Sandbox compatibility
 
-ACP sessions currently run on the host runtime, not inside the OpenClaw sandbox.
+ACP sessions currently run on the host runtime, not inside the Alisio sandbox.
 
 Current limitations:
 
@@ -422,7 +422,7 @@ Resolution order:
 
 Current-conversation bindings and thread bindings both participate in step 2.
 
-If no target resolves, OpenClaw returns a clear error (`Unable to resolve session target: ...`).
+If no target resolves, Alisio returns a clear error (`Unable to resolve session target: ...`).
 
 ## Spawn bind modes
 
@@ -480,7 +480,7 @@ Available command family:
 
 `/acp status` shows the effective runtime options and, when available, both runtime-level and backend-level session identifiers.
 
-Some controls depend on backend capabilities. If a backend does not support a control, OpenClaw returns a clear unsupported-control error.
+Some controls depend on backend capabilities. If a backend does not support a control, Alisio returns a clear unsupported-control error.
 
 ## ACP command cookbook
 
@@ -532,15 +532,15 @@ Current acpx built-in harness aliases:
 - `kilocode`
 - `kimi`
 - `kiro`
-- `openclaw`
+- `alisio`
 - `opencode`
 - `pi`
 - `qwen`
 
-When OpenClaw uses the acpx backend, prefer these values for `agentId` unless your acpx config defines custom agent aliases.
+When Alisio uses the acpx backend, prefer these values for `agentId` unless your acpx config defines custom agent aliases.
 If your local Cursor install still exposes ACP as `agent acp`, override the `cursor` agent command in your acpx config instead of changing the built-in default.
 
-Direct acpx CLI usage can also target arbitrary adapters via `--agent <command>`, but that raw escape hatch is an acpx CLI feature (not the normal OpenClaw `agentId` path).
+Direct acpx CLI usage can also target arbitrary adapters via `--agent <command>`, but that raw escape hatch is an acpx CLI feature (not the normal Alisio `agentId` path).
 
 ## Required config
 
@@ -565,7 +565,7 @@ Core ACP baseline:
       "kilocode",
       "kimi",
       "kiro",
-      "openclaw",
+      "alisio",
       "opencode",
       "pi",
       "qwen",
@@ -617,14 +617,14 @@ See [Configuration Reference](/gateway/configuration-reference).
 Install and enable plugin:
 
 ```bash
-openclaw plugins install acpx
-openclaw config set plugins.entries.acpx.enabled true
+alisio plugins install acpx
+alisio config set plugins.entries.acpx.enabled true
 ```
 
 Local workspace install during development:
 
 ```bash
-openclaw plugins install ./path/to/local/acpx-plugin
+alisio plugins install ./path/to/local/acpx-plugin
 ```
 
 Then verify backend health:
@@ -665,37 +665,37 @@ You can override command/version in plugin config:
 Notes:
 
 - `command` accepts an absolute path, relative path, or command name (`acpx`).
-- Relative paths resolve from OpenClaw workspace directory.
+- Relative paths resolve from Alisio workspace directory.
 - `expectedVersion: "any"` disables strict version matching.
 - When `command` points to a custom binary/path, plugin-local auto-install is disabled.
-- OpenClaw startup remains non-blocking while the backend health check runs.
+- Alisio startup remains non-blocking while the backend health check runs.
 
 See [Plugins](/tools/plugin).
 
 ### Automatic dependency install
 
-When you install Alisio globally with `npm install -g alisio@npm:openclaw@latest`, the acpx
+When you install Alisio globally with `npm install -g alisio@npm:alisio@latest`, the acpx
 runtime dependencies (platform-specific binaries) are installed automatically
 via a postinstall hook. If the automatic install fails, the gateway still starts
 normally and reports the missing dependency through `alisio acp doctor`.
 
 ### Plugin tools MCP bridge
 
-By default, ACPX sessions do **not** expose OpenClaw plugin-registered tools to
+By default, ACPX sessions do **not** expose Alisio plugin-registered tools to
 the ACP harness.
 
 If you want ACP agents such as Codex or Claude Code to call installed
-OpenClaw plugin tools such as memory recall/store, enable the dedicated bridge:
+Alisio plugin tools such as memory recall/store, enable the dedicated bridge:
 
 ```bash
-openclaw config set plugins.entries.acpx.config.pluginToolsMcpBridge true
+alisio config set plugins.entries.acpx.config.pluginToolsMcpBridge true
 ```
 
 What this does:
 
-- Injects a built-in MCP server named `openclaw-plugin-tools` into ACPX session
+- Injects a built-in MCP server named `alisio-plugin-tools` into ACPX session
   bootstrap.
-- Exposes plugin tools already registered by installed and enabled OpenClaw
+- Exposes plugin tools already registered by installed and enabled Alisio
   plugins.
 - Keeps the feature explicit and default-off.
 
@@ -704,7 +704,7 @@ Security and trust notes:
 - This expands the ACP harness tool surface.
 - ACP agents get access only to plugin tools already active in the gateway.
 - Treat this as the same trust boundary as letting those plugins execute in
-  OpenClaw itself.
+  Alisio itself.
 - Review installed plugins before enabling it.
 
 Custom `mcpServers` still work as before. The built-in plugin-tools bridge is an
@@ -738,13 +738,13 @@ Controls what happens when a permission prompt would be shown but no interactive
 Set via plugin config:
 
 ```bash
-openclaw config set plugins.entries.acpx.config.permissionMode approve-all
-openclaw config set plugins.entries.acpx.config.nonInteractivePermissions fail
+alisio config set plugins.entries.acpx.config.permissionMode approve-all
+alisio config set plugins.entries.acpx.config.nonInteractivePermissions fail
 ```
 
 Restart the gateway after changing these values.
 
-> **Important:** OpenClaw currently defaults to `permissionMode=approve-reads` and `nonInteractivePermissions=fail`. In non-interactive ACP sessions, any write or exec that triggers a permission prompt can fail with `AcpRuntimeError: Permission prompt unavailable in non-interactive mode`.
+> **Important:** Alisio currently defaults to `permissionMode=approve-reads` and `nonInteractivePermissions=fail`. In non-interactive ACP sessions, any write or exec that triggers a permission prompt can fail with `AcpRuntimeError: Permission prompt unavailable in non-interactive mode`.
 >
 > If you need to restrict permissions, set `nonInteractivePermissions` to `deny` so sessions degrade gracefully instead of crashing.
 

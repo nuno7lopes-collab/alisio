@@ -1,21 +1,21 @@
 ---
 title: "Building Provider Plugins"
 sidebarTitle: "Provider Plugins"
-summary: "Step-by-step guide to building a model provider plugin for OpenClaw"
+summary: "Step-by-step guide to building a model provider plugin for Alisio"
 read_when:
   - You are building a new model provider plugin
-  - You want to add an OpenAI-compatible proxy or custom LLM to OpenClaw
+  - You want to add an OpenAI-compatible proxy or custom LLM to Alisio
   - You need to understand provider auth, catalogs, and runtime hooks
 ---
 
 # Building Provider Plugins
 
 This guide walks through building a provider plugin that adds a model provider
-(LLM) to OpenClaw. By the end you will have a provider with a model catalog,
+(LLM) to Alisio. By the end you will have a provider with a model catalog,
 API key auth, and dynamic model resolution.
 
 <Info>
-  If you have not built any OpenClaw plugin before, read
+  If you have not built any Alisio plugin before, read
   [Getting Started](/plugins/building-plugins) first for the basic package
   structure and manifest setup.
 </Info>
@@ -28,10 +28,10 @@ API key auth, and dynamic model resolution.
     <CodeGroup>
     ```json package.json
     {
-      "name": "@myorg/openclaw-acme-ai",
+      "name": "@myorg/alisio-acme-ai",
       "version": "1.0.0",
       "type": "module",
-      "openclaw": {
+      "alisio": {
         "extensions": ["./index.ts"],
         "providers": ["acme-ai"],
         "compat": {
@@ -39,14 +39,14 @@ API key auth, and dynamic model resolution.
           "minGatewayVersion": "2026.3.24-beta.2"
         },
         "build": {
-          "openclawVersion": "2026.3.24-beta.2",
+          "alisioVersion": "2026.3.24-beta.2",
           "pluginSdkVersion": "2026.3.24-beta.2"
         }
       }
     }
     ```
 
-    ```json openclaw.plugin.json
+    ```json alisio.plugin.json
     {
       "id": "acme-ai",
       "name": "Acme AI",
@@ -76,9 +76,9 @@ API key auth, and dynamic model resolution.
     ```
     </CodeGroup>
 
-    The manifest declares `providerAuthEnvVars` so OpenClaw can detect
+    The manifest declares `providerAuthEnvVars` so Alisio can detect
     credentials without loading your plugin runtime. If you publish the
-    provider on ClawHub, those `openclaw.compat` and `openclaw.build` fields
+    provider on Marketplace Local, those `alisio.compat` and `alisio.build` fields
     are required in `package.json`.
 
   </Step>
@@ -87,8 +87,8 @@ API key auth, and dynamic model resolution.
     A minimal provider needs an `id`, `label`, `auth`, and `catalog`:
 
     ```typescript index.ts
-    import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-    import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth";
+    import { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
+    import { createProviderApiKeyAuthMethod } from "alisio/plugin-sdk/provider-auth";
 
     export default definePluginEntry({
       id: "acme-ai",
@@ -156,7 +156,7 @@ API key auth, and dynamic model resolution.
     ```
 
     That is a working provider. Users can now
-    `openclaw onboard --acme-ai-api-key <key>` and select
+    `alisio onboard --acme-ai-api-key <key>` and select
     `acme-ai/acme-large` as their model.
 
     For bundled providers that only register one text provider with API-key
@@ -164,7 +164,7 @@ API key auth, and dynamic model resolution.
     `defineSingleProviderPluginEntry(...)` helper:
 
     ```typescript
-    import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
+    import { defineSingleProviderPluginEntry } from "alisio/plugin-sdk/provider-entry";
 
     export default defineSingleProviderPluginEntry({
       id: "acme-ai",
@@ -198,7 +198,7 @@ API key auth, and dynamic model resolution.
 
     If your auth flow also needs to patch `models.providers.*`, aliases, and
     the agent default model during onboarding, use the preset helpers from
-    `openclaw/plugin-sdk/provider-onboard`. The narrowest helpers are
+    `alisio/plugin-sdk/provider-onboard`. The narrowest helpers are
     `createDefaultModelPresetAppliers(...)`,
     `createDefaultModelsPresetAppliers(...)`, and
     `createModelCatalogPresetAppliers(...)`.
@@ -286,7 +286,7 @@ API key auth, and dynamic model resolution.
     </Tabs>
 
     <Accordion title="All available provider hooks">
-      OpenClaw calls hooks in this order. Most providers only use 2-3:
+      Alisio calls hooks in this order. Most providers only use 2-3:
 
       | # | Hook | When to use |
       | --- | --- | --- |
@@ -355,7 +355,7 @@ API key auth, and dynamic model resolution.
     }
     ```
 
-    OpenClaw classifies this as a **hybrid-capability** plugin. This is the
+    Alisio classifies this as a **hybrid-capability** plugin. This is the
     recommended pattern for company plugins (one plugin per vendor). See
     [Internals: Capability Ownership](/plugins/architecture#capability-ownership-model).
 
@@ -396,7 +396,7 @@ API key auth, and dynamic model resolution.
   </Step>
 </Steps>
 
-## Publish to ClawHub
+## Publish to Marketplace Local
 
 Provider plugins publish the same way as any other external code plugin:
 
@@ -412,8 +412,8 @@ Do not use the legacy skill-only publish alias here; plugin packages should use
 
 ```
 <bundled-plugin-root>/acme-ai/
-├── package.json              # openclaw.providers metadata
-├── openclaw.plugin.json      # Manifest with providerAuthEnvVars
+├── package.json              # alisio.providers metadata
+├── alisio.plugin.json      # Manifest with providerAuthEnvVars
 ├── index.ts                  # definePluginEntry + registerProvider
 └── src/
     ├── provider.test.ts      # Tests

@@ -1,7 +1,7 @@
 ---
-summary: "Symptom first troubleshooting hub for OpenClaw"
+summary: "Symptom first troubleshooting hub for Alisio"
 read_when:
-  - OpenClaw is not working and you need the fastest path to a fix
+  - Alisio is not working and you need the fastest path to a fix
   - You want a triage flow before diving into deep runbooks
 title: "General Troubleshooting"
 ---
@@ -15,24 +15,24 @@ If you only have 2 minutes, use this page as a triage front door.
 Run this exact ladder in order:
 
 ```bash
-openclaw status
-openclaw status --all
-openclaw gateway probe
-openclaw gateway status
-openclaw doctor
-openclaw channels status --probe
-openclaw logs --follow
+alisio status
+alisio status --all
+alisio gateway probe
+alisio gateway status
+alisio doctor
+alisio channels status --probe
+alisio logs --follow
 ```
 
 Good output in one line:
 
-- `openclaw status` → shows configured channels and no obvious auth errors.
-- `openclaw status --all` → full report is present and shareable.
-- `openclaw gateway probe` → expected gateway target is reachable (`Reachable: yes`). `RPC: limited - missing scope: operator.read` is degraded diagnostics, not a connect failure.
-- `openclaw gateway status` → `Runtime: running` and `RPC probe: ok`.
-- `openclaw doctor` → no blocking config/service errors.
-- `openclaw channels status --probe` → channels report `connected` or `ready`.
-- `openclaw logs --follow` → steady activity, no repeating fatal errors.
+- `alisio status` → shows configured channels and no obvious auth errors.
+- `alisio status --all` → full report is present and shareable.
+- `alisio gateway probe` → expected gateway target is reachable (`Reachable: yes`). `RPC: limited - missing scope: operator.read` is degraded diagnostics, not a connect failure.
+- `alisio gateway status` → `Runtime: running` and `RPC probe: ok`.
+- `alisio doctor` → no blocking config/service errors.
+- `alisio channels status --probe` → channels report `connected` or `ready`.
+- `alisio logs --follow` → steady activity, no repeating fatal errors.
 
 ## Anthropic long context 429
 
@@ -40,24 +40,24 @@ If you see:
 `HTTP 429: rate_limit_error: Extra usage is required for long context requests`,
 go to [/gateway/troubleshooting#anthropic-429-extra-usage-required-for-long-context](/gateway/troubleshooting#anthropic-429-extra-usage-required-for-long-context).
 
-## Plugin install fails with missing openclaw extensions
+## Plugin install fails with missing alisio extensions
 
-If install fails with `package.json missing openclaw.extensions`, the plugin package
-is using an old shape that OpenClaw no longer accepts.
+If install fails with `package.json missing alisio.extensions`, the plugin package
+is using an old shape that Alisio no longer accepts.
 
 Fix in the plugin package:
 
-1. Add `openclaw.extensions` to `package.json`.
+1. Add `alisio.extensions` to `package.json`.
 2. Point entries at built runtime files (usually `./dist/index.js`).
-3. Republish the plugin and run `openclaw plugins install <package>` again.
+3. Republish the plugin and run `alisio plugins install <package>` again.
 
 Example:
 
 ```json
 {
-  "name": "@openclaw/my-plugin",
+  "name": "@alisio/my-plugin",
   "version": "1.2.3",
-  "openclaw": {
+  "alisio": {
     "extensions": ["./dist/index.js"]
   }
 }
@@ -69,7 +69,7 @@ Reference: [Plugin architecture](/plugins/architecture)
 
 ```mermaid
 flowchart TD
-  A[OpenClaw is not working] --> B{What breaks first}
+  A[Alisio is not working] --> B{What breaks first}
   B --> C[No replies]
   B --> D[Dashboard or Control UI will not connect]
   B --> E[Gateway will not start or service not running]
@@ -90,11 +90,11 @@ flowchart TD
 <AccordionGroup>
   <Accordion title="No replies">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw channels status --probe
-    openclaw pairing list --channel <channel> [--account <id>]
-    openclaw logs --follow
+    alisio status
+    alisio gateway status
+    alisio channels status --probe
+    alisio pairing list --channel <channel> [--account <id>]
+    alisio logs --follow
     ```
 
     Good output looks like:
@@ -120,16 +120,16 @@ flowchart TD
 
   <Accordion title="Dashboard or Control UI will not connect">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw logs --follow
-    openclaw doctor
-    openclaw channels status --probe
+    alisio status
+    alisio gateway status
+    alisio logs --follow
+    alisio doctor
+    alisio channels status --probe
     ```
 
     Good output looks like:
 
-    - `Dashboard: http://...` is shown in `openclaw gateway status`
+    - `Dashboard: http://...` is shown in `alisio gateway status`
     - `RPC probe: ok`
     - No auth loop in logs
 
@@ -150,11 +150,11 @@ flowchart TD
 
   <Accordion title="Gateway will not start or service installed but not running">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw logs --follow
-    openclaw doctor
-    openclaw channels status --probe
+    alisio status
+    alisio gateway status
+    alisio logs --follow
+    alisio doctor
+    alisio channels status --probe
     ```
 
     Good output looks like:
@@ -179,11 +179,11 @@ flowchart TD
 
   <Accordion title="Channel connects but messages do not flow">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw logs --follow
-    openclaw doctor
-    openclaw channels status --probe
+    alisio status
+    alisio gateway status
+    alisio logs --follow
+    alisio doctor
+    alisio channels status --probe
     ```
 
     Good output looks like:
@@ -207,12 +207,12 @@ flowchart TD
 
   <Accordion title="Cron or heartbeat did not fire or did not deliver">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw cron status
-    openclaw cron list
-    openclaw cron runs --id <jobId> --limit 20
-    openclaw logs --follow
+    alisio status
+    alisio gateway status
+    alisio cron status
+    alisio cron list
+    alisio cron runs --id <jobId> --limit 20
+    alisio logs --follow
     ```
 
     Good output looks like:
@@ -238,11 +238,11 @@ flowchart TD
 
   <Accordion title="Node is paired but tool fails camera canvas screen exec">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw nodes status
-    openclaw nodes describe --node <idOrNameOrIp>
-    openclaw logs --follow
+    alisio status
+    alisio gateway status
+    alisio nodes status
+    alisio nodes describe --node <idOrNameOrIp>
+    alisio logs --follow
     ```
 
     Good output looks like:
@@ -268,10 +268,10 @@ flowchart TD
 
   <Accordion title="Exec suddenly asks for approval">
     ```bash
-    openclaw config get tools.exec.host
-    openclaw config get tools.exec.security
-    openclaw config get tools.exec.ask
-    openclaw gateway restart
+    alisio config get tools.exec.host
+    alisio config get tools.exec.security
+    alisio config get tools.exec.ask
+    alisio gateway restart
     ```
 
     What changed:
@@ -285,10 +285,10 @@ flowchart TD
     Restore the old gateway no-approval behavior:
 
     ```bash
-    openclaw config set tools.exec.host gateway
-    openclaw config set tools.exec.security full
-    openclaw config set tools.exec.ask off
-    openclaw gateway restart
+    alisio config set tools.exec.host gateway
+    alisio config set tools.exec.security full
+    alisio config set tools.exec.ask off
+    alisio gateway restart
     ```
 
     Safer alternatives:
@@ -313,17 +313,17 @@ flowchart TD
 
   <Accordion title="Browser tool fails">
     ```bash
-    openclaw status
-    openclaw gateway status
-    openclaw browser status
-    openclaw logs --follow
-    openclaw doctor
+    alisio status
+    alisio gateway status
+    alisio browser status
+    alisio logs --follow
+    alisio doctor
     ```
 
     Good output looks like:
 
     - Browser status shows `running: true` and a chosen browser/profile.
-    - `openclaw` starts, or `user` can see local Chrome tabs.
+    - `alisio` starts, or `user` can see local Chrome tabs.
 
     Common log signatures:
 

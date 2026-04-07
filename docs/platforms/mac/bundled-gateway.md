@@ -19,7 +19,7 @@ install when the bundled runtime is intentionally skipped.
 
 ## Local mode in release builds
 
-- `Alisio.app` carries the Gateway package in `Contents/Resources/openclaw-package`
+- `Alisio.app` carries the Gateway package in `Contents/Resources/alisio-package`
 - release packaging should also embed a compatible Node runtime (`>=22.16.0`)
 - launchd starts the bundled runtime for Local mode
 - if a compatible local Gateway is already listening on the configured port, the app attaches to it instead of starting a duplicate
@@ -30,7 +30,7 @@ If you intentionally build without the bundled runtime, install `alisio`
 globally and let the app target that runtime instead:
 
 ```bash
-npm install -g alisio@npm:openclaw@<version>
+npm install -g alisio@npm:alisio@<version>
 ```
 
 The macOS app's **Install CLI** button exists for this fallback path.
@@ -39,12 +39,12 @@ The macOS app's **Install CLI** button exists for this fallback path.
 
 Label:
 
-- `ai.openclaw.gateway` (or `ai.openclaw.<profile>`; legacy `com.openclaw.*` may remain)
+- `ai.alisio.gateway` (or `ai.alisio.<profile>`; legacy `com.alisio.*` may remain)
 
 Plist location (per‑user):
 
-- `~/Library/LaunchAgents/ai.openclaw.gateway.plist`
-  (or `~/Library/LaunchAgents/ai.openclaw.<profile>.plist`)
+- `~/Library/LaunchAgents/ai.alisio.gateway.plist`
+  (or `~/Library/LaunchAgents/ai.alisio.<profile>.plist`)
 
 Manager:
 
@@ -60,7 +60,7 @@ Behavior:
 
 Logging:
 
-- launchd stdout/err: `/tmp/openclaw/openclaw-gateway.log`
+- launchd stdout/err: `/tmp/alisio/alisio-gateway.log`
 
 ## Version compatibility
 
@@ -74,8 +74,8 @@ The macOS app checks the gateway version against its own version.
 ```bash
 alisio --version
 
-OPENCLAW_SKIP_CHANNELS=1 \
-OPENCLAW_SKIP_CANVAS_HOST=1 \
+ALISIO_SKIP_CHANNELS=1 \
+ALISIO_SKIP_CANVAS_HOST=1 \
 alisio gateway --port 18999 --bind loopback
 ```
 

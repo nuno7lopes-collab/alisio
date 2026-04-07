@@ -1,82 +1,108 @@
 ---
-summary: "First-run setup flow for Alisio (macOS app)"
+summary: "First-run setup flow for the Alisio macOS app."
 read_when:
-  - Designing the macOS onboarding assistant
-  - Implementing auth or identity setup
+  - Documenting the macOS onboarding experience
+  - Aligning setup copy with the product flow
 title: "Onboarding (macOS App)"
 sidebarTitle: "Onboarding: macOS App"
 ---
 
 # Onboarding (macOS App)
 
-This doc describes the **current** first‑run setup flow. The goal is a
-smooth “day 0” experience: pick where the Gateway runs, connect auth, run the
-wizard, and let the agent bootstrap itself. The current app flow ends at the
-Ready page; workspace bootstrap and CLI install are handled automatically or
-from Settings rather than as separate onboarding pages.
-For a general overview of onboarding paths, see [Onboarding Overview](/start/onboarding-overview).
+This page describes the desktop-first setup flow.
+
+The job of onboarding is simple: make one Mac ready to run Alisio with the right account, permissions, AI source, channels, connectors, and device capabilities.
+
+For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
 <Steps>
-<Step title="Approve macOS warning">
-<Frame>
-<img src="/assets/macos-onboarding/01-macos-warning.jpeg" alt="" />
-</Frame>
-</Step>
-<Step title="Approve find local networks">
-<Frame>
-<img src="/assets/macos-onboarding/02-local-networks.jpeg" alt="" />
-</Frame>
-</Step>
-<Step title="Welcome and security notice">
-<Frame caption="Read the security notice displayed and decide accordingly">
-<img src="/assets/macos-onboarding/03-security-notice.png" alt="" />
-</Frame>
+  <Step title="Welcome">
+    On first launch, the app explains what Alisio is going to configure on this Mac:
 
-Security trust model:
+    - your account
+    - the AI source for this computer
+    - permissions and device capabilities
+    - channels, apps, and connectors
 
-- By default, Alisio is a personal agent: one trusted operator boundary.
-- Shared/multi-user setups require lock-down (split trust boundaries, keep tool access minimal, and follow [Security](/gateway/security)).
-- Local onboarding now defaults new configs to `tools.profile: "coding"` so fresh local setups keep filesystem/runtime tools without forcing the unrestricted `full` profile.
-- If hooks/webhooks or other untrusted content feeds are enabled, use a strong modern model tier and keep strict tool policy/sandboxing.
+  </Step>
 
-</Step>
-<Step title="Local vs Remote">
-<Frame>
-<img src="/assets/macos-onboarding/04-choose-gateway.png" alt="" />
-</Frame>
+  <Step title="Choose where this workspace lives">
+    Decide whether this Mac is the primary local workspace or whether it should connect to a remote workspace that already exists elsewhere.
 
-Where does the **Gateway** run?
+    Local is the normal desktop path.
 
-- **This Mac (Local only):** onboarding can configure auth and write credentials
-  locally.
-- **Remote (over SSH/Tailnet):** onboarding does **not** configure local auth;
-  credentials must exist on the gateway host.
-- **Configure later:** skip setup and leave the app unconfigured.
+  </Step>
 
-<Tip>
-**Gateway auth tip:**
+  <Step title="Sign in">
+    Sign in so the app can unlock account-level features such as:
 
-- The wizard now generates a **token** even for loopback, so local WS clients must authenticate.
-- If you disable auth, any local process can connect; use that only on fully trusted machines.
-- Use a **token** for multi‑machine access or non‑loopback binds.
+    - OpenAI connection
+    - connector setup
+    - local marketplace installs
+    - device identity for this computer
 
-</Tip>
-</Step>
-<Step title="Permissions">
-<Frame caption="Choose what permissions do you want to give Alisio">
-<img src="/assets/macos-onboarding/05-permissions.png" alt="" />
-</Frame>
+  </Step>
 
-Onboarding requests TCC permissions needed for:
+  <Step title="Grant macOS permissions">
+    <Frame caption="Permissions are the product boundary on macOS.">
+      <img src="/assets/macos-onboarding/05-permissions.png" alt="Alisio macOS permissions step" />
+    </Frame>
 
-- Automation (AppleScript)
-- Notifications
-- Accessibility
-- Screen Recording
-- Microphone
-- Speech Recognition
-- Camera
-- Location
+    The app can request:
 
-</Step>
+    - Notifications
+    - Accessibility
+    - Screen Recording
+    - Microphone
+    - Speech Recognition
+    - Camera
+    - Location
+    - Automation
+
+  </Step>
+
+  <Step title="Pick the AI source for this Mac">
+    Choose the first runtime:
+
+    - **OpenAI** through OAuth or API key
+    - **Local** for models on this machine
+    - **Server** for Ollama or OpenAI-compatible endpoints
+
+    These can coexist later. The first choice just gets the machine into a working state quickly.
+
+  </Step>
+
+  <Step title="Connect apps, channels, and devices">
+    Add the surfaces that matter for this computer:
+
+    - channels for inbound and outbound work
+    - connectors and apps for automation
+    - paired devices that extend capture, voice, and local actions
+
+  </Step>
+
+  <Step title="Finish in a ready state">
+    The setup is done when this Mac can:
+
+    - chat
+    - run the chosen AI source
+    - expose the approved device permissions
+    - install at least one skill or integration
+    - create or receive one real workflow
+
+  </Step>
 </Steps>
+
+## Product Notes
+
+- The macOS app is the primary product shell.
+- The CLI is still available, but it is a secondary operational surface.
+- Permissions should stay explicit and reversible.
+- OpenAI, Local, and Server are all first-class options in the product story.
+
+## Related Pages
+
+- [Getting Started](/start/getting-started)
+- [Product Overview](/start/overview)
+- [macOS App](/platforms/macos)
+- [Local Models and Servers](/gateway/local-models)

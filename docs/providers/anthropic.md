@@ -1,7 +1,7 @@
 ---
-summary: "Use Anthropic Claude via API keys, setup-token, or Claude CLI in OpenClaw"
+summary: "Use Anthropic Claude via API keys, setup-token, or Claude CLI in Alisio"
 read_when:
-  - You want to use Anthropic models in OpenClaw
+  - You want to use Anthropic models in Alisio
   - You want setup-token instead of API keys
   - You want to reuse Claude CLI subscription auth on the gateway host
 title: "Anthropic"
@@ -10,7 +10,7 @@ title: "Anthropic"
 # Anthropic (Claude)
 
 Anthropic builds the **Claude** model family and provides access via an API.
-In OpenClaw you can authenticate with an API key or a **setup-token**.
+In Alisio you can authenticate with an API key or a **setup-token**.
 
 ## Option A: Anthropic API key
 
@@ -20,11 +20,11 @@ Create your API key in the Anthropic Console.
 ### CLI setup
 
 ```bash
-openclaw onboard
+alisio onboard
 # choose: Anthropic API key
 
 # or non-interactive
-openclaw onboard --anthropic-api-key "$ANTHROPIC_API_KEY"
+alisio onboard --anthropic-api-key "$ANTHROPIC_API_KEY"
 ```
 
 ### Claude CLI config snippet
@@ -38,7 +38,7 @@ openclaw onboard --anthropic-api-key "$ANTHROPIC_API_KEY"
 
 ## Thinking defaults (Claude 4.6)
 
-- Anthropic Claude 4.6 models default to `adaptive` thinking in OpenClaw when no explicit thinking level is set.
+- Anthropic Claude 4.6 models default to `adaptive` thinking in Alisio when no explicit thinking level is set.
 - You can override per-message (`/think:<level>`) or in model params:
   `agents.defaults.models["anthropic/<model>"].params.thinking`.
 - Related Anthropic docs:
@@ -47,7 +47,7 @@ openclaw onboard --anthropic-api-key "$ANTHROPIC_API_KEY"
 
 ## Fast mode (Anthropic API)
 
-OpenClaw's shared `/fast` toggle also supports direct public Anthropic traffic, including API-key and OAuth-authenticated requests sent to `api.anthropic.com`.
+Alisio's shared `/fast` toggle also supports direct public Anthropic traffic, including API-key and OAuth-authenticated requests sent to `api.anthropic.com`.
 
 - `/fast on` maps to `service_tier: "auto"`
 - `/fast off` maps to `service_tier: "standard_only"`
@@ -69,13 +69,13 @@ OpenClaw's shared `/fast` toggle also supports direct public Anthropic traffic, 
 
 Important limits:
 
-- OpenClaw only injects Anthropic service tiers for direct `api.anthropic.com` requests. If you route `anthropic/*` through a proxy or gateway, `/fast` leaves `service_tier` untouched.
+- Alisio only injects Anthropic service tiers for direct `api.anthropic.com` requests. If you route `anthropic/*` through a proxy or gateway, `/fast` leaves `service_tier` untouched.
 - Explicit Anthropic `serviceTier` or `service_tier` model params override the `/fast` default when both are set.
 - Anthropic reports the effective tier on the response under `usage.service_tier`. On accounts without Priority Tier capacity, `service_tier: "auto"` may still resolve to `standard`.
 
 ## Prompt caching (Anthropic API)
 
-OpenClaw supports Anthropic's prompt caching feature. This is **API-only**; subscription auth does not honor cache settings.
+Alisio supports Anthropic's prompt caching feature. This is **API-only**; subscription auth does not honor cache settings.
 
 ### Configuration
 
@@ -103,7 +103,7 @@ Use the `cacheRetention` parameter in your model config:
 
 ### Defaults
 
-When using Anthropic API Key authentication, OpenClaw automatically applies `cacheRetention: "short"` (5-minute cache) for all Anthropic models. You can override this by explicitly setting `cacheRetention` in your config.
+When using Anthropic API Key authentication, Alisio automatically applies `cacheRetention: "short"` (5-minute cache) for all Anthropic models. You can override this by explicitly setting `cacheRetention` in your config.
 
 ### Per-agent cacheRetention overrides
 
@@ -150,12 +150,12 @@ The older `cacheControlTtl` parameter is still supported for backwards compatibi
 
 We recommend migrating to the new `cacheRetention` parameter.
 
-OpenClaw includes the `extended-cache-ttl-2025-04-11` beta flag for Anthropic API
+Alisio includes the `extended-cache-ttl-2025-04-11` beta flag for Anthropic API
 requests; keep it if you override provider headers (see [/gateway/configuration](/gateway/configuration)).
 
 ## 1M context window (Anthropic beta)
 
-Anthropic's 1M context window is beta-gated. In OpenClaw, enable it per model
+Anthropic's 1M context window is beta-gated. In Alisio, enable it per model
 with `params.context1m: true` for supported Opus/Sonnet models.
 
 ```json5
@@ -172,7 +172,7 @@ with `params.context1m: true` for supported Opus/Sonnet models.
 }
 ```
 
-OpenClaw maps this to `anthropic-beta: context-1m-2025-08-07` on Anthropic
+Alisio maps this to `anthropic-beta: context-1m-2025-08-07` on Anthropic
 requests.
 
 This only activates when `params.context1m` is explicitly set to `true` for
@@ -184,7 +184,7 @@ enabled). Otherwise Anthropic returns:
 `HTTP 429: rate_limit_error: Extra usage is required for long context requests`.
 
 Note: Anthropic currently rejects `context-1m-*` beta requests when using
-OAuth/subscription tokens (`sk-ant-oat-*`). OpenClaw automatically skips the
+OAuth/subscription tokens (`sk-ant-oat-*`). Alisio automatically skips the
 context1m beta header for OAuth auth and keeps the required OAuth betas.
 
 ## Option B: Claude CLI as the message provider
@@ -193,7 +193,7 @@ context1m beta header for OAuth auth and keeps the required OAuth betas.
 and signed in with a Claude subscription.
 
 This path uses the local `claude` binary for model inference instead of calling
-the Anthropic API directly. OpenClaw treats it as a **CLI backend provider**
+the Anthropic API directly. Alisio treats it as a **CLI backend provider**
 with model refs like:
 
 - `claude-cli/claude-sonnet-4-6`
@@ -201,11 +201,11 @@ with model refs like:
 
 How it works:
 
-1. OpenClaw launches `claude -p --output-format json ...` on the **gateway
+1. Alisio launches `claude -p --output-format json ...` on the **gateway
    host**.
 2. The first turn sends `--session-id <uuid>`.
 3. Follow-up turns reuse the stored Claude session via `--resume <sessionId>`.
-4. Your chat messages still go through the normal OpenClaw message pipeline, but
+4. Your chat messages still go through the normal Alisio message pipeline, but
    the actual model reply is produced by Claude CLI.
 
 ### Requirements
@@ -218,7 +218,7 @@ How it works:
 claude auth status
 ```
 
-- OpenClaw auto-loads the bundled Anthropic plugin at gateway startup when your
+- Alisio auto-loads the bundled Anthropic plugin at gateway startup when your
   config explicitly references `claude-cli/...` or `claude-cli` backend config.
 
 ### Config snippet
@@ -258,7 +258,7 @@ If the `claude` binary is not on the gateway host PATH:
 ### What you get
 
 - Claude subscription auth reused from the local CLI
-- Normal OpenClaw message/session routing
+- Normal Alisio message/session routing
 - Claude CLI session continuity across turns
 
 ### Migrate from Anthropic auth to Claude CLI
@@ -267,13 +267,13 @@ If you currently use `anthropic/...` with a setup-token or API key and want to
 switch the same gateway host to Claude CLI:
 
 ```bash
-openclaw models auth login --provider anthropic --method cli --set-default
+alisio models auth login --provider anthropic --method cli --set-default
 ```
 
 Or in onboarding:
 
 ```bash
-openclaw onboard --auth-choice anthropic-cli
+alisio onboard --auth-choice anthropic-cli
 ```
 
 What this does:
@@ -296,8 +296,8 @@ you need to.
 ### Important limits
 
 - This is **not** the Anthropic API provider. It is the local CLI runtime.
-- Tools are disabled on the OpenClaw side for CLI backend runs.
-- Text in, text out. No OpenClaw streaming handoff.
+- Tools are disabled on the Alisio side for CLI backend runs.
+- Text in, text out. No Alisio streaming handoff.
 - Best fit for a personal gateway host, not shared multi-user billing setups.
 
 More details: [/gateway/cli-backends](/gateway/cli-backends)
@@ -314,23 +314,23 @@ Setup-tokens are created by the **Claude Code CLI**, not the Anthropic Console. 
 claude setup-token
 ```
 
-Paste the token into OpenClaw (wizard: **Anthropic token (paste setup-token)**), or run it on the gateway host:
+Paste the token into Alisio (wizard: **Anthropic token (paste setup-token)**), or run it on the gateway host:
 
 ```bash
-openclaw models auth setup-token --provider anthropic
+alisio models auth setup-token --provider anthropic
 ```
 
 If you generated the token on a different machine, paste it:
 
 ```bash
-openclaw models auth paste-token --provider anthropic
+alisio models auth paste-token --provider anthropic
 ```
 
 ### CLI setup (setup-token)
 
 ```bash
 # Paste a setup-token during setup
-openclaw onboard --auth-choice setup-token
+alisio onboard --auth-choice setup-token
 ```
 
 ### Config snippet (setup-token)
@@ -343,7 +343,7 @@ openclaw onboard --auth-choice setup-token
 
 ## Notes
 
-- Generate the setup-token with `claude setup-token` and paste it, or run `openclaw models auth setup-token` on the gateway host.
+- Generate the setup-token with `claude setup-token` and paste it, or run `alisio models auth setup-token` on the gateway host.
 - If you see “OAuth token refresh failed …” on a Claude subscription, re-auth with a setup-token. See [/gateway/troubleshooting](/gateway/troubleshooting).
 - Auth details + reuse rules are in [/concepts/oauth](/concepts/oauth).
 
@@ -354,22 +354,22 @@ openclaw onboard --auth-choice setup-token
 - Claude subscription auth can expire or be revoked. Re-run `claude setup-token`
   and paste it into the **gateway host**.
 - If the Claude CLI login lives on a different machine, use
-  `openclaw models auth paste-token --provider anthropic` on the gateway host.
+  `alisio models auth paste-token --provider anthropic` on the gateway host.
 
 **No API key found for provider "anthropic"**
 
 - Auth is **per agent**. New agents don’t inherit the main agent’s keys.
 - Re-run onboarding for that agent, or paste a setup-token / API key on the
-  gateway host, then verify with `openclaw models status`.
+  gateway host, then verify with `alisio models status`.
 
 **No credentials found for profile `anthropic:default`**
 
-- Run `openclaw models status` to see which auth profile is active.
+- Run `alisio models status` to see which auth profile is active.
 - Re-run onboarding, or paste a setup-token / API key for that profile.
 
 **No available auth profile (all in cooldown/unavailable)**
 
-- Check `openclaw models status --json` for `auth.unusableProfiles`.
+- Check `alisio models status --json` for `auth.unusableProfiles`.
 - Add another Anthropic profile or wait for cooldown.
 
 More: [/gateway/troubleshooting](/gateway/troubleshooting) and [/help/faq](/help/faq).

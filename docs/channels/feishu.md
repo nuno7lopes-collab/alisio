@@ -8,20 +8,20 @@ title: Feishu
 
 # Feishu bot
 
-Feishu (Lark) is a team chat platform used by companies for messaging and collaboration. This plugin connects OpenClaw to a Feishu/Lark bot using the platform’s WebSocket event subscription so messages can be received without exposing a public webhook URL.
+Feishu (Lark) is a team chat platform used by companies for messaging and collaboration. This plugin connects Alisio to a Feishu/Lark bot using the platform’s WebSocket event subscription so messages can be received without exposing a public webhook URL.
 
 ---
 
 ## Bundled plugin
 
-Feishu ships bundled with current OpenClaw releases, so no separate plugin install
+Feishu ships bundled with current Alisio releases, so no separate plugin install
 is required.
 
 If you are using an older build or a custom install that does not include bundled
 Feishu, install it manually:
 
 ```bash
-openclaw plugins install @openclaw/feishu
+alisio plugins install @alisio/feishu
 ```
 
 ---
@@ -32,38 +32,38 @@ There are two ways to add the Feishu channel:
 
 ### Method 1: onboarding (recommended)
 
-If you just installed OpenClaw, run onboarding:
+If you just installed Alisio, run onboarding:
 
 ```bash
-openclaw onboard
+alisio onboard
 ```
 
 The wizard guides you through:
 
 1. Creating a Feishu app and collecting credentials
-2. Configuring app credentials in OpenClaw
+2. Configuring app credentials in Alisio
 3. Starting the gateway
 
 ✅ **After configuration**, check gateway status:
 
-- `openclaw gateway status`
-- `openclaw logs --follow`
+- `alisio gateway status`
+- `alisio logs --follow`
 
 ### Method 2: CLI setup
 
 If you already completed initial install, add the channel via CLI:
 
 ```bash
-openclaw channels add
+alisio channels add
 ```
 
 Choose **Feishu**, then enter the App ID and App Secret.
 
 ✅ **After configuration**, manage the gateway:
 
-- `openclaw gateway status`
-- `openclaw gateway restart`
-- `openclaw logs --follow`
+- `alisio gateway status`
+- `alisio gateway restart`
+- `alisio logs --follow`
 
 ---
 
@@ -141,8 +141,8 @@ In **App Capability** > **Bot**:
 
 ⚠️ **Important:** before setting event subscription, make sure:
 
-1. You already ran `openclaw channels add` for Feishu
-2. The gateway is running (`openclaw gateway status`)
+1. You already ran `alisio channels add` for Feishu
+2. The gateway is running (`alisio gateway status`)
 
 In **Event Subscription**:
 
@@ -161,19 +161,19 @@ In **Event Subscription**:
 
 ---
 
-## Step 2: Configure OpenClaw
+## Step 2: Configure Alisio
 
 ### Configure with the wizard (recommended)
 
 ```bash
-openclaw channels add
+alisio channels add
 ```
 
 Choose **Feishu** and paste your App ID + App Secret.
 
 ### Configure via config file
 
-Edit `~/.openclaw/openclaw.json`:
+Edit `~/.alisio/alisio.json`:
 
 ```json5
 {
@@ -270,7 +270,7 @@ Set them at top level or per account:
 ### 1. Start the gateway
 
 ```bash
-openclaw gateway
+alisio gateway
 ```
 
 ### 2. Send a test message
@@ -282,7 +282,7 @@ In Feishu, find your bot and send a message.
 By default, the bot replies with a pairing code. Approve it:
 
 ```bash
-openclaw pairing approve feishu <CODE>
+alisio pairing approve feishu <CODE>
 ```
 
 After approval, you can chat normally.
@@ -306,8 +306,8 @@ After approval, you can chat normally.
 - **Approve pairing**:
 
   ```bash
-  openclaw pairing list feishu
-  openclaw pairing approve feishu <CODE>
+  alisio pairing list feishu
+  alisio pairing approve feishu <CODE>
   ```
 
 - **Allowlist mode**: set `channels.feishu.allowFrom` with allowed Open IDs
@@ -406,7 +406,7 @@ Group IDs look like `oc_xxx`.
 **Method 1 (recommended)**
 
 1. Start the gateway and @mention the bot in the group
-2. Run `openclaw logs --follow` and look for `chat_id`
+2. Run `alisio logs --follow` and look for `chat_id`
 
 **Method 2**
 
@@ -419,14 +419,14 @@ User IDs look like `ou_xxx`.
 **Method 1 (recommended)**
 
 1. Start the gateway and DM the bot
-2. Run `openclaw logs --follow` and look for `open_id`
+2. Run `alisio logs --follow` and look for `open_id`
 
 **Method 2**
 
 Check pairing requests for user Open IDs:
 
 ```bash
-openclaw pairing list feishu
+alisio pairing list feishu
 ```
 
 ---
@@ -443,13 +443,13 @@ openclaw pairing list feishu
 
 ## Gateway management commands
 
-| Command                    | Description                   |
-| -------------------------- | ----------------------------- |
-| `openclaw gateway status`  | Show gateway status           |
-| `openclaw gateway install` | Install/start gateway service |
-| `openclaw gateway stop`    | Stop gateway service          |
-| `openclaw gateway restart` | Restart gateway service       |
-| `openclaw logs --follow`   | Tail gateway logs             |
+| Command                  | Description                   |
+| ------------------------ | ----------------------------- |
+| `alisio gateway status`  | Show gateway status           |
+| `alisio gateway install` | Install/start gateway service |
+| `alisio gateway stop`    | Stop gateway service          |
+| `alisio gateway restart` | Restart gateway service       |
+| `alisio logs --follow`   | Tail gateway logs             |
 
 ---
 
@@ -460,7 +460,7 @@ openclaw pairing list feishu
 1. Ensure the bot is added to the group
 2. Ensure you @mention the bot (default behavior)
 3. Check `groupPolicy` is not set to `"disabled"`
-4. Check logs: `openclaw logs --follow`
+4. Check logs: `alisio logs --follow`
 
 ### Bot does not receive messages
 
@@ -468,8 +468,8 @@ openclaw pairing list feishu
 2. Ensure event subscription includes `im.message.receive_v1`
 3. Ensure **long connection** is enabled
 4. Ensure app permissions are complete
-5. Ensure the gateway is running: `openclaw gateway status`
-6. Check logs: `openclaw logs --follow`
+5. Ensure the gateway is running: `alisio gateway status`
+6. Check logs: `alisio logs --follow`
 
 ### App Secret leak
 
@@ -561,7 +561,7 @@ Use top-level typed ACP bindings to pin a Feishu DM or topic conversation to a p
             agent: "codex",
             backend: "acpx",
             mode: "persistent",
-            cwd: "/workspace/openclaw",
+            cwd: "/workspace/alisio",
           },
         },
       },
@@ -617,12 +617,12 @@ Use `bindings` to route Feishu DMs or groups to different agents.
       {
         id: "clawd-fan",
         workspace: "/home/user/clawd-fan",
-        agentDir: "/home/user/.openclaw/agents/clawd-fan/agent",
+        agentDir: "/home/user/.alisio/agents/clawd-fan/agent",
       },
       {
         id: "clawd-xi",
         workspace: "/home/user/clawd-xi",
-        agentDir: "/home/user/.openclaw/agents/clawd-xi/agent",
+        agentDir: "/home/user/.alisio/agents/clawd-xi/agent",
       },
     ],
   },

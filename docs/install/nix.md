@@ -1,5 +1,5 @@
 ---
-summary: "Install OpenClaw declaratively with Nix"
+summary: "Install Alisio declaratively with Nix"
 read_when:
   - You want reproducible, rollback-able installs
   - You're already using Nix/NixOS/Home Manager
@@ -9,10 +9,10 @@ title: "Nix"
 
 # Nix Installation
 
-Install OpenClaw declaratively with **[nix-openclaw](https://github.com/openclaw/nix-openclaw)** -- a batteries-included Home Manager module.
+Install Alisio declaratively with **[nix-alisio](https://github.com/alisio/nix-alisio)** -- a batteries-included Home Manager module.
 
 <Info>
-The [nix-openclaw](https://github.com/openclaw/nix-openclaw) repo is the source of truth for Nix installation. This page is a quick overview.
+The [nix-alisio](https://github.com/alisio/nix-alisio) repo is the source of truth for Nix installation. This page is a quick overview.
 </Info>
 
 ## What You Get
@@ -29,10 +29,10 @@ The [nix-openclaw](https://github.com/openclaw/nix-openclaw) repo is the source 
     If Nix is not already installed, follow the [Determinate Nix installer](https://github.com/DeterminateSystems/nix-installer) instructions.
   </Step>
   <Step title="Create a local flake">
-    Use the agent-first template from the nix-openclaw repo:
+    Use the agent-first template from the nix-alisio repo:
     ```bash
-    mkdir -p ~/code/openclaw-local
-    # Copy templates/agent-first/flake.nix from the nix-openclaw repo
+    mkdir -p ~/code/alisio-local
+    # Copy templates/agent-first/flake.nix from the nix-alisio repo
     ```
   </Step>
   <Step title="Configure secrets">
@@ -48,22 +48,22 @@ The [nix-openclaw](https://github.com/openclaw/nix-openclaw) repo is the source 
   </Step>
 </Steps>
 
-See the [nix-openclaw README](https://github.com/openclaw/nix-openclaw) for full module options and examples.
+See the [nix-alisio README](https://github.com/alisio/nix-alisio) for full module options and examples.
 
 ## Nix Mode Runtime Behavior
 
-When `OPENCLAW_NIX_MODE=1` is set (automatic with nix-openclaw), OpenClaw enters a deterministic mode that disables auto-install flows.
+When `ALISIO_NIX_MODE=1` is set (automatic with nix-alisio), Alisio enters a deterministic mode that disables auto-install flows.
 
 You can also set it manually:
 
 ```bash
-export OPENCLAW_NIX_MODE=1
+export ALISIO_NIX_MODE=1
 ```
 
 On macOS, the GUI app does not automatically inherit shell environment variables. Enable Nix mode via defaults instead:
 
 ```bash
-defaults write ai.openclaw.mac openclaw.nixMode -bool true
+defaults write ai.alisio.mac alisio.nixMode -bool true
 ```
 
 ### What changes in Nix mode
@@ -74,16 +74,16 @@ defaults write ai.openclaw.mac openclaw.nixMode -bool true
 
 ### Config and state paths
 
-OpenClaw reads JSON5 config from `OPENCLAW_CONFIG_PATH` and stores mutable data in `OPENCLAW_STATE_DIR`. When running under Nix, set these explicitly to Nix-managed locations so runtime state and config stay out of the immutable store.
+Alisio reads JSON5 config from `ALISIO_CONFIG_PATH` and stores mutable data in `ALISIO_STATE_DIR`. When running under Nix, set these explicitly to Nix-managed locations so runtime state and config stay out of the immutable store.
 
-| Variable               | Default                                 |
-| ---------------------- | --------------------------------------- |
-| `OPENCLAW_HOME`        | `HOME` / `USERPROFILE` / `os.homedir()` |
-| `OPENCLAW_STATE_DIR`   | `~/.openclaw`                           |
-| `OPENCLAW_CONFIG_PATH` | `$OPENCLAW_STATE_DIR/openclaw.json`     |
+| Variable             | Default                                 |
+| -------------------- | --------------------------------------- |
+| `ALISIO_HOME`        | `HOME` / `USERPROFILE` / `os.homedir()` |
+| `ALISIO_STATE_DIR`   | `~/.alisio`                             |
+| `ALISIO_CONFIG_PATH` | `$ALISIO_STATE_DIR/alisio.json`         |
 
 ## Related
 
-- [nix-openclaw](https://github.com/openclaw/nix-openclaw) -- full setup guide
+- [nix-alisio](https://github.com/alisio/nix-alisio) -- full setup guide
 - [Wizard](/start/wizard) -- non-Nix CLI setup
 - [Docker](/install/docker) -- containerized setup

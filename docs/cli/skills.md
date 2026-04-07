@@ -1,36 +1,36 @@
 ---
-summary: "CLI reference for `openclaw skills` (search/install/update/list/info/check)"
+summary: "CLI reference for `alisio skills` (search/install/update/list/info/check)"
 read_when:
   - You want to see which skills are available and ready to run
-  - You want to search, install, or update skills from ClawHub
+  - You want to search, install, or update skills from Marketplace Local
   - You want to debug missing binaries/env/config for skills
 title: "skills"
 ---
 
-# `openclaw skills`
+# `alisio skills`
 
-Inspect local skills and install/update skills from ClawHub.
+Inspect local skills and install/update skills from Marketplace Local.
 
 Related:
 
 - Skills system: [Skills](/tools/skills)
 - Skills config: [Skills config](/tools/skills-config)
-- ClawHub installs: [ClawHub](/tools/clawhub)
+- Marketplace Local installs: [Marketplace Local](/tools/clawhub)
 
 ## Commands
 
 ```bash
-openclaw skills search "calendar"
-openclaw skills install <slug>
-openclaw skills install <slug> --version <version>
-openclaw skills update <slug>
-openclaw skills update --all
-openclaw skills list
-openclaw skills list --eligible
-openclaw skills info <name>
-openclaw skills check
+alisio skills search "calendar"
+alisio skills install <slug>
+alisio skills install <slug> --version <version>
+alisio skills update <slug>
+alisio skills update --all
+alisio skills list
+alisio skills list --eligible
+alisio skills info <name>
+alisio skills check
 ```
 
-`search`/`install`/`update` use ClawHub directly and install into the active
+`search`/`install`/`update` use Marketplace Local directly and install into the active
 workspace `skills/` directory. `list`/`info`/`check` still inspect the local
 skills visible to the current workspace and config.

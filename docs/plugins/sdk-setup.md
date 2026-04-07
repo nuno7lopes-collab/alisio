@@ -5,13 +5,13 @@ summary: "Setup wizards, setup-entry.ts, config schemas, and package.json metada
 read_when:
   - You are adding a setup wizard to a plugin
   - You need to understand setup-entry.ts vs index.ts
-  - You are defining plugin config schemas or package.json openclaw metadata
+  - You are defining plugin config schemas or package.json alisio metadata
 ---
 
 # Plugin Setup and Config
 
 Reference for plugin packaging (`package.json` metadata), manifests
-(`openclaw.plugin.json`), setup entries, and config schemas.
+(`alisio.plugin.json`), setup entries, and config schemas.
 
 <Tip>
   **Looking for a walkthrough?** The how-to guides cover packaging in context:
@@ -21,17 +21,17 @@ Reference for plugin packaging (`package.json` metadata), manifests
 
 ## Package metadata
 
-Your `package.json` needs an `openclaw` field that tells the plugin system what
+Your `package.json` needs an `alisio` field that tells the plugin system what
 your plugin provides:
 
 **Channel plugin:**
 
 ```json
 {
-  "name": "@myorg/openclaw-my-channel",
+  "name": "@myorg/alisio-my-channel",
   "version": "1.0.0",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": ["./index.ts"],
     "setupEntry": "./setup-entry.ts",
     "channel": {
@@ -43,32 +43,32 @@ your plugin provides:
 }
 ```
 
-**Provider plugin / ClawHub publish baseline:**
+**Provider plugin / Marketplace Local publish baseline:**
 
-```json openclaw-clawhub-package.json
+```json alisio-clawhub-package.json
 {
-  "name": "@myorg/openclaw-my-plugin",
+  "name": "@myorg/alisio-my-plugin",
   "version": "1.0.0",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": ["./index.ts"],
     "compat": {
       "pluginApi": ">=2026.3.24-beta.2",
       "minGatewayVersion": "2026.3.24-beta.2"
     },
     "build": {
-      "openclawVersion": "2026.3.24-beta.2",
+      "alisioVersion": "2026.3.24-beta.2",
       "pluginSdkVersion": "2026.3.24-beta.2"
     }
   }
 }
 ```
 
-If you publish the plugin externally on ClawHub, those `compat` and `build`
+If you publish the plugin externally on Marketplace Local, those `compat` and `build`
 fields are required. The canonical publish snippets live in
 `docs/snippets/plugin-publish/`.
 
-### `openclaw` fields
+### `alisio` fields
 
 | Field        | Type       | Description                                                                                |
 | ------------ | ---------- | ------------------------------------------------------------------------------------------ |
@@ -85,7 +85,7 @@ Channel plugins can opt into deferred loading with:
 
 ```json
 {
-  "openclaw": {
+  "alisio": {
     "extensions": ["./index.ts"],
     "setupEntry": "./setup-entry.ts",
     "startup": {
@@ -95,7 +95,7 @@ Channel plugins can opt into deferred loading with:
 }
 ```
 
-When enabled, OpenClaw loads only `setupEntry` during the pre-listen startup
+When enabled, Alisio loads only `setupEntry` during the pre-listen startup
 phase, even for already-configured channels. The full entry loads after the
 gateway starts listening.
 
@@ -108,14 +108,14 @@ gateway starts listening.
 
 ## Plugin manifest
 
-Every native plugin must ship an `openclaw.plugin.json` in the package root.
-OpenClaw uses this to validate config without executing plugin code.
+Every native plugin must ship an `alisio.plugin.json` in the package root.
+Alisio uses this to validate config without executing plugin code.
 
 ```json
 {
   "id": "my-plugin",
   "name": "My Plugin",
-  "description": "Adds My Plugin capabilities to OpenClaw",
+  "description": "Adds My Plugin capabilities to Alisio",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -158,9 +158,9 @@ Even plugins with no config must ship a schema. An empty schema is valid:
 
 See [Plugin Manifest](/plugins/manifest) for the full schema reference.
 
-## ClawHub publishing
+## Marketplace Local publishing
 
-For plugin packages, use the package-specific ClawHub command:
+For plugin packages, use the package-specific Marketplace Local command:
 
 ```bash
 clawhub package publish your-org/your-plugin --dry-run
@@ -173,12 +173,12 @@ always use `clawhub package publish`.
 ## Setup entry
 
 The `setup-entry.ts` file is a lightweight alternative to `index.ts` that
-OpenClaw loads when it only needs setup surfaces (onboarding, config repair,
+Alisio loads when it only needs setup surfaces (onboarding, config repair,
 disabled channel inspection).
 
 ```typescript
 // setup-entry.ts
-import { defineSetupPluginEntry } from "openclaw/plugin-sdk/core";
+import { defineSetupPluginEntry } from "alisio/plugin-sdk/core";
 import { myChannelPlugin } from "./src/channel.js";
 
 export default defineSetupPluginEntry(myChannelPlugin);
@@ -187,7 +187,7 @@ export default defineSetupPluginEntry(myChannelPlugin);
 This avoids loading heavy runtime code (crypto libraries, CLI registrations,
 background services) during setup flows.
 
-**When OpenClaw uses `setupEntry` instead of the full entry:**
+**When Alisio uses `setupEntry` instead of the full entry:**
 
 - The channel is disabled but needs setup/onboarding surfaces
 - The channel is enabled but unconfigured
@@ -242,12 +242,12 @@ For channel-specific config, use the channel config section instead:
 
 ### Building channel config schemas
 
-Use `buildChannelConfigSchema` from `openclaw/plugin-sdk/core` to convert a
-Zod schema into the `ChannelConfigSchema` wrapper that OpenClaw validates:
+Use `buildChannelConfigSchema` from `alisio/plugin-sdk/core` to convert a
+Zod schema into the `ChannelConfigSchema` wrapper that Alisio validates:
 
 ```typescript
 import { z } from "zod";
-import { buildChannelConfigSchema } from "openclaw/plugin-sdk/core";
+import { buildChannelConfigSchema } from "alisio/plugin-sdk/core";
 
 const accountSchema = z.object({
   token: z.string().optional(),
@@ -261,11 +261,11 @@ const configSchema = buildChannelConfigSchema(accountSchema);
 
 ## Setup wizards
 
-Channel plugins can provide interactive setup wizards for `openclaw onboard`.
+Channel plugins can provide interactive setup wizards for `alisio onboard`.
 The wizard is a `ChannelSetupWizard` object on the `ChannelPlugin`:
 
 ```typescript
-import type { ChannelSetupWizard } from "openclaw/plugin-sdk/channel-setup";
+import type { ChannelSetupWizard } from "alisio/plugin-sdk/channel-setup";
 
 const setupWizard: ChannelSetupWizard = {
   channel: "my-channel",
@@ -302,25 +302,25 @@ full examples.
 
 For DM allowlist prompts that only need the standard
 `note -> prompt -> parse -> merge -> patch` flow, prefer the shared setup
-helpers from `openclaw/plugin-sdk/setup`: `createPromptParsedAllowFromForAccount(...)`,
+helpers from `alisio/plugin-sdk/setup`: `createPromptParsedAllowFromForAccount(...)`,
 `createTopLevelChannelParsedAllowFromPrompt(...)`, and
 `createNestedChannelParsedAllowFromPrompt(...)`.
 
 For channel setup status blocks that only vary by labels, scores, and optional
 extra lines, prefer `createStandardChannelSetupStatus(...)` from
-`openclaw/plugin-sdk/setup` instead of hand-rolling the same `status` object in
+`alisio/plugin-sdk/setup` instead of hand-rolling the same `status` object in
 each plugin.
 
 For optional setup surfaces that should only appear in certain contexts, use
-`createOptionalChannelSetupSurface` from `openclaw/plugin-sdk/channel-setup`:
+`createOptionalChannelSetupSurface` from `alisio/plugin-sdk/channel-setup`:
 
 ```typescript
-import { createOptionalChannelSetupSurface } from "openclaw/plugin-sdk/channel-setup";
+import { createOptionalChannelSetupSurface } from "alisio/plugin-sdk/channel-setup";
 
 const setupSurface = createOptionalChannelSetupSurface({
   channel: "my-channel",
   label: "My Channel",
-  npmSpec: "@myorg/openclaw-my-channel",
+  npmSpec: "@myorg/alisio-my-channel",
   docsPath: "/channels/my-channel",
 });
 // Returns { setupAdapter, setupWizard }
@@ -328,18 +328,18 @@ const setupSurface = createOptionalChannelSetupSurface({
 
 ## Publishing and installing
 
-**External plugins:** publish to [ClawHub](/tools/clawhub) or npm, then install:
+**External plugins:** publish to [Marketplace Local](/tools/clawhub) or npm, then install:
 
 ```bash
-openclaw plugins install @myorg/openclaw-my-plugin
+alisio plugins install @myorg/alisio-my-plugin
 ```
 
-OpenClaw tries ClawHub first and falls back to npm automatically. You can also
+Alisio tries Marketplace Local first and falls back to npm automatically. You can also
 force a specific source:
 
 ```bash
-openclaw plugins install clawhub:@myorg/openclaw-my-plugin   # ClawHub only
-openclaw plugins install npm:@myorg/openclaw-my-plugin       # npm only
+alisio plugins install clawhub:@myorg/alisio-my-plugin   # Marketplace Local only
+alisio plugins install npm:@myorg/alisio-my-plugin       # npm only
 ```
 
 **In-repo plugins:** place under the bundled plugin workspace tree and they are automatically
@@ -348,12 +348,12 @@ discovered during build.
 **Users can browse and install:**
 
 ```bash
-openclaw plugins search <query>
-openclaw plugins install <package-name>
+alisio plugins search <query>
+alisio plugins install <package-name>
 ```
 
 <Info>
-  For npm-sourced installs, `openclaw plugins install` runs
+  For npm-sourced installs, `alisio plugins install` runs
   `npm install --ignore-scripts` (no lifecycle scripts). Keep plugin dependency
   trees pure JS/TS and avoid packages that require `postinstall` builds.
 </Info>

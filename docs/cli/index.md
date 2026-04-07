@@ -62,8 +62,8 @@ This page describes the current CLI behavior. If commands change, update this do
 
 ## Global flags
 
-- `--dev`: isolate state under `~/.openclaw-dev` and shift default ports.
-- `--profile <name>`: isolate state under `~/.openclaw-<name>`.
+- `--dev`: isolate state under `~/.alisio-dev` and shift default ports.
+- `--profile <name>`: isolate state under `~/.alisio-<name>`.
 - `--container <name>`: target a named container for execution.
 - `--no-color`: disable ANSI colors.
 - `--update`: shorthand for `alisio update` (source installs only).
@@ -339,7 +339,7 @@ Initialize config + workspace.
 
 Options:
 
-- `--workspace <dir>`: agent workspace path (default `~/.openclaw/workspace`).
+- `--workspace <dir>`: agent workspace path (default `~/.alisio/workspace`).
 - `--wizard`: run onboarding.
 - `--non-interactive`: run onboarding without prompts.
 - `--mode <local|remote>`: onboard mode.
@@ -434,13 +434,13 @@ Subcommands:
   - SecretRef builder mode: `config set <path> --ref-provider <provider> --ref-source <source> --ref-id <id>`
   - provider builder mode: `config set secrets.providers.<alias> --provider-source <env|file|exec> ...`
   - batch mode: `config set --batch-json '<json>'` or `config set --batch-file <path>`
-- `config set --dry-run`: validate assignments without writing `openclaw.json` (exec SecretRef checks are skipped by default).
+- `config set --dry-run`: validate assignments without writing `alisio.json` (exec SecretRef checks are skipped by default).
 - `config set --allow-exec --dry-run`: opt in to exec SecretRef dry-run checks (may execute provider commands).
 - `config set --dry-run --json`: emit machine-readable dry-run output (checks + completeness signal, operations, refs checked/skipped, errors).
 - `config set --strict-json`: require JSON5 parsing for path/value input. `--json` remains a legacy alias for strict parsing outside dry-run output mode.
 - `config unset <path>`: remove a value.
 - `config file`: print the active config file path.
-- `config schema`: print the generated JSON schema for `openclaw.json`.
+- `config schema`: print the generated JSON schema for `alisio.json`.
 - `config validate`: validate the current config against the schema without starting the gateway.
 - `config validate --json`: emit machine-readable JSON output.
 
@@ -523,9 +523,9 @@ List and inspect available skills plus readiness info.
 
 Subcommands:
 
-- `skills search [query...]`: search ClawHub skills.
-- `skills install <slug>`: install a skill from ClawHub into the active workspace.
-- `skills update <slug|--all>`: update tracked ClawHub skills.
+- `skills search [query...]`: search Marketplace Local skills.
+- `skills install <slug>`: install a skill from Marketplace Local into the active workspace.
+- `skills update <slug|--all>`: update tracked Marketplace Local skills.
 - `skills list`: list skills (default when no subcommand).
 - `skills info <name>`: show details for one skill.
 - `skills check`: summary of ready vs missing requirements.
@@ -536,7 +536,7 @@ Options:
 - `--json`: output JSON (no styling).
 - `-v`, `--verbose`: include missing requirements detail.
 
-Tip: use `alisio skills search`, `alisio skills install`, and `alisio skills update` for ClawHub-backed skills.
+Tip: use `alisio skills search`, `alisio skills install`, and `alisio skills update` for Marketplace Local-backed skills.
 
 ### `pairing`
 
@@ -1109,8 +1109,8 @@ Subcommands:
 
 Auth notes:
 
-- `node` resolves gateway auth from env/config (no `--token`/`--password` flags): `OPENCLAW_GATEWAY_TOKEN` / `OPENCLAW_GATEWAY_PASSWORD`, then `gateway.auth.*`. In local mode, node host intentionally ignores `gateway.remote.*`; in `gateway.mode=remote`, `gateway.remote.*` participates per remote precedence rules.
-- Node-host auth resolution only honors `OPENCLAW_GATEWAY_*` env vars.
+- `node` resolves gateway auth from env/config (no `--token`/`--password` flags): `ALISIO_GATEWAY_TOKEN` / `ALISIO_GATEWAY_PASSWORD`, then `gateway.auth.*`. In local mode, node host intentionally ignores `gateway.remote.*`; in `gateway.mode=remote`, `gateway.remote.*` participates per remote precedence rules.
+- Node-host auth resolution only honors `ALISIO_GATEWAY_*` env vars.
 
 ## Nodes
 

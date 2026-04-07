@@ -7,7 +7,7 @@ title: "OpenAI Chat Completions"
 
 # OpenAI Chat Completions (HTTP)
 
-OpenClaw’s Gateway can serve a small OpenAI-compatible Chat Completions endpoint.
+Alisio’s Gateway can serve a small OpenAI-compatible Chat Completions endpoint.
 
 This endpoint is **disabled by default**. Enable it in config first.
 
@@ -21,7 +21,7 @@ When the Gateway’s OpenAI-compatible HTTP surface is enabled, it also serves:
 - `POST /v1/embeddings`
 - `POST /v1/responses`
 
-Under the hood, requests are executed as a normal Gateway agent run (same codepath as `openclaw agent`), so routing/permissions/config match your Gateway.
+Under the hood, requests are executed as a normal Gateway agent run (same codepath as `alisio agent`), so routing/permissions/config match your Gateway.
 
 ## Authentication
 
@@ -31,8 +31,8 @@ Uses the Gateway auth configuration. Send a bearer token:
 
 Notes:
 
-- When `gateway.auth.mode="token"`, use `gateway.auth.token` (or `OPENCLAW_GATEWAY_TOKEN`).
-- When `gateway.auth.mode="password"`, use `gateway.auth.password` (or `OPENCLAW_GATEWAY_PASSWORD`).
+- When `gateway.auth.mode="token"`, use `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`).
+- When `gateway.auth.mode="password"`, use `gateway.auth.password` (or `ALISIO_GATEWAY_PASSWORD`).
 - If `gateway.auth.rateLimit` is configured and too many auth failures occur, the endpoint returns `429` with `Retry-After`.
 
 ## Security boundary (important)
@@ -42,7 +42,7 @@ Treat this endpoint as a **full operator-access** surface for the gateway instan
 - HTTP bearer auth here is not a narrow per-user scope model.
 - A valid Gateway token/password for this endpoint should be treated like an owner/operator credential.
 - Requests run through the same control-plane agent path as trusted operator actions.
-- There is no separate non-owner/per-user tool boundary on this endpoint; once a caller passes Gateway auth here, OpenClaw treats that caller as a trusted operator for this gateway.
+- There is no separate non-owner/per-user tool boundary on this endpoint; once a caller passes Gateway auth here, Alisio treats that caller as a trusted operator for this gateway.
 - If the target agent policy allows sensitive tools, this endpoint can use them.
 - Keep this endpoint on loopback/tailnet/private ingress only; do not expose it directly to the public internet.
 
@@ -50,22 +50,22 @@ See [Security](/gateway/security) and [Remote access](/gateway/remote).
 
 ## Agent-first model contract
 
-OpenClaw treats the OpenAI `model` field as an **agent target**, not a raw provider model id.
+Alisio treats the OpenAI `model` field as an **agent target**, not a raw provider model id.
 
-- `model: "openclaw"` routes to the configured default agent.
-- `model: "openclaw/default"` also routes to the configured default agent.
-- `model: "openclaw/<agentId>"` routes to a specific agent.
+- `model: "alisio"` routes to the configured default agent.
+- `model: "alisio/default"` also routes to the configured default agent.
+- `model: "alisio/<agentId>"` routes to a specific agent.
 
 Optional request headers:
 
-- `x-openclaw-model: <provider/model-or-bare-id>` overrides the backend model for the selected agent.
-- `x-openclaw-agent-id: <agentId>` remains supported as a compatibility override.
-- `x-openclaw-session-key: <sessionKey>` fully controls session routing.
-- `x-openclaw-message-channel: <channel>` sets the synthetic ingress channel context for channel-aware prompts and policies.
+- `x-alisio-model: <provider/model-or-bare-id>` overrides the backend model for the selected agent.
+- `x-alisio-agent-id: <agentId>` remains supported as a compatibility override.
+- `x-alisio-session-key: <sessionKey>` fully controls session routing.
+- `x-alisio-message-channel: <channel>` sets the synthetic ingress channel context for channel-aware prompts and policies.
 
 Compatibility aliases still accepted:
 
-- `model: "openclaw:<agentId>"`
+- `model: "alisio:<agentId>"`
 - `model: "agent:<agentId>"`
 
 ## Enabling the endpoint
@@ -119,9 +119,9 @@ This is the highest-leverage compatibility set for self-hosted frontends and too
 
 <AccordionGroup>
   <Accordion title="What does `/v1/models` return?">
-    An OpenClaw agent-target list.
+    An Alisio agent-target list.
 
-    The returned ids are `openclaw`, `openclaw/default`, and `openclaw/<agentId>` entries.
+    The returned ids are `alisio`, `alisio/default`, and `alisio/<agentId>` entries.
     Use them directly as OpenAI `model` values.
 
   </Accordion>
@@ -131,18 +131,18 @@ This is the highest-leverage compatibility set for self-hosted frontends and too
     Sub-agents remain internal execution topology. They do not appear as pseudo-models.
 
   </Accordion>
-  <Accordion title="Why is `openclaw/default` included?">
-    `openclaw/default` is the stable alias for the configured default agent.
+  <Accordion title="Why is `alisio/default` included?">
+    `alisio/default` is the stable alias for the configured default agent.
 
     That means clients can keep using one predictable id even if the real default agent id changes between environments.
 
   </Accordion>
   <Accordion title="How do I override the backend model?">
-    Use `x-openclaw-model`.
+    Use `x-alisio-model`.
 
     Examples:
-    `x-openclaw-model: openai/gpt-5.4`
-    `x-openclaw-model: gpt-5.4`
+    `x-alisio-model: openai/gpt-5.4`
+    `x-alisio-model: gpt-5.4`
 
     If you omit it, the selected agent runs with its normal configured model choice.
 
@@ -150,8 +150,8 @@ This is the highest-leverage compatibility set for self-hosted frontends and too
   <Accordion title="How do embeddings fit this contract?">
     `/v1/embeddings` uses the same agent-target `model` ids.
 
-    Use `model: "openclaw/default"` or `model: "openclaw/<agentId>"`.
-    When you need a specific embedding model, send it in `x-openclaw-model`.
+    Use `model: "alisio/default"` or `model: "alisio/<agentId>"`.
+    When you need a specific embedding model, send it in `x-alisio-model`.
     Without that header, the request passes through to the selected agent's normal embedding setup.
 
   </Accordion>
@@ -172,13 +172,13 @@ For a basic Open WebUI connection:
 - Base URL: `http://127.0.0.1:18789/v1`
 - Docker on macOS base URL: `http://host.docker.internal:18789/v1`
 - API key: your Gateway bearer token
-- Model: `openclaw/default`
+- Model: `alisio/default`
 
 Expected behavior:
 
-- `GET /v1/models` should list `openclaw/default`
-- Open WebUI should use `openclaw/default` as the chat model id
-- If you want a specific backend provider/model for that agent, set the agent's normal default model or send `x-openclaw-model`
+- `GET /v1/models` should list `alisio/default`
+- Open WebUI should use `alisio/default` as the chat model id
+- If you want a specific backend provider/model for that agent, set the agent's normal default model or send `x-alisio-model`
 
 Quick smoke:
 
@@ -187,7 +187,7 @@ curl -sS http://127.0.0.1:18789/v1/models \
   -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
-If that returns `openclaw/default`, most Open WebUI setups can connect with the same base URL and token.
+If that returns `alisio/default`, most Open WebUI setups can connect with the same base URL and token.
 
 ## Examples
 
@@ -198,7 +198,7 @@ curl -sS http://127.0.0.1:18789/v1/chat/completions \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "openclaw/default",
+    "model": "alisio/default",
     "messages": [{"role":"user","content":"hi"}]
   }'
 ```
@@ -209,9 +209,9 @@ Streaming:
 curl -N http://127.0.0.1:18789/v1/chat/completions \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
-  -H 'x-openclaw-model: openai/gpt-5.4' \
+  -H 'x-alisio-model: openai/gpt-5.4' \
   -d '{
-    "model": "openclaw/research",
+    "model": "alisio/research",
     "stream": true,
     "messages": [{"role":"user","content":"hi"}]
   }'
@@ -227,7 +227,7 @@ curl -sS http://127.0.0.1:18789/v1/models \
 Fetch one model:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/models/openclaw%2Fdefault \
+curl -sS http://127.0.0.1:18789/v1/models/alisio%2Fdefault \
   -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
@@ -237,16 +237,16 @@ Create embeddings:
 curl -sS http://127.0.0.1:18789/v1/embeddings \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
-  -H 'x-openclaw-model: openai/text-embedding-3-small' \
+  -H 'x-alisio-model: openai/text-embedding-3-small' \
   -d '{
-    "model": "openclaw/default",
+    "model": "alisio/default",
     "input": ["alpha", "beta"]
   }'
 ```
 
 Notes:
 
-- `/v1/models` returns OpenClaw agent targets, not raw provider catalogs.
-- `openclaw/default` is always present so one stable id works across environments.
-- Backend provider/model overrides belong in `x-openclaw-model`, not the OpenAI `model` field.
+- `/v1/models` returns Alisio agent targets, not raw provider catalogs.
+- `alisio/default` is always present so one stable id works across environments.
+- Backend provider/model overrides belong in `x-alisio-model`, not the OpenAI `model` field.
 - `/v1/embeddings` supports `input` as a string or array of strings.

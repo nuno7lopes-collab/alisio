@@ -1,153 +1,74 @@
 ---
-summary: "Run OpenClaw on local LLMs (LM Studio, vLLM, LiteLLM, custom OpenAI endpoints)"
+summary: "Run Alisio with local models on this machine or with private Ollama and OpenAI-compatible servers."
 read_when:
-  - You want to serve models from your own GPU box
-  - You are wiring LM Studio or an OpenAI-compatible proxy
-  - You need the safest local model guidance
-title: "Local Models"
+  - Choosing between OpenAI, local models, and private servers
+  - Setting up Ollama or OpenAI-compatible endpoints for Alisio
+title: "Local Models and Servers"
 ---
 
-# Local models
+# Local Models and Servers
 
-Local is doable, but OpenClaw expects large context + strong defenses against prompt injection. Small cards truncate context and leak safety. Aim high: **≥2 maxed-out Mac Studios or equivalent GPU rig (~$30k+)**. A single **24 GB** GPU works only for lighter prompts with higher latency. Use the **largest / full-size model variant you can run**; aggressively quantized or “small” checkpoints raise prompt-injection risk (see [Security](/gateway/security)).
+Alisio treats local and server-backed AI as first-class product choices.
 
-If you want the lowest-friction local setup, start with [Ollama](/providers/ollama) and `openclaw onboard`. This page is the opinionated guide for higher-end local stacks and custom OpenAI-compatible local servers.
+That means you do not have to pick between “hosted only” and “expert mode.” You can start with OpenAI, then add local or private servers as the product grows with your setup.
 
-## Recommended: LM Studio + large local model (Responses API)
+## The Three Runtime Shapes
 
-Best current local stack. Load a large model in LM Studio (for example, a full-size Qwen, DeepSeek, or Llama build), enable the local server (default `http://127.0.0.1:1234`), and use Responses API to keep reasoning separate from final text.
+### OpenAI
 
-```json5
-{
-  agents: {
-    defaults: {
-      model: { primary: “lmstudio/my-local-model” },
-      models: {
-        “anthropic/claude-opus-4-6”: { alias: “Opus” },
-        “lmstudio/my-local-model”: { alias: “Local” },
-      },
-    },
-  },
-  models: {
-    mode: “merge”,
-    providers: {
-      lmstudio: {
-        baseUrl: “http://127.0.0.1:1234/v1”,
-        apiKey: “lmstudio”,
-        api: “openai-responses”,
-        models: [
-          {
-            id: “my-local-model”,
-            name: “Local Model”,
-            reasoning: false,
-            input: [“text”],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 196608,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+Hosted, easiest to start, best default for quality and setup speed.
 
-**Setup checklist**
+### Local
 
-- Install LM Studio: [https://lmstudio.ai](https://lmstudio.ai)
-- In LM Studio, download the **largest model build available** (avoid “small”/heavily quantized variants), start the server, confirm `http://127.0.0.1:1234/v1/models` lists it.
-- Replace `my-local-model` with the actual model ID shown in LM Studio.
-- Keep the model loaded; cold-load adds startup latency.
-- Adjust `contextWindow`/`maxTokens` if your LM Studio build differs.
-- For WhatsApp, stick to Responses API so only final text is sent.
+The runtime lives on the same computer as Alisio.
 
-Keep hosted models configured even when running local; use `models.mode: "merge"` so fallbacks stay available.
+Best when you want:
 
-### Hybrid config: hosted primary, local fallback
+- privacy
+- local control
+- low-latency loops on capable hardware
 
-```json5
-{
-  agents: {
-    defaults: {
-      model: {
-        primary: "anthropic/claude-sonnet-4-6",
-        fallbacks: ["lmstudio/my-local-model", "anthropic/claude-opus-4-6"],
-      },
-      models: {
-        "anthropic/claude-sonnet-4-6": { alias: "Sonnet" },
-        "lmstudio/my-local-model": { alias: "Local" },
-        "anthropic/claude-opus-4-6": { alias: "Opus" },
-      },
-    },
-  },
-  models: {
-    mode: "merge",
-    providers: {
-      lmstudio: {
-        baseUrl: "http://127.0.0.1:1234/v1",
-        apiKey: "lmstudio",
-        api: "openai-responses",
-        models: [
-          {
-            id: "my-local-model",
-            name: "Local Model",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 196608,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+### Server
 
-### Local-first with hosted safety net
+The runtime lives elsewhere and Alisio connects to it.
 
-Swap the primary and fallback order; keep the same providers block and `models.mode: "merge"` so you can fall back to Sonnet or Opus when the local box is down.
+Best when you want:
 
-### Regional hosting / data routing
+- Ollama on another machine
+- an OpenAI-compatible endpoint
+- a shared private runtime for multiple computers
 
-- Hosted MiniMax/Kimi/GLM variants also exist on OpenRouter with region-pinned endpoints (e.g., US-hosted). Pick the regional variant there to keep traffic in your chosen jurisdiction while still using `models.mode: "merge"` for Anthropic/OpenAI fallbacks.
-- Local-only remains the strongest privacy path; hosted regional routing is the middle ground when you need provider features but want control over data flow.
+## Server Types
 
-## Other OpenAI-compatible local proxies
+Alisio should clearly support:
 
-vLLM, LiteLLM, OAI-proxy, or custom gateways work if they expose an OpenAI-style `/v1` endpoint. Replace the provider block above with your endpoint and model ID:
+- **Ollama**
+- **OpenAI-compatible servers**
 
-```json5
-{
-  models: {
-    mode: "merge",
-    providers: {
-      local: {
-        baseUrl: "http://127.0.0.1:8000/v1",
-        apiKey: "sk-local",
-        api: "openai-responses",
-        models: [
-          {
-            id: "my-local-model",
-            name: "Local Model",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 120000,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+Those are the practical server categories most operators expect.
 
-Keep `models.mode: "merge"` so hosted models stay available as fallbacks.
+## Recommended Setup Order
 
-## Troubleshooting
+1. Get a working setup with OpenAI
+2. Add a local model on the current computer if you need it
+3. Add an Ollama or OpenAI-compatible server if another machine should host inference
 
-- Gateway can reach the proxy? `curl http://127.0.0.1:1234/v1/models`.
-- LM Studio model unloaded? Reload; cold start is a common “hanging” cause.
-- Context errors? Lower `contextWindow` or raise your server limit.
-- Safety: local models skip provider-side filters; keep agents narrow and compaction on to limit prompt injection blast radius.
+## Practical Guidance
+
+- Local models are great for privacy and control, but quality still depends on hardware and the model you can actually run.
+- Server-backed models are a good middle ground when the current Mac should stay lightweight.
+- Hosted and local/server setups should coexist so you can use fallbacks instead of committing to one path forever.
+
+## Example Policy
+
+A realistic product policy for one computer:
+
+- OpenAI as the default
+- a local model for private or low-latency work
+- an Ollama or OpenAI-compatible server as an additional runtime when another machine is available
+
+## Related Pages
+
+- [Model Providers](/concepts/model-providers)
+- [Models](/concepts/models)
+- [Getting Started](/start/getting-started)

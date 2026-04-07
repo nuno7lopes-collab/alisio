@@ -1,67 +1,71 @@
 ---
-summary: "Overview of Alisio onboarding options and flows"
+summary: "Choose between the desktop-first macOS flow and the secondary CLI/on-server setup paths."
 read_when:
   - Choosing an onboarding path
-  - Setting up a new environment
+  - Explaining setup options to a new user
 title: "Onboarding Overview"
 sidebarTitle: "Onboarding Overview"
 ---
 
 # Onboarding Overview
 
-Alisio has two onboarding paths. Both configure auth, the Gateway, and
-optional channels — they just differ in how you interact with the setup.
+Alisio has two setup paths, but they are not equal.
 
-## Which path should I use?
+The primary path is the macOS app. The CLI path still exists for operators, servers, and non-macOS environments.
 
-|                | CLI onboarding                         | macOS app onboarding      |
-| -------------- | -------------------------------------- | ------------------------- |
-| **Platforms**  | macOS, Linux, Windows (native or WSL2) | macOS only                |
-| **Interface**  | Terminal wizard                        | Guided UI in the app      |
-| **Best for**   | Servers, headless, full control        | Desktop Mac, visual setup |
-| **Automation** | `--non-interactive` for scripts        | Manual only               |
-| **Command**    | `alisio onboard`                       | Launch the app            |
+## Which Path Should I Use?
 
-Most users should start with **CLI onboarding** — it works everywhere and gives
-you the most control.
+|                       | macOS app onboarding           | CLI onboarding                 |
+| --------------------- | ------------------------------ | ------------------------------ |
+| **Recommended**       | Yes                            | Only when needed               |
+| **Best for**          | Daily desktop use on a Mac     | Servers, headless, automation  |
+| **What it optimizes** | Sign-in, permissions, AI setup | Control, scripting, operations |
+| **Primary surface**   | App UI                         | Terminal                       |
+| **Command**           | Launch the app                 | `alisio onboard`               |
 
-## What onboarding configures
+Most people should start with **macOS app onboarding**.
 
-Regardless of which path you choose, onboarding sets up:
+## What Onboarding Configures
 
-1. **Model provider and auth** — API key, OAuth, or setup token for your chosen provider
-2. **Workspace** — directory for agent files, bootstrap templates, and memory
-3. **Gateway** — port, bind address, auth mode
-4. **Channels** (optional) — WhatsApp, Telegram, Discord, and more
-5. **Daemon** (optional) — background service so the Gateway starts automatically
+Regardless of path, setup should answer the same product questions:
 
-## CLI onboarding
+1. Who is using this copy of Alisio?
+2. Which permissions does this computer expose?
+3. Which AI source should run first: OpenAI, Local, or Server?
+4. Which channels, connectors, and apps should connect to this machine?
+5. Which devices should be paired into the same workspace?
 
-Run in any terminal:
+## macOS App Onboarding
 
-```bash
-alisio onboard
-```
+Use this when the Mac is the primary place where Alisio lives.
 
-Add `--install-daemon` to also install the background service in one step.
+The app handles:
 
-Full reference: [Onboarding (CLI)](/start/wizard)
-CLI command docs: [`alisio onboard`](/cli/onboard)
+- sign-in
+- macOS permissions
+- OpenAI connection
+- local model or server selection
+- device-aware setup for this computer
+- connector and marketplace flows
 
-## macOS app onboarding
+Reference: [Onboarding (macOS App)](/start/onboarding)
 
-Open the Alisio app. The first-run wizard walks you through the same steps
-with a visual interface.
+## CLI Onboarding
 
-Full reference: [Onboarding (macOS App)](/start/onboarding)
+Use this when:
 
-## Custom or unlisted providers
+- you are setting up Linux or Windows
+- you are running a remote or headless gateway
+- you need a scripted or operator-led flow
 
-If your provider is not listed in onboarding, choose **Custom Provider** and
-enter:
+Reference: [Onboarding (CLI)](/start/wizard)
 
-- API compatibility mode (OpenAI-compatible, Anthropic-compatible, or auto-detect)
-- Base URL and API key
-- Model ID and optional alias
+## AI Source Selection
 
-Multiple custom endpoints can coexist — each gets its own endpoint ID.
+Every onboarding flow should make these three choices obvious:
+
+- **OpenAI** for fast hosted setup
+- **Local** for models on the current machine
+- **Server** for Ollama or OpenAI-compatible endpoints on another machine
+
+Deeper details: [Model Providers](/concepts/model-providers)

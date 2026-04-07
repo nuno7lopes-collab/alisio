@@ -14,7 +14,7 @@ This page assumes exe.dev's default **exeuntu** image. If you picked a different
 
 ## Beginner quick path
 
-1. [https://exe.new/openclaw](https://exe.new/openclaw)
+1. [https://exe.new/alisio](https://exe.new/alisio)
 2. Fill in your auth key/token as needed
 3. Click on "Agent" next to your VM and wait for Shelley to finish provisioning
 4. Open `https://<vm-name>.exe.xyz/` and paste your gateway token to authenticate
@@ -31,7 +31,7 @@ Shelley, [exe.dev](https://exe.dev)'s agent, can install Alisio instantly with o
 prompt. The prompt used is as below:
 
 ```
-Set up Alisio (https://docs.openclaw.ai/install) on this VM. Use the non-interactive and accept-risk flags for alisio onboarding. Add the supplied auth or token as needed. Configure nginx to forward from the default port 18789 to the root location on the default enabled site config, making sure to enable Websocket support. Pairing is done by "alisio devices list" and "alisio devices approve <request id>". Make sure the dashboard shows that Alisio's health is OK. exe.dev handles forwarding from port 8000 to port 80/443 and HTTPS for us, so the final "reachable" should be <vm-name>.exe.xyz, without port specification.
+Set up Alisio (/install) on this VM. Use the non-interactive and accept-risk flags for alisio onboarding. Add the supplied auth or token as needed. Configure nginx to forward from the default port 18789 to the root location on the default enabled site config, making sure to enable Websocket support. Pairing is done by "alisio devices list" and "alisio devices approve <request id>". Make sure the dashboard shows that Alisio's health is OK. exe.dev handles forwarding from port 8000 to port 80/443 and HTTPS for us, so the final "reachable" should be <vm-name>.exe.xyz, without port specification.
 ```
 
 ## Manual installation
@@ -50,7 +50,7 @@ Then connect:
 ssh <vm-name>.exe.xyz
 ```
 
-Tip: keep this VM **stateful**. Alisio stores state under `~/.openclaw/` and `~/.openclaw/workspace/`.
+Tip: keep this VM **stateful**. Alisio stores state under `~/.alisio/` and `~/.alisio/workspace/`.
 
 ## 2) Install prerequisites (on the VM)
 
@@ -64,7 +64,7 @@ sudo apt-get install -y git curl jq ca-certificates openssl
 Run the Alisio install script:
 
 ```bash
-curl -fsSL https://openclaw.ai/install.sh | bash
+curl -fsSL https://alisio.app/install.sh | bash
 ```
 
 ## 4) Setup nginx to proxy Alisio to port 8000
@@ -117,7 +117,7 @@ with email auth.
 ## Updating
 
 ```bash
-npm i -g alisio@npm:openclaw@latest
+npm i -g alisio@npm:alisio@latest
 alisio doctor
 alisio gateway restart
 alisio health

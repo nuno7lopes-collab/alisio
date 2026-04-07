@@ -1,7 +1,7 @@
 ---
 summary: "Overview of all automation mechanisms: heartbeat, cron, tasks, hooks, webhooks, and more"
 read_when:
-  - Deciding how to automate work with OpenClaw
+  - Deciding how to automate work with Alisio
   - Choosing between heartbeat, cron, hooks, and webhooks
   - Looking for the right automation entry point
 title: "Automation Overview"
@@ -9,7 +9,7 @@ title: "Automation Overview"
 
 # Automation
 
-OpenClaw provides several automation mechanisms, each suited to different use cases. This page helps you choose the right one.
+Alisio provides several automation mechanisms, each suited to different use cases. This page helps you choose the right one.
 
 ## Quick decision guide
 

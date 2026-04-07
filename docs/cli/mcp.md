@@ -1,56 +1,56 @@
 ---
-summary: "Expose OpenClaw channel conversations over MCP and manage saved MCP server definitions"
+summary: "Expose Alisio channel conversations over MCP and manage saved MCP server definitions"
 read_when:
-  - Connecting Codex, Claude Code, or another MCP client to OpenClaw-backed channels
-  - Running `openclaw mcp serve`
-  - Managing OpenClaw-saved MCP server definitions
+  - Connecting Codex, Claude Code, or another MCP client to Alisio-backed channels
+  - Running `alisio mcp serve`
+  - Managing Alisio-saved MCP server definitions
 title: "mcp"
 ---
 
 # mcp
 
-`openclaw mcp` has two jobs:
+`alisio mcp` has two jobs:
 
-- run OpenClaw as an MCP server with `openclaw mcp serve`
-- manage OpenClaw-owned outbound MCP server definitions with `list`, `show`,
+- run Alisio as an MCP server with `alisio mcp serve`
+- manage Alisio-owned outbound MCP server definitions with `list`, `show`,
   `set`, and `unset`
 
 In other words:
 
-- `serve` is OpenClaw acting as an MCP server
-- `list` / `show` / `set` / `unset` is OpenClaw acting as an MCP client-side
+- `serve` is Alisio acting as an MCP server
+- `list` / `show` / `set` / `unset` is Alisio acting as an MCP client-side
   registry for other MCP servers its runtimes may consume later
 
-Use [`openclaw acp`](/cli/acp) when OpenClaw should host a coding harness
+Use [`alisio acp`](/cli/acp) when Alisio should host a coding harness
 session itself and route that runtime through ACP.
 
-## OpenClaw as an MCP server
+## Alisio as an MCP server
 
-This is the `openclaw mcp serve` path.
+This is the `alisio mcp serve` path.
 
 ## When to use `serve`
 
-Use `openclaw mcp serve` when:
+Use `alisio mcp serve` when:
 
 - Codex, Claude Code, or another MCP client should talk directly to
-  OpenClaw-backed channel conversations
-- you already have a local or remote OpenClaw Gateway with routed sessions
-- you want one MCP server that works across OpenClaw's channel backends instead
+  Alisio-backed channel conversations
+- you already have a local or remote Alisio Gateway with routed sessions
+- you want one MCP server that works across Alisio's channel backends instead
   of running separate per-channel bridges
 
-Use [`openclaw acp`](/cli/acp) instead when OpenClaw should host the coding
-runtime itself and keep the agent session inside OpenClaw.
+Use [`alisio acp`](/cli/acp) instead when Alisio should host the coding
+runtime itself and keep the agent session inside Alisio.
 
 ## How it works
 
-`openclaw mcp serve` starts a stdio MCP server. The MCP client owns that
+`alisio mcp serve` starts a stdio MCP server. The MCP client owns that
 process. While the client keeps the stdio session open, the bridge connects to a
-local or remote OpenClaw Gateway over WebSocket and exposes routed channel
+local or remote Alisio Gateway over WebSocket and exposes routed channel
 conversations over MCP.
 
 Lifecycle:
 
-1. the MCP client spawns `openclaw mcp serve`
+1. the MCP client spawns `alisio mcp serve`
 2. the bridge connects to Gateway
 3. routed sessions become MCP conversations and transcript/history tools
 4. live events are queued in memory while the bridge is connected
@@ -80,7 +80,7 @@ yet.
 ## What `serve` exposes
 
 The bridge uses existing Gateway session route metadata to expose channel-backed
-conversations. A conversation appears when OpenClaw already has session state
+conversations. A conversation appears when Alisio already has session state
 with a known route such as:
 
 - `channel`
@@ -100,19 +100,19 @@ This gives MCP clients one place to:
 
 ```bash
 # Local Gateway
-openclaw mcp serve
+alisio mcp serve
 
 # Remote Gateway
-openclaw mcp serve --url wss://gateway-host:18789 --token-file ~/.openclaw/gateway.token
+alisio mcp serve --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
 
 # Remote Gateway with password auth
-openclaw mcp serve --url wss://gateway-host:18789 --password-file ~/.openclaw/gateway.password
+alisio mcp serve --url wss://gateway-host:18789 --password-file ~/.alisio/gateway.password
 
 # Enable verbose bridge logs
-openclaw mcp serve --verbose
+alisio mcp serve --verbose
 
 # Disable Claude-specific push notifications
-openclaw mcp serve --claude-channel-mode off
+alisio mcp serve --claude-channel-mode off
 ```
 
 ## Bridge tools
@@ -213,7 +213,7 @@ Important limits:
 ## Claude channel notifications
 
 The bridge can also expose Claude-specific channel notifications. This is the
-OpenClaw equivalent of a Claude Code channel adapter: standard MCP tools remain
+Alisio equivalent of a Claude Code channel adapter: standard MCP tools remain
 available, but live inbound messages can also arrive as Claude-specific MCP
 notifications.
 
@@ -249,8 +249,8 @@ Example stdio client config:
 ```json
 {
   "mcpServers": {
-    "openclaw": {
-      "command": "openclaw",
+    "alisio": {
+      "command": "alisio",
       "args": [
         "mcp",
         "serve",
@@ -270,7 +270,7 @@ Claude-specific notification methods.
 
 ## Options
 
-`openclaw mcp serve` supports:
+`alisio mcp serve` supports:
 
 - `--url <url>`: Gateway WebSocket URL
 - `--token <token>`: Gateway token
@@ -290,7 +290,7 @@ already knows how to route.
 That means:
 
 - sender allowlists, pairing, and channel-level trust still belong to the
-  underlying OpenClaw channel configuration
+  underlying Alisio channel configuration
 - `messages_send` can only reply through an existing stored route
 - approval state is live/in-memory only for the current bridge session
 - bridge auth should use the same Gateway token or password controls you would
@@ -302,7 +302,7 @@ Gateway session.
 
 ## Testing
 
-OpenClaw ships a deterministic Docker smoke for this bridge:
+Alisio ships a deterministic Docker smoke for this bridge:
 
 ```bash
 pnpm test:docker:mcp-channels
@@ -311,7 +311,7 @@ pnpm test:docker:mcp-channels
 That smoke:
 
 - starts a seeded Gateway container
-- starts a second container that spawns `openclaw mcp serve`
+- starts a second container that spawns `alisio mcp serve`
 - verifies conversation discovery, transcript reads, attachment metadata reads,
   live event queue behavior, and outbound send routing
 - validates Claude-style channel and permission notifications over the real
@@ -349,21 +349,21 @@ Check all of these:
 `permissions_list_open` only shows approval requests observed while the bridge
 was connected. It is not a durable approval history API.
 
-## OpenClaw as an MCP client registry
+## Alisio as an MCP client registry
 
-This is the `openclaw mcp list`, `show`, `set`, and `unset` path.
+This is the `alisio mcp list`, `show`, `set`, and `unset` path.
 
-These commands do not expose OpenClaw over MCP. They manage OpenClaw-owned MCP
-server definitions under `mcp.servers` in OpenClaw config.
+These commands do not expose Alisio over MCP. They manage Alisio-owned MCP
+server definitions under `mcp.servers` in Alisio config.
 
-Those saved definitions are for runtimes that OpenClaw launches or configures
-later, such as embedded Pi and other runtime adapters. OpenClaw stores the
+Those saved definitions are for runtimes that Alisio launches or configures
+later, such as embedded Pi and other runtime adapters. Alisio stores the
 definitions centrally so those runtimes do not need to keep their own duplicate
 MCP server lists.
 
 Important behavior:
 
-- these commands only read or write OpenClaw config
+- these commands only read or write Alisio config
 - they do not connect to the target MCP server
 - they do not validate whether the command, URL, or remote transport is
   reachable right now
@@ -372,24 +372,24 @@ Important behavior:
 
 ## Saved MCP server definitions
 
-OpenClaw also stores a lightweight MCP server registry in config for surfaces
-that want OpenClaw-managed MCP definitions.
+Alisio also stores a lightweight MCP server registry in config for surfaces
+that want Alisio-managed MCP definitions.
 
 Commands:
 
-- `openclaw mcp list`
-- `openclaw mcp show [name]`
-- `openclaw mcp set <name> <json>`
-- `openclaw mcp unset <name>`
+- `alisio mcp list`
+- `alisio mcp show [name]`
+- `alisio mcp set <name> <json>`
+- `alisio mcp unset <name>`
 
 Examples:
 
 ```bash
-openclaw mcp list
-openclaw mcp show context7 --json
-openclaw mcp set context7 '{"command":"uvx","args":["context7-mcp"]}'
-openclaw mcp set docs '{"url":"https://mcp.example.com"}'
-openclaw mcp unset context7
+alisio mcp list
+alisio mcp show context7 --json
+alisio mcp set context7 '{"command":"uvx","args":["context7-mcp"]}'
+alisio mcp set docs '{"url":"https://mcp.example.com"}'
+alisio mcp unset context7
 ```
 
 Example config shape:

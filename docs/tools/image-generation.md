@@ -89,7 +89,7 @@ Not all providers support all parameters. The tool passes what each provider sup
 
 ### Provider selection order
 
-When generating an image, OpenClaw tries providers in this order:
+When generating an image, Alisio tries providers in this order:
 
 1. **`model` parameter** from the tool call (if the agent specifies one)
 2. **`imageGenerationModel.primary`** from config

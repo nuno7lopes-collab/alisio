@@ -9,7 +9,7 @@ read_when:
 # QMD Memory Engine
 
 [QMD](https://github.com/tobi/qmd) is a local-first search sidecar that runs
-alongside OpenClaw. It combines BM25, vector search, and reranking in a single
+alongside Alisio. It combines BM25, vector search, and reranking in a single
 binary, and can index content beyond your workspace memory files.
 
 ## What it adds over builtin
@@ -18,7 +18,7 @@ binary, and can index content beyond your workspace memory files.
 - **Index extra directories** -- project docs, team notes, anything on disk.
 - **Index session transcripts** -- recall earlier conversations.
 - **Fully local** -- runs via Bun + node-llama-cpp, auto-downloads GGUF models.
-- **Automatic fallback** -- if QMD is unavailable, OpenClaw falls back to the
+- **Automatic fallback** -- if QMD is unavailable, Alisio falls back to the
   builtin engine seamlessly.
 
 ## Getting started
@@ -40,19 +40,19 @@ binary, and can index content beyond your workspace memory files.
 }
 ```
 
-OpenClaw creates a self-contained QMD home under
-`~/.openclaw/agents/<agentId>/qmd/` and manages the sidecar lifecycle
+Alisio creates a self-contained QMD home under
+`~/.alisio/agents/<agentId>/qmd/` and manages the sidecar lifecycle
 automatically -- collections, updates, and embedding runs are handled for you.
 
 ## How the sidecar works
 
-- OpenClaw creates collections from your workspace memory files and any
+- Alisio creates collections from your workspace memory files and any
   configured `memory.qmd.paths`, then runs `qmd update` + `qmd embed` on boot
   and periodically (default every 5 minutes).
 - Boot refresh runs in the background so chat startup is not blocked.
 - Searches use the configured `searchMode` (default: `search`; also supports
-  `vsearch` and `query`). If a mode fails, OpenClaw retries with `qmd query`.
-- If QMD fails entirely, OpenClaw falls back to the builtin SQLite engine.
+  `vsearch` and `query`). If a mode fails, Alisio retries with `qmd query`.
+- If QMD fails entirely, Alisio falls back to the builtin SQLite engine.
 
 <Info>
 The first search may be slow -- QMD auto-downloads GGUF models (~2 GB) for
@@ -94,7 +94,7 @@ Enable session indexing to recall earlier conversations:
 ```
 
 Transcripts are exported as sanitized User/Assistant turns into a dedicated QMD
-collection under `~/.openclaw/agents/<id>/qmd/sessions/`.
+collection under `~/.alisio/agents/<id>/qmd/sessions/`.
 
 ## Search scope
 
@@ -114,7 +114,7 @@ channels). Configure `memory.qmd.scope` to change this:
 }
 ```
 
-When scope denies a search, OpenClaw logs a warning with the derived channel and
+When scope denies a search, Alisio logs a warning with the derived channel and
 chat type so empty results are easier to debug.
 
 ## Citations
@@ -137,12 +137,12 @@ with no extra dependencies.
 
 ## Troubleshooting
 
-**QMD not found?** Ensure the binary is on the gateway's `PATH`. If OpenClaw
+**QMD not found?** Ensure the binary is on the gateway's `PATH`. If Alisio
 runs as a service, create a symlink:
 `sudo ln -s ~/.bun/bin/qmd /usr/local/bin/qmd`.
 
 **First search very slow?** QMD downloads GGUF models on first use. Pre-warm
-with `qmd query "test"` using the same XDG dirs OpenClaw uses.
+with `qmd query "test"` using the same XDG dirs Alisio uses.
 
 **Search times out?** Increase `memory.qmd.limits.timeoutMs` (default: 4000ms).
 Set to `120000` for slower hardware.

@@ -1,196 +1,80 @@
 ---
-summary: "Alisio is a multi-channel gateway for AI agents that runs on any OS."
+summary: "Alisio is a desktop-first AI workspace that starts on macOS and extends across channels, devices, and servers."
 read_when:
   - Introducing Alisio to newcomers
 title: "Alisio"
 ---
 
-# Alisio 🦞
+# Alisio
 
 <p align="center">
-    <img
-        src="/assets/openclaw-logo-text-dark.png"
-        alt="Alisio"
-        width="500"
-        class="dark:hidden"
-    />
-    <img
-        src="/assets/openclaw-logo-text.png"
-        alt="Alisio"
-        width="500"
-        class="hidden dark:block"
-    />
+  <img src="/assets/pixel-lobster.svg" alt="Alisio" width="160" />
 </p>
 
-> _"EXFOLIATE! EXFOLIATE!"_ — A space lobster, probably
-
 <p align="center">
-  <strong>Any OS gateway for AI agents across WhatsApp, Telegram, Discord, iMessage, and more.</strong><br />
-  Send a message, get an agent response from your pocket. Plugins add Mattermost and more.
+  <strong>Desktop-first AI for your own computer.</strong><br />
+  Start on macOS, choose OpenAI, Local, or Server, then add channels, devices, and automations.
 </p>
 
 <Columns>
-  <Card title="Get Started" href="/start/getting-started" icon="rocket">
-    Install Alisio and bring up the Gateway in minutes.
+  <Card title="Product Overview" href="/start/overview" icon="layout-panel-top">
+    What Alisio is, who it is for, and what the first sellable product looks like.
   </Card>
-  <Card title="Run Onboarding" href="/start/wizard" icon="sparkles">
-    Guided setup with `alisio onboard` and pairing flows.
+  <Card title="Getting Started" href="/start/getting-started" icon="rocket">
+    Install the macOS app, sign in, grant permissions, and choose your AI source.
   </Card>
-  <Card title="Open the Control UI" href="/web/control-ui" icon="layout-dashboard">
-    Launch the browser dashboard for chat, config, and sessions.
+  <Card title="macOS App" href="/platforms/macos" icon="monitor-smartphone">
+    The primary product shell for setup, permissions, devices, and daily use.
   </Card>
 </Columns>
 
-## What is Alisio?
+## What Is Alisio?
 
-Alisio is a **self-hosted gateway** that connects your favorite chat apps — WhatsApp, Telegram, Discord, iMessage, and more — to AI coding agents like Pi. You run a single Gateway process on your own machine (or a server), and it becomes the bridge between your messaging apps and an always-available AI assistant.
+Alisio is a personal AI workspace that runs on your own computer and expands outward from there.
 
-**Who is it for?** Developers and power users who want a personal AI assistant they can message from anywhere — without giving up control of their data or relying on a hosted service.
+The desktop app is the center. Around it, you can add:
 
-**What makes it different?**
+- OpenAI accounts and API keys
+- local models on the machine you are using
+- OpenAI-compatible or Ollama servers on other machines
+- channels such as WhatsApp, Telegram, Slack, Discord, and email
+- connectors, apps, and skills from a local marketplace on each computer
+- paired devices for camera, voice, screen, notifications, and automation
 
-- **Self-hosted**: runs on your hardware, your rules
-- **Multi-channel**: one Gateway serves WhatsApp, Telegram, Discord, and more simultaneously
-- **Agent-native**: built for coding agents with tool use, sessions, memory, and multi-agent routing
-- **Open source**: MIT licensed, community-driven
-
-**What do you need?** Node 24 (recommended), or Node 22 LTS (`22.14+`) for compatibility, an API key from your chosen provider, and 5 minutes. For best quality and security, use the strongest latest-generation model available.
-
-## How it works
+## Product Shape
 
 ```mermaid
 flowchart LR
-  A["Chat apps + plugins"] --> B["Gateway"]
-  B --> C["Pi agent"]
-  B --> D["CLI"]
-  B --> E["Web Control UI"]
-  B --> F["macOS app"]
-  B --> G["iOS and Android nodes"]
+  A["Alisio on your Mac"] --> B["OpenAI"]
+  A --> C["Local models"]
+  A --> D["Servers"]
+  A --> E["Channels"]
+  A --> F["Connectors and apps"]
+  A --> G["Paired devices"]
+  F --> H["Automations"]
+  E --> H
+  G --> H
 ```
 
-The Gateway is the single source of truth for sessions, routing, and channel connections.
-
-## Key capabilities
+## Start Here
 
 <Columns>
-  <Card title="Multi-channel gateway" icon="network">
-    WhatsApp, Telegram, Discord, and iMessage with a single Gateway process.
+  <Card title="Overview" href="/start/overview" icon="book-open">
+    Product positioning, use cases, and the minimum sellable product.
   </Card>
-  <Card title="Plugin channels" icon="plug">
-    Add Mattermost and more with extension packages.
+  <Card title="AI Sources" href="/concepts/model-providers" icon="cpu">
+    OpenAI, local runtimes, Ollama, and OpenAI-compatible servers.
   </Card>
-  <Card title="Multi-agent routing" icon="route">
-    Isolated sessions per agent, workspace, or sender.
+  <Card title="Devices" href="/nodes" icon="smartphone">
+    Device-local actions, permissions, and pairing.
   </Card>
-  <Card title="Media support" icon="image">
-    Send and receive images, audio, and documents.
+  <Card title="Skills" href="/tools/skills" icon="sparkles">
+    Skills, apps, and the local marketplace on each computer.
   </Card>
-  <Card title="Web Control UI" icon="monitor">
-    Browser dashboard for chat, config, sessions, and nodes.
-  </Card>
-  <Card title="Mobile nodes" icon="smartphone">
-    Pair iOS and Android nodes for Canvas, camera, and voice-enabled workflows.
-  </Card>
-</Columns>
-
-## Quick start
-
-<Steps>
-  <Step title="Install Alisio">
-    ```bash
-    npm install -g alisio@npm:openclaw@latest
-    ```
-  </Step>
-  <Step title="Onboard and install the service">
-    ```bash
-    alisio onboard --install-daemon
-    ```
-  </Step>
-  <Step title="Chat">
-    Open the Control UI in your browser and send a message:
-
-    ```bash
-    alisio dashboard
-    ```
-
-    Or connect a channel ([Telegram](/channels/telegram) is fastest) and chat from your phone.
-
-  </Step>
-</Steps>
-
-Need the full install and dev setup? See [Getting Started](/start/getting-started).
-
-## Dashboard
-
-Open the browser Control UI after the Gateway starts.
-
-- Local default: [http://127.0.0.1:18789/](http://127.0.0.1:18789/)
-- Remote access: [Web surfaces](/web) and [Tailscale](/gateway/tailscale)
-
-<p align="center">
-  <img src="/whatsapp-openclaw.jpg" alt="Alisio" width="420" />
-</p>
-
-## Configuration (optional)
-
-Config lives at `~/.openclaw/openclaw.json`.
-
-- If you **do nothing**, Alisio uses the bundled Pi binary in RPC mode with per-sender sessions.
-- If you want to lock it down, start with `channels.whatsapp.allowFrom` and (for groups) mention rules.
-
-Example:
-
-```json5
-{
-  channels: {
-    whatsapp: {
-      allowFrom: ["+15555550123"],
-      groups: { "*": { requireMention: true } },
-    },
-  },
-  messages: { groupChat: { mentionPatterns: ["@openclaw"] } },
-}
-```
-
-## Start here
-
-<Columns>
-  <Card title="Docs hubs" href="/start/hubs" icon="book-open">
-    All docs and guides, organized by use case.
-  </Card>
-  <Card title="Configuration" href="/gateway/configuration" icon="settings">
-    Core Gateway settings, tokens, and provider config.
-  </Card>
-  <Card title="Remote access" href="/gateway/remote" icon="globe">
-    SSH and tailnet access patterns.
-  </Card>
-  <Card title="Channels" href="/channels/telegram" icon="message-square">
-    Channel-specific setup for WhatsApp, Telegram, Discord, and more.
-  </Card>
-  <Card title="Nodes" href="/nodes" icon="smartphone">
-    iOS and Android nodes with pairing, Canvas, camera, and device actions.
+  <Card title="Memory" href="/concepts/memory" icon="brain">
+    Durable context stored in your workspace.
   </Card>
   <Card title="Help" href="/help" icon="life-buoy">
-    Common fixes and troubleshooting entry point.
-  </Card>
-</Columns>
-
-## Learn more
-
-<Columns>
-  <Card title="Full feature list" href="/concepts/features" icon="list">
-    Complete channel, routing, and media capabilities.
-  </Card>
-  <Card title="Multi-agent routing" href="/concepts/multi-agent" icon="route">
-    Workspace isolation and per-agent sessions.
-  </Card>
-  <Card title="Security" href="/gateway/security" icon="shield">
-    Tokens, allowlists, and safety controls.
-  </Card>
-  <Card title="Troubleshooting" href="/gateway/troubleshooting" icon="wrench">
-    Gateway diagnostics and common errors.
-  </Card>
-  <Card title="About and credits" href="/reference/credits" icon="info">
-    Project origins, contributors, and license.
+    Troubleshooting, environment details, and advanced setup paths.
   </Card>
 </Columns>

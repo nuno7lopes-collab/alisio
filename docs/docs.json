@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Alisio",
-  "description": "Alisio is a self-hosted gateway that connects WhatsApp, Telegram, Discord, iMessage, and more to AI coding agents. Run a single Gateway process on your own machine and message your AI assistant from anywhere.",
+  "description": "Alisio is a desktop-first AI workspace that starts on macOS, can use OpenAI plus local or private servers, and extends across channels, connectors, devices, and automations.",
   "theme": "mint",
   "icons": {
     "library": "lucide"
@@ -36,12 +36,12 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/openclaw/openclaw",
+        "href": "https://github.com/alisio/alisio",
         "icon": "github"
       },
       {
         "label": "Releases",
-        "href": "https://github.com/openclaw/openclaw/releases",
+        "href": "https://github.com/alisio/alisio/releases",
         "icon": "package"
       },
       {
@@ -353,11 +353,11 @@
       "destination": "/start/alisio"
     },
     {
-      "source": "/start/openclaw",
+      "source": "/start/alisio",
       "destination": "/start/alisio"
     },
     {
-      "source": "/start/openclaw/",
+      "source": "/start/alisio/",
       "destination": "/start/alisio"
     },
     {
@@ -899,7 +899,7 @@
             "groups": [
               {
                 "group": "Overview",
-                "pages": ["index", "start/showcase", "concepts/features"]
+                "pages": ["index", "start/overview", "start/showcase", "concepts/features"]
               },
               {
                 "group": "First steps",
@@ -1592,7 +1592,7 @@
               },
               {
                 "group": "指南",
-                "pages": ["zh-CN/start/openclaw"]
+                "pages": ["zh-CN/start/alisio"]
               }
             ]
           },

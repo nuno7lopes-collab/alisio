@@ -27,15 +27,15 @@ Related:
 
 ```bash
 alisio browser profiles
-alisio browser --browser-profile openclaw start
-alisio browser --browser-profile openclaw open https://example.com
-alisio browser --browser-profile openclaw snapshot
+alisio browser --browser-profile alisio start
+alisio browser --browser-profile alisio open https://example.com
+alisio browser --browser-profile alisio snapshot
 ```
 
 ## If the command is missing
 
 If `alisio browser` is an unknown command, check `plugins.allow` in
-`~/.openclaw/openclaw.json`.
+`~/.alisio/alisio.json`.
 
 When `plugins.allow` is present, the bundled browser plugin must be listed
 explicitly:
@@ -57,7 +57,7 @@ Related: [Browser tool](/tools/browser#missing-browser-command-or-tool)
 
 Profiles are named browser routing configs. In practice:
 
-- `openclaw`: launches or attaches to a dedicated Alisio-managed Chrome instance (isolated user data dir).
+- `alisio`: launches or attaches to a dedicated Alisio-managed Chrome instance (isolated user data dir).
 - `user`: controls your existing signed-in Chrome session via Chrome DevTools MCP.
 - custom CDP profiles: point at a local or remote CDP endpoint.
 
@@ -78,7 +78,7 @@ alisio browser --browser-profile work tabs
 
 ```bash
 alisio browser tabs
-alisio browser open https://docs.openclaw.ai
+alisio browser open https://docs.alisio.ai
 alisio browser focus <targetId>
 alisio browser close <targetId>
 ```

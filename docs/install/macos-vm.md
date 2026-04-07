@@ -45,9 +45,9 @@ Once you have SSH access to a macOS VM, continue at step 6 below.
 ## Quick path (Lume, experienced users)
 
 1. Install Lume
-2. `lume create openclaw --os macos --ipsw latest`
+2. `lume create alisio --os macos --ipsw latest`
 3. Complete Setup Assistant, enable Remote Login (SSH)
-4. `lume run openclaw --no-display`
+4. `lume run alisio --no-display`
 5. SSH in, install Alisio, configure channels
 6. Done
 
@@ -87,7 +87,7 @@ Docs: [Lume Installation](https://cua.ai/docs/lume/guide/getting-started/install
 ## 2) Create the macOS VM
 
 ```bash
-lume create openclaw --os macos --ipsw latest
+lume create alisio --os macos --ipsw latest
 ```
 
 This downloads macOS and creates the VM. A VNC window opens automatically.
@@ -115,7 +115,7 @@ After setup completes, enable SSH:
 ## 4) Get the VM IP address
 
 ```bash
-lume get openclaw
+lume get alisio
 ```
 
 Look for the IP address (usually `192.168.64.x`).
@@ -137,7 +137,7 @@ Replace `youruser` with the account you created, and the IP with your VM's IP.
 Inside the VM:
 
 ```bash
-npm install -g alisio@npm:openclaw@latest
+npm install -g alisio@npm:alisio@latest
 alisio onboard --install-daemon
 ```
 
@@ -150,7 +150,7 @@ Follow the onboarding prompts to set up your model provider (Anthropic, OpenAI, 
 Edit the config file:
 
 ```bash
-nano ~/.openclaw/openclaw.json
+nano ~/.alisio/alisio.json
 ```
 
 Add your channels:
@@ -172,7 +172,7 @@ Add your channels:
 Then login to WhatsApp (scan QR):
 
 ```bash
-openclaw channels login
+alisio channels login
 ```
 
 ---
@@ -182,8 +182,8 @@ openclaw channels login
 Stop the VM and restart without display:
 
 ```bash
-lume stop openclaw
-lume run openclaw --no-display
+lume stop alisio
+lume run alisio --no-display
 ```
 
 The VM runs in the background. Alisio's daemon keeps the gateway running.
@@ -191,7 +191,7 @@ The VM runs in the background. Alisio's daemon keeps the gateway running.
 To check status:
 
 ```bash
-ssh youruser@192.168.64.X "openclaw status"
+ssh youruser@192.168.64.X "alisio status"
 ```
 
 ---
@@ -232,16 +232,16 @@ Full setup details: [BlueBubbles channel](/channels/bluebubbles)
 Before customizing further, snapshot your clean state:
 
 ```bash
-lume stop openclaw
-lume clone openclaw openclaw-golden
+lume stop alisio
+lume clone alisio alisio-golden
 ```
 
 Reset anytime:
 
 ```bash
-lume stop openclaw && lume delete openclaw
-lume clone openclaw-golden openclaw
-lume run openclaw --no-display
+lume stop alisio && lume delete alisio
+lume clone alisio-golden alisio
+lume run alisio --no-display
 ```
 
 ---
@@ -260,12 +260,12 @@ For true always-on, consider a dedicated Mac mini or a small VPS. See [VPS hosti
 
 ## Troubleshooting
 
-| Problem                  | Solution                                                                           |
-| ------------------------ | ---------------------------------------------------------------------------------- |
-| Can't SSH into VM        | Check "Remote Login" is enabled in VM's System Settings                            |
-| VM IP not showing        | Wait for VM to fully boot, run `lume get openclaw` again                           |
-| Lume command not found   | Add `~/.local/bin` to your PATH                                                    |
-| WhatsApp QR not scanning | Ensure you're logged into the VM (not host) when running `openclaw channels login` |
+| Problem                  | Solution                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------- |
+| Can't SSH into VM        | Check "Remote Login" is enabled in VM's System Settings                          |
+| VM IP not showing        | Wait for VM to fully boot, run `lume get alisio` again                           |
+| Lume command not found   | Add `~/.local/bin` to your PATH                                                  |
+| WhatsApp QR not scanning | Ensure you're logged into the VM (not host) when running `alisio channels login` |
 
 ---
 

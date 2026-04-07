@@ -37,14 +37,14 @@ cache-write size, directly lowering cost.
 
 ## Smart defaults
 
-OpenClaw auto-enables pruning for Anthropic profiles:
+Alisio auto-enables pruning for Anthropic profiles:
 
 | Profile type         | Pruning enabled | Heartbeat |
 | -------------------- | --------------- | --------- |
 | OAuth or setup-token | Yes             | 1 hour    |
 | API key              | Yes             | 30 min    |
 
-If you set explicit values, OpenClaw does not override them.
+If you set explicit values, Alisio does not override them.
 
 ## Enable or disable
 
