@@ -267,7 +267,7 @@ describe("QmdMemoryManager slugified path resolution", () => {
           "stdout",
           JSON.stringify([
             {
-              file: "qmd://vault-main/topics/sub-category/topic-name.md",
+              file: "qmd://vault/topics/sub-category/topic-name.md",
               score: 0.81,
               snippet: "@@ -1,1\nvault memory",
             },
@@ -281,7 +281,7 @@ describe("QmdMemoryManager slugified path resolution", () => {
     const { manager } = await createManager({ cfg });
     installIndexedPathStub({
       manager,
-      collection: "vault-main",
+      collection: "vault",
       normalizedPath: "topics/sub-category/topic-name.md",
       actualPath: actualRelative,
     });
@@ -291,7 +291,7 @@ describe("QmdMemoryManager slugified path resolution", () => {
     });
     expect(results).toEqual([
       {
-        path: `qmd/vault-main/${actualRelative}`,
+        path: `qmd/vault/${actualRelative}`,
         startLine: 1,
         endLine: 1,
         score: 0.81,
@@ -301,8 +301,139 @@ describe("QmdMemoryManager slugified path resolution", () => {
     ]);
 
     await expect(manager.readFile({ relPath: results[0]!.path })).resolves.toEqual({
-      path: `qmd/vault-main/${actualRelative}`,
+      path: `qmd/vault/${actualRelative}`,
       text: "vault memory",
+    });
+  });
+
+  it("maps workspace obsidian memory collections to obsidian/... paths", async () => {
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        memoryPath: "Alisio Memory",
+        qmd: {
+          includeDefaultMemory: true,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+        },
+      },
+    } as OpenClawConfig;
+
+    const actualRelative = path.join("Alisio Memory", "daily", "2026-04-07.md");
+    const actualFile = path.join(workspaceDir, actualRelative);
+    await fs.mkdir(path.dirname(actualFile), { recursive: true });
+    await fs.writeFile(actualFile, "workspace obsidian memory", "utf-8");
+
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args[0] === "search") {
+        const child = createMockChild({ autoClose: false });
+        emitAndClose(
+          child,
+          "stdout",
+          JSON.stringify([
+            {
+              file: "qmd://obsidian-memory-dir-main/daily/2026-04-07.md",
+              score: 0.88,
+              snippet: "@@ -1,1\nworkspace obsidian memory",
+            },
+          ]),
+        );
+        return child;
+      }
+      return createMockChild();
+    });
+
+    const { manager } = await createManager({ cfg });
+    installIndexedPathStub({
+      manager,
+      collection: "obsidian-memory-dir-main",
+      normalizedPath: "daily/2026-04-07.md",
+      actualPath: "daily/2026-04-07.md",
+    });
+
+    const results = await manager.search("workspace obsidian memory", {
+      sessionKey: "agent:main:slack:dm:u123",
+    });
+    expect(results).toEqual([
+      {
+        path: "obsidian/Alisio Memory/daily/2026-04-07.md",
+        startLine: 1,
+        endLine: 1,
+        score: 0.88,
+        snippet: "@@ -1,1\nworkspace obsidian memory",
+        source: "memory",
+      },
+    ]);
+
+    await expect(manager.readFile({ relPath: results[0]!.path })).resolves.toEqual({
+      path: "obsidian/Alisio Memory/daily/2026-04-07.md",
+      text: "workspace obsidian memory",
+    });
+  });
+
+  it("maps external obsidian vault collections to obsidian/... paths", async () => {
+    const vaultRoot = path.join(tmpRoot, "vault");
+    cfg = {
+      ...cfg,
+      memory: {
+        backend: "qmd",
+        vaultPath: vaultRoot,
+        memoryPath: "Alisio Memory",
+        qmd: {
+          includeDefaultMemory: true,
+          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
+        },
+      },
+    } as OpenClawConfig;
+
+    const actualFile = path.join(vaultRoot, "Alisio Memory", "daily", "2026-04-08.md");
+    await fs.mkdir(path.dirname(actualFile), { recursive: true });
+    await fs.writeFile(actualFile, "external obsidian memory", "utf-8");
+
+    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
+      if (args[0] === "search") {
+        const child = createMockChild({ autoClose: false });
+        emitAndClose(
+          child,
+          "stdout",
+          JSON.stringify([
+            {
+              file: "qmd://obsidian-memory-dir-main/daily/2026-04-08.md",
+              score: 0.91,
+              snippet: "@@ -1,1\nexternal obsidian memory",
+            },
+          ]),
+        );
+        return child;
+      }
+      return createMockChild();
+    });
+
+    const { manager } = await createManager({ cfg });
+    installIndexedPathStub({
+      manager,
+      collection: "obsidian-memory-dir-main",
+      normalizedPath: "daily/2026-04-08.md",
+      actualPath: "daily/2026-04-08.md",
+    });
+
+    const results = await manager.search("external obsidian memory", {
+      sessionKey: "agent:main:slack:dm:u123",
+    });
+    expect(results).toEqual([
+      {
+        path: "obsidian/Alisio Memory/daily/2026-04-08.md",
+        startLine: 1,
+        endLine: 1,
+        score: 0.91,
+        snippet: "@@ -1,1\nexternal obsidian memory",
+        source: "memory",
+      },
+    ]);
+
+    await expect(manager.readFile({ relPath: results[0]!.path })).resolves.toEqual({
+      path: "obsidian/Alisio Memory/daily/2026-04-08.md",
+      text: "external obsidian memory",
     });
   });
 

@@ -40,6 +40,12 @@ import {
   type ResolvedQmdConfig,
   type ResolvedQmdMcporterConfig,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+import {
+  resolveObsidianDisplayPath,
+  resolveObsidianMemoryLayout,
+  resolveObsidianReadPath,
+  type ResolvedObsidianMemoryLayout,
+} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 
 type SqliteDatabase = import("node:sqlite").DatabaseSync;
 
@@ -222,6 +228,7 @@ export class QmdMemoryManager implements MemorySearchManager {
   private readonly agentId: string;
   private readonly qmd: ResolvedQmdConfig;
   private readonly workspaceDir: string;
+  private readonly obsidianLayout: ResolvedObsidianMemoryLayout | null;
   private readonly stateDir: string;
   private readonly agentStateDir: string;
   private readonly qmdDir: string;
@@ -275,6 +282,10 @@ export class QmdMemoryManager implements MemorySearchManager {
     this.agentId = params.agentId;
     this.qmd = params.resolved;
     this.workspaceDir = resolveAgentWorkspaceDir(params.cfg, params.agentId);
+    this.obsidianLayout = resolveObsidianMemoryLayout({
+      cfg: params.cfg,
+      workspaceDir: this.workspaceDir,
+    });
     this.stateDir = resolveStateDir(process.env, os.homedir);
     this.agentStateDir = path.join(this.stateDir, "agents", this.agentId);
     this.qmdDir = path.join(this.agentStateDir, "qmd");
@@ -2193,6 +2204,10 @@ export class QmdMemoryManager implements MemorySearchManager {
     absPath: string,
   ): string {
     const sanitized = collectionRelativePath.replace(/^\/+/, "");
+    const obsidianPath = resolveObsidianDisplayPath(absPath, this.obsidianLayout);
+    if (obsidianPath) {
+      return obsidianPath;
+    }
     const insideWorkspace = this.isInsideWorkspace(relativeToWorkspace);
     if (insideWorkspace) {
       const normalized = relativeToWorkspace.replace(/\\/g, "/");
@@ -2225,6 +2240,13 @@ export class QmdMemoryManager implements MemorySearchManager {
   }
 
   private resolveReadPath(relPath: string): string {
+    const obsidianPath = resolveObsidianReadPath({
+      layout: this.obsidianLayout,
+      relPath,
+    });
+    if (obsidianPath) {
+      return obsidianPath;
+    }
     if (relPath.startsWith("qmd/")) {
       const [, collection, ...rest] = relPath.split("/");
       if (!collection || rest.length === 0) {

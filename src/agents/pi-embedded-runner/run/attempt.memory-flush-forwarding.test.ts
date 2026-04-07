@@ -6,6 +6,7 @@ import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { buildObsidianDailyNoteSeed } from "../../../../packages/memory-host-sdk/src/host/obsidian-layout.js";
 import type { AnyAgentTool } from "../../pi-tools.types.js";
+import { resetEmbeddedAttemptHarness } from "./attempt.spawn-workspace.test-support.js";
 
 const MEMORY_RELATIVE_PATH = "memory/2026-03-24.md";
 const OBSIDIAN_DATE = "2026-03-24";
@@ -41,21 +42,21 @@ function createAttemptParams(workspaceDir: string) {
 describe("runEmbeddedAttempt memory flush tool forwarding", () => {
   it("forwards memory trigger metadata into tool creation so append-only guards activate", async () => {
     vi.resetModules();
+    resetEmbeddedAttemptHarness();
 
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-attempt-memory-flush-"));
     const stop = new Error("stop after tool creation");
     const capturedOptions: Array<Record<string, unknown> | undefined> = [];
 
     try {
-      vi.doMock("../../pi-tools.js", async () => {
-        const actual =
-          await vi.importActual<typeof import("../../pi-tools.js")>("../../pi-tools.js");
+      vi.doMock("../../pi-tools.js", () => {
+        const createOpenClawCodingTools = vi.fn((options) => {
+          capturedOptions.push(options as Record<string, unknown> | undefined);
+          throw stop;
+        });
         return {
-          ...actual,
-          createOpenClawCodingTools: vi.fn((options) => {
-            capturedOptions.push(options as Record<string, unknown> | undefined);
-            throw stop;
-          }),
+          createOpenClawCodingTools,
+          resolveToolLoopDetectionConfig: vi.fn(() => undefined),
         };
       });
 

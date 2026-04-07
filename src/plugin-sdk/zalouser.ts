@@ -34,7 +34,7 @@ export type {
 } from "../channels/plugins/types.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
 export {
   resolveDefaultGroupPolicy,
@@ -44,7 +44,10 @@ export {
 export type { GroupToolPolicyConfig, MarkdownTableMode } from "../config/types.js";
 export { ToolPolicySchema } from "../config/zod-schema.agent-runtime.js";
 export { MarkdownConfigSchema } from "../config/zod-schema.core.js";
-export { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+export {
+  resolvePreferredAlisioTmpDir,
+  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
+} from "../infra/tmp-alisio-dir.js";
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export type { PluginRuntime } from "../plugins/runtime/types.js";
 export type {

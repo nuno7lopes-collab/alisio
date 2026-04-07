@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { loadConfig, resetConfigRuntimeState } from "./config.js";
+import { loadConfig, resetConfigRuntimeState, validateConfigObject } from "./config.js";
 import { withTempHomeConfig } from "./test-helpers.js";
 
 describe("config memory settings", () => {
@@ -27,5 +27,31 @@ describe("config memory settings", () => {
         expect(cfg.memory?.memoryPath).toBe("Alisio Memory");
       },
     );
+  });
+
+  it("rejects non-absolute obsidian vault paths", () => {
+    const result = validateConfigObject({
+      memory: {
+        vaultPath: "vaults/main",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.path === "memory.vaultPath")).toBe(true);
+    }
+  });
+
+  it("rejects memory paths that escape the configured directory", () => {
+    const result = validateConfigObject({
+      memory: {
+        memoryPath: "../escape",
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.path === "memory.memoryPath")).toBe(true);
+    }
   });
 });
