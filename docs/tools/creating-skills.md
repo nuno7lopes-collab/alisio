@@ -98,7 +98,7 @@ The YAML frontmatter supports these fields:
 - **Be concise** — instruct the model on _what_ to do, not how to be an AI
 - **Safety first** — if your skill uses `exec`, ensure prompts don't allow arbitrary command injection from untrusted input
 - **Test locally** — use `alisio agent --message "..."` to test before sharing
-- **Use Marketplace Local** — browse and contribute skills at [Marketplace Local](https://marketplace.local)
+- **Use Local Marketplace** — browse and contribute skills at [Local Marketplace](/tools/marketplace)
 
 ## Where skills live
 
@@ -113,5 +113,5 @@ The YAML frontmatter supports these fields:
 
 - [Skills reference](/tools/skills) — loading, precedence, and gating rules
 - [Skills config](/tools/skills-config) — `skills.*` config schema
-- [Marketplace Local](/tools/clawhub) — public skill registry
+- [Local Marketplace](/tools/marketplace) — public skill registry
 - [Building Plugins](/plugins/building-plugins) — plugins can ship skills

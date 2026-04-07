@@ -43,9 +43,9 @@ your plugin provides:
 }
 ```
 
-**Provider plugin / Marketplace Local publish baseline:**
+**Provider plugin / Local Marketplace publish baseline:**
 
-```json alisio-clawhub-package.json
+```json alisio-marketplace-package.json
 {
   "name": "@myorg/alisio-my-plugin",
   "version": "1.0.0",
@@ -64,7 +64,7 @@ your plugin provides:
 }
 ```
 
-If you publish the plugin externally on Marketplace Local, those `compat` and `build`
+If you publish the plugin externally on Local Marketplace, those `compat` and `build`
 fields are required. The canonical publish snippets live in
 `docs/snippets/plugin-publish/`.
 
@@ -158,17 +158,11 @@ Even plugins with no config must ship a schema. An empty schema is valid:
 
 See [Plugin Manifest](/plugins/manifest) for the full schema reference.
 
-## Marketplace Local publishing
+## Local Marketplace publishing
 
-For plugin packages, use the package-specific Marketplace Local command:
-
-```bash
-clawhub package publish your-org/your-plugin --dry-run
-clawhub package publish your-org/your-plugin
-```
-
-The legacy skill-only publish alias is for skills. Plugin packages should
-always use `clawhub package publish`.
+For plugin packages, use the Local Marketplace publish tooling (app or CLI).
+Plugin packages should use the package-specific publish flow, not the skill-only
+shortcut. The canonical publish snippets live in `docs/snippets/plugin-publish/`.
 
 ## Setup entry
 
@@ -328,19 +322,13 @@ const setupSurface = createOptionalChannelSetupSurface({
 
 ## Publishing and installing
 
-**External plugins:** publish to [Marketplace Local](/tools/clawhub) or npm, then install:
+**External plugins:** publish to [Local Marketplace](/tools/marketplace) or npm, then install:
 
 ```bash
 alisio plugins install @myorg/alisio-my-plugin
 ```
 
-Alisio tries Marketplace Local first and falls back to npm automatically. You can also
-force a specific source:
-
-```bash
-alisio plugins install clawhub:@myorg/alisio-my-plugin   # Marketplace Local only
-alisio plugins install npm:@myorg/alisio-my-plugin       # npm only
-```
+Alisio tries Local Marketplace first and falls back to npm automatically.
 
 **In-repo plugins:** place under the bundled plugin workspace tree and they are automatically
 discovered during build.

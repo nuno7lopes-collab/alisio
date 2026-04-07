@@ -46,15 +46,14 @@ capabilities.
 ### Install
 
 ```bash
-alisio plugins install <package>                      # Marketplace Local first, then npm
-alisio plugins install clawhub:<package>              # Marketplace Local only
+alisio plugins install <package>                      # Local Marketplace first, then npm
 alisio plugins install <package> --pin                # pin version
 alisio plugins install <path>                         # local path
 alisio plugins install <plugin>@<marketplace>         # marketplace
 alisio plugins install <plugin> --marketplace <name>  # marketplace (explicit)
 ```
 
-Bare package names are checked against Marketplace Local first, then npm. Security note:
+Bare package names are checked against Local Marketplace first, then npm. Security note:
 treat plugin installs like running code. Prefer pinned versions.
 
 `plugins install` is also the install surface for hook packs that expose
@@ -78,23 +77,16 @@ Supported archives: `.zip`, `.tgz`, `.tar.gz`, `.tar`.
 
 Claude marketplace installs are also supported.
 
-Marketplace Local installs use an explicit `clawhub:<package>` locator:
-
-```bash
-alisio plugins install clawhub:alisio-codex-app-server
-alisio plugins install clawhub:alisio-codex-app-server@1.2.3
-```
-
-Alisio now also prefers Marketplace Local for bare npm-safe plugin specs. It only falls
-back to npm if Marketplace Local does not have that package or version:
+Alisio now also prefers Local Marketplace for bare npm-safe plugin specs. It only falls
+back to npm if Local Marketplace does not have that package or version:
 
 ```bash
 alisio plugins install alisio-codex-app-server
 ```
 
-Alisio downloads the package archive from Marketplace Local, checks the advertised
+Alisio downloads the package archive from Local Marketplace, checks the advertised
 plugin API / minimum gateway compatibility, then installs it through the normal
-archive path. Recorded installs keep their Marketplace Local source metadata for later
+archive path. Recorded installs keep their Local Marketplace source metadata for later
 updates.
 
 Use `plugin@marketplace` shorthand when the marketplace name exists in Claude's

@@ -365,16 +365,8 @@
       "destination": "/channels/pairing"
     },
     {
-      "source": "/clawhub",
-      "destination": "/tools/clawhub"
-    },
-    {
-      "source": "/clawdhub",
-      "destination": "/tools/clawhub"
-    },
-    {
-      "source": "/tools/clawdhub",
-      "destination": "/tools/clawhub"
+      "source": "/marketplace",
+      "destination": "/tools/marketplace"
     },
     {
       "source": "/configuration",
@@ -1116,7 +1108,7 @@
                   "tools/creating-skills",
                   "tools/skills-config",
                   "tools/slash-commands",
-                  "tools/clawhub",
+                  "tools/marketplace",
                   "prose"
                 ]
               },
@@ -1778,7 +1770,7 @@
                   "zh-CN/tools/slash-commands",
                   "zh-CN/tools/skills",
                   "zh-CN/tools/skills-config",
-                  "zh-CN/tools/clawhub",
+                  "zh-CN/tools/marketplace",
                   "zh-CN/tools/plugin"
                 ]
               },

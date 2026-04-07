@@ -48,13 +48,13 @@ with Alisio), others are **external** (published on npm by the community).
 If you prefer chat-native control, enable `commands.plugins: true` and use:
 
 ```text
-/plugin install clawhub:@alisio/voice-call
+/plugin install @alisio/voice-call
 /plugin show voice-call
 /plugin enable voice-call
 ```
 
 The install path uses the same resolver as the CLI: local path/archive, explicit
-`clawhub:<pkg>`, or bare package spec (Marketplace Local first, then npm fallback).
+bare package spec (Local Marketplace first, then npm fallback).
 
 ## Plugin types
 
@@ -207,8 +207,7 @@ alisio plugins inspect <id> --json     # machine-readable
 alisio plugins status                  # operational summary
 alisio plugins doctor                  # diagnostics
 
-alisio plugins install <package>        # install (Marketplace Local first, then npm)
-alisio plugins install clawhub:<pkg>   # install from Marketplace Local only
+alisio plugins install <package>        # install (Local Marketplace first, then npm)
 alisio plugins install <path>          # install from local path
 alisio plugins install -l <path>       # link (no copy) for dev
 alisio plugins update <id>             # update one plugin

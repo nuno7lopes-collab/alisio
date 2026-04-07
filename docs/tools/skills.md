@@ -69,6 +69,6 @@ Use the app or advanced CLI flows to:
 
 ## Related Pages
 
-- [Local Marketplace](/tools/clawhub)
+- [Local Marketplace](/tools/marketplace)
 - [Product Overview](/start/overview)
 - [Memory](/concepts/memory)

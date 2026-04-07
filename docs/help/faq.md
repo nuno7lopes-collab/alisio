@@ -928,7 +928,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Can I load skills from a custom folder?">
-    Yes. Add extra directories via `skills.load.extraDirs` in `~/.alisio/alisio.json` (lowest precedence). Default precedence remains: `<workspace>/skills` → `~/.alisio/skills` → bundled → `skills.load.extraDirs`. `clawhub` installs into `./skills` by default, which Alisio treats as `<workspace>/skills` on the next session.
+    Yes. Add extra directories via `skills.load.extraDirs` in `~/.alisio/alisio.json` (lowest precedence). Default precedence remains: `<workspace>/skills` → `~/.alisio/skills` → bundled → `skills.load.extraDirs`. `marketplace` installs into `./skills` by default, which Alisio treats as `<workspace>/skills` on the next session.
   </Accordion>
 
   <Accordion title="How can I use different models for different tasks?">
@@ -1000,7 +1000,7 @@ for usage/billing and raise limits as needed.
 
   <Accordion title="How do I install skills on Linux?">
     Use native `alisio skills` commands or drop skills into your workspace. The macOS Skills UI isn't available on Linux.
-    Browse skills at [https://marketplace.local](https://marketplace.local).
+    Browse skills at [/tools/marketplace](/tools/marketplace).
 
     ```bash
     alisio skills search "calendar"
@@ -1008,7 +1008,7 @@ for usage/billing and raise limits as needed.
     alisio skills update --all
     ```
 
-    Install the separate `clawhub` CLI only if you want to publish or sync your own skills.
+    Install the separate `marketplace` CLI only if you want to publish or sync your own skills.
 
   </Accordion>
 
@@ -1084,7 +1084,7 @@ for usage/billing and raise limits as needed.
     alisio skills update --all
     ```
 
-    Native installs land in the active workspace `skills/` directory. For shared skills across agents, place them in `~/.alisio/skills/<name>/SKILL.md`. Some skills expect binaries installed via Homebrew; on Linux that means Linuxbrew (see the Homebrew Linux FAQ entry above). See [Skills](/tools/skills) and [Marketplace Local](/tools/clawhub).
+    Native installs land in the active workspace `skills/` directory. For shared skills across agents, place them in `~/.alisio/skills/<name>/SKILL.md`. Some skills expect binaries installed via Homebrew; on Linux that means Linuxbrew (see the Homebrew Linux FAQ entry above). See [Skills](/tools/skills) and [Local Marketplace](/tools/marketplace).
 
   </Accordion>
 

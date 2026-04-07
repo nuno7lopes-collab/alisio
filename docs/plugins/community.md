@@ -10,14 +10,14 @@ title: "Community Plugins"
 
 Community plugins are third-party packages that extend Alisio with new
 channels, tools, providers, or other capabilities. They are built and maintained
-by the community, published on [Marketplace Local](/tools/clawhub) or npm, and
+by the community, published on [Local Marketplace](/tools/marketplace) or npm, and
 installable with a single command.
 
 ```bash
 alisio plugins install <package-name>
 ```
 
-Alisio checks Marketplace Local first and falls back to npm automatically.
+Alisio checks Local Marketplace first and falls back to npm automatically.
 
 ## Listed plugins
 
@@ -102,9 +102,9 @@ alisio plugins install @wecom/wecom-alisio-plugin
 We welcome community plugins that are useful, documented, and safe to operate.
 
 <Steps>
-  <Step title="Publish to Marketplace Local or npm">
+  <Step title="Publish to Local Marketplace or npm">
     Your plugin must be installable via `alisio plugins install \<package-name\>`.
-    Publish to [Marketplace Local](/tools/clawhub) (preferred) or npm.
+    Publish to [Local Marketplace](/tools/marketplace) (preferred) or npm.
     See [Building Plugins](/plugins/building-plugins) for the full guide.
 
   </Step>
@@ -131,7 +131,7 @@ We welcome community plugins that are useful, documented, and safe to operate.
 
 | Requirement                           | Why                                         |
 | ------------------------------------- | ------------------------------------------- |
-| Published on Marketplace Local or npm | Users need `alisio plugins install` to work |
+| Published on Local Marketplace or npm | Users need `alisio plugins install` to work |
 | Public GitHub repo                    | Source review, issue tracking, transparency |
 | Setup and usage docs                  | Users need to know how to configure it      |
 | Active maintenance                    | Recent updates or responsive issue handling |

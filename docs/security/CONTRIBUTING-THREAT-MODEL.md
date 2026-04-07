@@ -19,7 +19,7 @@ Spotted an attack vector or risk we haven't covered? Open an issue on [alisio/tr
 **Helpful to include (but not required):**
 
 - The attack scenario and how it could be exploited
-- Which parts of Alisio are affected (CLI, gateway, channels, Marketplace Local, MCP servers, etc.)
+- Which parts of Alisio are affected (CLI, gateway, channels, Local Marketplace, MCP servers, etc.)
 - How severe you think it is (low / medium / high / critical)
 - Any links to related research, CVEs, or real-world examples
 

@@ -78,7 +78,7 @@ API key auth, and dynamic model resolution.
 
     The manifest declares `providerAuthEnvVars` so Alisio can detect
     credentials without loading your plugin runtime. If you publish the
-    provider on Marketplace Local, those `alisio.compat` and `alisio.build` fields
+    provider on Local Marketplace, those `alisio.compat` and `alisio.build` fields
     are required in `package.json`.
 
   </Step>
@@ -396,17 +396,14 @@ API key auth, and dynamic model resolution.
   </Step>
 </Steps>
 
-## Publish to Marketplace Local
+## Publish to Local Marketplace
 
-Provider plugins publish the same way as any other external code plugin:
+Provider plugins publish the same way as any other external code plugin. Use the
+Local Marketplace publish tooling, then install with:
 
 ```bash
-clawhub package publish your-org/your-plugin --dry-run
-clawhub package publish your-org/your-plugin
+alisio plugins install @myorg/alisio-my-plugin
 ```
-
-Do not use the legacy skill-only publish alias here; plugin packages should use
-`clawhub package publish`.
 
 ## File structure
 

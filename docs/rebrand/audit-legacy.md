@@ -50,11 +50,11 @@ This file records the documentation audit requested for the rebrand work without
 - `docs/gateway/local-models.md`
 - `docs/concepts/memory.md`
 - `docs/tools/skills.md`
-- `docs/tools/clawhub.md`
+- `docs/tools/marketplace.md`
 
-## Blocked Surfaces
+## Previously Blocked Surfaces (Now Updated)
 
-These pages still require a security-owner decision before they can be rewritten:
+These pages were originally restricted by `CODEOWNERS` and were updated under explicit approval:
 
 - `docs/gateway/security/**`
 - `docs/gateway/authentication.md`
@@ -71,5 +71,5 @@ These pages still require a security-owner decision before they can be rewritten
 
 ## Notes
 
-- Generated Chinese docs were intentionally left out of the manual rewrite pass.
+- Generated Chinese docs are updated via `docs-i18n` only (requires a configured OpenAI API key).
 - The product narrative now leads with the app, AI source selection, local marketplace, devices, connectors, channels, and automations.

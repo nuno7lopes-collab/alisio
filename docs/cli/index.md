@@ -523,9 +523,9 @@ List and inspect available skills plus readiness info.
 
 Subcommands:
 
-- `skills search [query...]`: search Marketplace Local skills.
-- `skills install <slug>`: install a skill from Marketplace Local into the active workspace.
-- `skills update <slug|--all>`: update tracked Marketplace Local skills.
+- `skills search [query...]`: search Local Marketplace skills.
+- `skills install <slug>`: install a skill from Local Marketplace into the active workspace.
+- `skills update <slug|--all>`: update tracked Local Marketplace skills.
 - `skills list`: list skills (default when no subcommand).
 - `skills info <name>`: show details for one skill.
 - `skills check`: summary of ready vs missing requirements.
@@ -536,7 +536,7 @@ Options:
 - `--json`: output JSON (no styling).
 - `-v`, `--verbose`: include missing requirements detail.
 
-Tip: use `alisio skills search`, `alisio skills install`, and `alisio skills update` for Marketplace Local-backed skills.
+Tip: use `alisio skills search`, `alisio skills install`, and `alisio skills update` for Local Marketplace-backed skills.
 
 ### `pairing`
 

@@ -189,7 +189,7 @@ alisio hooks disable command-logger
 ## Install Hook Packs
 
 ```bash
-alisio plugins install <package>        # Marketplace Local first, then npm
+alisio plugins install <package>        # Local Marketplace first, then npm
 alisio plugins install <package> --pin  # pin version
 alisio plugins install <path>           # local path
 ```

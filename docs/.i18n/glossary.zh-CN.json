@@ -1,7 +1,59 @@
 [
   {
-    "source": "OpenClaw",
-    "target": "OpenClaw"
+    "source": "Alisio",
+    "target": "Alisio"
+  },
+  {
+    "source": "Alisio Configuration",
+    "target": "Alisio 配置"
+  },
+  {
+    "source": "Alisio Threat Model",
+    "target": "Alisio 威胁模型"
+  },
+  {
+    "source": "Browser (Alisio-managed)",
+    "target": "浏览器（Alisio 管理）"
+  },
+  {
+    "source": "Devices",
+    "target": "设备"
+  },
+  {
+    "source": "Local Models and Servers",
+    "target": "本地模型和服务器"
+  },
+  {
+    "source": "macOS App",
+    "target": "macOS 应用"
+  },
+  {
+    "source": "Memory",
+    "target": "记忆"
+  },
+  {
+    "source": "Model Providers",
+    "target": "模型提供商"
+  },
+  {
+    "source": "Models",
+    "target": "模型"
+  },
+  {
+    "source": "Onboarding (macOS App)",
+    "target": "引导（macOS 应用）"
+  },
+  {
+    "source": "Product Overview",
+    "target": "产品概览"
+  },
+  {
+    "source": "Local Marketplace",
+    "target": "本地市场"
+  },
+  {
+    "source": "Minimum Sellable Product (MSP)",
+    "target": "Minimum Sellable Product (MSP)"
   },
   {
     "source": "Gateway",

@@ -14,8 +14,8 @@ Plugins extend Alisio with new capabilities: channels, model providers, speech,
 image generation, web search, agent tools, or any combination.
 
 You do not need to add your plugin to the Alisio repository. Publish to
-[Marketplace Local](/tools/clawhub) or npm and users install with
-`alisio plugins install <package-name>`. Alisio tries Marketplace Local first and
+[Local Marketplace](/tools/marketplace) or npm and users install with
+`alisio plugins install <package-name>`. Alisio tries Local Marketplace first and
 falls back to npm automatically.
 
 ## Prerequisites
@@ -79,7 +79,7 @@ and provider plugins have dedicated guides linked above.
     </CodeGroup>
 
     Every plugin needs a manifest, even with no config. See
-    [Manifest](/plugins/manifest) for the full schema. The canonical Marketplace Local
+    [Manifest](/plugins/manifest) for the full schema. The canonical Local Marketplace
     publish snippets live in `docs/snippets/plugin-publish/`.
 
   </Step>
@@ -116,15 +116,13 @@ and provider plugins have dedicated guides linked above.
 
   <Step title="Test and publish">
 
-    **External plugins:** validate and publish with Marketplace Local, then install:
+    **External plugins:** validate and publish via Local Marketplace tooling, then install:
 
     ```bash
-    clawhub package publish your-org/your-plugin --dry-run
-    clawhub package publish your-org/your-plugin
-    alisio plugins install clawhub:@myorg/alisio-my-plugin
+    alisio plugins install @myorg/alisio-my-plugin
     ```
 
-    Alisio also checks Marketplace Local before npm for bare package specs like
+    Alisio also checks Local Marketplace before npm for bare package specs like
     `@myorg/alisio-my-plugin`.
 
     **In-repo plugins:** place under the bundled plugin workspace tree — automatically discovered.
