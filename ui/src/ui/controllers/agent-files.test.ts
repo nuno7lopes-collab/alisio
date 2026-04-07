@@ -52,6 +52,13 @@ describe("agent-files controller", () => {
           size: 10,
           updatedAtMs: 1,
         },
+        {
+          name: "obsidian/Alisio Memory/long-term.md",
+          path: "/workspace/main/Alisio Memory/long-term.md",
+          missing: false,
+          size: 10,
+          updatedAtMs: 1,
+        },
       ],
     });
 

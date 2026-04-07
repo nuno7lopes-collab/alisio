@@ -36,7 +36,21 @@ import {
 import { assertNoPathAliasEscape } from "../../infra/path-alias-guards.js";
 import { isNotFoundPathError } from "../../infra/path-guards.js";
 import { movePathToTrash } from "../../plugin-sdk/browser-runtime.js";
+import {
+  listMemoryFiles,
+  resolveObsidianDisplayPath,
+  resolveObsidianMemoryLayout,
+  resolveObsidianReadPath,
+  type ResolvedObsidianMemoryLayout,
+} from "../../plugin-sdk/memory-core-host-runtime-files.js";
 import { DEFAULT_AGENT_ID, normalizeAgentId } from "../../routing/session-key.js";
+import {
+  getLongTermMemoryFilePriority,
+  isLongTermMemoryFileName,
+  isMemoryNoteFileName,
+  isObsidianMemoryToolPath,
+  normalizeMemoryFileName,
+} from "../../shared/memory-file-paths.js";
 import { resolveUserPath } from "../../utils.js";
 import {
   ErrorCodes,
@@ -109,33 +123,68 @@ function normalizeWorkspaceFileName(rawName: unknown): string {
   return name.replace(/\\/g, "/").replace(/^\.?\//, "");
 }
 
-function isAllowedMemoryNoteFileName(name: string): boolean {
-  if (!name || !name.startsWith("memory/") || !name.toLowerCase().endsWith(".md")) {
+function resolveObsidianMemoryInputPath(
+  name: string,
+  layout: ResolvedObsidianMemoryLayout | null,
+): string | null {
+  if (!layout || !isObsidianMemoryToolPath(name)) {
+    return null;
+  }
+  try {
+    return resolveObsidianReadPath({
+      layout,
+      relPath: name,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedMemoryNoteFileName(
+  name: string,
+  obsidianLayout?: ResolvedObsidianMemoryLayout | null,
+): boolean {
+  const normalized = normalizeMemoryFileName(name);
+  if (isMemoryNoteFileName(normalized) && !normalized.startsWith("obsidian/")) {
+    return true;
+  }
+  if (!isMemoryNoteFileName(normalized)) {
     return false;
   }
-  const segments = name.split("/");
-  return segments.every((segment) => Boolean(segment) && segment !== "." && segment !== "..");
+  return Boolean(resolveObsidianMemoryInputPath(normalized, obsidianLayout ?? null));
 }
 
 function isSupportedAgentWorkspaceFileName(
   name: string,
-  options?: { allowMemoryNotes?: boolean },
+  options?: {
+    allowMemoryNotes?: boolean;
+    obsidianLayout?: ResolvedObsidianMemoryLayout | null;
+  },
 ): boolean {
   if (ALLOWED_FILE_NAMES.has(name)) {
     return true;
   }
-  return Boolean(options?.allowMemoryNotes && isAllowedMemoryNoteFileName(name));
+  if (!options?.allowMemoryNotes) {
+    return false;
+  }
+  if (isAllowedMemoryNoteFileName(name, options.obsidianLayout)) {
+    return true;
+  }
+  return Boolean(resolveObsidianMemoryInputPath(name, options.obsidianLayout ?? null));
 }
 
 function resolveAgentWorkspaceFileOrRespondError(
   params: Record<string, unknown>,
   respond: RespondFn,
-  options?: { allowMemoryNotes?: boolean },
+  options?: {
+    allowMemoryNotes?: boolean;
+  },
 ): {
   cfg: ReturnType<typeof loadConfig>;
   agentId: string;
   workspaceDir: string;
   name: string;
+  obsidianLayout: ResolvedObsidianMemoryLayout | null;
 } | null {
   const cfg = loadConfig();
   const rawAgentId = params.agentId;
@@ -148,12 +197,21 @@ function resolveAgentWorkspaceFileOrRespondError(
     return null;
   }
   const name = normalizeWorkspaceFileName(params.name);
-  if (!isSupportedAgentWorkspaceFileName(name, options)) {
+  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+  const obsidianLayout = resolveObsidianMemoryLayout({
+    cfg,
+    workspaceDir,
+  });
+  if (
+    !isSupportedAgentWorkspaceFileName(name, {
+      allowMemoryNotes: options?.allowMemoryNotes,
+      obsidianLayout,
+    })
+  ) {
     respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, `unsupported file "${name}"`));
     return null;
   }
-  const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
-  return { cfg, agentId, workspaceDir, name };
+  return { cfg, agentId, workspaceDir, name, obsidianLayout };
 }
 
 type FileMeta = {
@@ -166,13 +224,13 @@ type ResolvedAgentWorkspaceFilePath =
       kind: "ready";
       requestPath: string;
       ioPath: string;
-      workspaceReal: string;
+      rootReal: string;
     }
   | {
       kind: "missing";
       requestPath: string;
       ioPath: string;
-      workspaceReal: string;
+      rootReal: string;
     }
   | {
       kind: "invalid";
@@ -187,7 +245,7 @@ function resolveNotFoundWorkspaceFilePathResult(params: {
   allowMissing: boolean;
   requestPath: string;
   ioPath: string;
-  workspaceReal: string;
+  rootReal: string;
 }): Extract<ResolvedAgentWorkspaceFilePath, { kind: "missing" | "invalid" }> | undefined {
   if (!isNotFoundPathError(params.error)) {
     return undefined;
@@ -197,7 +255,7 @@ function resolveNotFoundWorkspaceFilePathResult(params: {
       kind: "missing",
       requestPath: params.requestPath,
       ioPath: params.ioPath,
-      workspaceReal: params.workspaceReal,
+      rootReal: params.rootReal,
     };
   }
   return { kind: "invalid", requestPath: params.requestPath, reason: "file not found" };
@@ -208,7 +266,7 @@ function resolveWorkspaceFilePathResultOrThrow(params: {
   allowMissing: boolean;
   requestPath: string;
   ioPath: string;
-  workspaceReal: string;
+  rootReal: string;
 }): Extract<ResolvedAgentWorkspaceFilePath, { kind: "missing" | "invalid" }> {
   const notFoundResult = resolveNotFoundWorkspaceFilePathResult(params);
   if (notFoundResult) {
@@ -225,33 +283,34 @@ async function resolveWorkspaceRealPath(workspaceDir: string): Promise<string> {
   }
 }
 
-async function resolveAgentWorkspaceFilePath(params: {
-  workspaceDir: string;
-  name: string;
+async function resolveRootScopedFilePath(params: {
+  rootDir: string;
+  requestPath: string;
   allowMissing: boolean;
+  boundaryLabel: string;
+  resolveCandidatePath: (rootReal: string) => string;
 }): Promise<ResolvedAgentWorkspaceFilePath> {
-  const requestPath = path.join(params.workspaceDir, params.name);
-  const workspaceReal = await resolveWorkspaceRealPath(params.workspaceDir);
-  const candidatePath = path.resolve(workspaceReal, params.name);
+  const rootReal = await resolveWorkspaceRealPath(params.rootDir);
+  const candidatePath = path.resolve(params.resolveCandidatePath(rootReal));
 
   try {
     await assertNoPathAliasEscape({
       absolutePath: candidatePath,
-      rootPath: workspaceReal,
-      boundaryLabel: "workspace root",
+      rootPath: rootReal,
+      boundaryLabel: params.boundaryLabel,
     });
   } catch (error) {
     return {
       kind: "invalid",
-      requestPath,
+      requestPath: params.requestPath,
       reason: error instanceof Error ? error.message : "path escapes workspace root",
     };
   }
 
   const notFoundContext = {
     allowMissing: params.allowMissing,
-    requestPath,
-    workspaceReal,
+    requestPath: params.requestPath,
+    rootReal,
   } as const;
 
   let candidateLstat: Awaited<ReturnType<typeof fs.lstat>>;
@@ -287,23 +346,81 @@ async function resolveAgentWorkspaceFilePath(params: {
       });
     }
     if (!targetStat.isFile()) {
-      return { kind: "invalid", requestPath, reason: "path is not a regular file" };
+      return {
+        kind: "invalid",
+        requestPath: params.requestPath,
+        reason: "path is not a regular file",
+      };
     }
     if (targetStat.nlink > 1) {
-      return { kind: "invalid", requestPath, reason: "hardlinked file path not allowed" };
+      return {
+        kind: "invalid",
+        requestPath: params.requestPath,
+        reason: "hardlinked file path not allowed",
+      };
     }
-    return { kind: "ready", requestPath, ioPath: targetReal, workspaceReal };
+    return { kind: "ready", requestPath: params.requestPath, ioPath: targetReal, rootReal };
   }
 
   if (!candidateLstat.isFile()) {
-    return { kind: "invalid", requestPath, reason: "path is not a regular file" };
+    return {
+      kind: "invalid",
+      requestPath: params.requestPath,
+      reason: "path is not a regular file",
+    };
   }
   if (candidateLstat.nlink > 1) {
-    return { kind: "invalid", requestPath, reason: "hardlinked file path not allowed" };
+    return {
+      kind: "invalid",
+      requestPath: params.requestPath,
+      reason: "hardlinked file path not allowed",
+    };
   }
 
   const targetReal = await fs.realpath(candidatePath).catch(() => candidatePath);
-  return { kind: "ready", requestPath, ioPath: targetReal, workspaceReal };
+  return { kind: "ready", requestPath: params.requestPath, ioPath: targetReal, rootReal };
+}
+
+async function resolveAgentWorkspaceFilePath(params: {
+  workspaceDir: string;
+  name: string;
+  allowMissing: boolean;
+}): Promise<ResolvedAgentWorkspaceFilePath> {
+  return await resolveRootScopedFilePath({
+    rootDir: params.workspaceDir,
+    requestPath: path.join(params.workspaceDir, params.name),
+    allowMissing: params.allowMissing,
+    boundaryLabel: "workspace root",
+    resolveCandidatePath: (rootReal) => path.resolve(rootReal, params.name),
+  });
+}
+
+async function resolveObsidianFilePath(params: {
+  layout: ResolvedObsidianMemoryLayout;
+  name: string;
+  allowMissing: boolean;
+}): Promise<ResolvedAgentWorkspaceFilePath> {
+  let absolutePath: string;
+  try {
+    absolutePath = resolveObsidianReadPath({
+      layout: params.layout,
+      relPath: params.name,
+    }) as string;
+  } catch (error) {
+    return {
+      kind: "invalid",
+      requestPath: params.name,
+      reason: error instanceof Error ? error.message : "invalid obsidian memory path",
+    };
+  }
+
+  return await resolveRootScopedFilePath({
+    rootDir: params.layout.memoryDir,
+    requestPath: absolutePath,
+    allowMissing: params.allowMissing,
+    boundaryLabel: "obsidian memory root",
+    resolveCandidatePath: () => absolutePath,
+  });
 }
 
 async function statFileSafely(filePath: string): Promise<FileMeta | null> {
@@ -327,59 +444,9 @@ async function statFileSafely(filePath: string): Promise<FileMeta | null> {
   }
 }
 
-async function statDirectorySafely(
-  dirPath: string,
-): Promise<Awaited<ReturnType<typeof fs.lstat>> | null> {
-  try {
-    const stat = await fs.lstat(dirPath);
-    if (stat.isSymbolicLink() || !stat.isDirectory()) {
-      return null;
-    }
-    return stat;
-  } catch {
-    return null;
-  }
-}
-
-async function walkMemoryDirectory(
-  workspaceDir: string,
-  currentDir: string,
-  files: Array<{
-    name: string;
-    path: string;
-    missing: false;
-    size: number;
-    updatedAtMs: number;
-  }>,
-) {
-  const entries = await fs.readdir(currentDir, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    const absolutePath = path.join(currentDir, entry.name);
-    if (entry.isSymbolicLink()) {
-      continue;
-    }
-    if (entry.isDirectory()) {
-      await walkMemoryDirectory(workspaceDir, absolutePath, files);
-      continue;
-    }
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".md")) {
-      continue;
-    }
-    const meta = await statFileSafely(absolutePath);
-    if (!meta) {
-      continue;
-    }
-    files.push({
-      name: path.relative(workspaceDir, absolutePath).replace(/\\/g, "/"),
-      path: absolutePath,
-      missing: false,
-      size: meta.size,
-      updatedAtMs: meta.updatedAtMs,
-    });
-  }
-}
-
 async function listAgentMemoryFiles(workspaceDir: string) {
+  const cfg = loadConfig();
+  const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
   const files: Array<{
     name: string;
     path: string;
@@ -388,53 +455,69 @@ async function listAgentMemoryFiles(workspaceDir: string) {
     updatedAtMs?: number;
   }> = [];
 
-  let hasLongTermFile = false;
-  for (const name of MEMORY_FILE_NAMES) {
-    const resolved = await resolveAgentWorkspaceFilePath({
-      workspaceDir,
-      name,
-      allowMissing: true,
-    });
-    const meta = resolved.kind === "ready" ? await statFileSafely(resolved.ioPath) : null;
+  const discovered = await listMemoryFiles(workspaceDir, undefined, undefined, obsidianLayout);
+  let hasPreferredLongTerm = false;
+  for (const absPath of discovered) {
+    const meta = await statFileSafely(absPath);
     if (!meta) {
       continue;
     }
-    hasLongTermFile = true;
+    const name =
+      resolveObsidianDisplayPath(absPath, obsidianLayout ?? null) ??
+      path.relative(workspaceDir, absPath).replace(/\\/g, "/");
+    if (
+      obsidianLayout
+        ? name === obsidianLayout.longTermToolPath
+        : name === DEFAULT_MEMORY_FILENAME || name === DEFAULT_MEMORY_ALT_FILENAME
+    ) {
+      hasPreferredLongTerm = true;
+    }
     files.push({
       name,
-      path: resolved.requestPath,
+      path: absPath,
       missing: false,
       size: meta.size,
       updatedAtMs: meta.updatedAtMs,
     });
   }
 
-  if (!hasLongTermFile) {
-    files.push({
-      name: DEFAULT_MEMORY_FILENAME,
-      path: path.join(workspaceDir, DEFAULT_MEMORY_FILENAME),
-      missing: true,
-    });
+  if (!hasPreferredLongTerm) {
+    files.push(
+      obsidianLayout
+        ? {
+            name: obsidianLayout.longTermToolPath,
+            path: obsidianLayout.longTermPath,
+            missing: true,
+          }
+        : {
+            name: DEFAULT_MEMORY_FILENAME,
+            path: path.join(workspaceDir, DEFAULT_MEMORY_FILENAME),
+            missing: true,
+          },
+    );
   }
 
-  const memoryDir = path.join(workspaceDir, "memory");
-  if (await statDirectorySafely(memoryDir)) {
-    const noteFiles: Array<{
-      name: string;
-      path: string;
-      missing: false;
-      size: number;
-      updatedAtMs: number;
-    }> = [];
-    await walkMemoryDirectory(workspaceDir, memoryDir, noteFiles);
-    noteFiles.sort((left, right) => {
-      if (left.updatedAtMs !== right.updatedAtMs) {
-        return right.updatedAtMs - left.updatedAtMs;
+  files.sort((left, right) => {
+    const leftLongTerm = isLongTermMemoryFileName(left.name);
+    const rightLongTerm = isLongTermMemoryFileName(right.name);
+    if (leftLongTerm || rightLongTerm) {
+      if (leftLongTerm && rightLongTerm) {
+        const priorityDiff =
+          getLongTermMemoryFilePriority(left.name) - getLongTermMemoryFilePriority(right.name);
+        if (priorityDiff !== 0) {
+          return priorityDiff;
+        }
+        return left.name.localeCompare(right.name);
       }
-      return left.name.localeCompare(right.name);
-    });
-    files.push(...noteFiles);
-  }
+      return leftLongTerm ? -1 : 1;
+    }
+    const leftUpdatedAt = left.updatedAtMs ?? 0;
+    const rightUpdatedAt = right.updatedAtMs ?? 0;
+    if (leftUpdatedAt !== rightUpdatedAt) {
+      return rightUpdatedAt - leftUpdatedAt;
+    }
+    return left.name.localeCompare(right.name);
+  });
 
   return files;
 }
@@ -595,12 +678,20 @@ async function resolveWorkspaceFilePathOrRespond(params: {
   respond: RespondFn;
   workspaceDir: string;
   name: string;
+  obsidianLayout?: ResolvedObsidianMemoryLayout | null;
 }): Promise<ResolvedWorkspaceFilePath | undefined> {
-  const resolvedPath = await agentsHandlerDeps.resolveAgentWorkspaceFilePath({
-    workspaceDir: params.workspaceDir,
-    name: params.name,
-    allowMissing: true,
-  });
+  const normalizedName = normalizeMemoryFileName(params.name);
+  const resolvedPath = isObsidianMemoryToolPath(normalizedName)
+    ? await resolveObsidianFilePath({
+        layout: params.obsidianLayout as ResolvedObsidianMemoryLayout,
+        name: normalizedName,
+        allowMissing: true,
+      })
+    : await agentsHandlerDeps.resolveAgentWorkspaceFilePath({
+        workspaceDir: params.workspaceDir,
+        name: params.name,
+        allowMissing: true,
+      });
   if (resolvedPath.kind === "invalid") {
     respondWorkspaceFileInvalid(params.respond, params.name, resolvedPath.reason);
     return undefined;
@@ -924,16 +1015,17 @@ export const agentsHandlers: GatewayRequestHandlers = {
     if (!resolved) {
       return;
     }
-    const { agentId, workspaceDir, name } = resolved;
-    const filePath = path.join(workspaceDir, name);
+    const { agentId, workspaceDir, name, obsidianLayout } = resolved;
     const resolvedPath = await resolveWorkspaceFilePathOrRespond({
       respond,
       workspaceDir,
       name,
+      obsidianLayout,
     });
     if (!resolvedPath) {
       return;
     }
+    const filePath = resolvedPath.requestPath;
     if (resolvedPath.kind === "missing") {
       respondWorkspaceFileMissing({ respond, agentId, workspaceDir, name, filePath });
       return;
@@ -977,19 +1069,23 @@ export const agentsHandlers: GatewayRequestHandlers = {
     if (!resolved) {
       return;
     }
-    const { agentId, workspaceDir, name } = resolved;
+    const { agentId, workspaceDir, name, obsidianLayout } = resolved;
     await fs.mkdir(workspaceDir, { recursive: true });
-    const filePath = path.join(workspaceDir, name);
     const resolvedPath = await resolveWorkspaceFilePathOrRespond({
       respond,
       workspaceDir,
       name,
+      obsidianLayout,
     });
     if (!resolvedPath) {
       return;
     }
+    const filePath = resolvedPath.requestPath;
     const content = String(params.content ?? "");
-    const relativeWritePath = path.relative(resolvedPath.workspaceReal, resolvedPath.ioPath);
+    const isObsidianPath = isObsidianMemoryToolPath(name);
+    const writeRootDir =
+      isObsidianPath && obsidianLayout ? obsidianLayout.vaultRoot : resolvedPath.rootReal;
+    const relativeWritePath = path.relative(writeRootDir, resolvedPath.ioPath);
     if (
       !relativeWritePath ||
       relativeWritePath.startsWith("..") ||
@@ -1000,7 +1096,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
     }
     try {
       await agentsHandlerDeps.writeFileWithinRoot({
-        rootDir: resolvedPath.workspaceReal,
+        rootDir: writeRootDir,
         relativePath: relativeWritePath,
         data: content,
         encoding: "utf8",
@@ -1043,8 +1139,8 @@ export const agentsHandlers: GatewayRequestHandlers = {
     if (!resolved) {
       return;
     }
-    const { agentId, workspaceDir, name } = resolved;
-    if (!isAllowedMemoryNoteFileName(name)) {
+    const { agentId, workspaceDir, name, obsidianLayout } = resolved;
+    if (!isAllowedMemoryNoteFileName(name, obsidianLayout)) {
       respond(
         false,
         undefined,
@@ -1060,6 +1156,7 @@ export const agentsHandlers: GatewayRequestHandlers = {
       respond,
       workspaceDir,
       name,
+      obsidianLayout,
     });
     if (!resolvedPath) {
       return;

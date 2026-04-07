@@ -2,9 +2,9 @@ import { resolveAgentIdFromSessionKey } from "../../../../src/routing/session-ke
 import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import {
+  getLongTermMemoryFilePriority,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
-  PRIMARY_MEMORY_FILE_NAME,
 } from "../memory-files.ts";
 import type {
   AgentsFilesDeleteResult,
@@ -88,11 +88,10 @@ function compareMemoryFiles(
   const rightLongTerm = isLongTermMemoryFileName(right.name);
   if (leftLongTerm || rightLongTerm) {
     if (leftLongTerm && rightLongTerm) {
-      if (left.name === PRIMARY_MEMORY_FILE_NAME) {
-        return -1;
-      }
-      if (right.name === PRIMARY_MEMORY_FILE_NAME) {
-        return 1;
+      const priorityDiff =
+        getLongTermMemoryFilePriority(left.name) - getLongTermMemoryFilePriority(right.name);
+      if (priorityDiff !== 0) {
+        return priorityDiff;
       }
       return left.name.localeCompare(right.name);
     }
@@ -206,7 +205,13 @@ function resolvePreferredMemoryFileName(
   if (preferredName && files.some((file) => file.name === preferredName)) {
     return preferredName;
   }
-  const longTerm = files.find((file) => file.name === PRIMARY_MEMORY_FILE_NAME) ?? files[0];
+  const longTerm =
+    files
+      .filter((file) => isLongTermMemoryFileName(file.name))
+      .toSorted(
+        (left, right) =>
+          getLongTermMemoryFilePriority(left.name) - getLongTermMemoryFilePriority(right.name),
+      )[0] ?? files[0];
   return longTerm?.name ?? null;
 }
 

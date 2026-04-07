@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_AGENTS_FILENAME } from "../agents/workspace.js";
+import type { AlisioConfig } from "../config/config.js";
+import { resolveObsidianMemoryLayout } from "../plugin-sdk/memory-core-host-runtime-files.js";
 import { shortenHomePath } from "../utils.js";
+
+const DEFAULT_OBSIDIAN_MEMORY_PATH = "Alisio Memory";
 
 export const MEMORY_SYSTEM_PROMPT = [
   "Memory system not found in workspace.",
@@ -12,10 +16,21 @@ export const MEMORY_SYSTEM_PROMPT = [
   "https://github.com/openclaw/openclaw/commit/7d1fee70e76f2f634f1b41fca927ee663914183a",
 ].join("\n");
 
-export async function shouldSuggestMemorySystem(workspaceDir: string): Promise<boolean> {
+export async function shouldSuggestMemorySystem(params: {
+  workspaceDir: string;
+  cfg?: AlisioConfig;
+}): Promise<boolean> {
+  const workspaceDir = params.workspaceDir;
+  if (resolveObsidianMemoryLayout({ cfg: params.cfg, workspaceDir })) {
+    return false;
+  }
   const memoryPaths = [path.join(workspaceDir, "MEMORY.md"), path.join(workspaceDir, "memory.md")];
+  const obsidianMemoryPaths = [
+    path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH),
+    path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH, "long-term.md"),
+  ];
 
-  for (const memoryPath of memoryPaths) {
+  for (const memoryPath of [...memoryPaths, ...obsidianMemoryPaths]) {
     try {
       await fs.promises.access(memoryPath);
       return false;

@@ -217,6 +217,48 @@ describe("agent-memory controller", () => {
     ]);
   });
 
+  it("prefers obsidian long-term memory when it is present", async () => {
+    const { state, request } = createState();
+    request
+      .mockResolvedValueOnce({
+        agentId: "main",
+        workspace: "/workspace/main",
+        files: [
+          {
+            name: "MEMORY.md",
+            path: "/workspace/main/MEMORY.md",
+            missing: false,
+            size: 12,
+            updatedAtMs: 10,
+          },
+          {
+            name: "obsidian/Alisio Memory/long-term.md",
+            path: "/workspace/main/Alisio Memory/long-term.md",
+            missing: false,
+            size: 18,
+            updatedAtMs: 20,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        agentId: "main",
+        workspace: "/workspace/main",
+        file: {
+          name: "obsidian/Alisio Memory/long-term.md",
+          path: "/workspace/main/Alisio Memory/long-term.md",
+          missing: false,
+          size: 18,
+          updatedAtMs: 20,
+          content: "# Obsidian memory",
+        },
+      });
+
+    await loadAgentMemoryFiles(state, "main");
+
+    expect(state.memoryActive).toBe("obsidian/Alisio Memory/long-term.md");
+    expect(state.memoryDrafts["obsidian/Alisio Memory/long-term.md"]).toBe("# Obsidian memory");
+  });
+
   it("uses the delete endpoint and clears active note state", async () => {
     const { state, request } = createState();
     state.memorySelectedAgentId = "main";

@@ -1,5 +1,3 @@
-import os from "node:os";
-import path from "node:path";
 import {
   DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR,
   parseNonNegativeByteSize,
@@ -8,12 +6,13 @@ import {
   type MemoryFlushPlan,
   type OpenClawConfig,
 } from "openclaw/plugin-sdk/memory-core-host-runtime-core";
+import {
+  resolveObsidianMemoryLayout,
+  resolveObsidianWritePathForDate,
+} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 
 export const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4000;
 export const DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
-const DEFAULT_OBSIDIAN_MEMORY_PATH = "Alisio Memory";
-const LEGACY_MEMORY_PATH = "memory";
-
 const MEMORY_FLUSH_TARGET_HINT =
   "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).";
 const MEMORY_FLUSH_APPEND_ONLY_HINT =
@@ -99,51 +98,21 @@ function appendCurrentTimeLine(text: string, timeLine: string): string {
   return `${trimmed}\n${timeLine}`;
 }
 
-function resolveHomePath(rawPath: string): string {
-  const trimmed = rawPath.trim();
-  if (trimmed === "~") {
-    return os.homedir();
-  }
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return path.join(os.homedir(), trimmed.slice(2));
-  }
-  return path.resolve(trimmed);
-}
-
-function normalizeMemorySubpath(rawPath: string): string {
-  const trimmed = rawPath.trim();
-  if (!trimmed) {
-    throw new Error("memory.memoryPath must not be empty");
-  }
-  if (path.isAbsolute(trimmed)) {
-    throw new Error("memory.memoryPath must be a relative path");
-  }
-  const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  const segments = normalized.split("/").filter(Boolean);
-  if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
-    throw new Error('memory.memoryPath must not contain "." or ".." segments');
-  }
-  return segments.join("/");
-}
-
 function resolveMemoryFlushTarget(params: { cfg?: OpenClawConfig; dateStamp: string }): {
   path: string;
   obsidian: boolean;
 } {
-  const rawVaultPath = params.cfg?.memory?.vaultPath?.trim();
-  const rawMemoryPath = params.cfg?.memory?.memoryPath?.trim();
-  const normalizedMemoryPath = rawMemoryPath ? normalizeMemorySubpath(rawMemoryPath) : null;
-  if (rawVaultPath) {
-    const vaultRoot = resolveHomePath(rawVaultPath);
-    const memoryPath = normalizedMemoryPath ?? DEFAULT_OBSIDIAN_MEMORY_PATH;
+  const obsidianLayout = resolveObsidianMemoryLayout({
+    cfg: params.cfg,
+    workspaceDir: process.cwd(),
+  });
+  if (obsidianLayout) {
     return {
-      path: path.join(vaultRoot, ...memoryPath.split("/"), "daily", `${params.dateStamp}.md`),
-      obsidian: true,
-    };
-  }
-  if (normalizedMemoryPath && normalizedMemoryPath !== LEGACY_MEMORY_PATH) {
-    return {
-      path: path.posix.join(normalizedMemoryPath, "daily", `${params.dateStamp}.md`),
+      path: resolveObsidianWritePathForDate({
+        layout: obsidianLayout,
+        date: params.dateStamp,
+        workspaceDir: process.cwd(),
+      }),
       obsidian: true,
     };
   }

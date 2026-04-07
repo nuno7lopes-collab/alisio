@@ -28,6 +28,15 @@ describe("memory-files", () => {
     ).toBe("memory/2026-04-06-trip-planning-3.md");
   });
 
+  it("builds new notes inside the obsidian daily directory when obsidian memory exists", () => {
+    expect(
+      buildMemoryNoteName("2026-04-06", "Trip planning", [
+        "obsidian/Alisio Memory/long-term.md",
+        "obsidian/Alisio Memory/daily/2026-04-06-trip-planning.md",
+      ]),
+    ).toBe("obsidian/Alisio Memory/daily/2026-04-06-trip-planning-2.md");
+  });
+
   it("humanizes dated note names for the UI", () => {
     expect(humanizeMemoryNoteTitle("memory/2026-04-06-trip-planning.md")).toBe("Trip Planning");
     expect(humanizeMemoryNoteTitle("memory/2026-04-06.md")).toBe("2026-04-06");
@@ -36,7 +45,9 @@ describe("memory-files", () => {
   it("distinguishes durable memory files from note files", () => {
     expect(isLongTermMemoryFileName("MEMORY.md")).toBe(true);
     expect(isLongTermMemoryFileName("memory.md")).toBe(true);
+    expect(isLongTermMemoryFileName("obsidian/Alisio Memory/long-term.md")).toBe(true);
     expect(isMemoryNoteFileName("memory/2026-04-06.md")).toBe(true);
+    expect(isMemoryNoteFileName("obsidian/Alisio Memory/daily/2026-04-06.md")).toBe(true);
     expect(isMemoryNoteFileName("AGENTS.md")).toBe(false);
   });
 });

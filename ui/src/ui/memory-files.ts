@@ -1,29 +1,28 @@
-export const PRIMARY_MEMORY_FILE_NAME = "MEMORY.md";
-export const LEGACY_MEMORY_FILE_NAME = "memory.md";
+import {
+  getLongTermMemoryFilePriority,
+  isLongTermMemoryFileName,
+  isMemoryNoteFileName,
+  LEGACY_MEMORY_FILE_NAME,
+  normalizeMemoryFileName,
+  PRIMARY_MEMORY_FILE_NAME,
+  resolveManualMemoryNoteRoot,
+} from "../../../src/shared/memory-file-paths.js";
 
-function normalizePath(value: string): string {
-  return value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\.?\//, "");
-}
-
-export function isLongTermMemoryFileName(name: string): boolean {
-  const normalized = normalizePath(name);
-  return normalized === PRIMARY_MEMORY_FILE_NAME || normalized === LEGACY_MEMORY_FILE_NAME;
-}
-
-export function isMemoryNoteFileName(name: string): boolean {
-  const normalized = normalizePath(name);
-  return normalized.startsWith("memory/") && normalized.toLowerCase().endsWith(".md");
-}
+export {
+  getLongTermMemoryFilePriority,
+  isLongTermMemoryFileName,
+  isMemoryNoteFileName,
+  LEGACY_MEMORY_FILE_NAME,
+  normalizeMemoryFileName,
+  PRIMARY_MEMORY_FILE_NAME,
+};
 
 export function parseMemoryNoteFileName(name: string): {
   date: string | null;
   slug: string;
   basename: string;
 } {
-  const normalized = normalizePath(name);
+  const normalized = normalizeMemoryFileName(name);
   const basename = normalized.split("/").pop() ?? normalized;
   const stem = basename.replace(/\.md$/i, "");
   const match = /^(\d{4}-\d{2}-\d{2})(?:-(.+))?$/.exec(stem);
@@ -77,14 +76,15 @@ export function buildMemoryNoteName(
   const safeDate = isIsoDate(date) ? date : todayMemoryDate();
   const slug = slugifyMemoryNoteTitle(title);
   const baseName = slug ? `${safeDate}-${slug}` : safeDate;
-  const used = new Set(Array.from(existingNames, (entry) => normalizePath(entry)));
-  let candidate = `memory/${baseName}.md`;
+  const used = new Set(Array.from(existingNames, (entry) => normalizeMemoryFileName(entry)));
+  const root = resolveManualMemoryNoteRoot(existingNames);
+  let candidate = `${root}/${baseName}.md`;
   if (!used.has(candidate)) {
     return candidate;
   }
   let index = 2;
-  while (used.has(`memory/${baseName}-${index}.md`)) {
+  while (used.has(`${root}/${baseName}-${index}.md`)) {
     index += 1;
   }
-  return `memory/${baseName}-${index}.md`;
+  return `${root}/${baseName}-${index}.md`;
 }

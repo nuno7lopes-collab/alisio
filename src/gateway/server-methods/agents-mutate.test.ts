@@ -750,6 +750,92 @@ describe("agents.files.list memory scope", () => {
       undefined,
     );
   });
+
+  it("lists obsidian long-term memory and daily notes when obsidian memory is configured", async () => {
+    mocks.loadConfigReturn = {
+      memory: {
+        memoryPath: "Alisio Memory",
+      },
+    };
+    mocks.fsReaddir.mockImplementation(async (target: string) => {
+      if (target === "/workspace/test-agent/Alisio Memory") {
+        return [
+          {
+            name: "daily",
+            isFile: () => false,
+            isDirectory: () => true,
+            isSymbolicLink: () => false,
+          },
+          {
+            name: "long-term.md",
+            isFile: () => true,
+            isDirectory: () => false,
+            isSymbolicLink: () => false,
+          },
+        ];
+      }
+      if (target === "/workspace/test-agent/Alisio Memory/daily") {
+        return [
+          {
+            name: "2026-04-08.md",
+            isFile: () => true,
+            isDirectory: () => false,
+            isSymbolicLink: () => false,
+          },
+        ];
+      }
+      return [];
+    });
+    const fileStats = new Map<string, import("node:fs").Stats>([
+      ["/workspace/test-agent/Alisio Memory", makeDirectoryStat()],
+      ["/workspace/test-agent/Alisio Memory/daily", makeDirectoryStat()],
+      [
+        "/workspace/test-agent/Alisio Memory/long-term.md",
+        makeFileStat({ size: 25, mtimeMs: 8_000 }),
+      ],
+      [
+        "/workspace/test-agent/Alisio Memory/daily/2026-04-08.md",
+        makeFileStat({ size: 13, mtimeMs: 9_000 }),
+      ],
+    ]);
+    mocks.fsLstat.mockImplementation(async (target: string) => {
+      const stat = fileStats.get(target);
+      if (stat) {
+        return stat;
+      }
+      throw createEnoentError();
+    });
+    mocks.fsStat.mockImplementation(async (target: string) => {
+      const stat = fileStats.get(target);
+      if (stat) {
+        return stat;
+      }
+      throw createEnoentError();
+    });
+
+    const { respond, promise } = makeCall("agents.files.list", {
+      agentId: "main",
+      scope: "memory",
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        files: [
+          expect.objectContaining({
+            name: "obsidian/Alisio Memory/long-term.md",
+            missing: false,
+          }),
+          expect.objectContaining({
+            name: "obsidian/Alisio Memory/daily/2026-04-08.md",
+            missing: false,
+          }),
+        ],
+      }),
+      undefined,
+    );
+  });
 });
 
 describe("agents.files.get/set symlink safety", () => {
@@ -799,7 +885,7 @@ describe("agents.files.get/set symlink safety", () => {
         kind: "ready",
         requestPath: path.join(workspace, name),
         ioPath: target,
-        workspaceReal: workspace,
+        rootReal: workspace,
       }),
     });
     mocks.fsLstat.mockImplementation(async (...args: unknown[]) => {
@@ -860,7 +946,7 @@ describe("agents.files.get/set symlink safety", () => {
         kind: "ready",
         requestPath: path.join(workspace, name),
         ioPath: notePath,
-        workspaceReal: workspace,
+        rootReal: workspace,
       }),
     });
     mocks.fsLstat.mockImplementation(async (target: string) => {
@@ -966,6 +1052,26 @@ describe("agents.files.delete", () => {
     );
   });
 
+  it("rejects deleting obsidian long-term memory files", async () => {
+    mocks.loadConfigReturn = {
+      memory: {
+        memoryPath: "Alisio Memory",
+      },
+    };
+
+    const { respond, promise } = makeCall("agents.files.delete", {
+      agentId: "main",
+      name: "obsidian/Alisio Memory/long-term.md",
+    });
+    await promise;
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({ message: expect.stringContaining("cannot delete durable memory") }),
+    );
+  });
+
   it("deletes scoped memory notes", async () => {
     const workspace = "/workspace/test-agent";
     const notePath = path.join(workspace, "memory", "2026-04-05.md");
@@ -975,7 +1081,7 @@ describe("agents.files.delete", () => {
         kind: "ready",
         requestPath: path.join(workspace, name),
         ioPath: notePath,
-        workspaceReal: workspace,
+        rootReal: workspace,
       }),
     });
 
