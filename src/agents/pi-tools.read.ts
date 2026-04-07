@@ -3,7 +3,6 @@ import path from "node:path";
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import { createEditTool, createReadTool, createWriteTool } from "@mariozechner/pi-coding-agent";
 import {
-  appendFileWithinRoot,
   SafeOpenError,
   openFileWithinRoot,
   readFileWithinRoot,
@@ -412,11 +411,27 @@ type MemoryFlushAppendOnlyWriteOptions = {
   root: string;
   relativePath: string;
   containerWorkdir?: string;
+  createSeedContent?: string;
   sandbox?: {
     root: string;
     bridge: SandboxFsBridge;
   };
 };
+
+function resolveSandboxMemoryFlushPath(params: {
+  relativePath: string;
+  absolutePath: string;
+  sandboxRoot: string;
+}): string {
+  if (!path.isAbsolute(params.relativePath)) {
+    return params.relativePath;
+  }
+  const relative = path.relative(params.sandboxRoot, params.absolutePath).replace(/\\/g, "/");
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("Memory flush sandbox writes must stay inside the workspace root.");
+  }
+  return relative;
+}
 
 async function readOptionalUtf8File(params: {
   absolutePath: string;
@@ -452,34 +467,39 @@ async function readOptionalUtf8File(params: {
 
 async function appendMemoryFlushContent(params: {
   absolutePath: string;
-  root: string;
   relativePath: string;
   content: string;
+  createSeedContent?: string;
   sandbox?: MemoryFlushAppendOnlyWriteOptions["sandbox"];
   signal?: AbortSignal;
 }) {
-  if (!params.sandbox) {
-    await appendFileWithinRoot({
-      rootDir: params.root,
-      relativePath: params.relativePath,
-      data: params.content,
-      mkdir: true,
-      prependNewlineIfNeeded: true,
-    });
-    return;
-  }
+  const sandboxFilePath = params.sandbox
+    ? resolveSandboxMemoryFlushPath({
+        relativePath: params.relativePath,
+        absolutePath: params.absolutePath,
+        sandboxRoot: params.sandbox.root,
+      })
+    : undefined;
 
   const existing = await readOptionalUtf8File({
     absolutePath: params.absolutePath,
-    relativePath: params.relativePath,
-    sandbox: params.sandbox,
+    relativePath: sandboxFilePath ?? params.relativePath,
+    sandbox: params.sandbox
+      ? {
+          root: params.sandbox.root,
+          bridge: params.sandbox.bridge,
+        }
+      : undefined,
     signal: params.signal,
   });
+  const base =
+    existing.length === 0 && params.createSeedContent ? params.createSeedContent : existing;
   const separator =
-    existing.length > 0 && !existing.endsWith("\n") && !params.content.startsWith("\n") ? "\n" : "";
-  const next = `${existing}${separator}${params.content}`;
+    base.length > 0 && !base.endsWith("\n") && !params.content.startsWith("\n") ? "\n" : "";
+  const next = `${base}${separator}${params.content}`;
   if (params.sandbox) {
-    const parent = path.posix.dirname(params.relativePath);
+    const filePath = sandboxFilePath ?? params.relativePath;
+    const parent = path.posix.dirname(filePath);
     if (parent && parent !== ".") {
       await params.sandbox.bridge.mkdirp({
         filePath: parent,
@@ -488,7 +508,7 @@ async function appendMemoryFlushContent(params: {
       });
     }
     await params.sandbox.bridge.writeFile({
-      filePath: params.relativePath,
+      filePath,
       cwd: params.sandbox.root,
       data: next,
       mkdir: true,
@@ -534,9 +554,9 @@ export function wrapToolMemoryFlushAppendOnlyWrite(
 
       await appendMemoryFlushContent({
         absolutePath: allowedAbsolutePath,
-        root: options.root,
         relativePath: options.relativePath,
         content,
+        createSeedContent: options.createSeedContent,
         sandbox: options.sandbox,
         signal,
       });

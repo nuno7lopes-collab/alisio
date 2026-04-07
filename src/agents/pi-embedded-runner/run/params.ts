@@ -33,8 +33,10 @@ export type RunEmbeddedPiAgentParams = {
   agentAccountId?: string;
   /** What initiated this agent run: "user", "heartbeat", "cron", "memory", "overflow", or "manual". */
   trigger?: EmbeddedRunTrigger;
-  /** Relative workspace path that memory-triggered writes are allowed to append to. */
+  /** Workspace-relative or absolute path that memory-triggered writes are allowed to append to. */
   memoryFlushWritePath?: string;
+  /** Optional seed content written before the first append to a missing memory file. */
+  memoryFlushWriteSeedContent?: string;
   /** Delivery target (e.g. telegram:group:123:topic:456) for topic/thread routing. */
   messageTo?: string;
   /** Thread/topic identifier for routing replies to the originating thread. */

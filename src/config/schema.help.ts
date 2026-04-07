@@ -879,6 +879,10 @@ export const FIELD_HELP: Record<string, string> = {
     'Selects the global memory engine: "builtin" uses Alisio memory internals, while "qmd" uses the QMD sidecar pipeline. Keep "builtin" unless you intentionally operate QMD.',
   "memory.citations":
     'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
+  "memory.vaultPath":
+    'Sets the absolute Obsidian Vault root (or a path starting with "~") used for zero-plugin memory sync. When set, daily notes are written into that Vault instead of the workspace root.',
+  "memory.memoryPath":
+    'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
   "memory.qmd.command":
     "Sets the executable path for the `qmd` binary used by the QMD backend (default: resolved from PATH). Use an explicit absolute path when multiple qmd installs exist or PATH differs across environments.",
   "memory.qmd.mcporter":

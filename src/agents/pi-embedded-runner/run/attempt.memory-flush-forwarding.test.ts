@@ -4,9 +4,12 @@ import path from "node:path";
 import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
+import { buildObsidianDailyNoteSeed } from "../../../../packages/memory-host-sdk/src/host/obsidian-layout.js";
 import type { AnyAgentTool } from "../../pi-tools.types.js";
 
 const MEMORY_RELATIVE_PATH = "memory/2026-03-24.md";
+const OBSIDIAN_DATE = "2026-03-24";
+const OBSIDIAN_SEED = buildObsidianDailyNoteSeed(OBSIDIAN_DATE);
 
 function createAttemptParams(workspaceDir: string) {
   return {
@@ -31,6 +34,7 @@ function createAttemptParams(workspaceDir: string) {
     thinkLevel: "off" as const,
     trigger: "memory" as const,
     memoryFlushWritePath: MEMORY_RELATIVE_PATH,
+    memoryFlushWriteSeedContent: OBSIDIAN_SEED,
   };
 }
 
@@ -63,6 +67,7 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
       expect(capturedOptions[0]).toMatchObject({
         trigger: "memory",
         memoryFlushWritePath: MEMORY_RELATIVE_PATH,
+        memoryFlushWriteSeedContent: OBSIDIAN_SEED,
       });
     } finally {
       vi.doUnmock("../../pi-tools.js");
@@ -118,6 +123,51 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
       expect(fallbackWrite).not.toHaveBeenCalled();
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true });
+    }
+  });
+
+  it("creates obsidian-friendly daily notes with seed content for absolute vault targets", async () => {
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-attempt-memory-flush-"));
+    const vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-obsidian-vault-"));
+    const memoryFile = path.join(vaultDir, "Alisio Memory", "daily", `${OBSIDIAN_DATE}.md`);
+
+    try {
+      const { wrapToolMemoryFlushAppendOnlyWrite } = await import("../../pi-tools.read.js");
+      const fallbackWrite = vi.fn(async () => {
+        throw new Error("append-only wrapper should not delegate to the base write tool");
+      });
+      const writeTool: AnyAgentTool = {
+        name: "write",
+        label: "write",
+        description: "Write content to a file.",
+        parameters: { type: "object", properties: {} },
+        execute: fallbackWrite,
+      };
+      const wrapped = wrapToolMemoryFlushAppendOnlyWrite(writeTool, {
+        root: workspaceDir,
+        relativePath: memoryFile,
+        createSeedContent: OBSIDIAN_SEED,
+      });
+
+      await expect(
+        wrapped.execute("call-memory-flush-obsidian", {
+          path: memoryFile,
+          content: "durable memory bullet",
+        }),
+      ).resolves.toMatchObject({
+        details: {
+          path: memoryFile,
+          appendOnly: true,
+        },
+      });
+
+      await expect(fs.readFile(memoryFile, "utf-8")).resolves.toBe(
+        `${OBSIDIAN_SEED}durable memory bullet`,
+      );
+      expect(fallbackWrite).not.toHaveBeenCalled();
+    } finally {
+      await fs.rm(workspaceDir, { recursive: true, force: true });
+      await fs.rm(vaultDir, { recursive: true, force: true });
     }
   });
 });

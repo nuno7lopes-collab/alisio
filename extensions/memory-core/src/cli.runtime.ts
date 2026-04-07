@@ -26,6 +26,7 @@ import {
 import {
   listMemoryFiles,
   normalizeExtraMemoryPaths,
+  resolveObsidianMemoryLayout,
 } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 import { buildAgentSessionKey } from "openclaw/plugin-sdk/routing";
 import type { MemoryCommandOptions, MemorySearchCommandOptions } from "./cli.types.js";
@@ -90,8 +91,19 @@ function emitMemorySecretResolveDiagnostics(
   }
 }
 
-function formatSourceLabel(source: string, workspaceDir: string, agentId: string): string {
+function formatSourceLabel(
+  source: string,
+  workspaceDir: string,
+  agentId: string,
+  cfg?: OpenClawConfig,
+): string {
   if (source === "memory") {
+    const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
+    if (obsidianLayout) {
+      return shortenHomeInString(
+        `memory (legacy MEMORY.md + memory/*.md, Obsidian ${obsidianLayout.memoryDir}${path.sep}**/*.md)`,
+      );
+    }
     return shortenHomeInString(
       `memory (MEMORY.md + ${path.join(workspaceDir, "memory")}${path.sep}*.md)`,
     );
@@ -204,11 +216,14 @@ async function scanSessionFiles(agentId: string): Promise<SourceScan> {
 async function scanMemoryFiles(
   workspaceDir: string,
   extraPaths: string[] = [],
+  cfg?: OpenClawConfig,
 ): Promise<SourceScan> {
   const issues: string[] = [];
   const memoryFile = path.join(workspaceDir, "MEMORY.md");
   const altMemoryFile = path.join(workspaceDir, "memory.md");
   const memoryDir = path.join(workspaceDir, "memory");
+  const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
+  const primaryMemoryDir = obsidianLayout?.memoryDir ?? memoryDir;
 
   const primary = await checkReadableFile(memoryFile);
   const alt = await checkReadableFile(altMemoryFile);
@@ -244,16 +259,16 @@ async function scanMemoryFiles(
 
   let dirReadable: boolean | null = null;
   try {
-    await fs.access(memoryDir, fsSync.constants.R_OK);
+    await fs.access(primaryMemoryDir, fsSync.constants.R_OK);
     dirReadable = true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
-      issues.push(`memory directory missing (${shortenHomePath(memoryDir)})`);
+      issues.push(`memory directory missing (${shortenHomePath(primaryMemoryDir)})`);
       dirReadable = false;
     } else {
       issues.push(
-        `memory directory not accessible (${shortenHomePath(memoryDir)}): ${code ?? "error"}`,
+        `memory directory not accessible (${shortenHomePath(primaryMemoryDir)}): ${code ?? "error"}`,
       );
       dirReadable = null;
     }
@@ -262,13 +277,13 @@ async function scanMemoryFiles(
   let listed: string[] = [];
   let listedOk = false;
   try {
-    listed = await listMemoryFiles(workspaceDir, resolvedExtraPaths);
+    listed = await listMemoryFiles(workspaceDir, resolvedExtraPaths, undefined, obsidianLayout);
     listedOk = true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     if (dirReadable !== null) {
       issues.push(
-        `memory directory scan failed (${shortenHomePath(memoryDir)}): ${code ?? "error"}`,
+        `memory directory scan failed (${shortenHomePath(primaryMemoryDir)}): ${code ?? "error"}`,
       );
       dirReadable = null;
     }
@@ -330,12 +345,13 @@ async function scanMemorySources(params: {
   agentId: string;
   sources: MemorySourceName[];
   extraPaths?: string[];
+  cfg?: OpenClawConfig;
 }): Promise<MemorySourceScan> {
   const scans: SourceScan[] = [];
   const extraPaths = params.extraPaths ?? [];
   for (const source of params.sources) {
     if (source === "memory") {
-      scans.push(await scanMemoryFiles(params.workspaceDir, extraPaths));
+      scans.push(await scanMemoryFiles(params.workspaceDir, extraPaths, params.cfg));
     }
     if (source === "sessions") {
       scans.push(await scanSessionFiles(params.agentId));
@@ -432,6 +448,7 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
               agentId,
               sources,
               extraPaths: status.extraPaths,
+              cfg,
             })
           : undefined;
         allResults.push({ agentId, status, embeddingProbe, indexError, scan });
@@ -612,7 +629,7 @@ export async function runMemoryIndex(opts: MemoryCommandOptions) {
             const warn = (text: string) => colorize(rich, theme.warn, text);
             const label = (text: string) => muted(`${text}:`);
             const sourceLabels = (status.sources ?? []).map((source) =>
-              formatSourceLabel(source, status.workspaceDir ?? "", agentId),
+              formatSourceLabel(source, status.workspaceDir ?? "", agentId, cfg),
             );
             const extraPaths = status.workspaceDir
               ? formatExtraPaths(status.workspaceDir, status.extraPaths ?? [])

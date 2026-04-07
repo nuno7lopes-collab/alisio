@@ -39,6 +39,7 @@ import {
   type MemorySource,
   type MemorySyncProgressUpdate,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+import { resolveObsidianMemoryLayout } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -379,11 +380,18 @@ export abstract class MemoryManagerSyncOps {
     if (!this.sources.has("memory") || !this.settings.sync.watch || this.watcher) {
       return;
     }
+    const obsidianLayout = resolveObsidianMemoryLayout({
+      cfg: this.cfg,
+      workspaceDir: this.workspaceDir,
+    });
     const watchPaths = new Set<string>([
       path.join(this.workspaceDir, "MEMORY.md"),
       path.join(this.workspaceDir, "memory.md"),
       path.join(this.workspaceDir, "memory", "**", "*.md"),
     ]);
+    if (obsidianLayout) {
+      watchPaths.add(path.join(obsidianLayout.memoryDir, "**", "*.md"));
+    }
     const additionalPaths = normalizeExtraMemoryPaths(this.workspaceDir, this.settings.extraPaths);
     for (const entry of additionalPaths) {
       try {
@@ -712,16 +720,21 @@ export abstract class MemoryManagerSyncOps {
         ? this.db.prepare(`DELETE FROM ${FTS_TABLE} WHERE path = ? AND source = ?`)
         : null;
 
+    const obsidianLayout = resolveObsidianMemoryLayout({
+      cfg: this.cfg,
+      workspaceDir: this.workspaceDir,
+    });
     const files = await listMemoryFiles(
       this.workspaceDir,
       this.settings.extraPaths,
       this.settings.multimodal,
+      obsidianLayout,
     );
     const fileEntries = (
       await runWithConcurrency(
         files.map(
           (file) => async () =>
-            await buildFileEntry(file, this.workspaceDir, this.settings.multimodal),
+            await buildFileEntry(file, this.workspaceDir, this.settings.multimodal, obsidianLayout),
         ),
         this.getIndexConcurrency(),
       )

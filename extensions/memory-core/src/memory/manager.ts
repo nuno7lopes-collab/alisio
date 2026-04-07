@@ -19,6 +19,7 @@ import {
   type MemorySource,
   type MemorySyncProgressUpdate,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+import { resolveObsidianMemoryLayout } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -694,6 +695,10 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       relPath: params.relPath,
       from: params.from,
       lines: params.lines,
+      obsidianLayout: resolveObsidianMemoryLayout({
+        cfg: this.cfg,
+        workspaceDir: this.workspaceDir,
+      }),
     });
   }
 

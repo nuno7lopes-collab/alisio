@@ -421,6 +421,7 @@ export async function runEmbeddedAttempt(
           agentId: sessionAgentId,
           trigger: params.trigger,
           memoryFlushWritePath: params.memoryFlushWritePath,
+          memoryFlushWriteSeedContent: params.memoryFlushWriteSeedContent,
           exec: {
             ...params.execOverrides,
             elevated: params.bashElevated,

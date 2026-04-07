@@ -7,6 +7,16 @@ export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
+  /**
+   * Absolute Vault root for Obsidian-backed memory (absolute path or "~" path).
+   * When set, daily memory notes are written inside the Vault instead of the workspace.
+   */
+  vaultPath?: string;
+  /**
+   * Relative directory inside the workspace or Vault used for Alisio memory files.
+   * Legacy default remains "memory"; Obsidian mode defaults to "Alisio Memory".
+   */
+  memoryPath?: string;
   qmd?: MemoryQmdConfig;
 };
 

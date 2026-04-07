@@ -142,6 +142,23 @@ describe("buildMemoryFlushPlan", () => {
     expect(plan?.relativePath).toBe("memory/2026-02-16.md");
   });
 
+  it("targets obsidian daily notes when a vault path is configured", () => {
+    const plan = buildMemoryFlushPlan({
+      cfg: {
+        ...cfg,
+        memory: {
+          vaultPath: "/vaults/main",
+          memoryPath: "Alisio Memory",
+        },
+      },
+      nowMs: Date.UTC(2026, 1, 16, 15, 0, 0),
+    });
+
+    expect(plan?.relativePath).toBe("/vaults/main/Alisio Memory/daily/2026-02-16.md");
+    expect(plan?.prompt).toContain("/vaults/main/Alisio Memory/daily/2026-02-16.md");
+    expect(plan?.prompt).toContain("frontmatter");
+  });
+
   it("does not append a duplicate current time line", () => {
     const plan = buildMemoryFlushPlan({
       cfg: {

@@ -1,6 +1,12 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import {
+  buildObsidianDailyNoteSeed,
+  resolveObsidianMemoryLayout,
+  resolveObsidianWritePathForDate,
+  syncObsidianLongTermMemoryRollup,
+} from "../../../packages/memory-host-sdk/src/host/obsidian-layout.js";
 import { resolveBootstrapWarningSignaturesSeen } from "../../agents/bootstrap-budget.js";
 import { estimateMessagesTokens } from "../../agents/compaction.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
@@ -280,6 +286,11 @@ function estimatePromptTokensFromSessionTranscript(params: {
   } catch {
     return undefined;
   }
+}
+
+function resolveDateStampFromFlushPath(filePath: string): string | undefined {
+  const match = filePath.replace(/\\/g, "/").match(/(\d{4}-\d{2}-\d{2})\.md$/);
+  return match?.[1];
 }
 
 export async function readPromptTokensFromSessionLog(
@@ -670,6 +681,24 @@ export async function runMemoryFlushIfNeeded(params: {
       nowMs: memoryFlushNowMs,
     }) ?? memoryFlushPlan;
   const memoryFlushWritePath = activeMemoryFlushPlan.relativePath;
+  const obsidianLayout = resolveObsidianMemoryLayout({
+    cfg: params.cfg,
+    workspaceDir: params.followupRun.run.workspaceDir,
+  });
+  const memoryFlushDateStamp = resolveDateStampFromFlushPath(memoryFlushWritePath);
+  const memoryFlushWriteSeedContent =
+    obsidianLayout && memoryFlushDateStamp
+      ? (() => {
+          const expectedWritePath = resolveObsidianWritePathForDate({
+            layout: obsidianLayout,
+            date: memoryFlushDateStamp,
+            workspaceDir: params.followupRun.run.workspaceDir,
+          });
+          return expectedWritePath === memoryFlushWritePath
+            ? buildObsidianDailyNoteSeed(memoryFlushDateStamp)
+            : undefined;
+        })()
+      : undefined;
   const flushSystemPrompt = [
     params.followupRun.run.extraSystemPrompt,
     activeMemoryFlushPlan.systemPrompt,
@@ -699,6 +728,7 @@ export async function runMemoryFlushIfNeeded(params: {
           silentExpected: true,
           trigger: "memory",
           memoryFlushWritePath,
+          memoryFlushWriteSeedContent,
           prompt: activeMemoryFlushPlan.prompt,
           extraSystemPrompt: flushSystemPrompt,
           bootstrapPromptWarningSignaturesSeen,
@@ -722,6 +752,16 @@ export async function runMemoryFlushIfNeeded(params: {
         return result;
       },
     });
+    if (obsidianLayout) {
+      try {
+        await syncObsidianLongTermMemoryRollup({
+          cfg: params.cfg,
+          workspaceDir: params.followupRun.run.workspaceDir,
+        });
+      } catch (err) {
+        logVerbose(`failed to sync obsidian long-term memory rollup: ${String(err)}`);
+      }
+    }
     let memoryFlushCompactionCount =
       activeSessionEntry?.compactionCount ??
       (params.sessionKey ? activeSessionStore?.[params.sessionKey]?.compactionCount : 0) ??

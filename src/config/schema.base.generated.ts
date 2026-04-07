@@ -10947,6 +10947,12 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
               },
             ],
           },
+          vaultPath: {
+            type: "string",
+          },
+          memoryPath: {
+            type: "string",
+          },
           qmd: {
             type: "object",
             properties: {
@@ -13691,6 +13697,16 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.citations": {
       label: "Memory Citations Mode",
       help: 'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
+      tags: ["storage"],
+    },
+    "memory.vaultPath": {
+      label: "Memory Obsidian Vault Path",
+      help: 'Sets the absolute Obsidian Vault root (or a path starting with "~") used for zero-plugin memory sync. When set, daily notes are written into that Vault instead of the workspace root.',
+      tags: ["storage"],
+    },
+    "memory.memoryPath": {
+      label: "Memory Directory Path",
+      help: 'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
       tags: ["storage"],
     },
     "memory.qmd.command": {

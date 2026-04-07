@@ -12,7 +12,10 @@ export const DEFAULT_TEMPORAL_DECAY_CONFIG: TemporalDecayConfig = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DATED_MEMORY_PATH_RE = /(?:^|\/)memory\/(\d{4})-(\d{2})-(\d{2})\.md$/;
+const DATED_MEMORY_PATH_RES = [
+  /(?:^|\/)memory\/(\d{4})-(\d{2})-(\d{2})\.md$/,
+  /(?:^|\/)daily\/(\d{4})-(\d{2})-(\d{2})\.md$/,
+];
 
 export function toDecayLambda(halfLifeDays: number): number {
   if (!Number.isFinite(halfLifeDays) || halfLifeDays <= 0) {
@@ -43,29 +46,32 @@ export function applyTemporalDecayToScore(params: {
 
 function parseMemoryDateFromPath(filePath: string): Date | null {
   const normalized = filePath.replaceAll("\\", "/").replace(/^\.\//, "");
-  const match = DATED_MEMORY_PATH_RE.exec(normalized);
-  if (!match) {
-    return null;
-  }
+  for (const pattern of DATED_MEMORY_PATH_RES) {
+    const match = pattern.exec(normalized);
+    if (!match) {
+      continue;
+    }
 
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-    return null;
-  }
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+      return null;
+    }
 
-  const timestamp = Date.UTC(year, month - 1, day);
-  const parsed = new Date(timestamp);
-  if (
-    parsed.getUTCFullYear() !== year ||
-    parsed.getUTCMonth() !== month - 1 ||
-    parsed.getUTCDate() !== day
-  ) {
-    return null;
-  }
+    const timestamp = Date.UTC(year, month - 1, day);
+    const parsed = new Date(timestamp);
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      return null;
+    }
 
-  return parsed;
+    return parsed;
+  }
+  return null;
 }
 
 function isEvergreenMemoryPath(filePath: string): boolean {
@@ -73,10 +79,16 @@ function isEvergreenMemoryPath(filePath: string): boolean {
   if (normalized === "MEMORY.md" || normalized === "memory.md") {
     return true;
   }
+  if (/(?:^|\/)long-term\.md$/.test(normalized)) {
+    return true;
+  }
+  if (normalized.startsWith("obsidian/")) {
+    return !/(?:^|\/)daily\/\d{4}-\d{2}-\d{2}\.md$/.test(normalized);
+  }
   if (!normalized.startsWith("memory/")) {
     return false;
   }
-  return !DATED_MEMORY_PATH_RE.test(normalized);
+  return !DATED_MEMORY_PATH_RES[0].test(normalized);
 }
 
 async function extractTimestamp(params: {

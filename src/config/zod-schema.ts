@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 import { parseByteSize } from "../cli/parse-bytes.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
@@ -112,10 +113,35 @@ const MemoryQmdSchema = z
   })
   .strict();
 
+function isValidMemoryVaultPath(value: string): boolean {
+  const trimmed = value.trim();
+  return Boolean(trimmed) && (trimmed.startsWith("~") || path.isAbsolute(trimmed));
+}
+
+function isValidMemorySubpath(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || path.isAbsolute(trimmed)) {
+    return false;
+  }
+  const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized) {
+    return false;
+  }
+  return normalized.split("/").every((segment) => segment && segment !== "." && segment !== "..");
+}
+
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
+    vaultPath: z
+      .string()
+      .refine(isValidMemoryVaultPath, 'Expected an absolute path or a "~" path')
+      .optional(),
+    memoryPath: z
+      .string()
+      .refine(isValidMemorySubpath, "Expected a relative subpath without '.' or '..'")
+      .optional(),
     qmd: MemoryQmdSchema.optional(),
   })
   .strict()

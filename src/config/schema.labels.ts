@@ -385,6 +385,8 @@ export const FIELD_LABELS: Record<string, string> = {
   memory: "Memory",
   "memory.backend": "Memory Backend",
   "memory.citations": "Memory Citations Mode",
+  "memory.vaultPath": "Memory Obsidian Vault Path",
+  "memory.memoryPath": "Memory Directory Path",
   "memory.qmd.command": "QMD Binary",
   "memory.qmd.mcporter": "QMD MCPorter",
   "memory.qmd.mcporter.enabled": "QMD MCPorter Enabled",

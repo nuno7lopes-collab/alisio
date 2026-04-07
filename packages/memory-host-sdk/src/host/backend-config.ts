@@ -15,6 +15,7 @@ import type {
 import { normalizeAgentId } from "../../../../src/routing/session-key.js";
 import { resolveUserPath } from "../../../../src/utils.js";
 import { splitShellArgs } from "../../../../src/utils/shell-argv.js";
+import { resolveObsidianMemoryLayout } from "./obsidian-layout.js";
 
 export type ResolvedMemoryBackendConfig = {
   backend: MemoryBackend;
@@ -309,6 +310,7 @@ function resolveMcporterConfig(raw?: MemoryQmdMcporterConfig): ResolvedQmdMcport
 
 function resolveDefaultCollections(
   include: boolean,
+  cfg: OpenClawConfig,
   workspaceDir: string,
   existing: Set<string>,
   agentId: string,
@@ -321,6 +323,14 @@ function resolveDefaultCollections(
     { path: workspaceDir, pattern: "memory.md", base: "memory-alt" },
     { path: path.join(workspaceDir, "memory"), pattern: "**/*.md", base: "memory-dir" },
   ];
+  const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
+  if (obsidianLayout) {
+    entries.push({
+      path: obsidianLayout.memoryDir,
+      pattern: "**/*.md",
+      base: "obsidian-memory-dir",
+    });
+  }
   return entries.map((entry) => ({
     name: ensureUniqueName(scopeCollectionBase(entry.base, agentId), existing),
     path: entry.path,
@@ -363,7 +373,13 @@ export function resolveMemoryBackendConfig(params: {
   const allQmdPaths: MemoryQmdIndexPath[] = [...(qmdCfg?.paths ?? []), ...searchExtraPaths];
 
   const collections = [
-    ...resolveDefaultCollections(includeDefaultMemory, workspaceDir, nameSet, normalizedAgentId),
+    ...resolveDefaultCollections(
+      includeDefaultMemory,
+      params.cfg,
+      workspaceDir,
+      nameSet,
+      normalizedAgentId,
+    ),
     ...resolveCustomPaths(allQmdPaths, workspaceDir, nameSet, normalizedAgentId),
   ];
 

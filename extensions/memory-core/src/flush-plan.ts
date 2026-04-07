@@ -1,3 +1,5 @@
+import os from "node:os";
+import path from "node:path";
 import {
   DEFAULT_PI_COMPACTION_RESERVE_TOKENS_FLOOR,
   parseNonNegativeByteSize,
@@ -9,6 +11,8 @@ import {
 
 export const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4000;
 export const DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
+const DEFAULT_OBSIDIAN_MEMORY_PATH = "Alisio Memory";
+const LEGACY_MEMORY_PATH = "memory";
 
 const MEMORY_FLUSH_TARGET_HINT =
   "Store durable memories only in memory/YYYY-MM-DD.md (create memory/ if needed).";
@@ -71,9 +75,12 @@ function ensureNoReplyHint(text: string): string {
   return `${text}\n\nIf no user-visible reply is needed, start with ${SILENT_REPLY_TOKEN}.`;
 }
 
-function ensureMemoryFlushSafetyHints(text: string): string {
+function ensureMemoryFlushSafetyHints(
+  text: string,
+  requiredHints = MEMORY_FLUSH_REQUIRED_HINTS,
+): string {
   let next = text.trim();
-  for (const hint of MEMORY_FLUSH_REQUIRED_HINTS) {
+  for (const hint of requiredHints) {
     if (!next.includes(hint)) {
       next = next ? `${next}\n\n${hint}` : hint;
     }
@@ -90,6 +97,60 @@ function appendCurrentTimeLine(text: string, timeLine: string): string {
     return trimmed;
   }
   return `${trimmed}\n${timeLine}`;
+}
+
+function resolveHomePath(rawPath: string): string {
+  const trimmed = rawPath.trim();
+  if (trimmed === "~") {
+    return os.homedir();
+  }
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    return path.join(os.homedir(), trimmed.slice(2));
+  }
+  return path.resolve(trimmed);
+}
+
+function normalizeMemorySubpath(rawPath: string): string {
+  const trimmed = rawPath.trim();
+  if (!trimmed) {
+    throw new Error("memory.memoryPath must not be empty");
+  }
+  if (path.isAbsolute(trimmed)) {
+    throw new Error("memory.memoryPath must be a relative path");
+  }
+  const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length === 0 || segments.some((segment) => segment === "." || segment === "..")) {
+    throw new Error('memory.memoryPath must not contain "." or ".." segments');
+  }
+  return segments.join("/");
+}
+
+function resolveMemoryFlushTarget(params: { cfg?: OpenClawConfig; dateStamp: string }): {
+  path: string;
+  obsidian: boolean;
+} {
+  const rawVaultPath = params.cfg?.memory?.vaultPath?.trim();
+  const rawMemoryPath = params.cfg?.memory?.memoryPath?.trim();
+  const normalizedMemoryPath = rawMemoryPath ? normalizeMemorySubpath(rawMemoryPath) : null;
+  if (rawVaultPath) {
+    const vaultRoot = resolveHomePath(rawVaultPath);
+    const memoryPath = normalizedMemoryPath ?? DEFAULT_OBSIDIAN_MEMORY_PATH;
+    return {
+      path: path.join(vaultRoot, ...memoryPath.split("/"), "daily", `${params.dateStamp}.md`),
+      obsidian: true,
+    };
+  }
+  if (normalizedMemoryPath && normalizedMemoryPath !== LEGACY_MEMORY_PATH) {
+    return {
+      path: path.posix.join(normalizedMemoryPath, "daily", `${params.dateStamp}.md`),
+      obsidian: true,
+    };
+  }
+  return {
+    path: `memory/${params.dateStamp}.md`,
+    obsidian: false,
+  };
 }
 
 export function buildMemoryFlushPlan(
@@ -117,23 +178,39 @@ export function buildMemoryFlushPlan(
 
   const { timeLine, userTimezone } = resolveCronStyleNow(cfg ?? {}, nowMs);
   const dateStamp = formatDateStampInTimezone(nowMs, userTimezone);
-  const relativePath = `memory/${dateStamp}.md`;
+  const target = resolveMemoryFlushTarget({ cfg, dateStamp });
+  const targetHint = `Store durable memories only in ${target.path}.`;
+  const appendOnlyHint = `If ${target.path} already exists, APPEND new content only and do not overwrite existing entries.`;
+  const requiredHints = [targetHint, appendOnlyHint, MEMORY_FLUSH_READ_ONLY_HINT];
 
   const promptBase = ensureNoReplyHint(
-    ensureMemoryFlushSafetyHints(defaults?.prompt?.trim() || DEFAULT_MEMORY_FLUSH_PROMPT),
+    ensureMemoryFlushSafetyHints(
+      (defaults?.prompt?.trim() || DEFAULT_MEMORY_FLUSH_PROMPT)
+        .replaceAll(MEMORY_FLUSH_TARGET_HINT, targetHint)
+        .replaceAll(MEMORY_FLUSH_APPEND_ONLY_HINT, appendOnlyHint),
+      requiredHints,
+    ),
   );
   const systemPrompt = ensureNoReplyHint(
     ensureMemoryFlushSafetyHints(
-      defaults?.systemPrompt?.trim() || DEFAULT_MEMORY_FLUSH_SYSTEM_PROMPT,
+      (defaults?.systemPrompt?.trim() || DEFAULT_MEMORY_FLUSH_SYSTEM_PROMPT)
+        .replaceAll(MEMORY_FLUSH_TARGET_HINT, targetHint)
+        .replaceAll(MEMORY_FLUSH_APPEND_ONLY_HINT, appendOnlyHint),
+      requiredHints,
     ),
   );
+  const prompt = appendCurrentTimeLine(promptBase.replaceAll("YYYY-MM-DD", dateStamp), timeLine);
+  const obsidianPrompt =
+    target.obsidian && !prompt.includes("frontmatter")
+      ? `${prompt}\n\nIf the note already has frontmatter or headings, preserve them and append only the new durable memory content.`
+      : prompt;
 
   return {
     softThresholdTokens,
     forceFlushTranscriptBytes,
     reserveTokensFloor,
-    prompt: appendCurrentTimeLine(promptBase.replaceAll("YYYY-MM-DD", dateStamp), timeLine),
+    prompt: obsidianPrompt,
     systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", dateStamp),
-    relativePath,
+    relativePath: target.path,
   };
 }

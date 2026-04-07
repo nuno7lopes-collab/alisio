@@ -477,6 +477,7 @@ export async function runEmbeddedPiAgent(
             sessionKey: params.sessionKey,
             trigger: params.trigger,
             memoryFlushWritePath: params.memoryFlushWritePath,
+            memoryFlushWriteSeedContent: params.memoryFlushWriteSeedContent,
             messageChannel: params.messageChannel,
             messageProvider: params.messageProvider,
             agentAccountId: params.agentAccountId,

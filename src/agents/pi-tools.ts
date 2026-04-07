@@ -206,8 +206,10 @@ export function createOpenClawCodingTools(options?: {
   runId?: string;
   /** What initiated this run (for trigger-specific tool restrictions). */
   trigger?: string;
-  /** Relative workspace path that memory-triggered writes may append to. */
+  /** Workspace-relative or absolute path that memory-triggered writes may append to. */
   memoryFlushWritePath?: string;
+  /** Optional seed content written before the first append to a missing memory file. */
+  memoryFlushWriteSeedContent?: string;
   agentDir?: string;
   workspaceDir?: string;
   /**
@@ -554,6 +556,7 @@ export function createOpenClawCodingTools(options?: {
               wrapToolMemoryFlushAppendOnlyWrite(tool, {
                 root: sandboxRoot ?? workspaceRoot,
                 relativePath: memoryFlushWritePath,
+                createSeedContent: options?.memoryFlushWriteSeedContent,
                 containerWorkdir: sandbox?.containerWorkdir,
                 sandbox:
                   sandboxRoot && sandboxFsBridge
