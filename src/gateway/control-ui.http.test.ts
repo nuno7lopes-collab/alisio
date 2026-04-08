@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ALISIO_BOOTSTRAP_HTTP_PATH,
+  type AlisioHttpBootstrap,
   CONTROL_UI_BOOTSTRAP_CONFIG_PATH,
 } from "./control-ui-contract.js";
 import {
@@ -83,18 +84,7 @@ describe("handleControlUiHttpRequest", () => {
   }
 
   function parseAlisioBootstrapPayload(end: ReturnType<typeof makeMockHttpResponse>["end"]) {
-    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as {
-      basePath: string;
-      controlUrl: string;
-      connectionRequired?: boolean;
-      startupState: string;
-      providerReady?: boolean;
-      accountReady?: boolean;
-      nextStep?: string;
-      account: unknown;
-      ai: unknown;
-      bootstrapToken?: string;
-    };
+    return JSON.parse(String(end.mock.calls[0]?.[0] ?? "")) as AlisioHttpBootstrap;
   }
 
   function expectNotFoundResponse(params: {

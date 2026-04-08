@@ -92,6 +92,8 @@ struct AlisioConfigFileTests {
         await TestIsolation.withEnvValues([
             "ALISIO_CONFIG_PATH": nil,
             "ALISIO_STATE_DIR": dir,
+            "OPENCLAW_CONFIG_PATH": nil,
+            "OPENCLAW_STATE_DIR": nil,
         ]) {
             #expect(AlisioConfigFile.stateDirURL().path == dir)
             #expect(AlisioConfigFile.url().path == "\(dir)/alisio.json")

@@ -64,6 +64,42 @@ async function normalizeExecutablePath(value: string): Promise<string> {
   }
 }
 
+function normalizeBundledDevAppEntrypoint(value: string): string | null {
+  const normalized = path.resolve(value);
+  const markerPattern = new RegExp(
+    `${path.sep === "\\" ? "\\\\" : path.sep}Contents${path.sep === "\\" ? "\\\\" : path.sep}Resources${path.sep === "\\" ? "\\\\" : path.sep}[^${path.sep === "\\" ? "\\\\" : path.sep}]+-package${path.sep === "\\" ? "\\\\" : path.sep}`,
+  );
+  const markerMatch = normalized.match(markerPattern);
+  if (!markerMatch || markerMatch.index == null) {
+    return null;
+  }
+  const markerIndex = markerMatch.index;
+  const marker = markerMatch[0];
+  const bundlePath = normalized.slice(0, markerIndex);
+  const relativeEntrypoint = normalized.slice(markerIndex + marker.length);
+  const bundleParent = path.dirname(bundlePath);
+  if (path.basename(bundleParent) !== "dist") {
+    return null;
+  }
+  return path.join(path.dirname(bundleParent), relativeEntrypoint);
+}
+
+function entrypointsMatchForCurrentInstall(params: {
+  normalizedExpectedEntrypoint: string | null;
+  normalizedCurrentEntrypoint: string | null;
+}) {
+  if (!params.normalizedExpectedEntrypoint || !params.normalizedCurrentEntrypoint) {
+    return false;
+  }
+  if (params.normalizedExpectedEntrypoint === params.normalizedCurrentEntrypoint) {
+    return true;
+  }
+  return (
+    normalizeBundledDevAppEntrypoint(params.normalizedCurrentEntrypoint) ===
+    params.normalizedExpectedEntrypoint
+  );
+}
+
 function extractDetailPath(detail: string, prefix: string): string | null {
   if (!detail.startsWith(prefix)) {
     return null;
@@ -282,9 +318,10 @@ export async function maybeRepairGatewayServiceConfig(
     ? await normalizeExecutablePath(currentEntrypoint)
     : null;
   if (
-    normalizedExpectedEntrypoint &&
-    normalizedCurrentEntrypoint &&
-    normalizedExpectedEntrypoint !== normalizedCurrentEntrypoint
+    !entrypointsMatchForCurrentInstall({
+      normalizedExpectedEntrypoint,
+      normalizedCurrentEntrypoint,
+    })
   ) {
     audit.issues.push({
       code: SERVICE_AUDIT_CODES.gatewayEntrypointMismatch,

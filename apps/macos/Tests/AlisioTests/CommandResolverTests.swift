@@ -24,17 +24,28 @@ import AlisioSupport
         return (tmp, pnpmPath)
     }
 
-    @Test func `prefers open claw binary`() throws {
+    @Test func `prefers open claw binary`() async throws {
         let defaults = self.makeLocalDefaults()
 
         let tmp = try makeTempDirForTests()
-        CommandResolver.setProjectRoot(tmp.path)
-
-        let alisioPath = tmp.appendingPathComponent("node_modules/.bin/alisio")
+        let binDir = tmp.appendingPathComponent("node_modules/.bin")
+        let alisioPath = binDir.appendingPathComponent("alisio")
         try makeExecutableForTests(at: alisioPath)
 
-        let cmd = CommandResolver.alisioCommand(subcommand: "gateway", defaults: defaults, configRoot: [:])
-        #expect(cmd.prefix(2).elementsEqual([alisioPath.path, "gateway"]))
+        let currentPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        await TestIsolation.withIsolatedState(
+            env: ["PATH": [binDir.path, currentPath].joined(separator: ":")],
+            defaults: ["alisio.gatewayProjectRootPath": nil])
+        {
+            CommandResolver.setProjectRoot(tmp.path)
+
+            let cmd = CommandResolver.alisioCommand(
+                subcommand: "gateway",
+                defaults: defaults,
+                configRoot: [:],
+                searchPaths: [binDir.path])
+            #expect(cmd.prefix(2).elementsEqual([alisioPath.path, "gateway"]))
+        }
     }
 
     @Test func `falls back to node and script`() throws {
@@ -102,6 +113,49 @@ import AlisioSupport
             searchPaths: [binDir.path])
 
         #expect(cmd.prefix(2).elementsEqual([alisioPath.path, "gateway"]))
+    }
+
+    @Test func `prefers bundled app runtime over global cli`() throws {
+        let defaults = self.makeLocalDefaults()
+
+        let bundleRoot = try makeTempDirForTests()
+        let bundleURL = bundleRoot.appendingPathComponent("Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/alisio-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"alisio","version":"2026.4.8"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let binDir = try makeTempDirForTests()
+        let nodePath = binDir.appendingPathComponent("node")
+        let alisioPath = binDir.appendingPathComponent("alisio")
+        try "#!/bin/sh\necho v22.16.0\n".write(to: nodePath, atomically: true, encoding: .utf8)
+        try FileManager().setAttributes([.posixPermissions: 0o755], ofItemAtPath: nodePath.path)
+        try makeExecutableForTests(at: alisioPath)
+
+        let cmd = CommandResolver.alisioCommand(
+            subcommand: "gateway",
+            defaults: defaults,
+            configRoot: [:],
+            searchPaths: [binDir.path],
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(cmd.count >= 3)
+        if cmd.count >= 3 {
+            #expect(cmd[0] == nodePath.path)
+            #expect(cmd[1] == packagedRoot.appendingPathComponent("dist/index.js").path)
+            #expect(cmd[2] == "gateway")
+        }
     }
 
     @Test func `falls back to pnpm`() throws {
@@ -217,7 +271,11 @@ import AlisioSupport
             atomically: true,
             encoding: .utf8)
         let bundledNode = packagedRoot.appendingPathComponent("tools/node/bin/node")
-        try makeExecutableForTests(at: bundledNode)
+        try FileManager().createDirectory(
+            at: bundledNode.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try "#!/bin/sh\necho v22.16.0\n".write(to: bundledNode, atomically: true, encoding: .utf8)
+        try FileManager().setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledNode.path)
 
         let paths = CommandResolver.preferredPaths(
             home: FileManager().homeDirectoryForCurrentUser,
@@ -227,6 +285,78 @@ import AlisioSupport
             fileManager: FileManager())
 
         #expect(paths.contains(packagedRoot.appendingPathComponent("tools/node/bin").path))
+    }
+
+    @Test func `bundled runtime prefers stable system paths before version manager nodes`() throws {
+        let home = try makeTempDirForTests()
+        let packagedBundleRoot = try makeTempDirForTests()
+        let bundleURL = packagedBundleRoot.appendingPathComponent("Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/alisio-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"alisio"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let nvmNode = home.appendingPathComponent(".nvm/versions/node/v24.11.0/bin/node")
+        try FileManager().createDirectory(
+            at: nvmNode.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try "#!/bin/sh\necho v24.11.0\n".write(to: nvmNode, atomically: true, encoding: .utf8)
+        try FileManager().setAttributes([.posixPermissions: 0o755], ofItemAtPath: nvmNode.path)
+
+        let paths = CommandResolver.preferredPaths(
+            home: home,
+            current: ["/usr/bin"],
+            projectRoot: packagedRoot,
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        let systemIndex = try #require(paths.firstIndex(of: "/opt/homebrew/bin"))
+        let nvmIndex = try #require(paths.firstIndex(of: nvmNode.deletingLastPathComponent().path))
+        #expect(systemIndex < nvmIndex)
+    }
+
+    @Test func `preferred paths skip unusable bundled node bin`() throws {
+        let packagedBundleRoot = try makeTempDirForTests()
+        let bundleURL = packagedBundleRoot.appendingPathComponent("Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/alisio-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"alisio"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+        let bundledNode = packagedRoot.appendingPathComponent("tools/node/bin/node")
+        try FileManager().createDirectory(
+            at: bundledNode.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try "#!/bin/sh\nexit 1\n".write(to: bundledNode, atomically: true, encoding: .utf8)
+        try FileManager().setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledNode.path)
+
+        let paths = CommandResolver.preferredPaths(
+            home: FileManager().homeDirectoryForCurrentUser,
+            current: ["/usr/bin"],
+            projectRoot: packagedRoot,
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(!paths.contains(packagedRoot.appendingPathComponent("tools/node/bin").path))
     }
 
     @Test func `builds SSH command for remote mode`() {

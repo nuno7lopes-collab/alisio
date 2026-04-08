@@ -378,6 +378,23 @@ describe("maybeRepairGatewayServiceConfig", () => {
     expect(mocks.install).toHaveBeenCalledTimes(1);
   });
 
+  it("does not flag entrypoint mismatch when a dev app bundle wraps the current checkout dist", async () => {
+    setupGatewayEntrypointRepairScenario({
+      currentEntrypoint:
+        "/Users/test/openclaw/dist/OpenClaw.app/Contents/Resources/openclaw-package/dist/index.js",
+      installEntrypoint: "/Users/test/openclaw/dist/index.js",
+    });
+
+    await runRepair({ gateway: {} });
+
+    expect(mocks.note).not.toHaveBeenCalledWith(
+      expect.stringContaining("Gateway service entrypoint does not match the current install."),
+      "Gateway service config",
+    );
+    expect(mocks.stage).not.toHaveBeenCalled();
+    expect(mocks.install).not.toHaveBeenCalled();
+  });
+
   it("repairs entrypoint mismatch in non-interactive fix mode", async () => {
     setupGatewayEntrypointRepairScenario({
       currentEntrypoint: "/Users/test/Library/npm/node_modules/openclaw/dist/entry.js",

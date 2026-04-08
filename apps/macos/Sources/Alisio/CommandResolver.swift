@@ -138,6 +138,7 @@ enum CommandResolver {
         bundleURL: URL,
         fileManager: FileManager = .default) -> [String]
     {
+        let bundledRuntime = self.isBundledPackageRoot(projectRoot, fileManager: fileManager)
         var extras: [String] = []
         if let bundledNodeBin = self.bundledNodeBinDir(bundleURL: bundleURL, fileManager: fileManager) {
             extras.append(bundledNodeBin)
@@ -157,7 +158,8 @@ enum CommandResolver {
         if !alisioPaths.isEmpty {
             extras.insert(contentsOf: alisioPaths, at: 1)
         }
-        extras.insert(contentsOf: self.nodeManagerBinPaths(home: home), at: 1 + alisioPaths.count)
+        let nodeManagerInsertIndex = bundledRuntime ? extras.count : 1 + alisioPaths.count
+        extras.insert(contentsOf: self.nodeManagerBinPaths(home: home), at: nodeManagerInsertIndex)
         var seen = Set<String>()
         // Preserve order while stripping duplicates so PATH lookups remain deterministic.
         return (extras + current).filter { seen.insert($0).inserted }
@@ -197,7 +199,15 @@ enum CommandResolver {
             .appendingPathComponent("node", isDirectory: true)
             .appendingPathComponent("bin", isDirectory: true)
         let node = binDir.appendingPathComponent("node")
-        return fileManager.isExecutableFile(atPath: node.path) ? binDir.path : nil
+        guard fileManager.isExecutableFile(atPath: node.path) else {
+            return nil
+        }
+        switch RuntimeLocator.resolve(searchPaths: [binDir.path]) {
+        case .success:
+            return binDir.path
+        case .failure:
+            return nil
+        }
     }
 
     private static func alisioManagedPaths(home: URL) -> [String] {
@@ -343,7 +353,9 @@ enum CommandResolver {
         extraArgs: [String] = [],
         defaults: UserDefaults = .standard,
         configRoot: [String: Any]? = nil,
-        searchPaths: [String]? = nil) -> [String]
+        searchPaths: [String]? = nil,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> [String]
     {
         let settings = self.connectionSettings(defaults: defaults, configRoot: configRoot)
         if settings.mode == .remote, let ssh = self.sshNodeCommand(
@@ -354,15 +366,46 @@ enum CommandResolver {
             return ssh
         }
 
-        let root = self.projectRoot()
+        let homeDirectory = FileManager().homeDirectoryForCurrentUser
+        let root = self.projectRoot(
+            bundleURL: bundleURL,
+            fileManager: fileManager,
+            homeDirectory: homeDirectory)
+        let resolvedSearchPaths = searchPaths ?? self.preferredPaths(
+            home: homeDirectory,
+            current: ProcessInfo.processInfo.environment["PATH"]?
+                .split(separator: ":").map(String.init) ?? [],
+            projectRoot: root,
+            bundleURL: bundleURL,
+            fileManager: fileManager)
+        let runtimeResult = self.runtimeResolution(searchPaths: resolvedSearchPaths)
+
+        if self.isBundledPackageRoot(root, fileManager: fileManager) {
+            switch runtimeResult {
+            case let .success(runtime):
+                if let entry = self.gatewayEntrypoint(in: root) {
+                    return self.makeRuntimeCommand(
+                        runtime: runtime,
+                        entrypoint: entry,
+                        subcommand: subcommand,
+                        extraArgs: extraArgs)
+                }
+                let missingEntry = """
+                bundled Alisio runtime missing entrypoint (looked for dist/index.js or alisio.mjs); rebuild the app.
+                """
+                return self.errorCommand(with: missingEntry)
+            case let .failure(error):
+                return self.runtimeErrorCommand(error)
+            }
+        }
+
         if let alisioPath = self.projectAlisioExecutable(projectRoot: root) {
             return [alisioPath, subcommand] + extraArgs
         }
-        if let alisioPath = self.alisioExecutable(searchPaths: searchPaths) {
+        if let alisioPath = self.alisioExecutable(searchPaths: resolvedSearchPaths) {
             return [alisioPath, subcommand] + extraArgs
         }
 
-        let runtimeResult = self.runtimeResolution(searchPaths: searchPaths)
         switch runtimeResult {
         case let .success(runtime):
             if let entry = self.gatewayEntrypoint(in: root) {
@@ -376,7 +419,7 @@ enum CommandResolver {
             break
         }
 
-        if let pnpm = self.findExecutable(named: "pnpm", searchPaths: searchPaths) {
+        if let pnpm = self.findExecutable(named: "pnpm", searchPaths: resolvedSearchPaths) {
             // Use --silent to avoid pnpm lifecycle banners that would corrupt JSON outputs.
             return [pnpm, "--silent", AlisioBrand.commandName, subcommand] + extraArgs
         }
@@ -397,14 +440,18 @@ enum CommandResolver {
         extraArgs: [String] = [],
         defaults: UserDefaults = .standard,
         configRoot: [String: Any]? = nil,
-        searchPaths: [String]? = nil) -> [String]
+        searchPaths: [String]? = nil,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> [String]
     {
         self.alisioNodeCommand(
             subcommand: subcommand,
             extraArgs: extraArgs,
             defaults: defaults,
             configRoot: configRoot,
-            searchPaths: searchPaths)
+            searchPaths: searchPaths,
+            bundleURL: bundleURL,
+            fileManager: fileManager)
     }
 
     // MARK: - SSH helpers

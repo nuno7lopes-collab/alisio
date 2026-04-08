@@ -125,6 +125,7 @@ enum GatewayEnvironment {
         let projectRoot = CommandResolver.projectRoot()
         let projectEntrypoint = CommandResolver.gatewayEntrypoint(in: projectRoot)
         let usesBundledRuntime = CommandResolver.isBundledPackageRoot(projectRoot)
+        let gatewayBin = usesBundledRuntime ? nil : CommandResolver.alisioExecutable()
 
         switch RuntimeLocator.resolve(searchPaths: CommandResolver.preferredPaths()) {
         case let .failure(err):
@@ -135,8 +136,6 @@ enum GatewayEnvironment {
                 requiredGateway: expectedString,
                 message: RuntimeLocator.describeFailure(err))
         case let .success(runtime):
-            let gatewayBin = CommandResolver.alisioExecutable()
-
             if gatewayBin == nil, projectEntrypoint == nil {
                 return GatewayEnvironmentStatus(
                     kind: .missingGateway,
@@ -146,8 +145,13 @@ enum GatewayEnvironment {
                     message: self.missingGatewayMessage(projectRoot: projectRoot))
             }
 
-            let installed = gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }
-                ?? self.readLocalGatewayVersion(projectRoot: projectRoot)
+            let installed =
+                if usesBundledRuntime {
+                    self.readLocalGatewayVersion(projectRoot: projectRoot)
+                } else {
+                    gatewayBin.flatMap { self.readGatewayVersion(binary: $0) }
+                        ?? self.readLocalGatewayVersion(projectRoot: projectRoot)
+                }
 
             if let expected, let installed, !installed.compatible(with: expected) {
                 let expectedText = expectedString ?? expected.description
@@ -192,7 +196,8 @@ enum GatewayEnvironment {
         let projectRoot = CommandResolver.projectRoot()
         let projectEntrypoint = CommandResolver.gatewayEntrypoint(in: projectRoot)
         let status = self.check()
-        let gatewayBin = CommandResolver.alisioExecutable()
+        let usesBundledRuntime = CommandResolver.isBundledPackageRoot(projectRoot)
+        let gatewayBin = usesBundledRuntime ? nil : CommandResolver.alisioExecutable()
         let runtime = RuntimeLocator.resolve(searchPaths: CommandResolver.preferredPaths())
 
         guard case .ok = status.kind else {
@@ -200,6 +205,15 @@ enum GatewayEnvironment {
         }
 
         let port = self.gatewayPort()
+        if let entry = projectEntrypoint,
+           usesBundledRuntime,
+           case let .success(resolvedRuntime) = runtime
+        {
+            let bind = self.preferredGatewayBind() ?? "loopback"
+            let cmd = [resolvedRuntime.path, entry, "gateway", "--port", "\(port)", "--bind", bind]
+            return GatewayCommandResolution(status: status, command: cmd)
+        }
+
         if let gatewayBin {
             let bind = self.preferredGatewayBind() ?? "loopback"
             let cmd = [gatewayBin, "gateway", "--port", "\(port)", "--bind", bind]

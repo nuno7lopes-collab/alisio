@@ -5,12 +5,17 @@ import AlisioSupport
 
 @Suite(.serialized) struct NodeServiceManagerTests {
     @Test func `builds node service commands with current CLI shape`() async throws {
-        try await TestIsolation.withUserDefaultsValues(["alisio.gatewayProjectRootPath": nil]) {
-            let tmp = try makeTempDirForTests()
-            CommandResolver.setProjectRoot(tmp.path)
+        let tmp = try makeTempDirForTests()
+        let binDir = tmp.appendingPathComponent("node_modules/.bin")
+        let alisioPath = binDir.appendingPathComponent("alisio")
+        try makeExecutableForTests(at: alisioPath)
 
-            let alisioPath = tmp.appendingPathComponent("node_modules/.bin/alisio")
-            try makeExecutableForTests(at: alisioPath)
+        let currentPath = ProcessInfo.processInfo.environment["PATH"] ?? ""
+        try await TestIsolation.withIsolatedState(
+            env: ["PATH": [binDir.path, currentPath].joined(separator: ":")],
+            defaults: ["alisio.gatewayProjectRootPath": nil])
+        {
+            CommandResolver.setProjectRoot(tmp.path)
 
             let start = NodeServiceManager._testServiceCommand(["start"])
             #expect(start == [alisioPath.path, "node", "start", "--json"])
