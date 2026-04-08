@@ -1,66 +1,71 @@
 # Mobile Rebrand Audit
 
 Data: 2026-04-08
-Agente: ALFA
-Âmbito principal: `apps/android/**`, `apps/ios/**`
-Âmbito extra justificado: `apps/shared/AlisioKit/**`
+Agente: AGENTE-C
+Âmbito principal: `apps/android/**`, `apps/ios/**`, `apps/shared/**`
+Âmbito extra justificado: `apps/shared/OpenClawKit/**`, `apps/shared/AlisioKit/**`
 
 ## Resumo
 
-- Auditoria inicial encontrou `139` ficheiros com branding legado em `apps/android/**`.
-- Auditoria inicial encontrou `104` ficheiros com branding legado em `apps/ios/**`.
-- Estado final: `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|clawdbot" apps/android apps/ios` devolve zero hits.
-- Foi adicionada uma camada de compatibilidade mínima em `apps/shared/AlisioKit/**` para manter os paths mobile rebranded sem reintroduzir o package legado dentro de `apps/android/**`.
+- Estado final móvel: `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|OpenClawKit" apps/android apps/ios` devolve zero hits.
+- iOS ficou alinhado com bundle identifiers `ai.alisio.ios*` em signing defaults, fastlane e documentação local.
+- Android já estava alinhado em `applicationId`, `namespace`, manifests, deep links e migração temporária de prefs; nesta ronda não foi preciso mexer no código Android.
+- `apps/shared/AlisioKit/**` mantém-se como superfície canónica.
+- `apps/shared/OpenClawKit/**` mantém-se como shim temporário, mas passou a expor identifiers/runtime canónicos Alisio com fallback explícito para paths, suites, keychain services, deep links e markers legados.
+- Foram limpos artefactos SPM locais (`.build`, `.swiftpm`, `Package.resolved`) nos shared kits no fim da validação.
 
 ## Android
 
-- Build/config: `settings.gradle.kts`, `app/build.gradle.kts`, `benchmark/build.gradle.kts`
-- Source Kotlin/Java: package `ai.openclaw.app`, classes `OpenClaw*`, strings visíveis, tags de log, discovery `_openclaw-gw._tcp`, canvas paths `__openclaw__`, ids de cliente `openclaw-android`
-- Resources/manifests: nome da app, theme `Theme.OpenClawNode`, host `openclaw.local`
-- Tests: imports, fixture payloads e prefs names legados
-- Misc/scripts/docs locais: `README.md`, `style.md`, `scripts/*`
+- Verificação manual confirmou `namespace = "ai.alisio.app"` e `applicationId = "ai.alisio.app"`.
+- O manifest principal já usa `Theme.AlisioNode` e não mantém deep links nem identifiers `openclaw`.
+- A migração de dados já estava implementada em `SecurePrefs`: `alisio.node` / `alisio.node.secure` promovem dados vindos de `openclaw.node` / `openclaw.node.secure` durante uma release de transição.
+- Não foram necessários edits nesta ronda em `apps/android/**`.
 
 ## iOS
 
-- XcodeGen/config: `project.yml`, `Signing.xcconfig`, `Config/Signing.xcconfig`, `LocalSigning.xcconfig.example`
-- Targets/schemes/files: `OpenClaw`, `OpenClawShareExtension`, `OpenClawActivityWidget`, `OpenClawWatchApp`, `OpenClawWatchExtension`, `OpenClawTests`, `OpenClawLogicTests`
-- Source Swift: `OpenClawApp`, `OpenClawActivityAttributes`, `OpenClawLiveActivity`, `OpenClawWatchApp`, imports `OpenClawKit` / `OpenClawProtocol` / `OpenClawChatUI`
-- Runtime identifiers: bundle ids `ai.openclaw.*`, scheme `openclaw://`, bg task id `ai.openclaw.ios.bgrefresh`, keychain services `ai.openclaw.*`, push relay service `ai.openclaw.pushrelay`
-- Fastlane/App Store metadata: app identifier, archive names, service names, marketing/support/privacy URLs, copy de store e review info
-- Tests: imports, deep-link fixtures, keychain services, trigger words, stable IDs
+- Bundle identifiers re-alinhados para `ai.alisio.ios`, `ai.alisio.ios.share`, `ai.alisio.ios.activitywidget`, `ai.alisio.ios.watchkitapp` e `ai.alisio.ios.watchkitapp.extension`.
+- Fastlane/App Store targeting re-alinhado para `ai.alisio.ios` em `Appfile`, `Fastfile` e `SETUP.md`.
+- O esquema profundo já estava em `alisio://` e não restavam classes/widgets `OpenClaw*` em `apps/ios/**`.
+- Fastlane metadata já estava com URLs Alisio:
+  - marketing/support/privacy ficaram consistentes com `alisio.ai`.
 
-## Shared Dependency Handling
+## Shared Kits
 
-- `apps/android/app/build.gradle.kts` já aponta para `../../shared/AlisioKit/...`.
-- `apps/ios/project.yml` já usa o package `AlisioKit`.
-- O wrapper `apps/shared/AlisioKit/**` reexporta o package legacy e carrega os resources que o Android espera, evitando tocar no package legado fora do necessário.
-- Revisão profunda: `apps/ios/SwiftSources.input.xcfilelist` foi alinhado com os ficheiros reais do wrapper `AlisioKit` para remover 31 referências a paths inexistentes que poderiam partir o lint/prebuild do iOS.
+- Estratégia consolidada:
+  - `AlisioKit` é a superfície canónica.
+  - `OpenClawKit` fica como shim de compatibilidade temporário.
+  - O shim deixa de emitir naming legado em runtime onde isso afetava mobile.
+- Ajustes feitos no shim:
+  - `ShareToAgentDeepLink` passa a gerar `alisio://`.
+  - `DeepLinkParser` aceita `alisio://` e mantém leitura de `openclaw://` por compatibilidade.
+  - `GatewayTLSStore` escreve em `ai.alisio.tls-pinning` e migra/leu `ai.openclaw.tls-pinning` + suites antigas quando presentes.
+  - `DeviceIdentity` e `OpenClawNodeStorage` passam a preferir `Alisio` / `alisio`, com fallback para dirs legadas.
+  - defaults/suites partilhadas passam a preferir `ai.alisio.shared` e `group.ai.alisio.shared`, com promoção best-effort de valores legacy e fallback a `.standard` quando não há app group disponível.
+  - o marker de canvas fica canónico em `__alisio__/cap/`, aceitando leitura legacy `__openclaw__/cap/`.
+  - o scaffold HTML e a fonte do A2UI bundle em `apps/shared/OpenClawKit/Tools/CanvasA2UI/**` ficaram alinhados com `alisio*`.
 
-## Migração de Dados a Preservar
+## Migrações a Preservar
 
-- Android SharedPreferences/EncryptedSharedPreferences: `openclaw.node`, `openclaw.node.secure`, `openclaw.secure`
-- iOS Keychain services: `ai.openclaw.gateway`, `ai.openclaw.node`, `ai.openclaw.talk`, `ai.openclaw.pushrelay`
-- Implementado:
-  - Android: migração compatível de `SharedPreferences` / `EncryptedSharedPreferences` e fallback para recent packages antigos; wake words antigos são promovidos para `alisio`
-  - iOS: leitura com fallback e promoção para os novos services de Keychain; wake words antigos são promovidos para `alisio`
+- Android prefs:
+  - `openclaw.node` -> `alisio.node`
+  - `openclaw.node.secure` -> `alisio.node.secure`
+- Shared/iOS runtime compat:
+  - `OPENCLAW_STATE_DIR` continua aceite, mas `ALISIO_STATE_DIR` passa a ser o nome canónico.
+  - `openclaw://` continua aceite pelo parser, mas `alisio://` é o esquema emitido.
+  - `ai.openclaw.shared` / `group.ai.openclaw.shared` continuam legíveis, com promoção para `ai.alisio.shared` / `group.ai.alisio.shared` quando possível.
+  - `ai.openclaw.tls-pinning` continua legível, com promoção para `ai.alisio.tls-pinning`.
 
 ## Validação
 
-- `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|clawdbot" apps/android apps/ios`: zero hits
-- `apps/ios/SwiftSources.input.xcfilelist`: zero paths inexistentes
-- `swift package describe --package-path apps/shared/AlisioKit`: OK
-- `swift build --package-path apps/shared/AlisioKit --target AlisioKit`: OK
-- `cd apps/ios && xcodegen generate`: OK
-- `swiftformat --lint --filelist apps/ios/SwiftSources.input.xcfilelist`: OK
-- `swiftlint lint --use-script-input-file-lists`: só warnings pré-existentes fora da área ALFA; sem warnings nos ficheiros tocados nesta ronda
-- `cd apps/android && JAVA_HOME=... ./gradlew :app:assembleDebug`: bloqueado pelo ambiente local, Android SDK ausente (`ANDROID_HOME`/`sdk.dir`)
-- `cd apps/ios && xcodebuild -project Alisio.xcodeproj -scheme Alisio ... build`: bloqueado pelo ambiente local, a platform iOS 26.2 não está instalada no Xcode deste host
+- `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|OpenClawKit" apps/android apps/ios`: OK, zero hits.
+- `cd apps/ios && xcodegen generate`: OK.
+- `swift test --package-path apps/shared/AlisioKit`: OK.
+- `swift build --package-path apps/shared/OpenClawKit`: OK.
+- `swift test --package-path apps/shared/OpenClawKit`: bloqueado por falha pré-existente em `TalkSystemSpeechSynthesizerTests.swift` (`ActorIsolatedCall` numa API `@MainActor`), depois de limpo o `ModuleCache` legado que inicialmente apontava para outro checkout.
+- `cd apps/android && ./gradlew :app:assembleDebug`: bloqueado pelo ambiente local; falta Java Runtime antes do Gradle arrancar.
+- `cd apps/ios && xcodebuild -project Alisio.xcodeproj -scheme Alisio -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`: bloqueado pelo ambiente local; a platform iOS 26.2 não está instalada no Xcode deste host.
 
-## Cobertura de Regressão
+## Riscos / Follow-up
 
-- Android:
-  - `apps/android/app/src/test/java/ai/alisio/app/SecurePrefsTest.kt` cobre promoção de wake words vindas do prefs file legado
-  - `apps/android/app/src/test/java/ai/alisio/app/node/DeviceNotificationListenerServiceTest.kt` cobre migração do ficheiro legacy `*.secure`
-- iOS:
-  - `apps/ios/Tests/GatewaySettingsStoreTests.swift` cobre promoção de serviços legacy no Keychain
-  - `apps/ios/Tests/VoiceWakePreferencesTests.swift` cobre promoção/deduplicação de wake words legacy
+- O shim `OpenClawKit` continua a conter símbolos Swift `OpenClaw*` por compatibilidade binária/API; o objetivo desta ronda foi evitar que esses nomes continuassem a aparecer no runtime mobile, UI/resources ou identifiers persistidos.
+- A fonte do bundle A2UI em `apps/shared/OpenClawKit/Tools/CanvasA2UI/**` já ficou alinhada com Alisio, mas o bundle gerado fora deste âmbito terá de ser regenerado na área própria quando essa pipeline for executada.

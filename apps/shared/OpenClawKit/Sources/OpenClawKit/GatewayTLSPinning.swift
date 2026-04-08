@@ -17,22 +17,33 @@ public struct GatewayTLSParams: Sendable {
 }
 
 public enum GatewayTLSStore {
-    private static let keychainService = "ai.openclaw.tls-pinning"
+    private static let keychainService = AlisioBranding.canonicalTLSPinningService
+    private static let legacyKeychainService = AlisioBranding.legacyTLSPinningService
 
     // Legacy UserDefaults location used before Keychain migration.
-    private static let legacySuiteName = "ai.openclaw.shared"
+    private static let defaultsSuiteNames = [
+        AlisioBranding.canonicalSharedSuiteName,
+        AlisioBranding.legacySharedSuiteName,
+    ]
     private static let legacyKeyPrefix = "gateway.tls."
 
     public static func loadFingerprint(stableID: String) -> String? {
         self.migrateFromUserDefaultsIfNeeded(stableID: stableID)
-        let raw = GenericPasswordKeychainStore.loadString(service: self.keychainService, account: stableID)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if raw?.isEmpty == false { return raw }
-        return nil
+        if let raw = self.loadFingerprint(service: self.keychainService, stableID: stableID) {
+            return raw
+        }
+        guard let legacy = self.loadFingerprint(service: self.legacyKeychainService, stableID: stableID) else {
+            return nil
+        }
+        if GenericPasswordKeychainStore.saveString(legacy, service: self.keychainService, account: stableID) {
+            _ = GenericPasswordKeychainStore.delete(service: self.legacyKeychainService, account: stableID)
+        }
+        return legacy
     }
 
     public static func saveFingerprint(_ value: String, stableID: String) {
         _ = GenericPasswordKeychainStore.saveString(value, service: self.keychainService, account: stableID)
+        _ = GenericPasswordKeychainStore.delete(service: self.legacyKeychainService, account: stableID)
     }
 
     // MARK: - Migration
@@ -40,18 +51,34 @@ public enum GatewayTLSStore {
     /// On first Keychain read for a given stableID, move any legacy UserDefaults
     /// fingerprint into Keychain and remove the old entry.
     private static func migrateFromUserDefaultsIfNeeded(stableID: String) {
-        guard let defaults = UserDefaults(suiteName: self.legacySuiteName) else { return }
+        guard self.loadFingerprint(service: self.keychainService, stableID: stableID) == nil,
+              self.loadFingerprint(service: self.legacyKeychainService, stableID: stableID) == nil
+        else {
+            return
+        }
         let legacyKey = self.legacyKeyPrefix + stableID
-        guard let existing = defaults.string(forKey: legacyKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !existing.isEmpty
-        else { return }
-        if GenericPasswordKeychainStore.loadString(service: self.keychainService, account: stableID) == nil {
+        for suiteName in self.defaultsSuiteNames {
+            guard let defaults = UserDefaults(suiteName: suiteName),
+                  let existing = defaults.string(forKey: legacyKey)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                  !existing.isEmpty
+            else {
+                continue
+            }
+
             guard GenericPasswordKeychainStore.saveString(existing, service: self.keychainService, account: stableID) else {
                 return
             }
+            defaults.removeObject(forKey: legacyKey)
+            return
         }
-        defaults.removeObject(forKey: legacyKey)
+    }
+
+    private static func loadFingerprint(service: String, stableID: String) -> String? {
+        let raw = GenericPasswordKeychainStore.loadString(service: service, account: stableID)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw?.isEmpty == false { return raw }
+        return nil
     }
 }
 

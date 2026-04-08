@@ -5,12 +5,9 @@ import UIKit
 #endif
 
 public enum InstanceIdentity {
-    private static let suiteName = "ai.openclaw.shared"
+    private static let canonicalSuiteName = AlisioBranding.canonicalSharedSuiteName
+    private static let legacySuiteName = AlisioBranding.legacySharedSuiteName
     private static let instanceIdKey = "instanceId"
-
-    private static var defaults: UserDefaults {
-        UserDefaults(suiteName: suiteName) ?? .standard
-    }
 
 #if canImport(UIKit)
     private static func readMainActor<T: Sendable>(_ body: @MainActor () -> T) -> T {
@@ -24,8 +21,10 @@ public enum InstanceIdentity {
 #endif
 
     public static let instanceId: String = {
-        let defaults = Self.defaults
-        if let existing = defaults.string(forKey: instanceIdKey)?
+        if let existing = AlisioDefaultsMigrationSupport.loadString(
+            forKey: instanceIdKey,
+            canonicalSuiteName: canonicalSuiteName,
+            legacySuiteName: legacySuiteName)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
             !existing.isEmpty
         {
@@ -33,7 +32,11 @@ public enum InstanceIdentity {
         }
 
         let id = UUID().uuidString.lowercased()
-        defaults.set(id, forKey: instanceIdKey)
+        AlisioDefaultsMigrationSupport.save(
+            id,
+            forKey: instanceIdKey,
+            canonicalSuiteName: canonicalSuiteName,
+            legacySuiteName: legacySuiteName)
         return id
     }()
 
@@ -42,14 +45,14 @@ public enum InstanceIdentity {
         let name = Self.readMainActor {
             UIDevice.current.name.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return name.isEmpty ? "openclaw" : name
+        return name.isEmpty ? AlisioBranding.canonicalLowercaseName : name
 #else
         if let name = Host.current().localizedName?.trimmingCharacters(in: .whitespacesAndNewlines),
            !name.isEmpty
         {
             return name
         }
-        return "openclaw"
+        return AlisioBranding.canonicalLowercaseName
 #endif
     }()
 

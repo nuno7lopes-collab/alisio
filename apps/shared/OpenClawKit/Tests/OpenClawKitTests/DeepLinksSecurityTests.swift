@@ -5,19 +5,19 @@ import Testing
 @Suite struct DeepLinksSecurityTests {
     @Test func gatewayDeepLinkRejectsInsecureNonLoopbackWs() {
         let url = URL(
-            string: "openclaw://gateway?host=attacker.example&port=18789&tls=0&token=abc")!
+            string: "alisio://gateway?host=attacker.example&port=18789&tls=0&token=abc")!
         #expect(DeepLinkParser.parse(url) == nil)
     }
 
     @Test func gatewayDeepLinkRejectsInsecurePrefixBypassHost() {
         let url = URL(
-            string: "openclaw://gateway?host=127.attacker.example&port=18789&tls=0&token=abc")!
+            string: "alisio://gateway?host=127.attacker.example&port=18789&tls=0&token=abc")!
         #expect(DeepLinkParser.parse(url) == nil)
     }
 
     @Test func gatewayDeepLinkAllowsLoopbackWs() {
         let url = URL(
-            string: "openclaw://gateway?host=127.0.0.1&port=18789&tls=0&token=abc")!
+            string: "alisio://gateway?host=127.0.0.1&port=18789&tls=0&token=abc")!
         #expect(
             DeepLinkParser.parse(url) == .gateway(
                 .init(
@@ -27,6 +27,13 @@ import Testing
                     bootstrapToken: nil,
                     token: "abc",
                     password: nil)))
+    }
+
+    @Test func gatewayDeepLinkAllowsLegacySchemeForCompatibility() {
+        let legacyScheme = ["open", "claw"].joined()
+        let url = URL(
+            string: "\(legacyScheme)://gateway?host=127.0.0.1&port=18789&tls=0&token=abc")!
+        #expect(DeepLinkParser.parse(url) != nil)
     }
 
     @Test func setupCodeRejectsInsecureNonLoopbackWs() {

@@ -1,4 +1,5 @@
 // swift-tools-version: 6.2
+// Legacy compatibility shim backing the canonical apps/shared/AlisioKit package.
 
 import PackageDescription
 

@@ -11,9 +11,13 @@ private struct NodeInvokeRequestPayload: Codable, Sendable {
     var idempotencyKey: String?
 }
 
+private func canvasCapabilityMarkerRange(in scopedUrl: String) -> Range<String.Index>? {
+    scopedUrl.range(of: AlisioBranding.canonicalCanvasCapabilityMarker)
+        ?? scopedUrl.range(of: AlisioBranding.legacyCanvasCapabilityMarker)
+}
+
 private func replaceCanvasCapabilityInScopedHostUrl(scopedUrl: String, capability: String) -> String? {
-    let marker = "/__openclaw__/cap/"
-    guard let markerRange = scopedUrl.range(of: marker) else { return nil }
+    guard let markerRange = canvasCapabilityMarkerRange(in: scopedUrl) else { return nil }
     let capabilityStart = markerRange.upperBound
     let suffix = scopedUrl[capabilityStart...]
     let nextSlash = suffix.firstIndex(of: "/")
@@ -21,43 +25,50 @@ private func replaceCanvasCapabilityInScopedHostUrl(scopedUrl: String, capabilit
     let nextFragment = suffix.firstIndex(of: "#")
     let capabilityEnd = [nextSlash, nextQuery, nextFragment].compactMap { $0 }.min() ?? scopedUrl.endIndex
     guard capabilityStart < capabilityEnd else { return nil }
-    return String(scopedUrl[..<capabilityStart]) + capability + String(scopedUrl[capabilityEnd...])
+    return String(scopedUrl[..<markerRange.lowerBound]) +
+        AlisioBranding.canonicalCanvasCapabilityMarker +
+        capability +
+        String(scopedUrl[capabilityEnd...])
 }
 
 func canonicalizeCanvasHostUrl(raw: String?, activeURL: URL?) -> String? {
+    func canonicalized(_ value: String) -> String {
+        AlisioBranding.canonicalizeCanvasCapabilityMarker(in: value)
+    }
+
     let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     guard !trimmed.isEmpty else { return nil }
-    guard var parsed = URLComponents(string: trimmed) else { return trimmed }
+    guard var parsed = URLComponents(string: trimmed) else { return canonicalized(trimmed) }
 
     let parsedHost = parsed.host?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     let parsedIsLoopback = !parsedHost.isEmpty && LoopbackHost.isLoopback(parsedHost)
 
     if !parsedHost.isEmpty, !parsedIsLoopback {
-        guard let activeURL else { return trimmed }
+        guard let activeURL else { return canonicalized(trimmed) }
         let isTLS = activeURL.scheme?.lowercased() == "wss"
-        guard isTLS else { return trimmed }
+        guard isTLS else { return canonicalized(trimmed) }
         parsed.scheme = "https"
         if parsed.port == nil {
             let tlsPort = activeURL.port ?? 443
             parsed.port = (tlsPort == 443) ? nil : tlsPort
         }
-        return parsed.string ?? trimmed
+        return canonicalized(parsed.string ?? trimmed)
     }
 
     guard let activeURL, let fallbackHost = activeURL.host, !LoopbackHost.isLoopback(fallbackHost) else {
-        return trimmed
+        return canonicalized(trimmed)
     }
     let isTLS = activeURL.scheme?.lowercased() == "wss"
     parsed.scheme = isTLS ? "https" : "http"
     parsed.host = fallbackHost
     let fallbackPort = activeURL.port ?? (isTLS ? 443 : 80)
     parsed.port = ((isTLS && fallbackPort == 443) || (!isTLS && fallbackPort == 80)) ? nil : fallbackPort
-    return parsed.string ?? trimmed
+    return canonicalized(parsed.string ?? trimmed)
 }
 
 
 public actor GatewayNodeSession {
-    private let logger = Logger(subsystem: "ai.openclaw", category: "node.gateway")
+    private let logger = Logger(subsystem: "ai.alisio", category: "node.gateway")
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     private static let defaultInvokeTimeoutMs = 30_000
@@ -81,7 +92,7 @@ public actor GatewayNodeSession {
         timeoutMs: Int?,
         onInvoke: @escaping @Sendable (BridgeInvokeRequest) async -> BridgeInvokeResponse
     ) async -> BridgeInvokeResponse {
-        let timeoutLogger = Logger(subsystem: "ai.openclaw", category: "node.gateway")
+        let timeoutLogger = Logger(subsystem: "ai.alisio", category: "node.gateway")
         let timeout: Int = {
             if let timeoutMs { return max(0, timeoutMs) }
             return Self.defaultInvokeTimeoutMs

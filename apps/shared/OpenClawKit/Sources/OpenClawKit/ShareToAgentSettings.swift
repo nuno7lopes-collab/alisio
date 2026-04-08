@@ -1,16 +1,16 @@
 import Foundation
 
 public enum ShareToAgentSettings {
-    private static let suiteName = "group.ai.openclaw.shared"
+    private static let canonicalSuiteName = AlisioBranding.canonicalShareGroupSuiteName
+    private static let legacySuiteName = AlisioBranding.legacyShareGroupSuiteName
     private static let defaultInstructionKey = "share.defaultInstruction"
     private static let fallbackInstruction = "Please help me with this."
 
-    private static var defaults: UserDefaults {
-        UserDefaults(suiteName: suiteName) ?? .standard
-    }
-
     public static func loadDefaultInstruction() -> String {
-        let raw = self.defaults.string(forKey: self.defaultInstructionKey)?
+        let raw = AlisioDefaultsMigrationSupport.loadString(
+            forKey: self.defaultInstructionKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let raw, !raw.isEmpty {
             return raw
@@ -21,9 +21,16 @@ public enum ShareToAgentSettings {
     public static func saveDefaultInstruction(_ value: String?) {
         let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if trimmed.isEmpty {
-            self.defaults.removeObject(forKey: self.defaultInstructionKey)
+            AlisioDefaultsMigrationSupport.removeObject(
+                forKey: self.defaultInstructionKey,
+                canonicalSuiteName: self.canonicalSuiteName,
+                legacySuiteName: self.legacySuiteName)
             return
         }
-        self.defaults.set(trimmed, forKey: self.defaultInstructionKey)
+        AlisioDefaultsMigrationSupport.save(
+            trimmed,
+            forKey: self.defaultInstructionKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)
     }
 }

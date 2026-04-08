@@ -33,4 +33,10 @@ import Testing
         #expect(msg.contains("instance=ipad16_6 ctx={\"city\":\"Vienna\"}"))
         #expect(msg.hasSuffix(" default=update_canvas"))
     }
+
+    @Test func jsDispatchA2uiStatusUsesAlisioEventName() {
+        let js = OpenClawCanvasA2UIAction.jsDispatchA2UIActionStatus(actionId: "a1", ok: true, error: nil)
+        #expect(js.contains("alisio:a2ui-action-status"))
+        #expect(js.contains(#""id":"a1""#))
+    }
 }

@@ -7,7 +7,7 @@ struct DeviceAuthPayloadTests {
     func buildsCanonicalV3PayloadVector() {
         let payload = GatewayDeviceAuthPayload.buildV3(
             deviceId: "dev-1",
-            clientId: "openclaw-macos",
+            clientId: "alisio-macos",
             clientMode: "ui",
             role: "operator",
             scopes: ["operator.admin", "operator.read"],
@@ -18,7 +18,7 @@ struct DeviceAuthPayloadTests {
             deviceFamily: "  iPhone  ")
         #expect(
             payload
-                == "v3|dev-1|openclaw-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|ios|iphone")
+                == "v3|dev-1|alisio-macos|ui|operator|operator.admin,operator.read|1700000000000|tok-123|nonce-abc|ios|iphone")
     }
 
     @Test("normalizes metadata with ASCII-only lowercase")

@@ -16,7 +16,10 @@ public struct DeviceIdentity: Codable, Sendable {
 }
 
 enum DeviceIdentityPaths {
-    private static let stateDirEnv = ["OPENCLAW_STATE_DIR"]
+    private static let stateDirEnv = [
+        AlisioBranding.canonicalStateDirEnv,
+        AlisioBranding.legacyStateDirEnv,
+    ]
 
     static func stateDirURL() -> URL {
         for key in self.stateDirEnv {
@@ -29,10 +32,13 @@ enum DeviceIdentityPaths {
         }
 
         if let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
-            return appSupport.appendingPathComponent("OpenClaw", isDirectory: true)
+            return AlisioBranding.preferredDirectory(in: appSupport)
         }
 
-        return FileManager.default.temporaryDirectory.appendingPathComponent("openclaw", isDirectory: true)
+        return AlisioBranding.preferredDirectory(
+            in: FileManager.default.temporaryDirectory,
+            canonicalName: AlisioBranding.canonicalLowercaseName,
+            legacyName: AlisioBranding.legacyLowercaseName)
     }
 }
 

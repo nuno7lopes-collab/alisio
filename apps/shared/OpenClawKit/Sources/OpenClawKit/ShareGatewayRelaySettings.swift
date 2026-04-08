@@ -26,36 +26,53 @@ public struct ShareGatewayRelayConfig: Codable, Sendable, Equatable {
 }
 
 public enum ShareGatewayRelaySettings {
-    private static let suiteName = "group.ai.openclaw.shared"
+    private static let canonicalSuiteName = AlisioBranding.canonicalShareGroupSuiteName
+    private static let legacySuiteName = AlisioBranding.legacyShareGroupSuiteName
     private static let relayConfigKey = "share.gatewayRelay.config.v1"
     private static let lastEventKey = "share.gatewayRelay.event.v1"
 
-    private static var defaults: UserDefaults {
-        UserDefaults(suiteName: self.suiteName) ?? .standard
-    }
-
     public static func loadConfig() -> ShareGatewayRelayConfig? {
-        guard let data = self.defaults.data(forKey: self.relayConfigKey) else { return nil }
+        guard let data = AlisioDefaultsMigrationSupport.loadData(
+            forKey: self.relayConfigKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)
+        else {
+            return nil
+        }
         return try? JSONDecoder().decode(ShareGatewayRelayConfig.self, from: data)
     }
 
     public static func saveConfig(_ config: ShareGatewayRelayConfig) {
         guard let data = try? JSONEncoder().encode(config) else { return }
-        self.defaults.set(data, forKey: self.relayConfigKey)
+        AlisioDefaultsMigrationSupport.save(
+            data,
+            forKey: self.relayConfigKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)
     }
 
     public static func clearConfig() {
-        self.defaults.removeObject(forKey: self.relayConfigKey)
+        AlisioDefaultsMigrationSupport.removeObject(
+            forKey: self.relayConfigKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)
     }
 
     public static func saveLastEvent(_ message: String) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let payload = "[\(timestamp)] \(message)"
-        self.defaults.set(payload, forKey: self.lastEventKey)
+        AlisioDefaultsMigrationSupport.save(
+            payload,
+            forKey: self.lastEventKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)
     }
 
     public static func loadLastEvent() -> String? {
-        let value = self.defaults.string(forKey: self.lastEventKey)?
+        let value = AlisioDefaultsMigrationSupport.loadString(
+            forKey: self.lastEventKey,
+            canonicalSuiteName: self.canonicalSuiteName,
+            legacySuiteName: self.legacySuiteName)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return value.isEmpty ? nil : value
     }
