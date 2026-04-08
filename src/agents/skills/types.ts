@@ -99,6 +99,44 @@ export type SkillSubscriptionSpec = {
   featureFlag?: string;
 };
 
+export type SkillMarketplaceActionKind = "install" | "remove" | "execute";
+
+export type SkillConsentDecision = "allow-once" | "allow-always" | "deny";
+
+export type SkillConsentGrant = {
+  workspaceDir: string;
+  skillName: string;
+  action: SkillMarketplaceActionKind;
+  decision: Extract<SkillConsentDecision, "allow-always">;
+  fingerprint: string;
+  createdAt: string;
+  updatedAt: string;
+  actor?: string;
+};
+
+export type SkillAuditOutcome = "requested" | "granted" | "denied" | "completed" | "failed";
+
+export type SkillAuditEntry = {
+  id: string;
+  ts: string;
+  workspaceDir: string;
+  skillName: string;
+  action: SkillMarketplaceActionKind;
+  outcome: SkillAuditOutcome;
+  decision?: SkillConsentDecision;
+  actor?: string;
+  summary: string;
+};
+
+export type SkillConsentRequest = {
+  action: SkillMarketplaceActionKind;
+  title: string;
+  description: string;
+  fingerprint: string;
+  permissions: SkillPermissionSpec;
+  outputs: SkillOutputsSpec;
+};
+
 export type SkillManifest = {
   schemaVersion: 1;
   name: string;

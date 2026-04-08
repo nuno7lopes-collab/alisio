@@ -104,6 +104,18 @@ export type MarketplaceSkillInstallResult =
       error: string;
     };
 
+export type MarketplaceSkillRemoveResult =
+  | {
+      ok: true;
+      skill: SkillCatalogEntry;
+      removedDir: string;
+      access: SkillMarketplaceAccess;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
 export type MarketplaceSkillExecutionResult =
   | {
       ok: true;
@@ -202,6 +214,11 @@ function findCatalogEntry(
   skillName: string,
 ): SkillCatalogEntry | undefined {
   return catalog.find((entry) => entry.name === skillName);
+}
+
+function isPathWithin(parentDir: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(parentDir), path.resolve(targetPath));
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
 
 function describeManifestIssues(issues: SkillManifestIssue[]): string {
@@ -707,6 +724,72 @@ export async function installMarketplaceSkill(params: {
     skill: catalogEntry,
     targetDir,
     access,
+  };
+}
+
+export async function removeMarketplaceSkill(params: {
+  workspaceDir: string;
+  managedSkillsDir?: string;
+  skillName: string;
+  config?: AlisioConfig;
+  entries?: SkillEntry[];
+  access?: SkillMarketplaceAccessContext;
+}): Promise<MarketplaceSkillRemoveResult> {
+  const catalog = buildSkillMarketplaceCatalog({
+    workspaceDir: params.workspaceDir,
+    config: params.config,
+    entries: params.entries,
+  });
+  const catalogEntry = findCatalogEntry(catalog, params.skillName);
+  if (!catalogEntry) {
+    return { ok: false, error: `Skill not found: ${params.skillName}` };
+  }
+  if (catalogEntry.kind !== "local-skill") {
+    return {
+      ok: false,
+      error: `Virtual MCP skill "${params.skillName}" cannot be removed from a workspace.`,
+    };
+  }
+  if (!catalogEntry.baseDir) {
+    return {
+      ok: false,
+      error: `Skill "${params.skillName}" does not have a removable directory.`,
+    };
+  }
+
+  const accessContext = await resolveSkillMarketplaceAccessContext(params.access);
+
+  const resolvedBaseDir = path.resolve(catalogEntry.baseDir);
+  const workspaceSkillsDir = path.join(path.resolve(params.workspaceDir), "skills");
+  const removableRoots = [workspaceSkillsDir];
+  if (params.managedSkillsDir) {
+    removableRoots.push(path.resolve(params.managedSkillsDir));
+  }
+
+  const removable = removableRoots.some((root) => isPathWithin(root, resolvedBaseDir));
+  if (!removable) {
+    return {
+      ok: false,
+      error: `Skill "${params.skillName}" is not installed in a removable marketplace location.`,
+    };
+  }
+
+  await fs.rm(resolvedBaseDir, { recursive: true, force: true });
+  return {
+    ok: true,
+    skill: catalogEntry,
+    removedDir: resolvedBaseDir,
+    access: {
+      allowed: true,
+      required: Boolean(catalogEntry.subscription?.required),
+      currentPlan: accessContext.currentPlan,
+      ...(catalogEntry.subscription?.plan ? { plan: catalogEntry.subscription.plan } : {}),
+      ...(catalogEntry.subscription?.featureFlag
+        ? { featureFlag: catalogEntry.subscription.featureFlag }
+        : {}),
+      enabledFeatureFlags: [...accessContext.enabledFeatureFlags].toSorted(),
+      issues: [],
+    },
   };
 }
 

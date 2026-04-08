@@ -1,6 +1,23 @@
 import { t } from "../../i18n/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { ConfigSnapshot, SkillStatusReport } from "../types.ts";
+import type { ConfigSnapshot, SkillStatusEntry, SkillStatusReport } from "../types.ts";
+
+export type SkillMarketplaceAction = "install" | "remove" | "execute";
+
+export type SkillActionOutput = {
+  title: string;
+  text: string;
+};
+
+export type SkillConsentRequest = {
+  skillKey: string;
+  skillName: string;
+  action: SkillMarketplaceAction;
+  title: string;
+  description: string;
+  permissions?: SkillStatusEntry["permissions"];
+  outputs?: SkillStatusEntry["outputs"];
+};
 
 export type SkillsState = {
   client: GatewayBrowserClient | null;
@@ -12,6 +29,8 @@ export type SkillsState = {
   skillsBusyKey: string | null;
   skillEdits: Record<string, string>;
   skillMessages: SkillMessageMap;
+  skillActionOutputs: Record<string, SkillActionOutput>;
+  skillConsentRequest: SkillConsentRequest | null;
 };
 
 export type SkillMessage = {
@@ -58,6 +77,11 @@ function getErrorMessage(err: unknown) {
   return String(err);
 }
 
+function findMarketplaceSkill(state: SkillsState, skillKey: string): SkillStatusEntry | null {
+  const catalog = state.skillsReport?.marketplaceCatalog ?? [];
+  return catalog.find((entry) => entry.skillKey === skillKey || entry.name === skillKey) ?? null;
+}
+
 export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions) {
   if (options?.clearMessages && Object.keys(state.skillMessages).length > 0) {
     state.skillMessages = {};
@@ -74,6 +98,14 @@ export async function loadSkills(state: SkillsState, options?: LoadSkillsOptions
     const res = await state.client.request<SkillStatusReport | undefined>("skills.status", {});
     if (res) {
       state.skillsReport = res;
+      if (
+        state.skillConsentRequest &&
+        !(res.marketplaceCatalog ?? []).some(
+          (entry) => entry.skillKey === state.skillConsentRequest?.skillKey,
+        )
+      ) {
+        state.skillConsentRequest = null;
+      }
     }
   } catch (err) {
     state.skillsError = getErrorMessage(err);
@@ -416,4 +448,197 @@ export async function installSkill(
   } finally {
     state.skillsBusyKey = null;
   }
+}
+
+type MarketplaceActionResponse =
+  | {
+      status: "consent-required";
+      action: SkillMarketplaceAction;
+      skillName: string;
+      request: {
+        title: string;
+        description: string;
+        permissions?: SkillStatusEntry["permissions"];
+        outputs?: SkillStatusEntry["outputs"];
+      };
+    }
+  | {
+      status: "denied";
+      action: SkillMarketplaceAction;
+      skillName: string;
+      message: string;
+    }
+  | {
+      status: "completed";
+      action: "install" | "remove";
+      skillName: string;
+      message?: string;
+    }
+  | {
+      status: "completed";
+      action: "execute";
+      skillName: string;
+      message?: string;
+      instructions?: string;
+      mcp?: {
+        serverName: string;
+        toolCount: number;
+        promptCount: number;
+        resourceCount: number;
+      };
+    };
+
+type MarketplaceCompletedActionResponse = Extract<
+  MarketplaceActionResponse,
+  { status: "completed" }
+>;
+
+function resolveMarketplaceMethod(action: SkillMarketplaceAction): string {
+  return `skills.marketplace.${action}`;
+}
+
+function resolveMarketplaceSuccessMessage(
+  action: SkillMarketplaceAction,
+  result: MarketplaceCompletedActionResponse,
+): string {
+  if (result.message?.trim()) {
+    return result.message.trim();
+  }
+  switch (action) {
+    case "install":
+      return "Installed.";
+    case "remove":
+      return "Removed.";
+    case "execute":
+    default:
+      return "Loaded skill output.";
+  }
+}
+
+function formatMarketplaceExecutionOutput(
+  result: Extract<MarketplaceCompletedActionResponse, { action: "execute" }>,
+): SkillActionOutput | null {
+  if (typeof result.instructions === "string" && result.instructions.trim()) {
+    return {
+      title: result.mcp?.serverName ? `MCP: ${result.skillName}` : result.skillName,
+      text: result.instructions,
+    };
+  }
+  return null;
+}
+
+async function runMarketplaceAction(
+  state: SkillsState,
+  skill: SkillStatusEntry,
+  action: SkillMarketplaceAction,
+  consentDecision?: "allow-once" | "allow-always" | "deny",
+) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.skillsBusyKey = skill.skillKey;
+  state.skillsError = null;
+  try {
+    const result = await state.client.request<MarketplaceActionResponse>(
+      resolveMarketplaceMethod(action),
+      {
+        name: skill.name,
+        ...(consentDecision ? { consentDecision } : {}),
+      },
+    );
+
+    if (result.status === "consent-required") {
+      state.skillConsentRequest = {
+        skillKey: skill.skillKey,
+        skillName: skill.name,
+        action,
+        title: result.request.title,
+        description: result.request.description,
+        permissions: result.request.permissions,
+        outputs: result.request.outputs,
+      };
+      return;
+    }
+
+    state.skillConsentRequest = null;
+
+    if (result.status === "denied") {
+      setSkillMessage(state, skill.skillKey, {
+        kind: "error",
+        message: result.message,
+      });
+      return;
+    }
+
+    if (action === "execute") {
+      const output = formatMarketplaceExecutionOutput(
+        result as Extract<MarketplaceCompletedActionResponse, { action: "execute" }>,
+      );
+      if (output) {
+        state.skillActionOutputs = {
+          ...state.skillActionOutputs,
+          [skill.skillKey]: output,
+        };
+      }
+    }
+
+    await loadSkills(state);
+    setSkillMessage(state, skill.skillKey, {
+      kind: "success",
+      message: resolveMarketplaceSuccessMessage(action, result),
+    });
+  } catch (err) {
+    const message = getErrorMessage(err);
+    state.skillsError = message;
+    setSkillMessage(state, skill.skillKey, {
+      kind: "error",
+      message,
+    });
+  } finally {
+    state.skillsBusyKey = null;
+  }
+}
+
+export async function executeMarketplaceSkillAction(state: SkillsState, skillKey: string) {
+  const skill = findMarketplaceSkill(state, skillKey);
+  if (!skill) {
+    return;
+  }
+  await runMarketplaceAction(state, skill, "execute");
+}
+
+export async function installMarketplaceSkillAction(state: SkillsState, skillKey: string) {
+  const skill = findMarketplaceSkill(state, skillKey);
+  if (!skill) {
+    return;
+  }
+  await runMarketplaceAction(state, skill, "install");
+}
+
+export async function removeMarketplaceSkillAction(state: SkillsState, skillKey: string) {
+  const skill = findMarketplaceSkill(state, skillKey);
+  if (!skill) {
+    return;
+  }
+  await runMarketplaceAction(state, skill, "remove");
+}
+
+export async function resolveSkillConsentRequest(
+  state: SkillsState,
+  decision: "allow-once" | "allow-always" | "deny",
+) {
+  const request = state.skillConsentRequest;
+  if (!request) {
+    return;
+  }
+  const skill = findMarketplaceSkill(state, request.skillKey);
+  if (!skill) {
+    state.skillConsentRequest = null;
+    return;
+  }
+  await runMarketplaceAction(state, skill, request.action, decision);
+}
+
+export function dismissSkillConsentRequest(state: SkillsState) {
+  state.skillConsentRequest = null;
 }

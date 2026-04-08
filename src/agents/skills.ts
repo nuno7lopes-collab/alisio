@@ -17,12 +17,19 @@ export {
 export type {
   LegacySkillMetadata,
   SkillEligibilityContext,
+  SkillAuditEntry,
   SkillCommandSpec,
+  SkillCompatibilitySpec,
+  SkillConsentDecision,
+  SkillConsentGrant,
+  SkillConsentRequest,
   SkillEntry,
   SkillInstallSpec,
   SkillManifest,
   SkillManifestIssue,
+  SkillMarketplaceActionKind,
   SkillManifestValidation,
+  SkillOutputsSpec,
   SkillPermissionSpec,
   SkillSubscriptionSpec,
   SkillSnapshot,
@@ -32,6 +39,7 @@ export {
   buildSkillMarketplaceCatalog,
   executeMarketplaceSkill,
   installMarketplaceSkill,
+  removeMarketplaceSkill,
   readMarketplaceSkillInstructions,
   resolveSkillMarketplaceCatalog,
 } from "./skills/marketplace.js";
@@ -40,6 +48,15 @@ export type {
   SkillMarketplaceAccess,
   SkillMarketplaceAccessContext,
 } from "./skills/marketplace-access.js";
+export {
+  appendSkillAuditEntry,
+  listSkillAuditEntries,
+  listSkillConsentGrants,
+  resolveMarketplaceAuditLogPath,
+  resolveMarketplaceConsent,
+  resolveMarketplaceConsentFingerprint,
+  resolveMarketplaceConsentStorePath,
+} from "./skills/marketplace-consent.js";
 export {
   buildWorkspaceSkillSnapshot,
   buildWorkspaceSkillsPrompt,

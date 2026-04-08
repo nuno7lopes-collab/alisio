@@ -2,7 +2,12 @@ import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { legacySkillSources } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
-import { skillEnvEditKey, type SkillMessageMap } from "../controllers/skills.ts";
+import {
+  skillEnvEditKey,
+  type SkillActionOutput,
+  type SkillConsentRequest,
+  type SkillMessageMap,
+} from "../controllers/skills.ts";
 import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
@@ -12,12 +17,19 @@ type SkillDetailDialogProps = {
   edits: Record<string, string>;
   busyKey: string | null;
   messages: SkillMessageMap;
+  actionOutputs: Record<string, SkillActionOutput>;
+  consentRequest: SkillConsentRequest | null;
   onToggle: (skillKey: string, enabled: boolean) => void;
   onEdit: (skillKey: string, value: string) => void;
   onEnvEdit: (skillKey: string, envName: string, value: string) => void;
   onSaveKey: (skillKey: string) => void;
   onSaveEnv: (skillKey: string, envName: string) => void;
   onInstall: (skillKey: string, name: string, installId: string) => void;
+  onMarketplaceInstall: (skillKey: string) => void;
+  onMarketplaceRemove: (skillKey: string) => void;
+  onMarketplaceExecute: (skillKey: string) => void;
+  onConsentResolve: (decision: "allow-once" | "allow-always" | "deny") => void;
+  onConsentDismiss: () => void;
   onEnableConfig: (skillKey: string, configPath: string) => void;
   onAllowBundled: (skillKey: string) => void;
   onDetailClose: () => void;
@@ -96,6 +108,8 @@ export function humanizeSkillSource(source: string) {
       return t("alisio.capabilities.sources.plugin");
     case legacySkillSources.extra:
       return t("alisio.capabilities.sources.extra");
+    case "alisio-mcp":
+      return "MCP server";
     default:
       return t("alisio.capabilities.sources.external");
   }
@@ -179,6 +193,42 @@ function resolveSetupActions(
   return actions;
 }
 
+function buildPermissionChips(skill: SkillStatusEntry): string[] {
+  const permissions = skill.permissions;
+  if (!permissions) {
+    return [];
+  }
+  const chips = [
+    `Consent: ${permissions.consent}`,
+    `Sandbox: ${permissions.sandbox.mode}/${permissions.sandbox.filesystem}/${permissions.sandbox.network}`,
+  ];
+  if ((permissions.exec?.bins?.length ?? 0) > 0) {
+    chips.push(`Exec: ${permissions.exec?.bins?.join(", ")}`);
+  }
+  if ((permissions.files?.write?.length ?? 0) > 0) {
+    chips.push(`Write: ${permissions.files?.write?.join(", ")}`);
+  }
+  if (permissions.network?.outbound) {
+    chips.push(
+      permissions.network.hosts?.length
+        ? `Network: ${permissions.network.hosts.join(", ")}`
+        : "Network: outbound",
+    );
+  }
+  if (permissions.mcp?.consume) {
+    chips.push("Consume MCP");
+  }
+  return chips;
+}
+
+function buildOutputChips(skill: SkillStatusEntry): string[] {
+  const outputs = skill.outputs;
+  if (!outputs) {
+    return [];
+  }
+  return [`Primary: ${outputs.primary}`, ...outputs.formats.map((format) => `Format: ${format}`)];
+}
+
 export function computeSkillMissing(skill: SkillStatusEntry): string[] {
   return [
     ...skill.missing.bins.map((value) => formatSkillMissingItem("bin", value)),
@@ -199,6 +249,12 @@ export function computeSkillReasons(skill: SkillStatusEntry): string[] {
   if (skill.blockedByAllowlist) {
     reasons.push(t("alisio.capabilities.reasons.blockedByAllowlist"));
   }
+  if (skill.access && !skill.access.allowed) {
+    reasons.push(...skill.access.issues.map((issue) => issue.message));
+  }
+  if (skill.manifestIssues?.length) {
+    reasons.push(...skill.manifestIssues.map((issue) => issue.message));
+  }
   return reasons;
 }
 
@@ -211,6 +267,8 @@ export function renderSkillStatusChips(params: {
   return html`
     <div class="chip-row" style="margin-top: 6px;">
       <span class="chip">${humanizeSkillSource(skill.source)}</span>
+      ${skill.installed ? html`<span class="chip chip-ok">Installed</span>` : nothing}
+      ${skill.kind === "mcp-server" ? html`<span class="chip">MCP</span>` : nothing}
       ${showBundledBadge
         ? html` <span class="chip">${t("alisio.capabilities.sources.bundledBadge")}</span> `
         : nothing}
@@ -224,6 +282,9 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const hasEditedValue = Object.hasOwn(props.edits, skill.skillKey);
   const apiKey = hasEditedValue ? (props.edits[skill.skillKey] ?? "") : "";
   const message = props.messages[skill.skillKey] ?? null;
+  const actionOutput = props.actionOutputs?.[skill.skillKey] ?? null;
+  const consentRequest =
+    props.consentRequest?.skillKey === skill.skillKey ? props.consentRequest : null;
   const editableEnvNames = resolveEditableEnvNames(skill);
   const installHelpsEnvSetup = skill.install.some(
     (option) => option.kind === "download" || option.bins.length === 0,
@@ -240,6 +301,47 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);
   const setupActions = resolveSetupActions(skill, props);
+  const permissionChips = buildPermissionChips(skill);
+  const outputChips = buildOutputChips(skill);
+  const consentGrantChips =
+    skill.consentGrants?.map((grant) => `${grant.action}: always allowed`) ?? [];
+  const hasMarketplaceActions = Boolean(skill.installable || skill.removable || skill.executable);
+  const marketplaceActions = [
+    skill.installable
+      ? html`
+          <button
+            class="btn"
+            ?disabled=${busy}
+            @click=${() => props.onMarketplaceInstall(skill.skillKey)}
+          >
+            Install locally
+          </button>
+        `
+      : nothing,
+    skill.removable
+      ? html`
+          <button
+            class="btn"
+            ?disabled=${busy}
+            @click=${() => props.onMarketplaceRemove(skill.skillKey)}
+          >
+            Remove local copy
+          </button>
+        `
+      : nothing,
+    skill.executable
+      ? html`
+          <button
+            class="btn"
+            ?disabled=${busy}
+            @click=${() => props.onMarketplaceExecute(skill.skillKey)}
+          >
+            ${skill.kind === "mcp-server" ? "Inspect MCP" : "Run skill"}
+          </button>
+        `
+      : nothing,
+  ];
+  const showToggle = skill.kind !== "mcp-server";
   const ensureModalOpen = (el?: Element) => {
     if (!(el instanceof HTMLDialogElement) || el.open) {
       return;
@@ -307,25 +409,106 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                 </div>
               `
             : nothing}
-
-          <div class="skill-detail__toggle-row">
-            <label class="skill-toggle-wrap">
-              <input
-                type="checkbox"
-                class="skill-toggle"
-                .checked=${!skill.disabled}
-                ?disabled=${busy}
-                @change=${(event: Event) =>
-                  props.onToggle(skill.skillKey, (event.target as HTMLInputElement).checked)}
-              />
-            </label>
-            <span class="skill-detail__toggle-label">
-              ${skill.disabled
-                ? t("alisio.capabilities.detail.disabled")
-                : t("alisio.capabilities.detail.enabled")}
-            </span>
-          </div>
-
+          ${permissionChips.length > 0
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">Permissions</div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${permissionChips.map((chip) => html`<span class="chip">${chip}</span>`)}
+                  </div>
+                </div>
+              `
+            : nothing}
+          ${outputChips.length > 0
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">Outputs</div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${outputChips.map((chip) => html`<span class="chip">${chip}</span>`)}
+                  </div>
+                </div>
+              `
+            : nothing}
+          ${skill.access && !skill.access.allowed
+            ? html`
+                <div class="callout skill-detail__callout skill-detail__callout--warn">
+                  Marketplace access: ${skill.access.issues.map((issue) => issue.message).join(" ")}
+                </div>
+              `
+            : nothing}
+          ${consentGrantChips.length > 0
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">Stored consent</div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${consentGrantChips.map((chip) => html`<span class="chip">${chip}</span>`)}
+                  </div>
+                </div>
+              `
+            : nothing}
+          ${hasMarketplaceActions
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">Marketplace actions</div>
+                  <div class="chip-row skill-detail__chip-list">${marketplaceActions}</div>
+                </div>
+              `
+            : nothing}
+          ${consentRequest
+            ? html`
+                <div class="callout skill-detail__callout skill-detail__callout--warn">
+                  <div class="skill-detail__section-title">${consentRequest.title}</div>
+                  <div>${consentRequest.description}</div>
+                  <div class="chip-row skill-detail__chip-list" style="margin-top: 10px;">
+                    <button
+                      class="btn"
+                      ?disabled=${busy}
+                      @click=${() => props.onConsentResolve("allow-once")}
+                    >
+                      Allow once
+                    </button>
+                    <button
+                      class="btn"
+                      ?disabled=${busy}
+                      @click=${() => props.onConsentResolve("allow-always")}
+                    >
+                      Allow always
+                    </button>
+                    <button class="btn" ?disabled=${busy} @click=${props.onConsentDismiss}>
+                      Cancel
+                    </button>
+                    <button
+                      class="btn"
+                      ?disabled=${busy}
+                      @click=${() => props.onConsentResolve("deny")}
+                    >
+                      Deny
+                    </button>
+                  </div>
+                </div>
+              `
+            : nothing}
+          ${showToggle
+            ? html`
+                <div class="skill-detail__toggle-row">
+                  <label class="skill-toggle-wrap">
+                    <input
+                      type="checkbox"
+                      class="skill-toggle"
+                      .checked=${!skill.disabled}
+                      ?disabled=${busy}
+                      @change=${(event: Event) =>
+                        props.onToggle(skill.skillKey, (event.target as HTMLInputElement).checked)}
+                    />
+                  </label>
+                  <span class="skill-detail__toggle-label">
+                    ${skill.disabled
+                      ? t("alisio.capabilities.detail.disabled")
+                      : t("alisio.capabilities.detail.enabled")}
+                  </span>
+                </div>
+              `
+            : nothing}
           ${canInstall || setupActions.length > 0
             ? html`
                 <div class="skill-detail__section">
@@ -448,6 +631,36 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
               </div>
             `;
           })}
+          ${actionOutput
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">${actionOutput.title}</div>
+                  <pre class="exec-approval-command mono" style="white-space: pre-wrap;">
+${actionOutput.text}</pre
+                  >
+                </div>
+              `
+            : nothing}
+          ${skill.recentAudit && skill.recentAudit.length > 0
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">Recent activity</div>
+                  <div class="list">
+                    ${skill.recentAudit.slice(0, 5).map(
+                      (entry) => html`
+                        <div class="list-item">
+                          <div class="list-title">
+                            ${entry.action} ·
+                            ${entry.outcome}${entry.decision ? ` · ${entry.decision}` : ""}
+                          </div>
+                          <div class="list-sub">${entry.summary}</div>
+                        </div>
+                      `,
+                    )}
+                  </div>
+                </div>
+              `
+            : nothing}
 
           <div class="skill-detail__meta">
             <div>

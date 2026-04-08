@@ -1,25 +1,38 @@
 import path from "node:path";
 import type { AlisioConfig } from "../config/config.js";
 import { evaluateEntryRequirementsForCurrentPlatform } from "../shared/entry-status.js";
-import type { RequirementConfigCheck, Requirements } from "../shared/requirements.js";
+import {
+  evaluateRequirementsFromMetadataWithRemote,
+  type RequirementConfigCheck,
+  type Requirements,
+} from "../shared/requirements.js";
 import { CONFIG_DIR } from "../utils.js";
 import {
   hasBinary,
   isBundledSkillAllowed,
   isConfigPathTruthy,
+  listSkillAuditEntries,
+  listSkillConsentGrants,
   loadWorkspaceSkillEntries,
+  resolveSkillMarketplaceCatalog,
+  type ResolvedSkillCatalogEntry,
   resolveBundledAllowlist,
   resolveSkillConfig,
   resolveSkillsInstallPreferences,
+  type SkillAuditEntry,
+  type SkillCompatibilitySpec,
+  type SkillConsentGrant,
   type SkillEntry,
   type SkillEligibilityContext,
   type SkillInstallSpec,
   type SkillManifestIssue,
+  type SkillOutputsSpec,
   type SkillPermissionSpec,
   type SkillSubscriptionSpec,
   type SkillsInstallPreferences,
 } from "./skills.js";
 import { resolveBundledSkillsContext } from "./skills/bundled-context.js";
+import type { SkillMarketplaceAccess } from "./skills/marketplace-access.js";
 import { isBundledRuntimeSkillSource, resolveSkillSource } from "./skills/source.js";
 
 export type SkillStatusConfigCheck = RequirementConfigCheck;
@@ -32,6 +45,7 @@ export type SkillInstallOption = {
 };
 
 export type SkillStatusEntry = {
+  kind?: "local-skill" | "mcp-server";
   name: string;
   description: string;
   source: string;
@@ -56,13 +70,28 @@ export type SkillStatusEntry = {
   marketplaceReady: boolean;
   manifestIssues: SkillManifestIssue[];
   permissions: SkillPermissionSpec;
+  outputs?: SkillOutputsSpec;
+  compat?: SkillCompatibilitySpec;
   subscription?: SkillSubscriptionSpec;
+  access?: SkillMarketplaceAccess;
+  installed?: boolean;
+  installable?: boolean;
+  removable?: boolean;
+  executable?: boolean;
+  mcpServer?: {
+    serverName: string;
+    transport: "stdio" | "sse" | "streamable-http";
+    launchSummary: string;
+  };
+  recentAudit?: SkillAuditEntry[];
+  consentGrants?: SkillConsentGrant[];
 };
 
 export type SkillStatusReport = {
   workspaceDir: string;
   managedSkillsDir: string;
   skills: SkillStatusEntry[];
+  marketplaceCatalog?: SkillStatusEntry[];
 };
 
 function resolveSkillKey(entry: SkillEntry): string {
@@ -254,6 +283,8 @@ function buildSkillStatus(
         network: "off",
       },
     },
+    outputs: entry.manifest?.outputs,
+    compat: entry.manifest?.compat,
     subscription: entry.manifest?.subscription,
   };
 }
@@ -284,4 +315,205 @@ export function buildWorkspaceSkillStatus(
       buildSkillStatus(entry, opts?.config, prefs, opts?.eligibility, bundledContext.names),
     ),
   };
+}
+
+function isInstalledMarketplaceSource(source: string): boolean {
+  return (
+    source === "openclaw-workspace" ||
+    source === "agents-skills-project" ||
+    source === "agents-skills-personal" ||
+    source === "openclaw-managed" ||
+    source === "alisio-mcp"
+  );
+}
+
+function isPathWithin(parentDir: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(parentDir), path.resolve(targetPath));
+  return relative.length > 0 && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function resolveMarketplaceInstallState(params: {
+  entry: SkillStatusEntry;
+  workspaceDir: string;
+  managedSkillsDir: string;
+  catalog: ResolvedSkillCatalogEntry;
+}): Pick<SkillStatusEntry, "installed" | "installable" | "removable" | "executable"> {
+  const installed = isInstalledMarketplaceSource(params.entry.source);
+  const removable =
+    params.catalog.kind === "local-skill" &&
+    Boolean(params.entry.baseDir) &&
+    (isPathWithin(path.join(path.resolve(params.workspaceDir), "skills"), params.entry.baseDir) ||
+      isPathWithin(params.managedSkillsDir, params.entry.baseDir));
+  return {
+    installed,
+    installable:
+      params.catalog.kind === "local-skill" &&
+      !installed &&
+      params.catalog.marketplaceReady &&
+      params.catalog.access.allowed,
+    removable,
+    executable: params.catalog.marketplaceReady && params.catalog.access.allowed,
+  };
+}
+
+function createSyntheticMarketplaceStatusEntry(params: {
+  catalog: ResolvedSkillCatalogEntry;
+  config?: AlisioConfig;
+  eligibility?: SkillEligibilityContext;
+  workspaceDir: string;
+  managedSkillsDir: string;
+}): SkillStatusEntry {
+  const requiredMetadata = {
+    requires: params.catalog.compat.requires,
+    os: params.catalog.compat.os,
+  };
+  const required = evaluateRequirementsFromMetadataWithRemote({
+    always: false,
+    metadata: requiredMetadata,
+    hasLocalBin: hasBinary,
+    localPlatform: process.platform,
+    remote: params.eligibility?.remote,
+    isEnvSatisfied: (envName) => Boolean(process.env[envName]),
+    isConfigSatisfied: (pathStr) => isConfigPathTruthy(params.config, pathStr),
+  });
+  const installed = params.catalog.kind === "mcp-server";
+  const eligible =
+    installed &&
+    required.eligible &&
+    params.catalog.marketplaceReady &&
+    params.catalog.access.allowed;
+  return {
+    kind: params.catalog.kind,
+    name: params.catalog.name,
+    description: params.catalog.description,
+    source: params.catalog.source,
+    bundled: false,
+    filePath: params.catalog.filePath ?? `mcp:${params.catalog.name}`,
+    baseDir: params.catalog.baseDir ?? "",
+    skillKey: params.catalog.name,
+    primaryEnv: params.catalog.manifest.primaryEnv,
+    emoji: params.catalog.manifest.emoji,
+    homepage: params.catalog.manifest.homepage,
+    always: false,
+    disabled: false,
+    blockedByAllowlist: false,
+    eligible,
+    requirements: required.required,
+    missing: required.missing,
+    configChecks: required.configChecks,
+    install: [],
+    manifestVersion: params.catalog.version,
+    manifestSource: params.catalog.manifestSource,
+    manifestValid: params.catalog.manifestValid,
+    marketplaceReady: params.catalog.marketplaceReady,
+    manifestIssues: params.catalog.manifestIssues,
+    permissions: params.catalog.permissions,
+    outputs: params.catalog.outputs,
+    compat: params.catalog.compat,
+    subscription: params.catalog.subscription,
+    access: params.catalog.access,
+    installed,
+    installable: params.catalog.kind === "local-skill" && !installed,
+    removable: false,
+    executable: params.catalog.marketplaceReady && params.catalog.access.allowed,
+    mcpServer: params.catalog.mcpServer,
+  };
+}
+
+function groupSkillAuditEntries(entries: SkillAuditEntry[]): Map<string, SkillAuditEntry[]> {
+  const grouped = new Map<string, SkillAuditEntry[]>();
+  for (const entry of entries) {
+    const next = grouped.get(entry.skillName) ?? [];
+    next.push(entry);
+    grouped.set(entry.skillName, next);
+  }
+  return grouped;
+}
+
+function groupSkillConsentGrants(grants: SkillConsentGrant[]): Map<string, SkillConsentGrant[]> {
+  const grouped = new Map<string, SkillConsentGrant[]>();
+  for (const grant of grants) {
+    const next = grouped.get(grant.skillName) ?? [];
+    next.push(grant);
+    grouped.set(grant.skillName, next);
+  }
+  return grouped;
+}
+
+export async function resolveWorkspaceMarketplaceCatalogStatus(
+  workspaceDir: string,
+  opts?: {
+    config?: AlisioConfig;
+    managedSkillsDir?: string;
+    entries?: SkillEntry[];
+    eligibility?: SkillEligibilityContext;
+  },
+): Promise<SkillStatusEntry[]> {
+  const localReport = buildWorkspaceSkillStatus(workspaceDir, opts);
+  const catalog = await resolveSkillMarketplaceCatalog({
+    workspaceDir,
+    config: opts?.config,
+    entries: opts?.entries,
+  });
+  const auditEntries = await listSkillAuditEntries({
+    workspaceDir,
+    limit: 200,
+  });
+  const grants = await listSkillConsentGrants({ workspaceDir });
+  const auditBySkill = groupSkillAuditEntries(auditEntries);
+  const grantsBySkill = groupSkillConsentGrants(grants);
+  const localByName = new Map(localReport.skills.map((entry) => [entry.name, entry] as const));
+  const managedSkillsDir = path.resolve(opts?.managedSkillsDir ?? path.join(CONFIG_DIR, "skills"));
+
+  return catalog.map((catalogEntry) => {
+    const local = localByName.get(catalogEntry.name);
+    const next: SkillStatusEntry = (() => {
+      if (!local) {
+        return createSyntheticMarketplaceStatusEntry({
+          catalog: catalogEntry,
+          config: opts?.config,
+          eligibility: opts?.eligibility,
+          workspaceDir,
+          managedSkillsDir,
+        });
+      }
+
+      const localEntry: SkillStatusEntry = local;
+      const installState = resolveMarketplaceInstallState({
+        entry: localEntry,
+        workspaceDir,
+        managedSkillsDir,
+        catalog: catalogEntry,
+      });
+      const readyForUse =
+        installState.installed === true &&
+        localEntry.eligible &&
+        catalogEntry.marketplaceReady &&
+        catalogEntry.access.allowed;
+
+      return {
+        ...localEntry,
+        kind: catalogEntry.kind,
+        manifestVersion: catalogEntry.version,
+        manifestSource: catalogEntry.manifestSource,
+        manifestValid: catalogEntry.manifestValid,
+        marketplaceReady: catalogEntry.marketplaceReady,
+        manifestIssues: catalogEntry.manifestIssues,
+        permissions: catalogEntry.permissions,
+        outputs: catalogEntry.outputs,
+        compat: catalogEntry.compat,
+        subscription: catalogEntry.subscription,
+        access: catalogEntry.access,
+        mcpServer: catalogEntry.mcpServer,
+        eligible: readyForUse,
+        ...installState,
+      };
+    })();
+
+    return {
+      ...next,
+      recentAudit: auditBySkill.get(catalogEntry.name) ?? [],
+      consentGrants: grantsBySkill.get(catalogEntry.name) ?? [],
+    };
+  });
 }

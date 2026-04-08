@@ -5,8 +5,19 @@ import {
 } from "../../agents/agent-scope.js";
 import { installSkillFromClawHub, updateSkillsFromClawHub } from "../../agents/skills-clawhub.js";
 import { installSkill } from "../../agents/skills-install.js";
-import { buildWorkspaceSkillStatus } from "../../agents/skills-status.js";
-import { loadWorkspaceSkillEntries, type SkillEntry } from "../../agents/skills.js";
+import {
+  buildWorkspaceSkillStatus,
+  resolveWorkspaceMarketplaceCatalogStatus,
+} from "../../agents/skills-status.js";
+import {
+  appendSkillAuditEntry,
+  executeMarketplaceSkill,
+  installMarketplaceSkill,
+  loadWorkspaceSkillEntries,
+  removeMarketplaceSkill,
+  resolveMarketplaceConsent,
+  type SkillEntry,
+} from "../../agents/skills.js";
 import { listAgentWorkspaceDirs } from "../../agents/workspace-dirs.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig, writeConfigFile } from "../../config/config.js";
@@ -55,8 +66,55 @@ function collectSkillBins(entries: SkillEntry[]): string[] {
   return [...bins].toSorted();
 }
 
+type MarketplaceSkillActionParams = {
+  name: string;
+  force?: boolean;
+  consentDecision?: "allow-once" | "allow-always" | "deny";
+};
+
+function parseMarketplaceSkillActionParams(
+  params: unknown,
+): { ok: true; value: MarketplaceSkillActionParams } | { ok: false; error: string } {
+  if (!params || typeof params !== "object") {
+    return { ok: false, error: "params must be an object" };
+  }
+  const record = params as Record<string, unknown>;
+  const name = typeof record.name === "string" ? record.name.trim() : "";
+  if (!name) {
+    return { ok: false, error: "name is required" };
+  }
+  const consentDecisionRaw =
+    typeof record.consentDecision === "string" ? record.consentDecision.trim() : "";
+  const consentDecision =
+    consentDecisionRaw === "allow-once" ||
+    consentDecisionRaw === "allow-always" ||
+    consentDecisionRaw === "deny"
+      ? consentDecisionRaw
+      : undefined;
+  if (consentDecisionRaw && !consentDecision) {
+    return {
+      ok: false,
+      error: `invalid consentDecision "${consentDecisionRaw}"`,
+    };
+  }
+  return {
+    ok: true,
+    value: {
+      name,
+      force: record.force === true,
+      ...(consentDecision ? { consentDecision } : {}),
+    },
+  };
+}
+
+function resolveGatewayActorLabel(
+  client: { connect?: { client?: { displayName?: string; id?: string } } } | null,
+): string | undefined {
+  return client?.connect?.client?.displayName ?? client?.connect?.client?.id;
+}
+
 export const skillsHandlers: GatewayRequestHandlers = {
-  "skills.status": ({ params, respond }) => {
+  "skills.status": async ({ params, respond }) => {
     if (!validateSkillsStatusParams(params)) {
       respond(
         false,
@@ -84,6 +142,10 @@ export const skillsHandlers: GatewayRequestHandlers = {
     }
     const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
     const report = buildWorkspaceSkillStatus(workspaceDir, {
+      config: cfg,
+      eligibility: { remote: getRemoteSkillEligibility() },
+    });
+    report.marketplaceCatalog = await resolveWorkspaceMarketplaceCatalogStatus(workspaceDir, {
       config: cfg,
       eligibility: { remote: getRemoteSkillEligibility() },
     });
@@ -173,6 +235,315 @@ export const skillsHandlers: GatewayRequestHandlers = {
       result.ok,
       result,
       result.ok ? undefined : errorShape(ErrorCodes.UNAVAILABLE, result.message),
+    );
+  },
+  "skills.marketplace.install": async ({ params, respond, client }) => {
+    const parsed = parseMarketplaceSkillActionParams(params);
+    if (!parsed.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, parsed.error));
+      return;
+    }
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
+    const actor = resolveGatewayActorLabel(client);
+    const catalog = await resolveWorkspaceMarketplaceCatalogStatus(workspaceDir, {
+      config: cfg,
+      eligibility: { remote: getRemoteSkillEligibility() },
+    });
+    const skill = catalog.find((entry) => entry.name === parsed.value.name);
+    if (!skill) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "skill not found"));
+      return;
+    }
+    const consent = await resolveMarketplaceConsent({
+      workspaceDir,
+      action: "install",
+      skill: {
+        name: skill.name,
+        version: skill.manifestVersion,
+        kind: skill.kind,
+        permissions: skill.permissions,
+        outputs: skill.outputs ?? {
+          primary: "instructions",
+          formats: ["markdown"],
+        },
+      },
+      decision: parsed.value.consentDecision,
+      actor,
+    });
+    if (consent.status === "consent-required") {
+      respond(
+        true,
+        {
+          status: "consent-required",
+          action: "install",
+          skillName: skill.name,
+          request: consent.request,
+        },
+        undefined,
+      );
+      return;
+    }
+    if (consent.status === "denied") {
+      respond(
+        true,
+        {
+          status: "denied",
+          action: "install",
+          skillName: skill.name,
+          message: consent.message,
+        },
+        undefined,
+      );
+      return;
+    }
+
+    const result = await installMarketplaceSkill({
+      catalogWorkspaceDir: workspaceDir,
+      targetWorkspaceDir: workspaceDir,
+      skillName: parsed.value.name,
+      config: cfg,
+      force: parsed.value.force,
+    });
+    if (!result.ok) {
+      await appendSkillAuditEntry({
+        workspaceDir,
+        skillName: parsed.value.name,
+        action: "install",
+        outcome: "failed",
+        actor,
+        summary: result.error,
+      });
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, result.error));
+      return;
+    }
+    await appendSkillAuditEntry({
+      workspaceDir,
+      skillName: result.skill.name,
+      action: "install",
+      outcome: "completed",
+      decision: consent.decision,
+      actor,
+      summary: `Installed ${result.skill.name} into ${result.targetDir}.`,
+    });
+    respond(
+      true,
+      {
+        status: "completed",
+        action: "install",
+        skillName: result.skill.name,
+        targetDir: result.targetDir,
+        message: `Installed ${result.skill.name}.`,
+      },
+      undefined,
+    );
+  },
+  "skills.marketplace.remove": async ({ params, respond, client }) => {
+    const parsed = parseMarketplaceSkillActionParams(params);
+    if (!parsed.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, parsed.error));
+      return;
+    }
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
+    const actor = resolveGatewayActorLabel(client);
+    const catalog = await resolveWorkspaceMarketplaceCatalogStatus(workspaceDir, {
+      config: cfg,
+      eligibility: { remote: getRemoteSkillEligibility() },
+    });
+    const skill = catalog.find((entry) => entry.name === parsed.value.name);
+    if (!skill) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "skill not found"));
+      return;
+    }
+    const consent = await resolveMarketplaceConsent({
+      workspaceDir,
+      action: "remove",
+      skill: {
+        name: skill.name,
+        version: skill.manifestVersion,
+        kind: skill.kind,
+        permissions: skill.permissions,
+        outputs: skill.outputs ?? {
+          primary: "instructions",
+          formats: ["markdown"],
+        },
+      },
+      decision: parsed.value.consentDecision,
+      actor,
+    });
+    if (consent.status === "consent-required") {
+      respond(
+        true,
+        {
+          status: "consent-required",
+          action: "remove",
+          skillName: skill.name,
+          request: consent.request,
+        },
+        undefined,
+      );
+      return;
+    }
+    if (consent.status === "denied") {
+      respond(
+        true,
+        {
+          status: "denied",
+          action: "remove",
+          skillName: skill.name,
+          message: consent.message,
+        },
+        undefined,
+      );
+      return;
+    }
+
+    const result = await removeMarketplaceSkill({
+      workspaceDir,
+      managedSkillsDir: buildWorkspaceSkillStatus(workspaceDir, { config: cfg }).managedSkillsDir,
+      skillName: parsed.value.name,
+      config: cfg,
+    });
+    if (!result.ok) {
+      await appendSkillAuditEntry({
+        workspaceDir,
+        skillName: parsed.value.name,
+        action: "remove",
+        outcome: "failed",
+        actor,
+        summary: result.error,
+      });
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, result.error));
+      return;
+    }
+    await appendSkillAuditEntry({
+      workspaceDir,
+      skillName: result.skill.name,
+      action: "remove",
+      outcome: "completed",
+      decision: consent.decision,
+      actor,
+      summary: `Removed ${result.skill.name} from ${result.removedDir}.`,
+    });
+    respond(
+      true,
+      {
+        status: "completed",
+        action: "remove",
+        skillName: result.skill.name,
+        removedDir: result.removedDir,
+        message: `Removed ${result.skill.name}.`,
+      },
+      undefined,
+    );
+  },
+  "skills.marketplace.execute": async ({ params, respond, client }) => {
+    const parsed = parseMarketplaceSkillActionParams(params);
+    if (!parsed.ok) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, parsed.error));
+      return;
+    }
+    const cfg = loadConfig();
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
+    const actor = resolveGatewayActorLabel(client);
+    const catalog = await resolveWorkspaceMarketplaceCatalogStatus(workspaceDir, {
+      config: cfg,
+      eligibility: { remote: getRemoteSkillEligibility() },
+    });
+    const skill = catalog.find((entry) => entry.name === parsed.value.name);
+    if (!skill) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "skill not found"));
+      return;
+    }
+    const consent = await resolveMarketplaceConsent({
+      workspaceDir,
+      action: "execute",
+      skill: {
+        name: skill.name,
+        version: skill.manifestVersion,
+        kind: skill.kind,
+        permissions: skill.permissions,
+        outputs: skill.outputs ?? {
+          primary: "instructions",
+          formats: ["markdown"],
+        },
+      },
+      decision: parsed.value.consentDecision,
+      actor,
+    });
+    if (consent.status === "consent-required") {
+      respond(
+        true,
+        {
+          status: "consent-required",
+          action: "execute",
+          skillName: skill.name,
+          request: consent.request,
+        },
+        undefined,
+      );
+      return;
+    }
+    if (consent.status === "denied") {
+      respond(
+        true,
+        {
+          status: "denied",
+          action: "execute",
+          skillName: skill.name,
+          message: consent.message,
+        },
+        undefined,
+      );
+      return;
+    }
+
+    const result = await executeMarketplaceSkill({
+      workspaceDir,
+      skillName: parsed.value.name,
+      consent: true,
+      config: cfg,
+    });
+    if (!result.ok) {
+      await appendSkillAuditEntry({
+        workspaceDir,
+        skillName: parsed.value.name,
+        action: "execute",
+        outcome: "failed",
+        actor,
+        summary: result.error,
+      });
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, result.error));
+      return;
+    }
+    await appendSkillAuditEntry({
+      workspaceDir,
+      skillName: result.skill.name,
+      action: "execute",
+      outcome: "completed",
+      decision: consent.decision,
+      actor,
+      summary:
+        result.skill.kind === "mcp-server"
+          ? `Inspected MCP skill ${result.skill.name}.`
+          : `Executed skill ${result.skill.name}.`,
+    });
+    respond(
+      true,
+      {
+        status: "completed",
+        action: "execute",
+        skillName: result.skill.name,
+        message:
+          result.skill.kind === "mcp-server"
+            ? `Loaded MCP surfaces for ${result.skill.name}.`
+            : `Loaded ${result.skill.name}.`,
+        instructions: result.instructions,
+        mcp: result.mcp,
+        sandbox: result.sandbox,
+      },
+      undefined,
     );
   },
   "skills.update": async ({ params, respond }) => {

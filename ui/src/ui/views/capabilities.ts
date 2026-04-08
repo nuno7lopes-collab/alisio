@@ -1,6 +1,10 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
-import type { SkillMessageMap } from "../controllers/skills.ts";
+import type {
+  SkillActionOutput,
+  SkillConsentRequest,
+  SkillMessageMap,
+} from "../controllers/skills.ts";
 import { clampText } from "../format.ts";
 import type {
   AlisioConnectorAuthorization,
@@ -46,6 +50,8 @@ export type CapabilitiesProps = {
   edits: Record<string, string>;
   busyKey: string | null;
   messages: SkillMessageMap;
+  actionOutputs: Record<string, SkillActionOutput>;
+  consentRequest: SkillConsentRequest | null;
   detailKey: string | null;
   channelsSnapshot: ChannelsStatusSnapshot | null;
   connectorCatalog: AlisioConnectorDefinition[];
@@ -59,6 +65,11 @@ export type CapabilitiesProps = {
   onSaveKey: (skillKey: string) => void;
   onSaveEnv: (skillKey: string, envName: string) => void;
   onInstall: (skillKey: string, name: string, installId: string) => void;
+  onMarketplaceInstall: (skillKey: string) => void;
+  onMarketplaceRemove: (skillKey: string) => void;
+  onMarketplaceExecute: (skillKey: string) => void;
+  onConsentResolve: (decision: "allow-once" | "allow-always" | "deny") => void;
+  onConsentDismiss: () => void;
   onEnableConfig: (skillKey: string, configPath: string) => void;
   onAllowBundled: (skillKey: string) => void;
   onDetailOpen: (skillKey: string) => void;
@@ -174,7 +185,7 @@ function resolveSkillFamilyStatus(skills: SkillStatusEntry[]): CapabilityStatus 
 }
 
 function buildCapabilityCards(props: CapabilitiesProps): CapabilityCard[] {
-  const skills = props.report?.skills ?? [];
+  const skills = props.report?.marketplaceCatalog ?? props.report?.skills ?? [];
   const channels = channelSignals(props.channelsSnapshot);
   const connectedApps = connectedAppsCount(props.connectorAuthorizations);
 
@@ -291,7 +302,7 @@ function renderSkillDetail(skill: SkillStatusEntry, props: CapabilitiesProps) {
 
 export function renderCapabilities(props: CapabilitiesProps) {
   const showInitialLoading = props.loading && props.connected && !props.report;
-  const skills = props.report?.skills ?? [];
+  const skills = props.report?.marketplaceCatalog ?? props.report?.skills ?? [];
   const statusCounts = buildSkillStatusCounts(skills);
 
   const filteredByStatus =
@@ -314,6 +325,9 @@ export function renderCapabilities(props: CapabilitiesProps) {
   const capabilityCards = buildCapabilityCards(props);
   const channels = channelSignals(props.channelsSnapshot);
   const connectedApps = connectedAppsCount(props.connectorAuthorizations);
+
+  const installedSkills = filteredSkills.filter((skill) => skill.installed);
+  const catalogSkills = filteredSkills.filter((skill) => !skill.installed);
 
   return html`
     <section class="alisio-page" style="display: grid; gap: 16px;">
@@ -433,7 +447,28 @@ export function renderCapabilities(props: CapabilitiesProps) {
               `
             : html`
                 <div class="list capabilities-skill-list">
-                  ${filteredSkills.map((skill) => renderSkillCard(skill, props))}
+                  ${installedSkills.length > 0
+                    ? html`
+                        <div class="list-item">
+                          <div class="list-title">Installed</div>
+                          <div class="list-sub">
+                            ${installedSkills.length} ready on this computer
+                          </div>
+                        </div>
+                        ${installedSkills.map((skill) => renderSkillCard(skill, props))}
+                      `
+                    : nothing}
+                  ${catalogSkills.length > 0
+                    ? html`
+                        <div class="list-item">
+                          <div class="list-title">Catalog</div>
+                          <div class="list-sub">
+                            ${catalogSkills.length} available skills and MCP surfaces
+                          </div>
+                        </div>
+                        ${catalogSkills.map((skill) => renderSkillCard(skill, props))}
+                      `
+                    : nothing}
                 </div>
               `}
       </section>
