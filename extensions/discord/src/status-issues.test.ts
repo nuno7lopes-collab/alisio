@@ -127,4 +127,22 @@ describe("collectDiscordStatusIssues", () => {
       }),
     ]);
   });
+
+  it("redacts sensitive runtime error details", () => {
+    const raw = "OPENAI_API_KEY=sk-1234567890abcdef";
+    const issues = collectDiscordStatusIssues([
+      {
+        accountId: "ops",
+        enabled: true,
+        configured: true,
+        running: true,
+        connected: false,
+        lastError: raw,
+      } as ChannelAccountSnapshot,
+    ]);
+
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.message).toContain("OPENAI_API_KEY=sk-123…cdef");
+    expect(issues[0]?.message).not.toContain(raw);
+  });
 });

@@ -189,6 +189,17 @@ describe("web session", () => {
     expect(formatError(err)).toContain("QR refs attempts ended");
   });
 
+  it("formatError redacts sensitive payload details", () => {
+    const raw = "OPENAI_API_KEY=sk-1234567890abcdef";
+    const formatted = formatError({
+      message: raw,
+      code: "ELOGIN",
+    });
+
+    expect(formatted).toContain("OPENAI_API_KEY=sk-123…cdef");
+    expect(formatted).not.toContain(raw);
+  });
+
   it("does not clobber creds backup when creds.json is corrupted", async () => {
     const creds = mockCredsJsonSpies("{");
 

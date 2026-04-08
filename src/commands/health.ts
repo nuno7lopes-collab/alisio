@@ -2,10 +2,7 @@ import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
 import { getChannelPlugin } from "../channels/plugins/index.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../channels/plugins/types.js";
-import {
-  PRODUCT_CHAT_CHANNEL_IDS,
-  listProductChannelPlugins,
-} from "../channels/product-surface.js";
+import { listProductChannelPlugins } from "../channels/product-surface.js";
 import { inspectReadOnlyChannelAccount } from "../channels/read-only-account-inspect.js";
 import { withProgress } from "../cli/progress.js";
 import type { AlisioConfig } from "../config/config.js";
@@ -454,9 +451,7 @@ export async function getHealthSnapshot(params?: {
   const doProbe = params?.probe !== false;
   const channels: Record<string, ChannelHealthSummary> = {};
   const channelPlugins = listProductChannelPlugins();
-  const channelOrder = PRODUCT_CHAT_CHANNEL_IDS.filter((channelId) =>
-    channelPlugins.some((plugin) => plugin.id === channelId),
-  );
+  const channelOrder = channelPlugins.map((plugin) => plugin.id);
   const channelLabels: Record<string, string> = {};
 
   for (const plugin of channelPlugins) {

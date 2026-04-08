@@ -477,4 +477,44 @@ describe("getHealthSnapshot", () => {
     expect(Object.keys(snap.channels)).toEqual(["telegram"]);
     expect(snap.channelLabels.slack).toBeUndefined();
   });
+
+  it("can expose the broader health surface behind the product-surface flag", async () => {
+    testConfig = {};
+    testStore = {};
+    vi.stubEnv("OPENCLAW_CHANNEL_SURFACE", "all");
+    setActivePluginRegistry(
+      createTestRegistry([
+        { pluginId: "telegram", plugin: createTelegramHealthPlugin(), source: "test" },
+        {
+          pluginId: "slack",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "slack", label: "Slack" }),
+            config: {
+              listAccountIds: () => ["default"],
+              resolveAccount: () => ({}),
+              isConfigured: () => true,
+            },
+            status: {
+              buildChannelSummary: () => ({
+                accountId: "default",
+                configured: true,
+              }),
+            },
+          },
+        },
+      ]),
+    );
+
+    const snap = await getHealthSnapshot({ timeoutMs: 10, probe: false });
+
+    expect(snap.channelOrder).toEqual(["telegram", "slack"]);
+    expect(snap.channels).toEqual(
+      expect.objectContaining({
+        telegram: expect.any(Object),
+        slack: expect.any(Object),
+      }),
+    );
+    expect(snap.channelLabels.slack).toBe("Slack");
+  });
 });

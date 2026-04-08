@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
 const mocks = vi.hoisted(() => ({
@@ -145,6 +145,10 @@ describe("channelsHandlers channels.status", () => {
     ]);
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("usa o snapshot auto-enabled e expõe só a shortlist pública", async () => {
     const autoEnabledConfig = { autoEnabled: true };
     mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
@@ -250,6 +254,41 @@ describe("channelsHandlers channels.status", () => {
                 "Channel configuration is saved, but the runtime channel is not loaded on this host yet.",
             }),
           ],
+        }),
+      }),
+      undefined,
+    );
+  });
+
+  it("pode expor a superfície alargada no status atrás da flag de product surface", async () => {
+    vi.stubEnv("OPENCLAW_CHANNEL_SURFACE", "all");
+    const respond = vi.fn();
+
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+        },
+      ),
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        channelOrder: ["telegram", "whatsapp", "discord", "slack"],
+        channelMeta: expect.arrayContaining([
+          expect.objectContaining({
+            id: "slack",
+            docsPath: "/channels/slack",
+          }),
+        ]),
+        channels: expect.objectContaining({
+          slack: expect.objectContaining({
+            configured: false,
+            setupOnly: true,
+            setupAvailable: true,
+          }),
         }),
       }),
       undefined,
