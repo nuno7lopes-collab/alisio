@@ -279,6 +279,13 @@ describe("discoverOpenClawPlugins", () => {
     expectCandidateIds(candidates, { includes: ["alpha", "beta"] });
   });
 
+  it("ignores root-level test files in bundled plugin directories", () => {
+    const result = discoverOpenClawPlugins({});
+
+    expect(result.diagnostics).toEqual([]);
+    expectCandidateIds(result.candidates, { excludes: ["manifest-filename-shims.test"] });
+  });
+
   it("resolves tilde workspace dirs against the provided env", () => {
     const stateDir = makeTempDir();
     const homeDir = makeTempDir();
@@ -324,6 +331,43 @@ describe("discoverOpenClawPlugins", () => {
       includes: ["live"],
       excludes: ["feishu.backup-20260222", "telegram.disabled.20260222", "discord.bak"],
     });
+  });
+
+  it.each([
+    {
+      name: "ignores root-level test files in global plugin roots",
+      env: (stateDir: string) => buildDiscoveryEnv(stateDir),
+    },
+    {
+      name: "ignores root-level test files in bundled plugin roots",
+      env: (stateDir: string) => ({
+        ...buildDiscoveryEnv(stateDir),
+        OPENCLAW_BUNDLED_PLUGINS_DIR: path.join(stateDir, "bundled"),
+      }),
+      rootDir: (stateDir: string) => path.join(stateDir, "bundled"),
+    },
+  ] as const)("$name", ({ env, rootDir }) => {
+    const stateDir = makeTempDir();
+    const pluginRoot = rootDir ? rootDir(stateDir) : path.join(stateDir, "extensions");
+    mkdirSafe(pluginRoot);
+    fs.writeFileSync(
+      path.join(pluginRoot, "manifest-filename-shims.test.ts"),
+      "export {}",
+      "utf-8",
+    );
+    fs.writeFileSync(path.join(pluginRoot, "module-test-helpers.ts"), "export {}", "utf-8");
+    fs.writeFileSync(path.join(pluginRoot, "live.ts"), "export default {}", "utf-8");
+
+    const result = discoverOpenClawPlugins({
+      env: env(stateDir),
+      cache: false,
+    });
+
+    expectCandidatePresence(result, {
+      present: ["live"],
+      absent: ["manifest-filename-shims.test", "module-test-helpers"],
+    });
+    expect(result.diagnostics).toEqual([]);
   });
 
   it("loads package extension packs", async () => {

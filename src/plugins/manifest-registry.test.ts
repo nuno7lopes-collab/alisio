@@ -310,6 +310,31 @@ afterEach(() => {
 });
 
 describe("loadPluginManifestRegistry", () => {
+  it("ignores root-level test files in bundled plugin roots", () => {
+    const stateDir = makeTempDir();
+    const bundledRoot = makeTempDir();
+    const pluginDir = path.join(bundledRoot, "demo");
+    mkdirSafe(pluginDir);
+    writeManifest(pluginDir, { id: "demo", configSchema: { type: "object" } });
+    fs.writeFileSync(path.join(pluginDir, "index.ts"), "export default {}", "utf-8");
+    fs.writeFileSync(
+      path.join(bundledRoot, "manifest-filename-shims.test.ts"),
+      "export default {};",
+      "utf-8",
+    );
+
+    const registry = loadPluginManifestRegistry({
+      cache: false,
+      env: hermeticEnv({
+        OPENCLAW_STATE_DIR: stateDir,
+        OPENCLAW_BUNDLED_PLUGINS_DIR: bundledRoot,
+      }),
+    });
+
+    expect(registry.diagnostics).toEqual([]);
+    expect(registry.plugins.map((plugin) => plugin.id)).toContain("demo");
+  });
+
   it("emits duplicate warning for truly distinct plugins with same id", () => {
     const dirA = makeTempDir();
     const dirB = makeTempDir();

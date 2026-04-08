@@ -17,6 +17,12 @@ import { resolvePluginCacheInputs, resolvePluginSourceRoots } from "./roots.js";
 import type { PluginBundleFormat, PluginDiagnostic, PluginFormat, PluginOrigin } from "./types.js";
 
 const EXTENSION_EXTS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
+const NON_RUNTIME_PLUGIN_SOURCE_PATTERNS = [
+  /\.test\.[cm]?[jt]sx?$/u,
+  /\.spec\.[cm]?[jt]sx?$/u,
+  /\.e2e\.test\.[cm]?[jt]sx?$/u,
+  /(^|[\\/])[^\\/]*test-helpers(?:\.[^\\/]+)?\.[cm]?[jt]sx?$/u,
+] as const;
 
 export type PluginCandidate = {
   idHint: string;
@@ -280,11 +286,26 @@ function isUnsafePluginCandidate(params: {
 }
 
 function isExtensionFile(filePath: string): boolean {
+  const normalizedPath = filePath.replaceAll("\\", "/");
   const ext = path.extname(filePath);
   if (!EXTENSION_EXTS.has(ext)) {
     return false;
   }
-  return !filePath.endsWith(".d.ts");
+  if (normalizedPath.endsWith(".d.ts")) {
+    return false;
+  }
+  return !NON_RUNTIME_PLUGIN_SOURCE_PATTERNS.some((pattern) => pattern.test(normalizedPath));
+}
+
+function shouldIgnoreScannedFile(filePath: string): boolean {
+  const fileName = path.basename(filePath).toLowerCase();
+  if (fileName.includes(".test.")) {
+    return true;
+  }
+  if (fileName.includes("test-helpers")) {
+    return true;
+  }
+  return false;
 }
 
 function shouldIgnoreScannedDirectory(dirName: string): boolean {
@@ -572,7 +593,7 @@ function discoverInDirectory(params: {
   for (const entry of entries) {
     const fullPath = path.join(params.dir, entry.name);
     if (entry.isFile()) {
-      if (!isExtensionFile(fullPath)) {
+      if (!isExtensionFile(fullPath) || shouldIgnoreScannedFile(fullPath)) {
         continue;
       }
       addCandidate({
@@ -706,7 +727,7 @@ function discoverFromPath(params: {
 
   const stat = fs.statSync(resolved);
   if (stat.isFile()) {
-    if (!isExtensionFile(resolved)) {
+    if (!isExtensionFile(resolved) || shouldIgnoreScannedFile(resolved)) {
       params.diagnostics.push({
         level: "error",
         message: `plugin path is not a supported file: ${resolved}`,
