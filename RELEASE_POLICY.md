@@ -1,6 +1,7 @@
 # Release Policy
 
-This document defines the minimum release policy for this repository.
+This document defines the minimum repo-specific release policy for this repository.
+For the public release lanes and versioning policy, see `docs/reference/RELEASING.md`.
 
 ## Version source of truth
 

@@ -62,7 +62,7 @@ repos:
           - --exclude-lines
           - 'export CUSTOM_API_K[E]Y="your-key"'
           - --exclude-lines
-          - 'grep -q ''N[O]DE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache'' ~/.bashrc \|\| cat >> ~/.bashrc <<''EOF'''
+          - 'grep -q ''N[O]DE_COMPILE_CACHE=/var/tmp/[A-Za-z0-9-]+-compile-cache'' ~/.bashrc \|\| cat >> ~/.bashrc <<''EOF'''
           - --exclude-lines
           - 'env: \{ MISTRAL_API_K[E]Y: "sk-\.\.\." \},'
           - --exclude-lines

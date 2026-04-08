@@ -43,8 +43,9 @@ jobs:
           script: |
             // Labels prefixed with "r:" are auto-response triggers.
             const activePrLimit = 10;
-            const docsBaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs`;
-            const faqUrl = `${docsBaseUrl}/help/faq.md#im-stuck-whats-the-fastest-way-to-get-unstuck`;
+            const defaultBranch = context.payload.repository?.default_branch ?? "main";
+            const docsBaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/${defaultBranch}/docs`;
+            const faqUrl = `${docsBaseUrl}/help/faq.md`;
             const pluginDocsUrl = `${docsBaseUrl}/plugins/building-plugins.md`;
             const communityPluginsUrl = `${docsBaseUrl}/plugins/community.md`;
             const rules = [

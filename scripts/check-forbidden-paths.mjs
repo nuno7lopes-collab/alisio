@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 
 const forbiddenDirectoryReasons = new Map([
   ["node_modules", "runtime dependency artifacts must never be committed"],
@@ -12,7 +13,9 @@ const forbiddenDirectoryReasons = new Map([
 ]);
 
 function usage() {
-  console.error("Usage: node scripts/check-forbidden-paths.mjs --tracked|--staged");
+  console.error(
+    "Usage: node scripts/check-forbidden-paths.mjs --tracked|--staged|--paths [--allow-deleted-tracked] <path...>",
+  );
   process.exit(2);
 }
 
@@ -45,12 +48,33 @@ function resolveForbiddenDirectory(filePath) {
   return null;
 }
 
-function listPaths(mode) {
+function listPaths(mode, extraArgs) {
   if (mode === "--tracked") {
     return gitListPaths(["ls-files", "-z"]);
   }
   if (mode === "--staged") {
     return gitListPaths(["diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"]);
+  }
+  if (mode === "--paths") {
+    const allowDeletedTracked = extraArgs[0] === "--allow-deleted-tracked";
+    const rawPaths = allowDeletedTracked ? extraArgs.slice(1) : extraArgs;
+    if (rawPaths.length === 0) {
+      usage();
+    }
+    return rawPaths.filter((filePath) => {
+      if (!allowDeletedTracked) {
+        return true;
+      }
+      if (existsSync(filePath)) {
+        return true;
+      }
+      try {
+        gitListPaths(["ls-files", "--error-unmatch", "--", filePath]);
+        return false;
+      } catch {
+        return true;
+      }
+    });
   }
   usage();
   return [];
@@ -58,11 +82,24 @@ function listPaths(mode) {
 
 function main() {
   const mode = process.argv[2];
-  if (!mode || process.argv.length !== 3) {
+  const extraArgs = process.argv.slice(3);
+  if (!mode) {
     usage();
   }
 
-  const files = listPaths(mode);
+  if ((mode === "--tracked" || mode === "--staged") && extraArgs.length !== 0) {
+    usage();
+  }
+
+  const files = listPaths(mode, extraArgs);
+  const cleanScopeLabel =
+    mode === "--tracked" ? "tracked" : mode === "--staged" ? "staged" : "provided";
+  const violationScopeLabel =
+    mode === "--tracked"
+      ? "tracked files"
+      : mode === "--staged"
+        ? "staged files"
+        : "provided paths";
   const violations = files
     .map((filePath) => {
       const forbiddenDirectory = resolveForbiddenDirectory(filePath);
@@ -77,13 +114,11 @@ function main() {
     .filter(Boolean);
 
   if (violations.length === 0) {
-    const scopeLabel = mode === "--tracked" ? "tracked" : "staged";
-    console.log(`check-forbidden-paths: ${scopeLabel} paths look clean.`);
+    console.log(`check-forbidden-paths: ${cleanScopeLabel} paths look clean.`);
     return;
   }
 
-  const scopeLabel = mode === "--tracked" ? "tracked files" : "staged files";
-  console.error(`check-forbidden-paths: forbidden ${scopeLabel} detected:`);
+  console.error(`check-forbidden-paths: forbidden ${violationScopeLabel} detected:`);
   for (const violation of violations) {
     console.error(`  - ${violation.filePath} (${violation.reason})`);
   }

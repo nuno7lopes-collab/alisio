@@ -3,6 +3,7 @@
 set -euo pipefail
 # Disable glob expansion to handle brackets in file paths
 set -f
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 usage() {
   printf 'Usage: %s [--force] "commit message" "file" ["file" ...]\n' "$(basename "$0")" >&2
   exit 2
@@ -88,38 +89,6 @@ normalize_repo_file_arg() {
   printf '%s\n' "$normalized"
 }
 
-is_deleted_tracked_path() {
-  local candidate=$1
-  [ ! -e "$candidate" ] && git ls-files --error-unmatch -- "$candidate" >/dev/null 2>&1
-}
-
-contains_forbidden_segment() {
-  local candidate=$1
-
-  case "$candidate" in
-    node_modules | node_modules/* | */node_modules | */node_modules/*)
-      return 0
-      ;;
-    .build | .build/* | */.build | */.build/*)
-      return 0
-      ;;
-    .build-local | .build-local/* | */.build-local | */.build-local/*)
-      return 0
-      ;;
-    dist | dist/* | */dist | */dist/*)
-      return 0
-      ;;
-    dist-runtime | dist-runtime/* | */dist-runtime | */dist-runtime/*)
-      return 0
-      ;;
-    coverage | coverage/* | */coverage | */coverage/*)
-      return 0
-      ;;
-  esac
-
-  return 1
-}
-
 files=()
 for raw_arg in "$@"; do
   append_normalized_file_arg "$raw_arg"
@@ -152,14 +121,12 @@ for file in "${files[@]}"; do
 done
 
 # Prevent staging generated artifacts even if a path is forced.
+normalized_files=()
 for file in "${files[@]}"; do
-  normalized_file=$(normalize_repo_file_arg "$file")
-
-  if contains_forbidden_segment "$normalized_file" && ! is_deleted_tracked_path "$normalized_file"; then
-    printf 'Error: generated artifact paths are not allowed: %s\n' "$file" >&2
-    exit 1
-  fi
+  normalized_files+=("$(normalize_repo_file_arg "$file")")
 done
+
+node "$SCRIPT_DIR/check-forbidden-paths.mjs" --paths --allow-deleted-tracked "${normalized_files[@]}"
 
 last_commit_error=''
 
