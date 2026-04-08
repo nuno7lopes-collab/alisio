@@ -629,7 +629,7 @@ describe("AcpxRuntime", () => {
       fs.mkdirSync(path.join(pluginRoot, "src"), { recursive: true });
       fs.mkdirSync(path.dirname(distEntry), { recursive: true });
       fs.writeFileSync(path.join(pluginRoot, "package.json"), "{}\n", "utf8");
-      fs.writeFileSync(path.join(pluginRoot, "openclaw.plugin.json"), "{}\n", "utf8");
+      fs.writeFileSync(path.join(pluginRoot, "alisio.plugin.json"), "{}\n", "utf8");
       fs.writeFileSync(path.join(pluginRoot, "src", "config.ts"), "// test\n", "utf8");
       fs.writeFileSync(distEntry, "// built entry\n", "utf8");
 

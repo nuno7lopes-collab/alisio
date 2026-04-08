@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPluginConfigSchema } from "openclaw/plugin-sdk/core";
 import { z } from "openclaw/plugin-sdk/zod";
-import type { OpenClawPluginConfigSchema } from "../runtime-api.js";
+import type { OpenClawPluginConfigSchema as PluginConfigSchema } from "../runtime-api.js";
 
 export const ACPX_PERMISSION_MODES = ["approve-all", "approve-reads", "deny-all"] as const;
 export type AcpxPermissionMode = (typeof ACPX_PERMISSION_MODES)[number];
@@ -14,10 +14,11 @@ export type AcpxNonInteractivePermissionPolicy = (typeof ACPX_NON_INTERACTIVE_PO
 export const ACPX_VERSION_ANY = "any";
 export const ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME = "openclaw-plugin-tools";
 const ACPX_BIN_NAME = process.platform === "win32" ? "acpx.cmd" : "acpx";
+const ACPX_PLUGIN_MANIFEST_FILENAMES = ["alisio.plugin.json", "openclaw.plugin.json"] as const;
 
 function isAcpxPluginRoot(dir: string): boolean {
   return (
-    fs.existsSync(path.join(dir, "openclaw.plugin.json")) &&
+    ACPX_PLUGIN_MANIFEST_FILENAMES.some((fileName) => fs.existsSync(path.join(dir, fileName))) &&
     fs.existsSync(path.join(dir, "package.json"))
   );
 }
@@ -212,7 +213,7 @@ function resolveConfiguredCommand(params: { configured?: string; workspaceDir?: 
   return configured;
 }
 
-function resolveOpenClawRoot(currentRoot: string): string {
+function resolveRepoRoot(currentRoot: string): string {
   if (
     path.basename(currentRoot) === "acpx" &&
     path.basename(path.dirname(currentRoot)) === "extensions"
@@ -230,15 +231,15 @@ export function resolvePluginToolsMcpServerConfig(
   moduleUrl: string = import.meta.url,
 ): McpServerConfig {
   const pluginRoot = resolveAcpxPluginRoot(moduleUrl);
-  const openClawRoot = resolveOpenClawRoot(pluginRoot);
-  const distEntry = path.join(openClawRoot, "dist", "mcp", "plugin-tools-serve.js");
+  const repoRoot = resolveRepoRoot(pluginRoot);
+  const distEntry = path.join(repoRoot, "dist", "mcp", "plugin-tools-serve.js");
   if (fs.existsSync(distEntry)) {
     return {
       command: process.execPath,
       args: [distEntry],
     };
   }
-  const sourceEntry = path.join(openClawRoot, "src", "mcp", "plugin-tools-serve.ts");
+  const sourceEntry = path.join(repoRoot, "src", "mcp", "plugin-tools-serve.ts");
   return {
     command: process.execPath,
     args: ["--import", "tsx", sourceEntry],
@@ -263,7 +264,7 @@ function resolveConfiguredMcpServers(params: {
   return resolved;
 }
 
-export function createAcpxPluginConfigSchema(): OpenClawPluginConfigSchema {
+export function createAcpxPluginConfigSchema(): PluginConfigSchema {
   return buildPluginConfigSchema(AcpxPluginConfigSchema);
 }
 

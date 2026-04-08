@@ -60,7 +60,7 @@ describe("openshell plugin config", () => {
 
   it("keeps the runtime json schema in sync with the manifest config schema", () => {
     const manifest = JSON.parse(
-      fsSync.readFileSync(new URL("../openclaw.plugin.json", import.meta.url), "utf8"),
+      fsSync.readFileSync(new URL("../alisio.plugin.json", import.meta.url), "utf8"),
     ) as { configSchema?: unknown };
 
     expect(createOpenShellPluginConfigSchema().jsonSchema).toEqual(manifest.configSchema);
@@ -140,7 +140,7 @@ describe("openshell backend manager", () => {
     vi.clearAllMocks();
   });
 
-  it("checks runtime status with config override from OpenClaw config", async () => {
+  it("checks runtime status with config override from the host config", async () => {
     cliMocks.runOpenShellCli.mockResolvedValue({
       code: 0,
       stdout: "{}",
