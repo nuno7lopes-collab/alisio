@@ -35,6 +35,7 @@ const NODE_ROLE_METHODS = new Set([
 
 const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
   [APPROVALS_SCOPE]: [
+    "approval.audit.get",
     "exec.approval.request",
     "exec.approval.waitDecision",
     "exec.approval.resolve",
@@ -103,6 +104,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "last-heartbeat",
     "node.list",
     "node.describe",
+    "devices.list",
     "chat.history",
     "config.get",
     "config.schema.lookup",
@@ -138,6 +140,10 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.sharing.reject",
     "alisio.sharing.revoke",
     "alisio.sharing.policy.set",
+    "devices.share.request",
+    "devices.share.approve",
+    "devices.share.revoke",
+    "devices.policy.set",
     "alisio.connectors.begin",
     "alisio.connectors.complete",
     "alisio.connectors.revoke",

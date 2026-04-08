@@ -18,7 +18,11 @@ import {
   validateExecApprovalRequestParams,
   validateExecApprovalResolveParams,
 } from "../protocol/index.js";
-import { logExecApprovalRequested, logExecApprovalResolved } from "./approval-audit.js";
+import {
+  logExecApprovalRequested,
+  logExecApprovalResolved,
+  rememberExecApprovalResolved,
+} from "./approval-audit.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 const APPROVAL_NOT_FOUND_DETAILS = {
@@ -333,6 +337,7 @@ export function createExecApprovalHandlers(
       const approvalId = resolvedId.id;
       const snapshot = manager.getSnapshot(approvalId);
       const resolvedBy = client?.connect?.client?.displayName ?? client?.connect?.client?.id;
+      const resolvedAtMs = Date.now();
       const ok = manager.resolve(approvalId, decision, resolvedBy ?? null);
       if (!ok) {
         respond(
@@ -346,9 +351,16 @@ export function createExecApprovalHandlers(
       }
       context.broadcast(
         "exec.approval.resolved",
-        { id: approvalId, decision, resolvedBy, ts: Date.now(), request: snapshot?.request },
+        { id: approvalId, decision, resolvedBy, ts: resolvedAtMs, request: snapshot?.request },
         { dropIfSlow: true },
       );
+      rememberExecApprovalResolved({
+        id: approvalId,
+        request: snapshot?.request,
+        decision,
+        resolvedBy,
+        ts: resolvedAtMs,
+      });
       logExecApprovalResolved(context.logGateway, {
         id: approvalId,
         request: snapshot?.request,
@@ -360,7 +372,7 @@ export function createExecApprovalHandlers(
           id: approvalId,
           decision,
           resolvedBy,
-          ts: Date.now(),
+          ts: resolvedAtMs,
           request: snapshot?.request,
         })
         .catch((err) => {

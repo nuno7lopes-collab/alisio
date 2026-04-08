@@ -1,5 +1,8 @@
 import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { PluginApprovalRequestPayload } from "../../infra/plugin-approvals.js";
+import { validateExecApprovalsGetParams } from "../protocol/index.js";
+import type { GatewayRequestHandlers } from "./types.js";
+import { assertValidParams } from "./validation.js";
 
 type GatewayLogger = {
   info?: (message: string) => void;
@@ -7,13 +10,67 @@ type GatewayLogger = {
 
 type ExecApprovalAuditRequest = {
   command?: string | null;
+  commandPreview?: string | null;
+  envKeys?: string[] | null;
   host?: string | null;
   nodeId?: string | null;
   security?: string | null;
   ask?: string | null;
   agentId?: string | null;
   sessionKey?: string | null;
+  cwd?: string | null;
+  resolvedPath?: string | null;
 };
+
+export type ApprovalAuditTrailEntry =
+  | {
+      kind: "exec";
+      id: string;
+      decision: ExecApprovalDecision;
+      resolvedBy?: string | null;
+      ts: number;
+      request: ExecApprovalAuditRequest;
+    }
+  | {
+      kind: "plugin";
+      id: string;
+      decision: ExecApprovalDecision;
+      resolvedBy?: string | null;
+      ts: number;
+      request: PluginApprovalRequestPayload;
+    };
+
+export type ApprovalAuditTrailSnapshot = {
+  items: ApprovalAuditTrailEntry[];
+};
+
+const APPROVAL_AUDIT_TRAIL_LIMIT = 20;
+const approvalAuditTrail: ApprovalAuditTrailEntry[] = [];
+
+function cloneAuditValue<T>(value: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+  return value;
+}
+
+function addApprovalAuditTrailEntry(entry: ApprovalAuditTrailEntry) {
+  const next = approvalAuditTrail.filter((item) => item.id !== entry.id);
+  next.unshift(entry);
+  approvalAuditTrail.splice(
+    0,
+    approvalAuditTrail.length,
+    ...next.slice(0, APPROVAL_AUDIT_TRAIL_LIMIT),
+  );
+}
+
+export function listApprovalAuditTrail(): ApprovalAuditTrailEntry[] {
+  return approvalAuditTrail.map((entry) => cloneAuditValue(entry));
+}
+
+export function __resetApprovalAuditTrailForTest() {
+  approvalAuditTrail.length = 0;
+}
 
 function appendPart(parts: string[], key: string, value: string | null | undefined) {
   const normalized = value?.trim();
@@ -31,6 +88,12 @@ function buildExecApprovalAuditParts(request: ExecApprovalAuditRequest): string[
   appendPart(parts, "ask", request.ask);
   appendPart(parts, "agent", request.agentId);
   appendPart(parts, "session", request.sessionKey);
+  appendPart(parts, "cwd", request.cwd);
+  appendPart(parts, "resolvedPath", request.resolvedPath);
+  appendPart(parts, "commandPreview", request.commandPreview);
+  if (Array.isArray(request.envKeys) && request.envKeys.length > 0) {
+    parts.push(`envKeys=${JSON.stringify(request.envKeys.join(","))}`);
+  }
   appendPart(parts, "command", request.command);
   return parts;
 }
@@ -57,6 +120,23 @@ export function logExecApprovalResolved(
   logGateway?.info?.(
     `approval audit kind=exec phase=resolved id=${params.id} decision=${params.decision} ${parts.join(" ")}`,
   );
+}
+
+export function rememberExecApprovalResolved(params: {
+  id: string;
+  request: ExecApprovalAuditRequest | null | undefined;
+  decision: ExecApprovalDecision;
+  resolvedBy?: string | null;
+  ts: number;
+}) {
+  addApprovalAuditTrailEntry({
+    kind: "exec",
+    id: params.id,
+    decision: params.decision,
+    resolvedBy: params.resolvedBy ?? null,
+    ts: params.ts,
+    request: cloneAuditValue(params.request ?? {}),
+  });
 }
 
 export function logPluginApprovalRequested(
@@ -97,3 +177,29 @@ export function logPluginApprovalResolved(
     `approval audit kind=plugin phase=resolved id=${params.id} decision=${params.decision} ${parts.join(" ")}`,
   );
 }
+
+export function rememberPluginApprovalResolved(params: {
+  id: string;
+  request: PluginApprovalRequestPayload | null | undefined;
+  decision: ExecApprovalDecision;
+  resolvedBy?: string | null;
+  ts: number;
+}) {
+  addApprovalAuditTrailEntry({
+    kind: "plugin",
+    id: params.id,
+    decision: params.decision,
+    resolvedBy: params.resolvedBy ?? null,
+    ts: params.ts,
+    request: cloneAuditValue(params.request ?? { title: "", description: "" }),
+  });
+}
+
+export const approvalAuditHandlers: GatewayRequestHandlers = {
+  "approval.audit.get": ({ params, respond }) => {
+    if (!assertValidParams(params, validateExecApprovalsGetParams, "approval.audit.get", respond)) {
+      return;
+    }
+    respond(true, { items: listApprovalAuditTrail() }, undefined);
+  },
+};

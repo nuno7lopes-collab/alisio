@@ -7,6 +7,7 @@ import { isRoleAuthorizedForMethod, parseGatewayRole } from "./role-policy.js";
 import { agentHandlers } from "./server-methods/agent.js";
 import { agentsHandlers } from "./server-methods/agents.js";
 import { alisioHandlers } from "./server-methods/alisio.js";
+import { approvalAuditHandlers } from "./server-methods/approval-audit.js";
 import { channelsHandlers } from "./server-methods/channels.js";
 import { chatHandlers } from "./server-methods/chat.js";
 import { configHandlers } from "./server-methods/config.js";
@@ -85,6 +86,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...cronHandlers,
   ...deviceHandlers,
   ...doctorHandlers,
+  ...approvalAuditHandlers,
   ...execApprovalsHandlers,
   ...webHandlers,
   ...modelsHandlers,

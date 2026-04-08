@@ -15,6 +15,7 @@ afterEach(() => {
 
 describe("method scope resolution", () => {
   it.each([
+    ["approval.audit.get", ["operator.approvals"]],
     ["sessions.resolve", ["operator.read"]],
     ["config.schema.lookup", ["operator.read"]],
     ["sessions.create", ["operator.write"]],
@@ -99,6 +100,10 @@ describe("operator scope authorization", () => {
   });
 
   it("requires approvals scope for approval methods", () => {
+    expect(authorizeOperatorScopesForMethod("approval.audit.get", ["operator.write"])).toEqual({
+      allowed: false,
+      missingScope: "operator.approvals",
+    });
     expect(authorizeOperatorScopesForMethod("exec.approval.resolve", ["operator.write"])).toEqual({
       allowed: false,
       missingScope: "operator.approvals",
@@ -129,6 +134,7 @@ describe("operator scope authorization", () => {
 describe("plugin approval method registration", () => {
   it("lists all plugin approval methods", () => {
     const methods = listGatewayMethods();
+    expect(methods).toContain("approval.audit.get");
     expect(methods).toContain("plugin.approval.request");
     expect(methods).toContain("plugin.approval.waitDecision");
     expect(methods).toContain("plugin.approval.resolve");
@@ -151,6 +157,7 @@ describe("plugin approval method registration", () => {
   });
 
   it("classifies plugin approval methods", () => {
+    expect(isGatewayMethodClassified("approval.audit.get")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.request")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.waitDecision")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.resolve")).toBe(true);
