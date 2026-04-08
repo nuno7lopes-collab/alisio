@@ -23,6 +23,18 @@ export type AlisioModelsServerSelectResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsServerSelectResult;
 export type AlisioDoctorSummaryState =
   import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
+export type AlisioSharingState =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingState;
+export type AlisioSharingRequestResult =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingRequestResult;
+export type AlisioSharingApproveResult =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingApproveResult;
+export type AlisioSharingRejectResult =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingRejectResult;
+export type AlisioSharingRevokeResult =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingRevokeResult;
+export type AlisioSharingPolicySetResult =
+  import("../../../src/gateway/protocol/index.js").AlisioSharingPolicySetResult;
 export type MemoryStatusState = import("../../../src/gateway/protocol/index.js").MemoryStatusResult;
 export type MemorySyncResult = import("../../../src/gateway/protocol/index.js").MemorySyncResult;
 export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;
@@ -681,6 +693,7 @@ export type SkillInstallOption = {
 };
 
 export type SkillStatusEntry = {
+  kind?: "local-skill" | "mcp-server";
   name: string;
   description: string;
   source: string;
@@ -711,12 +724,98 @@ export type SkillStatusEntry = {
   };
   configChecks: SkillsStatusConfigCheck[];
   install: SkillInstallOption[];
+  manifestVersion?: string;
+  manifestSource?: "manifest" | "legacy-metadata" | "inferred";
+  manifestValid?: boolean;
+  marketplaceReady?: boolean;
+  manifestIssues?: Array<{ level: "error" | "warn"; path?: string; message: string }>;
+  permissions?: {
+    consent: "implicit" | "explicit";
+    sandbox: {
+      mode: "isolated" | "inherit";
+      filesystem: "read-only" | "workspace-write";
+      network: "off" | "inherit";
+    };
+    exec?: { bins?: string[] };
+    env?: { read?: string[] };
+    files?: { read?: string[]; write?: string[] };
+    network?: { outbound?: boolean; hosts?: string[] };
+    mcp?: {
+      consume?: boolean;
+      exposeTools?: boolean;
+      exposePrompts?: boolean;
+      exposeResources?: boolean;
+    };
+  };
+  outputs?: {
+    primary: "instructions" | "tool" | "prompt" | "resource";
+    formats: string[];
+  };
+  compat?: {
+    os?: string[];
+    runtimes?: string[];
+    requires?: {
+      bins?: string[];
+      anyBins?: string[];
+      env?: string[];
+      config?: string[];
+    };
+    mcp?: {
+      transports?: string[];
+      capabilities?: Array<"tools" | "prompts" | "resources">;
+    };
+  };
+  subscription?: {
+    required: boolean;
+    plan?: string;
+    featureFlag?: string;
+  };
+  access?: {
+    allowed: boolean;
+    required: boolean;
+    currentPlan: string;
+    plan?: string;
+    featureFlag?: string;
+    enabledFeatureFlags: string[];
+    issues: Array<{ code: string; message: string }>;
+  };
+  installed?: boolean;
+  installable?: boolean;
+  removable?: boolean;
+  executable?: boolean;
+  mcpServer?: {
+    serverName: string;
+    transport: "stdio" | "sse" | "streamable-http";
+    launchSummary: string;
+  };
+  recentAudit?: Array<{
+    id: string;
+    ts: string;
+    workspaceDir: string;
+    skillName: string;
+    action: "install" | "remove" | "execute";
+    outcome: "requested" | "granted" | "denied" | "completed" | "failed";
+    decision?: "allow-once" | "allow-always" | "deny";
+    actor?: string;
+    summary: string;
+  }>;
+  consentGrants?: Array<{
+    workspaceDir: string;
+    skillName: string;
+    action: "install" | "remove" | "execute";
+    decision: "allow-always";
+    fingerprint: string;
+    createdAt: string;
+    updatedAt: string;
+    actor?: string;
+  }>;
 };
 
 export type SkillStatusReport = {
   workspaceDir: string;
   managedSkillsDir: string;
   skills: SkillStatusEntry[];
+  marketplaceCatalog?: SkillStatusEntry[];
 };
 
 export type StatusSummary = Record<string, unknown>;

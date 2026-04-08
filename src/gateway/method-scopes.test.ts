@@ -24,7 +24,11 @@ describe("method scope resolution", () => {
     ["sessions.messages.unsubscribe", ["operator.read"]],
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
+    ["alisio.account.completeEmailLinkAuth", ["operator.write"]],
     ["alisio.account.requestRecoveryEmail", ["operator.write"]],
+    ["alisio.account.signUp", ["operator.write"]],
+    ["alisio.account.signIn", ["operator.write"]],
+    ["alisio.sharing.request", ["operator.write"]],
     ["alisio.models.server.save", ["operator.write"]],
     ["alisio.models.uninstall", ["operator.write"]],
     ["alisio.runtime.restart", ["operator.admin"]],
@@ -62,14 +66,22 @@ describe("operator scope authorization", () => {
     ["health", ["operator.write"], { allowed: true }],
     ["alisio.bootstrap.get", ["operator.read"], { allowed: true }],
     ["alisio.models.get", ["operator.read"], { allowed: true }],
+    ["alisio.sharing.get", ["operator.read"], { allowed: true }],
     ["alisio.doctor.summary", ["operator.read"], { allowed: true }],
     ["alisio.runtime.restart", ["operator.admin"], { allowed: true }],
     ["config.schema.lookup", ["operator.read"], { allowed: true }],
     ["alisio.models.install", ["operator.write"], { allowed: true }],
     ["alisio.models.uninstall", ["operator.write"], { allowed: true }],
+    ["alisio.account.completeEmailLinkAuth", ["operator.write"], { allowed: true }],
+    ["alisio.account.signUp", ["operator.write"], { allowed: true }],
+    ["alisio.account.signIn", ["operator.write"], { allowed: true }],
     ["alisio.models.server.save", ["operator.write"], { allowed: true }],
     ["alisio.models.server.remove", ["operator.write"], { allowed: true }],
     ["alisio.models.server.select", ["operator.write"], { allowed: true }],
+    ["alisio.sharing.approve", ["operator.write"], { allowed: true }],
+    ["alisio.sharing.reject", ["operator.write"], { allowed: true }],
+    ["alisio.sharing.revoke", ["operator.write"], { allowed: true }],
+    ["alisio.sharing.policy.set", ["operator.write"], { allowed: true }],
     ["config.patch", ["operator.admin"], { allowed: true }],
   ])("authorizes %s for scopes %j", (method, scopes, expected) => {
     expect(authorizeOperatorScopesForMethod(method, scopes)).toEqual(expected);
@@ -126,6 +138,16 @@ describe("plugin approval method registration", () => {
     const methods = listGatewayMethods();
     expect(methods).toContain("alisio.account.requestRecoveryEmail");
     expect(methods).not.toContain("alisio.account.requestPasswordReset");
+  });
+
+  it("lists the sharing methods", () => {
+    const methods = listGatewayMethods();
+    expect(methods).toContain("alisio.sharing.get");
+    expect(methods).toContain("alisio.sharing.request");
+    expect(methods).toContain("alisio.sharing.approve");
+    expect(methods).toContain("alisio.sharing.reject");
+    expect(methods).toContain("alisio.sharing.revoke");
+    expect(methods).toContain("alisio.sharing.policy.set");
   });
 
   it("classifies plugin approval methods", () => {

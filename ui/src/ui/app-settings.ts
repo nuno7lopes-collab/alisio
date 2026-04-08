@@ -28,6 +28,7 @@ import {
   loadAlisioDoctorSummary,
   loadAlisioModels,
   loadAlisioOrganization,
+  loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
 import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
@@ -437,6 +438,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     await Promise.allSettled([
       loadAlisioAccount(host as unknown as AlisioApp),
       loadAlisioOrganization(host as unknown as AlisioApp),
+      loadAlisioSharing(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "chat") {

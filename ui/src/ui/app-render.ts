@@ -20,8 +20,8 @@ import {
 import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import {
-  renderChatMobileToggle,
   resolveEffectiveAlisioAiState,
+  renderChatMobileToggle,
   resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   renderTab,
@@ -51,22 +51,28 @@ import {
   installAlisioModel,
   loadAlisioAccount,
   loadAlisioConnectors,
+  loadAlisioSharing,
   removeAlisioModelsServer,
   renameAlisioAiProfile,
   refreshAlisioAi,
   refreshAlisioAiProfile,
+  requestAlisioSharedDeviceAccess,
   requestAlisioRecoveryEmail,
   restartAlisioRuntime,
   revokeAlisioConnector,
+  revokeAlisioSharedDeviceGrant,
   saveAlisioAccount,
   saveAlisioModelsServer,
   selectAlisioAiProfile,
   selectAlisioModelsServer,
+  saveAlisioSharingPolicy,
   signOutAlisioAccount,
   saveAlisioOrganization,
   startAlisioSetupWizard,
   uninstallAlisioModel,
   verifyAlisioAccountEmailAuth,
+  approveAlisioSharedDeviceRequest,
+  rejectAlisioSharedDeviceRequest,
 } from "./controllers/alisio.ts";
 import {
   approveChannelPairingRequest,
@@ -1533,6 +1539,9 @@ export function renderApp(state: AppViewState) {
               loading: state.alisioOrganizationLoading,
               error: state.alisioOrganizationError,
               organization: state.alisioOrganization,
+              sharingLoading: state.alisioSharingLoading,
+              sharingError: state.alisioSharingError,
+              sharing: state.alisioSharing,
               draftMode: state.alisioOrganizationDraftMode,
               organizationName: state.alisioOrganizationName,
               inviteEmail: state.alisioOrganizationInviteEmail,
@@ -1560,6 +1569,24 @@ export function renderApp(state: AppViewState) {
               },
               onResetOrganization: () => {
                 void saveAlisioOrganization(state, { mode: "none" });
+              },
+              onRefreshSharing: () => {
+                void loadAlisioSharing(state);
+              },
+              onRequestAccess: (targetId) => {
+                void requestAlisioSharedDeviceAccess(state, targetId);
+              },
+              onApproveRequest: (requestId) => {
+                void approveAlisioSharedDeviceRequest(state, requestId);
+              },
+              onRejectRequest: (requestId) => {
+                void rejectAlisioSharedDeviceRequest(state, requestId);
+              },
+              onRevokeGrant: (grantId) => {
+                void revokeAlisioSharedDeviceGrant(state, grantId);
+              },
+              onSetPolicy: (allowExternalUse) => {
+                void saveAlisioSharingPolicy(state, allowExternalUse);
               },
             })
           : nothing}

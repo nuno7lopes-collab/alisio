@@ -4,8 +4,12 @@ import { resolveAgentIdFromSessionKey } from "../../../src/routing/session-key.j
 import type { NodeListNode } from "../../../src/shared/node-list-types.js";
 import { i18n, I18nController, isSupportedLocale } from "../i18n/index.ts";
 import {
+  clearAlisioAccountEmailLinkAuthFromUrl,
+  emitAlisioAccountAuthSignal,
   refreshAfterAlisioAccountAuth,
+  readAlisioAccountEmailLinkAuthResultFromUrl,
   subscribeAlisioAccountAuthSignals,
+  type AlisioAccountEmailLinkAuthResult,
 } from "./alisio-account-auth.ts";
 import {
   clearPendingAlisioConnectorChatResume,
@@ -63,9 +67,10 @@ import {
   loadToolsEffective as loadToolsEffectiveInternal,
   refreshVisibleToolsEffectiveForCurrentSession as refreshVisibleToolsEffectiveForCurrentSessionInternal,
 } from "./controllers/agents.ts";
+import { completeAlisioAccountEmailLinkAuth } from "./controllers/alisio.ts";
 import { loadAssistantIdentity as loadAssistantIdentityInternal } from "./controllers/assistant-identity.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
-import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
+import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
 import type { SecurityAccessMode } from "./controllers/security-access.ts";
@@ -175,6 +180,9 @@ export class AlisioApp extends LitElement {
   @state() alisioOrganizationLoading = false;
   @state() alisioOrganizationError: string | null = null;
   @state() alisioOrganization: import("./types.ts").AlisioOrganizationMembershipState | null = null;
+  @state() alisioSharingLoading = false;
+  @state() alisioSharingError: string | null = null;
+  @state() alisioSharing: import("./types.ts").AlisioSharingState | null = null;
   @state() alisioConnectorsLoading = false;
   @state() alisioConnectorsError: string | null = null;
   @state() alisioConnectorCatalog: import("./types.ts").AlisioConnectorDefinition[] = [];
@@ -252,6 +260,7 @@ export class AlisioApp extends LitElement {
   @state() execApprovalsTarget: "gateway" | "node" = "gateway";
   @state() execApprovalsTargetNodeId: string | null = null;
   @state() execApprovalQueue: ExecApprovalRequest[] = [];
+  @state() execApprovalAuditTrail: ExecApprovalAuditEntry[] = [];
   @state() execApprovalBusy = false;
   @state() execApprovalError: string | null = null;
   @state() gatewayAccessModeLoading = false;
@@ -498,6 +507,9 @@ export class AlisioApp extends LitElement {
   @state() skillEdits: Record<string, string> = {};
   @state() skillsBusyKey: string | null = null;
   @state() skillMessages: Record<string, SkillMessage> = {};
+  @state() skillActionOutputs: Record<string, import("./controllers/skills.ts").SkillActionOutput> =
+    {};
+  @state() skillConsentRequest: import("./controllers/skills.ts").SkillConsentRequest | null = null;
   @state() skillsDetailKey: string | null = null;
 
   @state() healthLoading = false;
@@ -551,6 +563,8 @@ export class AlisioApp extends LitElement {
   private connectorOAuthRefreshInFlight = false;
   private accountAuthCleanup: (() => void) | null = null;
   private accountAuthRefreshInFlight = false;
+  private pendingAccountEmailLinkAuth: AlisioAccountEmailLinkAuthResult | null = null;
+  private accountEmailLinkAuthInFlight = false;
   private openAiOAuthCleanup: (() => void) | null = null;
   private openAiOAuthRefreshInFlight = false;
   private execApprovalTicker: number | null = null;
@@ -571,6 +585,18 @@ export class AlisioApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (typeof window !== "undefined") {
+      const pendingAccountEmailLinkAuth = readAlisioAccountEmailLinkAuthResultFromUrl(
+        window.location.href,
+      );
+      if (pendingAccountEmailLinkAuth) {
+        this.pendingAccountEmailLinkAuth = pendingAccountEmailLinkAuth;
+        const cleanedUrl = clearAlisioAccountEmailLinkAuthFromUrl(window.location.href);
+        if (cleanedUrl !== window.location.href) {
+          window.history.replaceState({}, "", cleanedUrl);
+        }
+      }
+    }
     this.onSlashAction = (action: string) => {
       switch (action) {
         case "toggle-focus":
@@ -624,6 +650,9 @@ export class AlisioApp extends LitElement {
 
   protected updated(changed: Map<PropertyKey, unknown>) {
     handleUpdated(this as unknown as Parameters<typeof handleUpdated>[0], changed);
+    if (this.connected && this.pendingAccountEmailLinkAuth) {
+      void this.completePendingAccountEmailLinkAuth();
+    }
     if (changed.has("execApprovalQueue")) {
       if (this.execApprovalQueue.length > 0 && this.execApprovalTicker == null) {
         this.execApprovalTicker = window.setInterval(() => this.requestUpdate(), 1000);
@@ -653,6 +682,35 @@ export class AlisioApp extends LitElement {
 
   connect() {
     connectGatewayInternal(this as unknown as Parameters<typeof connectGatewayInternal>[0]);
+  }
+
+  private async completePendingAccountEmailLinkAuth() {
+    if (this.accountEmailLinkAuthInFlight || !this.pendingAccountEmailLinkAuth) {
+      return;
+    }
+    if (!this.connected || !this.client) {
+      return;
+    }
+
+    const pending = this.pendingAccountEmailLinkAuth;
+    this.accountEmailLinkAuthInFlight = true;
+    try {
+      this.setTab("setup");
+      this.setupStep = "account";
+      if (pending.kind === "error") {
+        this.alisioAccountError = pending.message;
+        this.pendingAccountEmailLinkAuth = null;
+        return;
+      }
+
+      const completed = await completeAlisioAccountEmailLinkAuth(this, pending);
+      this.pendingAccountEmailLinkAuth = null;
+      if (completed) {
+        emitAlisioAccountAuthSignal();
+      }
+    } finally {
+      this.accountEmailLinkAuthInFlight = false;
+    }
   }
 
   private async refreshAfterOpenAiOAuth() {

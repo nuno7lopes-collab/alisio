@@ -35,6 +35,8 @@ import {
   AlisioAccountEmailAuthBeginParamsSchema,
   type AlisioAccountEmailAuthBeginResult,
   AlisioAccountEmailAuthBeginResultSchema,
+  type AlisioAccountEmailLinkAuthCompleteParams,
+  AlisioAccountEmailLinkAuthCompleteParamsSchema,
   type AlisioAccountEmailAuthVerifyParams,
   AlisioAccountEmailAuthVerifyParamsSchema,
   type AlisioAccountGoogleAuthBeginParams,
@@ -131,6 +133,40 @@ import {
   AlisioOrganizationGetParamsSchema,
   type AlisioOrganizationSetParams,
   AlisioOrganizationSetParamsSchema,
+  type AlisioSharingAuditEntry,
+  AlisioSharingAuditEntrySchema,
+  type AlisioSharingApproveParams,
+  AlisioSharingApproveParamsSchema,
+  type AlisioSharingApproveResult,
+  AlisioSharingApproveResultSchema,
+  type AlisioSharingGetParams,
+  AlisioSharingGetParamsSchema,
+  type AlisioSharingGrant,
+  AlisioSharingGrantSchema,
+  type AlisioSharingPolicySetParams,
+  AlisioSharingPolicySetParamsSchema,
+  type AlisioSharingPolicySetResult,
+  AlisioSharingPolicySetResultSchema,
+  type AlisioSharingPrincipal,
+  AlisioSharingPrincipalSchema,
+  type AlisioSharingRejectParams,
+  AlisioSharingRejectParamsSchema,
+  type AlisioSharingRejectResult,
+  AlisioSharingRejectResultSchema,
+  type AlisioSharingRequest,
+  AlisioSharingRequestSchema,
+  type AlisioSharingRequestParams,
+  AlisioSharingRequestParamsSchema,
+  type AlisioSharingRequestResult,
+  AlisioSharingRequestResultSchema,
+  type AlisioSharingRevokeParams,
+  AlisioSharingRevokeParamsSchema,
+  type AlisioSharingRevokeResult,
+  AlisioSharingRevokeResultSchema,
+  type AlisioSharingState,
+  AlisioSharingStateSchema,
+  type AlisioSharingTarget,
+  AlisioSharingTargetSchema,
   type AlisioOrganizationState,
   AlisioOrganizationStateSchema,
   type AgentSummary,
@@ -493,6 +529,10 @@ export const validateAlisioAccountEmailAuthBeginParams =
   ajv.compile<AlisioAccountEmailAuthBeginParams>(AlisioAccountEmailAuthBeginParamsSchema);
 export const validateAlisioAccountEmailAuthBeginResult =
   ajv.compile<AlisioAccountEmailAuthBeginResult>(AlisioAccountEmailAuthBeginResultSchema);
+export const validateAlisioAccountEmailLinkAuthCompleteParams =
+  ajv.compile<AlisioAccountEmailLinkAuthCompleteParams>(
+    AlisioAccountEmailLinkAuthCompleteParamsSchema,
+  );
 export const validateAlisioAccountEmailAuthVerifyParams =
   ajv.compile<AlisioAccountEmailAuthVerifyParams>(AlisioAccountEmailAuthVerifyParamsSchema);
 export const validateAlisioAccountGoogleAuthBeginParams =
@@ -599,6 +639,40 @@ export const validateAlisioOrganizationGetParams = ajv.compile<AlisioOrganizatio
 );
 export const validateAlisioOrganizationSetParams = ajv.compile<AlisioOrganizationSetParams>(
   AlisioOrganizationSetParamsSchema,
+);
+export const validateAlisioSharingState = ajv.compile<AlisioSharingState>(AlisioSharingStateSchema);
+export const validateAlisioSharingGetParams = ajv.compile<AlisioSharingGetParams>(
+  AlisioSharingGetParamsSchema,
+);
+export const validateAlisioSharingRequestParams = ajv.compile<AlisioSharingRequestParams>(
+  AlisioSharingRequestParamsSchema,
+);
+export const validateAlisioSharingRequestResult = ajv.compile<AlisioSharingRequestResult>(
+  AlisioSharingRequestResultSchema,
+);
+export const validateAlisioSharingApproveParams = ajv.compile<AlisioSharingApproveParams>(
+  AlisioSharingApproveParamsSchema,
+);
+export const validateAlisioSharingApproveResult = ajv.compile<AlisioSharingApproveResult>(
+  AlisioSharingApproveResultSchema,
+);
+export const validateAlisioSharingRejectParams = ajv.compile<AlisioSharingRejectParams>(
+  AlisioSharingRejectParamsSchema,
+);
+export const validateAlisioSharingRejectResult = ajv.compile<AlisioSharingRejectResult>(
+  AlisioSharingRejectResultSchema,
+);
+export const validateAlisioSharingRevokeParams = ajv.compile<AlisioSharingRevokeParams>(
+  AlisioSharingRevokeParamsSchema,
+);
+export const validateAlisioSharingRevokeResult = ajv.compile<AlisioSharingRevokeResult>(
+  AlisioSharingRevokeResultSchema,
+);
+export const validateAlisioSharingPolicySetParams = ajv.compile<AlisioSharingPolicySetParams>(
+  AlisioSharingPolicySetParamsSchema,
+);
+export const validateAlisioSharingPolicySetResult = ajv.compile<AlisioSharingPolicySetResult>(
+  AlisioSharingPolicySetResultSchema,
 );
 export const validateAlisioConnectorsCatalogParams = ajv.compile<AlisioConnectorsCatalogParams>(
   AlisioConnectorsCatalogParamsSchema,
@@ -886,6 +960,12 @@ export {
   AlisioLocalUserPreferencesSchema,
   AlisioLocalDeviceSessionSchema,
   AlisioOrganizationStateSchema,
+  AlisioSharingPrincipalSchema,
+  AlisioSharingTargetSchema,
+  AlisioSharingRequestSchema,
+  AlisioSharingGrantSchema,
+  AlisioSharingAuditEntrySchema,
+  AlisioSharingStateSchema,
   AlisioBootstrapGetParamsSchema,
   AlisioModelsGetParamsSchema,
   AlisioModelsInstallParamsSchema,
@@ -907,6 +987,7 @@ export {
   AlisioAccountPasswordResetResultSchema,
   AlisioAccountEmailAuthBeginParamsSchema,
   AlisioAccountEmailAuthBeginResultSchema,
+  AlisioAccountEmailLinkAuthCompleteParamsSchema,
   AlisioAccountEmailAuthVerifyParamsSchema,
   AlisioAccountGoogleAuthBeginParamsSchema,
   AlisioAccountGoogleAuthBeginResultSchema,
@@ -923,6 +1004,17 @@ export {
   AlisioAiSelectProfileParamsSchema,
   AlisioOrganizationGetParamsSchema,
   AlisioOrganizationSetParamsSchema,
+  AlisioSharingGetParamsSchema,
+  AlisioSharingRequestParamsSchema,
+  AlisioSharingRequestResultSchema,
+  AlisioSharingApproveParamsSchema,
+  AlisioSharingApproveResultSchema,
+  AlisioSharingRejectParamsSchema,
+  AlisioSharingRejectResultSchema,
+  AlisioSharingRevokeParamsSchema,
+  AlisioSharingRevokeResultSchema,
+  AlisioSharingPolicySetParamsSchema,
+  AlisioSharingPolicySetResultSchema,
   AlisioConnectorsCatalogParamsSchema,
   AlisioConnectorsCatalogResultSchema,
   AlisioConnectorsListParamsSchema,
@@ -1086,6 +1178,12 @@ export type {
   AlisioAiState,
   AlisioLocalDeviceSession,
   AlisioOrganizationState,
+  AlisioSharingPrincipal,
+  AlisioSharingTarget,
+  AlisioSharingRequest,
+  AlisioSharingGrant,
+  AlisioSharingAuditEntry,
+  AlisioSharingState,
   AlisioBootstrapGetParams,
   AlisioModelsGetParams,
   AlisioModelsInstallParams,
@@ -1107,6 +1205,7 @@ export type {
   AlisioAccountPasswordResetResult,
   AlisioAccountEmailAuthBeginParams,
   AlisioAccountEmailAuthBeginResult,
+  AlisioAccountEmailLinkAuthCompleteParams,
   AlisioAccountEmailAuthVerifyParams,
   AlisioAccountGoogleAuthBeginParams,
   AlisioAccountGoogleAuthBeginResult,
@@ -1123,6 +1222,17 @@ export type {
   AlisioAiSelectProfileParams,
   AlisioOrganizationGetParams,
   AlisioOrganizationSetParams,
+  AlisioSharingGetParams,
+  AlisioSharingRequestParams,
+  AlisioSharingRequestResult,
+  AlisioSharingApproveParams,
+  AlisioSharingApproveResult,
+  AlisioSharingRejectParams,
+  AlisioSharingRejectResult,
+  AlisioSharingRevokeParams,
+  AlisioSharingRevokeResult,
+  AlisioSharingPolicySetParams,
+  AlisioSharingPolicySetResult,
   AlisioConnectorsCatalogParams,
   AlisioConnectorsCatalogResult,
   AlisioConnectorsListParams,

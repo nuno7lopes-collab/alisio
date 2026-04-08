@@ -4,6 +4,7 @@ import {
   listPublishedAlisioLocalModels,
 } from "../../../../src/shared/alisio-local-models.js";
 import { isAlisioManagedProvider } from "../../../../src/shared/alisio-remote-model-provider.js";
+import { resolveAlisioAccountEmailRedirectUrl } from "../alisio-account-auth.ts";
 import {
   alisioBootstrapBlocksChatAccess,
   isPostReadySetupStep,
@@ -32,6 +33,12 @@ import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
   AlisioOrganizationMembershipState,
+  AlisioSharingApproveResult,
+  AlisioSharingPolicySetResult,
+  AlisioSharingRejectResult,
+  AlisioSharingRequestResult,
+  AlisioSharingRevokeResult,
+  AlisioSharingState,
   ModelCatalogEntry,
   WizardNextResult,
   WizardStartResult,
@@ -87,6 +94,9 @@ export type AlisioState = {
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
+  alisioSharingLoading: boolean;
+  alisioSharingError: string | null;
+  alisioSharing: AlisioSharingState | null;
   alisioOrganizationDraftMode: "create" | "join";
   alisioOrganizationName: string;
   alisioOrganizationInviteEmail: string;
@@ -119,6 +129,7 @@ const modelsRequests = new WeakMap<AlisioState, TrackedRequest>();
 const accountRequests = new WeakMap<AlisioState, TrackedRequest>();
 const aiRequests = new WeakMap<AlisioState, TrackedRequest>();
 const organizationRequests = new WeakMap<AlisioState, TrackedRequest>();
+const sharingRequests = new WeakMap<AlisioState, TrackedRequest>();
 const connectorRequests = new WeakMap<AlisioState, TrackedRequest>();
 const bootstrapLastSuccessAt = new WeakMap<AlisioState, number>();
 const doctorLastSuccessAt = new WeakMap<AlisioState, number>();
@@ -456,6 +467,10 @@ function applyOrganizationSnapshot(
     syncSetupRoute(state);
   }
   syncDoctorBootstrap(state);
+}
+
+function applySharingSnapshot(state: AlisioState, sharing: AlisioSharingState) {
+  state.alisioSharing = sharing;
 }
 
 function applyConnectorSnapshot(
@@ -908,10 +923,13 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
   state.alisioAccountNotice = null;
   try {
     const email = state.alisioAuthEmail.trim();
+    const callbackUrl =
+      typeof window === "undefined" ? undefined : resolveAlisioAccountEmailRedirectUrl();
     const result = await request.client.request<{ ok: true; email: string; message: string }>(
       "alisio.account.beginEmailAuth",
       {
         email,
+        ...(callbackUrl ? { callbackUrl } : {}),
       },
     );
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
@@ -926,6 +944,56 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
       return;
     }
     state.alisioAccountError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
+  }
+}
+
+export async function completeAlisioAccountEmailLinkAuth(
+  state: AlisioState,
+  params: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    tokenType?: string;
+  },
+): Promise<boolean> {
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    return false;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return false;
+  }
+  state.alisioAccountLoading = true;
+  state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
+  try {
+    const account = await request.client.request<AlisioAccountState>(
+      "alisio.account.completeEmailLinkAuth",
+      {
+        accessToken: params.accessToken,
+        ...(params.refreshToken ? { refreshToken: params.refreshToken } : {}),
+        ...(typeof params.expiresIn === "number" ? { expiresIn: params.expiresIn } : {}),
+        ...(params.tokenType ? { tokenType: params.tokenType } : {}),
+      },
+    );
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return false;
+    }
+    applyAccountSnapshot(state, account);
+    await loadAlisioDoctorSummary(state, { force: true });
+    return true;
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return false;
+    }
+    state.alisioAccountError = String(error);
+    return false;
   } finally {
     if (isTrackedRequestCurrent(state, accountRequests, request)) {
       state.alisioAccountLoading = false;
@@ -1323,6 +1391,31 @@ export async function loadAlisioOrganization(state: AlisioState) {
   }
 }
 
+export async function loadAlisioSharing(state: AlisioState) {
+  const request = beginTrackedRequest(state, sharingRequests, state.alisioSharingLoading);
+  if (!request) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    const result = await request.client.request<AlisioSharingState>("alisio.sharing.get", {});
+    if (!isTrackedRequestCurrent(state, sharingRequests, request)) {
+      return;
+    }
+    applySharingSnapshot(state, result);
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, sharingRequests, request)) {
+      return;
+    }
+    state.alisioSharingError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, sharingRequests, request)) {
+      state.alisioSharingLoading = false;
+    }
+  }
+}
+
 export async function saveAlisioOrganization(
   state: AlisioState,
   next:
@@ -1341,11 +1434,96 @@ export async function saveAlisioOrganization(
       next,
     );
     applyOrganizationSnapshot(state, organization);
-    await loadAlisioDoctorSummary(state, { force: true });
+    await Promise.allSettled([
+      loadAlisioDoctorSummary(state, { force: true }),
+      loadAlisioSharing(state),
+    ]);
   } catch (error) {
     state.alisioOrganizationError = String(error);
   } finally {
     state.alisioOrganizationLoading = false;
+  }
+}
+
+export async function requestAlisioSharedDeviceAccess(state: AlisioState, targetId: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    await state.client.request<AlisioSharingRequestResult>("alisio.sharing.request", { targetId });
+    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+  } catch (error) {
+    state.alisioSharingError = String(error);
+  } finally {
+    state.alisioSharingLoading = false;
+  }
+}
+
+export async function approveAlisioSharedDeviceRequest(state: AlisioState, requestId: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    await state.client.request<AlisioSharingApproveResult>("alisio.sharing.approve", { requestId });
+    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+  } catch (error) {
+    state.alisioSharingError = String(error);
+  } finally {
+    state.alisioSharingLoading = false;
+  }
+}
+
+export async function rejectAlisioSharedDeviceRequest(state: AlisioState, requestId: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    await state.client.request<AlisioSharingRejectResult>("alisio.sharing.reject", { requestId });
+    await loadAlisioSharing(state);
+  } catch (error) {
+    state.alisioSharingError = String(error);
+  } finally {
+    state.alisioSharingLoading = false;
+  }
+}
+
+export async function revokeAlisioSharedDeviceGrant(state: AlisioState, grantId: string) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    await state.client.request<AlisioSharingRevokeResult>("alisio.sharing.revoke", { grantId });
+    await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
+  } catch (error) {
+    state.alisioSharingError = String(error);
+  } finally {
+    state.alisioSharingLoading = false;
+  }
+}
+
+export async function saveAlisioSharingPolicy(state: AlisioState, allowExternalUse: boolean) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.alisioSharingLoading = true;
+  state.alisioSharingError = null;
+  try {
+    await state.client.request<AlisioSharingPolicySetResult>("alisio.sharing.policy.set", {
+      allowExternalUse,
+    });
+    await loadAlisioSharing(state);
+  } catch (error) {
+    state.alisioSharingError = String(error);
+  } finally {
+    state.alisioSharingLoading = false;
   }
 }
 

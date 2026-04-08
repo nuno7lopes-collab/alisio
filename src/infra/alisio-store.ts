@@ -20,6 +20,7 @@ import {
   listMissingRequiredAlisioCloudEnvVars,
   beginAlisioCloudAccountEmailAuth,
   buildAlisioCloudGoogleAuthUrl,
+  completeAlisioCloudAccountEmailLinkAuth,
   completeAlisioCloudAccountProfile,
   exchangeAlisioCloudGoogleAuthCode,
   verifyAlisioCloudAccountEmailAuth,
@@ -67,6 +68,7 @@ import {
   gateAlisioConnectorConnection,
   gateAlisioOrganizationMembership,
   gateAlisioRemoteModelServers,
+  gateAlisioSharing,
 } from "./alisio-plan-gating.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
@@ -236,6 +238,171 @@ export type AlisioOrganizationMembershipState = {
   inviteEmail?: string;
 };
 
+export type AlisioSharingScope = "device.use" | "model.use";
+export type AlisioSharingOwnerScope = "user" | "organization";
+export type AlisioSharingRequestStatus = "pending" | "approved" | "rejected" | "revoked";
+export type AlisioSharingTargetSourceKind = "current" | "node";
+export type AlisioSharingTargetAccess = "owner" | "shared" | "requestable" | "blocked";
+
+export type AlisioSharingPrincipal = {
+  ownerKey: string;
+  ownerScope: AlisioSharingOwnerScope;
+  label: string;
+  email?: string;
+};
+
+export type AlisioSharingRuntimeTarget = {
+  targetId: string;
+  label: string;
+  platform?: string;
+  sourceKind: AlisioSharingTargetSourceKind;
+  connected: boolean;
+  current: boolean;
+};
+
+export type AlisioSharingTargetState = AlisioSharingRuntimeTarget & {
+  ownerKey: string;
+  ownerScope: AlisioSharingOwnerScope;
+  ownerLabel: string;
+  ownerEmail?: string;
+  registeredAt: string;
+  updatedAt: string;
+  deviceAccess: AlisioSharingTargetAccess;
+  modelAccess: AlisioSharingTargetAccess;
+  requestId?: string;
+  requestStatus?: AlisioSharingRequestStatus;
+  grantId?: string;
+  grantScopes?: AlisioSharingScope[];
+};
+
+export type AlisioSharingRequestState = {
+  requestId: string;
+  targetId: string;
+  targetLabel: string;
+  targetPlatform?: string;
+  targetSourceKind: AlisioSharingTargetSourceKind;
+  requester: AlisioSharingPrincipal;
+  owner: AlisioSharingPrincipal;
+  scopes: AlisioSharingScope[];
+  status: AlisioSharingRequestStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  grantId?: string;
+};
+
+export type AlisioSharingGrantState = {
+  grantId: string;
+  requestId: string;
+  targetId: string;
+  targetLabel: string;
+  targetPlatform?: string;
+  targetSourceKind: AlisioSharingTargetSourceKind;
+  owner: AlisioSharingPrincipal;
+  grantee: AlisioSharingPrincipal;
+  scopes: AlisioSharingScope[];
+  approvedAt: string;
+  revokedAt?: string;
+};
+
+export type AlisioSharingAuditAction =
+  | "policy.updated"
+  | "request.created"
+  | "request.approved"
+  | "request.rejected"
+  | "grant.revoked";
+
+export type AlisioSharingAuditEntry = {
+  entryId: string;
+  action: AlisioSharingAuditAction;
+  actor: AlisioSharingPrincipal;
+  targetId?: string;
+  targetLabel?: string;
+  requestId?: string;
+  grantId?: string;
+  summary: string;
+  createdAt: string;
+};
+
+export type AlisioSharingPolicyState = {
+  ownerKey: string;
+  allowExternalUse: boolean;
+  updatedAt: string;
+  updatedBy: AlisioSharingPrincipal;
+};
+
+export type AlisioSharingState = {
+  viewer: AlisioSharingPrincipal;
+  planSupported: boolean;
+  policy: {
+    ownerKey?: string;
+    ownerLabel?: string;
+    allowExternalUse: boolean;
+    editable: boolean;
+    upgradeMessage?: string;
+  };
+  devices: {
+    owned: AlisioSharingTargetState[];
+    sharedWithMe: AlisioSharingTargetState[];
+    available: AlisioSharingTargetState[];
+  };
+  incomingRequests: AlisioSharingRequestState[];
+  outgoingRequests: AlisioSharingRequestState[];
+  grants: AlisioSharingGrantState[];
+  audit: AlisioSharingAuditEntry[];
+};
+
+type AlisioStoredSharingTarget = {
+  targetId: string;
+  label: string;
+  platform?: string;
+  sourceKind: AlisioSharingTargetSourceKind;
+  connected: boolean;
+  current: boolean;
+  ownerKey: string;
+  ownerScope: AlisioSharingOwnerScope;
+  ownerLabel: string;
+  ownerEmail?: string;
+  registeredAt: string;
+  updatedAt: string;
+};
+
+type AlisioStoredSharingRequest = {
+  requestId: string;
+  targetId: string;
+  targetLabel: string;
+  targetPlatform?: string;
+  targetSourceKind: AlisioSharingTargetSourceKind;
+  requester: AlisioSharingPrincipal;
+  owner: AlisioSharingPrincipal;
+  scopes: AlisioSharingScope[];
+  status: AlisioSharingRequestStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  grantId?: string;
+};
+
+type AlisioStoredSharingGrant = {
+  grantId: string;
+  requestId: string;
+  targetId: string;
+  targetLabel: string;
+  targetPlatform?: string;
+  targetSourceKind: AlisioSharingTargetSourceKind;
+  owner: AlisioSharingPrincipal;
+  grantee: AlisioSharingPrincipal;
+  scopes: AlisioSharingScope[];
+  approvedAt: string;
+  revokedAt?: string;
+};
+
+type AlisioStoredSharingState = {
+  policies?: Record<string, AlisioSharingPolicyState>;
+  targets?: Record<string, AlisioStoredSharingTarget>;
+  requests?: Record<string, AlisioStoredSharingRequest>;
+  grants?: Record<string, AlisioStoredSharingGrant>;
+  audit?: AlisioSharingAuditEntry[];
+};
+
 export type AlisioAccountState = {
   profile: AlisioLocalAccountProfile;
   preferences: AlisioLocalUserPreferences;
@@ -265,6 +432,7 @@ export type AlisioStoredState = {
   };
   organization: AlisioOrganizationMembershipState;
   ai?: AlisioStoredAiState;
+  sharing?: AlisioStoredSharingState;
   authorizations: Record<string, AlisioConnectorAuthorization>;
   modelServers?: Record<string, AlisioRemoteModelServer>;
   oauthCredentials: Record<
@@ -387,6 +555,8 @@ type AlisioOAuthTokenSet = {
 
 const STORE_FILENAME = "alisio/state.json";
 const PENDING_AUTHORIZATION_TTL_MS = 15 * 60 * 1000;
+const ALISIO_SHARING_AUDIT_LIMIT = 100;
+const ALISIO_DEFAULT_SHARING_SCOPES: readonly AlisioSharingScope[] = ["device.use", "model.use"];
 const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY";
 const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encryption";
 const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = `${["Open", "Claw"].join("")} Alisio Connector Token Encryption`;
@@ -1259,6 +1429,13 @@ function buildDefaultState(): AlisioStoredState {
       mode: "none",
     },
     ai: {},
+    sharing: {
+      policies: {},
+      targets: {},
+      requests: {},
+      grants: {},
+      audit: [],
+    },
     authorizations: {},
     modelServers: {},
     oauthCredentials: {},
@@ -2423,6 +2600,13 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     plan: resolveAlisioPlanFromProfile(normalizedProfile),
     organization: mergedOrganization,
   });
+  const mergedSharing: AlisioStoredSharingState = {
+    policies: loaded.sharing?.policies ?? {},
+    targets: loaded.sharing?.targets ?? {},
+    requests: loaded.sharing?.requests ?? {},
+    grants: loaded.sharing?.grants ?? {},
+    audit: loaded.sharing?.audit ?? [],
+  };
   const defaultAiState: AlisioStoredAiState = defaults.ai ?? {};
   const nextAi = normalizeStoredAiState(
     hydrateStoredAiSecrets(loaded.ai, runtimeEnv),
@@ -2452,6 +2636,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     },
     organization: mergedOrganization,
     ai: nextAi,
+    sharing: mergedSharing,
     authorizations: loaded.authorizations ?? {},
     modelServers: loadedModelServers,
     oauthCredentials: loaded.oauthCredentials ?? {},
@@ -2768,6 +2953,288 @@ function resolveCurrentOwnerContext(state: AlisioStoredState): AlisioAiOwnerCont
       organization: state.organization,
     }),
   });
+}
+
+function ensureStoredSharingState(
+  state: AlisioStoredState,
+): NonNullable<AlisioStoredState["sharing"]> {
+  if (!state.sharing) {
+    state.sharing = {};
+  }
+  if (!state.sharing.policies) {
+    state.sharing.policies = {};
+  }
+  if (!state.sharing.targets) {
+    state.sharing.targets = {};
+  }
+  if (!state.sharing.requests) {
+    state.sharing.requests = {};
+  }
+  if (!state.sharing.grants) {
+    state.sharing.grants = {};
+  }
+  if (!state.sharing.audit) {
+    state.sharing.audit = [];
+  }
+  return state.sharing;
+}
+
+function buildSharingPrincipalForOwner(
+  state: AlisioStoredState,
+  owner: AlisioAiOwnerContext,
+): AlisioSharingPrincipal {
+  if (owner.scope === "organization") {
+    const organizationName =
+      resolveEffectiveAlisioOrganizationState({
+        plan: resolveStoredAlisioPlan(state),
+        organization: state.organization,
+      }).organizationName?.trim() || "Organization";
+    return {
+      ownerKey: owner.ownerKey,
+      ownerScope: "organization",
+      label: organizationName,
+    };
+  }
+  return {
+    ownerKey: owner.ownerKey,
+    ownerScope: "user",
+    label: state.account.profile.displayName.trim() || state.account.profile.email.trim(),
+    ...(state.account.profile.email.trim()
+      ? { email: state.account.profile.email.trim().toLowerCase() }
+      : {}),
+  };
+}
+
+function buildCurrentSharingPrincipal(state: AlisioStoredState): AlisioSharingPrincipal {
+  return buildSharingPrincipalForOwner(state, resolveCurrentOwnerContext(state));
+}
+
+function normalizeAlisioSharingScopes(
+  scopes: readonly AlisioSharingScope[] | undefined,
+): AlisioSharingScope[] {
+  const normalized = new Set<AlisioSharingScope>();
+  for (const scope of scopes ?? ALISIO_DEFAULT_SHARING_SCOPES) {
+    if (scope === "device.use" || scope === "model.use") {
+      normalized.add(scope);
+    }
+  }
+  return normalized.size > 0 ? [...normalized] : [...ALISIO_DEFAULT_SHARING_SCOPES];
+}
+
+function sortAlisioSharingTargets(targets: readonly AlisioSharingTargetState[]) {
+  return [...targets].toSorted((left, right) => {
+    if (left.current !== right.current) {
+      return left.current ? -1 : 1;
+    }
+    if (left.connected !== right.connected) {
+      return left.connected ? -1 : 1;
+    }
+    return left.label.localeCompare(right.label) || left.targetId.localeCompare(right.targetId);
+  });
+}
+
+function sortAlisioSharingRequests(requests: readonly AlisioSharingRequestState[]) {
+  return [...requests].toSorted((left, right) => {
+    if (left.status !== right.status) {
+      return left.status === "pending" ? -1 : right.status === "pending" ? 1 : 0;
+    }
+    return right.createdAt.localeCompare(left.createdAt);
+  });
+}
+
+function sortAlisioSharingGrants(grants: readonly AlisioSharingGrantState[]) {
+  return [...grants].toSorted((left, right) => right.approvedAt.localeCompare(left.approvedAt));
+}
+
+function sortAlisioSharingAudit(entries: readonly AlisioSharingAuditEntry[]) {
+  return [...entries].toSorted((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
+function appendAlisioSharingAuditEntry(
+  state: AlisioStoredState,
+  entry: Omit<AlisioSharingAuditEntry, "entryId" | "createdAt"> &
+    Partial<Pick<AlisioSharingAuditEntry, "entryId" | "createdAt">>,
+) {
+  const sharing = ensureStoredSharingState(state);
+  const nextEntry: AlisioSharingAuditEntry = {
+    entryId: entry.entryId ?? randomUUID(),
+    createdAt: entry.createdAt ?? new Date().toISOString(),
+    ...entry,
+  };
+  sharing.audit = sortAlisioSharingAudit([nextEntry, ...(sharing.audit ?? [])]).slice(
+    0,
+    ALISIO_SHARING_AUDIT_LIMIT,
+  );
+}
+
+function resolveAlisioSharingPolicyForOwner(
+  state: AlisioStoredState,
+  ownerKey: string,
+): AlisioSharingPolicyState | null {
+  const policy = state.sharing?.policies?.[ownerKey];
+  return policy ?? null;
+}
+
+function resolveLatestSharingRequest(params: {
+  requests: Record<string, AlisioStoredSharingRequest> | undefined;
+  targetId: string;
+  requesterOwnerKey: string;
+}) {
+  const matches = Object.values(params.requests ?? {}).filter(
+    (request) =>
+      request.targetId === params.targetId &&
+      request.requester.ownerKey === params.requesterOwnerKey,
+  );
+  return (
+    matches.toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null
+  );
+}
+
+function resolveActiveSharingGrant(params: {
+  grants: Record<string, AlisioStoredSharingGrant> | undefined;
+  targetId: string;
+  granteeOwnerKey: string;
+}) {
+  return (
+    Object.values(params.grants ?? {}).find(
+      (grant) =>
+        grant.targetId === params.targetId &&
+        grant.grantee.ownerKey === params.granteeOwnerKey &&
+        !grant.revokedAt,
+    ) ?? null
+  );
+}
+
+function canRequestAlisioSharingTarget(params: {
+  state: AlisioStoredState;
+  target: AlisioStoredSharingTarget;
+  viewer: AlisioSharingPrincipal;
+  planSupported: boolean;
+}) {
+  if (!params.planSupported || params.target.ownerKey === params.viewer.ownerKey) {
+    return false;
+  }
+  if (params.target.ownerScope === "organization") {
+    return Boolean(
+      resolveAlisioSharingPolicyForOwner(params.state, params.target.ownerKey)?.allowExternalUse,
+    );
+  }
+  return true;
+}
+
+function buildAlisioSharingTargetState(params: {
+  state: AlisioStoredState;
+  target: AlisioStoredSharingTarget;
+  viewer: AlisioSharingPrincipal;
+  planSupported: boolean;
+}): AlisioSharingTargetState {
+  const activeGrant = params.planSupported
+    ? resolveActiveSharingGrant({
+        grants: params.state.sharing?.grants,
+        targetId: params.target.targetId,
+        granteeOwnerKey: params.viewer.ownerKey,
+      })
+    : null;
+  const latestRequest = resolveLatestSharingRequest({
+    requests: params.state.sharing?.requests,
+    targetId: params.target.targetId,
+    requesterOwnerKey: params.viewer.ownerKey,
+  });
+  const owned = params.target.ownerKey === params.viewer.ownerKey;
+  const deviceAccess: AlisioSharingTargetAccess = owned
+    ? "owner"
+    : activeGrant?.scopes.includes("device.use")
+      ? "shared"
+      : canRequestAlisioSharingTarget(params)
+        ? "requestable"
+        : "blocked";
+  const modelAccess: AlisioSharingTargetAccess = owned
+    ? "owner"
+    : activeGrant?.scopes.includes("model.use")
+      ? "shared"
+      : canRequestAlisioSharingTarget(params)
+        ? "requestable"
+        : "blocked";
+  return {
+    ...params.target,
+    deviceAccess,
+    modelAccess,
+    ...(latestRequest
+      ? { requestId: latestRequest.requestId, requestStatus: latestRequest.status }
+      : {}),
+    ...(activeGrant ? { grantId: activeGrant.grantId, grantScopes: [...activeGrant.scopes] } : {}),
+  };
+}
+
+function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): AlisioSharingState {
+  const viewer = buildCurrentSharingPrincipal(state);
+  const sharingGate = gateAlisioSharing({
+    plan: resolveStoredAlisioPlan(state),
+  });
+  const planSupported = sharingGate.ok;
+  const effectiveOrganization = resolveEffectiveAlisioOrganizationState({
+    plan: resolveStoredAlisioPlan(state),
+    organization: state.organization,
+  });
+  const currentPolicyOwnerKey = viewer.ownerScope === "organization" ? viewer.ownerKey : undefined;
+  const currentPolicy = currentPolicyOwnerKey
+    ? resolveAlisioSharingPolicyForOwner(state, currentPolicyOwnerKey)
+    : null;
+  const targets = Object.values(state.sharing?.targets ?? {}).map((target) =>
+    buildAlisioSharingTargetState({
+      state,
+      target,
+      viewer,
+      planSupported,
+    }),
+  );
+  const incomingRequests = Object.values(state.sharing?.requests ?? {}).filter(
+    (request) => request.owner.ownerKey === viewer.ownerKey,
+  );
+  const outgoingRequests = Object.values(state.sharing?.requests ?? {}).filter(
+    (request) => request.requester.ownerKey === viewer.ownerKey,
+  );
+  const grants = Object.values(state.sharing?.grants ?? {}).filter(
+    (grant) =>
+      !grant.revokedAt &&
+      (grant.owner.ownerKey === viewer.ownerKey || grant.grantee.ownerKey === viewer.ownerKey),
+  );
+  return {
+    viewer,
+    planSupported,
+    policy: {
+      ...(currentPolicyOwnerKey
+        ? { ownerKey: currentPolicyOwnerKey, ownerLabel: viewer.label }
+        : {}),
+      allowExternalUse: currentPolicy?.allowExternalUse === true,
+      editable: effectiveOrganization.mode === "owner" && viewer.ownerScope === "organization",
+      ...(!sharingGate.ok ? { upgradeMessage: sharingGate.message } : {}),
+    },
+    devices: {
+      owned: sortAlisioSharingTargets(
+        targets.filter((target) => target.ownerKey === viewer.ownerKey),
+      ),
+      sharedWithMe: sortAlisioSharingTargets(
+        targets.filter(
+          (target) =>
+            target.ownerKey !== viewer.ownerKey &&
+            (target.deviceAccess === "shared" || target.modelAccess === "shared"),
+        ),
+      ),
+      available: sortAlisioSharingTargets(
+        targets.filter(
+          (target) =>
+            target.ownerKey !== viewer.ownerKey &&
+            target.deviceAccess === "requestable" &&
+            target.modelAccess === "requestable",
+        ),
+      ),
+    },
+    incomingRequests: sortAlisioSharingRequests(incomingRequests),
+    outgoingRequests: sortAlisioSharingRequests(outgoingRequests),
+    grants: sortAlisioSharingGrants(grants),
+    audit: sortAlisioSharingAudit(state.sharing?.audit ?? []),
+  };
 }
 
 function collectStoredAiAuthProfileIds(state: AlisioStoredState): string[] {
@@ -3487,7 +3954,7 @@ async function applySignedInCloudAccountResult(params: {
 }
 
 export async function beginAlisioAccountEmailAuth(
-  input: { email: string },
+  input: { email: string; callbackUrl?: string },
   env?: NodeJS.ProcessEnv,
 ): Promise<{ ok: true; email: string; message: string }> {
   return withLock(async () => {
@@ -3500,11 +3967,32 @@ export async function beginAlisioAccountEmailAuth(
     if (validationError) {
       throw new AlisioAccountValidationError(validationError);
     }
+    let callbackUrl: string | undefined;
+    if (input.callbackUrl?.trim()) {
+      let callback: URL;
+      try {
+        callback = new URL(input.callbackUrl.trim());
+      } catch {
+        throw new AlisioAccountValidationError(
+          "Alisio needs a valid callback URL to finish email sign-in.",
+        );
+      }
+      if (!/^https?:$/.test(callback.protocol)) {
+        throw new AlisioAccountValidationError(
+          "Alisio needs an http or https callback URL to finish email sign-in.",
+        );
+      }
+      callbackUrl = callback.toString();
+    }
     state.account.profile = {
       ...state.account.profile,
       email,
     };
-    const result = await beginAlisioCloudAccountEmailAuth({ email, env });
+    const result = await beginAlisioCloudAccountEmailAuth({
+      email,
+      callbackUrl,
+      env,
+    });
     await persistState(state, env);
     return result;
   });
@@ -3531,6 +4019,32 @@ export async function verifyAlisioAccountEmailAuth(
     return await applySignedInCloudAccountResult({
       state,
       result: await verifyAlisioCloudAccountEmailAuth({ email, code, env }),
+      env,
+      repairFromStoredProfile: true,
+    });
+  });
+}
+
+export async function completeAlisioAccountEmailLinkAuth(
+  input: {
+    accessToken: string;
+    refreshToken?: string;
+    expiresIn?: number;
+    tokenType?: string;
+  },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioAccountState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    return await applySignedInCloudAccountResult({
+      state,
+      result: await completeAlisioCloudAccountEmailLinkAuth({
+        accessToken: input.accessToken,
+        refreshToken: input.refreshToken,
+        expiresIn: input.expiresIn,
+        tokenType: input.tokenType,
+        env,
+      }),
       env,
       repairFromStoredProfile: true,
     });
@@ -4107,6 +4621,427 @@ export async function refreshAlisioAiLimits(
       }).catch(() => undefined);
     }
     return nextState;
+  });
+}
+
+function syncAlisioSharingTargetsOnState(
+  state: AlisioStoredState,
+  targets: readonly AlisioSharingRuntimeTarget[],
+) {
+  if (targets.length === 0) {
+    return false;
+  }
+  const viewer = buildCurrentSharingPrincipal(state);
+  const sharing = ensureStoredSharingState(state);
+  let changed = false;
+  const seenTargetIds = new Set<string>();
+  const now = new Date().toISOString();
+
+  for (const target of targets) {
+    const targetId = target.targetId.trim();
+    if (!targetId) {
+      continue;
+    }
+    seenTargetIds.add(targetId);
+    const existing = sharing.targets?.[targetId];
+    const owner =
+      target.current || !existing
+        ? viewer
+        : {
+            ownerKey: existing.ownerKey,
+            ownerScope: existing.ownerScope,
+            label: existing.ownerLabel,
+            ...(existing.ownerEmail ? { email: existing.ownerEmail } : {}),
+          };
+    const nextTarget: AlisioStoredSharingTarget = {
+      targetId,
+      label: target.label.trim() || existing?.label || targetId,
+      ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),
+      sourceKind: target.sourceKind,
+      connected: target.connected,
+      current: target.current,
+      ownerKey: owner.ownerKey,
+      ownerScope: owner.ownerScope,
+      ownerLabel: owner.label,
+      ...(owner.email ? { ownerEmail: owner.email } : {}),
+      registeredAt: existing?.registeredAt ?? now,
+      updatedAt: existing?.updatedAt ?? now,
+    };
+    const targetChanged =
+      !existing ||
+      existing.label !== nextTarget.label ||
+      existing.platform !== nextTarget.platform ||
+      existing.sourceKind !== nextTarget.sourceKind ||
+      existing.connected !== nextTarget.connected ||
+      existing.current !== nextTarget.current ||
+      existing.ownerKey !== nextTarget.ownerKey ||
+      existing.ownerScope !== nextTarget.ownerScope ||
+      existing.ownerLabel !== nextTarget.ownerLabel ||
+      existing.ownerEmail !== nextTarget.ownerEmail;
+    if (targetChanged) {
+      sharing.targets = {
+        ...sharing.targets,
+        [targetId]: {
+          ...nextTarget,
+          updatedAt: now,
+        },
+      };
+      changed = true;
+    }
+  }
+
+  for (const [targetId, existing] of Object.entries(sharing.targets ?? {})) {
+    if (seenTargetIds.has(targetId)) {
+      continue;
+    }
+    if (!existing.connected && !existing.current) {
+      continue;
+    }
+    sharing.targets = {
+      ...sharing.targets,
+      [targetId]: {
+        ...existing,
+        connected: false,
+        current: false,
+        updatedAt: now,
+      },
+    };
+    changed = true;
+  }
+
+  return changed;
+}
+
+function buildAlisioSharingAccessIndexFromState(
+  state: AlisioStoredState,
+): Record<string, AlisioSharingTargetState> {
+  return Object.fromEntries(
+    Object.values(state.sharing?.targets ?? {}).map((target) => [
+      target.targetId,
+      buildAlisioSharingTargetState({
+        state,
+        target,
+        viewer: buildCurrentSharingPrincipal(state),
+        planSupported: gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) }).ok,
+      }),
+    ]),
+  );
+}
+
+export async function getAlisioSharingState(
+  input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioSharingState> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    if (changed) {
+      await persistState(state, env);
+    }
+    return buildAlisioSharingStateFromStoredState(state);
+  });
+}
+
+export async function getAlisioSharingTargetAccessIndex(
+  input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
+  env?: NodeJS.ProcessEnv,
+): Promise<Record<string, AlisioSharingTargetState>> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    const changed = input?.targets ? syncAlisioSharingTargetsOnState(state, input.targets) : false;
+    if (changed) {
+      await persistState(state, env);
+    }
+    return buildAlisioSharingAccessIndexFromState(state);
+  });
+}
+
+export async function requestAlisioSharingAccess(
+  input: {
+    targetId: string;
+    scopes?: readonly AlisioSharingScope[];
+  },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; requestId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
+    const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    const targetId = input.targetId.trim();
+    const target = state.sharing?.targets?.[targetId];
+    if (!target) {
+      throw new AlisioAccountValidationError("That device is no longer available.");
+    }
+    const viewer = buildCurrentSharingPrincipal(state);
+    if (target.ownerKey === viewer.ownerKey) {
+      throw new AlisioAccountValidationError("You already own this device.");
+    }
+    if (
+      !canRequestAlisioSharingTarget({
+        state,
+        target,
+        viewer,
+        planSupported: true,
+      })
+    ) {
+      throw new AlisioAccountValidationError(
+        "That device is not accepting external sharing requests right now.",
+      );
+    }
+    const existingGrant = resolveActiveSharingGrant({
+      grants: state.sharing?.grants,
+      targetId,
+      granteeOwnerKey: viewer.ownerKey,
+    });
+    if (existingGrant) {
+      throw new AlisioAccountValidationError("You already have access to this device.");
+    }
+    const existingRequest = resolveLatestSharingRequest({
+      requests: state.sharing?.requests,
+      targetId,
+      requesterOwnerKey: viewer.ownerKey,
+    });
+    if (existingRequest?.status === "pending") {
+      return { ok: true, requestId: existingRequest.requestId };
+    }
+    const requestId = randomUUID();
+    ensureStoredSharingState(state).requests = {
+      ...state.sharing?.requests,
+      [requestId]: {
+        requestId,
+        targetId,
+        targetLabel: target.label,
+        ...(target.platform ? { targetPlatform: target.platform } : {}),
+        targetSourceKind: target.sourceKind,
+        requester: viewer,
+        owner: {
+          ownerKey: target.ownerKey,
+          ownerScope: target.ownerScope,
+          label: target.ownerLabel,
+          ...(target.ownerEmail ? { email: target.ownerEmail } : {}),
+        },
+        scopes: normalizeAlisioSharingScopes(input.scopes),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      },
+    };
+    appendAlisioSharingAuditEntry(state, {
+      action: "request.created",
+      actor: viewer,
+      targetId,
+      targetLabel: target.label,
+      requestId,
+      summary: `${viewer.label} requested access to ${target.label}.`,
+    });
+    await persistState(state, env);
+    return { ok: true, requestId };
+  });
+}
+
+export async function approveAlisioSharingRequest(
+  input: { requestId: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; requestId: string; grantId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
+    const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    const requestId = input.requestId.trim();
+    const request = state.sharing?.requests?.[requestId];
+    if (!request || request.status !== "pending") {
+      throw new AlisioAccountValidationError("That sharing request is no longer pending.");
+    }
+    const viewer = buildCurrentSharingPrincipal(state);
+    if (request.owner.ownerKey !== viewer.ownerKey) {
+      throw new AlisioAccountValidationError("Only the device owner can approve this request.");
+    }
+    const target = state.sharing?.targets?.[request.targetId];
+    if (!target || target.ownerKey !== viewer.ownerKey) {
+      throw new AlisioAccountValidationError("That device is no longer owned by this account.");
+    }
+    const existingGrant = resolveActiveSharingGrant({
+      grants: state.sharing?.grants,
+      targetId: request.targetId,
+      granteeOwnerKey: request.requester.ownerKey,
+    });
+    const grantId = existingGrant?.grantId ?? randomUUID();
+    ensureStoredSharingState(state).grants = {
+      ...state.sharing?.grants,
+      [grantId]: {
+        grantId,
+        requestId,
+        targetId: request.targetId,
+        targetLabel: request.targetLabel,
+        ...(request.targetPlatform ? { targetPlatform: request.targetPlatform } : {}),
+        targetSourceKind: request.targetSourceKind,
+        owner: request.owner,
+        grantee: request.requester,
+        scopes: [...request.scopes],
+        approvedAt: existingGrant?.approvedAt ?? new Date().toISOString(),
+      },
+    };
+    ensureStoredSharingState(state).requests = {
+      ...state.sharing?.requests,
+      [requestId]: {
+        ...request,
+        status: "approved",
+        resolvedAt: new Date().toISOString(),
+        grantId,
+      },
+    };
+    appendAlisioSharingAuditEntry(state, {
+      action: "request.approved",
+      actor: viewer,
+      targetId: request.targetId,
+      targetLabel: request.targetLabel,
+      requestId,
+      grantId,
+      summary: `${viewer.label} approved access to ${request.targetLabel}.`,
+    });
+    await persistState(state, env);
+    return { ok: true, requestId, grantId };
+  });
+}
+
+export async function rejectAlisioSharingRequest(
+  input: { requestId: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; requestId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
+    const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    const requestId = input.requestId.trim();
+    const request = state.sharing?.requests?.[requestId];
+    if (!request || request.status !== "pending") {
+      throw new AlisioAccountValidationError("That sharing request is no longer pending.");
+    }
+    const viewer = buildCurrentSharingPrincipal(state);
+    if (request.owner.ownerKey !== viewer.ownerKey) {
+      throw new AlisioAccountValidationError("Only the device owner can reject this request.");
+    }
+    ensureStoredSharingState(state).requests = {
+      ...state.sharing?.requests,
+      [requestId]: {
+        ...request,
+        status: "rejected",
+        resolvedAt: new Date().toISOString(),
+      },
+    };
+    appendAlisioSharingAuditEntry(state, {
+      action: "request.rejected",
+      actor: viewer,
+      targetId: request.targetId,
+      targetLabel: request.targetLabel,
+      requestId,
+      summary: `${viewer.label} rejected access to ${request.targetLabel}.`,
+    });
+    await persistState(state, env);
+    return { ok: true, requestId };
+  });
+}
+
+export async function revokeAlisioSharingGrant(
+  input: { grantId: string },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; grantId: string; targetId: string }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
+    const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    const grantId = input.grantId.trim();
+    const grant = state.sharing?.grants?.[grantId];
+    if (!grant || grant.revokedAt) {
+      throw new AlisioAccountValidationError("That sharing grant no longer exists.");
+    }
+    const viewer = buildCurrentSharingPrincipal(state);
+    const canRevoke =
+      grant.owner.ownerKey === viewer.ownerKey || grant.grantee.ownerKey === viewer.ownerKey;
+    if (!canRevoke) {
+      throw new AlisioAccountValidationError("Only the owner or grantee can revoke this access.");
+    }
+    ensureStoredSharingState(state).grants = {
+      ...state.sharing?.grants,
+      [grantId]: {
+        ...grant,
+        revokedAt: new Date().toISOString(),
+      },
+    };
+    const request = state.sharing?.requests?.[grant.requestId];
+    if (request) {
+      ensureStoredSharingState(state).requests = {
+        ...state.sharing?.requests,
+        [grant.requestId]: {
+          ...request,
+          status: "revoked",
+          resolvedAt: new Date().toISOString(),
+          grantId,
+        },
+      };
+    }
+    appendAlisioSharingAuditEntry(state, {
+      action: "grant.revoked",
+      actor: viewer,
+      targetId: grant.targetId,
+      targetLabel: grant.targetLabel,
+      requestId: grant.requestId,
+      grantId,
+      summary: `${viewer.label} revoked access to ${grant.targetLabel}.`,
+    });
+    await persistState(state, env);
+    return { ok: true, grantId, targetId: grant.targetId };
+  });
+}
+
+export async function setAlisioSharingPolicy(
+  input: { allowExternalUse: boolean },
+  env?: NodeJS.ProcessEnv,
+): Promise<{ ok: true; allowExternalUse: boolean }> {
+  return withLock(async () => {
+    const state = await loadStoredState(env);
+    assertAlisioAccountSetupAccess(state, "organization");
+    const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    const effectiveOrganization = resolveEffectiveAlisioOrganizationState({
+      plan: resolveStoredAlisioPlan(state),
+      organization: state.organization,
+    });
+    if (effectiveOrganization.mode !== "owner") {
+      throw new AlisioAccountValidationError(
+        "Only organization owners can change external sharing policy.",
+      );
+    }
+    const viewer = buildCurrentSharingPrincipal(state);
+    ensureStoredSharingState(state).policies = {
+      ...state.sharing?.policies,
+      [viewer.ownerKey]: {
+        ownerKey: viewer.ownerKey,
+        allowExternalUse: input.allowExternalUse,
+        updatedAt: new Date().toISOString(),
+        updatedBy: viewer,
+      },
+    };
+    appendAlisioSharingAuditEntry(state, {
+      action: "policy.updated",
+      actor: viewer,
+      summary: `${viewer.label} ${input.allowExternalUse ? "enabled" : "disabled"} external device sharing.`,
+    });
+    await persistState(state, env);
+    return { ok: true, allowExternalUse: input.allowExternalUse };
   });
 }
 

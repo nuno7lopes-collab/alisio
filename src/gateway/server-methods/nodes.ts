@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../../config/config.js";
+import { getAlisioSharingTargetAccessIndex } from "../../infra/alisio-store.js";
 import { listDevicePairing } from "../../infra/device-pairing.js";
 import {
   approveNodePairing,
@@ -723,7 +724,21 @@ export const nodeHandlers: GatewayRequestHandlers = {
         connectedNodes: context.nodeRegistry.listConnected(),
       });
       const nodes = listKnownNodes(catalog);
-      respond(true, { ts: Date.now(), nodes }, undefined);
+      const accessIndex = await getAlisioSharingTargetAccessIndex({
+        targets: nodes.map((node) => ({
+          targetId: node.nodeId,
+          label: node.displayName ?? node.nodeId,
+          platform: node.platform,
+          sourceKind: "node",
+          connected: node.connected === true,
+          current: false,
+        })),
+      });
+      const visibleNodes = nodes.filter((node) => {
+        const access = accessIndex[node.nodeId];
+        return access?.deviceAccess === "owner" || access?.deviceAccess === "shared";
+      });
+      respond(true, { ts: Date.now(), nodes: visibleNodes }, undefined);
     });
   },
   "node.describe": async ({ params, respond, context }) => {
@@ -749,6 +764,23 @@ export const nodeHandlers: GatewayRequestHandlers = {
       });
       const node = getKnownNode(catalog, id);
       if (!node) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
+        return;
+      }
+      const accessIndex = await getAlisioSharingTargetAccessIndex({
+        targets: [
+          {
+            targetId: node.nodeId,
+            label: node.displayName ?? node.nodeId,
+            platform: node.platform,
+            sourceKind: "node",
+            connected: node.connected === true,
+            current: false,
+          },
+        ],
+      });
+      const access = accessIndex[node.nodeId];
+      if (!access || (access.deviceAccess !== "owner" && access.deviceAccess !== "shared")) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
         return;
       }

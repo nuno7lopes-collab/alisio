@@ -10,8 +10,10 @@ import {
   completeAlisioConnectorAuthorization,
   completeAlisioConnectorAuthorizationFromCallback,
   disconnectAlisioAi,
+  approveAlisioSharingRequest,
   getAlisioAccountState,
   getAlisioAiState,
+  getAlisioSharingState,
   getAlisioConnectorAccessToken,
   getAlisioBootstrapSummary,
   getAlisioDoctorSummary,
@@ -23,7 +25,10 @@ import {
   listAlisioConnectorAuthorizations,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
+  requestAlisioSharingAccess,
+  revokeAlisioSharingGrant,
   revokeAlisioConnectorAuthorization,
+  setAlisioSharingPolicy,
   setAlisioOrganizationState,
   signInAlisioAccount,
   signUpAlisioAccount,
@@ -132,6 +137,54 @@ async function setStoredAlisioPlan(root: string, plan: "free" | "plus") {
   const state = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
   state.account.profile.plan = plan;
   await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
+async function updateStoredAlisioState(root: string, update: (state: AlisioStoredState) => void) {
+  const statePath = alisioStateFile(root);
+  const state = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+  update(state);
+  await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
+async function switchStoredAlisioUser(
+  root: string,
+  params: {
+    userId: string;
+    username: string;
+    displayName: string;
+    email: string;
+    plan?: "free" | "plus";
+  },
+) {
+  await updateStoredAlisioState(root, (state) => {
+    state.account.profile = {
+      ...state.account.profile,
+      userId: params.userId,
+      username: params.username,
+      displayName: params.displayName,
+      email: params.email,
+      avatarLabel: params.displayName.slice(0, 1).toUpperCase() || "A",
+      plan: params.plan ?? state.account.profile.plan,
+    };
+    state.account.session = {
+      state: "signed_in",
+      profileCompleted: true,
+      signedInAt: "2026-04-04T15:00:00.000Z",
+      backend: "supabase",
+    };
+    delete state.account.cloudSession;
+  });
+}
+
+function createSharingTarget(targetId: string, label: string) {
+  return {
+    targetId,
+    label,
+    platform: "macOS",
+    sourceKind: "current" as const,
+    connected: true,
+    current: true,
+  };
 }
 
 describe("legacy Alisio state-dir migration", () => {
@@ -253,6 +306,198 @@ describe("Alisio organization state", () => {
           env,
         ),
       ).rejects.toThrow("Organizations are available on Plus.");
+    });
+  });
+});
+
+describe("Alisio sharing state", () => {
+  it("persists request, approval, revocation, and audit for shared devices", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await getAlisioSharingState(
+        {
+          targets: [createSharingTarget("owner-device", "Owner Device")],
+        },
+        env,
+      );
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-requester",
+        username: "requester",
+        displayName: "Requester User",
+        email: "requester@example.com",
+        plan: "plus",
+      });
+      const request = await requestAlisioSharingAccess(
+        {
+          targetId: "owner-device",
+          scopes: ["device.use", "model.use"],
+        },
+        env,
+      );
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      const approval = await approveAlisioSharingRequest({ requestId: request.requestId }, env);
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-requester",
+        username: "requester",
+        displayName: "Requester User",
+        email: "requester@example.com",
+        plan: "plus",
+      });
+      const grantedState = await getAlisioSharingState(undefined, env);
+      expect(grantedState.devices.sharedWithMe).toEqual([
+        expect.objectContaining({
+          targetId: "owner-device",
+          deviceAccess: "shared",
+          modelAccess: "shared",
+          grantId: approval.grantId,
+        }),
+      ]);
+
+      await revokeAlisioSharingGrant({ grantId: approval.grantId }, env);
+
+      const revokedState = await getAlisioSharingState(undefined, env);
+      expect(revokedState.devices.sharedWithMe).toEqual([]);
+      expect(revokedState.outgoingRequests).toEqual([
+        expect.objectContaining({
+          requestId: request.requestId,
+          status: "revoked",
+          grantId: approval.grantId,
+        }),
+      ]);
+      expect(revokedState.audit.map((entry) => entry.action)).toEqual([
+        "grant.revoked",
+        "request.approved",
+        "request.created",
+      ]);
+    });
+  });
+
+  it("enforces organization external-use policy before allowing external requests", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Org Owner",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await setAlisioOrganizationState(
+        {
+          mode: "owner",
+          organizationName: "Acme Labs",
+        },
+        env,
+      );
+      await getAlisioSharingState(
+        {
+          targets: [createSharingTarget("org-device", "Org Device")],
+        },
+        env,
+      );
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-external",
+        username: "external",
+        displayName: "External User",
+        email: "external@example.com",
+        plan: "plus",
+      });
+      await setAlisioOrganizationState({ mode: "none" }, env);
+
+      await expect(
+        requestAlisioSharingAccess(
+          {
+            targetId: "org-device",
+          },
+          env,
+        ),
+      ).rejects.toThrow("That device is not accepting external sharing requests right now.");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Org Owner",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await setAlisioOrganizationState(
+        {
+          mode: "owner",
+          organizationName: "Acme Labs",
+        },
+        env,
+      );
+      await setAlisioSharingPolicy({ allowExternalUse: true }, env);
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-external",
+        username: "external",
+        displayName: "External User",
+        email: "external@example.com",
+        plan: "plus",
+      });
+      await setAlisioOrganizationState({ mode: "none" }, env);
+
+      const request = await requestAlisioSharingAccess(
+        {
+          targetId: "org-device",
+          scopes: ["device.use"],
+        },
+        env,
+      );
+      expect(request).toEqual({
+        ok: true,
+        requestId: expect.any(String),
+      });
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Org Owner",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await setAlisioOrganizationState(
+        {
+          mode: "owner",
+          organizationName: "Acme Labs",
+        },
+        env,
+      );
+      const ownerState = await getAlisioSharingState(undefined, env);
+      expect(ownerState.policy.allowExternalUse).toBe(true);
+      expect(ownerState.incomingRequests).toEqual([
+        expect.objectContaining({
+          requestId: request.requestId,
+          targetId: "org-device",
+          status: "pending",
+        }),
+      ]);
+      expect(ownerState.audit.map((entry) => entry.action)).toEqual([
+        "request.created",
+        "policy.updated",
+      ]);
     });
   });
 });

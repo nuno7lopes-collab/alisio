@@ -206,6 +206,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     onRefreshAiProfile: vi.fn(),
     onRenameAiProfile: vi.fn(),
     onInstallModel: vi.fn(),
+    onUpdateModel: vi.fn(),
     onUninstallModel: vi.fn(),
     onStartCreateServer: vi.fn(),
     onStartEditServer: vi.fn(),
@@ -369,6 +370,22 @@ describe("renderModelsHub", () => {
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
   });
 
+  it("shows update for managed local models and reuses the install action", () => {
+    const props = createProps({
+      selectedProviderId: "local",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const updateButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Update"),
+    );
+    updateButton?.click();
+
+    expect(props.onUpdateModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
+  });
+
   it("renders linked computers and remote endpoints in the server surface", () => {
     const props = createProps({ selectedProviderId: "server" });
     const container = document.createElement("div");
@@ -422,7 +439,7 @@ describe("renderModelsHub", () => {
     expect(editButton?.disabled).toBe(true);
   });
 
-  it("summarizes linked computers and endpoints together in the server picker card", () => {
+  it("summarizes linked devices and endpoints together in the server picker card", () => {
     const props = createProps();
     const container = document.createElement("div");
 
@@ -432,7 +449,7 @@ describe("renderModelsHub", () => {
       container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
     ).find((card) => card.textContent?.includes("Server"));
 
-    expect(serverCard?.textContent).toContain("1 linked computer");
+    expect(serverCard?.textContent).toContain("1 linked device");
     expect(serverCard?.textContent).toContain("1 endpoint");
   });
 
@@ -595,7 +612,7 @@ describe("renderModelsHub", () => {
     render(renderModelsHub(props), container);
 
     expect(container.textContent).toContain("Not connected");
-    expect(container.textContent).toContain("This linked computer is offline right now.");
+    expect(container.textContent).toContain("This linked device is offline right now.");
   });
 
   it("keeps the local provider summary aligned with the current OpenAI-compatible runtime", () => {
@@ -662,7 +679,7 @@ describe("renderModelsHub", () => {
     expect(saveButton?.disabled).toBe(true);
   });
 
-  it("keeps the endpoints group visible even when only linked computers exist", () => {
+  it("keeps the endpoints group visible even when only linked devices exist", () => {
     const props = createProps({
       selectedProviderId: "server",
       models: {
@@ -674,11 +691,11 @@ describe("renderModelsHub", () => {
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).toContain("Linked computers");
+    expect(container.textContent).toContain("Linked devices");
     expect(container.textContent).toContain("Endpoints");
     expect(container.textContent).toContain("Studio Mac");
     expect(container.textContent).toContain(
-      "You have not added any remote endpoints yet. You can also use a linked computer shown above.",
+      "You have not added any remote endpoints yet. You can also use a linked device shown above.",
     );
   });
 

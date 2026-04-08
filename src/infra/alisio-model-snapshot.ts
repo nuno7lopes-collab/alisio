@@ -20,8 +20,12 @@ import {
 import { inspectManagedLocalModelRuntime } from "./alisio-local-llama-runtime.js";
 import {
   inspectLocalModelRuntime,
+  listManagedLocalAvailableModels,
+  listOllamaAvailableModels,
   resolveLocalModelRuntimeConfig,
+  type AlisioAvailableLocalModel,
   type AlisioInstalledLocalModel,
+  type AlisioLocalRuntimeKind,
 } from "./alisio-local-model-runtime.js";
 import {
   listAlisioDynamicCatalogEntries,
@@ -34,8 +38,10 @@ import {
   inspectAlisioRemoteModelServer,
 } from "./alisio-remote-model-provider.js";
 import {
+  getAlisioSharingTargetAccessIndex,
   listAlisioRemoteModelServers,
   resolveCurrentAlisioPlan,
+  type AlisioSharingRuntimeTarget,
   type AlisioRemoteModelServerKind,
 } from "./alisio-store.js";
 import {
@@ -43,7 +49,7 @@ import {
   type AlisioModelHardwareProfile,
 } from "./model-hardware.js";
 
-type RuntimeKind = "llama.cpp" | "openai-compatible";
+type RuntimeKind = AlisioLocalRuntimeKind;
 type RuntimeStatus = "ready" | "not_configured" | "error";
 type PublishedCatalogEntry = Omit<
   ReturnType<typeof listPublishedAlisioLocalModels>[number],
@@ -61,8 +67,13 @@ export type AlisioModelTargetSnapshot = {
   runtimeStatus: RuntimeStatus;
   runtimeMessage?: string;
   supportsInstall: boolean;
+  access?: "owner" | "shared";
+  ownerLabel?: string;
+  ownerScope?: "user" | "organization";
+  grantId?: string;
   chatProviderId?: string;
   installedModels: AlisioInstalledLocalModel[];
+  availableModels: AlisioAvailableLocalModel[];
   hardware?: AlisioModelHardwareProfile;
   recommendations: ReturnType<typeof summarizeHardwareRecommendation>["recommendations"];
   bestModelId?: string;
@@ -101,9 +112,14 @@ type TargetRuntimeCandidate = {
   runtimeMessage?: string;
   chatCapabilityId?: string;
   installedModels: AlisioInstalledLocalModel[];
+  availableModels: AlisioAvailableLocalModel[];
   hardware?: AlisioModelHardwareProfile;
   baseUrl?: string;
   apiKey?: string;
+  supportsInstall: boolean;
+  supportsUpdate: boolean;
+  supportsUninstall: boolean;
+  consentRequired: boolean;
 };
 
 type CurrentDevice = {
@@ -111,6 +127,22 @@ type CurrentDevice = {
   label?: string;
   platform?: string;
 };
+
+function toSharingRuntimeTarget(
+  target: Pick<
+    AlisioModelTargetSnapshot,
+    "targetId" | "label" | "platform" | "connected" | "current"
+  >,
+): AlisioSharingRuntimeTarget {
+  return {
+    targetId: target.targetId,
+    label: target.label,
+    platform: target.platform,
+    sourceKind: target.current ? "current" : "node",
+    connected: target.connected,
+    current: target.current,
+  };
+}
 
 type SnapshotCache = {
   snapshot: AlisioModelProviderSnapshot;
@@ -124,7 +156,9 @@ let snapshotCache: SnapshotCache | null = null;
 let pendingSnapshot: Promise<AlisioModelProviderSnapshot> | null = null;
 
 function normalizeListedModels(
-  models: ReadonlyArray<{ id?: string; name?: string; ownedBy?: string }> | undefined,
+  models:
+    | ReadonlyArray<{ id?: string; name?: string; ownedBy?: string; running?: boolean }>
+    | undefined,
 ): AlisioInstalledLocalModel[] {
   const byKey = new Map<string, AlisioInstalledLocalModel>();
   for (const model of models ?? []) {
@@ -141,10 +175,14 @@ function normalizeListedModels(
       id,
       name,
       ...(model?.ownedBy?.trim() ? { ownedBy: model.ownedBy.trim() } : {}),
+      ...(model?.running === true ? { running: true } : {}),
     });
   }
   return [...byKey.values()].toSorted(
-    (left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id),
+    (left, right) =>
+      Number(Boolean(right.running)) - Number(Boolean(left.running)) ||
+      left.name.localeCompare(right.name) ||
+      left.id.localeCompare(right.id),
   );
 }
 
@@ -160,15 +198,19 @@ function sortTargets(targets: readonly AlisioModelTargetSnapshot[]) {
   });
 }
 
-function buildTargetRecommendations(params: { hardware?: AlisioModelHardwareProfile }) {
-  if (!params.hardware) {
-    return {
-      recommendations: [],
-      bestModelId: undefined,
-      bestModelName: undefined,
-    };
+function buildTargetRecommendations(params: {
+  hardware?: AlisioModelHardwareProfile;
+  catalog: ReadonlyArray<{
+    id: string;
+    name: string;
+    memoryGb: number;
+    parametersBillions: number;
+  }>;
+}) {
+  if (!params.hardware || params.catalog.length === 0) {
+    return buildEmptyRecommendations();
   }
-  const summarized = summarizeHardwareRecommendation(params.hardware, publishedCatalog);
+  const summarized = summarizeHardwareRecommendation(params.hardware, params.catalog);
   return {
     recommendations: summarized.recommendations,
     bestModelId: summarized.bestModel?.id,
@@ -182,6 +224,21 @@ function buildEmptyRecommendations() {
     bestModelId: undefined,
     bestModelName: undefined,
   };
+}
+
+function resolveTargetAvailableModels(params: {
+  runtimeKind: RuntimeKind;
+  hardware?: AlisioModelHardwareProfile;
+  supportsInstall: boolean;
+  discoveredAvailableModels?: readonly AlisioAvailableLocalModel[];
+}) {
+  if (!params.supportsInstall) {
+    return [...(params.discoveredAvailableModels ?? [])];
+  }
+  if (params.runtimeKind === "ollama") {
+    return listOllamaAvailableModels(params.hardware);
+  }
+  return listManagedLocalAvailableModels(params.hardware);
 }
 
 function rankRuntimeCandidate(candidate: TargetRuntimeCandidate | null | undefined) {
@@ -266,10 +323,16 @@ function coerceNodeInspectionPayload(result: NodeTaskResult) {
     return null;
   }
   return result.payload as {
+    runtimeKind?: RuntimeKind;
     status?: RuntimeStatus;
     message?: string;
-    models?: Array<{ id?: string; name?: string; ownedBy?: string }>;
+    models?: Array<{ id?: string; name?: string; ownedBy?: string; running?: boolean }>;
+    availableModels?: AlisioAvailableLocalModel[];
     hardware?: AlisioModelHardwareProfile;
+    supportsInstall?: boolean;
+    supportsUpdate?: boolean;
+    supportsUninstall?: boolean;
+    consentRequired?: boolean;
   };
 }
 
@@ -296,6 +359,11 @@ async function inspectNodeRuntimeCandidate(params: {
       runtimeStatus: "error",
       runtimeMessage: task.error.message,
       installedModels: [],
+      availableModels: [],
+      supportsInstall: false,
+      supportsUpdate: false,
+      supportsUninstall: false,
+      consentRequired: false,
       ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
     };
   }
@@ -309,14 +377,19 @@ async function inspectNodeRuntimeCandidate(params: {
   );
   const payload = coerceNodeInspectionPayload(result);
   return {
-    runtimeKind: params.runtimeKind,
+    runtimeKind: payload?.runtimeKind ?? params.runtimeKind,
     runtimeStatus: payload?.status ?? "error",
     runtimeMessage:
       payload?.message ??
       result.error?.message ??
       (!result.ok ? "failed to read local model runtime" : undefined),
     installedModels: normalizeListedModels(payload?.models),
+    availableModels: payload?.availableModels ?? [],
     hardware: payload?.hardware,
+    supportsInstall: payload?.supportsInstall === true,
+    supportsUpdate: payload?.supportsUpdate === true,
+    supportsUninstall: payload?.supportsUninstall === true,
+    consentRequired: payload?.consentRequired === true,
     ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
   };
 }
@@ -360,15 +433,29 @@ async function inspectConnectedNodeTarget(params: {
       backend: ALISIO_LOCAL_MODEL_BACKEND,
       runtimeKind: supportsInstall ? ALISIO_LOCAL_MODEL_BACKEND : "openai-compatible",
       runtimeStatus: "not_configured",
-      runtimeMessage: "no model source is configured on this computer",
+      runtimeMessage: "no model source is configured on this device",
       supportsInstall,
       installedModels: [],
+      availableModels: supportsInstall ? listManagedLocalAvailableModels() : [],
       recommendations: buildEmptyRecommendations().recommendations,
     };
   }
   const hardware = preferred.hardware ?? llamaCandidate?.hardware ?? openAiCandidate?.hardware;
-  const recommendations = supportsInstall
-    ? buildTargetRecommendations({ hardware })
+  const targetSupportsInstall = supportsInstall;
+  const availableModels = resolveTargetAvailableModels({
+    runtimeKind: preferred.runtimeKind,
+    hardware,
+    supportsInstall: targetSupportsInstall,
+    discoveredAvailableModels: preferred.availableModels,
+  });
+  const recommendations = targetSupportsInstall
+    ? buildTargetRecommendations({
+        hardware,
+        catalog:
+          preferred.runtimeKind === "ollama"
+            ? listOllamaAvailableModels(hardware)
+            : availableModels,
+      })
     : buildEmptyRecommendations();
 
   return {
@@ -381,8 +468,9 @@ async function inspectConnectedNodeTarget(params: {
     runtimeKind: preferred.runtimeKind,
     runtimeStatus: preferred.runtimeStatus,
     runtimeMessage: preferred.runtimeMessage,
-    supportsInstall,
+    supportsInstall: targetSupportsInstall,
     installedModels: preferred.installedModels,
+    availableModels,
     hardware,
     recommendations: recommendations.recommendations,
     bestModelId: recommendations.bestModelId,
@@ -407,7 +495,7 @@ function buildCurrentSource(params: {
     return {
       kind: "current-openai",
       providerId,
-      providerLabel: params.currentDevice?.label?.trim() || "This computer",
+      providerLabel: params.currentDevice?.label?.trim() || "This device",
       targetId: params.target.targetId,
       baseUrl: params.runtimeConfig.baseUrl,
       ...(params.runtimeConfig.apiKey ? { apiKey: params.runtimeConfig.apiKey } : {}),
@@ -415,7 +503,27 @@ function buildCurrentSource(params: {
         id: model.id,
         name: model.name,
         provider: providerId,
-        providerLabel: params.currentDevice?.label?.trim() || "This computer",
+        providerLabel: params.currentDevice?.label?.trim() || "This device",
+        input: ["text"],
+      })),
+    };
+  }
+  if (params.target.runtimeKind === "ollama") {
+    if (!params.runtimeConfig.baseUrl) {
+      return null;
+    }
+    return {
+      kind: "current-ollama",
+      providerId,
+      providerLabel: params.currentDevice?.label?.trim() || "This device",
+      targetId: params.target.targetId,
+      baseUrl: params.runtimeConfig.baseUrl,
+      ...(params.runtimeConfig.apiKey ? { apiKey: params.runtimeConfig.apiKey } : {}),
+      catalogEntries: params.target.installedModels.map((model) => ({
+        id: model.id,
+        name: model.name,
+        provider: providerId,
+        providerLabel: params.currentDevice?.label?.trim() || "This device",
         input: ["text"],
       })),
     };
@@ -423,13 +531,13 @@ function buildCurrentSource(params: {
   return {
     kind: "current-llama",
     providerId,
-    providerLabel: params.currentDevice?.label?.trim() || "This computer",
+    providerLabel: params.currentDevice?.label?.trim() || "This device",
     targetId: params.target.targetId,
     catalogEntries: params.target.installedModels.map((model) => ({
       id: model.id,
       name: model.name,
       provider: providerId,
-      providerLabel: params.currentDevice?.label?.trim() || "This computer",
+      providerLabel: params.currentDevice?.label?.trim() || "This device",
       input: ["text"],
     })),
   };
@@ -511,21 +619,31 @@ async function loadSnapshot(params: {
     }),
   ]);
   const currentLlamaCandidate: TargetRuntimeCandidate = {
-    runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+    runtimeKind: currentLlamaInspection.runtimeKind ?? ALISIO_LOCAL_MODEL_BACKEND,
     runtimeStatus: currentLlamaInspection.status,
     runtimeMessage: currentLlamaInspection.message,
     installedModels: normalizeListedModels(currentLlamaInspection.models),
+    availableModels: currentLlamaInspection.availableModels ?? [],
     hardware: currentLlamaInspection.hardware,
+    supportsInstall: currentLlamaInspection.supportsInstall,
+    supportsUpdate: currentLlamaInspection.supportsUpdate,
+    supportsUninstall: currentLlamaInspection.supportsUninstall,
+    consentRequired: currentLlamaInspection.consentRequired,
   };
   const currentOpenAiCandidate = currentRuntimeConfig.baseUrl
     ? ({
-        runtimeKind: "openai-compatible",
+        runtimeKind: currentOpenAiInspection.runtimeKind ?? "openai-compatible",
         runtimeStatus: currentOpenAiInspection.status,
         runtimeMessage: currentOpenAiInspection.message,
         installedModels: normalizeListedModels(currentOpenAiInspection.models),
+        availableModels: currentOpenAiInspection.availableModels ?? [],
         hardware: currentOpenAiInspection.hardware,
         baseUrl: currentRuntimeConfig.baseUrl,
         ...(currentRuntimeConfig.apiKey ? { apiKey: currentRuntimeConfig.apiKey } : {}),
+        supportsInstall: currentOpenAiInspection.supportsInstall,
+        supportsUpdate: currentOpenAiInspection.supportsUpdate,
+        supportsUninstall: currentOpenAiInspection.supportsUninstall,
+        consentRequired: currentOpenAiInspection.consentRequired,
       } satisfies TargetRuntimeCandidate)
     : null;
   const currentPreferredRuntime =
@@ -535,9 +653,23 @@ async function loadSnapshot(params: {
     currentPreferredRuntime.hardware ??
     currentLlamaCandidate.hardware ??
     currentOpenAiCandidate?.hardware;
-  const currentRecommendations = buildTargetRecommendations({
+  const currentSupportsInstall =
+    currentLlamaCandidate.supportsInstall || currentPreferredRuntime.supportsInstall;
+  const currentAvailableModels = resolveTargetAvailableModels({
+    runtimeKind: currentPreferredRuntime.runtimeKind,
     hardware: currentHardware,
+    supportsInstall: currentSupportsInstall,
+    discoveredAvailableModels: currentPreferredRuntime.availableModels,
   });
+  const currentRecommendations = currentSupportsInstall
+    ? buildTargetRecommendations({
+        hardware: currentHardware,
+        catalog:
+          currentPreferredRuntime.runtimeKind === "ollama"
+            ? listOllamaAvailableModels(currentHardware)
+            : currentAvailableModels,
+      })
+    : buildEmptyRecommendations();
   const currentTargetBase: AlisioModelTargetSnapshot = {
     targetId: params.currentDevice?.id?.trim() || "current",
     label: params.currentDevice?.label?.trim() || "This computer",
@@ -548,8 +680,9 @@ async function loadSnapshot(params: {
     runtimeKind: currentPreferredRuntime.runtimeKind,
     runtimeStatus: currentPreferredRuntime.runtimeStatus,
     runtimeMessage: currentPreferredRuntime.runtimeMessage,
-    supportsInstall: true,
+    supportsInstall: currentSupportsInstall,
     installedModels: currentPreferredRuntime.installedModels,
+    availableModels: currentAvailableModels,
     hardware: currentHardware,
     recommendations: currentRecommendations.recommendations,
     bestModelId: currentRecommendations.bestModelId,
@@ -590,6 +723,48 @@ async function loadSnapshot(params: {
       };
     }),
   );
+  const sharingAccess = await getAlisioSharingTargetAccessIndex(
+    {
+      targets: [
+        toSharingRuntimeTarget(currentTarget),
+        ...connectedTargets.map((entry) => toSharingRuntimeTarget(entry.target)),
+      ],
+    },
+    env,
+  );
+  const currentTargetWithAccess = (() => {
+    const access = sharingAccess[currentTarget.targetId];
+    if (!access || (access.modelAccess !== "owner" && access.modelAccess !== "shared")) {
+      return null;
+    }
+    return {
+      ...currentTarget,
+      supportsInstall: access.modelAccess === "shared" ? false : currentTarget.supportsInstall,
+      access: access.modelAccess,
+      ownerLabel: access.ownerLabel,
+      ownerScope: access.ownerScope,
+      grantId: access.grantId,
+    } satisfies AlisioModelTargetSnapshot;
+  })();
+  const connectedTargetsWithAccess = connectedTargets.flatMap((entry) => {
+    const access = sharingAccess[entry.target.targetId];
+    if (!access || (access.modelAccess !== "owner" && access.modelAccess !== "shared")) {
+      return [];
+    }
+    return [
+      {
+        ...entry,
+        target: {
+          ...entry.target,
+          supportsInstall: access.modelAccess === "shared" ? false : entry.target.supportsInstall,
+          access: access.modelAccess,
+          ownerLabel: access.ownerLabel,
+          ownerScope: access.ownerScope,
+          grantId: access.grantId,
+        } satisfies ConnectedTargetInspection,
+      },
+    ];
+  });
 
   const servers = await Promise.all(
     (await listAlisioRemoteModelServers(params.env ?? process.env)).map(async (server) => {
@@ -633,8 +808,8 @@ async function loadSnapshot(params: {
   );
 
   const dynamicSources = [
-    currentSource,
-    ...connectedTargets.map((entry) => entry.source),
+    currentTargetWithAccess ? currentSource : null,
+    ...connectedTargetsWithAccess.map((entry) => entry.source),
     ...servers.map(buildServerSource),
   ].filter((source): source is AlisioDynamicProviderSource => Boolean(source));
 
@@ -642,7 +817,11 @@ async function loadSnapshot(params: {
 
   return {
     catalog: publishedCatalog.map(({ sourceUri: _sourceUri, ...entry }) => entry),
-    targets: sortTargets([currentTarget, ...connectedTargets.map((entry) => entry.target)]),
+    targets: sortTargets(
+      [currentTargetWithAccess, ...connectedTargetsWithAccess.map((entry) => entry.target)].filter(
+        (target): target is AlisioModelTargetSnapshot => Boolean(target),
+      ),
+    ),
     servers,
     dynamicSources,
     dynamicCatalogEntries: listAlisioDynamicCatalogEntries(),

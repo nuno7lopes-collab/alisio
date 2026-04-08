@@ -7,12 +7,35 @@ const {
   inspectManagedLocalModelRuntimeMock,
   inspectLocalModelRuntimeMock,
   inspectAlisioRemoteModelServerMock,
+  getAlisioSharingTargetAccessIndexMock,
   listAlisioRemoteModelServersMock,
   resolveCurrentAlisioPlanMock,
 } = vi.hoisted(() => ({
   inspectManagedLocalModelRuntimeMock: vi.fn(),
   inspectLocalModelRuntimeMock: vi.fn(),
   inspectAlisioRemoteModelServerMock: vi.fn(),
+  getAlisioSharingTargetAccessIndexMock: vi.fn(
+    async (input?: { targets?: Array<{ targetId: string; ownerLabel?: string }> }) =>
+      Object.fromEntries(
+        (input?.targets ?? []).map((target) => [
+          target.targetId,
+          {
+            targetId: target.targetId,
+            label: target.targetId,
+            sourceKind: target.targetId === "current" ? "current" : "node",
+            connected: true,
+            current: target.targetId === "current",
+            ownerKey: "user:user-1",
+            ownerScope: "user",
+            ownerLabel: "Owner",
+            registeredAt: "2026-04-08T10:00:00.000Z",
+            updatedAt: "2026-04-08T10:00:00.000Z",
+            deviceAccess: "owner",
+            modelAccess: "owner",
+          },
+        ]),
+      ),
+  ),
   listAlisioRemoteModelServersMock: vi.fn<() => Promise<AlisioRemoteModelServer[]>>(async () => []),
   resolveCurrentAlisioPlanMock: vi.fn(async () => "plus"),
 }));
@@ -45,6 +68,7 @@ vi.mock("./alisio-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./alisio-store.js")>();
   return {
     ...actual,
+    getAlisioSharingTargetAccessIndex: getAlisioSharingTargetAccessIndexMock,
     listAlisioRemoteModelServers: listAlisioRemoteModelServersMock,
     resolveCurrentAlisioPlan: resolveCurrentAlisioPlanMock,
   };
@@ -150,6 +174,54 @@ describe("loadAlisioModelProviderSnapshot", () => {
         expect.objectContaining({
           provider: "alisio-local-current",
           id: "gpt-oss-20b",
+        }),
+      ]),
+    );
+  });
+
+  it("detects the current Ollama runtime on this computer", async () => {
+    inspectLocalModelRuntimeMock.mockResolvedValueOnce({
+      backend: "llama.cpp",
+      runtimeKind: "ollama",
+      status: "ready",
+      models: [
+        { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama", running: true },
+        { id: "qwen3:4b", name: "qwen3:4b", ownedBy: "ollama" },
+      ],
+      availableModels: [
+        { id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" },
+        { id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" },
+      ],
+      hardware: createHardware(),
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    });
+
+    const snapshot = await loadAlisioModelProviderSnapshot({
+      nodeRegistry: createRegistry(),
+      env: {
+        ALISIO_NODE_MODEL_BASE_URL: "http://127.0.0.1:11434",
+      } as NodeJS.ProcessEnv,
+      force: true,
+    });
+
+    expect(snapshot.targets[0]).toMatchObject({
+      current: true,
+      runtimeKind: "ollama",
+      runtimeStatus: "ready",
+      chatProviderId: "alisio-local-current",
+      installedModels: [
+        { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama", running: true },
+        { id: "qwen3:4b", name: "qwen3:4b", ownedBy: "ollama" },
+      ],
+    });
+    expect(snapshot.dynamicCatalogEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          provider: "alisio-local-current",
+          id: "qwen3:8b",
         }),
       ]),
     );

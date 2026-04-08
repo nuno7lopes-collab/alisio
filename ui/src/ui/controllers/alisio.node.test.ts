@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  beginAlisioAccountEmailAuth,
+  completeAlisioAccountEmailLinkAuth,
   verifyAlisioAccountEmailAuth,
   refreshAlisioAiProfile,
   loadAlisioAccount,
@@ -13,6 +15,11 @@ import {
   signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -64,6 +71,9 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioOrganizationLoading: false,
     alisioOrganizationError: null,
     alisioOrganization: null,
+    alisioSharingLoading: false,
+    alisioSharingError: null,
+    alisioSharing: null,
     alisioOrganizationDraftMode: "create",
     alisioOrganizationName: "",
     alisioOrganizationInviteEmail: "",
@@ -940,6 +950,105 @@ describe("alisio controller reconnect safety", () => {
 
     await verifyAlisioAccountEmailAuth(state);
 
+    expect(state.alisioAuthCode).toBe("");
+    expect(state.alisioAuthStage).toBe("entry");
+    expect(state.alisioAccountError).toBeNull();
+  });
+
+  it("envia o callbackUrl actual quando pede o email de entrada", async () => {
+    vi.stubGlobal("window", {
+      location: {
+        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+      },
+    } as unknown as Window & typeof globalThis);
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.beginEmailAuth") {
+        expect(params).toEqual({
+          email: "owner@example.com",
+          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+        });
+        return {
+          ok: true,
+          email: "owner@example.com",
+          message: "Check your email.",
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAuthEmail: "owner@example.com",
+    });
+
+    await beginAlisioAccountEmailAuth(state);
+
+    expect(state.alisioAuthStage).toBe("email-code");
+    expect(state.alisioAccountNotice).toBe("Check your email.");
+  });
+
+  it("conclui a sessão a partir do magic link e limpa o estado local", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.completeEmailLinkAuth") {
+        expect(params).toEqual({
+          accessToken: "supabase-access",
+          refreshToken: "supabase-refresh",
+          expiresIn: 3600,
+          tokenType: "bearer",
+        });
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAuthEmail: "owner@example.com",
+      alisioAuthPendingEmail: "owner@example.com",
+      alisioAuthCode: "123456",
+      alisioAuthStage: "email-code",
+    });
+
+    const completed = await completeAlisioAccountEmailLinkAuth(state, {
+      accessToken: "supabase-access",
+      refreshToken: "supabase-refresh",
+      expiresIn: 3600,
+      tokenType: "bearer",
+    });
+
+    expect(completed).toBe(true);
     expect(state.alisioAuthCode).toBe("");
     expect(state.alisioAuthStage).toBe("entry");
     expect(state.alisioAccountError).toBeNull();

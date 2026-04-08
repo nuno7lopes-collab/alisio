@@ -4,6 +4,7 @@ import {
   installAlisioLocalModel,
   uninstallAlisioLocalModel,
 } from "../../infra/alisio-local-llama-runtime.js";
+import * as localModelRuntime from "../../infra/alisio-local-model-runtime.js";
 import {
   clearAlisioModelProviderSnapshotCache,
   loadAlisioModelProviderSnapshot,
@@ -13,7 +14,9 @@ import {
   resolveAlisioRuntimeProviderReady,
 } from "../../infra/alisio-runtime.js";
 import {
+  approveAlisioSharingRequest,
   beginAlisioAccountEmailAuth,
+  completeAlisioAccountEmailLinkAuth,
   beginAlisioAccountGoogleAuth,
   AlisioAccountValidationError,
   beginAlisioConnectorSetup,
@@ -25,18 +28,23 @@ import {
   getAlisioAccountState,
   getAlisioAiState,
   getAlisioOrganizationState,
+  getAlisioSharingState,
   listAlisioConnectorAuthorizations,
   listAlisioConnectorDefinitions,
   loadAlisioBootstrapState,
   removeAlisioRemoteModelServer,
+  rejectAlisioSharingRequest,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
   requestAlisioAccountRecoveryEmail,
+  requestAlisioSharingAccess,
   revokeAlisioConnectorAuthorization,
+  revokeAlisioSharingGrant,
   saveAlisioRemoteModelServer,
   selectAlisioAiProfile,
   selectAlisioRemoteModelServer,
   setAlisioOrganizationState,
+  setAlisioSharingPolicy,
   signInAlisioAccount,
   signOutAlisioAccount,
   signUpAlisioAccount,
@@ -44,13 +52,14 @@ import {
   verifyAlisioAccountEmailAuth,
 } from "../../infra/alisio-store.js";
 import { clearDeviceBootstrapTokens } from "../../infra/device-bootstrap.js";
-import { revokeDeviceToken } from "../../infra/device-pairing.js";
+import { listDevicePairing, revokeDeviceToken } from "../../infra/device-pairing.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
 import {
   ALISIO_LOCAL_MODEL_BACKEND,
   findAlisioLocalModelCatalogEntry,
 } from "../../shared/alisio-local-models.js";
 import { GATEWAY_EVENT_ALISIO_MODELS_OPERATION } from "../events.js";
+import { createKnownNodeCatalog, listKnownNodes } from "../node-catalog.js";
 import {
   ErrorCodes,
   errorShape,
@@ -58,6 +67,7 @@ import {
   validateAlisioAccountGetParams,
   validateAlisioAccountEmailAuthBeginParams,
   validateAlisioAccountEmailAuthBeginResult,
+  validateAlisioAccountEmailLinkAuthCompleteParams,
   validateAlisioAccountEmailAuthVerifyParams,
   validateAlisioAccountGoogleAuthBeginParams,
   validateAlisioAccountGoogleAuthBeginResult,
@@ -105,6 +115,19 @@ import {
   validateAlisioRuntimeRestartResult,
   validateAlisioOrganizationGetParams,
   validateAlisioOrganizationSetParams,
+  type AlisioSharingState,
+  validateAlisioSharingApproveParams,
+  validateAlisioSharingApproveResult,
+  validateAlisioSharingGetParams,
+  validateAlisioSharingPolicySetParams,
+  validateAlisioSharingPolicySetResult,
+  validateAlisioSharingRejectParams,
+  validateAlisioSharingRejectResult,
+  validateAlisioSharingRequestParams,
+  validateAlisioSharingRequestResult,
+  validateAlisioSharingRevokeParams,
+  validateAlisioSharingRevokeResult,
+  validateAlisioSharingState,
 } from "../protocol/index.js";
 import { formatError } from "../server-utils.js";
 import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
@@ -157,6 +180,43 @@ export async function publishAlisioDynamicModelProvidersForContext(
   };
 }
 
+async function loadAlisioSharingStateForContext(
+  context: Pick<GatewayRequestContext, "nodeRegistry">,
+): Promise<AlisioSharingState> {
+  const account = await getAlisioAccountState();
+  const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
+  const pairing = await listDevicePairing();
+  const catalog = createKnownNodeCatalog({
+    pairedDevices: pairing.paired,
+    connectedNodes: context.nodeRegistry.listConnected(),
+  });
+  const knownNodes = listKnownNodes(catalog);
+  return await getAlisioSharingState({
+    targets: [
+      ...(currentDevice
+        ? [
+            {
+              targetId: currentDevice.id,
+              label: currentDevice.label,
+              platform: currentDevice.platform,
+              sourceKind: "current" as const,
+              connected: true,
+              current: true,
+            },
+          ]
+        : []),
+      ...knownNodes.map((node) => ({
+        targetId: node.nodeId,
+        label: node.displayName ?? node.nodeId,
+        platform: node.platform,
+        sourceKind: "node" as const,
+        connected: node.connected === true,
+        current: false,
+      })),
+    ],
+  });
+}
+
 function broadcastLocalModelOperation(
   context: GatewayRequestContext,
   payload: LocalModelOperationEvent,
@@ -196,7 +256,13 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const result = await beginAlisioAccountEmailAuth({ email: params.email }, process.env);
+      const result = await beginAlisioAccountEmailAuth(
+        {
+          email: params.email,
+          callbackUrl: typeof params.callbackUrl === "string" ? params.callbackUrl : undefined,
+        },
+        process.env,
+      );
       if (!validateAlisioAccountEmailAuthBeginResult(result)) {
         respond(
           false,
@@ -222,6 +288,49 @@ export const alisioHandlers: GatewayRequestHandlers = {
         errorShape(
           ErrorCodes.UNAVAILABLE,
           `failed to begin Alisio email auth: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.account.completeEmailLinkAuth": async ({ params, respond }) => {
+    if (!validateAlisioAccountEmailLinkAuthCompleteParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.completeEmailLinkAuth params: ${formatValidationErrors(
+            validateAlisioAccountEmailLinkAuthCompleteParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      respond(
+        true,
+        await completeAlisioAccountEmailLinkAuth(
+          {
+            accessToken: params.accessToken,
+            refreshToken: params.refreshToken,
+            expiresIn: params.expiresIn,
+            tokenType: params.tokenType,
+          },
+          process.env,
+        ),
+        undefined,
+      );
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to complete Alisio email link auth: ${formatError(err)}`,
         ),
       );
     }
@@ -936,47 +1045,94 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
 
-    const catalogEntry = findAlisioLocalModelCatalogEntry(params.modelId);
-    if (!catalogEntry || catalogEntry.releaseStage !== "published") {
-      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown local model"));
-      return;
-    }
-
     try {
+      const publishedModels = await publishAlisioDynamicModelProvidersForContext(context, {
+        force: true,
+      });
+      const selectedTarget =
+        params.targetId === "current" || params.targetId === "local"
+          ? publishedModels.targets.find((target) => target.current)
+          : publishedModels.targets.find((target) => target.targetId === params.targetId);
+      if (!selectedTarget) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "target device unavailable"),
+        );
+        return;
+      }
+      if (selectedTarget.access === "shared") {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "shared devices are read-only"),
+        );
+        return;
+      }
       const account = await getAlisioAccountState();
       const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
       const currentTargetId = currentDevice?.id ?? "current";
-      const installCurrentTarget =
-        params.targetId === "current" ||
-        params.targetId === "local" ||
-        params.targetId === currentDevice?.id;
+      const installCurrentTarget = selectedTarget.current;
 
       if (installCurrentTarget) {
+        const currentRuntime = await localModelRuntime.inspectLocalModelRuntime({
+          env: process.env,
+        });
+        if (
+          !(currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsInstall) &&
+          (!findAlisioLocalModelCatalogEntry(params.modelId) ||
+            findAlisioLocalModelCatalogEntry(params.modelId)?.releaseStage !== "published")
+        ) {
+          respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown local model"));
+          return;
+        }
         broadcastLocalModelOperation(context, {
           targetId: currentTargetId,
           modelId: params.modelId,
           action: "install",
           phase: "started",
         });
-        await installAlisioLocalModel({
-          modelId: params.modelId,
-          env: process.env,
-          onProgress: ({ downloadedSize, totalSize }) => {
-            const percent =
-              totalSize > 0
-                ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
-                : undefined;
-            broadcastLocalModelOperation(context, {
-              targetId: currentTargetId,
-              modelId: params.modelId,
-              action: "install",
-              phase: "running",
-              downloadedSize,
-              totalSize,
-              percent,
-            });
-          },
-        });
+        if (currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsInstall) {
+          await localModelRuntime.installOllamaLocalModel({
+            modelId: params.modelId,
+            env: process.env,
+            onProgress: ({ downloadedSize, totalSize }) => {
+              const percent =
+                totalSize > 0
+                  ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                  : undefined;
+              broadcastLocalModelOperation(context, {
+                targetId: currentTargetId,
+                modelId: params.modelId,
+                action: "install",
+                phase: "running",
+                downloadedSize,
+                totalSize,
+                percent,
+              });
+            },
+          });
+        } else {
+          await installAlisioLocalModel({
+            modelId: params.modelId,
+            env: process.env,
+            onProgress: ({ downloadedSize, totalSize }) => {
+              const percent =
+                totalSize > 0
+                  ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                  : undefined;
+              broadcastLocalModelOperation(context, {
+                targetId: currentTargetId,
+                modelId: params.modelId,
+                action: "install",
+                phase: "running",
+                downloadedSize,
+                totalSize,
+                percent,
+              });
+            },
+          });
+        }
         broadcastLocalModelOperation(context, {
           targetId: currentTargetId,
           modelId: params.modelId,
@@ -990,7 +1146,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
           respond(
             false,
             undefined,
-            errorShape(ErrorCodes.INVALID_REQUEST, "target computer not connected"),
+            errorShape(ErrorCodes.INVALID_REQUEST, "target device not connected"),
           );
           return;
         }
@@ -1000,9 +1156,14 @@ export const alisioHandlers: GatewayRequestHandlers = {
             undefined,
             errorShape(
               ErrorCodes.UNAVAILABLE,
-              "target computer does not support local model installation",
+              "target device does not support local model installation",
             ),
           );
+          return;
+        }
+        const catalogEntry = findAlisioLocalModelCatalogEntry(params.modelId);
+        if (!catalogEntry || catalogEntry.releaseStage !== "published") {
+          respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown local model"));
           return;
         }
 
@@ -1147,25 +1308,55 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
 
     try {
+      const publishedModels = await publishAlisioDynamicModelProvidersForContext(context, {
+        force: true,
+      });
+      const selectedTarget =
+        params.targetId === "current" || params.targetId === "local"
+          ? publishedModels.targets.find((target) => target.current)
+          : publishedModels.targets.find((target) => target.targetId === params.targetId);
+      if (!selectedTarget) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "target device unavailable"),
+        );
+        return;
+      }
+      if (selectedTarget.access === "shared") {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "shared devices are read-only"),
+        );
+        return;
+      }
       const account = await getAlisioAccountState();
       const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
       const currentTargetId = currentDevice?.id ?? "current";
-      const uninstallCurrentTarget =
-        params.targetId === "current" ||
-        params.targetId === "local" ||
-        params.targetId === currentDevice?.id;
+      const uninstallCurrentTarget = selectedTarget.current;
 
       if (uninstallCurrentTarget) {
+        const currentRuntime = await localModelRuntime.inspectLocalModelRuntime({
+          env: process.env,
+        });
         broadcastLocalModelOperation(context, {
           targetId: currentTargetId,
           modelId: params.modelId,
           action: "uninstall",
           phase: "started",
         });
-        await uninstallAlisioLocalModel({
-          modelId: params.modelId,
-          env: process.env,
-        });
+        if (currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsUninstall) {
+          await localModelRuntime.uninstallOllamaLocalModel({
+            modelId: params.modelId,
+            env: process.env,
+          });
+        } else {
+          await uninstallAlisioLocalModel({
+            modelId: params.modelId,
+            env: process.env,
+          });
+        }
         broadcastLocalModelOperation(context, {
           targetId: currentTargetId,
           modelId: params.modelId,
@@ -1179,7 +1370,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
           respond(
             false,
             undefined,
-            errorShape(ErrorCodes.INVALID_REQUEST, "target computer not connected"),
+            errorShape(ErrorCodes.INVALID_REQUEST, "target device not connected"),
           );
           return;
         }
@@ -1189,7 +1380,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
             undefined,
             errorShape(
               ErrorCodes.UNAVAILABLE,
-              "target computer does not support local model uninstallation",
+              "target device does not support local model uninstallation",
             ),
           );
           return;
@@ -1602,6 +1793,251 @@ export const alisioHandlers: GatewayRequestHandlers = {
           `failed to update Alisio organization: ${formatError(err)}`,
         ),
       );
+    }
+  },
+  "alisio.sharing.get": async ({ params, respond, context }) => {
+    if (!validateAlisioSharingGetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.get params: ${formatValidationErrors(
+            validateAlisioSharingGetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await loadAlisioSharingStateForContext(context);
+      if (!validateAlisioSharingState(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.get result: ${formatValidationErrors(
+              validateAlisioSharingState.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to load Alisio sharing state: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
+  "alisio.sharing.request": async ({ params, respond }) => {
+    if (!validateAlisioSharingRequestParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.request params: ${formatValidationErrors(
+            validateAlisioSharingRequestParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await requestAlisioSharingAccess({
+        targetId: params.targetId,
+        scopes: params.scopes,
+      });
+      if (!validateAlisioSharingRequestResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.request result: ${formatValidationErrors(
+              validateAlisioSharingRequestResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
+    }
+  },
+  "alisio.sharing.approve": async ({ params, respond }) => {
+    if (!validateAlisioSharingApproveParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.approve params: ${formatValidationErrors(
+            validateAlisioSharingApproveParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await approveAlisioSharingRequest({
+        requestId: params.requestId,
+      });
+      if (!validateAlisioSharingApproveResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.approve result: ${formatValidationErrors(
+              validateAlisioSharingApproveResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      clearAlisioModelProviderSnapshotCache();
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
+    }
+  },
+  "alisio.sharing.reject": async ({ params, respond }) => {
+    if (!validateAlisioSharingRejectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.reject params: ${formatValidationErrors(
+            validateAlisioSharingRejectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await rejectAlisioSharingRequest({
+        requestId: params.requestId,
+      });
+      if (!validateAlisioSharingRejectResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.reject result: ${formatValidationErrors(
+              validateAlisioSharingRejectResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
+    }
+  },
+  "alisio.sharing.revoke": async ({ params, respond }) => {
+    if (!validateAlisioSharingRevokeParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.revoke params: ${formatValidationErrors(
+            validateAlisioSharingRevokeParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await revokeAlisioSharingGrant({
+        grantId: params.grantId,
+      });
+      if (!validateAlisioSharingRevokeResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.revoke result: ${formatValidationErrors(
+              validateAlisioSharingRevokeResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      clearAlisioModelProviderSnapshotCache();
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
+    }
+  },
+  "alisio.sharing.policy.set": async ({ params, respond }) => {
+    if (!validateAlisioSharingPolicySetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.sharing.policy.set params: ${formatValidationErrors(
+            validateAlisioSharingPolicySetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await setAlisioSharingPolicy({
+        allowExternalUse: params.allowExternalUse,
+      });
+      if (!validateAlisioSharingPolicySetResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.sharing.policy.set result: ${formatValidationErrors(
+              validateAlisioSharingPolicySetResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      clearAlisioModelProviderSnapshotCache();
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
     }
   },
   "alisio.connectors.catalog": async ({ params, respond }) => {

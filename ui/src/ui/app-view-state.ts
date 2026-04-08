@@ -4,7 +4,7 @@ import type { EventLogEntry } from "./app-events.ts";
 import type { CompactionStatus, FallbackStatus } from "./app-tool-stream.ts";
 import type { CronModelSuggestionsState, CronState } from "./controllers/cron.ts";
 import type { DevicePairingList } from "./controllers/devices.ts";
-import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
+import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
 import type { SecurityAccessMode } from "./controllers/security-access.ts";
@@ -97,6 +97,9 @@ export type AppViewState = {
   alisioOrganizationLoading: boolean;
   alisioOrganizationError: string | null;
   alisioOrganization: AlisioOrganizationMembershipState | null;
+  alisioSharingLoading: boolean;
+  alisioSharingError: string | null;
+  alisioSharing: import("./types.ts").AlisioSharingState | null;
   alisioConnectorsLoading: boolean;
   alisioConnectorsError: string | null;
   alisioConnectorCatalog: AlisioConnectorDefinition[];
@@ -169,6 +172,7 @@ export type AppViewState = {
   execApprovalsTarget: "gateway" | "node";
   execApprovalsTargetNodeId: string | null;
   execApprovalQueue: ExecApprovalRequest[];
+  execApprovalAuditTrail: ExecApprovalAuditEntry[];
   execApprovalBusy: boolean;
   execApprovalError: string | null;
   gatewayAccessModeLoading: boolean;
@@ -379,6 +383,8 @@ export type AppViewState = {
     skillsStatusFilter: "all" | "ready" | "needs-setup" | "disabled";
     skillEdits: Record<string, string>;
     skillMessages: Record<string, SkillMessage>;
+    skillActionOutputs: Record<string, import("./controllers/skills.ts").SkillActionOutput>;
+    skillConsentRequest: import("./controllers/skills.ts").SkillConsentRequest | null;
     skillsBusyKey: string | null;
     skillsDetailKey: string | null;
     healthLoading: boolean;
