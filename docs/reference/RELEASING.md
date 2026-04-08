@@ -26,7 +26,9 @@ Alisio has three public release lanes:
 - `latest` means the current stable npm release
 - `beta` means the current beta install target, which may point to either the active prerelease or the latest promoted stable build
 - Stable and stable correction releases publish to npm `latest` and also retag npm `beta` to that same non-beta version after promotion, unless `beta` already points at a newer prerelease
-- Every Alisio release ships the npm package and macOS app together
+- `package.json` is the canonical release version source
+- Release-grade macOS artifacts are signed and notarized; placeholder or ad-hoc packages are smoke-only and do not count as shipped release artifacts
+- Every release-grade Alisio release ships the npm package and macOS app together
 
 ## Release cadence
 
@@ -37,9 +39,11 @@ Alisio has three public release lanes:
 
 ## Release preflight
 
-- Run `pnpm build` before `pnpm release:check` so the expected `dist/*` release
-  artifacts exist for the pack validation step
-- Run `pnpm release:check` before every tagged release
+- Minimum local release gate:
+  - `pnpm check`
+  - `pnpm build`
+  - `pnpm release:check`
+- Run `pnpm build` before `pnpm release:check` so the expected `dist/*` release artifacts exist for the pack validation step
 - Run `RELEASE_TAG=vYYYY.M.D node --import tsx scripts/alisio-npm-release-check.ts`
   (or the matching beta/correction tag) before approval
 - After npm publish, run
@@ -59,6 +63,8 @@ Alisio has three public release lanes:
   - the packaged app must keep a non-debug bundle id, a non-empty Sparkle feed
     URL, and a `CFBundleVersion` at or above the canonical Sparkle build floor
     for that release version
+- `scripts/package-mac-app.sh` is valid for placeholder or ad-hoc smoke packages only
+- `scripts/package-mac-dist.sh` is the release-grade path because it enforces signing/notarization-ready packaging plus the release bundle checks above
 
 ## Public references
 

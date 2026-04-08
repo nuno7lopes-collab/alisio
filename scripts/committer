@@ -76,6 +76,50 @@ append_normalized_file_arg() {
   files+=("$raw")
 }
 
+normalize_repo_file_arg() {
+  local raw=$1
+  local normalized=${raw//\\//}
+
+  while [[ "$normalized" == ./* ]]; do
+    normalized=${normalized#./}
+  done
+
+  normalized=${normalized//\/\//\/}
+  printf '%s\n' "$normalized"
+}
+
+is_deleted_tracked_path() {
+  local candidate=$1
+  [ ! -e "$candidate" ] && git ls-files --error-unmatch -- "$candidate" >/dev/null 2>&1
+}
+
+contains_forbidden_segment() {
+  local candidate=$1
+
+  case "$candidate" in
+    node_modules | node_modules/* | */node_modules | */node_modules/*)
+      return 0
+      ;;
+    .build | .build/* | */.build | */.build/*)
+      return 0
+      ;;
+    .build-local | .build-local/* | */.build-local | */.build-local/*)
+      return 0
+      ;;
+    dist | dist/* | */dist | */dist/*)
+      return 0
+      ;;
+    dist-runtime | dist-runtime/* | */dist-runtime | */dist-runtime/*)
+      return 0
+      ;;
+    coverage | coverage/* | */coverage | */coverage/*)
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 files=()
 for raw_arg in "$@"; do
   append_normalized_file_arg "$raw_arg"
@@ -83,20 +127,38 @@ done
 
 # Disallow "." because it stages the entire repository and defeats the helper's safety guardrails.
 for file in "${files[@]}"; do
-  if [ "$file" = "." ]; then
+  normalized_file=$(normalize_repo_file_arg "$file")
+
+  if [ "$normalized_file" = "." ] || [ -z "$normalized_file" ]; then
     printf 'Error: "." is not allowed; list specific paths instead\n' >&2
+    exit 1
+  fi
+
+  case "$normalized_file" in
+    /*)
+      printf 'Error: absolute paths are not allowed: %s\n' "$file" >&2
+      exit 1
+      ;;
+    .. | ../* | */../* | */..)
+      printf 'Error: paths outside the repository are not allowed: %s\n' "$file" >&2
+      exit 1
+      ;;
+  esac
+
+  if [ -d "$normalized_file" ]; then
+    printf 'Error: directory paths are not allowed; list concrete files instead: %s\n' "$file" >&2
     exit 1
   fi
 done
 
-# Prevent staging node_modules even if a path is forced.
+# Prevent staging generated artifacts even if a path is forced.
 for file in "${files[@]}"; do
-  case "$file" in
-    *node_modules* | */node_modules | */node_modules/* | node_modules)
-      printf 'Error: node_modules paths are not allowed: %s\n' "$file" >&2
-      exit 1
-      ;;
-  esac
+  normalized_file=$(normalize_repo_file_arg "$file")
+
+  if contains_forbidden_segment "$normalized_file" && ! is_deleted_tracked_path "$normalized_file"; then
+    printf 'Error: generated artifact paths are not allowed: %s\n' "$file" >&2
+    exit 1
+  fi
 done
 
 last_commit_error=''

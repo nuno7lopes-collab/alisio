@@ -125,9 +125,14 @@ jobs:
           swift build --package-path apps/macos --configuration release
           cd apps/ios
           xcodegen generate
+          PROJECT_NAME="$(sed -n 's/^name: //p' project.yml | head -n 1)"
+          [[ -n "${PROJECT_NAME}" ]] || {
+            echo "Failed to resolve the iOS project name from apps/ios/project.yml" >&2
+            exit 1
+          }
           xcodebuild build \
-            -project OpenClaw.xcodeproj \
-            -scheme OpenClaw \
+            -project "${PROJECT_NAME}.xcodeproj" \
+            -scheme "${PROJECT_NAME}" \
             -destination "generic/platform=iOS Simulator" \
             CODE_SIGNING_ALLOWED=NO
 

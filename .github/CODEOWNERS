@@ -2,8 +2,9 @@
 /.github/CODEOWNERS @steipete
 
 # WARNING: GitHub CODEOWNERS uses last-match-wins semantics.
-# If you add overlapping rules below the secops block, include @openclaw/secops
-# on those entries too or you can silently remove required secops review.
+# If you add overlapping rules below the security block, include the active
+# security owner on those entries too or you can silently remove required
+# review.
 # Security-sensitive code, config, and docs require secops review.
 /SECURITY.md @openclaw/secops
 /.github/dependabot.yml @openclaw/secops
@@ -46,6 +47,9 @@
 /docs/reference/secretref-credential-surface.md @openclaw/secops
 /docs/reference/secretref-user-supplied-credentials-matrix.json @openclaw/secops
 
+# GitHub Alisio org/team slugs were not resolvable when this file was updated,
+# so the owner handles below stay on the existing GitHub teams until the org
+# migration exists. See RELEASE_POLICY.md.
 # Release workflow and its supporting release-path checks.
 /.github/workflows/alisio-npm-release.yml @openclaw/openclaw-release-managers
 /docs/reference/RELEASING.md @openclaw/openclaw-release-managers

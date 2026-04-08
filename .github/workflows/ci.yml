@@ -171,6 +171,9 @@ jobs:
           install-deps: "false"
           use-sticky-disk: "false"
 
+      - name: Reject forbidden tracked paths
+        run: node scripts/check-forbidden-paths.mjs --tracked
+
       - name: Setup Python
         id: setup-python
         uses: actions/setup-python@v6

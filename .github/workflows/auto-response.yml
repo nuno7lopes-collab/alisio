@@ -43,6 +43,10 @@ jobs:
           script: |
             // Labels prefixed with "r:" are auto-response triggers.
             const activePrLimit = 10;
+            const docsBaseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/docs`;
+            const faqUrl = `${docsBaseUrl}/help/faq.md#im-stuck-whats-the-fastest-way-to-get-unstuck`;
+            const pluginDocsUrl = `${docsBaseUrl}/plugins/building-plugins.md`;
+            const communityPluginsUrl = `${docsBaseUrl}/plugins/community.md`;
             const rules = [
               {
                 label: "r: skill",
@@ -54,7 +58,7 @@ jobs:
                 label: "r: support",
                 close: true,
                 message:
-                  "Please use [our support server](https://discord.gg/clawd) and ask in #help or #users-helping-users to resolve this, or follow the stuck FAQ at https://docs.openclaw.ai/help/faq#im-stuck-whats-the-fastest-way-to-get-unstuck.",
+                  `Please use [our support server](https://discord.gg/clawd) and ask in #help or #users-helping-users to resolve this, or follow the stuck FAQ at ${faqUrl}.`,
               },
               {
                 label: "r: no-ci-pr",
@@ -81,7 +85,7 @@ jobs:
                 label: "r: third-party-extension",
                 close: true,
                 message:
-                  "Please make this as a third-party plugin that you maintain yourself in your own repo. Docs: https://docs.openclaw.ai/plugin. Feel free to open a PR after to add it to our community plugins page: https://docs.openclaw.ai/plugins/community",
+                  `Please make this as a third-party plugin that you maintain yourself in your own repo. Plugin docs: ${pluginDocsUrl}. After that, feel free to open a PR to add it to our community plugins page: ${communityPluginsUrl}`,
               },
               {
                 label: "r: moltbook",
@@ -90,7 +94,7 @@ jobs:
                 lockReason: "off-topic",
                 commentTriggers: ["moltbook"],
                 message:
-                  "OpenClaw is not affiliated with Moltbook, and issues related to Moltbook should not be submitted here.",
+                  "Alisio is not affiliated with Moltbook, and issues related to Moltbook should not be submitted here.",
               },
             ];
 

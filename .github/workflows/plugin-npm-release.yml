@@ -65,6 +65,9 @@ jobs:
           install-bun: "false"
           use-sticky-disk: "false"
 
+      - name: Reject forbidden tracked paths
+        run: node scripts/check-forbidden-paths.mjs --tracked
+
       - name: Resolve checked-out ref
         id: ref
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"

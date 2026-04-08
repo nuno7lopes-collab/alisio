@@ -52,6 +52,9 @@ jobs:
           install-bun: "false"
           use-sticky-disk: "false"
 
+      - name: Reject forbidden tracked paths
+        run: node scripts/check-forbidden-paths.mjs --tracked
+
       - name: Ensure version is not already published
         env:
           PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
@@ -144,6 +147,9 @@ jobs:
           pnpm-version: ${{ env.PNPM_VERSION }}
           install-bun: "false"
           use-sticky-disk: "false"
+
+      - name: Reject forbidden tracked paths
+        run: node scripts/check-forbidden-paths.mjs --tracked
 
       - name: Ensure version is not already published
         run: |

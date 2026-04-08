@@ -50,12 +50,13 @@
 ## Release checklist
 
 - Do not bump versions without explicit operator approval.
-- Confirm every Alisio/OpenClaw version location that participates in a release is aligned before tagging:
+- `package.json` is the canonical release version source.
+- Confirm every mirrored version location that participates in a release is aligned before tagging:
   - `package.json`
   - `apps/android/app/build.gradle.kts`
   - `apps/ios/Sources/Info.plist`
   - `apps/ios/Tests/Info.plist`
-  - `apps/macos/Sources/OpenClaw/Resources/Info.plist`
+  - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
 - Apply and verify both Alisio Supabase migrations:
   - `20260404193000_alisio_account_saas.sql`
@@ -63,14 +64,15 @@
 - Run the minimum release validation bar:
   - `pnpm check`
   - `pnpm build`
-  - `node --import tsx scripts/release-check.ts`
   - `pnpm release:check`
+- If the installer or published install path changed, also run:
   - `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke`
 - NPM publish workflow reference:
-  - `.github/workflows/openclaw-npm-release.yml`
+  - `.github/workflows/alisio-npm-release.yml`
 - Public macOS validation workflow reference:
   - `.github/workflows/macos-release.yml`
 - macOS artifacts:
   - `scripts/package-mac-dist.sh` for the real signed/notarized release artifact path
   - `scripts/package-mac-app.sh` as the fallback placeholder/ad-hoc packaging path when Apple Developer signing is unavailable
 - Placeholder macOS artifacts are useful for smoke validation only. They are not release-grade.
+- See `RELEASE_POLICY.md` for the minimum repo release policy and current CODEOWNERS migration note.
