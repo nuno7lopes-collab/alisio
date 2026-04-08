@@ -1,11 +1,11 @@
 import {
   coerceSecretRef,
   resolveNonEnvSecretRefApiKeyMarker,
-} from "openclaw/plugin-sdk/provider-auth";
-import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
-import { createToolStreamWrapper } from "openclaw/plugin-sdk/provider-stream";
-import { resolveProviderWebSearchPluginConfig } from "openclaw/plugin-sdk/provider-web-search";
-import { normalizeSecretInputString } from "openclaw/plugin-sdk/secret-input";
+} from "alisio/plugin-sdk/provider-auth";
+import { defineSingleProviderPluginEntry } from "alisio/plugin-sdk/provider-entry";
+import { createToolStreamWrapper } from "alisio/plugin-sdk/provider-stream";
+import { resolveProviderWebSearchPluginConfig } from "alisio/plugin-sdk/provider-web-search";
+import { normalizeSecretInputString } from "alisio/plugin-sdk/secret-input";
 import {
   applyXaiModelCompat,
   normalizeXaiModelId,

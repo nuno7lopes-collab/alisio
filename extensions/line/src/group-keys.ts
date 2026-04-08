@@ -1,6 +1,6 @@
-import { normalizeAccountId } from "openclaw/plugin-sdk/account-id";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/account-resolution";
-import { resolveAccountEntry } from "openclaw/plugin-sdk/account-resolution";
+import { normalizeAccountId } from "alisio/plugin-sdk/account-id";
+import type { OpenClawConfig } from "alisio/plugin-sdk/account-resolution";
+import { resolveAccountEntry } from "alisio/plugin-sdk/account-resolution";
 import type { LineConfig, LineGroupConfig } from "./types.js";
 
 export function resolveLineGroupLookupIds(groupId?: string | null): string[] {

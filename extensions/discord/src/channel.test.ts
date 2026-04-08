@@ -1,4 +1,4 @@
-import type { PluginRuntime } from "openclaw/plugin-sdk/testing";
+import type { PluginRuntime } from "alisio/plugin-sdk/testing";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStartAccountContext } from "../../../test/helpers/plugins/start-account-context.js";
 import type { ResolvedDiscordAccount } from "./accounts.js";

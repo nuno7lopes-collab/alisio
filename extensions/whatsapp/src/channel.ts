@@ -1,11 +1,11 @@
-import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
-import { resolveReactionMessageId } from "openclaw/plugin-sdk/channel-actions";
-import { createChatChannelPlugin } from "openclaw/plugin-sdk/core";
-import { chunkText } from "openclaw/plugin-sdk/reply-runtime";
+import { buildDmGroupAccountAllowlistAdapter } from "alisio/plugin-sdk/allowlist-config-edit";
+import { resolveReactionMessageId } from "alisio/plugin-sdk/channel-actions";
+import { createChatChannelPlugin } from "alisio/plugin-sdk/core";
+import { chunkText } from "alisio/plugin-sdk/reply-runtime";
 import {
   createAsyncComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 // WhatsApp-specific imports from local extension code (moved from src/web/ and src/channels/plugins/)
 import { resolveWhatsAppAccount, type ResolvedWhatsAppAccount } from "./accounts.js";
 import { createWhatsAppLoginTool } from "./agent-tools-login.js";

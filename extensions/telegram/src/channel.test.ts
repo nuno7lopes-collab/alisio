@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { PluginRuntime } from "openclaw/plugin-sdk/testing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { PluginRuntime } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStartAccountContext } from "../../../test/helpers/plugins/start-account-context.js";
 import type { ResolvedTelegramAccount } from "./accounts.js";

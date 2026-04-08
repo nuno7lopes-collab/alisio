@@ -1,13 +1,13 @@
 // Private runtime barrel for the bundled Signal extension.
 // Prefer narrower SDK subpaths plus local extension seams over the legacy signal barrel.
 
-export type { ChannelMessageActionAdapter } from "openclaw/plugin-sdk/channel-contract";
-export { SignalConfigSchema } from "openclaw/plugin-sdk/channel-config-schema";
-export { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-status";
-import type { AlisioConfig as RuntimeAlisioConfig } from "openclaw/plugin-sdk/config-runtime";
+export type { ChannelMessageActionAdapter } from "alisio/plugin-sdk/channel-contract";
+export { SignalConfigSchema } from "alisio/plugin-sdk/channel-config-schema";
+export { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/channel-status";
+import type { AlisioConfig as RuntimeAlisioConfig } from "alisio/plugin-sdk/config-runtime";
 export type { RuntimeAlisioConfig as AlisioConfig, RuntimeAlisioConfig as OpenClawConfig };
-export type { OpenClawPluginApi, PluginRuntime } from "openclaw/plugin-sdk/core";
-export type { ChannelPlugin } from "openclaw/plugin-sdk/core";
+export type { OpenClawPluginApi, PluginRuntime } from "alisio/plugin-sdk/core";
+export type { ChannelPlugin } from "alisio/plugin-sdk/core";
 export {
   DEFAULT_ACCOUNT_ID,
   applyAccountNameToChannelSection,
@@ -19,22 +19,22 @@ export {
   migrateBaseNameToDefaultAccount,
   normalizeAccountId,
   setAccountEnabledInConfigSection,
-} from "openclaw/plugin-sdk/core";
-export { resolveChannelMediaMaxBytes } from "openclaw/plugin-sdk/media-runtime";
-export { formatCliCommand, formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
-export { chunkText } from "openclaw/plugin-sdk/reply-runtime";
-export { detectBinary, installSignalCli } from "openclaw/plugin-sdk/setup-tools";
+} from "alisio/plugin-sdk/core";
+export { resolveChannelMediaMaxBytes } from "alisio/plugin-sdk/media-runtime";
+export { formatCliCommand, formatDocsLink } from "alisio/plugin-sdk/setup-tools";
+export { chunkText } from "alisio/plugin-sdk/reply-runtime";
+export { detectBinary, installSignalCli } from "alisio/plugin-sdk/setup-tools";
 export {
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
-} from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/config-runtime";
 export {
   buildBaseAccountStatusSnapshot,
   buildBaseChannelStatusSummary,
   collectStatusIssuesFromLastError,
   createDefaultChannelRuntimeState,
-} from "openclaw/plugin-sdk/status-helpers";
-export { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/status-helpers";
+export { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 export { looksLikeSignalTargetId, normalizeSignalMessagingTarget } from "./normalize.js";
 export {
   listEnabledSignalAccounts,

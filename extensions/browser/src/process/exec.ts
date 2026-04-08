@@ -1,1 +1,1 @@
-export { runExec } from "openclaw/plugin-sdk/browser-support";
+export { runExec } from "alisio/plugin-sdk/browser-support";

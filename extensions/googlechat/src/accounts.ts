@@ -4,9 +4,9 @@ import {
   normalizeAccountId,
   resolveAccountEntry,
   resolveMergedAccountConfig,
-} from "openclaw/plugin-sdk/account-resolution";
-import { isSecretRef, type OpenClawConfig } from "openclaw/plugin-sdk/core";
-import { safeParseJsonWithSchema, safeParseWithSchema } from "openclaw/plugin-sdk/extension-shared";
+} from "alisio/plugin-sdk/account-resolution";
+import { isSecretRef, type OpenClawConfig } from "alisio/plugin-sdk/core";
+import { safeParseJsonWithSchema, safeParseWithSchema } from "alisio/plugin-sdk/extension-shared";
 import { z } from "zod";
 import type { GoogleChatAccountConfig } from "./types.config.js";
 

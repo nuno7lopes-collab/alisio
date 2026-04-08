@@ -1,7 +1,7 @@
-import { getExecApprovalReplyMetadata } from "openclaw/plugin-sdk/approval-runtime";
-import { resolveApprovalApprovers } from "openclaw/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
+import { getExecApprovalReplyMetadata } from "alisio/plugin-sdk/approval-runtime";
+import { resolveApprovalApprovers } from "alisio/plugin-sdk/approval-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
 import { resolveDiscordAccount } from "./accounts.js";
 import { parseDiscordTarget } from "./targets.js";
 

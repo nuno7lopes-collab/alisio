@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import type { IncomingMessage } from "node:http";
-import { createEmptyPluginRegistry } from "openclaw/plugin-sdk/testing";
-import { setActivePluginRegistry } from "openclaw/plugin-sdk/testing";
+import { createEmptyPluginRegistry } from "alisio/plugin-sdk/testing";
+import { setActivePluginRegistry } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMockServerResponse } from "../../../test/helpers/plugins/mock-http-response.js";
 import type { OpenClawConfig, PluginRuntime } from "../runtime-api.js";

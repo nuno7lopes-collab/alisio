@@ -1,8 +1,8 @@
 import {
   createResolvedApproverActionAuthAdapter,
   resolveApprovalApprovers,
-} from "openclaw/plugin-sdk/approval-runtime";
-import { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/approval-runtime";
+import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import { resolveSignalAccount } from "./accounts.js";
 import { looksLikeUuid } from "./identity.js";
 import { normalizeSignalMessagingTarget } from "./normalize.js";

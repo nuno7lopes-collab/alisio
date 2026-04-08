@@ -2,10 +2,10 @@ import "./test-helpers.js";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { createPinnedLookup } from "openclaw/plugin-sdk/fetch-runtime";
-import { resetInboundDedupe } from "openclaw/plugin-sdk/reply-runtime";
-import { resetLogger, setLoggerOverride } from "openclaw/plugin-sdk/runtime-env";
-import * as ssrf from "openclaw/plugin-sdk/ssrf-runtime";
+import { createPinnedLookup } from "alisio/plugin-sdk/fetch-runtime";
+import { resetInboundDedupe } from "alisio/plugin-sdk/reply-runtime";
+import { resetLogger, setLoggerOverride } from "alisio/plugin-sdk/runtime-env";
+import * as ssrf from "alisio/plugin-sdk/ssrf-runtime";
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import type { WebInboundMessage, WebListenerCloseReason } from "./inbound.js";
 import {
@@ -30,8 +30,8 @@ type MockWebListener = {
 
 export const TEST_NET_IP = "203.0.113.10";
 
-vi.mock("openclaw/plugin-sdk/agent-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/agent-runtime")>();
+vi.mock("alisio/plugin-sdk/agent-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/agent-runtime")>();
   return {
     ...actual,
     abortEmbeddedPiRun: vi.fn().mockReturnValue(false),

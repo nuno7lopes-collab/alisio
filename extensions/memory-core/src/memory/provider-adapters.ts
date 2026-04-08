@@ -20,9 +20,9 @@ import {
   runOpenAiEmbeddingBatches,
   runVoyageEmbeddingBatches,
   type MemoryEmbeddingProviderAdapter,
-} from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
-import { resolveUserPath } from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
-import { getProviderEnvVars } from "openclaw/plugin-sdk/provider-env-vars";
+} from "alisio/plugin-sdk/memory-core-host-engine-embeddings";
+import { resolveUserPath } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import { getProviderEnvVars } from "alisio/plugin-sdk/provider-env-vars";
 
 export type BuiltinMemoryEmbeddingProviderDoctorMetadata = {
   providerId: string;

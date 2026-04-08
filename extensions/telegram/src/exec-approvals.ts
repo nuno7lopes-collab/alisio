@@ -1,9 +1,9 @@
-import { getExecApprovalReplyMetadata } from "openclaw/plugin-sdk/approval-runtime";
-import { resolveApprovalApprovers } from "openclaw/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { TelegramExecApprovalConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import { normalizeAccountId } from "openclaw/plugin-sdk/routing";
+import { getExecApprovalReplyMetadata } from "alisio/plugin-sdk/approval-runtime";
+import { resolveApprovalApprovers } from "alisio/plugin-sdk/approval-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { TelegramExecApprovalConfig } from "alisio/plugin-sdk/config-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import { normalizeAccountId } from "alisio/plugin-sdk/routing";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramInlineButtonsConfigScope } from "./inline-buttons.js";
 import { normalizeTelegramChatId, resolveTelegramTargetChatType } from "./targets.js";

@@ -2,9 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import type { ButtonInteraction, ComponentData } from "@buape/carbon";
+import { clearSessionStoreCacheForTest } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordExecApprovalConfig } from "alisio/plugin-sdk/config-runtime";
 import { Routes } from "discord-api-types/v10";
-import { clearSessionStoreCacheForTest } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordExecApprovalConfig } from "openclaw/plugin-sdk/config-runtime";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const STORE_PATH = path.join(os.tmpdir(), "openclaw-exec-approvals-test.json");
@@ -69,8 +69,8 @@ vi.mock("../send.shared.js", async (importOriginal) => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/gateway-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/gateway-runtime")>();
+vi.mock("alisio/plugin-sdk/gateway-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/gateway-runtime")>();
   type CreateOperatorApprovalsGatewayClientParams = Parameters<
     typeof actual.createOperatorApprovalsGatewayClient
   >[0];
@@ -215,8 +215,8 @@ vi.mock("../client.js", () => ({
   }),
 }));
 
-vi.mock("openclaw/plugin-sdk/text-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/text-runtime")>();
+vi.mock("alisio/plugin-sdk/text-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/text-runtime")>();
   return {
     ...actual,
     logDebug: vi.fn(),

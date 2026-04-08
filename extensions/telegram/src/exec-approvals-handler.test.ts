@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { TelegramExecApprovalHandler } from "./exec-approvals-handler.js";
 

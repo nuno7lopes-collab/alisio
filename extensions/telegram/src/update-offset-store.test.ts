@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { withStateDirEnv } from "openclaw/plugin-sdk/testing";
+import { withStateDirEnv } from "alisio/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import {
   deleteTelegramUpdateOffset,

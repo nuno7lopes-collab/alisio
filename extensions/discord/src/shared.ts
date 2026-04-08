@@ -1,7 +1,7 @@
-import { describeAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
-import { formatAllowFromLowercase } from "openclaw/plugin-sdk/allow-from";
-import { adaptScopedAccountAccessor } from "openclaw/plugin-sdk/channel-config-helpers";
-import { createChannelPluginBase } from "openclaw/plugin-sdk/core";
+import { describeAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
+import { formatAllowFromLowercase } from "alisio/plugin-sdk/allow-from";
+import { adaptScopedAccountAccessor } from "alisio/plugin-sdk/channel-config-helpers";
+import { createChannelPluginBase } from "alisio/plugin-sdk/core";
 import { inspectDiscordAccount } from "./account-inspect.js";
 import {
   listDiscordAccountIds,

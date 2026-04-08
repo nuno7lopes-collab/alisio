@@ -22,11 +22,11 @@ vi.mock("../runtime-api.js", () => ({
   loadOutboundMediaFromUrl: mockState.loadOutboundMediaFromUrl,
 }));
 
-vi.mock("openclaw/plugin-sdk/config-runtime", () => ({
+vi.mock("alisio/plugin-sdk/config-runtime", () => ({
   resolveMarkdownTableMode: mockState.resolveMarkdownTableMode,
 }));
 
-vi.mock("openclaw/plugin-sdk/text-runtime", () => ({
+vi.mock("alisio/plugin-sdk/text-runtime", () => ({
   convertMarkdownTables: mockState.convertMarkdownTables,
 }));
 

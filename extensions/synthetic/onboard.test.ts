@@ -1,5 +1,5 @@
-import { resolveAgentModelPrimaryValue } from "openclaw/plugin-sdk/provider-onboard";
-import { SYNTHETIC_DEFAULT_MODEL_ID } from "openclaw/plugin-sdk/synthetic";
+import { resolveAgentModelPrimaryValue } from "alisio/plugin-sdk/provider-onboard";
+import { SYNTHETIC_DEFAULT_MODEL_ID } from "alisio/plugin-sdk/synthetic";
 import { describe, expect, it } from "vitest";
 import { createLegacyProviderConfig } from "../../test/helpers/plugins/onboard-config.js";
 import {

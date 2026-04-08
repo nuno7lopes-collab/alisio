@@ -4,8 +4,8 @@ import {
   GroupPolicySchema,
   MarkdownConfigSchema,
   requireOpenAllowFrom,
-} from "openclaw/plugin-sdk/channel-config-primitives";
-import { z } from "openclaw/plugin-sdk/zod";
+} from "alisio/plugin-sdk/channel-config-primitives";
+import { z } from "alisio/plugin-sdk/zod";
 import { buildSecretInputSchema } from "./secret-input.js";
 
 function requireMattermostOpenAllowFrom(params: {

@@ -1,5 +1,5 @@
-import type { OpenClawConfig, ProviderAuthResult } from "openclaw/plugin-sdk/provider-auth";
-import { readClaudeCliCredentialsCached } from "openclaw/plugin-sdk/provider-auth";
+import type { OpenClawConfig, ProviderAuthResult } from "alisio/plugin-sdk/provider-auth";
+import { readClaudeCliCredentialsCached } from "alisio/plugin-sdk/provider-auth";
 
 const DEFAULT_CLAUDE_CLI_MODEL = "claude-cli/claude-sonnet-4-6";
 type AgentDefaultsModel = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>["model"];

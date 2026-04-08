@@ -1,1 +1,1 @@
-export { resolveGatewayAuth } from "openclaw/plugin-sdk/browser-support";
+export { resolveGatewayAuth } from "alisio/plugin-sdk/browser-support";

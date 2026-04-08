@@ -1,8 +1,8 @@
-import { resolveAckReaction } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveAckReaction } from "alisio/plugin-sdk/agent-runtime";
 import {
   shouldAckReaction as shouldAckReactionGate,
   type AckReactionScope,
-} from "openclaw/plugin-sdk/channel-feedback";
+} from "alisio/plugin-sdk/channel-feedback";
 import {
   buildMentionRegexes,
   formatInboundEnvelope,
@@ -10,26 +10,26 @@ import {
   matchesMentionWithExplicit,
   resolveEnvelopeFormatOptions,
   resolveMentionGatingWithBypass,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { enqueueSystemEvent } from "openclaw/plugin-sdk/channel-runtime";
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
-import { hasControlCommand } from "openclaw/plugin-sdk/command-auth";
-import { shouldHandleTextCommands } from "openclaw/plugin-sdk/command-auth";
-import { readSessionUpdatedAt, resolveStorePath } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import { enqueueSystemEvent } from "alisio/plugin-sdk/channel-runtime";
+import { resolveControlCommandGate } from "alisio/plugin-sdk/command-auth";
+import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
+import { shouldHandleTextCommands } from "alisio/plugin-sdk/command-auth";
+import { readSessionUpdatedAt, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
 import {
   recordInboundSession,
   resolveConversationLabel,
-} from "openclaw/plugin-sdk/conversation-runtime";
+} from "alisio/plugin-sdk/conversation-runtime";
 import {
   buildPendingHistoryContextFromMap,
   recordPendingHistoryEntryIfEnabled,
-} from "openclaw/plugin-sdk/reply-history";
-import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-runtime";
-import type { FinalizedMsgContext } from "openclaw/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { resolveThreadSessionKeys } from "openclaw/plugin-sdk/routing";
-import { logVerbose, shouldLogVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { resolvePinnedMainDmOwnerFromAllowlist } from "openclaw/plugin-sdk/security-runtime";
+} from "alisio/plugin-sdk/reply-history";
+import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
+import type { FinalizedMsgContext } from "alisio/plugin-sdk/reply-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { resolveThreadSessionKeys } from "alisio/plugin-sdk/routing";
+import { logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
+import { resolvePinnedMainDmOwnerFromAllowlist } from "alisio/plugin-sdk/security-runtime";
 import { resolveSlackReplyToMode, type ResolvedSlackAccount } from "../../accounts.js";
 import { reactSlackMessage } from "../../actions.js";
 import { sendMessageSlack } from "../../send.js";

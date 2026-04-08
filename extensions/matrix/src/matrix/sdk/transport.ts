@@ -1,4 +1,4 @@
-import type { PinnedDispatcherPolicy } from "openclaw/plugin-sdk/infra-runtime";
+import type { PinnedDispatcherPolicy } from "alisio/plugin-sdk/infra-runtime";
 import {
   buildTimeoutAbortSignal,
   closeDispatcher,

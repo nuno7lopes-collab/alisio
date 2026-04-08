@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { patchChannelConfigForAccount } from "openclaw/plugin-sdk/setup";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { patchChannelConfigForAccount } from "alisio/plugin-sdk/setup";
 import { resolveTelegramAccount } from "./accounts.js";
 import { getTelegramRuntime } from "./runtime.js";
 

@@ -1,7 +1,7 @@
 import { RequestClient } from "@buape/carbon";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RetryConfig, RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
-import { normalizeAccountId } from "openclaw/plugin-sdk/routing";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import type { RetryConfig, RetryRunner } from "alisio/plugin-sdk/retry-runtime";
+import { normalizeAccountId } from "alisio/plugin-sdk/routing";
 import {
   mergeDiscordAccountConfig,
   resolveDiscordAccount,

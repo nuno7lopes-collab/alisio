@@ -1,7 +1,7 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
-import { normalizeAccountId } from "openclaw/plugin-sdk/account-id";
-import { coerceSecretRef } from "openclaw/plugin-sdk/config-runtime";
-import { normalizeSecretInputString } from "openclaw/plugin-sdk/setup";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
+import { normalizeAccountId } from "alisio/plugin-sdk/account-id";
+import { coerceSecretRef } from "alisio/plugin-sdk/config-runtime";
+import { normalizeSecretInputString } from "alisio/plugin-sdk/setup";
 import type { CoreConfig, MatrixConfig } from "../types.js";
 import { findMatrixAccountConfig } from "./account-config.js";
 

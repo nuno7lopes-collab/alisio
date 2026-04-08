@@ -3,7 +3,7 @@ import {
   createComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
   createDependentCredentialStatusIssueCollector,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 import { DEFAULT_ACCOUNT_ID, type ChannelPlugin, type ResolvedLineAccount } from "../api.js";
 import { hasLineCredentials } from "./account-helpers.js";
 import { probeLineBot } from "./probe.js";

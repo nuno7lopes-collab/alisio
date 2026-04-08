@@ -8,7 +8,7 @@ vi.mock("./client.js", () => ({
   createSlackWebClient: createSlackWebClientMock,
 }));
 
-vi.mock("openclaw/plugin-sdk/text-runtime", () => ({
+vi.mock("alisio/plugin-sdk/text-runtime", () => ({
   withTimeout: withTimeoutMock,
 }));
 

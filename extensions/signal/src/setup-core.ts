@@ -14,9 +14,9 @@ import {
   type ChannelSetupAdapter,
   type ChannelSetupWizard,
   type ChannelSetupWizardTextInput,
-} from "openclaw/plugin-sdk/setup-runtime";
-import { formatCliCommand, formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
-import { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/setup-runtime";
+import { formatCliCommand, formatDocsLink } from "alisio/plugin-sdk/setup-tools";
+import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import {
   listSignalAccountIds,
   resolveDefaultSignalAccountId,

@@ -3,18 +3,18 @@ export {
   PAIRING_APPROVED_MESSAGE,
   projectCredentialSnapshotFields,
   resolveConfiguredFromRequiredCredentialStatuses,
-} from "openclaw/plugin-sdk/channel-status";
-export { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
+} from "alisio/plugin-sdk/channel-status";
+export { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
 export {
   looksLikeSlackTargetId,
   normalizeSlackMessagingTarget,
-} from "openclaw/plugin-sdk/slack-targets";
+} from "alisio/plugin-sdk/slack-targets";
 export type {
   ChannelPlugin,
   AlisioConfig,
   AlisioConfig as OpenClawConfig,
   SlackAccountConfig,
-} from "openclaw/plugin-sdk/slack";
+} from "alisio/plugin-sdk/slack";
 export {
   buildChannelConfigSchema,
   getChatChannelMeta,
@@ -26,4 +26,4 @@ export {
   readStringParam,
   SlackConfigSchema,
   withNormalizedTimestamp,
-} from "openclaw/plugin-sdk/slack-core";
+} from "alisio/plugin-sdk/slack-core";

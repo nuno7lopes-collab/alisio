@@ -1,1 +1,1 @@
-export { withFetchPreconnect } from "openclaw/plugin-sdk/browser-support";
+export { withFetchPreconnect } from "alisio/plugin-sdk/browser-support";

@@ -1,9 +1,9 @@
 import * as carbonGateway from "@buape/carbon/gateway";
+import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
+import { danger } from "alisio/plugin-sdk/runtime-env";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import type { APIGatewayBotInfo } from "discord-api-types/v10";
 import * as httpsProxyAgent from "https-proxy-agent";
-import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
-import { danger } from "openclaw/plugin-sdk/runtime-env";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import * as undici from "undici";
 import * as ws from "ws";
 
@@ -24,7 +24,7 @@ type DiscordGatewayMetadataError = Error & { transient?: boolean };
 type DiscordGatewayWebSocketCtor = new (url: string, options?: { agent?: unknown }) => ws.WebSocket;
 
 export function resolveDiscordGatewayIntents(
-  intentsConfig?: import("openclaw/plugin-sdk/config-runtime").DiscordIntentsConfig,
+  intentsConfig?: import("alisio/plugin-sdk/config-runtime").DiscordIntentsConfig,
 ): number {
   let intents =
     carbonGateway.GatewayIntents.Guilds |

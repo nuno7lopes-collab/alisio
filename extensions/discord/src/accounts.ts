@@ -2,9 +2,9 @@ import {
   createAccountActionGate,
   createAccountListHelpers,
   resolveMergedAccountConfig,
-} from "openclaw/plugin-sdk/account-helpers";
-import { normalizeAccountId } from "openclaw/plugin-sdk/account-id";
-import { resolveAccountEntry } from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/account-helpers";
+import { normalizeAccountId } from "alisio/plugin-sdk/account-id";
+import { resolveAccountEntry } from "alisio/plugin-sdk/routing";
 import type { DiscordAccountConfig, DiscordActionConfig, OpenClawConfig } from "./runtime-api.js";
 import { resolveDiscordToken } from "./token.js";
 

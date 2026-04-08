@@ -10,13 +10,12 @@ import {
   type CommandOptions,
   type StringSelectMenuInteraction,
 } from "@buape/carbon";
-import { ApplicationCommandOptionType } from "discord-api-types/v10";
-import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
+import { resolveHumanDelayConfig } from "alisio/plugin-sdk/agent-runtime";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
 import {
   resolveCommandAuthorizedFromAuthorizers,
   resolveNativeCommandSessionTargets,
-} from "openclaw/plugin-sdk/command-auth";
+} from "alisio/plugin-sdk/command-auth";
 import {
   buildCommandTextFromArgs,
   findCommandByNativeName,
@@ -30,23 +29,24 @@ import {
   type CommandArgValues,
   type CommandArgs,
   type NativeCommandSpec,
-} from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig, loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { isDangerousNameMatchingEnabled } from "openclaw/plugin-sdk/config-runtime";
-import { resolveOpenProviderRuntimeGroupPolicy } from "openclaw/plugin-sdk/config-runtime";
-import { buildPairingReply } from "openclaw/plugin-sdk/conversation-runtime";
-import { getAgentScopedMediaLocalRoots } from "openclaw/plugin-sdk/media-runtime";
-import * as pluginRuntime from "openclaw/plugin-sdk/plugin-runtime";
+} from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
+import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
+import { buildPairingReply } from "alisio/plugin-sdk/conversation-runtime";
+import { getAgentScopedMediaLocalRoots } from "alisio/plugin-sdk/media-runtime";
+import * as pluginRuntime from "alisio/plugin-sdk/plugin-runtime";
 import {
   resolveSendableOutboundReplyParts,
   resolveTextChunksWithFallback,
-} from "openclaw/plugin-sdk/reply-payload";
-import * as replyRuntime from "openclaw/plugin-sdk/reply-runtime";
-import { resolveChunkMode, resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
-import { loadWebMedia } from "openclaw/plugin-sdk/web-media";
+} from "alisio/plugin-sdk/reply-payload";
+import * as replyRuntime from "alisio/plugin-sdk/reply-runtime";
+import { resolveChunkMode, resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { createSubsystemLogger } from "alisio/plugin-sdk/runtime-env";
+import { loadWebMedia } from "alisio/plugin-sdk/web-media";
+import { ApplicationCommandOptionType } from "discord-api-types/v10";
 import { resolveDiscordMaxLinesPerMessage } from "../accounts.js";
 import { chunkDiscordTextWithMode } from "../chunk.js";
 import {

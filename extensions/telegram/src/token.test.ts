@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { withStateDirEnv } from "openclaw/plugin-sdk/testing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { withStateDirEnv } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveTelegramToken } from "./token.js";
 import { readTelegramUpdateOffset, writeTelegramUpdateOffset } from "./update-offset-store.js";

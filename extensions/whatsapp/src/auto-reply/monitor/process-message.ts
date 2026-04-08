@@ -1,37 +1,34 @@
-import { resolveIdentityNamePrefix } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveIdentityNamePrefix } from "alisio/plugin-sdk/agent-runtime";
 import {
   resolveInboundSessionEnvelopeContext,
   toLocationContext,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { formatInboundEnvelope } from "openclaw/plugin-sdk/channel-inbound";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
-import { shouldComputeCommandAuthorized } from "openclaw/plugin-sdk/command-auth";
-import type { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { recordSessionMetaFromInbound } from "openclaw/plugin-sdk/config-runtime";
-import { getAgentScopedMediaLocalRoots } from "openclaw/plugin-sdk/media-runtime";
-import {
-  buildHistoryContextFromEntries,
-  type HistoryEntry,
-} from "openclaw/plugin-sdk/reply-history";
-import { resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
-import { resolveChunkMode, resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
-import type { getReplyFromConfig } from "openclaw/plugin-sdk/reply-runtime";
-import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-runtime";
-import { dispatchReplyWithBufferedBlockDispatcher } from "openclaw/plugin-sdk/reply-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import { formatInboundEnvelope } from "alisio/plugin-sdk/channel-inbound";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
+import { shouldComputeCommandAuthorized } from "alisio/plugin-sdk/command-auth";
+import type { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
+import { recordSessionMetaFromInbound } from "alisio/plugin-sdk/config-runtime";
+import { getAgentScopedMediaLocalRoots } from "alisio/plugin-sdk/media-runtime";
+import { buildHistoryContextFromEntries, type HistoryEntry } from "alisio/plugin-sdk/reply-history";
+import { resolveSendableOutboundReplyParts } from "alisio/plugin-sdk/reply-payload";
+import { resolveChunkMode, resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
+import type { getReplyFromConfig } from "alisio/plugin-sdk/reply-runtime";
+import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
+import { dispatchReplyWithBufferedBlockDispatcher } from "alisio/plugin-sdk/reply-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
 import {
   resolveInboundLastRouteSessionKey,
   type resolveAgentRoute,
-} from "openclaw/plugin-sdk/routing";
-import { logVerbose, shouldLogVerbose } from "openclaw/plugin-sdk/runtime-env";
-import type { getChildLogger } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/routing";
+import { logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
+import type { getChildLogger } from "alisio/plugin-sdk/runtime-env";
 import {
   readStoreAllowFromForDmPolicy,
   resolvePinnedMainDmOwnerFromAllowlist,
   resolveDmGroupAccessWithCommandGate,
-} from "openclaw/plugin-sdk/security-runtime";
-import { jidToE164, normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/security-runtime";
+import { jidToE164, normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import { resolveWhatsAppAccount } from "../../accounts.js";
 import {
   getPrimaryIdentityId,

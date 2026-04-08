@@ -1,9 +1,9 @@
 import crypto from "node:crypto";
-import type { ChannelAccountSnapshot } from "openclaw/plugin-sdk/channel-contract";
-import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { ChannelPlugin } from "openclaw/plugin-sdk/core";
-import { createLoggerBackedRuntime } from "openclaw/plugin-sdk/runtime";
+import type { ChannelAccountSnapshot } from "alisio/plugin-sdk/channel-contract";
+import type { ChannelOutboundAdapter } from "alisio/plugin-sdk/channel-send-result";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { ChannelPlugin } from "alisio/plugin-sdk/core";
+import { createLoggerBackedRuntime } from "alisio/plugin-sdk/runtime";
 import { monitorTlonProvider } from "./monitor/index.js";
 import { tlonSetupWizard } from "./setup-surface.js";
 import {

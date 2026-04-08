@@ -1,1 +1,1 @@
-export { safeEqualSecret } from "openclaw/plugin-sdk/browser-support";
+export { safeEqualSecret } from "alisio/plugin-sdk/browser-support";

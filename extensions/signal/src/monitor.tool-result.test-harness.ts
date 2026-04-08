@@ -1,4 +1,4 @@
-import type { MockFn } from "openclaw/plugin-sdk/testing";
+import type { MockFn } from "alisio/plugin-sdk/testing";
 import { beforeEach, vi } from "vitest";
 import type { SignalDaemonExitEvent, SignalDaemonHandle } from "./daemon.js";
 
@@ -92,9 +92,9 @@ export function createMockSignalDaemonHandle(
 
 // Use importActual so shared-worker mocks from earlier test files do not leak
 // into this harness's partial overrides.
-vi.mock("openclaw/plugin-sdk/config-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/config-runtime")>(
-    "openclaw/plugin-sdk/config-runtime",
+vi.mock("alisio/plugin-sdk/config-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/config-runtime")>(
+    "alisio/plugin-sdk/config-runtime",
   );
   return {
     ...actual,
@@ -106,9 +106,9 @@ vi.mock("openclaw/plugin-sdk/config-runtime", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/reply-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/reply-runtime")>(
-    "openclaw/plugin-sdk/reply-runtime",
+vi.mock("alisio/plugin-sdk/reply-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/reply-runtime")>(
+    "alisio/plugin-sdk/reply-runtime",
   );
   return {
     ...actual,
@@ -144,9 +144,9 @@ vi.mock("./send.js", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/conversation-runtime")>(
-    "openclaw/plugin-sdk/conversation-runtime",
+vi.mock("alisio/plugin-sdk/conversation-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/conversation-runtime")>(
+    "alisio/plugin-sdk/conversation-runtime",
   );
   return {
     ...actual,
@@ -155,9 +155,9 @@ vi.mock("openclaw/plugin-sdk/conversation-runtime", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/security-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/security-runtime")>(
-    "openclaw/plugin-sdk/security-runtime",
+vi.mock("alisio/plugin-sdk/security-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/security-runtime")>(
+    "alisio/plugin-sdk/security-runtime",
   );
   return {
     ...actual,
@@ -179,9 +179,9 @@ vi.mock("./daemon.js", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/channel-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/channel-runtime")>(
-    "openclaw/plugin-sdk/channel-runtime",
+vi.mock("alisio/plugin-sdk/channel-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/channel-runtime")>(
+    "alisio/plugin-sdk/channel-runtime",
   );
   return {
     ...actual,
@@ -196,8 +196,8 @@ vi.mock("openclaw/plugin-sdk/channel-runtime", async () => {
 export function installSignalToolResultTestHooks() {
   beforeEach(async () => {
     const [{ resetInboundDedupe }, { resetSystemEventsForTest }] = await Promise.all([
-      import("openclaw/plugin-sdk/reply-runtime"),
-      import("openclaw/plugin-sdk/channel-runtime"),
+      import("alisio/plugin-sdk/reply-runtime"),
+      import("alisio/plugin-sdk/channel-runtime"),
     ]);
     resetInboundDedupe();
     config = {

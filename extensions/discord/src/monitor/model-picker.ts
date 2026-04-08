@@ -9,11 +9,11 @@ import {
   type MessagePayloadObject,
   type TopLevelComponents,
 } from "@buape/carbon";
+import { normalizeProviderId } from "alisio/plugin-sdk/agent-runtime";
+import { buildModelsProviderData, type ModelsProviderData } from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import type { APISelectMenuOption } from "discord-api-types/v10";
 import { ButtonStyle } from "discord-api-types/v10";
-import { normalizeProviderId } from "openclaw/plugin-sdk/agent-runtime";
-import { buildModelsProviderData, type ModelsProviderData } from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 
 export const DISCORD_MODEL_PICKER_CUSTOM_ID_KEY = "mdlpk";
 export const DISCORD_CUSTOM_ID_MAX_CHARS = 100;

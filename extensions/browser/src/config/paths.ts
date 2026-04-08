@@ -1,1 +1,1 @@
-export { resolveGatewayPort } from "openclaw/plugin-sdk/browser-support";
+export { resolveGatewayPort } from "alisio/plugin-sdk/browser-support";

@@ -1,5 +1,5 @@
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { Routes } from "discord-api-types/v10";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
 import {
   buildReactionIdentifier,
   createDiscordClient,

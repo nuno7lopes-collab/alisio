@@ -1,4 +1,4 @@
-import * as ssrf from "openclaw/plugin-sdk/ssrf-runtime";
+import * as ssrf from "alisio/plugin-sdk/ssrf-runtime";
 import { vi } from "vitest";
 
 export function mockPublicPinnedHostname() {

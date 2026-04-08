@@ -1,14 +1,14 @@
 import type { Message } from "@grammyjs/types";
-import type { Bot } from "grammy";
-import { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel-pairing";
-import type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
+import { createChannelPairingChallengeIssuer } from "alisio/plugin-sdk/channel-pairing";
+import type { DmPolicy } from "alisio/plugin-sdk/config-runtime";
 import {
   addChannelAllowFromStoreEntry,
   rejectChannelPairingRequest,
   removeChannelAllowFromStoreEntry,
   upsertChannelPairingRequest,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import type { Bot } from "grammy";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { resolveSenderAllowMatch, type NormalizedAllowFrom } from "./bot-access.js";
 import { renderTelegramHtmlText } from "./format.js";

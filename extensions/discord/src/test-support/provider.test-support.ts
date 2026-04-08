@@ -1,4 +1,4 @@
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import type { Mock } from "vitest";
 import { expect, vi } from "vitest";
 import type { OpenClawConfig } from "../../../../src/plugin-sdk/discord.js";
@@ -323,9 +323,9 @@ vi.mock("@buape/carbon/voice", () => ({
   VoicePlugin: class VoicePlugin {},
 }));
 
-vi.mock("openclaw/plugin-sdk/acp-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/acp-runtime")>(
-    "openclaw/plugin-sdk/acp-runtime",
+vi.mock("alisio/plugin-sdk/acp-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/acp-runtime")>(
+    "alisio/plugin-sdk/acp-runtime",
   );
   return {
     ...actual,
@@ -337,9 +337,9 @@ vi.mock("openclaw/plugin-sdk/acp-runtime", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/command-auth", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/command-auth")>(
-    "openclaw/plugin-sdk/command-auth",
+vi.mock("alisio/plugin-sdk/command-auth", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/command-auth")>(
+    "alisio/plugin-sdk/command-auth",
   );
   return {
     ...actual,
@@ -347,9 +347,9 @@ vi.mock("openclaw/plugin-sdk/command-auth", async () => {
     listSkillCommandsForAgents: listSkillCommandsForAgentsMock,
   };
 });
-vi.mock("openclaw/plugin-sdk/reply-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/reply-runtime")>(
-    "openclaw/plugin-sdk/reply-runtime",
+vi.mock("alisio/plugin-sdk/reply-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/reply-runtime")>(
+    "alisio/plugin-sdk/reply-runtime",
   );
   return {
     ...actual,
@@ -357,9 +357,9 @@ vi.mock("openclaw/plugin-sdk/reply-runtime", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/config-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/config-runtime")>(
-    "openclaw/plugin-sdk/config-runtime",
+vi.mock("alisio/plugin-sdk/config-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/config-runtime")>(
+    "alisio/plugin-sdk/config-runtime",
   );
   return {
     ...actual,
@@ -370,9 +370,9 @@ vi.mock("openclaw/plugin-sdk/config-runtime", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/runtime-env", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/runtime-env")>(
-    "openclaw/plugin-sdk/runtime-env",
+vi.mock("alisio/plugin-sdk/runtime-env", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/runtime-env")>(
+    "alisio/plugin-sdk/runtime-env",
   );
   return {
     ...actual,
@@ -395,9 +395,9 @@ vi.mock("openclaw/plugin-sdk/runtime-env", async () => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/infra-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/infra-runtime")>(
-    "openclaw/plugin-sdk/infra-runtime",
+vi.mock("alisio/plugin-sdk/infra-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/infra-runtime")>(
+    "alisio/plugin-sdk/infra-runtime",
   );
   return {
     ...actual,

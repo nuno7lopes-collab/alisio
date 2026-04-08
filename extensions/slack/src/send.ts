@@ -1,17 +1,17 @@
 import { type Block, type KnownBlock, type WebClient } from "@slack/web-api";
-import { loadConfig, type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { withTrustedEnvProxyGuardedFetchMode } from "openclaw/plugin-sdk/fetch-runtime";
-import { resolveTextChunksWithFallback } from "openclaw/plugin-sdk/reply-payload";
+import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
+import { withTrustedEnvProxyGuardedFetchMode } from "alisio/plugin-sdk/fetch-runtime";
+import { resolveTextChunksWithFallback } from "alisio/plugin-sdk/reply-payload";
 import {
   chunkMarkdownTextWithMode,
   resolveChunkMode,
   resolveTextChunkLimit,
-} from "openclaw/plugin-sdk/reply-runtime";
-import { isSilentReplyText } from "openclaw/plugin-sdk/reply-runtime";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { fetchWithSsrFGuard } from "openclaw/plugin-sdk/ssrf-runtime";
-import { loadWebMedia } from "openclaw/plugin-sdk/web-media";
+} from "alisio/plugin-sdk/reply-runtime";
+import { isSilentReplyText } from "alisio/plugin-sdk/reply-runtime";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { fetchWithSsrFGuard } from "alisio/plugin-sdk/ssrf-runtime";
+import { loadWebMedia } from "alisio/plugin-sdk/web-media";
 import type { SlackTokenSource } from "./accounts.js";
 import { resolveSlackAccount } from "./accounts.js";
 import { buildSlackBlocksFallbackText } from "./blocks-fallback.js";

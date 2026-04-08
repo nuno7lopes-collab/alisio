@@ -1,6 +1,6 @@
-import type { MsgContext } from "openclaw/plugin-sdk/reply-runtime";
+import type { MsgContext } from "alisio/plugin-sdk/reply-runtime";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-let expectInboundContextContract: typeof import("openclaw/plugin-sdk/testing").expectChannelInboundContextContract;
+let expectInboundContextContract: typeof import("alisio/plugin-sdk/testing").expectChannelInboundContextContract;
 let createBaseSignalEventHandlerDeps: typeof import("./event-handler.test-harness.js").createBaseSignalEventHandlerDeps;
 let createSignalReceiveEvent: typeof import("./event-handler.test-harness.js").createSignalReceiveEvent;
 
@@ -53,7 +53,7 @@ describe("signal createSignalEventHandler inbound context", () => {
     vi.useRealTimers();
     vi.resetModules();
     ({ expectChannelInboundContextContract: expectInboundContextContract } =
-      await import("openclaw/plugin-sdk/testing"));
+      await import("alisio/plugin-sdk/testing"));
     ({ createBaseSignalEventHandlerDeps, createSignalReceiveEvent } =
       await import("./event-handler.test-harness.js"));
     ({ createSignalEventHandler } = await import("./event-handler.js"));

@@ -1,4 +1,4 @@
-import { describeWebhookAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
+import { describeWebhookAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
 import type { ChannelPlugin } from "../api.js";
 import {
   resolveLineAccount,

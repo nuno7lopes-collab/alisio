@@ -1,1 +1,1 @@
-export type { OpenClawConfig } from "openclaw/plugin-sdk/memory-core";
+export type { OpenClawConfig } from "alisio/plugin-sdk/memory-core";

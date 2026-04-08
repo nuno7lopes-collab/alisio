@@ -1,6 +1,6 @@
-import { redactIdentifier } from "openclaw/plugin-sdk/logging-core";
-import type { getReplyFromConfig } from "openclaw/plugin-sdk/reply-runtime";
-import { HEARTBEAT_TOKEN } from "openclaw/plugin-sdk/reply-runtime";
+import { redactIdentifier } from "alisio/plugin-sdk/logging-core";
+import type { getReplyFromConfig } from "alisio/plugin-sdk/reply-runtime";
+import { HEARTBEAT_TOKEN } from "alisio/plugin-sdk/reply-runtime";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { sendMessageWhatsApp } from "../send.js";
 
@@ -22,15 +22,15 @@ const state = vi.hoisted(() => ({
   heartbeatWarnLogs: [] as string[],
 }));
 
-vi.mock("openclaw/plugin-sdk/agent-runtime", () => ({
+vi.mock("alisio/plugin-sdk/agent-runtime", () => ({
   appendCronStyleCurrentTimeLine: (body: string) =>
     `${body}\nCurrent time: 2026-02-15T00:00:00Z (mock)`,
 }));
 
 // Perf: this module otherwise pulls a large dependency graph that we don't need
 // for these unit tests.
-vi.mock("openclaw/plugin-sdk/reply-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/reply-runtime")>();
+vi.mock("alisio/plugin-sdk/reply-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/reply-runtime")>();
   return {
     ...actual,
     getReplyFromConfig: vi.fn(async () => undefined),
@@ -41,16 +41,16 @@ vi.mock("../../../../src/channels/plugins/whatsapp-heartbeat.js", () => ({
   resolveWhatsAppHeartbeatRecipients: () => [],
 }));
 
-vi.mock("openclaw/plugin-sdk/routing", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/routing")>();
+vi.mock("alisio/plugin-sdk/routing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/routing")>();
   return {
     ...actual,
     normalizeMainKey: () => null,
   };
 });
 
-vi.mock("openclaw/plugin-sdk/channel-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/channel-runtime")>();
+vi.mock("alisio/plugin-sdk/channel-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/channel-runtime")>();
   return {
     ...actual,
     resolveHeartbeatVisibility: () => state.visibility,
@@ -59,8 +59,8 @@ vi.mock("openclaw/plugin-sdk/channel-runtime", async (importOriginal) => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/runtime-env", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/runtime-env")>();
+vi.mock("alisio/plugin-sdk/runtime-env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/runtime-env")>();
   const logger = {
     child: () => logger,
     info: (...args: unknown[]) => state.loggerInfoCalls.push(args),
@@ -75,24 +75,24 @@ vi.mock("openclaw/plugin-sdk/runtime-env", async (importOriginal) => {
   };
 });
 
-vi.mock("openclaw/plugin-sdk/text-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/text-runtime")>();
+vi.mock("alisio/plugin-sdk/text-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/text-runtime")>();
   return {
     ...actual,
     redactIdentifier,
   };
 });
 
-vi.mock("openclaw/plugin-sdk/reply-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/reply-runtime")>();
+vi.mock("alisio/plugin-sdk/reply-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/reply-runtime")>();
   return {
     ...actual,
     getReplyFromConfig: vi.fn(async () => undefined),
   };
 });
 
-vi.mock("openclaw/plugin-sdk/config-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/config-runtime")>();
+vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/config-runtime")>();
   return {
     ...actual,
     loadConfig: () => ({ agents: { defaults: {} }, session: {} }),

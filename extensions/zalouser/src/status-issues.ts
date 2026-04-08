@@ -1,7 +1,7 @@
 import {
   coerceStatusIssueAccountId,
   readStatusIssueFields,
-} from "openclaw/plugin-sdk/extension-shared";
+} from "alisio/plugin-sdk/extension-shared";
 import type { ChannelAccountSnapshot, ChannelStatusIssue } from "../runtime-api.js";
 
 const ZALOUSER_STATUS_FIELDS = [

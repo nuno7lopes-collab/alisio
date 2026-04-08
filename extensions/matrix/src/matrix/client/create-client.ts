@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import type { PinnedDispatcherPolicy } from "openclaw/plugin-sdk/infra-runtime";
+import type { PinnedDispatcherPolicy } from "alisio/plugin-sdk/infra-runtime";
 import type { SsrFPolicy } from "../../runtime-api.js";
 import { MatrixClient } from "../sdk.js";
 import { resolveValidatedMatrixHomeserverUrl } from "./config.js";

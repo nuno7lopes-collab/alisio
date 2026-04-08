@@ -1,11 +1,11 @@
-import { describeAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
+import { describeAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
 import {
   adaptScopedAccountAccessor,
   createScopedChannelConfigAdapter,
-} from "openclaw/plugin-sdk/channel-config-helpers";
-import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
-import { createChannelPluginBase } from "openclaw/plugin-sdk/core";
-import { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/channel-config-helpers";
+import { createRestrictSendersChannelSecurity } from "alisio/plugin-sdk/channel-policy";
+import { createChannelPluginBase } from "alisio/plugin-sdk/core";
+import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import {
   listSignalAccountIds,
   resolveDefaultSignalAccountId,

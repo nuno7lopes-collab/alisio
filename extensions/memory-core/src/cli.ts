@@ -1,9 +1,9 @@
-import type { Command } from "commander";
 import {
   formatDocsLink,
   formatHelpExamples,
   theme,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-cli";
+} from "alisio/plugin-sdk/memory-core-host-runtime-cli";
+import type { Command } from "commander";
 import type { MemoryCommandOptions, MemorySearchCommandOptions } from "./cli.types.js";
 
 type MemoryCliRuntime = typeof import("./cli.runtime.js");

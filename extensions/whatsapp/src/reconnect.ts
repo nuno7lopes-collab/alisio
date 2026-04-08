@@ -1,11 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import {
-  computeBackoff,
-  sleepWithAbort,
-  type BackoffPolicy,
-} from "openclaw/plugin-sdk/runtime-env";
-import { clamp } from "openclaw/plugin-sdk/text-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { computeBackoff, sleepWithAbort, type BackoffPolicy } from "alisio/plugin-sdk/runtime-env";
+import { clamp } from "alisio/plugin-sdk/text-runtime";
 
 export type ReconnectPolicy = BackoffPolicy & {
   maxAttempts: number;

@@ -1,13 +1,13 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Command } from "commander";
 import {
   firstWrittenJsonArg,
   spyRuntimeErrors,
   spyRuntimeJson,
   spyRuntimeLogs,
-} from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/testing";
+import { Command } from "commander";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const getMemorySearchManager = vi.hoisted(() => vi.fn());
@@ -20,9 +20,9 @@ const resolveCommandSecretRefsViaGateway = vi.hoisted(() =>
   })),
 );
 
-vi.mock("openclaw/plugin-sdk/memory-core-host-runtime-core", async (importOriginal) => {
+vi.mock("alisio/plugin-sdk/memory-core-host-runtime-core", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("openclaw/plugin-sdk/memory-core-host-runtime-core")>();
+    await importOriginal<typeof import("alisio/plugin-sdk/memory-core-host-runtime-core")>();
   return {
     ...actual,
     loadConfig,
@@ -30,9 +30,9 @@ vi.mock("openclaw/plugin-sdk/memory-core-host-runtime-core", async (importOrigin
   };
 });
 
-vi.mock("openclaw/plugin-sdk/memory-core-host-runtime-cli", async (importOriginal) => {
+vi.mock("alisio/plugin-sdk/memory-core-host-runtime-cli", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("openclaw/plugin-sdk/memory-core-host-runtime-cli")>();
+    await importOriginal<typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli")>();
   return {
     ...actual,
     resolveCommandSecretRefsViaGateway,
@@ -48,14 +48,14 @@ vi.mock("./memory/index.js", async (importOriginal) => {
 });
 
 let registerMemoryCli: typeof import("./cli.js").registerMemoryCli;
-let defaultRuntime: typeof import("openclaw/plugin-sdk/memory-core-host-runtime-cli").defaultRuntime;
-let isVerbose: typeof import("openclaw/plugin-sdk/memory-core-host-runtime-cli").isVerbose;
-let setVerbose: typeof import("openclaw/plugin-sdk/memory-core-host-runtime-cli").setVerbose;
+let defaultRuntime: typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli").defaultRuntime;
+let isVerbose: typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli").isVerbose;
+let setVerbose: typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli").setVerbose;
 
 beforeAll(async () => {
   ({ registerMemoryCli } = await import("./cli.js"));
   ({ defaultRuntime, isVerbose, setVerbose } =
-    await import("openclaw/plugin-sdk/memory-core-host-runtime-cli"));
+    await import("alisio/plugin-sdk/memory-core-host-runtime-cli"));
 });
 
 beforeEach(() => {

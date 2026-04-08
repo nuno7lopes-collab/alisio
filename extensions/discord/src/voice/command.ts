@@ -5,15 +5,15 @@ import {
   type CommandInteraction,
   type CommandOptions,
 } from "@buape/carbon";
+import { resolveCommandAuthorizedFromAuthorizers } from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   ApplicationCommandOptionType,
   ChannelType as DiscordChannelType,
   type APIApplicationCommandChannelOption,
 } from "discord-api-types/v10";
-import { resolveCommandAuthorizedFromAuthorizers } from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { isDangerousNameMatchingEnabled } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
 import { formatMention } from "../mentions.js";
 import {
   isDiscordGroupAllowedByPolicy,

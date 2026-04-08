@@ -1,4 +1,4 @@
-import type { OpenClawConfig, PluginRuntime } from "openclaw/plugin-sdk/zalo";
+import type { OpenClawConfig, PluginRuntime } from "alisio/plugin-sdk/zalo";
 import { vi } from "vitest";
 import {
   createEmptyPluginRegistry,

@@ -7,11 +7,11 @@ import {
   makeWASocket,
   useMultiFileAuthState,
 } from "@whiskeysockets/baileys";
-import { formatCliCommand } from "openclaw/plugin-sdk/cli-runtime";
-import { VERSION } from "openclaw/plugin-sdk/cli-runtime";
-import { danger, success } from "openclaw/plugin-sdk/runtime-env";
-import { getChildLogger, toPinoLikeLogger } from "openclaw/plugin-sdk/runtime-env";
-import { ensureDir, resolveUserPath } from "openclaw/plugin-sdk/text-runtime";
+import { formatCliCommand } from "alisio/plugin-sdk/cli-runtime";
+import { VERSION } from "alisio/plugin-sdk/cli-runtime";
+import { danger, success } from "alisio/plugin-sdk/runtime-env";
+import { getChildLogger, toPinoLikeLogger } from "alisio/plugin-sdk/runtime-env";
+import { ensureDir, resolveUserPath } from "alisio/plugin-sdk/text-runtime";
 import qrcode from "qrcode-terminal";
 import {
   maybeRestoreCredsFromBackup,

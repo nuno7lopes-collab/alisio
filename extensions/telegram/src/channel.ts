@@ -1,29 +1,26 @@
 import {
   buildDmGroupAccountAllowlistAdapter,
   createNestedAllowlistOverrideResolver,
-} from "openclaw/plugin-sdk/allowlist-config-edit";
-import { createApproverRestrictedNativeApprovalAdapter } from "openclaw/plugin-sdk/approval-runtime";
-import { createAccountStatusSink } from "openclaw/plugin-sdk/channel-lifecycle";
-import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
-import { createAllowlistProviderRouteAllowlistWarningCollector } from "openclaw/plugin-sdk/channel-policy";
-import { attachChannelToResult } from "openclaw/plugin-sdk/channel-send-result";
-import { createChatChannelPlugin } from "openclaw/plugin-sdk/core";
-import { createChannelDirectoryAdapter } from "openclaw/plugin-sdk/directory-runtime";
-import {
-  resolveOutboundSendDep,
-  type OutboundSendDeps,
-} from "openclaw/plugin-sdk/outbound-runtime";
+} from "alisio/plugin-sdk/allowlist-config-edit";
+import { createApproverRestrictedNativeApprovalAdapter } from "alisio/plugin-sdk/approval-runtime";
+import { createAccountStatusSink } from "alisio/plugin-sdk/channel-lifecycle";
+import { createPairingPrefixStripper } from "alisio/plugin-sdk/channel-pairing";
+import { createAllowlistProviderRouteAllowlistWarningCollector } from "alisio/plugin-sdk/channel-policy";
+import { attachChannelToResult } from "alisio/plugin-sdk/channel-send-result";
+import { createChatChannelPlugin } from "alisio/plugin-sdk/core";
+import { createChannelDirectoryAdapter } from "alisio/plugin-sdk/directory-runtime";
+import { resolveOutboundSendDep, type OutboundSendDeps } from "alisio/plugin-sdk/outbound-runtime";
 import {
   buildOutboundBaseSessionKey,
   normalizeMessageChannel,
   normalizeOutboundThreadId,
   resolveThreadSessionKeys,
   type RoutePeer,
-} from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/routing";
 import {
   createAsyncComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 import {
   buildTokenChannelStatusSummary,
   clearAccountEntryFields,
@@ -33,7 +30,7 @@ import {
   projectCredentialSnapshotFields,
   resolveConfiguredFromCredentialStatuses,
   type ChannelMessageActionAdapter,
-} from "openclaw/plugin-sdk/telegram-core";
+} from "alisio/plugin-sdk/telegram-core";
 import {
   listTelegramAccountIds,
   resolveTelegramAccount,

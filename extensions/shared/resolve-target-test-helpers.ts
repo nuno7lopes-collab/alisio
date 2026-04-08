@@ -1,1 +1,1 @@
-export { installCommonResolveTargetErrorCases } from "openclaw/plugin-sdk/testing";
+export { installCommonResolveTargetErrorCases } from "alisio/plugin-sdk/testing";

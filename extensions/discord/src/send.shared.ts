@@ -6,21 +6,21 @@ import {
   type MessagePayloadObject,
   type TopLevelComponents,
 } from "@buape/carbon";
-import { PollLayoutType } from "discord-api-types/payloads/v10";
-import type { RESTAPIPoll } from "discord-api-types/rest/v10";
-import { Routes, type APIChannel, type APIEmbed } from "discord-api-types/v10";
-import { loadConfig, type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { buildOutboundMediaLoadOptions } from "openclaw/plugin-sdk/media-runtime";
-import { extensionForMime } from "openclaw/plugin-sdk/media-runtime";
+import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { buildOutboundMediaLoadOptions } from "alisio/plugin-sdk/media-runtime";
+import { extensionForMime } from "alisio/plugin-sdk/media-runtime";
 import {
   normalizePollDurationHours,
   normalizePollInput,
   type PollInput,
-} from "openclaw/plugin-sdk/media-runtime";
-import { resolveTextChunksWithFallback } from "openclaw/plugin-sdk/reply-payload";
-import type { ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
-import type { RetryRunner } from "openclaw/plugin-sdk/retry-runtime";
-import { loadWebMedia } from "openclaw/plugin-sdk/web-media";
+} from "alisio/plugin-sdk/media-runtime";
+import { resolveTextChunksWithFallback } from "alisio/plugin-sdk/reply-payload";
+import type { ChunkMode } from "alisio/plugin-sdk/reply-runtime";
+import type { RetryRunner } from "alisio/plugin-sdk/retry-runtime";
+import { loadWebMedia } from "alisio/plugin-sdk/web-media";
+import { PollLayoutType } from "discord-api-types/payloads/v10";
+import type { RESTAPIPoll } from "discord-api-types/rest/v10";
+import { Routes, type APIChannel, type APIEmbed } from "discord-api-types/v10";
 import { resolveDiscordAccount } from "./accounts.js";
 import { chunkDiscordTextWithMode } from "./chunk.js";
 import { createDiscordClient, resolveDiscordRest } from "./client.js";

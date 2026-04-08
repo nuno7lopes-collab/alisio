@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
-import chokidar, { type FSWatcher } from "chokidar";
 import {
   createSubsystemLogger,
   resolveMemorySearchConfig,
@@ -13,7 +12,7 @@ import {
   writeFileWithinRoot,
   type OpenClawConfig,
   type ResolvedMemorySearchConfig,
-} from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
+} from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import {
   buildSessionEntry,
   deriveQmdScopeChannel,
@@ -26,7 +25,7 @@ import {
   runCliCommand,
   type QmdQueryResult,
   type SessionFileEntry,
-} from "openclaw/plugin-sdk/memory-core-host-engine-qmd";
+} from "alisio/plugin-sdk/memory-core-host-engine-qmd";
 import {
   isFileMissingError,
   requireNodeSqlite,
@@ -41,7 +40,7 @@ import {
   type ResolvedMemoryBackendConfig,
   type ResolvedQmdConfig,
   type ResolvedQmdMcporterConfig,
-} from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+} from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import {
   OBSIDIAN_READONLY_TOOL_PREFIX,
   resolveObsidianDisplayPath,
@@ -52,7 +51,8 @@ import {
   scanObsidianReadOnlyVault,
   type ResolvedObsidianMemoryLayout,
   type ResolvedObsidianReadOnlyVault,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
+} from "alisio/plugin-sdk/memory-core-host-runtime-files";
+import chokidar, { type FSWatcher } from "chokidar";
 
 type SqliteDatabase = import("node:sqlite").DatabaseSync;
 

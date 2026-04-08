@@ -1,4 +1,4 @@
-import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveHumanDelayConfig } from "alisio/plugin-sdk/agent-runtime";
 import {
   createStatusReactionController,
   DEFAULT_TIMING,
@@ -6,17 +6,17 @@ import {
   logTypingFailure,
   removeAckReactionAfterReply,
   type StatusReactionAdapter,
-} from "openclaw/plugin-sdk/channel-feedback";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
-import { resolveStorePath, updateLastRoute } from "openclaw/plugin-sdk/config-runtime";
-import { resolveAgentOutboundIdentity } from "openclaw/plugin-sdk/outbound-runtime";
-import { clearHistoryEntriesIfEnabled } from "openclaw/plugin-sdk/reply-history";
-import { resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
-import { dispatchInboundMessage } from "openclaw/plugin-sdk/reply-runtime";
-import { createReplyDispatcherWithTyping } from "openclaw/plugin-sdk/reply-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import { danger, logVerbose, shouldLogVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { resolvePinnedMainDmOwnerFromAllowlist } from "openclaw/plugin-sdk/security-runtime";
+} from "alisio/plugin-sdk/channel-feedback";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
+import { resolveStorePath, updateLastRoute } from "alisio/plugin-sdk/config-runtime";
+import { resolveAgentOutboundIdentity } from "alisio/plugin-sdk/outbound-runtime";
+import { clearHistoryEntriesIfEnabled } from "alisio/plugin-sdk/reply-history";
+import { resolveSendableOutboundReplyParts } from "alisio/plugin-sdk/reply-payload";
+import { dispatchInboundMessage } from "alisio/plugin-sdk/reply-runtime";
+import { createReplyDispatcherWithTyping } from "alisio/plugin-sdk/reply-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import { danger, logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
+import { resolvePinnedMainDmOwnerFromAllowlist } from "alisio/plugin-sdk/security-runtime";
 import { editSlackMessage, reactSlackMessage, removeSlackReaction } from "../../actions.js";
 import { createSlackDraftStream } from "../../draft-stream.js";
 import { normalizeSlackOutboundText } from "../../format.js";

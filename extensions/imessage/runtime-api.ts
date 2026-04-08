@@ -1,4 +1,4 @@
-import type { AlisioConfig as RuntimeApiAlisioConfig } from "openclaw/plugin-sdk/core";
+import type { AlisioConfig as RuntimeApiAlisioConfig } from "alisio/plugin-sdk/core";
 
 export {
   DEFAULT_ACCOUNT_ID,
@@ -7,20 +7,20 @@ export {
   type ChannelPlugin,
   type AlisioConfig,
   type AlisioConfig as OpenClawConfig,
-} from "openclaw/plugin-sdk/core";
-export { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-status";
+} from "alisio/plugin-sdk/core";
+export { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/channel-status";
 export {
   buildComputedAccountStatusSnapshot,
   collectStatusIssuesFromLastError,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 export {
   formatTrimmedAllowFromEntries,
   resolveIMessageConfigAllowFrom,
   resolveIMessageConfigDefaultTo,
-} from "openclaw/plugin-sdk/channel-config-helpers";
+} from "alisio/plugin-sdk/channel-config-helpers";
 export { looksLikeIMessageTargetId, normalizeIMessageMessagingTarget } from "./src/normalize.js";
-export { resolveChannelMediaMaxBytes } from "openclaw/plugin-sdk/media-runtime";
-export { IMessageConfigSchema } from "openclaw/plugin-sdk/channel-config-schema";
+export { resolveChannelMediaMaxBytes } from "alisio/plugin-sdk/media-runtime";
+export { IMessageConfigSchema } from "alisio/plugin-sdk/channel-config-schema";
 export {
   resolveIMessageGroupRequireMention,
   resolveIMessageGroupToolPolicy,

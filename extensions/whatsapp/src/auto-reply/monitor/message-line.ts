@@ -1,9 +1,9 @@
-import { resolveMessagePrefix } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveMessagePrefix } from "alisio/plugin-sdk/agent-runtime";
 import {
   formatInboundEnvelope,
   type EnvelopeFormatOptions,
-} from "openclaw/plugin-sdk/channel-inbound";
-import type { loadConfig } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import type { loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { getPrimaryIdentityId, getReplyContext, getSenderIdentity } from "../../identity.js";
 import type { WebInboundMsg } from "../types.js";
 

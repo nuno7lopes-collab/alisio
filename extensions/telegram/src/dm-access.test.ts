@@ -1,4 +1,4 @@
-import type { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel-pairing";
+import type { createChannelPairingChallengeIssuer } from "alisio/plugin-sdk/channel-pairing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type TelegramOwnerOnboardingSession = {
@@ -30,7 +30,7 @@ const createPairingPrefixStripperMock = vi.hoisted(
     normalize(value.replace(prefix, "")),
 );
 
-vi.mock("openclaw/plugin-sdk/channel-pairing", () => ({
+vi.mock("alisio/plugin-sdk/channel-pairing", () => ({
   createChannelPairingChallengeIssuer: createChannelPairingChallengeIssuerMock,
   createPairingPrefixStripper: createPairingPrefixStripperMock,
   createLoggedPairingApprovalNotifier: () => undefined,
@@ -38,7 +38,7 @@ vi.mock("openclaw/plugin-sdk/channel-pairing", () => ({
   createChannelPairingController: () => ({}),
 }));
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
+vi.mock("alisio/plugin-sdk/conversation-runtime", () => ({
   addChannelAllowFromStoreEntry: addChannelAllowFromStoreEntryMock,
   removeChannelAllowFromStoreEntry: removeChannelAllowFromStoreEntryMock,
   rejectChannelPairingRequest: rejectChannelPairingRequestMock,

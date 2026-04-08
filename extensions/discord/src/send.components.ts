@@ -4,10 +4,10 @@ import {
   type MessagePayloadObject,
   type RequestClient,
 } from "@buape/carbon";
+import { recordChannelActivity } from "alisio/plugin-sdk/channel-runtime";
+import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadWebMedia } from "alisio/plugin-sdk/web-media";
 import { ChannelType, Routes } from "discord-api-types/v10";
-import { recordChannelActivity } from "openclaw/plugin-sdk/channel-runtime";
-import { loadConfig, type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { loadWebMedia } from "openclaw/plugin-sdk/web-media";
 import { resolveDiscordAccount } from "./accounts.js";
 import { registerDiscordComponentEntries } from "./components-registry.js";
 import {

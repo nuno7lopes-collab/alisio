@@ -13,7 +13,7 @@
 
 import type { WebClient } from "@slack/web-api";
 import type { ChatStreamer } from "@slack/web-api/dist/chat-stream.js";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
 
 // ---------------------------------------------------------------------------
 // Types

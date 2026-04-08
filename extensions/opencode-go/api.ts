@@ -21,9 +21,9 @@ function resolveCurrentPrimaryModel(model: unknown): string | undefined {
 }
 
 export function applyOpencodeGoModelDefault(
-  cfg: import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig,
+  cfg: import("alisio/plugin-sdk/provider-onboard").OpenClawConfig,
 ): {
-  next: import("openclaw/plugin-sdk/provider-onboard").OpenClawConfig;
+  next: import("alisio/plugin-sdk/provider-onboard").OpenClawConfig;
   changed: boolean;
 } {
   const current = resolveCurrentPrimaryModel(cfg.agents?.defaults?.model);

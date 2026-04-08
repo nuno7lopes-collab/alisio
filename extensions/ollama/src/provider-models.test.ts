@@ -1,4 +1,4 @@
-import { jsonResponse, requestBodyText, requestUrl } from "openclaw/plugin-sdk/testing";
+import { jsonResponse, requestBodyText, requestUrl } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   enrichOllamaModelsWithContext,

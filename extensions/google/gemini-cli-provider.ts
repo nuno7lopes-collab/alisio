@@ -2,9 +2,9 @@ import type {
   OpenClawPluginApi,
   ProviderAuthContext,
   ProviderFetchUsageSnapshotContext,
-} from "openclaw/plugin-sdk/plugin-entry";
-import { buildOauthProviderAuthResult } from "openclaw/plugin-sdk/provider-auth-result";
-import { fetchGeminiUsage } from "openclaw/plugin-sdk/provider-usage";
+} from "alisio/plugin-sdk/plugin-entry";
+import { buildOauthProviderAuthResult } from "alisio/plugin-sdk/provider-auth-result";
+import { fetchGeminiUsage } from "alisio/plugin-sdk/provider-usage";
 import { isModernGoogleModel, resolveGoogle31ForwardCompatModel } from "./provider-models.js";
 
 const PROVIDER_ID = "google-gemini-cli";

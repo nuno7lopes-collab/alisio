@@ -8,8 +8,8 @@ import {
   resolveMergedAccountConfig,
   resolveUserPath,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/account-core";
-import { resolveOAuthDir } from "openclaw/plugin-sdk/state-paths";
+} from "alisio/plugin-sdk/account-core";
+import { resolveOAuthDir } from "alisio/plugin-sdk/state-paths";
 import { hasWebCredsSync } from "./creds-files.js";
 import type { DmPolicy, GroupPolicy, WhatsAppAccountConfig } from "./runtime-api.js";
 

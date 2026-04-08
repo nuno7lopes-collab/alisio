@@ -2,7 +2,7 @@ import {
   createAuthCaptureJsonFetch,
   createRequestCaptureJsonFetch,
   installPinnedHostnameTestHooks,
-} from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { transcribeOpenAiAudio } from "./media-understanding-provider.js";
 

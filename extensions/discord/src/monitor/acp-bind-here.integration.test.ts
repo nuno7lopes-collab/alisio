@@ -3,27 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadConfigMock = vi.hoisted(() => vi.fn());
 
-vi.mock("openclaw/plugin-sdk/config-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/config-runtime")>();
+vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/config-runtime")>();
   return {
     ...actual,
     loadConfig: () => loadConfigMock(),
   };
 });
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   __testing as sessionBindingTesting,
   getSessionBindingService,
   registerSessionBindingAdapter,
   type SessionBindingBindInput,
   type SessionBindingRecord,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { __testing as acpManagerTesting } from "openclaw/plugin-sdk/testing";
-import { handleAcpCommand } from "openclaw/plugin-sdk/testing";
-import { buildCommandTestParams } from "openclaw/plugin-sdk/testing";
-import { setDefaultChannelPluginRegistryForTests } from "openclaw/plugin-sdk/testing";
-import * as gatewayCall from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { __testing as acpManagerTesting } from "alisio/plugin-sdk/testing";
+import { handleAcpCommand } from "alisio/plugin-sdk/testing";
+import { buildCommandTestParams } from "alisio/plugin-sdk/testing";
+import { setDefaultChannelPluginRegistryForTests } from "alisio/plugin-sdk/testing";
+import * as gatewayCall from "alisio/plugin-sdk/testing";
 import { preflightDiscordMessage } from "./message-handler.preflight.js";
 import {
   createDiscordMessage,

@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/setup";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/setup";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createTestWizardPrompter,
@@ -23,7 +23,7 @@ const probeTelegram = vi.hoisted(() =>
   vi.fn(async () => ({ ok: true, elapsedMs: 1, bot: { username: "alizio_bot" } })),
 );
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
+vi.mock("alisio/plugin-sdk/conversation-runtime", () => ({
   readChannelAllowFromStore,
   listChannelPairingRequests,
 }));

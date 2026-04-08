@@ -5,12 +5,12 @@ const listChannelPairingRequests = vi.hoisted(() =>
   vi.fn(async () => [] as Array<{ id: string; meta?: Record<string, string> }>),
 );
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
+vi.mock("alisio/plugin-sdk/conversation-runtime", () => ({
   readChannelAllowFromStore,
   listChannelPairingRequests,
 }));
 
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveTelegramDmOnboardingStatus } from "./dm-onboarding-state.js";
 
 describe("resolveTelegramDmOnboardingStatus", () => {

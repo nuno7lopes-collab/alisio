@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 
 export type IMessageAttachment = {
   original_path?: string | null;

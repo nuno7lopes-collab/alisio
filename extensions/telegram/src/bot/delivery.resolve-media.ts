@@ -1,10 +1,10 @@
 import path from "node:path";
+import { fetchRemoteMedia } from "alisio/plugin-sdk/media-runtime";
+import { saveMediaBuffer } from "alisio/plugin-sdk/media-runtime";
+import { logVerbose, warn } from "alisio/plugin-sdk/runtime-env";
+import { retryAsync } from "alisio/plugin-sdk/runtime-env";
+import { formatErrorMessage } from "alisio/plugin-sdk/ssrf-runtime";
 import { GrammyError } from "grammy";
-import { fetchRemoteMedia } from "openclaw/plugin-sdk/media-runtime";
-import { saveMediaBuffer } from "openclaw/plugin-sdk/media-runtime";
-import { logVerbose, warn } from "openclaw/plugin-sdk/runtime-env";
-import { retryAsync } from "openclaw/plugin-sdk/runtime-env";
-import { formatErrorMessage } from "openclaw/plugin-sdk/ssrf-runtime";
 import {
   resolveTelegramApiBase,
   shouldRetryTelegramTransportFallback,

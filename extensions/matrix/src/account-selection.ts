@@ -3,13 +3,13 @@ import {
   listConfiguredAccountIds,
   resolveListedDefaultAccountId,
   resolveNormalizedAccountEntry,
-} from "openclaw/plugin-sdk/account-core";
+} from "alisio/plugin-sdk/account-core";
 import {
   DEFAULT_ACCOUNT_ID,
   normalizeAccountId,
   normalizeOptionalAccountId,
-} from "openclaw/plugin-sdk/account-id";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/account-id";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { listMatrixEnvAccountIds } from "./env-vars.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {

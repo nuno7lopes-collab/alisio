@@ -1,10 +1,10 @@
 import os from "node:os";
 import path from "node:path";
-import { normalizeAccountId as normalizeSharedAccountId } from "openclaw/plugin-sdk/account-id";
-import { normalizeProviderId } from "openclaw/plugin-sdk/agent-runtime";
-import { withFileLock } from "openclaw/plugin-sdk/file-lock";
-import { readJsonFileWithFallback, writeJsonFileAtomically } from "openclaw/plugin-sdk/json-store";
-import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
+import { normalizeAccountId as normalizeSharedAccountId } from "alisio/plugin-sdk/account-id";
+import { normalizeProviderId } from "alisio/plugin-sdk/agent-runtime";
+import { withFileLock } from "alisio/plugin-sdk/file-lock";
+import { readJsonFileWithFallback, writeJsonFileAtomically } from "alisio/plugin-sdk/json-store";
+import { resolveStateDir } from "alisio/plugin-sdk/state-paths";
 
 const MODEL_PICKER_PREFERENCES_LOCK_OPTIONS = {
   retries: {

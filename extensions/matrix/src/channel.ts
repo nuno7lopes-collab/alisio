@@ -1,39 +1,39 @@
-import { describeAccountSnapshot } from "openclaw/plugin-sdk/account-helpers";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
+import { describeAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
 import {
   adaptScopedAccountAccessor,
   createScopedChannelConfigAdapter,
   createScopedDmSecurityResolver,
-} from "openclaw/plugin-sdk/channel-config-helpers";
+} from "alisio/plugin-sdk/channel-config-helpers";
 import {
   createPairingPrefixStripper,
   createTextPairingAdapter,
-} from "openclaw/plugin-sdk/channel-pairing";
+} from "alisio/plugin-sdk/channel-pairing";
 import {
   createAllowlistProviderOpenWarningCollector,
   projectAccountConfigWarningCollector,
-} from "openclaw/plugin-sdk/channel-policy";
-import { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-status";
-import { createScopedAccountReplyToModeResolver } from "openclaw/plugin-sdk/conversation-runtime";
+} from "alisio/plugin-sdk/channel-policy";
+import { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/channel-status";
+import { createScopedAccountReplyToModeResolver } from "alisio/plugin-sdk/conversation-runtime";
 import {
   buildChannelConfigSchema,
   createChatChannelPlugin,
   type ChannelPlugin,
-} from "openclaw/plugin-sdk/core";
+} from "alisio/plugin-sdk/core";
 import {
   createChannelDirectoryAdapter,
   createResolvedDirectoryEntriesLister,
   createRuntimeDirectoryLiveAdapter,
-} from "openclaw/plugin-sdk/directory-runtime";
-import { buildTrafficStatusSummary } from "openclaw/plugin-sdk/extension-shared";
-import { createLazyRuntimeNamedExport } from "openclaw/plugin-sdk/lazy-runtime";
-import { createRuntimeOutboundDelegates } from "openclaw/plugin-sdk/outbound-runtime";
+} from "alisio/plugin-sdk/directory-runtime";
+import { buildTrafficStatusSummary } from "alisio/plugin-sdk/extension-shared";
+import { createLazyRuntimeNamedExport } from "alisio/plugin-sdk/lazy-runtime";
+import { createRuntimeOutboundDelegates } from "alisio/plugin-sdk/outbound-runtime";
 import {
   buildProbeChannelStatusSummary,
   collectStatusIssuesFromLastError,
   createComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 import { matrixMessageActions } from "./actions.js";
 import { matrixApprovalAuth } from "./approval-auth.js";
 import { MatrixConfigSchema } from "./config-schema.js";

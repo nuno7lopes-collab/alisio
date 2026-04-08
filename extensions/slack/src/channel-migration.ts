@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { SlackChannelConfig } from "openclaw/plugin-sdk/config-runtime";
-import { normalizeAccountId } from "openclaw/plugin-sdk/routing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { SlackChannelConfig } from "alisio/plugin-sdk/config-runtime";
+import { normalizeAccountId } from "alisio/plugin-sdk/routing";
 
 type SlackChannels = Record<string, SlackChannelConfig>;
 

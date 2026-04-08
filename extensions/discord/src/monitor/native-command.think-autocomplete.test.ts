@@ -2,12 +2,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ChannelType, type AutocompleteInteraction } from "@buape/carbon";
-import {
-  findCommandByNativeName,
-  resolveCommandArgChoices,
-} from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig, loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { clearSessionStoreCacheForTest } from "openclaw/plugin-sdk/config-runtime";
+import { findCommandByNativeName, resolveCommandArgChoices } from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { clearSessionStoreCacheForTest } from "alisio/plugin-sdk/config-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createNoopThreadBindingManager } from "./thread-bindings.js";
 
@@ -35,7 +32,7 @@ const resolveConfiguredBindingRouteMock = vi.hoisted(() =>
   >(() => null),
 );
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", async (importOriginal) => {
+vi.mock("alisio/plugin-sdk/conversation-runtime", async (importOriginal) => {
   const { createConfiguredBindingConversationRuntimeModuleMock } =
     await import("../test-support/configured-binding-runtime.js");
   return await createConfiguredBindingConversationRuntimeModuleMock(

@@ -1,10 +1,10 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { optimizeImageToPng } from "openclaw/plugin-sdk/media-runtime";
-import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
-import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/temp-path";
-import { mockPinnedHostnameResolution } from "openclaw/plugin-sdk/testing";
+import { optimizeImageToPng } from "alisio/plugin-sdk/media-runtime";
+import { resolveStateDir } from "alisio/plugin-sdk/state-paths";
+import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
+import { mockPinnedHostnameResolution } from "alisio/plugin-sdk/testing";
 import sharp from "sharp";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { captureEnv } from "../../../test/helpers/plugins/env.js";

@@ -15,20 +15,20 @@ import {
   withManager,
   withProgress,
   withProgressTotals,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-cli";
+} from "alisio/plugin-sdk/memory-core-host-runtime-cli";
 import {
   loadConfig,
   resolveDefaultAgentId,
   resolveSessionTranscriptsDirForAgent,
   resolveStateDir,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-core";
+} from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
   listMemoryFiles,
   normalizeExtraMemoryPaths,
   resolveObsidianMemoryLayout,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
-import { buildAgentSessionKey } from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/memory-core-host-runtime-files";
+import { buildAgentSessionKey } from "alisio/plugin-sdk/routing";
 import type { MemoryCommandOptions, MemorySearchCommandOptions } from "./cli.types.js";
 import { getMemorySearchManager } from "./memory/index.js";
 

@@ -1,6 +1,6 @@
-import type { BaseProbeResult } from "openclaw/plugin-sdk/channel-contract";
-import type { TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";
-import { fetchWithTimeout } from "openclaw/plugin-sdk/text-runtime";
+import type { BaseProbeResult } from "alisio/plugin-sdk/channel-contract";
+import type { TelegramNetworkConfig } from "alisio/plugin-sdk/telegram-core";
+import { fetchWithTimeout } from "alisio/plugin-sdk/text-runtime";
 import { resolveTelegramApiBase, resolveTelegramFetch } from "./fetch.js";
 import { makeProxyFetch } from "./proxy.js";
 

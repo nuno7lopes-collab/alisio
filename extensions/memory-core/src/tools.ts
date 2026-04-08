@@ -4,7 +4,7 @@ import {
   readStringParam,
   type AnyAgentTool,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-core";
+} from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
   clampResultsByInjectedChars,
   decorateCitations,

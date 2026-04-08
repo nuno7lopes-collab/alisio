@@ -1,46 +1,46 @@
-export { resolveAckReaction } from "openclaw/plugin-sdk/bluebubbles";
+export { resolveAckReaction } from "alisio/plugin-sdk/bluebubbles";
 export {
   createActionGate,
   jsonResult,
   readNumberParam,
   readReactionParams,
   readStringParam,
-} from "openclaw/plugin-sdk/bluebubbles";
-export type { HistoryEntry } from "openclaw/plugin-sdk/bluebubbles";
+} from "alisio/plugin-sdk/bluebubbles";
+export type { HistoryEntry } from "alisio/plugin-sdk/bluebubbles";
 export {
   evictOldHistoryKeys,
   recordPendingHistoryEntryIfEnabled,
-} from "openclaw/plugin-sdk/bluebubbles";
-export { resolveControlCommandGate } from "openclaw/plugin-sdk/bluebubbles";
-export { logAckFailure, logInboundDrop, logTypingFailure } from "openclaw/plugin-sdk/bluebubbles";
-export { BLUEBUBBLES_ACTION_NAMES, BLUEBUBBLES_ACTIONS } from "openclaw/plugin-sdk/bluebubbles";
-export { resolveChannelMediaMaxBytes } from "openclaw/plugin-sdk/bluebubbles";
-export { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/bluebubbles";
-export { collectBlueBubblesStatusIssues } from "openclaw/plugin-sdk/bluebubbles";
+} from "alisio/plugin-sdk/bluebubbles";
+export { resolveControlCommandGate } from "alisio/plugin-sdk/bluebubbles";
+export { logAckFailure, logInboundDrop, logTypingFailure } from "alisio/plugin-sdk/bluebubbles";
+export { BLUEBUBBLES_ACTION_NAMES, BLUEBUBBLES_ACTIONS } from "alisio/plugin-sdk/bluebubbles";
+export { resolveChannelMediaMaxBytes } from "alisio/plugin-sdk/bluebubbles";
+export { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/bluebubbles";
+export { collectBlueBubblesStatusIssues } from "alisio/plugin-sdk/bluebubbles";
 export type {
   BaseProbeResult,
   ChannelAccountSnapshot,
   ChannelMessageActionAdapter,
   ChannelMessageActionName,
-} from "openclaw/plugin-sdk/bluebubbles";
-export type { ChannelPlugin } from "openclaw/plugin-sdk/bluebubbles";
-export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "openclaw/plugin-sdk/bluebubbles";
-export { parseFiniteNumber } from "openclaw/plugin-sdk/bluebubbles";
-export type { PluginRuntime } from "openclaw/plugin-sdk/bluebubbles";
-export { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/bluebubbles";
+} from "alisio/plugin-sdk/bluebubbles";
+export type { ChannelPlugin } from "alisio/plugin-sdk/bluebubbles";
+export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "alisio/plugin-sdk/bluebubbles";
+export { parseFiniteNumber } from "alisio/plugin-sdk/bluebubbles";
+export type { PluginRuntime } from "alisio/plugin-sdk/bluebubbles";
+export { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/bluebubbles";
 export {
   DM_GROUP_ACCESS_REASON,
   readStoreAllowFromForDmPolicy,
   resolveDmGroupAccessWithLists,
-} from "openclaw/plugin-sdk/bluebubbles";
-export { readBooleanParam } from "openclaw/plugin-sdk/bluebubbles";
-export { mapAllowFromEntries } from "openclaw/plugin-sdk/bluebubbles";
-export { createChannelPairingController } from "openclaw/plugin-sdk/bluebubbles";
-export { createChannelReplyPipeline } from "openclaw/plugin-sdk/bluebubbles";
-export { resolveRequestUrl } from "openclaw/plugin-sdk/bluebubbles";
-export { buildProbeChannelStatusSummary } from "openclaw/plugin-sdk/bluebubbles";
-export { stripMarkdown } from "openclaw/plugin-sdk/bluebubbles";
-export { extractToolSend } from "openclaw/plugin-sdk/bluebubbles";
+} from "alisio/plugin-sdk/bluebubbles";
+export { readBooleanParam } from "alisio/plugin-sdk/bluebubbles";
+export { mapAllowFromEntries } from "alisio/plugin-sdk/bluebubbles";
+export { createChannelPairingController } from "alisio/plugin-sdk/bluebubbles";
+export { createChannelReplyPipeline } from "alisio/plugin-sdk/bluebubbles";
+export { resolveRequestUrl } from "alisio/plugin-sdk/bluebubbles";
+export { buildProbeChannelStatusSummary } from "alisio/plugin-sdk/bluebubbles";
+export { stripMarkdown } from "alisio/plugin-sdk/bluebubbles";
+export { extractToolSend } from "alisio/plugin-sdk/bluebubbles";
 export {
   WEBHOOK_RATE_LIMIT_DEFAULTS,
   createFixedWindowRateLimiter,
@@ -50,4 +50,4 @@ export {
   resolveRequestClientIp,
   resolveWebhookTargetWithAuthOrRejectSync,
   withResolvedWebhookRequestPipeline,
-} from "openclaw/plugin-sdk/bluebubbles";
+} from "alisio/plugin-sdk/bluebubbles";

@@ -1,40 +1,40 @@
 import type { Message, ReactionTypeEmoji } from "@grammyjs/types";
-import { resolveAgentDir, resolveDefaultAgentId } from "openclaw/plugin-sdk/agent-runtime";
-import { resolveDefaultModelForAgent } from "openclaw/plugin-sdk/agent-runtime";
-import { resolveChannelConfigWrites } from "openclaw/plugin-sdk/channel-config-writes";
-import { shouldDebounceTextInbound } from "openclaw/plugin-sdk/channel-inbound";
+import { resolveAgentDir, resolveDefaultAgentId } from "alisio/plugin-sdk/agent-runtime";
+import { resolveDefaultModelForAgent } from "alisio/plugin-sdk/agent-runtime";
+import { resolveChannelConfigWrites } from "alisio/plugin-sdk/channel-config-writes";
+import { shouldDebounceTextInbound } from "alisio/plugin-sdk/channel-inbound";
 import {
   createInboundDebouncer,
   resolveInboundDebounceMs,
-} from "openclaw/plugin-sdk/channel-inbound";
+} from "alisio/plugin-sdk/channel-inbound";
 import {
   buildCommandsMessagePaginated,
   buildCommandsPaginationKeyboard,
   formatModelsAvailableHeader,
   resolveStoredModelOverride,
-} from "openclaw/plugin-sdk/command-auth";
-import { writeConfigFile } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/command-auth";
+import { writeConfigFile } from "alisio/plugin-sdk/config-runtime";
 import {
   loadSessionStore,
   resolveSessionStoreEntry,
   updateSessionStore,
-} from "openclaw/plugin-sdk/config-runtime";
-import type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import type { DmPolicy } from "alisio/plugin-sdk/config-runtime";
 import type {
   TelegramDirectConfig,
   TelegramGroupConfig,
   TelegramTopicConfig,
-} from "openclaw/plugin-sdk/config-runtime";
-import { applyModelOverrideToSessionEntry } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import { applyModelOverrideToSessionEntry } from "alisio/plugin-sdk/config-runtime";
 import {
   buildPluginBindingResolvedText,
   parsePluginBindingApprovalCustomId,
   resolvePluginConversationBindingApproval,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { dispatchPluginInteractiveHandler } from "openclaw/plugin-sdk/plugin-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { resolveThreadSessionKeys } from "openclaw/plugin-sdk/routing";
-import { danger, logVerbose, warn } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { dispatchPluginInteractiveHandler } from "alisio/plugin-sdk/plugin-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { resolveThreadSessionKeys } from "alisio/plugin-sdk/routing";
+import { danger, logVerbose, warn } from "alisio/plugin-sdk/runtime-env";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import {
   isSenderAllowed,

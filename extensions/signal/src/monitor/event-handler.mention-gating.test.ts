@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { MsgContext } from "openclaw/plugin-sdk/reply-runtime";
-import { buildDispatchInboundCaptureMock } from "openclaw/plugin-sdk/testing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { MsgContext } from "alisio/plugin-sdk/reply-runtime";
+import { buildDispatchInboundCaptureMock } from "alisio/plugin-sdk/testing";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 type SignalMsgContext = Pick<MsgContext, "Body" | "WasMentioned"> & {
@@ -14,8 +14,8 @@ function getCapturedCtx() {
   return capturedCtx as SignalMsgContext;
 }
 
-vi.mock("openclaw/plugin-sdk/reply-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/reply-runtime")>();
+vi.mock("alisio/plugin-sdk/reply-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/reply-runtime")>();
   return buildDispatchInboundCaptureMock(actual, (ctx) => {
     capturedCtx = ctx as SignalMsgContext;
   });

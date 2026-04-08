@@ -1,13 +1,13 @@
-import type { ChannelSetupInput } from "openclaw/plugin-sdk/channel-setup";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/routing";
-import { hasConfiguredSecretInput } from "openclaw/plugin-sdk/secret-input";
+import type { ChannelSetupInput } from "alisio/plugin-sdk/channel-setup";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
+import { hasConfiguredSecretInput } from "alisio/plugin-sdk/secret-input";
 import {
   createStandardChannelSetupStatus,
   formatDocsLink,
   setSetupChannelEnabled,
   type ChannelSetupWizard,
-} from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
 import { listNextcloudTalkAccountIds, resolveNextcloudTalkAccount } from "./accounts.js";
 import {
   clearNextcloudTalkAccountFields,

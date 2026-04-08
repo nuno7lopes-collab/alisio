@@ -1,4 +1,4 @@
-import type { ChannelThreadingToolContext } from "openclaw/plugin-sdk/channel-contract";
+import type { ChannelThreadingToolContext } from "alisio/plugin-sdk/channel-contract";
 import { describe, expect, it } from "vitest";
 import { resolveTelegramAutoThreadId } from "./action-threading.js";
 

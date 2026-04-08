@@ -11,7 +11,7 @@ import {
   type MemoryEmbeddingProviderAdapter,
   type MemoryEmbeddingProviderCreateOptions,
   type MemoryEmbeddingProviderRuntime,
-} from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
+} from "alisio/plugin-sdk/memory-core-host-engine-embeddings";
 import {
   canAutoSelectLocal,
   getBuiltinMemoryEmbeddingProviderAdapter,
@@ -24,7 +24,7 @@ export {
   DEFAULT_OLLAMA_EMBEDDING_MODEL,
   DEFAULT_OPENAI_EMBEDDING_MODEL,
   DEFAULT_VOYAGE_EMBEDDING_MODEL,
-} from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
+} from "alisio/plugin-sdk/memory-core-host-engine-embeddings";
 
 export type EmbeddingProvider = MemoryEmbeddingProvider;
 export type EmbeddingProviderId = string;
@@ -123,7 +123,7 @@ export async function createEmbeddingProvider(
   options: CreateEmbeddingProviderOptions,
 ): Promise<EmbeddingProviderResult> {
   if (options.provider === "auto") {
-    const reasons: string[] = [];
+    let preferredLocalReason: string | null = null;
     for (const adapter of listAutoSelectAdapters(options)) {
       try {
         const result = await createWithAdapter(adapter, {
@@ -137,7 +137,9 @@ export async function createEmbeddingProvider(
       } catch (err) {
         const message = formatProviderError(adapter, err);
         if (shouldContinueAutoSelection(adapter, err)) {
-          reasons.push(message);
+          if (adapter.id === "local") {
+            preferredLocalReason = message;
+          }
           continue;
         }
         const wrapped = new Error(message) as Error & { cause?: unknown };
@@ -148,8 +150,7 @@ export async function createEmbeddingProvider(
     return {
       provider: null,
       requestedProvider: "auto",
-      providerUnavailableReason:
-        reasons.length > 0 ? reasons.join("\n\n") : "No embeddings provider available.",
+      providerUnavailableReason: preferredLocalReason ?? "No embeddings provider available.",
     };
   }
 

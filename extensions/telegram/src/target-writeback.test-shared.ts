@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/testing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 export const readConfigFileSnapshotForWrite = vi.fn();
@@ -7,8 +7,8 @@ export const loadCronStore = vi.fn();
 export const resolveCronStorePath = vi.fn();
 export const saveCronStore = vi.fn();
 
-vi.mock("openclaw/plugin-sdk/config-runtime", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/config-runtime")>();
+vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/config-runtime")>();
   return {
     ...actual,
     readConfigFileSnapshotForWrite,

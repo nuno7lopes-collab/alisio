@@ -1,42 +1,42 @@
 import fs from "node:fs/promises";
-import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveHumanDelayConfig } from "alisio/plugin-sdk/agent-runtime";
 import {
   createChannelInboundDebouncer,
   shouldDebounceTextInbound,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel-pairing";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
-import { waitForTransportReady } from "openclaw/plugin-sdk/channel-runtime";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import { createChannelPairingChallengeIssuer } from "alisio/plugin-sdk/channel-pairing";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
+import { waitForTransportReady } from "alisio/plugin-sdk/channel-runtime";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   resolveOpenProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,
   warnMissingProviderGroupPolicyFallbackOnce,
-} from "openclaw/plugin-sdk/config-runtime";
-import { readSessionUpdatedAt, resolveStorePath } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import { readSessionUpdatedAt, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
 import {
   readChannelAllowFromStore,
   upsertChannelPairingRequest,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { recordInboundSession } from "openclaw/plugin-sdk/conversation-runtime";
-import { normalizeScpRemoteHost } from "openclaw/plugin-sdk/host-runtime";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { recordInboundSession } from "alisio/plugin-sdk/conversation-runtime";
+import { normalizeScpRemoteHost } from "alisio/plugin-sdk/host-runtime";
 import {
   isInboundPathAllowed,
   resolveIMessageAttachmentRoots,
   resolveIMessageRemoteAttachmentRoots,
-} from "openclaw/plugin-sdk/media-runtime";
-import { kindFromMime } from "openclaw/plugin-sdk/media-runtime";
+} from "alisio/plugin-sdk/media-runtime";
+import { kindFromMime } from "alisio/plugin-sdk/media-runtime";
 import {
   clearHistoryEntriesIfEnabled,
   DEFAULT_GROUP_HISTORY_LIMIT,
   type HistoryEntry,
-} from "openclaw/plugin-sdk/reply-history";
-import { resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
-import { dispatchInboundMessage } from "openclaw/plugin-sdk/reply-runtime";
-import { createReplyDispatcher } from "openclaw/plugin-sdk/reply-runtime";
-import { danger, logVerbose, shouldLogVerbose, warn } from "openclaw/plugin-sdk/runtime-env";
-import { resolvePinnedMainDmOwnerFromAllowlist } from "openclaw/plugin-sdk/security-runtime";
-import { truncateUtf16Safe } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/reply-history";
+import { resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
+import { dispatchInboundMessage } from "alisio/plugin-sdk/reply-runtime";
+import { createReplyDispatcher } from "alisio/plugin-sdk/reply-runtime";
+import { danger, logVerbose, shouldLogVerbose, warn } from "alisio/plugin-sdk/runtime-env";
+import { resolvePinnedMainDmOwnerFromAllowlist } from "alisio/plugin-sdk/security-runtime";
+import { truncateUtf16Safe } from "alisio/plugin-sdk/text-runtime";
 import { resolveIMessageAccount } from "../accounts.js";
 import { createIMessageRpcClient } from "../client.js";
 import { DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS } from "../constants.js";

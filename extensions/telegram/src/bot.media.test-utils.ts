@@ -1,4 +1,4 @@
-import * as ssrf from "openclaw/plugin-sdk/ssrf-runtime";
+import * as ssrf from "alisio/plugin-sdk/ssrf-runtime";
 import { afterEach, beforeEach, expect, vi, type Mock } from "vitest";
 import * as harness from "./bot.media.e2e-harness.js";
 
@@ -132,7 +132,7 @@ async function loadTelegramBotHarness() {
       ...opts,
       telegramDeps: harness.telegramBotDepsForTest,
     });
-  const replyModule = await import("openclaw/plugin-sdk/reply-runtime");
+  const replyModule = await import("alisio/plugin-sdk/reply-runtime");
   replySpyRef = (replyModule as unknown as { __replySpy: ReturnType<typeof vi.fn> }).__replySpy;
 }
 

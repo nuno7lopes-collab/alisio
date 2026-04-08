@@ -2,10 +2,10 @@ import type { Client } from "@buape/carbon";
 import {
   createChannelInboundDebouncer,
   shouldDebounceTextInbound,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { resolveOpenProviderRuntimeGroupPolicy } from "openclaw/plugin-sdk/config-runtime";
-import { createDedupeCache } from "openclaw/plugin-sdk/core";
-import { danger } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/channel-inbound";
+import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
+import { createDedupeCache } from "alisio/plugin-sdk/core";
+import { danger } from "alisio/plugin-sdk/runtime-env";
 import { buildDiscordInboundJob } from "./inbound-job.js";
 import {
   createDiscordInboundWorker,

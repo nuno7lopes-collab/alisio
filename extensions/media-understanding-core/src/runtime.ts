@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { OpenClawConfig } from "alisio/plugin-sdk/core";
 import {
   buildProviderRegistry,
   createMediaAttachmentCache,
@@ -8,7 +8,7 @@ import {
   normalizeMediaProviderId,
   runCapability,
   type ActiveMediaModel,
-} from "openclaw/plugin-sdk/media-runtime";
+} from "alisio/plugin-sdk/media-runtime";
 
 type MediaUnderstandingCapability = "image" | "audio" | "video";
 type MediaUnderstandingOutput = Awaited<ReturnType<typeof runCapability>>["outputs"][number];

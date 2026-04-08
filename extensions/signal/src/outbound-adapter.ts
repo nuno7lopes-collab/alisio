@@ -1,16 +1,13 @@
-import type { ChannelOutboundAdapter } from "openclaw/plugin-sdk/channel-send-result";
+import type { ChannelOutboundAdapter } from "alisio/plugin-sdk/channel-send-result";
 import {
   attachChannelToResult,
   attachChannelToResults,
   createAttachedChannelResultAdapter,
-} from "openclaw/plugin-sdk/channel-send-result";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { createScopedChannelMediaMaxBytesResolver } from "openclaw/plugin-sdk/media-runtime";
-import {
-  resolveOutboundSendDep,
-  type OutboundSendDeps,
-} from "openclaw/plugin-sdk/outbound-runtime";
-import { resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
+} from "alisio/plugin-sdk/channel-send-result";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
+import { createScopedChannelMediaMaxBytesResolver } from "alisio/plugin-sdk/media-runtime";
+import { resolveOutboundSendDep, type OutboundSendDeps } from "alisio/plugin-sdk/outbound-runtime";
+import { resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
 import { markdownToSignalTextChunks } from "./format.js";
 import { sendMessageSignal } from "./send.js";
 

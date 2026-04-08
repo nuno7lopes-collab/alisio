@@ -1,4 +1,4 @@
-import { primeChannelOutboundSendMock } from "openclaw/plugin-sdk/testing";
+import { primeChannelOutboundSendMock } from "alisio/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "./accounts.test-mocks.js";
 import "./zalo-js.test-mocks.js";

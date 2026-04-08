@@ -1,7 +1,7 @@
 import {
   buildChannelConfigSchema,
   MSTeamsConfigSchema,
-} from "openclaw/plugin-sdk/channel-config-schema";
+} from "alisio/plugin-sdk/channel-config-schema";
 import { msTeamsChannelConfigUiHints } from "./config-ui-hints.js";
 
 export const MSTeamsChannelConfigSchema = buildChannelConfigSchema(MSTeamsConfigSchema, {

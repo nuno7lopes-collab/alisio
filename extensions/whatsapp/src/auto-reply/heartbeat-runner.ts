@@ -1,31 +1,31 @@
-import { appendCronStyleCurrentTimeLine } from "openclaw/plugin-sdk/agent-runtime";
+import { appendCronStyleCurrentTimeLine } from "alisio/plugin-sdk/agent-runtime";
 import {
   emitHeartbeatEvent,
   resolveHeartbeatVisibility,
   resolveIndicatorType,
-} from "openclaw/plugin-sdk/channel-runtime";
-import { canonicalizeMainSessionAlias, loadConfig } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/channel-runtime";
+import { canonicalizeMainSessionAlias, loadConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   loadSessionStore,
   resolveSessionKey,
   resolveStorePath,
   updateSessionStore,
-} from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/config-runtime";
 import {
   hasOutboundReplyContent,
   resolveSendableOutboundReplyParts,
-} from "openclaw/plugin-sdk/reply-payload";
-import { resolveHeartbeatReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
+} from "alisio/plugin-sdk/reply-payload";
+import { resolveHeartbeatReplyPayload } from "alisio/plugin-sdk/reply-runtime";
 import {
   DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
   resolveHeartbeatPrompt,
   stripHeartbeatToken,
-} from "openclaw/plugin-sdk/reply-runtime";
-import { getReplyFromConfig } from "openclaw/plugin-sdk/reply-runtime";
-import { HEARTBEAT_TOKEN } from "openclaw/plugin-sdk/reply-runtime";
-import { normalizeMainKey } from "openclaw/plugin-sdk/routing";
-import { getChildLogger } from "openclaw/plugin-sdk/runtime-env";
-import { redactIdentifier } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/reply-runtime";
+import { getReplyFromConfig } from "alisio/plugin-sdk/reply-runtime";
+import { HEARTBEAT_TOKEN } from "alisio/plugin-sdk/reply-runtime";
+import { normalizeMainKey } from "alisio/plugin-sdk/routing";
+import { getChildLogger } from "alisio/plugin-sdk/runtime-env";
+import { redactIdentifier } from "alisio/plugin-sdk/text-runtime";
 import { newConnectionId } from "../reconnect.js";
 import { resolveWhatsAppHeartbeatRecipients } from "../runtime-api.js";
 import { sendMessageWhatsApp } from "../send.js";

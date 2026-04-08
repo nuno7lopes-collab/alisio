@@ -5,8 +5,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // Mock the runtime-exported backoff sleep that the handler actually imports.
-vi.mock("openclaw/plugin-sdk/runtime-env", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("openclaw/plugin-sdk/runtime-env")>();
+vi.mock("alisio/plugin-sdk/runtime-env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("alisio/plugin-sdk/runtime-env")>();
   return {
     ...actual,
     sleepWithAbort: mocks.sleepWithAbort,

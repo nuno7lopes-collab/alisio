@@ -1,5 +1,5 @@
-import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
-import { resolveApiKeyForProvider } from "openclaw/plugin-sdk/provider-auth-runtime";
+import type { ImageGenerationProvider } from "alisio/plugin-sdk/image-generation";
+import { resolveApiKeyForProvider } from "alisio/plugin-sdk/provider-auth-runtime";
 
 const DEFAULT_MINIMAX_IMAGE_BASE_URL = "https://api.minimax.io";
 const DEFAULT_MODEL = "image-01";

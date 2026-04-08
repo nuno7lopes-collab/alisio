@@ -1,4 +1,4 @@
-import { normalizeSlackMessagingTarget } from "openclaw/plugin-sdk/slack";
+import { normalizeSlackMessagingTarget } from "alisio/plugin-sdk/slack";
 import { describe, expect, it } from "vitest";
 import { parseSlackTarget, resolveSlackChannelId } from "./targets.js";
 

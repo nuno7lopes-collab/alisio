@@ -1,14 +1,14 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
-import type { DiscordGuildEntry } from "openclaw/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { createEnvPatchedAccountSetupAdapter } from "openclaw/plugin-sdk/setup-adapter-runtime";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
+import type { DiscordGuildEntry } from "alisio/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { createEnvPatchedAccountSetupAdapter } from "alisio/plugin-sdk/setup-adapter-runtime";
 import type {
   ChannelSetupAdapter,
   ChannelSetupDmPolicy,
   ChannelSetupWizard,
-} from "openclaw/plugin-sdk/setup-runtime";
-import { createStandardChannelSetupStatus } from "openclaw/plugin-sdk/setup-runtime";
-import { formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
+} from "alisio/plugin-sdk/setup-runtime";
+import { createStandardChannelSetupStatus } from "alisio/plugin-sdk/setup-runtime";
+import { formatDocsLink } from "alisio/plugin-sdk/setup-tools";
 import {
   inspectDiscordSetupAccount,
   listDiscordSetupAccountIds,

@@ -1,11 +1,11 @@
+import * as commandRegistryModule from "alisio/plugin-sdk/command-auth";
+import type { ChatCommandDefinition, CommandArgsParsing } from "alisio/plugin-sdk/command-auth";
+import type { ModelsProviderData } from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import * as dispatcherModule from "alisio/plugin-sdk/reply-runtime";
+import * as globalsModule from "alisio/plugin-sdk/runtime-env";
+import * as commandTextModule from "alisio/plugin-sdk/text-runtime";
 import { ChannelType } from "discord-api-types/v10";
-import * as commandRegistryModule from "openclaw/plugin-sdk/command-auth";
-import type { ChatCommandDefinition, CommandArgsParsing } from "openclaw/plugin-sdk/command-auth";
-import type { ModelsProviderData } from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import * as dispatcherModule from "openclaw/plugin-sdk/reply-runtime";
-import * as globalsModule from "openclaw/plugin-sdk/runtime-env";
-import * as commandTextModule from "openclaw/plugin-sdk/text-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as modelPickerPreferencesModule from "./model-picker-preferences.js";
 import * as modelPickerModule from "./model-picker.js";
@@ -241,7 +241,7 @@ function createDispatchSpy() {
     .spyOn(dispatcherModule, "dispatchReplyWithDispatcher")
     .mockResolvedValue({} as never);
   nativeCommandTesting.setDispatchReplyWithDispatcher(
-    dispatcherModule.dispatchReplyWithDispatcher as typeof import("openclaw/plugin-sdk/reply-runtime").dispatchReplyWithDispatcher,
+    dispatcherModule.dispatchReplyWithDispatcher as typeof import("alisio/plugin-sdk/reply-runtime").dispatchReplyWithDispatcher,
   );
   return dispatchSpy;
 }
@@ -250,7 +250,7 @@ describe("Discord model picker interactions", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     nativeCommandTesting.setDispatchReplyWithDispatcher(
-      dispatcherModule.dispatchReplyWithDispatcher as typeof import("openclaw/plugin-sdk/reply-runtime").dispatchReplyWithDispatcher,
+      dispatcherModule.dispatchReplyWithDispatcher as typeof import("alisio/plugin-sdk/reply-runtime").dispatchReplyWithDispatcher,
     );
   });
 

@@ -7,23 +7,23 @@ export type {
   AlisioConfig as OpenClawConfig,
   OpenClawPluginApi,
   PluginRuntime,
-} from "openclaw/plugin-sdk/core";
-export { clearAccountEntryFields } from "openclaw/plugin-sdk/core";
-export { buildChannelConfigSchema } from "openclaw/plugin-sdk/channel-config-schema";
-export type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-export type { ChannelAccountSnapshot, ChannelGatewayContext } from "openclaw/plugin-sdk/testing";
-export type { ChannelStatusIssue } from "openclaw/plugin-sdk/channel-contract";
-export type { ChannelSetupDmPolicy, ChannelSetupWizard } from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/core";
+export { clearAccountEntryFields } from "alisio/plugin-sdk/core";
+export { buildChannelConfigSchema } from "alisio/plugin-sdk/channel-config-schema";
+export type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+export type { ChannelAccountSnapshot, ChannelGatewayContext } from "alisio/plugin-sdk/testing";
+export type { ChannelStatusIssue } from "alisio/plugin-sdk/channel-contract";
+export type { ChannelSetupDmPolicy, ChannelSetupWizard } from "alisio/plugin-sdk/setup";
 export {
   buildComputedAccountStatusSnapshot,
   buildTokenChannelStatusSummary,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 export {
   DEFAULT_ACCOUNT_ID,
   formatDocsLink,
   setSetupChannelEnabled,
   splitSetupEntries,
-} from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
 // Keep named exports explicit here so the runtime barrel stays self-contained
 // and plugin-sdk can re-export this file directly without reaching into
 // extension internals.

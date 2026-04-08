@@ -1,4 +1,4 @@
-import type { SessionBindingAdapter } from "openclaw/plugin-sdk/conversation-runtime";
+import type { SessionBindingAdapter } from "alisio/plugin-sdk/conversation-runtime";
 import {
   readJsonFileWithFallback,
   registerSessionBindingAdapter,

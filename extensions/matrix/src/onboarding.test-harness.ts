@@ -1,4 +1,4 @@
-import type { OutputRuntimeEnv } from "openclaw/plugin-sdk/runtime";
+import type { OutputRuntimeEnv } from "alisio/plugin-sdk/runtime";
 import { afterEach, vi } from "vitest";
 import type { RuntimeEnv, WizardPrompter } from "../runtime-api.js";
 import type { CoreConfig } from "./types.js";

@@ -1,5 +1,5 @@
-import type { ChannelSetupAdapter, OpenClawConfig } from "openclaw/plugin-sdk/setup";
-import { createSetupInputPresenceValidator } from "openclaw/plugin-sdk/setup";
+import type { ChannelSetupAdapter, OpenClawConfig } from "alisio/plugin-sdk/setup";
+import { createSetupInputPresenceValidator } from "alisio/plugin-sdk/setup";
 import { hasLineCredentials, parseLineAllowFromId } from "./account-helpers.js";
 import {
   DEFAULT_ACCOUNT_ID,

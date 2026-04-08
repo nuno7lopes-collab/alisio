@@ -1,4 +1,4 @@
-import * as conversationRuntime from "openclaw/plugin-sdk/conversation-runtime";
+import * as conversationRuntime from "alisio/plugin-sdk/conversation-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const ensureConfiguredBindingRouteReadyMock = vi.hoisted(() => vi.fn());
@@ -16,7 +16,7 @@ vi.mock("../../../../src/channels/plugins/binding-routing.js", async (importOrig
   );
 });
 
-import { __testing as sessionBindingTesting } from "openclaw/plugin-sdk/conversation-runtime";
+import { __testing as sessionBindingTesting } from "alisio/plugin-sdk/conversation-runtime";
 import { preflightDiscordMessage } from "./message-handler.preflight.js";
 import {
   createDiscordMessage,
@@ -148,7 +148,7 @@ function createBasePreflightParams(overrides?: Record<string, unknown>) {
       discordConfig: {
         allowBots: true,
       } as NonNullable<
-        import("openclaw/plugin-sdk/config-runtime").OpenClawConfig["channels"]
+        import("alisio/plugin-sdk/config-runtime").OpenClawConfig["channels"]
       >["discord"],
       data: createGuildEvent({
         channelId: CHANNEL_ID,
@@ -162,7 +162,7 @@ function createBasePreflightParams(overrides?: Record<string, unknown>) {
     discordConfig: {
       allowBots: true,
     } as NonNullable<
-      import("openclaw/plugin-sdk/config-runtime").OpenClawConfig["channels"]
+      import("alisio/plugin-sdk/config-runtime").OpenClawConfig["channels"]
     >["discord"],
     ...overrides,
   } satisfies Parameters<typeof preflightDiscordMessage>[0];

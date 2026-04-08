@@ -1,7 +1,7 @@
-import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
-import { createRestrictSendersChannelSecurity } from "openclaw/plugin-sdk/channel-policy";
-import { createChatChannelPlugin } from "openclaw/plugin-sdk/core";
-import { createEmptyChannelDirectoryAdapter } from "openclaw/plugin-sdk/directory-runtime";
+import { createPairingPrefixStripper } from "alisio/plugin-sdk/channel-pairing";
+import { createRestrictSendersChannelSecurity } from "alisio/plugin-sdk/channel-policy";
+import { createChatChannelPlugin } from "alisio/plugin-sdk/core";
+import { createEmptyChannelDirectoryAdapter } from "alisio/plugin-sdk/directory-runtime";
 import { type ChannelPlugin, type ResolvedLineAccount } from "../api.js";
 import { lineChannelPluginCommon } from "./channel-shared.js";
 import { lineGatewayAdapter } from "./gateway.js";

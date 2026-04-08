@@ -1,8 +1,8 @@
 import {
   coerceSecretRef,
   resolveConfiguredSecretInputString,
-} from "openclaw/plugin-sdk/config-runtime";
-import type { PinnedDispatcherPolicy } from "openclaw/plugin-sdk/infra-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import type { PinnedDispatcherPolicy } from "alisio/plugin-sdk/infra-runtime";
 import {
   requiresExplicitMatrixDefaultAccount,
   resolveMatrixDefaultOrOnlyAccountId,

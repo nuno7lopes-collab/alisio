@@ -3,12 +3,11 @@ import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import chokidar, { FSWatcher } from "chokidar";
 import {
   buildCaseInsensitiveExtensionGlob,
   classifyMemoryMultimodalPath,
   getMemoryMultimodalExtensions,
-} from "openclaw/plugin-sdk/memory-core-host-engine-embeddings";
+} from "alisio/plugin-sdk/memory-core-host-engine-embeddings";
 import {
   createSubsystemLogger,
   onSessionTranscriptUpdate,
@@ -17,13 +16,13 @@ import {
   resolveUserPath,
   type OpenClawConfig,
   type ResolvedMemorySearchConfig,
-} from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
+} from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import {
   buildSessionEntry,
   listSessionFilesForAgent,
   sessionPathForFile,
   type SessionFileEntry,
-} from "openclaw/plugin-sdk/memory-core-host-engine-qmd";
+} from "alisio/plugin-sdk/memory-core-host-engine-qmd";
 import {
   buildFileEntry,
   ensureDir,
@@ -39,12 +38,13 @@ import {
   type MemoryFileEntry,
   type MemorySource,
   type MemorySyncProgressUpdate,
-} from "openclaw/plugin-sdk/memory-core-host-engine-storage";
+} from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import {
   resolveObsidianMemoryLayout,
   resolveObsidianReadOnlyVault,
   scanObsidianReadOnlyVault,
-} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
+} from "alisio/plugin-sdk/memory-core-host-runtime-files";
+import chokidar, { FSWatcher } from "chokidar";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,

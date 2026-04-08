@@ -1,6 +1,6 @@
-import type { ChannelSetupAdapter, ChannelSetupInput } from "openclaw/plugin-sdk/channel-setup";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/routing";
+import type { ChannelSetupAdapter, ChannelSetupInput } from "alisio/plugin-sdk/channel-setup";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "alisio/plugin-sdk/routing";
 import {
   createSetupInputPresenceValidator,
   mergeAllowFromEntries,
@@ -11,8 +11,8 @@ import {
   type ChannelSetupDmPolicy,
   type ChannelSetupWizard,
   type WizardPrompter,
-} from "openclaw/plugin-sdk/setup-runtime";
-import { formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
+} from "alisio/plugin-sdk/setup-runtime";
+import { formatDocsLink } from "alisio/plugin-sdk/setup-tools";
 import { applyAccountNameToChannelSection, patchScopedAccountConfig } from "../runtime-api.js";
 import {
   listNextcloudTalkAccountIds,

@@ -1,4 +1,4 @@
-import { buildAgentSessionKey } from "openclaw/plugin-sdk/core";
+import { buildAgentSessionKey } from "alisio/plugin-sdk/core";
 
 const CHANNEL_ID = "synology-chat";
 

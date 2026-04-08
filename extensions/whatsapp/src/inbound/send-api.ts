@@ -1,6 +1,6 @@
 import type { AnyMessageContent, WAPresence } from "@whiskeysockets/baileys";
-import { recordChannelActivity } from "openclaw/plugin-sdk/channel-runtime";
-import { toWhatsappJid } from "openclaw/plugin-sdk/text-runtime";
+import { recordChannelActivity } from "alisio/plugin-sdk/channel-runtime";
+import { toWhatsappJid } from "alisio/plugin-sdk/text-runtime";
 import type { ActiveWebSendOptions } from "../active-listener.js";
 
 function recordWhatsAppOutbound(accountId: string) {

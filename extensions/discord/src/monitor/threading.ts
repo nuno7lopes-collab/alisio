@@ -1,14 +1,14 @@
 import { ChannelType, type Client } from "@buape/carbon";
-import { Routes } from "discord-api-types/v10";
 import {
   resolveChannelModelOverride,
   type OpenClawConfig,
   type ReplyToMode,
-} from "openclaw/plugin-sdk/config-runtime";
-import { createReplyReferencePlanner } from "openclaw/plugin-sdk/reply-runtime";
-import { buildAgentSessionKey } from "openclaw/plugin-sdk/routing";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { truncateUtf16Safe } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import { createReplyReferencePlanner } from "alisio/plugin-sdk/reply-runtime";
+import { buildAgentSessionKey } from "alisio/plugin-sdk/routing";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { truncateUtf16Safe } from "alisio/plugin-sdk/text-runtime";
+import { Routes } from "discord-api-types/v10";
 import type { DiscordChannelConfigResolved } from "./allow-list.js";
 import type { DiscordMessageEvent } from "./listeners.js";
 import {

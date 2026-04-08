@@ -1,5 +1,5 @@
+import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core";
 import { Command } from "commander";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/memory-core";
 import { describe, expect, it, vi } from "vitest";
 import plugin, {
   buildMemoryFlushPlan,

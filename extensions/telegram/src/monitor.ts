@@ -1,11 +1,11 @@
 import type { RunOptions } from "@grammyjs/runner";
-import { resolveAgentMaxConcurrent } from "openclaw/plugin-sdk/config-runtime";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { waitForAbortSignal } from "openclaw/plugin-sdk/runtime-env";
-import { registerUnhandledRejectionHandler } from "openclaw/plugin-sdk/runtime-env";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { formatErrorMessage } from "openclaw/plugin-sdk/ssrf-runtime";
-import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
+import { resolveAgentMaxConcurrent } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { waitForAbortSignal } from "alisio/plugin-sdk/runtime-env";
+import { registerUnhandledRejectionHandler } from "alisio/plugin-sdk/runtime-env";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { formatErrorMessage } from "alisio/plugin-sdk/ssrf-runtime";
+import { redactSensitiveText } from "alisio/plugin-sdk/text-runtime";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { TelegramExecApprovalHandler } from "./exec-approvals-handler.js";

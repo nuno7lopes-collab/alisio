@@ -9,7 +9,6 @@ import {
   type MessagePayloadObject,
   type TopLevelComponents,
 } from "@buape/carbon";
-import { ButtonStyle, Routes } from "discord-api-types/v10";
 import {
   getExecApprovalApproverDmNoticeText,
   resolveExecApprovalCommandDisplay,
@@ -18,20 +17,21 @@ import {
   type ExecApprovalResolved,
   type PluginApprovalRequest,
   type PluginApprovalResolved,
-} from "openclaw/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { loadSessionStore, resolveStorePath } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordExecApprovalConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { EventFrame } from "openclaw/plugin-sdk/gateway-runtime";
-import * as gatewayRuntime from "openclaw/plugin-sdk/gateway-runtime";
+} from "alisio/plugin-sdk/approval-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadSessionStore, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordExecApprovalConfig } from "alisio/plugin-sdk/config-runtime";
+import type { EventFrame } from "alisio/plugin-sdk/gateway-runtime";
+import * as gatewayRuntime from "alisio/plugin-sdk/gateway-runtime";
 import {
   normalizeAccountId,
   normalizeMessageChannel,
   resolveAgentIdFromSessionKey,
-} from "openclaw/plugin-sdk/routing";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { compileSafeRegex, testRegexWithBoundedInput } from "openclaw/plugin-sdk/security-runtime";
-import { logDebug, logError } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/routing";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { compileSafeRegex, testRegexWithBoundedInput } from "alisio/plugin-sdk/security-runtime";
+import { logDebug, logError } from "alisio/plugin-sdk/text-runtime";
+import { ButtonStyle, Routes } from "discord-api-types/v10";
 import * as sendShared from "../send.shared.js";
 import { DiscordUiContainer } from "../ui.js";
 

@@ -1,10 +1,10 @@
 import type { ButtonInteraction, ComponentData, StringSelectMenuInteraction } from "@buape/carbon";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
-import * as conversationRuntime from "openclaw/plugin-sdk/conversation-runtime";
-import { buildAgentSessionKey } from "openclaw/plugin-sdk/routing";
-import * as securityRuntime from "openclaw/plugin-sdk/security-runtime";
-import { peekSystemEvents, resetSystemEventsForTest } from "openclaw/plugin-sdk/testing";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
+import * as conversationRuntime from "alisio/plugin-sdk/conversation-runtime";
+import { buildAgentSessionKey } from "alisio/plugin-sdk/routing";
+import * as securityRuntime from "alisio/plugin-sdk/security-runtime";
+import { peekSystemEvents, resetSystemEventsForTest } from "alisio/plugin-sdk/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { expectPairingReplyText } from "../../../../test/helpers/pairing-reply.js";
 import {

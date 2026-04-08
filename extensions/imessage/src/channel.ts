@@ -1,13 +1,13 @@
-import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
-import { createChatChannelPlugin } from "openclaw/plugin-sdk/core";
-import { buildPassiveProbedChannelStatusSummary } from "openclaw/plugin-sdk/extension-shared";
-import { createLazyRuntimeModule } from "openclaw/plugin-sdk/lazy-runtime";
-import { resolveOutboundSendDep } from "openclaw/plugin-sdk/outbound-runtime";
-import { buildOutboundBaseSessionKey, type RoutePeer } from "openclaw/plugin-sdk/routing";
+import { buildDmGroupAccountAllowlistAdapter } from "alisio/plugin-sdk/allowlist-config-edit";
+import { createChatChannelPlugin } from "alisio/plugin-sdk/core";
+import { buildPassiveProbedChannelStatusSummary } from "alisio/plugin-sdk/extension-shared";
+import { createLazyRuntimeModule } from "alisio/plugin-sdk/lazy-runtime";
+import { resolveOutboundSendDep } from "alisio/plugin-sdk/outbound-runtime";
+import { buildOutboundBaseSessionKey, type RoutePeer } from "alisio/plugin-sdk/routing";
 import {
   createComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
-} from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/status-helpers";
 import {
   chunkTextForOutbound,
   collectStatusIssuesFromLastError,

@@ -2,7 +2,7 @@ import {
   startLazyPluginServiceModule,
   type LazyPluginServiceHandle,
   type OpenClawPluginService,
-} from "openclaw/plugin-sdk/browser-support";
+} from "alisio/plugin-sdk/browser-support";
 
 type BrowserControlHandle = LazyPluginServiceHandle | null;
 

@@ -1,5 +1,4 @@
-import { Routes } from "discord-api-types/v10";
-import { getRuntimeConfigSnapshot, type OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import { getRuntimeConfigSnapshot, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   registerSessionBindingAdapter,
   resolveThreadBindingConversationIdFromBindingId,
@@ -7,9 +6,10 @@ import {
   type BindingTargetKind,
   type SessionBindingAdapter,
   type SessionBindingRecord,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { normalizeAccountId, resolveAgentIdFromSessionKey } from "openclaw/plugin-sdk/routing";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { normalizeAccountId, resolveAgentIdFromSessionKey } from "alisio/plugin-sdk/routing";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { Routes } from "discord-api-types/v10";
 import { createDiscordRestClient } from "../client.js";
 import {
   createThreadForBinding,

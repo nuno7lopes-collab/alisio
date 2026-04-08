@@ -1,13 +1,13 @@
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
 import {
   deliverTextOrMediaReply,
   resolveSendableOutboundReplyParts,
-} from "openclaw/plugin-sdk/reply-payload";
-import { chunkTextWithMode, resolveChunkMode } from "openclaw/plugin-sdk/reply-runtime";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { convertMarkdownTables } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/reply-payload";
+import { chunkTextWithMode, resolveChunkMode } from "alisio/plugin-sdk/reply-runtime";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { convertMarkdownTables } from "alisio/plugin-sdk/text-runtime";
 import type { createIMessageRpcClient } from "../client.js";
 import { sendMessageIMessage } from "../send.js";
 import type { SentMessageCache } from "./echo-cache.js";

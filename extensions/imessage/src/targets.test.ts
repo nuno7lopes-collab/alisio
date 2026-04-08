@@ -1,5 +1,5 @@
-import * as processRuntime from "openclaw/plugin-sdk/process-runtime";
-import * as setupRuntime from "openclaw/plugin-sdk/setup";
+import * as processRuntime from "alisio/plugin-sdk/process-runtime";
+import * as setupRuntime from "alisio/plugin-sdk/setup";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as clientModule from "./client.js";
 import {

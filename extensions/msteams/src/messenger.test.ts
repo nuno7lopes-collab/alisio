@@ -17,7 +17,7 @@ vi.mock("./graph-upload.js", async () => {
   };
 });
 
-import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/temp-path";
+import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
 import {
   type MSTeamsAdapter,
   type MSTeamsRenderedMessage,

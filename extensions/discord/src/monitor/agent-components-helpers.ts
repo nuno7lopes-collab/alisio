@@ -8,19 +8,19 @@ import {
   type StringSelectMenuInteraction,
   type UserSelectMenuInteraction,
 } from "@buape/carbon";
+import { createChannelPairingChallengeIssuer } from "alisio/plugin-sdk/channel-pairing";
+import { resolveCommandAuthorizedFromAuthorizers } from "alisio/plugin-sdk/command-auth";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
+import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
+import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
+import * as conversationRuntime from "alisio/plugin-sdk/conversation-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import * as securityRuntime from "alisio/plugin-sdk/security-runtime";
+import { logError } from "alisio/plugin-sdk/text-runtime";
 import type { APIStringSelectComponent } from "discord-api-types/v10";
 import { ChannelType } from "discord-api-types/v10";
-import { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel-pairing";
-import { resolveCommandAuthorizedFromAuthorizers } from "openclaw/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
-import { isDangerousNameMatchingEnabled } from "openclaw/plugin-sdk/config-runtime";
-import { resolveOpenProviderRuntimeGroupPolicy } from "openclaw/plugin-sdk/config-runtime";
-import * as conversationRuntime from "openclaw/plugin-sdk/conversation-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import * as securityRuntime from "openclaw/plugin-sdk/security-runtime";
-import { logError } from "openclaw/plugin-sdk/text-runtime";
 import {
   createDiscordFormModal,
   parseDiscordComponentCustomId,
@@ -70,7 +70,7 @@ export type AgentComponentContext = {
   cfg: OpenClawConfig;
   accountId: string;
   discordConfig?: DiscordAccountConfig;
-  runtime?: import("openclaw/plugin-sdk/runtime-env").RuntimeEnv;
+  runtime?: import("alisio/plugin-sdk/runtime-env").RuntimeEnv;
   token?: string;
   guildEntries?: Record<string, DiscordGuildEntryResolved>;
   allowFrom?: string[];

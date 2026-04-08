@@ -1,5 +1,5 @@
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import { createSlackOutboundPayloadHarness } from "openclaw/plugin-sdk/testing";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import { createSlackOutboundPayloadHarness } from "alisio/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 
 function createHarness(params: {

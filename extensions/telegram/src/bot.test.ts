@@ -1,10 +1,10 @@
 import { rm } from "node:fs/promises";
-import type { PluginInteractiveTelegramHandlerContext } from "openclaw/plugin-sdk/core";
+import type { PluginInteractiveTelegramHandlerContext } from "alisio/plugin-sdk/core";
 import {
   clearPluginInteractiveHandlers,
   registerPluginInteractiveHandler,
-} from "openclaw/plugin-sdk/plugin-runtime";
-import { expectChannelInboundContextContract as expectInboundContextContract } from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/plugin-runtime";
+import { expectChannelInboundContextContract as expectInboundContextContract } from "alisio/plugin-sdk/testing";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { escapeRegExp, formatEnvelopeTimestamp } from "../../../test/helpers/envelope-timestamp.js";
 const {
@@ -31,7 +31,7 @@ const {
 let listNativeCommandSpecs: typeof import("../../../src/auto-reply/commands-registry.js").listNativeCommandSpecs;
 let listNativeCommandSpecsForConfig: typeof import("../../../src/auto-reply/commands-registry.js").listNativeCommandSpecsForConfig;
 let loadSessionStore: typeof import("../../../src/config/sessions.js").loadSessionStore;
-let normalizeTelegramCommandName: typeof import("openclaw/plugin-sdk/config-runtime").normalizeTelegramCommandName;
+let normalizeTelegramCommandName: typeof import("alisio/plugin-sdk/config-runtime").normalizeTelegramCommandName;
 let createTelegramBotBase: typeof import("./bot.js").createTelegramBot;
 let setTelegramBotRuntimeForTest: typeof import("./bot.js").setTelegramBotRuntimeForTest;
 let createTelegramBot: (
@@ -54,7 +54,7 @@ describe("createTelegramBot", () => {
     ({ listNativeCommandSpecs, listNativeCommandSpecsForConfig } =
       await import("../../../src/auto-reply/commands-registry.js"));
     ({ loadSessionStore } = await import("../../../src/config/sessions.js"));
-    ({ normalizeTelegramCommandName } = await import("openclaw/plugin-sdk/config-runtime"));
+    ({ normalizeTelegramCommandName } = await import("alisio/plugin-sdk/config-runtime"));
     ({ createTelegramBot: createTelegramBotBase, setTelegramBotRuntimeForTest } =
       await import("./bot.js"));
   });

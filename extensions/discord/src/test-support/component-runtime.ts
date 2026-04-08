@@ -16,7 +16,7 @@ export const resolvePluginConversationBindingApprovalMock =
 export const buildPluginBindingResolvedTextMock = runtimeMocks.buildPluginBindingResolvedTextMock;
 
 async function createConversationRuntimeMock(
-  importOriginal: () => Promise<typeof import("openclaw/plugin-sdk/conversation-runtime")>,
+  importOriginal: () => Promise<typeof import("alisio/plugin-sdk/conversation-runtime")>,
 ) {
   const actual = await importOriginal();
   return {
@@ -52,12 +52,12 @@ async function readStoreAllowFromForDmPolicy(params: {
   return await readAllowFromStoreMock(params.provider, params.accountId);
 }
 
-vi.mock("openclaw/plugin-sdk/security-runtime", (importOriginal) =>
+vi.mock("alisio/plugin-sdk/security-runtime", (importOriginal) =>
   createAllowFromRuntimeMock(importOriginal),
 );
 
-vi.mock("openclaw/plugin-sdk/conversation-runtime", createConversationRuntimeMock);
-vi.mock("openclaw/plugin-sdk/conversation-runtime.js", createConversationRuntimeMock);
+vi.mock("alisio/plugin-sdk/conversation-runtime", createConversationRuntimeMock);
+vi.mock("alisio/plugin-sdk/conversation-runtime.js", createConversationRuntimeMock);
 vi.mock("../../../../src/pairing/pairing-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../src/pairing/pairing-store.js")>();
   return {

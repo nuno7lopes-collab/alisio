@@ -1,9 +1,9 @@
 import {
   applyModelCompatPatch,
   normalizeProviderId,
-} from "openclaw/plugin-sdk/provider-model-shared";
-import type { ModelCompatConfig } from "openclaw/plugin-sdk/provider-model-shared";
-import { XAI_UNSUPPORTED_SCHEMA_KEYWORDS } from "openclaw/plugin-sdk/provider-tools";
+} from "alisio/plugin-sdk/provider-model-shared";
+import type { ModelCompatConfig } from "alisio/plugin-sdk/provider-model-shared";
+import { XAI_UNSUPPORTED_SCHEMA_KEYWORDS } from "alisio/plugin-sdk/provider-tools";
 
 export { buildXaiProvider } from "./provider-catalog.js";
 export { applyXaiConfig, applyXaiProviderConfig } from "./onboard.js";

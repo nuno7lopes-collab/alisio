@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
-import type { ChannelMessageActionContext } from "openclaw/plugin-sdk/channel-contract";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { ChannelMessageActionContext } from "alisio/plugin-sdk/channel-contract";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 
 const handleDiscordMessageActionMock = vi.hoisted(() =>

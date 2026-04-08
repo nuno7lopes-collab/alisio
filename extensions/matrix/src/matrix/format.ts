@@ -1,5 +1,5 @@
+import { isAutoLinkedFileRef } from "alisio/plugin-sdk/text-runtime";
 import MarkdownIt from "markdown-it";
-import { isAutoLinkedFileRef } from "openclaw/plugin-sdk/text-runtime";
 
 const md = new MarkdownIt({
   html: false,

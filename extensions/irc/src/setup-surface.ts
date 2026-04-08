@@ -1,15 +1,15 @@
-import type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/routing";
+import type { DmPolicy } from "alisio/plugin-sdk/config-runtime";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
 import {
   createAllowFromSection,
   createPromptParsedAllowFromForAccount,
   createStandardChannelSetupStatus,
   setSetupChannelEnabled,
-} from "openclaw/plugin-sdk/setup";
-import type { ChannelSetupDmPolicy } from "openclaw/plugin-sdk/setup";
-import type { ChannelSetupWizard } from "openclaw/plugin-sdk/setup";
-import { formatDocsLink } from "openclaw/plugin-sdk/setup";
-import type { WizardPrompter } from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
+import type { ChannelSetupDmPolicy } from "alisio/plugin-sdk/setup";
+import type { ChannelSetupWizard } from "alisio/plugin-sdk/setup";
+import { formatDocsLink } from "alisio/plugin-sdk/setup";
+import type { WizardPrompter } from "alisio/plugin-sdk/setup";
 import { listIrcAccountIds, resolveDefaultIrcAccountId, resolveIrcAccount } from "./accounts.js";
 import {
   isChannelTarget,

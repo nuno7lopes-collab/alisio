@@ -1,4 +1,4 @@
-import type { EnvelopeFormatOptions } from "openclaw/plugin-sdk/channel-inbound";
+import type { EnvelopeFormatOptions } from "alisio/plugin-sdk/channel-inbound";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../test/helpers/plugins/plugin-runtime-mock.js";
 import { createRuntimeEnv } from "../../../test/helpers/plugins/runtime-env.js";

@@ -13,18 +13,18 @@ import type {
   OpenClawConfig,
   ProviderRuntimeModel,
   ProviderWrapStreamFnContext,
-} from "openclaw/plugin-sdk/plugin-entry";
-import { isNonSecretApiKeyMarker } from "openclaw/plugin-sdk/provider-auth";
+} from "alisio/plugin-sdk/plugin-entry";
+import { isNonSecretApiKeyMarker } from "alisio/plugin-sdk/provider-auth";
 import {
   DEFAULT_CONTEXT_TOKENS,
   normalizeProviderId,
-} from "openclaw/plugin-sdk/provider-model-shared";
+} from "alisio/plugin-sdk/provider-model-shared";
 import {
   createMoonshotThinkingWrapper,
   resolveMoonshotThinkingType,
   streamWithPayloadPatch,
-} from "openclaw/plugin-sdk/provider-stream";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime";
+} from "alisio/plugin-sdk/provider-stream";
+import { createSubsystemLogger } from "alisio/plugin-sdk/runtime";
 import { OLLAMA_DEFAULT_BASE_URL } from "./defaults.js";
 
 const log = createSubsystemLogger("ollama-stream");

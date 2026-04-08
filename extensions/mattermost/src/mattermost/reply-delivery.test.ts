@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { ChunkMode } from "openclaw/plugin-sdk/reply-runtime";
+import type { ChunkMode } from "alisio/plugin-sdk/reply-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../../test/helpers/plugins/plugin-runtime-mock.js";
 import type { OpenClawConfig } from "../../runtime-api.js";

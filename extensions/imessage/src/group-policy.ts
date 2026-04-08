@@ -2,8 +2,8 @@ import {
   resolveChannelGroupRequireMention,
   resolveChannelGroupToolsPolicy,
   type GroupToolPolicyConfig,
-} from "openclaw/plugin-sdk/channel-policy";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+} from "alisio/plugin-sdk/channel-policy";
+import type { OpenClawConfig } from "alisio/plugin-sdk/core";
 
 type IMessageGroupContext = {
   cfg: OpenClawConfig;

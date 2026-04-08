@@ -1,8 +1,8 @@
-import type { BaseProbeResult } from "openclaw/plugin-sdk/channel-contract";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { runCommandWithTimeout } from "openclaw/plugin-sdk/process-runtime";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { detectBinary } from "openclaw/plugin-sdk/setup";
+import type { BaseProbeResult } from "alisio/plugin-sdk/channel-contract";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { runCommandWithTimeout } from "alisio/plugin-sdk/process-runtime";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { detectBinary } from "alisio/plugin-sdk/setup";
 import { createIMessageRpcClient } from "./client.js";
 import { DEFAULT_IMESSAGE_PROBE_TIMEOUT_MS } from "./constants.js";
 

@@ -11,7 +11,7 @@ import {
   type ChannelSetupWizard,
   type OpenClawConfig,
   type WizardPrompter,
-} from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
 import type { MSTeamsTeamConfig } from "../runtime-api.js";
 import {
   parseMSTeamsTeamEntry,

@@ -1,5 +1,5 @@
-import { safeParseJsonWithSchema, safeParseWithSchema } from "openclaw/plugin-sdk/extension-shared";
-import { z } from "openclaw/plugin-sdk/zod";
+import { safeParseJsonWithSchema, safeParseWithSchema } from "alisio/plugin-sdk/extension-shared";
+import { z } from "alisio/plugin-sdk/zod";
 import WebSocket from "ws";
 import { MattermostPostSchema, type MattermostPost } from "./client.js";
 import { rawDataToString } from "./monitor-helpers.js";

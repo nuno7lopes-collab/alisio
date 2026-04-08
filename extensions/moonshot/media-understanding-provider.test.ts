@@ -1,7 +1,7 @@
 import {
   createRequestCaptureJsonFetch,
   installPinnedHostnameTestHooks,
-} from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { describeMoonshotVideo } from "./media-understanding-provider.js";
 

@@ -1,5 +1,5 @@
 import path from "node:path";
-import { z } from "openclaw/plugin-sdk/zod";
+import { z } from "alisio/plugin-sdk/zod";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadRuntimeApiExportTypesViaJiti } from "../../../../../test/helpers/plugins/jiti-runtime-api.ts";
 
@@ -462,17 +462,17 @@ describe("matrix plugin registration", () => {
         modulePath: runtimeApiPath,
         exportNames: [],
         realPluginSdkSpecifiers: [
-          "openclaw/plugin-sdk/account-helpers",
-          "openclaw/plugin-sdk/allow-from",
-          "openclaw/plugin-sdk/channel-config-helpers",
-          "openclaw/plugin-sdk/channel-policy",
-          "openclaw/plugin-sdk/core",
-          "openclaw/plugin-sdk/directory-runtime",
-          "openclaw/plugin-sdk/extension-shared",
-          "openclaw/plugin-sdk/irc",
-          "openclaw/plugin-sdk/signal",
-          "openclaw/plugin-sdk/status-helpers",
-          "openclaw/plugin-sdk/text-runtime",
+          "alisio/plugin-sdk/account-helpers",
+          "alisio/plugin-sdk/allow-from",
+          "alisio/plugin-sdk/channel-config-helpers",
+          "alisio/plugin-sdk/channel-policy",
+          "alisio/plugin-sdk/core",
+          "alisio/plugin-sdk/directory-runtime",
+          "alisio/plugin-sdk/extension-shared",
+          "alisio/plugin-sdk/irc",
+          "alisio/plugin-sdk/signal",
+          "alisio/plugin-sdk/status-helpers",
+          "alisio/plugin-sdk/text-runtime",
         ],
       }),
     ).toEqual({});

@@ -1,15 +1,15 @@
-import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
-import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
+import { buildDmGroupAccountAllowlistAdapter } from "alisio/plugin-sdk/allowlist-config-edit";
+import { createPairingPrefixStripper } from "alisio/plugin-sdk/channel-pairing";
 import {
   attachChannelToResult,
   attachChannelToResults,
-} from "openclaw/plugin-sdk/channel-send-result";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { createChatChannelPlugin } from "openclaw/plugin-sdk/core";
-import { resolveOutboundSendDep } from "openclaw/plugin-sdk/outbound-runtime";
-import { resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
-import { buildOutboundBaseSessionKey, type RoutePeer } from "openclaw/plugin-sdk/routing";
-import { createComputedAccountStatusAdapter } from "openclaw/plugin-sdk/status-helpers";
+} from "alisio/plugin-sdk/channel-send-result";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
+import { createChatChannelPlugin } from "alisio/plugin-sdk/core";
+import { resolveOutboundSendDep } from "alisio/plugin-sdk/outbound-runtime";
+import { resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
+import { buildOutboundBaseSessionKey, type RoutePeer } from "alisio/plugin-sdk/routing";
+import { createComputedAccountStatusAdapter } from "alisio/plugin-sdk/status-helpers";
 import { resolveSignalAccount, type ResolvedSignalAccount } from "./accounts.js";
 import { signalApprovalAuth } from "./approval-auth.js";
 import { markdownToSignalTextChunks } from "./format.js";

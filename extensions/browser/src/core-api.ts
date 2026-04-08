@@ -98,7 +98,7 @@ export {
   theme,
   withTimeout,
   wrapExternalContent,
-} from "openclaw/plugin-sdk/browser-support";
+} from "alisio/plugin-sdk/browser-support";
 export type {
   AnyAgentTool,
   GatewayRequestHandlers,
@@ -107,4 +107,4 @@ export type {
   NodeSession,
   OpenClawConfig,
   OpenClawPluginService,
-} from "openclaw/plugin-sdk/browser-support";
+} from "alisio/plugin-sdk/browser-support";

@@ -1,10 +1,10 @@
-import { mergeDmAllowFromSources } from "openclaw/plugin-sdk/allow-from";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import { mergeDmAllowFromSources } from "alisio/plugin-sdk/allow-from";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   listChannelPairingRequests,
   readChannelAllowFromStore,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
 import { mergeTelegramAccountConfig } from "./accounts.js";
 
 export type TelegramDmOnboardingState = "waiting_for_first_dm" | "pending_approval";

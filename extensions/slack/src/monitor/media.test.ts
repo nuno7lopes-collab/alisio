@@ -1,8 +1,8 @@
-import * as ssrf from "openclaw/plugin-sdk/infra-runtime";
-import * as mediaFetch from "openclaw/plugin-sdk/media-runtime";
-import type { SavedMedia } from "openclaw/plugin-sdk/media-runtime";
-import * as mediaStore from "openclaw/plugin-sdk/media-runtime";
-import { mockPinnedHostnameResolution } from "openclaw/plugin-sdk/testing";
+import * as ssrf from "alisio/plugin-sdk/infra-runtime";
+import * as mediaFetch from "alisio/plugin-sdk/media-runtime";
+import type { SavedMedia } from "alisio/plugin-sdk/media-runtime";
+import * as mediaStore from "alisio/plugin-sdk/media-runtime";
+import { mockPinnedHostnameResolution } from "alisio/plugin-sdk/testing";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type FetchMock,

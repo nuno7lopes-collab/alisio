@@ -3,15 +3,15 @@ import {
   type ProviderAuthContext,
   type ProviderAuthResult,
   type ProviderCatalogContext,
-} from "openclaw/plugin-sdk/plugin-entry";
+} from "alisio/plugin-sdk/plugin-entry";
 import {
   MINIMAX_OAUTH_MARKER,
   ensureAuthProfileStore,
   listProfilesForProvider,
-} from "openclaw/plugin-sdk/provider-auth";
-import { buildOauthProviderAuthResult } from "openclaw/plugin-sdk/provider-auth";
-import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
-import { fetchMinimaxUsage } from "openclaw/plugin-sdk/provider-usage";
+} from "alisio/plugin-sdk/provider-auth";
+import { buildOauthProviderAuthResult } from "alisio/plugin-sdk/provider-auth";
+import { createProviderApiKeyAuthMethod } from "alisio/plugin-sdk/provider-auth-api-key";
+import { fetchMinimaxUsage } from "alisio/plugin-sdk/provider-usage";
 import { isMiniMaxModernModelId, MINIMAX_DEFAULT_MODEL_ID } from "./api.js";
 import {
   buildMinimaxImageGenerationProvider,

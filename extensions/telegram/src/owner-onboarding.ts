@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { writeJsonFileAtomically } from "openclaw/plugin-sdk/json-store";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/setup";
-import { resolveStateDir } from "openclaw/plugin-sdk/state-paths";
+import { writeJsonFileAtomically } from "alisio/plugin-sdk/json-store";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/setup";
+import { resolveStateDir } from "alisio/plugin-sdk/state-paths";
 
 const STORE_VERSION = 1;
 const DEFAULT_OWNER_ONBOARDING_TTL_MS = 10 * 60 * 1000;

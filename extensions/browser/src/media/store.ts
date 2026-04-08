@@ -1,1 +1,1 @@
-export { ensureMediaDir, saveMediaBuffer } from "openclaw/plugin-sdk/browser-support";
+export { ensureMediaDir, saveMediaBuffer } from "alisio/plugin-sdk/browser-support";

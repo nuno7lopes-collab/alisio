@@ -16,7 +16,7 @@ export {
   type ChannelPlugin,
   type AlisioConfig,
   type AlisioConfig as OpenClawConfig,
-} from "openclaw/plugin-sdk/whatsapp-core";
+} from "alisio/plugin-sdk/whatsapp-core";
 
 export {
   createWhatsAppOutboundBase,
@@ -29,7 +29,7 @@ export {
   type DmPolicy,
   type GroupPolicy,
   type WhatsAppAccountConfig,
-} from "openclaw/plugin-sdk/whatsapp-shared";
+} from "alisio/plugin-sdk/whatsapp-shared";
 export {
   isWhatsAppGroupJid,
   isWhatsAppUserTarget,

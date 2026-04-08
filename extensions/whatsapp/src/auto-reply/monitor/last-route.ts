@@ -1,6 +1,6 @@
-import type { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolveStorePath, updateLastRoute } from "openclaw/plugin-sdk/config-runtime";
-import type { MsgContext } from "openclaw/plugin-sdk/reply-runtime";
+import type { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { resolveStorePath, updateLastRoute } from "alisio/plugin-sdk/config-runtime";
+import type { MsgContext } from "alisio/plugin-sdk/reply-runtime";
 import { formatError } from "../../session.js";
 
 export function trackBackgroundTask(

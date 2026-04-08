@@ -3,9 +3,9 @@ import {
   createInboundDebouncer,
   resolveInboundDebounceMs,
   shouldDebounceTextInbound,
-} from "openclaw/plugin-sdk/channel-inbound";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { danger, logVerbose, warn } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/channel-inbound";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { danger, logVerbose, warn } from "alisio/plugin-sdk/runtime-env";
 import {
   hasInboundMedia,
   isRecoverableMediaGroupError,

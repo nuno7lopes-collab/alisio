@@ -1,4 +1,4 @@
-import { postTrustedWebToolsJson } from "openclaw/plugin-sdk/provider-web-search";
+import { postTrustedWebToolsJson } from "alisio/plugin-sdk/provider-web-search";
 import { normalizeXaiModelId } from "../model-id.js";
 import { extractXaiWebSearchContent, type XaiWebSearchResponse } from "./web-search-shared.js";
 

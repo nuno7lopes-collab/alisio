@@ -1,17 +1,17 @@
-import { resolveNormalizedAccountEntry } from "openclaw/plugin-sdk/account-core";
-import { formatAllowFromLowercase } from "openclaw/plugin-sdk/allow-from";
+import { resolveNormalizedAccountEntry } from "alisio/plugin-sdk/account-core";
+import { formatAllowFromLowercase } from "alisio/plugin-sdk/allow-from";
 import {
   adaptScopedAccountAccessor,
   createScopedChannelConfigAdapter,
-} from "openclaw/plugin-sdk/channel-config-helpers";
-import { createChannelPluginBase } from "openclaw/plugin-sdk/core";
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/channel-config-helpers";
+import { createChannelPluginBase } from "alisio/plugin-sdk/core";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
 import {
   getChatChannelMeta,
   normalizeAccountId,
   type ChannelPlugin,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/telegram-core";
+} from "alisio/plugin-sdk/telegram-core";
 import { inspectTelegramAccount } from "./account-inspect.js";
 import {
   listTelegramAccountIds,

@@ -1,6 +1,6 @@
-import { NON_ENV_SECRETREF_MARKER } from "openclaw/plugin-sdk/provider-auth-runtime";
-import { createNonExitingRuntime } from "openclaw/plugin-sdk/runtime-env";
-import { capturePluginRegistration } from "openclaw/plugin-sdk/testing";
+import { NON_ENV_SECRETREF_MARKER } from "alisio/plugin-sdk/provider-auth-runtime";
+import { createNonExitingRuntime } from "alisio/plugin-sdk/runtime-env";
+import { capturePluginRegistration } from "alisio/plugin-sdk/testing";
 import { describe, expect, it, vi } from "vitest";
 import { withEnv } from "../../test/helpers/plugins/env.js";
 import { createWizardPrompter } from "../../test/helpers/wizard-prompter.js";

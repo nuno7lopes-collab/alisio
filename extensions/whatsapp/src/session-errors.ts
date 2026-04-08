@@ -1,4 +1,4 @@
-import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
+import { redactSensitiveText } from "alisio/plugin-sdk/text-runtime";
 
 function safeStringify(value: unknown, limit = 800): string {
   try {

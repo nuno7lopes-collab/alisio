@@ -1,8 +1,8 @@
-import { createArmableStallWatchdog } from "openclaw/plugin-sdk/channel-lifecycle";
-import { createConnectedChannelStatusPatch } from "openclaw/plugin-sdk/gateway-runtime";
-import { danger } from "openclaw/plugin-sdk/runtime-env";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { formatErrorMessage } from "openclaw/plugin-sdk/ssrf-runtime";
+import { createArmableStallWatchdog } from "alisio/plugin-sdk/channel-lifecycle";
+import { createConnectedChannelStatusPatch } from "alisio/plugin-sdk/gateway-runtime";
+import { danger } from "alisio/plugin-sdk/runtime-env";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { formatErrorMessage } from "alisio/plugin-sdk/ssrf-runtime";
 import type { MutableDiscordGateway } from "./gateway-handle.js";
 import type { DiscordMonitorStatusSink } from "./status.js";
 

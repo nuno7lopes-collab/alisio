@@ -3,12 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { getModel } from "@mariozechner/pi-ai";
 import { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { encodePngRgba, fillPixel } from "alisio/plugin-sdk/media-runtime";
+import * as providerAuth from "alisio/plugin-sdk/provider-auth-runtime";
+import type { ResolvedTtsConfig } from "alisio/plugin-sdk/speech-runtime";
 import OpenAI from "openai";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { encodePngRgba, fillPixel } from "openclaw/plugin-sdk/media-runtime";
-import * as providerAuth from "openclaw/plugin-sdk/provider-auth-runtime";
-import type { ResolvedTtsConfig } from "openclaw/plugin-sdk/speech-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   registerProviderPlugin,
@@ -22,7 +22,7 @@ const runtimeMocks = vi.hoisted(() => ({
   refreshOpenAICodexToken: vi.fn(),
 }));
 
-vi.mock("openclaw/plugin-sdk/runtime-env", () => ({
+vi.mock("alisio/plugin-sdk/runtime-env", () => ({
   ensureGlobalUndiciEnvProxyDispatcher: runtimeMocks.ensureGlobalUndiciEnvProxyDispatcher,
 }));
 

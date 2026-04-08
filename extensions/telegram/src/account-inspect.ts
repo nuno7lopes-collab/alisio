@@ -1,14 +1,14 @@
-import { resolveAccountWithDefaultFallback } from "openclaw/plugin-sdk/account-core";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { coerceSecretRef } from "openclaw/plugin-sdk/config-runtime";
-import { tryReadSecretFileSync } from "openclaw/plugin-sdk/core";
-import { resolveDefaultSecretProviderAlias } from "openclaw/plugin-sdk/provider-auth";
-import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "openclaw/plugin-sdk/routing";
+import { resolveAccountWithDefaultFallback } from "alisio/plugin-sdk/account-core";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { coerceSecretRef } from "alisio/plugin-sdk/config-runtime";
+import { tryReadSecretFileSync } from "alisio/plugin-sdk/core";
+import { resolveDefaultSecretProviderAlias } from "alisio/plugin-sdk/provider-auth";
+import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "alisio/plugin-sdk/routing";
 import {
   hasConfiguredSecretInput,
   normalizeSecretInputString,
-} from "openclaw/plugin-sdk/secret-input";
-import type { TelegramAccountConfig } from "openclaw/plugin-sdk/telegram-core";
+} from "alisio/plugin-sdk/secret-input";
+import type { TelegramAccountConfig } from "alisio/plugin-sdk/telegram-core";
 import {
   mergeTelegramAccountConfig,
   resolveDefaultTelegramAccountId,

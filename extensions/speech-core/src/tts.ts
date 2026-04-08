@@ -9,7 +9,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import path from "node:path";
-import { normalizeChannelId, type ChannelId } from "openclaw/plugin-sdk/channel-runtime";
+import { normalizeChannelId, type ChannelId } from "alisio/plugin-sdk/channel-runtime";
 import type {
   OpenClawConfig,
   TtsAutoMode,
@@ -17,12 +17,12 @@ import type {
   TtsMode,
   TtsModelOverrideConfig,
   TtsProvider,
-} from "openclaw/plugin-sdk/config-runtime";
-import { resolveSendableOutboundReplyParts } from "openclaw/plugin-sdk/reply-payload";
-import type { ReplyPayload } from "openclaw/plugin-sdk/reply-runtime";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { resolvePreferredOpenClawTmpDir } from "openclaw/plugin-sdk/sandbox";
-import { CONFIG_DIR, resolveUserPath, stripMarkdown } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/config-runtime";
+import { resolveSendableOutboundReplyParts } from "alisio/plugin-sdk/reply-payload";
+import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/sandbox";
+import { CONFIG_DIR, resolveUserPath, stripMarkdown } from "alisio/plugin-sdk/text-runtime";
 import {
   canonicalizeSpeechProviderId,
   getSpeechProvider,

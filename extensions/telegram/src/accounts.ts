@@ -9,17 +9,11 @@ import {
   resolveListedDefaultAccountId,
   resolveAccountWithDefaultFallback,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/account-core";
-import {
-  listBoundAccountIds,
-  resolveDefaultAgentBoundAccountId,
-} from "openclaw/plugin-sdk/routing";
-import { formatSetExplicitDefaultInstruction } from "openclaw/plugin-sdk/routing";
-import { createSubsystemLogger, isTruthyEnvValue } from "openclaw/plugin-sdk/runtime-env";
-import type {
-  TelegramAccountConfig,
-  TelegramActionConfig,
-} from "openclaw/plugin-sdk/telegram-core";
+} from "alisio/plugin-sdk/account-core";
+import { listBoundAccountIds, resolveDefaultAgentBoundAccountId } from "alisio/plugin-sdk/routing";
+import { formatSetExplicitDefaultInstruction } from "alisio/plugin-sdk/routing";
+import { createSubsystemLogger, isTruthyEnvValue } from "alisio/plugin-sdk/runtime-env";
+import type { TelegramAccountConfig, TelegramActionConfig } from "alisio/plugin-sdk/telegram-core";
 import { resolveTelegramToken } from "./token.js";
 
 let log: ReturnType<typeof createSubsystemLogger> | null = null;

@@ -1,9 +1,9 @@
 import { DisconnectReason } from "@whiskeysockets/baileys";
-import { formatCliCommand } from "openclaw/plugin-sdk/cli-runtime";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { danger, info, success } from "openclaw/plugin-sdk/runtime-env";
-import { defaultRuntime, type RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { logInfo } from "openclaw/plugin-sdk/text-runtime";
+import { formatCliCommand } from "alisio/plugin-sdk/cli-runtime";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { danger, info, success } from "alisio/plugin-sdk/runtime-env";
+import { defaultRuntime, type RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { logInfo } from "alisio/plugin-sdk/text-runtime";
 import { resolveWhatsAppAccount } from "./accounts.js";
 import {
   createWaSocket,

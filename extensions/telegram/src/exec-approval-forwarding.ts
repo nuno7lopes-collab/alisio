@@ -2,9 +2,9 @@ import {
   buildExecApprovalPendingReplyPayload,
   resolveExecApprovalCommandDisplay,
   type ExecApprovalRequest,
-} from "openclaw/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { normalizeMessageChannel } from "openclaw/plugin-sdk/routing";
+} from "alisio/plugin-sdk/approval-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { normalizeMessageChannel } from "alisio/plugin-sdk/routing";
 import { isTelegramExecApprovalClientEnabled } from "./exec-approvals.js";
 
 export function shouldSuppressTelegramExecApprovalForwardingFallback(params: {

@@ -1,14 +1,14 @@
-import type { ImageGenerationProvider } from "openclaw/plugin-sdk/image-generation";
-import type { MediaUnderstandingProvider } from "openclaw/plugin-sdk/media-understanding";
+import type { ImageGenerationProvider } from "alisio/plugin-sdk/image-generation";
+import type { MediaUnderstandingProvider } from "alisio/plugin-sdk/media-understanding";
 import {
   definePluginEntry,
   type OpenClawPluginApi,
   type ProviderAuthContext,
   type ProviderFetchUsageSnapshotContext,
-} from "openclaw/plugin-sdk/plugin-entry";
-import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
-import type { ProviderPlugin } from "openclaw/plugin-sdk/provider-model-shared";
-import { createGoogleThinkingPayloadWrapper } from "openclaw/plugin-sdk/provider-stream";
+} from "alisio/plugin-sdk/plugin-entry";
+import { createProviderApiKeyAuthMethod } from "alisio/plugin-sdk/provider-auth-api-key";
+import type { ProviderPlugin } from "alisio/plugin-sdk/provider-model-shared";
+import { createGoogleThinkingPayloadWrapper } from "alisio/plugin-sdk/provider-stream";
 import {
   GOOGLE_GEMINI_DEFAULT_MODEL,
   applyGoogleGeminiModelDefault,

@@ -1,14 +1,14 @@
 import type {
   ChannelAccountSnapshot,
   ChannelStatusIssue,
-} from "openclaw/plugin-sdk/channel-contract";
+} from "alisio/plugin-sdk/channel-contract";
 import {
   appendMatchMetadata,
   asString,
   isRecord,
   resolveEnabledConfiguredAccountId,
-} from "openclaw/plugin-sdk/status-helpers";
-import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/status-helpers";
+import { redactSensitiveText } from "alisio/plugin-sdk/text-runtime";
 
 type TelegramAccountStatus = {
   accountId?: unknown;

@@ -2,7 +2,7 @@ import {
   createPatchedAccountSetupAdapter,
   createSetupInputPresenceValidator,
   DEFAULT_ACCOUNT_ID,
-} from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
 
 const channel = "googlechat" as const;
 

@@ -20,7 +20,7 @@ export {
   resolveDefaultGroupPolicy,
   resolveEffectiveAllowFromLists,
   warnMissingProviderGroupPolicyFallbackOnce,
-} from "openclaw/plugin-sdk/irc";
+} from "alisio/plugin-sdk/irc";
 export type {
   BaseProbeResult,
   BlockStreamingCoalesceConfig,
@@ -36,4 +36,4 @@ export type {
   OutboundReplyPayload,
   PluginRuntime,
   RuntimeEnv,
-} from "openclaw/plugin-sdk/irc";
+} from "alisio/plugin-sdk/irc";

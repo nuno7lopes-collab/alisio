@@ -16,40 +16,40 @@ import {
   type TopLevelComponents,
   type UserSelectMenuInteraction,
 } from "@buape/carbon";
-import type { APIStringSelectComponent } from "discord-api-types/v10";
-import { ButtonStyle, ChannelType } from "discord-api-types/v10";
-import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
+import { resolveHumanDelayConfig } from "alisio/plugin-sdk/agent-runtime";
 import {
   formatInboundEnvelope,
   resolveEnvelopeFormatOptions,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
-import { enqueueSystemEvent } from "openclaw/plugin-sdk/channel-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { isDangerousNameMatchingEnabled } from "openclaw/plugin-sdk/config-runtime";
-import { resolveMarkdownTableMode } from "openclaw/plugin-sdk/config-runtime";
-import { resolveOpenProviderRuntimeGroupPolicy } from "openclaw/plugin-sdk/config-runtime";
-import { readSessionUpdatedAt, resolveStorePath } from "openclaw/plugin-sdk/config-runtime";
-import type { DiscordAccountConfig } from "openclaw/plugin-sdk/config-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
+import { enqueueSystemEvent } from "alisio/plugin-sdk/channel-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
+import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
+import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
+import { readSessionUpdatedAt, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
+import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   buildPluginBindingResolvedText,
   parsePluginBindingApprovalCustomId,
   resolvePluginConversationBindingApproval,
-} from "openclaw/plugin-sdk/conversation-runtime";
-import { recordInboundSession } from "openclaw/plugin-sdk/conversation-runtime";
-import { getAgentScopedMediaLocalRoots } from "openclaw/plugin-sdk/media-runtime";
+} from "alisio/plugin-sdk/conversation-runtime";
+import { recordInboundSession } from "alisio/plugin-sdk/conversation-runtime";
+import { getAgentScopedMediaLocalRoots } from "alisio/plugin-sdk/media-runtime";
 import {
   dispatchPluginInteractiveHandler,
   type PluginInteractiveDiscordHandlerContext,
-} from "openclaw/plugin-sdk/plugin-runtime";
-import { resolveChunkMode, resolveTextChunkLimit } from "openclaw/plugin-sdk/reply-runtime";
-import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-runtime";
-import { dispatchReplyWithBufferedBlockDispatcher } from "openclaw/plugin-sdk/reply-runtime";
-import { createReplyReferencePlanner } from "openclaw/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { createNonExitingRuntime, type RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { logDebug, logError } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/plugin-runtime";
+import { resolveChunkMode, resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
+import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
+import { dispatchReplyWithBufferedBlockDispatcher } from "alisio/plugin-sdk/reply-runtime";
+import { createReplyReferencePlanner } from "alisio/plugin-sdk/reply-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { createNonExitingRuntime, type RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { logDebug, logError } from "alisio/plugin-sdk/text-runtime";
+import type { APIStringSelectComponent } from "discord-api-types/v10";
+import { ButtonStyle, ChannelType } from "discord-api-types/v10";
 import { resolveDiscordMaxLinesPerMessage } from "../accounts.js";
 import { resolveDiscordComponentEntry, resolveDiscordModalEntry } from "../components-registry.js";
 import {

@@ -1,1 +1,1 @@
-export type { MockFn } from "openclaw/plugin-sdk/browser-support";
+export type { MockFn } from "alisio/plugin-sdk/browser-support";

@@ -1,4 +1,4 @@
-import { resolveGlobalDedupeCache } from "openclaw/plugin-sdk/core";
+import { resolveGlobalDedupeCache } from "alisio/plugin-sdk/core";
 
 /**
  * In-memory cache of Slack threads the bot has participated in.

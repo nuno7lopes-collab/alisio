@@ -1,8 +1,8 @@
-import type { ModelProviderConfig } from "openclaw/plugin-sdk/provider-model-shared";
+import type { ModelProviderConfig } from "alisio/plugin-sdk/provider-model-shared";
 import {
   applyAgentDefaultModelPrimary,
   type OpenClawConfig,
-} from "openclaw/plugin-sdk/provider-onboard";
+} from "alisio/plugin-sdk/provider-onboard";
 import { normalizeAntigravityModelId, normalizeGoogleModelId } from "./model-id.js";
 export { normalizeAntigravityModelId, normalizeGoogleModelId };
 

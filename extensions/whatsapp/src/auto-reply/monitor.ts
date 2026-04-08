@@ -1,20 +1,20 @@
-import { resolveInboundDebounceMs } from "openclaw/plugin-sdk/channel-inbound";
-import { enqueueSystemEvent } from "openclaw/plugin-sdk/channel-runtime";
-import { formatCliCommand } from "openclaw/plugin-sdk/cli-runtime";
-import { waitForever } from "openclaw/plugin-sdk/cli-runtime";
-import { hasControlCommand } from "openclaw/plugin-sdk/command-auth";
-import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { DEFAULT_GROUP_HISTORY_LIMIT } from "openclaw/plugin-sdk/reply-history";
-import { getReplyFromConfig } from "openclaw/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { registerUnhandledRejectionHandler } from "openclaw/plugin-sdk/runtime-env";
-import { getChildLogger } from "openclaw/plugin-sdk/runtime-env";
+import { resolveInboundDebounceMs } from "alisio/plugin-sdk/channel-inbound";
+import { enqueueSystemEvent } from "alisio/plugin-sdk/channel-runtime";
+import { formatCliCommand } from "alisio/plugin-sdk/cli-runtime";
+import { waitForever } from "alisio/plugin-sdk/cli-runtime";
+import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
+import { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { DEFAULT_GROUP_HISTORY_LIMIT } from "alisio/plugin-sdk/reply-history";
+import { getReplyFromConfig } from "alisio/plugin-sdk/reply-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { registerUnhandledRejectionHandler } from "alisio/plugin-sdk/runtime-env";
+import { getChildLogger } from "alisio/plugin-sdk/runtime-env";
 import {
   defaultRuntime,
   formatDurationPrecise,
   type RuntimeEnv,
-} from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/runtime-env";
 import { resolveWhatsAppAccount, resolveWhatsAppMediaMaxBytes } from "../accounts.js";
 import { setActiveWebListener } from "../active-listener.js";
 import { monitorWebInbox } from "../inbound.js";

@@ -1,6 +1,6 @@
-import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
-import { createProviderApiKeyAuthMethod } from "openclaw/plugin-sdk/provider-auth-api-key";
-import { matchesExactOrPrefix } from "openclaw/plugin-sdk/provider-model-shared";
+import { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
+import { createProviderApiKeyAuthMethod } from "alisio/plugin-sdk/provider-auth-api-key";
+import { matchesExactOrPrefix } from "alisio/plugin-sdk/provider-model-shared";
 import { applyOpencodeZenConfig, OPENCODE_ZEN_DEFAULT_MODEL } from "./api.js";
 
 const PROVIDER_ID = "opencode";

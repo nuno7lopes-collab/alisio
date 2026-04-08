@@ -1,6 +1,6 @@
-import { buildMentionRegexes, normalizeMentionText } from "openclaw/plugin-sdk/channel-inbound";
-import type { loadConfig } from "openclaw/plugin-sdk/config-runtime";
-import { isSelfChatMode, normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+import { buildMentionRegexes, normalizeMentionText } from "alisio/plugin-sdk/channel-inbound";
+import type { loadConfig } from "alisio/plugin-sdk/config-runtime";
+import { isSelfChatMode, normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import {
   getComparableIdentityValues,
   getMentionIdentities,

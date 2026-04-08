@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import type { DirectoryConfigParams } from "openclaw/plugin-sdk/directory-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { DirectoryConfigParams } from "alisio/plugin-sdk/directory-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { listDiscordDirectoryGroupsLive, listDiscordDirectoryPeersLive } from "./directory-live.js";
 

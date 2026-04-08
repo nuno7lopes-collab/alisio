@@ -1,5 +1,5 @@
-import { createEmptyPluginRegistry } from "openclaw/plugin-sdk/testing";
-import { setActivePluginRegistry } from "openclaw/plugin-sdk/testing";
+import { createEmptyPluginRegistry } from "alisio/plugin-sdk/testing";
+import { setActivePluginRegistry } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WebhookTarget } from "./monitor-shared.js";
 import { registerBlueBubblesWebhookTarget } from "./monitor.js";

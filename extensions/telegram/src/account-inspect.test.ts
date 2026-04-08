@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it } from "vitest";
 import { withEnv } from "../../../test/helpers/plugins/env.js";
 import { inspectTelegramAccount } from "./account-inspect.js";

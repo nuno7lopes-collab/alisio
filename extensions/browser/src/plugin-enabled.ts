@@ -1,8 +1,8 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/browser-support";
+import type { OpenClawConfig } from "alisio/plugin-sdk/browser-support";
 import {
   normalizePluginsConfig,
   resolveEffectiveEnableState,
-} from "openclaw/plugin-sdk/browser-support";
+} from "alisio/plugin-sdk/browser-support";
 
 export function isDefaultBrowserPluginEnabled(cfg: OpenClawConfig): boolean {
   return resolveEffectiveEnableState({

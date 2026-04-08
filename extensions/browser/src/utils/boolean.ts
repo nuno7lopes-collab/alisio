@@ -1,1 +1,1 @@
-export { parseBooleanValue } from "openclaw/plugin-sdk/browser-support";
+export { parseBooleanValue } from "alisio/plugin-sdk/browser-support";

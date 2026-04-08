@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { RateLimitError } from "@buape/carbon";
-import { AcpRuntimeError } from "openclaw/plugin-sdk/acp-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
+import { AcpRuntimeError } from "alisio/plugin-sdk/acp-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   baseConfig,
@@ -73,9 +73,9 @@ function createConfigWithDiscordAccount(overrides: Record<string, unknown> = {})
   } as OpenClawConfig;
 }
 
-vi.mock("openclaw/plugin-sdk/plugin-runtime", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/plugin-runtime")>(
-    "openclaw/plugin-sdk/plugin-runtime",
+vi.mock("alisio/plugin-sdk/plugin-runtime", async () => {
+  const actual = await vi.importActual<typeof import("alisio/plugin-sdk/plugin-runtime")>(
+    "alisio/plugin-sdk/plugin-runtime",
   );
   return {
     ...actual,
@@ -608,8 +608,8 @@ describe("monitorDiscordProvider", () => {
       clearPluginCommands,
       getPluginCommandSpecs: getRealPluginCommandSpecs,
       registerPluginCommand,
-    } = await vi.importActual<typeof import("openclaw/plugin-sdk/plugin-runtime")>(
-      "openclaw/plugin-sdk/plugin-runtime",
+    } = await vi.importActual<typeof import("alisio/plugin-sdk/plugin-runtime")>(
+      "alisio/plugin-sdk/plugin-runtime",
     );
     clearPluginCommands();
     listNativeCommandSpecsForConfigMock.mockReturnValue([

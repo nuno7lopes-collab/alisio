@@ -1,6 +1,6 @@
 import type { RequestListener } from "node:http";
-import { createEmptyPluginRegistry } from "openclaw/plugin-sdk/testing";
-import { setActivePluginRegistry } from "openclaw/plugin-sdk/testing";
+import { createEmptyPluginRegistry } from "alisio/plugin-sdk/testing";
+import { setActivePluginRegistry } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withServer } from "../../../test/helpers/http-test-server.js";
 import type { OpenClawConfig, PluginRuntime } from "../runtime-api.js";

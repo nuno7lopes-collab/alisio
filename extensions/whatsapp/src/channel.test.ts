@@ -1,6 +1,6 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/routing";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { createWhatsAppPollFixture, expectWhatsAppPollSent } from "openclaw/plugin-sdk/testing";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { createWhatsAppPollFixture, expectWhatsAppPollSent } from "alisio/plugin-sdk/testing";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDirectoryTestRuntime,
@@ -48,10 +48,9 @@ vi.mock("./login.js", () => ({
   loginWeb: hoisted.loginWeb,
 }));
 
-vi.mock("openclaw/plugin-sdk/setup", async () => {
-  const actual = await vi.importActual<typeof import("openclaw/plugin-sdk/setup")>(
-    "openclaw/plugin-sdk/setup",
-  );
+vi.mock("alisio/plugin-sdk/setup", async () => {
+  const actual =
+    await vi.importActual<typeof import("alisio/plugin-sdk/setup")>("alisio/plugin-sdk/setup");
   return {
     ...actual,
     pathExists: hoisted.pathExists,

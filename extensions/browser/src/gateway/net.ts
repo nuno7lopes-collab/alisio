@@ -1,1 +1,1 @@
-export { isLoopbackHost } from "openclaw/plugin-sdk/browser-support";
+export { isLoopbackHost } from "alisio/plugin-sdk/browser-support";

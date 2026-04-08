@@ -1,6 +1,6 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { expectPairingReplyText } from "../../../test/helpers/pairing-reply.js";
 import {

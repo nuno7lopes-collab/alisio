@@ -1,4 +1,4 @@
-import { resolveProviderPluginChoice } from "openclaw/plugin-sdk/testing";
+import { resolveProviderPluginChoice } from "alisio/plugin-sdk/testing";
 import { describe, expect, it } from "vitest";
 import { registerSingleProviderPlugin } from "../../test/helpers/plugins/plugin-registration.js";
 import deepseekPlugin from "./index.js";

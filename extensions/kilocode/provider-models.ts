@@ -1,6 +1,6 @@
-import type { KilocodeModelCatalogEntry } from "openclaw/plugin-sdk/provider-model-shared";
-import type { ModelDefinitionConfig } from "openclaw/plugin-sdk/provider-model-shared";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
+import type { KilocodeModelCatalogEntry } from "alisio/plugin-sdk/provider-model-shared";
+import type { ModelDefinitionConfig } from "alisio/plugin-sdk/provider-model-shared";
+import { createSubsystemLogger } from "alisio/plugin-sdk/runtime-env";
 
 const log = createSubsystemLogger("kilocode-models");
 

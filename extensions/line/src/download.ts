@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import { messagingApi } from "@line/bot-sdk";
-import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
-import { buildRandomTempFilePath } from "openclaw/plugin-sdk/temp-path";
+import { logVerbose } from "alisio/plugin-sdk/runtime-env";
+import { buildRandomTempFilePath } from "alisio/plugin-sdk/temp-path";
 
 interface DownloadResult {
   path: string;

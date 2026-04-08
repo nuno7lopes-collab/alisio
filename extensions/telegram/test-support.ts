@@ -1,6 +1,6 @@
-import { buildDmGroupAccountAllowlistAdapter } from "openclaw/plugin-sdk/allowlist-config-edit";
-import { createApproverRestrictedNativeApprovalAdapter } from "openclaw/plugin-sdk/approval-runtime";
-import { getChatChannelMeta, type ChannelPlugin } from "openclaw/plugin-sdk/telegram-core";
+import { buildDmGroupAccountAllowlistAdapter } from "alisio/plugin-sdk/allowlist-config-edit";
+import { createApproverRestrictedNativeApprovalAdapter } from "alisio/plugin-sdk/approval-runtime";
+import { getChatChannelMeta, type ChannelPlugin } from "alisio/plugin-sdk/telegram-core";
 import type { ResolvedTelegramAccount } from "./src/accounts.js";
 import { resolveTelegramAccount } from "./src/accounts.js";
 import { listTelegramAccountIds } from "./src/accounts.js";

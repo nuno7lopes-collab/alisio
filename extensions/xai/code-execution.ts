@@ -1,13 +1,13 @@
 import { Type } from "@sinclair/typebox";
-import { getRuntimeConfigSnapshot } from "openclaw/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/plugin-entry";
+import { getRuntimeConfigSnapshot } from "alisio/plugin-sdk/config-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/plugin-entry";
 import {
   jsonResult,
   readConfiguredSecretString,
   readProviderEnvValue,
   readStringParam,
   resolveProviderWebSearchPluginConfig,
-} from "openclaw/plugin-sdk/provider-web-search";
+} from "alisio/plugin-sdk/provider-web-search";
 import {
   buildXaiCodeExecutionPayload,
   requestXaiCodeExecution,

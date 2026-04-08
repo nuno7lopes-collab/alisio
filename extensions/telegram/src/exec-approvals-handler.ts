@@ -5,15 +5,15 @@ import {
   type ExecApprovalPendingReplyParams,
   type ExecApprovalRequest,
   type ExecApprovalResolved,
-} from "openclaw/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import { GatewayClient } from "openclaw/plugin-sdk/gateway-runtime";
-import { createOperatorApprovalsGatewayClient } from "openclaw/plugin-sdk/gateway-runtime";
-import type { EventFrame } from "openclaw/plugin-sdk/gateway-runtime";
-import { normalizeAccountId, parseAgentSessionKey } from "openclaw/plugin-sdk/routing";
-import { createSubsystemLogger } from "openclaw/plugin-sdk/runtime-env";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
-import { compileSafeRegex, testRegexWithBoundedInput } from "openclaw/plugin-sdk/security-runtime";
+} from "alisio/plugin-sdk/approval-runtime";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { GatewayClient } from "alisio/plugin-sdk/gateway-runtime";
+import { createOperatorApprovalsGatewayClient } from "alisio/plugin-sdk/gateway-runtime";
+import type { EventFrame } from "alisio/plugin-sdk/gateway-runtime";
+import { normalizeAccountId, parseAgentSessionKey } from "alisio/plugin-sdk/routing";
+import { createSubsystemLogger } from "alisio/plugin-sdk/runtime-env";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
+import { compileSafeRegex, testRegexWithBoundedInput } from "alisio/plugin-sdk/security-runtime";
 import { buildTelegramExecApprovalButtons } from "./approval-buttons.js";
 import {
   getTelegramExecApprovalApprovers,

@@ -1,4 +1,4 @@
-import type { MediaUnderstandingProvider } from "openclaw/plugin-sdk/media-understanding";
+import type { MediaUnderstandingProvider } from "alisio/plugin-sdk/media-understanding";
 import { transcribeDeepgramAudio } from "./audio.js";
 
 export const deepgramMediaUnderstandingProvider: MediaUnderstandingProvider = {

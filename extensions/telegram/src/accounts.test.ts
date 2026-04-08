@@ -1,5 +1,5 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
-import * as runtimeEnvModule from "openclaw/plugin-sdk/runtime-env";
+import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import * as runtimeEnvModule from "alisio/plugin-sdk/runtime-env";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withEnv } from "../../../test/helpers/plugins/env.js";
 import {

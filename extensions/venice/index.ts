@@ -1,7 +1,7 @@
-import { defineSingleProviderPluginEntry } from "openclaw/plugin-sdk/provider-entry";
-import { applyModelCompatPatch } from "openclaw/plugin-sdk/provider-model-shared";
-import type { ModelCompatConfig } from "openclaw/plugin-sdk/provider-model-shared";
-import { XAI_UNSUPPORTED_SCHEMA_KEYWORDS } from "openclaw/plugin-sdk/provider-tools";
+import { defineSingleProviderPluginEntry } from "alisio/plugin-sdk/provider-entry";
+import { applyModelCompatPatch } from "alisio/plugin-sdk/provider-model-shared";
+import type { ModelCompatConfig } from "alisio/plugin-sdk/provider-model-shared";
+import { XAI_UNSUPPORTED_SCHEMA_KEYWORDS } from "alisio/plugin-sdk/provider-tools";
 import { applyVeniceConfig, VENICE_DEFAULT_MODEL_REF } from "./onboard.js";
 import { buildVeniceProvider } from "./provider-catalog.js";
 

@@ -1,5 +1,5 @@
-import { resolveHumanDelayConfig } from "openclaw/plugin-sdk/agent-runtime";
-import { logTypingFailure } from "openclaw/plugin-sdk/channel-feedback";
+import { resolveHumanDelayConfig } from "alisio/plugin-sdk/agent-runtime";
+import { logTypingFailure } from "alisio/plugin-sdk/channel-feedback";
 import {
   buildMentionRegexes,
   createChannelInboundDebouncer,
@@ -8,34 +8,31 @@ import {
   matchesMentionPatterns,
   resolveEnvelopeFormatOptions,
   shouldDebounceTextInbound,
-} from "openclaw/plugin-sdk/channel-inbound";
-import {
-  logInboundDrop,
-  resolveMentionGatingWithBypass,
-} from "openclaw/plugin-sdk/channel-inbound";
-import { createChannelReplyPipeline } from "openclaw/plugin-sdk/channel-reply-pipeline";
-import { enqueueSystemEvent } from "openclaw/plugin-sdk/channel-runtime";
-import { resolveControlCommandGate } from "openclaw/plugin-sdk/command-auth";
-import { hasControlCommand } from "openclaw/plugin-sdk/command-auth";
-import { resolveChannelGroupRequireMention } from "openclaw/plugin-sdk/config-runtime";
-import { readSessionUpdatedAt, resolveStorePath } from "openclaw/plugin-sdk/config-runtime";
-import { recordInboundSession } from "openclaw/plugin-sdk/conversation-runtime";
-import { kindFromMime } from "openclaw/plugin-sdk/media-runtime";
+} from "alisio/plugin-sdk/channel-inbound";
+import { logInboundDrop, resolveMentionGatingWithBypass } from "alisio/plugin-sdk/channel-inbound";
+import { createChannelReplyPipeline } from "alisio/plugin-sdk/channel-reply-pipeline";
+import { enqueueSystemEvent } from "alisio/plugin-sdk/channel-runtime";
+import { resolveControlCommandGate } from "alisio/plugin-sdk/command-auth";
+import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
+import { resolveChannelGroupRequireMention } from "alisio/plugin-sdk/config-runtime";
+import { readSessionUpdatedAt, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
+import { recordInboundSession } from "alisio/plugin-sdk/conversation-runtime";
+import { kindFromMime } from "alisio/plugin-sdk/media-runtime";
 import {
   buildPendingHistoryContextFromMap,
   clearHistoryEntriesIfEnabled,
   recordPendingHistoryEntryIfEnabled,
-} from "openclaw/plugin-sdk/reply-history";
-import { dispatchInboundMessage } from "openclaw/plugin-sdk/reply-runtime";
-import { finalizeInboundContext } from "openclaw/plugin-sdk/reply-runtime";
-import { createReplyDispatcherWithTyping } from "openclaw/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
-import { danger, logVerbose, shouldLogVerbose } from "openclaw/plugin-sdk/runtime-env";
+} from "alisio/plugin-sdk/reply-history";
+import { dispatchInboundMessage } from "alisio/plugin-sdk/reply-runtime";
+import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
+import { createReplyDispatcherWithTyping } from "alisio/plugin-sdk/reply-runtime";
+import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { danger, logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
 import {
   DM_GROUP_ACCESS_REASON,
   resolvePinnedMainDmOwnerFromAllowlist,
-} from "openclaw/plugin-sdk/security-runtime";
-import { normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+} from "alisio/plugin-sdk/security-runtime";
+import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import {
   formatSignalPairingIdLine,
   formatSignalSenderDisplay,

@@ -1,6 +1,6 @@
-import { generateSecureUuid } from "openclaw/plugin-sdk/core";
-import { resolveFetch } from "openclaw/plugin-sdk/fetch-runtime";
-import { fetchWithTimeout } from "openclaw/plugin-sdk/text-runtime";
+import { generateSecureUuid } from "alisio/plugin-sdk/core";
+import { resolveFetch } from "alisio/plugin-sdk/fetch-runtime";
+import { fetchWithTimeout } from "alisio/plugin-sdk/text-runtime";
 
 export type SignalRpcOptions = {
   baseUrl: string;

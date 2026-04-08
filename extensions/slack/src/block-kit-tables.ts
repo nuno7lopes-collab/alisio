@@ -1,4 +1,4 @@
-import type { MarkdownTableData } from "openclaw/plugin-sdk/text-runtime";
+import type { MarkdownTableData } from "alisio/plugin-sdk/text-runtime";
 
 const SLACK_MAX_TABLE_COLUMNS = 20;
 const SLACK_MAX_TABLE_ROWS = 100;

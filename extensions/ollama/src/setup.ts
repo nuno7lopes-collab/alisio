@@ -1,8 +1,8 @@
-import type { OpenClawConfig } from "openclaw/plugin-sdk/provider-auth";
-import { upsertAuthProfileWithLock } from "openclaw/plugin-sdk/provider-auth";
-import { applyAgentDefaultModelPrimary } from "openclaw/plugin-sdk/provider-onboard";
-import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime";
-import { WizardCancelledError, type WizardPrompter } from "openclaw/plugin-sdk/setup";
+import type { OpenClawConfig } from "alisio/plugin-sdk/provider-auth";
+import { upsertAuthProfileWithLock } from "alisio/plugin-sdk/provider-auth";
+import { applyAgentDefaultModelPrimary } from "alisio/plugin-sdk/provider-onboard";
+import type { RuntimeEnv } from "alisio/plugin-sdk/runtime";
+import { WizardCancelledError, type WizardPrompter } from "alisio/plugin-sdk/setup";
 import { OLLAMA_DEFAULT_BASE_URL, OLLAMA_DEFAULT_MODEL } from "./defaults.js";
 import {
   buildOllamaModelDefinition,

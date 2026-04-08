@@ -8,8 +8,8 @@ import {
   patchChannelConfigForAccount,
   setSetupChannelEnabled,
   splitSetupEntries,
-} from "openclaw/plugin-sdk/setup";
-import type { ChannelSetupWizard } from "openclaw/plugin-sdk/setup";
+} from "alisio/plugin-sdk/setup";
+import type { ChannelSetupWizard } from "alisio/plugin-sdk/setup";
 import { inspectTelegramAccount } from "./account-inspect.js";
 import {
   listTelegramAccountIds,

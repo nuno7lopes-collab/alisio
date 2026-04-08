@@ -1,6 +1,6 @@
-import { DEFAULT_ACCOUNT_ID, type OpenClawConfig } from "openclaw/plugin-sdk/account-resolution";
-import { waitUntilAbort } from "openclaw/plugin-sdk/channel-lifecycle";
-import { registerPluginHttpRoute } from "openclaw/plugin-sdk/webhook-ingress";
+import { DEFAULT_ACCOUNT_ID, type OpenClawConfig } from "alisio/plugin-sdk/account-resolution";
+import { waitUntilAbort } from "alisio/plugin-sdk/channel-lifecycle";
+import { registerPluginHttpRoute } from "alisio/plugin-sdk/webhook-ingress";
 import { listAccountIds, resolveAccount } from "./accounts.js";
 import { dispatchSynologyChatInboundTurn } from "./inbound-turn.js";
 import type { ResolvedSynologyChatAccount } from "./types.js";

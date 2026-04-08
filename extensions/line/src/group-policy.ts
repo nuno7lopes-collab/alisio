@@ -1,4 +1,4 @@
-import { resolveChannelGroupRequireMention } from "openclaw/plugin-sdk/channel-policy";
+import { resolveChannelGroupRequireMention } from "alisio/plugin-sdk/channel-policy";
 import { resolveExactLineGroupConfigKey, type OpenClawConfig } from "../runtime-api.js";
 
 type LineGroupContext = {

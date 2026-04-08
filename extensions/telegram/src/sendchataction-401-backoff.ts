@@ -1,9 +1,5 @@
+import { computeBackoff, sleepWithAbort, type BackoffPolicy } from "alisio/plugin-sdk/runtime-env";
 import type { Bot } from "grammy";
-import {
-  computeBackoff,
-  sleepWithAbort,
-  type BackoffPolicy,
-} from "openclaw/plugin-sdk/runtime-env";
 
 export type TelegramSendChatActionLogger = (message: string) => void;
 

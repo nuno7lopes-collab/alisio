@@ -1,8 +1,5 @@
-import { hasControlCommand } from "openclaw/plugin-sdk/command-auth";
-import {
-  createInboundDebouncer,
-  resolveInboundDebounceMs,
-} from "openclaw/plugin-sdk/reply-runtime";
+import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
+import { createInboundDebouncer, resolveInboundDebounceMs } from "alisio/plugin-sdk/reply-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../test/helpers/plugins/plugin-runtime-mock.js";
 import {

@@ -1,5 +1,5 @@
-import type { ChannelPlugin } from "openclaw/plugin-sdk/core";
-import { defineChannelPluginEntry } from "openclaw/plugin-sdk/core";
+import type { ChannelPlugin } from "alisio/plugin-sdk/core";
+import { defineChannelPluginEntry } from "alisio/plugin-sdk/core";
 import { googlechatPlugin } from "./src/channel.js";
 import { setGoogleChatRuntime } from "./src/runtime.js";
 

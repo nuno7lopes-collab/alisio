@@ -1,5 +1,5 @@
-import { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/account-id";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/core";
+import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
+import type { OpenClawConfig } from "alisio/plugin-sdk/core";
 
 type BlueBubblesConfigPatch = {
   serverUrl?: string;

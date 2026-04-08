@@ -1,4 +1,4 @@
-import { jidToE164, normalizeE164 } from "openclaw/plugin-sdk/text-runtime";
+import { jidToE164, normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 
 const WHATSAPP_LID_RE = /@(lid|hosted\.lid)$/i;
 

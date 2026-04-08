@@ -1,5 +1,5 @@
-import { fetchWithSsrFGuard } from "openclaw/plugin-sdk/ssrf-runtime";
-import { z } from "openclaw/plugin-sdk/zod";
+import { fetchWithSsrFGuard } from "alisio/plugin-sdk/ssrf-runtime";
+import { z } from "alisio/plugin-sdk/zod";
 
 export type MattermostFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 

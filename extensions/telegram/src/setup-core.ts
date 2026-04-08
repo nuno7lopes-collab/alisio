@@ -6,10 +6,10 @@ import {
   splitSetupEntries,
   type OpenClawConfig,
   type WizardPrompter,
-} from "openclaw/plugin-sdk/setup";
-import type { ChannelSetupAdapter, ChannelSetupDmPolicy } from "openclaw/plugin-sdk/setup";
-import { formatCliCommand, formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
-import type { TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";
+} from "alisio/plugin-sdk/setup";
+import type { ChannelSetupAdapter, ChannelSetupDmPolicy } from "alisio/plugin-sdk/setup";
+import { formatCliCommand, formatDocsLink } from "alisio/plugin-sdk/setup-tools";
+import type { TelegramNetworkConfig } from "alisio/plugin-sdk/telegram-core";
 import { resolveDefaultTelegramAccountId, resolveTelegramAccount } from "./accounts.js";
 import { lookupTelegramChatId } from "./api-fetch.js";
 
