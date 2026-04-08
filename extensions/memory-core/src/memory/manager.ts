@@ -19,7 +19,10 @@ import {
   type MemorySource,
   type MemorySyncProgressUpdate,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
-import { resolveObsidianMemoryLayout } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
+import {
+  resolveObsidianMemoryLayout,
+  resolveObsidianReadOnlyVault,
+} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -253,6 +256,25 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     if (meta?.vectorDims) {
       this.vector.dims = meta.vectorDims;
     }
+    this.obsidianReadOnlyStatus =
+      meta?.obsidianReadOnly ??
+      (() => {
+        const vault = resolveObsidianReadOnlyVault({
+          cfg: this.cfg,
+        });
+        if (!vault) {
+          return undefined;
+        }
+        return {
+          enabled: true,
+          active: false,
+          vaultPath: vault.vaultRoot,
+          indexedFiles: 0,
+          skippedLargeFiles: 0,
+          maxFiles: vault.maxFiles,
+          maxFileBytes: vault.maxFileBytes,
+        };
+      })();
     const statusOnly = params.purpose === "status";
     if (!statusOnly) {
       this.ensureWatcher();
@@ -699,6 +721,9 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         cfg: this.cfg,
         workspaceDir: this.workspaceDir,
       }),
+      obsidianReadOnlyVault: resolveObsidianReadOnlyVault({
+        cfg: this.cfg,
+      }),
     });
   }
 
@@ -800,6 +825,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         lastError: this.batchFailureLastError,
         lastProvider: this.batchFailureLastProvider,
       },
+      obsidianReadOnly: this.obsidianReadOnlyStatus,
       custom: {
         searchMode,
         providerUnavailableReason: this.providerUnavailableReason,

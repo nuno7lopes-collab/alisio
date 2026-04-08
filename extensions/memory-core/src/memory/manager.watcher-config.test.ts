@@ -4,7 +4,7 @@ import path from "node:path";
 import type {
   MemorySearchConfig,
   OpenClawConfig,
-} from "openclaw/plugin-sdk/memory-core-host-engine-foundation";
+} from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryIndexManager } from "./index.js";
 import { registerBuiltInMemoryEmbeddingProviders } from "./provider-adapters.js";
@@ -118,7 +118,17 @@ describe("memory watcher config", () => {
 
   it("watches markdown globs and ignores dependency directories", async () => {
     await setupWatcherWorkspace({ name: "notes.md", contents: "hello" });
-    const cfg = createWatcherConfig();
+    const obsidianVaultDir = path.join(workspaceDir, "obsidian-vault");
+    await fs.mkdir(path.join(obsidianVaultDir, ".obsidian"), { recursive: true });
+    const cfg = {
+      ...createWatcherConfig(),
+      memory: {
+        obsidianReadOnly: {
+          enabled: true,
+          vaultPath: obsidianVaultDir,
+        },
+      },
+    } as OpenClawConfig;
 
     await expectWatcherManager(cfg);
 
@@ -133,6 +143,7 @@ describe("memory watcher config", () => {
         path.join(workspaceDir, "memory.md"),
         path.join(workspaceDir, "memory", "**", "*.md"),
         path.join(extraDir, "**", "*.md"),
+        path.join(obsidianVaultDir, "**", "*.md"),
       ]),
     );
     expect(options.ignoreInitial).toBe(true);
@@ -144,6 +155,8 @@ describe("memory watcher config", () => {
       true,
     );
     expect(ignored?.(path.join(workspaceDir, "memory", ".venv", "lib", "python.md"))).toBe(true);
+    expect(ignored?.(path.join(obsidianVaultDir, ".obsidian", "workspace.md"))).toBe(true);
+    expect(ignored?.(path.join(obsidianVaultDir, ".hidden", "notes.md"))).toBe(true);
     expect(ignored?.(path.join(workspaceDir, "memory", "project", "notes.md"))).toBe(false);
   });
 

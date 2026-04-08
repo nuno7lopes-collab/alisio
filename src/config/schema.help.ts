@@ -883,6 +883,12 @@ export const FIELD_HELP: Record<string, string> = {
     'Sets the absolute Obsidian Vault root (or a path starting with "~") used for zero-plugin memory sync. When set, daily notes are written into that Vault instead of the workspace root.',
   "memory.memoryPath":
     'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
+  "memory.obsidianReadOnly":
+    "Separate read-only Obsidian connector that indexes the entire Vault for memory search without writing back to the Vault. This is explicit opt-in and independent from the legacy vaultPath/memoryPath write flow.",
+  "memory.obsidianReadOnly.enabled":
+    "Enables whole-vault read-only Obsidian indexing. When enabled, Alisio scans Markdown files across the selected Vault root, skips .obsidian and hidden directories, applies safety limits, and never writes into that Vault.",
+  "memory.obsidianReadOnly.vaultPath":
+    'Absolute Obsidian Vault root (or a path starting with "~") used by the read-only connector. This indexes the entire Vault for memory search, does not reuse memory.memoryPath, and never writes notes or rollups back into the Vault.',
   "memory.qmd.command":
     "Sets the executable path for the `qmd` binary used by the QMD backend (default: resolved from PATH). Use an explicit absolute path when multiple qmd installs exist or PATH differs across environments.",
   "memory.qmd.mcporter":

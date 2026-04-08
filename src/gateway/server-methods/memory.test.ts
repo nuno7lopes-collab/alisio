@@ -160,6 +160,15 @@ describe("memoryHandlers", () => {
             pollIntervalMs: 0,
             timeoutMs: 0,
           },
+          obsidianReadOnly: {
+            enabled: true,
+            active: true,
+            vaultPath: "/vaults/research",
+            indexedFiles: 24,
+            skippedLargeFiles: 2,
+            maxFiles: 2000,
+            maxFileBytes: 1048576,
+          },
         }),
         probeEmbeddingAvailability,
         probeVectorAvailability,
@@ -189,6 +198,11 @@ describe("memoryHandlers", () => {
           provider: "openai",
           files: 3,
           chunks: 11,
+          obsidianReadOnly: expect.objectContaining({
+            active: true,
+            vaultPath: "/vaults/research",
+            indexedFiles: 24,
+          }),
           vector: expect.objectContaining({
             enabled: true,
             available: true,

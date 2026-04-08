@@ -4,6 +4,13 @@ export type MemoryBackend = "builtin" | "qmd";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
 
+export type MemoryObsidianReadOnlyConfig = {
+  /** Explicit opt-in for read-only whole-vault indexing. */
+  enabled?: boolean;
+  /** Absolute Obsidian Vault root (absolute path or "~" path). */
+  vaultPath?: string;
+};
+
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
@@ -17,6 +24,10 @@ export type MemoryConfig = {
    * Legacy default remains "memory"; Obsidian mode defaults to "Alisio Memory".
    */
   memoryPath?: string;
+  /**
+   * Separate read-only connector that indexes an entire Obsidian vault without writing to it.
+   */
+  obsidianReadOnly?: MemoryObsidianReadOnlyConfig;
   qmd?: MemoryQmdConfig;
 };
 

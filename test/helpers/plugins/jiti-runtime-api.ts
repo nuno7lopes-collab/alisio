@@ -16,7 +16,7 @@ const JITI_EXTENSIONS = [
   ".json",
 ] as const;
 
-const PLUGIN_SDK_SPECIFIER_PREFIX = "openclaw/plugin-sdk/";
+const PLUGIN_SDK_SPECIFIER_PREFIXES = ["alisio/plugin-sdk/", "openclaw/plugin-sdk/"] as const;
 const SOURCE_MODULE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
 
 type SourceModuleRef = {
@@ -124,6 +124,15 @@ function collectSourceModuleRefs(filePath: string): SourceModuleRef[] {
   return refs;
 }
 
+function resolvePluginSdkSpecifierPrefix(specifier: string): string | null {
+  for (const prefix of PLUGIN_SDK_SPECIFIER_PREFIXES) {
+    if (specifier.startsWith(prefix)) {
+      return prefix;
+    }
+  }
+  return null;
+}
+
 function collectPluginSdkAliases(params: {
   modulePath: string;
   root: string;
@@ -142,14 +151,15 @@ function collectPluginSdkAliases(params: {
     visitedFiles.add(filePath);
 
     for (const ref of collectSourceModuleRefs(filePath)) {
-      if (ref.specifier.startsWith(PLUGIN_SDK_SPECIFIER_PREFIX)) {
+      const pluginSdkPrefix = resolvePluginSdkSpecifierPrefix(ref.specifier);
+      if (pluginSdkPrefix) {
         const shouldKeepReal =
           rootModule &&
           !ref.typeOnly &&
           (explicitRealSpecifiers.size === 0 || explicitRealSpecifiers.has(ref.specifier));
         if (shouldKeepReal) {
           realSpecifiers.add(ref.specifier);
-          const subpath = ref.specifier.slice(PLUGIN_SDK_SPECIFIER_PREFIX.length);
+          const subpath = ref.specifier.slice(pluginSdkPrefix.length);
           const target = resolvePluginSdkAliasTarget(params.root, subpath);
           if (target?.endsWith(".ts")) {
             visitModule(target, false);
@@ -174,16 +184,17 @@ function collectPluginSdkAliases(params: {
   visitModule(params.modulePath, true);
 
   const aliasEntries = new Map<string, string>();
-  for (const specifier of listPluginSdkExportedSubpaths(params.root).map(
-    (subpath) => `${PLUGIN_SDK_SPECIFIER_PREFIX}${subpath}`,
-  )) {
-    if (realSpecifiers.has(specifier)) {
-      const subpath = specifier.slice(PLUGIN_SDK_SPECIFIER_PREFIX.length);
-      aliasEntries.set(specifier, resolvePluginSdkAliasTarget(params.root, subpath) ?? stubPath);
-      continue;
-    }
-    if (stubSpecifiers.has(specifier)) {
-      aliasEntries.set(specifier, stubPath);
+  for (const subpath of listPluginSdkExportedSubpaths(params.root)) {
+    const target = resolvePluginSdkAliasTarget(params.root, subpath) ?? stubPath;
+    for (const prefix of PLUGIN_SDK_SPECIFIER_PREFIXES) {
+      const specifier = `${prefix}${subpath}`;
+      if (realSpecifiers.has(specifier)) {
+        aliasEntries.set(specifier, target);
+        continue;
+      }
+      if (stubSpecifiers.has(specifier)) {
+        aliasEntries.set(specifier, stubPath);
+      }
     }
   }
 

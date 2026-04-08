@@ -111,6 +111,20 @@ export const MemoryStatusBatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const MemoryStatusObsidianReadOnlySchema = Type.Object(
+  {
+    enabled: Type.Boolean(),
+    active: Type.Boolean(),
+    vaultPath: Type.String(),
+    indexedFiles: Type.Integer({ minimum: 0 }),
+    skippedLargeFiles: Type.Integer({ minimum: 0 }),
+    maxFiles: Type.Integer({ minimum: 1 }),
+    maxFileBytes: Type.Integer({ minimum: 1 }),
+    error: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
 export const MemoryStatusRuntimeSchema = Type.Object(
   {
     backend: Type.Union([Type.Literal("builtin"), Type.Literal("qmd")]),
@@ -127,6 +141,7 @@ export const MemoryStatusRuntimeSchema = Type.Object(
     fts: Type.Optional(MemoryStatusFtsSchema),
     vector: Type.Optional(MemoryStatusVectorSchema),
     batch: Type.Optional(MemoryStatusBatchSchema),
+    obsidianReadOnly: Type.Optional(MemoryStatusObsidianReadOnlySchema),
   },
   { additionalProperties: false },
 );

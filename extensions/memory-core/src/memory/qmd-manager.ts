@@ -1,3 +1,4 @@
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -31,6 +32,7 @@ import {
   requireNodeSqlite,
   statRegularFile,
   type MemoryEmbeddingProbeResult,
+  type MemoryObsidianReadOnlyStatus,
   type MemoryProviderStatus,
   type MemorySearchManager,
   type MemorySearchResult,
@@ -41,10 +43,15 @@ import {
   type ResolvedQmdMcporterConfig,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
 import {
+  OBSIDIAN_READONLY_TOOL_PREFIX,
   resolveObsidianDisplayPath,
   resolveObsidianMemoryLayout,
   resolveObsidianReadPath,
+  resolveObsidianReadOnlyReadPath,
+  resolveObsidianReadOnlyVault,
+  scanObsidianReadOnlyVault,
   type ResolvedObsidianMemoryLayout,
+  type ResolvedObsidianReadOnlyVault,
 } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 
 type SqliteDatabase = import("node:sqlite").DatabaseSync;
@@ -122,7 +129,11 @@ function normalizeHanBm25Query(query: string): string {
 function shouldIgnoreMemoryWatchPath(watchPath: string): boolean {
   const normalized = path.normalize(watchPath);
   const parts = normalized.split(path.sep).map((segment) => segment.trim().toLowerCase());
-  return parts.some((segment) => IGNORED_MEMORY_WATCH_DIR_NAMES.has(segment));
+  return parts.some(
+    (segment) =>
+      IGNORED_MEMORY_WATCH_DIR_NAMES.has(segment) ||
+      (segment.startsWith(".") && segment.length > 1),
+  );
 }
 
 async function runWithQmdEmbedLock<T>(task: () => Promise<T>): Promise<T> {
@@ -229,9 +240,11 @@ export class QmdMemoryManager implements MemorySearchManager {
   private readonly qmd: ResolvedQmdConfig;
   private readonly workspaceDir: string;
   private readonly obsidianLayout: ResolvedObsidianMemoryLayout | null;
+  private readonly obsidianReadOnlyVault: ResolvedObsidianReadOnlyVault | null;
   private readonly stateDir: string;
   private readonly agentStateDir: string;
   private readonly qmdDir: string;
+  private readonly obsidianReadOnlyStatusPath: string;
   private readonly xdgConfigHome: string;
   private readonly xdgCacheHome: string;
   private readonly indexPath: string;
@@ -253,6 +266,8 @@ export class QmdMemoryManager implements MemorySearchManager {
     }
   >();
   private readonly maxQmdOutputChars = MAX_QMD_OUTPUT_CHARS;
+  private readonly obsidianReadOnlyShadow: { collectionName: string; shadowDir: string } | null;
+  private obsidianReadOnlyStatus?: MemoryObsidianReadOnlyStatus;
   private readonly sessionExporter: SessionExporterConfig | null;
   private updateTimer: NodeJS.Timeout | null = null;
   private embedTimer: NodeJS.Timeout | null = null;
@@ -286,9 +301,13 @@ export class QmdMemoryManager implements MemorySearchManager {
       cfg: params.cfg,
       workspaceDir: this.workspaceDir,
     });
+    this.obsidianReadOnlyVault = resolveObsidianReadOnlyVault({
+      cfg: params.cfg,
+    });
     this.stateDir = resolveStateDir(process.env, os.homedir);
     this.agentStateDir = path.join(this.stateDir, "agents", this.agentId);
     this.qmdDir = path.join(this.agentStateDir, "qmd");
+    this.obsidianReadOnlyStatusPath = path.join(this.qmdDir, "obsidian-readonly-status.json");
     this.syncSettings = resolveMemorySearchConfig(params.cfg, params.agentId);
     // QMD uses XDG base dirs for its internal state.
     // Collections are managed via `qmd collection add` and stored inside the index DB.
@@ -307,6 +326,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       XDG_CACHE_HOME: this.xdgCacheHome,
       NO_COLOR: "1",
     };
+    this.obsidianReadOnlyShadow = null;
     this.sessionExporter = this.qmd.sessions.enabled
       ? {
           dir: this.qmd.sessions.exportDir ?? path.join(this.qmdDir, "sessions"),
@@ -327,6 +347,30 @@ export class QmdMemoryManager implements MemorySearchManager {
         },
       ];
     }
+    if (this.obsidianReadOnlyVault) {
+      this.obsidianReadOnlyShadow = {
+        collectionName: this.pickObsidianReadOnlyCollectionName(),
+        shadowDir: path.join(this.qmdDir, "obsidian-readonly"),
+      };
+      this.obsidianReadOnlyStatus = {
+        enabled: true,
+        active: false,
+        vaultPath: this.obsidianReadOnlyVault.vaultRoot,
+        indexedFiles: 0,
+        skippedLargeFiles: 0,
+        maxFiles: this.obsidianReadOnlyVault.maxFiles,
+        maxFileBytes: this.obsidianReadOnlyVault.maxFileBytes,
+      };
+      this.qmd.collections = [
+        ...this.qmd.collections,
+        {
+          name: this.obsidianReadOnlyShadow.collectionName,
+          path: this.obsidianReadOnlyShadow.shadowDir,
+          pattern: "**/*.md",
+          kind: "memory",
+        },
+      ];
+    }
     this.managedCollectionNames = this.computeManagedCollectionNames();
   }
 
@@ -339,6 +383,9 @@ export class QmdMemoryManager implements MemorySearchManager {
     await fs.mkdir(this.xdgConfigHome, { recursive: true });
     await fs.mkdir(this.xdgCacheHome, { recursive: true });
     await fs.mkdir(path.dirname(this.indexPath), { recursive: true });
+    if (this.obsidianReadOnlyShadow) {
+      await fs.mkdir(this.obsidianReadOnlyShadow.shadowDir, { recursive: true });
+    }
     if (this.sessionExporter) {
       await fs.mkdir(this.sessionExporter.dir, { recursive: true });
     }
@@ -1070,6 +1117,9 @@ export class QmdMemoryManager implements MemorySearchManager {
 
   status(): MemoryProviderStatus {
     const counts = this.readCounts();
+    const obsidianReadOnly = this.obsidianReadOnlyVault
+      ? (this.obsidianReadOnlyStatus ?? this.readPersistedObsidianReadOnlyStatus())
+      : undefined;
     return {
       backend: "qmd",
       provider: "qmd",
@@ -1092,6 +1142,7 @@ export class QmdMemoryManager implements MemorySearchManager {
         pollIntervalMs: 0,
         timeoutMs: 0,
       },
+      obsidianReadOnly,
       custom: {
         qmd: {
           collections: this.qmd.collections.length,
@@ -1166,6 +1217,9 @@ export class QmdMemoryManager implements MemorySearchManager {
       if (this.sessionExporter) {
         await this.exportSessions();
       }
+      if (this.obsidianReadOnlyShadow) {
+        await this.syncObsidianReadOnlyShadow();
+      }
       await this.runQmdUpdateWithRetry(reason);
       this.dirty = false;
       if (this.shouldRunEmbed(force)) {
@@ -1201,7 +1255,16 @@ export class QmdMemoryManager implements MemorySearchManager {
       if (collection.kind === "sessions") {
         continue;
       }
+      if (
+        this.obsidianReadOnlyShadow &&
+        collection.name === this.obsidianReadOnlyShadow.collectionName
+      ) {
+        continue;
+      }
       watchPaths.add(this.resolveCollectionWatchPath(collection));
+    }
+    if (this.obsidianReadOnlyVault) {
+      watchPaths.add(path.join(this.obsidianReadOnlyVault.vaultRoot, "**", "*.md"));
     }
     if (watchPaths.size === 0) {
       return;
@@ -1844,10 +1907,154 @@ export class QmdMemoryManager implements MemorySearchManager {
     return candidate;
   }
 
+  private pickObsidianReadOnlyCollectionName(): string {
+    const existing = new Set(this.qmd.collections.map((collection) => collection.name));
+    const base = `obsidian-vault-${this.sanitizeCollectionNameSegment(this.agentId)}`;
+    if (!existing.has(base)) {
+      return base;
+    }
+    let counter = 2;
+    let candidate = `${base}-${counter}`;
+    while (existing.has(candidate)) {
+      counter += 1;
+      candidate = `${base}-${counter}`;
+    }
+    return candidate;
+  }
+
   private sanitizeCollectionNameSegment(input: string): string {
     const lower = input.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
     const trimmed = lower.replace(/^-+|-+$/g, "");
     return trimmed || "agent";
+  }
+
+  private async syncObsidianReadOnlyShadow(): Promise<void> {
+    if (!this.obsidianReadOnlyVault || !this.obsidianReadOnlyShadow) {
+      this.obsidianReadOnlyStatus = undefined;
+      return;
+    }
+    const scan = await scanObsidianReadOnlyVault({
+      vault: this.obsidianReadOnlyVault,
+      includeFiles: true,
+    });
+    this.obsidianReadOnlyStatus = {
+      enabled: scan.enabled,
+      active: scan.active,
+      vaultPath: scan.vaultPath,
+      indexedFiles: scan.indexedFiles,
+      skippedLargeFiles: scan.skippedLargeFiles,
+      maxFiles: scan.maxFiles,
+      maxFileBytes: scan.maxFileBytes,
+      ...(scan.error ? { error: scan.error } : {}),
+    };
+    await this.writePersistedObsidianReadOnlyStatus();
+
+    const shadowDir = this.obsidianReadOnlyShadow.shadowDir;
+    if (!scan.active) {
+      await fs.rm(shadowDir, { recursive: true, force: true });
+      await fs.mkdir(shadowDir, { recursive: true });
+      return;
+    }
+
+    const activeRelativePaths = new Set<string>();
+    for (const entry of scan.files ?? []) {
+      const normalizedRelative = entry.relativePath.replace(/\\/g, "/");
+      activeRelativePaths.add(normalizedRelative);
+      const targetPath = path.join(shadowDir, ...normalizedRelative.split("/"));
+      let shouldCopy = true;
+      try {
+        const stat = await fs.stat(targetPath);
+        shouldCopy =
+          stat.size !== entry.size || Math.floor(stat.mtimeMs) !== Math.floor(entry.mtimeMs);
+      } catch {
+        shouldCopy = true;
+      }
+      if (!shouldCopy) {
+        continue;
+      }
+      await fs.mkdir(path.dirname(targetPath), { recursive: true });
+      await fs.copyFile(entry.absPath, targetPath);
+      const mtime = new Date(entry.mtimeMs);
+      await fs.utimes(targetPath, mtime, mtime).catch(() => undefined);
+    }
+
+    await this.pruneObsidianReadOnlyShadowDir(shadowDir, activeRelativePaths);
+  }
+
+  private async pruneObsidianReadOnlyShadowDir(
+    dirPath: string,
+    activeRelativePaths: Set<string>,
+    relativeDir = "",
+  ): Promise<void> {
+    let entries: Array<fsSync.Dirent<string>> = [];
+    try {
+      entries = await fs.readdir(dirPath, { encoding: "utf8", withFileTypes: true });
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException | undefined)?.code;
+      if (code === "ENOENT") {
+        return;
+      }
+      throw err;
+    }
+
+    for (const entry of entries) {
+      const nextRelative = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      const absPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        await this.pruneObsidianReadOnlyShadowDir(absPath, activeRelativePaths, nextRelative);
+        const remaining = await fs
+          .readdir(absPath, { encoding: "utf8" })
+          .catch(() => [] as string[]);
+        if (remaining.length === 0) {
+          await fs.rmdir(absPath).catch(() => undefined);
+        }
+        continue;
+      }
+      if (entry.isFile() && !activeRelativePaths.has(nextRelative.replace(/\\/g, "/"))) {
+        await fs.rm(absPath, { force: true });
+      }
+    }
+  }
+
+  private async writePersistedObsidianReadOnlyStatus(): Promise<void> {
+    if (!this.obsidianReadOnlyStatus) {
+      return;
+    }
+    await fs.mkdir(path.dirname(this.obsidianReadOnlyStatusPath), { recursive: true });
+    await fs.writeFile(
+      this.obsidianReadOnlyStatusPath,
+      JSON.stringify(this.obsidianReadOnlyStatus),
+      "utf-8",
+    );
+  }
+
+  private readPersistedObsidianReadOnlyStatus(): MemoryObsidianReadOnlyStatus | undefined {
+    try {
+      const raw = fsSync.readFileSync(this.obsidianReadOnlyStatusPath, "utf-8");
+      const parsed = JSON.parse(raw) as Partial<MemoryObsidianReadOnlyStatus>;
+      if (
+        parsed &&
+        typeof parsed.vaultPath === "string" &&
+        typeof parsed.enabled === "boolean" &&
+        typeof parsed.active === "boolean" &&
+        typeof parsed.indexedFiles === "number" &&
+        typeof parsed.skippedLargeFiles === "number" &&
+        typeof parsed.maxFiles === "number" &&
+        typeof parsed.maxFileBytes === "number"
+      ) {
+        return {
+          enabled: parsed.enabled,
+          active: parsed.active,
+          vaultPath: parsed.vaultPath,
+          indexedFiles: parsed.indexedFiles,
+          skippedLargeFiles: parsed.skippedLargeFiles,
+          maxFiles: parsed.maxFiles,
+          maxFileBytes: parsed.maxFileBytes,
+          ...(typeof parsed.error === "string" ? { error: parsed.error } : {}),
+        };
+      }
+    } catch {}
+    return undefined;
   }
 
   private async resolveDocLocation(
@@ -2186,7 +2393,12 @@ export class QmdMemoryManager implements MemorySearchManager {
       return null;
     }
     const normalizedRelative = collectionRelativePath.replace(/\\/g, "/");
-    const absPath = path.normalize(path.resolve(root.path, collectionRelativePath));
+    const absPath =
+      this.obsidianReadOnlyShadow &&
+      this.obsidianReadOnlyVault &&
+      collection === this.obsidianReadOnlyShadow.collectionName
+        ? path.normalize(path.resolve(this.obsidianReadOnlyVault.vaultRoot, collectionRelativePath))
+        : path.normalize(path.resolve(root.path, collectionRelativePath));
     const relativeToWorkspace = path.relative(this.workspaceDir, absPath);
     const relPath = this.buildSearchPath(
       collection,
@@ -2204,6 +2416,9 @@ export class QmdMemoryManager implements MemorySearchManager {
     absPath: string,
   ): string {
     const sanitized = collectionRelativePath.replace(/^\/+/, "");
+    if (this.obsidianReadOnlyShadow && collection === this.obsidianReadOnlyShadow.collectionName) {
+      return `${OBSIDIAN_READONLY_TOOL_PREFIX}/${sanitized}`;
+    }
     const obsidianPath = resolveObsidianDisplayPath(absPath, this.obsidianLayout);
     if (obsidianPath) {
       return obsidianPath;
@@ -2246,6 +2461,13 @@ export class QmdMemoryManager implements MemorySearchManager {
     });
     if (obsidianPath) {
       return obsidianPath;
+    }
+    const obsidianReadOnlyPath = resolveObsidianReadOnlyReadPath({
+      vault: this.obsidianReadOnlyVault,
+      relPath,
+    });
+    if (obsidianReadOnlyPath) {
+      return obsidianReadOnlyPath;
     }
     if (relPath.startsWith("qmd/")) {
       const [, collection, ...rest] = relPath.split("/");

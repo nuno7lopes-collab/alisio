@@ -268,6 +268,9 @@ export const en: TranslationMap = {
       store: "Store",
       vector: "Vector",
       fts: "FTS",
+      obsidianVault: "Obsidian vault",
+      filesUnit: "files",
+      skippedLarge: "large skipped",
       builtin: "Built-in",
       guidance: {
         oauthTitle: "Memory still needs embeddings",
@@ -764,6 +767,8 @@ export const en: TranslationMap = {
         email: "Email",
         emailManagedByCloud: "This email is managed by Alisio Cloud authentication.",
         avatarLabel: "Avatar label",
+        localModeNotice:
+          "This installation is running in local mode. Cloud sign-in and recovery become available once the cloud backend is configured.",
         recoveryEmail: "Send recovery email",
         signOut: "Sign out",
       },
@@ -1406,12 +1411,18 @@ export const en: TranslationMap = {
         title: "Complete your profile",
         subtitle:
           "Tell Alisio how to address you and what your agent should be called. Your username must be unique and can use letters, numbers, dots, and underscores.",
+        localSubtitle:
+          "This environment is running in local mode. Complete your profile on this device and continue without cloud sign-in.",
         name: "What should we call you?",
         agentName: "What should your agent be called?",
         username: "Username",
         email: "Email",
         emailManagedByCloud: "This email is managed by Alisio Cloud authentication.",
         avatar: "Avatar",
+        localProfile: "Local profile",
+        localModeNotice:
+          "The Alisio cloud backend is not configured in this environment. Setup continues in local mode on this device.",
+        authMethodLocal: "Local profile",
         authMethodGoogle: "Google",
         authMethodEmail: "Email",
         termsLabel: "I agree to the Terms and Privacy Policy.",

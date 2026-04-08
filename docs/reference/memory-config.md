@@ -193,6 +193,47 @@ recursively for `.md` files. Symlinks are ignored.
 
 ---
 
+## Obsidian read-only vault connector
+
+Use `memory.obsidianReadOnly` when you want memory search to index an entire
+Obsidian vault without reusing the legacy writable `memory.vaultPath` /
+`memory.memoryPath` flow.
+
+| Key                                 | Type      | Default | Description                               |
+| ----------------------------------- | --------- | ------- | ----------------------------------------- |
+| `memory.obsidianReadOnly.enabled`   | `boolean` | `false` | Explicit opt-in for whole-vault indexing  |
+| `memory.obsidianReadOnly.vaultPath` | `string`  | --      | Absolute vault root (`/path` or `~/path`) |
+
+```json5
+{
+  memory: {
+    obsidianReadOnly: {
+      enabled: true,
+      vaultPath: "~/Obsidian/Research",
+    },
+  },
+}
+```
+
+Behavior:
+
+- Indexes every Markdown file under the selected vault root.
+- Never writes notes, rollups, or metadata back into the vault.
+- Uses stable memory paths under `obsidian-vault/...` for search/readback.
+- Skips `.obsidian`, hidden directories, symlinks, and files above the built-in
+  size limit.
+- Applies a built-in Markdown file-count limit to avoid overloading the gateway.
+- Reindexes automatically when watched vault files change.
+
+If the vault is missing, unreadable, or exceeds limits, Alisio degrades
+cleanly: the connector stays configured, the gateway keeps running, and the
+runtime reports the reason instead of indexing partial unsafe state.
+
+This connector is read-only in this release. Writable Obsidian vault sync still
+uses the legacy `memory.vaultPath` / `memory.memoryPath` flow.
+
+---
+
 ## Multimodal memory (Gemini)
 
 Index images and audio alongside Markdown using Gemini Embedding 2:

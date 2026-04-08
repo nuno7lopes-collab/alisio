@@ -23,16 +23,30 @@ const localWorkers = resolveLocalVitestMaxWorkers();
 const ciWorkers = isWindows ? 2 : 3;
 export default defineConfig({
   resolve: {
-    // Keep this ordered: the base `openclaw/plugin-sdk` alias is a prefix match.
+    // Keep this ordered: the base plugin-sdk aliases are prefix matches.
     alias: [
+      {
+        find: "alisio/extension-api",
+        replacement: path.join(repoRoot, "src", "extensionAPI.ts"),
+      },
       {
         find: "openclaw/extension-api",
         replacement: path.join(repoRoot, "src", "extensionAPI.ts"),
       },
-      ...pluginSdkSubpaths.map((subpath) => ({
-        find: `openclaw/plugin-sdk/${subpath}`,
-        replacement: path.join(repoRoot, "src", "plugin-sdk", `${subpath}.ts`),
-      })),
+      ...pluginSdkSubpaths.flatMap((subpath) => [
+        {
+          find: `alisio/plugin-sdk/${subpath}`,
+          replacement: path.join(repoRoot, "src", "plugin-sdk", `${subpath}.ts`),
+        },
+        {
+          find: `openclaw/plugin-sdk/${subpath}`,
+          replacement: path.join(repoRoot, "src", "plugin-sdk", `${subpath}.ts`),
+        },
+      ]),
+      {
+        find: "alisio/plugin-sdk",
+        replacement: path.join(repoRoot, "src", "plugin-sdk", "index.ts"),
+      },
       {
         find: "openclaw/plugin-sdk",
         replacement: path.join(repoRoot, "src", "plugin-sdk", "index.ts"),

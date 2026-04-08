@@ -10957,6 +10957,18 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
           memoryPath: {
             type: "string",
           },
+          obsidianReadOnly: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+              },
+              vaultPath: {
+                type: "string",
+              },
+            },
+            additionalProperties: false,
+          },
           qmd: {
             type: "object",
             properties: {
@@ -13711,6 +13723,21 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "memory.memoryPath": {
       label: "Memory Directory Path",
       help: 'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
+      tags: ["storage"],
+    },
+    "memory.obsidianReadOnly": {
+      label: "Obsidian Read-only Connector",
+      help: "Separate read-only Obsidian connector that indexes the entire Vault for memory search without writing back to the Vault. This is explicit opt-in and independent from the legacy vaultPath/memoryPath write flow.",
+      tags: ["storage"],
+    },
+    "memory.obsidianReadOnly.enabled": {
+      label: "Enable Obsidian Read-only Connector",
+      help: "Enables whole-vault read-only Obsidian indexing. When enabled, Alisio scans Markdown files across the selected Vault root, skips .obsidian and hidden directories, applies safety limits, and never writes into that Vault.",
+      tags: ["storage"],
+    },
+    "memory.obsidianReadOnly.vaultPath": {
+      label: "Obsidian Read-only Vault Path",
+      help: 'Absolute Obsidian Vault root (or a path starting with "~") used by the read-only connector. This indexes the entire Vault for memory search, does not reuse memory.memoryPath, and never writes notes or rollups back into the Vault.',
       tags: ["storage"],
     },
     "memory.qmd.command": {

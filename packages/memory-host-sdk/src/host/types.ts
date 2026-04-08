@@ -15,6 +15,17 @@ export type MemoryEmbeddingProbeResult = {
   error?: string;
 };
 
+export type MemoryObsidianReadOnlyStatus = {
+  enabled: boolean;
+  active: boolean;
+  vaultPath: string;
+  indexedFiles: number;
+  skippedLargeFiles: number;
+  maxFiles: number;
+  maxFileBytes: number;
+  error?: string;
+};
+
 export type MemorySyncProgressUpdate = {
   completed: number;
   total: number;
@@ -55,6 +66,7 @@ export type MemoryProviderStatus = {
     lastError?: string;
     lastProvider?: string;
   };
+  obsidianReadOnly?: MemoryObsidianReadOnlyStatus;
   custom?: Record<string, unknown>;
 };
 

@@ -153,6 +153,18 @@ function buildRuntimeStatus(
       ...(status.batch.lastProvider ? { lastProvider: status.batch.lastProvider } : {}),
     };
   }
+  if (status.obsidianReadOnly) {
+    runtime.obsidianReadOnly = {
+      enabled: status.obsidianReadOnly.enabled,
+      active: status.obsidianReadOnly.active,
+      vaultPath: status.obsidianReadOnly.vaultPath,
+      indexedFiles: status.obsidianReadOnly.indexedFiles,
+      skippedLargeFiles: status.obsidianReadOnly.skippedLargeFiles,
+      maxFiles: status.obsidianReadOnly.maxFiles,
+      maxFileBytes: status.obsidianReadOnly.maxFileBytes,
+      ...(status.obsidianReadOnly.error ? { error: status.obsidianReadOnly.error } : {}),
+    };
+  }
 
   return runtime;
 }

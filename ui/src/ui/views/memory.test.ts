@@ -100,6 +100,15 @@ function createProps(
           available: true,
           dims: 1536,
         },
+        obsidianReadOnly: {
+          enabled: true,
+          active: true,
+          vaultPath: "/vaults/research",
+          indexedFiles: 24,
+          skippedLargeFiles: 2,
+          maxFiles: 2000,
+          maxFileBytes: 1048576,
+        },
       },
       embedding: {
         ok: true,
@@ -221,6 +230,8 @@ describe("renderMemoryHub", () => {
     expect(container.textContent).toContain("Memory settings");
     expect(container.textContent).toContain("Main memory");
     expect(container.textContent).toContain("Trip Planning");
+    expect(container.textContent).toContain("Obsidian vault");
+    expect(container.textContent).toContain("/vaults/research");
     expect(container.textContent).not.toContain("Delete");
   });
 

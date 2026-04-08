@@ -141,6 +141,9 @@ function memoryText() {
     store: t("alisio.memory.store"),
     vector: t("alisio.memory.vector"),
     fts: t("alisio.memory.fts"),
+    obsidianVault: t("alisio.memory.obsidianVault"),
+    filesUnit: t("alisio.memory.filesUnit"),
+    skippedLarge: t("alisio.memory.skippedLarge"),
     builtin: t("alisio.memory.builtin"),
     none: t("common.none"),
     na: t("common.na"),
@@ -434,6 +437,21 @@ function renderRuntimeCard(params: {
   const ftsDetail = sanitizeLegacyStatePath(
     runtime?.fts?.error ?? config?.store.ftsTokenizer ?? text.na,
   );
+  const obsidianVaultDetail = runtime?.obsidianReadOnly
+    ? sanitizeLegacyStatePath(
+        joinValues(
+          [
+            runtime.obsidianReadOnly.vaultPath,
+            `${runtime.obsidianReadOnly.indexedFiles} ${text.filesUnit}`,
+            runtime.obsidianReadOnly.skippedLargeFiles > 0
+              ? `${runtime.obsidianReadOnly.skippedLargeFiles} ${text.skippedLarge}`
+              : "",
+            runtime.obsidianReadOnly.error ?? "",
+          ],
+          text.na,
+        ),
+      )
+    : undefined;
   const embeddingDetail =
     guidance || !embeddingError ? undefined : sanitizeLegacyStatePath(embeddingError);
   const backendDetail =
@@ -571,6 +589,13 @@ function renderRuntimeCard(params: {
                   }),
                   ftsDetail === text.na ? undefined : ftsDetail,
                 )}
+                ${runtime?.obsidianReadOnly
+                  ? renderRuntimeMetaItem(
+                      text.obsidianVault,
+                      runtime.obsidianReadOnly.active ? text.ready : text.unavailable,
+                      obsidianVaultDetail === text.na ? undefined : obsidianVaultDetail,
+                    )
+                  : nothing}
               </div>
             `}
     </section>

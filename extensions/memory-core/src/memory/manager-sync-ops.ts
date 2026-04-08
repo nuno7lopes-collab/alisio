@@ -35,11 +35,16 @@ import {
   normalizeExtraMemoryPaths,
   requireNodeSqlite,
   runWithConcurrency,
+  type MemoryObsidianReadOnlyStatus,
   type MemoryFileEntry,
   type MemorySource,
   type MemorySyncProgressUpdate,
 } from "openclaw/plugin-sdk/memory-core-host-engine-storage";
-import { resolveObsidianMemoryLayout } from "openclaw/plugin-sdk/memory-core-host-runtime-files";
+import {
+  resolveObsidianMemoryLayout,
+  resolveObsidianReadOnlyVault,
+  scanObsidianReadOnlyVault,
+} from "openclaw/plugin-sdk/memory-core-host-runtime-files";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -58,6 +63,7 @@ type MemoryIndexMeta = {
   chunkOverlap: number;
   vectorDims?: number;
   ftsTokenizer?: string;
+  obsidianReadOnly?: MemoryObsidianReadOnlyStatus;
 };
 
 type MemorySyncProgressState = {
@@ -89,7 +95,11 @@ const log = createSubsystemLogger("memory");
 function shouldIgnoreMemoryWatchPath(watchPath: string): boolean {
   const normalized = path.normalize(watchPath);
   const parts = normalized.split(path.sep).map((segment) => segment.trim().toLowerCase());
-  return parts.some((segment) => IGNORED_MEMORY_WATCH_DIR_NAMES.has(segment));
+  return parts.some(
+    (segment) =>
+      IGNORED_MEMORY_WATCH_DIR_NAMES.has(segment) ||
+      (segment.startsWith(".") && segment.length > 1),
+  );
 }
 
 export function runDetachedMemorySync(sync: () => Promise<void>, reason: "interval" | "watch") {
@@ -136,6 +146,7 @@ export abstract class MemoryManagerSyncOps {
   protected intervalTimer: NodeJS.Timeout | null = null;
   protected closed = false;
   protected dirty = false;
+  protected obsidianReadOnlyStatus?: MemoryObsidianReadOnlyStatus;
   protected sessionsDirty = false;
   protected sessionsDirtyFiles = new Set<string>();
   protected sessionPendingFiles = new Set<string>();
@@ -384,6 +395,9 @@ export abstract class MemoryManagerSyncOps {
       cfg: this.cfg,
       workspaceDir: this.workspaceDir,
     });
+    const obsidianReadOnlyVault = resolveObsidianReadOnlyVault({
+      cfg: this.cfg,
+    });
     const watchPaths = new Set<string>([
       path.join(this.workspaceDir, "MEMORY.md"),
       path.join(this.workspaceDir, "memory.md"),
@@ -391,6 +405,9 @@ export abstract class MemoryManagerSyncOps {
     ]);
     if (obsidianLayout) {
       watchPaths.add(path.join(obsidianLayout.memoryDir, "**", "*.md"));
+    }
+    if (obsidianReadOnlyVault) {
+      watchPaths.add(path.join(obsidianReadOnlyVault.vaultRoot, "**", "*.md"));
     }
     const additionalPaths = normalizeExtraMemoryPaths(this.workspaceDir, this.settings.extraPaths);
     for (const entry of additionalPaths) {
@@ -724,17 +741,50 @@ export abstract class MemoryManagerSyncOps {
       cfg: this.cfg,
       workspaceDir: this.workspaceDir,
     });
-    const files = await listMemoryFiles(
+    const discoveredFiles = await listMemoryFiles(
       this.workspaceDir,
       this.settings.extraPaths,
       this.settings.multimodal,
       obsidianLayout,
     );
+    const obsidianReadOnlyVault = resolveObsidianReadOnlyVault({
+      cfg: this.cfg,
+    });
+    const obsidianReadOnlyScan = obsidianReadOnlyVault
+      ? await scanObsidianReadOnlyVault({
+          vault: obsidianReadOnlyVault,
+          includeFiles: true,
+        })
+      : null;
+    this.obsidianReadOnlyStatus = obsidianReadOnlyScan
+      ? {
+          enabled: obsidianReadOnlyScan.enabled,
+          active: obsidianReadOnlyScan.active,
+          vaultPath: obsidianReadOnlyScan.vaultPath,
+          indexedFiles: obsidianReadOnlyScan.indexedFiles,
+          skippedLargeFiles: obsidianReadOnlyScan.skippedLargeFiles,
+          maxFiles: obsidianReadOnlyScan.maxFiles,
+          maxFileBytes: obsidianReadOnlyScan.maxFileBytes,
+          ...(obsidianReadOnlyScan.error ? { error: obsidianReadOnlyScan.error } : {}),
+        }
+      : undefined;
+    const files = [
+      ...discoveredFiles,
+      ...((obsidianReadOnlyScan?.active ? obsidianReadOnlyScan.files : []) ?? []).map(
+        (entry) => entry.absPath,
+      ),
+    ];
     const fileEntries = (
       await runWithConcurrency(
         files.map(
           (file) => async () =>
-            await buildFileEntry(file, this.workspaceDir, this.settings.multimodal, obsidianLayout),
+            await buildFileEntry(
+              file,
+              this.workspaceDir,
+              this.settings.multimodal,
+              obsidianLayout,
+              obsidianReadOnlyVault,
+            ),
         ),
         this.getIndexConcurrency(),
       )
@@ -1084,6 +1134,12 @@ export abstract class MemoryManagerSyncOps {
       } else {
         this.sessionsDirty = false;
       }
+      if (meta && (shouldSyncMemory || shouldSyncSessions)) {
+        this.writeMeta({
+          ...meta,
+          obsidianReadOnly: this.obsidianReadOnlyStatus,
+        });
+      }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       const activated =
@@ -1232,6 +1288,7 @@ export abstract class MemoryManagerSyncOps {
         chunkTokens: this.settings.chunking.tokens,
         chunkOverlap: this.settings.chunking.overlap,
         ftsTokenizer: this.settings.store.fts.tokenizer,
+        obsidianReadOnly: this.obsidianReadOnlyStatus,
       };
       if (!nextMeta) {
         throw new Error("Failed to compute memory index metadata for reindexing.");
@@ -1305,6 +1362,7 @@ export abstract class MemoryManagerSyncOps {
       chunkTokens: this.settings.chunking.tokens,
       chunkOverlap: this.settings.chunking.overlap,
       ftsTokenizer: this.settings.store.fts.tokenizer,
+      obsidianReadOnly: this.obsidianReadOnlyStatus,
     };
     if (this.vector.available && this.vector.dims) {
       nextMeta.vectorDims = this.vector.dims;
@@ -1385,6 +1443,9 @@ export abstract class MemoryManagerSyncOps {
     const extraPaths = normalizeExtraMemoryPaths(this.workspaceDir, this.settings.extraPaths)
       .map((value) => value.replace(/\\/g, "/"))
       .toSorted();
+    const obsidianReadOnly = resolveObsidianReadOnlyVault({
+      cfg: this.cfg,
+    });
     return hashText(
       JSON.stringify({
         extraPaths,
@@ -1393,6 +1454,13 @@ export abstract class MemoryManagerSyncOps {
           modalities: [...this.settings.multimodal.modalities].toSorted(),
           maxFileBytes: this.settings.multimodal.maxFileBytes,
         },
+        obsidianReadOnly: obsidianReadOnly
+          ? {
+              vaultPath: obsidianReadOnly.vaultRoot.replace(/\\/g, "/"),
+              maxFiles: obsidianReadOnly.maxFiles,
+              maxFileBytes: obsidianReadOnly.maxFileBytes,
+            }
+          : null,
       }),
     );
   }

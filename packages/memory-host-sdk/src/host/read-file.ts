@@ -10,6 +10,11 @@ import {
   resolveObsidianReadPath,
   type ResolvedObsidianMemoryLayout,
 } from "./obsidian-layout.js";
+import {
+  resolveObsidianReadOnlyReadPath,
+  resolveObsidianReadOnlyVault,
+  type ResolvedObsidianReadOnlyVault,
+} from "./obsidian-readonly.js";
 
 export async function readMemoryFile(params: {
   workspaceDir: string;
@@ -18,6 +23,7 @@ export async function readMemoryFile(params: {
   from?: number;
   lines?: number;
   obsidianLayout?: ResolvedObsidianMemoryLayout | null;
+  obsidianReadOnlyVault?: ResolvedObsidianReadOnlyVault | null;
 }): Promise<{ text: string; path: string }> {
   const rawPath = params.relPath.trim();
   if (!rawPath) {
@@ -27,17 +33,25 @@ export async function readMemoryFile(params: {
     layout: params.obsidianLayout ?? null,
     relPath: rawPath,
   });
+  const obsidianReadOnlyPath = resolveObsidianReadOnlyReadPath({
+    vault: params.obsidianReadOnlyVault ?? null,
+    relPath: rawPath,
+  });
   const absPath = obsidianPath
     ? path.resolve(obsidianPath)
-    : path.isAbsolute(rawPath)
-      ? path.resolve(rawPath)
-      : path.resolve(params.workspaceDir, rawPath);
+    : obsidianReadOnlyPath
+      ? path.resolve(obsidianReadOnlyPath)
+      : path.isAbsolute(rawPath)
+        ? path.resolve(rawPath)
+        : path.resolve(params.workspaceDir, rawPath);
   const relPath = obsidianPath
     ? rawPath
-    : path.relative(params.workspaceDir, absPath).replace(/\\/g, "/");
+    : obsidianReadOnlyPath
+      ? rawPath
+      : path.relative(params.workspaceDir, absPath).replace(/\\/g, "/");
   const inWorkspace = relPath.length > 0 && !relPath.startsWith("..") && !path.isAbsolute(relPath);
   const allowedWorkspace = inWorkspace && isMemoryPath(relPath);
-  let allowedAdditional = Boolean(obsidianPath);
+  let allowedAdditional = Boolean(obsidianPath || obsidianReadOnlyPath);
   if (!allowedWorkspace && (params.extraPaths?.length ?? 0) > 0) {
     const additionalPaths = normalizeExtraMemoryPaths(params.workspaceDir, params.extraPaths);
     for (const additionalPath of additionalPaths) {
@@ -109,6 +123,9 @@ export async function readAgentMemoryFile(params: {
     obsidianLayout: resolveObsidianMemoryLayout({
       cfg: params.cfg,
       workspaceDir: resolveAgentWorkspaceDir(params.cfg, params.agentId),
+    }),
+    obsidianReadOnlyVault: resolveObsidianReadOnlyVault({
+      cfg: params.cfg,
     }),
   });
 }

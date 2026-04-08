@@ -131,6 +131,25 @@ function isValidMemorySubpath(value: string): boolean {
   return normalized.split("/").every((segment) => segment && segment !== "." && segment !== "..");
 }
 
+const MemoryObsidianReadOnlySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    vaultPath: z
+      .string()
+      .refine(isValidMemoryVaultPath, 'Expected an absolute path or a "~" path')
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.enabled && !value.vaultPath?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["vaultPath"],
+        message: "memory.obsidianReadOnly.vaultPath is required when the connector is enabled",
+      });
+    }
+  });
+
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
@@ -143,6 +162,7 @@ const MemorySchema = z
       .string()
       .refine(isValidMemorySubpath, "Expected a relative subpath without '.' or '..'")
       .optional(),
+    obsidianReadOnly: MemoryObsidianReadOnlySchema.optional(),
     qmd: MemoryQmdSchema.optional(),
   })
   .strict()
