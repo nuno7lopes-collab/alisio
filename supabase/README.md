@@ -58,15 +58,18 @@
   - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
-- Apply and verify both Alisio Supabase migrations:
+- Apply and verify both account Supabase migrations:
   - `20260404193000_alisio_account_saas.sql`
   - `20260407150500_alisio_account_onboarding_fields.sql`
 - Run the minimum release validation bar:
   - `pnpm check`
   - `pnpm build`
   - `pnpm release:check`
+- The forbidden-artifact guardrail in `scripts/committer`, pre-commit, CI, and `pnpm release:check`
+  is derived from the `.gitignore` `forbidden-commit-dir` markers.
 - If the installer or published install path changed, also run:
   - `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke`
+  - The env var keeps its legacy name for compatibility with the current install smoke helper.
 - NPM publish workflow reference:
   - `.github/workflows/alisio-npm-release.yml`
 - Public macOS validation workflow reference:

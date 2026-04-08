@@ -118,7 +118,7 @@ repos:
   - repo: local
     hooks:
       - id: forbidden-staged-paths
-        name: forbidden-staged-paths
+        name: forbidden-staged-artifact-paths
         entry: node scripts/check-forbidden-paths.mjs --staged
         language: system
         pass_filenames: false

@@ -52,7 +52,7 @@ jobs:
           install-bun: "false"
           use-sticky-disk: "false"
 
-      - name: Reject forbidden tracked paths
+      - name: Reject forbidden tracked artifact paths
         run: node scripts/check-forbidden-paths.mjs --tracked
 
       - name: Ensure matching GitHub release exists

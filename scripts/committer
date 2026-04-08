@@ -120,7 +120,8 @@ for file in "${files[@]}"; do
   fi
 done
 
-# Prevent staging generated artifacts even if a path is forced.
+# Prevent staging generated artifacts even if a path is forced. The forbidden
+# directory list is sourced from the repo `.gitignore` markers.
 normalized_files=()
 for file in "${files[@]}"; do
   normalized_files+=("$(normalize_repo_file_arg "$file")")

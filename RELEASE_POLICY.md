@@ -3,6 +3,10 @@
 This document defines the minimum repo-specific release policy for this repository.
 For the public release lanes and versioning policy, see `docs/reference/RELEASING.md`.
 
+Compatibility note: the published npm package and the existing helper scripts still use the
+`alisio` slug until a package rename lands. This policy describes the release bar without
+requiring that rename first.
+
 ## Version source of truth
 
 - `package.json` is the canonical release version source.
@@ -13,6 +17,7 @@ For the public release lanes and versioning policy, see `docs/reference/RELEASIN
   - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
+- Do not cut or publish a release without explicit operator approval.
 
 ## Minimum gates
 
@@ -20,7 +25,8 @@ For the public release lanes and versioning policy, see `docs/reference/RELEASIN
   - `pnpm check`
   - `pnpm build`
   - `pnpm release:check`
-- Also run `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` when the installer or published install path changed.
+- `pnpm release:check` includes the forbidden-artifact guardrail derived from `.gitignore`.
+- Also run `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` when the installer or published install path changed. The env var keeps its legacy name for compatibility with the current smoke helper.
 
 ## macOS artifact classes
 
@@ -45,8 +51,10 @@ Tracked files under these generated directories are rejected by `scripts/committ
 - `dist-runtime/`
 - `coverage/`
 
-## CODEOWNERS migration note
+The guardrail derives this list from the `.gitignore` `forbidden-commit-dir` markers so local hooks,
+CI, and release validation stay aligned.
 
-- Verified on 2026-04-08: `gh api repos/alisio/alisio` returned `404 Not Found`.
-- Verified on 2026-04-08: `gh api orgs/alisio/teams --paginate` returned `404 Not Found`.
-- Because no resolvable Alisio GitHub org/team slugs were available at update time, `CODEOWNERS` comments were de-branded but existing owner handles were left in place until the GitHub org/team migration exists.
+## Approval note
+
+- Release-sensitive workflow, script, and documentation changes are CODEOWNERS-covered.
+- Prepare those changes as a PR and obtain the required formal approval before landing on the protected path.

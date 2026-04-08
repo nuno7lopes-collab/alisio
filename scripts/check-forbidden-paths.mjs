@@ -1,22 +1,63 @@
 #!/usr/bin/env node
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
-const forbiddenDirectoryReasons = new Map([
-  ["node_modules", "runtime dependency artifacts must never be committed"],
-  [".build", "build output must never be committed"],
-  [".build-local", "local build output must never be committed"],
-  ["dist", "generated distribution output must never be committed"],
-  ["dist-runtime", "generated runtime packaging output must never be committed"],
-  ["coverage", "coverage output must never be committed"],
-]);
+const forbiddenDirectoryMarkerPattern = /^#\s*forbidden-commit-dir:\s*([^|\s]+)\s*\|\s*(.+?)\s*$/u;
 
 function usage() {
   console.error(
     "Usage: node scripts/check-forbidden-paths.mjs --tracked|--staged|--paths [--allow-deleted-tracked] <path...>",
   );
   process.exit(2);
+}
+
+export function parseForbiddenDirectoryReasonsFromGitignore(gitignoreContents) {
+  const rules = new Map();
+
+  for (const line of gitignoreContents.split(/\r?\n/u)) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      continue;
+    }
+
+    const match = forbiddenDirectoryMarkerPattern.exec(trimmedLine);
+    if (!match) {
+      continue;
+    }
+
+    const [, directoryName, reason] = match;
+    rules.set(directoryName, reason);
+  }
+
+  return rules;
+}
+
+export function resolveRepoRootFromGit(cwd = process.cwd()) {
+  try {
+    return execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return cwd;
+  }
+}
+
+export function loadForbiddenDirectoryReasons(repoRoot = resolveRepoRootFromGit()) {
+  const gitignorePath = resolve(repoRoot, ".gitignore");
+  const rules = parseForbiddenDirectoryReasonsFromGitignore(readFileSync(gitignorePath, "utf8"));
+
+  if (rules.size === 0) {
+    throw new Error(
+      `check-forbidden-paths: no forbidden-commit-dir entries found in ${gitignorePath}.`,
+    );
+  }
+
+  return rules;
 }
 
 function splitNullSeparated(raw) {
@@ -34,11 +75,11 @@ function gitListPaths(args) {
   return splitNullSeparated(raw);
 }
 
-function normalizePathSeparators(filePath) {
+export function normalizePathSeparators(filePath) {
   return filePath.replaceAll("\\", "/").replace(/^\.\//u, "").replace(/\/+/gu, "/");
 }
 
-function resolveForbiddenDirectory(filePath) {
+export function resolveForbiddenDirectory(filePath, forbiddenDirectoryReasons) {
   const segments = normalizePathSeparators(filePath).split("/").filter(Boolean);
   for (const segment of segments) {
     if (forbiddenDirectoryReasons.has(segment)) {
@@ -46,6 +87,22 @@ function resolveForbiddenDirectory(filePath) {
     }
   }
   return null;
+}
+
+export function collectForbiddenPathViolations(files, forbiddenDirectoryReasons) {
+  return files
+    .map((filePath) => {
+      const forbiddenDirectory = resolveForbiddenDirectory(filePath, forbiddenDirectoryReasons);
+      if (forbiddenDirectory === null) {
+        return null;
+      }
+
+      return {
+        filePath,
+        reason: forbiddenDirectoryReasons.get(forbiddenDirectory),
+      };
+    })
+    .filter(Boolean);
 }
 
 function listPaths(mode, extraArgs) {
@@ -92,6 +149,15 @@ function main() {
   }
 
   const files = listPaths(mode, extraArgs);
+  let forbiddenDirectoryReasons;
+  try {
+    forbiddenDirectoryReasons = loadForbiddenDirectoryReasons();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    process.exit(2);
+  }
+
   const cleanScopeLabel =
     mode === "--tracked" ? "tracked" : mode === "--staged" ? "staged" : "provided";
   const violationScopeLabel =
@@ -100,29 +166,26 @@ function main() {
       : mode === "--staged"
         ? "staged files"
         : "provided paths";
-  const violations = files
-    .map((filePath) => {
-      const forbiddenDirectory = resolveForbiddenDirectory(filePath);
-      if (forbiddenDirectory === null) {
-        return null;
-      }
-      return {
-        filePath,
-        reason: forbiddenDirectoryReasons.get(forbiddenDirectory),
-      };
-    })
-    .filter(Boolean);
+  const violations = collectForbiddenPathViolations(files, forbiddenDirectoryReasons);
 
   if (violations.length === 0) {
     console.log(`check-forbidden-paths: ${cleanScopeLabel} paths look clean.`);
     return;
   }
 
-  console.error(`check-forbidden-paths: forbidden ${violationScopeLabel} detected:`);
+  console.error(
+    `check-forbidden-paths: forbidden ${violationScopeLabel} detected from .gitignore markers:`,
+  );
   for (const violation of violations) {
     console.error(`  - ${violation.filePath} (${violation.reason})`);
   }
   process.exit(1);
 }
 
-main();
+const isDirectExecution =
+  typeof process.argv[1] === "string" &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectExecution) {
+  main();
+}

@@ -171,7 +171,7 @@ jobs:
           install-deps: "false"
           use-sticky-disk: "false"
 
-      - name: Reject forbidden tracked paths
+      - name: Reject forbidden tracked artifact paths
         run: node scripts/check-forbidden-paths.mjs --tracked
 
       - name: Setup Python

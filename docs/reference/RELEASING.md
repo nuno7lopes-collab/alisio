@@ -8,7 +8,7 @@ read_when:
 
 # Release Policy
 
-Alisio has three public release lanes:
+This repository has three public release lanes:
 
 - stable: tagged releases that publish to npm `latest` and mirror the same version onto `beta` unless `beta` already points at a newer prerelease
 - beta: prerelease tags that publish to npm `beta`
@@ -27,15 +27,15 @@ Alisio has three public release lanes:
 - `beta` means the current beta install target, which may point to either the active prerelease or the latest promoted stable build
 - Stable and stable correction releases publish to npm `latest` and also retag npm `beta` to that same non-beta version after promotion, unless `beta` already points at a newer prerelease
 - `package.json` is the canonical release version source
+- The published npm package and helper scripts still use the `alisio` slug until a package rename lands
 - Release-grade macOS artifacts are signed and notarized; placeholder or ad-hoc packages are smoke-only and do not count as shipped release artifacts
-- Every release-grade Alisio release ships the npm package and macOS app together
+- Every release-grade publish ships the npm package and macOS app together
 
 ## Release cadence
 
 - Releases move beta-first
 - Stable follows only after the latest beta is validated
-- Detailed release procedure, approvals, credentials, and recovery notes are
-  maintainer-only
+- Detailed publish procedure, approvals, credentials, and recovery notes live in the private maintainer runbook
 
 ## Release preflight
 
@@ -44,6 +44,7 @@ Alisio has three public release lanes:
   - `pnpm build`
   - `pnpm release:check`
 - Run `pnpm build` before `pnpm release:check` so the expected `dist/*` release artifacts exist for the pack validation step
+- `pnpm release:check` fails closed if tracked files land under the `.gitignore`-driven forbidden artifact directories: `node_modules`, `.build`, `.build-local`, `dist`, `dist-runtime`, and `coverage`
 - Run `RELEASE_TAG=vYYYY.M.D node --import tsx scripts/alisio-npm-release-check.ts`
   (or the matching beta/correction tag) before approval
 - After npm publish, run
@@ -68,11 +69,8 @@ Alisio has three public release lanes:
 
 ## Public references
 
-- [`.github/workflows/alisio-npm-release.yml`](https://github.com/alisio/alisio/blob/main/.github/workflows/alisio-npm-release.yml)
-- [`scripts/alisio-npm-release-check.ts`](https://github.com/alisio/alisio/blob/main/scripts/alisio-npm-release-check.ts)
-- [`scripts/package-mac-dist.sh`](https://github.com/alisio/alisio/blob/main/scripts/package-mac-dist.sh)
-- [`scripts/make_appcast.sh`](https://github.com/alisio/alisio/blob/main/scripts/make_appcast.sh)
-
-Maintainers use the private release docs in
-[`alisio/maintainers/release/README.md`](https://github.com/alisio/maintainers/blob/main/release/README.md)
-for the actual runbook.
+- [`.github/workflows/alisio-npm-release.yml`](https://github.com/nuno7lopes-collab/lume/blob/main/.github/workflows/alisio-npm-release.yml)
+- [`.github/workflows/macos-release.yml`](https://github.com/nuno7lopes-collab/lume/blob/main/.github/workflows/macos-release.yml)
+- [`scripts/alisio-npm-release-check.ts`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/alisio-npm-release-check.ts)
+- [`scripts/package-mac-dist.sh`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/package-mac-dist.sh)
+- [`scripts/make_appcast.sh`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/make_appcast.sh)

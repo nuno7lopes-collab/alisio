@@ -1,4 +1,4 @@
-name: Alisio NPM Release
+name: NPM Release
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ on:
         type: boolean
 
 concurrency:
-  group: alisio-npm-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  group: npm-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
   cancel-in-progress: false
 
 env:
@@ -23,7 +23,7 @@ env:
   PNPM_VERSION: "10.23.0"
 
 jobs:
-  preflight_alisio_npm:
+  preflight_npm:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -52,7 +52,7 @@ jobs:
           install-bun: "false"
           use-sticky-disk: "false"
 
-      - name: Reject forbidden tracked paths
+      - name: Reject forbidden tracked artifact paths
         run: node scripts/check-forbidden-paths.mjs --tracked
 
       - name: Ensure version is not already published
@@ -114,9 +114,9 @@ jobs:
             exit 1
           fi
 
-  publish_alisio_npm:
+  publish_npm:
     # npm trusted publishing + provenance requires a GitHub-hosted runner.
-    needs: [preflight_alisio_npm, validate_publish_dispatch_ref]
+    needs: [preflight_npm, validate_publish_dispatch_ref]
     if: ${{ !inputs.preflight_only }}
     runs-on: ubuntu-latest
     environment: npm-release
@@ -148,7 +148,7 @@ jobs:
           install-bun: "false"
           use-sticky-disk: "false"
 
-      - name: Reject forbidden tracked paths
+      - name: Reject forbidden tracked artifact paths
         run: node scripts/check-forbidden-paths.mjs --tracked
 
       - name: Ensure version is not already published

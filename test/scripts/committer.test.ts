@@ -6,6 +6,27 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const scriptPath = path.join(process.cwd(), "scripts", "committer");
 const tempRepos: string[] = [];
+const fixtureGitignore = [
+  "# forbidden-commit-dir: node_modules | runtime dependency artifacts must never be committed",
+  "node_modules",
+  "**/node_modules/",
+  "# forbidden-commit-dir: .build | build output must never be committed",
+  ".build",
+  "**/.build/",
+  "# forbidden-commit-dir: .build-local | local build output must never be committed",
+  ".build-local",
+  "**/.build-local/",
+  "# forbidden-commit-dir: dist | generated distribution output must never be committed",
+  "dist",
+  "**/dist/",
+  "# forbidden-commit-dir: dist-runtime | generated runtime packaging output must never be committed",
+  "dist-runtime",
+  "**/dist-runtime/",
+  "# forbidden-commit-dir: coverage | coverage output must never be committed",
+  "coverage",
+  "**/coverage/",
+  "",
+].join("\n");
 
 function run(cwd: string, command: string, args: string[]) {
   return execFileSync(command, args, {
@@ -25,8 +46,9 @@ function createRepo() {
   git(repo, "init", "-q");
   git(repo, "config", "user.email", "test@example.com");
   git(repo, "config", "user.name", "Test User");
+  writeFileSync(path.join(repo, ".gitignore"), fixtureGitignore);
   writeFileSync(path.join(repo, "seed.txt"), "seed\n");
-  git(repo, "add", "seed.txt");
+  git(repo, "add", ".gitignore", "seed.txt");
   git(repo, "commit", "-qm", "seed");
 
   return repo;
@@ -114,5 +136,16 @@ describe("scripts/committer", () => {
 
     expect(committedPaths(repo)).toEqual(["CHANGELOG.md"]);
     expect(git(repo, "status", "--short")).toContain("M unrelated.ts");
+  });
+
+  it("rejects generated artifact paths before staging", () => {
+    const repo = createRepo();
+    writeRepoFile(repo, "dist/bundle.js", 'console.log("generated");\n');
+
+    expect(() => commitWithHelper(repo, "test: generated artifact", "dist/bundle.js")).toThrow(
+      /forbidden provided paths detected from \.gitignore markers/u,
+    );
+
+    expect(git(repo, "status", "--short")).toContain("?? dist/bundle.js");
   });
 });
