@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n, t } from "../../i18n/index.ts";
 import {
   allowBundledSkill,
+  executeMarketplaceSkillAction,
   enableSkillConfigPath,
+  installMarketplaceSkillAction,
+  resolveSkillConsentRequest,
   saveSkillApiKey,
   saveSkillEnv,
   skillEnvEditKey,
@@ -21,7 +24,60 @@ function createState(overrides: Partial<SkillsState> = {}): SkillsState {
     skillsBusyKey: null,
     skillEdits: {},
     skillMessages: {},
+    skillActionOutputs: {},
+    skillConsentRequest: null,
     ...overrides,
+  };
+}
+
+function createMarketplaceSkill() {
+  return {
+    name: "Demo Skill",
+    description: "Marketplace demo",
+    source: "openclaw-managed",
+    filePath: "/tmp/demo-skill",
+    baseDir: "/tmp",
+    skillKey: "demo",
+    bundled: false,
+    always: false,
+    disabled: false,
+    blockedByAllowlist: false,
+    eligible: false,
+    requirements: {
+      bins: [],
+      anyBins: [],
+      env: [],
+      config: [],
+      os: [],
+    },
+    missing: {
+      bins: [],
+      anyBins: [],
+      env: [],
+      config: [],
+      os: [],
+    },
+    configChecks: [],
+    install: [],
+    manifestSource: "manifest" as const,
+    manifestValid: true,
+    marketplaceReady: true,
+    permissions: {
+      consent: "explicit" as const,
+      sandbox: {
+        mode: "isolated" as const,
+        filesystem: "read-only" as const,
+        network: "off" as const,
+      },
+    },
+    outputs: {
+      primary: "instructions" as const,
+      formats: ["text/markdown"],
+    },
+    installable: true,
+    removable: false,
+    executable: true,
+    installed: false,
   };
 }
 
@@ -291,5 +347,142 @@ describe("skills controller", () => {
       demo: "next",
     });
     expect(state.skillMessages).toEqual({});
+  });
+
+  it("stores a marketplace consent request when execution needs approval", async () => {
+    const request = vi.fn().mockResolvedValue({
+      status: "consent-required",
+      action: "execute",
+      skillName: "Demo Skill",
+      request: {
+        title: "Run Demo Skill?",
+        description: "Declared permissions: sandbox=isolated/read-only/off.",
+        permissions: createMarketplaceSkill().permissions,
+        outputs: createMarketplaceSkill().outputs,
+      },
+    });
+    const state = createState({
+      client: {
+        request,
+      } as never,
+      skillsReport: {
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+        marketplaceCatalog: [createMarketplaceSkill()],
+      },
+    });
+
+    await executeMarketplaceSkillAction(state, "demo");
+
+    expect(request).toHaveBeenCalledWith("skills.marketplace.execute", {
+      name: "Demo Skill",
+    });
+    expect(state.skillConsentRequest).toMatchObject({
+      skillKey: "demo",
+      skillName: "Demo Skill",
+      action: "execute",
+      title: "Run Demo Skill?",
+    });
+  });
+
+  it("replays a consent decision and stores marketplace execution output", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: "completed",
+        action: "execute",
+        skillName: "Demo Skill",
+        message: "Loaded Demo Skill.",
+        instructions: "# Demo Skill\n\nDo the thing.",
+      })
+      .mockResolvedValueOnce({
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+        marketplaceCatalog: [createMarketplaceSkill()],
+      });
+    const state = createState({
+      client: {
+        request,
+      } as never,
+      skillsReport: {
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+        marketplaceCatalog: [createMarketplaceSkill()],
+      },
+      skillConsentRequest: {
+        skillKey: "demo",
+        skillName: "Demo Skill",
+        action: "execute",
+        title: "Run Demo Skill?",
+        description: "Declared permissions: sandbox=isolated/read-only/off.",
+      },
+    });
+
+    await resolveSkillConsentRequest(state, "allow-always");
+
+    expect(request).toHaveBeenNthCalledWith(1, "skills.marketplace.execute", {
+      name: "Demo Skill",
+      consentDecision: "allow-always",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "skills.status", {});
+    expect(state.skillConsentRequest).toBeNull();
+    expect(state.skillActionOutputs.demo).toEqual({
+      title: "Demo Skill",
+      text: "# Demo Skill\n\nDo the thing.",
+    });
+    expect(state.skillMessages.demo).toEqual({
+      kind: "success",
+      message: "Loaded Demo Skill.",
+    });
+  });
+
+  it("runs marketplace install and refreshes skill status", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({
+        status: "completed",
+        action: "install",
+        skillName: "Demo Skill",
+        message: "Installed Demo Skill.",
+      })
+      .mockResolvedValueOnce({
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+        marketplaceCatalog: [
+          {
+            ...createMarketplaceSkill(),
+            installed: true,
+            installable: false,
+            removable: true,
+            eligible: true,
+          },
+        ],
+      });
+    const state = createState({
+      client: {
+        request,
+      } as never,
+      skillsReport: {
+        workspaceDir: "/tmp/workspace",
+        managedSkillsDir: "/tmp/skills",
+        skills: [],
+        marketplaceCatalog: [createMarketplaceSkill()],
+      },
+    });
+
+    await installMarketplaceSkillAction(state, "demo");
+
+    expect(request).toHaveBeenNthCalledWith(1, "skills.marketplace.install", {
+      name: "Demo Skill",
+    });
+    expect(request).toHaveBeenNthCalledWith(2, "skills.status", {});
+    expect(state.skillMessages.demo).toEqual({
+      kind: "success",
+      message: "Installed Demo Skill.",
+    });
   });
 });

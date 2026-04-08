@@ -1,78 +1,67 @@
-# Alisio Skills Marketplace MCP Bridge
+# Skills Marketplace and MCP Bridge
 
-Local stdio bridge for marketplace-ready skills with explicit manifests.
+This note summarizes the marketplace/MCP surface added for skills.
 
-## Run
+## Canonical manifest
 
-```bash
-node --import tsx src/agents/skills-mcp-serve.ts --workspace /path/to/workspace
-```
+`SKILL.md` frontmatter remains the canonical source of truth for marketplace metadata.
 
-Alternative:
+Required marketplace-facing fields are validated through the existing manifest/frontmatter pipeline:
 
-```bash
-bun src/agents/skills-mcp-serve.ts --workspace /path/to/workspace
-```
+- identity and version
+- declared permissions
+- output contract
+- runtime compatibility
+- optional subscription gates
 
-Optional MCP server injection for local/CI runs:
+Marketplace readiness is derived from explicit manifest validation instead of ad hoc UI state.
 
-```bash
-node --import tsx src/agents/skills-mcp-serve.ts \
-  --workspace /path/to/workspace \
-  --mcp-config-json '{"toolbox":{"command":"node","args":["server.mjs"]}}'
-```
+## Consent and audit trail
 
-Optional subscription/feature gating overrides for local/CI runs:
+Marketplace actions use an explicit consent flow:
 
-```bash
-node --import tsx src/agents/skills-mcp-serve.ts \
-  --workspace /path/to/workspace \
-  --marketplace-plan plus \
-  --skill-features mcp-beta,paid-skills
-```
+- `install`
+- `remove`
+- `execute`
 
-## MCP resources
+Consent storage lives under the Alisio state directory:
 
-- `skills://catalog`
-- `skills://skill/<name>/manifest`
-- `skills://skill/<name>/instructions`
+- consent grants: `skills/marketplace-consent.json`
+- audit trail: `skills/marketplace-audit.jsonl`
 
-`skills://skill/<name>/manifest` returns the canonical manifest, including `permissions`, `outputs`, and `compat`.
+`allow-always` grants are persisted per workspace, skill, action, and manifest fingerprint.
+Audit entries capture request, grant, deny, completion, and failure events.
 
-## MCP prompts
+## Marketplace status model
 
-- `skill_<name>`
+`skills.status` now returns `marketplaceCatalog` alongside the existing `skills` list.
 
-Prompt args:
+Each catalog entry can expose:
 
-- `consent`: string flag (`"true"` to approve explicit permissions)
-- `task`: optional task context
+- install/remove/execute affordances
+- declared permissions and outputs
+- recent audit entries
+- stored consent grants
+- MCP virtual skill metadata (`mcp:<name>`)
 
-## MCP tools
+Local catalog entries are only treated as ready once they are actually installed.
+Virtual MCP skills are surfaced as installed/read-only catalog entries.
 
-- `skills_catalog`
-- `skills_install`
-- `skill_<name>`
+## Gateway methods
 
-Configured MCP servers are surfaced as virtual skills named `mcp:<server>`, so a local STDIO server `toolbox` becomes `skill_mcp_toolbox`.
+New gateway methods:
 
-Tool args:
+- `skills.marketplace.install`
+- `skills.marketplace.remove`
+- `skills.marketplace.execute`
 
-- `skills_catalog.onlyReady`: string flag
-- `skills_install.name`: skill name
-- `skills_install.targetWorkspaceDir`: install destination
-- `skills_install.force`: string flag
-- `skills_install.consent`: string flag
-- `skill_<name>.consent`: string flag
+The handlers resolve marketplace consent before executing the action and append audit records for completed or failed operations.
 
-`skills://catalog` and `skills_catalog` now include runtime marketplace access data (`access.allowed`, `access.currentPlan`, `access.plan`, `access.featureFlag`) resolved against the active Alisio account or the optional bridge overrides above.
+## MCP bridge
 
-## Consent and isolation
+The bridge works in both directions:
 
-- Marketplace-ready means explicit manifest + valid permissions contract.
-- `skills_install` always requires explicit consent.
-- `skill_<name>` requires `consent="true"` when the manifest declares explicit consent.
-- Skill execution stages the skill inside an isolated temporary sandbox by default, with the sandbox policy taken from the manifest.
-- Virtual `mcp:<server>` skills keep the same explicit-consent policy and expose the resolved MCP tools, prompts, and resources at execution time.
-- Subscription-gated skills are blocked at catalog/install/execute time unless the current Alisio plan and optional feature flags satisfy the manifest.
-- Marketplace installs are tracked in `.alisio-marketplace/`, while legacy `.clawhub/` and `.clawdhub/` metadata remains readable for back-compat updates.
+- marketplace-ready local skills are exposed as MCP tools/resources/prompts
+- configured MCP servers are surfaced as virtual skills named `mcp:<server>`
+
+Executing a virtual MCP skill returns a safe capability summary for tools, prompts, and resources instead of mutating workspace state.

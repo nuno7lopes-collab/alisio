@@ -67,6 +67,8 @@ function createProps(overrides: Partial<CapabilitiesProps> = {}): CapabilitiesPr
     edits: {},
     busyKey: null,
     messages: {},
+    actionOutputs: {},
+    consentRequest: null,
     detailKey: null,
     channelsSnapshot: null as ChannelsStatusSnapshot | null,
     connectorCatalog: [] as AlisioConnectorDefinition[],
@@ -80,6 +82,11 @@ function createProps(overrides: Partial<CapabilitiesProps> = {}): CapabilitiesPr
     onSaveKey: () => undefined,
     onSaveEnv: () => undefined,
     onInstall: () => undefined,
+    onMarketplaceInstall: () => undefined,
+    onMarketplaceRemove: () => undefined,
+    onMarketplaceExecute: () => undefined,
+    onConsentResolve: () => undefined,
+    onConsentDismiss: () => undefined,
     onEnableConfig: () => undefined,
     onAllowBundled: () => undefined,
     onDetailOpen: () => undefined,
@@ -378,6 +385,98 @@ describe("renderCapabilities", () => {
     expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(4);
     expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
     expect(container.textContent).not.toContain("No capabilities matched your filters.");
+  });
+
+  it("renders marketplace catalog groups, consent CTA, and action output", async () => {
+    const container = document.createElement("div");
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderCapabilities(
+        createProps({
+          detailKey: "mcp:toolbox",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [],
+            marketplaceCatalog: [
+              createSkill({
+                skillKey: "repo-installed",
+                name: "Installed Skill",
+                installed: true,
+                installable: false,
+                removable: true,
+                executable: true,
+                eligible: true,
+              }),
+              createSkill({
+                skillKey: "mcp:toolbox",
+                name: "mcp:toolbox",
+                description: "Toolbox MCP server",
+                source: "alisio-mcp",
+                filePath: "mcp:toolbox",
+                baseDir: "",
+                kind: "mcp-server",
+                installed: true,
+                installable: false,
+                removable: false,
+                executable: true,
+                eligible: true,
+                permissions: {
+                  consent: "explicit",
+                  sandbox: {
+                    mode: "isolated",
+                    filesystem: "read-only",
+                    network: "off",
+                  },
+                  mcp: {
+                    consume: true,
+                  },
+                },
+                outputs: {
+                  primary: "tool",
+                  formats: ["application/json"],
+                },
+              }),
+              createSkill({
+                skillKey: "catalog-skill",
+                name: "Catalog Skill",
+                installed: false,
+                installable: true,
+                removable: false,
+                executable: true,
+                eligible: false,
+              }),
+            ],
+          },
+          consentRequest: {
+            skillKey: "mcp:toolbox",
+            skillName: "mcp:toolbox",
+            action: "execute",
+            title: "Inspect mcp:toolbox?",
+            description: "Declared permissions: consume MCP.",
+          },
+          actionOutputs: {
+            "mcp:toolbox": {
+              title: "MCP: mcp:toolbox",
+              text: "Tools (1)\nPrompts (1)\nResources (1)",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Installed");
+    expect(text).toContain("Catalog");
+    expect(text).toContain("Allow once");
+    expect(text).toContain("Allow always");
+    expect(text).toContain("Tools (1)");
+    expect(text).toContain("MCP");
   });
 });
 

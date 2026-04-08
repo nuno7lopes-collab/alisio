@@ -5,9 +5,15 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AlisioConfig } from "../../config/config.js";
 import {
+  listSkillAuditEntries,
+  listSkillConsentGrants,
+  resolveMarketplaceConsent,
+} from "./marketplace-consent.js";
+import {
   buildSkillMarketplaceCatalog,
   executeMarketplaceSkill,
   installMarketplaceSkill,
+  removeMarketplaceSkill,
   resolveSkillMarketplaceCatalog,
 } from "./marketplace.js";
 
@@ -208,6 +214,47 @@ describe("skills marketplace", () => {
     expect(accepted.instructions).toContain("# mcporter");
   });
 
+  it("removes an installed marketplace skill even when its subscription is no longer allowed", async () => {
+    const catalogWorkspace = await makeTempDir("alisio-marketplace-remove-catalog-");
+    const targetWorkspace = await makeTempDir("alisio-marketplace-remove-target-");
+    await writeMarketplaceSkill({
+      workspaceDir: catalogWorkspace,
+      name: "plus-skill",
+      description: "Paid skill",
+      subscription: {
+        required: true,
+        plan: "plus",
+      },
+    });
+
+    const installed = await installMarketplaceSkill({
+      catalogWorkspaceDir: catalogWorkspace,
+      targetWorkspaceDir: targetWorkspace,
+      skillName: "plus-skill",
+      access: {
+        currentPlan: "plus",
+      },
+    });
+    expect(installed.ok).toBe(true);
+    if (!installed.ok) {
+      return;
+    }
+
+    const removed = await removeMarketplaceSkill({
+      workspaceDir: targetWorkspace,
+      skillName: "plus-skill",
+      access: {
+        currentPlan: "free",
+      },
+    });
+
+    expect(removed.ok).toBe(true);
+    if (!removed.ok) {
+      return;
+    }
+    await expect(fs.access(removed.removedDir)).rejects.toThrow();
+  });
+
   it("surfaces configured local MCP servers as virtual marketplace skills", async () => {
     const config = buildLocalMcpConfig();
     const catalog = buildSkillMarketplaceCatalog({
@@ -318,5 +365,86 @@ describe("skills marketplace", () => {
     }
     expect(allowedExecution.access.allowed).toBe(true);
     expect(allowedExecution.access.currentPlan).toBe("plus");
+  });
+
+  it("persists consent grants and audit entries for marketplace actions", async () => {
+    const stateDir = await makeTempDir("alisio-marketplace-consent-state-");
+    const previousStateDir = process.env.ALISIO_STATE_DIR;
+    process.env.ALISIO_STATE_DIR = stateDir;
+
+    try {
+      const skill = {
+        name: "mcporter",
+        version: "1.0.0",
+        permissions: {
+          consent: "explicit" as const,
+          sandbox: {
+            mode: "isolated" as const,
+            filesystem: "read-only" as const,
+            network: "off" as const,
+          },
+        },
+        outputs: {
+          primary: "instructions" as const,
+          formats: ["text/markdown"],
+        },
+      };
+
+      const initial = await resolveMarketplaceConsent({
+        workspaceDir: repoRoot,
+        action: "execute",
+        skill,
+        actor: "test-user",
+      });
+      expect(initial.status).toBe("consent-required");
+
+      const granted = await resolveMarketplaceConsent({
+        workspaceDir: repoRoot,
+        action: "execute",
+        skill,
+        decision: "allow-always",
+        actor: "test-user",
+      });
+      expect(granted).toMatchObject({
+        status: "granted",
+        decision: "allow-always",
+      });
+
+      const grants = await listSkillConsentGrants({
+        workspaceDir: repoRoot,
+        skillName: "mcporter",
+      });
+      expect(grants).toHaveLength(1);
+      expect(grants[0]).toMatchObject({
+        workspaceDir: repoRoot,
+        skillName: "mcporter",
+        action: "execute",
+        decision: "allow-always",
+      });
+
+      const reused = await resolveMarketplaceConsent({
+        workspaceDir: repoRoot,
+        action: "execute",
+        skill,
+      });
+      expect(reused).toMatchObject({
+        status: "granted",
+        decision: "allow-always",
+      });
+
+      const auditEntries = await listSkillAuditEntries({
+        workspaceDir: repoRoot,
+        skillName: "mcporter",
+      });
+      expect(auditEntries.map((entry) => entry.outcome)).toEqual(
+        expect.arrayContaining(["requested", "granted"]),
+      );
+    } finally {
+      if (previousStateDir === undefined) {
+        delete process.env.ALISIO_STATE_DIR;
+      } else {
+        process.env.ALISIO_STATE_DIR = previousStateDir;
+      }
+    }
   });
 });
