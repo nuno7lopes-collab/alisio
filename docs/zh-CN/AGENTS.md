@@ -8,8 +8,8 @@
 
 ## Pipeline（docs-i18n）
 
-- 源文档：`docs/**/*.md`
-- 目标文档：`docs/zh-CN/**/*.md`
+- 源文档：`docs/**/*.md` + `docs/**/*.mdx`
+- 目标文档：`docs/zh-CN/**/*.md` + `docs/zh-CN/**/*.mdx`
 - 术语表：`docs/.i18n/glossary.zh-CN.json`
 - 翻译记忆库：`docs/.i18n/zh-CN.tm.jsonl`
 - 提示词规则：`scripts/docs-i18n/prompt.go`
@@ -17,22 +17,32 @@
 常用运行方式：
 
 ```bash
-# 批量（doc 模式，可并行）
-go run scripts/docs-i18n/main.go -mode doc -parallel 6 docs/**/*.md
+# 先检查 glossary 覆盖
+pnpm docs:check-i18n-glossary
+
+# 批量（doc 模式，可并行；从仓库根目录执行）
+cd scripts/docs-i18n
+go run . -docs ../../docs -mode doc -parallel 6 \
+  $(find ../../docs -type f \( -name '*.md' -o -name '*.mdx' \) ! -path '../../docs/zh-CN/*' ! -path '../../docs/ja-JP/*')
 
 # 单文件
-
-go run scripts/docs-i18n/main.go -mode doc docs/channels/matrix.md
+cd scripts/docs-i18n
+go run . -docs ../../docs -mode doc ../../docs/channels/matrix.md
 
 # 小范围补丁（segment 模式，使用 TM；不支持并行）
-go run scripts/docs-i18n/main.go -mode segment docs/channels/matrix.md
+cd scripts/docs-i18n
+go run . -docs ../../docs -mode segment ../../docs/channels/matrix.md
 ```
 
 注意事项：
 
 - doc 模式用于整页翻译；segment 模式用于小范围修补（依赖 TM）。
+- `scripts/docs-i18n` 是独立 Go 模块；不要使用 `go run scripts/docs-i18n/main.go ...`。
 - 新增技术术语、页面标题或短导航标签时，先更新 `docs/.i18n/glossary.zh-CN.json`，再跑 `doc` 模式；不要指望模型自行保留英文术语或固定译名。
 - `pnpm docs:check-i18n-glossary` 会检查变更过的英文文档标题和短内部链接标签是否已写入 glossary。
+- 认证来源不要求 `OPENAI_API_KEY`；也可以使用 `ANTHROPIC_API_KEY`，或先运行 `pi` 再用 `/login` 生成 `~/.pi/agent/auth.json`（例如 `openai-codex` / `anthropic`）。
+- 默认 provider 解析顺序：显式 `ALISIO_DOCS_I18N_PROVIDER` → `OPENAI_API_KEY` → `ANTHROPIC_API_KEY` → `~/.pi/agent/auth.json`（`openai-codex`、`anthropic`、`openai`）。
+- doc 模式只有在 `source_hash`、`workflow`、`provider`、`model` 全部一致时才会跳过文件；做术语/提示词升级时记得同步 bump `workflowVersion`。
 - 超大文件若超时，优先做**定点替换**或拆分后再跑。
 - 翻译后检查中文引号、CJK-Latin 间距和术语一致性。
 
@@ -58,4 +68,4 @@ go run scripts/docs-i18n/main.go -mode segment docs/channels/matrix.md
 - 反馈来源：GitHub issue #6995
 - 反馈用户：@AaronWander、@taiyi747、@Explorer1092、@rendaoyuan
 - 变更要点：更新 prompt 规则、扩充 glossary、清理 TM、批量再生成 + 定点修复
-- 参考链接：https://github.com/openclaw/openclaw/issues/6995
+- 参考链接：GitHub issue #6995

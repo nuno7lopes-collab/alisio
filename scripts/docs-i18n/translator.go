@@ -23,6 +23,9 @@ type PiTranslator struct {
 }
 
 func NewPiTranslator(srcLang, tgtLang string, glossary []GlossaryEntry, thinking string) (*PiTranslator, error) {
+	if err := ensureDocsPiCredentialsAvailable(); err != nil {
+		return nil, err
+	}
 	client, err := startDocsPiClient(context.Background(), docsPiClientOptions{
 		SystemPrompt: translationPrompt(srcLang, tgtLang, glossary),
 		Thinking:     normalizeThinking(thinking),

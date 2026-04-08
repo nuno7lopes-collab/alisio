@@ -234,23 +234,44 @@ func shouldSkipDoc(outputPath string, sourceHash string) (bool, error) {
 	if err := yaml.Unmarshal([]byte(frontMatter), &frontData); err != nil {
 		return false, nil
 	}
-	storedHash := extractSourceHash(frontData)
+	storedHash, storedWorkflow, storedProvider, storedModel := extractDocMetadata(frontData)
 	if storedHash == "" {
 		return false, nil
 	}
-	return strings.EqualFold(storedHash, sourceHash), nil
+	if !strings.EqualFold(storedHash, sourceHash) {
+		return false, nil
+	}
+	if storedWorkflow != workflowVersion {
+		return false, nil
+	}
+	if !strings.EqualFold(storedProvider, docsPiProvider()) {
+		return false, nil
+	}
+	if !strings.EqualFold(storedModel, docsPiModel()) {
+		return false, nil
+	}
+	return true, nil
 }
 
-func extractSourceHash(frontData map[string]any) string {
+func extractDocMetadata(frontData map[string]any) (string, int, string, string) {
 	xi, ok := frontData["x-i18n"].(map[string]any)
 	if !ok {
-		return ""
+		return "", 0, "", ""
 	}
-	value, ok := xi["source_hash"].(string)
-	if !ok {
-		return ""
+	sourceHash, _ := xi["source_hash"].(string)
+	provider, _ := xi["provider"].(string)
+	model, _ := xi["model"].(string)
+
+	workflow := 0
+	switch value := xi["workflow"].(type) {
+	case int:
+		workflow = value
+	case int64:
+		workflow = int(value)
+	case float64:
+		workflow = int(value)
 	}
-	return strings.TrimSpace(value)
+	return strings.TrimSpace(sourceHash), workflow, strings.TrimSpace(provider), strings.TrimSpace(model)
 }
 
 func resolveDocsPath(docsRoot, filePath string) (string, string, error) {

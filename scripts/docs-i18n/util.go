@@ -3,21 +3,28 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 const (
-	workflowVersion          = 15
-	docsI18nEngineName       = "pi"
-	envDocsI18nProvider      = "ALISIO_DOCS_I18N_PROVIDER"
-	envDocsI18nModel         = "ALISIO_DOCS_I18N_MODEL"
-	defaultOpenAIModel       = "gpt-5.4"
-	defaultAnthropicModel    = "claude-opus-4-6"
-	defaultFallbackProvider  = "openai"
-	defaultFallbackModelName = defaultOpenAIModel
+	// Bump when prompt/glossary/auth-selection changes should invalidate cached translations.
+	workflowVersion           = 16
+	docsI18nEngineName        = "pi"
+	envDocsI18nProvider       = "ALISIO_DOCS_I18N_PROVIDER"
+	envDocsI18nModel          = "ALISIO_DOCS_I18N_MODEL"
+	docsPiAuthFile            = ".pi/agent/auth.json"
+	docsPiProviderAnthropic   = "anthropic"
+	docsPiProviderOpenAI      = "openai"
+	docsPiProviderOpenAICodex = "openai-codex"
+	defaultOpenAIModel        = "gpt-5.4"
+	defaultAnthropicModel     = "claude-opus-4-6"
+	defaultFallbackProvider   = docsPiProviderOpenAI
+	defaultFallbackModelName  = defaultOpenAIModel
 )
 
 func cacheNamespace() string {
@@ -56,10 +63,18 @@ func docsPiProvider() string {
 		return value
 	}
 	if strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "" {
-		return "openai"
+		return docsPiProviderOpenAI
 	}
 	if strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")) != "" {
-		return "anthropic"
+		return docsPiProviderAnthropic
+	}
+	switch {
+	case docsPiAuthHas(docsPiProviderOpenAICodex):
+		return docsPiProviderOpenAICodex
+	case docsPiAuthHas(docsPiProviderAnthropic):
+		return docsPiProviderAnthropic
+	case docsPiAuthHas(docsPiProviderOpenAI):
+		return docsPiProviderOpenAI
 	}
 	return defaultFallbackProvider
 }
@@ -69,12 +84,105 @@ func docsPiModel() string {
 		return value
 	}
 	switch docsPiProvider() {
-	case "anthropic":
+	case docsPiProviderAnthropic:
 		return defaultAnthropicModel
-	case "openai":
+	case docsPiProviderOpenAI, docsPiProviderOpenAICodex:
 		return defaultOpenAIModel
 	default:
 		return defaultFallbackModelName
+	}
+}
+
+func docsPiAuthHas(provider string) bool {
+	if strings.TrimSpace(provider) == "" {
+		return false
+	}
+	providers := loadDocsPiAuthProviders()
+	_, ok := providers[provider]
+	return ok
+}
+
+func loadDocsPiAuthProviders() map[string]struct{} {
+	homeDir, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(homeDir) == "" {
+		return map[string]struct{}{}
+	}
+	authPath := filepath.Join(homeDir, docsPiAuthFile)
+	data, err := os.ReadFile(authPath)
+	if err != nil {
+		return map[string]struct{}{}
+	}
+
+	var auth map[string]json.RawMessage
+	if err := json.Unmarshal(data, &auth); err != nil {
+		return map[string]struct{}{}
+	}
+
+	providers := make(map[string]struct{}, len(auth))
+	for provider, raw := range auth {
+		name := strings.TrimSpace(provider)
+		if name == "" {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(string(raw)), "null") {
+			continue
+		}
+		providers[name] = struct{}{}
+	}
+	return providers
+}
+
+func docsPiHasCredentialsForProvider(provider string) bool {
+	switch strings.TrimSpace(provider) {
+	case docsPiProviderOpenAI:
+		return strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "" || docsPiAuthHas(docsPiProviderOpenAI)
+	case docsPiProviderOpenAICodex:
+		return strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != "" ||
+			docsPiAuthHas(docsPiProviderOpenAICodex) ||
+			docsPiAuthHas(docsPiProviderOpenAI)
+	case docsPiProviderAnthropic:
+		return strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY")) != "" || docsPiAuthHas(docsPiProviderAnthropic)
+	default:
+		return true
+	}
+}
+
+func ensureDocsPiCredentialsAvailable() error {
+	provider := docsPiProvider()
+	if docsPiHasCredentialsForProvider(provider) {
+		return nil
+	}
+	authPath := filepath.Join("~", docsPiAuthFile)
+	switch provider {
+	case docsPiProviderOpenAI:
+		return fmt.Errorf(
+			"docs-i18n: no credentials found for provider %q. Set OPENAI_API_KEY, set ANTHROPIC_API_KEY to switch providers automatically, or create %s via `pi` + `/login` (for ChatGPT Plus/Pro use provider %q). You can also override provider selection with %s.",
+			provider,
+			authPath,
+			docsPiProviderOpenAICodex,
+			envDocsI18nProvider,
+		)
+	case docsPiProviderOpenAICodex:
+		return fmt.Errorf(
+			"docs-i18n: no credentials found for provider %q. Set OPENAI_API_KEY, or create %s via `pi` + `/login` using provider %q. To switch providers, set %s=%q and provide ANTHROPIC_API_KEY.",
+			provider,
+			authPath,
+			docsPiProviderOpenAICodex,
+			envDocsI18nProvider,
+			docsPiProviderAnthropic,
+		)
+	case docsPiProviderAnthropic:
+		return fmt.Errorf(
+			"docs-i18n: no credentials found for provider %q. Set ANTHROPIC_API_KEY, or create %s via `pi` + `/login`. To switch providers, set %s=%q or %s=%q.",
+			provider,
+			authPath,
+			envDocsI18nProvider,
+			docsPiProviderOpenAI,
+			envDocsI18nProvider,
+			docsPiProviderOpenAICodex,
+		)
+	default:
+		return nil
 	}
 }
 
