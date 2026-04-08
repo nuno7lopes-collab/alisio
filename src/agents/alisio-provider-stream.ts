@@ -342,10 +342,12 @@ async function streamOpenAiCompatibleSource(params: {
 
 async function streamOllamaSource(params: {
   model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "server-ollama" }>;
+  source: Extract<AlisioDynamicProviderSource, { kind: "current-ollama" | "server-ollama" }>;
   context: StreamContext;
   options?: StreamOptions;
 }): Promise<AssistantMessageEventStream> {
+  const sourceLabel =
+    params.source.kind === "current-ollama" ? "local Ollama runtime" : "remote Ollama server";
   return beginTextStream({
     model: params.model,
     run: async ({ pushText }) => {
@@ -379,11 +381,11 @@ async function streamOllamaSource(params: {
       if (!response.ok) {
         const message = await response.text().catch(() => response.statusText);
         throw new Error(
-          `remote Ollama server request failed (${response.status}): ${message || response.statusText}`,
+          `${sourceLabel} request failed (${response.status}): ${message || response.statusText}`,
         );
       }
       if (!response.body) {
-        throw new Error("remote Ollama server returned no body");
+        throw new Error(`${sourceLabel} returned no body`);
       }
 
       const reader = response.body.getReader();
@@ -519,6 +521,14 @@ export async function resolveAlisioProviderStream(
   }
   if (source.kind === "current-openai") {
     return await streamOpenAiCompatibleSource({
+      model,
+      source,
+      context,
+      options,
+    });
+  }
+  if (source.kind === "current-ollama") {
+    return await streamOllamaSource({
       model,
       source,
       context,

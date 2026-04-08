@@ -55,9 +55,17 @@ Those are the practical server categories most operators expect.
 
 ## Practical Guidance
 
+- The **Local** view is per computer. It should show only the models that are installed on the current machine and the recommendations that make sense for that machine's hardware.
+- The **Server** view is also per machine. It lists only the models exposed by the server you added, not a merged global catalog.
 - Local models are great for privacy and control, but quality still depends on hardware and the model you can actually run.
 - Server-backed models are a good middle ground when the current Mac should stay lightweight.
 - Hosted and local/server setups should coexist so you can use fallbacks instead of committing to one path forever.
+
+## Runtime Discovery
+
+- **Ollama on this computer**: Alisio discovers installed models from the local Ollama API and can request install, update, or uninstall actions with explicit user consent.
+- **LM Studio local server**: Alisio treats LM Studio as an OpenAI-compatible endpoint and lists the models exposed by that server. Model downloads and server-side loading remain managed in LM Studio itself.
+- **Private servers on another machine**: add Ollama or any OpenAI-compatible endpoint in the **Server** tab when inference should run elsewhere.
 
 ## Example Policy
 

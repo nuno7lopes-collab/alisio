@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { AlisioLocalModelRuntimeInspection } from "../../infra/alisio-local-model-runtime.js";
 import {
   buildAlisioCurrentProviderId,
   buildAlisioServerProviderId,
@@ -119,9 +120,15 @@ const {
 } = vi.hoisted(() => ({
   inspectManagedLocalModelRuntimeMock: vi.fn(async () => ({
     backend: "llama.cpp" as const,
+    runtimeKind: "llama.cpp" as const,
     status: "not_configured" as const,
     message: "No local llama.cpp models are installed on this computer yet.",
     models: [],
+    availableModels: [],
+    supportsInstall: true,
+    supportsUpdate: true,
+    supportsUninstall: true,
+    consentRequired: true,
   })),
   installAlisioLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
     id: modelId,
@@ -408,29 +415,20 @@ describe("alisio gateway methods", () => {
   });
 
   it("installs an Ollama model on this computer when the local runtime is Ollama", async () => {
+    const ollamaInspection: AlisioLocalModelRuntimeInspection = {
+      backend: "llama.cpp",
+      runtimeKind: "ollama",
+      status: "ready",
+      models: [],
+      availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    };
     inspectLocalModelRuntimeMock
-      .mockResolvedValueOnce({
-        backend: "llama.cpp",
-        runtimeKind: "ollama",
-        status: "ready",
-        models: [],
-        availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
-        supportsInstall: true,
-        supportsUpdate: true,
-        supportsUninstall: true,
-        consentRequired: true,
-      })
-      .mockResolvedValueOnce({
-        backend: "llama.cpp",
-        runtimeKind: "ollama",
-        status: "ready",
-        models: [],
-        availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
-        supportsInstall: true,
-        supportsUpdate: true,
-        supportsUninstall: true,
-        consentRequired: true,
-      });
+      .mockResolvedValueOnce(ollamaInspection)
+      .mockResolvedValueOnce(ollamaInspection);
 
     const context = makeContext();
     const { calls, respond } = makeRespond();
@@ -492,29 +490,20 @@ describe("alisio gateway methods", () => {
   });
 
   it("uninstalls an Ollama model on this computer when the local runtime is Ollama", async () => {
+    const ollamaInspection: AlisioLocalModelRuntimeInspection = {
+      backend: "llama.cpp",
+      runtimeKind: "ollama",
+      status: "ready",
+      models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
+      availableModels: [],
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    };
     inspectLocalModelRuntimeMock
-      .mockResolvedValueOnce({
-        backend: "llama.cpp",
-        runtimeKind: "ollama",
-        status: "ready",
-        models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
-        availableModels: [],
-        supportsInstall: true,
-        supportsUpdate: true,
-        supportsUninstall: true,
-        consentRequired: true,
-      })
-      .mockResolvedValueOnce({
-        backend: "llama.cpp",
-        runtimeKind: "ollama",
-        status: "ready",
-        models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
-        availableModels: [],
-        supportsInstall: true,
-        supportsUpdate: true,
-        supportsUninstall: true,
-        consentRequired: true,
-      });
+      .mockResolvedValueOnce(ollamaInspection)
+      .mockResolvedValueOnce(ollamaInspection);
 
     const context = makeContext();
     const { calls, respond } = makeRespond();

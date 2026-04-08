@@ -36,6 +36,12 @@ export type AlisioDynamicProviderSource =
       targetId: string;
     })
   | (AlisioDynamicSourceBase & {
+      kind: "current-ollama";
+      targetId: string;
+      baseUrl: string;
+      apiKey?: string;
+    })
+  | (AlisioDynamicSourceBase & {
       kind: "current-openai";
       targetId: string;
       baseUrl: string;

@@ -2,6 +2,7 @@ import { loadConfig, type AlisioConfig } from "../config/config.js";
 import { GatewayClient } from "../gateway/client.js";
 import { resolveGatewayConnectionAuth } from "../gateway/connection-auth.js";
 import type { NodeCapabilityManifest } from "../gateway/protocol/index.js";
+import { resolveLocalModelRuntimeConfig } from "../infra/alisio-local-model-runtime.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import type { SkillBinTrustEntry } from "../infra/exec-approvals.js";
 import { resolveExecutableFromPathEnv } from "../infra/executable-path.js";
@@ -170,7 +171,7 @@ function resolveNodeHostCapabilities(params: {
       tags: ["llm", "local-model", "llama.cpp"],
     },
   ];
-  const modelBaseUrl = process.env.OPENCLAW_NODE_MODEL_BASE_URL?.trim();
+  const modelBaseUrl = resolveLocalModelRuntimeConfig(process.env).baseUrl;
   if (modelBaseUrl) {
     capabilities.push({
       id: "model.chat.openai.v1",

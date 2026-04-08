@@ -15,10 +15,15 @@ export function buildAlisioCurrentProviderId(): string {
 
 export function buildAlisioTargetProviderId(params: {
   targetId: string;
-  runtimeKind: "llama.cpp" | "openai-compatible";
+  runtimeKind: "llama.cpp" | "ollama" | "openai-compatible";
 }): string {
   const target = normalizeProviderToken(params.targetId) || "target";
-  const suffix = params.runtimeKind === "openai-compatible" ? "openai" : "llama";
+  const suffix =
+    params.runtimeKind === "openai-compatible"
+      ? "openai"
+      : params.runtimeKind === "ollama"
+        ? "ollama"
+        : "llama";
   return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}target-${target}-${suffix}`;
 }
 

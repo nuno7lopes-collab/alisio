@@ -1,6 +1,4 @@
 import os from "node:os";
-import type { AlisioLocalModelCatalogEntry } from "../shared/alisio-local-models.js";
-
 export type AlisioModelHardwareProfile = {
   platform: NodeJS.Platform;
   architecture: string;
@@ -15,6 +13,13 @@ export type AlisioModelRecommendation = {
   grade: AlisioModelRecommendationGrade;
   label: string;
   reason: string;
+};
+
+type RecommenderCatalogEntry = {
+  id: string;
+  name: string;
+  memoryGb: number;
+  parametersBillions: number;
 };
 
 export function inspectLocalModelHardwareProfile(): AlisioModelHardwareProfile {
@@ -43,7 +48,7 @@ function resolveCpuHeadroom(profile: AlisioModelHardwareProfile, parametersBilli
 
 export function recommendModelForHardware(
   profile: AlisioModelHardwareProfile,
-  entry: Pick<AlisioLocalModelCatalogEntry, "id" | "memoryGb" | "parametersBillions" | "name">,
+  entry: RecommenderCatalogEntry,
 ): AlisioModelRecommendation {
   const memoryHeadroom = resolveMemoryHeadroom(profile, entry.memoryGb);
   const cpuHeadroom = resolveCpuHeadroom(profile, entry.parametersBillions);
@@ -85,7 +90,7 @@ export function recommendModelForHardware(
 
 export function summarizeHardwareRecommendation(
   profile: AlisioModelHardwareProfile,
-  catalog: readonly AlisioLocalModelCatalogEntry[],
+  catalog: readonly RecommenderCatalogEntry[],
 ) {
   const ranked = catalog
     .map((entry) => ({

@@ -27,6 +27,16 @@ type ChatModelOption = {
   value: string;
   label: string;
 };
+type TargetCatalogEntryView = {
+  id: string;
+  name: string;
+  summary?: string;
+  parametersBillions?: number;
+  quantization?: string;
+  memoryGb?: number;
+  diskGb?: number;
+  recommendation?: LocalModelTarget["recommendations"][number] | null;
+};
 
 function aiText() {
   return {
@@ -88,9 +98,12 @@ function modelsText() {
     emptyServers: t("alisio.settings.models.emptyServers"),
     install: t("alisio.settings.models.install"),
     installing: t("alisio.settings.models.installing"),
+    update: t("alisio.settings.models.update"),
+    updating: t("alisio.settings.models.updating"),
     installed: t("alisio.settings.models.installed"),
     uninstall: t("alisio.settings.models.uninstall"),
     uninstalling: t("alisio.settings.models.uninstalling"),
+    running: t("alisio.settings.models.running"),
     backend: t("alisio.settings.models.backend"),
     installedModels: t("alisio.settings.models.installedModels"),
     availableModels: t("alisio.settings.models.availableModels"),
@@ -149,6 +162,9 @@ function modelsText() {
     endpoint: t("alisio.settings.models.endpoint"),
     endpoints: t("alisio.settings.models.endpoints"),
     recommendedToInstall: t("alisio.settings.models.recommendedToInstall"),
+    confirmInstall: t("alisio.settings.models.confirmInstall"),
+    confirmUpdate: t("alisio.settings.models.confirmUpdate"),
+    confirmUninstall: t("alisio.settings.models.confirmUninstall"),
   };
 }
 
@@ -536,6 +552,12 @@ function resolveTargetDisplayModels(
   if (target.installedModels.length > 0) {
     return target.installedModels;
   }
+  if (!target.supportsInstall && (target.availableModels?.length ?? 0) > 0) {
+    return (target.availableModels ?? []).map((model) => ({
+      id: model.id,
+      name: model.name,
+    }));
+  }
   return target.runtimeKind === "openai-compatible"
     ? resolveProviderFallbackModels(options, providerId)
     : target.installedModels;
@@ -566,6 +588,12 @@ function resolvePrimaryLocalSummary(
   if (installed.length > 0) {
     return installed[0]?.name ?? "";
   }
+  const discovered = targets
+    .filter((target) => !target.supportsInstall)
+    .flatMap((target) => target.availableModels ?? []);
+  if (discovered.length > 0) {
+    return discovered[0]?.name ?? "";
+  }
   const recommended = targets.find((target) => target.bestModelName)?.bestModelName;
   if (recommended) {
     return recommended;
@@ -587,7 +615,13 @@ function splitTargets(targets: readonly LocalModelTarget[]) {
 
 function resolveTargetRuntimeLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" ? text.openAiCompatible : target.backend;
+  if (target.runtimeKind === "openai-compatible") {
+    return text.openAiCompatible;
+  }
+  if (target.runtimeKind === "ollama") {
+    return text.ollama;
+  }
+  return target.backend;
 }
 
 function resolveTargetModelsLabel(target: LocalModelTarget) {
@@ -671,6 +705,82 @@ function resolveSuggestedCatalogEntries(
       }
       return left.model.name.localeCompare(right.model.name);
     });
+}
+
+function resolveTargetAvailableCatalogEntries(
+  target: LocalModelTarget,
+  catalog: readonly AlisioModelsState["catalog"][number][],
+): TargetCatalogEntryView[] {
+  const targetCatalog = target.availableModels ?? [];
+  if (targetCatalog.length > 0) {
+    return targetCatalog
+      .filter(
+        (model) => !target.installedModels.some((installedModel) => installedModel.id === model.id),
+      )
+      .map((model) => ({
+        id: model.id,
+        name: model.name,
+        summary: model.summary,
+        parametersBillions: model.parametersBillions,
+        quantization: model.quantization,
+        memoryGb: model.memoryGb,
+        diskGb: model.diskGb,
+        recommendation: model.recommendation ?? resolveModelRecommendation(target, model.id),
+      }))
+      .filter((entry) => !entry.recommendation || entry.recommendation.grade !== "unsupported")
+      .toSorted((left, right) => {
+        const leftWeight = left.recommendation
+          ? recommendationWeight(left.recommendation.grade)
+          : 3;
+        const rightWeight = right.recommendation
+          ? recommendationWeight(right.recommendation.grade)
+          : 3;
+        if (leftWeight !== rightWeight) {
+          return leftWeight - rightWeight;
+        }
+        return left.name.localeCompare(right.name);
+      });
+  }
+
+  return resolveSuggestedCatalogEntries(target, catalog).map(({ model, recommendation }) => ({
+    id: model.id,
+    name: model.name,
+    summary: model.summary,
+    parametersBillions: model.parametersBillions,
+    quantization: model.quantization,
+    memoryGb: model.memoryGb,
+    diskGb: model.diskGb,
+    recommendation,
+  }));
+}
+
+function resolveTargetCatalogLookupEntries(
+  target: LocalModelTarget,
+  catalog: readonly AlisioModelsState["catalog"][number][],
+): TargetCatalogEntryView[] {
+  if ((target.availableModels?.length ?? 0) > 0) {
+    return (target.availableModels ?? []).map((model) => ({
+      id: model.id,
+      name: model.name,
+      summary: model.summary,
+      parametersBillions: model.parametersBillions,
+      quantization: model.quantization,
+      memoryGb: model.memoryGb,
+      diskGb: model.diskGb,
+      recommendation: model.recommendation ?? resolveModelRecommendation(target, model.id),
+    }));
+  }
+
+  return catalog.map((model) => ({
+    id: model.id,
+    name: model.name,
+    summary: model.summary,
+    parametersBillions: model.parametersBillions,
+    quantization: model.quantization,
+    memoryGb: model.memoryGb,
+    diskGb: model.diskGb,
+    recommendation: resolveModelRecommendation(target, model.id),
+  }));
 }
 
 function formatModelBytes(value: number | undefined) {
@@ -757,19 +867,29 @@ function renderModelOperationProgress(
   `;
 }
 
-function resolveCatalogEntryById(
-  catalog: readonly AlisioModelsState["catalog"][number][],
-  modelId: string,
-) {
+function resolveCatalogEntryById(catalog: readonly TargetCatalogEntryView[], modelId: string) {
   const normalizedId = modelId.trim().toLowerCase();
   return catalog.find((entry) => entry.id.trim().toLowerCase() === normalizedId) ?? null;
 }
 
+function resolveInstalledModelDetail(entry: TargetCatalogEntryView | null) {
+  if (!entry) {
+    return "";
+  }
+  const parts = [
+    typeof entry.parametersBillions === "number" ? `${entry.parametersBillions}B` : "",
+    entry.quantization ?? "",
+    entry.summary ?? "",
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 function renderInstalledModelRows(props: {
   target: LocalModelTarget;
-  catalog: readonly AlisioModelsState["catalog"][number][];
+  catalog: readonly TargetCatalogEntryView[];
   operations?: ModelsOperationMap;
   busy: boolean;
+  onUpdateModel?: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
 }) {
   const text = modelsText();
@@ -791,12 +911,22 @@ function renderInstalledModelRows(props: {
             <div class="alisio-models__model-main">
               <div class="list-title">${catalogEntry?.name ?? model.name}</div>
               <div class="list-sub">
-                ${catalogEntry
-                  ? `${catalogEntry.parametersBillions}B · ${catalogEntry.quantization} · ${catalogEntry.summary}`
-                  : text.installed}
+                ${resolveInstalledModelDetail(catalogEntry) || text.installed}
               </div>
+              ${model.running ? html`<div class="list-sub">${text.running}</div>` : nothing}
             </div>
             <div class="alisio-models__model-actions">
+              ${props.onUpdateModel
+                ? html`
+                    <button
+                      class="btn"
+                      ?disabled=${busy}
+                      @click=${() => props.onUpdateModel?.(props.target.targetId, model.id)}
+                    >
+                      ${operation?.action === "install" ? text.updating : text.update}
+                    </button>
+                  `
+                : nothing}
               <button
                 class="btn danger"
                 ?disabled=${busy}
@@ -815,7 +945,7 @@ function renderInstalledModelRows(props: {
 
 function renderTargetCatalog(props: {
   target: LocalModelTarget;
-  catalog: readonly AlisioModelsState["catalog"][number][];
+  catalog: readonly TargetCatalogEntryView[];
   operations?: ModelsOperationMap;
   busy: boolean;
   onInstallModel: (targetId: string, modelId: string) => void;
@@ -824,14 +954,15 @@ function renderTargetCatalog(props: {
     return nothing;
   }
   const text = modelsText();
-  const suggestedCatalog = resolveSuggestedCatalogEntries(props.target, props.catalog);
+  const suggestedCatalog = props.catalog;
   if (suggestedCatalog.length === 0) {
     return nothing;
   }
 
   return html`
     <div class="alisio-models__catalog">
-      ${suggestedCatalog.map(({ model, recommendation }) => {
+      ${suggestedCatalog.map((model) => {
+        const recommendation = model.recommendation ?? null;
         const operation = findTargetModelOperation(
           props.operations,
           props.target.targetId,
@@ -842,12 +973,20 @@ function renderTargetCatalog(props: {
           <div class="alisio-models__catalog-item">
             <div class="alisio-models__model-main">
               <div class="list-title">${model.name}</div>
-              <div class="list-sub">${model.summary}</div>
+              ${model.summary ? html`<div class="list-sub">${model.summary}</div>` : nothing}
               <div class="alisio-models__model-facts">
-                <span class="pill">${model.parametersBillions}B</span>
-                <span class="pill">${model.quantization}</span>
-                <span class="pill">${text.memory} ${model.memoryGb} GB</span>
-                <span class="pill">${text.disk} ${model.diskGb} GB</span>
+                ${typeof model.parametersBillions === "number"
+                  ? html`<span class="pill">${model.parametersBillions}B</span>`
+                  : nothing}
+                ${model.quantization
+                  ? html`<span class="pill">${model.quantization}</span>`
+                  : nothing}
+                ${typeof model.memoryGb === "number"
+                  ? html`<span class="pill">${text.memory} ${model.memoryGb} GB</span>`
+                  : nothing}
+                ${typeof model.diskGb === "number"
+                  ? html`<span class="pill">${text.disk} ${model.diskGb} GB</span>`
+                  : nothing}
               </div>
               ${recommendation
                 ? html`<div class="list-sub">
@@ -860,7 +999,7 @@ function renderTargetCatalog(props: {
                 class="btn primary"
                 ?disabled=${props.busy || !props.target.connected || installBusy}
                 @click=${() => props.onInstallModel(props.target.targetId, model.id)}
-                title=${recommendation.reason}
+                title=${recommendation?.reason ?? ""}
               >
                 ${installBusy ? text.installing : text.install}
               </button>
@@ -881,6 +1020,7 @@ function renderTargetCard(props: {
   operations?: ModelsOperationMap;
   busy?: boolean;
   onInstallModel?: (targetId: string, modelId: string) => void;
+  onUpdateModel?: (targetId: string, modelId: string) => void;
   onUninstallModel?: (targetId: string, modelId: string) => void;
   onSelectChatModel?: (value: string) => void;
 }) {
@@ -896,10 +1036,13 @@ function renderTargetCard(props: {
     props.chatModelOptions ?? [],
     targetProviderId,
   );
-  const suggestedCatalog = props.installCatalog
-    ? resolveSuggestedCatalogEntries(props.target, props.installCatalog)
+  const targetCatalogEntries = props.installCatalog
+    ? resolveTargetCatalogLookupEntries(props.target, props.installCatalog)
     : [];
-  const hasInstallableCatalog = suggestedCatalog.length > 0;
+  const targetManageCatalog = props.installCatalog
+    ? resolveTargetAvailableCatalogEntries(props.target, props.installCatalog)
+    : [];
+  const hasInstallableCatalog = targetManageCatalog.length > 0;
   const statusLabel = !props.target.connected
     ? text.targetNotConnected
     : props.target.runtimeStatus === "ready"
@@ -971,9 +1114,10 @@ function renderTargetCard(props: {
         ${canManageInstalledModels
           ? renderInstalledModelRows({
               target: props.target,
-              catalog: props.installCatalog ?? [],
+              catalog: targetCatalogEntries,
               operations: props.operations,
               busy: props.busy ?? false,
+              onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel!,
             })
           : targetDisplayModels.length > 0
@@ -995,7 +1139,7 @@ function renderTargetCard(props: {
               <div class="alisio-models__installed-title">${text.recommendedToInstall}</div>
               ${renderTargetCatalog({
                 target: props.target,
-                catalog: props.installCatalog,
+                catalog: targetManageCatalog,
                 operations: props.operations,
                 busy: props.busy ?? false,
                 onInstallModel: props.onInstallModel,
@@ -1546,6 +1690,7 @@ function renderLocalModelsSection(props: {
   effectiveChatModelValue: string;
   modelOperations?: ModelsOperationMap;
   onInstallModel: (targetId: string, modelId: string) => void;
+  onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
   onSelectModel: (value: string) => void;
 }) {
@@ -1592,6 +1737,7 @@ function renderLocalModelsSection(props: {
               operations: props.modelOperations,
               busy: props.modelsLoading,
               onInstallModel: props.onInstallModel,
+              onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
               onSelectChatModel: props.onSelectModel,
             })
@@ -1618,6 +1764,7 @@ function renderServersSection(props: {
   effectiveChatModelValue: string;
   serverDraft: ModelsServerDraft | null | undefined;
   onInstallModel: (targetId: string, modelId: string) => void;
+  onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
   onSelectModel: (value: string) => void;
   onStartCreateServer: () => void;
@@ -1690,6 +1837,7 @@ function renderServersSection(props: {
                     operations: props.modelOperations,
                     busy: props.modelsLoading,
                     onInstallModel: props.onInstallModel,
+                    onUpdateModel: props.onUpdateModel,
                     onUninstallModel: props.onUninstallModel,
                     onSelectChatModel: props.onSelectModel,
                   }),
@@ -1849,6 +1997,7 @@ export function renderModelsHub(props: {
   onRefreshAiProfile: (profileId: string) => void;
   onRenameAiProfile: (profileId: string, label: string) => void;
   onInstallModel: (targetId: string, modelId: string) => void;
+  onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
   onStartCreateServer: () => void;
   onStartEditServer: (server: RemoteModelServer) => void;
@@ -1874,12 +2023,13 @@ export function renderModelsHub(props: {
       )
     : [];
   const localSuggestionsCount =
-    currentTarget && localCatalog.length > 0
-      ? resolveSuggestedCatalogEntries(currentTarget, localCatalog).length
+    currentTarget && currentTarget.supportsInstall
+      ? resolveTargetAvailableCatalogEntries(currentTarget, localCatalog).length
       : 0;
   const providerPickerLoading =
     (props.aiLoading && profiles.length === 0) || (props.modelsLoading && !props.models);
   const uniqueInstalledModels = countUniqueInstalledModels(currentTarget ? [currentTarget] : []);
+  const localDisplayModelCount = currentTargetDisplayModels.length;
   const selectedLocalModelLabel = currentTarget?.chatProviderId
     ? resolveProviderModelLabel({
         models: currentTargetDisplayModels,
@@ -1896,7 +2046,7 @@ export function renderModelsHub(props: {
       ? currentTarget.label
       : currentTarget && !currentTarget.connected
         ? text.targetNotConnected
-        : uniqueInstalledModels > 0
+        : localDisplayModelCount > 0 || uniqueInstalledModels > 0
           ? currentTarget?.runtimeKind === "openai-compatible"
             ? text.availableModels
             : text.installedModels
@@ -2021,6 +2171,7 @@ export function renderModelsHub(props: {
               effectiveChatModelValue: props.effectiveChatModelValue,
               modelOperations: props.modelOperations,
               onInstallModel: props.onInstallModel,
+              onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
               onSelectModel: props.onSelectChatModel,
             })
@@ -2037,6 +2188,7 @@ export function renderModelsHub(props: {
               serverDraft: props.serverDraft,
               onSelectModel: props.onSelectChatModel,
               onInstallModel: props.onInstallModel,
+              onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
               onStartCreateServer: props.onStartCreateServer,
               onStartEditServer: props.onStartEditServer,

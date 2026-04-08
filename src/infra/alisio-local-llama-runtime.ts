@@ -137,17 +137,29 @@ export async function inspectManagedLocalModelRuntime(
   if (models.length === 0) {
     return {
       backend: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
       status: "not_configured",
       message: "No local llama.cpp models are installed on this computer yet.",
       models: [],
+      availableModels: [],
       hardware,
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
     };
   }
   return {
     backend: ALISIO_LOCAL_MODEL_BACKEND,
+    runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
     status: "ready",
     models,
+    availableModels: [],
     hardware,
+    supportsInstall: true,
+    supportsUpdate: true,
+    supportsUninstall: true,
+    consentRequired: true,
   };
 }
 
