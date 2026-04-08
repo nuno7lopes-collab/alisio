@@ -176,6 +176,7 @@ describe("channelsHandlers channels.status", () => {
     expect(respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
+        channelSurfaceMode: "focused",
         channelOrder: ["telegram", "whatsapp", "discord"],
         channelMeta: [
           expect.objectContaining({
@@ -276,6 +277,7 @@ describe("channelsHandlers channels.status", () => {
     expect(respond).toHaveBeenCalledWith(
       true,
       expect.objectContaining({
+        channelSurfaceMode: "all",
         channelOrder: ["telegram", "whatsapp", "discord", "slack"],
         channelMeta: expect.arrayContaining([
           expect.objectContaining({
@@ -289,6 +291,62 @@ describe("channelsHandlers channels.status", () => {
             setupOnly: true,
             setupAvailable: true,
           }),
+        }),
+      }),
+      undefined,
+    );
+  });
+
+  it("redige lastError nos snapshots e resumos de status", async () => {
+    const respond = vi.fn();
+    const rawToken = "123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef";
+    mocks.buildChannelAccountSnapshot.mockResolvedValue({
+      accountId: "default",
+      configured: true,
+      lastError: `Telegram token ${rawToken}`,
+    });
+    mocks.listChannelPlugins.mockReturnValue([
+      {
+        id: "whatsapp",
+        config: {
+          listAccountIds: () => ["default"],
+          resolveAccount: () => ({}),
+          isEnabled: () => true,
+          isConfigured: async () => true,
+        },
+        status: {
+          buildChannelSummary: () => ({
+            configured: true,
+            connected: false,
+            lastError: `Telegram token ${rawToken}`,
+          }),
+        },
+      },
+    ]);
+
+    await channelsHandlers["channels.status"](
+      createOptions(
+        { probe: false, timeoutMs: 2000 },
+        {
+          respond,
+        },
+      ),
+    );
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        channels: expect.objectContaining({
+          whatsapp: expect.objectContaining({
+            lastError: "Telegram token 123456…cdef",
+          }),
+        }),
+        channelAccounts: expect.objectContaining({
+          whatsapp: [
+            expect.objectContaining({
+              lastError: "Telegram token 123456…cdef",
+            }),
+          ],
         }),
       }),
       undefined,

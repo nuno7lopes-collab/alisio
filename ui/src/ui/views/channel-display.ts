@@ -1,3 +1,4 @@
+import { isProductChatChannelId } from "../../../../src/channels/product-surface.shared.js";
 import type {
   ChannelAccountSnapshot,
   ChannelStatusIssue,
@@ -89,6 +90,13 @@ function deriveChannelMeta(
   };
 }
 
+function shouldIncludeProductChannel(
+  snapshot: ChannelsStatusSnapshot | null,
+  channelId: string,
+): boolean {
+  return snapshot?.channelSurfaceMode === "all" || isProductChatChannelId(channelId);
+}
+
 export function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): ResolvedChannelRow[] {
   if (!snapshot) {
     return [];
@@ -109,21 +117,23 @@ export function resolveChannelRows(snapshot: ChannelsStatusSnapshot | null): Res
       ids.push(channelId);
     }
   }
-  return ids.map((channelId) => {
-    const accounts = snapshot.channelAccounts[channelId] ?? [];
-    const defaultAccountId = snapshot.channelDefaultAccountId[channelId] ?? null;
-    const defaultAccount =
-      accounts.find((entry) => entry.accountId === defaultAccountId) ?? accounts[0] ?? null;
-    return {
-      id: channelId,
-      meta: metaById.get(channelId) ?? deriveChannelMeta(snapshot, channelId),
-      summary: asRecord(snapshot.channels[channelId]),
-      issues: snapshot.channelIssues?.[channelId] ?? [],
-      accounts,
-      defaultAccountId,
-      defaultAccount,
-    };
-  });
+  return ids
+    .filter((channelId) => shouldIncludeProductChannel(snapshot, channelId))
+    .map((channelId) => {
+      const accounts = snapshot.channelAccounts[channelId] ?? [];
+      const defaultAccountId = snapshot.channelDefaultAccountId[channelId] ?? null;
+      const defaultAccount =
+        accounts.find((entry) => entry.accountId === defaultAccountId) ?? accounts[0] ?? null;
+      return {
+        id: channelId,
+        meta: metaById.get(channelId) ?? deriveChannelMeta(snapshot, channelId),
+        summary: asRecord(snapshot.channels[channelId]),
+        issues: snapshot.channelIssues?.[channelId] ?? [],
+        accounts,
+        defaultAccountId,
+        defaultAccount,
+      };
+    });
 }
 
 export function channelAccountLooksConnected(
@@ -287,11 +297,8 @@ export function resolveAccountIdentifier(
 }
 
 export function countConnectedChannelAccounts(snapshot: ChannelsStatusSnapshot | null): number {
-  if (!snapshot) {
-    return 0;
-  }
-  return Object.values(snapshot.channelAccounts ?? {})
-    .flat()
+  return resolveChannelRows(snapshot)
+    .flatMap((row) => row.accounts)
     .filter((account) => channelAccountLooksConnected(account)).length;
 }
 

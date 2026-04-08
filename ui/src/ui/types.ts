@@ -53,6 +53,7 @@ export type WizardStartResult = import("../../../src/gateway/protocol/index.js")
 export type WizardStatusResult =
   import("../../../src/gateway/protocol/index.js").WizardStatusResult;
 export type WizardStep = import("../../../src/gateway/protocol/index.js").WizardStep;
+import type { ProductChannelSurfaceMode } from "../../../src/channels/product-surface.shared.js";
 import type { CronJobBase } from "../../../src/cron/types-shared.js";
 import type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 import type {
@@ -64,6 +65,7 @@ export type { ConfigUiHint, ConfigUiHints } from "../../../src/shared/config-ui-
 
 export type ChannelsStatusSnapshot = {
   ts: number;
+  channelSurfaceMode?: ProductChannelSurfaceMode;
   channelOrder: string[];
   channelLabels: Record<string, string>;
   channelDetailLabels?: Record<string, string>;

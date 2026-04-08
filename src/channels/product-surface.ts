@@ -1,22 +1,17 @@
 import type { ChatChannelMeta } from "./chat-meta.js";
 import { listChannelPlugins } from "./plugins/index.js";
 import type { ChannelPlugin } from "./plugins/types.js";
+import {
+  isProductChatChannelId,
+  PRODUCT_CHAT_CHANNEL_IDS,
+  type ProductChannelSurfaceMode,
+} from "./product-surface.shared.js";
 import { listChatChannels } from "./registry.js";
 
-export const PRODUCT_CHAT_CHANNEL_IDS = ["telegram", "whatsapp", "discord"] as const;
 export const CHANNEL_SURFACE_MODE_ENV = "OPENCLAW_CHANNEL_SURFACE";
 export const EXPERIMENTAL_CHANNELS_ENV = "OPENCLAW_EXPERIMENTAL_CHANNELS";
-
-export type ProductChatChannelId = (typeof PRODUCT_CHAT_CHANNEL_IDS)[number];
-export type ProductChannelSurfaceMode = "focused" | "all";
-
-const PRODUCT_CHAT_CHANNEL_ID_SET = new Set<string>(PRODUCT_CHAT_CHANNEL_IDS);
-
-export function isProductChatChannelId(
-  value: string | null | undefined,
-): value is ProductChatChannelId {
-  return typeof value === "string" && PRODUCT_CHAT_CHANNEL_ID_SET.has(value);
-}
+export { isProductChatChannelId, PRODUCT_CHAT_CHANNEL_IDS };
+export type { ProductChatChannelId, ProductChannelSurfaceMode } from "./product-surface.shared.js";
 
 function isTruthySurfaceFlag(value: string | undefined): boolean {
   if (!value) {

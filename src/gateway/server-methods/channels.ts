@@ -19,7 +19,9 @@ import type {
 import {
   filterProductChannelEntries,
   listProductChatChannels,
+  resolveProductChannelSurfaceMode,
 } from "../../channels/product-surface.js";
+import { redactChannelStatusRecord } from "../../channels/status-redaction.js";
 import { isChannelConfigured } from "../../config/channel-configured.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig, readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
@@ -281,6 +283,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
     );
     const payload: Record<string, unknown> = {
       ts: Date.now(),
+      channelSurfaceMode: resolveProductChannelSurfaceMode(),
       channelOrder,
       channelLabels,
       channelDetailLabels,
@@ -316,7 +319,7 @@ export const channelsHandlers: GatewayRequestHandlers = {
       const configured = isChannelConfigured(cfg, entry.id, process.env);
       const linkMode = entry.id === "whatsapp" ? "qr" : "wizard";
       if (!plugin) {
-        channelsMap[entry.id] = {
+        channelsMap[entry.id] = redactChannelStatusRecord({
           configured,
           linked: entry.id === "whatsapp" ? false : configured,
           running: false,
@@ -325,15 +328,15 @@ export const channelsHandlers: GatewayRequestHandlers = {
           setupAvailable: true,
           logoutAvailable: false,
           linkMode,
-        };
+        });
         accountsMap[entry.id] = [
-          {
+          redactChannelStatusRecord({
             accountId: DEFAULT_ACCOUNT_ID,
             configured,
             linked: entry.id === "whatsapp" ? false : configured,
             running: false,
             connected: false,
-          },
+          }),
         ] satisfies ChannelAccountSnapshot[];
         defaultAccountIdMap[entry.id] = DEFAULT_ACCOUNT_ID;
         if (configured) {
@@ -367,13 +370,13 @@ export const channelsHandlers: GatewayRequestHandlers = {
         : {
             configured: defaultAccount?.configured ?? false,
           };
-      channelsMap[plugin.id] = {
+      channelsMap[plugin.id] = redactChannelStatusRecord({
         ...summary,
         setupAvailable: true,
         logoutAvailable: Boolean(plugin.gateway?.logoutAccount),
         linkMode,
-      };
-      accountsMap[plugin.id] = accounts;
+      });
+      accountsMap[plugin.id] = accounts.map((account) => redactChannelStatusRecord(account));
       defaultAccountIdMap[plugin.id] = defaultAccountId;
     }
     for (const issue of collectChannelStatusIssues(payload)) {

@@ -11,6 +11,7 @@ import {
   listProductChannelPlugins,
   shouldExposeChannelInProductSurface,
 } from "../../channels/product-surface.js";
+import { redactChannelStatusText } from "../../channels/status-redaction.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { resolveCommandSecretRefsViaGateway } from "../../cli/command-secret-gateway.js";
 import { getChannelsCommandSecretTargetIds } from "../../cli/command-secret-targets.js";
@@ -171,8 +172,9 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
       if (audit && typeof audit.ok === "boolean") {
         bits.push(audit.ok ? "audit ok" : "audit failed");
       }
-      if (typeof account.lastError === "string" && account.lastError) {
-        bits.push(`error:${account.lastError}`);
+      const lastError = redactChannelStatusText(account.lastError);
+      if (lastError) {
+        bits.push(`error:${lastError}`);
       }
       return buildChannelAccountLine(provider, account, bits);
     });

@@ -817,6 +817,23 @@ describe("channels command", () => {
     expect(disconnected.join("\n")).toMatch(/disconnected/i);
   });
 
+  it("redige detalhes sensíveis em lastError no output de status", () => {
+    const joined = formatChannelStatusJoined({
+      telegram: [
+        {
+          accountId: "default",
+          enabled: true,
+          configured: true,
+          lastError:
+            "GET https://api.telegram.org/bot123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef/getMe failed",
+        },
+      ],
+    });
+
+    expect(joined).not.toContain("bot123456:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef/getMe");
+    expect(joined).toContain("bot123456…cdef/getMe");
+  });
+
   it("cleans up telegram update offset when deleting a telegram account", async () => {
     configMocks.readConfigFileSnapshot.mockResolvedValue({
       ...baseConfigSnapshot,

@@ -2,6 +2,7 @@ import type { ChannelStatusAdapter } from "../channels/plugins/types.adapters.js
 import type { ChannelAccountSnapshot } from "../channels/plugins/types.core.js";
 import type { ChannelStatusIssue } from "../channels/plugins/types.js";
 import type { AlisioConfig } from "../config/config.js";
+import { redactSensitiveText } from "../logging/redact.js";
 export { isRecord } from "../channels/plugins/status-issues/shared.js";
 export {
   appendMatchMetadata,
@@ -358,7 +359,7 @@ export function collectStatusIssuesFromLastError(
         channel,
         accountId: account.accountId,
         kind: "runtime",
-        message: `Channel error: ${lastError}`,
+        message: `Channel error: ${redactSensitiveText(lastError)}`,
       },
     ];
   });

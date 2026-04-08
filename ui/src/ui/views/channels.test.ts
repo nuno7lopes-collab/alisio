@@ -1063,6 +1063,108 @@ describe("channels view", () => {
     });
   });
 
+  it("esconde canais fora da shortlist do produto em snapshots legados", () => {
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["telegram", "slack"],
+      channelLabels: {
+        telegram: "Telegram",
+        slack: "Slack",
+      },
+      channelDetailLabels: {
+        telegram: "Telegram",
+        slack: "Slack",
+      },
+      channelMeta: [
+        { id: "telegram", label: "Telegram", detailLabel: "Telegram" },
+        { id: "slack", label: "Slack", detailLabel: "Slack" },
+      ],
+      channelIssues: {},
+      channels: {
+        telegram: {
+          configured: true,
+          setupAvailable: true,
+        },
+        slack: {
+          configured: true,
+          connected: true,
+          setupAvailable: true,
+        },
+      },
+      channelAccounts: {
+        telegram: [{ accountId: "default", configured: true }],
+        slack: [{ accountId: "default", configured: true, connected: true }],
+      },
+      channelDefaultAccountId: {
+        telegram: "default",
+        slack: "default",
+      },
+    };
+    const container = document.createElement("div");
+
+    render(renderChannels(createProps({ snapshot })), container);
+
+    expect(container.textContent).toContain("Telegram");
+    expect(container.textContent).not.toContain("Slack");
+    expect(countConnectedChannelAccounts(snapshot)).toBe(0);
+    expect(summarizeChannelsSnapshot(snapshot)).toMatchObject({
+      totalChannels: 1,
+      connectedChannels: 0,
+      connectedAccounts: 0,
+    });
+  });
+
+  it("mostra a superfície alargada quando o snapshot vem em modo all", () => {
+    const snapshot = {
+      ts: Date.now(),
+      channelSurfaceMode: "all" as const,
+      channelOrder: ["telegram", "slack"],
+      channelLabels: {
+        telegram: "Telegram",
+        slack: "Slack",
+      },
+      channelDetailLabels: {
+        telegram: "Telegram",
+        slack: "Slack",
+      },
+      channelMeta: [
+        { id: "telegram", label: "Telegram", detailLabel: "Telegram" },
+        { id: "slack", label: "Slack", detailLabel: "Slack" },
+      ],
+      channelIssues: {},
+      channels: {
+        telegram: {
+          configured: true,
+          setupAvailable: true,
+        },
+        slack: {
+          configured: true,
+          connected: true,
+          setupAvailable: true,
+        },
+      },
+      channelAccounts: {
+        telegram: [{ accountId: "default", configured: true }],
+        slack: [{ accountId: "default", configured: true, connected: true }],
+      },
+      channelDefaultAccountId: {
+        telegram: "default",
+        slack: "default",
+      },
+    };
+    const container = document.createElement("div");
+
+    render(renderChannels(createProps({ snapshot })), container);
+
+    expect(container.textContent).toContain("Slack");
+    expect(countConnectedChannelAccounts(snapshot)).toBe(1);
+    expect(summarizeChannelsSnapshot(snapshot)).toMatchObject({
+      totalChannels: 2,
+      connectedChannels: 1,
+      connectedAccounts: 1,
+    });
+  });
+
   it("reutiliza o snapshot recente dos canais sem novo pedido quando não há probe", async () => {
     const snapshot = {
       ts: Date.now(),
