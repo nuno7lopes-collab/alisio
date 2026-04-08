@@ -12,6 +12,11 @@ HASH_FILE="$ROOT_DIR/src/canvas-host/a2ui/.bundle.hash"
 OUTPUT_FILE="$ROOT_DIR/src/canvas-host/a2ui/a2ui.bundle.js"
 A2UI_RENDERER_DIR="$ROOT_DIR/vendor/a2ui/renderers/lit"
 A2UI_APP_DIR="$ROOT_DIR/apps/shared/AlisioKit/Tools/CanvasA2UI"
+LEGACY_A2UI_APP_DIR="$ROOT_DIR/apps/shared/OpenClawKit/Tools/CanvasA2UI"
+
+if [[ ! -d "$A2UI_APP_DIR" && -d "$LEGACY_A2UI_APP_DIR" ]]; then
+  A2UI_APP_DIR="$LEGACY_A2UI_APP_DIR"
+fi
 
 # Docker builds exclude vendor/apps via .dockerignore.
 # In that environment we can keep a prebuilt bundle only if it exists.
@@ -30,6 +35,10 @@ INPUT_PATHS=(
   "$A2UI_RENDERER_DIR"
   "$A2UI_APP_DIR"
 )
+
+if [[ -d "$LEGACY_A2UI_APP_DIR" ]]; then
+  INPUT_PATHS+=("$LEGACY_A2UI_APP_DIR")
+fi
 
 compute_hash() {
   ROOT_DIR="$ROOT_DIR" node --input-type=module --eval '

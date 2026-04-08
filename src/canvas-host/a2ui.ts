@@ -5,11 +5,22 @@ import { fileURLToPath } from "node:url";
 import { detectMime } from "../media/mime.js";
 import { resolveFileWithinRoot } from "./file-resolver.js";
 
-export const A2UI_PATH = "/__openclaw__/a2ui";
+export const A2UI_PATH = "/__alisio__/a2ui";
+export const LEGACY_A2UI_PATH = "/__openclaw__/a2ui";
 
-export const CANVAS_HOST_PATH = "/__openclaw__/canvas";
+export const CANVAS_HOST_PATH = "/__alisio__/canvas";
+export const LEGACY_CANVAS_HOST_PATH = "/__openclaw__/canvas";
 
-export const CANVAS_WS_PATH = "/__openclaw__/ws";
+export const CANVAS_WS_PATH = "/__alisio__/ws";
+export const LEGACY_CANVAS_WS_PATH = "/__openclaw__/ws";
+
+function matchesBasePath(pathname: string, basePath: string): boolean {
+  return pathname === basePath || pathname.startsWith(`${basePath}/`);
+}
+
+function resolveA2uiBasePath(pathname: string): string | undefined {
+  return [A2UI_PATH, LEGACY_A2UI_PATH].find((basePath) => matchesBasePath(pathname, basePath));
+}
 
 let cachedA2uiRootReal: string | null | undefined;
 let resolvingA2uiRoot: Promise<string | null> | null = null;
@@ -79,14 +90,15 @@ async function resolveA2uiRootReal(): Promise<string | null> {
 }
 
 export function injectCanvasLiveReload(html: string): string {
+  const handlerNames = JSON.stringify(["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"]);
   const snippet = `
 <script>
 (() => {
   // Cross-platform action bridge helper.
   // Works on:
-  // - iOS: window.webkit.messageHandlers.openclawCanvasA2UIAction.postMessage(...)
-  // - Android: window.openclawCanvasA2UIAction.postMessage(...)
-  const handlerNames = ["openclawCanvasA2UIAction"];
+  // - iOS: window.webkit.messageHandlers.alisioCanvasA2UIAction.postMessage(...)
+  // - Android: window.alisioCanvasA2UIAction.postMessage(...)
+  const handlerNames = ${handlerNames};
   function postToNode(payload) {
     try {
       const raw = typeof payload === "string" ? payload : JSON.stringify(payload);
@@ -113,9 +125,14 @@ export function injectCanvasLiveReload(html: string): string {
     const action = { ...userAction, id };
     return postToNode({ userAction: action });
   }
+  globalThis.Alisio = globalThis.Alisio ?? {};
+  globalThis.Alisio.postMessage = postToNode;
+  globalThis.Alisio.sendUserAction = sendUserAction;
   globalThis.OpenClaw = globalThis.OpenClaw ?? {};
   globalThis.OpenClaw.postMessage = postToNode;
   globalThis.OpenClaw.sendUserAction = sendUserAction;
+  globalThis.alisioPostMessage = postToNode;
+  globalThis.alisioSendUserAction = sendUserAction;
   globalThis.openclawPostMessage = postToNode;
   globalThis.openclawSendUserAction = sendUserAction;
 
@@ -149,8 +166,7 @@ export async function handleA2uiHttpRequest(
   }
 
   const url = new URL(urlRaw, "http://localhost");
-  const basePath =
-    url.pathname === A2UI_PATH || url.pathname.startsWith(`${A2UI_PATH}/`) ? A2UI_PATH : undefined;
+  const basePath = resolveA2uiBasePath(url.pathname);
   if (!basePath) {
     return false;
   }

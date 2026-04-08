@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-export const CANVAS_CAPABILITY_PATH_PREFIX = "/__openclaw__/cap";
+export const CANVAS_CAPABILITY_PATH_PREFIX = "/__alisio__/cap";
+export const LEGACY_CANVAS_CAPABILITY_PATH_PREFIX = "/__openclaw__/cap";
 export const CANVAS_CAPABILITY_QUERY_PARAM = "oc_cap";
 export const CANVAS_CAPABILITY_TTL_MS = 10 * 60_000;
 
@@ -41,13 +42,16 @@ export function buildCanvasScopedHostUrl(baseUrl: string, capability: string): s
 
 export function normalizeCanvasScopedUrl(rawUrl: string): NormalizedCanvasScopedUrl {
   const url = new URL(rawUrl, "http://localhost");
-  const prefix = `${CANVAS_CAPABILITY_PATH_PREFIX}/`;
+  const prefix = [
+    `${CANVAS_CAPABILITY_PATH_PREFIX}/`,
+    `${LEGACY_CANVAS_CAPABILITY_PATH_PREFIX}/`,
+  ].find((candidate) => url.pathname.startsWith(candidate));
   let scopedPath = false;
   let malformedScopedPath = false;
   let capabilityFromPath: string | undefined;
   let rewrittenUrl: string | undefined;
 
-  if (url.pathname.startsWith(prefix)) {
+  if (prefix) {
     scopedPath = true;
     const remainder = url.pathname.slice(prefix.length);
     const slashIndex = remainder.indexOf("/");

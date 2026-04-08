@@ -5,9 +5,9 @@ export const GATEWAY_CLIENT_IDS = {
   WEBCHAT: "webchat",
   CLI: "cli",
   GATEWAY_CLIENT: "gateway-client",
-  MACOS_APP: "openclaw-macos",
-  IOS_APP: "openclaw-ios",
-  ANDROID_APP: "openclaw-android",
+  MACOS_APP: "alisio-macos",
+  IOS_APP: "alisio-ios",
+  ANDROID_APP: "alisio-android",
   NODE_HOST: "node-host",
   TEST: "test",
   FINGERPRINT: "fingerprint",
@@ -15,6 +15,13 @@ export const GATEWAY_CLIENT_IDS = {
 } as const;
 
 export type GatewayClientId = (typeof GATEWAY_CLIENT_IDS)[keyof typeof GATEWAY_CLIENT_IDS];
+export const LEGACY_GATEWAY_CLIENT_ID_ALIASES = {
+  "openclaw-macos": GATEWAY_CLIENT_IDS.MACOS_APP,
+  "openclaw-ios": GATEWAY_CLIENT_IDS.IOS_APP,
+  "openclaw-android": GATEWAY_CLIENT_IDS.ANDROID_APP,
+} as const;
+export type LegacyGatewayClientId = keyof typeof LEGACY_GATEWAY_CLIENT_ID_ALIASES;
+export type AcceptedGatewayClientId = GatewayClientId | LegacyGatewayClientId;
 
 // Back-compat naming (internal): these values are IDs, not display names.
 export const GATEWAY_CLIENT_NAMES = GATEWAY_CLIENT_IDS;
@@ -50,12 +57,18 @@ export const GATEWAY_CLIENT_CAPS = {
 export type GatewayClientCap = (typeof GATEWAY_CLIENT_CAPS)[keyof typeof GATEWAY_CLIENT_CAPS];
 
 const GATEWAY_CLIENT_ID_SET = new Set<GatewayClientId>(Object.values(GATEWAY_CLIENT_IDS));
+const LEGACY_GATEWAY_CLIENT_ID_SET = new Set<LegacyGatewayClientId>(
+  Object.keys(LEGACY_GATEWAY_CLIENT_ID_ALIASES) as LegacyGatewayClientId[],
+);
 const GATEWAY_CLIENT_MODE_SET = new Set<GatewayClientMode>(Object.values(GATEWAY_CLIENT_MODES));
 
 export function normalizeGatewayClientId(raw?: string | null): GatewayClientId | undefined {
   const normalized = raw?.trim().toLowerCase();
   if (!normalized) {
     return undefined;
+  }
+  if (LEGACY_GATEWAY_CLIENT_ID_SET.has(normalized as LegacyGatewayClientId)) {
+    return LEGACY_GATEWAY_CLIENT_ID_ALIASES[normalized as LegacyGatewayClientId];
   }
   return GATEWAY_CLIENT_ID_SET.has(normalized as GatewayClientId)
     ? (normalized as GatewayClientId)

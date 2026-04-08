@@ -21,6 +21,8 @@ import {
   CANVAS_WS_PATH,
   handleA2uiHttpRequest,
   injectCanvasLiveReload,
+  LEGACY_CANVAS_HOST_PATH,
+  LEGACY_CANVAS_WS_PATH,
 } from "./a2ui.js";
 import { normalizeUrlPath, resolveFileWithinRoot } from "./file-resolver.js";
 
@@ -109,18 +111,19 @@ function defaultIndexHTML() {
   const statusEl = document.getElementById("status");
   const log = (msg) => { logEl.textContent = String(msg); };
 
+  const bridgeNames = ["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"];
+  const helperNames = ["alisioSendUserAction", "openclawSendUserAction"];
   const hasIOS = () =>
-    !!(
-      window.webkit &&
-      window.webkit.messageHandlers &&
-      window.webkit.messageHandlers.openclawCanvasA2UIAction
+    bridgeNames.some(
+      (name) =>
+        !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers[name]),
     );
   const hasAndroid = () =>
-    !!(
-      (window.openclawCanvasA2UIAction &&
-        typeof window.openclawCanvasA2UIAction.postMessage === "function")
+    bridgeNames.some(
+      (name) => !!(window[name] && typeof window[name].postMessage === "function"),
     );
-  const hasHelper = () => typeof window.openclawSendUserAction === "function";
+  const findHelper = () => helperNames.find((name) => typeof window[name] === "function");
+  const hasHelper = () => !!findHelper();
   statusEl.innerHTML =
     "Bridge: " +
     (hasHelper() ? "<span class='ok'>ready</span>" : "<span class='bad'>missing</span>") +
@@ -131,17 +134,17 @@ function defaultIndexHTML() {
     const d = ev && ev.detail || {};
     log("Action status: id=" + (d.id || "?") + " ok=" + String(!!d.ok) + (d.error ? (" error=" + d.error) : ""));
   };
-  window.addEventListener("openclaw:a2ui-action-status", onStatus);
+  for (const eventName of ["alisio:a2ui-action-status", "openclaw:a2ui-action-status"]) {
+    window.addEventListener(eventName, onStatus);
+  }
 
   function send(name, sourceComponentId) {
     if (!hasHelper()) {
       log("No action bridge found. Ensure you're viewing this on an iOS/Android Alisio node canvas.");
       return;
     }
-    const sendUserAction =
-      typeof window.openclawSendUserAction === "function"
-        ? window.openclawSendUserAction
-        : undefined;
+    const helperName = findHelper();
+    const sendUserAction = helperName ? window[helperName] : undefined;
     const ok = sendUserAction({
       name,
       surfaceId: "main",
@@ -183,6 +186,27 @@ function normalizeBasePath(rawPath: string | undefined) {
     return "/";
   }
   return normalized.replace(/\/+$/, "");
+}
+
+function matchesMountedPath(pathname: string, basePath: string): boolean {
+  return pathname === basePath || pathname.startsWith(`${basePath}/`);
+}
+
+function resolveMountedBasePath(pathname: string, basePath: string): string | undefined {
+  if (basePath === "/") {
+    return "/";
+  }
+  if (matchesMountedPath(pathname, basePath)) {
+    return basePath;
+  }
+  if (basePath === CANVAS_HOST_PATH && matchesMountedPath(pathname, LEGACY_CANVAS_HOST_PATH)) {
+    return LEGACY_CANVAS_HOST_PATH;
+  }
+  return undefined;
+}
+
+function isCanvasWsPath(pathname: string): boolean {
+  return pathname === CANVAS_WS_PATH || pathname === LEGACY_CANVAS_WS_PATH;
 }
 
 async function prepareCanvasRoot(rootDir: string) {
@@ -323,7 +347,7 @@ export async function createCanvasHostHandler(
       return false;
     }
     const url = new URL(req.url ?? "/", "http://localhost");
-    if (url.pathname !== CANVAS_WS_PATH) {
+    if (!isCanvasWsPath(url.pathname)) {
       return false;
     }
     wss.handleUpgrade(req, socket as Socket, head, (ws) => {
@@ -340,7 +364,7 @@ export async function createCanvasHostHandler(
 
     try {
       const url = new URL(urlRaw, "http://localhost");
-      if (url.pathname === CANVAS_WS_PATH) {
+      if (isCanvasWsPath(url.pathname)) {
         res.statusCode = liveReload ? 426 : 404;
         res.setHeader("Content-Type", "text/plain; charset=utf-8");
         res.end(liveReload ? "upgrade required" : "not found");
@@ -349,10 +373,11 @@ export async function createCanvasHostHandler(
 
       let urlPath = url.pathname;
       if (basePath !== "/") {
-        if (urlPath !== basePath && !urlPath.startsWith(`${basePath}/`)) {
+        const matchedBasePath = resolveMountedBasePath(urlPath, basePath);
+        if (!matchedBasePath) {
           return false;
         }
-        urlPath = urlPath === basePath ? "/" : urlPath.slice(basePath.length) || "/";
+        urlPath = urlPath === matchedBasePath ? "/" : urlPath.slice(matchedBasePath.length) || "/";
       }
 
       if (req.method !== "GET" && req.method !== "HEAD") {

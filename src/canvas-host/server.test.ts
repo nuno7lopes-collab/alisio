@@ -8,7 +8,13 @@ import type { Duplex } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultRuntime } from "../runtime.js";
-import { A2UI_PATH, CANVAS_HOST_PATH, CANVAS_WS_PATH, injectCanvasLiveReload } from "./a2ui.js";
+import {
+  A2UI_PATH,
+  CANVAS_HOST_PATH,
+  CANVAS_WS_PATH,
+  injectCanvasLiveReload,
+  LEGACY_A2UI_PATH,
+} from "./a2ui.js";
 
 type MockWatcher = {
   on: (event: string, cb: (...args: unknown[]) => void) => MockWatcher;
@@ -123,8 +129,9 @@ describe("canvas host", () => {
     const out = injectCanvasLiveReload("<html><body>Hello</body></html>");
     expect(out).toContain(CANVAS_WS_PATH);
     expect(out).toContain("location.reload");
+    expect(out).toContain("alisioCanvasA2UIAction");
+    expect(out).toContain("alisioSendUserAction");
     expect(out).toContain("openclawCanvasA2UIAction");
-    expect(out).toContain("openclawSendUserAction");
   });
 
   it("creates a default index.html when missing", async () => {
@@ -143,7 +150,7 @@ describe("canvas host", () => {
       const { res, html } = await fetchCanvasHtml(server.port);
       expect(res.status).toBe(200);
       expect(html).toContain("Interactive test page");
-      expect(html).toContain("openclawSendUserAction");
+      expect(html).toContain("alisioSendUserAction");
       expect(html).toContain(CANVAS_WS_PATH);
     } finally {
       await server.close();
@@ -396,7 +403,7 @@ describe("canvas host", () => {
     try {
       await fs.stat(bundlePath);
     } catch {
-      await fs.writeFile(bundlePath, "window.openclawA2UI = {};", "utf8");
+      await fs.writeFile(bundlePath, "window.alisioA2UI = {}; window.openclawA2UI = {};", "utf8");
       createdBundle = true;
     }
 
@@ -413,17 +420,21 @@ describe("canvas host", () => {
         throw error;
       }
 
-      const res = await realFetch(`http://127.0.0.1:${server.port}/__openclaw__/a2ui/`);
+      const res = await realFetch(`http://127.0.0.1:${server.port}${A2UI_PATH}/`);
       const html = await res.text();
       expect(res.status).toBe(200);
-      expect(html).toContain("openclaw-a2ui-host");
-      expect(html).toContain("openclawCanvasA2UIAction");
+      expect(html).toContain("alisio-a2ui-host");
+      expect(html).toContain("alisioCanvasA2UIAction");
+
+      const legacyRes = await realFetch(`http://127.0.0.1:${server.port}${LEGACY_A2UI_PATH}/`);
+      expect(legacyRes.status).toBe(200);
 
       const bundleRes = await realFetch(
-        `http://127.0.0.1:${server.port}/__openclaw__/a2ui/a2ui.bundle.js`,
+        `http://127.0.0.1:${server.port}${A2UI_PATH}/a2ui.bundle.js`,
       );
       const js = await bundleRes.text();
       expect(bundleRes.status).toBe(200);
+      expect(js).toContain("alisioA2UI");
       expect(js).toContain("openclawA2UI");
       const traversalRes = await realFetch(
         `http://127.0.0.1:${server.port}${A2UI_PATH}/%2e%2e%2fpackage.json`,

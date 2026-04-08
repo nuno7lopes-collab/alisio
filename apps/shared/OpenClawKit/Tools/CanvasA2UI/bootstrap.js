@@ -341,9 +341,10 @@ class AlisioA2UIHost extends LitElement {
       getSurfaces: () => Array.from(this.#processor.getSurfaces().keys()),
     };
     globalThis.alisioA2UI = api;
+    globalThis.openclawA2UI = api;
     this.addEventListener("a2uiaction", (evt) => this.#handleA2UIAction(evt));
     this.#statusListener = (evt) => this.#handleActionStatus(evt);
-    for (const eventName of ["alisio:a2ui-action-status"]) {
+    for (const eventName of ["alisio:a2ui-action-status", "openclaw:a2ui-action-status"]) {
       globalThis.addEventListener(eventName, this.#statusListener);
     }
     this.#syncSurfaces();
@@ -352,7 +353,7 @@ class AlisioA2UIHost extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.#statusListener) {
-      for (const eventName of ["alisio:a2ui-action-status"]) {
+      for (const eventName of ["alisio:a2ui-action-status", "openclaw:a2ui-action-status"]) {
         globalThis.removeEventListener(eventName, this.#statusListener);
       }
       this.#statusListener = null;
@@ -379,6 +380,7 @@ class AlisioA2UIHost extends LitElement {
     const detail = evt?.detail ?? null;
     if (!detail || typeof detail.id !== "string") {return;}
     if (!this.pendingAction || this.pendingAction.id !== detail.id) {return;}
+    if (this.pendingAction.phase === "sent" || this.pendingAction.phase === "error") {return;}
 
     if (detail.ok) {
       this.pendingAction = { ...this.pendingAction, phase: "sent", sentAt: Date.now() };
@@ -458,14 +460,33 @@ class AlisioA2UIHost extends LitElement {
     };
 
     globalThis.__alisioLastA2UIAction = userAction;
+    globalThis.__openclawLastA2UIAction = userAction;
 
-    const handler =
-      globalThis.webkit?.messageHandlers?.alisioCanvasA2UIAction ??
-      globalThis.alisioCanvasA2UIAction;
+    const iosHandlerNames = ["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"];
+    const androidHandlerNames = ["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"];
+    let handler = null;
+    let androidBridge = false;
+    for (const name of iosHandlerNames) {
+      const candidate = globalThis.webkit?.messageHandlers?.[name];
+      if (candidate?.postMessage) {
+        handler = candidate;
+        break;
+      }
+    }
+    if (!handler) {
+      for (const name of androidHandlerNames) {
+        const candidate = globalThis[name];
+        if (candidate?.postMessage) {
+          handler = candidate;
+          androidBridge = true;
+          break;
+        }
+      }
+    }
     if (handler?.postMessage) {
       try {
         // WebKit message handlers support structured objects; Android's JS interface expects strings.
-        if (handler === globalThis.alisioCanvasA2UIAction) {
+        if (androidBridge) {
           handler.postMessage(JSON.stringify({ userAction }));
         } else {
           handler.postMessage({ userAction });
@@ -546,4 +567,7 @@ class AlisioA2UIHost extends LitElement {
 
 if (!customElements.get("alisio-a2ui-host")) {
   customElements.define("alisio-a2ui-host", AlisioA2UIHost);
+}
+if (!customElements.get("openclaw-a2ui-host")) {
+  customElements.define("openclaw-a2ui-host", AlisioA2UIHost);
 }
