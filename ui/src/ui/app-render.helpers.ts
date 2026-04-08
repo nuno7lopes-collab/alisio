@@ -17,7 +17,7 @@ import { loadConfig } from "./controllers/config.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
-import type { ConfigSnapshot, SessionsListResult } from "./types.ts";
+import type { AlisioAiState, ConfigSnapshot, SessionsListResult } from "./types.ts";
 import { resolveSessionDisplayName } from "./views/session-display.ts";
 export {
   parseSessionKey,
@@ -94,6 +94,12 @@ export function resolveAlisioAccountCallbackUrl(
     }
   }
   return new URL("/__alisio/auth/account/callback", currentPageHref).toString();
+}
+
+export function resolveEffectiveAlisioAiState(
+  state: Pick<AppViewState, "alisioBootstrap" | "alisioStartupBootstrap">,
+): AlisioAiState | null {
+  return state.alisioBootstrap?.ai ?? state.alisioStartupBootstrap?.ai ?? null;
 }
 
 function resolveSidebarChatSessionKey(state: AppViewState): string {

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../i18n/index.ts";
 import { createStorageMock } from "../test-helpers/storage.ts";
+import { resolveEffectiveAlisioAiState } from "./app-render.helpers.ts";
 import {
   applyBorderRadius,
   applyResolvedTheme,
@@ -169,6 +170,102 @@ function createBootstrapAccount(): NonNullable<
     devices: [],
   };
 }
+
+function createBootstrapState(
+  overrides: Partial<import("./types.ts").AlisioBootstrapState> = {},
+): import("./types.ts").AlisioBootstrapState {
+  return {
+    connectionRequired: false,
+    wizardRequired: false,
+    wizardRunning: false,
+    providerReady: true,
+    accountReady: true,
+    startupState: "ready",
+    organizationState: { mode: "none" },
+    connectorSummary: {
+      total: 0,
+      ready: 0,
+      connected: 0,
+      needsReconnect: 0,
+      inReview: 0,
+      unavailable: 0,
+      available: 0,
+    },
+    nextStep: "ready",
+    account: createBootstrapAccount(),
+    ai: {
+      provider: "openai",
+      status: "connected",
+    },
+    organization: { mode: "none" },
+    connectors: {
+      catalog: [],
+      authorizations: [],
+      summary: {
+        total: 0,
+        ready: 0,
+        connected: 0,
+        needsReconnect: 0,
+        inReview: 0,
+        unavailable: 0,
+        available: 0,
+      },
+    },
+    wizard: { running: false, sessionId: null },
+    models: { total: 0, defaultProvider: "openai", providers: [] },
+    ...overrides,
+  };
+}
+
+describe("resolveEffectiveAlisioAiState", () => {
+  it("uses the startup bootstrap while the full bootstrap is still unavailable", () => {
+    expect(
+      resolveEffectiveAlisioAiState({
+        alisioBootstrap: null,
+        alisioStartupBootstrap: {
+          basePath: "/",
+          controlUrl: "wss://gateway.example/openclaw/",
+          startupState: "needs_ai",
+          account: null,
+          ai: {
+            provider: "openai",
+            status: "connected",
+            email: "startup@example.com",
+          },
+        },
+      }),
+    ).toEqual({
+      provider: "openai",
+      status: "connected",
+      email: "startup@example.com",
+    });
+  });
+
+  it("prefers the full bootstrap snapshot when both are present", () => {
+    expect(
+      resolveEffectiveAlisioAiState({
+        alisioBootstrap: createBootstrapState({
+          ai: {
+            provider: "openai",
+            status: "limits_unavailable",
+            email: "full@example.com",
+          },
+        }),
+        alisioStartupBootstrap: {
+          basePath: "/",
+          controlUrl: "wss://gateway.example/openclaw/",
+          startupState: "needs_ai",
+          account: null,
+          ai: {
+            provider: "openai",
+            status: "connected",
+            email: "startup@example.com",
+          },
+        },
+      })?.email,
+    ).toBe("full@example.com");
+  });
+});
 
 describe("setTabFromRoute", () => {
   beforeEach(() => {

@@ -21,6 +21,7 @@ import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import {
   renderChatMobileToggle,
+  resolveEffectiveAlisioAiState,
   resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   renderTab,
@@ -285,8 +286,7 @@ function scheduleOpenAiRefresh(state: AppViewState) {
       async () => {
         attempts += 1;
         await refreshAlisioAi(state);
-        const aiStatus =
-          state.alisioBootstrap?.ai.status ?? state.alisioStartupBootstrap?.ai?.status ?? null;
+        const aiStatus = resolveEffectiveAlisioAiState(state)?.status ?? null;
         if (
           aiStatus === "connected" ||
           aiStatus === "limits_unavailable" ||
@@ -1707,7 +1707,7 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "memory"
           ? renderMemoryHub({
-              aiState: state.alisioBootstrap?.ai ?? null,
+              aiState: resolveEffectiveAlisioAiState(state),
               agentsLoading: state.agentsLoading,
               agentsError: state.agentsError,
               agentsList: state.agentsList,
