@@ -73,3 +73,8 @@ These pages were originally restricted by `CODEOWNERS` and were updated under ex
 
 - Generated Chinese docs are updated via `docs-i18n` only (requires a configured OpenAI API key).
 - The product narrative now leads with the app, AI source selection, local marketplace, devices, connectors, channels, and automations.
+
+## Current Validation Snapshot
+
+- English docs + README/VISION: no legacy name hits after the rebrand pass.
+- zh-CN output + translation memory: pending `docs-i18n` regeneration once an OpenAI API key is available.

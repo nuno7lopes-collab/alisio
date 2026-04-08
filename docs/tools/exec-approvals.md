@@ -273,14 +273,14 @@ or approval prompt.
 
 ## Control UI editing
 
-Use the **Control UI → Nodes → Exec approvals** card to edit defaults, per‑agent
+Use the **Control UI → Devices → Exec approvals** card to edit defaults, per‑agent
 overrides, and allowlists. Pick a scope (Defaults or an agent), tweak the policy,
 add/remove allowlist patterns, then **Save**. The UI shows **last used** metadata
 per pattern so you can keep the list tidy.
 
-The target selector chooses **Gateway** (local approvals) or a **Node**. Nodes
-must advertise `system.execApprovals.get/set` (macOS app or headless node host).
-If a node does not advertise exec approvals yet, edit its local
+The target selector chooses **Gateway** (local approvals) or a **Device (node)**. Devices
+(nodes) must advertise `system.execApprovals.get/set` (macOS app or headless node host).
+If a device node does not advertise exec approvals yet, edit its local
 `~/.alisio/exec-approvals.json` directly.
 
 CLI: `alisio approvals` supports gateway or node editing (see [Approvals CLI](/cli/approvals)).

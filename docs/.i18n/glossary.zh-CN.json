@@ -20,6 +20,26 @@
     "target": "设备"
   },
   {
+    "source": "Devices overview",
+    "target": "设备概览"
+  },
+  {
+    "source": "Devices (iOS and Android)",
+    "target": "设备（iOS 和 Android）"
+  },
+  {
+    "source": "Device runbook: iOS",
+    "target": "设备运行手册：iOS"
+  },
+  {
+    "source": "Device runbook: Android",
+    "target": "设备运行手册：Android"
+  },
+  {
+    "source": "Pairing (DM and devices)",
+    "target": "配对（私信与设备）"
+  },
+  {
     "source": "Local Models and Servers",
     "target": "本地模型和服务器"
   },
@@ -46,6 +66,14 @@
   {
     "source": "Product Overview",
     "target": "产品概览"
+  },
+  {
+    "source": "Legacy Rebrand Audit",
+    "target": "遗留重品牌审计"
+  },
+  {
+    "source": "Core Runtime Migration",
+    "target": "核心运行时迁移"
   },
   {
     "source": "Local Marketplace",

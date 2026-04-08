@@ -95,7 +95,7 @@ alisio config get agents.list
 alisio config set agents.list[0].tools.exec.node "node-id-or-name"
 ```
 
-Control UI: the Nodes tab includes a small “Exec node binding” panel for the same settings.
+Control UI: the Devices tab includes a small “Exec node binding” panel for the same settings.
 
 ## Session overrides (`/exec`)
 

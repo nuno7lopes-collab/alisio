@@ -122,9 +122,9 @@ Use these hubs to discover every page, including deep dives and reference docs t
 - [Browser (Linux troubleshooting)](/tools/browser-linux-troubleshooting)
 - [Polls](/automation/poll)
 
-## Nodes, media, voice
+## Devices, media, voice
 
-- [Nodes overview](/nodes)
+- [Devices overview](/nodes)
 - [Camera](/nodes/camera)
 - [Images](/nodes/images)
 - [Audio](/nodes/audio)

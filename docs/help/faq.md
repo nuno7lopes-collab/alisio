@@ -184,8 +184,8 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     If you want extra headroom (logs, media, other services), **2GB is recommended**, but it's
     not a hard minimum.
 
-    Tip: a small Pi/VPS can host the Gateway, and you can pair **nodes** on your laptop/phone for
-    local screen/camera/canvas or command execution. See [Nodes](/nodes).
+    Tip: a small Pi/VPS can host the Gateway, and you can pair **devices (nodes)** on your laptop/phone for
+    local screen/camera/canvas or command execution. See [Devices](/nodes).
 
   </Accordion>
 
@@ -483,12 +483,12 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     from your laptop/phone via the Control UI (or Tailscale/SSH). Your state + workspace
     live on the server, so treat the host as the source of truth and back it up.
 
-    You can pair **nodes** (Mac/iOS/Android/headless) to that cloud Gateway to access
+    You can pair **devices (nodes)** (Mac/iOS/Android/headless) to that cloud Gateway to access
     local screen/camera/canvas or run commands on your laptop while keeping the
     Gateway in the cloud.
 
     Hub: [Platforms](/platforms). Remote access: [Gateway remote](/gateway/remote).
-    Nodes: [Nodes](/nodes), [Nodes CLI](/cli/nodes).
+    Devices: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes).
 
   </Accordion>
 
@@ -647,9 +647,9 @@ for usage/billing and raise limits as needed.
     No. Alisio runs on macOS or Linux (Windows via WSL2). A Mac mini is optional - some people
     buy one as an always-on host, but a small VPS, home server, or Raspberry Pi-class box works too.
 
-    You only need a Mac **for macOS-only tools**. For iMessage, use [BlueBubbles](/channels/bluebubbles) (recommended) - the BlueBubbles server runs on any Mac, and the Gateway can run on Linux or elsewhere. If you want other macOS-only tools, run the Gateway on a Mac or pair a macOS node.
+    You only need a Mac **for macOS-only tools**. For iMessage, use [BlueBubbles](/channels/bluebubbles) (recommended) - the BlueBubbles server runs on any Mac, and the Gateway can run on Linux or elsewhere. If you want other macOS-only tools, run the Gateway on a Mac or pair a macOS device (node).
 
-    Docs: [BlueBubbles](/channels/bluebubbles), [Nodes](/nodes), [Mac remote mode](/platforms/mac/remote).
+    Docs: [BlueBubbles](/channels/bluebubbles), [Devices](/nodes), [Mac remote mode](/platforms/mac/remote).
 
   </Accordion>
 
@@ -662,14 +662,14 @@ for usage/billing and raise limits as needed.
     - Run the Gateway on Linux/VPS, and run the BlueBubbles server on any Mac signed into Messages.
     - Run everything on the Mac if you want the simplest single-machine setup.
 
-    Docs: [BlueBubbles](/channels/bluebubbles), [Nodes](/nodes),
+    Docs: [BlueBubbles](/channels/bluebubbles), [Devices](/nodes),
     [Mac remote mode](/platforms/mac/remote).
 
   </Accordion>
 
   <Accordion title="If I buy a Mac mini to run Alisio, can I connect it to my MacBook Pro?">
     Yes. The **Mac mini can run the Gateway**, and your MacBook Pro can connect as a
-    **node** (companion device). Nodes don't run the Gateway - they provide extra
+    **device** (node). Devices don't run the Gateway - they provide extra
     capabilities like screen/camera/canvas and `system.run` on that device.
 
     Common pattern:
@@ -678,7 +678,7 @@ for usage/billing and raise limits as needed.
     - MacBook Pro runs the macOS app or a node host and pairs to the Gateway.
     - Use `alisio nodes status` / `alisio nodes list` to see it.
 
-    Docs: [Nodes](/nodes), [Nodes CLI](/cli/nodes).
+    Docs: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes).
 
   </Accordion>
 
@@ -801,7 +801,7 @@ for usage/billing and raise limits as needed.
     - **Dedicated host (VPS/Mac mini/Pi):** always-on, fewer sleep/reboot interruptions, cleaner permissions, easier to keep running.
     - **Shared laptop/desktop:** totally fine for testing and active use, but expect pauses when the machine sleeps or updates.
 
-    If you want the best of both worlds, keep the Gateway on a dedicated host and pair your laptop as a **node** for local screen/camera/exec tools. See [Nodes](/nodes).
+    If you want the best of both worlds, keep the Gateway on a dedicated host and pair your laptop as a **device** (node) for local screen/camera/exec tools. See [Devices](/nodes).
     For security guidance, read [Security](/gateway/security).
 
   </Accordion>
@@ -913,7 +913,7 @@ for usage/billing and raise limits as needed.
     - **Multi-platform access** (WhatsApp, Telegram, TUI, WebChat)
     - **Tool orchestration** (browser, files, scheduling, hooks)
     - **Always-on Gateway** (run on a VPS, interact from anywhere)
-    - **Nodes** for local browser/screen/camera/exec
+    - **Devices** for local browser/screen/camera/exec
 
     Showcase: [https://alisio.app/showcase](https://alisio.app/showcase)
 
@@ -1461,15 +1461,15 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How do I run a central Gateway with specialized workers across devices?">
-    The common pattern is **one Gateway** (e.g. Raspberry Pi) plus **nodes** and **agents**:
+    The common pattern is **one Gateway** (e.g. Raspberry Pi) plus **devices (nodes)** and **agents**:
 
     - **Gateway (central):** owns channels (Signal/WhatsApp), routing, and sessions.
-    - **Nodes (devices):** Macs/iOS/Android connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
+    - **Devices (nodes):** Macs/iOS/Android connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
     - **Agents (workers):** separate brains/workspaces for special roles (e.g. "Hetzner ops", "Personal data").
     - **Sub-agents:** spawn background work from a main agent when you want parallelism.
     - **TUI:** connect to the Gateway and switch agents/sessions.
 
-    Docs: [Nodes](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
+    Docs: [Devices](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
 
   </Accordion>
 
@@ -1512,12 +1512,12 @@ for usage/billing and raise limits as needed.
 
     Telegram → Gateway → Agent → `node.*` → Node → Gateway → Telegram
 
-    Nodes don't see inbound provider traffic; they only receive node RPC calls.
+    Devices (nodes) don't see inbound provider traffic; they only receive node RPC calls.
 
   </Accordion>
 
   <Accordion title="How can my agent access my computer if the Gateway is hosted remotely?">
-    Short answer: **pair your computer as a node**. The Gateway runs elsewhere, but it can
+    Short answer: **pair your computer as a device (node)**. The Gateway runs elsewhere, but it can
     call `node.*` tools (screen, camera, system) on your local machine over the Gateway WebSocket.
 
     Typical setup:
@@ -1526,20 +1526,20 @@ for usage/billing and raise limits as needed.
     2. Put the Gateway host + your computer on the same tailnet.
     3. Ensure the Gateway WS is reachable (tailnet bind or SSH tunnel).
     4. Open the macOS app locally and connect in **Remote over SSH** mode (or direct tailnet)
-       so it can register as a node.
-    5. Approve the node on the Gateway:
+       so it can register as a device node.
+    5. Approve the device on the Gateway:
 
        ```bash
        alisio devices list
        alisio devices approve <requestId>
        ```
 
-    No separate TCP bridge is required; nodes connect over the Gateway WebSocket.
+    No separate TCP bridge is required; devices connect over the Gateway WebSocket.
 
-    Security reminder: pairing a macOS node allows `system.run` on that machine. Only
+    Security reminder: pairing a macOS device node allows `system.run` on that machine. Only
     pair devices you trust, and review [Security](/gateway/security).
 
-    Docs: [Nodes](/nodes), [Gateway protocol](/gateway/protocol), [macOS remote mode](/platforms/mac/remote), [Security](/gateway/security).
+    Docs: [Devices](/nodes), [Gateway protocol](/gateway/protocol), [macOS remote mode](/platforms/mac/remote), [Security](/gateway/security).
 
   </Accordion>
 
@@ -1597,26 +1597,26 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Is there a benefit to using a node on my personal laptop instead of SSH from a VPS?">
-    Yes - nodes are the first-class way to reach your laptop from a remote Gateway, and they
+    Yes - devices are the first-class way to reach your laptop from a remote Gateway, and they
     unlock more than shell access. The Gateway runs on macOS/Linux (Windows via WSL2) and is
     lightweight (a small VPS or Raspberry Pi-class box is fine; 4 GB RAM is plenty), so a common
     setup is an always-on host plus your laptop as a node.
 
-    - **No inbound SSH required.** Nodes connect out to the Gateway WebSocket and use device pairing.
+    - **No inbound SSH required.** Devices (nodes) connect out to the Gateway WebSocket and use device pairing.
     - **Safer execution controls.** `system.run` is gated by node allowlists/approvals on that laptop.
-    - **More device tools.** Nodes expose `canvas`, `camera`, and `screen` in addition to `system.run`.
+    - **More device tools.** Devices (nodes) expose `canvas`, `camera`, and `screen` in addition to `system.run`.
     - **Local browser automation.** Keep the Gateway on a VPS, but run Chrome locally through a node host on the laptop, or attach to local Chrome on the host via Chrome MCP.
 
-    SSH is fine for ad-hoc shell access, but nodes are simpler for ongoing agent workflows and
+    SSH is fine for ad-hoc shell access, but devices (nodes) are simpler for ongoing agent workflows and
     device automation.
 
-    Docs: [Nodes](/nodes), [Nodes CLI](/cli/nodes), [Browser](/tools/browser).
+    Docs: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes), [Browser](/tools/browser).
 
   </Accordion>
 
-  <Accordion title="Do nodes run a gateway service?">
-    No. Only **one gateway** should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)). Nodes are peripherals that connect
-    to the gateway (iOS/Android nodes, or macOS "node mode" in the menubar app). For headless node
+  <Accordion title="Do devices run a gateway service?">
+    No. Only **one gateway** should run per host unless you intentionally run isolated profiles (see [Multiple gateways](/gateway/multiple-gateways)). Devices (nodes) are peripherals that connect
+    to the gateway (iOS/Android device nodes, or macOS "node mode" in the menubar app). For headless node
     hosts and CLI control, see [Node host CLI](/cli/node).
 
     A full restart is required for `gateway`, `discovery`, and `canvasHost` changes.
@@ -1667,15 +1667,15 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="How do I connect a Mac node to a remote Gateway (Tailscale Serve)?">
-    Serve exposes the **Gateway Control UI + WS**. Nodes connect over the same Gateway WS endpoint.
+  <Accordion title="How do I connect a Mac device to a remote Gateway (Tailscale Serve)?">
+    Serve exposes the **Gateway Control UI + WS**. Devices (nodes) connect over the same Gateway WS endpoint.
 
     Recommended setup:
 
     1. **Make sure the VPS + Mac are on the same tailnet**.
     2. **Use the macOS app in Remote mode** (SSH target can be the tailnet hostname).
-       The app will tunnel the Gateway port and connect as a node.
-    3. **Approve the node** on the gateway:
+       The app will tunnel the Gateway port and connect as a device node.
+    3. **Approve the device** on the gateway:
 
        ```bash
        alisio devices list
@@ -1686,14 +1686,14 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Should I install on a second laptop or just add a node?">
+  <Accordion title="Should I install on a second laptop or just add a device?">
     If you only need **local tools** (screen/camera/exec) on the second laptop, add it as a
-    **node**. That keeps a single Gateway and avoids duplicated config. Local node tools are
+    **device** (node). That keeps a single Gateway and avoids duplicated config. Local device tools are
     currently macOS-only, but we plan to extend them to other OSes.
 
     Install a second Gateway only when you need **hard isolation** or two fully separate bots.
 
-    Docs: [Nodes](/nodes), [Nodes CLI](/cli/nodes), [Multiple gateways](/gateway/multiple-gateways).
+    Docs: [Devices](/nodes), [Devices CLI (nodes)](/cli/nodes), [Multiple gateways](/gateway/multiple-gateways).
 
   </Accordion>
 </AccordionGroup>
@@ -1995,7 +1995,7 @@ for usage/billing and raise limits as needed.
     - Local browser via Chrome MCP or a node when needed.
 
     Docs: [Multi-Agent Routing](/concepts/multi-agent), [Slack](/channels/slack),
-    [Browser](/tools/browser), [Nodes](/nodes).
+    [Browser](/tools/browser), [Devices](/nodes).
 
   </Accordion>
 </AccordionGroup>

@@ -1,20 +1,20 @@
 ---
 summary: "CLI reference for `alisio nodes` (list/status/approve/invoke, camera/canvas/screen)"
 read_when:
-  - You’re managing paired nodes (cameras, screen, canvas)
+  - You’re managing paired devices (nodes) for cameras, screen, or canvas
   - You need to approve requests or invoke node commands
 title: "nodes"
 ---
 
 # `alisio nodes`
 
-Manage paired nodes (devices) and invoke node capabilities.
+Manage paired devices (nodes) and invoke node capabilities.
 
 Related:
 
-- Nodes overview: [Nodes](/nodes)
-- Camera: [Camera nodes](/nodes/camera)
-- Images: [Image nodes](/nodes/images)
+- Devices overview: [Devices](/nodes)
+- Camera: [Camera devices](/nodes/camera)
+- Images: [Image devices](/nodes/images)
 
 Common options:
 
