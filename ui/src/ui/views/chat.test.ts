@@ -216,8 +216,8 @@ describe("chat view", () => {
       container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
     );
     expect(buttons).toHaveLength(2);
-    expect(buttons[0]?.textContent).toContain("Recommended");
-    expect(buttons[1]?.textContent).toContain("Full access");
+    expect(buttons[0]?.textContent).toContain("Safe");
+    expect(buttons[1]?.textContent).toContain("Full");
 
     buttons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     buttons[1]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

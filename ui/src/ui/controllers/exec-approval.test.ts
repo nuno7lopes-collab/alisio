@@ -10,13 +10,20 @@ describe("parseExecApprovalRequested", () => {
   it("returns entries with kind 'exec'", () => {
     const result = parseExecApprovalRequested({
       id: "exec-1",
-      request: { command: "rm -rf /", nodeId: "node-1" },
+      request: {
+        command: "rm -rf /",
+        commandPreview: "rm -rf /tmp/demo",
+        envKeys: ["A_VAR", "Z_VAR"],
+        nodeId: "node-1",
+      },
       createdAtMs: 1000,
       expiresAtMs: 2000,
     });
     expect(result).not.toBeNull();
     expect(result!.kind).toBe("exec");
     expect(result!.request.command).toBe("rm -rf /");
+    expect(result!.request.commandPreview).toBe("rm -rf /tmp/demo");
+    expect(result!.request.envKeys).toEqual(["A_VAR", "Z_VAR"]);
     expect(result!.request.nodeId).toBe("node-1");
   });
 });
@@ -46,6 +53,7 @@ describe("parsePluginApprovalRequested", () => {
     expect(result!.pluginDescription).toBe("chmod 777 script.sh modifies file permissions");
     expect(result!.pluginSeverity).toBe("high");
     expect(result!.pluginId).toBe("sage");
+    expect(result!.pluginToolName).toBeNull();
     expect(result!.request.command).toBe("Dangerous command detected");
     expect(result!.request.agentId).toBe("agent-1");
     expect(result!.request.sessionKey).toBe("sess-1");

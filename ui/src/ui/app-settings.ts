@@ -35,6 +35,7 @@ import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
+import { loadApprovalAuditTrail } from "./controllers/exec-approval.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
@@ -431,6 +432,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       loadNodes(host as unknown as AlisioApp),
       loadConfig(host as unknown as AlisioApp),
       loadSelectedExecApprovals(host as unknown as AlisioApp),
+      loadApprovalAuditTrail(host as unknown as AlisioApp),
       loadGatewayAccessMode(host as unknown as AlisioApp),
     ]);
   }

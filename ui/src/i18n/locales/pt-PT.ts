@@ -651,8 +651,8 @@ export const pt_PT: TranslationMap = {
       afterFirstChatBody:
         "Usa uma organização quando precisares de acesso partilhado, facturação ou controlos de administração.",
       sharing: {
-        title: "Dispositivos partilhados",
-        subtitle: "Pede acesso, aprova partilhas e revê o audit num único sítio.",
+        title: "Dispositivos",
+        subtitle: "Pede acesso a dispositivos, aprova partilhas e revê o audit num único sítio.",
         refresh: "Actualizar",
         policyTitle: "Política de partilha externa",
         policyBody:
@@ -668,18 +668,18 @@ export const pt_PT: TranslationMap = {
         incomingEmpty: "Não há pedidos recebidos.",
         outgoingTitle: "Os teus pedidos",
         outgoingEmpty: "Não há pedidos enviados.",
-        grantsTitle: "Acessos activos",
-        grantsEmpty: "Não há acessos activos.",
+        grantsTitle: "Aprovações",
+        grantsEmpty: "Ainda não há aprovações.",
         auditTitle: "Audit log",
         auditEmpty: "Ainda não há eventos de partilha.",
         requestAccess: "Pedir acesso",
         approve: "Aprovar",
-        reject: "Rejeitar",
+        reject: "Negar",
         revoke: "Revogar",
         requestStatus: {
           pending: "Pendente",
           approved: "Aprovado",
-          rejected: "Rejeitado",
+          rejected: "Negado",
           revoked: "Revogado",
         },
       },
@@ -1212,51 +1212,137 @@ export const pt_PT: TranslationMap = {
         execApproval: "Aprovação de exec necessária",
         pluginSubtitle: "A acção do plugin fica bloqueada até a reveres.",
         execSubtitle: "O comando exec fica bloqueado até o reveres.",
+        previewExact: "Comando exacto: {value}",
+        previewTool: "Ferramenta: {value}",
+        targets: {
+          sandbox: "o sandbox",
+          gateway: "o host do Alisio",
+          node: "o computador seleccionado",
+          nodeWithId: "computador {value}",
+          runtime: "o runtime actual",
+        },
+        access: {
+          allowlist: "guardrails seguros",
+          full: "acesso total",
+          deny: "bloqueado por omissão",
+          configured: "guardrails definidos pelo runtime",
+        },
+        effects: {
+          exec: "Vai correr em {target}. Guardrails: {access}.",
+          plugin: "A acção sensível do plugin continua bloqueada até uma pessoa a aprovar.",
+        },
+        review: {
+          human: "Aprovação humana obrigatória",
+          configured: "Definido pela política",
+        },
         labels: {
           type: "Tipo",
+          access: "Acesso",
+          runsOn: "Corre em",
+          guardrails: "Guardrails",
+          review: "Aprovação",
+          tool: "Ferramenta",
           plugin: "Plugin",
           agent: "Agente",
           session: "Sessão",
           cwd: "CWD",
+          resolvedPath: "Caminho",
+          env: "Variáveis",
         },
         allowOnce: "Permitir uma vez",
         allowAlways: "Permitir sempre",
         deny: "Negar",
       },
       access: {
-        title: "Modo de acesso por omissão",
-        subtitle: "Define a política base de exec para este runtime.",
+        title: "Presets de segurança",
+        subtitle:
+          "Escolhe o caminho guardado mais seguro ou o caminho total no host para o exec do dia-a-dia.",
         loadTitle: "Carregar estado de segurança",
         loadBody: "Carrega a config e as aprovações exec para trocares de modo em segurança.",
         active: "Activo",
         apply: "Aplicar modo",
         recommended: {
-          label: "Recomendado",
-          title: "Permissões predefinidas",
+          label: "Seguro",
+          title: "Caminho guardado",
           badge: "Omissão",
           description:
-            "Corre a allowlist por omissão, pede aprovação nas falhas e fecha quando a aprovação não está disponível.",
+            "Mantém o caminho guardado activo por omissão, pede aprovação nas falhas e fecha quando a aprovação não está disponível.",
+          points: {
+            allowlist:
+              "Foi pensado para setups sandbox-first ou approval-first em vez de acesso directo ao host.",
+            prompts:
+              "Pára para pedir aprovação quando um comando sai do caminho conhecido como seguro.",
+            failClosed:
+              "Se ninguém o puder aprovar, a execução fica bloqueada em vez de continuar em silêncio.",
+          },
         },
         fullAccess: {
-          label: "Acesso total",
-          title: "Acesso total ao computador",
-          badge: "Risco elevado",
+          label: "Total",
+          title: "Caminho do host",
+          badge: "Host",
           description:
             "Usa `security=full` e desliga o prompt exec por omissão. As permissões do sistema operativo e outros guardrails de runtime continuam a aplicar-se.",
+          points: {
+            host: "Os comandos mantêm o caminho directo ao host, a menos que outra ferramenta acrescente as suas próprias verificações.",
+            prompts:
+              "Os prompts ficam desligados por omissão, por isso as execuções continuam sem revisão humana.",
+            scope: "Usa isto só com operadores de confiança ou em ambientes muito controlados.",
+          },
         },
         custom: {
           label: "Personalizado",
+          title: "Overrides activos",
+          badge: "Precisa de revisão",
+          points: {
+            configOverrides: "{count} override(s) por agente mudam os defaults de `tools.exec`.",
+            approvalOverrides: "{count} override(s) por agente mudam os defaults de approval.",
+            reset:
+              "Aplica um preset para voltares a colapsar estes overrides numa baseline visível.",
+          },
         },
         gatewayOnlyShort: "Só Alisio",
         gatewayOnlyTitle: "Os modos de acesso só se aplicam ao runtime do Alisio",
         gatewayOnlyBody:
-          "Os computadores ligados podem continuar a usar o seu próprio ficheiro de exec approvals em baixo, mas esta UI não altera os defaults de tools.exec ao nível do computador. Volta a seleccionar Alisio para aplicares em segurança o modo Recomendado ou Acesso total.",
+          "Os computadores ligados podem continuar a usar o seu próprio ficheiro de exec approvals em baixo, mas esta UI não altera os defaults de tools.exec ao nível do computador. Volta a seleccionar Alisio para aplicares em segurança o modo Seguro ou Total.",
         customBody:
           "Existem overrides por agente ou nas exec approvals fora do preset mínimo. Aplicar um dos modos acima volta a alinhar a árvore de segurança.",
+        modeFooter:
+          "Os overrides por agente continuam visíveis em baixo, para veres exactamente onde um preset deixa de se aplicar.",
+        customFooter:
+          "O runtime actual tem {config} override(s) de config e {approvals} override(s) de approvals. Revê-os em baixo antes de assumires uma política global.",
         lockedByExecApprovals:
           "Guarda ou recarrega o draft de exec approvals do Alisio antes de mudares o modo de acesso.",
         lockedByRawConfig:
           "Guarda ou recarrega o draft raw da config antes de mudares o modo de acesso.",
+      },
+      audit: {
+        title: "Decisões recentes",
+        subtitle:
+          "Trilho curto de auditoria para decisões recentes de approval nesta sessão do gateway.",
+        emptyTitle: "Ainda não há decisões recentes",
+        emptyBody:
+          "As approvals resolvidas aparecem aqui com quem as aprovou e o que passaram a permitir.",
+        systemActor: "Sistema",
+        labels: {
+          when: "Quando",
+          resolvedBy: "Resolvido por",
+        },
+        effects: {
+          exec: "Correu em {target}. Guardrails: {access}.",
+          plugin: "Approval de plugin resolvida para {title}.",
+        },
+      },
+      defaults: {
+        title: "Defaults seguros",
+        subtitle: "Checklist curta para ficares no caminho mais seguro.",
+        items: {
+          review:
+            "Mantém o trabalho do dia-a-dia no caminho mais seguro ou sandbox-first e usa o acesso total ao host apenas de forma deliberada.",
+          overrides:
+            "Verifica os overrides por agente antes de assumires que um preset se aplica em todo o lado.",
+          repeat:
+            "Usa “Permitir sempre” só para acções repetidas e de confiança que consigas explicar mais tarde.",
+        },
       },
     },
     setup: {

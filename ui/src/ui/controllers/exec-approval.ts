@@ -1,5 +1,9 @@
+import type { GatewayBrowserClient } from "../gateway.ts";
+
 export type ExecApprovalRequestPayload = {
   command: string;
+  commandPreview?: string | null;
+  envKeys?: string[] | null;
   cwd?: string | null;
   host?: string | null;
   nodeId?: string | null;
@@ -18,6 +22,7 @@ export type ExecApprovalRequest = {
   pluginDescription?: string | null;
   pluginSeverity?: string | null;
   pluginId?: string | null;
+  pluginToolName?: string | null;
   createdAtMs: number;
   expiresAtMs: number;
 };
@@ -41,6 +46,18 @@ export type ExecApprovalAuditEntry = {
   request: ExecApprovalRequestPayload;
   pluginId?: string | null;
   pluginSeverity?: string | null;
+  pluginToolName?: string | null;
+};
+
+export type ApprovalAuditTrailState = {
+  client: GatewayBrowserClient | null;
+  connected: boolean;
+  execApprovalAuditTrail: ExecApprovalAuditEntry[];
+  lastError: string | null;
+};
+
+type ApprovalAuditTrailSnapshot = {
+  items?: unknown[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,6 +74,10 @@ function parseExecApprovalRequestPayload(request: unknown): ExecApprovalRequestP
   }
   return {
     command,
+    commandPreview: typeof request.commandPreview === "string" ? request.commandPreview : null,
+    envKeys: Array.isArray(request.envKeys)
+      ? request.envKeys.filter((value): value is string => typeof value === "string")
+      : null,
     cwd: typeof request.cwd === "string" ? request.cwd : null,
     host: typeof request.host === "string" ? request.host : null,
     nodeId: typeof request.nodeId === "string" ? request.nodeId : null,
@@ -74,6 +95,7 @@ function parsePluginApprovalRequestDetails(request: unknown): {
   description: string | null;
   severity: string | null;
   pluginId: string | null;
+  toolName: string | null;
 } | null {
   if (!isRecord(request)) {
     return null;
@@ -92,6 +114,7 @@ function parsePluginApprovalRequestDetails(request: unknown): {
     description: typeof request.description === "string" ? request.description : null,
     severity: typeof request.severity === "string" ? request.severity : null,
     pluginId: typeof request.pluginId === "string" ? request.pluginId : null,
+    toolName: typeof request.toolName === "string" ? request.toolName : null,
   };
 }
 
@@ -165,6 +188,7 @@ export function parsePluginApprovalRequested(payload: unknown): ExecApprovalRequ
     pluginDescription: details.description,
     pluginSeverity: details.severity,
     pluginId: details.pluginId,
+    pluginToolName: details.toolName,
     createdAtMs,
     expiresAtMs,
   };
@@ -199,6 +223,7 @@ export function parseApprovalAuditEntry(
       request: details.request,
       pluginId: details.pluginId,
       pluginSeverity: details.severity,
+      pluginToolName: details.toolName,
     };
   }
   const request = parseExecApprovalRequestPayload(payload.request);
@@ -220,7 +245,7 @@ export function parseApprovalAuditEntry(
 export function addExecApprovalAuditEntry(
   entries: ExecApprovalAuditEntry[],
   entry: ExecApprovalAuditEntry,
-  limit = 12,
+  limit = 20,
 ): ExecApprovalAuditEntry[] {
   const next = entries.filter((item) => item.id !== entry.id);
   next.unshift(entry);
@@ -265,4 +290,35 @@ export function removeExecApproval(
   id: string,
 ): ExecApprovalRequest[] {
   return pruneExecApprovalQueue(queue).filter((entry) => entry.id !== id);
+}
+
+export async function loadApprovalAuditTrail(state: ApprovalAuditTrailState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  try {
+    const snapshot = await state.client.request<ApprovalAuditTrailSnapshot>(
+      "approval.audit.get",
+      {},
+    );
+    const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
+    let next: ExecApprovalAuditEntry[] = [];
+    for (const item of items) {
+      if (!isRecord(item)) {
+        continue;
+      }
+      const kind = item.kind === "plugin" ? "plugin" : item.kind === "exec" ? "exec" : null;
+      if (!kind) {
+        continue;
+      }
+      const parsed = parseApprovalAuditEntry(kind, item);
+      if (!parsed) {
+        continue;
+      }
+      next = addExecApprovalAuditEntry(next, parsed, 20);
+    }
+    state.execApprovalAuditTrail = next;
+  } catch (err) {
+    state.lastError = String(err);
+  }
 }

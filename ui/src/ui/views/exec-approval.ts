@@ -1,18 +1,13 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
 import type { AppViewState } from "../app-view-state.ts";
-import type {
-  ExecApprovalRequest,
-  ExecApprovalRequestPayload,
-} from "../controllers/exec-approval.ts";
+import type { ExecApprovalRequest } from "../controllers/exec-approval.ts";
 import { sortExecApprovalQueue } from "../controllers/exec-approval.ts";
-import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
 import {
-  resolveApprovalAccessLabel,
-  resolveApprovalAskLabel,
+  resolveApprovalCommandText,
   resolveApprovalEffectText,
+  resolveApprovalSummaryRows,
 } from "./approval-summary.ts";
-import { resolveSessionDisplayName } from "./session-display.ts";
 
 export function formatApprovalRemaining(ms: number): string {
   const remaining = Math.max(0, ms);
@@ -49,50 +44,39 @@ function renderMetaRow(
 
 type ApprovalPromptIdentity = Pick<AppViewState, "assistantName" | "assistantAgentId">;
 
-function renderExecBody(request: ExecApprovalRequestPayload, identity: ApprovalPromptIdentity) {
-  const agentLabel = resolveAgentIdDisplayLabel(request.agentId, identity);
-  const sessionLabel = resolveSessionDisplayName(request.sessionKey ?? "", undefined, identity);
+function renderSummaryRows(active: ExecApprovalRequest, identity: ApprovalPromptIdentity) {
+  const rows = resolveApprovalSummaryRows(active, identity);
   return html`
-    <div class="exec-approval-command mono">${request.command}</div>
     <div class="exec-approval-meta">
-      ${renderMetaRow(
-        t("alisio.security.queue.labels.access"),
-        resolveApprovalAccessLabel(request),
-      )}
-      ${renderMetaRow(
-        t("alisio.security.queue.labels.review"),
-        resolveApprovalAskLabel(request.ask),
-      )}
-      ${renderMetaRow("Host", request.host)} ${renderMetaRow("Agent", agentLabel)}
-      ${renderMetaRow("Session", sessionLabel)}
-      ${renderMetaRow("CWD", request.cwd, { tone: "code" })}
-      ${renderMetaRow("Resolved", request.resolvedPath, { tone: "code" })}
+      ${rows.map((row) => renderMetaRow(row.label, row.value, { tone: row.tone }))}
     </div>
   `;
 }
 
-function renderPluginBody(active: ExecApprovalRequest, identity: ApprovalPromptIdentity) {
-  const agentLabel = resolveAgentIdDisplayLabel(active.request.agentId, identity);
-  const sessionLabel = resolveSessionDisplayName(
-    active.request.sessionKey ?? "",
-    undefined,
-    identity,
-  );
+function renderApprovalBody(active: ExecApprovalRequest, identity: ApprovalPromptIdentity) {
+  const commandText =
+    active.kind === "plugin"
+      ? (active.pluginDescription ??
+        active.pluginTitle ??
+        t("alisio.security.queue.pluginApproval"))
+      : resolveApprovalCommandText(active.request);
   return html`
-    ${active.pluginDescription
-      ? html`<pre class="exec-approval-command mono" style="white-space:pre-wrap">
-${active.pluginDescription}</pre
-        >`
+    <pre class="exec-approval-command mono" style="white-space:pre-wrap">${commandText}</pre>
+    ${active.kind === "plugin" && active.pluginDescription
+      ? nothing
+      : active.kind === "exec" && active.request.commandPreview
+        ? html`
+            <div class="exec-approval-sub">
+              ${t("alisio.security.queue.previewExact", { value: active.request.command })}
+            </div>
+          `
+        : nothing}
+    ${active.kind === "plugin" && active.pluginToolName
+      ? html`<div class="exec-approval-sub">
+          ${t("alisio.security.queue.previewTool", { value: active.pluginToolName })}
+        </div>`
       : nothing}
-    <div class="exec-approval-meta">
-      ${renderMetaRow(
-        t("alisio.security.queue.labels.review"),
-        t("alisio.security.queue.review.human"),
-      )}
-      ${renderMetaRow("Severity", active.pluginSeverity)}
-      ${renderMetaRow("Plugin", active.pluginId, { tone: "code" })}
-      ${renderMetaRow("Agent", agentLabel)} ${renderMetaRow("Session", sessionLabel)}
-    </div>
+    ${renderSummaryRows(active, identity)}
   `;
 }
 
@@ -102,7 +86,6 @@ export function renderExecApprovalPrompt(state: AppViewState) {
   if (!active) {
     return nothing;
   }
-  const request = active.request;
   const remainingMs = active.expiresAtMs - Date.now();
   const remaining =
     remainingMs > 0
@@ -129,7 +112,7 @@ export function renderExecApprovalPrompt(state: AppViewState) {
               </div>`
             : nothing}
         </div>
-        ${isPlugin ? renderPluginBody(active, state) : renderExecBody(request, state)}
+        ${renderApprovalBody(active, state)}
         ${state.execApprovalError
           ? html`<div class="exec-approval-error">${state.execApprovalError}</div>`
           : nothing}

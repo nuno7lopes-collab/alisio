@@ -16,18 +16,17 @@ import {
   type SecurityAccessMode,
 } from "../controllers/security-access.ts";
 import { formatRelativeTimestamp } from "../format.ts";
-import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
 import {
-  resolveApprovalAccessLabel,
-  resolveApprovalAskLabel,
+  resolveApprovalAuditRows,
+  resolveApprovalCommandText,
   resolveApprovalAuditEffectText,
   resolveApprovalDecisionLabel,
   resolveApprovalEffectText,
+  resolveApprovalSummaryRows,
 } from "./approval-summary.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
 import { resolveNodeTargets } from "./nodes-shared.ts";
-import { resolveSessionDisplayName } from "./session-display.ts";
 
 type ExecAsk = "off" | "on-miss" | "always";
 type ApprovalDecision = "allow-once" | "allow-always" | "deny";
@@ -175,16 +174,17 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
   const title =
     entry.kind === "plugin"
       ? (entry.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
-      : entry.request.command;
+      : resolveApprovalCommandText(entry.request);
   const effectText = resolveApprovalEffectText(entry);
-  const agentLabel = resolveAgentIdDisplayLabel(entry.request.agentId, {
+  const identity = {
     assistantName: props.assistantName,
     assistantAgentId: props.assistantAgentId,
-  });
-  const sessionLabel = resolveSessionDisplayName(entry.request.sessionKey ?? "", undefined, {
-    assistantName: props.assistantName,
-    assistantAgentId: props.assistantAgentId,
-  });
+  };
+  const rows = resolveApprovalSummaryRows(entry, identity);
+  const commandText =
+    entry.kind === "plugin"
+      ? (entry.pluginDescription ?? entry.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
+      : resolveApprovalCommandText(entry.request);
 
   return html`
     <article class="exec-approval-card alisio-security-queue-item">
@@ -203,26 +203,24 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
 ${entry.pluginDescription}</pre
             >
           `
-        : html`<div class="exec-approval-command mono">${entry.request.command}</div>`}
+        : html`<div class="exec-approval-command mono">${commandText}</div>`}
+      ${entry.kind === "exec" && entry.request.commandPreview
+        ? html`
+            <div class="exec-approval-sub">
+              ${t("alisio.security.queue.previewExact", { value: entry.request.command })}
+            </div>
+          `
+        : nothing}
+      ${entry.kind === "plugin" && entry.pluginToolName
+        ? html`
+            <div class="exec-approval-sub">
+              ${t("alisio.security.queue.previewTool", { value: entry.pluginToolName })}
+            </div>
+          `
+        : nothing}
       <div class="exec-approval-meta">
         ${renderApprovalMeta(t("alisio.security.queue.labels.type"), entry.kind)}
-        ${renderApprovalMeta(
-          t("alisio.security.queue.labels.access"),
-          resolveApprovalAccessLabel(entry.request),
-        )}
-        ${renderApprovalMeta(
-          t("alisio.security.queue.labels.review"),
-          resolveApprovalAskLabel(entry.request.ask),
-        )}
-        ${renderApprovalMeta(t("alisio.connections.execApprovals.host"), entry.request.host)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId, {
-          tone: "code",
-        })}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.agent"), agentLabel)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.session"), sessionLabel)}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.cwd"), entry.request.cwd, {
-          tone: "code",
-        })}
+        ${rows.map((row) => renderApprovalMeta(row.label, row.value, { tone: row.tone }))}
       </div>
       <div class="exec-approval-actions">
         <button
@@ -251,7 +249,11 @@ ${entry.pluginDescription}</pre
   `;
 }
 
-function renderAuditEntry(entry: ExecApprovalAuditEntry) {
+function renderAuditEntry(entry: ExecApprovalAuditEntry, props: SecurityProps) {
+  const rows = resolveApprovalAuditRows(entry, {
+    assistantName: props.assistantName,
+    assistantAgentId: props.assistantAgentId,
+  });
   return html`
     <article class="exec-approval-card alisio-security-queue-item">
       <div class="exec-approval-header">
@@ -270,23 +272,13 @@ function renderAuditEntry(entry: ExecApprovalAuditEntry) {
           t("alisio.security.audit.labels.resolvedBy"),
           entry.resolvedBy ?? t("alisio.security.audit.systemActor"),
         )}
-        ${renderApprovalMeta(
-          t("alisio.security.queue.labels.access"),
-          resolveApprovalAccessLabel(entry.request),
-        )}
-        ${renderApprovalMeta(
-          t("alisio.security.queue.labels.review"),
-          resolveApprovalAskLabel(entry.request.ask),
-        )}
-        ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId, {
-          tone: "code",
-        })}
+        ${rows.map((row) => renderApprovalMeta(row.label, row.value, { tone: row.tone }))}
       </div>
     </article>
   `;
 }
 
-function renderAuditTrail(entries: ExecApprovalAuditEntry[]) {
+function renderAuditTrail(entries: ExecApprovalAuditEntry[], props: SecurityProps) {
   return html`
     <section class="card alisio-security-panel">
       <div class="alisio-security-panel__head">
@@ -304,7 +296,7 @@ function renderAuditTrail(entries: ExecApprovalAuditEntry[]) {
           `
         : html`
             <div class="alisio-security-approval-list">
-              ${entries.map((entry) => renderAuditEntry(entry))}
+              ${entries.map((entry) => renderAuditEntry(entry, props))}
             </div>
           `}
     </section>
@@ -559,8 +551,8 @@ export function renderSecurity(props: SecurityProps) {
 
       <div class="alisio-connections-stack">
         ${renderApprovalQueue({ ...props, execApprovalQueue: approvalQueue }, nowMs)}
-        ${renderAuditTrail(props.execApprovalAuditTrail)} ${renderExecApprovals(approvalsState)}
-        ${renderSecureDefaultsChecklist()}
+        ${renderAuditTrail(props.execApprovalAuditTrail, props)}
+        ${renderExecApprovals(approvalsState)} ${renderSecureDefaultsChecklist()}
       </div>
     </section>
   `;

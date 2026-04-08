@@ -4,6 +4,7 @@ import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import type { AppViewState } from "../app-view-state.ts";
 import type { ConfigState } from "../controllers/config.ts";
+import { loadApprovalAuditTrail } from "../controllers/exec-approval.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -251,6 +252,61 @@ describe("agent and session display labels", () => {
   });
 });
 
+describe("loadApprovalAuditTrail", () => {
+  it("loads persisted approval decisions from the gateway", async () => {
+    const state = {
+      client: {
+        request: vi.fn(async () => ({
+          items: [
+            {
+              kind: "exec",
+              id: "exec-1",
+              decision: "allow-once",
+              ts: 1000,
+              resolvedBy: "Operator",
+              request: {
+                command: "uname -a",
+                host: "sandbox",
+                security: "allowlist",
+                ask: "on-miss",
+              },
+            },
+            {
+              kind: "plugin",
+              id: "plugin-1",
+              decision: "deny",
+              ts: 2000,
+              request: {
+                title: "Sensitive action",
+                description: "Changes production data",
+                pluginId: "sage",
+                toolName: "functions.exec_command",
+              },
+            },
+          ],
+        })),
+      },
+      connected: true,
+      execApprovalAuditTrail: [],
+      lastError: null,
+    };
+
+    await loadApprovalAuditTrail(state as never);
+
+    expect(state.execApprovalAuditTrail).toHaveLength(2);
+    expect(state.execApprovalAuditTrail[0]).toMatchObject({
+      id: "plugin-1",
+      kind: "plugin",
+      pluginToolName: "functions.exec_command",
+    });
+    expect(state.execApprovalAuditTrail[1]).toMatchObject({
+      id: "exec-1",
+      kind: "exec",
+      request: { commandPreview: null, envKeys: null },
+    });
+  });
+});
+
 describe("renderSecurity", () => {
   function createProps() {
     return {
@@ -330,7 +386,7 @@ describe("renderSecurity", () => {
     const container = document.createElement("div");
     render(renderSecurity(createProps()), container);
 
-    expect(container.textContent).toContain("Recommended");
+    expect(container.textContent).toContain("Safe");
     expect(container.textContent).not.toContain("Custom");
   });
 
@@ -387,6 +443,41 @@ describe("renderSecurity", () => {
     expect(text).toContain("Alisio");
     expect(text).toContain("Main Session");
     expect(text).not.toContain("agent:main:main");
+  });
+
+  it("shows the exact command preview and execution summary for exec approvals", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        execApprovalQueue: [
+          {
+            id: "approval-2",
+            kind: "exec",
+            createdAtMs: Date.now(),
+            expiresAtMs: Date.now() + 30_000,
+            request: {
+              command: "node ./scripts/release.js --prod --now",
+              commandPreview: "node ./scripts/release.js --prod",
+              envKeys: ["OPENAI_API_KEY", "SENTRY_AUTH_TOKEN"],
+              host: "sandbox",
+              cwd: "/workspace",
+              security: "allowlist",
+              ask: "on-miss",
+            },
+          },
+        ],
+      }),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("node ./scripts/release.js --prod");
+    expect(text).toContain("Exact command: node ./scripts/release.js --prod --now");
+    expect(text).toContain("Runs on");
+    expect(text).toContain("the sandbox");
+    expect(text).toContain("Env keys");
+    expect(text).toContain("OPENAI_API_KEY, SENTRY_AUTH_TOKEN");
   });
 
   it("keeps the live approvals panel visible with an empty state", () => {

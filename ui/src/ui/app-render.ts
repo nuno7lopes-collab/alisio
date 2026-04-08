@@ -103,6 +103,7 @@ import {
   revokeDeviceToken,
   rotateDeviceToken,
 } from "./controllers/devices.ts";
+import { loadApprovalAuditTrail } from "./controllers/exec-approval.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -1497,6 +1498,7 @@ export function renderApp(state: AppViewState) {
                   loadNodes(state),
                   loadConfig(state),
                   loadSelectedExecApprovals(state),
+                  loadApprovalAuditTrail(state),
                   loadGatewayAccessMode(state),
                 ]);
               },
@@ -1968,9 +1970,12 @@ export function renderApp(state: AppViewState) {
                 void setActiveChatModel(state, modelValue);
               },
               onInstallModel: (targetId, modelId) => {
-                const targetLabel =
-                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
-                    ?.label ?? targetId;
+                const target = state.alisioModels?.targets.find(
+                  (entry) => entry.targetId === targetId,
+                );
+                const targetLabel = target
+                  ? [target.runtimeLabel, target.label].filter(Boolean).join(" · ")
+                  : targetId;
                 if (
                   !confirmLocalModelAction(
                     t("alisio.settings.models.confirmInstall", {
@@ -1984,9 +1989,12 @@ export function renderApp(state: AppViewState) {
                 void installAlisioModel(state, { targetId, modelId });
               },
               onUpdateModel: (targetId, modelId) => {
-                const targetLabel =
-                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
-                    ?.label ?? targetId;
+                const target = state.alisioModels?.targets.find(
+                  (entry) => entry.targetId === targetId,
+                );
+                const targetLabel = target
+                  ? [target.runtimeLabel, target.label].filter(Boolean).join(" · ")
+                  : targetId;
                 if (
                   !confirmLocalModelAction(
                     t("alisio.settings.models.confirmUpdate", {
@@ -2000,9 +2008,12 @@ export function renderApp(state: AppViewState) {
                 void installAlisioModel(state, { targetId, modelId });
               },
               onUninstallModel: (targetId, modelId) => {
-                const targetLabel =
-                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
-                    ?.label ?? targetId;
+                const target = state.alisioModels?.targets.find(
+                  (entry) => entry.targetId === targetId,
+                );
+                const targetLabel = target
+                  ? [target.runtimeLabel, target.label].filter(Boolean).join(" · ")
+                  : targetId;
                 if (
                   !confirmLocalModelAction(
                     t("alisio.settings.models.confirmUninstall", {
