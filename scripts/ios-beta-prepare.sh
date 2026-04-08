@@ -142,11 +142,11 @@ write_generated_file "${BETA_XCCONFIG}" <<EOF
 ALISIO_CODE_SIGN_STYLE = Automatic
 ALISIO_DEVELOPMENT_TEAM = ${TEAM_ID}
 ALISIO_IOS_SELECTED_TEAM = ${TEAM_ID}
-ALISIO_APP_BUNDLE_ID = ai.alisio.client
-ALISIO_SHARE_BUNDLE_ID = ai.alisio.client.share
-ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.client.activitywidget
-ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.client.watchkitapp
-ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.client.watchkitapp.extension
+ALISIO_APP_BUNDLE_ID = ai.alisio.ios
+ALISIO_SHARE_BUNDLE_ID = ai.alisio.ios.share
+ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.ios.activitywidget
+ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.ios.watchkitapp
+ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.ios.watchkitapp.extension
 ALISIO_APP_PROFILE =
 ALISIO_SHARE_PROFILE =
 ALISIO_PUSH_TRANSPORT = relay
