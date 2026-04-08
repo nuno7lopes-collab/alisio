@@ -1,5 +1,6 @@
 import { t } from "../../i18n/index.ts";
 import {
+  isChannelBusyKey,
   isLegacyWhatsAppInlineLinkStep,
   makeChannelBusyKey,
   normalizeChannelAccountId,
@@ -162,6 +163,23 @@ function setBusyKey(state: ChannelsState, value: string | null) {
   if ("channelsBusyKey" in state) {
     state.channelsBusyKey = value;
   }
+}
+
+function hasBusyChannelAction(
+  state: ChannelsState,
+  params: {
+    channelId: string;
+    accountId?: string | null;
+    actions: Array<"login-start" | "login-wait" | "logout" | "pairing-approve" | "pairing-reject">;
+  },
+) {
+  return params.actions.some((action) =>
+    isChannelBusyKey(state.channelsBusyKey, {
+      channelId: params.channelId,
+      action,
+      accountId: params.accountId,
+    }),
+  );
 }
 
 function setActionMessage(state: ChannelsState, value: string | null) {
@@ -670,6 +688,15 @@ export async function startWebChannelLogin(
     return;
   }
   const accountId = normalizeChannelAccountId(opts?.accountId ?? state.channelsLoginAccountId);
+  if (
+    hasBusyChannelAction(state, {
+      channelId: "whatsapp",
+      accountId,
+      actions: ["login-start", "login-wait"],
+    })
+  ) {
+    return;
+  }
   const busyKey = makeChannelBusyKey({
     channelId: "whatsapp",
     action: "login-start",
@@ -690,6 +717,9 @@ export async function startWebChannelLogin(
     setLoginAccountId(state, result.qrDataUrl?.trim() ? resolvedAccountId : null);
     await loadChannels(state, true);
     if ((opts?.autoWait ?? true) && result.qrDataUrl) {
+      if (state.channelsBusyKey === busyKey) {
+        setBusyKey(state, null);
+      }
       void waitWebChannelLogin(state, { accountId: resolvedAccountId });
     }
   } catch (err) {
@@ -710,6 +740,15 @@ export async function waitWebChannelLogin(
     return;
   }
   const accountId = normalizeChannelAccountId(opts?.accountId ?? state.channelsLoginAccountId);
+  if (
+    hasBusyChannelAction(state, {
+      channelId: "whatsapp",
+      accountId,
+      actions: ["login-start", "login-wait"],
+    })
+  ) {
+    return;
+  }
   const busyKey = makeChannelBusyKey({
     channelId: "whatsapp",
     action: "login-wait",
@@ -760,6 +799,15 @@ export async function logoutChannelAccount(
   if (!state.client || !state.connected) {
     return;
   }
+  if (
+    hasBusyChannelAction(state, {
+      channelId: params.channelId,
+      accountId: params.accountId,
+      actions: ["logout"],
+    })
+  ) {
+    return;
+  }
   const busyKey = makeChannelBusyKey({
     channelId: params.channelId,
     action: "logout",
@@ -791,6 +839,15 @@ export async function approveChannelPairingRequest(
   params: { channelId: string; accountId?: string | null; requestId: string },
 ) {
   if (!state.client || !state.connected) {
+    return;
+  }
+  if (
+    hasBusyChannelAction(state, {
+      channelId: params.channelId,
+      accountId: params.accountId,
+      actions: ["pairing-approve"],
+    })
+  ) {
     return;
   }
   const busyKey = makeChannelBusyKey({
@@ -827,6 +884,15 @@ export async function rejectChannelPairingRequest(
   params: { channelId: string; accountId?: string | null; requestId: string },
 ) {
   if (!state.client || !state.connected) {
+    return;
+  }
+  if (
+    hasBusyChannelAction(state, {
+      channelId: params.channelId,
+      accountId: params.accountId,
+      actions: ["pairing-reject"],
+    })
+  ) {
     return;
   }
   const confirmed = window.confirm(t("alisio.channels.pairing.rejectConfirm"));

@@ -8,6 +8,7 @@ import {
   collectIssuesForEnabledAccounts,
   isRecord,
 } from "openclaw/plugin-sdk/status-helpers";
+import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
 
 type WhatsAppAccountStatus = {
   accountId?: unknown;
@@ -52,7 +53,8 @@ export function collectWhatsAppStatusIssues(
         typeof account.reconnectAttempts === "number" ? account.reconnectAttempts : null;
       const lastInboundAt =
         typeof account.lastInboundAt === "number" ? account.lastInboundAt : null;
-      const lastError = asString(account.lastError);
+      const lastErrorRaw = asString(account.lastError);
+      const lastError = lastErrorRaw ? redactSensitiveText(lastErrorRaw) : null;
       const healthState = asString(account.healthState);
 
       if (!linked) {

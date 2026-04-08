@@ -11,6 +11,15 @@ channels as active choices. Other built-in or bundled channels can still exist
 internally, but they should stay out of the default UX unless a specific flow
 explicitly needs them.
 
+## Surface Flags
+
+- Default mode is focused: only `telegram`, `whatsapp`, and `discord` show up
+  in product-facing setup/status/catalog flows.
+- Set `OPENCLAW_CHANNEL_SURFACE=all` to expose the broader built-in channel
+  surface again.
+- `OPENCLAW_EXPERIMENTAL_CHANNELS=1` is kept as a legacy alias for the broader
+  surface.
+
 ## Hardening Expectations
 
 - Runtime status must report actionable health for reconnecting, stopped, or

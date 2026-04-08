@@ -8,6 +8,7 @@ import {
   isRecord,
   resolveEnabledConfiguredAccountId,
 } from "openclaw/plugin-sdk/status-helpers";
+import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
 
 type DiscordIntentSummary = {
   messageContent?: "enabled" | "limited" | "disabled";
@@ -161,7 +162,8 @@ export function collectDiscordStatusIssues(
       typeof account.reconnectAttempts === "number" && Number.isFinite(account.reconnectAttempts)
         ? account.reconnectAttempts
         : null;
-    const lastError = asString(account.lastError);
+    const lastErrorRaw = asString(account.lastError);
+    const lastError = lastErrorRaw ? redactSensitiveText(lastErrorRaw) : null;
     const healthState = asString(account.healthState);
     const disconnectStatus = readDiscordDisconnectStatus(account.lastDisconnect);
     if (!connected && (running || reconnectAttempts !== null || lastError || disconnectStatus)) {

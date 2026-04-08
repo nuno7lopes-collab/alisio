@@ -2,7 +2,10 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
 import { listChannelSetupPlugins } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
-import { isProductChatChannelId, listProductChatChannels } from "../channels/product-surface.js";
+import {
+  listProductChatChannels,
+  shouldExposeChannelInProductSurface,
+} from "../channels/product-surface.js";
 import { formatChannelPrimerLine, formatChannelSelectionLine } from "../channels/registry.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveChannelSetupEntries } from "../commands/channel-setup/discovery.js";
@@ -62,7 +65,7 @@ export async function collectChannelStatus(params: {
   resolveAdapter?: (channel: ChannelChoice) => ChannelSetupWizardAdapter | undefined;
 }): Promise<ChannelStatusSummary> {
   const installedPlugins = (params.installedPlugins ?? listChannelSetupPlugins()).filter((plugin) =>
-    isProductChatChannelId(plugin.id),
+    shouldExposeChannelInProductSurface(plugin.id),
   );
   const workspaceDir = resolveAgentWorkspaceDir(params.cfg, resolveDefaultAgentId(params.cfg));
   const { installedCatalogEntries, installableCatalogEntries } = resolveChannelSetupEntries({

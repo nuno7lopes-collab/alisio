@@ -1474,6 +1474,23 @@ describe("channels view", () => {
     expect(state.channelsLoginAccountId).toBeNull();
   });
 
+  it("não repete o arranque de login WhatsApp quando o mesmo busy key já está activo", async () => {
+    const request = vi.fn();
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsBusyKey: makeChannelBusyKey({
+        channelId: "whatsapp",
+        action: "login-wait",
+        accountId: "work",
+      }),
+      channelsLoginAccountId: "work",
+    });
+
+    await startWebChannelLogin(state, { accountId: "work" });
+
+    expect(request).not.toHaveBeenCalled();
+  });
+
   it("cancela um wizard antigo do onboarding antes de arrancar o setup do canal", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "wizard.cancel") {
@@ -1615,6 +1632,26 @@ describe("channels view", () => {
       "Telegram account approved. Send a message to start chatting.",
     );
     expect(state.channelsBusyKey).toBeNull();
+  });
+
+  it("ignora aprovações Telegram duplicadas enquanto a acção já está ocupada", async () => {
+    const request = vi.fn();
+    const state = createChannelsControllerState({
+      client: { request } as never,
+      channelsBusyKey: makeChannelBusyKey({
+        channelId: "telegram",
+        action: "pairing-approve",
+        accountId: "default",
+      }),
+    });
+
+    await approveChannelPairingRequest(state, {
+      channelId: "telegram",
+      accountId: "default",
+      requestId: "6074269928",
+    });
+
+    expect(request).not.toHaveBeenCalled();
   });
 
   it("rejeita um pedido Telegram pelo gateway e refresca o estado", async () => {

@@ -4,7 +4,10 @@ import {
   type ChannelPluginCatalogEntry,
 } from "../../channels/plugins/catalog.js";
 import type { ChannelMeta, ChannelPlugin } from "../../channels/plugins/types.js";
-import { isProductChatChannelId, listProductChatChannels } from "../../channels/product-surface.js";
+import {
+  listProductChatChannels,
+  shouldExposeChannelInProductSurface,
+} from "../../channels/product-surface.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { loadPluginManifestRegistry } from "../../plugins/manifest-registry.js";
@@ -68,11 +71,11 @@ export function resolveChannelSetupEntries(params: {
     env: params.env,
   });
   const installedPlugins = params.installedPlugins.filter((plugin) =>
-    isProductChatChannelId(plugin.id),
+    shouldExposeChannelInProductSurface(plugin.id, { env: params.env }),
   );
   const installedPluginIds = new Set(installedPlugins.map((plugin) => plugin.id));
   const catalogEntries = listChannelPluginCatalogEntries({ workspaceDir }).filter((entry) =>
-    isProductChatChannelId(entry.id),
+    shouldExposeChannelInProductSurface(entry.id, { env: params.env }),
   );
   const installedCatalogEntries = catalogEntries.filter(
     (entry) =>
@@ -84,7 +87,7 @@ export function resolveChannelSetupEntries(params: {
   );
 
   const metaById = new Map<string, ChannelMeta>();
-  for (const meta of listProductChatChannels()) {
+  for (const meta of listProductChatChannels({ env: params.env })) {
     metaById.set(meta.id, meta);
   }
   for (const plugin of installedPlugins) {

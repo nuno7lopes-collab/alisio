@@ -164,4 +164,51 @@ describe("listManifestInstalledChannelIds", () => {
     expect(resolved.entries.map((entry) => entry.id)).toEqual(["telegram", "whatsapp", "discord"]);
     expect(resolved.installableCatalogEntries.map((entry) => entry.id)).toEqual(["discord"]);
   });
+
+  it("can expose the broader setup catalog behind the product-surface flag", () => {
+    loadPluginManifestRegistry.mockReturnValue({
+      plugins: [],
+      diagnostics: [],
+    });
+    listChatChannels.mockReturnValue([
+      {
+        id: "telegram",
+        label: "Telegram",
+        selectionLabel: "Telegram",
+        docsPath: "/channels/telegram",
+        blurb: "Telegram",
+      },
+      {
+        id: "slack",
+        label: "Slack",
+        selectionLabel: "Slack",
+        docsPath: "/channels/slack",
+        blurb: "Slack",
+      },
+    ]);
+    listChannelPluginCatalogEntries.mockReturnValue([
+      {
+        id: "slack",
+        meta: {
+          id: "slack",
+          label: "Slack",
+          selectionLabel: "Slack",
+          docsPath: "/channels/slack",
+          blurb: "Slack",
+        },
+      },
+    ]);
+
+    const resolved = resolveChannelSetupEntries({
+      cfg: {} as never,
+      installedPlugins: [] as never,
+      workspaceDir: "/tmp/workspace",
+      env: {
+        OPENCLAW_CHANNEL_SURFACE: "all",
+      } as NodeJS.ProcessEnv,
+    });
+
+    expect(resolved.entries.map((entry) => entry.id)).toEqual(["telegram", "slack"]);
+    expect(resolved.installableCatalogEntries.map((entry) => entry.id)).toEqual(["slack"]);
+  });
 });

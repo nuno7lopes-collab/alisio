@@ -2,6 +2,7 @@ import { createArmableStallWatchdog } from "openclaw/plugin-sdk/channel-lifecycl
 import { createConnectedChannelStatusPatch } from "openclaw/plugin-sdk/gateway-runtime";
 import { danger } from "openclaw/plugin-sdk/runtime-env";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { formatErrorMessage } from "openclaw/plugin-sdk/ssrf-runtime";
 import type { MutableDiscordGateway } from "./gateway-handle.js";
 import type { DiscordMonitorStatusSink } from "./status.js";
 
@@ -57,6 +58,7 @@ export function createDiscordGatewayReconnectController(params: {
   let helloConnectedPollId: ReturnType<typeof setInterval> | undefined;
   let reconnectInFlight: Promise<void> | undefined;
   let consecutiveHelloStalls = 0;
+  const sanitizeRuntimeError = (err: unknown) => formatErrorMessage(err);
 
   const shouldStop = () => params.isLifecycleStopping() || params.abortSignal?.aborted;
   const resetHelloStallCounter = () => {
@@ -120,9 +122,9 @@ export function createDiscordGatewayReconnectController(params: {
         lastEventAt: at,
         lastDisconnect: {
           at,
-          error: error.message,
+          error: sanitizeRuntimeError(error),
         },
-        lastError: error.message,
+        lastError: sanitizeRuntimeError(error),
         healthState: "reconnecting",
       });
       params.runtime.error?.(
@@ -401,7 +403,9 @@ export function createDiscordGatewayReconnectController(params: {
           await reconnectGateway({ resume: true });
         } catch (err) {
           params.runtime.error?.(
-            danger(`discord: failed to restart stalled gateway socket: ${String(err)}`),
+            danger(
+              `discord: failed to restart stalled gateway socket: ${sanitizeRuntimeError(err)}`,
+            ),
           );
           triggerForceStop(err);
         }
@@ -480,7 +484,7 @@ export function createDiscordGatewayReconnectController(params: {
             at: startupFailureAt,
             error: "startup-reconnect-timeout",
           },
-          lastError: error.message,
+          lastError: sanitizeRuntimeError(error),
           healthState: "stopped",
         });
         throw error;

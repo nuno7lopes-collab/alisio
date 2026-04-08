@@ -16,7 +16,10 @@ import type {
   ChannelPlugin,
   ChannelStatusIssue,
 } from "../../channels/plugins/types.js";
-import { listProductChatChannels } from "../../channels/product-surface.js";
+import {
+  filterProductChannelEntries,
+  listProductChatChannels,
+} from "../../channels/product-surface.js";
 import { isChannelConfigured } from "../../config/channel-configured.js";
 import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig, readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
@@ -130,10 +133,35 @@ export const channelsHandlers: GatewayRequestHandlers = {
     const pluginMap = new Map<ChannelId, ChannelPlugin>(
       runtimePlugins.map((plugin) => [plugin.id, plugin]),
     );
-    const resolvedEntries = listProductChatChannels().map((entry) => ({
-      id: entry.id,
-      meta: entry,
-    }));
+    const resolvedEntriesById = new Map<
+      string,
+      {
+        id: ChannelId;
+        meta: {
+          label: string;
+          detailLabel?: string;
+          blurb?: string;
+          docsPath?: string;
+          docsLabel?: string;
+          systemImage?: string;
+        };
+      }
+    >();
+    for (const entry of listProductChatChannels()) {
+      resolvedEntriesById.set(entry.id, {
+        id: entry.id,
+        meta: entry,
+      });
+    }
+    for (const plugin of filterProductChannelEntries(runtimePlugins)) {
+      if (!resolvedEntriesById.has(plugin.id)) {
+        resolvedEntriesById.set(plugin.id, {
+          id: plugin.id,
+          meta: plugin.meta,
+        });
+      }
+    }
+    const resolvedEntries = Array.from(resolvedEntriesById.values());
 
     const resolveRuntimeSnapshot = (
       channelId: ChannelId,

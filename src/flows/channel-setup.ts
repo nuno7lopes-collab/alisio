@@ -9,7 +9,10 @@ import {
   listChannelSetupPlugins,
 } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
-import { isProductChatChannelId, listProductChatChannels } from "../channels/product-surface.js";
+import {
+  listProductChatChannels,
+  shouldExposeChannelInProductSurface,
+} from "../channels/product-surface.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import {
   isCatalogChannelInstalled,
@@ -97,7 +100,7 @@ export async function setupChannels(
   const resolveWorkspaceDir = () => resolveAgentWorkspaceDir(next, resolveDefaultAgentId(next));
   const rememberScopedPlugin = (plugin: ChannelSetupPlugin) => {
     const channel = plugin.id;
-    if (!isProductChatChannelId(channel)) {
+    if (!shouldExposeChannelInProductSurface(channel)) {
       return;
     }
     scopedPluginsById.set(channel, plugin);
@@ -108,12 +111,12 @@ export async function setupChannels(
   const listVisibleInstalledPlugins = (): ChannelSetupPlugin[] => {
     const merged = new Map<string, ChannelSetupPlugin>();
     for (const plugin of listChannelSetupPlugins()) {
-      if (isProductChatChannelId(plugin.id)) {
+      if (shouldExposeChannelInProductSurface(plugin.id)) {
         merged.set(plugin.id, plugin);
       }
     }
     for (const plugin of scopedPluginsById.values()) {
-      if (isProductChatChannelId(plugin.id)) {
+      if (shouldExposeChannelInProductSurface(plugin.id)) {
         merged.set(plugin.id, plugin);
       }
     }
@@ -155,7 +158,7 @@ export async function setupChannels(
     const workspaceDir = resolveWorkspaceDir();
     for (const entry of listChannelPluginCatalogEntries({ workspaceDir })) {
       const channel = entry.id as ChannelChoice;
-      if (!isProductChatChannelId(channel)) {
+      if (!shouldExposeChannelInProductSurface(channel)) {
         continue;
       }
       if (getVisibleChannelPlugin(channel)) {
@@ -173,7 +176,11 @@ export async function setupChannels(
     accountOverrides.whatsapp = options.whatsappAccountId.trim();
   }
   const presetSelection = Array.from(
-    new Set((options?.initialSelection ?? []).filter((channel) => isProductChatChannelId(channel))),
+    new Set(
+      (options?.initialSelection ?? []).filter((channel) =>
+        shouldExposeChannelInProductSurface(channel),
+      ),
+    ),
   );
   const useSingleChannelFastPath =
     options?.skipSelectionPrompt === true && presetSelection.length === 1;

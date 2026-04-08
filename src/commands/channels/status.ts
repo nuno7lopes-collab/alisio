@@ -8,8 +8,8 @@ import {
 } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot } from "../../channels/plugins/types.js";
 import {
-  isProductChatChannelId,
   listProductChannelPlugins,
+  shouldExposeChannelInProductSurface,
 } from "../../channels/product-surface.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { resolveCommandSecretRefsViaGateway } from "../../cli/command-secret-gateway.js";
@@ -196,7 +196,7 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
 
   lines.push("");
   const issues = collectChannelStatusIssues(payload).filter((issue) =>
-    isProductChatChannelId(issue.channel),
+    shouldExposeChannelInProductSurface(issue.channel),
   );
   if (issues.length > 0) {
     lines.push(theme.warn("Warnings:"));

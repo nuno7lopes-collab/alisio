@@ -1,3 +1,5 @@
+import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
+
 function safeStringify(value: unknown, limit = 800): string {
   try {
     const seen = new WeakSet();
@@ -117,7 +119,7 @@ export function formatError(err: unknown): string {
   }
 
   if (pieces.length > 0) {
-    return pieces.join(" ");
+    return redactSensitiveText(pieces.join(" "));
   }
-  return safeStringify(err);
+  return redactSensitiveText(safeStringify(err));
 }
