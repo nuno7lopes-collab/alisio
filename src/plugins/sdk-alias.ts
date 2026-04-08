@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEGACY_PROJECT_NAMES, PROJECT_NAME } from "../compat/legacy-names.js";
 import { resolveAlisioPackageRootSync } from "../infra/alisio-root.js";
 
 type PluginSdkAliasCandidateKind = "dist" | "src";
@@ -46,7 +47,7 @@ function listPluginSdkSubpathsFromPackageJson(pkg: PluginSdkPackageJson): string
     .toSorted();
 }
 
-function hasTrustedOpenClawRootIndicator(params: {
+function hasTrustedProjectRootIndicator(params: {
   packageRoot: string;
   packageJson: PluginSdkPackageJson;
 }): boolean {
@@ -76,14 +77,14 @@ function readPluginSdkSubpathsFromPackageRoot(packageRoot: string): string[] | n
   if (!pkg) {
     return null;
   }
-  if (!hasTrustedOpenClawRootIndicator({ packageRoot, packageJson: pkg })) {
+  if (!hasTrustedProjectRootIndicator({ packageRoot, packageJson: pkg })) {
     return null;
   }
   const subpaths = listPluginSdkSubpathsFromPackageJson(pkg);
   return subpaths.length > 0 ? subpaths : null;
 }
 
-function resolveTrustedOpenClawRootFromArgvHint(params: {
+function resolveTrustedProjectRootFromArgvHint(params: {
   argv1?: string;
   cwd: string;
 }): string | null {
@@ -101,7 +102,7 @@ function resolveTrustedOpenClawRootFromArgvHint(params: {
   if (!packageJson) {
     return null;
   }
-  return hasTrustedOpenClawRootIndicator({ packageRoot, packageJson }) ? packageRoot : null;
+  return hasTrustedProjectRootIndicator({ packageRoot, packageJson }) ? packageRoot : null;
 }
 
 function findNearestPluginSdkPackageRoot(startDir: string, maxDepth = 12): string | null {
@@ -143,7 +144,7 @@ function resolveLoaderPluginSdkPackageRoot(
   const cwd = params.cwd ?? path.dirname(params.modulePath);
   const fromCwd = resolveAlisioPackageRootSync({ cwd });
   const fromExplicitHints =
-    resolveTrustedOpenClawRootFromArgvHint({ cwd, argv1: params.argv1 }) ??
+    resolveTrustedProjectRootFromArgvHint({ cwd, argv1: params.argv1 }) ??
     (params.moduleUrl
       ? resolveAlisioPackageRootSync({
           cwd,
@@ -248,6 +249,12 @@ export function resolvePluginSdkAliasFile(params: {
 
 const cachedPluginSdkExportedSubpaths = new Map<string, string[]>();
 const cachedPluginSdkScopedAliasMaps = new Map<string, Record<string, string>>();
+const PLUGIN_SDK_PACKAGE_SPECIFIERS = [PROJECT_NAME, ...LEGACY_PROJECT_NAMES].map(
+  (projectName) => `${projectName}/plugin-sdk`,
+);
+const EXTENSION_API_SPECIFIERS = [PROJECT_NAME, ...LEGACY_PROJECT_NAMES].map(
+  (projectName) => `${projectName}/extension-api`,
+);
 
 export function listPluginSdkExportedSubpaths(
   params: {
@@ -316,7 +323,9 @@ export function resolvePluginSdkScopedAliasMap(
     for (const kind of orderedKinds) {
       const candidate = candidateMap[kind];
       if (fs.existsSync(candidate)) {
-        aliasMap[`openclaw/plugin-sdk/${subpath}`] = candidate;
+        for (const specifier of PLUGIN_SDK_PACKAGE_SPECIFIERS) {
+          aliasMap[`${specifier}/${subpath}`] = candidate;
+        }
         break;
       }
     }
@@ -370,8 +379,16 @@ export function buildPluginLoaderAliasMap(
   });
   const extensionApiAlias = resolveExtensionApiAlias({ modulePath, pluginSdkResolution });
   return {
-    ...(extensionApiAlias ? { "openclaw/extension-api": extensionApiAlias } : {}),
-    ...(pluginSdkAlias ? { "openclaw/plugin-sdk": pluginSdkAlias } : {}),
+    ...(extensionApiAlias
+      ? Object.fromEntries(
+          EXTENSION_API_SPECIFIERS.map((specifier) => [specifier, extensionApiAlias]),
+        )
+      : {}),
+    ...(pluginSdkAlias
+      ? Object.fromEntries(
+          PLUGIN_SDK_PACKAGE_SPECIFIERS.map((specifier) => [specifier, pluginSdkAlias]),
+        )
+      : {}),
     ...resolvePluginSdkScopedAliasMap({ modulePath, argv1, moduleUrl, pluginSdkResolution }),
   };
 }

@@ -24,8 +24,9 @@ third-party plugins see.
 
 ## Boundary Rules
 
-- Extension production code should import from `openclaw/plugin-sdk/*` and its
-  own local barrels such as `./api.ts` and `./runtime-api.ts`.
+- Extension production code should import from `alisio/plugin-sdk/*` and its
+  own local barrels such as `./api.ts` and `./runtime-api.ts`. Legacy
+  `openclaw/plugin-sdk/*` imports remain compatibility-only.
 - Do not import core internals from `src/**`, `src/channels/**`,
   `src/plugin-sdk-internal/**`, or another extension's `src/**`.
 - Do not use relative imports that escape the current extension package root.
