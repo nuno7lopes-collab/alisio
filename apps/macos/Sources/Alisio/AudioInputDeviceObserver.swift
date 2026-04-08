@@ -4,7 +4,7 @@ import OSLog
 
 import AlisioSupport
 final class AudioInputDeviceObserver {
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "audio.devices")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "audio.devices")
     private var isActive = false
     private var devicesListener: AudioObjectPropertyListenerBlock?
     private var defaultInputListener: AudioObjectPropertyListenerBlock?

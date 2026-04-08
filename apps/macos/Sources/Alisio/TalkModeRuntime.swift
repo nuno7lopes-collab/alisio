@@ -12,8 +12,8 @@ actor TalkModeRuntime {
         case systemVoiceOnly
     }
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "talk.runtime")
-    private let ttsLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "talk.tts")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "talk.runtime")
+    private let ttsLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "talk.tts")
     private static let defaultModelIdFallback = "eleven_v3"
     private static let defaultTalkProvider = "elevenlabs"
     private static let defaultSilenceTimeoutMs = TalkDefaults.silenceTimeoutMs

@@ -3,7 +3,7 @@ import OSLog
 
 import AlisioSupport
 enum VoiceWakeForwarder {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "voicewake.forward")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "voicewake.forward")
 
     static func prefixedTranscript(_ transcript: String, machineName: String? = nil) -> String {
         let resolvedMachine = machineName

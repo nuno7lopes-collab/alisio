@@ -7,7 +7,7 @@ import AlisioSupport
 final class TerminationSignalWatcher {
     static let shared = TerminationSignalWatcher()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "lifecycle")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "lifecycle")
     private var sources: [DispatchSourceSignal] = []
     private var terminationRequested = false
 

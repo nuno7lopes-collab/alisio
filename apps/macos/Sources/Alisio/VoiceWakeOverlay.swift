@@ -9,7 +9,7 @@ import AlisioSupport
 final class VoiceWakeOverlayController {
     static let shared = VoiceWakeOverlayController()
 
-    let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "voicewake.overlay")
+    let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "voicewake.overlay")
     let enableUI: Bool
 
     /// Keep the voice wake overlay above any other Alisio windows, but below the system’s pop-up menus.

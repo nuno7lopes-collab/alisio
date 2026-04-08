@@ -7,7 +7,7 @@ final class CanvasFileWatcher: @unchecked Sendable, SimpleFileWatcherOwner {
     init(url: URL, onChange: @escaping () -> Void) {
         self.watcher = SimpleFileWatcher(CoalescingFSEventsWatcher(
             paths: [url.path],
-            queueLabel: "pt.ritaalves.alisio.canvaswatcher",
+            queueLabel: AlisioBrand.subsystem("canvaswatcher"),
             onChange: onChange))
     }
 }

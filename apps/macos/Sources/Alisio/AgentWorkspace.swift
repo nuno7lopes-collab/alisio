@@ -3,7 +3,7 @@ import OSLog
 
 import AlisioSupport
 enum AgentWorkspace {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "workspace")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "workspace")
     static let agentsFilename = "AGENTS.md"
     static let soulFilename = "SOUL.md"
     static let identityFilename = "IDENTITY.md"

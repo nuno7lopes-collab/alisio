@@ -78,7 +78,7 @@ public final class GatewayDiscoveryModel {
     private var wideAreaFallbackGateways: [DiscoveredGateway] = []
     private var tailscaleServeFallbackTask: Task<Void, Never>?
     private var tailscaleServeFallbackGateways: [DiscoveredGateway] = []
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "gateway-discovery")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway-discovery")
 
     public init(
         localDisplayName: String? = nil,
@@ -97,7 +97,7 @@ public final class GatewayDiscoveryModel {
             let browser = GatewayDiscoveryBrowserSupport.makeBrowser(
                 serviceType: AlisioBonjour.gatewayServiceType,
                 domain: domain,
-                queueLabelPrefix: "pt.ritaalves.alisio.gateway-discovery",
+                queueLabelPrefix: AlisioBrand.subsystem("gateway-discovery"),
                 onState: { [weak self] state in
                     guard let self else { return }
                     self.statesByDomain[domain] = state

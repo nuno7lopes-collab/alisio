@@ -4,7 +4,7 @@ import OSLog
 import SwiftUI
 
 import AlisioSupport
-private let onboardingWizardLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "onboarding.wizard")
+private let onboardingWizardLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "onboarding.wizard")
 
 // MARK: - Swift 6 AnyCodable Bridging Helpers
 

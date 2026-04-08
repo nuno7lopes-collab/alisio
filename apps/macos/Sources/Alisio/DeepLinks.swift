@@ -4,7 +4,7 @@ import OSLog
 import Security
 
 import AlisioSupport
-private let deepLinkLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "DeepLink")
+private let deepLinkLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "DeepLink")
 
 enum DeepLinkAgentPolicy {
     static let maxMessageChars = 20000

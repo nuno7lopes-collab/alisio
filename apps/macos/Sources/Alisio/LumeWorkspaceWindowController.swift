@@ -4,7 +4,7 @@ import OSLog
 import WebKit
 
 import AlisioSupport
-private let lumeWorkspaceLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "LumeWorkspace")
+private let lumeWorkspaceLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "LumeWorkspace")
 
 private enum LumeWorkspaceLayout {
     static let windowSize = NSSize(width: 1360, height: 860)
@@ -218,7 +218,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
                 backing: .buffered,
                 defer: false)
             window.title = "Alisio"
-            window.identifier = NSUserInterfaceItemIdentifier("pt.ritaalves.alisio.lume-workspace-window")
+            window.identifier = NSUserInterfaceItemIdentifier(AlisioBrand.subsystem("lume-workspace-window"))
             window.contentViewController = contentViewController
             window.isReleasedWhenClosed = false
             window.titlebarAppearsTransparent = true

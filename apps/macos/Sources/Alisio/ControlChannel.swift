@@ -78,7 +78,7 @@ final class ControlChannel {
     private(set) var lastPingMs: Double?
     private(set) var authSourceLabel: String?
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "control")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "control")
 
     private var eventTask: Task<Void, Never>?
     private var recoveryTask: Task<Void, Never>?

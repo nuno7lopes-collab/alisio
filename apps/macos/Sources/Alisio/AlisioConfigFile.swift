@@ -3,7 +3,7 @@ import Foundation
 
 import AlisioSupport
 enum AlisioConfigFile {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "config")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "config")
     private static let configAuditFileName = "config-audit.jsonl"
     private static let configHealthFileName = "config-health.json"
 

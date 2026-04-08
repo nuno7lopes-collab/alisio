@@ -6,7 +6,7 @@ import UserNotifications
 import AlisioSupport
 @MainActor
 struct NotificationManager {
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "notifications")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "notifications")
 
     private static let hasTimeSensitiveEntitlement: Bool = {
         guard let task = SecTaskCreateFromSelf(nil) else { return false }

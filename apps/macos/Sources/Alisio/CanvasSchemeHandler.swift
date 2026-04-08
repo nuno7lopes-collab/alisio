@@ -3,7 +3,7 @@ import OSLog
 import WebKit
 
 import AlisioSupport
-private let canvasLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "Canvas")
+private let canvasLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "Canvas")
 
 final class CanvasSchemeHandler: NSObject, WKURLSchemeHandler {
     private let root: URL

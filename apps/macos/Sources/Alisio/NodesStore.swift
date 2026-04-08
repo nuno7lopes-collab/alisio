@@ -47,7 +47,7 @@ final class NodesStore {
     var statusMessage: String?
     var isLoading = false
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "nodes")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "nodes")
     private var task: Task<Void, Never>?
     private let interval: TimeInterval = 30
     private var startCount = 0

@@ -6,7 +6,7 @@ import AlisioSupport
 @MainActor
 final class CLIInstallPrompter {
     static let shared = CLIInstallPrompter()
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "cli.prompt")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "cli.prompt")
     private var isPrompting = false
 
     func checkAndPromptIfNeeded(reason: String) {

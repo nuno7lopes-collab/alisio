@@ -7,7 +7,7 @@ import AlisioSupport
 final class ExecApprovalsGatewayPrompter {
     static let shared = ExecApprovalsGatewayPrompter()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "exec-approvals.gateway")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "exec-approvals.gateway")
     private var task: Task<Void, Never>?
 
     struct GatewayApprovalRequest: Codable {

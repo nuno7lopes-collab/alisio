@@ -221,7 +221,7 @@ struct ExecApprovalsResolvedDefaults {
 }
 
 enum ExecApprovalsStore {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "exec-approvals")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "exec-approvals")
     private static let defaultAgentId = "main"
     private static let defaultSecurity: ExecSecurity = .deny
     private static let defaultAsk: ExecAsk = .onMiss

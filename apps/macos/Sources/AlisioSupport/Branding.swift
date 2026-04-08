@@ -1,9 +1,14 @@
 import Foundation
 
 public enum AlisioBrand {
-    public static let displayName = "Alísio"
+    public static let displayName = "Alisio"
     public static let executableName = "Alisio"
-    public static let bundleIdentifier = "pt.ritaalves.alisio"
+    public static let bundleIdentifier = "ai.alisio.mac"
+    public static let debugBundleIdentifier = bundleIdentifier + ".debug"
+    public static let deepLinkIdentifier = bundleIdentifier + ".deeplink"
+    // The gateway protocol still keys macOS app auth and policy off the canonical client id.
+    public static let gatewayClientIdentifier = "openclaw-macos"
+    public static let logSubsystem = bundleIdentifier
     public static let defaultsPrefix = "alisio."
     public static let stateDirectoryName = ".alisio"
     public static let configFileName = "alisio.json"
@@ -16,6 +21,10 @@ public enum AlisioBrand {
     public static let configPathEnv = "ALISIO_CONFIG_PATH"
     public static let stateDirEnv = "ALISIO_STATE_DIR"
     public static let nixModeEnv = "ALISIO_NIX_MODE"
+
+    public static func subsystem(_ suffix: String) -> String {
+        "\(bundleIdentifier).\(suffix)"
+    }
 }
 
 public enum LegacyBrand {

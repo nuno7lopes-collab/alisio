@@ -4,7 +4,7 @@ import AlisioSupport
 enum LaunchAgentManager {
     private static var plistURL: URL {
         FileManager().homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/pt.ritaalves.alisio.plist")
+            .appendingPathComponent("Library/LaunchAgents/\(launchdLabel).plist")
     }
 
     static func status() async -> Bool {
@@ -38,10 +38,10 @@ enum LaunchAgentManager {
         <plist version="1.0">
         <dict>
           <key>Label</key>
-          <string>pt.ritaalves.alisio</string>
+          <string>\(launchdLabel)</string>
           <key>ProgramArguments</key>
           <array>
-            <string>\(bundlePath)/Contents/MacOS/Alisio</string>
+            <string>\(bundlePath)/Contents/MacOS/\(AlisioBrand.executableName)</string>
           </array>
           <key>WorkingDirectory</key>
           <string>\(FileManager().homeDirectoryForCurrentUser.path)</string>

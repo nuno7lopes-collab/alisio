@@ -3,7 +3,7 @@ import OSLog
 
 import AlisioSupport
 enum NodeServiceManager {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "node.service")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "node.service")
 
     static func start() async -> String? {
         let result = await self.runServiceCommandResult(

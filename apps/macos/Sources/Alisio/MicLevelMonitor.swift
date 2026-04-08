@@ -4,7 +4,7 @@ import SwiftUI
 
 import AlisioSupport
 actor MicLevelMonitor {
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "voicewake.meter")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "voicewake.meter")
     private var engine: AVAudioEngine?
     private var update: (@Sendable (Double) -> Void)?
     private var running = false

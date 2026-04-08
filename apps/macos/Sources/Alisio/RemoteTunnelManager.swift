@@ -6,7 +6,7 @@ import AlisioSupport
 actor RemoteTunnelManager {
     static let shared = RemoteTunnelManager()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "remote-tunnel")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "remote-tunnel")
     private var controlTunnel: RemotePortTunnel?
     private var restartInFlight = false
     private var lastRestartAt: Date?

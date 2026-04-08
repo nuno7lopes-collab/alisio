@@ -71,7 +71,7 @@ struct GatewayCommandResolution {
 }
 
 enum GatewayEnvironment {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "gateway.env")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.env")
     private static let supportedBindModes: Set<String> = ["loopback", "tailnet", "lan", "auto"]
 
     static func gatewayPort() -> Int {

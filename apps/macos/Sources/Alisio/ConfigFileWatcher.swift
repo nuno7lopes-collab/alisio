@@ -18,7 +18,7 @@ final class ConfigFileWatcher: @unchecked Sendable, SimpleFileWatcherOwner {
         let targetName = self.targetName
         self.watcher = SimpleFileWatcher(CoalescingFSEventsWatcher(
             paths: [watchedDirPath],
-            queueLabel: "pt.ritaalves.alisio.configwatcher",
+            queueLabel: AlisioBrand.subsystem("configwatcher"),
             shouldNotify: { _, eventPaths in
                 guard let eventPaths else { return true }
                 let paths = unsafeBitCast(eventPaths, to: NSArray.self)

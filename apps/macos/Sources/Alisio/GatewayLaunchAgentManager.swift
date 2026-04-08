@@ -2,7 +2,7 @@ import Foundation
 
 import AlisioSupport
 enum GatewayLaunchAgentManager {
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "gateway.launchd")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
 
     private static var disableLaunchAgentMarkerURL: URL {

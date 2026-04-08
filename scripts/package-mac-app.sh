@@ -15,14 +15,19 @@ PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
 APP_ROOT="$ROOT_DIR/dist/${APP_NAME}.app"
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
-BUNDLE_ID="${BUNDLE_ID:-$(alisio_bundle_domain).mac.debug}"
+BUNDLE_ID="${BUNDLE_ID:-$(alisio_macos_debug_bundle_id)}"
 PKG_VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")"
-BUILD_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
+  BUILD_TS="$(date -u -r "$SOURCE_DATE_EPOCH" +"%Y-%m-%dT%H:%M:%SZ")"
+else
+  BUILD_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+fi
 GIT_COMMIT="$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
 GIT_BUILD_NUMBER="$(cd "$ROOT_DIR" && git rev-list --count HEAD 2>/dev/null || echo "0")"
 APP_VERSION="${APP_VERSION:-$PKG_VERSION}"
 APP_BUILD="${APP_BUILD:-}"
 BUILD_CONFIG="${BUILD_CONFIG:-debug}"
+PACKAGE_MODE="${MACOS_PACKAGE_MODE:-}"
 BUILD_INFO_TS_KEY="${APP_NAME}BuildTimestamp"
 BUILD_INFO_COMMIT_KEY="${APP_NAME}GitCommit"
 BUILD_INFO_DIST_KEY="${APP_NAME}Distribution"
@@ -40,11 +45,52 @@ IFS=' ' read -r -a BUILD_ARCHS <<< "$BUILD_ARCHS_VALUE"
 PRIMARY_ARCH="${BUILD_ARCHS[0]}"
 DISTRO_ID="$(alisio_read_prefixed_env DISTRIBUTION "$APP_SLUG")"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=}"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-$(alisio_repo_raw_base "$DISTRO_ID")/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-$(alisio_macos_sparkle_feed_url "$DISTRO_ID")}"
 AUTO_CHECKS=true
 if [[ "$BUNDLE_ID" == *.debug || -z "$SPARKLE_FEED_URL" ]]; then
   SPARKLE_FEED_URL=""
   AUTO_CHECKS=false
+fi
+
+if [[ -z "$PACKAGE_MODE" ]]; then
+  if [[ "$BUILD_CONFIG" == "release" ]]; then
+    PACKAGE_MODE="release-placeholder"
+  else
+    PACKAGE_MODE="debug"
+  fi
+fi
+
+case "$PACKAGE_MODE" in
+  debug)
+    if [[ "$BUILD_CONFIG" != "debug" ]]; then
+      echo "ERROR: MACOS_PACKAGE_MODE=debug requires BUILD_CONFIG=debug." >&2
+      exit 1
+    fi
+    ;;
+  release-placeholder)
+    if [[ "$BUILD_CONFIG" != "release" ]]; then
+      echo "ERROR: MACOS_PACKAGE_MODE=release-placeholder requires BUILD_CONFIG=release." >&2
+      exit 1
+    fi
+    ;;
+  release-real)
+    echo "ERROR: scripts/package-mac-app.sh only produces a signed .app bundle." >&2
+    echo "       Use scripts/package-mac-dist.sh for release zip/dmg packaging and notarization." >&2
+    exit 1
+    ;;
+  *)
+    echo "ERROR: Invalid MACOS_PACKAGE_MODE: $PACKAGE_MODE (use debug or release-placeholder)." >&2
+    exit 1
+    ;;
+esac
+
+if [[ "$BUNDLE_ID" == *openclaw* || "$BUNDLE_ID" == *OpenClaw* ]]; then
+  echo "ERROR: BUNDLE_ID must not contain openclaw: $BUNDLE_ID" >&2
+  exit 1
+fi
+if [[ "$BUNDLE_ID" != "$(alisio_bundle_domain)."* ]]; then
+  echo "ERROR: BUNDLE_ID must use the $(alisio_bundle_domain).* namespace: $BUNDLE_ID" >&2
+  exit 1
 fi
 
 sparkle_canonical_build_from_version() {
@@ -176,9 +222,40 @@ plist_set_or_add() {
     || /usr/libexec/PlistBuddy -c "Add :${key} ${type} ${value}" "$plist" >/dev/null 2>&1
 }
 
+copy_dist_snapshot_with_retry() {
+  local source="$1"
+  local dest="$2"
+  local attempt rc
+
+  for attempt in 1 2 3; do
+    rm -rf "$dest"
+    if /usr/bin/ditto "$source" "$dest"; then
+      rm -rf "$dest/${APP_NAME}.app"
+      find "$dest" -maxdepth 1 -type f \( \
+        -name "${APP_NAME}-*.zip" -o \
+        -name "${APP_NAME}-*.dmg" -o \
+        -name "${APP_NAME}-*.dSYM.zip" \
+      \) -delete
+      return 0
+    fi
+    rc=$?
+    if [[ "$attempt" -eq 3 ]]; then
+      return "$rc"
+    fi
+    echo "WARN: transient staging copy failure for $(basename "$source") (attempt $attempt/3); retrying with a fresh snapshot." >&2
+    sleep 1
+  done
+}
+
 if [[ "${SKIP_PNPM_INSTALL:-0}" != "1" ]]; then
-  echo "📦 Ensuring deps (pnpm install)"
-  (cd "$ROOT_DIR" && pnpm install --no-frozen-lockfile --config.node-linker=hoisted)
+  PNPM_INSTALL_ARGS=(install --config.node-linker=hoisted)
+  if [[ "${ALLOW_LOCKFILE_REFRESH:-0}" == "1" ]]; then
+    PNPM_INSTALL_ARGS+=(--no-frozen-lockfile)
+  else
+    PNPM_INSTALL_ARGS+=(--frozen-lockfile)
+  fi
+  echo "📦 Ensuring deps (pnpm ${PNPM_INSTALL_ARGS[*]})"
+  (cd "$ROOT_DIR" && pnpm "${PNPM_INSTALL_ARGS[@]}")
 fi
 
 if [[ -z "$APP_BUILD" ]]; then
@@ -208,6 +285,7 @@ fi
 
 cd "$ROOT_DIR/apps/macos"
 
+echo "📦 Packaging mode: $PACKAGE_MODE"
 echo "🔨 Building ${PRODUCT} ($BUILD_CONFIG) [${BUILD_ARCHS[*]}]"
 for arch in "${BUILD_ARCHS[@]}"; do
   BUILD_PATH="$(build_path_for_arch "$arch")"
@@ -321,12 +399,7 @@ fi
 if [[ -d "$ROOT_DIR/bin" ]]; then
   (cd "$ROOT_DIR" && tar -cf - bin) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
 fi
-(cd "$ROOT_DIR" && tar -cf - \
-  --exclude="dist/${APP_NAME}.app" \
-  --exclude="dist/${APP_NAME}-*.zip" \
-  --exclude="dist/${APP_NAME}-*.dmg" \
-  --exclude="dist/${APP_NAME}-*.dSYM.zip" \
-  dist) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+copy_dist_snapshot_with_retry "$ROOT_DIR/dist" "$BUNDLED_PACKAGE_STAGE/dist"
 if [[ -d "$ROOT_DIR/dist-runtime" ]]; then
   (cd "$ROOT_DIR" && tar -cf - dist-runtime) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
 fi
@@ -367,5 +440,15 @@ elif [[ "${ALLOW_MISSING_TEXTUAL_BUNDLE:-0}" != "1" ]]; then
 fi
 
 killall -q "$PRODUCT" 2>/dev/null || true
+if [[ "$PACKAGE_MODE" == "debug" && -z "${ALLOW_ADHOC_SIGNING:-}" ]]; then
+  export ALLOW_ADHOC_SIGNING=1
+fi
+if [[ "$PACKAGE_MODE" != "debug" && "${ALLOW_ADHOC_SIGNING:-0}" == "1" ]]; then
+  echo "ERROR: release-placeholder requires a real signing identity." >&2
+  exit 1
+fi
 "$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"
+if [[ "$PACKAGE_MODE" == "release-placeholder" ]]; then
+  echo "ℹ️ Release placeholder ready. Use scripts/package-mac-dist.sh for zip/dmg + notarized distribution."
+fi
 echo "✅ Bundle pronto em $APP_ROOT"

@@ -20,7 +20,24 @@ scripts/restart-mac.sh --sign      # force code signing (requires cert)
 scripts/package-mac-app.sh
 ```
 
-Creates `dist/Alisio.app` and signs it via `scripts/codesign-mac-app.sh`.
+Creates `dist/Alisio.app` in local debug mode, with bundle id `ai.alisio.mac.debug`, and signs it via `scripts/codesign-mac-app.sh`.
+When no Apple signing identity is available, debug packaging now falls back to ad-hoc signing automatically.
+
+Release placeholder:
+
+```bash
+BUILD_CONFIG=release MACOS_PACKAGE_MODE=release-placeholder scripts/package-mac-app.sh
+```
+
+This still produces only `dist/Alisio.app`.
+
+Release-grade distribution:
+
+```bash
+BUILD_CONFIG=release scripts/package-mac-dist.sh
+```
+
+This is the path that emits the signed/notarized release artifacts (`.zip`, `.dmg`, optional `.dSYM.zip`) with bundle id `ai.alisio.mac`.
 
 ## Signing behavior
 
@@ -32,6 +49,7 @@ Auto-selects identity (first match):
 
 If none found:
 - errors by default
+- debug packaging falls back to ad-hoc automatically
 - set `ALLOW_ADHOC_SIGNING=1` or `SIGN_IDENTITY="-"` to ad-hoc sign
 
 ## Team ID audit (Sparkle mismatch guard)

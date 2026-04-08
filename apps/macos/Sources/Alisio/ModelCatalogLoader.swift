@@ -7,7 +7,7 @@ enum ModelCatalogLoader {
         self.resolveDefaultPath()
     }
 
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "models")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "models")
     private nonisolated static let appSupportDir: URL = {
         let base = FileManager().urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         return base.appendingPathComponent("Alisio", isDirectory: true)

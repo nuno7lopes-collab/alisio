@@ -1,7 +1,7 @@
 import AppKit
 
 import AlisioSupport
-let canvasWindowLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "Canvas")
+let canvasWindowLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "Canvas")
 
 enum CanvasLayout {
     static let panelSize = NSSize(width: 520, height: 680)

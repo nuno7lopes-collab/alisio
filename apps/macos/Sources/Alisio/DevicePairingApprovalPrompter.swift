@@ -9,7 +9,7 @@ import AlisioSupport
 final class DevicePairingApprovalPrompter {
     static let shared = DevicePairingApprovalPrompter()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "device-pairing")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "device-pairing")
     private var task: Task<Void, Never>?
     private var isStopping = false
     private var isPresenting = false

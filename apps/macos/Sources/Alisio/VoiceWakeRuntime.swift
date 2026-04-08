@@ -14,7 +14,7 @@ actor VoiceWakeRuntime {
 
     enum ListeningState { case idle, voiceWake, pushToTalk }
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "voicewake.runtime")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "voicewake.runtime")
 
     // Lazily created on start to avoid creating an AVAudioEngine at app launch, which can switch Bluetooth
     // headphones into the low-quality headset profile even if Voice Wake is disabled.

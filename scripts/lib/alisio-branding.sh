@@ -30,6 +30,22 @@ alisio_bundle_domain() {
   printf '%s\n' "ai.alisio"
 }
 
+alisio_macos_bundle_id_root() {
+  printf '%s\n' "$(alisio_bundle_domain).mac"
+}
+
+alisio_macos_release_bundle_id() {
+  printf '%s\n' "$(alisio_macos_bundle_id_root)"
+}
+
+alisio_macos_debug_bundle_id() {
+  printf '%s\n' "$(alisio_macos_release_bundle_id).debug"
+}
+
+alisio_macos_deeplink_id() {
+  printf '%s\n' "$(alisio_macos_release_bundle_id).deeplink"
+}
+
 alisio_public_repo_nwo() {
   local slug
   slug="$(alisio_app_slug)"
@@ -99,6 +115,11 @@ alisio_repo_https_url() {
 alisio_repo_raw_base() {
   local distribution="${1:-$(alisio_distribution_id)}"
   printf 'https://raw.githubusercontent.com/%s/main\n' "$(alisio_repo_nwo "$distribution")"
+}
+
+alisio_macos_sparkle_feed_url() {
+  local distribution="${1:-$(alisio_distribution_id)}"
+  printf '%s/appcast.xml\n' "$(alisio_repo_raw_base "$distribution")"
 }
 
 alisio_release_download_base() {

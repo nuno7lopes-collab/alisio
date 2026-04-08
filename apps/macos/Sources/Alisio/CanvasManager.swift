@@ -8,7 +8,7 @@ import AlisioSupport
 final class CanvasManager {
     static let shared = CanvasManager()
 
-    private static let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "CanvasManager")
+    private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "CanvasManager")
 
     private var panelController: CanvasWindowController?
     private var panelSessionKey: String?

@@ -28,7 +28,7 @@ final class VoiceWakeTester {
     private var currentTriggers: [String] = []
     private var holdingAfterDetect = false
     private var detectedText: String?
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "voicewake")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "voicewake")
     private let silenceWindow: TimeInterval = 1.0
 
     private struct RecognitionContext {

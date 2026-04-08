@@ -7,7 +7,7 @@ import AlisioSupport
 final class PresenceReporter {
     static let shared = PresenceReporter()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "presence")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "presence")
     private var task: Task<Void, Never>?
     private let interval: TimeInterval = 180 // a few minutes
     private let instanceId: String = InstanceIdentity.instanceId

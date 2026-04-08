@@ -542,7 +542,7 @@
     },
     {
       "source": "/mac/release",
-      "destination": "/reference/RELEASING"
+      "destination": "/reference/macos-release"
     },
     {
       "source": "/mac/remote",
@@ -1510,7 +1510,7 @@
               },
               {
                 "group": "Release policy",
-                "pages": ["reference/RELEASING", "reference/test"]
+                "pages": ["reference/RELEASING", "reference/macos-release", "reference/test"]
               }
             ]
           },

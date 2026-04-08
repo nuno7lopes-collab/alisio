@@ -7,13 +7,13 @@
     <key>CFBundleExecutable</key>
     <string>Alisio</string>
     <key>CFBundleIdentifier</key>
-    <string>pt.ritaalves.alisio</string>
+    <string>ai.alisio.mac.debug</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Alísio</string>
+    <string>Alisio</string>
     <key>CFBundleDisplayName</key>
-    <string>Alísio</string>
+    <string>Alisio</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -26,7 +26,7 @@
     <array>
         <dict>
             <key>CFBundleURLName</key>
-            <string>pt.ritaalves.alisio.deeplink</string>
+            <string>ai.alisio.mac.deeplink</string>
             <key>CFBundleURLSchemes</key>
             <array>
             <string>alisio</string>

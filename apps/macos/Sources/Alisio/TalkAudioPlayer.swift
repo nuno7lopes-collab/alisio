@@ -7,7 +7,7 @@ import AlisioSupport
 final class TalkAudioPlayer: NSObject, @preconcurrency AVAudioPlayerDelegate {
     static let shared = TalkAudioPlayer()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "talk.tts")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "talk.tts")
     private var player: AVAudioPlayer?
     private var playback: Playback?
 

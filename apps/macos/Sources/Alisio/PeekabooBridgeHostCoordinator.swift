@@ -10,7 +10,7 @@ import AlisioSupport
 final class PeekabooBridgeHostCoordinator {
     static let shared = PeekabooBridgeHostCoordinator()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "PeekabooBridge")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "PeekabooBridge")
 
     private var host: PeekabooBridgeHost?
     private var services: AlisioPeekabooBridgeServices?
@@ -166,7 +166,7 @@ private final class AlisioPeekabooBridgeServices: PeekabooBridgeServiceProviding
     let snapshots: any SnapshotManagerProtocol
 
     init() {
-        let logging = LoggingService(subsystem: "pt.ritaalves.alisio.peekaboo")
+        let logging = LoggingService(subsystem: AlisioBrand.subsystem("peekaboo"))
         let feedbackClient: any AutomationFeedbackClient = NoopAutomationFeedbackClient()
 
         let snapshots = InMemorySnapshotManager(options: .init(

@@ -653,7 +653,7 @@ enum ExecApprovalsSocketPathGuard {
 }
 
 private final class ExecApprovalsSocketServer: @unchecked Sendable {
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "exec-approvals.socket")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "exec-approvals.socket")
     private let socketPath: String
     private let token: String
     private let onPrompt: @Sendable (ExecApprovalPromptRequest) async -> ExecApprovalDecision

@@ -6,7 +6,7 @@ import AlisioSupport
 final class ConnectionModeCoordinator {
     static let shared = ConnectionModeCoordinator()
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "connection")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "connection")
     private var lastMode: AppState.ConnectionMode?
 
     /// Apply the requested connection mode by starting/stopping local gateway,

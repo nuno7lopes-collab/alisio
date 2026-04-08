@@ -2,7 +2,7 @@ import Foundation
 import OSLog
 
 import AlisioSupport
-private let gatewayConnectionLogger = Logger(subsystem: "pt.ritaalves.alisio", category: "gateway.connection")
+private let gatewayConnectionLogger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.connection")
 
 enum GatewayAgentChannel: String, Codable, CaseIterable {
     case last
@@ -48,6 +48,13 @@ struct GatewayAgentInvocation {
 /// (ControlChannel, debug actions, SwiftUI WebChat, etc.).
 actor GatewayConnection {
     static let shared = GatewayConnection()
+    private static let operatorConnectScopes = [
+        "operator.admin",
+        "operator.read",
+        "operator.write",
+        "operator.approvals",
+        "operator.pairing",
+    ]
 
     typealias Config = (url: URL, token: String?, password: String?)
 
@@ -401,6 +408,15 @@ actor GatewayConnection {
             await client.shutdown()
         }
         self.lastSnapshot = nil
+        let connectOptions = GatewayConnectOptions(
+            role: "operator",
+            scopes: Self.operatorConnectScopes,
+            caps: [],
+            commands: [],
+            permissions: [:],
+            clientId: AlisioBrand.gatewayClientIdentifier,
+            clientMode: "ui",
+            clientDisplayName: InstanceIdentity.displayName)
         self.client = GatewayChannelActor(
             url: url,
             token: token,
@@ -408,7 +424,8 @@ actor GatewayConnection {
             session: self.sessionBox,
             pushHandler: { [weak self] push in
                 await self?.handle(push: push)
-            })
+            },
+            connectOptions: connectOptions)
         self.configuredURL = url
         self.configuredToken = token
         self.configuredPassword = password

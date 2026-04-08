@@ -36,7 +36,7 @@ actor CameraCaptureService {
         }
     }
 
-    private let logger = Logger(subsystem: "pt.ritaalves.alisio", category: "camera")
+    private let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "camera")
 
     func listDevices() -> [CameraDeviceInfo] {
         Self.availableCameras().map { device in
