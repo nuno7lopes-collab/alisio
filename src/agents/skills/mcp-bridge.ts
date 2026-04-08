@@ -4,14 +4,31 @@ import { z } from "zod";
 import type { AlisioConfig } from "../../config/config.js";
 import { parseBooleanValue } from "../../utils/boolean.js";
 import {
+  buildWorkspaceSkillStatus,
+  resolveWorkspaceMarketplaceCatalogStatus,
+  type SkillStatusEntry,
+} from "../skills-status.js";
+import {
+  appendSkillAuditEntry,
   buildSkillMarketplaceCatalog,
   executeMarketplaceSkill,
   installMarketplaceSkill,
+  listSkillAuditEntries,
+  listSkillConsentGrants,
   readMarketplaceSkillInstructions,
-  resolveSkillMarketplaceCatalog,
+  removeMarketplaceSkill,
+  resolveMarketplaceConsent,
 } from "../skills.js";
-import type { SkillCatalogEntry } from "../skills.js";
+import type {
+  SkillCatalogEntry,
+  SkillConsentDecision,
+  SkillConsentRequest,
+  SkillMarketplaceActionKind,
+  SkillOutputsSpec,
+} from "../skills.js";
 import type { SkillMarketplaceAccessContext } from "./marketplace-access.js";
+
+const BRIDGE_ACTOR = "mcp:alisio-skills-marketplace";
 
 function sanitizeHandle(raw: string): string {
   const normalized = raw
@@ -34,6 +51,14 @@ function buildSkillResourceUris(name: string): {
   return {
     manifestUri: `skills://skill/${segment}/manifest`,
     instructionsUri: `skills://skill/${segment}/instructions`,
+  };
+}
+
+function buildMarketplaceResourceUris() {
+  return {
+    catalogUri: "skills://catalog",
+    auditUri: "skills://audit",
+    consentUri: "skills://consent-grants",
   };
 }
 
@@ -72,13 +97,22 @@ function resolveToolAnnotations(skill: SkillCatalogEntry): ToolAnnotations {
   };
 }
 
-function buildCatalogPayload(skills: SkillCatalogEntry[]) {
+function buildCatalogPayload<T extends { marketplaceReady: boolean }>(skills: T[]) {
   return {
     generatedAt: new Date().toISOString(),
     total: skills.length,
     ready: skills.filter((skill) => skill.marketplaceReady).length,
     skills,
   };
+}
+
+function defaultSkillOutputs(outputs?: SkillOutputsSpec): SkillOutputsSpec {
+  return (
+    outputs ?? {
+      primary: "instructions",
+      formats: ["text/markdown"],
+    }
+  );
 }
 
 function buildSkillPromptText(
@@ -141,6 +175,115 @@ function parseMcpFlag(value: unknown): boolean {
   return false;
 }
 
+function parseConsentDecision(value: unknown): SkillConsentDecision | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === "allow-once" || normalized === "allow-always" || normalized === "deny"
+    ? normalized
+    : undefined;
+}
+
+function resolveConsentDecision(args: {
+  consent?: unknown;
+  consentDecision?: unknown;
+}): SkillConsentDecision | undefined {
+  const explicitDecision = parseConsentDecision(args.consentDecision);
+  if (explicitDecision) {
+    return explicitDecision;
+  }
+  const legacyDecision = parseConsentDecision(args.consent);
+  if (legacyDecision) {
+    return legacyDecision;
+  }
+  return parseMcpFlag(args.consent) ? "allow-once" : undefined;
+}
+
+function formatConsentRequestText(request: SkillConsentRequest): string {
+  return `${request.title}\n${request.description}`.trim();
+}
+
+function buildConsentRequiredToolResult(params: {
+  action: SkillMarketplaceActionKind;
+  skillName: string;
+  request: SkillConsentRequest;
+}) {
+  return {
+    isError: true,
+    structuredContent: {
+      status: "consent-required",
+      action: params.action,
+      skillName: params.skillName,
+      request: params.request,
+    },
+    content: [
+      {
+        type: "text" as const,
+        text: formatConsentRequestText(params.request),
+      },
+    ],
+  };
+}
+
+function buildDeniedToolResult(params: {
+  action: SkillMarketplaceActionKind;
+  skillName: string;
+  message: string;
+}) {
+  return {
+    isError: true,
+    structuredContent: {
+      status: "denied",
+      action: params.action,
+      skillName: params.skillName,
+      message: params.message,
+    },
+    content: [
+      {
+        type: "text" as const,
+        text: params.message,
+      },
+    ],
+  };
+}
+
+function buildPromptErrorResponse(message: string) {
+  return {
+    description: message,
+    messages: [
+      {
+        role: "assistant" as const,
+        content: {
+          type: "text" as const,
+          text: message,
+        },
+      },
+    ],
+  };
+}
+
+async function resolveCatalogStatus(params: {
+  workspaceDir: string;
+  config?: AlisioConfig;
+  access?: SkillMarketplaceAccessContext;
+}): Promise<SkillStatusEntry[]> {
+  return await resolveWorkspaceMarketplaceCatalogStatus(params.workspaceDir, {
+    config: params.config,
+    access: params.access,
+  });
+}
+
+async function resolveCatalogStatusEntry(params: {
+  workspaceDir: string;
+  skillName: string;
+  config?: AlisioConfig;
+  access?: SkillMarketplaceAccessContext;
+}): Promise<SkillStatusEntry | null> {
+  const catalog = await resolveCatalogStatus(params);
+  return catalog.find((entry) => entry.name === params.skillName) ?? null;
+}
+
 export function createSkillsMarketplaceMcpBridge(params: {
   workspaceDir: string;
   config?: AlisioConfig;
@@ -150,6 +293,7 @@ export function createSkillsMarketplaceMcpBridge(params: {
     workspaceDir: params.workspaceDir,
     config: params.config,
   });
+  const { catalogUri, auditUri, consentUri } = buildMarketplaceResourceUris();
   const server = new McpServer({
     name: "alisio-skills-marketplace",
     version: "1.0.0",
@@ -157,20 +301,20 @@ export function createSkillsMarketplaceMcpBridge(params: {
 
   server.registerResource(
     "skills_catalog",
-    "skills://catalog",
+    catalogUri,
     {
       title: "Skills Catalog",
-      description: "Marketplace catalog for local skills.",
+      description: "Marketplace catalog with permissions, grants, and recent activity.",
       mimeType: "application/json",
     },
     async () => ({
       contents: [
         {
-          uri: "skills://catalog",
+          uri: catalogUri,
           mimeType: "application/json",
           text: JSON.stringify(
             buildCatalogPayload(
-              await resolveSkillMarketplaceCatalog({
+              await resolveCatalogStatus({
                 workspaceDir: params.workspaceDir,
                 config: params.config,
                 access: params.access,
@@ -184,10 +328,61 @@ export function createSkillsMarketplaceMcpBridge(params: {
     }),
   );
 
+  server.registerResource(
+    "skills_audit",
+    auditUri,
+    {
+      title: "Skills Audit Log",
+      description: "Recent marketplace action audit entries.",
+      mimeType: "application/json",
+    },
+    async () => ({
+      contents: [
+        {
+          uri: auditUri,
+          mimeType: "application/json",
+          text: JSON.stringify(
+            await listSkillAuditEntries({
+              workspaceDir: params.workspaceDir,
+              limit: 200,
+            }),
+            null,
+            2,
+          ),
+        },
+      ],
+    }),
+  );
+
+  server.registerResource(
+    "skills_consent_grants",
+    consentUri,
+    {
+      title: "Skills Consent Grants",
+      description: "Persisted marketplace consent grants for this workspace.",
+      mimeType: "application/json",
+    },
+    async () => ({
+      contents: [
+        {
+          uri: consentUri,
+          mimeType: "application/json",
+          text: JSON.stringify(
+            await listSkillConsentGrants({
+              workspaceDir: params.workspaceDir,
+            }),
+            null,
+            2,
+          ),
+        },
+      ],
+    }),
+  );
+
   server.registerTool(
     "skills_catalog",
     {
-      description: "List marketplace skills and their manifest status.",
+      description: "List marketplace skills, grants, and recent audit status.",
       inputSchema: {
         onlyReady: z.string().optional(),
       },
@@ -200,7 +395,7 @@ export function createSkillsMarketplaceMcpBridge(params: {
       },
     },
     async (args) => {
-      const catalog = await resolveSkillMarketplaceCatalog({
+      const catalog = await resolveCatalogStatus({
         workspaceDir: params.workspaceDir,
         config: params.config,
         access: params.access,
@@ -229,6 +424,7 @@ export function createSkillsMarketplaceMcpBridge(params: {
         targetWorkspaceDir: z.string().optional(),
         force: z.string().optional(),
         consent: z.string().optional(),
+        consentDecision: z.string().optional(),
       },
       annotations: {
         title: "Install Skill",
@@ -239,41 +435,220 @@ export function createSkillsMarketplaceMcpBridge(params: {
       },
     },
     async (args) => {
-      if (!parseMcpFlag(args.consent)) {
+      const targetWorkspaceDir = args.targetWorkspaceDir ?? params.workspaceDir;
+      const skill = await resolveCatalogStatusEntry({
+        workspaceDir: params.workspaceDir,
+        skillName: args.name,
+        config: params.config,
+        access: params.access,
+      });
+      if (!skill) {
         return {
           isError: true,
           content: [
             {
               type: "text",
-              text: "Explicit consent is required to install a skill into a workspace.",
+              text: `Skill not found: ${args.name}`,
             },
           ],
         };
       }
+      const consent = await resolveMarketplaceConsent({
+        workspaceDir: targetWorkspaceDir,
+        action: "install",
+        skill: {
+          name: skill.name,
+          version: skill.manifestVersion,
+          kind: skill.kind,
+          permissions: skill.permissions,
+          outputs: defaultSkillOutputs(skill.outputs),
+        },
+        decision: resolveConsentDecision(args),
+        actor: BRIDGE_ACTOR,
+      });
+      if (consent.status === "consent-required") {
+        return buildConsentRequiredToolResult({
+          action: "install",
+          skillName: skill.name,
+          request: consent.request,
+        });
+      }
+      if (consent.status === "denied") {
+        return buildDeniedToolResult({
+          action: "install",
+          skillName: skill.name,
+          message: consent.message,
+        });
+      }
       const result = await installMarketplaceSkill({
         catalogWorkspaceDir: params.workspaceDir,
-        targetWorkspaceDir: args.targetWorkspaceDir ?? params.workspaceDir,
+        targetWorkspaceDir,
         skillName: args.name,
         config: params.config,
         force: parseMcpFlag(args.force),
         access: params.access,
       });
       if (!result.ok) {
+        await appendSkillAuditEntry({
+          workspaceDir: targetWorkspaceDir,
+          skillName: skill.name,
+          action: "install",
+          outcome: "failed",
+          actor: BRIDGE_ACTOR,
+          summary: result.error,
+        });
         return {
           isError: true,
           content: [{ type: "text", text: result.error }],
         };
       }
+      await appendSkillAuditEntry({
+        workspaceDir: targetWorkspaceDir,
+        skillName: result.skill.name,
+        action: "install",
+        outcome: "completed",
+        decision: consent.decision,
+        actor: BRIDGE_ACTOR,
+        summary: `Installed ${result.skill.name} into ${result.targetDir}.`,
+      });
       return {
         structuredContent: {
+          status: "completed",
+          action: "install",
           skill: result.skill,
           targetDir: result.targetDir,
           access: result.access,
+          resources: {
+            catalog: catalogUri,
+            audit: auditUri,
+            consent: consentUri,
+          },
         },
         content: [
           {
             type: "text",
             text: `Installed "${result.skill.name}" into ${result.targetDir}.`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "skills_remove",
+    {
+      description: "Remove a previously installed marketplace skill from a workspace.",
+      inputSchema: {
+        name: z.string().min(1),
+        targetWorkspaceDir: z.string().optional(),
+        consent: z.string().optional(),
+        consentDecision: z.string().optional(),
+      },
+      annotations: {
+        title: "Remove Skill",
+        readOnlyHint: false,
+        idempotentHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args) => {
+      const targetWorkspaceDir = args.targetWorkspaceDir ?? params.workspaceDir;
+      const skill = await resolveCatalogStatusEntry({
+        workspaceDir: targetWorkspaceDir,
+        skillName: args.name,
+        config: params.config,
+        access: params.access,
+      });
+      if (!skill) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `Skill not found: ${args.name}`,
+            },
+          ],
+        };
+      }
+      const consent = await resolveMarketplaceConsent({
+        workspaceDir: targetWorkspaceDir,
+        action: "remove",
+        skill: {
+          name: skill.name,
+          version: skill.manifestVersion,
+          kind: skill.kind,
+          permissions: skill.permissions,
+          outputs: defaultSkillOutputs(skill.outputs),
+        },
+        decision: resolveConsentDecision(args),
+        actor: BRIDGE_ACTOR,
+      });
+      if (consent.status === "consent-required") {
+        return buildConsentRequiredToolResult({
+          action: "remove",
+          skillName: skill.name,
+          request: consent.request,
+        });
+      }
+      if (consent.status === "denied") {
+        return buildDeniedToolResult({
+          action: "remove",
+          skillName: skill.name,
+          message: consent.message,
+        });
+      }
+
+      const managedSkillsDir = buildWorkspaceSkillStatus(targetWorkspaceDir, {
+        config: params.config,
+      }).managedSkillsDir;
+      const result = await removeMarketplaceSkill({
+        workspaceDir: targetWorkspaceDir,
+        managedSkillsDir,
+        skillName: args.name,
+        config: params.config,
+        access: params.access,
+      });
+      if (!result.ok) {
+        await appendSkillAuditEntry({
+          workspaceDir: targetWorkspaceDir,
+          skillName: skill.name,
+          action: "remove",
+          outcome: "failed",
+          actor: BRIDGE_ACTOR,
+          summary: result.error,
+        });
+        return {
+          isError: true,
+          content: [{ type: "text", text: result.error }],
+        };
+      }
+      await appendSkillAuditEntry({
+        workspaceDir: targetWorkspaceDir,
+        skillName: result.skill.name,
+        action: "remove",
+        outcome: "completed",
+        decision: consent.decision,
+        actor: BRIDGE_ACTOR,
+        summary: `Removed ${result.skill.name} from ${result.removedDir}.`,
+      });
+      return {
+        structuredContent: {
+          status: "completed",
+          action: "remove",
+          skill: result.skill,
+          removedDir: result.removedDir,
+          access: result.access,
+          resources: {
+            catalog: catalogUri,
+            audit: auditUri,
+            consent: consentUri,
+          },
+        },
+        content: [
+          {
+            type: "text",
+            text: `Removed "${result.skill.name}" from ${result.removedDir}.`,
           },
         ],
       };
@@ -333,18 +708,46 @@ export function createSkillsMarketplaceMcpBridge(params: {
         description: `Load the ${skill.name} skill as a prompt.`,
         argsSchema: {
           consent: z.string().optional(),
+          consentDecision: z.string().optional(),
           task: z.string().optional(),
         },
       },
       async (args) => {
+        const consent = await resolveMarketplaceConsent({
+          workspaceDir: params.workspaceDir,
+          action: "execute",
+          skill: {
+            name: skill.name,
+            version: skill.version,
+            kind: skill.kind,
+            permissions: skill.permissions,
+            outputs: skill.outputs,
+          },
+          decision: resolveConsentDecision(args),
+          actor: BRIDGE_ACTOR,
+        });
+        if (consent.status === "consent-required") {
+          return buildPromptErrorResponse(formatConsentRequestText(consent.request));
+        }
+        if (consent.status === "denied") {
+          return buildPromptErrorResponse(consent.message);
+        }
         const execution = await executeMarketplaceSkill({
           workspaceDir: params.workspaceDir,
           skillName: skill.name,
-          consent: parseMcpFlag(args.consent),
+          consent: true,
           config: params.config,
           access: params.access,
         });
         if (!execution.ok) {
+          await appendSkillAuditEntry({
+            workspaceDir: params.workspaceDir,
+            skillName: skill.name,
+            action: "execute",
+            outcome: "failed",
+            actor: BRIDGE_ACTOR,
+            summary: execution.error,
+          });
           return {
             description: execution.error,
             messages: [
@@ -358,6 +761,18 @@ export function createSkillsMarketplaceMcpBridge(params: {
             ],
           };
         }
+        await appendSkillAuditEntry({
+          workspaceDir: params.workspaceDir,
+          skillName: execution.skill.name,
+          action: "execute",
+          outcome: "completed",
+          decision: consent.decision,
+          actor: BRIDGE_ACTOR,
+          summary:
+            execution.skill.kind === "mcp-server"
+              ? `Inspected MCP skill ${execution.skill.name}.`
+              : `Executed skill ${execution.skill.name}.`,
+        });
         return {
           description: `Prompt for ${skill.name}`,
           messages: [
@@ -385,25 +800,75 @@ export function createSkillsMarketplaceMcpBridge(params: {
         description: `Execute the ${skill.name} skill inside its default isolated sandbox.`,
         inputSchema: {
           consent: z.string().optional(),
+          consentDecision: z.string().optional(),
         },
         annotations: resolveToolAnnotations(skill),
       },
       async (args) => {
+        const consent = await resolveMarketplaceConsent({
+          workspaceDir: params.workspaceDir,
+          action: "execute",
+          skill: {
+            name: skill.name,
+            version: skill.version,
+            kind: skill.kind,
+            permissions: skill.permissions,
+            outputs: skill.outputs,
+          },
+          decision: resolveConsentDecision(args),
+          actor: BRIDGE_ACTOR,
+        });
+        if (consent.status === "consent-required") {
+          return buildConsentRequiredToolResult({
+            action: "execute",
+            skillName: skill.name,
+            request: consent.request,
+          });
+        }
+        if (consent.status === "denied") {
+          return buildDeniedToolResult({
+            action: "execute",
+            skillName: skill.name,
+            message: consent.message,
+          });
+        }
         const execution = await executeMarketplaceSkill({
           workspaceDir: params.workspaceDir,
           skillName: skill.name,
-          consent: parseMcpFlag(args.consent),
+          consent: true,
           config: params.config,
           access: params.access,
         });
         if (!execution.ok) {
+          await appendSkillAuditEntry({
+            workspaceDir: params.workspaceDir,
+            skillName: skill.name,
+            action: "execute",
+            outcome: "failed",
+            actor: BRIDGE_ACTOR,
+            summary: execution.error,
+          });
           return {
             isError: true,
             content: [{ type: "text", text: execution.error }],
           };
         }
+        await appendSkillAuditEntry({
+          workspaceDir: params.workspaceDir,
+          skillName: execution.skill.name,
+          action: "execute",
+          outcome: "completed",
+          decision: consent.decision,
+          actor: BRIDGE_ACTOR,
+          summary:
+            execution.skill.kind === "mcp-server"
+              ? `Inspected MCP skill ${execution.skill.name}.`
+              : `Executed skill ${execution.skill.name}.`,
+        });
         return {
           structuredContent: {
+            status: "completed",
+            action: "execute",
             skill,
             manifest: skill.manifest,
             sandbox: execution.sandbox,
@@ -413,6 +878,9 @@ export function createSkillsMarketplaceMcpBridge(params: {
             resources: {
               manifest: manifestUri,
               instructions: instructionsUri,
+              catalog: catalogUri,
+              audit: auditUri,
+              consent: consentUri,
             },
           },
           content: [

@@ -193,8 +193,9 @@ function resolveSetupActions(
   return actions;
 }
 
-function buildPermissionChips(skill: SkillStatusEntry): string[] {
-  const permissions = skill.permissions;
+function buildPermissionChipsFromSpec(
+  permissions: SkillStatusEntry["permissions"] | undefined,
+): string[] {
   if (!permissions) {
     return [];
   }
@@ -221,12 +222,19 @@ function buildPermissionChips(skill: SkillStatusEntry): string[] {
   return chips;
 }
 
-function buildOutputChips(skill: SkillStatusEntry): string[] {
-  const outputs = skill.outputs;
+function buildPermissionChips(skill: SkillStatusEntry): string[] {
+  return buildPermissionChipsFromSpec(skill.permissions);
+}
+
+function buildOutputChipsFromSpec(outputs: SkillStatusEntry["outputs"] | undefined): string[] {
   if (!outputs) {
     return [];
   }
   return [`Primary: ${outputs.primary}`, ...outputs.formats.map((format) => `Format: ${format}`)];
+}
+
+function buildOutputChips(skill: SkillStatusEntry): string[] {
+  return buildOutputChipsFromSpec(skill.outputs);
 }
 
 export function computeSkillMissing(skill: SkillStatusEntry): string[] {
@@ -303,6 +311,8 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const setupActions = resolveSetupActions(skill, props);
   const permissionChips = buildPermissionChips(skill);
   const outputChips = buildOutputChips(skill);
+  const consentPermissionChips = buildPermissionChipsFromSpec(consentRequest?.permissions);
+  const consentOutputChips = buildOutputChipsFromSpec(consentRequest?.outputs);
   const consentGrantChips =
     skill.consentGrants?.map((grant) => `${grant.action}: always allowed`) ?? [];
   const hasMarketplaceActions = Boolean(skill.installable || skill.removable || skill.executable);
@@ -459,6 +469,24 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                 <div class="callout skill-detail__callout skill-detail__callout--warn">
                   <div class="skill-detail__section-title">${consentRequest.title}</div>
                   <div>${consentRequest.description}</div>
+                  ${consentPermissionChips.length > 0
+                    ? html`
+                        <div class="chip-row skill-detail__chip-list" style="margin-top: 10px;">
+                          ${consentPermissionChips.map(
+                            (chip) => html`<span class="chip">${chip}</span>`,
+                          )}
+                        </div>
+                      `
+                    : nothing}
+                  ${consentOutputChips.length > 0
+                    ? html`
+                        <div class="chip-row skill-detail__chip-list" style="margin-top: 10px;">
+                          ${consentOutputChips.map(
+                            (chip) => html`<span class="chip">${chip}</span>`,
+                          )}
+                        </div>
+                      `
+                    : nothing}
                   <div class="chip-row skill-detail__chip-list" style="margin-top: 10px;">
                     <button
                       class="btn"

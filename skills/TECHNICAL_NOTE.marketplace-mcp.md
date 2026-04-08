@@ -64,4 +64,18 @@ The bridge works in both directions:
 - marketplace-ready local skills are exposed as MCP tools/resources/prompts
 - configured MCP servers are surfaced as virtual skills named `mcp:<server>`
 
-Executing a virtual MCP skill returns a safe capability summary for tools, prompts, and resources instead of mutating workspace state.
+Bridge actions now use the same consent store and audit trail as the gateway handlers.
+
+Available MCP bridge mutation tools:
+
+- `skills_install`
+- `skills_remove`
+- per-skill execute tools (`skill_<name>`)
+
+Available MCP bridge read resources:
+
+- `skills://catalog`
+- `skills://audit`
+- `skills://consent-grants`
+
+Executing a virtual MCP skill returns a safe capability summary for tools, prompts, and resources instead of mutating workspace state, and persisted `allow-always` approvals are reused on later runs.

@@ -32,7 +32,10 @@ import {
   type SkillsInstallPreferences,
 } from "./skills.js";
 import { resolveBundledSkillsContext } from "./skills/bundled-context.js";
-import type { SkillMarketplaceAccess } from "./skills/marketplace-access.js";
+import type {
+  SkillMarketplaceAccess,
+  SkillMarketplaceAccessContext,
+} from "./skills/marketplace-access.js";
 import { isBundledRuntimeSkillSource, resolveSkillSource } from "./skills/source.js";
 
 export type SkillStatusConfigCheck = RequirementConfigCheck;
@@ -413,7 +416,11 @@ function createSyntheticMarketplaceStatusEntry(params: {
     subscription: params.catalog.subscription,
     access: params.catalog.access,
     installed,
-    installable: params.catalog.kind === "local-skill" && !installed,
+    installable:
+      params.catalog.kind === "local-skill" &&
+      !installed &&
+      params.catalog.marketplaceReady &&
+      params.catalog.access.allowed,
     removable: false,
     executable: params.catalog.marketplaceReady && params.catalog.access.allowed,
     mcpServer: params.catalog.mcpServer,
@@ -447,6 +454,7 @@ export async function resolveWorkspaceMarketplaceCatalogStatus(
     managedSkillsDir?: string;
     entries?: SkillEntry[];
     eligibility?: SkillEligibilityContext;
+    access?: SkillMarketplaceAccessContext;
   },
 ): Promise<SkillStatusEntry[]> {
   const localReport = buildWorkspaceSkillStatus(workspaceDir, opts);
@@ -454,6 +462,7 @@ export async function resolveWorkspaceMarketplaceCatalogStatus(
     workspaceDir,
     config: opts?.config,
     entries: opts?.entries,
+    access: opts?.access,
   });
   const auditEntries = await listSkillAuditEntries({
     workspaceDir,

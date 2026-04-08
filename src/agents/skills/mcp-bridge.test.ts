@@ -201,9 +201,14 @@ describe("skills MCP bridge", () => {
     const tools = await client.listTools();
 
     expect(resources.resources.some((resource) => resource.uri === "skills://catalog")).toBe(true);
+    expect(resources.resources.some((resource) => resource.uri === "skills://audit")).toBe(true);
+    expect(resources.resources.some((resource) => resource.uri === "skills://consent-grants")).toBe(
+      true,
+    );
     expect(prompts.prompts.some((prompt) => prompt.name === "skill_mcporter")).toBe(true);
     expect(tools.tools.some((tool) => tool.name === "skill_mcporter")).toBe(true);
     expect(tools.tools.some((tool) => tool.name === "skills_install")).toBe(true);
+    expect(tools.tools.some((tool) => tool.name === "skills_remove")).toBe(true);
   });
 
   it("executes a marketplace-ready repo skill through the MCP bridge", async () => {
@@ -250,6 +255,81 @@ describe("skills MCP bridge", () => {
       uri: "skills://catalog",
     });
     expect(readTextContent(catalogResource.contents[0])).toContain('"mcporter"');
+  });
+
+  it("installs and removes a marketplace skill with explicit bridge consent", async () => {
+    const targetWorkspace = await makeTempDir("alisio-skills-marketplace-target-");
+    const client = await connectClient();
+
+    const installRequiresConsent = await client.callTool({
+      name: "skills_install",
+      arguments: {
+        name: "mcporter",
+        targetWorkspaceDir: targetWorkspace,
+      },
+    });
+    expect(installRequiresConsent.isError).toBe(true);
+    expect(installRequiresConsent.structuredContent).toMatchObject({
+      status: "consent-required",
+      action: "install",
+      skillName: "mcporter",
+    });
+
+    const installed = await client.callTool({
+      name: "skills_install",
+      arguments: {
+        name: "mcporter",
+        targetWorkspaceDir: targetWorkspace,
+        consentDecision: "allow-always",
+      },
+    });
+    expect(installed.isError).not.toBe(true);
+    expect(installed.structuredContent).toMatchObject({
+      status: "completed",
+      action: "install",
+      skill: {
+        name: "mcporter",
+      },
+    });
+
+    const installedSkillPath = path.join(targetWorkspace, "skills", "mcporter", "SKILL.md");
+    await expect(
+      import("node:fs/promises").then((fs) => fs.access(installedSkillPath)),
+    ).resolves.toBe(undefined);
+
+    const removeRequiresConsent = await client.callTool({
+      name: "skills_remove",
+      arguments: {
+        name: "mcporter",
+        targetWorkspaceDir: targetWorkspace,
+      },
+    });
+    expect(removeRequiresConsent.isError).toBe(true);
+    expect(removeRequiresConsent.structuredContent).toMatchObject({
+      status: "consent-required",
+      action: "remove",
+      skillName: "mcporter",
+    });
+
+    const removed = await client.callTool({
+      name: "skills_remove",
+      arguments: {
+        name: "mcporter",
+        targetWorkspaceDir: targetWorkspace,
+        consentDecision: "allow-once",
+      },
+    });
+    expect(removed.isError).not.toBe(true);
+    expect(removed.structuredContent).toMatchObject({
+      status: "completed",
+      action: "remove",
+      skill: {
+        name: "mcporter",
+      },
+    });
+    await expect(
+      import("node:fs/promises").then((fs) => fs.access(installedSkillPath)),
+    ).rejects.toThrow();
   });
 
   it("exposes configured local MCP servers as virtual skills over the bridge", async () => {
@@ -307,6 +387,69 @@ describe("skills MCP bridge", () => {
       .join("\n");
     expect(promptText).toContain("Enumerate toolbox capabilities");
     expect(promptText).toContain("Resolved MCP capabilities: tools=1, prompts=1, resources=1.");
+  });
+
+  it("persists approvals and audit entries for virtual MCP skills over the bridge", async () => {
+    const previousStateDir = process.env.ALISIO_STATE_DIR;
+    const stateDir = await makeTempDir("alisio-skills-mcp-state-");
+    process.env.ALISIO_STATE_DIR = stateDir;
+
+    try {
+      const workspaceDir = await createWorkspaceWithLocalMcpSkillBridge();
+      const client = await connectClient({
+        workspaceDir,
+        mcpServerConfig: {
+          toolbox: {
+            command: process.execPath,
+            args: ["--input-type=module", "--eval", buildLocalMcpServerScript()],
+            cwd: repoRoot,
+          },
+        },
+      });
+
+      const requiresConsent = await client.callTool({
+        name: "skill_mcp_toolbox",
+        arguments: {},
+      });
+      expect(requiresConsent.isError).toBe(true);
+      expect(requiresConsent.structuredContent).toMatchObject({
+        status: "consent-required",
+        action: "execute",
+        skillName: "mcp:toolbox",
+      });
+
+      const allowed = await client.callTool({
+        name: "skill_mcp_toolbox",
+        arguments: { consentDecision: "allow-always" },
+      });
+      expect(allowed.isError).not.toBe(true);
+
+      const reused = await client.callTool({
+        name: "skill_mcp_toolbox",
+        arguments: {},
+      });
+      expect(reused.isError).not.toBe(true);
+
+      const consentResource = await client.readResource({
+        uri: "skills://consent-grants",
+      });
+      const consentText = readTextContent(consentResource.contents[0]);
+      expect(consentText).toContain('"skillName": "mcp:toolbox"');
+      expect(consentText).toContain('"decision": "allow-always"');
+
+      const auditResource = await client.readResource({
+        uri: "skills://audit",
+      });
+      const auditText = readTextContent(auditResource.contents[0]);
+      expect(auditText).toContain('"skillName": "mcp:toolbox"');
+      expect(auditText).toContain('"outcome": "completed"');
+    } finally {
+      if (previousStateDir === undefined) {
+        delete process.env.ALISIO_STATE_DIR;
+      } else {
+        process.env.ALISIO_STATE_DIR = previousStateDir;
+      }
+    }
   });
 
   it("surfaces marketplace access gates over the bridge", async () => {

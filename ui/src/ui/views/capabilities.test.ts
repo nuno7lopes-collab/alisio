@@ -457,6 +457,21 @@ describe("renderCapabilities", () => {
             action: "execute",
             title: "Inspect mcp:toolbox?",
             description: "Declared permissions: consume MCP.",
+            permissions: {
+              consent: "explicit",
+              sandbox: {
+                mode: "isolated",
+                filesystem: "read-only",
+                network: "off",
+              },
+              exec: {
+                bins: ["mcp-inspect"],
+              },
+            },
+            outputs: {
+              primary: "prompt",
+              formats: ["text/plain"],
+            },
           },
           actionOutputs: {
             "mcp:toolbox": {
@@ -477,6 +492,8 @@ describe("renderCapabilities", () => {
     expect(text).toContain("Allow always");
     expect(text).toContain("Tools (1)");
     expect(text).toContain("MCP");
+    expect(text).toContain("Exec: mcp-inspect");
+    expect(text).toContain("Primary: prompt");
   });
 });
 
