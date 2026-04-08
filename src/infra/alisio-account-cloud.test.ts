@@ -67,6 +67,12 @@ describe("alisio-account-cloud", () => {
         ALISIO_SUPABASE_ANON_KEY: "anon-key",
       } as NodeJS.ProcessEnv),
     ).toEqual([]);
+    expect(
+      listMissingRequiredAlisioCloudEnvVars({
+        ALISIO_SUPABASE_URL: "https://example.supabase.co",
+        ALISIO_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_project_ref_example",
+      } as NodeJS.ProcessEnv),
+    ).toEqual([]);
   });
 
   it("creates a persisted default profile in Supabase during sign-up", async () => {
@@ -130,10 +136,12 @@ describe("alisio-account-cloud", () => {
 
   it("passes a redirect_to header when email auth provides a callback url", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const requestUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       expect(new Headers(init?.headers).get("redirect_to")).toBe(
         "http://localhost:18789/logout/setup?step=account",
       );
-      expect(String(input)).toContain(
+      expect(requestUrl).toContain(
         "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
       );
       expect(parseJsonBody(init?.body)).toEqual({
