@@ -282,8 +282,8 @@ describe("noteMemorySearchHealth", () => {
 
     const message = note.mock.calls[0]?.[0] as string;
     expect(message).toContain("Gateway memory probe for default agent is not ready");
-    expect(message).toContain("openclaw configure --section model");
-    expect(message).not.toContain("openclaw auth add --provider");
+    expect(message).toContain("alisio configure --section model");
+    expect(message).not.toContain("alisio auth add --provider");
   });
 
   it("warns in auto mode when no local modelPath and no API keys are configured", async () => {
@@ -300,8 +300,8 @@ describe("noteMemorySearchHealth", () => {
     // provider: "local". So with no local file and no API keys, warn.
     expect(note).toHaveBeenCalledTimes(1);
     const message = String(note.mock.calls[0]?.[0] ?? "");
-    expect(message).toContain("needs at least one embedding provider");
-    expect(message).toContain("openclaw configure --section model");
+    expect(message).toContain("needs either local embeddings or an API key");
+    expect(message).toContain("alisio configure --section model");
   });
 
   it("still warns in auto mode when only ollama credentials exist", async () => {
@@ -353,11 +353,10 @@ describe("noteMemorySearchHealth", () => {
     await noteMemorySearchHealth(cfg);
 
     const message = String(note.mock.calls[0]?.[0] ?? "");
-    expect(message).toContain("OPENAI_API_KEY");
-    expect(message).toContain("GEMINI_API_KEY");
-    expect(message).toContain("GOOGLE_API_KEY");
-    expect(message).toContain("VOYAGE_API_KEY");
-    expect(message).toContain("MISTRAL_API_KEY");
+    expect(message).toContain("Codex/OpenAI OAuth covers chat only");
+    expect(message).toContain("alisio config set agents.defaults.memorySearch.provider local");
+    expect(message).not.toContain("OPENAI_API_KEY");
+    expect(message).not.toContain("GEMINI_API_KEY");
   });
 });
 

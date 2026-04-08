@@ -342,9 +342,9 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.memorySearch.multimodal.maxFileBytes": "Memory Search Multimodal Max File Bytes",
   "agents.defaults.memorySearch.experimental.sessionMemory":
     "Memory Search Session Index (Experimental)",
-  "agents.defaults.memorySearch.provider": "Memory Search Provider",
+  "agents.defaults.memorySearch.provider": "Memory Embeddings Provider",
   "agents.defaults.memorySearch.remote.baseUrl": "Remote Embedding Base URL",
-  "agents.defaults.memorySearch.remote.apiKey": "Remote Embedding API Key",
+  "agents.defaults.memorySearch.remote.apiKey": "Remote Embedding API Key (OAuth not included)",
   "agents.defaults.memorySearch.remote.headers": "Remote Embedding Headers",
   "agents.defaults.memorySearch.remote.batch.enabled": "Remote Batch Embedding Enabled",
   "agents.defaults.memorySearch.remote.batch.wait": "Remote Batch Wait for Completion",

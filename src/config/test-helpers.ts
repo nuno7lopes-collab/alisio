@@ -2,7 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
 import { legacyEnvKey, readEnv } from "../infra/env.js";
-import { resetConfigRuntimeState, type AlisioConfig } from "./config.js";
+import {
+  resetConfigRuntimeState,
+  resolveCanonicalConfigPath,
+  type AlisioConfig,
+} from "./config.js";
 
 export async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   resetConfigRuntimeState();
@@ -14,7 +18,7 @@ export async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise
 }
 
 export async function writeAlisioConfig(home: string, config: unknown): Promise<string> {
-  const configPath = path.join(home, ".alisio", "alisio.json");
+  const configPath = resolveCanonicalConfigPath();
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
   return configPath;

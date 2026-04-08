@@ -1,16 +1,52 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
 import {
   clearMemoryEmbeddingProviders,
   registerMemoryEmbeddingProvider,
 } from "../plugins/memory-embedding-providers.js";
+import {
+  clearRuntimeAuthProfileStoreSnapshots,
+  replaceRuntimeAuthProfileStoreSnapshots,
+  upsertAuthProfile,
+} from "./auth-profiles.js";
 import { resolveMemorySearchConfig } from "./memory-search.js";
-
 const asConfig = (cfg: AlisioConfig): AlisioConfig => cfg;
+let tempRoot = "";
+
+function writeOpenAiOAuthProfile() {
+  upsertAuthProfile({
+    profileId: "openai-codex:alisio-local",
+    credential: {
+      type: "oauth",
+      provider: "openai-codex",
+      access: "access-token",
+      refresh: "refresh-token",
+      expires: Date.now() + 60_000,
+    },
+  });
+}
 
 describe("memory search config", () => {
   beforeEach(() => {
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-memory-search-"));
+    const tempStateDir = path.join(tempRoot, "state");
+    const tempCodexHome = path.join(tempRoot, "codex-home");
+    fs.mkdirSync(tempStateDir, { recursive: true });
+    fs.mkdirSync(tempCodexHome, { recursive: true });
+    vi.stubEnv("ALISIO_STATE_DIR", tempStateDir);
+    vi.stubEnv("CODEX_HOME", tempCodexHome);
     clearMemoryEmbeddingProviders();
+    replaceRuntimeAuthProfileStoreSnapshots([
+      {
+        store: {
+          version: 1,
+          profiles: {},
+        },
+      },
+    ]);
     registerMemoryEmbeddingProvider({
       id: "openai",
       defaultModel: "text-embedding-3-small",
@@ -56,6 +92,9 @@ describe("memory search config", () => {
 
   afterEach(() => {
     clearMemoryEmbeddingProviders();
+    clearRuntimeAuthProfileStoreSnapshots();
+    vi.unstubAllEnvs();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
   });
 
   function configWithDefaultProvider(provider: string): AlisioConfig {
@@ -162,6 +201,42 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
     expect(resolved?.provider).toBe("auto");
     expect(resolved?.fallback).toBe("none");
+  });
+
+  it("defaults provider to local when OpenAI OAuth is active and no provider is configured", () => {
+    writeOpenAiOAuthProfile();
+    const cfg = asConfig({
+      agents: {
+        defaults: {
+          memorySearch: {
+            enabled: true,
+          },
+        },
+      },
+    });
+
+    const resolved = resolveMemorySearchConfig(cfg, "main");
+
+    expect(resolved?.provider).toBe("local");
+    expect(resolved?.model).toBe("local-default");
+    expect(resolved?.fallback).toBe("none");
+  });
+
+  it("keeps an explicit auto provider even when OpenAI OAuth is active", () => {
+    writeOpenAiOAuthProfile();
+    const cfg = asConfig({
+      agents: {
+        defaults: {
+          memorySearch: {
+            provider: "auto",
+          },
+        },
+      },
+    });
+
+    const resolved = resolveMemorySearchConfig(cfg, "main");
+
+    expect(resolved?.provider).toBe("auto");
   });
 
   it("merges defaults and overrides", () => {

@@ -44,6 +44,10 @@ When `provider` is not set, Alisio selects the first available:
 
 `ollama` is supported but not auto-detected (set it explicitly).
 
+If OpenAI/Codex OAuth is active and you have not explicitly configured
+`memorySearch.provider`, Alisio defaults memory embeddings to `local` so chat
+sign-in does not trigger remote embedding credential warnings by default.
+
 ### API key resolution
 
 Remote embeddings require an API key. Alisio resolves from:
@@ -58,7 +62,7 @@ auth profiles, `models.providers.*.apiKey`, or environment variables.
 | Ollama   | `OLLAMA_API_KEY` (placeholder) | --                                |
 
 Codex OAuth covers chat/completions only and does not satisfy embedding
-requests.
+requests. Remote memory embeddings still need their own API key.
 
 ---
 

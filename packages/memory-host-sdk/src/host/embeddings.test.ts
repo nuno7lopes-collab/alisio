@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GEMINI_EMBEDDING_MODEL } from "./embeddings-gemini.js";
@@ -703,7 +706,7 @@ describe("FTS-only fallback when no provider available", () => {
         },
         requestedProvider: "auto",
         fallbackFrom: undefined,
-        reasonIncludes: "No API key",
+        reasonIncludes: "No embeddings provider available.",
       },
       {
         name: "explicit provider only",
@@ -727,7 +730,7 @@ describe("FTS-only fallback when no provider available", () => {
         },
         requestedProvider: "openai",
         fallbackFrom: "openai",
-        reasonIncludes: "Fallback to gemini failed",
+        reasonIncludes: "No API key",
       },
     ]) {
       const result = await createEmbeddingProvider(testCase.options);
@@ -735,6 +738,35 @@ describe("FTS-only fallback when no provider available", () => {
       expect(result.requestedProvider, testCase.name).toBe(testCase.requestedProvider);
       expect(result.fallbackFrom, testCase.name).toBe(testCase.fallbackFrom);
       expect(result.providerUnavailableReason, testCase.name).toContain(testCase.reasonIncludes);
+    }
+  });
+
+  it("keeps the local setup error when local auto-selection was attempted before auth misses", async () => {
+    mockMissingLocalEmbeddingDependency();
+    vi.mocked(authModule.resolveApiKeyForProvider).mockRejectedValue(
+      new Error("No API key found for provider"),
+    );
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-memory-embeddings-"));
+    const modelPath = path.join(tempRoot, "local.gguf");
+    fs.writeFileSync(modelPath, "stub");
+
+    try {
+      const result = await createEmbeddingProvider({
+        config: {} as never,
+        provider: "auto",
+        model: "",
+        fallback: "none",
+        local: {
+          modelPath,
+        },
+      });
+
+      expect(result.provider).toBeNull();
+      expect(result.requestedProvider).toBe("auto");
+      expect(result.providerUnavailableReason).toContain("Local embeddings unavailable.");
+      expect(result.providerUnavailableReason).not.toContain("No API key found for provider");
+    } finally {
+      fs.rmSync(tempRoot, { recursive: true, force: true });
     }
   });
 });

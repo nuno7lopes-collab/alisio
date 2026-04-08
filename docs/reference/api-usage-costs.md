@@ -72,6 +72,9 @@ Semantic memory search uses **embedding APIs** when configured for remote provid
 - Optional fallback to a remote provider if local embeddings fail
 
 You can keep it local with `memorySearch.provider = "local"` (no API usage).
+If OpenAI/Codex OAuth is active and you leave `memorySearch.provider`
+unset, Alisio defaults memory embeddings to `local`. OAuth still does not
+grant embeddings access.
 
 See [Memory](/concepts/memory).
 

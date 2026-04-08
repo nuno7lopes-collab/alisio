@@ -2,8 +2,6 @@
 
 import type { BaseConfigSchemaResponse } from "./schema-base.js";
 
-const LEGACY_BROWSER_DRIVER = "openclaw";
-
 export const GENERATED_BASE_CONFIG_SCHEMA = {
   schema: {
     $schema: "http://json-schema.org/draft-07/schema#",
@@ -479,7 +477,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     {
                       type: "string",
-                      const: LEGACY_BROWSER_DRIVER,
+                      const: "openclaw",
                     },
                     {
                       type: "string",
@@ -12435,7 +12433,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "browser.profiles.*.driver": {
       label: "Browser Profile Driver",
-      help: `Per-profile browser driver mode. Use "alisio" (compatibility "${LEGACY_BROWSER_DRIVER}" and legacy "clawd" also accepted) for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.`,
+      help: 'Per-profile browser driver mode. Use "alisio" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
       tags: ["storage"],
     },
     "browser.profiles.*.attachOnly": {
@@ -13505,8 +13503,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       tags: ["security", "storage", "advanced"],
     },
     "agents.defaults.memorySearch.provider": {
-      label: "Memory Search Provider",
-      help: 'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience.',
+      label: "Memory Embeddings Provider",
+      help: 'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience. Codex/OpenAI OAuth covers chat only and does not satisfy memory embeddings; when OAuth is present and no provider is configured, Alisio defaults memory embeddings to `local`.',
       tags: ["advanced"],
     },
     "agents.defaults.memorySearch.remote.baseUrl": {
@@ -13515,8 +13513,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       tags: ["advanced", "url-secret"],
     },
     "agents.defaults.memorySearch.remote.apiKey": {
-      label: "Remote Embedding API Key",
-      help: "Supplies a dedicated API key for remote embedding calls used by memory indexing and query-time embeddings. Use this when memory embeddings should use different credentials than global defaults or environment variables.",
+      label: "Remote Embedding API Key (OAuth not included)",
+      help: "Supplies a dedicated API key for remote embedding calls used by memory indexing and query-time embeddings. Use this when memory embeddings should use different credentials than global defaults or environment variables. Codex/OpenAI OAuth does not provide embeddings credentials.",
       tags: ["security", "auth"],
       sensitive: true,
     },

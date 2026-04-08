@@ -185,13 +185,13 @@ export async function noteMemorySearchHealth(
   note(
     [
       "Memory search is enabled, but no embedding provider is ready.",
-      "Semantic recall needs at least one embedding provider.",
+      "Semantic recall needs either local embeddings or an API key for the provider you select.",
+      "Codex/OpenAI OAuth covers chat only and does not provide embeddings credentials.",
       gatewayProbeWarning ? gatewayProbeWarning : null,
       "",
       "Fix (pick one):",
-      `- Set ${formatMemoryProviderEnvVarList(autoSelectProviders)} in your environment`,
-      `- Configure credentials: ${formatCliCommand("openclaw configure --section model")}`,
-      `- For local embeddings: configure agents.defaults.memorySearch.provider and local model path`,
+      `- Use local embeddings: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.provider local")}`,
+      `- Or choose an embeddings provider explicitly and configure its API key: ${formatCliCommand("openclaw configure --section model")}`,
       `- To disable: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.enabled false")}`,
       "",
       `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
@@ -252,10 +252,6 @@ async function hasApiKeyForProvider(
 function resolvePrimaryMemoryProviderEnvVar(provider: string): string {
   const metadata = getBuiltinMemoryEmbeddingProviderDoctorMetadata(provider);
   return metadata?.envVars[0] ?? `${provider.toUpperCase()}_API_KEY`;
-}
-
-function formatMemoryProviderEnvVarList(providers: Array<{ envVars: string[] }>): string {
-  return [...new Set(providers.flatMap((provider) => provider.envVars).filter(Boolean))].join(", ");
 }
 
 function buildGatewayProbeWarning(

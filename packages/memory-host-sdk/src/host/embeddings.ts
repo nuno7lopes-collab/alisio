@@ -200,15 +200,14 @@ export async function createEmbeddingProvider(
     provider === "local" ? formatLocalSetupError(err) : formatErrorMessage(err);
 
   if (requestedProvider === "auto") {
-    const missingKeyErrors: string[] = [];
-    let localError: string | null = null;
+    let preferredLocalReason: string | null = null;
 
     if (canAutoSelectLocal(options)) {
       try {
         const local = await createProvider("local");
         return { ...local, requestedProvider };
       } catch (err) {
-        localError = formatLocalSetupError(err);
+        preferredLocalReason = formatLocalSetupError(err);
       }
     }
 
@@ -219,7 +218,6 @@ export async function createEmbeddingProvider(
       } catch (err) {
         const message = formatPrimaryError(err, provider);
         if (isMissingApiKeyError(err)) {
-          missingKeyErrors.push(message);
           continue;
         }
         // Non-auth errors (e.g., network) are still fatal
@@ -229,13 +227,10 @@ export async function createEmbeddingProvider(
       }
     }
 
-    // All providers failed due to missing API keys - return null provider for FTS-only mode
-    const details = [...missingKeyErrors, localError].filter(Boolean) as string[];
-    const reason = details.length > 0 ? details.join("\n\n") : "No embeddings provider available.";
     return {
       provider: null,
       requestedProvider,
-      providerUnavailableReason: reason,
+      providerUnavailableReason: preferredLocalReason ?? "No embeddings provider available.",
     };
   }
 
@@ -254,19 +249,17 @@ export async function createEmbeddingProvider(
           fallbackReason: reason,
         };
       } catch (fallbackErr) {
-        // Both primary and fallback failed - check if it's auth-related
-        const fallbackReason = formatErrorMessage(fallbackErr);
-        const combinedReason = `${reason}\n\nFallback to ${fallback} failed: ${fallbackReason}`;
         if (isMissingApiKeyError(primaryErr) && isMissingApiKeyError(fallbackErr)) {
-          // Both failed due to missing API keys - return null for FTS-only mode
           return {
             provider: null,
             requestedProvider,
             fallbackFrom: requestedProvider,
             fallbackReason: reason,
-            providerUnavailableReason: combinedReason,
+            providerUnavailableReason: reason,
           };
         }
+        const fallbackReason = formatErrorMessage(fallbackErr);
+        const combinedReason = `${reason}\n\nFallback to ${fallback} failed: ${fallbackReason}`;
         // Non-auth errors are still fatal
         const wrapped = new Error(combinedReason) as Error & { cause?: unknown };
         wrapped.cause = fallbackErr;

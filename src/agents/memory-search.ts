@@ -10,7 +10,8 @@ import {
 } from "../plugin-sdk/memory-core-host-multimodal.js";
 import { getMemoryEmbeddingProvider } from "../plugins/memory-embedding-providers.js";
 import { clampInt, clampNumber, resolveUserPath } from "../utils.js";
-import { resolveAgentConfig } from "./agent-scope.js";
+import { resolveAgentConfig, resolveAgentDir } from "./agent-scope.js";
+import { listProfilesForProvider, loadAuthProfileStoreForRuntime } from "./auth-profiles.js";
 
 export type ResolvedMemorySearchConfig = {
   enabled: boolean;
@@ -108,6 +109,8 @@ const DEFAULT_TEMPORAL_DECAY_ENABLED = false;
 const DEFAULT_TEMPORAL_DECAY_HALF_LIFE_DAYS = 30;
 const DEFAULT_CACHE_ENABLED = true;
 const DEFAULT_SOURCES: Array<"memory" | "sessions"> = ["memory"];
+const OAUTH_MEMORY_DEFAULT_PROVIDER = "local";
+const OPENAI_OAUTH_MEMORY_PROVIDER_ID = "openai-codex";
 
 function normalizeSources(
   sources: Array<"memory" | "sessions"> | undefined,
@@ -139,15 +142,31 @@ function resolveStorePath(agentId: string, raw?: string): string {
   return resolveUserPath(withToken);
 }
 
+function hasOpenAiOAuthMemoryDefault(cfg: AlisioConfig, agentId: string): boolean {
+  try {
+    const store = loadAuthProfileStoreForRuntime(resolveAgentDir(cfg, agentId), {
+      readOnly: true,
+      allowKeychainPrompt: false,
+    });
+    return listProfilesForProvider(store, OPENAI_OAUTH_MEMORY_PROVIDER_ID).some((profileId) => {
+      const credential = store.profiles[profileId];
+      return credential?.type === "oauth" || credential?.type === "token";
+    });
+  } catch {
+    return false;
+  }
+}
+
 function mergeConfig(
   defaults: MemorySearchConfig | undefined,
   overrides: MemorySearchConfig | undefined,
   agentId: string,
+  defaultProvider: string,
 ): ResolvedMemorySearchConfig {
   const enabled = overrides?.enabled ?? defaults?.enabled ?? true;
   const sessionMemory =
     overrides?.experimental?.sessionMemory ?? defaults?.experimental?.sessionMemory ?? false;
-  const provider = overrides?.provider ?? defaults?.provider ?? "auto";
+  const provider = overrides?.provider ?? defaults?.provider ?? defaultProvider;
   const primaryAdapter = provider === "auto" ? undefined : getMemoryEmbeddingProvider(provider);
   const defaultRemote = defaults?.remote;
   const overrideRemote = overrides?.remote;
@@ -372,7 +391,10 @@ export function resolveMemorySearchConfig(
 ): ResolvedMemorySearchConfig | null {
   const defaults = cfg.agents?.defaults?.memorySearch;
   const overrides = resolveAgentConfig(cfg, agentId)?.memorySearch;
-  const resolved = mergeConfig(defaults, overrides, agentId);
+  const defaultProvider = hasOpenAiOAuthMemoryDefault(cfg, agentId)
+    ? OAUTH_MEMORY_DEFAULT_PROVIDER
+    : "auto";
+  const resolved = mergeConfig(defaults, overrides, agentId, defaultProvider);
   if (!resolved.enabled) {
     return null;
   }
