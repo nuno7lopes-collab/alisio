@@ -14,9 +14,9 @@ import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { sendJson } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
+import { getHeader } from "./http-request-helpers.js";
 import {
   OPENCLAW_MODEL_ID,
-  getHeader,
   resolveAgentIdForRequest,
   resolveAgentIdFromModel,
 } from "./http-utils.js";

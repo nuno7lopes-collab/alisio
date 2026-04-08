@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { normalizeChannelId } from "../channels/plugins/index.js";
 import { createOutboundSendDeps } from "../cli/outbound-send-deps.js";
-import { agentCommandFromIngress } from "../commands/agent.js";
 import { loadConfig } from "../config/config.js";
 import { updateSessionStore } from "../config/sessions.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
@@ -13,6 +12,7 @@ import { registerApnsRegistration } from "../infra/push-apns.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
 import { normalizeMainKey, scopedHeartbeatWakeOptions } from "../routing/session-key.js";
 import { defaultRuntime } from "../runtime.js";
+import { getAgentCommandFromIngress } from "./agent-command-loader.js";
 import { parseMessageWithAttachments } from "./chat-attachments.js";
 import { normalizeRpcAttachmentsToChatAttachments } from "./server-methods/attachment-normalize.js";
 import type { NodeEvent, NodeEventContext } from "./server-node-events-types.js";
@@ -300,6 +300,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         clientRunId: `voice-${randomUUID()}`,
       });
 
+      const agentCommandFromIngress = await getAgentCommandFromIngress();
       void agentCommandFromIngress(
         {
           runId,
@@ -432,6 +433,7 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
         );
       }
 
+      const agentCommandFromIngress = await getAgentCommandFromIngress();
       void agentCommandFromIngress(
         {
           runId: sessionId,

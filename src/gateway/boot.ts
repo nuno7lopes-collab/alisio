@@ -3,7 +3,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { SILENT_REPLY_TOKEN } from "../auto-reply/tokens.js";
 import type { CliDeps } from "../cli/deps.js";
-import { agentCommand } from "../commands/agent.js";
 import type { AlisioConfig } from "../config/config.js";
 import {
   resolveAgentIdFromSessionKey,
@@ -15,6 +14,7 @@ import { loadSessionStore, updateSessionStore } from "../config/sessions/store.j
 import type { SessionEntry } from "../config/sessions/types.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { type RuntimeEnv, defaultRuntime } from "../runtime.js";
+import { getAgentCommand } from "./agent-command-loader.js";
 
 function generateBootSessionId(): string {
   const now = new Date();
@@ -171,6 +171,7 @@ export async function runBootOnce(params: {
 
   let agentFailure: string | undefined;
   try {
+    const agentCommand = await getAgentCommand();
     await agentCommand(
       {
         message,

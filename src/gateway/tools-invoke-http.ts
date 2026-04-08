@@ -25,7 +25,6 @@ import { isTestDefaultMemorySlotDisabled } from "../plugins/config-state.js";
 import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { DEFAULT_GATEWAY_HTTP_TOOL_DENY } from "../security/dangerous-tools.js";
-import { normalizeMessageChannel } from "../utils/message-channel.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { authorizeGatewayBearerRequestOrReply } from "./http-auth-helpers.js";
@@ -35,7 +34,7 @@ import {
   sendJson,
   sendMethodNotAllowed,
 } from "./http-common.js";
-import { getHeader } from "./http-utils.js";
+import { getHeader, normalizeGatewayRequestMessageChannel } from "./http-request-helpers.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
 const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
@@ -210,7 +209,7 @@ export async function handleToolsInvokeHttpRequest(
     !rawSessionKey || rawSessionKey === "main" ? resolveMainSessionKey(cfg) : rawSessionKey;
 
   // Resolve message channel/account hints (optional headers) for policy inheritance.
-  const messageChannel = normalizeMessageChannel(
+  const messageChannel = normalizeGatewayRequestMessageChannel(
     getHeader(req, "x-openclaw-message-channel") ?? "",
   );
   const accountId = getHeader(req, "x-openclaw-account-id")?.trim() || undefined;

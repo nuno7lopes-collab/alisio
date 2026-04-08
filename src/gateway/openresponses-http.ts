@@ -11,7 +11,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ImageContent } from "../agents/command/types.js";
 import type { ClientToolDefinition } from "../agents/pi-embedded-runner/run/params.js";
 import { createDefaultDeps } from "../cli/deps.js";
-import { agentCommandFromIngress } from "../commands/agent.js";
 import type { GatewayHttpResponsesConfig } from "../config/types.gateway.js";
 import { emitAgentEvent, onAgentEvent } from "../infra/agent-events.js";
 import { logWarn } from "../logger.js";
@@ -30,14 +29,14 @@ import {
   type InputImageSource,
 } from "../media/input-files.js";
 import { defaultRuntime } from "../runtime.js";
+import { getAgentCommandFromIngress } from "./agent-command-loader.js";
 import { resolveAssistantStreamDeltaText } from "./agent-event-assistant-text.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
+import { getBearerToken, getHeader } from "./http-request-helpers.js";
 import {
-  getBearerToken,
-  getHeader,
   resolveAgentIdForRequest,
   resolveGatewayRequestContext,
   resolveOpenAiCompatModelOverride,
@@ -426,6 +425,7 @@ async function runResponsesAgentCommand(params: {
   messageChannel: string;
   deps: ReturnType<typeof createDefaultDeps>;
 }) {
+  const agentCommandFromIngress = await getAgentCommandFromIngress();
   return agentCommandFromIngress(
     {
       message: params.message,

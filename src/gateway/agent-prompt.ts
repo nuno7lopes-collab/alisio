@@ -1,5 +1,51 @@
-import { buildHistoryContextFromEntries, type HistoryEntry } from "../auto-reply/reply/history.js";
 import { extractTextFromChatContent } from "../shared/chat-content.js";
+
+type HistoryEntry = {
+  sender: string;
+  body: string;
+  timestamp?: number;
+  messageId?: string;
+};
+
+const HISTORY_CONTEXT_MARKER = "[Chat messages since your last reply - for context]";
+const CURRENT_MESSAGE_MARKER = "[Current message - respond to this]";
+
+function buildHistoryContext(params: {
+  historyText: string;
+  currentMessage: string;
+  lineBreak?: string;
+}): string {
+  const lineBreak = params.lineBreak ?? "\n";
+  if (!params.historyText.trim()) {
+    return params.currentMessage;
+  }
+  return [
+    HISTORY_CONTEXT_MARKER,
+    params.historyText,
+    "",
+    CURRENT_MESSAGE_MARKER,
+    params.currentMessage,
+  ].join(lineBreak);
+}
+
+function buildHistoryContextFromEntries(params: {
+  entries: HistoryEntry[];
+  currentMessage: string;
+  formatEntry: (entry: HistoryEntry) => string;
+  lineBreak?: string;
+  excludeLast?: boolean;
+}): string {
+  const lineBreak = params.lineBreak ?? "\n";
+  const entries = params.excludeLast === false ? params.entries : params.entries.slice(0, -1);
+  if (entries.length === 0) {
+    return params.currentMessage;
+  }
+  return buildHistoryContext({
+    historyText: entries.map(params.formatEntry).join(lineBreak),
+    currentMessage: params.currentMessage,
+    lineBreak,
+  });
+}
 
 export type ConversationEntry = {
   role: "user" | "assistant" | "tool";

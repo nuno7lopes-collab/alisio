@@ -11,13 +11,13 @@ vi.mock("./http-common.js", () => ({
   sendGatewayAuthFailure: vi.fn(),
 }));
 
-vi.mock("./http-utils.js", () => ({
+vi.mock("./http-request-helpers.js", () => ({
   getBearerToken: vi.fn(),
 }));
 
 const { authorizeHttpGatewayConnect } = await import("./auth.js");
 const { sendGatewayAuthFailure } = await import("./http-common.js");
-const { getBearerToken } = await import("./http-utils.js");
+const { getBearerToken } = await import("./http-request-helpers.js");
 
 describe("authorizeGatewayBearerRequestOrReply", () => {
   const bearerAuth = {

@@ -19,7 +19,6 @@ import { loadConfig } from "../config/config.js";
 import { loadAlisioModelProviderSnapshot } from "../infra/alisio-model-snapshot.js";
 import { loadAlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
-import { handleSlackHttpRequest } from "../plugin-sdk/slack.js";
 import { resolveHookExternalContentSource as resolveHookExternalContentSourceFromSession } from "../security/external-content.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
 import { handleAlisioOAuthHttpRequest } from "./alisio-oauth-http.js";
@@ -42,7 +41,6 @@ import {
   handleControlUiHttpRequest,
   type ControlUiRootState,
 } from "./control-ui.js";
-import { handleOpenAiEmbeddingsHttpRequest } from "./embeddings-http.js";
 import { applyHookMappings } from "./hooks-mapping.js";
 import {
   extractHookToken,
@@ -63,12 +61,9 @@ import {
   resolveHookDeliver,
 } from "./hooks.js";
 import { sendGatewayAuthFailure, setDefaultSecurityHeaders } from "./http-common.js";
-import { getBearerToken } from "./http-utils.js";
-import { handleOpenAiModelsHttpRequest } from "./models-http.js";
+import { getBearerToken } from "./http-request-helpers.js";
 import { resolveRequestClientIp } from "./net.js";
 import type { NodeRegistry } from "./node-registry.js";
-import { handleOpenAiHttpRequest } from "./openai-http.js";
-import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
 import { DEDUPE_MAX, DEDUPE_TTL_MS } from "./server-constants.js";
 import {
   authorizeCanvasRequest,
@@ -86,7 +81,6 @@ import type { ReadinessChecker } from "./server/readiness.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { handleSessionKillHttpRequest } from "./session-kill-http.js";
 import { handleSessionHistoryHttpRequest } from "./sessions-history-http.js";
-import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
 
 type SubsystemLogger = ReturnType<typeof createSubsystemLogger>;
 
@@ -141,6 +135,105 @@ const GATEWAY_PROBE_STATUS_BY_PATH = new Map<string, "live" | "ready">([
   ["/readyz", "ready"],
 ]);
 const MATTERMOST_SLASH_CALLBACK_PATH = "/api/channels/mattermost/command";
+
+type EmbeddingsHttpModule = typeof import("./embeddings-http.js");
+type ModelsHttpModule = typeof import("./models-http.js");
+type OpenAiHttpModule = typeof import("./openai-http.js");
+type OpenResponsesHttpModule = typeof import("./openresponses-http.js");
+type SlackHttpModule = typeof import("../plugin-sdk/slack.js");
+type ToolsInvokeHttpModule = typeof import("./tools-invoke-http.js");
+
+let embeddingsHttpModulePromise: Promise<EmbeddingsHttpModule> | undefined;
+let modelsHttpModulePromise: Promise<ModelsHttpModule> | undefined;
+let openAiHttpModulePromise: Promise<OpenAiHttpModule> | undefined;
+let openResponsesHttpModulePromise: Promise<OpenResponsesHttpModule> | undefined;
+let slackHttpModulePromise: Promise<SlackHttpModule> | undefined;
+let toolsInvokeHttpModulePromise: Promise<ToolsInvokeHttpModule> | undefined;
+
+async function getEmbeddingsHttpHandler() {
+  embeddingsHttpModulePromise ??= import("./embeddings-http.js");
+  return (await embeddingsHttpModulePromise).handleOpenAiEmbeddingsHttpRequest;
+}
+
+async function getModelsHttpHandler() {
+  modelsHttpModulePromise ??= import("./models-http.js");
+  return (await modelsHttpModulePromise).handleOpenAiModelsHttpRequest;
+}
+
+async function getOpenAiHttpHandler() {
+  openAiHttpModulePromise ??= import("./openai-http.js");
+  return (await openAiHttpModulePromise).handleOpenAiHttpRequest;
+}
+
+async function getOpenResponsesHttpHandler() {
+  openResponsesHttpModulePromise ??= import("./openresponses-http.js");
+  return (await openResponsesHttpModulePromise).handleOpenResponsesHttpRequest;
+}
+
+async function getSlackHttpHandler() {
+  slackHttpModulePromise ??= import("../plugin-sdk/slack.js");
+  return (await slackHttpModulePromise).handleSlackHttpRequest;
+}
+
+async function getToolsInvokeHttpHandler() {
+  toolsInvokeHttpModulePromise ??= import("./tools-invoke-http.js");
+  return (await toolsInvokeHttpModulePromise).handleToolsInvokeHttpRequest;
+}
+
+function normalizeSlackWebhookPath(path?: string): string {
+  const trimmed = path?.trim();
+  if (!trimmed) {
+    return "/slack/events";
+  }
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function resolveSlackWebhookPaths(
+  configSnapshot: ReturnType<typeof loadConfig>,
+): ReadonlySet<string> {
+  const slackRaw = configSnapshot.channels?.slack;
+  if (!slackRaw || typeof slackRaw !== "object") {
+    return new Set<string>();
+  }
+
+  const slackConfig = slackRaw as Record<string, unknown>;
+  const baseMode = typeof slackConfig.mode === "string" ? slackConfig.mode.trim() : undefined;
+  const basePath = normalizeSlackWebhookPath(
+    typeof slackConfig.webhookPath === "string" ? slackConfig.webhookPath : undefined,
+  );
+  const paths = new Set<string>();
+  const addHttpPath = (accountMode: unknown, accountWebhookPath: unknown) => {
+    const effectiveMode =
+      typeof accountMode === "string" && accountMode.trim().length > 0
+        ? accountMode.trim()
+        : (baseMode ?? "socket");
+    if (effectiveMode !== "http") {
+      return;
+    }
+    paths.add(
+      normalizeSlackWebhookPath(
+        typeof accountWebhookPath === "string" && accountWebhookPath.trim().length > 0
+          ? accountWebhookPath
+          : basePath,
+      ),
+    );
+  };
+
+  const accountsRaw = slackConfig.accounts;
+  if (!accountsRaw || typeof accountsRaw !== "object") {
+    addHttpPath(baseMode, slackConfig.webhookPath);
+    return paths;
+  }
+
+  for (const value of Object.values(accountsRaw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") {
+      continue;
+    }
+    const account = value as Record<string, unknown>;
+    addHttpPath(account.mode, account.webhookPath);
+  }
+  return paths;
+}
 
 function resolveMattermostSlashCallbackPaths(
   configSnapshot: ReturnType<typeof loadConfig>,
@@ -819,6 +912,7 @@ export function createGatewayHttpServer(opts: {
       }
       const requestPath = new URL(req.url ?? "/", "http://localhost").pathname;
       const mattermostSlashCallbackPaths = resolveMattermostSlashCallbackPaths(configSnapshot);
+      const slackWebhookPaths = resolveSlackWebhookPaths(configSnapshot);
       const pluginPathContext = handlePluginRequest
         ? resolvePluginRoutePathContext(requestPath)
         : null;
@@ -829,9 +923,10 @@ export function createGatewayHttpServer(opts: {
         },
         {
           name: "models",
-          run: () =>
-            openAiCompatEnabled
-              ? handleOpenAiModelsHttpRequest(req, res, {
+          run: async () =>
+            openAiCompatEnabled &&
+            (requestPath === "/v1/models" || requestPath.startsWith("/v1/models/"))
+              ? (await getModelsHttpHandler())(req, res, {
                   auth: resolvedAuth,
                   trustedProxies,
                   allowRealIpFallback,
@@ -841,9 +936,9 @@ export function createGatewayHttpServer(opts: {
         },
         {
           name: "embeddings",
-          run: () =>
-            openAiCompatEnabled
-              ? handleOpenAiEmbeddingsHttpRequest(req, res, {
+          run: async () =>
+            openAiCompatEnabled && requestPath === "/v1/embeddings"
+              ? (await getEmbeddingsHttpHandler())(req, res, {
                   auth: resolvedAuth,
                   trustedProxies,
                   allowRealIpFallback,
@@ -853,13 +948,15 @@ export function createGatewayHttpServer(opts: {
         },
         {
           name: "tools-invoke",
-          run: () =>
-            handleToolsInvokeHttpRequest(req, res, {
-              auth: resolvedAuth,
-              trustedProxies,
-              allowRealIpFallback,
-              rateLimiter,
-            }),
+          run: async () =>
+            requestPath === "/tools/invoke"
+              ? (await getToolsInvokeHttpHandler())(req, res, {
+                  auth: resolvedAuth,
+                  trustedProxies,
+                  allowRealIpFallback,
+                  rateLimiter,
+                })
+              : false,
         },
         {
           name: "sessions-kill",
@@ -883,7 +980,8 @@ export function createGatewayHttpServer(opts: {
         },
         {
           name: "slack",
-          run: () => handleSlackHttpRequest(req, res),
+          run: async () =>
+            slackWebhookPaths.has(requestPath) ? (await getSlackHttpHandler())(req, res) : false,
         },
         {
           name: "alisio-oauth",
@@ -893,27 +991,31 @@ export function createGatewayHttpServer(opts: {
       if (openResponsesEnabled) {
         requestStages.push({
           name: "openresponses",
-          run: () =>
-            handleOpenResponsesHttpRequest(req, res, {
-              auth: resolvedAuth,
-              config: openResponsesConfig,
-              trustedProxies,
-              allowRealIpFallback,
-              rateLimiter,
-            }),
+          run: async () =>
+            requestPath === "/v1/responses"
+              ? (await getOpenResponsesHttpHandler())(req, res, {
+                  auth: resolvedAuth,
+                  config: openResponsesConfig,
+                  trustedProxies,
+                  allowRealIpFallback,
+                  rateLimiter,
+                })
+              : false,
         });
       }
       if (openAiChatCompletionsEnabled) {
         requestStages.push({
           name: "openai",
-          run: () =>
-            handleOpenAiHttpRequest(req, res, {
-              auth: resolvedAuth,
-              config: openAiChatCompletionsConfig,
-              trustedProxies,
-              allowRealIpFallback,
-              rateLimiter,
-            }),
+          run: async () =>
+            requestPath === "/v1/chat/completions"
+              ? (await getOpenAiHttpHandler())(req, res, {
+                  auth: resolvedAuth,
+                  config: openAiChatCompletionsConfig,
+                  trustedProxies,
+                  allowRealIpFallback,
+                  rateLimiter,
+                })
+              : false,
         });
       }
       if (canvasHost) {

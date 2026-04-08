@@ -16,7 +16,7 @@ import {
   sendMethodNotAllowed,
   setSseHeaders,
 } from "./http-common.js";
-import { getHeader } from "./http-utils.js";
+import { getHeader } from "./http-request-helpers.js";
 import { authorizeOperatorScopesForMethod } from "./method-scopes.js";
 import {
   attachOpenClawTranscriptMeta,

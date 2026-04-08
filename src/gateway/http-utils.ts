@@ -1,38 +1,18 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage } from "node:http";
-import { resolveDefaultAgentId } from "../agents/agent-scope.js";
-import {
-  buildAllowedModelSet,
-  modelKey,
-  parseModelRef,
-  resolveDefaultModelForAgent,
-} from "../agents/model-selection.js";
 import { loadConfig } from "../config/config.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../routing/session-key.js";
-import { normalizeMessageChannel } from "../utils/message-channel.js";
-import { loadGatewayModelCatalog } from "./server-model-catalog.js";
+import { getHeader, normalizeGatewayRequestMessageChannel } from "./http-request-helpers.js";
 
 export const OPENCLAW_MODEL_ID = "openclaw";
 export const OPENCLAW_DEFAULT_MODEL_ID = "openclaw/default";
 
-export function getHeader(req: IncomingMessage, name: string): string | undefined {
-  const raw = req.headers[name.toLowerCase()];
-  if (typeof raw === "string") {
-    return raw;
-  }
-  if (Array.isArray(raw)) {
-    return raw[0];
-  }
-  return undefined;
-}
-
-export function getBearerToken(req: IncomingMessage): string | undefined {
-  const raw = getHeader(req, "authorization")?.trim() ?? "";
-  if (!raw.toLowerCase().startsWith("bearer ")) {
-    return undefined;
-  }
-  const token = raw.slice(7).trim();
-  return token || undefined;
+function resolveDefaultAgentIdFromConfig(cfg = loadConfig()): string {
+  const agents = Array.isArray(cfg.agents?.list) ? cfg.agents.list : [];
+  const defaults = agents.filter((agent) => agent?.default);
+  const chosen = defaults[0] ?? agents[0];
+  const id = typeof chosen?.id === "string" ? chosen.id : "";
+  return normalizeAgentId(id || "main");
 }
 
 export function resolveAgentIdFromHeader(req: IncomingMessage): string | undefined {
@@ -56,7 +36,7 @@ export function resolveAgentIdFromModel(
   }
   const lowered = raw.toLowerCase();
   if (lowered === OPENCLAW_MODEL_ID || lowered === OPENCLAW_DEFAULT_MODEL_ID) {
-    return resolveDefaultAgentId(cfg);
+    return resolveDefaultAgentIdFromConfig(cfg);
   }
 
   const m =
@@ -74,6 +54,9 @@ export async function resolveOpenAiCompatModelOverride(params: {
   agentId: string;
   model: string | undefined;
 }): Promise<{ modelOverride?: string; errorMessage?: string }> {
+  const { buildAllowedModelSet, modelKey, parseModelRef, resolveDefaultModelForAgent } =
+    await import("../agents/model-selection.js");
+  const { loadGatewayModelCatalog } = await import("./server-model-catalog.js");
   const requestModel = params.model?.trim();
   if (requestModel && !resolveAgentIdFromModel(requestModel)) {
     return {
@@ -122,7 +105,7 @@ export function resolveAgentIdForRequest(params: {
   }
 
   const fromModel = resolveAgentIdFromModel(params.model, cfg);
-  return fromModel ?? resolveDefaultAgentId(cfg);
+  return fromModel ?? resolveDefaultAgentIdFromConfig(cfg);
 }
 
 export function resolveSessionKey(params: {
@@ -158,7 +141,7 @@ export function resolveGatewayRequestContext(params: {
   });
 
   const messageChannel = params.useMessageChannelHeader
-    ? (normalizeMessageChannel(getHeader(params.req, "x-openclaw-message-channel")) ??
+    ? (normalizeGatewayRequestMessageChannel(getHeader(params.req, "x-openclaw-message-channel")) ??
       params.defaultMessageChannel)
     : params.defaultMessageChannel;
 
