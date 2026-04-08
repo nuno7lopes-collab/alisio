@@ -222,6 +222,7 @@ export async function handleAlisioBootstrapHttpRequest(
           plan: account.profile.plan,
         }
       : null,
+    accountCloud: account.cloud,
     ai,
     bootstrapToken: (
       await issueDeviceBootstrapToken({

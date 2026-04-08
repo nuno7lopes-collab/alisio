@@ -80,15 +80,28 @@ function createModelsState(): AlisioModelsState {
     targets: [
       {
         targetId: "current",
+        deviceId: "current",
         label: "This Mac",
+        runtimeLabel: "Local GGUF",
         platform: "darwin",
         current: true,
         connected: true,
+        location: "local",
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
         chatProviderId: "alisio-local-current",
         runtimeStatus: "ready",
+        capabilities: {
+          install: true,
+          update: true,
+          uninstall: true,
+          consentRequired: true,
+          startServer: false,
+        },
         supportsInstall: true,
+        supportsUpdate: true,
+        supportsUninstall: true,
+        consentRequired: true,
         installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
         recommendations: [
           {
@@ -115,15 +128,28 @@ function createModelsState(): AlisioModelsState {
       },
       {
         targetId: "remote-1",
+        deviceId: "remote-1",
         label: "Studio Mac",
+        runtimeLabel: "Local GGUF",
         platform: "darwin",
         current: false,
         connected: true,
+        location: "server",
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
         chatProviderId: "alisio-target-remote-1-llama",
         runtimeStatus: "ready",
+        capabilities: {
+          install: true,
+          update: true,
+          uninstall: true,
+          consentRequired: true,
+          startServer: false,
+        },
         supportsInstall: true,
+        supportsUpdate: true,
+        supportsUninstall: true,
+        consentRequired: true,
         installedModels: [{ id: "qwen3-8b-q4-k-m", name: "Qwen3 8B", ownedBy: "llama.cpp" }],
         recommendations: [
           {
@@ -325,11 +351,12 @@ describe("renderModelsHub", () => {
 
     expect(container.textContent).toContain("This Mac");
     expect(container.textContent).toContain("macOS");
+    expect(container.textContent).toContain("Local GGUF");
     expect(container.textContent).toContain("Qwen3 8B");
     expect(container.textContent).toContain("Install");
     expect(container.textContent).toContain("Uninstall");
     expect(container.textContent).not.toContain("alice@example.com");
-    expect(targetTitles).toContain("This Mac");
+    expect(targetTitles).toContain("Local GGUF");
     expect(targetTitles).not.toContain("Studio Mac");
 
     const localChip = Array.from(
@@ -338,6 +365,61 @@ describe("renderModelsHub", () => {
     localChip?.click();
 
     expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-local-current/qwen3-4b-q4-k-m");
+  });
+
+  it("shows only runtimes installed on this device in the local surface", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "local",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            targetId: "current::ollama",
+            deviceId: "current",
+            label: "This Mac",
+            runtimeLabel: "Ollama",
+            platform: "darwin",
+            current: true,
+            connected: true,
+            location: "local",
+            backend: "llama.cpp",
+            runtimeKind: "ollama",
+            chatProviderId: "alisio-local-current-ollama",
+            runtimeStatus: "ready",
+            capabilities: {
+              install: true,
+              update: true,
+              uninstall: true,
+              consentRequired: true,
+              startServer: false,
+            },
+            supportsInstall: true,
+            supportsUpdate: true,
+            supportsUninstall: true,
+            consentRequired: true,
+            installedModels: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
+            availableModels: [{ id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" }],
+            recommendations: [],
+          },
+          {
+            ...baseModels.targets[1],
+            installedModels: [{ id: "remote-only", name: "Remote Only", ownedBy: "llama.cpp" }],
+          },
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+    const localSection = container.querySelector<HTMLElement>(".alisio-models-section");
+
+    expect(container.textContent).toContain("Local GGUF");
+    expect(container.textContent).toContain("Ollama");
+    expect(container.textContent).toContain("qwen3:8b");
+    expect(localSection?.textContent ?? "").not.toContain("Remote Only");
+    expect(localSection?.textContent ?? "").not.toContain("Studio Mac");
   });
 
   it("shows install progress and wires uninstall for local models", () => {
@@ -483,14 +565,27 @@ describe("renderModelsHub", () => {
           baseModels.targets[0],
           {
             targetId: "remote-openai",
+            deviceId: "remote-openai",
             label: "Edge Box",
+            runtimeLabel: "OpenAI-compatible",
             platform: "linux",
             current: false,
             connected: true,
+            location: "server",
             backend: "llama.cpp",
             runtimeKind: "openai-compatible",
             runtimeStatus: "ready",
+            capabilities: {
+              install: false,
+              update: false,
+              uninstall: false,
+              consentRequired: false,
+              startServer: false,
+            },
             supportsInstall: false,
+            supportsUpdate: false,
+            supportsUninstall: false,
+            consentRequired: false,
             installedModels: [],
             recommendations: [],
           },
@@ -552,15 +647,28 @@ describe("renderModelsHub", () => {
           baseModels.targets[0],
           {
             targetId: "remote-openai",
+            deviceId: "remote-openai",
             label: "Edge Box",
+            runtimeLabel: "OpenAI-compatible",
             platform: "linux",
             current: false,
             connected: true,
+            location: "server",
             backend: "llama.cpp",
             runtimeKind: "openai-compatible",
             chatProviderId: "alisio-target-remote-openai-openai",
             runtimeStatus: "ready",
+            capabilities: {
+              install: true,
+              update: false,
+              uninstall: false,
+              consentRequired: false,
+              startServer: false,
+            },
             supportsInstall: true,
+            supportsUpdate: false,
+            supportsUninstall: false,
+            consentRequired: false,
             installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
             recommendations: [
               {

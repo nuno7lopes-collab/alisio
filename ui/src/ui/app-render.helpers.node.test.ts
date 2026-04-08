@@ -47,6 +47,11 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
             controlUrl: "wss://gateway.example/\u006fpen\u0063law/",
             startupState: "needs_ai",
             account: null,
+            accountCloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
             ai: null,
           },
         }),

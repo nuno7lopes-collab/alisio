@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   beginAlisioAccountEmailAuth,
+  beginAlisioAccountGoogleAuth,
   completeAlisioAccountEmailLinkAuth,
   verifyAlisioAccountEmailAuth,
   refreshAlisioAiProfile,
@@ -114,6 +115,11 @@ function createBootstrapSnapshot(
         profileCompleted: false,
       },
       devices: [],
+      cloud: {
+        backend: "supabase",
+        available: true,
+        missingEnvVars: [],
+      },
     },
     ai: {
       provider: "openai",
@@ -282,6 +288,11 @@ describe("alisio controller reconnect safety", () => {
           profileCompleted: true,
         },
         devices: [],
+        cloud: {
+          backend: "supabase",
+          available: true,
+          missingEnvVars: [],
+        },
       },
     });
     const request = vi.fn(async () => doctor);
@@ -984,6 +995,96 @@ describe("alisio controller reconnect safety", () => {
 
     expect(state.alisioAuthStage).toBe("email-code");
     expect(state.alisioAccountNotice).toBe("Check your email.");
+  });
+
+  it("recupera para o perfil local quando o login cloud nao esta disponivel", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.get") {
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_out",
+            profileCompleted: false,
+            backend: "supabase",
+          },
+          devices: [],
+          cloud: {
+            backend: "supabase",
+            available: false,
+            missingEnvVars: ["ALISIO_SUPABASE_URL", "ALISIO_SUPABASE_ANON_KEY"],
+          },
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAuthEmail: "owner@example.com",
+    });
+
+    await beginAlisioAccountEmailAuth(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.account.get", {});
+    expect(state.alisioAccountError).toBeNull();
+    expect(state.alisioAccountNotice).toContain("local account mode");
+    expect(state.alisioAuthStage).toBe("entry");
+    expect(state.setupStep).toBe("account");
+  });
+
+  it("evita iniciar o login Google quando a conta esta em modo local", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.get") {
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_out",
+            profileCompleted: false,
+            backend: "supabase",
+          },
+          devices: [],
+          cloud: {
+            backend: "supabase",
+            available: false,
+            missingEnvVars: ["ALISIO_SUPABASE_URL", "ALISIO_SUPABASE_ANON_KEY"],
+          },
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+    });
+
+    const result = await beginAlisioAccountGoogleAuth(state, "http://localhost:18789/logout/setup");
+
+    expect(result).toBeNull();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.account.get", {});
+    expect(state.alisioAccountError).toBeNull();
+    expect(state.alisioAccountNotice).toContain("local account mode");
   });
 
   it("conclui a sessão a partir do magic link e limpa o estado local", async () => {

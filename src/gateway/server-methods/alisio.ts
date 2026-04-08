@@ -224,6 +224,38 @@ function broadcastLocalModelOperation(
   context.broadcast(GATEWAY_EVENT_ALISIO_MODELS_OPERATION, payload, { dropIfSlow: true });
 }
 
+function findCurrentModelTarget(
+  models: AlisioModelsResult,
+  modelId: string,
+): AlisioModelsResult["targets"][number] | undefined {
+  const currentTargets = models.targets.filter((target) => target.current);
+  const normalizedModelId = modelId.trim().toLowerCase();
+  return (
+    currentTargets.find((target) =>
+      target.installedModels.some((model) => model.id.trim().toLowerCase() === normalizedModelId),
+    ) ??
+    currentTargets.find((target) =>
+      (target.availableModels ?? []).some(
+        (model) => model.id.trim().toLowerCase() === normalizedModelId,
+      ),
+    ) ??
+    (findAlisioLocalModelCatalogEntry(modelId)
+      ? currentTargets.find((target) => target.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND)
+      : undefined) ??
+    currentTargets.find((target) => target.runtimeKind === "ollama" && target.supportsInstall) ??
+    currentTargets[0]
+  );
+}
+
+function resolveSelectedModelsTarget(
+  models: AlisioModelsResult,
+  params: { targetId: string; modelId: string },
+) {
+  return params.targetId === "current" || params.targetId === "local"
+    ? findCurrentModelTarget(models, params.modelId)
+    : models.targets.find((target) => target.targetId === params.targetId);
+}
+
 export const alisioHandlers: GatewayRequestHandlers = {
   "alisio.account.get": async ({ params, respond }) => {
     if (!validateAlisioAccountGetParams(params)) {
@@ -1045,14 +1077,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
 
+    let operationTargetId = params.targetId;
     try {
       const publishedModels = await publishAlisioDynamicModelProvidersForContext(context, {
         force: true,
       });
-      const selectedTarget =
-        params.targetId === "current" || params.targetId === "local"
-          ? publishedModels.targets.find((target) => target.current)
-          : publishedModels.targets.find((target) => target.targetId === params.targetId);
+      const selectedTarget = resolveSelectedModelsTarget(publishedModels, params);
       if (!selectedTarget) {
         respond(
           false,
@@ -1069,17 +1099,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
         );
         return;
       }
-      const account = await getAlisioAccountState();
-      const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
-      const currentTargetId = currentDevice?.id ?? "current";
+      operationTargetId = selectedTarget.targetId;
       const installCurrentTarget = selectedTarget.current;
 
       if (installCurrentTarget) {
-        const currentRuntime = await localModelRuntime.inspectLocalModelRuntime({
-          env: process.env,
-        });
         if (
-          !(currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsInstall) &&
+          !(selectedTarget.runtimeKind === "ollama" && selectedTarget.supportsInstall) &&
           (!findAlisioLocalModelCatalogEntry(params.modelId) ||
             findAlisioLocalModelCatalogEntry(params.modelId)?.releaseStage !== "published")
         ) {
@@ -1087,12 +1112,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
           return;
         }
         broadcastLocalModelOperation(context, {
-          targetId: currentTargetId,
+          targetId: selectedTarget.targetId,
           modelId: params.modelId,
           action: "install",
           phase: "started",
         });
-        if (currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsInstall) {
+        if (selectedTarget.runtimeKind === "ollama" && selectedTarget.supportsInstall) {
           await localModelRuntime.installOllamaLocalModel({
             modelId: params.modelId,
             env: process.env,
@@ -1102,7 +1127,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
                   ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
                   : undefined;
               broadcastLocalModelOperation(context, {
-                targetId: currentTargetId,
+                targetId: selectedTarget.targetId,
                 modelId: params.modelId,
                 action: "install",
                 phase: "running",
@@ -1122,7 +1147,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
                   ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
                   : undefined;
               broadcastLocalModelOperation(context, {
-                targetId: currentTargetId,
+                targetId: selectedTarget.targetId,
                 modelId: params.modelId,
                 action: "install",
                 phase: "running",
@@ -1134,14 +1159,14 @@ export const alisioHandlers: GatewayRequestHandlers = {
           });
         }
         broadcastLocalModelOperation(context, {
-          targetId: currentTargetId,
+          targetId: selectedTarget.targetId,
           modelId: params.modelId,
           action: "install",
           phase: "completed",
           percent: 100,
         });
       } else {
-        const node = context.nodeRegistry.get(params.targetId);
+        const node = context.nodeRegistry.get(selectedTarget.deviceId);
         if (!node) {
           respond(
             false,
@@ -1208,7 +1233,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
               return;
             }
             broadcastLocalModelOperation(context, {
-              targetId: params.targetId,
+              targetId: selectedTarget.targetId,
               modelId: params.modelId,
               action,
               phase,
@@ -1238,7 +1263,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
         const result = await task.result;
         if (!result.ok) {
           broadcastLocalModelOperation(context, {
-            targetId: params.targetId,
+            targetId: selectedTarget.targetId,
             modelId: params.modelId,
             action: "install",
             phase: "failed",
@@ -1260,7 +1285,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       const result = {
         ok: true as const,
         backend: ALISIO_LOCAL_MODEL_BACKEND,
-        targetId: params.targetId,
+        targetId: selectedTarget.targetId,
         modelId: params.modelId,
       };
       if (!validateAlisioModelsInstallResult(result)) {
@@ -1279,7 +1304,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       respond(true, result, undefined);
     } catch (err) {
       broadcastLocalModelOperation(context, {
-        targetId: params.targetId,
+        targetId: operationTargetId,
         modelId: params.modelId,
         action: "install",
         phase: "failed",
@@ -1307,14 +1332,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
 
+    let operationTargetId = params.targetId;
     try {
       const publishedModels = await publishAlisioDynamicModelProvidersForContext(context, {
         force: true,
       });
-      const selectedTarget =
-        params.targetId === "current" || params.targetId === "local"
-          ? publishedModels.targets.find((target) => target.current)
-          : publishedModels.targets.find((target) => target.targetId === params.targetId);
+      const selectedTarget = resolveSelectedModelsTarget(publishedModels, params);
       if (!selectedTarget) {
         respond(
           false,
@@ -1331,22 +1354,17 @@ export const alisioHandlers: GatewayRequestHandlers = {
         );
         return;
       }
-      const account = await getAlisioAccountState();
-      const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
-      const currentTargetId = currentDevice?.id ?? "current";
+      operationTargetId = selectedTarget.targetId;
       const uninstallCurrentTarget = selectedTarget.current;
 
       if (uninstallCurrentTarget) {
-        const currentRuntime = await localModelRuntime.inspectLocalModelRuntime({
-          env: process.env,
-        });
         broadcastLocalModelOperation(context, {
-          targetId: currentTargetId,
+          targetId: selectedTarget.targetId,
           modelId: params.modelId,
           action: "uninstall",
           phase: "started",
         });
-        if (currentRuntime.runtimeKind === "ollama" && currentRuntime.supportsUninstall) {
+        if (selectedTarget.runtimeKind === "ollama" && selectedTarget.supportsUninstall) {
           await localModelRuntime.uninstallOllamaLocalModel({
             modelId: params.modelId,
             env: process.env,
@@ -1358,14 +1376,14 @@ export const alisioHandlers: GatewayRequestHandlers = {
           });
         }
         broadcastLocalModelOperation(context, {
-          targetId: currentTargetId,
+          targetId: selectedTarget.targetId,
           modelId: params.modelId,
           action: "uninstall",
           phase: "completed",
           percent: 100,
         });
       } else {
-        const node = context.nodeRegistry.get(params.targetId);
+        const node = context.nodeRegistry.get(selectedTarget.deviceId);
         if (!node) {
           respond(
             false,
@@ -1425,7 +1443,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
               return;
             }
             broadcastLocalModelOperation(context, {
-              targetId: params.targetId,
+              targetId: selectedTarget.targetId,
               modelId: params.modelId,
               action,
               phase,
@@ -1443,7 +1461,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
         const result = await task.result;
         if (!result.ok) {
           broadcastLocalModelOperation(context, {
-            targetId: params.targetId,
+            targetId: selectedTarget.targetId,
             modelId: params.modelId,
             action: "uninstall",
             phase: "failed",
@@ -1465,7 +1483,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       const result = {
         ok: true as const,
         backend: ALISIO_LOCAL_MODEL_BACKEND,
-        targetId: params.targetId,
+        targetId: selectedTarget.targetId,
         modelId: params.modelId,
       };
       if (!validateAlisioModelsUninstallResult(result)) {
@@ -1484,7 +1502,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       respond(true, result, undefined);
     } catch (err) {
       broadcastLocalModelOperation(context, {
-        targetId: params.targetId,
+        targetId: operationTargetId,
         modelId: params.modelId,
         action: "uninstall",
         phase: "failed",

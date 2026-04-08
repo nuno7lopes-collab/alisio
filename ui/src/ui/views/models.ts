@@ -606,32 +606,44 @@ function formatCount(value: number, singular: string, plural: string) {
 }
 
 function splitTargets(targets: readonly LocalModelTarget[]) {
-  const currentTarget = targets.find((target) => target.current) ?? targets[0] ?? null;
-  const linkedTargets = currentTarget
-    ? targets.filter((target) => target.targetId !== currentTarget.targetId)
-    : [];
-  return { currentTarget, linkedTargets };
+  const currentTargets = targets.filter((target) => target.current);
+  const linkedTargets = targets.filter((target) => !target.current);
+  return {
+    currentTargets,
+    linkedTargets,
+    currentTarget: currentTargets[0] ?? null,
+  };
 }
 
 function resolveTargetRuntimeLabel(target: LocalModelTarget) {
   const text = modelsText();
+  if (target.runtimeLabel?.trim()) {
+    return target.runtimeLabel.trim();
+  }
   if (target.runtimeKind === "openai-compatible") {
     return text.openAiCompatible;
   }
   if (target.runtimeKind === "ollama") {
     return text.ollama;
   }
+  if (target.runtimeKind === "lmstudio") {
+    return "LM Studio";
+  }
   return target.backend;
 }
 
 function resolveTargetModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" ? text.availableModels : text.installedModels;
+  return target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio"
+    ? text.availableModels
+    : text.installedModels;
 }
 
 function resolveTargetEmptyModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" ? text.noModelChoices : text.noInstalledModels;
+  return target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio"
+    ? text.noModelChoices
+    : text.noInstalledModels;
 }
 
 function isGenericRuntimeMessage(message: string | null | undefined) {
@@ -1066,10 +1078,12 @@ function renderTargetCard(props: {
     >
       <div class="alisio-models__target-head">
         <div>
-          <div class="list-title">${props.target.label}</div>
+          <div class="list-title">
+            ${props.target.current ? resolveTargetRuntimeLabel(props.target) : props.target.label}
+          </div>
           <div class="list-sub">
             ${[
-              props.target.current ? text.currentComputer : text.linkedComputer,
+              props.target.current ? props.target.label : text.linkedComputer,
               formatPlatformLabel(props.target.platform),
             ]
               .filter(Boolean)
@@ -1697,7 +1711,7 @@ function renderLocalModelsSection(props: {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
   const targets = props.models?.targets ?? [];
-  const { currentTarget } = splitTargets(targets);
+  const { currentTargets } = splitTargets(targets);
   const publishedModels = props.models?.catalog ?? [];
 
   return html`
@@ -1728,9 +1742,17 @@ function renderLocalModelsSection(props: {
         : nothing}
 
       <div class="alisio-models__targets">
-        ${currentTarget
-          ? renderTargetCard({
-              target: currentTarget,
+        ${currentTargets
+          .toSorted(
+            (left, right) =>
+              Number(Boolean(right.installedModels.length)) -
+                Number(Boolean(left.installedModels.length)) ||
+              Number(Boolean(right.supportsInstall)) - Number(Boolean(left.supportsInstall)) ||
+              resolveTargetRuntimeLabel(left).localeCompare(resolveTargetRuntimeLabel(right)),
+          )
+          .map((target) =>
+            renderTargetCard({
+              target,
               installCatalog: publishedModels,
               chatModelOptions: props.chatModelOptions,
               effectiveChatModelValue: props.effectiveChatModelValue,
@@ -1740,11 +1762,11 @@ function renderLocalModelsSection(props: {
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
               onSelectChatModel: props.onSelectModel,
-            })
-          : nothing}
+            }),
+          )}
       </div>
 
-      ${!showInitialLoading && !currentTarget
+      ${!showInitialLoading && currentTargets.length === 0
         ? html`<div class="alisio-settings-ai__empty">${text.noTargets}</div>`
         : nothing}
       ${!showInitialLoading && publishedModels.length === 0
@@ -2013,41 +2035,52 @@ export function renderModelsHub(props: {
   const servers = props.models?.servers ?? [];
   const activeServer = servers.find((server) => server.active) ?? servers[0] ?? null;
   const localTargets = props.models?.targets ?? [];
-  const { currentTarget, linkedTargets } = splitTargets(localTargets);
+  const { currentTargets, linkedTargets } = splitTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
-  const currentTargetDisplayModels = currentTarget
-    ? resolveTargetDisplayModels(
-        currentTarget,
-        props.chatModelOptions,
-        currentTarget.chatProviderId ?? null,
-      )
-    : [];
-  const localSuggestionsCount =
-    currentTarget && currentTarget.supportsInstall
-      ? resolveTargetAvailableCatalogEntries(currentTarget, localCatalog).length
-      : 0;
+  const currentTargetDisplayModels = currentTargets.flatMap((target) =>
+    resolveTargetDisplayModels(target, props.chatModelOptions, target.chatProviderId ?? null),
+  );
+  const localSuggestionsCount = currentTargets.reduce(
+    (total, target) =>
+      total +
+      (target.supportsInstall
+        ? resolveTargetAvailableCatalogEntries(target, localCatalog).length
+        : 0),
+    0,
+  );
   const providerPickerLoading =
     (props.aiLoading && profiles.length === 0) || (props.modelsLoading && !props.models);
-  const uniqueInstalledModels = countUniqueInstalledModels(currentTarget ? [currentTarget] : []);
+  const uniqueInstalledModels = countUniqueInstalledModels(currentTargets);
   const localDisplayModelCount = currentTargetDisplayModels.length;
-  const selectedLocalModelLabel = currentTarget?.chatProviderId
+  const selectedLocalTarget =
+    currentTargets.find((target) =>
+      isProviderModelValue(props.effectiveChatModelValue, target.chatProviderId),
+    ) ?? null;
+  const selectedLocalModelLabel = selectedLocalTarget?.chatProviderId
     ? resolveProviderModelLabel({
-        models: currentTargetDisplayModels,
-        providerId: currentTarget.chatProviderId,
+        models: resolveTargetDisplayModels(
+          selectedLocalTarget,
+          props.chatModelOptions,
+          selectedLocalTarget.chatProviderId,
+        ),
+        providerId: selectedLocalTarget.chatProviderId,
         value: props.effectiveChatModelValue,
       })
     : "";
   const localPrimary =
     selectedLocalModelLabel ||
-    resolvePrimaryLocalSummary(currentTarget ? [currentTarget] : [], localCatalog) ||
+    resolvePrimaryLocalSummary(currentTargets, localCatalog) ||
     text.localTitle;
   const localSecondary =
-    selectedLocalModelLabel && currentTarget
-      ? currentTarget.label
-      : currentTarget && !currentTarget.connected
+    selectedLocalModelLabel && selectedLocalTarget
+      ? resolveTargetRuntimeLabel(selectedLocalTarget)
+      : currentTargets.some((target) => !target.connected)
         ? text.targetNotConnected
         : localDisplayModelCount > 0 || uniqueInstalledModels > 0
-          ? currentTarget?.runtimeKind === "openai-compatible"
+          ? currentTargets.every(
+              (target) =>
+                target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio",
+            )
             ? text.availableModels
             : text.installedModels
           : localSuggestionsCount > 0

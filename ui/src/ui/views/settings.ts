@@ -476,13 +476,18 @@ function renderAccountSection(props: {
     email: t("alisio.settings.account.email"),
     avatarLabel: t("alisio.settings.account.avatarLabel"),
     emailManagedByCloud: t("alisio.settings.account.emailManagedByCloud"),
+    localModeNotice: t("alisio.settings.account.localModeNotice"),
     recoveryEmail: t("alisio.settings.account.recoveryEmail"),
     signOut: t("alisio.settings.account.signOut"),
   };
   const joinedFormatter = new Intl.DateTimeFormat(props.locale ?? undefined);
   const account = props.account;
-  const emailManagedByCloud = account?.session.backend === "supabase";
-  const showRecoveryEmail = Boolean(account && account.session.authMethod !== "google");
+  const localOnlyAccountMode = account?.cloud?.available === false;
+  const emailManagedByCloud = account?.session.backend === "supabase" && !localOnlyAccountMode;
+  const showRecoveryEmail = Boolean(
+    account && account.cloud?.available && account.session.authMethod !== "google",
+  );
+  const showSignOut = Boolean(account?.cloud?.available);
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
@@ -491,6 +496,9 @@ function renderAccountSection(props: {
         : nothing}
       ${props.accountNotice
         ? html`<div class="callout info" style="margin-top: 16px;">${props.accountNotice}</div>`
+        : nothing}
+      ${localOnlyAccountMode
+        ? html`<div class="callout info" style="margin-top: 16px;">${text.localModeNotice}</div>`
         : nothing}
       ${props.accountLoading && !props.account
         ? html`
@@ -588,13 +596,17 @@ function renderAccountSection(props: {
                       </button>
                     `
                   : nothing}
-                <button
-                  class="btn danger"
-                  ?disabled=${props.accountLoading}
-                  @click=${props.onSignOut}
-                >
-                  ${text.signOut}
-                </button>
+                ${showSignOut
+                  ? html`
+                      <button
+                        class="btn danger"
+                        ?disabled=${props.accountLoading}
+                        @click=${props.onSignOut}
+                      >
+                        ${text.signOut}
+                      </button>
+                    `
+                  : nothing}
               </div>
             </div>
           `}

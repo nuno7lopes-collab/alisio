@@ -168,6 +168,11 @@ function createBootstrapAccount(): NonNullable<
       profileCompleted: true,
     },
     devices: [],
+    cloud: {
+      backend: "supabase",
+      available: true,
+      missingEnvVars: [],
+    },
   };
 }
 
@@ -227,6 +232,11 @@ describe("resolveEffectiveAlisioAiState", () => {
           controlUrl: "wss://gateway.example/openclaw/",
           startupState: "needs_ai",
           account: null,
+          accountCloud: {
+            backend: "supabase",
+            available: true,
+            missingEnvVars: [],
+          },
           ai: {
             provider: "openai",
             status: "connected",
@@ -256,6 +266,11 @@ describe("resolveEffectiveAlisioAiState", () => {
           controlUrl: "wss://gateway.example/openclaw/",
           startupState: "needs_ai",
           account: null,
+          accountCloud: {
+            backend: "supabase",
+            available: true,
+            missingEnvVars: [],
+          },
           ai: {
             provider: "openai",
             status: "connected",
@@ -535,6 +550,11 @@ describe("applySettingsFromUrl", () => {
           profileCompleted: true,
         },
         devices: [],
+        cloud: {
+          backend: "supabase",
+          available: true,
+          missingEnvVars: [],
+        },
       },
       ai: {
         provider: "openai",

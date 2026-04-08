@@ -6,6 +6,7 @@ import type { AlisioRemoteModelServer } from "./alisio-store.js";
 const {
   inspectManagedLocalModelRuntimeMock,
   inspectLocalModelRuntimeMock,
+  inspectLocalModelRuntimesMock,
   inspectAlisioRemoteModelServerMock,
   getAlisioSharingTargetAccessIndexMock,
   listAlisioRemoteModelServersMock,
@@ -13,6 +14,7 @@ const {
 } = vi.hoisted(() => ({
   inspectManagedLocalModelRuntimeMock: vi.fn(),
   inspectLocalModelRuntimeMock: vi.fn(),
+  inspectLocalModelRuntimesMock: vi.fn(),
   inspectAlisioRemoteModelServerMock: vi.fn(),
   getAlisioSharingTargetAccessIndexMock: vi.fn(
     async (input?: { targets?: Array<{ targetId: string; ownerLabel?: string }> }) =>
@@ -53,6 +55,7 @@ vi.mock("./alisio-local-model-runtime.js", async (importOriginal) => {
   return {
     ...actual,
     inspectLocalModelRuntime: inspectLocalModelRuntimeMock,
+    inspectLocalModelRuntimes: inspectLocalModelRuntimesMock,
   };
 });
 
@@ -125,18 +128,47 @@ describe("loadAlisioModelProviderSnapshot", () => {
     vi.clearAllMocks();
     inspectManagedLocalModelRuntimeMock.mockResolvedValue({
       backend: "llama.cpp",
+      runtimeKind: "llama.cpp",
+      runtimeLabel: "Local GGUF",
       status: "not_configured",
       message: "No local llama.cpp models are installed on this computer yet.",
       models: [],
+      availableModels: [],
       hardware: createHardware(),
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+        startServer: false,
+      },
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
     });
     inspectLocalModelRuntimeMock.mockResolvedValue({
       backend: "llama.cpp",
+      runtimeKind: "openai-compatible",
+      runtimeLabel: "OpenAI-compatible",
       status: "not_configured",
       message: "local model runtime not configured on this computer",
       models: [],
+      availableModels: [],
       hardware: createHardware(),
+      capabilities: {
+        install: false,
+        update: false,
+        uninstall: false,
+        consentRequired: false,
+        startServer: false,
+      },
+      supportsInstall: false,
+      supportsUpdate: false,
+      supportsUninstall: false,
+      consentRequired: false,
     });
+    inspectLocalModelRuntimesMock.mockResolvedValue([]);
     listAlisioRemoteModelServersMock.mockResolvedValue([]);
     resolveCurrentAlisioPlanMock.mockResolvedValue("plus");
     inspectAlisioRemoteModelServerMock.mockResolvedValue({
@@ -147,12 +179,30 @@ describe("loadAlisioModelProviderSnapshot", () => {
   });
 
   it("prefers the current OpenAI-compatible runtime when local llama.cpp is not configured yet", async () => {
-    inspectLocalModelRuntimeMock.mockResolvedValueOnce({
-      backend: "llama.cpp",
-      status: "ready",
-      models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
-      hardware: createHardware(),
-    });
+    inspectLocalModelRuntimesMock.mockResolvedValueOnce([
+      {
+        backend: "llama.cpp",
+        runtimeKind: "openai-compatible",
+        runtimeLabel: "OpenAI-compatible",
+        status: "ready",
+        models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
+        availableModels: [
+          { id: "gpt-oss-20b", name: "gpt-oss-20b", runtimeKind: "openai-compatible" },
+        ],
+        hardware: createHardware(),
+        capabilities: {
+          install: false,
+          update: false,
+          uninstall: false,
+          consentRequired: false,
+          startServer: false,
+        },
+        supportsInstall: false,
+        supportsUpdate: false,
+        supportsUninstall: false,
+        consentRequired: false,
+      },
+    ]);
 
     const snapshot = await loadAlisioModelProviderSnapshot({
       nodeRegistry: createRegistry(),
@@ -166,38 +216,41 @@ describe("loadAlisioModelProviderSnapshot", () => {
       current: true,
       runtimeKind: "openai-compatible",
       runtimeStatus: "ready",
-      chatProviderId: "alisio-local-current",
       installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
     });
-    expect(snapshot.dynamicCatalogEntries).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          provider: "alisio-local-current",
-          id: "gpt-oss-20b",
-        }),
-      ]),
-    );
+    expect(snapshot.targets[0]?.chatProviderId).toBeUndefined();
+    expect(snapshot.dynamicCatalogEntries).toEqual([]);
   });
 
   it("detects the current Ollama runtime on this computer", async () => {
-    inspectLocalModelRuntimeMock.mockResolvedValueOnce({
-      backend: "llama.cpp",
-      runtimeKind: "ollama",
-      status: "ready",
-      models: [
-        { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama", running: true },
-        { id: "qwen3:4b", name: "qwen3:4b", ownedBy: "ollama" },
-      ],
-      availableModels: [
-        { id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" },
-        { id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" },
-      ],
-      hardware: createHardware(),
-      supportsInstall: true,
-      supportsUpdate: true,
-      supportsUninstall: true,
-      consentRequired: true,
-    });
+    inspectLocalModelRuntimesMock.mockResolvedValueOnce([
+      {
+        backend: "llama.cpp",
+        runtimeKind: "ollama",
+        runtimeLabel: "Ollama",
+        status: "ready",
+        models: [
+          { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama", running: true },
+          { id: "qwen3:4b", name: "qwen3:4b", ownedBy: "ollama" },
+        ],
+        availableModels: [
+          { id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" },
+          { id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" },
+        ],
+        hardware: createHardware(),
+        capabilities: {
+          install: true,
+          update: true,
+          uninstall: true,
+          consentRequired: true,
+          startServer: false,
+        },
+        supportsInstall: true,
+        supportsUpdate: true,
+        supportsUninstall: true,
+        consentRequired: true,
+      },
+    ]);
 
     const snapshot = await loadAlisioModelProviderSnapshot({
       nodeRegistry: createRegistry(),
@@ -211,7 +264,7 @@ describe("loadAlisioModelProviderSnapshot", () => {
       current: true,
       runtimeKind: "ollama",
       runtimeStatus: "ready",
-      chatProviderId: "alisio-local-current",
+      chatProviderId: "alisio-local-current-ollama",
       installedModels: [
         { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama", running: true },
         { id: "qwen3:4b", name: "qwen3:4b", ownedBy: "ollama" },
@@ -220,7 +273,7 @@ describe("loadAlisioModelProviderSnapshot", () => {
     expect(snapshot.dynamicCatalogEntries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          provider: "alisio-local-current",
+          provider: "alisio-local-current-ollama",
           id: "qwen3:8b",
         }),
       ]),
@@ -261,7 +314,9 @@ describe("loadAlisioModelProviderSnapshot", () => {
       force: true,
     });
 
-    const target = snapshot.targets.find((entry) => entry.targetId === "remote-1");
+    const target = snapshot.targets.find(
+      (entry) => entry.deviceId === "remote-1" && entry.runtimeKind === "openai-compatible",
+    );
     expect(target).toMatchObject({
       current: false,
       runtimeKind: "openai-compatible",

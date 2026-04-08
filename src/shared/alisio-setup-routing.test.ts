@@ -71,6 +71,11 @@ function createRoutingHost(): Parameters<typeof syncUrlWithTab>[0] {
           profileCompleted: true,
         },
         devices: [],
+        cloud: {
+          backend: "supabase",
+          available: true,
+          missingEnvVars: [],
+        },
       },
       ai: {
         provider: "openai",

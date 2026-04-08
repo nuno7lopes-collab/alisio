@@ -564,6 +564,9 @@ export function renderApp(state: AppViewState) {
     organizationLoading: state.alisioOrganizationLoading,
     organizationError: state.alisioOrganizationError,
     organization: state.alisioOrganization,
+    sharingLoading: state.alisioSharingLoading,
+    sharingError: state.alisioSharingError,
+    sharing: state.alisioSharing,
     organizationDraftMode: state.alisioOrganizationDraftMode,
     organizationName: state.alisioOrganizationName,
     organizationInviteEmail: state.alisioOrganizationInviteEmail,
@@ -675,6 +678,24 @@ export function renderApp(state: AppViewState) {
     },
     onResetOrganization: () => {
       void saveAlisioOrganization(state, { mode: "none" });
+    },
+    onRefreshSharing: () => {
+      void loadAlisioSharing(state);
+    },
+    onRequestAccess: (targetId) => {
+      void requestAlisioSharedDeviceAccess(state, targetId);
+    },
+    onApproveRequest: (requestId) => {
+      void approveAlisioSharedDeviceRequest(state, requestId);
+    },
+    onRejectRequest: (requestId) => {
+      void rejectAlisioSharedDeviceRequest(state, requestId);
+    },
+    onRevokeGrant: (grantId) => {
+      void revokeAlisioSharedDeviceGrant(state, grantId);
+    },
+    onSetPolicy: (allowExternalUse) => {
+      void saveAlisioSharingPolicy(state, allowExternalUse);
     },
     onBeginConnector: (connectorId) => {
       beginConnectorFlow(state, connectorId);

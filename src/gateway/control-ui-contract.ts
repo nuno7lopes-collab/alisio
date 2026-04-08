@@ -25,6 +25,9 @@ export type AlisioHttpBootstrapAi = {
   planLabel?: string;
 } | null;
 
+export type AlisioHttpBootstrapAccountCloud =
+  import("../infra/alisio-store.js").AlisioAccountCloudState;
+
 export type AlisioHttpBootstrap = {
   basePath: string;
   controlUrl: string;
@@ -34,6 +37,7 @@ export type AlisioHttpBootstrap = {
   accountReady?: boolean;
   nextStep?: import("../infra/alisio-store.js").AlisioBootstrapStep;
   account: AlisioHttpBootstrapAccount;
+  accountCloud: AlisioHttpBootstrapAccountCloud;
   ai: AlisioHttpBootstrapAi;
   bootstrapToken?: string;
 };

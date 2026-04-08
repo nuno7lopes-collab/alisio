@@ -297,10 +297,14 @@ describe("handleControlUiHttpRequest", () => {
     });
   });
 
-  it("serves the account-first Alisio bootstrap on local loopback requests", async () => {
+  it("serves the local-account Alisio bootstrap on local loopback requests", async () => {
     const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-alisio-bootstrap-"));
     const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+    const previousSupabaseUrl = process.env.ALISIO_SUPABASE_URL;
+    const previousSupabaseAnonKey = process.env.ALISIO_SUPABASE_ANON_KEY;
     process.env.OPENCLAW_STATE_DIR = stateDir;
+    delete process.env.ALISIO_SUPABASE_URL;
+    delete process.env.ALISIO_SUPABASE_ANON_KEY;
     try {
       const { res, end } = makeMockHttpResponse();
       const handled = await handleAlisioBootstrapHttpRequest(
@@ -331,12 +335,20 @@ describe("handleControlUiHttpRequest", () => {
       expect(parsed.basePath).toBe("");
       expect(parsed.controlUrl).toBe("ws://127.0.0.1:18789/");
       expect(parsed.connectionRequired).toBe(false);
-      expect(parsed.startupState).toBe("signed_out");
+      expect(parsed.startupState).toBe("needs_ai");
       expect(parsed.providerReady).toBe(false);
-      expect(parsed.accountReady).toBe(false);
-      expect(parsed.nextStep).toBe("account");
-      expect(parsed.account).toBeNull();
-      expect(parsed.ai).toEqual({ provider: "openai", status: "disconnected" });
+      expect(parsed.accountReady).toBe(true);
+      expect(parsed.nextStep).toBe("runtime");
+      expect(parsed.account).toMatchObject({
+        plan: "free",
+      });
+      expect(parsed.accountCloud).toEqual({
+        backend: "supabase",
+        available: false,
+        missingEnvVars: ["ALISIO_SUPABASE_URL", "ALISIO_SUPABASE_ANON_KEY"],
+      });
+      expect(parsed.ai).toMatchObject({ provider: "openai" });
+      expect(typeof parsed.ai?.status).toBe("string");
       expect(typeof parsed.bootstrapToken).toBe("string");
       expect(parsed.bootstrapToken?.length).toBeGreaterThan(10);
     } finally {
@@ -344,6 +356,16 @@ describe("handleControlUiHttpRequest", () => {
         delete process.env.OPENCLAW_STATE_DIR;
       } else {
         process.env.OPENCLAW_STATE_DIR = previousStateDir;
+      }
+      if (previousSupabaseUrl === undefined) {
+        delete process.env.ALISIO_SUPABASE_URL;
+      } else {
+        process.env.ALISIO_SUPABASE_URL = previousSupabaseUrl;
+      }
+      if (previousSupabaseAnonKey === undefined) {
+        delete process.env.ALISIO_SUPABASE_ANON_KEY;
+      } else {
+        process.env.ALISIO_SUPABASE_ANON_KEY = previousSupabaseAnonKey;
       }
       await fs.rm(stateDir, { recursive: true, force: true });
     }

@@ -45,6 +45,7 @@ import type {
   WizardStatusResult,
   WizardStep,
 } from "../types.ts";
+import { generateUUID } from "../uuid.ts";
 
 export type AlisioState = {
   client: GatewayBrowserClient | null;
@@ -143,22 +144,37 @@ function buildLegacyModelsState(state: AlisioState): AlisioModelsState {
   const catalog = listPublishedAlisioLocalModels().map(
     ({ sourceUri: _sourceUri, ...entry }) => entry,
   );
+  const capabilities = {
+    install: false,
+    update: false,
+    uninstall: false,
+    consentRequired: false,
+    startServer: false,
+  } as const;
   return {
     backend: ALISIO_LOCAL_MODEL_BACKEND,
     catalog,
     targets: devices.map((device) => ({
       targetId: device.id,
+      deviceId: device.id,
       label: device.label,
+      runtimeLabel: "Local GGUF",
       platform: device.platform,
       current: device.current,
       connected: true,
+      location: device.current ? "local" : "server",
       backend: ALISIO_LOCAL_MODEL_BACKEND,
       runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
       runtimeStatus: "not_configured",
       runtimeMessage:
         "Actualiza o Alisio para a versão mais recente para activar instalações e sincronização de modelos.",
+      capabilities,
       supportsInstall: false,
+      supportsUpdate: false,
+      supportsUninstall: false,
+      consentRequired: false,
       installedModels: [],
+      availableModels: [],
       recommendations: [],
     })),
     servers: [],
@@ -448,6 +464,28 @@ function applyAccountSnapshot(state: AlisioState, account: AlisioAccountState) {
     syncSetupRoute(state);
   }
   syncDoctorBootstrap(state);
+}
+
+function isAlisioLocalOnlyAccountMode(
+  state: Pick<AlisioState, "alisioAccount" | "alisioStartupBootstrap">,
+) {
+  return (
+    state.alisioAccount?.cloud?.available === false ||
+    state.alisioStartupBootstrap?.accountCloud?.available === false
+  );
+}
+
+function isAlisioCloudBackendUnavailableError(error: unknown) {
+  return String(error).includes("cloud account backend is not configured");
+}
+
+function showAlisioLocalOnlyAccountNotice(state: AlisioState) {
+  state.alisioAccountError = null;
+  state.alisioAccountNotice =
+    "Alisio is running in local account mode on this device. Continue by completing the local profile.";
+  state.alisioAuthStage = "entry";
+  state.setupStep = "account";
+  state.setTab?.("setup");
 }
 
 function applyOrganizationSnapshot(
@@ -914,6 +952,13 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
       "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
     return;
   }
+  if (!state.alisioAccount && !state.alisioAccountLoading) {
+    await loadAlisioAccount(state);
+  }
+  if (isAlisioLocalOnlyAccountMode(state)) {
+    showAlisioLocalOnlyAccountNotice(state);
+    return;
+  }
   const request = beginTrackedRequest(state, accountRequests, false);
   if (!request) {
     return;
@@ -942,6 +987,18 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
   } catch (error) {
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return;
+    }
+    if (isAlisioCloudBackendUnavailableError(error)) {
+      const account = await request.client
+        .request<AlisioAccountState>("alisio.account.get", {})
+        .catch(() => null);
+      if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
+        applyAccountSnapshot(state, account);
+        if (isAlisioLocalOnlyAccountMode(state)) {
+          showAlisioLocalOnlyAccountNotice(state);
+          return;
+        }
+      }
     }
     state.alisioAccountError = String(error);
   } finally {
@@ -1045,6 +1102,13 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
       "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
     return null;
   }
+  if (!state.alisioAccount && !state.alisioAccountLoading) {
+    await loadAlisioAccount(state);
+  }
+  if (isAlisioLocalOnlyAccountMode(state)) {
+    showAlisioLocalOnlyAccountNotice(state);
+    return null;
+  }
   const request = beginTrackedRequest(state, accountRequests, false);
   if (!request) {
     return null;
@@ -1059,6 +1123,18 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
   } catch (error) {
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return null;
+    }
+    if (isAlisioCloudBackendUnavailableError(error)) {
+      const account = await request.client
+        .request<AlisioAccountState>("alisio.account.get", {})
+        .catch(() => null);
+      if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
+        applyAccountSnapshot(state, account);
+        if (isAlisioLocalOnlyAccountMode(state)) {
+          showAlisioLocalOnlyAccountNotice(state);
+          return null;
+        }
+      }
     }
     state.alisioAccountError = String(error);
     return null;
@@ -1399,7 +1475,7 @@ export async function loadAlisioSharing(state: AlisioState) {
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    const result = await request.client.request<AlisioSharingState>("alisio.sharing.get", {});
+    const result = await request.client.request<AlisioSharingState>("devices.list", {});
     if (!isTrackedRequestCurrent(state, sharingRequests, request)) {
       return;
     }
@@ -1452,7 +1528,10 @@ export async function requestAlisioSharedDeviceAccess(state: AlisioState, target
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    await state.client.request<AlisioSharingRequestResult>("alisio.sharing.request", { targetId });
+    await state.client.request<AlisioSharingRequestResult>("devices.share.request", {
+      targetId,
+      idempotencyKey: generateUUID(),
+    });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
   } catch (error) {
     state.alisioSharingError = String(error);
@@ -1468,7 +1547,10 @@ export async function approveAlisioSharedDeviceRequest(state: AlisioState, reque
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    await state.client.request<AlisioSharingApproveResult>("alisio.sharing.approve", { requestId });
+    await state.client.request<AlisioSharingApproveResult>("devices.share.approve", {
+      requestId,
+      idempotencyKey: generateUUID(),
+    });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
   } catch (error) {
     state.alisioSharingError = String(error);
@@ -1484,7 +1566,11 @@ export async function rejectAlisioSharedDeviceRequest(state: AlisioState, reques
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    await state.client.request<AlisioSharingRejectResult>("alisio.sharing.reject", { requestId });
+    await state.client.request<AlisioSharingRejectResult>("devices.share.approve", {
+      requestId,
+      decision: "denied",
+      idempotencyKey: generateUUID(),
+    });
     await loadAlisioSharing(state);
   } catch (error) {
     state.alisioSharingError = String(error);
@@ -1500,7 +1586,10 @@ export async function revokeAlisioSharedDeviceGrant(state: AlisioState, grantId:
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    await state.client.request<AlisioSharingRevokeResult>("alisio.sharing.revoke", { grantId });
+    await state.client.request<AlisioSharingRevokeResult>("devices.share.revoke", {
+      approvalId: grantId,
+      idempotencyKey: generateUUID(),
+    });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
   } catch (error) {
     state.alisioSharingError = String(error);
@@ -1516,8 +1605,9 @@ export async function saveAlisioSharingPolicy(state: AlisioState, allowExternalU
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
-    await state.client.request<AlisioSharingPolicySetResult>("alisio.sharing.policy.set", {
+    await state.client.request<AlisioSharingPolicySetResult>("devices.policy.set", {
       allowExternalUse,
+      idempotencyKey: generateUUID(),
     });
     await loadAlisioSharing(state);
   } catch (error) {

@@ -32,6 +32,11 @@ function createAccount(): NonNullable<Parameters<typeof renderSettingsHub>[0]["a
         lastSeenAt: "2026-04-05T10:00:00.000Z",
       },
     ],
+    cloud: {
+      backend: "supabase",
+      available: true,
+      missingEnvVars: [],
+    },
   };
 }
 

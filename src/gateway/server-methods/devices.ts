@@ -1,3 +1,14 @@
+import { clearAlisioModelProviderSnapshotCache } from "../../infra/alisio-model-snapshot.js";
+import {
+  AlisioAccountValidationError,
+  approveAlisioSharingRequest,
+  getAlisioAccountState,
+  getAlisioSharingState,
+  rejectAlisioSharingRequest,
+  requestAlisioSharingAccess,
+  revokeAlisioSharingGrant,
+  setAlisioSharingPolicy,
+} from "../../infra/alisio-store.js";
 import {
   approveDevicePairing,
   getPairedDevice,
@@ -12,6 +23,7 @@ import {
 } from "../../infra/device-pairing.js";
 import { normalizeDeviceAuthScopes } from "../../shared/device-auth.js";
 import { resolveMissingRequestedScope } from "../../shared/operator-scope-compat.js";
+import { createKnownNodeCatalog, listKnownNodes } from "../node-catalog.js";
 import {
   ErrorCodes,
   errorShape,
@@ -20,6 +32,16 @@ import {
   validateDevicePairListParams,
   validateDevicePairRemoveParams,
   validateDevicePairRejectParams,
+  validateDevicesListParams,
+  validateDevicesListResult,
+  validateDevicesPolicySetParams,
+  validateDevicesPolicySetResult,
+  validateDevicesShareApproveParams,
+  validateDevicesShareApproveResult,
+  validateDevicesShareRequestParams,
+  validateDevicesShareRequestResult,
+  validateDevicesShareRevokeParams,
+  validateDevicesShareRevokeResult,
   validateDeviceTokenRevokeParams,
   validateDeviceTokenRotateParams,
 } from "../protocol/index.js";
@@ -50,6 +72,71 @@ function logDeviceTokenRotationDenied(params: {
   );
 }
 
+async function loadSharingStateForContext(
+  context: Parameters<GatewayRequestHandlers[string]>[0]["context"],
+) {
+  const account = await getAlisioAccountState();
+  const currentDevice = account.devices.find((device) => device.current) ?? account.devices[0];
+  const pairing = await listDevicePairing();
+  const catalog = createKnownNodeCatalog({
+    pairedDevices: pairing.paired,
+    connectedNodes: context.nodeRegistry.listConnected(),
+  });
+  const knownNodes = listKnownNodes(catalog);
+  return await getAlisioSharingState({
+    targets: [
+      ...(currentDevice
+        ? [
+            {
+              targetId: currentDevice.id,
+              label: currentDevice.label,
+              platform: currentDevice.platform,
+              sourceKind: "current" as const,
+              connected: true,
+              current: true,
+            },
+          ]
+        : []),
+      ...knownNodes.map((node) => ({
+        targetId: node.nodeId,
+        label: node.displayName ?? node.nodeId,
+        platform: node.platform,
+        sourceKind: "node" as const,
+        connected: node.connected === true,
+        current: false,
+      })),
+    ],
+  });
+}
+
+function respondFromIdempotencyCache(params: {
+  context: Parameters<GatewayRequestHandlers[string]>[0]["context"];
+  key: string;
+  respond: Parameters<GatewayRequestHandlers[string]>[0]["respond"];
+}) {
+  const cached = params.context.dedupe.get(params.key);
+  if (!cached) {
+    return false;
+  }
+  params.respond(cached.ok, cached.payload, cached.error, { cached: true });
+  return true;
+}
+
+function rememberIdempotencyResult(params: {
+  context: Parameters<GatewayRequestHandlers[string]>[0]["context"];
+  key: string;
+  ok: boolean;
+  payload?: unknown;
+  error?: ReturnType<typeof errorShape>;
+}) {
+  params.context.dedupe.set(params.key, {
+    ts: Date.now(),
+    ok: params.ok,
+    ...(params.payload !== undefined ? { payload: params.payload } : {}),
+    ...(params.error ? { error: params.error } : {}),
+  });
+}
+
 export const deviceHandlers: GatewayRequestHandlers = {
   "device.pair.list": async ({ params, respond }) => {
     if (!validateDevicePairListParams(params)) {
@@ -74,6 +161,252 @@ export const deviceHandlers: GatewayRequestHandlers = {
       },
       undefined,
     );
+  },
+  "devices.list": async ({ params, respond, context }) => {
+    if (!validateDevicesListParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.list params: ${formatValidationErrors(validateDevicesListParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await loadSharingStateForContext(context);
+      if (!validateDevicesListResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid devices.list result: ${formatValidationErrors(validateDevicesListResult.errors)}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, String(err)));
+    }
+  },
+  "devices.share.request": async ({ params, respond, context }) => {
+    if (!validateDevicesShareRequestParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.request params: ${formatValidationErrors(
+            validateDevicesShareRequestParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const requestParams = params as {
+      targetId: string;
+      scopes?: string[];
+      idempotencyKey: string;
+    };
+    const dedupeKey = `devices.share.request:${requestParams.idempotencyKey}`;
+    if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
+      return;
+    }
+    try {
+      const result = await requestAlisioSharingAccess({
+        targetId: requestParams.targetId,
+        scopes: requestParams.scopes as never,
+      });
+      if (!validateDevicesShareRequestResult(result)) {
+        const error = errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.request result: ${formatValidationErrors(
+            validateDevicesShareRequestResult.errors,
+          )}`,
+        );
+        rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+        respond(false, undefined, error);
+        return;
+      }
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      respond(true, result, undefined);
+    } catch (err) {
+      const error =
+        err instanceof AlisioAccountValidationError
+          ? errorShape(ErrorCodes.INVALID_REQUEST, err.message)
+          : errorShape(ErrorCodes.UNAVAILABLE, String(err));
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+      respond(false, undefined, error);
+    }
+  },
+  "devices.share.approve": async ({ params, respond, context }) => {
+    if (!validateDevicesShareApproveParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.approve params: ${formatValidationErrors(
+            validateDevicesShareApproveParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const requestParams = params as {
+      requestId: string;
+      decision?: "approved" | "denied";
+      idempotencyKey: string;
+    };
+    const dedupeKey = `devices.share.approve:${requestParams.idempotencyKey}`;
+    if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
+      return;
+    }
+    try {
+      const payload =
+        requestParams.decision === "denied"
+          ? (() => {
+              return rejectAlisioSharingRequest({
+                requestId: requestParams.requestId,
+              }).then((rejected) => ({
+                ok: true as const,
+                requestId: rejected.requestId,
+                status: "denied" as const,
+              }));
+            })()
+          : approveAlisioSharingRequest({
+              requestId: requestParams.requestId,
+            }).then((approved) => ({
+              ok: true as const,
+              requestId: approved.requestId,
+              status: "approved" as const,
+              approvalId: approved.grantId,
+              grantId: approved.grantId,
+            }));
+      const result = await payload;
+      if (!validateDevicesShareApproveResult(result)) {
+        const error = errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.approve result: ${formatValidationErrors(
+            validateDevicesShareApproveResult.errors,
+          )}`,
+        );
+        rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+        respond(false, undefined, error);
+        return;
+      }
+      if (result.status === "approved") {
+        clearAlisioModelProviderSnapshotCache();
+      }
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      respond(true, result, undefined);
+    } catch (err) {
+      const error =
+        err instanceof AlisioAccountValidationError
+          ? errorShape(ErrorCodes.INVALID_REQUEST, err.message)
+          : errorShape(ErrorCodes.UNAVAILABLE, String(err));
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+      respond(false, undefined, error);
+    }
+  },
+  "devices.share.revoke": async ({ params, respond, context }) => {
+    if (!validateDevicesShareRevokeParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.revoke params: ${formatValidationErrors(
+            validateDevicesShareRevokeParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const requestParams = params as { approvalId: string; idempotencyKey: string };
+    const dedupeKey = `devices.share.revoke:${requestParams.idempotencyKey}`;
+    if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
+      return;
+    }
+    try {
+      const revoked = await revokeAlisioSharingGrant({ grantId: requestParams.approvalId });
+      const result = {
+        ok: true as const,
+        approvalId: revoked.grantId,
+        grantId: revoked.grantId,
+        targetId: revoked.targetId,
+      };
+      if (!validateDevicesShareRevokeResult(result)) {
+        const error = errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.share.revoke result: ${formatValidationErrors(
+            validateDevicesShareRevokeResult.errors,
+          )}`,
+        );
+        rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+        respond(false, undefined, error);
+        return;
+      }
+      clearAlisioModelProviderSnapshotCache();
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      respond(true, result, undefined);
+    } catch (err) {
+      const error =
+        err instanceof AlisioAccountValidationError
+          ? errorShape(ErrorCodes.INVALID_REQUEST, err.message)
+          : errorShape(ErrorCodes.UNAVAILABLE, String(err));
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+      respond(false, undefined, error);
+    }
+  },
+  "devices.policy.set": async ({ params, respond, context }) => {
+    if (!validateDevicesPolicySetParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.policy.set params: ${formatValidationErrors(
+            validateDevicesPolicySetParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const requestParams = params as { allowExternalUse: boolean; idempotencyKey: string };
+    const dedupeKey = `devices.policy.set:${requestParams.idempotencyKey}`;
+    if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
+      return;
+    }
+    try {
+      const result = await setAlisioSharingPolicy({
+        allowExternalUse: requestParams.allowExternalUse,
+      });
+      if (!validateDevicesPolicySetResult(result)) {
+        const error = errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid devices.policy.set result: ${formatValidationErrors(
+            validateDevicesPolicySetResult.errors,
+          )}`,
+        );
+        rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+        respond(false, undefined, error);
+        return;
+      }
+      clearAlisioModelProviderSnapshotCache();
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: true, payload: result });
+      respond(true, result, undefined);
+    } catch (err) {
+      const error =
+        err instanceof AlisioAccountValidationError
+          ? errorShape(ErrorCodes.INVALID_REQUEST, err.message)
+          : errorShape(ErrorCodes.UNAVAILABLE, String(err));
+      rememberIdempotencyResult({ context, key: dedupeKey, ok: false, error });
+      respond(false, undefined, error);
+    }
   },
   "device.pair.approve": async ({ params, respond, context, client }) => {
     if (!validateDevicePairApproveParams(params)) {

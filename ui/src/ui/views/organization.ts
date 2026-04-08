@@ -123,8 +123,12 @@ export function renderOrganization(props: {
   const sharing = props.sharing;
   const sharingDisabled = !props.connected || !props.accountReady || props.sharingLoading;
   const sharingUpgradeMessage = sharing?.policy.upgradeMessage ?? null;
-  const requestStatusLabel = (status: string | null | undefined) =>
-    status ? t(`alisio.organization.sharing.requestStatus.${status}`) : "";
+  const requestStatusLabel = (status: string | null | undefined) => {
+    const normalized = status === "denied" ? "rejected" : status;
+    return normalized ? t(`alisio.organization.sharing.requestStatus.${normalized}`) : "";
+  };
+  const formatScopes = (scopes: readonly string[] | null | undefined) =>
+    Array.isArray(scopes) && scopes.length > 0 ? scopes.join(" · ") : null;
 
   return html`
     <section class="alisio-page">
@@ -373,12 +377,21 @@ export function renderOrganization(props: {
                             <div class="list-item">
                               <div>${target.label}</div>
                               <div class="list-sub">${target.ownerLabel}</div>
+                              ${formatScopes(target.approvalScopes ?? target.grantScopes)
+                                ? html`
+                                    <div class="list-sub">
+                                      ${formatScopes(target.approvalScopes ?? target.grantScopes)}
+                                    </div>
+                                  `
+                                : nothing}
                               <div class="row">
                                 <button
                                   class="btn"
-                                  ?disabled=${sharingDisabled || !target.grantId}
+                                  ?disabled=${sharingDisabled ||
+                                  !(target.approvalId ?? target.grantId)}
                                   @click=${() =>
-                                    target.grantId && props.onRevokeGrant(target.grantId)}
+                                    (target.approvalId ?? target.grantId) &&
+                                    props.onRevokeGrant(target.approvalId ?? target.grantId!)}
                                 >
                                   ${text.sharingRevoke}
                                 </button>
@@ -398,6 +411,9 @@ export function renderOrganization(props: {
                             <div class="list-item">
                               <div>${request.targetLabel}</div>
                               <div class="list-sub">${request.requester.label}</div>
+                              ${formatScopes(request.scopes)
+                                ? html`<div class="list-sub">${formatScopes(request.scopes)}</div>`
+                                : nothing}
                               <div class="row">
                                 <button
                                   class="btn primary"
@@ -429,6 +445,9 @@ export function renderOrganization(props: {
                             <div class="list-item">
                               <div>${request.targetLabel}</div>
                               <div class="list-sub">${requestStatusLabel(request.status)}</div>
+                              ${formatScopes(request.scopes)
+                                ? html`<div class="list-sub">${formatScopes(request.scopes)}</div>`
+                                : nothing}
                             </div>
                           `,
                         )
@@ -438,19 +457,23 @@ export function renderOrganization(props: {
                 <div class="card alisio-organization-panel">
                   <div class="card-title">${text.sharingGrantsTitle}</div>
                   <div class="loading-state__list">
-                    ${(sharing?.grants ?? []).length > 0
-                      ? (sharing?.grants ?? []).map(
+                    ${(sharing?.approvals ?? sharing?.grants ?? []).length > 0
+                      ? (sharing?.approvals ?? sharing?.grants ?? []).map(
                           (grant) => html`
                             <div class="list-item">
                               <div>${grant.targetLabel}</div>
                               <div class="list-sub">
                                 ${grant.owner.label} → ${grant.grantee.label}
                               </div>
+                              ${formatScopes(grant.scopes)
+                                ? html`<div class="list-sub">${formatScopes(grant.scopes)}</div>`
+                                : nothing}
                               <div class="row">
                                 <button
                                   class="btn"
                                   ?disabled=${sharingDisabled}
-                                  @click=${() => props.onRevokeGrant(grant.grantId)}
+                                  @click=${() =>
+                                    props.onRevokeGrant(grant.approvalId ?? grant.grantId)}
                                 >
                                   ${text.sharingRevoke}
                                 </button>

@@ -61,6 +61,7 @@ const {
     },
     incomingRequests: [],
     outgoingRequests: [],
+    approvals: [],
     grants: [],
     audit: [],
   })),
@@ -121,10 +122,18 @@ const {
   inspectManagedLocalModelRuntimeMock: vi.fn(async () => ({
     backend: "llama.cpp" as const,
     runtimeKind: "llama.cpp" as const,
+    runtimeLabel: "Local GGUF",
     status: "not_configured" as const,
     message: "No local llama.cpp models are installed on this computer yet.",
     models: [],
     availableModels: [],
+    capabilities: {
+      install: true,
+      update: true,
+      uninstall: true,
+      consentRequired: true,
+      startServer: false,
+    },
     supportsInstall: true,
     supportsUpdate: true,
     supportsUninstall: true,
@@ -142,31 +151,46 @@ const {
   })),
 }));
 
-const { inspectLocalModelRuntimeMock, installOllamaLocalModelMock, uninstallOllamaLocalModelMock } =
-  vi.hoisted(() => ({
-    inspectLocalModelRuntimeMock: vi.fn(async () => ({
-      backend: "llama.cpp" as const,
-      runtimeKind: "openai-compatible" as const,
-      status: "not_configured" as const,
-      message: "local model runtime not configured on this computer",
-      models: [],
-      availableModels: [],
-      supportsInstall: false,
-      supportsUpdate: false,
-      supportsUninstall: false,
+const {
+  inspectLocalModelRuntimeMock,
+  inspectLocalModelRuntimesMock,
+  installOllamaLocalModelMock,
+  uninstallOllamaLocalModelMock,
+} = vi.hoisted(() => ({
+  inspectLocalModelRuntimeMock: vi.fn(async () => ({
+    backend: "llama.cpp" as const,
+    runtimeKind: "openai-compatible" as const,
+    runtimeLabel: "OpenAI-compatible",
+    status: "not_configured" as const,
+    message: "local model runtime not configured on this computer",
+    models: [],
+    availableModels: [],
+    capabilities: {
+      install: false,
+      update: false,
+      uninstall: false,
       consentRequired: false,
-    })),
-    installOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
-      id: modelId,
-      name: modelId,
-      ownedBy: "ollama",
-    })),
-    uninstallOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
-      id: modelId,
-      name: modelId,
-      ownedBy: "ollama",
-    })),
-  }));
+      startServer: false,
+    },
+    supportsInstall: false,
+    supportsUpdate: false,
+    supportsUninstall: false,
+    consentRequired: false,
+  })),
+  inspectLocalModelRuntimesMock: vi.fn(
+    async (): Promise<AlisioLocalModelRuntimeInspection[]> => [],
+  ),
+  installOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
+    id: modelId,
+    name: modelId,
+    ownedBy: "ollama",
+  })),
+  uninstallOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
+    id: modelId,
+    name: modelId,
+    ownedBy: "ollama",
+  })),
+}));
 
 vi.mock("../../infra/restart.js", () => ({
   scheduleGatewaySigusr1Restart: scheduleGatewaySigusr1RestartMock,
@@ -205,6 +229,7 @@ vi.mock("../../infra/alisio-local-model-runtime.js", async (importOriginal) => {
   return {
     ...actual,
     inspectLocalModelRuntime: inspectLocalModelRuntimeMock,
+    inspectLocalModelRuntimes: inspectLocalModelRuntimesMock,
     installOllamaLocalModel: installOllamaLocalModelMock,
     uninstallOllamaLocalModel: uninstallOllamaLocalModelMock,
   };
@@ -253,12 +278,12 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(true);
     expect(calls[0]?.payload).toMatchObject({
       connectionRequired: false,
-      wizardRequired: false,
+      wizardRequired: true,
       wizardRunning: false,
       providerReady: false,
-      accountReady: false,
-      startupState: "signed_out",
-      nextStep: "account",
+      accountReady: true,
+      startupState: "needs_ai",
+      nextStep: "runtime",
     });
   });
 
@@ -280,12 +305,12 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: false,
       bootstrap: {
-        nextStep: "account",
+        nextStep: "runtime",
       },
     });
     const payload = calls[0]?.payload as { issues?: Array<{ code: string }> };
     expect(payload.issues?.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["runtime_not_ready", "account_not_ready"]),
+      expect.arrayContaining(["runtime_not_ready"]),
     );
   });
 
@@ -409,7 +434,7 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: true,
       backend: "llama.cpp",
-      targetId: "current",
+      targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
       modelId: "qwen3-4b-q4-k-m",
     });
   });
@@ -418,17 +443,23 @@ describe("alisio gateway methods", () => {
     const ollamaInspection: AlisioLocalModelRuntimeInspection = {
       backend: "llama.cpp",
       runtimeKind: "ollama",
+      runtimeLabel: "Ollama",
       status: "ready",
       models: [],
       availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+        startServer: false,
+      },
       supportsInstall: true,
       supportsUpdate: true,
       supportsUninstall: true,
       consentRequired: true,
     };
-    inspectLocalModelRuntimeMock
-      .mockResolvedValueOnce(ollamaInspection)
-      .mockResolvedValueOnce(ollamaInspection);
+    inspectLocalModelRuntimesMock.mockResolvedValueOnce([ollamaInspection]);
 
     const context = makeContext();
     const { calls, respond } = makeRespond();
@@ -456,6 +487,9 @@ describe("alisio gateway methods", () => {
       }),
     );
     expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      targetId: expect.stringMatching(/^local:.*::ollama$/),
+    });
   });
 
   it("uninstalls a published local model on this computer", async () => {
@@ -484,7 +518,7 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: true,
       backend: "llama.cpp",
-      targetId: "current",
+      targetId: expect.stringMatching(/^local:.*::llama\.cpp$/),
       modelId: "qwen3-4b-q4-k-m",
     });
   });
@@ -493,17 +527,23 @@ describe("alisio gateway methods", () => {
     const ollamaInspection: AlisioLocalModelRuntimeInspection = {
       backend: "llama.cpp",
       runtimeKind: "ollama",
+      runtimeLabel: "Ollama",
       status: "ready",
       models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
       availableModels: [],
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+        startServer: false,
+      },
       supportsInstall: true,
       supportsUpdate: true,
       supportsUninstall: true,
       consentRequired: true,
     };
-    inspectLocalModelRuntimeMock
-      .mockResolvedValueOnce(ollamaInspection)
-      .mockResolvedValueOnce(ollamaInspection);
+    inspectLocalModelRuntimesMock.mockResolvedValueOnce([ollamaInspection]);
 
     const context = makeContext();
     const { calls, respond } = makeRespond();
@@ -526,6 +566,9 @@ describe("alisio gateway methods", () => {
       }),
     );
     expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      targetId: expect.stringMatching(/^local:.*::ollama$/),
+    });
   });
 
   it("saves a remote model server", async () => {
@@ -579,7 +622,7 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(false);
     expect(calls[0]?.error).toMatchObject({
       code: "INVALID_REQUEST",
-      message: expect.stringContaining("Sign in"),
+      message: expect.stringContaining("available on Plus"),
     });
   });
 
@@ -665,7 +708,7 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(true);
   });
 
-  it("surfaces connector plan and account gating as a validation error", async () => {
+  it("allows connector setup to continue from local account mode", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();
 
@@ -681,10 +724,9 @@ describe("alisio gateway methods", () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(false);
-    expect(calls[0]?.error).toMatchObject({
-      code: "INVALID_REQUEST",
-      message: expect.stringContaining("Sign in"),
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      connectorId: "google-calendar",
     });
   });
 

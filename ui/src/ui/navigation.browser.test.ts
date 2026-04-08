@@ -79,6 +79,11 @@ function createBlockingBootstrap(): AlisioApp["alisioBootstrap"] {
         profileCompleted: true,
       },
       devices: [],
+      cloud: {
+        backend: "supabase",
+        available: true,
+        missingEnvVars: [],
+      },
     },
     ai: { provider: "openai", status: "disconnected" },
     organization: { mode: "none" },

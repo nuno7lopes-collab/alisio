@@ -51,6 +51,11 @@ function createBootstrapAccount(): NonNullable<AlisioBootstrapState["account"]> 
       profileCompleted: true,
     },
     devices: [],
+    cloud: {
+      backend: "supabase",
+      available: true,
+      missingEnvVars: [],
+    },
   };
 }
 
@@ -112,6 +117,11 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
       controlUrl: "ws://127.0.0.1:18789/",
       startupState: "signed_out",
       account: null,
+      accountCloud: {
+        backend: "supabase",
+        available: true,
+        missingEnvVars: [],
+      },
       ai: null,
     },
     doctorLoading: false,
@@ -151,6 +161,9 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     organizationLoading: false,
     organizationError: null,
     organization: { mode: "none" },
+    sharingLoading: false,
+    sharingError: null,
+    sharing: null,
     organizationDraftMode: "create",
     organizationName: "",
     organizationInviteEmail: "",
@@ -181,6 +194,12 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onCreateOrganization: vi.fn(),
     onJoinOrganization: vi.fn(),
     onResetOrganization: vi.fn(),
+    onRefreshSharing: vi.fn(),
+    onRequestAccess: vi.fn(),
+    onApproveRequest: vi.fn(),
+    onRejectRequest: vi.fn(),
+    onRevokeGrant: vi.fn(),
+    onSetPolicy: vi.fn(),
     onBeginConnector: vi.fn(),
     onRevokeConnector: vi.fn(),
     onStartWizard: vi.fn(),
@@ -202,32 +221,53 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
   };
 }
 
+function createOrganizationProps(
+  overrides: Partial<Parameters<typeof renderOrganization>[0]> = {},
+): Parameters<typeof renderOrganization>[0] {
+  return {
+    connected: true,
+    accountReady: true,
+    plan: "plus",
+    loading: false,
+    error: null,
+    organization: null,
+    sharingLoading: false,
+    sharingError: null,
+    sharing: null,
+    draftMode: "create",
+    organizationName: "",
+    inviteEmail: "",
+    onDraftModeChange: vi.fn(),
+    onOrganizationNameChange: vi.fn(),
+    onInviteEmailChange: vi.fn(),
+    onCreateOrganization: vi.fn(),
+    onJoinOrganization: vi.fn(),
+    onResetOrganization: vi.fn(),
+    onRefreshSharing: vi.fn(),
+    onRequestAccess: vi.fn(),
+    onApproveRequest: vi.fn(),
+    onRejectRequest: vi.fn(),
+    onRevokeGrant: vi.fn(),
+    onSetPolicy: vi.fn(),
+    ...overrides,
+  };
+}
+
 describe("setup view", () => {
   it("keeps the current organization visible while organization refresh is in flight", () => {
     const container = document.createElement("div");
 
     render(
-      renderOrganization({
-        connected: true,
-        accountReady: true,
-        plan: "plus",
-        loading: true,
-        error: null,
-        organization: {
-          mode: "owner",
-          organizationName: "Team Orbit",
-          inviteEmail: "team@example.com",
-        },
-        draftMode: "create",
-        organizationName: "",
-        inviteEmail: "",
-        onDraftModeChange: vi.fn(),
-        onOrganizationNameChange: vi.fn(),
-        onInviteEmailChange: vi.fn(),
-        onCreateOrganization: vi.fn(),
-        onJoinOrganization: vi.fn(),
-        onResetOrganization: vi.fn(),
-      }),
+      renderOrganization(
+        createOrganizationProps({
+          loading: true,
+          organization: {
+            mode: "owner",
+            organizationName: "Team Orbit",
+            inviteEmail: "team@example.com",
+          },
+        }),
+      ),
       container,
     );
 
@@ -241,23 +281,14 @@ describe("setup view", () => {
     const container = document.createElement("div");
 
     render(
-      renderOrganization({
-        connected: true,
-        accountReady: true,
-        plan: "plus",
-        loading: true,
-        error: null,
-        organization: null,
-        draftMode: "join",
-        organizationName: "Team Orbit",
-        inviteEmail: "team@example.com",
-        onDraftModeChange: vi.fn(),
-        onOrganizationNameChange: vi.fn(),
-        onInviteEmailChange: vi.fn(),
-        onCreateOrganization: vi.fn(),
-        onJoinOrganization: vi.fn(),
-        onResetOrganization: vi.fn(),
-      }),
+      renderOrganization(
+        createOrganizationProps({
+          loading: true,
+          draftMode: "join",
+          organizationName: "Team Orbit",
+          inviteEmail: "team@example.com",
+        }),
+      ),
       container,
     );
 
@@ -270,23 +301,15 @@ describe("setup view", () => {
     const container = document.createElement("div");
 
     render(
-      renderOrganization({
-        connected: false,
-        accountReady: false,
-        plan: "plus",
-        loading: false,
-        error: null,
-        organization: null,
-        draftMode: "create",
-        organizationName: "Team Orbit",
-        inviteEmail: "",
-        onDraftModeChange: vi.fn(),
-        onOrganizationNameChange: vi.fn(),
-        onInviteEmailChange: vi.fn(),
-        onCreateOrganization: vi.fn(),
-        onJoinOrganization: vi.fn(),
-        onResetOrganization: vi.fn(),
-      }),
+      renderOrganization(
+        createOrganizationProps({
+          connected: false,
+          accountReady: false,
+          draftMode: "create",
+          organizationName: "Team Orbit",
+          inviteEmail: "",
+        }),
+      ),
       container,
     );
 
@@ -299,23 +322,13 @@ describe("setup view", () => {
     const container = document.createElement("div");
 
     render(
-      renderOrganization({
-        connected: true,
-        accountReady: true,
-        plan: "plus",
-        loading: false,
-        error: null,
-        organization: null,
-        draftMode: "join",
-        organizationName: "Team Orbit",
-        inviteEmail: "invalid-email",
-        onDraftModeChange: vi.fn(),
-        onOrganizationNameChange: vi.fn(),
-        onInviteEmailChange: vi.fn(),
-        onCreateOrganization: vi.fn(),
-        onJoinOrganization: vi.fn(),
-        onResetOrganization: vi.fn(),
-      }),
+      renderOrganization(
+        createOrganizationProps({
+          draftMode: "join",
+          organizationName: "Team Orbit",
+          inviteEmail: "invalid-email",
+        }),
+      ),
       container,
     );
 
@@ -328,23 +341,14 @@ describe("setup view", () => {
     const container = document.createElement("div");
 
     render(
-      renderOrganization({
-        connected: true,
-        accountReady: true,
-        plan: "free",
-        loading: false,
-        error: null,
-        organization: null,
-        draftMode: "create",
-        organizationName: "Team Orbit",
-        inviteEmail: "",
-        onDraftModeChange: vi.fn(),
-        onOrganizationNameChange: vi.fn(),
-        onInviteEmailChange: vi.fn(),
-        onCreateOrganization: vi.fn(),
-        onJoinOrganization: vi.fn(),
-        onResetOrganization: vi.fn(),
-      }),
+      renderOrganization(
+        createOrganizationProps({
+          plan: "free",
+          draftMode: "create",
+          organizationName: "Team Orbit",
+          inviteEmail: "",
+        }),
+      ),
       container,
     );
 
@@ -371,6 +375,11 @@ describe("setup view", () => {
               email: "nuno@example.com",
               avatarLabel: "N",
               plan: "free",
+            },
+            accountCloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
             },
             ai: null,
           },
@@ -467,6 +476,11 @@ describe("setup view", () => {
               backend: "supabase",
             },
             devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
           },
         }),
       ),

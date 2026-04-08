@@ -134,11 +134,22 @@ const RemoteModelServerKindSchema = Type.Union([
   Type.Literal("ollama"),
 ]);
 const SharingOwnerScopeSchema = Type.Union([Type.Literal("user"), Type.Literal("organization")]);
-const SharingScopeSchema = Type.Union([Type.Literal("device.use"), Type.Literal("model.use")]);
+const SharingScopeSchema = Type.Union([
+  Type.Literal("read-only"),
+  Type.Literal("model-use"),
+  Type.Literal("exec"),
+]);
+const SharingScopeInputSchema = Type.Union([
+  Type.Literal("read-only"),
+  Type.Literal("model-use"),
+  Type.Literal("exec"),
+  Type.Literal("device.use"),
+  Type.Literal("model.use"),
+]);
 const SharingRequestStatusSchema = Type.Union([
   Type.Literal("pending"),
   Type.Literal("approved"),
-  Type.Literal("rejected"),
+  Type.Literal("denied"),
   Type.Literal("revoked"),
 ]);
 const SharingTargetSourceKindSchema = Type.Union([Type.Literal("current"), Type.Literal("node")]);
@@ -152,14 +163,16 @@ const SharingAuditActionSchema = Type.Union([
   Type.Literal("policy.updated"),
   Type.Literal("request.created"),
   Type.Literal("request.approved"),
-  Type.Literal("request.rejected"),
+  Type.Literal("request.denied"),
   Type.Literal("grant.revoked"),
 ]);
 const LocalModelTargetRuntimeKindSchema = Type.Union([
   Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
   Type.Literal("ollama"),
+  Type.Literal("lmstudio"),
   Type.Literal("openai-compatible"),
 ]);
+const RuntimeLocationSchema = Type.Union([Type.Literal("local"), Type.Literal("server")]);
 
 const ModelRecommendationGradeSchema = Type.Union([
   Type.Literal("recommended"),
@@ -257,6 +270,17 @@ export const AlisioAccountSessionSchema = Type.Object(
     signedInAt: Type.Optional(Type.String()),
     signedOutAt: Type.Optional(Type.String()),
     backend: Type.Optional(AccountBackendSchema),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioAccountCloudSchema = Type.Object(
+  {
+    backend: AccountBackendSchema,
+    available: Type.Boolean(),
+    missingEnvVars: Type.Array(
+      Type.Union([Type.Literal("ALISIO_SUPABASE_URL"), Type.Literal("ALISIO_SUPABASE_ANON_KEY")]),
+    ),
   },
   { additionalProperties: false },
 );
@@ -406,6 +430,7 @@ export const AlisioAccountResultSchema = Type.Object(
     preferences: AlisioLocalUserPreferencesSchema,
     session: AlisioAccountSessionSchema,
     devices: Type.Array(AlisioLocalDeviceSessionSchema),
+    cloud: AlisioAccountCloudSchema,
   },
   { additionalProperties: false },
 );
@@ -631,8 +656,11 @@ export const AlisioSharingTargetSchema = Type.Object(
     updatedAt: NonEmptyString,
     deviceAccess: SharingTargetAccessSchema,
     modelAccess: SharingTargetAccessSchema,
+    execAccess: SharingTargetAccessSchema,
     requestId: Type.Optional(Type.String()),
     requestStatus: Type.Optional(SharingRequestStatusSchema),
+    approvalId: Type.Optional(Type.String()),
+    approvalScopes: Type.Optional(Type.Array(SharingScopeSchema)),
     grantId: Type.Optional(Type.String()),
     grantScopes: Type.Optional(Type.Array(SharingScopeSchema)),
   },
@@ -652,6 +680,7 @@ export const AlisioSharingRequestSchema = Type.Object(
     status: SharingRequestStatusSchema,
     createdAt: NonEmptyString,
     resolvedAt: Type.Optional(Type.String()),
+    approvalId: Type.Optional(Type.String()),
     grantId: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
@@ -659,6 +688,7 @@ export const AlisioSharingRequestSchema = Type.Object(
 
 export const AlisioSharingGrantSchema = Type.Object(
   {
+    approvalId: NonEmptyString,
     grantId: NonEmptyString,
     requestId: NonEmptyString,
     targetId: NonEmptyString,
@@ -713,6 +743,7 @@ export const AlisioSharingStateSchema = Type.Object(
     ),
     incomingRequests: Type.Array(AlisioSharingRequestSchema),
     outgoingRequests: Type.Array(AlisioSharingRequestSchema),
+    approvals: Type.Array(AlisioSharingGrantSchema),
     grants: Type.Array(AlisioSharingGrantSchema),
     audit: Type.Array(AlisioSharingAuditEntrySchema),
   },
@@ -723,7 +754,7 @@ export const AlisioSharingGetParamsSchema = Type.Object({}, { additionalProperti
 export const AlisioSharingRequestParamsSchema = Type.Object(
   {
     targetId: NonEmptyString,
-    scopes: Type.Optional(Type.Array(SharingScopeSchema)),
+    scopes: Type.Optional(Type.Array(SharingScopeInputSchema)),
   },
   { additionalProperties: false },
 );
@@ -864,19 +895,36 @@ export const AlisioAvailableLocalModelSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioRuntimeCapabilitiesSchema = Type.Object(
+  {
+    install: Type.Boolean(),
+    update: Type.Boolean(),
+    uninstall: Type.Boolean(),
+    consentRequired: Type.Boolean(),
+    startServer: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 export const AlisioModelsTargetSchema = Type.Object(
   {
     targetId: NonEmptyString,
+    deviceId: NonEmptyString,
     label: NonEmptyString,
+    runtimeLabel: NonEmptyString,
     platform: Type.Optional(Type.String()),
     chatProviderId: Type.Optional(NonEmptyString),
     current: Type.Boolean(),
     connected: Type.Boolean(),
+    location: RuntimeLocationSchema,
     backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
     runtimeKind: LocalModelTargetRuntimeKindSchema,
     runtimeStatus: LocalModelRuntimeStatusSchema,
     runtimeMessage: Type.Optional(Type.String()),
+    capabilities: AlisioRuntimeCapabilitiesSchema,
     supportsInstall: Type.Boolean(),
+    supportsUpdate: Type.Boolean(),
+    supportsUninstall: Type.Boolean(),
+    consentRequired: Type.Boolean(),
     access: Type.Optional(Type.Union([Type.Literal("owner"), Type.Literal("shared")])),
     ownerLabel: Type.Optional(Type.String()),
     ownerScope: Type.Optional(SharingOwnerScopeSchema),

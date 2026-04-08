@@ -26,6 +26,7 @@ import type {
   AlisioConnectorDefinition,
   AlisioDoctorSummaryState,
   AlisioOrganizationMembershipState,
+  AlisioSharingState,
   NativeShellPermission,
   NativeShellState,
   WizardStep,
@@ -90,6 +91,9 @@ type SetupProps = {
   organizationLoading: boolean;
   organizationError: string | null;
   organization: AlisioOrganizationMembershipState | null;
+  sharingLoading: boolean;
+  sharingError: string | null;
+  sharing: AlisioSharingState | null;
   organizationDraftMode: "create" | "join";
   organizationName: string;
   organizationInviteEmail: string;
@@ -120,6 +124,12 @@ type SetupProps = {
   onCreateOrganization: () => void;
   onJoinOrganization: () => void;
   onResetOrganization: () => void;
+  onRefreshSharing: () => void;
+  onRequestAccess: (targetId: string) => void;
+  onApproveRequest: (requestId: string) => void;
+  onRejectRequest: (requestId: string) => void;
+  onRevokeGrant: (grantId: string) => void;
+  onSetPolicy: (allowExternalUse: boolean) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onStartWizard: (mode?: "local" | "remote") => void;
@@ -165,8 +175,34 @@ function currentAiStatus(props: SetupProps) {
   return props.bootstrap?.ai.status ?? props.startupBootstrap?.ai?.status ?? "disconnected";
 }
 
+function hasLocalOnlyAccountMode(props: SetupProps) {
+  return (
+    props.account?.cloud?.available === false ||
+    props.startupBootstrap?.accountCloud?.available === false
+  );
+}
+
+function currentSetupProfile(props: SetupProps) {
+  if (props.account?.profile) {
+    return props.account.profile;
+  }
+  const startupAccount = props.startupBootstrap?.account;
+  if (!startupAccount) {
+    return null;
+  }
+  return {
+    username: startupAccount.username,
+    displayName: startupAccount.displayName,
+    email: startupAccount.email,
+    agentName: startupAccount.agentName,
+    avatarLabel: startupAccount.avatarLabel,
+    birthdate: undefined,
+    plan: startupAccount.plan,
+  };
+}
+
 function accountValidationMessage(props: SetupProps) {
-  const profile = props.account?.profile;
+  const profile = currentSetupProfile(props);
   if (!profile) {
     return null;
   }
@@ -182,6 +218,9 @@ function accountValidationMessage(props: SetupProps) {
 
 function renderAccountStep(props: SetupProps) {
   if (props.account?.session.state === "signed_in" && !props.account.session.profileCompleted) {
+    return renderProfileStep(props);
+  }
+  if (hasLocalOnlyAccountMode(props) && !props.account?.session.profileCompleted) {
     return renderProfileStep(props);
   }
   const authEmail = props.authEmail ?? "";
@@ -379,14 +418,29 @@ function renderGatewayStep(props: SetupProps) {
 }
 
 function renderProfileStep(props: SetupProps) {
-  const profile = props.account?.profile;
+  const profile = currentSetupProfile(props);
   const validation = accountValidationMessage(props);
   const missingTerms = !props.termsAccepted;
-  const emailManagedByCloud = props.account?.session.backend === "supabase";
-  const authMethodLabel =
-    props.account?.session.authMethod === "google"
+  const localOnlyAccountMode = hasLocalOnlyAccountMode(props);
+  const emailManagedByCloud =
+    props.account?.session.backend === "supabase" && !localOnlyAccountMode;
+  const authMethodLabel = localOnlyAccountMode
+    ? t("alisio.setup.profile.authMethodLocal")
+    : props.account?.session.authMethod === "google"
       ? t("alisio.setup.profile.authMethodGoogle")
       : t("alisio.setup.profile.authMethodEmail");
+  const profileMessage =
+    props.accountError ??
+    validation ??
+    (missingTerms ? t("alisio.setup.profile.acceptTermsRequired") : null);
+  const profileSubtitle = localOnlyAccountMode
+    ? t("alisio.setup.profile.localSubtitle")
+    : t("alisio.setup.profile.subtitle");
+  const emailFallback =
+    profile?.email ?? props.authEmail ?? props.startupBootstrap?.account?.email ?? "";
+  const identityChip =
+    profile?.email ??
+    (props.authPendingEmail || emailFallback || t("alisio.setup.profile.localProfile"));
   const handleSubmit = (event: Event) => {
     event.preventDefault();
     if (props.accountLoading || validation || missingTerms) {
@@ -397,17 +451,15 @@ function renderProfileStep(props: SetupProps) {
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">${t("alisio.setup.profile.title")}</div>
-      <div class="card-sub">${t("alisio.setup.profile.subtitle")}</div>
+      <div class="card-sub">${profileSubtitle}</div>
       <div class="chip-row" style="margin-top: 16px;">
-        <span class="chip">${profile?.email ?? props.authPendingEmail}</span>
+        <span class="chip">${identityChip}</span>
         <span class="chip">${authMethodLabel}</span>
       </div>
-      ${renderCallout(
-        "danger",
-        props.accountError ??
-          validation ??
-          (missingTerms ? t("alisio.setup.profile.acceptTermsRequired") : null),
-      )}
+      ${localOnlyAccountMode
+        ? renderCallout("info", t("alisio.setup.profile.localModeNotice"))
+        : nothing}
+      ${renderCallout("danger", profileMessage)}
       <form class="alisio-setup-account" @submit=${handleSubmit}>
         <fieldset
           class="form-fieldset-reset alisio-setup-account__fields"
@@ -433,7 +485,7 @@ function renderProfileStep(props: SetupProps) {
           </label>
           ${renderAccountProfileFields({
             profile: profile ?? null,
-            emailFallback: props.authEmail,
+            emailFallback,
             emailManagedByCloud,
             mode: "live",
             labels: {
@@ -838,6 +890,9 @@ function renderOrganizationStep(props: SetupProps) {
     loading: props.organizationLoading,
     error: props.organizationError,
     organization: props.organization,
+    sharingLoading: props.sharingLoading,
+    sharingError: props.sharingError,
+    sharing: props.sharing,
     draftMode: props.organizationDraftMode,
     organizationName: props.organizationName,
     inviteEmail: props.organizationInviteEmail,
@@ -847,6 +902,12 @@ function renderOrganizationStep(props: SetupProps) {
     onCreateOrganization: props.onCreateOrganization,
     onJoinOrganization: props.onJoinOrganization,
     onResetOrganization: props.onResetOrganization,
+    onRefreshSharing: props.onRefreshSharing,
+    onRequestAccess: props.onRequestAccess,
+    onApproveRequest: props.onApproveRequest,
+    onRejectRequest: props.onRejectRequest,
+    onRevokeGrant: props.onRevokeGrant,
+    onSetPolicy: props.onSetPolicy,
   });
 }
 
