@@ -3,8 +3,6 @@
 
 @_exported import AlisioKit
 @_exported import OpenClawChatUI
-
-public typealias ChatMarkdownVariant = OpenClawChatUI.ChatMarkdownVariant
 public typealias AlisioAgentEventPayload = OpenClawChatUI.OpenClawAgentEventPayload
 public typealias AlisioChatAttachmentPayload = OpenClawChatUI.OpenClawChatAttachmentPayload
 public typealias AlisioChatEventPayload = OpenClawChatUI.OpenClawChatEventPayload

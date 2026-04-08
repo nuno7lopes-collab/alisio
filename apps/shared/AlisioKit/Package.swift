@@ -37,9 +37,6 @@ let package = Package(
                 .product(name: "OpenClawKit", package: legacySharedPackageName),
             ],
             path: "Sources/AlisioKit",
-            resources: [
-                .process("Resources"),
-            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
