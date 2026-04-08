@@ -2,6 +2,7 @@ import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
 import {
   formatValidationErrors,
+  validateApprovalAuditSnapshot,
   validateChannelsStatusResult,
   validateTalkConfigResult,
 } from "./index.js";
@@ -165,5 +166,60 @@ describe("validateChannelsStatusResult", () => {
         },
       }),
     ).toBe(true);
+  });
+});
+
+describe("validateApprovalAuditSnapshot", () => {
+  it("accepts exec and plugin approval audit entries", () => {
+    expect(
+      validateApprovalAuditSnapshot({
+        items: [
+          {
+            kind: "exec",
+            id: "approval-1",
+            decision: "allow-once",
+            resolvedBy: "operator",
+            ts: Date.now(),
+            request: {
+              command: "bun test",
+              host: "sandbox",
+              security: "allowlist",
+              ask: "on-miss",
+            },
+          },
+          {
+            kind: "plugin",
+            id: "plugin-1",
+            decision: "deny",
+            ts: Date.now(),
+            request: {
+              title: "Publish release",
+              description: "Pushes release metadata to the host",
+              severity: "critical",
+              pluginId: "publisher",
+              toolName: "release.publish",
+            },
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects malformed approval audit entries", () => {
+    expect(
+      validateApprovalAuditSnapshot({
+        items: [
+          {
+            kind: "exec",
+            id: "approval-1",
+            decision: "allow-once",
+            ts: Date.now(),
+            request: {
+              host: "sandbox",
+            },
+          },
+        ],
+      }),
+    ).toBe(false);
   });
 });

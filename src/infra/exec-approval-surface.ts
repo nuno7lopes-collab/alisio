@@ -37,9 +37,9 @@ export function resolveExecApprovalInitiatingSurfaceState(params: {
     return { kind: "enabled", channel, channelLabel };
   }
 
-  const cfg = params.cfg ?? loadConfig();
-  const state = getChannelPlugin(channel)?.auth?.getActionAvailabilityState?.({
-    cfg,
+  const availabilityState = getChannelPlugin(channel)?.auth?.getActionAvailabilityState;
+  const state = availabilityState?.({
+    cfg: params.cfg ?? loadConfig(),
     accountId: params.accountId,
     action: "approve",
   });

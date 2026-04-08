@@ -1,3 +1,4 @@
+import type { ApprovalAuditSnapshot } from "../../../../src/gateway/protocol/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 
 export type ExecApprovalRequestPayload = {
@@ -54,10 +55,6 @@ export type ApprovalAuditTrailState = {
   connected: boolean;
   execApprovalAuditTrail: ExecApprovalAuditEntry[];
   lastError: string | null;
-};
-
-type ApprovalAuditTrailSnapshot = {
-  items?: unknown[];
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -297,10 +294,7 @@ export async function loadApprovalAuditTrail(state: ApprovalAuditTrailState) {
     return;
   }
   try {
-    const snapshot = await state.client.request<ApprovalAuditTrailSnapshot>(
-      "approval.audit.get",
-      {},
-    );
+    const snapshot = await state.client.request<ApprovalAuditSnapshot>("approval.audit.get", {});
     const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
     let next: ExecApprovalAuditEntry[] = [];
     for (const item of items) {

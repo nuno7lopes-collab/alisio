@@ -1,6 +1,6 @@
 import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { PluginApprovalRequestPayload } from "../../infra/plugin-approvals.js";
-import { validateExecApprovalsGetParams } from "../protocol/index.js";
+import { validateApprovalAuditGetParams } from "../protocol/index.js";
 import type { GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
@@ -197,7 +197,7 @@ export function rememberPluginApprovalResolved(params: {
 
 export const approvalAuditHandlers: GatewayRequestHandlers = {
   "approval.audit.get": ({ params, respond }) => {
-    if (!assertValidParams(params, validateExecApprovalsGetParams, "approval.audit.get", respond)) {
+    if (!assertValidParams(params, validateApprovalAuditGetParams, "approval.audit.get", respond)) {
       return;
     }
     respond(true, { items: listApprovalAuditTrail() }, undefined);

@@ -1,4 +1,3 @@
-import { loadConfig } from "../config/config.js";
 import { resolveExecApprovalInitiatingSurfaceState } from "./exec-approval-surface.js";
 
 export function hasApprovalTurnSourceRoute(params: {
@@ -8,11 +7,16 @@ export function hasApprovalTurnSourceRoute(params: {
   if (!params.turnSourceChannel?.trim()) {
     return false;
   }
-  return (
-    resolveExecApprovalInitiatingSurfaceState({
-      channel: params.turnSourceChannel,
-      accountId: params.turnSourceAccountId,
-      cfg: loadConfig(),
-    }).kind === "enabled"
-  );
+  try {
+    return (
+      resolveExecApprovalInitiatingSurfaceState({
+        channel: params.turnSourceChannel,
+        accountId: params.turnSourceAccountId,
+      }).kind === "enabled"
+    );
+  } catch {
+    // Approval routing is a best-effort hint. Fail closed instead of letting a
+    // broken config snapshot or channel adapter abort the whole approval flow.
+    return false;
+  }
 }

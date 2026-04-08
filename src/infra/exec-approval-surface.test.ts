@@ -159,6 +159,7 @@ describe("resolveExecApprovalInitiatingSurfaceState", () => {
       channel: "slack",
       channelLabel: "Slack",
     });
+    expect(loadConfigMock).not.toHaveBeenCalled();
   });
 });
 

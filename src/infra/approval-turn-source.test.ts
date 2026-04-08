@@ -33,7 +33,6 @@ describe("hasApprovalTurnSourceRoute", () => {
     expect(resolveExecApprovalInitiatingSurfaceStateMock).toHaveBeenCalledWith({
       channel: "slack",
       accountId: "work",
-      cfg: { loaded: true },
     });
   });
 
@@ -48,5 +47,18 @@ describe("hasApprovalTurnSourceRoute", () => {
   it("returns false when there is no turn-source channel", () => {
     expect(hasApprovalTurnSourceRoute({ turnSourceChannel: undefined })).toBe(false);
     expect(resolveExecApprovalInitiatingSurfaceStateMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when routing state resolution throws", () => {
+    resolveExecApprovalInitiatingSurfaceStateMock.mockImplementationOnce(() => {
+      throw Object.assign(new Error("Invalid config"), { code: "INVALID_CONFIG" });
+    });
+
+    expect(
+      hasApprovalTurnSourceRoute({
+        turnSourceChannel: "slack",
+        turnSourceAccountId: "work",
+      }),
+    ).toBe(false);
   });
 });

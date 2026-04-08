@@ -3,6 +3,12 @@ import type { SessionsPatchResult } from "../session-utils.types.js";
 import {
   type AgentEvent,
   AgentEventSchema,
+  type ApprovalAuditEntry,
+  ApprovalAuditEntrySchema,
+  type ApprovalAuditGetParams,
+  ApprovalAuditGetParamsSchema,
+  type ApprovalAuditSnapshot,
+  ApprovalAuditSnapshotSchema,
   type AlisioAiBeginConnectParams,
   AlisioAiBeginConnectParamsSchema,
   type AlisioAiBeginConnectResult,
@@ -276,6 +282,26 @@ import {
   DevicePairRemoveParamsSchema,
   type DevicePairRejectParams,
   DevicePairRejectParamsSchema,
+  type DevicesListParams,
+  DevicesListParamsSchema,
+  type DevicesListResult,
+  DevicesListResultSchema,
+  type DevicesPolicySetParams,
+  DevicesPolicySetParamsSchema,
+  type DevicesPolicySetResult,
+  DevicesPolicySetResultSchema,
+  type DevicesShareApproveParams,
+  DevicesShareApproveParamsSchema,
+  type DevicesShareApproveResult,
+  DevicesShareApproveResultSchema,
+  type DevicesShareRequestParams,
+  DevicesShareRequestParamsSchema,
+  type DevicesShareRequestResult,
+  DevicesShareRequestResultSchema,
+  type DevicesShareRevokeParams,
+  DevicesShareRevokeParamsSchema,
+  type DevicesShareRevokeResult,
+  DevicesShareRevokeResultSchema,
   type DeviceTokenRevokeParams,
   DeviceTokenRevokeParamsSchema,
   type DeviceTokenRotateParams,
@@ -850,11 +876,44 @@ export const validateDevicePairRejectParams = ajv.compile<DevicePairRejectParams
 export const validateDevicePairRemoveParams = ajv.compile<DevicePairRemoveParams>(
   DevicePairRemoveParamsSchema,
 );
+export const validateDevicesListParams = ajv.compile<DevicesListParams>(DevicesListParamsSchema);
+export const validateDevicesListResult = ajv.compile<DevicesListResult>(DevicesListResultSchema);
+export const validateDevicesShareRequestParams = ajv.compile<DevicesShareRequestParams>(
+  DevicesShareRequestParamsSchema,
+);
+export const validateDevicesShareRequestResult = ajv.compile<DevicesShareRequestResult>(
+  DevicesShareRequestResultSchema,
+);
+export const validateDevicesShareApproveParams = ajv.compile<DevicesShareApproveParams>(
+  DevicesShareApproveParamsSchema,
+);
+export const validateDevicesShareApproveResult = ajv.compile<DevicesShareApproveResult>(
+  DevicesShareApproveResultSchema,
+);
+export const validateDevicesShareRevokeParams = ajv.compile<DevicesShareRevokeParams>(
+  DevicesShareRevokeParamsSchema,
+);
+export const validateDevicesShareRevokeResult = ajv.compile<DevicesShareRevokeResult>(
+  DevicesShareRevokeResultSchema,
+);
+export const validateDevicesPolicySetParams = ajv.compile<DevicesPolicySetParams>(
+  DevicesPolicySetParamsSchema,
+);
+export const validateDevicesPolicySetResult = ajv.compile<DevicesPolicySetResult>(
+  DevicesPolicySetResultSchema,
+);
 export const validateDeviceTokenRotateParams = ajv.compile<DeviceTokenRotateParams>(
   DeviceTokenRotateParamsSchema,
 );
 export const validateDeviceTokenRevokeParams = ajv.compile<DeviceTokenRevokeParams>(
   DeviceTokenRevokeParamsSchema,
+);
+export const validateApprovalAuditGetParams = ajv.compile<ApprovalAuditGetParams>(
+  ApprovalAuditGetParamsSchema,
+);
+export const validateApprovalAuditEntry = ajv.compile<ApprovalAuditEntry>(ApprovalAuditEntrySchema);
+export const validateApprovalAuditSnapshot = ajv.compile<ApprovalAuditSnapshot>(
+  ApprovalAuditSnapshotSchema,
 );
 export const validateExecApprovalsGetParams = ajv.compile<ExecApprovalsGetParams>(
   ExecApprovalsGetParamsSchema,
@@ -1139,6 +1198,9 @@ export {
   MemoryFilesDeleteResultSchema,
   MemorySyncParamsSchema,
   MemorySyncResultSchema,
+  ApprovalAuditGetParamsSchema,
+  ApprovalAuditEntrySchema,
+  ApprovalAuditSnapshotSchema,
   ChatHistoryParamsSchema,
   ChatSendParamsSchema,
   ChatInjectParamsSchema,
@@ -1254,6 +1316,19 @@ export type {
   DevicePairListParams,
   DevicePairApproveParams,
   DevicePairRejectParams,
+  DevicePairRemoveParams,
+  DevicesListParams,
+  DevicesListResult,
+  DevicesShareRequestParams,
+  DevicesShareRequestResult,
+  DevicesShareApproveParams,
+  DevicesShareApproveResult,
+  DevicesShareRevokeParams,
+  DevicesShareRevokeResult,
+  DevicesPolicySetParams,
+  DevicesPolicySetResult,
+  DeviceTokenRotateParams,
+  DeviceTokenRevokeParams,
   ConfigGetParams,
   ConfigSetParams,
   ConfigApplyParams,
@@ -1365,6 +1440,9 @@ export type {
   MemoryFilesDeleteResult,
   MemorySyncParams,
   MemorySyncResult,
+  ApprovalAuditGetParams,
+  ApprovalAuditEntry,
+  ApprovalAuditSnapshot,
   PollParams,
   UpdateRunParams,
   ChatInjectParams,
