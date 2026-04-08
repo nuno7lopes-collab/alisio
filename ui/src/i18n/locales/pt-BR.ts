@@ -237,6 +237,21 @@ export const pt_BR: TranslationMap = {
       vector: "Vector",
       fts: "FTS",
       builtin: "Integrado",
+      guidance: {
+        oauthTitle: "A memória ainda precisa de embeddings",
+        oauthBody:
+          "O login Codex/OpenAI cobre o chat, mas não fornece credenciais para embeddings. Use Local embeddings ou configure uma API key do provedor de embeddings que você quer usar.",
+        genericTitle: "Ainda falta configurar os embeddings da memória",
+        genericBody:
+          "A memória semântica precisa de embeddings locais ou de uma API key do provedor de embeddings selecionado.",
+        providerTitle: "Este provedor de embeddings precisa da própria API key",
+        providerBody:
+          "A memória está configurada para usar embeddings de {provider}, então você precisa configurar separadamente a API key desse provedor.",
+        localTitle: "Os Local embeddings estão selecionados mas ainda não estão prontos",
+        localBody:
+          "Conclua a configuração do runtime de Local embeddings ou mude a memória para um provedor remoto com a respectiva API key.",
+        useLocal: "Usar Local embeddings",
+      },
       settings: {
         title: "Configurações de memória",
         subtitle: "Ajuste backend, padrões e comportamento por agente sem sair desta aba.",

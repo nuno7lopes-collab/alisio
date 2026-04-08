@@ -3,7 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import os from "node:os";
 import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
-import { resolveStateDir } from "../config/paths.js";
+import { resolveLegacyStateDirs, resolveNewStateDir, resolveStateDir } from "../config/paths.js";
 import {
   type AlisioAccountAuthMethod,
   deriveAlisioAvatarLabel,
@@ -68,7 +68,9 @@ import {
   gateAlisioOrganizationMembership,
   gateAlisioRemoteModelServers,
 } from "./alisio-plan-gating.js";
+import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
+import { autoMigrateLegacyStateDir } from "./state-migrations.js";
 
 export type AlisioConnectorCategory = "social" | "google" | "productivity" | "development";
 
@@ -619,6 +621,10 @@ function stateFilePath(env: NodeJS.ProcessEnv = process.env) {
   return path.join(resolveStateDir(env), STORE_FILENAME);
 }
 
+async function ensureAlisioStateDirReady(env: NodeJS.ProcessEnv): Promise<void> {
+  await autoMigrateLegacyStateDir({ env });
+}
+
 function decodeConnectorTokenEncryptionKey(raw: string) {
   const decoders = [
     () => Buffer.from(raw, "base64"),
@@ -662,10 +668,23 @@ function hasUsableConnectorTokenKeychain(
   }
 }
 
-function resolveConnectorTokenKeychainAccount(env: NodeJS.ProcessEnv) {
-  const stateRoot = resolveStateDir(env);
+function buildConnectorTokenKeychainAccount(stateRoot: string) {
   const hash = createHash("sha256").update(path.resolve(stateRoot)).digest("hex");
   return `state|${hash.slice(0, 16)}`;
+}
+
+function resolveConnectorTokenKeychainAccounts(env: NodeJS.ProcessEnv): string[] {
+  const homeDir = () => resolveRequiredHomeDir(env, os.homedir);
+  const stateRoots = [
+    resolveStateDir(env),
+    resolveNewStateDir(homeDir),
+    ...resolveLegacyStateDirs(homeDir),
+  ];
+  return [...new Set(stateRoots.map((root) => buildConnectorTokenKeychainAccount(root)))];
+}
+
+function resolveConnectorTokenKeychainAccount(env: NodeJS.ProcessEnv) {
+  return resolveConnectorTokenKeychainAccounts(env)[0];
 }
 
 function readConnectorTokenKeychainSecret(
@@ -676,25 +695,26 @@ function readConnectorTokenKeychainSecret(
   if (!hasUsableConnectorTokenKeychain(env, execFileSyncImpl)) {
     return null;
   }
-  const account = resolveConnectorTokenKeychainAccount(env);
   for (const service of [
     ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE,
     LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE,
   ]) {
-    try {
-      const secret = execSyncImpl(
-        `security find-generic-password -s "${service}" -a "${account}" -w`,
-        {
-          encoding: "utf8",
-          timeout: 5_000,
-          stdio: ["pipe", "pipe", "pipe"],
-        },
-      ).trim();
-      if (secret) {
-        return secret;
+    for (const account of resolveConnectorTokenKeychainAccounts(env)) {
+      try {
+        const secret = execSyncImpl(
+          `security find-generic-password -s "${service}" -a "${account}" -w`,
+          {
+            encoding: "utf8",
+            timeout: 5_000,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
+        ).trim();
+        if (secret) {
+          return secret;
+        }
+      } catch {
+        // Try the next compatible keychain account or service name.
       }
-    } catch {
-      // Try the next compatible keychain service name.
     }
   }
   return null;
@@ -758,6 +778,7 @@ function resolveConnectorTokenEncryptionKey(
 
 export const __testing = {
   hasUsableConnectorTokenKeychain,
+  resolveConnectorTokenKeychainAccounts,
 };
 
 function encryptConnectorToken(plaintext: string, env: NodeJS.ProcessEnv) {
@@ -2368,8 +2389,9 @@ function rebuildStoredAiStateForOwner(
 }
 
 async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredState> {
-  const rawLoaded = await readJsonFile<AlisioStoredState>(stateFilePath(env));
   const runtimeEnv = env ?? process.env;
+  await ensureAlisioStateDirReady(runtimeEnv);
+  const rawLoaded = await readJsonFile<AlisioStoredState>(stateFilePath(runtimeEnv));
   const defaults = buildDefaultState();
   if (!rawLoaded || rawLoaded.version !== 1) {
     return defaults;
@@ -2553,6 +2575,7 @@ function normalizeStoredAiState(
 
 async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
   const runtimeEnv = env ?? process.env;
+  await ensureAlisioStateDirReady(runtimeEnv);
   const serializedCloudSession = serializeStoredTokenSecrets(
     state.account.cloudSession,
     runtimeEnv,
@@ -2560,7 +2583,7 @@ async function persistState(state: AlisioStoredState, env?: NodeJS.ProcessEnv) {
   const serializedAi = serializeStoredAiSecrets(state.ai, runtimeEnv);
   const serializedModelServers = serializeStoredRemoteModelServers(state.modelServers, runtimeEnv);
   await writeJsonAtomic(
-    stateFilePath(env),
+    stateFilePath(runtimeEnv),
     {
       ...state,
       account: {

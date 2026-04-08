@@ -114,9 +114,14 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { applyGatewayAccessMode, loadGatewayAccessMode } from "./controllers/security-access.ts";
 import {
   allowBundledSkill,
+  dismissSkillConsentRequest,
+  executeMarketplaceSkillAction,
   enableSkillConfigPath,
+  installMarketplaceSkillAction,
   installSkill,
   loadSkills,
+  removeMarketplaceSkillAction,
+  resolveSkillConsentRequest,
   saveSkillApiKey,
   saveSkillEnv,
   updateSkillEdit,
@@ -241,6 +246,10 @@ function createModelsServerDraft(
     baseUrl: server?.baseUrl ?? "",
     apiKey: "",
   };
+}
+
+function confirmLocalModelAction(message: string) {
+  return typeof window === "undefined" ? true : window.confirm(message);
 }
 
 function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId: string) {
@@ -1240,6 +1249,8 @@ export function renderApp(state: AppViewState) {
               edits: state.skillEdits,
               busyKey: state.skillsBusyKey,
               messages: state.skillMessages,
+              actionOutputs: state.skillActionOutputs,
+              consentRequest: state.skillConsentRequest,
               detailKey: state.skillsDetailKey,
               channelsSnapshot: state.channelsSnapshot,
               connectorCatalog: state.alisioConnectorCatalog,
@@ -1276,6 +1287,21 @@ export function renderApp(state: AppViewState) {
               onInstall: (skillKey, name, installId) => {
                 void installSkill(state, skillKey, name, installId);
               },
+              onMarketplaceInstall: (skillKey) => {
+                void installMarketplaceSkillAction(state, skillKey);
+              },
+              onMarketplaceRemove: (skillKey) => {
+                void removeMarketplaceSkillAction(state, skillKey);
+              },
+              onMarketplaceExecute: (skillKey) => {
+                void executeMarketplaceSkillAction(state, skillKey);
+              },
+              onConsentResolve: (decision) => {
+                void resolveSkillConsentRequest(state, decision);
+              },
+              onConsentDismiss: () => {
+                dismissSkillConsentRequest(state);
+              },
               onEnableConfig: (skillKey, configPath) => {
                 void enableSkillConfigPath(state, skillKey, configPath);
               },
@@ -1286,6 +1312,9 @@ export function renderApp(state: AppViewState) {
                 state.skillsDetailKey = skillKey;
               },
               onDetailClose: () => {
+                if (state.skillConsentRequest?.skillKey === state.skillsDetailKey) {
+                  dismissSkillConsentRequest(state);
+                }
                 state.skillsDetailKey = null;
               },
               onOpenChannels: () => {
@@ -1451,6 +1480,7 @@ export function renderApp(state: AppViewState) {
               execApprovalsTarget: state.execApprovalsTarget,
               execApprovalsTargetNodeId: state.execApprovalsTargetNodeId,
               execApprovalQueue: state.execApprovalQueue,
+              execApprovalAuditTrail: state.execApprovalAuditTrail,
               execApprovalBusy: state.execApprovalBusy,
               execApprovalError: state.execApprovalError,
               gatewayAccessModeLoading: state.gatewayAccessModeLoading,
@@ -1677,6 +1707,7 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "memory"
           ? renderMemoryHub({
+              aiState: state.alisioBootstrap?.ai ?? null,
               agentsLoading: state.agentsLoading,
               agentsError: state.agentsError,
               agentsList: state.agentsList,
@@ -1812,6 +1843,20 @@ export function renderApp(state: AppViewState) {
                   });
                 })();
               },
+              onUseLocalEmbeddings: () => {
+                updateConfigFormValue(
+                  state,
+                  ["agents", "defaults", "memorySearch", "provider"],
+                  "local",
+                );
+                const agentId = resolvedMemoryAgentId;
+                void (async () => {
+                  await saveConfig(state);
+                  if (agentId) {
+                    await loadMemoryStatus(state, agentId, { reset: true });
+                  }
+                })();
+              },
               onConfigPatch: (path, value) => {
                 if (path[0] === "agent") {
                   const agentId = resolvedMemoryAgentId;
@@ -1896,9 +1941,51 @@ export function renderApp(state: AppViewState) {
                 void setActiveChatModel(state, modelValue);
               },
               onInstallModel: (targetId, modelId) => {
+                const targetLabel =
+                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
+                    ?.label ?? targetId;
+                if (
+                  !confirmLocalModelAction(
+                    t("alisio.settings.models.confirmInstall", {
+                      model: modelId,
+                      target: targetLabel,
+                    }),
+                  )
+                ) {
+                  return;
+                }
+                void installAlisioModel(state, { targetId, modelId });
+              },
+              onUpdateModel: (targetId, modelId) => {
+                const targetLabel =
+                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
+                    ?.label ?? targetId;
+                if (
+                  !confirmLocalModelAction(
+                    t("alisio.settings.models.confirmUpdate", {
+                      model: modelId,
+                      target: targetLabel,
+                    }),
+                  )
+                ) {
+                  return;
+                }
                 void installAlisioModel(state, { targetId, modelId });
               },
               onUninstallModel: (targetId, modelId) => {
+                const targetLabel =
+                  state.alisioModels?.targets.find((target) => target.targetId === targetId)
+                    ?.label ?? targetId;
+                if (
+                  !confirmLocalModelAction(
+                    t("alisio.settings.models.confirmUninstall", {
+                      model: modelId,
+                      target: targetLabel,
+                    }),
+                  )
+                ) {
+                  return;
+                }
                 void uninstallAlisioModel(state, { targetId, modelId });
               },
               onStartCreateServer: () => {

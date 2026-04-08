@@ -15,6 +15,7 @@ import {
 } from "../memory-files.ts";
 import type {
   AgentFileEntry,
+  AlisioAiState,
   AgentsFilesListResult,
   AgentsListResult,
   ConfigUiHints,
@@ -29,6 +30,7 @@ import {
 import { renderMemorySettings } from "./memory-settings.ts";
 
 type MemoryHubProps = {
+  aiState: AlisioAiState | null;
   agentsLoading: boolean;
   agentsError: string | null;
   agentsList: AgentsListResult | null;
@@ -71,6 +73,7 @@ type MemoryHubProps = {
   onSync: () => void;
   onConfigPatch: (path: Array<string | number>, value: unknown) => void;
   onSaveSettings: () => void;
+  onUseLocalEmbeddings: () => void;
 };
 
 function memoryText() {
@@ -142,6 +145,17 @@ function memoryText() {
     none: t("common.none"),
     na: t("common.na"),
     sessions: t("tabs.sessions"),
+    guidance: {
+      oauthTitle: t("alisio.memory.guidance.oauthTitle"),
+      oauthBody: t("alisio.memory.guidance.oauthBody"),
+      genericTitle: t("alisio.memory.guidance.genericTitle"),
+      genericBody: t("alisio.memory.guidance.genericBody"),
+      providerTitle: t("alisio.memory.guidance.providerTitle"),
+      providerBody: t("alisio.memory.guidance.providerBody"),
+      localTitle: t("alisio.memory.guidance.localTitle"),
+      localBody: t("alisio.memory.guidance.localBody"),
+      useLocal: t("alisio.memory.guidance.useLocal"),
+    },
   };
 }
 
@@ -208,6 +222,114 @@ function resolveEmbeddingLabel(
   return embedding.ok ? text.ready : text.unavailable;
 }
 
+function sanitizeLegacyStatePath(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  return value.replace(/(^|[\\/])\.(openclaw|clawdbot)(?=([\\/]|$))/g, "$1.alisio");
+}
+
+function isCodexOAuthActive(aiState: AlisioAiState | null | undefined): boolean {
+  return (
+    aiState?.provider === "openai" &&
+    (aiState.status === "connected" || aiState.status === "limits_unavailable")
+  );
+}
+
+function formatProviderName(provider: string | null | undefined): string {
+  const normalized = provider?.trim().toLowerCase() ?? "";
+  switch (normalized) {
+    case "openai":
+      return "OpenAI";
+    case "gemini":
+      return "Gemini";
+    case "voyage":
+      return "Voyage";
+    case "mistral":
+      return "Mistral";
+    case "ollama":
+      return "Ollama";
+    case "local":
+      return "Local embeddings";
+    default:
+      return provider?.trim() || "embeddings";
+  }
+}
+
+type MemoryGuidance = {
+  tone: "info" | "warning";
+  title: string;
+  body: string;
+  actionLabel?: string;
+};
+
+function buildEmbeddingGuidance(params: {
+  aiState: AlisioAiState | null;
+  status: MemoryStatusState | null;
+  text: ReturnType<typeof memoryText>;
+}): MemoryGuidance | null {
+  const status = params.status;
+  if (!status?.enabled || status.embedding.ok) {
+    return null;
+  }
+
+  const rawError = sanitizeLegacyStatePath(status.embedding.error ?? "");
+  if (!rawError) {
+    return null;
+  }
+
+  const missingApiKey = rawError.includes("No API key found for provider");
+  const missingProvider =
+    rawError.includes("No embedding provider available") ||
+    rawError.includes("No embeddings provider available");
+  const localUnavailable = rawError.includes("Local embeddings unavailable.");
+  const requestedProvider = status.runtime?.requestedProvider ?? status.config?.provider ?? null;
+  const explicitProvider =
+    requestedProvider && requestedProvider !== "auto" ? requestedProvider : null;
+
+  if (
+    isCodexOAuthActive(params.aiState) &&
+    !explicitProvider &&
+    (missingApiKey || missingProvider)
+  ) {
+    return {
+      tone: "warning",
+      title: params.text.guidance.oauthTitle,
+      body: params.text.guidance.oauthBody,
+      actionLabel: params.text.guidance.useLocal,
+    };
+  }
+
+  if (explicitProvider && explicitProvider !== "local" && missingApiKey) {
+    return {
+      tone: "warning",
+      title: params.text.guidance.providerTitle,
+      body: params.text.guidance.providerBody.replace(
+        "{provider}",
+        formatProviderName(explicitProvider),
+      ),
+    };
+  }
+
+  if (explicitProvider === "local" && localUnavailable) {
+    return {
+      tone: "warning",
+      title: params.text.guidance.localTitle,
+      body: params.text.guidance.localBody,
+    };
+  }
+
+  if (!explicitProvider && (missingApiKey || missingProvider)) {
+    return {
+      tone: "info",
+      title: params.text.guidance.genericTitle,
+      body: params.text.guidance.genericBody,
+    };
+  }
+
+  return null;
+}
+
 function resolveSubsystemState(params: {
   enabled?: boolean;
   available?: boolean;
@@ -244,18 +366,27 @@ function renderRuntimeCard(params: {
   status: MemoryStatusState | null;
   loading: boolean;
   error: string | null;
+  aiState: AlisioAiState | null;
   syncing: boolean;
   canSync: boolean;
   onSync: () => void;
+  onUseLocalEmbeddings: () => void;
 }) {
   const { text, status } = params;
   const config = status?.config;
   const runtime = status?.runtime;
-  const runtimeError =
-    params.error ??
-    status?.configError ??
-    status?.managerError ??
-    (!status?.embedding.ok ? (status?.embedding.error ?? null) : null);
+  const embeddingError = !status?.embedding.ok ? (status?.embedding.error ?? null) : null;
+  const runtimeErrorRaw =
+    params.error ?? status?.configError ?? status?.managerError ?? embeddingError;
+  const runtimeError = sanitizeLegacyStatePath(runtimeErrorRaw);
+  const guidance =
+    runtimeErrorRaw && runtimeErrorRaw === embeddingError
+      ? buildEmbeddingGuidance({
+          aiState: params.aiState,
+          status,
+          text,
+        })
+      : null;
   const runtimeErrorTone =
     runtimeError && runtimeError.includes("não expõe")
       ? "info"
@@ -281,21 +412,36 @@ function renderRuntimeCard(params: {
     text.na,
   );
   const sourceDetail = config?.extraPaths.length
-    ? `${text.extraPaths}: ${joinValues(config.extraPaths, text.none)}`
+    ? `${text.extraPaths}: ${joinValues(
+        config.extraPaths.map((entry) => sanitizeLegacyStatePath(entry)),
+        text.none,
+      )}`
     : undefined;
   const providerDetail = joinValues(
     [runtime?.model ?? config?.model ?? "", config?.fallback ?? ""],
     text.na,
   );
-  const storeDetail = runtime?.dbPath ?? config?.store.path ?? text.na;
-  const vectorDetail = joinValues(
-    [
-      typeof runtime?.vector?.dims === "number" ? `${runtime.vector.dims} dims` : "",
-      runtime?.vector?.loadError ?? "",
-    ],
-    text.na,
+  const storeDetail = sanitizeLegacyStatePath(runtime?.dbPath ?? config?.store.path ?? text.na);
+  const vectorDetail = sanitizeLegacyStatePath(
+    joinValues(
+      [
+        typeof runtime?.vector?.dims === "number" ? `${runtime.vector.dims} dims` : "",
+        runtime?.vector?.loadError ?? "",
+      ],
+      text.na,
+    ),
   );
-  const ftsDetail = runtime?.fts?.error ?? config?.store.ftsTokenizer ?? text.na;
+  const ftsDetail = sanitizeLegacyStatePath(
+    runtime?.fts?.error ?? config?.store.ftsTokenizer ?? text.na,
+  );
+  const embeddingDetail =
+    guidance || !embeddingError ? undefined : sanitizeLegacyStatePath(embeddingError);
+  const backendDetail =
+    status?.backend?.backend === "qmd"
+      ? sanitizeLegacyStatePath(status.backend.command ?? undefined)
+      : undefined;
+  const providerValue = runtime?.provider ?? config?.provider ?? text.na;
+  const providerLabel = providerValue === text.na ? text.na : formatProviderName(providerValue);
 
   return html`
     <section class="alisio-memory-runtime">
@@ -339,21 +485,15 @@ function renderRuntimeCard(params: {
         : !status
           ? html`
               <div class="alisio-memory-runtime__empty">
-                ${params.error ?? text.runtimeUnavailable}
+                ${sanitizeLegacyStatePath(params.error) || text.runtimeUnavailable}
               </div>
             `
           : html`
               <div class="alisio-memory-runtime__stats">
-                ${renderStatsCard(
-                  text.backend,
-                  resolveBackendLabel(status, text),
-                  status.backend?.backend === "qmd"
-                    ? (status.backend.command ?? undefined)
-                    : undefined,
-                )}
+                ${renderStatsCard(text.backend, resolveBackendLabel(status, text), backendDetail)}
                 ${renderStatsCard(
                   text.provider,
-                  runtime?.provider ?? config?.provider ?? text.na,
+                  providerLabel,
                   providerDetail === text.na ? undefined : providerDetail,
                 )}
                 ${renderStatsCard(
@@ -364,7 +504,7 @@ function renderRuntimeCard(params: {
                 ${renderStatsCard(
                   text.embedding,
                   resolveEmbeddingLabel(status.embedding, text),
-                  status.embedding.error,
+                  embeddingDetail,
                 )}
                 ${renderStatsCard(
                   text.sourcesLabel,
@@ -373,9 +513,25 @@ function renderRuntimeCard(params: {
                 )}
               </div>
 
-              ${runtimeError
-                ? html` <div class="callout ${runtimeErrorTone}">${runtimeError}</div> `
-                : nothing}
+              ${guidance
+                ? html`
+                    <div class="callout ${guidance.tone}">
+                      <strong>${guidance.title}</strong>
+                      <p>${guidance.body}</p>
+                      ${guidance.actionLabel
+                        ? html`
+                            <div class="alisio-memory-runtime__actions" style="margin-top: 12px;">
+                              <button class="btn btn--sm" @click=${params.onUseLocalEmbeddings}>
+                                ${guidance.actionLabel}
+                              </button>
+                            </div>
+                          `
+                        : nothing}
+                    </div>
+                  `
+                : runtimeError
+                  ? html` <div class="callout ${runtimeErrorTone}">${runtimeError}</div> `
+                  : nothing}
 
               <div class="alisio-memory-runtime__meta">
                 ${renderRuntimeMetaItem(
@@ -657,9 +813,11 @@ export function renderMemoryHub(props: MemoryHubProps) {
                 status,
                 loading: props.memoryStatusLoading,
                 error: props.memoryStatusError,
+                aiState: props.aiState,
                 syncing: props.memorySyncing,
                 canSync: props.memorySyncAvailable && Boolean(status?.enabled),
                 onSync: props.onSync,
+                onUseLocalEmbeddings: props.onUseLocalEmbeddings,
               })
             : nothing}
           ${!selectedAgentId

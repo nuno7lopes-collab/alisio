@@ -1,4 +1,4 @@
-import { createCipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -134,6 +134,62 @@ async function setStoredAlisioPlan(root: string, plan: "free" | "plus") {
   await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
+describe("legacy Alisio state-dir migration", () => {
+  it("migrates ~/.openclaw into ~/.alisio before loading account state", async () => {
+    await withTempDir({ prefix: "alisio-store-home-" }, async (home) => {
+      const legacyRoot = path.join(home, ".openclaw");
+      const legacyStatePath = path.join(legacyRoot, "alisio", "state.json");
+
+      await fs.mkdir(path.dirname(legacyStatePath), { recursive: true });
+      await fs.writeFile(
+        legacyStatePath,
+        JSON.stringify(
+          {
+            version: 1,
+            account: {
+              profile: {
+                username: "nuno",
+                displayName: "Nuno Lopes",
+                email: "nuno@example.com",
+                avatarLabel: "N",
+                joinedAt: "2026-04-04T15:00:00.000Z",
+                plan: "Free Plan",
+              },
+              preferences: {
+                language: "pt-PT",
+                theme: "system",
+              },
+              session: {
+                state: "signed_in",
+                profileCompleted: true,
+              },
+            },
+            organization: {
+              mode: "none",
+            },
+            ai: {},
+            authorizations: {},
+            oauthCredentials: {},
+            pendingAuthorizations: {},
+          },
+          null,
+          2,
+        ),
+      );
+
+      const account = await getAlisioAccountState({
+        HOME: home,
+      } as NodeJS.ProcessEnv);
+
+      expect(account.profile.displayName).toBe("Nuno Lopes");
+      await expect(
+        fs.stat(path.join(home, ".alisio", "alisio", "state.json")),
+      ).resolves.toBeTruthy();
+      await expect(fs.stat(legacyRoot)).rejects.toThrow();
+    });
+  });
+});
+
 describe("Alisio organization state", () => {
   it("normalizes organization values before persisting them", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
@@ -231,6 +287,20 @@ describe("beginAlisioConnectorSetup", () => {
     expect(
       __testing.hasUsableConnectorTokenKeychain(env, execFileSyncMock as never, "darwin"),
     ).toBe(true);
+  });
+
+  it("looks up connector token keychain secrets under current and legacy state-dir accounts", () => {
+    const env = {
+      HOME: "/Users/nuno",
+    } as NodeJS.ProcessEnv;
+    const accountFor = (stateRoot: string) =>
+      `state|${createHash("sha256").update(path.resolve(stateRoot)).digest("hex").slice(0, 16)}`;
+
+    expect(__testing.resolveConnectorTokenKeychainAccounts(env)).toEqual([
+      accountFor("/Users/nuno/.alisio"),
+      accountFor("/Users/nuno/.openclaw"),
+      accountFor("/Users/nuno/.clawdbot"),
+    ]);
   });
 
   it("returns an honest setup fallback when OAuth client config is missing", async () => {

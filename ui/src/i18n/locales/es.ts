@@ -268,6 +268,21 @@ export const es: TranslationMap = {
       vector: "Vector",
       fts: "FTS",
       builtin: "Integrado",
+      guidance: {
+        oauthTitle: "La memoria todavía necesita embeddings",
+        oauthBody:
+          "El inicio de sesión de Codex/OpenAI cubre el chat, pero no proporciona credenciales para embeddings. Usa embeddings locales o configura una API key del proveedor de embeddings que quieras usar.",
+        genericTitle: "Todavía falta configurar los embeddings de memoria",
+        genericBody:
+          "La memoria semántica necesita embeddings locales o una API key del proveedor de embeddings seleccionado.",
+        providerTitle: "Este proveedor de embeddings necesita su propia API key",
+        providerBody:
+          "La memoria está configurada para usar embeddings de {provider}, así que debes configurar por separado la API key de ese proveedor.",
+        localTitle: "Los embeddings locales están seleccionados pero todavía no están listos",
+        localBody:
+          "Termina la configuración del runtime de embeddings locales o cambia la memoria a un proveedor remoto con su propia API key.",
+        useLocal: "Usar embeddings locales",
+      },
       settings: {
         title: "Ajustes de memoria",
         subtitle:
@@ -724,9 +739,12 @@ export const es: TranslationMap = {
           "Todavía no has añadido ningún endpoint remoto. También puedes usar un ordenador vinculado que aparezca arriba.",
         install: "Instalar",
         installing: "Instalando…",
+        update: "Actualizar",
+        updating: "Actualizando…",
         installed: "Instalado",
         uninstall: "Desinstalar",
         uninstalling: "Eliminando…",
+        running: "En ejecución",
         backend: "Runtime local",
         installedModels: "Modelos instalados",
         availableModels: "Modelos disponibles",
@@ -775,6 +793,9 @@ export const es: TranslationMap = {
         server: "servidor",
         servers: "servidores",
         recommendedToInstall: "Recomendados para instalar",
+        confirmInstall: "¿Instalar {model} en {target}?",
+        confirmUpdate: "¿Actualizar {model} en {target}?",
+        confirmUninstall: "¿Eliminar {model} de {target}?",
       },
       security: {
         title: "Seguridad",
@@ -1173,7 +1194,8 @@ export const es: TranslationMap = {
         emailAction: "Continuar con correo",
         code: "Código de verificación",
         codePlaceholder: "Introduce el código de 6 dígitos",
-        codeNote: "Introduce el código de un solo uso que enviamos a tu correo.",
+        codeNote:
+          "Introduce el código de un solo uso que enviamos a tu correo o abre el enlace de acceso de ese mismo mensaje.",
         useAnotherEmail: "Usar otro correo",
         waitForConnection: "Espera a que Alisio vuelva a conectarse y después continúa.",
         enterEmail: "Introduce tu correo para continuar.",

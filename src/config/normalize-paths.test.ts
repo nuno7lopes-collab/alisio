@@ -18,7 +18,7 @@ describe("normalizeConfigPaths", () => {
           telegram: {
             accounts: {
               personal: {
-                tokenFile: "~/.alisio/telegram.token",
+                tokenFile: "~/.openclaw/telegram.token",
               },
             },
           },
@@ -27,12 +27,19 @@ describe("normalizeConfigPaths", () => {
           },
         },
         agents: {
-          defaults: { workspace: "~/ws-default" },
+          defaults: {
+            workspace: "~/ws-default",
+            memorySearch: {
+              store: {
+                path: "~/.openclaw/memory/{agentId}.sqlite",
+              },
+            },
+          },
           list: [
             {
               id: "main",
               workspace: "~/ws-agent",
-              agentDir: "~/.alisio/agents/main",
+              agentDir: "~/.openclaw/agents/main",
               identity: {
                 name: "~not-a-path",
               },
@@ -54,12 +61,32 @@ describe("normalizeConfigPaths", () => {
         path.join(home, "Library", "Messages", "chat.db"),
       );
       expect(cfg.agents?.defaults?.workspace).toBe(path.join(home, "ws-default"));
+      expect(cfg.agents?.defaults?.memorySearch?.store?.path).toBe(
+        path.join(home, ".alisio", "memory", "{agentId}.sqlite"),
+      );
       expect(cfg.agents?.list?.[0]?.workspace).toBe(path.join(home, "ws-agent"));
       expect(cfg.agents?.list?.[0]?.agentDir).toBe(path.join(home, ".alisio", "agents", "main"));
       expect(cfg.agents?.list?.[0]?.sandbox?.workspaceRoot).toBe(path.join(home, "sandbox-root"));
 
       // Non-path key => do not treat "~" as home expansion.
       expect(cfg.agents?.list?.[0]?.identity?.name).toBe("~not-a-path");
+    });
+  });
+
+  it("rewrites absolute legacy state-dir paths to the .alisio namespace", async () => {
+    await withTempHome(async (home) => {
+      const cfg = normalizeConfigPaths({
+        agents: {
+          list: [
+            {
+              id: "main",
+              agentDir: path.join(home, ".openclaw", "agents", "main"),
+            },
+          ],
+        },
+      });
+
+      expect(cfg.agents?.list?.[0]?.agentDir).toBe(path.join(home, ".alisio", "agents", "main"));
     });
   });
 });

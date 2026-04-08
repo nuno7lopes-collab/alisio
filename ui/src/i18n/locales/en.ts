@@ -269,6 +269,21 @@ export const en: TranslationMap = {
       vector: "Vector",
       fts: "FTS",
       builtin: "Built-in",
+      guidance: {
+        oauthTitle: "Memory still needs embeddings",
+        oauthBody:
+          "Codex/OpenAI sign-in covers chat, but it does not provide embeddings credentials. Use local embeddings or configure an API key for the embeddings provider you want.",
+        genericTitle: "Memory embeddings still need setup",
+        genericBody:
+          "Semantic memory needs either local embeddings or an API key for the selected embeddings provider.",
+        providerTitle: "This embeddings provider needs its own API key",
+        providerBody:
+          "Memory is set to use {provider} embeddings, so you need to configure that provider's API key separately.",
+        localTitle: "Local embeddings are selected but not ready",
+        localBody:
+          "Finish setting up the local embeddings runtime, or switch memory to a remote embeddings provider with its own API key.",
+        useLocal: "Use local embeddings",
+      },
       settings: {
         title: "Memory settings",
         subtitle:
@@ -799,9 +814,12 @@ export const en: TranslationMap = {
           "You have not added any remote endpoints yet. You can also use a linked computer shown above.",
         install: "Install",
         installing: "Installing…",
+        update: "Update",
+        updating: "Updating…",
         installed: "Installed",
         uninstall: "Uninstall",
         uninstalling: "Removing…",
+        running: "Running",
         backend: "Local runtime",
         installedModels: "Installed models",
         availableModels: "Available models",
@@ -861,6 +879,9 @@ export const en: TranslationMap = {
         endpoint: "endpoint",
         endpoints: "endpoints",
         recommendedToInstall: "Recommended to install",
+        confirmInstall: "Install {model} on {target}?",
+        confirmUpdate: "Update {model} on {target}?",
+        confirmUninstall: "Remove {model} from {target}?",
       },
       security: {
         title: "Security",
@@ -1167,8 +1188,30 @@ export const en: TranslationMap = {
         execApproval: "Exec approval needed",
         pluginSubtitle: "Plugin action blocked until you review it.",
         execSubtitle: "Exec command blocked until you review it.",
+        targets: {
+          gateway: "this device",
+          node: "the selected computer",
+          nodeWithId: "computer {value}",
+          runtime: "the current runtime",
+        },
+        access: {
+          allowlist: "guarded allowlist access",
+          full: "full host access",
+          deny: "blocked-by-default access",
+          configured: "the configured runtime access",
+        },
+        effects: {
+          exec: "Will run on {target} with {access}.",
+          plugin: "Sensitive plugin action stays blocked until a person approves it.",
+        },
+        review: {
+          human: "Human approval required",
+          configured: "Configured by policy",
+        },
         labels: {
           type: "Type",
+          access: "Access",
+          review: "Approval",
           plugin: "Plugin",
           agent: "Agent",
           session: "Session",
@@ -1187,20 +1230,38 @@ export const en: TranslationMap = {
         apply: "Apply mode",
         recommended: {
           label: "Recommended",
-          title: "Predefined permissions",
+          title: "Safe path",
           badge: "Default",
           description:
             "Run the allowlist by default, ask on misses, and fail closed when approval is unavailable.",
+          points: {
+            allowlist: "Starts from the guarded allowlist path instead of direct host access.",
+            prompts: "Stops to ask when a command falls outside the known-safe path.",
+            failClosed:
+              "If nobody can approve it, the run stays blocked instead of silently continuing.",
+          },
         },
         fullAccess: {
           label: "Full access",
-          title: "Full computer access",
+          title: "Host path",
           badge: "High risk",
           description:
             "Use `security=full` and disable exec prompts by default. Operating-system permissions and other runtime guardrails still apply.",
+          points: {
+            host: "Commands run with full host access unless a tool adds its own checks.",
+            prompts: "Prompting is off by default, so runs continue without human review.",
+            scope: "Use this only for trusted operators or tightly controlled environments.",
+          },
         },
         custom: {
           label: "Custom",
+          title: "Overrides active",
+          badge: "Needs review",
+          points: {
+            configOverrides: "{count} agent override(s) change `tools.exec` defaults.",
+            approvalOverrides: "{count} agent override(s) change approval defaults.",
+            reset: "Apply a preset to collapse these overrides back to one visible baseline.",
+          },
         },
         gatewayOnlyShort: "Alisio only",
         gatewayOnlyTitle: "Access modes only apply to the Alisio runtime",
@@ -1208,9 +1269,38 @@ export const en: TranslationMap = {
           "Computer targets can still use their own exec approval file below, but this UI does not patch computer-level tools.exec defaults. Switch the target back to Alisio to apply Recommended or Full access safely.",
         customBody:
           "Agent-specific or exec-approval overrides are keeping this runtime outside the minimal preset tree. Apply one of the modes above to realign it.",
+        modeFooter:
+          "Per-agent overrides below stay visible, so you can see exactly where a preset stops applying.",
+        customFooter:
+          "Current runtime has {config} config override(s) and {approvals} approval override(s). Review them below before assuming one global policy.",
         lockedByExecApprovals:
           "Save or reload the Alisio exec approvals draft below before changing the access mode.",
         lockedByRawConfig: "Save or reload the raw config draft before changing the access mode.",
+      },
+      audit: {
+        title: "Recent decisions",
+        subtitle: "Short audit trail for the last approvals resolved in this session.",
+        emptyTitle: "No recent decisions yet",
+        emptyBody: "Resolved approvals appear here with who approved them and what they unlocked.",
+        systemActor: "System",
+        labels: {
+          when: "When",
+          resolvedBy: "Resolved by",
+        },
+        effects: {
+          exec: "Ran on {target} with {access}.",
+          plugin: "Plugin approval resolved for {title}.",
+        },
+      },
+      defaults: {
+        title: "Secure defaults",
+        subtitle: "Short checklist for staying on the safer path.",
+        items: {
+          review:
+            "Keep day-to-day work on the guarded path and only use full host access deliberately.",
+          overrides: "Check per-agent overrides before assuming a preset applies everywhere.",
+          repeat: "Use “Always allow” only for trusted repeat actions you can explain later.",
+        },
       },
     },
     setup: {
@@ -1262,7 +1352,8 @@ export const en: TranslationMap = {
         emailAction: "Continue with email",
         code: "Verification code",
         codePlaceholder: "Enter the 6-digit code",
-        codeNote: "Enter the one-time code we sent to your email.",
+        codeNote:
+          "Enter the one-time code we sent to your email, or open the sign-in link from that same message.",
         useAnotherEmail: "Use another email",
         waitForConnection: "Wait for Alisio to reconnect, then continue.",
         enterEmail: "Enter your email to continue.",

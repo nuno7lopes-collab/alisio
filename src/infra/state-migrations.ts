@@ -25,7 +25,7 @@ import {
   parseAgentSessionKey,
 } from "../routing/session-key.js";
 import { legacyEnvKey, readEnv } from "./env.js";
-import { expandHomePrefix } from "./home-dir.js";
+import { expandHomePrefix, resolveRequiredHomeDir } from "./home-dir.js";
 import { isWithinDir } from "./path-safety.js";
 import {
   ensureDir,
@@ -83,6 +83,10 @@ type StateMigrationConfig = Parameters<typeof resolveDefaultAgentId>[0];
 
 let autoMigrateChecked = false;
 let autoMigrateStateDirChecked = false;
+
+function resolveMigrationHomedir(env: NodeJS.ProcessEnv, homedir?: () => string): () => string {
+  return homedir ?? (() => resolveRequiredHomeDir(env, os.homedir));
+}
 
 function isSurfaceGroupKey(key: string): boolean {
   return key.includes(":group:") || key.includes(":channel:");
@@ -641,7 +645,7 @@ export async function autoMigrateLegacyStateDir(params: {
     return { migrated: false, skipped: true, changes: [], warnings: [] };
   }
 
-  const homedir = params.homedir ?? os.homedir;
+  const homedir = resolveMigrationHomedir(env, params.homedir);
   const targetDir = resolveNewStateDir(homedir);
   const legacyDirs = resolveLegacyStateDirs(homedir);
   let legacyDir = legacyDirs.find((dir) => {
@@ -768,7 +772,7 @@ export async function detectLegacyStateMigrations(params: {
   homedir?: () => string;
 }): Promise<LegacyStateDetection> {
   const env = params.env ?? process.env;
-  const homedir = params.homedir ?? os.homedir;
+  const homedir = resolveMigrationHomedir(env, params.homedir);
   const stateDir = resolveStateDir(env, homedir);
   const oauthDir = resolveOAuthDir(env, stateDir);
 
