@@ -32,4 +32,11 @@ struct CLIInstallerTests {
             fileManager: fm)
         #expect(missing == nil)
     }
+
+    @Test func `install script uses alisio host`() {
+        let command = CLIInstaller._testInstallScriptCommand(version: "2026.3.30", prefix: "/tmp/alisio")
+        let rendered = command.joined(separator: " ")
+        #expect(rendered.contains(AlisioBrand.installCLIURL))
+        #expect(!rendered.contains(LegacyBrand.installHost))
+    }
 }

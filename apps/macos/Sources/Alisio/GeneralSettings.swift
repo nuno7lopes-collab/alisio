@@ -418,7 +418,7 @@ struct GeneralSettings: View {
             Button("Recheck") { self.refreshGatewayStatus() }
                 .buttonStyle(.bordered)
 
-            Text("Alisio auto-starts its local runtime in local mode via launchd (\(gatewayLaunchdLabel)).")
+            Text("Alisio auto-starts its local runtime in local mode via launchd.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

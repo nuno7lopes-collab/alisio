@@ -6,6 +6,8 @@ public enum AlisioBrand {
     public static let bundleIdentifier = "ai.alisio.mac"
     public static let debugBundleIdentifier = bundleIdentifier + ".debug"
     public static let deepLinkIdentifier = bundleIdentifier + ".deeplink"
+    public static let installHost = "alisio.pt"
+    public static let installCLIURL = "https://\(installHost)/install-cli.sh"
     // The gateway protocol still keys macOS app auth and policy off the canonical client id.
     public static let gatewayClientIdentifier = "openclaw-macos"
     public static let logSubsystem = bundleIdentifier

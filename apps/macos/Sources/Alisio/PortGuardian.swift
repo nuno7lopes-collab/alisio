@@ -283,22 +283,14 @@ actor PortGuardian {
         tunnelHealthy: Bool?) -> PortReport
     {
         let expectedDesc: String
-        let okPredicate: (Listener) -> Bool
-        let expectedCommands = ["node", "alisio", "tsx", "pnpm", "bun"]
 
         switch mode {
         case .remote:
             expectedDesc = "Remote gateway (SSH tunnel, Docker, or direct)"
-            okPredicate = { _ in true }
         case .local:
             expectedDesc = "Gateway websocket (node/tsx)"
-            okPredicate = { listener in
-                let c = listener.command.lowercased()
-                return expectedCommands.contains { c.contains($0) }
-            }
         case .unconfigured:
             expectedDesc = "Gateway not configured"
-            okPredicate = { _ in false }
         }
 
         if listeners.isEmpty {
@@ -309,7 +301,7 @@ actor PortGuardian {
         let tunnelUnhealthy =
             mode == .remote && port == GatewayEnvironment.gatewayPort() && tunnelHealthy == false
         let reportListeners = listeners.map { listener in
-            var expected = okPredicate(listener)
+            var expected = Self.isExpected(listener, port: port, mode: mode)
             if tunnelUnhealthy, expected { expected = false }
             return ReportListener(
                 pid: listener.pid,
@@ -377,18 +369,66 @@ actor PortGuardian {
             if port == GatewayEnvironment.gatewayPort() { return true }
             return false
         case .local:
-            // Preserve both the legacy hidden alias and the current service process title.
-            if full.contains("gateway-daemon") || full.contains("alisio-gateway")
-                || cmd.contains("alisio-gateway")
-            {
-                return true
-            }
-            // If args are unavailable, treat a CLI listener as expected.
-            if cmd.contains("alisio"), full == cmd { return true }
-            return false
+            return self.isExpectedLocalGatewayProcess(command: cmd, fullCommand: full)
         case .unconfigured:
             return false
         }
+    }
+
+    private static func isExpectedLocalGatewayProcess(command: String, fullCommand: String) -> Bool {
+        let gatewayBinaryNames = [
+            "alisio-gateway",
+            "\(LegacyBrand.commandName)-gateway",
+            "gateway-daemon",
+        ]
+        if gatewayBinaryNames.contains(where: { fullCommand.contains($0) || command.contains($0) }) {
+            return true
+        }
+
+        let tokens = self.commandTokens(from: fullCommand)
+        let containsGatewaySubcommand = tokens.contains("gateway")
+
+        if (command == AlisioBrand.commandName || command == LegacyBrand.commandName)
+            && (containsGatewaySubcommand || fullCommand == command)
+        {
+            return true
+        }
+
+        guard containsGatewaySubcommand else {
+            return (command.contains(AlisioBrand.commandName) || command.contains(LegacyBrand.commandName))
+                && fullCommand == command
+        }
+
+        let launcherCommands: Set<String> = ["node", "bun", "tsx", "pnpm", "npm", "npx", "pnpx"]
+        guard launcherCommands.contains(command) else { return false }
+
+        if tokens.contains(AlisioBrand.commandName) || tokens.contains(LegacyBrand.commandName) {
+            return true
+        }
+
+        let entrypointSuffixes = [
+            "dist/index.js",
+            "dist/entry.js",
+            "\(AlisioBrand.commandName).mjs",
+            "\(LegacyBrand.commandName).mjs",
+            "bin/\(AlisioBrand.commandName).js",
+            "bin/\(LegacyBrand.commandName).js",
+            "scripts/run-node.mjs",
+            "src/entry.ts",
+            "src/index.ts",
+        ]
+        return tokens.contains { token in
+            entrypointSuffixes.contains { token.hasSuffix($0) }
+        }
+    }
+
+    private static func commandTokens(from fullCommand: String) -> [String] {
+        fullCommand
+            .split(whereSeparator: \.isWhitespace)
+            .map {
+                $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"'")).lowercased()
+            }
+            .filter { !$0.isEmpty }
     }
 
     private func probeGatewayHealthIfNeeded(

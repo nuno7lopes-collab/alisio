@@ -104,7 +104,7 @@ struct DebugSettings: View {
                     }
 
                 Text(
-                    "When enabled, Alisio won't install or manage \(gatewayLaunchdLabel). " +
+                    "When enabled, Alisio won't install or manage the local launchd gateway service. " +
                         "It will only attach to an existing local runtime.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

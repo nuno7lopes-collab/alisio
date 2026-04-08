@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { hostPackageNames, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 
 const WINDOWS_UNSAFE_CMD_CHARS_RE = /[&|<>^%\r\n]/;
+const RUNTIME_DEPS_LAYOUT_VERSION = 2;
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -17,7 +18,12 @@ function writeJson(filePath, value) {
 }
 
 function removePathIfExists(targetPath) {
-  fs.rmSync(targetPath, { recursive: true, force: true });
+  fs.rmSync(targetPath, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 50,
+  });
 }
 
 function makeTempDir(prefix) {
@@ -291,9 +297,13 @@ function installPluginRuntimeDeps(params) {
     }
 
     removePathIfExists(nodeModulesDir);
-    fs.cpSync(stagedNodeModulesDir, nodeModulesDir, { recursive: true });
+    fs.cpSync(stagedNodeModulesDir, nodeModulesDir, {
+      recursive: true,
+      dereference: true,
+    });
     writeJson(stampPath, {
       fingerprint,
+      layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION,
       generatedAt: new Date().toISOString(),
     });
   } finally {
@@ -317,7 +327,11 @@ export function stageBundledPluginRuntimeDeps(params = {}) {
     }
     const fingerprint = createRuntimeDepsFingerprint(packageJson);
     const stamp = readRuntimeDepsStamp(stampPath);
-    if (fs.existsSync(nodeModulesDir) && stamp?.fingerprint === fingerprint) {
+    if (
+      fs.existsSync(nodeModulesDir) &&
+      stamp?.fingerprint === fingerprint &&
+      stamp?.layoutVersion === RUNTIME_DEPS_LAYOUT_VERSION
+    ) {
       continue;
     }
     installPluginRuntimeDepsImpl({

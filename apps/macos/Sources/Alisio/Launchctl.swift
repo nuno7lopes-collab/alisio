@@ -40,6 +40,15 @@ struct LaunchAgentPlistSnapshot: Equatable {
 }
 
 enum LaunchAgentPlist {
+    static func snapshot(urls: [URL]) -> LaunchAgentPlistSnapshot? {
+        for url in urls {
+            if let snapshot = self.snapshot(url: url) {
+                return snapshot
+            }
+        }
+        return nil
+    }
+
     static func snapshot(url: URL) -> LaunchAgentPlistSnapshot? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         let rootAny: Any

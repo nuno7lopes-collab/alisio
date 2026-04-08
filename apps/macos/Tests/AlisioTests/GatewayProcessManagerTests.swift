@@ -130,7 +130,7 @@ struct GatewayProcessManagerTests {
                 #expect(details.contains("port \(port)"))
                 #expect(details.contains("Telegram linked"))
                 #expect(details.contains("auth 1m"))
-                #expect(details.contains("pid 4242 alisio-gateway @ /tmp/alisio-gateway"))
+                #expect(details.contains("pid 4242 Alisio runtime @ /tmp/alisio-gateway"))
                 await cleanup()
             } catch {
                 await cleanup()

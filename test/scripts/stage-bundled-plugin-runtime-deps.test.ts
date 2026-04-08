@@ -7,6 +7,8 @@ import {
   stageBundledPluginRuntimeDeps,
 } from "../../scripts/stage-bundled-plugin-runtime-deps.mjs";
 
+const RUNTIME_DEPS_LAYOUT_VERSION = 2;
+
 describe("resolveNpmRunner", () => {
   it("anchors npm staging to the active node toolchain when npm-cli.js exists", () => {
     const execPath = "/Users/test/.nodenv/versions/24.13.0/bin/node";
@@ -164,7 +166,7 @@ describe("stageBundledPluginRuntimeDeps", () => {
         installCount += 1;
         fs.writeFileSync(
           path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
-          `${JSON.stringify({ fingerprint }, null, 2)}\n`,
+          `${JSON.stringify({ fingerprint, layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION }, null, 2)}\n`,
           "utf8",
         );
       },
@@ -207,7 +209,7 @@ describe("stageBundledPluginRuntimeDeps", () => {
           fs.writeFileSync(path.join(nodeModulesDir, "marker.txt"), `${installCount}\n`, "utf8");
           fs.writeFileSync(
             path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
-            `${JSON.stringify({ fingerprint }, null, 2)}\n`,
+            `${JSON.stringify({ fingerprint, layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION }, null, 2)}\n`,
             "utf8",
           );
         },
@@ -227,5 +229,51 @@ describe("stageBundledPluginRuntimeDeps", () => {
 
     expect(installCount).toBe(2);
     expect(fs.readFileSync(path.join(pluginDir, "node_modules", "marker.txt"), "utf8")).toBe("2\n");
+  });
+
+  it("restages when an old stamp is missing the layout version", () => {
+    const { pluginDir, repoRoot } = createBundledPluginFixture({
+      packageJson: {
+        name: "@openclaw/fixture-plugin",
+        version: "1.0.0",
+        dependencies: { "left-pad": "1.3.0" },
+        openclaw: { bundle: { stageRuntimeDependencies: true } },
+      },
+    });
+    const nodeModulesDir = path.join(pluginDir, "node_modules");
+    fs.mkdirSync(nodeModulesDir, { recursive: true });
+    fs.writeFileSync(path.join(nodeModulesDir, "marker.txt"), "stale\n", "utf8");
+
+    let installCount = 0;
+    stageBundledPluginRuntimeDeps({
+      cwd: repoRoot,
+      installPluginRuntimeDepsImpl: ({ fingerprint }: { fingerprint: string }) => {
+        installCount += 1;
+        fs.mkdirSync(nodeModulesDir, { recursive: true });
+        fs.writeFileSync(path.join(nodeModulesDir, "marker.txt"), "fresh\n", "utf8");
+        fs.writeFileSync(
+          path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
+          `${JSON.stringify({ fingerprint }, null, 2)}\n`,
+          "utf8",
+        );
+      },
+    });
+
+    stageBundledPluginRuntimeDeps({
+      cwd: repoRoot,
+      installPluginRuntimeDepsImpl: ({ fingerprint }: { fingerprint: string }) => {
+        installCount += 1;
+        fs.mkdirSync(nodeModulesDir, { recursive: true });
+        fs.writeFileSync(path.join(nodeModulesDir, "marker.txt"), "updated\n", "utf8");
+        fs.writeFileSync(
+          path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
+          `${JSON.stringify({ fingerprint, layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION }, null, 2)}\n`,
+          "utf8",
+        );
+      },
+    });
+
+    expect(installCount).toBe(2);
+    expect(fs.readFileSync(path.join(nodeModulesDir, "marker.txt"), "utf8")).toBe("updated\n");
   });
 });

@@ -126,7 +126,9 @@ struct LowCoverageHelperTests {
         let okReport = PortGuardian._testBuildReport(
             port: 18789,
             mode: .local,
-            listeners: [(pid: 1, command: "node", fullCommand: "node", user: "me")])
+            listeners: [(pid: 1, command: "node",
+                         fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway --port 18789",
+                         user: "me")])
         #expect(okReport.offenders.isEmpty)
 
         let badReport = PortGuardian._testBuildReport(
@@ -173,9 +175,30 @@ struct LowCoverageHelperTests {
             port: 18789, mode: .local) == true)
 
         #expect(PortGuardian._testIsExpected(
+            command: "openclaw-gateway",
+            fullCommand: "openclaw-gateway",
+            port: 18789, mode: .local) == true)
+
+        #expect(PortGuardian._testIsExpected(
+            command: "node",
+            fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway --port 18789",
+            port: 18789, mode: .local) == true)
+
+        #expect(PortGuardian._testIsExpected(
+            command: "pnpm",
+            fullCommand: "pnpm alisio gateway --port 18789",
+            port: 18789, mode: .local) == true)
+
+        #expect(PortGuardian._testIsExpected(
             command: "node",
             fullCommand: "node /path/to/gateway-daemon",
             port: 18789, mode: .local) == true)
+
+        #expect(PortGuardian._testBuildReport(
+            port: 18789,
+            mode: .local,
+            listeners: [(pid: 7, command: "node", fullCommand: "node other-server.js", user: "me")])
+            .offenders.count == 1)
     }
 
     @Test func `port guardian remote mode report accepts any listener`() {

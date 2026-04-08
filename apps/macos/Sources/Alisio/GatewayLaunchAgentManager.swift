@@ -4,15 +4,23 @@ import AlisioSupport
 enum GatewayLaunchAgentManager {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
+    private static var launchAgentLabels: [String] {
+        var seen = Set<String>()
+        return [gatewayLaunchdLabel, LegacyBrand.gatewayLaunchdLabel].filter { seen.insert($0).inserted }
+    }
 
     private static var disableLaunchAgentMarkerURL: URL {
         FileManager().homeDirectoryForCurrentUser
             .appendingPathComponent(self.disableLaunchAgentMarker)
     }
 
-    private static var plistURL: URL {
+    private static func plistURL(for label: String) -> URL {
         FileManager().homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/LaunchAgents/\(gatewayLaunchdLabel).plist")
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+    }
+
+    private static var plistURLs: [URL] {
+        self.launchAgentLabels.map { self.plistURL(for: $0) }
     }
 
     static func isLaunchAgentWriteDisabled() -> Bool {
@@ -47,8 +55,7 @@ enum GatewayLaunchAgentManager {
     }
 
     static func isLoaded() async -> Bool {
-        guard let loaded = await self.readDaemonLoaded() else { return false }
-        return loaded
+        !(await self.loadedLaunchAgentLabels()).isEmpty
     }
 
     static func set(enabled: Bool, bundlePath: String, port: Int) async -> String? {
@@ -75,15 +82,35 @@ enum GatewayLaunchAgentManager {
         }
 
         self.logger.info("launchd disable requested via CLI")
-        return await self.runDaemonCommand(["uninstall"])
+        let daemonError = await self.runDaemonCommand(["uninstall"])
+        let cleanupErrors = await self.cleanupCompatibilityLaunchAgents()
+        if daemonError == nil, cleanupErrors.isEmpty {
+            return nil
+        }
+
+        return ([daemonError] + cleanupErrors)
+            .compactMap { $0 }
+            .joined(separator: "; ")
     }
 
     static func kickstart() async {
-        _ = await self.runDaemonCommand(["restart"], timeout: 20)
+        let loadedLabels = await self.loadedLaunchAgentLabels()
+        guard !loadedLabels.isEmpty else {
+            _ = await self.runDaemonCommand(["restart"], timeout: 20)
+            return
+        }
+
+        for label in loadedLabels {
+            let result = await Launchctl.run(["kickstart", "-k", "gui/\(getuid())/\(label)"])
+            if result.status != 0 {
+                let detail = self.summarize(result.output) ?? "exit \(result.status)"
+                self.logger.error("launchd kickstart failed label=\(label, privacy: .public) detail=\(detail, privacy: .public)")
+            }
+        }
     }
 
     static func launchdConfigSnapshot() -> LaunchAgentPlistSnapshot? {
-        LaunchAgentPlist.snapshot(url: self.plistURL)
+        LaunchAgentPlist.snapshot(urls: self.plistURLs)
     }
 
     static func launchdGatewayLogPath() -> String {
@@ -103,20 +130,41 @@ enum GatewayLaunchAgentManager {
 }
 
 extension GatewayLaunchAgentManager {
-    private static func readDaemonLoaded() async -> Bool? {
-        let result = await self.runDaemonCommandResult(
-            ["status", "--json", "--no-probe"],
-            timeout: 15,
-            quiet: true)
-        guard result.success, let payload = result.payload else { return nil }
-        guard
-            let json = try? JSONSerialization.jsonObject(with: payload) as? [String: Any],
-            let service = json["service"] as? [String: Any],
-            let loaded = service["loaded"] as? Bool
-        else {
-            return nil
+    private static func loadedLaunchAgentLabels() async -> [String] {
+        var loaded: [String] = []
+        for label in self.launchAgentLabels {
+            let result = await Launchctl.run(["print", "gui/\(getuid())/\(label)"])
+            if result.status == 0 {
+                loaded.append(label)
+            }
         }
         return loaded
+    }
+
+    private static func cleanupCompatibilityLaunchAgents() async -> [String] {
+        var errors: [String] = []
+        let loadedLabels = await self.loadedLaunchAgentLabels()
+
+        for label in loadedLabels {
+            let result = await Launchctl.run(["bootout", "gui/\(getuid())/\(label)"])
+            if result.status != 0 {
+                let output = result.output.lowercased()
+                if !output.contains("could not find service") && !output.contains("service not found") {
+                    let detail = self.summarize(result.output) ?? "exit \(result.status)"
+                    errors.append("launchctl bootout \(label): \(detail)")
+                }
+            }
+        }
+
+        for url in self.plistURLs where FileManager().fileExists(atPath: url.path) {
+            do {
+                try FileManager().removeItem(at: url)
+            } catch {
+                errors.append("remove \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        return errors
     }
 
     private struct CommandResult {

@@ -90,7 +90,7 @@ final class GatewayProcessManager {
         guard !enabled else { return }
         let bundlePath = Bundle.main.bundleURL.path
         let port = GatewayEnvironment.gatewayPort()
-        self.appendLog("[gateway] auto-enabling launchd job (\(gatewayLaunchdLabel)) on port \(port)\n")
+        self.appendLog("[gateway] auto-enabling launchd gateway service on port \(port)\n")
         let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
         if let err {
             self.appendLog("[gateway] launchd auto-enable failed: \(err)\n")
@@ -195,7 +195,7 @@ final class GatewayProcessManager {
     private func attachExistingGatewayIfAvailable() async -> Bool {
         let port = GatewayEnvironment.gatewayPort()
         let instance = await PortGuardian.shared.describe(port: port)
-        let instanceText = instance.map { self.describe(instance: $0) }
+        let instanceText = instance.map { self.describeBrandedRuntime(instance: $0) }
         let hasListener = instance != nil
 
         let attemptAttach = {
@@ -294,6 +294,11 @@ final class GatewayProcessManager {
         return "pid \(instance.pid) \(instance.command) @ \(path)"
     }
 
+    private func describeBrandedRuntime(instance: PortGuardian.Descriptor) -> String {
+        let path = instance.executablePath ?? "path unknown"
+        return "pid \(instance.pid) Alisio runtime @ \(path)"
+    }
+
     private func describeAttachFailure(_ error: Error, port: Int, instance: PortGuardian.Descriptor?) -> String {
         let ns = error as NSError
         let message = ns.localizedDescription.isEmpty ? "unknown error" : ns.localizedDescription
@@ -352,7 +357,7 @@ final class GatewayProcessManager {
 
         let bundlePath = Bundle.main.bundleURL.path
         let port = GatewayEnvironment.gatewayPort()
-        self.appendLog("[gateway] enabling launchd job (\(gatewayLaunchdLabel)) on port \(port)\n")
+        self.appendLog("[gateway] enabling launchd gateway service on port \(port)\n")
         self.logger.info("gateway enabling launchd port=\(port)")
         let err = await GatewayLaunchAgentManager.set(enabled: true, bundlePath: bundlePath, port: port)
         if let err {
