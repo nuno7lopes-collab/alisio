@@ -7,14 +7,14 @@
 ALISIO_CODE_SIGN_STYLE = Manual
 ALISIO_DEVELOPMENT_TEAM = Y5PE65HELJ
 
-ALISIO_APP_BUNDLE_ID = ai.alisio.client
-ALISIO_SHARE_BUNDLE_ID = ai.alisio.client.share
-ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.client.watchkitapp
-ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.client.watchkitapp.extension
-ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.client.activitywidget
+ALISIO_APP_BUNDLE_ID = ai.alisio.ios
+ALISIO_SHARE_BUNDLE_ID = ai.alisio.ios.share
+ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.ios.watchkitapp
+ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.ios.watchkitapp.extension
+ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.ios.activitywidget
 
-ALISIO_APP_PROFILE = ai.alisio.client Development
-ALISIO_SHARE_PROFILE = ai.alisio.client.share Development
+ALISIO_APP_PROFILE = ai.alisio.ios Development
+ALISIO_SHARE_PROFILE = ai.alisio.ios.share Development
 
 // Keep local includes after defaults: xcconfig is evaluated top-to-bottom,
 // so later assignments in local files override the defaults above.

@@ -3,10 +3,10 @@
 
 ALISIO_IOS_DEFAULT_TEAM = Y5PE65HELJ
 ALISIO_IOS_SELECTED_TEAM = $(ALISIO_IOS_DEFAULT_TEAM)
-ALISIO_APP_BUNDLE_ID = ai.alisio.client
-ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.client.watchkitapp
-ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.client.watchkitapp.extension
-ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.client.activitywidget
+ALISIO_APP_BUNDLE_ID = ai.alisio.ios
+ALISIO_WATCH_APP_BUNDLE_ID = ai.alisio.ios.watchkitapp
+ALISIO_WATCH_EXTENSION_BUNDLE_ID = ai.alisio.ios.watchkitapp.extension
+ALISIO_ACTIVITY_WIDGET_BUNDLE_ID = ai.alisio.ios.activitywidget
 
 // Local contributors can override this by running scripts/ios-configure-signing.sh.
 // Keep include after defaults: xcconfig is evaluated top-to-bottom.

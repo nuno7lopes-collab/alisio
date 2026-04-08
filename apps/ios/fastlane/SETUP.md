@@ -32,7 +32,7 @@ ASC_KEYCHAIN_ACCOUNT=YOUR_MAC_USERNAME
 Optional app targeting variables (helpful if Fastlane cannot auto-resolve app by bundle):
 
 ```bash
-ASC_APP_IDENTIFIER=ai.alisio.client
+ASC_APP_IDENTIFIER=ai.alisio.ios
 # or
 ASC_APP_ID=YOUR_APP_STORE_CONNECT_APP_ID
 ```
