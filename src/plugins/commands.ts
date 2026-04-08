@@ -6,7 +6,7 @@
  */
 
 import { parseExplicitTargetForChannel } from "../channels/plugins/target-parsing.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { logVerbose } from "../globals.js";
 import {
   clearPluginCommands,
@@ -220,7 +220,7 @@ export async function executePluginCommand(params: {
   isAuthorizedSender: boolean;
   gatewayClientScopes?: PluginCommandContext["gatewayClientScopes"];
   commandBody: string;
-  config: OpenClawConfig;
+  config: AlisioConfig;
   from?: PluginCommandContext["from"];
   to?: PluginCommandContext["to"];
   accountId?: PluginCommandContext["accountId"];

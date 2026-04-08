@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReplyPayload } from "../auto-reply/types.js";
 import type { ChannelPlugin } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { createChannelTestPluginBase, createTestRegistry } from "../test-utils/channel-plugins.js";
 import { createExecApprovalForwarder } from "./exec-approval-forwarder.js";
@@ -30,7 +30,7 @@ afterEach(() => {
 const emptyRegistry = createTestRegistry([]);
 
 function isDiscordExecApprovalClientEnabledForTest(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   const accountId = params.accountId?.trim();
@@ -44,7 +44,7 @@ function isDiscordExecApprovalClientEnabledForTest(params: {
 }
 
 function isTelegramExecApprovalClientEnabledForTest(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   const accountId = params.accountId?.trim();
@@ -58,7 +58,7 @@ function isTelegramExecApprovalClientEnabledForTest(params: {
 }
 
 function shouldSuppressTelegramExecApprovalForwardingFallbackForTest(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   target: { channel: string; accountId?: string | null };
   request: { request: { turnSourceChannel?: string | null; turnSourceAccountId?: string | null } };
 }): boolean {
@@ -170,7 +170,7 @@ function getFirstDeliveryText(deliver: ReturnType<typeof vi.fn>): string {
   return firstCall?.payloads?.[0]?.text ?? "";
 }
 
-function makeTargetsCfg(targets: Array<{ channel: string; to: string }>): OpenClawConfig {
+function makeTargetsCfg(targets: Array<{ channel: string; to: string }>): AlisioConfig {
   return {
     approvals: {
       exec: {
@@ -179,13 +179,13 @@ function makeTargetsCfg(targets: Array<{ channel: string; to: string }>): OpenCl
         targets,
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 const TARGETS_CFG = makeTargetsCfg([{ channel: "slack", to: "U123" }]);
 
 function createForwarder(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   deliver?: ReturnType<typeof vi.fn>;
   resolveSessionTarget?: () => { channel: string; to: string } | null;
 }) {
@@ -205,7 +205,7 @@ function createForwarder(params: {
   return { deliver, forwarder };
 }
 
-function makeSessionCfg(options: { discordExecApprovalsEnabled?: boolean } = {}): OpenClawConfig {
+function makeSessionCfg(options: { discordExecApprovalsEnabled?: boolean } = {}): AlisioConfig {
   return {
     ...(options.discordExecApprovalsEnabled
       ? {
@@ -220,11 +220,11 @@ function makeSessionCfg(options: { discordExecApprovalsEnabled?: boolean } = {})
         }
       : {}),
     approvals: { exec: { enabled: true, mode: "session" } },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 async function expectDiscordSessionTargetRequest(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   expectedAccepted: boolean;
   expectedDeliveryCount: number;
 }) {
@@ -256,7 +256,7 @@ async function expectSessionFilterRequestResult(params: {
         sessionFilter: params.sessionFilter,
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 
   const { deliver, forwarder } = createForwarder({
     cfg,
@@ -304,7 +304,7 @@ describe("exec approval forwarder", () => {
     vi.useFakeTimers();
     const cfg = {
       approvals: { exec: { enabled: true, mode: "session" } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const { deliver, forwarder } = createForwarder({
       cfg,
@@ -397,7 +397,7 @@ describe("exec approval forwarder", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const { deliver, forwarder } = createForwarder({
       cfg,
@@ -510,7 +510,7 @@ describe("exec approval forwarder", () => {
 
   it("returns false when forwarding is disabled", async () => {
     const { deliver, forwarder } = createForwarder({
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
     });
     await expect(forwarder.handleRequested(baseRequest)).resolves.toBe(false);
     expect(deliver).not.toHaveBeenCalled();

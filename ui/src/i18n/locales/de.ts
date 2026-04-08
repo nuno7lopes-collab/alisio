@@ -40,15 +40,15 @@ export const de: TranslationMap = {
     organization: "Workspace-Systeme, Kanäle und Zustellungsgesundheit.",
     sessions: "Aktive Sitzungen inspizieren und Standardeinstellungen pro Sitzung anpassen.",
     automations: "Aufweckzeiten und wiederkehrende Agent-Läufe planen.",
-    chat: "Direkte Gateway-Chat-Sitzung für schnelle Eingriffe.",
+    chat: "Direkte Alisio-Chat-Sitzung für schnelle Eingriffe.",
     settings: "Workspace-Konfiguration, native Shell und Diagnose.",
   },
   overview: {
     access: {
-      title: "Gateway-Zugang",
+      title: "Workspace-Zugang",
       subtitle: "Wo sich das Dashboard verbindet und wie es sich authentifiziert.",
       wsUrl: "WebSocket-URL",
-      token: "Gateway-Token",
+      token: "Zugriffstoken",
       password: "Passwort (nicht gespeichert)", // pragma: allowlist secret
       sessionKey: "Standard-Sitzungsschlüssel",
       language: "Sprache",
@@ -57,7 +57,7 @@ export const de: TranslationMap = {
     },
     snapshot: {
       title: "Snapshot",
-      subtitle: "Neueste Gateway-Handshake-Informationen.",
+      subtitle: "Neueste Workspace-Handshake-Informationen.",
       status: "Status",
       uptime: "Betriebszeit",
       tickInterval: "Tick-Intervall",
@@ -69,7 +69,7 @@ export const de: TranslationMap = {
       instances: "Instanzen",
       instancesHint: "Präsenzsignale in den letzten 5 Minuten.",
       sessions: "Sitzungen",
-      sessionsHint: "Letzte vom Gateway verfolgte Sitzungsschlüssel.",
+      sessionsHint: "Letzte von diesem Workspace verfolgte Sitzungsschlüssel.",
       cron: "Cron",
       cronNext: "Nächste Ausführung {time}",
     },
@@ -78,7 +78,7 @@ export const de: TranslationMap = {
       subtitle: "Kurze Hinweise für Remote-Steuerung.",
       tailscaleTitle: "Tailscale Serve",
       tailscaleText:
-        "Bevorzugen Sie den Serve-Modus, um das Gateway auf Loopback mit Tailnet-Auth zu halten.",
+        "Bevorzugen Sie den Serve-Modus, um Alisio auf Loopback mit Tailnet-Auth zu halten.",
       sessionTitle: "Sitzungshygiene",
       sessionText: "Verwenden Sie /new oder sessions.patch, um den Kontext zurückzusetzen.",
       cronTitle: "Cron-Erinnerungen",
@@ -86,22 +86,22 @@ export const de: TranslationMap = {
     },
     auth: {
       required:
-        "Dieses Gateway erfordert Authentifizierung. Fügen Sie ein Token oder Passwort hinzu und klicken Sie auf Verbinden.",
+        "Dieser Workspace erfordert Authentifizierung. Fügen Sie ein Token oder Passwort hinzu und klicken Sie auf Verbinden.",
       failed:
         "Authentifizierung fehlgeschlagen. Kopieren Sie erneut eine URL mit Token über {command}, oder aktualisieren Sie das Token und klicken Sie auf Verbinden.",
     },
     pairing: {
-      hint: "Dieses Gerät benötigt eine Pairing-Freigabe vom Gateway-Host.",
+      hint: "Dieses Gerät benötigt eine Pairing-Freigabe vom Alisio-Host.",
       mobileHint:
         "Auf dem Mobilgerät? Kopieren Sie die vollständige URL (einschließlich #token=...) aus der Alisio-Desktop-App auf Ihrem Desktop.",
     },
     insecure: {
-      hint: "Diese Seite ist HTTP, daher blockiert der Browser die Geräteidentifikation. Verwenden Sie HTTPS (Tailscale Serve) oder öffnen Sie {url} auf dem Gateway-Host.",
+      hint: "Diese Seite ist HTTP, daher blockiert der Browser die Geräteidentifikation. Verwenden Sie HTTPS (Tailscale Serve) oder öffnen Sie {url} auf dem Alisio-Host.",
       stayHttp: "Wenn Sie bei HTTP bleiben müssen, setzen Sie {config} (nur Token).",
     },
   },
   chat: {
-    disconnected: "Verbindung zum Gateway getrennt.",
+    disconnected: "Verbindung zu Alisio getrennt.",
     refreshTitle: "Chat-Daten aktualisieren",
     thinkingToggle: "Ausgabe des Assistenten ein-/ausblenden",
     focusToggle: "Fokusmodus ein-/ausschalten (Seitenleiste + Kopfzeile ausblenden)",

@@ -1,7 +1,7 @@
 import os from "node:os";
 import { formatSkillsForPrompt, type Skill } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { createCanonicalFixtureSkill } from "../skills.test-helpers.js";
 import type { SkillEntry } from "./types.js";
 import {
@@ -37,7 +37,7 @@ function buildPrompt(
           ...(limits.maxCount !== undefined && { maxSkillsInPrompt: limits.maxCount }),
         },
       },
-    } satisfies OpenClawConfig,
+    } satisfies AlisioConfig,
   });
 }
 

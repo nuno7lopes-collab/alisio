@@ -32,7 +32,7 @@ describe("registerProviderStreamForModel", () => {
     const model: Model<string> = {
       id: "gpt-oss-20b",
       name: "gpt-oss-20b",
-      api: "openclaw-alisio:alisio-server-home-lab",
+      api: "alisio:alisio-server-home-lab",
       provider: "alisio-server-home-lab",
       baseUrl: "http://192.168.1.50:1234",
       reasoning: false,

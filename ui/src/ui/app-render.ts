@@ -7,6 +7,7 @@ import {
   alisioPlanTranslationKey,
   normalizeAlisioPlan,
 } from "../../../src/shared/alisio-billing.js";
+import { legacyColonKey } from "../brand-compat.ts";
 import { i18n, t } from "../i18n/index.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 import {
@@ -53,7 +54,7 @@ import {
   renameAlisioAiProfile,
   refreshAlisioAi,
   refreshAlisioAiProfile,
-  requestAlisioPasswordReset,
+  requestAlisioRecoveryEmail,
   restartAlisioRuntime,
   revokeAlisioConnector,
   saveAlisioAccount,
@@ -67,10 +68,12 @@ import {
   verifyAlisioAccountEmailAuth,
 } from "./controllers/alisio.ts";
 import {
+  approveChannelPairingRequest,
   cancelChannelSetup,
   continueChannelSetup,
   loadChannels,
   logoutChannelAccount,
+  rejectChannelPairingRequest,
   startChannelSetup,
   startWebChannelLogin,
   waitWebChannelLogin,
@@ -110,10 +113,14 @@ import {
 import { loadNodes } from "./controllers/nodes.ts";
 import { applyGatewayAccessMode, loadGatewayAccessMode } from "./controllers/security-access.ts";
 import {
+  allowBundledSkill,
+  enableSkillConfigPath,
   installSkill,
   loadSkills,
   saveSkillApiKey,
+  saveSkillEnv,
   updateSkillEdit,
+  updateSkillEnvEdit,
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
@@ -154,7 +161,9 @@ import { renderSettingsHub } from "./views/settings.ts";
 import { renderSetup } from "./views/setup.ts";
 
 const UPDATE_BANNER_DISMISS_KEY = "alisio:workspace:update-banner-dismissed:v1";
-const LEGACY_UPDATE_BANNER_DISMISS_KEYS = ["openclaw:control-ui:update-banner-dismissed:v1"];
+const LEGACY_UPDATE_BANNER_DISMISS_KEYS = [
+  legacyColonKey("control-ui", "update-banner-dismissed", "v1"),
+];
 
 type DismissedUpdateBanner = {
   latestVersion: string;
@@ -1209,6 +1218,12 @@ export function renderApp(state: AppViewState) {
               onLogoutChannel: (channelId, accountId) => {
                 void logoutChannelAccount(state, { channelId, accountId });
               },
+              onApproveChannelPairing: (channelId, accountId, requestId) => {
+                void approveChannelPairingRequest(state, { channelId, accountId, requestId });
+              },
+              onRejectChannelPairing: (channelId, accountId, requestId) => {
+                void rejectChannelPairingRequest(state, { channelId, accountId, requestId });
+              },
               onOpenSupportUrl: (targetUrl) => {
                 void openExternal(targetUrl);
               },
@@ -1249,11 +1264,23 @@ export function renderApp(state: AppViewState) {
               onEdit: (skillKey, value) => {
                 updateSkillEdit(state, skillKey, value);
               },
+              onEnvEdit: (skillKey, envName, value) => {
+                updateSkillEnvEdit(state, skillKey, envName, value);
+              },
               onSaveKey: (skillKey) => {
                 void saveSkillApiKey(state, skillKey);
               },
+              onSaveEnv: (skillKey, envName) => {
+                void saveSkillEnv(state, skillKey, envName);
+              },
               onInstall: (skillKey, name, installId) => {
                 void installSkill(state, skillKey, name, installId);
+              },
+              onEnableConfig: (skillKey, configPath) => {
+                void enableSkillConfigPath(state, skillKey, configPath);
+              },
+              onAllowBundled: (skillKey) => {
+                void allowBundledSkill(state, skillKey);
               },
               onDetailOpen: (skillKey) => {
                 state.skillsDetailKey = skillKey;
@@ -1266,6 +1293,10 @@ export function renderApp(state: AppViewState) {
               },
               onOpenAuthentications: () => {
                 state.setTab("authentications" as import("./navigation.ts").Tab);
+              },
+              onOpenSettings: () => {
+                state.settingsSection = "account";
+                state.setTab("settings" as import("./navigation.ts").Tab);
               },
             })
           : nothing}
@@ -1467,6 +1498,8 @@ export function renderApp(state: AppViewState) {
                   state.alisioAccount.session.profileCompleted) ||
                 state.alisioBootstrap?.accountReady,
               ),
+              plan:
+                state.alisioAccount?.profile.plan ?? state.alisioBootstrap?.account?.profile.plan,
               loading: state.alisioOrganizationLoading,
               error: state.alisioOrganizationError,
               organization: state.alisioOrganization,
@@ -1932,7 +1965,6 @@ export function renderApp(state: AppViewState) {
               locale: state.settings.locale,
               theme: state.theme,
               themeMode: state.themeMode,
-              borderRadius: state.settings.borderRadius,
               onLocaleChange: (locale) => {
                 void i18n.setLocale(locale);
                 state.applySettings({ ...state.settings, locale });
@@ -1944,9 +1976,6 @@ export function renderApp(state: AppViewState) {
               onThemeModeChange: (themeMode) => {
                 state.setThemeMode(themeMode);
                 void saveAlisioAccount(state, { theme: themeMode });
-              },
-              onBorderRadiusChange: (borderRadius) => {
-                state.setBorderRadius(borderRadius);
               },
               onSaveAccountField: (patch) => {
                 void saveAlisioAccount(state, patch);
@@ -1978,8 +2007,8 @@ export function renderApp(state: AppViewState) {
               onSignOutAccount: () => {
                 void signOutAlisioAccount(state);
               },
-              onRequestPasswordReset: () => {
-                void requestAlisioPasswordReset(state);
+              onRequestRecoveryEmail: () => {
+                void requestAlisioRecoveryEmail(state);
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

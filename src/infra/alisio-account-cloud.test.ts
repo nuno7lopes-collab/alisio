@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   completeAlisioCloudAccountProfile,
+  listMissingRequiredAlisioCloudEnvVars,
   resolveAlisioAccountBackend,
   restoreAlisioCloudAccountSession,
   signUpAlisioCloudAccount,
@@ -51,6 +52,19 @@ function createSupabaseProfile(): AlisioCloudAccountProfile {
 describe("alisio-account-cloud", () => {
   it("always resolves the account backend to Supabase", () => {
     expect(resolveAlisioAccountBackend({} as NodeJS.ProcessEnv)).toBe("supabase");
+  });
+
+  it("lists missing required Supabase env vars explicitly", () => {
+    expect(listMissingRequiredAlisioCloudEnvVars({} as NodeJS.ProcessEnv)).toEqual([
+      "ALISIO_SUPABASE_URL",
+      "ALISIO_SUPABASE_ANON_KEY",
+    ]);
+    expect(
+      listMissingRequiredAlisioCloudEnvVars({
+        ALISIO_SUPABASE_URL: "https://example.supabase.co",
+        ALISIO_SUPABASE_ANON_KEY: "anon-key",
+      } as NodeJS.ProcessEnv),
+    ).toEqual([]);
   });
 
   it("creates a persisted default profile in Supabase during sign-up", async () => {

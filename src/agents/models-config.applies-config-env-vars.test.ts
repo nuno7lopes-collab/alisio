@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   installModelsConfigTestHooks,
   unsetEnv,
@@ -18,7 +18,7 @@ describe("models-config", () => {
     await withTempHome(async () => {
       await withTempEnv(["OPENROUTER_API_KEY", TEST_ENV_VAR], async () => {
         unsetEnv(["OPENROUTER_API_KEY", TEST_ENV_VAR]);
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           models: { providers: {} },
           env: {
             vars: {
@@ -46,7 +46,7 @@ describe("models-config", () => {
       await withTempEnv(["OPENROUTER_API_KEY", TEST_ENV_VAR], async () => {
         process.env.OPENROUTER_API_KEY = "from-host"; // pragma: allowlist secret
         process.env[TEST_ENV_VAR] = "from-host";
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           models: { providers: {} },
           env: {
             vars: {

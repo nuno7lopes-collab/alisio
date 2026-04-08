@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveMatrixAccountStorageRoot } from "./matrix-config-helpers.js";
 import { autoPrepareLegacyMatrixCrypto, detectLegacyMatrixCrypto } from "./matrix-legacy-crypto.js";
 import { MATRIX_LEGACY_CRYPTO_INSPECTOR_UNAVAILABLE_MESSAGE } from "./matrix-plugin-helper.js";
@@ -23,7 +23,7 @@ import {
 
 vi.unmock("../version.js");
 
-function createDefaultMatrixConfig(): OpenClawConfig {
+function createDefaultMatrixConfig(): AlisioConfig {
   return {
     channels: {
       matrix: {
@@ -36,7 +36,7 @@ function createDefaultMatrixConfig(): OpenClawConfig {
 }
 
 function writeDefaultLegacyCryptoFixture(home: string) {
-  const stateDir = path.join(home, ".openclaw");
+  const stateDir = path.join(home, ".alisio");
   const cfg = createDefaultMatrixConfig();
   const { rootDir } = resolveMatrixAccountStorageRoot({
     stateDir,
@@ -53,11 +53,11 @@ function writeDefaultLegacyCryptoFixture(home: string) {
 
 function createOpsLegacyCryptoFixture(params: {
   home: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accessToken?: string;
   includeStoredCredentials?: boolean;
 }) {
-  const stateDir = path.join(params.home, ".openclaw");
+  const stateDir = path.join(params.home, ".alisio");
   writeMatrixPluginFixture(path.join(params.home, "bundled", "matrix"));
   writeFile(
     path.join(stateDir, "matrix", "crypto", "bot-sdk.json"),
@@ -81,7 +81,7 @@ function createOpsLegacyCryptoFixture(params: {
 }
 
 async function expectPreparedOpsLegacyMigration(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   env: NodeJS.ProcessEnv;
   rootDir: string;
   inspectLegacyStore: {
@@ -244,7 +244,7 @@ describe("matrix legacy encrypted-state migration", () => {
   it("prepares flat legacy crypto for the only configured non-default Matrix account", async () => {
     await withTempHome(
       async (home) => {
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           channels: {
             matrix: {
               accounts: {
@@ -282,7 +282,7 @@ describe("matrix legacy encrypted-state migration", () => {
   it("uses scoped Matrix env vars when resolving flat legacy crypto migration", async () => {
     await withTempHome(
       async (home) => {
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           channels: {
             matrix: {
               accounts: {
@@ -322,13 +322,13 @@ describe("matrix legacy encrypted-state migration", () => {
 
   it("requires channels.matrix.defaultAccount before preparing flat legacy crypto for one of multiple accounts", async () => {
     await withTempHome(async (home) => {
-      const stateDir = path.join(home, ".openclaw");
+      const stateDir = path.join(home, ".alisio");
       writeFile(
         path.join(stateDir, "matrix", "crypto", "bot-sdk.json"),
         JSON.stringify({ deviceId: MATRIX_OPS_DEVICE_ID }),
       );
 
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         channels: {
           matrix: {
             accounts: {
@@ -352,17 +352,17 @@ describe("matrix legacy encrypted-state migration", () => {
       expect(detection.warnings).toContain(
         "Legacy Matrix encrypted state detected at " +
           path.join(stateDir, "matrix", "crypto") +
-          ', but multiple Matrix accounts are configured and channels.matrix.defaultAccount is not set. Set "channels.matrix.defaultAccount" to the intended target account before rerunning "openclaw doctor --fix" or restarting the gateway.',
+          ', but multiple Matrix accounts are configured and channels.matrix.defaultAccount is not set. Set "channels.matrix.defaultAccount" to the intended target account before rerunning "alisio doctor --fix" or restarting the gateway.',
       );
     });
   });
 
   it("warns instead of throwing when a legacy crypto path is a file", async () => {
     await withTempHome(async (home) => {
-      const stateDir = path.join(home, ".openclaw");
+      const stateDir = path.join(home, ".alisio");
       writeFile(path.join(stateDir, "matrix", "crypto"), "not-a-directory");
 
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         channels: {
           matrix: {
             homeserver: "https://matrix.example.org",
@@ -388,7 +388,7 @@ describe("matrix legacy encrypted-state migration", () => {
   it("reports a missing matrix plugin helper once when encrypted-state migration cannot run", async () => {
     await withTempHome(
       async (home) => {
-        const stateDir = path.join(home, ".openclaw");
+        const stateDir = path.join(home, ".alisio");
         writeFile(
           path.join(stateDir, "matrix", "crypto", "bot-sdk.json"),
           JSON.stringify({ deviceId: MATRIX_DEFAULT_DEVICE_ID }),
@@ -410,7 +410,7 @@ describe("matrix legacy encrypted-state migration", () => {
       },
       {
         env: {
-          OPENCLAW_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
+          ALISIO_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
         },
       },
     );

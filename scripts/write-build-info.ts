@@ -34,13 +34,28 @@ const resolveCommit = () => {
   }
 };
 
+const normalizeEnvString = (value: string | undefined) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+};
+
 const version = readPackageVersion();
 const commit = resolveCommit();
+const distribution = normalizeEnvString(process.env.ALISIO_DISTRIBUTION);
+const update = {
+  registryPackageName: normalizeEnvString(process.env.ALISIO_UPDATE_REGISTRY_PACKAGE),
+  registryInstallPrefix: normalizeEnvString(process.env.ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX),
+  mainPackageSpec: normalizeEnvString(process.env.ALISIO_UPDATE_MAIN_PACKAGE_SPEC),
+  gitRepoUrl: normalizeEnvString(process.env.ALISIO_UPDATE_GIT_REPO_URL),
+};
+const hasUpdateMetadata = Object.values(update).some((value) => value != null);
 
 const buildInfo = {
   version,
   commit,
   builtAt: new Date().toISOString(),
+  ...(distribution ? { distribution } : {}),
+  ...(hasUpdateMetadata ? { update } : {}),
 };
 
 fs.mkdirSync(distDir, { recursive: true });

@@ -6,7 +6,7 @@ import {
   createSandboxPruneConfig,
   createSandboxSshConfig,
 } from "../../../test/helpers/sandbox-fixtures.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SandboxConfig } from "./types.js";
 
 const sshMocks = vi.hoisted(() => ({
@@ -48,7 +48,7 @@ async function loadFreshSshBackendModuleForTest() {
   ({ createSshSandboxBackend, sshSandboxBackendManager } = await import("./ssh-backend.js"));
 }
 
-function createConfig(): OpenClawConfig {
+function createConfig(): AlisioConfig {
   return {
     agents: {
       defaults: {

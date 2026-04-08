@@ -1,13 +1,13 @@
 import { normalizeChatChannelId } from "../../../channels/registry.js";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { readChannelAllowFromStore } from "../../../pairing/pairing-store.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../../routing/session-key.js";
 import { resolveAllowFromMode, type AllowFromMode } from "./allow-from-mode.js";
 import { hasAllowFromEntries } from "./allowlist.js";
 import { asObjectRecord } from "./object.js";
 
-export async function maybeRepairAllowlistPolicyAllowFrom(cfg: OpenClawConfig): Promise<{
-  config: OpenClawConfig;
+export async function maybeRepairAllowlistPolicyAllowFrom(cfg: AlisioConfig): Promise<{
+  config: AlisioConfig;
   changes: string[];
 }> {
   const channels = cfg.channels;

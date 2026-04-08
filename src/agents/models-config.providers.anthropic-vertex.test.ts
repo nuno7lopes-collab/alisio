@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { captureEnv } from "../test-utils/env.js";
 import { resolveImplicitProvidersForTest } from "./models-config.e2e-harness.js";
 
@@ -157,7 +157,7 @@ describe("anthropic-vertex implicit provider", () => {
               },
             },
           },
-        } as unknown as OpenClawConfig,
+        } as unknown as AlisioConfig,
       });
 
       expect(providers?.["anthropic-vertex"]?.baseUrl).toBe(

@@ -1,5 +1,5 @@
 import { type ChatChannelId, normalizeChatChannelId } from "../channels/registry.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadConfig, writeConfigFile } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import {
@@ -19,7 +19,7 @@ export async function runChannelSetupWizard(params: {
   runtime: RuntimeEnv;
   prompter: WizardPrompter;
   startChannel: (channel: ChatChannelId, accountId?: string) => Promise<void>;
-  loadCurrentConfig?: () => OpenClawConfig;
+  loadCurrentConfig?: () => AlisioConfig;
   writeNextConfig?: typeof writeConfigFile;
 }) {
   const resolvedChannel = normalizeChatChannelId(params.opts.channel);

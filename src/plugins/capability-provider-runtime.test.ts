@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createEmptyPluginRegistry } from "./registry.js";
 
 type MockManifestRegistry = {
@@ -48,7 +48,7 @@ function expectNoResolvedCapabilityProviders(providers: Array<{ id: string }>) {
 }
 
 function expectBundledCompatLoadPath(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   allowlistCompat: { plugins: { allow: string[] } };
   enablementCompat: {
     plugins: {
@@ -80,7 +80,7 @@ function expectBundledCompatLoadPath(params: {
 }
 
 function createCompatChainConfig() {
-  const cfg = { plugins: { allow: ["custom-plugin"] } } as OpenClawConfig;
+  const cfg = { plugins: { allow: ["custom-plugin"] } } as AlisioConfig;
   const allowlistCompat = { plugins: { allow: ["custom-plugin", "openai"] } };
   const enablementCompat = {
     plugins: {
@@ -112,7 +112,7 @@ function setBundledCapabilityFixture(contractKey: string) {
 function expectCompatChainApplied(params: {
   key: "speechProviders" | "mediaUnderstandingProviders" | "imageGenerationProviders";
   contractKey: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   allowlistCompat: { plugins: { allow: string[] } };
   enablementCompat: {
     plugins: {
@@ -199,7 +199,7 @@ describe("resolvePluginCapabilityProviders", () => {
 
     const providers = resolvePluginCapabilityProviders({
       key: "speechProviders",
-      cfg: { messages: { tts: { provider: "edge" } } } as OpenClawConfig,
+      cfg: { messages: { tts: { provider: "edge" } } } as AlisioConfig,
     });
 
     expectResolvedCapabilityProviderIds(providers, ["microsoft"]);
@@ -230,7 +230,7 @@ describe("resolvePluginCapabilityProviders", () => {
 
     const providers = resolvePluginCapabilityProviders({
       key: "mediaUnderstandingProviders",
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
     });
 
     expectNoResolvedCapabilityProviders(providers);

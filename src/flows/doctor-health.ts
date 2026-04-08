@@ -7,7 +7,7 @@ import { maybeRepairUiProtocolFreshness } from "../commands/doctor-ui.js";
 import { maybeOfferUpdateBeforeDoctor } from "../commands/doctor-update.js";
 import { printWizardHeader } from "../commands/onboard-helpers.js";
 import { CONFIG_PATH } from "../config/config.js";
-import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
+import { resolveAlisioPackageRoot } from "../infra/alisio-root.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { defaultRuntime } from "../runtime.js";
 import { stylePromptTitle } from "../terminal/prompt-style.js";
@@ -24,7 +24,7 @@ export async function doctorCommand(
   printWizardHeader(runtime);
   intro("Alisio doctor");
 
-  const root = await resolveOpenClawPackageRoot({
+  const root = await resolveAlisioPackageRoot({
     moduleUrl: import.meta.url,
     argv1: process.argv[1],
     cwd: process.cwd(),

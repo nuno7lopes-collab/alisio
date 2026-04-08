@@ -1,6 +1,7 @@
-import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
+import { getChannelPlugin } from "../channels/plugins/index.js";
+import { listProductChannelPlugins } from "../channels/product-surface.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { CONFIG_PATH } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { note } from "../terminal/note.js";
@@ -9,13 +10,13 @@ import { confirm, select } from "./configure.shared.js";
 import { guardCancel } from "./onboard-helpers.js";
 
 export async function removeChannelConfigWizard(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   runtime: RuntimeEnv,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   let next = { ...cfg };
 
   const listConfiguredChannels = () =>
-    listChannelPlugins()
+    listProductChannelPlugins()
       .map((plugin) => plugin.meta)
       .filter((meta) => next.channels?.[meta.id] !== undefined);
 
@@ -68,7 +69,7 @@ export async function removeChannelConfigWizard(
     next = {
       ...next,
       channels: Object.keys(nextChannels).length
-        ? (nextChannels as OpenClawConfig["channels"])
+        ? (nextChannels as AlisioConfig["channels"])
         : undefined,
     };
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   alisioPlanTranslationKey,
+  alisioConnectorOccupiesPlanSlot,
+  countAlisioConnectorPlanSlots,
+  alisioConnectorLimit,
+  alisioConnectorUpgradeMessage,
+  alisioOrganizationsUpgradeMessage,
+  alisioRemoteModelServersUpgradeMessage,
+  alisioSupportsOrganizations,
+  alisioSupportsRemoteModelServers,
+  getAlisioPlanEntitlements,
   isAlisioPaidPlan,
   isAlisioPlan,
   normalizeAlisioPlan,
@@ -29,5 +38,43 @@ describe("alisio-billing", () => {
   it("maps plans to billing translation keys", () => {
     expect(alisioPlanTranslationKey("free")).toBe("alisio.settings.billing.freePlan");
     expect(alisioPlanTranslationKey("plus")).toBe("alisio.settings.billing.plusPlan");
+  });
+
+  it("exposes the Free and Plus entitlement matrix", () => {
+    expect(getAlisioPlanEntitlements("free")).toEqual({
+      connectors: { maxConnected: 1 },
+      organizations: false,
+      remoteModelServers: false,
+    });
+    expect(getAlisioPlanEntitlements("plus")).toEqual({
+      connectors: { maxConnected: null },
+      organizations: true,
+      remoteModelServers: true,
+    });
+  });
+
+  it("derives plan-specific feature helpers and upgrade copy", () => {
+    expect(alisioConnectorLimit("free")).toBe(1);
+    expect(alisioConnectorLimit("plus")).toBeNull();
+    expect(alisioSupportsOrganizations("free")).toBe(false);
+    expect(alisioSupportsOrganizations("plus")).toBe(true);
+    expect(alisioSupportsRemoteModelServers("free")).toBe(false);
+    expect(alisioSupportsRemoteModelServers("plus")).toBe(true);
+    expect(alisioConnectorUpgradeMessage("free")).toContain("1 connected app");
+    expect(alisioOrganizationsUpgradeMessage()).toContain("Plus");
+    expect(alisioRemoteModelServersUpgradeMessage()).toContain("Plus");
+  });
+
+  it("counts connector slots using connected and reconnect-required authorizations", () => {
+    expect(alisioConnectorOccupiesPlanSlot("connected")).toBe(true);
+    expect(alisioConnectorOccupiesPlanSlot("needs_reconnect")).toBe(true);
+    expect(alisioConnectorOccupiesPlanSlot("not_connected")).toBe(false);
+    expect(
+      countAlisioConnectorPlanSlots([
+        { state: "connected" },
+        { state: "needs_reconnect" },
+        { state: "not_connected" },
+      ]),
+    ).toBe(2);
   });
 });

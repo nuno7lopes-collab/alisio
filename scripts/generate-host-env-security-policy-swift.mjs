@@ -20,7 +20,7 @@ const outputPath = path.join(
   "apps",
   "macos",
   "Sources",
-  "OpenClaw",
+  "Alisio",
   "HostEnvSecurityPolicy.generated.swift",
 );
 

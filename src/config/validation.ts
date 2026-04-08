@@ -29,8 +29,8 @@ import {
 } from "./legacy-web-search.js";
 import { findLegacyConfigIssues } from "./legacy.js";
 import { materializeRuntimeConfig } from "./materialize.js";
-import type { OpenClawConfig, ConfigValidationIssue } from "./types.js";
-import { OpenClawSchema } from "./zod-schema.js";
+import type { AlisioConfig, ConfigValidationIssue } from "./types.js";
+import { AlisioSchema } from "./zod-schema.js";
 
 const LEGACY_REMOVED_PLUGIN_IDS = new Set(["google-antigravity-auth", "google-gemini-cli-auth"]);
 
@@ -279,7 +279,7 @@ function isWorkspaceAvatarPath(value: string, workspaceDir: string): boolean {
   return isPathWithinRoot(workspaceRoot, resolved);
 }
 
-function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[] {
+function validateIdentityAvatar(config: AlisioConfig): ConfigValidationIssue[] {
   const agents = config.agents?.list;
   if (!Array.isArray(agents) || agents.length === 0) {
     return [];
@@ -329,7 +329,7 @@ function validateIdentityAvatar(config: OpenClawConfig): ConfigValidationIssue[]
   return issues;
 }
 
-function validateGatewayTailscaleBind(config: OpenClawConfig): ConfigValidationIssue[] {
+function validateGatewayTailscaleBind(config: AlisioConfig): ConfigValidationIssue[] {
   const tailscaleMode = config.gateway?.tailscale?.mode ?? "off";
   if (tailscaleMode !== "serve" && tailscaleMode !== "funnel") {
     return [];
@@ -362,7 +362,7 @@ function validateGatewayTailscaleBind(config: OpenClawConfig): ConfigValidationI
  */
 export function validateConfigObjectRaw(
   raw: unknown,
-): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
+): { ok: true; config: AlisioConfig } | { ok: false; issues: ConfigValidationIssue[] } {
   const normalizedRaw = normalizeLegacyWebSearchConfig(raw);
   const legacyIssues = findLegacyConfigIssues(normalizedRaw);
   if (legacyIssues.length > 0) {
@@ -374,14 +374,14 @@ export function validateConfigObjectRaw(
       })),
     };
   }
-  const validated = OpenClawSchema.safeParse(normalizedRaw);
+  const validated = AlisioSchema.safeParse(normalizedRaw);
   if (!validated.success) {
     return {
       ok: false,
       issues: validated.error.issues.map((issue) => mapZodIssueToConfigIssue(issue)),
     };
   }
-  const validatedConfig = validated.data as OpenClawConfig;
+  const validatedConfig = validated.data as AlisioConfig;
   const duplicates = findDuplicateAgentDirs(validatedConfig);
   if (duplicates.length > 0) {
     return {
@@ -410,7 +410,7 @@ export function validateConfigObjectRaw(
 
 export function validateConfigObject(
   raw: unknown,
-): { ok: true; config: OpenClawConfig } | { ok: false; issues: ConfigValidationIssue[] } {
+): { ok: true; config: AlisioConfig } | { ok: false; issues: ConfigValidationIssue[] } {
   const result = validateConfigObjectRaw(raw);
   if (!result.ok) {
     return result;
@@ -424,7 +424,7 @@ export function validateConfigObject(
 type ValidateConfigWithPluginsResult =
   | {
       ok: true;
-      config: OpenClawConfig;
+      config: AlisioConfig;
       warnings: ConfigValidationIssue[];
     }
   | {
@@ -488,9 +488,9 @@ function validateConfigObjectWithPluginsBase(
   };
 
   let registryInfo: RegistryInfo | null = null;
-  let compatConfig: OpenClawConfig | null | undefined;
+  let compatConfig: AlisioConfig | null | undefined;
 
-  const ensureCompatConfig = (): OpenClawConfig => {
+  const ensureCompatConfig = (): AlisioConfig => {
     if (compatConfig !== undefined) {
       return compatConfig ?? config;
     }
@@ -874,7 +874,7 @@ function validateConfigObjectWithPluginsBase(
           replacePluginEntryConfig(pluginId, res.value as Record<string, unknown>);
         }
       } else if (record.format === "bundle") {
-        // Compatible bundles currently expose no native OpenClaw config schema.
+        // Compatible bundles currently expose no native Alisio config schema.
         // Treat them as schema-less capability packs rather than failing validation.
       } else {
         issues.push({

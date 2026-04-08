@@ -21,6 +21,12 @@ type DiscordAccountStatus = {
   accountId?: unknown;
   enabled?: unknown;
   configured?: unknown;
+  running?: unknown;
+  connected?: unknown;
+  reconnectAttempts?: unknown;
+  lastDisconnect?: unknown;
+  lastError?: unknown;
+  healthState?: unknown;
   application?: unknown;
   audit?: unknown;
 };
@@ -45,9 +51,22 @@ function readDiscordAccountStatus(value: ChannelAccountSnapshot): DiscordAccount
     accountId: value.accountId,
     enabled: value.enabled,
     configured: value.configured,
+    running: value.running,
+    connected: value.connected,
+    reconnectAttempts: value.reconnectAttempts,
+    lastDisconnect: value.lastDisconnect,
+    lastError: value.lastError,
+    healthState: value.healthState,
     application: value.application,
     audit: value.audit,
   };
+}
+
+function readDiscordDisconnectStatus(value: unknown): number | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return typeof value.status === "number" && Number.isFinite(value.status) ? value.status : null;
 }
 
 function readDiscordApplicationSummary(value: unknown): DiscordApplicationSummary {
@@ -133,6 +152,36 @@ export function collectDiscordStatusIssues(
         kind: "intent",
         message: "Message Content Intent is disabled. Bot may not see normal channel messages.",
         fix: "Enable Message Content Intent in Discord Dev Portal → Bot → Privileged Gateway Intents, or require mention-only operation.",
+      });
+    }
+
+    const running = account.running === true;
+    const connected = account.connected === true;
+    const reconnectAttempts =
+      typeof account.reconnectAttempts === "number" && Number.isFinite(account.reconnectAttempts)
+        ? account.reconnectAttempts
+        : null;
+    const lastError = asString(account.lastError);
+    const healthState = asString(account.healthState);
+    const disconnectStatus = readDiscordDisconnectStatus(account.lastDisconnect);
+    if (!connected && (running || reconnectAttempts !== null || lastError || disconnectStatus)) {
+      const privilegedIntentsError =
+        disconnectStatus === 4014 ||
+        lastError?.toLowerCase().includes("privileged gateway intents") === true;
+      const stateLabel =
+        healthState === "reconnecting"
+          ? "Discord gateway reconnecting"
+          : healthState === "stopped"
+            ? "Discord gateway stopped"
+            : "Discord gateway disconnected";
+      issues.push({
+        channel: "discord",
+        accountId,
+        kind: "runtime",
+        message: `${stateLabel}${reconnectAttempts != null ? ` (reconnectAttempts=${reconnectAttempts})` : ""}${lastError ? `: ${lastError}` : "."}`,
+        fix: privilegedIntentsError
+          ? "Enable the required privileged gateway intents in the Discord Developer Portal, then rerun channels status --probe or restart the gateway."
+          : "Check the Discord token, intents, and channel permissions, then rerun channels status --probe or restart the gateway.",
       });
     }
 

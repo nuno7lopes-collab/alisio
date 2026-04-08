@@ -730,6 +730,47 @@ describe("gateway server chat", () => {
     }
   });
 
+  test("chat.history normalizes persisted media MIME parameters before building previews", async () => {
+    const saved = await saveMediaBuffer(
+      Buffer.from(PNG_1X1_BASE64, "base64"),
+      "image/png",
+      "inbound",
+      5_000_000,
+      "reload-preview-params.png",
+    );
+
+    try {
+      const historyMessages = await loadChatHistoryWithMessages([
+        {
+          role: "user",
+          content: "",
+          MediaPath: saved.path,
+          MediaPaths: [saved.path],
+          MediaType: "Image/PNG; charset=utf-8",
+          MediaTypes: ["Image/PNG; charset=utf-8"],
+          timestamp: 1,
+        },
+      ]);
+
+      expect(historyMessages).toHaveLength(1);
+      expect(historyMessages[0]).toMatchObject({
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: "image/png",
+              data: expect.any(String),
+            },
+          },
+        ],
+      });
+    } finally {
+      await fs.rm(saved.path, { force: true }).catch(() => {});
+    }
+  });
+
   test("chat.history prefers persisted image previews even when the original media file is gone", async () => {
     const historyMessages = await loadChatHistoryWithMessages([
       {

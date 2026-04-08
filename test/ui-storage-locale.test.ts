@@ -53,7 +53,6 @@ describe("ui settings locale hydration", () => {
         navCollapsed: false,
         navWidth: 220,
         navGroupsCollapsed: {},
-        borderRadius: 50,
         sessionsByGateway: {
           [gwUrl]: {
             sessionKey: "main",

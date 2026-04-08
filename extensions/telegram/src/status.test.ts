@@ -119,7 +119,32 @@ describe("collectTelegramStatusIssues", () => {
     expect(issues.some((issue) => issue.message.includes("pending Telegram DM approval"))).toBe(
       true,
     );
-    expect(issues.some((issue) => issue.message.includes("Send a message to the bot"))).toBe(true);
+    expect(issues.some((issue) => issue.fix?.includes("Open Finish setup") === true)).toBe(true);
+  });
+
+  it("reports reconnecting runtime issues with actionable recovery", () => {
+    const issues = collectTelegramStatusIssues([
+      {
+        accountId: "main",
+        enabled: true,
+        configured: true,
+        running: true,
+        connected: false,
+        reconnectAttempts: 3,
+        healthState: "reconnecting",
+        lastError: "fetch failed",
+      } as ChannelAccountSnapshot,
+    ]);
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        channel: "telegram",
+        accountId: "main",
+        kind: "runtime",
+        message: "Telegram bot is reconnecting (reconnectAttempts=3): fetch failed",
+      }),
+    ]);
+    expect(issues[0]?.fix).toContain("channels status --probe");
   });
 });
 

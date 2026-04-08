@@ -19,13 +19,12 @@ import {
   setLastActiveSessionKey,
 } from "./app-settings.ts";
 import { handleAgentEvent, resetToolStream, type AgentEventPayload } from "./app-tool-stream.ts";
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { shouldReloadHistoryForFinalEvent } from "./chat-event-reload.ts";
 import { formatConnectError } from "./connect-error.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   applyAlisioModelOperation,
-  loadAlisioBootstrap,
   loadAlisioDoctorSummary,
   loadAlisioModels,
 } from "./controllers/alisio.ts";
@@ -56,7 +55,7 @@ import {
 } from "./gateway.ts";
 import { GatewayBrowserClient } from "./gateway.ts";
 import type { ModelsOperationMap } from "./models-view-types.ts";
-import type { Tab } from "./navigation.ts";
+import { publicTabFor, type Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type {
   AgentsListResult,
@@ -249,6 +248,10 @@ function normalizeUserFacingRuntimeReason(reason: string | null | undefined): st
   return normalized;
 }
 
+function normalizeUserFacingGatewayCopy(value: string): string {
+  return value.replace(/\bgateway\b/gi, "Alisio");
+}
+
 function shouldRefreshChatHistoryAfterReconnect(host: GatewayHost): boolean {
   const toolHost = host as unknown as { toolStreamOrder?: unknown[] };
   const chatHost = host as unknown as { chatStream?: string | null };
@@ -370,18 +373,30 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
           host as unknown as Parameters<typeof flushChatQueueForEvent>[0],
         );
       }
-      void subscribeSessions(host as unknown as OpenClawApp);
-      void loadAssistantIdentity(host as unknown as OpenClawApp);
-      void loadAgents(host as unknown as OpenClawApp);
-      void loadHealthState(host as unknown as OpenClawApp);
-      void loadNodes(host as unknown as OpenClawApp, { quiet: true });
-      void loadDevices(host as unknown as OpenClawApp, { quiet: true });
-      void loadNodePairings(host as unknown as OpenClawApp, { quiet: true });
-      void loadAlisioBootstrap(host as unknown as OpenClawApp);
-      void loadAlisioDoctorSummary(host as unknown as OpenClawApp);
-      void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0], {
-        includeChatHistory,
-      });
+      void subscribeSessions(host as unknown as AlisioApp);
+      void loadAssistantIdentity(host as unknown as AlisioApp);
+      void loadAgents(host as unknown as AlisioApp);
+      void loadHealthState(host as unknown as AlisioApp);
+      void loadNodes(host as unknown as AlisioApp, { quiet: true });
+      void loadDevices(host as unknown as AlisioApp, { quiet: true });
+      void loadNodePairings(host as unknown as AlisioApp, { quiet: true });
+      const currentTab = publicTabFor(host.tab);
+      if (currentTab === "setup" || currentTab === "settings") {
+        void (async () => {
+          await loadAlisioDoctorSummary(host as unknown as AlisioApp);
+          await refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0], {
+            includeChatHistory,
+            preloadedShellState: "doctor",
+          });
+        })();
+      } else {
+        if (currentTab !== "chat" && currentTab !== "models") {
+          void loadAlisioDoctorSummary(host as unknown as AlisioApp);
+        }
+        void refreshActiveTab(host as unknown as Parameters<typeof refreshActiveTab>[0], {
+          includeChatHistory,
+        });
+      }
     },
     onClose: ({ code, reason, error }) => {
       if (host.client !== client) {
@@ -443,7 +458,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
                 details: error.details,
                 code: error.code,
               } as Parameters<typeof formatConnectError>[0])
-            : error.message;
+            : normalizeUserFacingGatewayCopy(error.message);
           return;
         }
         host.lastError =
@@ -505,7 +520,7 @@ function handleTerminalChatEvent(
   if (runId && host.refreshSessionsAfterChat.has(runId)) {
     host.refreshSessionsAfterChat.delete(runId);
     if (state === "final") {
-      void loadSessions(host as unknown as OpenClawApp, {
+      void loadSessions(host as unknown as AlisioApp, {
         activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
       });
     }
@@ -520,7 +535,7 @@ function handleTerminalChatEvent(
     }
     const toolHostForReload = host as unknown as Parameters<typeof resetToolStream>[0];
     let historyCommitted = false;
-    void loadChatHistory(host as unknown as OpenClawApp, {
+    void loadChatHistory(host as unknown as AlisioApp, {
       silent: true,
       preserveEphemeral,
     })
@@ -567,7 +582,7 @@ function deferFinalChatCommit(host: GatewayHost, payload: ChatEventPayload): voi
   );
   if (host.refreshSessionsAfterChat.has(payload.runId)) {
     host.refreshSessionsAfterChat.delete(payload.runId);
-    void loadSessions(host as unknown as OpenClawApp, {
+    void loadSessions(host as unknown as AlisioApp, {
       activeMinutes: CHAT_SESSIONS_ACTIVE_MINUTES,
     });
   }
@@ -578,7 +593,7 @@ function deferFinalChatCommit(host: GatewayHost, payload: ChatEventPayload): voi
   host.chatFinalizing = true;
   const toolHost = host as unknown as Parameters<typeof resetToolStream>[0];
   let historyCommitted = false;
-  void loadChatHistory(host as unknown as OpenClawApp, {
+  void loadChatHistory(host as unknown as AlisioApp, {
     silent: true,
     preserveEphemeral: false,
   })
@@ -606,7 +621,7 @@ function handleChatGatewayEvent(host: GatewayHost, payload: ChatEventPayload | u
     deferFinalChatCommit(host, payload!);
     return;
   }
-  const state = handleChatEvent(host as unknown as OpenClawApp, payload);
+  const state = handleChatEvent(host as unknown as AlisioApp, payload);
   const historyReloaded = handleTerminalChatEvent(host, payload, state, { isActiveRun });
   if (historyReloaded) {
     return;
@@ -661,7 +676,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   }
 
   if (evt.event === "sessions.changed") {
-    void loadSessions(host as unknown as OpenClawApp);
+    void loadSessions(host as unknown as AlisioApp);
     return;
   }
 
@@ -676,9 +691,9 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
         payload.phase === "completed" ||
         payload.phase === "failed")
     ) {
-      applyAlisioModelOperation(host as unknown as OpenClawApp, payload);
+      applyAlisioModelOperation(host as unknown as AlisioApp, payload);
       if (payload.phase === "completed" || payload.phase === "failed") {
-        void loadAlisioModels(host as unknown as OpenClawApp);
+        void loadAlisioModels(host as unknown as AlisioApp);
       }
     }
     return;
@@ -689,18 +704,18 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
   }
 
   if (evt.event === "device.pair.requested" || evt.event === "device.pair.resolved") {
-    void loadDevices(host as unknown as OpenClawApp, { quiet: true });
+    void loadDevices(host as unknown as AlisioApp, { quiet: true });
   }
 
   if (evt.event === "node.pair.requested") {
-    void loadNodePairings(host as unknown as OpenClawApp, { quiet: true });
+    void loadNodePairings(host as unknown as AlisioApp, { quiet: true });
     return;
   }
 
   if (evt.event === "node.pair.resolved") {
     void Promise.allSettled([
-      loadNodePairings(host as unknown as OpenClawApp, { quiet: true }),
-      loadNodes(host as unknown as OpenClawApp, { quiet: true }),
+      loadNodePairings(host as unknown as AlisioApp, { quiet: true }),
+      loadNodes(host as unknown as AlisioApp, { quiet: true }),
     ]);
     return;
   }

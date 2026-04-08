@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { currentPluginManifestName } from "./lib/alisio-branding.mjs";
 import { removePathIfExists } from "./runtime-postbuild-shared.mjs";
 
 function symlinkType() {
@@ -42,11 +43,11 @@ function shouldWrapRuntimeJsFile(sourcePath) {
   return path.extname(sourcePath) === ".js";
 }
 
-function shouldCopyRuntimeFile(sourcePath) {
+function shouldCopyRuntimeFile(sourcePath, pluginManifestName) {
   const relativePath = sourcePath.replace(/\\/g, "/");
   return (
     relativePath.endsWith("/package.json") ||
-    relativePath.endsWith("/openclaw.plugin.json") ||
+    relativePath.endsWith(`/${pluginManifestName}`) ||
     relativePath.endsWith("/.codex-plugin/plugin.json") ||
     relativePath.endsWith("/.claude-plugin/plugin.json") ||
     relativePath.endsWith("/.cursor-plugin/plugin.json")
@@ -68,7 +69,7 @@ function writeRuntimeModuleWrapper(sourcePath, targetPath) {
   );
 }
 
-function stagePluginRuntimeOverlay(sourceDir, targetDir) {
+function stagePluginRuntimeOverlay(sourceDir, targetDir, pluginManifestName) {
   fs.mkdirSync(targetDir, { recursive: true });
 
   for (const dirent of fs.readdirSync(sourceDir, { withFileTypes: true })) {
@@ -80,7 +81,7 @@ function stagePluginRuntimeOverlay(sourceDir, targetDir) {
     const targetPath = path.join(targetDir, dirent.name);
 
     if (dirent.isDirectory()) {
-      stagePluginRuntimeOverlay(sourcePath, targetPath);
+      stagePluginRuntimeOverlay(sourcePath, targetPath, pluginManifestName);
       continue;
     }
 
@@ -98,7 +99,7 @@ function stagePluginRuntimeOverlay(sourceDir, targetDir) {
       continue;
     }
 
-    if (shouldCopyRuntimeFile(sourcePath)) {
+    if (shouldCopyRuntimeFile(sourcePath, pluginManifestName)) {
       fs.copyFileSync(sourcePath, targetPath);
       continue;
     }
@@ -118,6 +119,7 @@ function linkPluginNodeModules(params) {
 
 export function stageBundledPluginRuntime(params = {}) {
   const repoRoot = params.cwd ?? params.repoRoot ?? process.cwd();
+  const pluginManifestName = currentPluginManifestName(repoRoot);
   const distRoot = path.join(repoRoot, "dist");
   const runtimeRoot = path.join(repoRoot, "dist-runtime");
   const distExtensionsRoot = path.join(distRoot, "extensions");
@@ -139,7 +141,7 @@ export function stageBundledPluginRuntime(params = {}) {
     const runtimePluginDir = path.join(runtimeExtensionsRoot, dirent.name);
     const distPluginNodeModulesDir = path.join(distPluginDir, "node_modules");
 
-    stagePluginRuntimeOverlay(distPluginDir, runtimePluginDir);
+    stagePluginRuntimeOverlay(distPluginDir, runtimePluginDir, pluginManifestName);
     linkPluginNodeModules({
       runtimePluginDir,
       sourcePluginNodeModulesDir: distPluginNodeModulesDir,

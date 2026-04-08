@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/types.js";
+import type { AlisioConfig } from "../config/types.js";
 import type { UpdateCheckResult } from "../infra/update-check.js";
 import { loggingState } from "../logging/state.js";
 import { runExec } from "../process/exec.js";
@@ -88,14 +88,14 @@ function buildColdStartStatusSummary(): Awaited<ReturnType<typeof getStatusSumma
 
 export async function scanStatusJsonCore(params: {
   coldStart: boolean;
-  cfg: OpenClawConfig;
-  sourceConfig: OpenClawConfig;
+  cfg: AlisioConfig;
+  sourceConfig: AlisioConfig;
   secretDiagnostics: string[];
   hasConfiguredChannels: boolean;
   opts: { timeoutMs?: number; all?: boolean };
   resolveOsSummary: () => StatusScanResult["osSummary"];
   resolveMemory: (args: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     agentStatus: Awaited<ReturnType<typeof getAgentLocalStatusesFn>>;
     memoryPlugin: StatusScanResult["memoryPlugin"];
     runtime: RuntimeEnv;

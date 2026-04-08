@@ -7,7 +7,7 @@ import { renderExecTargetLabel, resolveExecTarget } from "../../agents/bash-tool
 import { resolveFastModeState } from "../../agents/fast-mode.js";
 import { requestLiveSessionModelSwitch } from "../../agents/live-model-switch.js";
 import { resolveSandboxRuntimeStatus } from "../../agents/sandbox.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { type SessionEntry, updateSessionStore } from "../../config/sessions.js";
 import type { ExecAsk, ExecHost, ExecSecurity, ExecTarget } from "../../infra/exec-approvals.js";
 import { enqueueSystemEvent } from "../../infra/system-events.js";
@@ -34,7 +34,7 @@ import {
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel } from "./directives.js";
 
 function resolveExecDefaults(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionEntry?: SessionEntry;
   agentId?: string;
   sandboxAvailable: boolean;

@@ -1,6 +1,6 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import { streamSimple } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { resolveFastModeParam } from "../fast-mode.js";
 import {
   type ProviderCapabilityLookupOptions,
@@ -311,7 +311,7 @@ export function createAnthropicBetaHeadersWrapper(
 export function createAnthropicToolPayloadCompatibilityWrapper(
   baseStreamFn: StreamFn | undefined,
   resolverOptions?: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
   },

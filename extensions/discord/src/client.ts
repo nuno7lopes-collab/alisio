@@ -23,7 +23,7 @@ function resolveToken(params: { accountId: string; fallbackToken?: string }) {
   const fallback = normalizeDiscordToken(params.fallbackToken, "channels.discord.token");
   if (!fallback) {
     throw new Error(
-      `Discord bot token missing for account "${params.accountId}" (set discord.accounts.${params.accountId}.token or DISCORD_BOT_TOKEN for default).`,
+      `Discord bot token missing for account "${params.accountId}" (set channels.discord.accounts.${params.accountId}.token or DISCORD_BOT_TOKEN for the default account).`,
     );
   }
   return fallback;

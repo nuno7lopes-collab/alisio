@@ -126,7 +126,26 @@ export function parsePluginApprovalRequested(payload: unknown): ExecApprovalRequ
 
 export function pruneExecApprovalQueue(queue: ExecApprovalRequest[]): ExecApprovalRequest[] {
   const now = Date.now();
-  return queue.filter((entry) => entry.expiresAtMs > now);
+  return sortExecApprovalQueue(queue.filter((entry) => entry.expiresAtMs > now));
+}
+
+function compareExecApprovalQueueEntries(
+  left: ExecApprovalRequest,
+  right: ExecApprovalRequest,
+): number {
+  const leftExpirySecond = Math.floor(left.expiresAtMs / 1000);
+  const rightExpirySecond = Math.floor(right.expiresAtMs / 1000);
+  // Back-to-back approvals usually share the same server TTL. Comparing raw
+  // millisecond expiries makes the queue order jitter based on delivery timing,
+  // so treat expiries within the same second as equal and show the newest first.
+  if (leftExpirySecond !== rightExpirySecond) {
+    return left.expiresAtMs - right.expiresAtMs;
+  }
+  return right.createdAtMs - left.createdAtMs;
+}
+
+export function sortExecApprovalQueue(queue: ExecApprovalRequest[]): ExecApprovalRequest[] {
+  return queue.toSorted(compareExecApprovalQueueEntries);
 }
 
 export function addExecApproval(
@@ -134,8 +153,8 @@ export function addExecApproval(
   entry: ExecApprovalRequest,
 ): ExecApprovalRequest[] {
   const next = pruneExecApprovalQueue(queue).filter((item) => item.id !== entry.id);
-  next.unshift(entry);
-  return next;
+  next.push(entry);
+  return sortExecApprovalQueue(next);
 }
 
 export function removeExecApproval(

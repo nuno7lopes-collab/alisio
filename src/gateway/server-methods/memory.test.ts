@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedMemorySearchConfig } from "../../agents/memory-search.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 
-const loadConfig = vi.hoisted(() => vi.fn(() => ({}) as OpenClawConfig));
+const loadConfig = vi.hoisted(() => vi.fn(() => ({}) as AlisioConfig));
 const listAgentIds = vi.hoisted(() => vi.fn(() => ["main"]));
 const resolveMemorySearchConfig = vi.hoisted(() => vi.fn());
 const getActiveMemorySearchManager = vi.hoisted(() => vi.fn());

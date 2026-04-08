@@ -69,7 +69,6 @@ function createHost() {
       navCollapsed: false,
       navWidth: 280,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     },
     password: "",
     clientInstanceId: "instance-test",
@@ -146,5 +145,28 @@ describe("addExecApproval", () => {
     );
 
     expect(queue.map((entry) => entry.id)).toEqual(["approval-new", "approval-old"]);
+  });
+
+  it("prioritizes the approval that expires first", () => {
+    const queue = addExecApproval(
+      [
+        {
+          id: "approval-later",
+          kind: "exec",
+          request: { command: "echo later" },
+          createdAtMs: 1,
+          expiresAtMs: Date.now() + 180_000,
+        },
+      ],
+      {
+        id: "approval-soon",
+        kind: "exec",
+        request: { command: "echo soon" },
+        createdAtMs: 2,
+        expiresAtMs: Date.now() + 30_000,
+      },
+    );
+
+    expect(queue.map((entry) => entry.id)).toEqual(["approval-soon", "approval-later"]);
   });
 });

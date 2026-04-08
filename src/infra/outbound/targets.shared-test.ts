@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { telegramOutbound, whatsappOutbound } from "../../../test/channel-outbounds.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { isWhatsAppGroupJid, normalizeWhatsAppTarget } from "../../plugin-sdk/whatsapp-targets.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/channel-plugins.js";
@@ -84,7 +84,7 @@ export function installResolveOutboundTargetPluginRegistryHooks(): void {
             }),
             config: {
               listAccountIds: () => [],
-              resolveDefaultTo: ({ cfg }: { cfg: OpenClawConfig }) =>
+              resolveDefaultTo: ({ cfg }: { cfg: AlisioConfig }) =>
                 typeof cfg.channels?.whatsapp?.defaultTo === "string"
                   ? cfg.channels.whatsapp.defaultTo
                   : undefined,
@@ -103,7 +103,7 @@ export function installResolveOutboundTargetPluginRegistryHooks(): void {
             }),
             config: {
               listAccountIds: () => [],
-              resolveDefaultTo: ({ cfg }: { cfg: OpenClawConfig }) =>
+              resolveDefaultTo: ({ cfg }: { cfg: AlisioConfig }) =>
                 typeof cfg.channels?.telegram?.defaultTo === "string"
                   ? cfg.channels.telegram.defaultTo
                   : undefined,

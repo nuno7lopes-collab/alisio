@@ -18,14 +18,18 @@ describe("pairing adapters", () => {
 
   it("builds text pairing adapters", async () => {
     const notify = vi.fn(async () => {});
+    const applyApprovalToConfig = vi.fn((params: { cfg: object; id: string }) => params.cfg);
     const pairing = createTextPairingAdapter({
       idLabel: "telegramUserId",
       message: "approved",
       normalizeAllowEntry: createPairingPrefixStripper(/^telegram:/i),
+      applyApprovalToConfig,
       notify,
     });
     expect(pairing.idLabel).toBe("telegramUserId");
     expect(pairing.normalizeAllowEntry?.("telegram:123")).toBe("123");
+    await pairing.applyApprovalToConfig?.({ cfg: {}, id: "123" });
+    expect(applyApprovalToConfig).toHaveBeenCalledWith({ cfg: {}, id: "123" });
     await pairing.notifyApproval?.({ cfg: {}, id: "123" });
     expect(notify).toHaveBeenCalledWith({ cfg: {}, id: "123", message: "approved" });
   });

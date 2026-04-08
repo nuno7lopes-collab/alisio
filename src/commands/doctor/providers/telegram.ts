@@ -7,7 +7,7 @@ import {
 } from "../../../channels/read-only-account-inspect.telegram.js";
 import { resolveCommandSecretRefsViaGateway } from "../../../cli/command-secret-gateway.js";
 import { getChannelsCommandSecretTargetIds } from "../../../cli/command-secret-targets.js";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { createNonExitingRuntime } from "../../../runtime.js";
 import { describeUnknownError } from "../../../secrets/shared.js";
 import { sanitizeForLog } from "../../../terminal/ansi.js";
@@ -25,7 +25,7 @@ type TelegramAllowFromListRef = {
 };
 
 export function collectTelegramAccountScopes(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
 ): Array<{ prefix: string; account: Record<string, unknown> }> {
   const scopes: Array<{ prefix: string; account: Record<string, unknown> }> = [];
   const telegram = asObjectRecord(cfg.channels?.telegram);
@@ -92,7 +92,7 @@ export function collectTelegramAllowFromLists(
 }
 
 export function scanTelegramAllowFromUsernameEntries(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
 ): TelegramAllowFromUsernameHit[] {
   const hits: TelegramAllowFromUsernameHit[] = [];
 
@@ -135,8 +135,8 @@ export function collectTelegramAllowFromUsernameWarnings(params: {
   ];
 }
 
-export async function maybeRepairTelegramAllowFromUsernames(cfg: OpenClawConfig): Promise<{
-  config: OpenClawConfig;
+export async function maybeRepairTelegramAllowFromUsernames(cfg: AlisioConfig): Promise<{
+  config: AlisioConfig;
   changes: string[];
 }> {
   const hits = scanTelegramAllowFromUsernameEntries(cfg);

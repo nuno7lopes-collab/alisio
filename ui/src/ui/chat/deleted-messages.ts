@@ -1,6 +1,8 @@
+import { legacyColonKey } from "../../brand-compat.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const PREFIX = "openclaw:deleted:";
+const PREFIX = "alisio:deleted:";
+const LEGACY_PREFIX = `${legacyColonKey("deleted")}:`;
 
 export class DeletedMessages {
   private key: string;
@@ -32,13 +34,20 @@ export class DeletedMessages {
 
   private load(): void {
     try {
-      const raw = getSafeLocalStorage()?.getItem(this.key);
-      if (!raw) {
+      const storage = getSafeLocalStorage();
+      const raw = storage?.getItem(this.key);
+      const legacyKey = LEGACY_PREFIX + this.key.slice(PREFIX.length);
+      const legacyRaw = raw ? null : storage?.getItem(legacyKey);
+      const source = raw ?? legacyRaw;
+      if (!source) {
         return;
       }
-      const arr = JSON.parse(raw);
+      const arr = JSON.parse(source);
       if (Array.isArray(arr)) {
         this._keys = new Set(arr.filter((s) => typeof s === "string"));
+        if (legacyRaw) {
+          this.save();
+        }
       }
     } catch {
       // ignore
@@ -47,7 +56,9 @@ export class DeletedMessages {
 
   private save(): void {
     try {
-      getSafeLocalStorage()?.setItem(this.key, JSON.stringify([...this._keys]));
+      const storage = getSafeLocalStorage();
+      storage?.setItem(this.key, JSON.stringify([...this._keys]));
+      storage?.removeItem(LEGACY_PREFIX + this.key.slice(PREFIX.length));
     } catch {
       // ignore
     }

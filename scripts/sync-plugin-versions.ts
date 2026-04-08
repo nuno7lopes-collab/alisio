@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { hostPackageNames } from "./lib/alisio-branding.mjs";
 
 type PackageJson = {
   name?: string;
@@ -15,7 +16,7 @@ function ensureChangelogEntry(changelogPath: string, version: string): boolean {
   if (content.includes(`## ${version}`)) {
     return false;
   }
-  const entry = `## ${version}\n\n### Changes\n- Version alignment with core OpenClaw release numbers.\n\n`;
+  const entry = `## ${version}\n\n### Changes\n- Version alignment with core Alisio release numbers.\n\n`;
   if (content.startsWith("# Changelog\n\n")) {
     const next = content.replace("# Changelog\n\n", `# Changelog\n\n${entry}`);
     writeFileSync(changelogPath, next);
@@ -26,12 +27,15 @@ function ensureChangelogEntry(changelogPath: string, version: string): boolean {
   return true;
 }
 
-function stripWorkspaceOpenclawDevDependency(pkg: PackageJson): boolean {
+function stripWorkspaceHostDevDependency(pkg: PackageJson, rootDir: string): boolean {
   const devDeps = pkg.devDependencies;
-  if (!devDeps || devDeps.openclaw !== "workspace:*") {
+  const hostDeps = hostPackageNames(rootDir);
+  if (!devDeps || !hostDeps.some((name) => devDeps[name] === "workspace:*")) {
     return false;
   }
-  delete devDeps.openclaw;
+  for (const name of hostDeps) {
+    delete devDeps[name];
+  }
   if (Object.keys(devDeps).length === 0) {
     delete pkg.devDependencies;
   }
@@ -75,7 +79,7 @@ export function syncPluginVersions(rootDir = resolve(".")) {
       changelogged.push(pkg.name);
     }
 
-    const removedWorkspaceDevDependency = stripWorkspaceOpenclawDevDependency(pkg);
+    const removedWorkspaceDevDependency = stripWorkspaceHostDevDependency(pkg, rootDir);
     if (removedWorkspaceDevDependency) {
       strippedWorkspaceDevDeps.push(pkg.name);
     }

@@ -7,7 +7,7 @@ import {
   clearConfigCache,
   clearRuntimeConfigSnapshot,
   loadConfig,
-  type OpenClawConfig,
+  type AlisioConfig,
   writeConfigFile,
 } from "../config/config.js";
 import { withTempHome } from "../config/home-env.test-harness.js";
@@ -31,8 +31,8 @@ const OPENAI_FILE_KEY_REF = {
 const SECRETS_RUNTIME_INTEGRATION_TIMEOUT_MS = 300_000;
 const allowInsecureTempSecretFile = process.platform === "win32";
 
-function asConfig(value: unknown): OpenClawConfig {
-  return value as OpenClawConfig;
+function asConfig(value: unknown): AlisioConfig {
+  return value as AlisioConfig;
 }
 
 function loadAuthStoreWithProfiles(profiles: AuthProfileStore["profiles"]): AuthProfileStore {
@@ -81,7 +81,7 @@ async function createOpenAIFileRuntimeFixture(home: string) {
   };
 }
 
-function createOpenAIFileRuntimeConfig(secretFile: string): OpenClawConfig {
+function createOpenAIFileRuntimeConfig(secretFile: string): AlisioConfig {
   return asConfig({
     secrets: {
       providers: {
@@ -332,7 +332,7 @@ describe("secrets runtime snapshot integration", () => {
 
         const persistedConfig = JSON.parse(
           await fs.readFile(path.join(home, ".openclaw", "openclaw.json"), "utf8"),
-        ) as OpenClawConfig;
+        ) as AlisioConfig;
         const persistedGoogleWebSearchConfig = persistedConfig.plugins?.entries?.google?.config as
           | { webSearch?: { apiKey?: unknown } }
           | undefined;

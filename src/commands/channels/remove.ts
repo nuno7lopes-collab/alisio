@@ -1,10 +1,7 @@
 import { resolveChannelDefaultAccountId } from "../../channels/plugins/helpers.js";
-import {
-  getChannelPlugin,
-  listChannelPlugins,
-  normalizeChannelId,
-} from "../../channels/plugins/index.js";
-import { replaceConfigFile, type OpenClawConfig } from "../../config/config.js";
+import { getChannelPlugin, normalizeChannelId } from "../../channels/plugins/index.js";
+import { listProductChannelPlugins } from "../../channels/product-surface.js";
+import { replaceConfigFile, type AlisioConfig } from "../../config/config.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../../routing/session-key.js";
 import { defaultRuntime, type RuntimeEnv } from "../../runtime.js";
 import { createClackPrompter } from "../../wizard/clack-prompter.js";
@@ -22,7 +19,7 @@ export type ChannelsRemoveOptions = {
   delete?: boolean;
 };
 
-function listAccountIds(cfg: OpenClawConfig, channel: ChatChannel): string[] {
+function listAccountIds(cfg: AlisioConfig, channel: ChatChannel): string[] {
   const plugin = getChannelPlugin(channel);
   if (!plugin) {
     return [];
@@ -40,7 +37,7 @@ export async function channelsRemoveCommand(
     return;
   }
   const baseHash = configSnapshot.hash;
-  let cfg = (configSnapshot.sourceConfig ?? configSnapshot.config) as OpenClawConfig;
+  let cfg = (configSnapshot.sourceConfig ?? configSnapshot.config) as AlisioConfig;
 
   const useWizard = shouldUseWizard(params);
   const prompter = useWizard ? createClackPrompter() : null;
@@ -53,7 +50,7 @@ export async function channelsRemoveCommand(
     await prompter.intro("Remove channel account");
     const selectedChannel = await prompter.select({
       message: "Channel",
-      options: listChannelPlugins().map((plugin) => ({
+      options: listProductChannelPlugins().map((plugin) => ({
         value: plugin.id,
         label: plugin.meta.label,
       })),

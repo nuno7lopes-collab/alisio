@@ -4,7 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AcpRuntimeError } from "../../acp/runtime/errors.js";
 import type { AcpSessionStoreEntry } from "../../acp/runtime/session-meta.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionBindingRecord } from "../../infra/outbound/session-binding-service.js";
 import type { ReplyDispatcher } from "./reply-dispatcher.js";
 import { buildTestCtx } from "./test-ctx.js";
@@ -20,8 +20,8 @@ const managerMocks = vi.hoisted(() => ({
 }));
 
 const policyMocks = vi.hoisted(() => ({
-  resolveAcpDispatchPolicyError: vi.fn<(cfg: OpenClawConfig) => AcpRuntimeError | null>(() => null),
-  resolveAcpAgentPolicyError: vi.fn<(cfg: OpenClawConfig, agent: string) => AcpRuntimeError | null>(
+  resolveAcpDispatchPolicyError: vi.fn<(cfg: AlisioConfig) => AcpRuntimeError | null>(() => null),
+  resolveAcpAgentPolicyError: vi.fn<(cfg: AlisioConfig, agent: string) => AcpRuntimeError | null>(
     () => null,
   ),
 }));
@@ -39,7 +39,7 @@ const ttsMocks = vi.hoisted(() => ({
     const params = paramsUnknown as { payload: unknown };
     return params.payload;
   }),
-  resolveTtsConfig: vi.fn((_cfg: OpenClawConfig) => ({ mode: "final" })),
+  resolveTtsConfig: vi.fn((_cfg: AlisioConfig) => ({ mode: "final" })),
 }));
 
 const mediaUnderstandingMocks = vi.hoisted(() => ({
@@ -48,7 +48,7 @@ const mediaUnderstandingMocks = vi.hoisted(() => ({
 
 const sessionMetaMocks = vi.hoisted(() => ({
   readAcpSessionEntry: vi.fn<
-    (params: { sessionKey: string; cfg?: OpenClawConfig }) => AcpSessionStoreEntry | null
+    (params: { sessionKey: string; cfg?: AlisioConfig }) => AcpSessionStoreEntry | null
   >(() => null),
 }));
 
@@ -86,7 +86,7 @@ function setReadyAcpResolution() {
   });
 }
 
-function createAcpConfigWithVisibleToolTags(): OpenClawConfig {
+function createAcpConfigWithVisibleToolTags(): AlisioConfig {
   return createAcpTestConfig({
     acp: {
       enabled: true,
@@ -102,7 +102,7 @@ function createAcpConfigWithVisibleToolTags(): OpenClawConfig {
 
 async function runDispatch(params: {
   bodyForAgent: string;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   dispatcher?: ReplyDispatcher;
   shouldRouteToOriginating?: boolean;
   onReplyStart?: () => void;
@@ -224,9 +224,9 @@ describe("tryDispatchAcpReply", () => {
       getAcpSessionManager: () => managerMocks,
     }));
     vi.doMock("../../acp/policy.js", () => ({
-      resolveAcpDispatchPolicyError: (cfg: OpenClawConfig) =>
+      resolveAcpDispatchPolicyError: (cfg: AlisioConfig) =>
         policyMocks.resolveAcpDispatchPolicyError(cfg),
-      resolveAcpAgentPolicyError: (cfg: OpenClawConfig, agent: string) =>
+      resolveAcpAgentPolicyError: (cfg: AlisioConfig, agent: string) =>
         policyMocks.resolveAcpAgentPolicyError(cfg, agent),
     }));
     vi.doMock("./route-reply.js", () => ({
@@ -237,14 +237,14 @@ describe("tryDispatchAcpReply", () => {
     }));
     vi.doMock("../../tts/tts.js", () => ({
       maybeApplyTtsToPayload: (params: unknown) => ttsMocks.maybeApplyTtsToPayload(params),
-      resolveTtsConfig: (cfg: OpenClawConfig) => ttsMocks.resolveTtsConfig(cfg),
+      resolveTtsConfig: (cfg: AlisioConfig) => ttsMocks.resolveTtsConfig(cfg),
     }));
     vi.doMock("../../media-understanding/apply.js", () => ({
       applyMediaUnderstanding: (params: unknown) =>
         mediaUnderstandingMocks.applyMediaUnderstanding(params),
     }));
     vi.doMock("../../acp/runtime/session-meta.js", () => ({
-      readAcpSessionEntry: (params: { sessionKey: string; cfg?: OpenClawConfig }) =>
+      readAcpSessionEntry: (params: { sessionKey: string; cfg?: AlisioConfig }) =>
         sessionMetaMocks.readAcpSessionEntry(params),
     }));
     vi.doMock("../../infra/outbound/session-binding-service.js", () => ({
@@ -662,7 +662,7 @@ describe("tryDispatchAcpReply", () => {
         : [],
     );
     sessionMetaMocks.readAcpSessionEntry.mockImplementation(
-      (params: { sessionKey: string; cfg?: OpenClawConfig }) =>
+      (params: { sessionKey: string; cfg?: AlisioConfig }) =>
         params.sessionKey === canonicalSessionKey
           ? {
               cfg: params.cfg ?? createAcpTestConfig(),

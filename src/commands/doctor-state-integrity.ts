@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveOAuthDir, resolveStateDir } from "../config/paths.js";
 import {
   formatSessionArchiveTimestamp,
@@ -453,7 +453,7 @@ function isSlashRoutingSessionKey(sessionKey: string): boolean {
   return /^[^:]+:slash:[^:]+(?:$|:)/.test(scoped);
 }
 
-function shouldRequireOAuthDir(cfg: OpenClawConfig, env: NodeJS.ProcessEnv): boolean {
+function shouldRequireOAuthDir(cfg: AlisioConfig, env: NodeJS.ProcessEnv): boolean {
   if (env.OPENCLAW_OAUTH_DIR?.trim()) {
     return true;
   }
@@ -478,7 +478,7 @@ function shouldRequireOAuthDir(cfg: OpenClawConfig, env: NodeJS.ProcessEnv): boo
 }
 
 export async function noteStateIntegrity(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   prompter: DoctorPrompterLike,
   configPath?: string,
 ) {

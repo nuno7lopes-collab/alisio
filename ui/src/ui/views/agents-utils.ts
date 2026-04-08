@@ -95,13 +95,13 @@ export const FALLBACK_TOOL_SECTIONS: AgentToolSection[] = [
     label: "Automation",
     tools: [
       { id: "cron", label: "cron", description: "Schedule tasks" },
-      { id: "gateway", label: "gateway", description: "Gateway control" },
+      { id: "gateway", label: "alisio", description: "Alisio control" },
     ],
   },
   {
     id: "nodes",
-    label: "Nodes",
-    tools: [{ id: "nodes", label: "nodes", description: "Nodes + devices" }],
+    label: "Computers",
+    tools: [{ id: "nodes", label: "computers", description: "Computers + devices" }],
   },
   {
     id: "agents",

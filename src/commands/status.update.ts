@@ -1,5 +1,5 @@
 import { formatCliCommand } from "../cli/command-format.js";
-import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
+import { resolveAlisioPackageRoot } from "../infra/alisio-root.js";
 import {
   checkUpdateStatus,
   compareSemverStrings,
@@ -12,7 +12,7 @@ export async function getUpdateCheckResult(params: {
   fetchGit: boolean;
   includeRegistry: boolean;
 }): Promise<UpdateCheckResult> {
-  const root = await resolveOpenClawPackageRoot({
+  const root = await resolveAlisioPackageRoot({
     moduleUrl: import.meta.url,
     argv1: process.argv[1],
     cwd: process.cwd(),
@@ -73,6 +73,10 @@ export function formatUpdateOneLiner(update: UpdateCheckResult): string {
   const parts: string[] = [];
 
   const appendRegistryUpdateSummary = () => {
+    if (update.registry?.disabled) {
+      parts.push("updates disabled");
+      return;
+    }
     if (update.registry?.latestVersion) {
       const cmp = compareSemverStrings(VERSION, update.registry.latestVersion);
       if (cmp === 0) {

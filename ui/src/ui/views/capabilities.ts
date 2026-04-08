@@ -55,12 +55,17 @@ export type CapabilitiesProps = {
   onRefresh: () => void;
   onToggle: (skillKey: string, enabled: boolean) => void;
   onEdit: (skillKey: string, value: string) => void;
+  onEnvEdit: (skillKey: string, envName: string, value: string) => void;
   onSaveKey: (skillKey: string) => void;
+  onSaveEnv: (skillKey: string, envName: string) => void;
   onInstall: (skillKey: string, name: string, installId: string) => void;
+  onEnableConfig: (skillKey: string, configPath: string) => void;
+  onAllowBundled: (skillKey: string) => void;
   onDetailOpen: (skillKey: string) => void;
   onDetailClose: () => void;
   onOpenChannels: () => void;
   onOpenAuthentications: () => void;
+  onOpenSettings: () => void;
 };
 
 const FAMILY_DEFINITIONS = [

@@ -1,4 +1,5 @@
 import { validateMinHostVersion } from "../../src/plugins/min-host-version.ts";
+import { packageBrandConfigKey, readPackageBrandConfig } from "./alisio-branding.mjs";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -9,7 +10,7 @@ export type ExtensionPackageJson = {
   version?: string;
   dependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
-  openclaw?: {
+  alisio?: {
     install?: unknown;
     releaseChecks?: unknown;
   };
@@ -21,10 +22,11 @@ export function collectBundledExtensionManifestErrors(extensions: BundledExtensi
   const errors: string[] = [];
 
   for (const extension of extensions) {
-    const install = extension.packageJson.openclaw?.install;
+    const install = readPackageBrandConfig(extension.packageJson)?.install;
+    const brandKey = packageBrandConfigKey(extension.packageJson);
     if (install !== undefined && !isRecord(install)) {
       errors.push(
-        `bundled extension '${extension.id}' manifest invalid | openclaw.install must be an object`,
+        `bundled extension '${extension.id}' manifest invalid | ${brandKey}.install must be an object`,
       );
       continue;
     }
@@ -34,7 +36,7 @@ export function collectBundledExtensionManifestErrors(extensions: BundledExtensi
       (!install.npmSpec || typeof install.npmSpec !== "string" || !install.npmSpec.trim())
     ) {
       errors.push(
-        `bundled extension '${extension.id}' manifest invalid | openclaw.install.npmSpec must be a non-empty string`,
+        `bundled extension '${extension.id}' manifest invalid | ${brandKey}.install.npmSpec must be a non-empty string`,
       );
     }
     const minHostVersionError = validateMinHostVersion(install?.minHostVersion);

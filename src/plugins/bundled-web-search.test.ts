@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { BUNDLED_WEB_SEARCH_PLUGIN_IDS } from "./bundled-web-search-ids.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
 
@@ -62,7 +62,7 @@ describe("hasBundledWebSearchCredential", () => {
     agents: { defaults: { model: { primary: "ollama/mistral-8b" } } },
     browser: { enabled: false },
     tools: { web: { fetch: { enabled: false } } },
-  } satisfies OpenClawConfig;
+  } satisfies AlisioConfig;
 
   it.each([
     {
@@ -74,7 +74,7 @@ describe("hasBundledWebSearchCredential", () => {
             google: { enabled: true, config: { webSearch: { apiKey: "AIza-test" } } },
           },
         },
-      } satisfies OpenClawConfig,
+      } satisfies AlisioConfig,
       env: {},
     },
     {

@@ -1,7 +1,7 @@
 import { loadAuthProfileStore } from "../../agents/auth-profiles.js";
-import { listChannelPlugins } from "../../channels/plugins/index.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../../channels/plugins/types.js";
+import { listProductChannelPlugins } from "../../channels/product-surface.js";
 import { withProgress } from "../../cli/progress.js";
 import { formatUsageReportLines, loadProviderUsageSummary } from "../../infra/provider-usage.js";
 import { defaultRuntime, type RuntimeEnv, writeRuntimeJson } from "../../runtime.js";
@@ -110,7 +110,7 @@ export async function channelsListCommand(
   }
   const includeUsage = opts.usage !== false;
 
-  const plugins = listChannelPlugins();
+  const plugins = listProductChannelPlugins();
 
   const authStore = loadAuthProfileStore();
   const authProfiles = Object.entries(authStore.profiles).map(([profileId, profile]) => ({

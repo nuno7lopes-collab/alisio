@@ -1,6 +1,6 @@
 import { normalizeConversationText } from "../../acp/conversation-id.js";
 import { resolveConversationBindingContext } from "../../channels/conversation-binding-context.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { MsgContext } from "../templating.js";
 import type { HandleCommandsParams } from "./commands-types.js";
 
@@ -38,7 +38,7 @@ function resolveBindingThreadId(threadId: string | number | null | undefined): s
 }
 
 export function resolveConversationBindingContextFromMessage(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   ctx: BindingMsgContext;
   senderId?: string | null;
   sessionKey?: string | null;

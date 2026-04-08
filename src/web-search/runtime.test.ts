@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { PluginWebSearchProviderEntry } from "../plugins/types.js";
 
 type TestPluginWebSearchConfig = {
@@ -127,7 +127,7 @@ describe("web search runtime", () => {
     resolveRuntimeWebSearchProvidersMock.mockReturnValue([provider]);
     resolveBundledPluginWebSearchProvidersMock.mockReturnValue([provider]);
 
-    const config: OpenClawConfig = {
+    const config: AlisioConfig = {
       plugins: {
         entries: {
           "custom-search": {
@@ -174,7 +174,7 @@ describe("web search runtime", () => {
     resolveRuntimeWebSearchProvidersMock.mockReturnValue([provider]);
     resolveBundledPluginWebSearchProvidersMock.mockReturnValue([provider]);
 
-    const config: OpenClawConfig = {
+    const config: AlisioConfig = {
       plugins: {
         entries: {
           "custom-search": {

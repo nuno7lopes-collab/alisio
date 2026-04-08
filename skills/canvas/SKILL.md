@@ -1,6 +1,6 @@
 # Canvas Skill
 
-Display HTML content on connected OpenClaw nodes (Mac app, iOS, Android).
+Display HTML content on connected Alisio nodes (Mac app, iOS, Android).
 
 ## Overview
 

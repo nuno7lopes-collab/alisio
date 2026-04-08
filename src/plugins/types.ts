@@ -20,7 +20,7 @@ import type {
   ChannelPlugin,
   ChannelStructuredComponents,
 } from "../channels/plugins/types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type {
   CliBackendConfig,
   ModelProviderAuthMode,
@@ -114,9 +114,9 @@ export type OpenClawPluginConfigSchema = {
 
 /** Trusted execution context passed to plugin-owned agent tool factories. */
 export type OpenClawPluginToolContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   /** Active runtime-resolved config snapshot when one is available. */
-  runtimeConfig?: OpenClawConfig;
+  runtimeConfig?: AlisioConfig;
   workspaceDir?: string;
   agentDir?: string;
   agentId?: string;
@@ -167,14 +167,14 @@ export type ProviderAuthResult = {
    * `models.providers.<id>` entries, default aliases, or agent model helpers.
    * The caller still persists auth-profile bindings separately.
    */
-  configPatch?: Partial<OpenClawConfig>;
+  configPatch?: Partial<AlisioConfig>;
   defaultModel?: string;
   notes?: string[];
 };
 
 /** Interactive auth context passed to provider login/setup methods. */
 export type ProviderAuthContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   env?: NodeJS.ProcessEnv;
   agentDir?: string;
   workspaceDir?: string;
@@ -238,8 +238,8 @@ export type ProviderNonInteractiveApiKeyCredentialParams = {
 
 export type ProviderAuthMethodNonInteractiveContext = {
   authChoice: string;
-  config: OpenClawConfig;
-  baseConfig: OpenClawConfig;
+  config: AlisioConfig;
+  baseConfig: AlisioConfig;
   opts: ProviderAuthOptionBag;
   runtime: RuntimeEnv;
   agentDir?: string;
@@ -268,13 +268,13 @@ export type ProviderAuthMethod = {
   run: (ctx: ProviderAuthContext) => Promise<ProviderAuthResult>;
   runNonInteractive?: (
     ctx: ProviderAuthMethodNonInteractiveContext,
-  ) => Promise<OpenClawConfig | null>;
+  ) => Promise<AlisioConfig | null>;
 };
 
 export type ProviderCatalogOrder = "simple" | "profile" | "paired" | "late";
 
 export type ProviderCatalogContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -332,7 +332,7 @@ export type ProviderRuntimeProviderConfig = {
  * belong in `prepareDynamicModel`.
  */
 export type ProviderResolveDynamicModelContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   provider: string;
@@ -358,7 +358,7 @@ export type ProviderPrepareDynamicModelContext = ProviderResolveDynamicModelCont
  * patch provider-specific compat bits.
  */
 export type ProviderNormalizeResolvedModelContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   provider: string;
@@ -419,7 +419,7 @@ export type ProviderResolveConfigApiKeyContext = {
  * for the request.
  */
 export type ProviderPrepareRuntimeAuthContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -461,7 +461,7 @@ export type ProviderPreparedRuntimeAuth = {
  * token blob, read a legacy credential file, or pick between aliases).
  */
 export type ProviderResolveUsageAuthContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -493,7 +493,7 @@ export type ProviderResolvedUsageAuth = {
  * owns the provider-specific HTTP request + response normalization.
  */
 export type ProviderFetchUsageSnapshotContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -512,7 +512,7 @@ export type ProviderFetchUsageSnapshotContext = {
  * migrations or other provider-owned auth-store cleanup guidance.
  */
 export type ProviderAuthDoctorHintContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   store: AuthProfileStore;
   provider: string;
   profileId?: string;
@@ -526,7 +526,7 @@ export type ProviderAuthDoctorHintContext = {
  * into the merged `extraParams` object. Return the full next extraParams object.
  */
 export type ProviderPrepareExtraParamsContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   provider: string;
@@ -543,7 +543,7 @@ export type ProviderPrepareExtraParamsContext = {
  * as a wrapper around `streamSimple`).
  */
 export type ProviderCreateStreamFnContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   provider: string;
@@ -586,7 +586,7 @@ export type PluginEmbeddingProvider = {
  * plugin instead of the core memory switchboard.
  */
 export type ProviderCreateEmbeddingProviderContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   provider: string;
@@ -620,7 +620,7 @@ export type ProviderCacheTtlEligibilityContext = {
  * "No API key found" error.
  */
 export type ProviderBuildMissingAuthMessageContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -636,7 +636,7 @@ export type ProviderBuildMissingAuthMessageContext = {
  * error.
  */
 export type ProviderBuildUnknownModelHintContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -652,7 +652,7 @@ export type ProviderBuildUnknownModelHintContext = {
  * resolution, model listing, and catalog loading.
  */
 export type ProviderBuiltInModelSuppressionContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -708,7 +708,7 @@ export type ProviderModernModelPolicyContext = {
  * upstream registry has not caught up yet.
  */
 export type ProviderAugmentModelCatalogContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
@@ -802,7 +802,7 @@ export type ProviderOAuthProfileIdRepair = {
 };
 
 export type ProviderModelSelectedContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   model: string;
   prompter: WizardPrompter;
   agentDir?: string;
@@ -810,7 +810,7 @@ export type ProviderModelSelectedContext = {
 };
 
 export type ProviderResolveSyntheticAuthContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   provider: string;
   providerConfig?: ModelProviderConfig;
 };
@@ -1186,7 +1186,7 @@ export type WebSearchProviderToolDefinition = {
 };
 
 export type WebSearchProviderContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   searchConfig?: Record<string, unknown>;
   runtimeMetadata?: RuntimeWebSearchMetadata;
 };
@@ -1194,7 +1194,7 @@ export type WebSearchProviderContext = {
 export type WebSearchCredentialResolutionSource = "config" | "secretRef" | "env" | "missing";
 
 export type WebSearchRuntimeMetadataContext = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   searchConfig?: Record<string, unknown>;
   runtimeMetadata?: RuntimeWebSearchMetadata;
   resolvedCredential?: {
@@ -1205,7 +1205,7 @@ export type WebSearchRuntimeMetadataContext = {
 };
 
 export type WebSearchProviderSetupContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   runtime: RuntimeEnv;
   prompter: WizardPrompter;
   quickstartDefaults?: boolean;
@@ -1236,10 +1236,10 @@ export type WebSearchProviderPlugin = {
   inactiveSecretPaths?: string[];
   getCredentialValue: (searchConfig?: Record<string, unknown>) => unknown;
   setCredentialValue: (searchConfigTarget: Record<string, unknown>, value: unknown) => void;
-  getConfiguredCredentialValue?: (config?: OpenClawConfig) => unknown;
-  setConfiguredCredentialValue?: (configTarget: OpenClawConfig, value: unknown) => void;
-  applySelectionConfig?: (config: OpenClawConfig) => OpenClawConfig;
-  runSetup?: (ctx: WebSearchProviderSetupContext) => OpenClawConfig | Promise<OpenClawConfig>;
+  getConfiguredCredentialValue?: (config?: AlisioConfig) => unknown;
+  setConfiguredCredentialValue?: (configTarget: AlisioConfig, value: unknown) => void;
+  applySelectionConfig?: (config: AlisioConfig) => AlisioConfig;
+  runSetup?: (ctx: WebSearchProviderSetupContext) => AlisioConfig | Promise<AlisioConfig>;
   resolveRuntimeMetadata?: (
     ctx: WebSearchRuntimeMetadataContext,
   ) => Partial<RuntimeWebSearchMetadata> | Promise<Partial<RuntimeWebSearchMetadata>>;
@@ -1307,7 +1307,7 @@ export type PluginCommandContext = {
   /** The full normalized command body */
   commandBody: string;
   /** Current OpenClaw configuration */
-  config: OpenClawConfig;
+  config: AlisioConfig;
   /** Raw "From" value (channel-scoped id) */
   from?: string;
   /** Raw "To" value (channel-scoped id) */
@@ -1596,7 +1596,7 @@ export type OpenClawPluginHttpRouteParams = {
 
 export type OpenClawPluginCliContext = {
   program: Command;
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   logger: PluginLogger;
 };
@@ -1619,7 +1619,7 @@ export type OpenClawPluginCliCommandDescriptor = {
 
 /** Context passed to long-lived plugin services. */
 export type OpenClawPluginServiceContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   stateDir: string;
   logger: PluginLogger;
@@ -1685,7 +1685,7 @@ export type OpenClawPluginApi = {
   source: string;
   rootDir?: string;
   registrationMode: PluginRegistrationMode;
-  config: OpenClawConfig;
+  config: AlisioConfig;
   pluginConfig?: Record<string, unknown>;
   /**
    * In-process runtime helpers for trusted native plugins.

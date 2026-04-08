@@ -1,7 +1,11 @@
 import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
+import {
+  resolveAlisioRuntimeProviderReady,
+  type AlisioRuntimeSetupState,
+} from "../infra/alisio-runtime.js";
 import { hasRestorableAlisioAccount, loadAlisioBootstrapState } from "../infra/alisio-store.js";
 import { matchBoundaryFileOpenFailure, openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
@@ -40,7 +44,7 @@ const CONTROL_UI_ASSETS_MISSING_MESSAGE =
   "Control UI assets not found. Build them with `pnpm ui:build` (auto-installs UI deps), or run `pnpm ui:dev` during development.";
 export type ControlUiRequestOptions = {
   basePath?: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentId?: string;
   root?: ControlUiRootState;
 };
@@ -55,7 +59,7 @@ export type AlisioBootstrapHttpRequestOptions = {
   basePath?: string;
   trustedProxies: string[];
   allowRealIpFallback: boolean;
-  loadRuntimeSetup: () => Promise<{ providerReady: boolean }>;
+  loadRuntimeSetup: () => Promise<Pick<AlisioRuntimeSetupState, "providerReady" | "models">>;
 };
 
 function contentTypeForExt(ext: string): string {
@@ -192,9 +196,10 @@ export async function handleAlisioBootstrapHttpRequest(
   }
 
   const runtimeSetup = await opts.loadRuntimeSetup();
+  const providerReady = resolveAlisioRuntimeProviderReady(runtimeSetup);
   const { snapshot, summary } = await loadAlisioBootstrapState({
     wizardRunning: false,
-    providerReady: runtimeSetup.providerReady,
+    providerReady,
     connectionRequired: false,
   });
   const account = snapshot.account;

@@ -21,7 +21,7 @@ describe("write-cli-startup-metadata", () => {
   });
 
   it("captures async root help bundle output", async () => {
-    const distDir = createTempDir("openclaw-root-help-");
+    const distDir = createTempDir("alisio-root-help-");
     tempDirs.push(distDir);
     writeFileSync(
       path.join(distDir, "root-help-async.js"),

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import "./test-helpers/fast-core-tools.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 
@@ -18,7 +18,7 @@ async function withTempAgentDir<T>(run: (agentDir: string) => Promise<T>): Promi
 describe("createOpenClawTools PDF registration", () => {
   it("includes pdf tool when pdfModel is configured", async () => {
     await withTempAgentDir(async (agentDir) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             pdfModel: { primary: "openai/gpt-5-mini" },

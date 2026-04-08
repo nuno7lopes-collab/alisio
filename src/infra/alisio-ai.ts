@@ -8,7 +8,7 @@ import {
   updateRuntimeAuthProfileStoreSnapshot,
 } from "../agents/auth-profiles.js";
 import { loadValidConfigOrThrow, updateConfig } from "../commands/models/shared.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { isLoopbackHost } from "../gateway/net.js";
 import { applyDefaultModel } from "../plugins/provider-auth-choice-helpers.js";
 import { OPENAI_CODEX_DEFAULT_MODEL } from "../plugins/provider-model-defaults.js";
@@ -338,7 +338,7 @@ function removePersistedAlisioOpenAiAuthProfiles(authProfileIds: readonly string
   }
 }
 
-function resolvePrimaryModelRef(cfg: OpenClawConfig): string | undefined {
+function resolvePrimaryModelRef(cfg: AlisioConfig): string | undefined {
   const primary = cfg.agents?.defaults?.model;
   return primary && typeof primary === "object" && "primary" in primary
     ? primary.primary
@@ -347,7 +347,7 @@ function resolvePrimaryModelRef(cfg: OpenClawConfig): string | undefined {
       : undefined;
 }
 
-function resolveConfiguredOpenAiCodexModel(cfg: OpenClawConfig): string | undefined {
+function resolveConfiguredOpenAiCodexModel(cfg: AlisioConfig): string | undefined {
   const primaryModel = resolvePrimaryModelRef(cfg)?.trim();
   if (!primaryModel?.toLowerCase().startsWith("openai-codex/")) {
     return undefined;

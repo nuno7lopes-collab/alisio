@@ -15,7 +15,7 @@ import {
   clearRuntimeConfigSnapshot,
   setRuntimeConfigSnapshotRefreshHandler,
   setRuntimeConfigSnapshot,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../config/config.js";
 import { migrateLegacyConfig } from "../config/legacy-migrate.js";
 import { loadPluginManifestRegistry } from "../plugins/manifest-registry.js";
@@ -38,8 +38,8 @@ import { resolveRuntimeWebTools, type RuntimeWebToolsMetadata } from "./runtime-
 export type { SecretResolverWarning } from "./runtime-shared.js";
 
 export type PreparedSecretsRuntimeSnapshot = {
-  sourceConfig: OpenClawConfig;
-  config: OpenClawConfig;
+  sourceConfig: AlisioConfig;
+  config: AlisioConfig;
   authStores: Array<{ agentDir: string; store: AuthProfileStore }>;
   warnings: SecretResolverWarning[];
   webTools: RuntimeWebToolsMetadata;
@@ -103,7 +103,7 @@ function clearActiveSecretsRuntimeState(): void {
 }
 
 function collectCandidateAgentDirs(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const dirs = new Set<string>();
@@ -115,7 +115,7 @@ function collectCandidateAgentDirs(
 }
 
 function resolveRefreshAgentDirs(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   context: SecretsRuntimeRefreshContext,
 ): string[] {
   const configDerived = collectCandidateAgentDirs(config, context.env);
@@ -126,7 +126,7 @@ function resolveRefreshAgentDirs(
 }
 
 function resolveLoadablePluginOrigins(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   env: NodeJS.ProcessEnv;
 }): ReadonlyMap<string, PluginOrigin> {
   const workspaceDir = resolveAgentWorkspaceDir(
@@ -159,7 +159,7 @@ function mergeSecretsRuntimeEnv(
 }
 
 export async function prepareSecretsRuntimeSnapshot(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   env?: NodeJS.ProcessEnv;
   agentDirs?: string[];
   loadAuthStore?: (agentDir?: string) => AuthProfileStore;

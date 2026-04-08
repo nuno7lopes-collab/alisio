@@ -1,15 +1,15 @@
 import { Command } from "commander";
 import { vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createCliRuntimeCapture } from "./test-runtime-capture.js";
 
-export const loadConfig = vi.fn<() => OpenClawConfig>(() => ({}) as OpenClawConfig);
+export const loadConfig = vi.fn<() => AlisioConfig>(() => ({}) as AlisioConfig);
 export const readConfigFileSnapshot = vi.fn();
-export const writeConfigFile = vi.fn<(config: OpenClawConfig) => Promise<void>>(
+export const writeConfigFile = vi.fn<(config: AlisioConfig) => Promise<void>>(
   async () => undefined,
 );
 export const replaceConfigFile = vi.fn(
-  async (params: { nextConfig: OpenClawConfig }) => await writeConfigFile(params.nextConfig),
+  async (params: { nextConfig: AlisioConfig }) => await writeConfigFile(params.nextConfig),
 );
 export const resolveStateDir = vi.fn(() => "/tmp/openclaw-state");
 export const installPluginFromMarketplace = vi.fn();
@@ -44,8 +44,8 @@ vi.mock("../runtime.js", () => ({
 vi.mock("../config/config.js", () => ({
   loadConfig: () => loadConfig(),
   readConfigFileSnapshot: (...args: unknown[]) => readConfigFileSnapshot(...args),
-  writeConfigFile: (config: OpenClawConfig) => writeConfigFile(config),
-  replaceConfigFile: (params: { nextConfig: OpenClawConfig }) => replaceConfigFile(params),
+  writeConfigFile: (config: AlisioConfig) => writeConfigFile(config),
+  replaceConfigFile: (params: { nextConfig: AlisioConfig }) => replaceConfigFile(params),
 }));
 
 vi.mock("../config/paths.js", () => ({
@@ -168,7 +168,7 @@ export function resetPluginsCliTestState() {
   installHooksFromPath.mockReset();
   recordHookInstall.mockReset();
 
-  loadConfig.mockReturnValue({} as OpenClawConfig);
+  loadConfig.mockReturnValue({} as AlisioConfig);
   readConfigFileSnapshot.mockImplementation(async () => {
     const config = loadConfig();
     return {
@@ -189,7 +189,7 @@ export function resetPluginsCliTestState() {
   });
   writeConfigFile.mockResolvedValue(undefined);
   replaceConfigFile.mockImplementation(
-    async (params: { nextConfig: OpenClawConfig }) => await writeConfigFile(params.nextConfig),
+    async (params: { nextConfig: AlisioConfig }) => await writeConfigFile(params.nextConfig),
   );
   resolveStateDir.mockReturnValue("/tmp/openclaw-state");
   resolveMarketplaceInstallShortcut.mockResolvedValue(null);
@@ -197,19 +197,19 @@ export function resetPluginsCliTestState() {
     ok: false,
     error: "marketplace install failed",
   });
-  enablePluginInConfig.mockImplementation((cfg: OpenClawConfig) => ({ config: cfg }));
-  recordPluginInstall.mockImplementation((cfg: OpenClawConfig) => cfg);
+  enablePluginInConfig.mockImplementation((cfg: AlisioConfig) => ({ config: cfg }));
+  recordPluginInstall.mockImplementation((cfg: AlisioConfig) => cfg);
   buildPluginStatusReport.mockReturnValue({
     plugins: [],
     diagnostics: [],
   });
-  applyExclusiveSlotSelection.mockImplementation(({ config }: { config: OpenClawConfig }) => ({
+  applyExclusiveSlotSelection.mockImplementation(({ config }: { config: AlisioConfig }) => ({
     config,
     warnings: [],
   }));
   uninstallPlugin.mockResolvedValue({
     ok: true,
-    config: {} as OpenClawConfig,
+    config: {} as AlisioConfig,
     warnings: [],
     actions: {
       entry: false,
@@ -223,12 +223,12 @@ export function resetPluginsCliTestState() {
   updateNpmInstalledPlugins.mockResolvedValue({
     outcomes: [],
     changed: false,
-    config: {} as OpenClawConfig,
+    config: {} as AlisioConfig,
   });
   updateNpmInstalledHookPacks.mockResolvedValue({
     outcomes: [],
     changed: false,
-    config: {} as OpenClawConfig,
+    config: {} as AlisioConfig,
   });
   promptYesNo.mockResolvedValue(true);
   installPluginFromPath.mockResolvedValue({ ok: false, error: "path install disabled in test" });
@@ -249,5 +249,5 @@ export function resetPluginsCliTestState() {
     ok: false,
     error: "hook npm install disabled in test",
   });
-  recordHookInstall.mockImplementation((cfg: OpenClawConfig) => cfg);
+  recordHookInstall.mockImplementation((cfg: AlisioConfig) => cfg);
 }

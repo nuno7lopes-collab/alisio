@@ -5,7 +5,7 @@ import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import { buildAuthProfileId } from "../agents/auth-profiles/identity.js";
 import { upsertAuthProfile } from "../agents/auth-profiles/profiles.js";
 import { normalizeProviderIdForAuth } from "../agents/provider-id.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import {
   coerceSecretRef,
@@ -104,7 +104,7 @@ export function buildApiKeyCredential(
 }
 
 export function applyAuthProfileConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     profileId: string;
     provider: string;
@@ -113,7 +113,7 @@ export function applyAuthProfileConfig(
     displayName?: string;
     preferProfileFirst?: boolean;
   },
-): OpenClawConfig {
+): AlisioConfig {
   const normalizedProvider = normalizeProviderIdForAuth(params.provider);
   const profiles = {
     ...cfg.auth?.profiles,

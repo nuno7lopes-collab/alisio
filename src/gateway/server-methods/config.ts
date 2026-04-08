@@ -19,7 +19,7 @@ import {
 import { loadGatewayRuntimeConfigSchema } from "../../config/runtime-schema.js";
 import { lookupConfigSchema, type ConfigSchemaResponse } from "../../config/schema.js";
 import { extractDeliveryInfo } from "../../config/sessions.js";
-import type { ConfigValidationIssue, OpenClawConfig } from "../../config/types.openclaw.js";
+import type { ConfigValidationIssue, AlisioConfig } from "../../config/types.alisio.js";
 import {
   formatDoctorNonInteractiveHint,
   type RestartSentinelPayload,
@@ -130,7 +130,7 @@ function parseValidateConfigFromRawOrRespond(
   requestName: string,
   snapshot: Awaited<ReturnType<typeof readConfigFileSnapshot>>,
   respond: RespondFn,
-): { config: OpenClawConfig; schema: ConfigSchemaResponse } | null {
+): { config: AlisioConfig; schema: ConfigSchemaResponse } | null {
   const rawValue = parseRawConfigOrRespond(params, requestName, respond);
   if (!rawValue) {
     return null;
@@ -236,7 +236,7 @@ async function tryWriteRestartSentinelPayload(
 }
 
 function buildNoChangeConfigWriteResponse(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   uiHints: ConfigSchemaResponse["uiHints"];
   changedPaths: string[];
 }) {
@@ -259,7 +259,7 @@ function loadSchemaWithPlugins(): ConfigSchemaResponse {
   return loadGatewayRuntimeConfigSchema();
 }
 
-function normalizeComparableConfig(config: OpenClawConfig): OpenClawConfig {
+function normalizeComparableConfig(config: AlisioConfig): AlisioConfig {
   const migrated = applyLegacyMigrations(config).next ?? config;
   const validated = validateConfigObjectWithPlugins(migrated);
   return validated.ok ? validated.config : migrated;

@@ -288,7 +288,10 @@ describe("runDiscordGatewayLifecycle", () => {
     }
     expect(connectedCall[0]).toMatchObject({
       connected: true,
+      reconnectAttempts: 0,
+      healthState: "healthy",
       lastDisconnect: null,
+      lastError: null,
     });
     expect(connectedCall[0].lastConnectedAt).toBeTypeOf("number");
   });
@@ -305,7 +308,7 @@ describe("runDiscordGatewayLifecycle", () => {
         }, 1_000);
       });
 
-      const { lifecycleParams, runtimeError } = createLifecycleHarness({ gateway });
+      const { lifecycleParams, runtimeError, statusSink } = createLifecycleHarness({ gateway });
       const lifecyclePromise = runDiscordGatewayLifecycle(lifecycleParams);
       await vi.advanceTimersByTimeAsync(15_000 + 1_000);
       await expect(lifecyclePromise).resolves.toBeUndefined();
@@ -316,6 +319,15 @@ describe("runDiscordGatewayLifecycle", () => {
       expect(gateway.disconnect).toHaveBeenCalledTimes(1);
       expect(gateway.connect).toHaveBeenCalledTimes(1);
       expect(gateway.connect).toHaveBeenCalledWith(false);
+      expect(statusSink.mock.calls).toContainEqual([
+        expect.objectContaining({
+          connected: false,
+          healthState: "reconnecting",
+          lastDisconnect: expect.objectContaining({
+            error: "startup-not-ready",
+          }),
+        }),
+      ]);
     } finally {
       vi.useRealTimers();
     }

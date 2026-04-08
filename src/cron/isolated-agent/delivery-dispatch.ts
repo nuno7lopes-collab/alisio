@@ -2,7 +2,7 @@ import { countActiveDescendantRuns } from "../../agents/subagent-registry.js";
 import { SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { createOutboundSendDeps, type CliDeps } from "../../cli/outbound-send-deps.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { resolveAgentMainSessionKey, resolveMainSessionKey } from "../../config/sessions.js";
 import { callGateway } from "../../gateway/call.js";
 import { sleepWithAbort } from "../../infra/backoff.js";
@@ -75,8 +75,8 @@ export function resolveCronDeliveryBestEffort(job: CronJob): boolean {
 export type SuccessfulDeliveryTarget = Extract<DeliveryTargetResolution, { ok: true }>;
 
 type DispatchCronDeliveryParams = {
-  cfg: OpenClawConfig;
-  cfgWithAgentDefaults: OpenClawConfig;
+  cfg: AlisioConfig;
+  cfgWithAgentDefaults: AlisioConfig;
   deps: CliDeps;
   job: CronJob;
   agentId: string;
@@ -238,7 +238,7 @@ function shouldQueueCronAwareness(job: CronJob, deliveryBestEffort: boolean): bo
 }
 
 function resolveCronAwarenessMainSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
 }): string {
   return params.cfg.session?.scope === "global"
@@ -247,7 +247,7 @@ function resolveCronAwarenessMainSessionKey(params: {
 }
 
 function queueCronAwarenessSystemEvent(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   jobId: string;
   agentId: string;
   deliveryIdempotencyKey: string;

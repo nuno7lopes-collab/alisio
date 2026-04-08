@@ -390,10 +390,94 @@ describe("renderSecurity", () => {
       container,
     );
 
-    const stats = container.querySelector(".alisio-security-summary");
+    const stats = container.querySelector(".alisio-security-meta");
     expect(stats?.textContent).toContain("Always");
     expect(stats?.textContent).not.toContain("On miss");
     expect(stats?.textContent).toContain("Runner · node-1");
+  });
+
+  it("shows the effective gateway prompt when exec approvals are stricter than tools.exec", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        configSnapshot: {
+          config: {
+            tools: {
+              exec: {
+                security: "allowlist",
+                ask: "off",
+              },
+            },
+          },
+        },
+        execApprovalsSnapshot: {
+          path: "/tmp/exec-approvals.json",
+          exists: true,
+          hash: "hash-2",
+          file: {
+            version: 1,
+            defaults: {
+              security: "allowlist",
+              ask: "always",
+              askFallback: "deny",
+            },
+          },
+        },
+        execApprovalsForm: null,
+      }),
+      container,
+    );
+
+    const stats = container.querySelector(".alisio-security-meta");
+    expect(stats?.textContent).toContain("Always");
+    expect(stats?.textContent).not.toContain("Off");
+  });
+
+  it("keeps the prompt summary on the applied snapshot while exec approvals drafts are dirty", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        configSnapshot: {
+          config: {
+            tools: {
+              exec: {
+                security: "allowlist",
+                ask: "off",
+              },
+            },
+          },
+        },
+        execApprovalsDirty: true,
+        execApprovalsSnapshot: {
+          path: "/tmp/exec-approvals.json",
+          exists: true,
+          hash: "hash-live",
+          file: {
+            version: 1,
+            defaults: {
+              security: "allowlist",
+              ask: "always",
+              askFallback: "deny",
+            },
+          },
+        },
+        execApprovalsForm: {
+          version: 1,
+          defaults: {
+            security: "allowlist",
+            ask: "off",
+            askFallback: "deny",
+          },
+        },
+      }),
+      container,
+    );
+
+    const stats = container.querySelector(".alisio-security-meta");
+    expect(stats?.textContent).toContain("Always");
+    expect(stats?.textContent).not.toContain("Off");
   });
 });
 

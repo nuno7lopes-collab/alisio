@@ -5,7 +5,7 @@ import {
 } from "../channels/plugins/config-helpers.js";
 import type { ChannelConfigAdapter } from "../channels/plugins/types.adapters.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveAccountEntry } from "../routing/account-lookup.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 import { normalizeStringEntries } from "../shared/string-normalization.js";
@@ -81,7 +81,7 @@ function formatPairingApproveHint(channelId: string): string {
 }
 
 function buildAccountScopedDmSecurityPolicy(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channelKey: string;
   accountId?: string | null;
   fallbackAccountId?: string | null;
@@ -161,7 +161,7 @@ function normalizeLocalWhatsAppTarget(value: string): string | null {
 }
 
 function resolveChannelConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   channelId?: string | null,
 ): ChannelConfigWithAccounts | undefined {
   if (!channelId) {
@@ -188,7 +188,7 @@ function listConfigWriteTargetScopes(target?: ConfigWriteTarget): ConfigWriteSco
 }
 
 export function resolveChannelConfigWrites(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channelId?: string | null;
   accountId?: string | null;
 }): boolean {
@@ -202,7 +202,7 @@ export function resolveChannelConfigWrites(params: {
 }
 
 export function authorizeConfigWrite(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   origin?: ConfigWriteScope;
   target?: ConfigWriteTarget;
   allowBypass?: boolean;
@@ -284,7 +284,7 @@ export function formatConfigWriteDeniedMessage(params: {
   return `⚠️ Config writes are disabled for ${channelLabel}. Set ${hint} to enable.`;
 }
 
-type ChannelConfigAccessorParams<Config extends OpenClawConfig = OpenClawConfig> = {
+type ChannelConfigAccessorParams<Config extends AlisioConfig = AlisioConfig> = {
   cfg: Config;
   accountId?: string | null;
 };
@@ -292,7 +292,7 @@ type ChannelConfigAccessorParams<Config extends OpenClawConfig = OpenClawConfig>
 type MultiAccountChannelConfigAdapterParams<
   ResolvedAccount,
   AccessorAccount = ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 > = {
   sectionKey: string;
   listAccountIds: (cfg: Config) => string[];
@@ -330,7 +330,7 @@ export function resolveOptionalConfigString(
 }
 
 /** Adapt `{ cfg, accountId }` accessors to callback sites that pass positional args. */
-export function adaptScopedAccountAccessor<Result, Config extends OpenClawConfig = OpenClawConfig>(
+export function adaptScopedAccountAccessor<Result, Config extends AlisioConfig = AlisioConfig>(
   accessor: (params: { cfg: Config; accountId?: string | null }) => Result,
 ): (cfg: Config, accountId?: string | null) => Result {
   return (cfg, accountId) => accessor({ cfg, accountId });
@@ -339,7 +339,7 @@ export function adaptScopedAccountAccessor<Result, Config extends OpenClawConfig
 /** Build the shared allowlist/default target adapter surface for account-scoped channel configs. */
 export function createScopedAccountConfigAccessors<
   ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   resolveAccount: (params: { cfg: Config; accountId?: string | null }) => ResolvedAccount;
   resolveAllowFrom: (account: ResolvedAccount) => Array<string | number> | null | undefined;
@@ -350,7 +350,7 @@ export function createScopedAccountConfigAccessors<
   "resolveAllowFrom" | "formatAllowFrom" | "resolveDefaultTo"
 > {
   const base = {
-    resolveAllowFrom({ cfg, accountId }: { cfg: OpenClawConfig; accountId?: string | null }) {
+    resolveAllowFrom({ cfg, accountId }: { cfg: AlisioConfig; accountId?: string | null }) {
       return mapAllowFromEntries(
         params.resolveAllowFrom(params.resolveAccount({ cfg: cfg as Config, accountId })),
       );
@@ -376,18 +376,18 @@ export function createScopedAccountConfigAccessors<
 
 function createNamedAccountConfigBase<
   ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   listAccountIds: (cfg: Config) => string[];
   resolveAccount: (cfg: Config, accountId?: string | null) => ResolvedAccount;
   inspectAccount?: (cfg: Config, accountId?: string | null) => unknown;
   defaultAccountId: (cfg: Config) => string;
   setAccountEnabled: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     enabled: boolean;
-  }) => OpenClawConfig;
-  deleteAccount: (params: { cfg: OpenClawConfig; accountId: string }) => OpenClawConfig;
+  }) => AlisioConfig;
+  deleteAccount: (params: { cfg: AlisioConfig; accountId: string }) => AlisioConfig;
 }): ChannelCrudConfigAdapter<ResolvedAccount> {
   return {
     listAccountIds(cfg) {
@@ -420,7 +420,7 @@ function createNamedAccountConfigBase<
 
 function resolveAccessorAccountWithFallback<
   AccessorAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(
   resolveAccessorAccount:
     | ((params: ChannelConfigAccessorParams<Config>) => AccessorAccount)
@@ -433,7 +433,7 @@ function resolveAccessorAccountWithFallback<
 function createChannelConfigAdapterWithAccessors<
   ResolvedAccount,
   AccessorAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   base: ChannelCrudConfigAdapter<ResolvedAccount>;
   resolveAccessorAccount?: (params: ChannelConfigAccessorParams<Config>) => AccessorAccount;
@@ -459,7 +459,7 @@ function createChannelConfigAdapterWithAccessors<
 function createChannelConfigAdapterFromBase<
   ResolvedAccount,
   AccessorAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   base: ChannelCrudConfigAdapter<ResolvedAccount>;
   resolveAccessorAccount?: (params: ChannelConfigAccessorParams<Config>) => AccessorAccount;
@@ -481,7 +481,7 @@ function createChannelConfigAdapterFromBase<
 /** Build the common CRUD/config helpers for channels that store multiple named accounts. */
 export function createScopedChannelConfigBase<
   ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   sectionKey: string;
   listAccountIds: (cfg: Config) => string[];
@@ -528,7 +528,7 @@ export function createScopedChannelConfigBase<
 export function createScopedChannelConfigAdapter<
   ResolvedAccount,
   AccessorAccount = ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(
   params: MultiAccountChannelConfigAdapterParams<ResolvedAccount, AccessorAccount, Config> & {
     allowTopLevel?: boolean;
@@ -554,7 +554,7 @@ export function createScopedChannelConfigAdapter<
   });
 }
 
-function setTopLevelChannelEnabledInConfigSection<Config extends OpenClawConfig>(params: {
+function setTopLevelChannelEnabledInConfigSection<Config extends AlisioConfig>(params: {
   cfg: Config;
   sectionKey: string;
   enabled: boolean;
@@ -572,7 +572,7 @@ function setTopLevelChannelEnabledInConfigSection<Config extends OpenClawConfig>
   } as Config;
 }
 
-function removeTopLevelChannelConfigSection<Config extends OpenClawConfig>(params: {
+function removeTopLevelChannelConfigSection<Config extends AlisioConfig>(params: {
   cfg: Config;
   sectionKey: string;
 }): Config {
@@ -587,7 +587,7 @@ function removeTopLevelChannelConfigSection<Config extends OpenClawConfig>(param
   return nextCfg;
 }
 
-function clearTopLevelChannelConfigFields<Config extends OpenClawConfig>(params: {
+function clearTopLevelChannelConfigFields<Config extends AlisioConfig>(params: {
   cfg: Config;
   sectionKey: string;
   clearBaseFields: string[];
@@ -612,7 +612,7 @@ function clearTopLevelChannelConfigFields<Config extends OpenClawConfig>(params:
 /** Build CRUD/config helpers for top-level single-account channels. */
 export function createTopLevelChannelConfigBase<
   ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   sectionKey: string;
   resolveAccount: (cfg: Config) => ResolvedAccount;
@@ -669,7 +669,7 @@ export function createTopLevelChannelConfigBase<
 export function createTopLevelChannelConfigAdapter<
   ResolvedAccount,
   AccessorAccount = ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   sectionKey: string;
   resolveAccount: (cfg: Config) => ResolvedAccount;
@@ -706,7 +706,7 @@ export function createTopLevelChannelConfigAdapter<
 /** Build CRUD/config helpers for channels where the default account lives at channel root and named accounts live under `accounts`. */
 export function createHybridChannelConfigBase<
   ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(params: {
   sectionKey: string;
   listAccountIds: (cfg: Config) => string[];
@@ -774,7 +774,7 @@ export function createHybridChannelConfigBase<
 export function createHybridChannelConfigAdapter<
   ResolvedAccount,
   AccessorAccount = ResolvedAccount,
-  Config extends OpenClawConfig = OpenClawConfig,
+  Config extends AlisioConfig = AlisioConfig,
 >(
   params: MultiAccountChannelConfigAdapterParams<ResolvedAccount, AccessorAccount, Config> & {
     preserveSectionOnDefaultDelete?: boolean;
@@ -820,7 +820,7 @@ export function createScopedDmSecurityResolver<
     accountId,
     account,
   }: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId?: string | null;
     account: ResolvedAccount;
   }) =>
@@ -842,7 +842,7 @@ export function createScopedDmSecurityResolver<
 
 export { buildAccountScopedDmSecurityPolicy };
 function resolveMergedSimpleChannelAccountConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channelKey: string;
   accountId?: string | null;
   omitKeys?: string[];
@@ -860,7 +860,7 @@ function resolveMergedSimpleChannelAccountConfig(params: {
 
 /** Read the effective WhatsApp allowlist from merged root/account config without registry indirection. */
 export function resolveWhatsAppConfigAllowFrom(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   return mapAllowFromEntries(
@@ -884,7 +884,7 @@ export function formatWhatsAppConfigAllowFromEntries(allowFrom: Array<string | n
 
 /** Resolve the effective WhatsApp default recipient after account and root config fallback. */
 export function resolveWhatsAppConfigDefaultTo(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string | undefined {
   return resolveOptionalConfigString(
@@ -899,7 +899,7 @@ export function resolveWhatsAppConfigDefaultTo(params: {
 
 /** Read iMessage allowlist entries from merged root/account config without registry indirection. */
 export function resolveIMessageConfigAllowFrom(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   return mapAllowFromEntries(
@@ -913,7 +913,7 @@ export function resolveIMessageConfigAllowFrom(params: {
 
 /** Resolve the effective iMessage default recipient from merged root/account config. */
 export function resolveIMessageConfigDefaultTo(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string | undefined {
   return resolveOptionalConfigString(

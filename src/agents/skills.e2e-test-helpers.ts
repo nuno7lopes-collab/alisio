@@ -6,15 +6,17 @@ export async function writeSkill(params: {
   name: string;
   description: string;
   metadata?: string;
+  manifest?: string;
   body?: string;
   frontmatterExtra?: string;
 }) {
-  const { dir, name, description, metadata, body, frontmatterExtra } = params;
+  const { dir, name, description, metadata, manifest, body, frontmatterExtra } = params;
   await fs.mkdir(dir, { recursive: true });
   const frontmatter = [
     `name: ${name}`,
     `description: ${description}`,
     metadata ? `metadata: ${metadata}` : "",
+    manifest ? `manifest: ${manifest}` : "",
     frontmatterExtra ?? "",
   ]
     .filter((line) => line.trim().length > 0)

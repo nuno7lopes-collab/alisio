@@ -2,7 +2,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../../local-storage.ts";
 import "../app.ts";
-import type { OpenClawApp } from "../app.ts";
+import type { AlisioApp } from "../app.ts";
 
 class MockWebSocket {
   static CONNECTING = 0;
@@ -23,7 +23,7 @@ class MockWebSocket {
 
 export function mountApp(pathname: string) {
   window.history.replaceState({}, "", pathname);
-  const app = document.createElement("alisio-app") as OpenClawApp;
+  const app = document.createElement("alisio-app") as AlisioApp;
   document.body.append(app);
   app.connected = true;
   app.requestUpdate();

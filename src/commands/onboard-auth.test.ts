@@ -9,7 +9,7 @@ import {
   EXPECTED_FALLBACKS,
 } from "../../test/helpers/plugins/onboard-config.js";
 import { SYNTHETIC_DEFAULT_MODEL_ID } from "../agents/synthetic-models.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   resolveAgentModelFallbackValues,
   resolveAgentModelPrimaryValue,
@@ -50,23 +50,23 @@ import {
   setupAuthTestEnv,
 } from "./test-wizard-helpers.js";
 
-function expectPrimaryModelPreserved(cfg: OpenClawConfig): void {
+function expectPrimaryModelPreserved(cfg: AlisioConfig): void {
   expect(resolveAgentModelPrimaryValue(cfg.agents?.defaults?.model)).toBe(
     "anthropic/claude-opus-4-5",
   );
 }
 
-function expectFallbacksPreserved(cfg: OpenClawConfig): void {
+function expectFallbacksPreserved(cfg: AlisioConfig): void {
   expect(resolveAgentModelFallbackValues(cfg.agents?.defaults?.model)).toEqual([
     ...EXPECTED_FALLBACKS,
   ]);
 }
 
-function expectAllowlistContains(cfg: OpenClawConfig, modelRef: string): void {
+function expectAllowlistContains(cfg: AlisioConfig, modelRef: string): void {
   expect(Object.keys(cfg.agents?.defaults?.models ?? {})).toContain(modelRef);
 }
 
-function expectAliasPreserved(cfg: OpenClawConfig, modelRef: string, alias: string): void {
+function expectAliasPreserved(cfg: AlisioConfig, modelRef: string, alias: string): void {
   expect(cfg.agents?.defaults?.models?.[modelRef]?.alias).toBe(alias);
 }
 

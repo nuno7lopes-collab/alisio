@@ -5,7 +5,7 @@ import {
   telegramOutbound,
   whatsappOutbound,
 } from "../../../test/channel-outbounds.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { createHookRunner } from "../../plugins/hooks.js";
 import { addTestHook } from "../../plugins/hooks.test-helpers.js";
 import { createEmptyPluginRegistry } from "../../plugins/registry.js";
@@ -15,7 +15,7 @@ import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/c
 import { withEnvAsync } from "../../test-utils/env.js";
 import { createIMessageTestPlugin } from "../../test-utils/imessage-test-plugin.js";
 import { createInternalHookEventPayload } from "../../test-utils/internal-hook-event-payload.js";
-import { resolvePreferredOpenClawTmpDir } from "../tmp-openclaw-dir.js";
+import { resolvePreferredAlisioTmpDir } from "../tmp-alisio-dir.js";
 
 const mocks = vi.hoisted(() => ({
   appendAssistantMessageToSessionTranscript: vi.fn(async () => ({ ok: true, sessionFile: "x" })),
@@ -90,15 +90,15 @@ type DeliverModule = typeof import("./deliver.js");
 let deliverOutboundPayloads: DeliverModule["deliverOutboundPayloads"];
 let normalizeOutboundPayloads: DeliverModule["normalizeOutboundPayloads"];
 
-const telegramChunkConfig: OpenClawConfig = {
+const telegramChunkConfig: AlisioConfig = {
   channels: { telegram: { botToken: "tok-1", textChunkLimit: 2 } },
 };
 
-const whatsappChunkConfig: OpenClawConfig = {
+const whatsappChunkConfig: AlisioConfig = {
   channels: { whatsapp: { textChunkLimit: 4000 } },
 };
 
-const expectedResolvedTmpRoot = path.resolve(resolvePreferredOpenClawTmpDir());
+const expectedResolvedTmpRoot = path.resolve(resolvePreferredAlisioTmpDir());
 
 type DeliverOutboundArgs = Parameters<DeliverModule["deliverOutboundPayloads"]>[0];
 type DeliverOutboundPayload = DeliverOutboundArgs["payloads"][number];
@@ -109,7 +109,7 @@ async function deliverWhatsAppPayload(params: {
     NonNullable<Parameters<DeliverModule["deliverOutboundPayloads"]>[0]["deps"]>["sendWhatsApp"]
   >;
   payload: DeliverOutboundPayload;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
 }) {
   return deliverOutboundPayloads({
     cfg: params.cfg ?? whatsappChunkConfig,
@@ -123,7 +123,7 @@ async function deliverWhatsAppPayload(params: {
 async function deliverTelegramPayload(params: {
   sendTelegram: NonNullable<NonNullable<DeliverOutboundArgs["deps"]>["sendTelegram"]>;
   payload: DeliverOutboundPayload;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   accountId?: string;
   session?: DeliverSession;
 }) {
@@ -145,7 +145,7 @@ async function runChunkedWhatsAppDelivery(params?: {
     .fn()
     .mockResolvedValueOnce({ messageId: "w1", toJid: "jid" })
     .mockResolvedValueOnce({ messageId: "w2", toJid: "jid" });
-  const cfg: OpenClawConfig = {
+  const cfg: AlisioConfig = {
     channels: { whatsapp: { textChunkLimit: 2 } },
   };
   const results = await deliverOutboundPayloads({
@@ -177,7 +177,7 @@ async function runBestEffortPartialFailureDelivery() {
     .mockRejectedValueOnce(new Error("fail"))
     .mockResolvedValueOnce({ messageId: "w2", toJid: "jid" });
   const onError = vi.fn();
-  const cfg: OpenClawConfig = {};
+  const cfg: AlisioConfig = {};
   const results = await deliverOutboundPayloads({
     cfg,
     channel: "whatsapp",
@@ -261,7 +261,7 @@ describe("deliverOutboundPayloads", () => {
 
   it("clamps telegram text chunk size to protocol max even with higher config", async () => {
     const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { telegram: { botToken: "tok-1", textChunkLimit: 10_000 } },
     };
     const text = "<".repeat(3_000);
@@ -382,7 +382,7 @@ describe("deliverOutboundPayloads", () => {
 
   it("preserves explicit telegram buttons when sender path provides them", async () => {
     const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           execApprovals: {
@@ -474,12 +474,12 @@ describe("deliverOutboundPayloads", () => {
     );
     expect(
       sendOpts?.mediaLocalRoots?.some((root) =>
-        root.endsWith(path.join(".openclaw", "workspace-work")),
+        root.endsWith(path.join(".alisio", "workspace-work")),
       ),
     ).toBe(true);
   });
 
-  it("includes OpenClaw tmp root in telegram mediaLocalRoots", async () => {
+  it("includes Alisio tmp root in telegram mediaLocalRoots", async () => {
     const sendTelegram = vi.fn().mockResolvedValue({ messageId: "m1", chatId: "c1" });
 
     await deliverTelegramPayload({
@@ -496,7 +496,7 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
-  it("includes OpenClaw tmp root in signal mediaLocalRoots", async () => {
+  it("includes Alisio tmp root in signal mediaLocalRoots", async () => {
     const sendSignal = vi.fn().mockResolvedValue({ messageId: "s1", timestamp: 123 });
 
     await deliverOutboundPayloads({
@@ -543,7 +543,7 @@ describe("deliverOutboundPayloads", () => {
     );
 
     await deliverOutboundPayloads({
-      cfg: { channels: { matrix: {} } } as OpenClawConfig,
+      cfg: { channels: { matrix: {} } } as AlisioConfig,
       channel: "matrix",
       to: "room:!room:example",
       payloads: [{ text: "voice caption", mediaUrl: "file:///tmp/clip.mp3", audioAsVoice: true }],
@@ -559,7 +559,7 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
-  it("includes OpenClaw tmp root in whatsapp mediaLocalRoots", async () => {
+  it("includes Alisio tmp root in whatsapp mediaLocalRoots", async () => {
     const sendWhatsApp = vi.fn().mockResolvedValue({ messageId: "w1", toJid: "jid" });
 
     await deliverOutboundPayloads({
@@ -579,7 +579,7 @@ describe("deliverOutboundPayloads", () => {
     );
   });
 
-  it("includes OpenClaw tmp root in imessage mediaLocalRoots", async () => {
+  it("includes Alisio tmp root in imessage mediaLocalRoots", async () => {
     const sendIMessage = vi.fn().mockResolvedValue({ messageId: "i1", chatId: "chat-1" });
 
     await deliverOutboundPayloads({
@@ -601,7 +601,7 @@ describe("deliverOutboundPayloads", () => {
 
   it("uses signal media maxBytes from config", async () => {
     const sendSignal = vi.fn().mockResolvedValue({ messageId: "s1", timestamp: 123 });
-    const cfg: OpenClawConfig = { channels: { signal: { mediaMaxMb: 2 } } };
+    const cfg: AlisioConfig = { channels: { signal: { mediaMaxMb: 2 } } };
 
     const results = await deliverOutboundPayloads({
       cfg,
@@ -626,7 +626,7 @@ describe("deliverOutboundPayloads", () => {
 
   it("chunks Signal markdown using the format-first chunker", async () => {
     const sendSignal = vi.fn().mockResolvedValue({ messageId: "s1", timestamp: 123 });
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { signal: { textChunkLimit: 20 } },
     };
     const text = `Intro\\n\\n\`\`\`\`md\\n${"y".repeat(60)}\\n\`\`\`\\n\\nOutro`;
@@ -662,7 +662,7 @@ describe("deliverOutboundPayloads", () => {
 
   it("respects newline chunk mode for WhatsApp", async () => {
     const sendWhatsApp = vi.fn().mockResolvedValue({ messageId: "w1", toJid: "jid" });
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { whatsapp: { textChunkLimit: 4000, chunkMode: "newline" } },
     };
 
@@ -792,7 +792,7 @@ describe("deliverOutboundPayloads", () => {
       ]),
     );
 
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { matrix: { textChunkLimit: 4000, chunkMode: "newline" } },
     };
     const text = "```js\nconst a = 1;\nconst b = 2;\n```\nAfter";
@@ -819,7 +819,7 @@ describe("deliverOutboundPayloads", () => {
         },
       ]),
     );
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       agents: { defaults: { mediaMaxMb: 3 } },
     };
 
@@ -955,7 +955,7 @@ describe("deliverOutboundPayloads", () => {
     const sendWhatsApp = vi.fn().mockResolvedValue({ messageId: "w1", toJid: "jid" });
     const abortController = new AbortController();
     abortController.abort();
-    const cfg: OpenClawConfig = {};
+    const cfg: AlisioConfig = {};
 
     await expect(
       deliverOutboundPayloads({
@@ -976,7 +976,7 @@ describe("deliverOutboundPayloads", () => {
   it("passes normalized payload to onError", async () => {
     const sendWhatsApp = vi.fn().mockRejectedValue(new Error("boom"));
     const onError = vi.fn();
-    const cfg: OpenClawConfig = {};
+    const cfg: AlisioConfig = {};
 
     await deliverOutboundPayloads({
       cfg,

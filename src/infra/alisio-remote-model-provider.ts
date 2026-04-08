@@ -1,11 +1,13 @@
 import { DEFAULT_CONTEXT_TOKENS } from "../agents/defaults.js";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { ModelDefinitionConfig, ModelProviderConfig } from "../config/types.js";
 import { resolveOllamaApiBase } from "../plugin-sdk/ollama-surface.js";
+import { alisioSupportsRemoteModelServers } from "../shared/alisio-billing.js";
 import { ALISIO_REMOTE_PROVIDER_ID } from "../shared/alisio-remote-model-provider.js";
 import {
   listAlisioRemoteModelServers,
+  resolveCurrentAlisioPlan,
   type AlisioRemoteModelServer,
   type AlisioRemoteModelServerKind,
 } from "./alisio-store.js";
@@ -213,6 +215,10 @@ function mergeRemoteCatalogEntries(
 }
 
 async function getActiveRemoteServer(env?: NodeJS.ProcessEnv) {
+  const currentPlan = await resolveCurrentAlisioPlan(env);
+  if (!alisioSupportsRemoteModelServers(currentPlan)) {
+    return null;
+  }
   const servers = await listAlisioRemoteModelServers(env);
   return servers.find((server) => server.active) ?? servers[0] ?? null;
 }
@@ -296,12 +302,12 @@ export async function loadAlisioRemoteCatalogEntries(params?: {
 }
 
 export async function augmentConfigWithAlisioRemoteProvider(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
   requiredModelIds?: readonly string[];
   inspect?: boolean;
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   const server = await getActiveRemoteServer(params.env);
   if (!server) {
     return params.config;

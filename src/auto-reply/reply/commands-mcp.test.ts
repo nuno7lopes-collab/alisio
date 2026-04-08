@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { withTempHome } from "../../config/home-env.test-harness.js";
 import { handleCommands } from "./commands-core.js";
 import { createCommandWorkspaceHarness } from "./commands-filesystem.test-support.js";
@@ -7,7 +7,7 @@ import { buildCommandTestParams } from "./commands.test-harness.js";
 
 const workspaceHarness = createCommandWorkspaceHarness("openclaw-command-mcp-");
 
-function buildCfg(): OpenClawConfig {
+function buildCfg(): AlisioConfig {
   return {
     commands: {
       text: true,

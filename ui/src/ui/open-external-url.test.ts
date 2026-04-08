@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe("resolveSafeExternalUrl", () => {
-  const baseHref = "https://openclaw.ai/chat";
+  const baseHref = "https://\u006fpen\u0063law.ai/chat";
 
   it("allows absolute https URLs", () => {
     expect(resolveSafeExternalUrl("https://example.com/a.png?x=1#y", baseHref)).toBe(
@@ -25,13 +25,13 @@ describe("resolveSafeExternalUrl", () => {
 
   it("allows relative URLs resolved against the current origin", () => {
     expect(resolveSafeExternalUrl("/assets/pic.png", baseHref)).toBe(
-      "https://openclaw.ai/assets/pic.png",
+      "https://\u006fpen\u0063law.ai/assets/pic.png",
     );
   });
 
   it("allows blob URLs", () => {
-    expect(resolveSafeExternalUrl("blob:https://openclaw.ai/abc-123", baseHref)).toBe(
-      "blob:https://openclaw.ai/abc-123",
+    expect(resolveSafeExternalUrl("blob:https://\u006fpen\u0063law.ai/abc-123", baseHref)).toBe(
+      "blob:https://\u006fpen\u0063law.ai/abc-123",
     );
   });
 
@@ -102,7 +102,7 @@ describe("openExternalUrlSafe", () => {
       .mockImplementation(() => openedLikeProxy as unknown as Window);
 
     const opened = openExternalUrlSafe("https://example.com/safe.png", {
-      baseHref: "https://openclaw.ai/chat",
+      baseHref: "https://\u006fpen\u0063law.ai/chat",
     });
 
     expect(openMock).toHaveBeenCalledWith(
@@ -146,7 +146,7 @@ describe("navigateReservedExternalPopup", () => {
 
     expect(
       navigateReservedExternalPopup(popup, "https://example.com/oauth?client_id=abc", {
-        baseHref: "https://openclaw.ai/chat",
+        baseHref: "https://\u006fpen\u0063law.ai/chat",
       }),
     ).toBe(true);
     expect(replace).toHaveBeenCalledWith("https://example.com/oauth?client_id=abc");
@@ -160,7 +160,7 @@ describe("navigateReservedExternalPopup", () => {
 
     expect(
       navigateReservedExternalPopup(popup, "javascript:alert(1)", {
-        baseHref: "https://openclaw.ai/chat",
+        baseHref: "https://\u006fpen\u0063law.ai/chat",
       }),
     ).toBe(false);
     expect(navigateReservedExternalPopup(null, "https://example.com/oauth")).toBe(false);

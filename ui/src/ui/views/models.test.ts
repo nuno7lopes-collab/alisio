@@ -35,6 +35,9 @@ function createBootstrap(): AlisioBootstrapState {
       ],
     },
     account: {
+      profile: {
+        plan: "plus",
+      },
       preferences: {
         language: "en",
       },
@@ -90,13 +93,19 @@ function createModelsState(): AlisioModelsState {
         recommendations: [
           {
             modelId: "qwen3-4b-q4-k-m",
+            grade: "works",
+            label: "Works",
+            reason: "Already installed",
+          },
+          {
+            modelId: "qwen3-8b-q4-k-m",
             grade: "recommended",
             label: "Recommended",
-            reason: "Good fit",
+            reason: "Best fit for this Mac",
           },
         ],
-        bestModelId: "qwen3-4b-q4-k-m",
-        bestModelName: "Qwen3 4B",
+        bestModelId: "qwen3-8b-q4-k-m",
+        bestModelName: "Qwen3 8B",
         hardware: {
           platform: "darwin",
           architecture: "arm64",
@@ -236,6 +245,31 @@ describe("renderModelsHub", () => {
     expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
   });
 
+  it("keeps the Auto action available when an OpenAI chat override exists without a global OpenAI default", () => {
+    const props = createProps({
+      currentChatModelOverrideValue: "openai-codex/gpt-5.3-codex",
+      defaultChatModelValue: "",
+      defaultChatModelDisplay: "",
+      defaultChatModelLabel: "Default model",
+      effectiveChatModelValue: "openai-codex/gpt-5.3-codex",
+      effectiveChatModelLabel: "gpt-5.3-codex · openai-codex",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const autoButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
+    ).find((button) => button.textContent?.trim() === "Auto");
+
+    expect(autoButton).toBeDefined();
+
+    autoButton?.click();
+
+    expect(props.onSelectChatModel).toHaveBeenCalledWith("");
+    expect(container.textContent).not.toContain("Default (gpt-5.4 · openai-codex)");
+  });
+
   it("hides the rename action for personal OpenAI profiles", () => {
     const props = createProps();
     const container = document.createElement("div");
@@ -346,6 +380,62 @@ describe("renderModelsHub", () => {
     expect(container.textContent).toContain("gpt-oss-20b");
   });
 
+  it("keeps saved servers visible but disables server management on Free", () => {
+    const props = createProps({
+      selectedProviderId: "server",
+      bootstrap: {
+        ...createBootstrap(),
+        account: {
+          ...createBootstrap().account,
+          profile: {
+            ...createBootstrap().account.profile,
+            plan: "free",
+          },
+        },
+      },
+      models: {
+        ...createModelsState(),
+        servers: [
+          {
+            ...createModelsState().servers[0],
+            status: "not_configured",
+            message:
+              "Custom remote model servers are available on Plus. Open Settings -> Billing to upgrade before using remote endpoints.",
+            models: [],
+          },
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Custom remote model servers are available on Plus.");
+    expect(container.textContent).toContain("Home Lab");
+    const addServerButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>("button"),
+    ).find((button) => button.textContent?.includes("Add server"));
+    expect(addServerButton?.disabled).toBe(true);
+    const editButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Edit"),
+    );
+    expect(editButton?.disabled).toBe(true);
+  });
+
+  it("summarizes linked computers and endpoints together in the server picker card", () => {
+    const props = createProps();
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const serverCard = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
+    ).find((card) => card.textContent?.includes("Server"));
+
+    expect(serverCard?.textContent).toContain("1 linked computer");
+    expect(serverCard?.textContent).toContain("1 endpoint");
+  });
+
   it("permite escolher um modelo do endpoint activo na superfície de servidor", () => {
     const props = createProps({
       selectedProviderId: "server",
@@ -399,6 +489,149 @@ describe("renderModelsHub", () => {
     expect(container.textContent).not.toContain(
       "There are no installed models on this computer yet.",
     );
+  });
+
+  it("uses provider catalog labels for OpenAI-compatible targets even before the snapshot carries models", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "local",
+      currentChatModelOverrideValue: "alisio-local-current/gpt-oss-20b",
+      effectiveChatModelValue: "alisio-local-current/gpt-oss-20b",
+      effectiveChatModelLabel: "gpt-oss-20b · This Mac",
+      models: {
+        ...baseModels,
+        targets: [
+          {
+            ...baseModels.targets[0],
+            runtimeKind: "openai-compatible",
+            installedModels: [],
+            chatProviderId: "alisio-local-current",
+          },
+        ],
+      },
+      chatModelOptions: [
+        ...createProps().chatModelOptions,
+        {
+          value: "alisio-local-current/gpt-oss-20b",
+          label: "gpt-oss-20b · This Mac",
+        },
+      ],
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("gpt-oss-20b");
+    expect(container.textContent).not.toContain("No models are available here yet.");
+  });
+
+  it("treats OpenAI-compatible models as available even when managed installation is also supported", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            targetId: "remote-openai",
+            label: "Edge Box",
+            platform: "linux",
+            current: false,
+            connected: true,
+            backend: "llama.cpp",
+            runtimeKind: "openai-compatible",
+            chatProviderId: "alisio-target-remote-openai-openai",
+            runtimeStatus: "ready",
+            supportsInstall: true,
+            installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
+            recommendations: [
+              {
+                modelId: "qwen3-8b-q4-k-m",
+                grade: "recommended",
+                label: "Recommended",
+                reason: "Good fit",
+              },
+            ],
+          },
+        ],
+        servers: [],
+      },
+      chatModelOptions: [
+        ...createProps().chatModelOptions,
+        {
+          value: "alisio-target-remote-openai-openai/gpt-oss-20b",
+          label: "gpt-oss-20b · Edge Box",
+        },
+      ],
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Available models");
+    expect(container.textContent).toContain("Recommended to install");
+    expect(container.textContent).toContain("gpt-oss-20b");
+    expect(container.textContent).not.toContain("Uninstall");
+  });
+
+  it("shows a disconnected target state instead of a ready runtime badge", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            ...baseModels.targets[1],
+            connected: false,
+          },
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Not connected");
+    expect(container.textContent).toContain("This linked computer is offline right now.");
+  });
+
+  it("keeps the local provider summary aligned with the current OpenAI-compatible runtime", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "local",
+      models: {
+        ...baseModels,
+        targets: [
+          {
+            ...baseModels.targets[0],
+            runtimeKind: "openai-compatible",
+            chatProviderId: "alisio-local-current",
+            installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
+          },
+        ],
+      },
+      chatModelOptions: [
+        ...createProps().chatModelOptions,
+        {
+          value: "alisio-local-current/gpt-oss-20b",
+          label: "gpt-oss-20b · This Mac",
+        },
+      ],
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const localCard = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
+    ).find((card) => card.textContent?.includes("Local"));
+
+    expect(localCard?.textContent).toContain("gpt-oss-20b");
+    expect(localCard?.textContent).toContain("Available models");
+    expect(container.textContent).not.toContain("Uninstall");
   });
 
   it("renders the inline server form and wires edits", () => {
@@ -483,5 +716,109 @@ describe("renderModelsHub", () => {
     );
     expect(container.querySelector(".alisio-models__chooser")).toBeNull();
     expect(container.textContent).not.toContain("gpt-5.4 · openai-codex");
+  });
+
+  it("shows the precise status copy when limits telemetry is unavailable", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          status: "limits_unavailable",
+          profiles: [
+            {
+              ...createBootstrap().ai.profiles![0],
+              status: "limits_unavailable",
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Connected (limits unavailable)");
+  });
+
+  it("shows a refresh hint when the active profile has no real telemetry yet", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          profiles: [
+            {
+              ...createBootstrap().ai.profiles![0],
+              status: "connected",
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+      expandedProfileId: "profile-1",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain(
+      "Refresh the active account to load the latest real telemetry.",
+    );
+  });
+
+  it("does not reuse the active profile limits inside another profile card", () => {
+    const props = createProps({
+      bootstrap: {
+        ...createBootstrap(),
+        ai: {
+          ...createBootstrap().ai,
+          limits: {
+            windows: [
+              {
+                label: "Week",
+                usedPercent: 40,
+                resetAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
+              },
+            ],
+            lastRefreshedAt: "2026-04-04T12:00:00.000Z",
+          },
+          profiles: [
+            {
+              ...createBootstrap().ai.profiles![0],
+            },
+            {
+              profileId: "profile-2",
+              label: "Personal",
+              provider: "openai",
+              scope: "user",
+              ownerKey: "user:2",
+              canonicalIdentityKey: "user:2",
+              identity: {
+                email: "bob@example.com",
+              },
+              status: "connected",
+              email: "bob@example.com",
+              connectedAt: "2026-04-04T12:00:00.000Z",
+            },
+          ],
+        },
+      } as AlisioBootstrapState,
+      expandedProfileId: "profile-2",
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const profileArticles = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__profile"),
+    );
+    const secondProfile = profileArticles[1];
+
+    expect(secondProfile).toBeDefined();
+    expect(secondProfile?.querySelectorAll(".alisio-settings-ai__window")).toHaveLength(0);
+    expect(secondProfile?.textContent).not.toContain(
+      "Refresh the active account to load the latest real telemetry.",
+    );
+    expect(container.querySelectorAll(".alisio-models__usage-pill")).toHaveLength(1);
   });
 });

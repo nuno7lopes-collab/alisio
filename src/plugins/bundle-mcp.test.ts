@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { isRecord } from "../utils.js";
 import { loadEnabledBundleMcpConfig } from "./bundle-mcp.js";
 import {
@@ -43,7 +43,7 @@ afterEach(async () => {
   await tempHarness.cleanup();
 });
 
-function createEnabledBundleConfig(pluginIds: string[]): OpenClawConfig {
+function createEnabledBundleConfig(pluginIds: string[]): AlisioConfig {
   return {
     plugins: {
       entries: createEnabledPluginEntries(pluginIds),
@@ -93,7 +93,7 @@ describe("loadEnabledBundleMcpConfig", () => {
       async ({ homeDir, workspaceDir }) => {
         const { pluginRoot, serverPath } = await createBundleProbePlugin(homeDir);
 
-        const config: OpenClawConfig = {
+        const config: AlisioConfig = {
           plugins: {
             entries: {
               "bundle-probe": { enabled: true },

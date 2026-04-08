@@ -1,4 +1,5 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
+import { legacyDashKey } from "../brand-compat.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
 type StoredIdentity = {
@@ -16,7 +17,7 @@ export type DeviceIdentity = {
 };
 
 const STORAGE_KEY = "alisio-device-identity-v2";
-const LEGACY_STORAGE_KEY = "openclaw-device-identity-v1";
+const LEGACY_STORAGE_KEY = legacyDashKey("device", "identity", "v1");
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";

@@ -7,7 +7,7 @@ import {
   resolveConfiguredModelRef,
   resolveHooksGmailModel,
 } from "../../agents/model-selection.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { CronJob } from "../types.js";
 
 type CronSessionModelOverrides = {
@@ -16,8 +16,8 @@ type CronSessionModelOverrides = {
 };
 
 export type ResolveCronModelSelectionParams = {
-  cfg: OpenClawConfig;
-  cfgWithAgentDefaults: OpenClawConfig;
+  cfg: AlisioConfig;
+  cfgWithAgentDefaults: AlisioConfig;
   agentConfigOverride?: {
     subagents?: {
       model?: unknown;

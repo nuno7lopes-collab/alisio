@@ -1,17 +1,17 @@
-import type { OpenClawConfig } from "./config-runtime.js";
+import type { AlisioConfig } from "./config-runtime.js";
 import { normalizeMessageChannel } from "./routing.js";
 
 type ApprovalKind = "exec" | "plugin";
 type NativeApprovalDeliveryMode = "dm" | "channel" | "both";
 
 type ApprovalAdapterParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   senderId?: string | null;
 };
 
 type DeliverySuppressionParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   target: { channel: string; accountId?: string | null };
   request: { request: { turnSourceChannel?: string | null; turnSourceAccountId?: string | null } };
 };
@@ -19,13 +19,13 @@ type DeliverySuppressionParams = {
 export function createApproverRestrictedNativeApprovalAdapter(params: {
   channel: string;
   channelLabel: string;
-  listAccountIds: (cfg: OpenClawConfig) => string[];
+  listAccountIds: (cfg: AlisioConfig) => string[];
   hasApprovers: (params: ApprovalAdapterParams) => boolean;
   isExecAuthorizedSender: (params: ApprovalAdapterParams) => boolean;
   isPluginAuthorizedSender?: (params: ApprovalAdapterParams) => boolean;
-  isNativeDeliveryEnabled: (params: { cfg: OpenClawConfig; accountId?: string | null }) => boolean;
+  isNativeDeliveryEnabled: (params: { cfg: AlisioConfig; accountId?: string | null }) => boolean;
   resolveNativeDeliveryMode: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId?: string | null;
   }) => NativeApprovalDeliveryMode;
   requireMatchingTurnSourceChannel?: boolean;
@@ -41,7 +41,7 @@ export function createApproverRestrictedNativeApprovalAdapter(params: {
         senderId,
         approvalKind,
       }: {
-        cfg: OpenClawConfig;
+        cfg: AlisioConfig;
         accountId?: string | null;
         senderId?: string | null;
         action: "approve";
@@ -62,7 +62,7 @@ export function createApproverRestrictedNativeApprovalAdapter(params: {
         cfg,
         accountId,
       }: {
-        cfg: OpenClawConfig;
+        cfg: AlisioConfig;
         accountId?: string | null;
         action: "approve";
       }) =>
@@ -71,7 +71,7 @@ export function createApproverRestrictedNativeApprovalAdapter(params: {
           : ({ kind: "disabled" } as const),
     },
     delivery: {
-      hasConfiguredDmRoute: ({ cfg }: { cfg: OpenClawConfig }) =>
+      hasConfiguredDmRoute: ({ cfg }: { cfg: AlisioConfig }) =>
         params.listAccountIds(cfg).some((accountId) => {
           if (!params.hasApprovers({ cfg, accountId })) {
             return false;

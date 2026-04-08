@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { RuntimeWebFetchFirecrawlMetadata } from "../secrets/runtime-web-tools.types.js";
 import type { RuntimeWebSearchMetadata } from "../secrets/runtime-web-tools.types.js";
 import { withFetchPreconnect } from "../test-utils/fetch-mock.js";
@@ -81,15 +81,15 @@ vi.mock("./tools/tts-tool.js", () => ({
   createTtsTool: mockToolFactory("tts_stub"),
 }));
 
-function asConfig(value: unknown): OpenClawConfig {
-  return value as OpenClawConfig;
+function asConfig(value: unknown): AlisioConfig {
+  return value as AlisioConfig;
 }
 
 let secretsRuntime: typeof import("../secrets/runtime.js");
 let createWebSearchTool: typeof import("./tools/web-tools.js").createWebSearchTool;
 let createWebFetchTool: typeof import("./tools/web-tools.js").createWebFetchTool;
 
-function requireWebSearchTool(config: OpenClawConfig, runtimeWebSearch?: RuntimeWebSearchMetadata) {
+function requireWebSearchTool(config: AlisioConfig, runtimeWebSearch?: RuntimeWebSearchMetadata) {
   const tool = createWebSearchTool({
     config,
     sandboxed: true,
@@ -103,7 +103,7 @@ function requireWebSearchTool(config: OpenClawConfig, runtimeWebSearch?: Runtime
 }
 
 function requireWebFetchTool(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   runtimeFirecrawl?: RuntimeWebFetchFirecrawlMetadata,
 ) {
   const tool = createWebFetchTool({
@@ -124,7 +124,7 @@ function makeHeaders(map: Record<string, string>): { get: (key: string) => strin
   };
 }
 
-async function prepareAndActivate(params: { config: OpenClawConfig; env?: NodeJS.ProcessEnv }) {
+async function prepareAndActivate(params: { config: AlisioConfig; env?: NodeJS.ProcessEnv }) {
   const snapshot = await secretsRuntime.prepareSecretsRuntimeSnapshot({
     config: params.config,
     env: params.env,

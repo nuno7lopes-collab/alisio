@@ -156,6 +156,18 @@ export const ChannelAccountSnapshotSchema = Type.Object(
       ]),
     ),
     pendingPairingRequests: Type.Optional(Type.Union([Type.Integer({ minimum: 0 }), Type.Null()])),
+    pendingPairing: Type.Optional(
+      Type.Array(
+        Type.Object(
+          {
+            requestId: NonEmptyString,
+            label: NonEmptyString,
+            detail: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+          },
+          { additionalProperties: false },
+        ),
+      ),
+    ),
     allowFrom: Type.Optional(Type.Array(Type.String())),
     tokenSource: Type.Optional(Type.String()),
     botTokenSource: Type.Optional(Type.String()),
@@ -240,6 +252,24 @@ export const ChannelsStatusResultSchema = Type.Object(
 export const ChannelsLogoutParamsSchema = Type.Object(
   {
     channel: NonEmptyString,
+    accountId: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsPairingApproveParamsSchema = Type.Object(
+  {
+    channel: NonEmptyString,
+    requestId: NonEmptyString,
+    accountId: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+export const ChannelsPairingRejectParamsSchema = Type.Object(
+  {
+    channel: NonEmptyString,
+    requestId: NonEmptyString,
     accountId: Type.Optional(Type.String()),
   },
   { additionalProperties: false },

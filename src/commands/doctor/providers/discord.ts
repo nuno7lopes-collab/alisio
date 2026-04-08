@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { sanitizeForLog } from "../../../terminal/ansi.js";
 import { asObjectRecord } from "../shared/object.js";
 import type { DoctorAccountRecord } from "../types.js";
@@ -12,7 +12,7 @@ type DiscordIdListRef = {
 };
 
 export function collectDiscordAccountScopes(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
 ): Array<{ prefix: string; account: DoctorAccountRecord }> {
   const scopes: Array<{ prefix: string; account: DoctorAccountRecord }> = [];
   const discord = asObjectRecord(cfg.channels?.discord);
@@ -92,7 +92,7 @@ export function collectDiscordIdLists(
   return refs;
 }
 
-export function scanDiscordNumericIdEntries(cfg: OpenClawConfig): DiscordNumericIdHit[] {
+export function scanDiscordNumericIdEntries(cfg: AlisioConfig): DiscordNumericIdHit[] {
   const hits: DiscordNumericIdHit[] = [];
   const scanList = (pathLabel: string, list: unknown) => {
     if (!Array.isArray(list)) {
@@ -130,8 +130,8 @@ export function collectDiscordNumericIdWarnings(params: {
   ];
 }
 
-export function maybeRepairDiscordNumericIds(cfg: OpenClawConfig): {
-  config: OpenClawConfig;
+export function maybeRepairDiscordNumericIds(cfg: AlisioConfig): {
+  config: AlisioConfig;
   changes: string[];
 } {
   const hits = scanDiscordNumericIdEntries(cfg);

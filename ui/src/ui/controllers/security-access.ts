@@ -387,7 +387,7 @@ export async function applyGatewayAccessMode(
   }
   if (state.execApprovalsTarget === "gateway" && state.execApprovalsDirty) {
     state.lastError =
-      "Save or reload the gateway exec approvals draft before changing the access mode.";
+      "Save or reload the Alisio exec approvals draft before changing the access mode.";
     return;
   }
   state.gatewayAccessModeBusy = true;

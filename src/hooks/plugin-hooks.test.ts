@@ -3,7 +3,7 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   clearInternalHooks,
   createInternalHookEvent,
@@ -78,7 +78,7 @@ describe("bundle plugin hooks", () => {
     return bundleRoot;
   }
 
-  function createConfig(enabled: boolean): OpenClawConfig {
+  function createConfig(enabled: boolean): AlisioConfig {
     return {
       hooks: {
         internal: {

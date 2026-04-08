@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import "./test-helpers/fast-coding-tools.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 
@@ -71,7 +71,7 @@ describe("createOpenClawCodingTools", () => {
     });
     expect(codexTools.some((tool) => tool.name === "apply_patch")).toBe(true);
 
-    const disabledConfig: OpenClawConfig = {
+    const disabledConfig: AlisioConfig = {
       tools: {
         exec: {
           applyPatch: { enabled: false },
@@ -92,7 +92,7 @@ describe("createOpenClawCodingTools", () => {
     });
     expect(anthropicTools.some((tool) => tool.name === "apply_patch")).toBe(false);
 
-    const allowModelsConfig: OpenClawConfig = {
+    const allowModelsConfig: AlisioConfig = {
       tools: {
         exec: {
           applyPatch: { allowModels: ["gpt-5.2"] },

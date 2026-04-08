@@ -2,24 +2,54 @@
 name: mcporter
 description: Use the mcporter CLI to list, configure, auth, and call MCP servers/tools directly (HTTP or stdio), including ad-hoc servers, config edits, and CLI/type generation.
 homepage: http://mcporter.dev
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "📦",
-        "requires": { "bins": ["mcporter"] },
-        "install":
-          [
-            {
-              "id": "node",
-              "kind": "node",
-              "package": "mcporter",
-              "bins": ["mcporter"],
-              "label": "Install mcporter (node)",
-            },
-          ],
-      },
-  }
+manifest:
+  schemaVersion: 1
+  name: mcporter
+  version: 1.0.0
+  emoji: "📦"
+  permissions:
+    consent: explicit
+    sandbox:
+      mode: isolated
+      filesystem: read-only
+      network: off
+    exec:
+      bins:
+        - mcporter
+    network:
+      outbound: true
+    mcp:
+      consume: true
+  outputs:
+    primary: instructions
+    formats:
+      - markdown
+      - json
+  compat:
+    runtimes:
+      - alisio
+    requires:
+      bins:
+        - mcporter
+    mcp:
+      transports:
+        - stdio
+        - sse
+        - streamable-http
+      capabilities:
+        - tools
+        - prompts
+        - resources
+  subscription:
+    required: false
+    plan: free
+  install:
+    - id: node
+      kind: node
+      package: mcporter
+      bins:
+        - mcporter
+      label: Install mcporter (node)
 ---
 
 # mcporter

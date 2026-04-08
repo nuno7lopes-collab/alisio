@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   __resetGatewayModelPricingCacheForTest,
   __setGatewayModelPricingForTest,
@@ -66,7 +66,7 @@ describe("usage-format", () => {
           },
         },
       },
-    } as unknown as OpenClawConfig;
+    } as unknown as AlisioConfig;
 
     const cost = resolveModelCostConfig({
       provider: "test",
@@ -119,7 +119,7 @@ describe("usage-format", () => {
           },
         },
       },
-    } as unknown as OpenClawConfig;
+    } as unknown as AlisioConfig;
 
     await fs.writeFile(
       path.join(agentDir, "models.json"),
@@ -178,7 +178,7 @@ describe("usage-format", () => {
           },
         },
       },
-    } as unknown as OpenClawConfig;
+    } as unknown as AlisioConfig;
 
     __setGatewayModelPricingForTest([
       {
@@ -238,7 +238,7 @@ describe("usage-format", () => {
           },
         },
       },
-    } as unknown as OpenClawConfig;
+    } as unknown as AlisioConfig;
 
     expect(
       resolveModelCostConfig({

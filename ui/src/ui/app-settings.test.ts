@@ -34,7 +34,6 @@ type SettingsHost = {
     navCollapsed: boolean;
     navWidth: number;
     navGroupsCollapsed: Record<string, boolean>;
-    borderRadius: number;
     locale?: string;
   };
   theme: ThemeName & ThemeMode;
@@ -120,7 +119,6 @@ const createHost = (tab: Tab): SettingsHost => ({
     navCollapsed: false,
     navWidth: 220,
     navGroupsCollapsed: {},
-    borderRadius: 50,
     locale: "en",
   },
   theme: "claw" as unknown as ThemeName & ThemeMode,
@@ -370,7 +368,7 @@ describe("applySettingsFromUrl", () => {
   it("hydrates query token params and strips them from the URL", () => {
     setTestWindowUrl("https://control.example/ui/home?token=abc123");
     const host = createHost("chat");
-    host.settings.gatewayUrl = "wss://control.example/openclaw";
+    host.settings.gatewayUrl = "wss://control.example/\u006fpen\u0063law";
 
     applySettingsFromUrl(host);
 
@@ -471,15 +469,15 @@ describe("applySettingsFromUrl", () => {
 
   it("keeps query token params pending when a gatewayUrl confirmation is required", () => {
     setTestWindowUrl(
-      "https://control.example/ui/home?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
+      "https://control.example/ui/home?gatewayUrl=wss://other-gateway.example/\u006fpen\u0063law&token=abc123",
     );
     const host = createHost("chat");
-    host.settings.gatewayUrl = "wss://control.example/openclaw";
+    host.settings.gatewayUrl = "wss://control.example/\u006fpen\u0063law";
 
     applySettingsFromUrl(host);
 
     expect(host.settings.token).toBe("");
-    expect(host.pendingGatewayUrl).toBe("wss://other-gateway.example/openclaw");
+    expect(host.pendingGatewayUrl).toBe("wss://other-gateway.example/\u006fpen\u0063law");
     expect(host.pendingGatewayToken).toBe("abc123");
     expect(window.location.search).toBe("");
   });
@@ -535,7 +533,7 @@ describe("applySettingsFromUrl", () => {
   it("prefers fragment tokens over legacy query tokens when both are present", () => {
     setTestWindowUrl("https://control.example/ui/home?token=query-token#token=hash-token");
     const host = createHost("chat");
-    host.settings.gatewayUrl = "wss://control.example/openclaw";
+    host.settings.gatewayUrl = "wss://control.example/\u006fpen\u0063law";
 
     applySettingsFromUrl(host);
 

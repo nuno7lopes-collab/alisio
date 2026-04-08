@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { installedPluginRoot } from "../../test/helpers/bundled-plugin-paths.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   buildPluginStatusReport,
   loadConfig,
@@ -38,7 +38,7 @@ describe("plugins cli uninstall", () => {
           },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
     buildPluginStatusReport.mockReturnValue({
       plugins: [{ id: "alpha", name: "alpha" }],
       diagnostics: [],
@@ -65,13 +65,13 @@ describe("plugins cli uninstall", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const nextConfig = {
       plugins: {
         entries: {},
         installs: {},
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     loadConfig.mockReturnValue(baseConfig);
     buildPluginStatusReport.mockReturnValue({
@@ -110,7 +110,7 @@ describe("plugins cli uninstall", () => {
         entries: {},
         installs: {},
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
     buildPluginStatusReport.mockReturnValue({
       plugins: [{ id: "alpha", name: "alpha" }],
       diagnostics: [],
@@ -138,7 +138,7 @@ describe("plugins cli uninstall", () => {
           },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
     buildPluginStatusReport.mockReturnValue({
       plugins: [{ id: "linkmind-context", name: "linkmind-context" }],
       diagnostics: [],
@@ -169,7 +169,7 @@ describe("plugins cli uninstall", () => {
           },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
     buildPluginStatusReport.mockReturnValue({
       plugins: [{ id: "linkmind-context", name: "linkmind-context" }],
       diagnostics: [],

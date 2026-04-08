@@ -291,7 +291,7 @@ resolve_head_push_url() {
 # File bytes are read from git objects (not the working tree) to avoid
 # symlink/special-file dereference risks from untrusted fork content.
 graphql_push_to_fork() {
-  local repo_nwo="$1"   # e.g. Oncomatic/openclaw
+  local repo_nwo="$1"   # e.g. Oncomatic/alisio
   local branch="$2"     # e.g. fix/memory-flush-not-executing
   local expected_oid="$3"
   local max_blob_bytes=$((5 * 1024 * 1024))
@@ -1191,8 +1191,8 @@ prepare_validate_commit() {
   local subject
   subject=$(git log -1 --pretty=%s)
 
-  echo "$subject" | rg -q "openclaw#$pr_number" || {
-    echo "ERROR: commit subject missing openclaw#$pr_number"
+  echo "$subject" | rg -q "alisio#$pr_number" || {
+    echo "ERROR: commit subject missing alisio#$pr_number"
     exit 1
   }
 
@@ -1220,7 +1220,7 @@ validate_changelog_entry_for_pr() {
   fi
 
   local pr_pattern
-  pr_pattern="(#$pr|openclaw#$pr)"
+  pr_pattern="(#$pr|alisio#$pr)"
 
   local with_pr
   with_pr=$(printf '%s\n' "$added_lines" | rg -in "$pr_pattern" || true)
@@ -1432,12 +1432,12 @@ prepare_gates() {
     echo "Docs-only change detected with high confidence; skipping pnpm test."
   else
     local prepare_unit_fast_batch_target_ms
-    prepare_unit_fast_batch_target_ms="${OPENCLAW_PREPARE_TEST_UNIT_FAST_BATCH_TARGET_MS:-5000}"
-    echo "Running pnpm test with OPENCLAW_TEST_UNIT_FAST_BATCH_TARGET_MS=$prepare_unit_fast_batch_target_ms for shorter-lived unit-fast workers."
+    prepare_unit_fast_batch_target_ms="${ALISIO_PREPARE_TEST_UNIT_FAST_BATCH_TARGET_MS:-5000}"
+    echo "Running pnpm test with ALISIO_TEST_UNIT_FAST_BATCH_TARGET_MS=$prepare_unit_fast_batch_target_ms for shorter-lived unit-fast workers."
     run_quiet_logged \
       "pnpm test" \
       ".local/gates-test.log" \
-      env OPENCLAW_TEST_UNIT_FAST_BATCH_TARGET_MS="$prepare_unit_fast_batch_target_ms" pnpm test
+      env ALISIO_TEST_UNIT_FAST_BATCH_TARGET_MS="$prepare_unit_fast_batch_target_ms" pnpm test
   fi
 
   cat > .local/gates.env <<EOF_ENV

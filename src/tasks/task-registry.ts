@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { getAcpSessionManager } from "../acp/control-plane/manager.js";
 import { killSubagentRunAdmin } from "../agents/subagent-control.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { onAgentEvent } from "../infra/agent-events.js";
 import { requestHeartbeatNow } from "../infra/heartbeat-wake.js";
 import { enqueueSystemEvent } from "../infra/system-events.js";
@@ -1153,7 +1153,7 @@ export function updateTaskNotifyPolicyById(params: {
 }
 
 export async function cancelTaskById(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   taskId: string;
 }): Promise<{ found: boolean; cancelled: boolean; reason?: string; task?: TaskRecord }> {
   ensureTaskRegistryReady();

@@ -5,9 +5,9 @@
 # One-tap: shows status toast
 # If expired: directly opens auth URL
 
-SERVER="${OPENCLAW_SERVER:-l36}"
+SERVER="${ALISIO_SERVER:-l36}"
 
-STATUS=$(ssh -o ConnectTimeout=5 "$SERVER" '$HOME/openclaw/scripts/claude-auth-status.sh simple' 2>&1)
+STATUS=$(ssh -o ConnectTimeout=5 "$SERVER" '$HOME/alisio/scripts/claude-auth-status.sh simple' 2>&1)
 
 case "$STATUS" in
     OK)
@@ -22,7 +22,7 @@ case "$STATUS" in
         termux-toast "Auth expired - opening console..."
         termux-open-url "https://console.anthropic.com/settings/api-keys"
         sleep 2
-        termux-notification -t "OpenClaw Re-Auth" -c "After getting key, run: ssh $SERVER '~/openclaw/scripts/mobile-reauth.sh'" --id openclaw-auth
+        termux-notification -t "Alisio Re-Auth" -c "After getting key, run: ssh $SERVER '~/alisio/scripts/mobile-reauth.sh'" --id alisio-auth
         ;;
     *)
         termux-toast "Connection error"

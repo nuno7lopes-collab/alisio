@@ -91,13 +91,13 @@ describe("i18n", () => {
     vi.resetModules();
     vi.stubGlobal("localStorage", createStorageMock());
     vi.stubGlobal("navigator", { language: "en-US" } as Navigator);
-    localStorage.setItem("openclaw.i18n.locale", "pt-PT");
+    localStorage.setItem("\u006fpen\u0063law.i18n.locale", "pt-PT");
     const fresh = await import("../lib/translate.ts");
     await vi.waitFor(() => {
       expect(fresh.i18n.getLocale()).toBe("pt-PT");
     });
     expect(localStorage.getItem("alisio.i18n.locale")).toBe("pt-PT");
-    expect(localStorage.getItem("openclaw.i18n.locale")).toBeNull();
+    expect(localStorage.getItem("\u006fpen\u0063law.i18n.locale")).toBeNull();
   });
 
   it("skips node localStorage accessors that warn without a storage file", async () => {

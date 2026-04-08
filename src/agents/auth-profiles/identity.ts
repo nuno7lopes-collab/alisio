@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { AuthProfileStore } from "./types.js";
 
 function trimOptionalString(value: string | null | undefined): string | undefined {
@@ -31,7 +31,7 @@ export function buildAuthProfileId(params: {
 }
 
 export function resolveAuthProfileMetadata(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   store?: AuthProfileStore;
   profileId: string;
 }): { displayName?: string; email?: string } {

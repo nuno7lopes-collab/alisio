@@ -1,5 +1,10 @@
 import { html, nothing } from "lit";
 import { validateAlisioEmail } from "../../../../src/shared/alisio-account.js";
+import {
+  alisioOrganizationsUpgradeMessage,
+  alisioSupportsOrganizations,
+  normalizeAlisioPlan,
+} from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
 import type { AlisioOrganizationMembershipState } from "../types.ts";
 import {
@@ -12,6 +17,7 @@ import {
 export function renderOrganization(props: {
   connected: boolean;
   accountReady: boolean;
+  plan?: string | null | undefined;
   loading: boolean;
   error: string | null;
   organization: AlisioOrganizationMembershipState | null;
@@ -33,7 +39,10 @@ export function renderOrganization(props: {
     props.draftMode === "join" && trimmedInviteEmail && validateAlisioEmail(trimmedInviteEmail)
       ? t("alisio.organization.invitationInvalid")
       : null;
-  const canEditOrganization = props.connected && props.accountReady && !props.loading;
+  const organizationsSupported = alisioSupportsOrganizations(normalizeAlisioPlan(props.plan));
+  const planUpgradeMessage = organizationsSupported ? null : alisioOrganizationsUpgradeMessage();
+  const canEditOrganization =
+    props.connected && props.accountReady && !props.loading && organizationsSupported;
   const canSubmitDraft =
     canEditOrganization && trimmedOrganizationName.length > 0 && !inviteEmailError;
   const showInitialLoading =
@@ -98,6 +107,9 @@ export function renderOrganization(props: {
         ${!props.connected ? html`<div class="callout info">${text.reconnectHint}</div>` : nothing}
         ${props.connected && !props.accountReady && !showInitialLoading
           ? html`<div class="callout info">${text.accountHint}</div>`
+          : nothing}
+        ${props.connected && props.accountReady && !hasOrganization && planUpgradeMessage
+          ? html`<div class="callout info">${planUpgradeMessage}</div>`
           : nothing}
         ${showInitialLoading
           ? html`

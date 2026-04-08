@@ -26,13 +26,13 @@ function killGatewayListeners(port: number): PortProcess[] {
 
 function runTests() {
   const isolatedLock =
-    process.env.OPENCLAW_GATEWAY_LOCK ??
-    path.join(os.tmpdir(), `openclaw-gateway.lock.test.${Date.now()}`);
+    process.env.ALISIO_GATEWAY_LOCK ??
+    path.join(os.tmpdir(), `alisio-gateway.lock.test.${Date.now()}`);
   const result = spawnSync("pnpm", ["vitest", "run"], {
     stdio: "inherit",
     env: {
       ...process.env,
-      OPENCLAW_GATEWAY_LOCK: isolatedLock,
+      ALISIO_GATEWAY_LOCK: isolatedLock,
     },
   });
   if (result.error) {

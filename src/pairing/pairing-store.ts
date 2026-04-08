@@ -802,12 +802,35 @@ export async function approveChannelPairingCode(params: {
   accountId?: string;
   env?: NodeJS.ProcessEnv;
 }): Promise<{ id: string; entry?: PairingRequest } | null> {
-  const env = params.env ?? process.env;
-  const code = params.code.trim().toUpperCase();
-  if (!code) {
+  const normalizedCode = params.code.trim().toUpperCase();
+  if (!normalizedCode) {
     return null;
   }
+  const approved = await consumeChannelPairingRequest({
+    channel: params.channel,
+    accountId: params.accountId,
+    env: params.env,
+    match: (entry) => String(entry.code ?? "").toUpperCase() === normalizedCode,
+  });
+  if (!approved) {
+    return null;
+  }
+  await addChannelAllowFromStoreEntry({
+    channel: params.channel,
+    entry: approved.id,
+    accountId: params.accountId?.trim() || String(approved.entry?.meta?.accountId ?? "").trim(),
+    env: params.env,
+  });
+  return approved;
+}
 
+async function consumeChannelPairingRequest(params: {
+  channel: PairingChannel;
+  accountId?: string;
+  env?: NodeJS.ProcessEnv;
+  match: (entry: PairingRequest) => boolean;
+}): Promise<{ id: string; entry?: PairingRequest } | null> {
+  const env = params.env ?? process.env;
   const filePath = resolvePairingPath(params.channel, env);
   return await withFileLock(
     filePath,
@@ -815,12 +838,9 @@ export async function approveChannelPairingCode(params: {
     async () => {
       const { requests: pruned, removed } = await readPrunedPairingRequests(filePath);
       const normalizedAccountId = normalizePairingAccountId(params.accountId);
-      const idx = pruned.findIndex((r) => {
-        if (String(r.code ?? "").toUpperCase() !== code) {
-          return false;
-        }
-        return requestMatchesAccountId(r, normalizedAccountId);
-      });
+      const idx = pruned.findIndex(
+        (entry) => requestMatchesAccountId(entry, normalizedAccountId) && params.match(entry),
+      );
       if (idx < 0) {
         if (removed) {
           await writeJsonFile(filePath, {
@@ -839,14 +859,53 @@ export async function approveChannelPairingCode(params: {
         version: 1,
         requests: pruned,
       } satisfies PairingStore);
-      const entryAccountId = String(entry.meta?.accountId ?? "").trim() || undefined;
-      await addChannelAllowFromStoreEntry({
-        channel: params.channel,
-        entry: entry.id,
-        accountId: params.accountId?.trim() || entryAccountId,
-        env,
-      });
       return { id: entry.id, entry };
     },
   );
+}
+
+export async function approveChannelPairingRequestById(params: {
+  channel: PairingChannel;
+  requestId: string;
+  accountId?: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<{ id: string; entry?: PairingRequest } | null> {
+  const normalizedRequestId = params.requestId.trim();
+  if (!normalizedRequestId) {
+    return null;
+  }
+  const approved = await consumeChannelPairingRequest({
+    channel: params.channel,
+    accountId: params.accountId,
+    env: params.env,
+    match: (entry) => String(entry.id ?? "").trim() === normalizedRequestId,
+  });
+  if (!approved) {
+    return null;
+  }
+  await addChannelAllowFromStoreEntry({
+    channel: params.channel,
+    entry: approved.id,
+    accountId: params.accountId?.trim() || String(approved.entry?.meta?.accountId ?? "").trim(),
+    env: params.env,
+  });
+  return approved;
+}
+
+export async function rejectChannelPairingRequest(params: {
+  channel: PairingChannel;
+  requestId: string;
+  accountId?: string;
+  env?: NodeJS.ProcessEnv;
+}): Promise<{ id: string; entry?: PairingRequest } | null> {
+  const normalizedRequestId = params.requestId.trim();
+  if (!normalizedRequestId) {
+    return null;
+  }
+  return await consumeChannelPairingRequest({
+    channel: params.channel,
+    accountId: params.accountId,
+    env: params.env,
+    match: (entry) => String(entry.id ?? "").trim() === normalizedRequestId,
+  });
 }

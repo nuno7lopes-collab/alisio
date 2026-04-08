@@ -1,10 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { currentExtensionScope } from "./alisio-branding.mjs";
 import { bundledPluginFile } from "./bundled-plugin-paths.mjs";
 
+const extensionScope = currentExtensionScope();
+
 function pluginSource(dirName, artifactBasename = "api.js") {
-  return `@openclaw/${dirName}/${artifactBasename}`;
+  return `${extensionScope}/${dirName}/${artifactBasename}`;
 }
 
 function runtimeApiSourcePath(dirName) {
@@ -224,12 +227,12 @@ export const GENERATED_PLUGIN_SDK_FACADES = [
       "BrowserTransport",
       "DEFAULT_AI_SNAPSHOT_MAX_CHARS",
       "DEFAULT_BROWSER_EVALUATE_ENABLED",
-      "DEFAULT_OPENCLAW_BROWSER_COLOR",
-      "DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME",
+      "DEFAULT_ALISIO_BROWSER_COLOR",
+      "DEFAULT_ALISIO_BROWSER_PROFILE_NAME",
       "DEFAULT_UPLOAD_DIR",
-      "OpenClawPluginApi",
-      "OpenClawPluginToolContext",
-      "OpenClawPluginToolFactory",
+      "AlisioPluginApi",
+      "AlisioPluginToolContext",
+      "AlisioPluginToolFactory",
       "ProfileStatus",
       "ResolvedBrowserConfig",
       "ResolvedBrowserProfile",
@@ -308,9 +311,9 @@ export const GENERATED_PLUGIN_SDK_FACADES = [
       "BrowserStatus",
       "BrowserTab",
       "BrowserTransport",
-      "OpenClawPluginApi",
-      "OpenClawPluginToolContext",
-      "OpenClawPluginToolFactory",
+      "AlisioPluginApi",
+      "AlisioPluginToolContext",
+      "AlisioPluginToolFactory",
       "ProfileStatus",
       "ResolvedBrowserConfig",
       "ResolvedBrowserProfile",
@@ -1252,7 +1255,7 @@ function isArrayTypeLike(checker, type) {
 }
 
 function normalizeFacadeSourceParts(sourcePath) {
-  const packageSourceMatch = /^@openclaw\/([^/]+)\/([^/]+)$/u.exec(sourcePath);
+  const packageSourceMatch = /^@alisio\/([^/]+)\/([^/]+)$/u.exec(sourcePath);
   if (packageSourceMatch) {
     return {
       dirName: packageSourceMatch[1],
@@ -1289,7 +1292,7 @@ function collectRuntimeApiPreExports(repoRoot, runtimeApiPath) {
     if (statement.isTypeOnly) {
       continue;
     }
-    if (moduleSpecifier === "openclaw/plugin-sdk/line-runtime") {
+    if (moduleSpecifier === "alisio/plugin-sdk/line-runtime") {
       break;
     }
     if (!moduleSpecifier.startsWith("./src/")) {
@@ -1309,7 +1312,7 @@ function collectRuntimeApiPreExports(repoRoot, runtimeApiPath) {
 }
 
 function resolveFacadeSourceTypescriptPath(repoRoot, sourcePath) {
-  const packageSourceMatch = /^@openclaw\/([^/]+)\/(.+)$/u.exec(sourcePath);
+  const packageSourceMatch = /^@alisio\/([^/]+)\/(.+)$/u.exec(sourcePath);
   const absolutePath = packageSourceMatch
     ? path.resolve(repoRoot, "extensions", packageSourceMatch[1], packageSourceMatch[2])
     : path.resolve(repoRoot, "src/plugin-sdk", sourcePath);

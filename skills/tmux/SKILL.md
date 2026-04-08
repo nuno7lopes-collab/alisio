@@ -1,25 +1,49 @@
 ---
 name: tmux
 description: Remote-control tmux sessions for interactive CLIs by sending keystrokes and scraping pane output.
-metadata:
-  {
-    "openclaw":
-      {
-        "emoji": "🧵",
-        "os": ["darwin", "linux"],
-        "requires": { "bins": ["tmux"] },
-        "install":
-          [
-            {
-              "id": "brew",
-              "kind": "brew",
-              "formula": "tmux",
-              "bins": ["tmux"],
-              "label": "Install tmux (brew)",
-            },
-          ],
-      },
-  }
+manifest:
+  schemaVersion: 1
+  name: tmux
+  version: 1.0.0
+  emoji: "🧵"
+  permissions:
+    consent: explicit
+    sandbox:
+      mode: isolated
+      filesystem: read-only
+      network: off
+    exec:
+      bins:
+        - tmux
+  outputs:
+    primary: instructions
+    formats:
+      - markdown
+  compat:
+    os:
+      - darwin
+      - linux
+    runtimes:
+      - alisio
+    requires:
+      bins:
+        - tmux
+  subscription:
+    required: false
+    plan: free
+  install:
+    - id: brew
+      kind: brew
+      formula: tmux
+      bins:
+        - tmux
+      label: Install tmux (brew)
+    - id: apt
+      kind: apt
+      package: tmux
+      bins:
+        - tmux
+      label: Install tmux (apt)
 ---
 
 # tmux Session Control

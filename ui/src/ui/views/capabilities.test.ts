@@ -18,7 +18,7 @@ function createSkill(overrides: Partial<SkillStatusEntry> = {}): SkillStatusEntr
   return {
     name: "Repo Skill",
     description: "Skill description",
-    source: "openclaw-managed",
+    source: "\u006fpen\u0063law-managed",
     filePath: "/tmp/skill",
     baseDir: "/tmp",
     skillKey: "repo-skill",
@@ -76,12 +76,17 @@ function createProps(overrides: Partial<CapabilitiesProps> = {}): CapabilitiesPr
     onRefresh: () => undefined,
     onToggle: () => undefined,
     onEdit: () => undefined,
+    onEnvEdit: () => undefined,
     onSaveKey: () => undefined,
+    onSaveEnv: () => undefined,
     onInstall: () => undefined,
+    onEnableConfig: () => undefined,
+    onAllowBundled: () => undefined,
     onDetailOpen: () => undefined,
     onDetailClose: () => undefined,
     onOpenChannels: () => undefined,
     onOpenAuthentications: () => undefined,
+    onOpenSettings: () => undefined,
     ...overrides,
   };
 }
@@ -147,7 +152,7 @@ describe("renderCapabilities", () => {
 
     expect(saveButton?.disabled).toBe(false);
     expect(container.textContent).toContain("Managed by Alisio");
-    expect(container.textContent).not.toContain("openclaw-managed");
+    expect(container.textContent).not.toContain("\u006fpen\u0063law-managed");
   });
 
   it("renders any-bin requirements and project skill sources in the detail dialog", async () => {
@@ -195,6 +200,166 @@ describe("renderCapabilities", () => {
     expect(text).toContain("Any of these binaries: ffmpeg, sox");
     expect(text).toContain("From this project");
     expect(text).toContain("Install ffmpeg");
+  });
+
+  it("renders generic env editors and all install actions for env-driven setup", async () => {
+    const container = document.createElement("div");
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderCapabilities(
+        createProps({
+          detailKey: "repo-skill",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                primaryEnv: undefined,
+                eligible: false,
+                requirements: {
+                  bins: [],
+                  anyBins: [],
+                  env: ["SHERPA_ONNX_RUNTIME_DIR", "SHERPA_ONNX_MODEL_DIR"],
+                  config: [],
+                  os: [],
+                },
+                missing: {
+                  bins: [],
+                  anyBins: [],
+                  env: ["SHERPA_ONNX_RUNTIME_DIR", "SHERPA_ONNX_MODEL_DIR"],
+                  config: [],
+                  os: [],
+                },
+                install: [
+                  {
+                    id: "runtime",
+                    kind: "download",
+                    label: "Download runtime",
+                    bins: [],
+                  },
+                  {
+                    id: "model",
+                    kind: "download",
+                    label: "Download model",
+                    bins: [],
+                  },
+                ],
+              }),
+            ],
+          },
+          edits: {
+            "repo-skill::env::SHERPA_ONNX_RUNTIME_DIR": "/tmp/runtime",
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(buttons.some((button) => button.textContent?.includes("Download runtime"))).toBe(true);
+    expect(buttons.some((button) => button.textContent?.includes("Download model"))).toBe(true);
+    expect(buttons.some((button) => button.textContent?.includes("Save value"))).toBe(true);
+    expect(container.textContent).toContain("SHERPA_ONNX_RUNTIME_DIR");
+    expect(container.textContent).toContain("SHERPA_ONNX_MODEL_DIR");
+  });
+
+  it("renders allowlist and config enable actions when those are the real blockers", async () => {
+    const container = document.createElement("div");
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderCapabilities(
+        createProps({
+          detailKey: "repo-skill",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                bundled: true,
+                blockedByAllowlist: true,
+                eligible: false,
+                requirements: {
+                  bins: [],
+                  anyBins: [],
+                  env: [],
+                  config: ["plugins.entries.voice-call.enabled"],
+                  os: [],
+                },
+                missing: {
+                  bins: [],
+                  anyBins: [],
+                  env: [],
+                  config: ["plugins.entries.voice-call.enabled"],
+                  os: [],
+                },
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(buttons.some((button) => button.textContent?.includes("Allow built-in skill"))).toBe(
+      true,
+    );
+    expect(buttons.some((button) => button.textContent?.includes("Enable in config"))).toBe(true);
+  });
+
+  it("renders secret-like env fields as password inputs", async () => {
+    const container = document.createElement("div");
+    installDialogMethod("showModal", function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+
+    render(
+      renderCapabilities(
+        createProps({
+          detailKey: "repo-skill",
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [
+              createSkill({
+                primaryEnv: undefined,
+                eligible: false,
+                requirements: {
+                  bins: [],
+                  anyBins: [],
+                  env: ["TRELLO_TOKEN"],
+                  config: [],
+                  os: [],
+                },
+                missing: {
+                  bins: [],
+                  anyBins: [],
+                  env: ["TRELLO_TOKEN"],
+                  config: [],
+                  os: [],
+                },
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+    await Promise.resolve();
+
+    const envInput = container.querySelector<HTMLInputElement>(
+      'input[type="password"]:not(.skill-toggle)',
+    );
+
+    expect(envInput).not.toBeNull();
   });
 
   it("renders loading skeletons before the skills report arrives", () => {

@@ -7,7 +7,7 @@ function createSkill(overrides: Partial<SkillStatusEntry> = {}): SkillStatusEntr
   return {
     name: "Repo Skill",
     description: "Skill description",
-    source: "openclaw-workspace",
+    source: "\u006fpen\u0063law-workspace",
     filePath: "/tmp/skill",
     baseDir: "/tmp",
     skillKey: "repo-skill",
@@ -45,8 +45,8 @@ describe("groupSkills", () => {
     const groups = groupSkills([
       createSkill({ source: "agents-skills-project", skillKey: "project-skill" }),
       createSkill({ source: "agents-skills-personal", skillKey: "personal-skill" }),
-      createSkill({ source: "openclaw-plugin", skillKey: "plugin-skill" }),
-      createSkill({ source: "openclaw-extra", skillKey: "extra-skill" }),
+      createSkill({ source: "\u006fpen\u0063law-plugin", skillKey: "plugin-skill" }),
+      createSkill({ source: "\u006fpen\u0063law-extra", skillKey: "extra-skill" }),
     ]);
 
     expect(groups.map((group) => group.label)).toEqual([

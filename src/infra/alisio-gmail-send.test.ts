@@ -19,7 +19,7 @@ function parseJsonBody<T>(body: BodyInit | null | undefined): T {
 
 async function createReadyAlisioAccountEnv(root: string) {
   const env = {
-    OPENCLAW_STATE_DIR: root,
+    ALISIO_STATE_DIR: root,
     ALISIO_SUPABASE_URL: "https://example.supabase.co",
     ALISIO_SUPABASE_ANON_KEY: "anon-key",
     ALISIO_GOOGLE_CLIENT_ID: "google-client-id",

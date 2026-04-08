@@ -1,7 +1,7 @@
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveAgentIdentity } from "../agents/identity.js";
 import { loadAgentIdentity } from "../commands/agents.config.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { normalizeAgentId } from "../routing/session-key.js";
 import { deriveAlisioAvatarLabel, resolveAlisioAgentName } from "../shared/alisio-account.js";
 import { coerceIdentityValue } from "../shared/assistant-identity-values.js";
@@ -80,7 +80,7 @@ function normalizeEmojiValue(value: string | undefined): string | undefined {
 }
 
 export function resolveAssistantIdentity(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId?: string | null;
   workspaceDir?: string | null;
   accountProfile?: {

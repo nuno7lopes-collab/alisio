@@ -42,8 +42,6 @@ describe("config view", () => {
     themeMode: "system" as ThemeMode,
     setTheme: vi.fn(),
     setThemeMode: vi.fn(),
-    borderRadius: 50,
-    setBorderRadius: vi.fn(),
     gatewayUrl: "",
     assistantName: "Alisio",
   });
@@ -226,7 +224,7 @@ describe("config view", () => {
     );
 
     const btn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "Gateway",
+      (b) => b.textContent?.trim() === "Alisio",
     );
     expect(btn).toBeTruthy();
     btn?.click();
@@ -284,7 +282,7 @@ describe("config view", () => {
     );
     expect(tabs).toContain("Settings");
     expect(tabs).toContain("Agents");
-    expect(tabs).toContain("Gateway");
+    expect(tabs).toContain("Alisio");
   });
 
   it("clears the active search query", () => {

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveBrewExecutable } from "../infra/brew.js";
 import { getGlobalHookRunner } from "../plugins/hook-runner-global.js";
 import { createBeforeInstallHookPayload } from "../plugins/install-policy-context.js";
@@ -17,14 +17,18 @@ import {
   type SkillInstallSpec,
   type SkillsInstallPreferences,
 } from "./skills.js";
-import { resolveSkillSource } from "./skills/source.js";
+import {
+  isTrustedMarketplaceInstallSource,
+  normalizeRuntimeSkillSource,
+  resolveSkillSource,
+} from "./skills/source.js";
 
 export type SkillInstallRequest = {
   workspaceDir: string;
   skillName: string;
   installId: string;
   timeoutMs?: number;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
 };
 
 export type SkillInstallResult = {
@@ -106,13 +110,13 @@ async function collectSkillInstallScanWarnings(entry: SkillEntry): Promise<Skill
       );
     } else if (summary.warn > 0) {
       warnings.push(
-        `Skill "${skillName}" has ${summary.warn} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+        `Skill "${skillName}" has ${summary.warn} suspicious code pattern(s). Run "alisio security audit --deep" for details.`,
       );
     }
     return { warnings, builtinScan };
   } catch (err) {
     warnings.push(
-      `Skill "${skillName}" code safety scan failed (${String(err)}). Installation continues; run "openclaw security audit --deep" after install.`,
+      `Skill "${skillName}" code safety scan failed (${String(err)}). Installation continues; run "alisio security audit --deep" after install.`,
     );
     return {
       warnings,
@@ -561,6 +565,25 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
   const scanResult = await collectSkillInstallScanWarnings(entry);
   const warnings = scanResult.warnings;
   const skillSource = resolveSkillSource(entry.skill);
+  const skillSourceLabel = normalizeRuntimeSkillSource(skillSource);
+
+  if (entry.manifestValidation?.valid === false) {
+    return withWarnings(
+      {
+        ok: false,
+        message: `Skill "${params.skillName}" has an invalid manifest.`,
+        stdout: "",
+        stderr: "",
+        code: null,
+      },
+      warnings,
+    );
+  }
+  if (entry.manifestValidation?.explicit !== true) {
+    warnings.push(
+      `Skill "${params.skillName}" is using inferred marketplace defaults. Add an explicit manifest before publishing or selling it.`,
+    );
+  }
 
   // Run before_install so external scanners can augment findings or block installs.
   const hookRunner = getGlobalHookRunner();
@@ -611,10 +634,9 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
 
   // Warn when install is triggered from a non-bundled source.
   // Workspace/project/personal agent skills can contain attacker-controlled metadata.
-  const trustedInstallSources = new Set(["openclaw-bundled", "openclaw-managed", "openclaw-extra"]);
-  if (!trustedInstallSources.has(skillSource)) {
+  if (!isTrustedMarketplaceInstallSource(skillSource)) {
     warnings.push(
-      `WARNING: Skill "${params.skillName}" install triggered from non-bundled source "${skillSource}". Verify the install recipe is trusted.`,
+      `WARNING: Skill "${params.skillName}" install triggered from non-bundled source "${skillSourceLabel}". Verify the install recipe is trusted.`,
     );
   }
   if (!spec) {

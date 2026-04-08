@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveManifestProviderAuthChoices } from "../plugins/provider-auth-choices.js";
 import {
   resolveProviderModelPickerEntries,
@@ -45,7 +45,7 @@ function includesProviderFlowScope(
 }
 
 function resolveProviderDocsById(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): Map<string, string> {
@@ -65,7 +65,7 @@ function resolveProviderDocsById(params?: {
 }
 
 export function resolveManifestProviderSetupFlowOptions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -76,7 +76,7 @@ export function resolveManifestProviderSetupFlowOptions(params?: {
 }
 
 export function resolveManifestProviderSetupFlowContributions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -114,7 +114,7 @@ export function resolveManifestProviderSetupFlowContributions(params?: {
 }
 
 export function resolveRuntimeFallbackProviderSetupFlowOptions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -125,7 +125,7 @@ export function resolveRuntimeFallbackProviderSetupFlowOptions(params?: {
 }
 
 export function resolveRuntimeFallbackProviderSetupFlowContributions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -154,7 +154,7 @@ export function resolveRuntimeFallbackProviderSetupFlowContributions(params?: {
 }
 
 export function resolveProviderSetupFlowOptions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -163,7 +163,7 @@ export function resolveProviderSetupFlowOptions(params?: {
 }
 
 export function resolveProviderSetupFlowContributions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
   scope?: ProviderFlowScope;
@@ -177,7 +177,7 @@ export function resolveProviderSetupFlowContributions(params?: {
 }
 
 export function resolveProviderModelPickerFlowEntries(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderModelPickerFlowEntry[] {
@@ -187,7 +187,7 @@ export function resolveProviderModelPickerFlowEntries(params?: {
 }
 
 export function resolveProviderModelPickerFlowContributions(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderModelPickerFlowContribution[] {

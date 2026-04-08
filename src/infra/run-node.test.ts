@@ -17,10 +17,10 @@ const ROOT_TSDOWN = "tsdown.config.ts";
 const DIST_ENTRY = "dist/entry.js";
 const BUILD_STAMP = "dist/.buildstamp";
 const EXTENSION_SRC = bundledPluginFile("demo", "src/index.ts");
-const EXTENSION_MANIFEST = bundledPluginFile("demo", "openclaw.plugin.json");
+const EXTENSION_MANIFEST = bundledPluginFile("demo", "alisio.plugin.json");
 const EXTENSION_PACKAGE = bundledPluginFile("demo", "package.json");
 const EXTENSION_README = bundledPluginFile("demo", "README.md");
-const DIST_EXTENSION_MANIFEST = bundledDistPluginFile("demo", "openclaw.plugin.json");
+const DIST_EXTENSION_MANIFEST = bundledDistPluginFile("demo", "alisio.plugin.json");
 const DIST_EXTENSION_PACKAGE = bundledDistPluginFile("demo", "package.json");
 
 const OLD_TIME = new Date("2026-03-13T10:00:00.000Z");
@@ -29,13 +29,13 @@ const NEW_TIME = new Date("2026-03-13T12:00:01.000Z");
 
 const BASE_PROJECT_FILES = {
   [ROOT_TSCONFIG]: "{}\n",
-  [ROOT_PACKAGE]: '{"name":"openclaw-test"}\n',
+  [ROOT_PACKAGE]: '{"name":"alisio-test"}\n',
   [DIST_ENTRY]: "console.log('built');\n",
   [BUILD_STAMP]: '{"head":"abc123"}\n',
 } as const;
 
 async function withTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-run-node-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-run-node-"));
   try {
     return await run(dir);
   } finally {
@@ -67,7 +67,7 @@ function expectedBuildSpawn() {
 }
 
 function statusCommandSpawn() {
-  return [process.execPath, "openclaw.mjs", "status"];
+  return [process.execPath, "alisio.mjs", "status"];
 }
 
 function resolvePath(tmp: string, relativePath: string) {
@@ -142,7 +142,7 @@ async function runStatusCommand(params: {
     args: ["status"],
     env: {
       ...process.env,
-      OPENCLAW_RUNNER_LOG: "0",
+      ALISIO_RUNNER_LOG: "0",
       ...params.env,
     },
     spawn: params.spawn,
@@ -189,8 +189,8 @@ describe("run-node script", () => {
           args: ["--version"],
           env: {
             ...process.env,
-            OPENCLAW_FORCE_BUILD: "1",
-            OPENCLAW_RUNNER_LOG: "0",
+            ALISIO_FORCE_BUILD: "1",
+            ALISIO_RUNNER_LOG: "0",
           },
           spawn,
           execPath: process.execPath,
@@ -204,7 +204,7 @@ describe("run-node script", () => {
         await expect(fs.readFile(indexPath, "utf-8")).resolves.toContain("sentinel");
         expect(nodeCalls).toEqual([
           [process.execPath, "scripts/tsdown-build.mjs", "--no-clean"],
-          [process.execPath, "openclaw.mjs", "--version"],
+          [process.execPath, "alisio.mjs", "--version"],
         ]);
       });
     },
@@ -219,7 +219,7 @@ describe("run-node script", () => {
           JSON.stringify(
             {
               name: "demo",
-              openclaw: {
+              alisio: {
                 extensions: ["./src/index.ts", "./nested/entry.mts"],
               },
             },
@@ -237,7 +237,7 @@ describe("run-node script", () => {
       const exitCode = await runStatusCommand({
         tmp,
         spawn,
-        env: { OPENCLAW_FORCE_BUILD: "1" },
+        env: { ALISIO_FORCE_BUILD: "1" },
       });
 
       expect(exitCode).toBe(0);
@@ -294,8 +294,8 @@ describe("run-node script", () => {
         args: ["status"],
         env: {
           ...process.env,
-          OPENCLAW_FORCE_BUILD: "1",
-          OPENCLAW_RUNNER_LOG: "0",
+          ALISIO_FORCE_BUILD: "1",
+          ALISIO_RUNNER_LOG: "0",
         },
         spawn,
         execPath: process.execPath,
@@ -328,7 +328,7 @@ describe("run-node script", () => {
         args: ["status"],
         env: {
           ...process.env,
-          OPENCLAW_RUNNER_LOG: "0",
+          ALISIO_RUNNER_LOG: "0",
         },
         spawn,
         spawnSync,
@@ -398,9 +398,9 @@ describe("run-node script", () => {
       await setupTrackedProject(tmp, {
         files: {
           [EXTENSION_MANIFEST]: '{"id":"demo","configSchema":{"type":"object"}}\n',
-          [EXTENSION_PACKAGE]: '{"name":"demo","openclaw":{"extensions":["./index.ts"]}}\n',
+          [EXTENSION_PACKAGE]: '{"name":"demo","alisio":{"extensions":["./index.ts"]}}\n',
           [ROOT_TSDOWN]: "export default {};\n",
-          [DIST_EXTENSION_PACKAGE]: '{"name":"demo","openclaw":{"extensions":["./stale.js"]}}\n',
+          [DIST_EXTENSION_PACKAGE]: '{"name":"demo","alisio":{"extensions":["./stale.js"]}}\n',
         },
         oldPaths: [EXTENSION_MANIFEST, ROOT_TSCONFIG, ROOT_PACKAGE, ROOT_TSDOWN],
         buildPaths: [DIST_ENTRY, BUILD_STAMP, DIST_EXTENSION_PACKAGE],

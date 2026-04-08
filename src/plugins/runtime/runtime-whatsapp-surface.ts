@@ -2,7 +2,7 @@ import type { AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { AnyMessageContent, makeWASocket } from "@whiskeysockets/baileys";
 import type { NormalizedLocation } from "../../channels/location.js";
 import type { ChannelAgentTool } from "../../channels/plugins/types.core.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { PollInput } from "../../polls.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import type { WebChannel } from "../../utils.js";
@@ -175,7 +175,7 @@ export type WhatsAppHeavyRuntimeModule = {
     body: string,
     options: {
       verbose: boolean;
-      cfg?: OpenClawConfig;
+      cfg?: AlisioConfig;
       mediaUrl?: string;
       mediaLocalRoots?: readonly string[];
       gifPlayback?: boolean;
@@ -185,7 +185,7 @@ export type WhatsAppHeavyRuntimeModule = {
   sendPollWhatsApp: (
     to: string,
     poll: PollInput,
-    options: { verbose: boolean; accountId?: string; cfg?: OpenClawConfig },
+    options: { verbose: boolean; accountId?: string; cfg?: AlisioConfig },
   ) => Promise<{ messageId: string; toJid: string }>;
   sendReactionWhatsApp: (
     chatJid: string,
@@ -205,7 +205,7 @@ export type WhatsAppHeavyRuntimeModule = {
   ) => Promise<WhatsAppWaSocket>;
   handleWhatsAppAction: (
     params: Record<string, unknown>,
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
   ) => Promise<AgentToolResult<unknown>>;
   monitorWebChannel: (
     verbose: boolean,
@@ -218,7 +218,7 @@ export type WhatsAppHeavyRuntimeModule = {
   ) => Promise<void>;
   monitorWebInbox: MonitorWebInboxFactory;
   runWebHeartbeatOnce: (opts: {
-    cfg?: OpenClawConfig;
+    cfg?: AlisioConfig;
     to: string;
     verbose?: boolean;
     replyResolver?: ReplyResolver;

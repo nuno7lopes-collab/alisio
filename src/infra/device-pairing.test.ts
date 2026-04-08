@@ -35,7 +35,7 @@ async function setupPairedOperatorDevice(baseDir: string, scopes: string[]) {
 }
 
 async function setupOperatorToken(scopes: string[]) {
-  const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+  const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
   await setupPairedOperatorDevice(baseDir, scopes);
   const paired = await getPairedDevice("device-1", baseDir);
   const token = requireToken(paired?.tokens?.operator?.token);
@@ -107,7 +107,7 @@ async function clearPairedOperatorApprovalBaseline(baseDir: string) {
 
 describe("device pairing tokens", () => {
   test("reuses existing pending requests for the same device", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const first = await requestDevicePairing(
       {
         deviceId: "device-1",
@@ -129,7 +129,7 @@ describe("device pairing tokens", () => {
   });
 
   test("supersedes pending requests when requested roles/scopes change", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const first = await requestDevicePairing(
       {
         deviceId: "device-1",
@@ -172,7 +172,7 @@ describe("device pairing tokens", () => {
   });
 
   test("keeps superseded requests interactive when an existing pending request is interactive", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const first = await requestDevicePairing(
       {
         deviceId: "device-1",
@@ -202,7 +202,7 @@ describe("device pairing tokens", () => {
   });
 
   test("rejects bootstrap token replay before pending scope escalation can be approved", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const issued = await issueDeviceBootstrapToken({
       baseDir,
       roles: ["operator"],
@@ -253,7 +253,7 @@ describe("device pairing tokens", () => {
   });
 
   test("fails closed for operator approvals when caller scopes are omitted", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const request = await requestDevicePairing(
       {
         deviceId: "device-1",
@@ -286,7 +286,7 @@ describe("device pairing tokens", () => {
   });
 
   test("generates base64url device tokens with 256-bit entropy output length", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
 
     const paired = await getPairedDevice("device-1", baseDir);
@@ -296,7 +296,7 @@ describe("device pairing tokens", () => {
   });
 
   test("allows down-scoping from admin and preserves approved scope baseline", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
 
     const downscoped = await rotateDeviceToken({
@@ -322,7 +322,7 @@ describe("device pairing tokens", () => {
   });
 
   test("preserves existing token scopes when approving a repair without requested scopes", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
 
     const repair = await requestDevicePairing(
@@ -350,7 +350,7 @@ describe("device pairing tokens", () => {
   });
 
   test("rejects scope escalation when rotating a token and leaves state unchanged", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);
     const before = await getPairedDevice("device-1", baseDir);
 
@@ -370,7 +370,7 @@ describe("device pairing tokens", () => {
   });
 
   test("rejects scope escalation when ensuring a token and leaves state unchanged", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);
     const before = await getPairedDevice("device-1", baseDir);
 
@@ -453,7 +453,7 @@ describe("device pairing tokens", () => {
   });
 
   test("accepts custom operator scopes under an operator.admin approval baseline", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
 
     const rotated = await rotateDeviceToken({
@@ -475,7 +475,7 @@ describe("device pairing tokens", () => {
   });
 
   test("fails closed when the paired device approval baseline is missing during ensure", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
     await clearPairedOperatorApprovalBaseline(baseDir);
 
@@ -490,7 +490,7 @@ describe("device pairing tokens", () => {
   });
 
   test("fails closed when the paired device approval baseline is missing during rotation", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.admin"]);
     await clearPairedOperatorApprovalBaseline(baseDir);
 
@@ -519,7 +519,7 @@ describe("device pairing tokens", () => {
   });
 
   test("derives effective roles from active tokens instead of sticky historical roles", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     const request = await requestDevicePairing(
       {
         deviceId: "device-1",
@@ -552,7 +552,7 @@ describe("device pairing tokens", () => {
   });
 
   test("removes paired devices by device id", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);
 
     const removed = await removePairedDevice("device-1", baseDir);
@@ -563,7 +563,7 @@ describe("device pairing tokens", () => {
   });
 
   test("clears paired device state by device id", async () => {
-    const baseDir = await mkdtemp(join(tmpdir(), "openclaw-device-pairing-"));
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);
 
     await expect(clearDevicePairing("device-1", baseDir)).resolves.toBe(true);

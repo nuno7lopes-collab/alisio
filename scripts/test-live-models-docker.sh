@@ -3,11 +3,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/live-docker-auth.sh"
-IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
-LIVE_IMAGE_NAME="${OPENCLAW_LIVE_IMAGE:-${IMAGE_NAME}-live}"
-CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
-WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
-PROFILE_FILE="${OPENCLAW_PROFILE_FILE:-$HOME/.profile}"
+IMAGE_NAME="${ALISIO_IMAGE:-alisio:local}"
+LIVE_IMAGE_NAME="${ALISIO_LIVE_IMAGE:-${IMAGE_NAME}-live}"
+CONFIG_DIR="${ALISIO_CONFIG_DIR:-$HOME/.alisio}"
+WORKSPACE_DIR="${ALISIO_WORKSPACE_DIR:-$HOME/.alisio/workspace}"
+PROFILE_FILE="${ALISIO_PROFILE_FILE:-$HOME/.profile}"
 
 PROFILE_MOUNT=()
 if [[ -f "$PROFILE_FILE" ]]; then
@@ -15,28 +15,28 @@ if [[ -f "$PROFILE_FILE" ]]; then
 fi
 
 AUTH_DIRS=()
-if [[ -n "${OPENCLAW_DOCKER_AUTH_DIRS:-}" ]]; then
+if [[ -n "${ALISIO_DOCKER_AUTH_DIRS:-}" ]]; then
   while IFS= read -r auth_dir; do
     [[ -n "$auth_dir" ]] || continue
     AUTH_DIRS+=("$auth_dir")
-  done < <(openclaw_live_collect_auth_dirs)
-elif [[ -n "${OPENCLAW_LIVE_PROVIDERS:-}" && -n "${OPENCLAW_LIVE_GATEWAY_PROVIDERS:-}" ]]; then
+  done < <(alisio_live_collect_auth_dirs)
+elif [[ -n "${ALISIO_LIVE_PROVIDERS:-}" && -n "${ALISIO_LIVE_GATEWAY_PROVIDERS:-}" ]]; then
   while IFS= read -r auth_dir; do
     [[ -n "$auth_dir" ]] || continue
     AUTH_DIRS+=("$auth_dir")
   done < <(
     {
-      openclaw_live_collect_auth_dirs_from_csv "${OPENCLAW_LIVE_PROVIDERS:-}"
-      openclaw_live_collect_auth_dirs_from_csv "${OPENCLAW_LIVE_GATEWAY_PROVIDERS:-}"
+      alisio_live_collect_auth_dirs_from_csv "${ALISIO_LIVE_PROVIDERS:-}"
+      alisio_live_collect_auth_dirs_from_csv "${ALISIO_LIVE_GATEWAY_PROVIDERS:-}"
     } | awk '!seen[$0]++'
   )
 else
   while IFS= read -r auth_dir; do
     [[ -n "$auth_dir" ]] || continue
     AUTH_DIRS+=("$auth_dir")
-  done < <(openclaw_live_collect_auth_dirs)
+  done < <(alisio_live_collect_auth_dirs)
 fi
-AUTH_DIRS_CSV="$(openclaw_live_join_csv "${AUTH_DIRS[@]}")"
+AUTH_DIRS_CSV="$(alisio_live_join_csv "${AUTH_DIRS[@]}")"
 
 EXTERNAL_AUTH_MOUNTS=()
 for auth_dir in "${AUTH_DIRS[@]}"; do
@@ -49,7 +49,7 @@ done
 read -r -d '' LIVE_TEST_CMD <<'EOF' || true
 set -euo pipefail
 [ -f "$HOME/.profile" ] && source "$HOME/.profile" || true
-IFS=',' read -r -a auth_dirs <<<"${OPENCLAW_DOCKER_AUTH_DIRS_RESOLVED:-}"
+IFS=',' read -r -a auth_dirs <<<"${ALISIO_DOCKER_AUTH_DIRS_RESOLVED:-}"
 for auth_dir in "${auth_dirs[@]}"; do
   [ -n "$auth_dir" ] || continue
   if [ -d "/host-auth/$auth_dir" ]; then
@@ -73,9 +73,9 @@ tar -C /src \
 ln -s /app/node_modules "$tmp_dir/node_modules"
 ln -s /app/dist "$tmp_dir/dist"
 if [ -d /app/dist-runtime/extensions ]; then
-  export OPENCLAW_BUNDLED_PLUGINS_DIR=/app/dist-runtime/extensions
+  export ALISIO_BUNDLED_PLUGINS_DIR=/app/dist-runtime/extensions
 elif [ -d /app/dist/extensions ]; then
-  export OPENCLAW_BUNDLED_PLUGINS_DIR=/app/dist/extensions
+  export ALISIO_BUNDLED_PLUGINS_DIR=/app/dist/extensions
 fi
 cd "$tmp_dir"
 pnpm test:live
@@ -91,20 +91,20 @@ docker run --rm -t \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -e HOME=/home/node \
   -e NODE_OPTIONS=--disable-warning=ExperimentalWarning \
-  -e OPENCLAW_SKIP_CHANNELS=1 \
-  -e OPENCLAW_DOCKER_AUTH_DIRS_RESOLVED="$AUTH_DIRS_CSV" \
-  -e OPENCLAW_LIVE_TEST=1 \
-  -e OPENCLAW_LIVE_MODELS="${OPENCLAW_LIVE_MODELS:-modern}" \
-  -e OPENCLAW_LIVE_PROVIDERS="${OPENCLAW_LIVE_PROVIDERS:-}" \
-  -e OPENCLAW_LIVE_MAX_MODELS="${OPENCLAW_LIVE_MAX_MODELS:-48}" \
-  -e OPENCLAW_LIVE_MODEL_TIMEOUT_MS="${OPENCLAW_LIVE_MODEL_TIMEOUT_MS:-}" \
-  -e OPENCLAW_LIVE_REQUIRE_PROFILE_KEYS="${OPENCLAW_LIVE_REQUIRE_PROFILE_KEYS:-}" \
-  -e OPENCLAW_LIVE_GATEWAY_MODELS="${OPENCLAW_LIVE_GATEWAY_MODELS:-}" \
-  -e OPENCLAW_LIVE_GATEWAY_PROVIDERS="${OPENCLAW_LIVE_GATEWAY_PROVIDERS:-}" \
-  -e OPENCLAW_LIVE_GATEWAY_MAX_MODELS="${OPENCLAW_LIVE_GATEWAY_MAX_MODELS:-}" \
+  -e ALISIO_SKIP_CHANNELS=1 \
+  -e ALISIO_DOCKER_AUTH_DIRS_RESOLVED="$AUTH_DIRS_CSV" \
+  -e ALISIO_LIVE_TEST=1 \
+  -e ALISIO_LIVE_MODELS="${ALISIO_LIVE_MODELS:-modern}" \
+  -e ALISIO_LIVE_PROVIDERS="${ALISIO_LIVE_PROVIDERS:-}" \
+  -e ALISIO_LIVE_MAX_MODELS="${ALISIO_LIVE_MAX_MODELS:-48}" \
+  -e ALISIO_LIVE_MODEL_TIMEOUT_MS="${ALISIO_LIVE_MODEL_TIMEOUT_MS:-}" \
+  -e ALISIO_LIVE_REQUIRE_PROFILE_KEYS="${ALISIO_LIVE_REQUIRE_PROFILE_KEYS:-}" \
+  -e ALISIO_LIVE_GATEWAY_MODELS="${ALISIO_LIVE_GATEWAY_MODELS:-}" \
+  -e ALISIO_LIVE_GATEWAY_PROVIDERS="${ALISIO_LIVE_GATEWAY_PROVIDERS:-}" \
+  -e ALISIO_LIVE_GATEWAY_MAX_MODELS="${ALISIO_LIVE_GATEWAY_MAX_MODELS:-}" \
   -v "$ROOT_DIR":/src:ro \
-  -v "$CONFIG_DIR":/home/node/.openclaw \
-  -v "$WORKSPACE_DIR":/home/node/.openclaw/workspace \
+  -v "$CONFIG_DIR":/home/node/.alisio \
+  -v "$WORKSPACE_DIR":/home/node/.alisio/workspace \
   "${EXTERNAL_AUTH_MOUNTS[@]}" \
   "${PROFILE_MOUNT[@]}" \
   "$LIVE_IMAGE_NAME" \

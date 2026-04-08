@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { cleanStaleMatrixPluginConfig } from "../commands/doctor/providers/matrix.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadConfig, readConfigFileSnapshot } from "../config/config.js";
 import { installHooksFromNpmSpec, installHooksFromPath } from "../hooks/install.js";
 import { resolveArchiveKind } from "../infra/archive.js";
@@ -38,7 +38,7 @@ import {
 import { persistHookPackInstall, persistPluginInstall } from "./plugins-install-persist.js";
 
 async function installBundledPluginSource(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   rawSpec: string;
   bundledSource: BundledPluginSource;
   warning: string;
@@ -68,7 +68,7 @@ async function installBundledPluginSource(params: {
 }
 
 async function tryInstallHookPackFromLocalPath(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   resolvedPath: string;
   link?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -143,7 +143,7 @@ async function tryInstallHookPackFromLocalPath(params: {
 }
 
 async function tryInstallHookPackFromNpmSpec(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   spec: string;
   pin?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -190,7 +190,7 @@ function buildInvalidPluginInstallConfigError(message: string): Error {
 
 async function loadConfigFromSnapshotForInstall(
   request: PluginInstallRequestContext,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   if (resolvePluginInstallInvalidConfigPolicy(request) !== "recover-matrix-only") {
     throw buildInvalidPluginInstallConfigError(
       "Config invalid; run `openclaw doctor --fix` before installing plugins.",
@@ -218,7 +218,7 @@ async function loadConfigFromSnapshotForInstall(
 
 export async function loadConfigForInstall(
   request: PluginInstallRequestContext,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   try {
     return loadConfig();
   } catch (err) {

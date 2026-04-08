@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   DEFAULT_IMESSAGE_ATTACHMENT_ROOTS,
   isInboundPathAllowed,
@@ -67,7 +67,7 @@ describe("inbound-path-policy", () => {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 
   it.each([
     {
@@ -122,7 +122,7 @@ describe("inbound-path-policy", () => {
               },
             },
           },
-        } as OpenClawConfig;
+        } as AlisioConfig;
 
         return resolveIMessageAttachmentRoots({ cfg, accountId: "work" });
       },
@@ -130,12 +130,12 @@ describe("inbound-path-policy", () => {
     },
     {
       name: "falls back to default iMessage attachment roots",
-      resolve: () => resolveIMessageAttachmentRoots({ cfg: {} as OpenClawConfig }),
+      resolve: () => resolveIMessageAttachmentRoots({ cfg: {} as AlisioConfig }),
       expected: [...DEFAULT_IMESSAGE_ATTACHMENT_ROOTS],
     },
     {
       name: "falls back to default iMessage remote attachment roots",
-      resolve: () => resolveIMessageRemoteAttachmentRoots({ cfg: {} as OpenClawConfig }),
+      resolve: () => resolveIMessageRemoteAttachmentRoots({ cfg: {} as AlisioConfig }),
       expected: [...DEFAULT_IMESSAGE_ATTACHMENT_ROOTS],
     },
   ] as const)("$name", ({ resolve, expected }) => {

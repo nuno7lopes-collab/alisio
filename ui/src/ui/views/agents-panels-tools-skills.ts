@@ -203,7 +203,7 @@ export function renderAgentTools(params: {
       ${!params.configForm
         ? html`
             <div class="callout info" style="margin-top: 12px">
-              Load the gateway config to adjust tool profiles.
+              Load the Alisio config to adjust tool profiles.
             </div>
           `
         : nothing}
@@ -486,7 +486,7 @@ export function renderAgentSkills(params: {
       ${!params.configForm
         ? html`
             <div class="callout info" style="margin-top: 12px">
-              Load the gateway config to set per-agent skills.
+              Load the Alisio config to set per-agent skills.
             </div>
           `
         : nothing}

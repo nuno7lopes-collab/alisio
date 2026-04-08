@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   isMatrixLegacyCryptoInspectorAvailable,
   loadMatrixLegacyCryptoInspector,
@@ -18,7 +18,7 @@ import {
 vi.unmock("../version.js");
 
 async function expectLoadedInspector(params: {
-  cfg: OpenClawConfig | Record<string, never>;
+  cfg: AlisioConfig | Record<string, never>;
   env: NodeJS.ProcessEnv;
   expected: {
     deviceId: string;
@@ -99,7 +99,7 @@ describe("matrix plugin helper resolution", () => {
           ].join("\n"),
         );
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           plugins: {
             load: {
               paths: [customRoot],
@@ -143,7 +143,7 @@ describe("matrix plugin helper resolution", () => {
           "utf8",
         );
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           plugins: {
             load: {
               paths: [customRoot],
@@ -164,7 +164,7 @@ describe("matrix plugin helper resolution", () => {
       },
       {
         env: {
-          OPENCLAW_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
+          ALISIO_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
         },
       },
     );
@@ -195,7 +195,7 @@ describe("matrix plugin helper resolution", () => {
           return;
         }
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           plugins: {
             load: {
               paths: [customRoot],
@@ -213,7 +213,7 @@ describe("matrix plugin helper resolution", () => {
       },
       {
         env: {
-          OPENCLAW_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
+          ALISIO_BUNDLED_PLUGINS_DIR: (home) => path.join(home, "empty-bundled"),
         },
       },
     );

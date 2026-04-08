@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { migrateOrphanedSessionKeys } from "../infra/state-migrations.js";
 
 type SessionMigrationLogger = {
@@ -15,7 +15,7 @@ type SessionMigrationLogger = {
  * upgrade rather than requiring a manual `openclaw doctor` run.
  */
 export async function runStartupSessionMigration(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   env?: NodeJS.ProcessEnv;
   log: SessionMigrationLogger;
   deps?: {

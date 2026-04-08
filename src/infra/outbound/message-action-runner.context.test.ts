@@ -5,7 +5,7 @@ import type {
   ChannelOutboundAdapter,
   ChannelPlugin,
 } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
 import {
   createChannelTestPluginBase,
@@ -20,7 +20,7 @@ const slackConfig = {
       appToken: "xapp-test",
     },
   },
-} as OpenClawConfig;
+} as AlisioConfig;
 
 const whatsappConfig = {
   channels: {
@@ -28,10 +28,10 @@ const whatsappConfig = {
       allowFrom: ["*"],
     },
   },
-} as OpenClawConfig;
+} as AlisioConfig;
 
 const runDryAction = (params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   action: "send" | "thread-reply" | "broadcast" | "upload-file";
   actionParams: Record<string, unknown>;
   toolContext?: Record<string, unknown>;
@@ -49,7 +49,7 @@ const runDryAction = (params: {
   });
 
 const runDrySend = (params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   actionParams: Record<string, unknown>;
   toolContext?: Record<string, unknown>;
   abortSignal?: AbortSignal;
@@ -87,7 +87,7 @@ function normalizeSlackTarget(raw: string): string {
 
 function createConfiguredTestPlugin(params: {
   id: "slack" | "telegram" | "whatsapp";
-  isConfigured: (cfg: OpenClawConfig) => boolean;
+  isConfigured: (cfg: AlisioConfig) => boolean;
   normalizeTarget: (raw: string) => string | undefined;
   resolveTarget: (input: string) => ResolvedTestTarget | null;
 }): ChannelPlugin {
@@ -307,7 +307,7 @@ describe("runMessageAction context isolation", () => {
             botToken: "telegram-test",
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       actionParams: {
         channel: "telegram",
         target: "123456",
@@ -484,7 +484,7 @@ describe("runMessageAction context isolation", () => {
             token: "tg-test",
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       action: "send" as const,
       actionParams: {
         message: "hi",
@@ -556,7 +556,7 @@ describe("runMessageAction context isolation", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       actionParams: {
         channel: "slack",
         target: "channel:C99999999",
@@ -577,7 +577,7 @@ describe("runMessageAction context isolation", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       actionParams: {
         channel: "slack",
         target: "channel:C99999999",

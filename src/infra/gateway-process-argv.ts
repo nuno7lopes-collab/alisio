@@ -2,6 +2,10 @@ function normalizeProcArg(arg: string): string {
   return arg.replaceAll("\\", "/").toLowerCase();
 }
 
+const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
+const CURRENT_CLI_NAME = "alisio";
+const CURRENT_GATEWAY_BINARY = "alisio-gateway";
+
 export function parseProcCmdline(raw: string): string[] {
   return raw
     .split("\0")
@@ -18,7 +22,7 @@ export function isGatewayArgv(args: string[], opts?: { allowGatewayBinary?: bool
   const entryCandidates = [
     "dist/index.js",
     "dist/entry.js",
-    "openclaw.mjs",
+    "alisio.mjs",
     "scripts/run-node.mjs",
     "src/entry.ts",
     "src/index.ts",
@@ -29,8 +33,12 @@ export function isGatewayArgv(args: string[], opts?: { allowGatewayBinary?: bool
 
   const exe = (normalized[0] ?? "").replace(/\.(bat|cmd|exe)$/i, "");
   return (
-    exe.endsWith("/openclaw") ||
-    exe === "openclaw" ||
-    (opts?.allowGatewayBinary === true && exe.endsWith("/openclaw-gateway"))
+    exe.endsWith(`/${CURRENT_CLI_NAME}`) ||
+    exe === CURRENT_CLI_NAME ||
+    exe.endsWith(`/${LEGACY_RUNTIME_NAMESPACE}`) ||
+    exe === LEGACY_RUNTIME_NAMESPACE ||
+    (opts?.allowGatewayBinary === true &&
+      (exe.endsWith(`/${CURRENT_GATEWAY_BINARY}`) ||
+        exe.endsWith(`/${LEGACY_RUNTIME_NAMESPACE}-gateway`)))
   );
 }

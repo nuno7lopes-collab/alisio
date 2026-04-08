@@ -2,7 +2,10 @@
 // Keep this list additive and scoped to the bundled LLM task surface.
 
 export { definePluginEntry } from "./plugin-entry.js";
-export { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+export {
+  resolvePreferredAlisioTmpDir,
+  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
+} from "../infra/tmp-alisio-dir.js";
 export {
   formatThinkingLevels,
   formatXHighModelHint,

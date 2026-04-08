@@ -3,7 +3,7 @@ import {
   addSubagentRunForTests,
   resetSubagentRegistryForTests,
 } from "../../agents/subagent-registry.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionBindingRecord } from "../../infra/outbound/session-binding-service.js";
 import { installSubagentsCommandCoreMocks } from "./commands-subagents.test-mocks.js";
 
@@ -75,7 +75,7 @@ const { buildCommandTestParams } = await import("./commands-spawn.test-harness.j
 
 const baseCfg = {
   session: { mainKey: "main", scope: "per-sender" },
-} satisfies OpenClawConfig;
+} satisfies AlisioConfig;
 
 function createDiscordCommandParams(commandBody: string) {
   const params = buildCommandTestParams(commandBody, baseCfg, {
@@ -103,7 +103,7 @@ function createTelegramTopicCommandParams(commandBody: string) {
   return params;
 }
 
-function createMatrixThreadCommandParams(commandBody: string, cfg: OpenClawConfig = baseCfg) {
+function createMatrixThreadCommandParams(commandBody: string, cfg: AlisioConfig = baseCfg) {
   const params = buildCommandTestParams(commandBody, cfg, {
     Provider: "matrix",
     Surface: "matrix",
@@ -116,7 +116,7 @@ function createMatrixThreadCommandParams(commandBody: string, cfg: OpenClawConfi
   return params;
 }
 
-function createMatrixRoomCommandParams(commandBody: string, cfg: OpenClawConfig = baseCfg) {
+function createMatrixRoomCommandParams(commandBody: string, cfg: AlisioConfig = baseCfg) {
   const params = buildCommandTestParams(commandBody, cfg, {
     Provider: "matrix",
     Surface: "matrix",
@@ -266,7 +266,7 @@ describe("/focus, /unfocus, /agents", () => {
           },
         },
       },
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const result = await focusCodexAcp(createMatrixRoomCommandParams("/focus codex-acp", cfg));
 
@@ -292,7 +292,7 @@ describe("/focus, /unfocus, /agents", () => {
           },
         },
       },
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const result = await focusCodexAcp(createMatrixRoomCommandParams("/focus codex-acp", cfg));
 

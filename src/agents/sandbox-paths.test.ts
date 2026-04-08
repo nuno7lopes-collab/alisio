@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
-import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+import { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
 import { resolveSandboxedMediaSource } from "./sandbox-paths.js";
 
 async function withSandboxRoot<T>(run: (sandboxDir: string) => Promise<T>) {
@@ -70,7 +70,7 @@ async function withOutsideHardlinkInOpenClawTmp<T>(
 }
 
 describe("resolveSandboxedMediaSource", () => {
-  const openClawTmpDir = resolvePreferredOpenClawTmpDir();
+  const openClawTmpDir = resolvePreferredAlisioTmpDir();
 
   // Group 1: /tmp paths (the bug fix)
   it.each([

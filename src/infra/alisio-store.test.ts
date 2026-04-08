@@ -1,3 +1,4 @@
+import { createCipheriv, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -17,6 +18,7 @@ import {
   getAlisioOrganizationState,
   loadAlisioBootstrapSnapshot,
   listAlisioRemoteModelServers,
+  selectAlisioRemoteModelServer,
   saveAlisioRemoteModelServer,
   listAlisioConnectorAuthorizations,
   refreshAlisioAiLimits,
@@ -50,14 +52,27 @@ function createJwt(payload: Record<string, unknown>) {
   return `${encode({ alg: "none", typ: "JWT" })}.${encode(payload)}.signature`;
 }
 
+function createEncryptedStoredToken(plaintext: string) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", Buffer.from(CONNECTOR_ENCRYPTION_KEY, "base64"), iv);
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+  };
+}
+
 async function createReadyAlisioAccountEnv(
   root: string,
   extra: Record<string, string> = {},
 ): Promise<NodeJS.ProcessEnv> {
   const env = {
-    OPENCLAW_STATE_DIR: root,
+    ALISIO_STATE_DIR: root,
     ALISIO_SUPABASE_URL: "https://example.supabase.co",
     ALISIO_SUPABASE_ANON_KEY: "anon-key",
+    ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
     ...extra,
   } as NodeJS.ProcessEnv;
   const statePath = alisioStateFile(root);
@@ -112,15 +127,23 @@ async function createReadyAlisioAccountEnv(
   return env;
 }
 
+async function setStoredAlisioPlan(root: string, plan: "free" | "plus") {
+  const statePath = alisioStateFile(root);
+  const state = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+  state.account.profile.plan = plan;
+  await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
 describe("Alisio organization state", () => {
   it("normalizes organization values before persisting them", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
 
       await setAlisioOrganizationState(
         {
           mode: "member",
-          organizationName: "  OpenClaw  ",
+          organizationName: "  Alisio  ",
           inviteEmail: "  team@example.com  ",
         },
         env,
@@ -128,7 +151,7 @@ describe("Alisio organization state", () => {
 
       expect(await getAlisioOrganizationState(env)).toEqual({
         mode: "member",
-        organizationName: "OpenClaw",
+        organizationName: "Alisio",
         inviteEmail: "team@example.com",
       });
     });
@@ -152,12 +175,28 @@ describe("Alisio organization state", () => {
         setAlisioOrganizationState(
           {
             mode: "member",
-            organizationName: "OpenClaw",
+            organizationName: "Alisio",
             inviteEmail: "not-an-email",
           },
           env,
         ),
       ).rejects.toThrow("Invitation email must be a valid email address.");
+    });
+  });
+
+  it("keeps organization membership behind Plus", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+
+      await expect(
+        setAlisioOrganizationState(
+          {
+            mode: "owner",
+            organizationName: "Alisio",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Organizations are available on Plus.");
     });
   });
 });
@@ -224,6 +263,7 @@ describe("beginAlisioConnectorSetup", () => {
         ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
         ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
         ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: "",
       });
       const result = await beginAlisioConnectorSetup("google-docs", env);
 
@@ -319,6 +359,115 @@ describe("beginAlisioConnectorSetup", () => {
       expect(launchUrl.searchParams.get("code_challenge_method")).toBe("S256");
       expect(launchUrl.searchParams.get("scope")).toContain("repo");
       expect(launchUrl.searchParams.get("state")).toBeTruthy();
+    });
+  });
+
+  it("blocks new connector connections on Free after the first connected app", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
+        ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
+        ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
+      });
+      const firstBegin = await beginAlisioConnectorSetup("google-calendar", env);
+      const launchUrl = new URL(firstBegin?.setupUrl ?? "");
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "google-access",
+              refresh_token: "google-refresh",
+              expires_in: 3600,
+              token_type: "Bearer",
+              scope: "openid email https://www.googleapis.com/auth/calendar",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              sub: "google-user-1",
+              name: "Nuno Lopes",
+              email: "nuno@example.com",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "google",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "google-code",
+        },
+        env,
+        fetchMock,
+      );
+
+      await expect(beginAlisioConnectorSetup("gmail-send", env)).rejects.toThrow(
+        "Free includes 1 connected app.",
+      );
+    });
+  });
+
+  it("blocks new connector connections on Free when the existing slot only needs reconnect", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_GOOGLE_CLIENT_ID: "google-client-id",
+        ALISIO_GOOGLE_CLIENT_SECRET: "google-client-secret",
+        ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
+      });
+      const firstBegin = await beginAlisioConnectorSetup("google-calendar", env);
+      const launchUrl = new URL(firstBegin?.setupUrl ?? "");
+      const fetchMock = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              access_token: "google-access",
+              refresh_token: "google-refresh",
+              expires_in: 3600,
+              token_type: "Bearer",
+              scope: "openid email https://www.googleapis.com/auth/calendar",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              sub: "google-user-1",
+              name: "Nuno Lopes",
+              email: "nuno@example.com",
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+
+      await completeAlisioConnectorAuthorizationFromCallback(
+        {
+          provider: "google",
+          stateToken: launchUrl.searchParams.get("state"),
+          code: "google-code",
+        },
+        env,
+        fetchMock,
+      );
+
+      const statePath = alisioStateFile(root);
+      const state = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+      state.authorizations["google-calendar"] = {
+        ...state.authorizations["google-calendar"],
+        state: "needs_reconnect",
+        health: "needs_reconnect",
+      };
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+      await expect(beginAlisioConnectorSetup("gmail-send", env)).rejects.toThrow(
+        "Free includes 1 connected app.",
+      );
     });
   });
 
@@ -783,7 +932,7 @@ describe("beginAlisioConnectorSetup", () => {
   it("marks ready connectors as config missing when the gateway OAuth app is not configured", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const authorizations = await listAlisioConnectorAuthorizations({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
 
       expect(authorizations.find((entry) => entry.connectorId === "gmail-send")).toMatchObject({
@@ -1044,7 +1193,7 @@ describe("beginAlisioConnectorSetup", () => {
   it("builds a bootstrap snapshot with connector summary counts", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const snapshot = await loadAlisioBootstrapSnapshot({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
 
       expect(snapshot.account.profile.username).toBeTruthy();
@@ -1065,10 +1214,11 @@ describe("beginAlisioConnectorSetup", () => {
         ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
         ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
       });
+      await setStoredAlisioPlan(root, "plus");
       await setAlisioOrganizationState(
         {
           mode: "owner",
-          organizationName: "OpenClaw",
+          organizationName: "Alisio",
         },
         env,
       );
@@ -1147,7 +1297,7 @@ describe("beginAlisioConnectorSetup", () => {
                 username: "nuno",
                 avatar_label: "N",
                 joined_at: "2026-04-04T15:00:00.000Z",
-                plan: "Free Plan",
+                plan: "plus",
                 profile_completed: true,
               },
             ]),
@@ -1170,7 +1320,7 @@ describe("beginAlisioConnectorSetup", () => {
 
       expect(await getAlisioOrganizationState(env)).toEqual({
         mode: "owner",
-        organizationName: "OpenClaw",
+        organizationName: "Alisio",
       });
       expect(
         (await listAlisioConnectorAuthorizations(env)).find(
@@ -1190,10 +1340,11 @@ describe("beginAlisioConnectorSetup", () => {
         ALISIO_GOOGLE_REDIRECT_URI: "http://127.0.0.1:8787/oauth/google/callback",
         ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
       });
+      await setStoredAlisioPlan(root, "plus");
       await setAlisioOrganizationState(
         {
           mode: "owner",
-          organizationName: "OpenClaw",
+          organizationName: "Alisio",
         },
         env,
       );
@@ -1342,7 +1493,7 @@ describe("beginAlisioConnectorSetup", () => {
           termsAcceptedAt: "2026-04-04T16:00:00.000Z",
         },
         {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
       );
 
@@ -1353,7 +1504,7 @@ describe("beginAlisioConnectorSetup", () => {
   it("persists a custom Alisio agent name on the local account profile", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = {
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv;
 
       const account = await updateAlisioAccountProfile(
@@ -1382,7 +1533,7 @@ describe("beginAlisioConnectorSetup", () => {
             email: "nuno@example.com",
           },
           {
-            OPENCLAW_STATE_DIR: root,
+            ALISIO_STATE_DIR: root,
           } as NodeJS.ProcessEnv,
         ),
       ).rejects.toThrow("Use only letters, numbers, dots, and underscores.");
@@ -1443,9 +1594,10 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       const env = {
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
         ALISIO_SUPABASE_URL: "https://example.supabase.co",
         ALISIO_SUPABASE_ANON_KEY: "anon-key",
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
       } as NodeJS.ProcessEnv;
       const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
         const payload = parseJsonBody(init?.body);
@@ -1638,7 +1790,7 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       const account = await getAlisioAccountState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
 
       expect(account.profile.plan).toBe("free");
@@ -1701,7 +1853,7 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       const env = {
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
         ALISIO_SUPABASE_URL: "https://example.supabase.co",
         ALISIO_SUPABASE_ANON_KEY: "anon-key",
       } as NodeJS.ProcessEnv;
@@ -1867,7 +2019,7 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       const env = {
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
         ALISIO_SUPABASE_URL: "https://example.supabase.co",
         ALISIO_SUPABASE_ANON_KEY: "anon-key",
         ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
@@ -2025,7 +2177,7 @@ describe("beginAlisioConnectorSetup", () => {
       );
 
       const account = await getAlisioAccountState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
         ALISIO_SUPABASE_URL: "https://example.supabase.co",
         ALISIO_SUPABASE_ANON_KEY: "anon-key",
       } as NodeJS.ProcessEnv);
@@ -2117,19 +2269,21 @@ describe("beginAlisioConnectorSetup", () => {
                   workerId: `local:${os.hostname().trim().toLowerCase() || "this device"}`,
                   authProfileId: "openai-codex:alisio-main",
                   runtimeState: "connected",
-                  accessToken: createJwt({
-                    sub: "google-oauth2|shared-user",
-                    "https://api.openai.com/auth": {
-                      chatgpt_account_id: "acct_team_1",
-                      chatgpt_account_user_id: "account-user-team-1",
-                      chatgpt_user_id: "google-oauth2|shared-user",
-                      chatgpt_plan_type: "team",
-                    },
-                    "https://api.openai.com/profile": {
-                      email: "nuno7lopes@gmail.com",
-                    },
-                  }),
-                  refreshToken: "openai-refresh-token",
+                  accessTokenEncrypted: createEncryptedStoredToken(
+                    createJwt({
+                      sub: "google-oauth2|shared-user",
+                      "https://api.openai.com/auth": {
+                        chatgpt_account_id: "acct_team_1",
+                        chatgpt_account_user_id: "account-user-team-1",
+                        chatgpt_user_id: "google-oauth2|shared-user",
+                        chatgpt_plan_type: "team",
+                      },
+                      "https://api.openai.com/profile": {
+                        email: "nuno7lopes@gmail.com",
+                      },
+                    }),
+                  ),
+                  refreshTokenEncrypted: createEncryptedStoredToken("openai-refresh-token"),
                   expiresAt: "2099-04-04T15:00:00.000Z",
                   connectedAt: "2026-04-04T15:00:00.000Z",
                   createdAt: "2026-04-04T15:00:00.000Z",
@@ -2159,7 +2313,7 @@ describe("beginAlisioConnectorSetup", () => {
 
       const summary = await getAlisioDoctorSummary({
         env: {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
         providerReady: false,
         gatewayHealthy: true,
@@ -2180,7 +2334,7 @@ describe("beginAlisioConnectorSetup", () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const summary = await getAlisioBootstrapSummary({
         env: {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
         providerReady: false,
         wizardRunning: true,
@@ -2206,7 +2360,7 @@ describe("beginAlisioConnectorSetup", () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const summary = await getAlisioDoctorSummary({
         env: {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
         providerReady: false,
         wizardRunning: false,
@@ -2218,6 +2372,56 @@ describe("beginAlisioConnectorSetup", () => {
       expect(summary.issues.map((issue) => issue.code)).toContain("runtime_not_ready");
       expect(summary.checks.runtime).toBe(false);
       expect(summary.checks.account).toBe(false);
+    });
+  });
+
+  it("reports missing required Supabase env vars in the doctor summary", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const summary = await getAlisioDoctorSummary({
+        env: {
+          ALISIO_STATE_DIR: root,
+        } as NodeJS.ProcessEnv,
+        providerReady: false,
+        gatewayHealthy: true,
+      });
+
+      expect(summary.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "account_backend_env_missing",
+            severity: "error",
+          }),
+        ]),
+      );
+      expect(summary.checks.permissions).toBe(false);
+    });
+  });
+
+  it("treats alternative model runtimes as ready when providerReady is true", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const summary = await getAlisioBootstrapSummary({
+        env,
+        providerReady: true,
+      });
+
+      expect(summary.providerReady).toBe(true);
+      expect(summary.startupState).toBe("ready");
+      expect(summary.nextStep).toBe("organization");
+    });
+  });
+
+  it("does not report a runtime error when an alternative model runtime is ready", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const summary = await getAlisioDoctorSummary({
+        env,
+        providerReady: true,
+        gatewayHealthy: true,
+      });
+
+      expect(summary.issues.map((issue) => issue.code)).not.toContain("runtime_not_ready");
+      expect(summary.checks.runtime).toBe(true);
     });
   });
 
@@ -2245,10 +2449,11 @@ describe("beginAlisioConnectorSetup", () => {
   it("does not route ready accounts into an empty connectors step when OAuth config is missing", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
       await setAlisioOrganizationState(
         {
           mode: "owner",
-          organizationName: "OpenClaw",
+          organizationName: "Alisio",
         },
         env,
       );
@@ -2356,7 +2561,7 @@ describe("Alisio OpenAI profiles", () => {
                 "alisio-openai:work": {
                   provider: "openai",
                   scope: "organization",
-                  ownerKey: "organization:openclaw",
+                  ownerKey: "organization:alisio",
                   canonicalIdentityKey: "account_user_id:account-user-work",
                   identity: {
                     accountId: "acct_work",
@@ -2595,7 +2800,8 @@ describe("Alisio OpenAI profiles", () => {
       );
 
       const aiState = await getAlisioAiState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
       } as NodeJS.ProcessEnv);
 
       expect(aiState.activeProfileId).toBeTruthy();
@@ -2682,7 +2888,7 @@ describe("Alisio OpenAI profiles", () => {
         ),
       );
       const initialState = await getAlisioAiState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
       const targetProfileId = initialState.profiles?.find(
         (profile) => profile.email === "nuno@example.com",
@@ -2695,7 +2901,7 @@ describe("Alisio OpenAI profiles", () => {
           label: "Main OpenAI",
         },
         {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
       );
 
@@ -2803,7 +3009,8 @@ describe("Alisio OpenAI profiles", () => {
       );
 
       const result = await getAlisioAiState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,
       } as NodeJS.ProcessEnv);
 
       expect(result.profiles?.[0]?.label).toBe("nuno7lopes@gmail.com");
@@ -2876,7 +3083,7 @@ describe("Alisio OpenAI profiles", () => {
       );
 
       const result = await getAlisioAiState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
 
       expect(result.activeProfileId).toBeTruthy();
@@ -2931,7 +3138,7 @@ describe("Alisio OpenAI profiles", () => {
         ),
       );
       const initialState = await getAlisioAiState({
-        OPENCLAW_STATE_DIR: root,
+        ALISIO_STATE_DIR: root,
       } as NodeJS.ProcessEnv);
       const targetProfileId = initialState.profiles?.find(
         (profile) => profile.email === "nuno@example.com",
@@ -2943,7 +3150,7 @@ describe("Alisio OpenAI profiles", () => {
           profileId: targetProfileId ?? "",
         },
         {
-          OPENCLAW_STATE_DIR: root,
+          ALISIO_STATE_DIR: root,
         } as NodeJS.ProcessEnv,
       );
       expect(state.activeProfileId).not.toBe(targetProfileId);
@@ -2956,6 +3163,7 @@ describe("Alisio remote model servers", () => {
   it("rejects duplicate remote endpoints for the same kind", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
 
       await saveAlisioRemoteModelServer(
         {
@@ -2975,11 +3183,78 @@ describe("Alisio remote model servers", () => {
           },
           env,
         ),
-      ).rejects.toThrow("Esse servidor já foi adicionado.");
+      ).rejects.toThrow("That server has already been added.");
 
       const servers = await listAlisioRemoteModelServers(env);
       expect(servers).toHaveLength(1);
       expect(servers[0]?.baseUrl).toBe("https://models.example.com/v1");
+    });
+  });
+
+  it("blocks saving remote model servers on Free", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+
+      await expect(
+        saveAlisioRemoteModelServer(
+          {
+            label: "GPU Box",
+            kind: "openai-compatible",
+            baseUrl: "https://models.example.com/v1",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Custom remote model servers are available on Plus.");
+    });
+  });
+
+  it("blocks selecting a saved remote model server on Free", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const statePath = alisioStateFile(root);
+      const state = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+      state.modelServers = {
+        "server-1": {
+          serverId: "server-1",
+          label: "GPU Box",
+          kind: "openai-compatible",
+          baseUrl: "https://models.example.com/v1",
+          active: true,
+          createdAt: "2026-04-06T10:00:00.000Z",
+          updatedAt: "2026-04-06T10:00:00.000Z",
+        },
+      };
+      await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+
+      await expect(
+        selectAlisioRemoteModelServer(
+          {
+            serverId: "server-1",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Custom remote model servers are available on Plus.");
+    });
+  });
+
+  it("requires secure storage before persisting remote server API keys", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root, {
+        ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: "",
+      });
+      await setStoredAlisioPlan(root, "plus");
+
+      await expect(
+        saveAlisioRemoteModelServer(
+          {
+            label: "GPU Box",
+            kind: "openai-compatible",
+            baseUrl: "https://models.example.com/v1",
+            apiKey: "secret-token",
+          },
+          env,
+        ),
+      ).rejects.toThrow("Secure local token storage is required.");
     });
   });
 });

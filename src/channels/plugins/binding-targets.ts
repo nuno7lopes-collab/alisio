@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { ConfiguredBindingResolution } from "./binding-types.js";
 import { ensureStatefulTargetBuiltinsRegistered } from "./stateful-target-builtins.js";
 import {
@@ -6,15 +6,37 @@ import {
   resolveStatefulBindingTargetBySessionKey,
 } from "./stateful-target-drivers.js";
 
+async function resolveConfiguredBindingTargetDriver(driverId: string) {
+  const registered = getStatefulBindingTargetDriver(driverId);
+  if (registered) {
+    return registered;
+  }
+  await ensureStatefulTargetBuiltinsRegistered();
+  return getStatefulBindingTargetDriver(driverId);
+}
+
+async function resolveConfiguredBindingTargetBySessionKey(params: {
+  cfg: AlisioConfig;
+  sessionKey: string;
+}) {
+  const registered = resolveStatefulBindingTargetBySessionKey(params);
+  if (registered) {
+    return registered;
+  }
+  await ensureStatefulTargetBuiltinsRegistered();
+  return resolveStatefulBindingTargetBySessionKey(params);
+}
+
 export async function ensureConfiguredBindingTargetReady(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   bindingResolution: ConfiguredBindingResolution | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  await ensureStatefulTargetBuiltinsRegistered();
   if (!params.bindingResolution) {
     return { ok: true };
   }
-  const driver = getStatefulBindingTargetDriver(params.bindingResolution.statefulTarget.driverId);
+  const driver = await resolveConfiguredBindingTargetDriver(
+    params.bindingResolution.statefulTarget.driverId,
+  );
   if (!driver) {
     return {
       ok: false,
@@ -28,12 +50,11 @@ export async function ensureConfiguredBindingTargetReady(params: {
 }
 
 export async function resetConfiguredBindingTargetInPlace(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionKey: string;
   reason: "new" | "reset";
 }): Promise<{ ok: true } | { ok: false; skipped?: boolean; error?: string }> {
-  await ensureStatefulTargetBuiltinsRegistered();
-  const resolved = resolveStatefulBindingTargetBySessionKey({
+  const resolved = await resolveConfiguredBindingTargetBySessionKey({
     cfg: params.cfg,
     sessionKey: params.sessionKey,
   });
@@ -50,11 +71,12 @@ export async function resetConfiguredBindingTargetInPlace(params: {
 }
 
 export async function ensureConfiguredBindingTargetSession(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   bindingResolution: ConfiguredBindingResolution;
 }): Promise<{ ok: true; sessionKey: string } | { ok: false; sessionKey: string; error: string }> {
-  await ensureStatefulTargetBuiltinsRegistered();
-  const driver = getStatefulBindingTargetDriver(params.bindingResolution.statefulTarget.driverId);
+  const driver = await resolveConfiguredBindingTargetDriver(
+    params.bindingResolution.statefulTarget.driverId,
+  );
   if (!driver) {
     return {
       ok: false,

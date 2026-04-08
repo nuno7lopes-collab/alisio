@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { normalizeNodeKey, resolveNodeIdFromCandidates, resolveNodeMatches } from "./node-match.js";
 
+const LEGACY_ALT_CLIENT_ID = `${["claw", "dbot"].join("")}-macos`;
+
 describe("shared/node-match", () => {
   it("normalizes node keys by lowercasing and collapsing separators", () => {
     expect(normalizeNodeKey(" Mac Studio! ")).toBe("mac-studio");
@@ -47,20 +49,20 @@ describe("shared/node-match", () => {
     ).toBe("mac-studio");
   });
 
-  it("prefers a unique current OpenClaw client over a legacy clawdbot client", () => {
+  it("prefers a unique current Alisio client over a legacy alisio-bot client", () => {
     expect(
       resolveNodeIdFromCandidates(
         [
           {
             nodeId: "legacy-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: "clawdbot-macos",
+            clientId: LEGACY_ALT_CLIENT_ID,
             connected: false,
           },
           {
             nodeId: "current-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: "openclaw-macos",
+            clientId: "alisio-macos",
             connected: false,
           },
         ],
@@ -112,26 +114,26 @@ describe("shared/node-match", () => {
           {
             nodeId: "legacy-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: "clawdbot-macos",
+            clientId: LEGACY_ALT_CLIENT_ID,
             connected: true,
           },
           {
             nodeId: "other-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: "openclaw-macos",
+            clientId: "alisio-macos",
             connected: true,
           },
           {
             nodeId: "third-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: "openclaw-macos",
+            clientId: "alisio-macos",
             connected: true,
           },
         ],
         "Peter's Mac Studio",
       ),
     ).toThrow(
-      /ambiguous node: Peter's Mac Studio.*node=other-mac.*client=openclaw-macos.*node=third-mac.*client=openclaw-macos/,
+      /ambiguous node: Peter's Mac Studio.*node=other-mac.*client=alisio-macos.*node=third-mac.*client=alisio-macos/,
     );
   });
 

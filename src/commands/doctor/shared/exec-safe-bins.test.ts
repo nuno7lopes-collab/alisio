@@ -2,7 +2,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import {
   collectExecSafeBinCoverageWarnings,
   collectExecSafeBinTrustedDirHintWarnings,
@@ -26,7 +26,7 @@ describe("doctor exec safe bin helpers", () => {
           safeBinProfiles: { jq: {} },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(hits).toEqual([
       { scopePath: "tools.exec", bin: "node", kind: "missingProfile", isInterpreter: true },
@@ -69,7 +69,7 @@ describe("doctor exec safe bin helpers", () => {
           safeBins: ["node", "jq"],
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(result.changes).toEqual([
       "- tools.exec.safeBinProfiles.jq: added scaffold profile {} (review and tighten flags/positionals).",
@@ -95,7 +95,7 @@ describe("doctor exec safe bin helpers", () => {
           safeBinProfiles: { "custom-safe-bin": {} },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({

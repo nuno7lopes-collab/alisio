@@ -1,14 +1,14 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { resolveBundledPluginWorkspaceSourcePath } from "../../../plugins/bundled-plugin-metadata.js";
 import { resolveBundledPluginInstallCommandHint } from "../../../plugins/bundled-sources.js";
 
-export function resolveConfiguredAcpBackendId(cfg: OpenClawConfig): string {
+export function resolveConfiguredAcpBackendId(cfg: AlisioConfig): string {
   return cfg.acp?.backend?.trim() || "acpx";
 }
 
-export function resolveAcpInstallCommandHint(cfg: OpenClawConfig): string {
+export function resolveAcpInstallCommandHint(cfg: AlisioConfig): string {
   const configured = cfg.acp?.runtime?.installCommand?.trim();
   if (configured) {
     return configured;

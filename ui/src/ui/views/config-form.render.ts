@@ -277,7 +277,7 @@ const sectionIcons = {
 export const SECTION_META: Record<string, { label: string; description: string }> = {
   env: {
     label: "Environment Variables",
-    description: "Environment variables passed to the gateway process",
+    description: "Environment variables passed to the Alisio process",
   },
   update: { label: "Updates", description: "Auto-update settings and release channel" },
   agents: { label: "Agents", description: "Agent configurations, models, and identities" },
@@ -291,10 +291,10 @@ export const SECTION_META: Record<string, { label: string; description: string }
   hooks: { label: "Hooks", description: "Webhooks and event hooks" },
   skills: { label: "Skills", description: "Skill packs and capabilities" },
   tools: { label: "Tools", description: "Tool configurations (browser, search, etc.)" },
-  gateway: { label: "Gateway", description: "Gateway server settings (port, auth, binding)" },
+  gateway: { label: "Alisio", description: "Alisio server settings (port, auth, binding)" },
   wizard: { label: "Setup Wizard", description: "Setup wizard state and history" },
   // Additional sections
-  meta: { label: "Metadata", description: "Gateway metadata and version information" },
+  meta: { label: "Metadata", description: "Alisio metadata and version information" },
   logging: { label: "Logging", description: "Log levels and output configuration" },
   browser: { label: "Browser", description: "Browser automation settings" },
   ui: { label: "UI", description: "User interface preferences" },

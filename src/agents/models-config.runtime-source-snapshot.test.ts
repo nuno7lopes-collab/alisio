@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { NON_ENV_SECRETREF_MARKER } from "./model-auth-markers.js";
 import {
   installModelsConfigTestHooks,
@@ -42,7 +42,7 @@ afterEach(() => {
   resetModelsJsonReadyCacheForTest();
 });
 
-function createOpenAiApiKeySourceConfig(): OpenClawConfig {
+function createOpenAiApiKeySourceConfig(): AlisioConfig {
   return {
     models: {
       providers: {
@@ -57,7 +57,7 @@ function createOpenAiApiKeySourceConfig(): OpenClawConfig {
   };
 }
 
-function createOpenAiApiKeyRuntimeConfig(): OpenClawConfig {
+function createOpenAiApiKeyRuntimeConfig(): AlisioConfig {
   return {
     models: {
       providers: {
@@ -72,7 +72,7 @@ function createOpenAiApiKeyRuntimeConfig(): OpenClawConfig {
   };
 }
 
-function createOpenAiHeaderSourceConfig(): OpenClawConfig {
+function createOpenAiHeaderSourceConfig(): AlisioConfig {
   return {
     models: {
       providers: {
@@ -98,7 +98,7 @@ function createOpenAiHeaderSourceConfig(): OpenClawConfig {
   };
 }
 
-function createOpenAiHeaderRuntimeConfig(): OpenClawConfig {
+function createOpenAiHeaderRuntimeConfig(): AlisioConfig {
   return {
     models: {
       providers: {
@@ -116,7 +116,7 @@ function createOpenAiHeaderRuntimeConfig(): OpenClawConfig {
   };
 }
 
-function withGatewayTokenMode(config: OpenClawConfig): OpenClawConfig {
+function withGatewayTokenMode(config: AlisioConfig): AlisioConfig {
   return {
     ...config,
     gateway: {
@@ -129,9 +129,9 @@ function withGatewayTokenMode(config: OpenClawConfig): OpenClawConfig {
 
 async function withGeneratedModelsFromRuntimeSource(
   params: {
-    sourceConfig: OpenClawConfig;
-    runtimeConfig: OpenClawConfig;
-    candidateConfig?: OpenClawConfig;
+    sourceConfig: AlisioConfig;
+    runtimeConfig: AlisioConfig;
+    candidateConfig?: AlisioConfig;
   },
   runAssertions: () => Promise<void>,
 ) {
@@ -182,7 +182,7 @@ describe("models-config runtime source snapshot", () => {
     await withTempHome(async () => {
       await withTempEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS, async () => {
         unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
-        const sourceConfig: OpenClawConfig = {
+        const sourceConfig: AlisioConfig = {
           models: {
             providers: {
               moonshot: {
@@ -194,7 +194,7 @@ describe("models-config runtime source snapshot", () => {
             },
           },
         };
-        const runtimeConfig: OpenClawConfig = {
+        const runtimeConfig: AlisioConfig = {
           models: {
             providers: {
               moonshot: {
@@ -229,7 +229,7 @@ describe("models-config runtime source snapshot", () => {
         unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
         const sourceConfig = createOpenAiApiKeySourceConfig();
         const runtimeConfig = createOpenAiApiKeyRuntimeConfig();
-        const clonedRuntimeConfig: OpenClawConfig = {
+        const clonedRuntimeConfig: AlisioConfig = {
           ...runtimeConfig,
           agents: {
             defaults: {
@@ -256,7 +256,7 @@ describe("models-config runtime source snapshot", () => {
         unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
         const sourceConfig = createOpenAiApiKeySourceConfig();
         const runtimeConfig = createOpenAiApiKeyRuntimeConfig();
-        const firstCandidate: OpenClawConfig = {
+        const firstCandidate: AlisioConfig = {
           ...runtimeConfig,
           models: {
             providers: {
@@ -267,7 +267,7 @@ describe("models-config runtime source snapshot", () => {
             },
           },
         };
-        const secondCandidate: OpenClawConfig = {
+        const secondCandidate: AlisioConfig = {
           ...runtimeConfig,
           models: {
             providers: {
@@ -318,7 +318,7 @@ describe("models-config runtime source snapshot", () => {
         unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
         const sourceConfig = withGatewayTokenMode(createOpenAiApiKeySourceConfig());
         const runtimeConfig = withGatewayTokenMode(createOpenAiApiKeyRuntimeConfig());
-        const incompatibleCandidate: OpenClawConfig = {
+        const incompatibleCandidate: AlisioConfig = {
           ...createOpenAiApiKeyRuntimeConfig(),
         };
 
@@ -340,7 +340,7 @@ describe("models-config runtime source snapshot", () => {
         unsetEnv(MODELS_CONFIG_IMPLICIT_ENV_VARS);
         const sourceConfig = withGatewayTokenMode(createOpenAiHeaderSourceConfig());
         const runtimeConfig = withGatewayTokenMode(createOpenAiHeaderRuntimeConfig());
-        const incompatibleCandidate: OpenClawConfig = {
+        const incompatibleCandidate: AlisioConfig = {
           ...createOpenAiHeaderRuntimeConfig(),
         };
 

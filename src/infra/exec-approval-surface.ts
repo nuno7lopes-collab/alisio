@@ -1,5 +1,5 @@
 import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
-import { loadConfig, type OpenClawConfig } from "../config/config.js";
+import { loadConfig, type AlisioConfig } from "../config/config.js";
 import {
   INTERNAL_MESSAGE_CHANNEL,
   isDeliverableMessageChannel,
@@ -29,7 +29,7 @@ function labelForChannel(channel?: string): string {
 export function resolveExecApprovalInitiatingSurfaceState(params: {
   channel?: string | null;
   accountId?: string | null;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
 }): ExecApprovalInitiatingSurfaceState {
   const channel = normalizeMessageChannel(params.channel);
   const channelLabel = labelForChannel(channel);
@@ -52,7 +52,7 @@ export function resolveExecApprovalInitiatingSurfaceState(params: {
   return { kind: "unsupported", channel, channelLabel };
 }
 
-export function hasConfiguredExecApprovalDmRoute(cfg: OpenClawConfig): boolean {
+export function hasConfiguredExecApprovalDmRoute(cfg: AlisioConfig): boolean {
   return listChannelPlugins().some(
     (plugin) => plugin.approvals?.delivery?.hasConfiguredDmRoute?.({ cfg }) ?? false,
   );

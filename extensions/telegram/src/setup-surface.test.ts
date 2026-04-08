@@ -8,16 +8,35 @@ import {
 } from "../../../test/helpers/plugins/setup-wizard.js";
 const readChannelAllowFromStore = vi.hoisted(() => vi.fn(async () => [] as string[]));
 const listChannelPairingRequests = vi.hoisted(() => vi.fn(async () => [] as Array<{ id: string }>));
+const beginTelegramOwnerOnboarding = vi.hoisted(() =>
+  vi.fn(async () => ({
+    token: "SETUP12345",
+    deepLink: "https://t.me/alizio_bot?start=SETUP12345",
+    startCommand: "/start SETUP12345",
+    createdAtMs: 1,
+    expiresAtMs: 2,
+    botUsername: "alizio_bot",
+  })),
+);
+const clearTelegramOwnerOnboarding = vi.hoisted(() => vi.fn(async () => undefined));
+const probeTelegram = vi.hoisted(() =>
+  vi.fn(async () => ({ ok: true, elapsedMs: 1, bot: { username: "alizio_bot" } })),
+);
 
 vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
   readChannelAllowFromStore,
   listChannelPairingRequests,
 }));
 
-import {
-  clearTelegramOwnerAutoApprovalStateForTest,
-  isTelegramOwnerAutoApprovalArmed,
-} from "./owner-auto-approval.js";
+vi.mock("./owner-onboarding.js", () => ({
+  beginTelegramOwnerOnboarding,
+  clearTelegramOwnerOnboarding,
+}));
+
+vi.mock("./probe.js", () => ({
+  probeTelegram,
+}));
+
 import { resolveTelegramAllowFromEntries } from "./setup-core.js";
 import { telegramSetupWizard } from "./setup-surface.js";
 
@@ -62,9 +81,11 @@ function expectPreparedResult(
 }
 
 beforeEach(() => {
-  clearTelegramOwnerAutoApprovalStateForTest();
   readChannelAllowFromStore.mockReset();
   listChannelPairingRequests.mockReset();
+  beginTelegramOwnerOnboarding.mockClear();
+  clearTelegramOwnerOnboarding.mockClear();
+  probeTelegram.mockClear();
   readChannelAllowFromStore.mockResolvedValue([]);
   listChannelPairingRequests.mockResolvedValue([]);
 });
@@ -126,12 +147,12 @@ describe("telegramSetupWizard.finalize", () => {
     );
 
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining("OpenClaw will authorize that first direct message automatically."),
-      "Telegram DM access warning",
+      expect.stringContaining("https://t.me/alizio_bot?start=SETUP12345"),
+      "Finish Telegram setup",
     );
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining("Keep this setup window open until Telegram is ready."),
-      "Telegram DM access warning",
+      expect.stringContaining("/start SETUP12345"),
+      "Finish Telegram setup",
     );
   });
 
@@ -152,16 +173,22 @@ describe("telegramSetupWizard.finalize", () => {
     );
 
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining("Open Telegram and send a message to the bot"),
-      "Telegram DM access warning",
+      expect.stringContaining("Now Alisio needs to confirm which Telegram account is yours."),
+      "Finish Telegram setup",
     );
-    expect(note).toHaveBeenCalledWith(
-      expect.stringContaining("Docs: https://docs.openclaw.ai/channels/pairing"),
-      "Telegram DM access warning",
-    );
+    expect(beginTelegramOwnerOnboarding).toHaveBeenCalledWith({
+      accountId: "alerts",
+      botUsername: "alizio_bot",
+    });
+    expect(probeTelegram).toHaveBeenCalledWith("tok", 2500, {
+      accountId: "alerts",
+      proxyUrl: undefined,
+      network: undefined,
+      apiRoot: undefined,
+    });
   });
 
-  it("reuses a single pending Telegram request to finish setup automatically", async () => {
+  it("keeps stale Telegram requests pending instead of auto-approving them", async () => {
     listChannelPairingRequests.mockResolvedValue([{ id: "6074269928" }]);
 
     const { note, result } = await runFinalize(
@@ -175,21 +202,10 @@ describe("telegramSetupWizard.finalize", () => {
       DEFAULT_ACCOUNT_ID,
     );
 
-    expect(result).toEqual(
-      expect.objectContaining({
-        cfg: expect.objectContaining({
-          channels: expect.objectContaining({
-            telegram: expect.objectContaining({
-              dmPolicy: "allowlist",
-              allowFrom: ["6074269928"],
-            }),
-          }),
-        }),
-      }),
-    );
+    expect(result).toBeUndefined();
     expect(note).toHaveBeenCalledWith(
-      expect.stringContaining("finished the first approval automatically"),
-      "Telegram ready",
+      expect.stringContaining("https://t.me/alizio_bot?start=SETUP12345"),
+      "Finish Telegram setup",
     );
   });
 
@@ -211,9 +227,7 @@ describe("telegramSetupWizard.finalize", () => {
 });
 
 describe("telegramSetupWizard.afterConfigWritten", () => {
-  it("arms first-DM auto-approval for pairing-based setups", async () => {
-    clearTelegramOwnerAutoApprovalStateForTest();
-
+  it("does not clear Telegram onboarding while pairing is still pending", async () => {
     await telegramSetupWizard.afterConfigWritten?.({
       previousCfg: {},
       cfg: {
@@ -227,32 +241,10 @@ describe("telegramSetupWizard.afterConfigWritten", () => {
       runtime: {} as never,
     });
 
-    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(true);
+    expect(clearTelegramOwnerOnboarding).not.toHaveBeenCalled();
   });
 
-  it("arms auto-approval even when a stale Telegram request already exists", async () => {
-    clearTelegramOwnerAutoApprovalStateForTest();
-    listChannelPairingRequests.mockResolvedValue([{ id: "6074269928" }]);
-
-    await telegramSetupWizard.afterConfigWritten?.({
-      previousCfg: {},
-      cfg: {
-        channels: {
-          telegram: {
-            botToken: "tok",
-          },
-        },
-      },
-      accountId: DEFAULT_ACCOUNT_ID,
-      runtime: {} as never,
-    });
-
-    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(true);
-  });
-
-  it("does not arm auto-approval when a sender is already approved", async () => {
-    clearTelegramOwnerAutoApprovalStateForTest();
-
+  it("clears stale Telegram onboarding once an allowFrom entry already exists", async () => {
     await telegramSetupWizard.afterConfigWritten?.({
       previousCfg: {},
       cfg: {
@@ -267,7 +259,9 @@ describe("telegramSetupWizard.afterConfigWritten", () => {
       runtime: {} as never,
     });
 
-    expect(isTelegramOwnerAutoApprovalArmed({ accountId: DEFAULT_ACCOUNT_ID })).toBe(false);
+    expect(clearTelegramOwnerOnboarding).toHaveBeenCalledWith({
+      accountId: DEFAULT_ACCOUNT_ID,
+    });
   });
 });
 

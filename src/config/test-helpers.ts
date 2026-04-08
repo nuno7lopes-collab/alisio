@@ -1,19 +1,20 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
-import { resetConfigRuntimeState, type OpenClawConfig } from "./config.js";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { resetConfigRuntimeState, type AlisioConfig } from "./config.js";
 
 export async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   resetConfigRuntimeState();
   try {
-    return await withTempHomeBase(fn, { prefix: "openclaw-config-" });
+    return await withTempHomeBase(fn, { prefix: "alisio-config-" });
   } finally {
     resetConfigRuntimeState();
   }
 }
 
-export async function writeOpenClawConfig(home: string, config: unknown): Promise<string> {
-  const configPath = path.join(home, ".openclaw", "openclaw.json");
+export async function writeAlisioConfig(home: string, config: unknown): Promise<string> {
+  const configPath = path.join(home, ".alisio", "alisio.json");
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
   return configPath;
@@ -26,9 +27,14 @@ export async function writeStateDirDotEnv(
     stateDir?: string;
   },
 ): Promise<{ dotEnvPath: string; stateDir: string }> {
-  const stateDir = params?.stateDir ?? params?.env?.OPENCLAW_STATE_DIR?.trim();
+  const stateDir =
+    params?.stateDir ??
+    readEnv("ALISIO_STATE_DIR", {
+      env: params?.env,
+      fallback: legacyEnvKey("STATE_DIR"),
+    });
   if (!stateDir) {
-    throw new Error("Expected OPENCLAW_STATE_DIR or explicit stateDir for .env test setup");
+    throw new Error("Expected ALISIO_STATE_DIR or explicit stateDir for .env test setup");
   }
   const dotEnvPath = path.join(stateDir, ".env");
   await fs.mkdir(path.dirname(dotEnvPath), { recursive: true });
@@ -41,7 +47,7 @@ export async function withTempHomeConfig<T>(
   fn: (params: { home: string; configPath: string }) => Promise<T>,
 ): Promise<T> {
   return withTempHome(async (home) => {
-    const configPath = await writeOpenClawConfig(home, config);
+    const configPath = await writeAlisioConfig(home, config);
     return fn({ home, configPath });
   });
 }
@@ -77,7 +83,7 @@ export async function withEnvOverride<T>(
 
 export function buildWebSearchProviderConfig(params: {
   provider: NonNullable<
-    NonNullable<NonNullable<NonNullable<OpenClawConfig["tools"]>["web"]>["search"]>["provider"]
+    NonNullable<NonNullable<NonNullable<AlisioConfig["tools"]>["web"]>["search"]>["provider"]
   >;
   enabled?: boolean;
   providerConfig?: Record<string, unknown>;

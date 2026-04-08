@@ -1,7 +1,7 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBundledBrowserPluginFixture } from "../../test/helpers/browser-bundled-plugin-fixture.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { clearPluginDiscoveryCache } from "./discovery.js";
 import { clearPluginLoaderCache, loadOpenClawPlugins } from "./loader.js";
 import { clearPluginManifestRegistryCache } from "./manifest-registry.js";
@@ -36,7 +36,7 @@ describe("registerPluginCliCommands browser plugin integration", () => {
         plugins: {
           allow: ["browser"],
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       cache: false,
       env: {
         ...process.env,
@@ -59,7 +59,7 @@ describe("registerPluginCliCommands browser plugin integration", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       cache: false,
     });
 

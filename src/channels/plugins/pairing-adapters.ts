@@ -22,11 +22,13 @@ export function createTextPairingAdapter(params: {
   idLabel: string;
   message: string;
   normalizeAllowEntry?: ChannelPairingAdapter["normalizeAllowEntry"];
+  applyApprovalToConfig?: ChannelPairingAdapter["applyApprovalToConfig"];
   notify: (params: PairingNotifyParams & { message: string }) => Promise<void> | void;
 }): ChannelPairingAdapter {
   return {
     idLabel: params.idLabel,
     normalizeAllowEntry: params.normalizeAllowEntry,
+    applyApprovalToConfig: params.applyApprovalToConfig,
     notifyApproval: async (ctx) => {
       await params.notify({ ...ctx, message: params.message });
     },

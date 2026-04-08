@@ -1,8 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
-import { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+import type { AlisioConfig } from "../config/config.js";
+import { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
 import {
   createManagedRun,
   mockSuccessfulCliRun,
@@ -81,7 +81,7 @@ describe("runCliAgent spawn path", () => {
             },
           },
         },
-      } satisfies OpenClawConfig,
+      } satisfies AlisioConfig,
       prompt: "hi",
       provider: "claude-cli",
       model: "claude-sonnet-4-6",
@@ -230,7 +230,7 @@ describe("runCliAgent spawn path", () => {
             bootstrapTotalMaxChars: 50,
           },
         },
-      } satisfies OpenClawConfig,
+      } satisfies AlisioConfig,
       prompt: "hi",
       provider: "codex-cli",
       model: "gpt-5.2-codex",
@@ -266,7 +266,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredOpenClawTmpDir(), "openclaw-cli-prompt-image-"),
+      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-prompt-image-"),
     );
     const sourceImage = path.join(tempDir, "bb-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -310,7 +310,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredOpenClawTmpDir(), "openclaw-cli-prompt-image-generic-"),
+      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-prompt-image-generic-"),
     );
     const sourceImage = path.join(tempDir, "claude-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -356,7 +356,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredOpenClawTmpDir(), "openclaw-cli-explicit-images-"),
+      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-explicit-images-"),
     );
     const sourceImage = path.join(tempDir, "ignored-prompt-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -395,7 +395,7 @@ describe("runCliAgent spawn path", () => {
           workspace: fallbackWorkspace,
         },
       },
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     supervisorSpawnMock.mockResolvedValueOnce(
       createManagedRun({

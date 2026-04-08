@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  buildAlisioCurrentProviderId,
+  buildAlisioServerProviderId,
+} from "../../shared/alisio-remote-model-provider.js";
 
 const { scheduleGatewaySigusr1RestartMock } = vi.hoisted(() => ({
   scheduleGatewaySigusr1RestartMock: vi.fn(() => ({
@@ -13,10 +17,10 @@ const { scheduleGatewaySigusr1RestartMock } = vi.hoisted(() => ({
   })),
 }));
 
-const { requestAlisioAccountPasswordResetMock } = vi.hoisted(() => ({
-  requestAlisioAccountPasswordResetMock: vi.fn(async () => ({
+const { requestAlisioAccountRecoveryEmailMock } = vi.hoisted(() => ({
+  requestAlisioAccountRecoveryEmailMock: vi.fn(async () => ({
     ok: true as const,
-    message: "We've sent a password reset email.",
+    message: "A recovery email is on its way.",
   })),
 }));
 
@@ -87,7 +91,7 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../infra/alisio-store.js")>();
   return {
     ...actual,
-    requestAlisioAccountPasswordReset: requestAlisioAccountPasswordResetMock,
+    requestAlisioAccountRecoveryEmail: requestAlisioAccountRecoveryEmailMock,
     listAlisioRemoteModelServers: listAlisioRemoteModelServersMock,
     saveAlisioRemoteModelServer: saveAlisioRemoteModelServerMock,
     removeAlisioRemoteModelServer: removeAlisioRemoteModelServerMock,
@@ -109,11 +113,13 @@ import { NodeRegistry } from "../node-registry.js";
 import { alisioHandlers } from "./alisio.js";
 import type { GatewayRequestContext } from "./types.js";
 
-function makeContext(): GatewayRequestContext {
+function makeContext(params?: {
+  loadGatewayModelCatalog?: GatewayRequestContext["loadGatewayModelCatalog"];
+}): GatewayRequestContext {
   return {
     getHealthCache: () => ({ ok: true }) as never,
     refreshHealthSnapshot: async () => ({ ok: true }) as never,
-    loadGatewayModelCatalog: vi.fn(async () => []),
+    loadGatewayModelCatalog: params?.loadGatewayModelCatalog ?? vi.fn(async () => []),
     findRunningWizard: () => null,
     broadcast: vi.fn(),
     nodeRegistry: new NodeRegistry(),
@@ -180,6 +186,71 @@ describe("alisio gateway methods", () => {
     expect(payload.issues?.map((issue) => issue.code)).toEqual(
       expect.arrayContaining(["runtime_not_ready", "account_not_ready"]),
     );
+  });
+
+  it("treats a local dynamic provider as runtime-ready without OpenAI auth", async () => {
+    const context = makeContext({
+      loadGatewayModelCatalog: vi.fn(async () => [
+        {
+          provider: buildAlisioCurrentProviderId(),
+          id: "qwen3-4b-q4-k-m",
+          name: "Qwen3 4B",
+        },
+      ]),
+    });
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.bootstrap.get"]({
+      params: {},
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.bootstrap.get", params: {}, id: 3 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      providerReady: true,
+      models: {
+        total: 1,
+        providers: [buildAlisioCurrentProviderId()],
+      },
+    });
+  });
+
+  it("skips the OpenAI-only runtime error when a server provider is ready", async () => {
+    const context = makeContext({
+      loadGatewayModelCatalog: vi.fn(async () => [
+        {
+          provider: buildAlisioServerProviderId("server-1"),
+          id: "llama3.2",
+          name: "Llama 3.2",
+        },
+      ]),
+    });
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.doctor.summary"]({
+      params: {},
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.doctor.summary", params: {}, id: 4 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(true);
+    const payload = calls[0]?.payload as {
+      checks?: { runtime?: boolean };
+      issues?: Array<{ code: string }>;
+      bootstrap?: { providerReady?: boolean };
+    };
+    expect(payload.bootstrap?.providerReady).toBe(true);
+    expect(payload.checks?.runtime).toBe(true);
+    expect(payload.issues?.map((issue) => issue.code)).not.toContain("runtime_not_ready");
   });
 
   it("serves local model targets for this computer", async () => {
@@ -304,6 +375,53 @@ describe("alisio gateway methods", () => {
     });
   });
 
+  it("surfaces organization plan gating as a validation error", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.organization.set"]({
+      params: {
+        mode: "owner",
+        organizationName: "OpenClaw",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.organization.set", params: {}, id: 9 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(false);
+    expect(calls[0]?.error).toMatchObject({
+      code: "INVALID_REQUEST",
+      message: expect.stringContaining("Sign in"),
+    });
+  });
+
+  it("surfaces connector plan and account gating as a validation error", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.connectors.begin"]({
+      params: {
+        connectorId: "google-calendar",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.connectors.begin", params: {}, id: 10 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(false);
+    expect(calls[0]?.error).toMatchObject({
+      code: "INVALID_REQUEST",
+      message: expect.stringContaining("Sign in"),
+    });
+  });
+
   it("rejects invalid account usernames with a product-facing validation error", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();
@@ -325,7 +443,30 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(false);
   });
 
-  it("starts password recovery with a product-facing success result", async () => {
+  it("starts account recovery with a product-facing success result", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.requestRecoveryEmail"]({
+      params: {
+        email: "nuno@example.com",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.requestRecoveryEmail", params: {}, id: 5 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("recovery email"),
+    });
+  });
+
+  it("keeps the legacy password-reset alias working for older clients", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();
 
@@ -337,15 +478,11 @@ describe("alisio gateway methods", () => {
       context,
       isWebchatConnect: () => false,
       respond,
-      req: { method: "alisio.account.requestPasswordReset", params: {}, id: 5 } as never,
+      req: { method: "alisio.account.requestPasswordReset", params: {}, id: 6 } as never,
     });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      ok: true,
-      message: expect.stringContaining("password reset email"),
-    });
   });
 
   it("schedules a restart from the unified product runtime action", async () => {

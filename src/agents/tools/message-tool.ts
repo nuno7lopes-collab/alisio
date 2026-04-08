@@ -14,7 +14,7 @@ import {
 import { resolveCommandSecretRefsViaGateway } from "../../cli/command-secret-gateway.js";
 import { getScopedChannelsCommandSecretTargets } from "../../cli/command-secret-targets.js";
 import { resolveMessageSecretScope } from "../../cli/message-secret-scope.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../../gateway/protocol/client-info.js";
 import { getToolResult, runMessageAction } from "../../infra/outbound/message-action-runner.js";
@@ -392,8 +392,8 @@ type MessageToolOptions = {
   agentAccountId?: string;
   agentSessionKey?: string;
   sessionId?: string;
-  config?: OpenClawConfig;
-  loadConfig?: () => OpenClawConfig;
+  config?: AlisioConfig;
+  loadConfig?: () => AlisioConfig;
   resolveCommandSecretRefsViaGateway?: typeof resolveCommandSecretRefsViaGateway;
   runMessageAction?: typeof runMessageAction;
   currentChannelId?: string;
@@ -408,7 +408,7 @@ type MessageToolOptions = {
 };
 
 function resolveMessageToolSchemaActions(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   currentChannelProvider?: string;
   currentChannelId?: string;
   currentThreadTs?: string;
@@ -463,7 +463,7 @@ function resolveMessageToolSchemaActions(params: {
 
 function resolveIncludeCapability(
   params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     currentChannelProvider?: string;
     currentChannelId?: string;
     currentThreadTs?: string;
@@ -498,7 +498,7 @@ function resolveIncludeCapability(
 }
 
 function resolveIncludeInteractive(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   currentChannelProvider?: string;
   currentChannelId?: string;
   currentThreadTs?: string;
@@ -513,7 +513,7 @@ function resolveIncludeInteractive(params: {
 }
 
 function buildMessageToolSchema(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   currentChannelProvider?: string;
   currentChannelId?: string;
   currentThreadTs?: string;
@@ -553,7 +553,7 @@ function resolveAgentAccountId(value?: string): string | undefined {
 }
 
 function buildMessageToolDescription(options?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   currentChannel?: string;
   currentChannelId?: string;
   currentThreadTs?: string;

@@ -5,10 +5,11 @@ import {
   storeDeviceAuthTokenInStore,
 } from "../../../src/shared/device-auth-store.js";
 import type { DeviceAuthStore } from "../../../src/shared/device-auth.js";
+import { legacyDotKey } from "../brand-compat.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
 const STORAGE_KEY = "alisio.device.auth.v2";
-const LEGACY_STORAGE_KEY = "openclaw.device.auth.v1";
+const LEGACY_STORAGE_KEY = legacyDotKey("device", "auth", "v1");
 
 function readStore(): DeviceAuthStore | null {
   try {

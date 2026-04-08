@@ -120,7 +120,7 @@ describe("resolveNpmRunner", () => {
         existsSync: () => false,
         platform: "win32",
       }),
-    ).toThrow("OpenClaw refuses to shell out to bare npm on Windows");
+    ).toThrow("Alisio refuses to shell out to bare npm on Windows");
   });
 });
 
@@ -163,7 +163,7 @@ describe("stageBundledPluginRuntimeDeps", () => {
       installPluginRuntimeDepsImpl: ({ fingerprint }: { fingerprint: string }) => {
         installCount += 1;
         fs.writeFileSync(
-          path.join(pluginDir, ".openclaw-runtime-deps-stamp.json"),
+          path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
           `${JSON.stringify({ fingerprint }, null, 2)}\n`,
           "utf8",
         );
@@ -206,7 +206,7 @@ describe("stageBundledPluginRuntimeDeps", () => {
           fs.mkdirSync(nodeModulesDir, { recursive: true });
           fs.writeFileSync(path.join(nodeModulesDir, "marker.txt"), `${installCount}\n`, "utf8");
           fs.writeFileSync(
-            path.join(pluginDir, ".openclaw-runtime-deps-stamp.json"),
+            path.join(pluginDir, ".alisio-runtime-deps-stamp.json"),
             `${JSON.stringify({ fingerprint }, null, 2)}\n`,
             "utf8",
           );

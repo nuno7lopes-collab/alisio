@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { SkillsInstallPreferences } from "./skills/types.js";
 
 export {
@@ -15,14 +15,31 @@ export {
   applySkillEnvOverridesFromSnapshot,
 } from "./skills/env-overrides.js";
 export type {
-  OpenClawSkillMetadata,
+  LegacySkillMetadata,
   SkillEligibilityContext,
   SkillCommandSpec,
   SkillEntry,
   SkillInstallSpec,
+  SkillManifest,
+  SkillManifestIssue,
+  SkillManifestValidation,
+  SkillPermissionSpec,
+  SkillSubscriptionSpec,
   SkillSnapshot,
   SkillsInstallPreferences,
 } from "./skills/types.js";
+export {
+  buildSkillMarketplaceCatalog,
+  executeMarketplaceSkill,
+  installMarketplaceSkill,
+  readMarketplaceSkillInstructions,
+  resolveSkillMarketplaceCatalog,
+} from "./skills/marketplace.js";
+export type { ResolvedSkillCatalogEntry, SkillCatalogEntry } from "./skills/marketplace.js";
+export type {
+  SkillMarketplaceAccess,
+  SkillMarketplaceAccessContext,
+} from "./skills/marketplace-access.js";
 export {
   buildWorkspaceSkillSnapshot,
   buildWorkspaceSkillsPrompt,
@@ -33,7 +50,7 @@ export {
   syncSkillsToWorkspace,
 } from "./skills/workspace.js";
 
-export function resolveSkillsInstallPreferences(config?: OpenClawConfig): SkillsInstallPreferences {
+export function resolveSkillsInstallPreferences(config?: AlisioConfig): SkillsInstallPreferences {
   const raw = config?.skills?.install;
   const preferBrew = raw?.preferBrew ?? true;
   const managerRaw = typeof raw?.nodeManager === "string" ? raw.nodeManager.trim() : "";

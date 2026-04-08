@@ -7,7 +7,7 @@ import { loadJsonFile, saveJsonFile } from "./json-file.js";
 async function withJsonPath<T>(
   run: (params: { root: string; pathname: string }) => Promise<T> | T,
 ): Promise<T> {
-  return withTempDir({ prefix: "openclaw-json-file-" }, async (root) =>
+  return withTempDir({ prefix: "alisio-json-file-" }, async (root) =>
     run({ root, pathname: path.join(root, "config.json") }),
   );
 }
@@ -38,7 +38,7 @@ describe("json-file helpers", () => {
   });
 
   it("creates parent dirs, writes a trailing newline, and loads the saved object", async () => {
-    await withTempDir({ prefix: "openclaw-json-file-" }, async (root) => {
+    await withTempDir({ prefix: "alisio-json-file-" }, async (root) => {
       const pathname = path.join(root, "nested", "config.json");
       saveJsonFile(pathname, { enabled: true, count: 2 });
 

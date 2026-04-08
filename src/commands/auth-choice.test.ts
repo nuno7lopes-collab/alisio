@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import type { OAuthCredentials } from "@mariozechner/pi-ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveAgentDir } from "../agents/agent-scope.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import type { ModelProviderConfig } from "../config/types.models.js";
 import { GOOGLE_GEMINI_DEFAULT_MODEL } from "../plugin-sdk/google.js";
@@ -66,7 +66,7 @@ function normalizeText(value: unknown): string {
 function providerConfigPatch(
   providerId: string,
   patch: Record<string, unknown>,
-): Partial<OpenClawConfig> {
+): Partial<AlisioConfig> {
   const providers: Record<string, ModelProviderConfig> = {
     [providerId]: patch as ModelProviderConfig,
   };
@@ -91,7 +91,7 @@ function createApiKeyProvider(params: {
   expectedProviders?: string[];
   noteMessage?: string;
   noteTitle?: string;
-  applyConfig?: Partial<OpenClawConfig>;
+  applyConfig?: Partial<AlisioConfig>;
 }): ProviderPlugin {
   return {
     id: params.providerId,
@@ -111,7 +111,7 @@ function createApiKeyProvider(params: {
         ...(params.expectedProviders ? { expectedProviders: params.expectedProviders } : {}),
         ...(params.noteMessage ? { noteMessage: params.noteMessage } : {}),
         ...(params.noteTitle ? { noteTitle: params.noteTitle } : {}),
-        ...(params.applyConfig ? { applyConfig: () => params.applyConfig as OpenClawConfig } : {}),
+        ...(params.applyConfig ? { applyConfig: () => params.applyConfig as AlisioConfig } : {}),
         wizard: {
           choiceId: params.choiceId,
           choiceLabel: params.label,
@@ -196,7 +196,7 @@ function createDefaultProviderPlugins() {
             credential: buildApiKeyCredential("zai", token),
           },
         ],
-        configPatch: providerConfigPatch("zai", { baseUrl }) as OpenClawConfig,
+        configPatch: providerConfigPatch("zai", { baseUrl }) as AlisioConfig,
         defaultModel: `zai/${modelId}`,
       };
     },

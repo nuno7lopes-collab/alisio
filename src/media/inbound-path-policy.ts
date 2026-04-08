@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveAccountEntry } from "../routing/account-lookup.js";
 import { normalizeAccountId } from "../routing/session-key.js";
 
@@ -117,7 +117,7 @@ export function isInboundPathAllowed(params: {
   return effectiveRoots.some((rootPattern) => matchesRootPattern({ candidatePath, rootPattern }));
 }
 
-function resolveIMessageAccountConfig(params: { cfg: OpenClawConfig; accountId?: string | null }) {
+function resolveIMessageAccountConfig(params: { cfg: AlisioConfig; accountId?: string | null }) {
   const accountId = normalizeAccountId(params.accountId);
   if (!params.accountId?.trim()) {
     return undefined;
@@ -126,7 +126,7 @@ function resolveIMessageAccountConfig(params: { cfg: OpenClawConfig; accountId?:
 }
 
 export function resolveIMessageAttachmentRoots(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   const accountConfig = resolveIMessageAccountConfig(params);
@@ -138,7 +138,7 @@ export function resolveIMessageAttachmentRoots(params: {
 }
 
 export function resolveIMessageRemoteAttachmentRoots(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   const accountConfig = resolveIMessageAccountConfig(params);

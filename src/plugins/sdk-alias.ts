@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveOpenClawPackageRootSync } from "../infra/openclaw-root.js";
+import { resolveAlisioPackageRootSync } from "../infra/alisio-root.js";
 
 type PluginSdkAliasCandidateKind = "dist" | "src";
 export type PluginSdkResolutionPreference = "auto" | "dist" | "src";
@@ -59,14 +59,16 @@ function hasTrustedOpenClawRootIndicator(params: {
     return false;
   }
   const hasCliEntryExport = Object.prototype.hasOwnProperty.call(packageExports, "./cli-entry");
-  const hasOpenClawBin =
-    (typeof params.packageJson.bin === "string" &&
-      params.packageJson.bin.toLowerCase().includes("openclaw")) ||
-    (typeof params.packageJson.bin === "object" &&
-      params.packageJson.bin !== null &&
-      typeof params.packageJson.bin.openclaw === "string");
-  const hasOpenClawEntrypoint = fs.existsSync(path.join(params.packageRoot, "openclaw.mjs"));
-  return hasCliEntryExport || hasOpenClawBin || hasOpenClawEntrypoint;
+  const bin = params.packageJson.bin;
+  const hasKnownCliBin =
+    (typeof bin === "string" && /(alisio|openclaw)/.test(bin.toLowerCase())) ||
+    (typeof bin === "object" &&
+      bin !== null &&
+      (typeof bin.alisio === "string" || typeof bin.openclaw === "string"));
+  const hasKnownCliEntrypoint =
+    fs.existsSync(path.join(params.packageRoot, "alisio.mjs")) ||
+    fs.existsSync(path.join(params.packageRoot, "openclaw.mjs"));
+  return hasCliEntryExport || hasKnownCliBin || hasKnownCliEntrypoint;
 }
 
 function readPluginSdkSubpathsFromPackageRoot(packageRoot: string): string[] | null {
@@ -88,7 +90,7 @@ function resolveTrustedOpenClawRootFromArgvHint(params: {
   if (!params.argv1) {
     return null;
   }
-  const packageRoot = resolveOpenClawPackageRootSync({
+  const packageRoot = resolveAlisioPackageRootSync({
     cwd: params.cwd,
     argv1: params.argv1,
   });
@@ -122,13 +124,13 @@ export function resolveLoaderPackageRoot(
   params: LoaderModuleResolveParams & { modulePath: string },
 ): string | null {
   const cwd = params.cwd ?? path.dirname(params.modulePath);
-  const fromModulePath = resolveOpenClawPackageRootSync({ cwd });
+  const fromModulePath = resolveAlisioPackageRootSync({ cwd });
   if (fromModulePath) {
     return fromModulePath;
   }
   const argv1 = params.argv1 ?? process.argv[1];
   const moduleUrl = params.moduleUrl ?? (params.modulePath ? undefined : import.meta.url);
-  return resolveOpenClawPackageRootSync({
+  return resolveAlisioPackageRootSync({
     cwd,
     ...(argv1 ? { argv1 } : {}),
     ...(moduleUrl ? { moduleUrl } : {}),
@@ -139,11 +141,11 @@ function resolveLoaderPluginSdkPackageRoot(
   params: LoaderModuleResolveParams & { modulePath: string },
 ): string | null {
   const cwd = params.cwd ?? path.dirname(params.modulePath);
-  const fromCwd = resolveOpenClawPackageRootSync({ cwd });
+  const fromCwd = resolveAlisioPackageRootSync({ cwd });
   const fromExplicitHints =
     resolveTrustedOpenClawRootFromArgvHint({ cwd, argv1: params.argv1 }) ??
     (params.moduleUrl
-      ? resolveOpenClawPackageRootSync({
+      ? resolveAlisioPackageRootSync({
           cwd,
           moduleUrl: params.moduleUrl,
         })

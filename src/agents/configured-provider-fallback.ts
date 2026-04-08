@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/types.js";
+import type { AlisioConfig } from "../config/types.js";
 
 export type ProviderModelRef = {
   provider: string;
@@ -6,7 +6,7 @@ export type ProviderModelRef = {
 };
 
 export function resolveConfiguredProviderFallback(params: {
-  cfg: Pick<OpenClawConfig, "models">;
+  cfg: Pick<AlisioConfig, "models">;
   defaultProvider: string;
 }): ProviderModelRef | null {
   const configuredProviders = params.cfg.models?.providers;

@@ -152,6 +152,9 @@ function resolveEntryTitle(entry: AgentFileEntry, text: ReturnType<typeof memory
   if (entry.name === LEGACY_MEMORY_FILE_NAME) {
     return text.legacyMemory;
   }
+  if (isLongTermMemoryFileName(entry.name)) {
+    return text.longTerm;
+  }
   return humanizeMemoryNoteTitle(entry.name);
 }
 

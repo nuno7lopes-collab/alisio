@@ -1,5 +1,5 @@
 import type { SecretInputMode } from "../commands/onboard-types.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   DEFAULT_SECRET_PROVIDER_ALIAS,
   type SecretInput,
@@ -21,9 +21,9 @@ import type { FlowContribution, FlowOption } from "./types.js";
 import { sortFlowContributionsByLabel } from "./types.js";
 
 export type SearchProvider = NonNullable<
-  NonNullable<NonNullable<NonNullable<OpenClawConfig["tools"]>["web"]>["search"]>["provider"]
+  NonNullable<NonNullable<NonNullable<AlisioConfig["tools"]>["web"]>["search"]>["provider"]
 >;
-type SearchConfig = NonNullable<NonNullable<NonNullable<OpenClawConfig["tools"]>["web"]>["search"]>;
+type SearchConfig = NonNullable<NonNullable<NonNullable<AlisioConfig["tools"]>["web"]>["search"]>;
 type MutableSearchConfig = SearchConfig & Record<string, unknown>;
 
 export type SearchProviderSetupOption = FlowOption & {
@@ -57,7 +57,7 @@ function showsSearchProviderInSetup(
 }
 
 function canRepairBundledProviderSelection(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: Pick<PluginWebSearchProviderEntry, "id" | "pluginId">,
 ): boolean {
   const pluginId = provider.pluginId ?? resolveBundledWebSearchPluginId(provider.id);
@@ -71,7 +71,7 @@ function canRepairBundledProviderSelection(
 }
 
 export function resolveSearchProviderOptions(
-  config?: OpenClawConfig,
+  config?: AlisioConfig,
 ): readonly PluginWebSearchProviderEntry[] {
   return resolveSearchProviderSetupContributions(config).map(
     (contribution) => contribution.provider,
@@ -98,7 +98,7 @@ function buildSearchProviderSetupContribution(params: {
 }
 
 export function resolveSearchProviderSetupContributions(
-  config?: OpenClawConfig,
+  config?: AlisioConfig,
 ): SearchProviderSetupContribution[] {
   if (!config) {
     return sortFlowContributionsByLabel(
@@ -130,7 +130,7 @@ export function resolveSearchProviderSetupContributions(
 }
 
 function resolveSearchProviderEntry(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: SearchProvider,
 ): PluginWebSearchProviderEntry | undefined {
   return resolveSearchProviderOptions(config).find((entry) => entry.id === provider);
@@ -147,7 +147,7 @@ function providerNeedsCredential(
 }
 
 function providerIsReady(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   entry: Pick<PluginWebSearchProviderEntry, "id" | "envVars" | "requiresCredential">,
 ): boolean {
   if (!providerNeedsCredential(entry)) {
@@ -156,7 +156,7 @@ function providerIsReady(
   return hasExistingKey(config, entry.id) || hasKeyInEnv(entry);
 }
 
-function rawKeyValue(config: OpenClawConfig, provider: SearchProvider): unknown {
+function rawKeyValue(config: AlisioConfig, provider: SearchProvider): unknown {
   const search = config.tools?.web?.search;
   const entry = resolveSearchProviderEntry(config, provider);
   return (
@@ -166,17 +166,17 @@ function rawKeyValue(config: OpenClawConfig, provider: SearchProvider): unknown 
 }
 
 export function resolveExistingKey(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: SearchProvider,
 ): string | undefined {
   return normalizeSecretInputString(rawKeyValue(config, provider));
 }
 
-export function hasExistingKey(config: OpenClawConfig, provider: SearchProvider): boolean {
+export function hasExistingKey(config: AlisioConfig, provider: SearchProvider): boolean {
   return hasConfiguredSecretInput(rawKeyValue(config, provider));
 }
 
-function buildSearchEnvRef(config: OpenClawConfig, provider: SearchProvider): SecretRef {
+function buildSearchEnvRef(config: AlisioConfig, provider: SearchProvider): SecretRef {
   const entry =
     resolveSearchProviderEntry(config, provider) ??
     SEARCH_PROVIDER_OPTIONS.find((candidate) => candidate.id === provider) ??
@@ -191,7 +191,7 @@ function buildSearchEnvRef(config: OpenClawConfig, provider: SearchProvider): Se
 }
 
 function resolveSearchSecretInput(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: SearchProvider,
   key: string,
   secretInputMode?: SecretInputMode,
@@ -204,10 +204,10 @@ function resolveSearchSecretInput(
 }
 
 export function applySearchKey(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: SearchProvider,
   key: SecretInput,
-): OpenClawConfig {
+): AlisioConfig {
   const providerEntry = resolveSearchProviderEntry(config, provider);
   if (!providerEntry) {
     return config;
@@ -216,7 +216,7 @@ export function applySearchKey(
   if (!providerEntry.setConfiguredCredentialValue) {
     providerEntry.setCredentialValue(search, key);
   }
-  const nextBase: OpenClawConfig = {
+  const nextBase: AlisioConfig = {
     ...config,
     tools: {
       ...config.tools,
@@ -229,9 +229,9 @@ export function applySearchKey(
 }
 
 function applySearchProviderSelectionConfig(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   providerEntry: Pick<PluginWebSearchProviderEntry, "pluginId" | "applySelectionConfig">,
-): OpenClawConfig {
+): AlisioConfig {
   if (providerEntry.applySelectionConfig) {
     return providerEntry.applySelectionConfig(config);
   }
@@ -242,9 +242,9 @@ function applySearchProviderSelectionConfig(
 }
 
 export function applySearchProviderSelection(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   provider: SearchProvider,
-): OpenClawConfig {
+): AlisioConfig {
   const providerEntry = resolveSearchProviderEntry(config, provider);
   if (!providerEntry) {
     return config;
@@ -254,7 +254,7 @@ export function applySearchProviderSelection(
     provider,
     enabled: true,
   };
-  const nextBase: OpenClawConfig = {
+  const nextBase: AlisioConfig = {
     ...config,
     tools: {
       ...config.tools,
@@ -267,12 +267,12 @@ export function applySearchProviderSelection(
   return applySearchProviderSelectionConfig(nextBase, providerEntry);
 }
 
-function preserveDisabledState(original: OpenClawConfig, result: OpenClawConfig): OpenClawConfig {
+function preserveDisabledState(original: AlisioConfig, result: AlisioConfig): AlisioConfig {
   if (original.tools?.web?.search?.enabled !== false) {
     return result;
   }
 
-  const next: OpenClawConfig = {
+  const next: AlisioConfig = {
     ...result,
     tools: {
       ...result.tools,
@@ -321,7 +321,7 @@ function preserveDisabledState(original: OpenClawConfig, result: OpenClawConfig)
 
   return {
     ...next,
-    plugins: nextPlugins as OpenClawConfig["plugins"],
+    plugins: nextPlugins as AlisioConfig["plugins"],
   };
 }
 
@@ -331,13 +331,13 @@ export type SetupSearchOptions = {
 };
 
 async function finalizeSearchProviderSetup(params: {
-  originalConfig: OpenClawConfig;
-  nextConfig: OpenClawConfig;
+  originalConfig: AlisioConfig;
+  nextConfig: AlisioConfig;
   entry: PluginWebSearchProviderEntry;
   runtime: RuntimeEnv;
   prompter: WizardPrompter;
   opts?: SetupSearchOptions;
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   let next = preserveDisabledState(params.originalConfig, params.nextConfig);
   if (!params.entry.runSetup) {
     return next;
@@ -353,11 +353,11 @@ async function finalizeSearchProviderSetup(params: {
 }
 
 export async function runSearchSetupFlow(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   runtime: RuntimeEnv,
   prompter: WizardPrompter,
   opts?: SetupSearchOptions,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   const providerOptions = resolveSearchProviderOptions(config);
   if (providerOptions.length === 0) {
     await prompter.note(

@@ -210,6 +210,7 @@ describe("setup view", () => {
       renderOrganization({
         connected: true,
         accountReady: true,
+        plan: "plus",
         loading: true,
         error: null,
         organization: {
@@ -243,6 +244,7 @@ describe("setup view", () => {
       renderOrganization({
         connected: true,
         accountReady: true,
+        plan: "plus",
         loading: true,
         error: null,
         organization: null,
@@ -271,6 +273,7 @@ describe("setup view", () => {
       renderOrganization({
         connected: false,
         accountReady: false,
+        plan: "plus",
         loading: false,
         error: null,
         organization: null,
@@ -287,9 +290,7 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain(
-      "Reconnect to the gateway before editing organizations.",
-    );
+    expect(container.textContent).toContain("Reconnect to Alisio before editing organizations.");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
     expect(action?.disabled).toBe(true);
   });
@@ -301,6 +302,7 @@ describe("setup view", () => {
       renderOrganization({
         connected: true,
         accountReady: true,
+        plan: "plus",
         loading: false,
         error: null,
         organization: null,
@@ -318,6 +320,36 @@ describe("setup view", () => {
     );
 
     expect(container.textContent).toContain("Use a valid invitation email.");
+    const action = container.querySelector<HTMLButtonElement>(".btn.primary");
+    expect(action?.disabled).toBe(true);
+  });
+
+  it("shows the Plus upgrade path before creating an organization on Free", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization({
+        connected: true,
+        accountReady: true,
+        plan: "free",
+        loading: false,
+        error: null,
+        organization: null,
+        draftMode: "create",
+        organizationName: "Team Orbit",
+        inviteEmail: "",
+        onDraftModeChange: vi.fn(),
+        onOrganizationNameChange: vi.fn(),
+        onInviteEmailChange: vi.fn(),
+        onCreateOrganization: vi.fn(),
+        onJoinOrganization: vi.fn(),
+        onResetOrganization: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Organizations are available on Plus.");
+    expect(container.textContent).toContain("Open Settings -> Billing");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
     expect(action?.disabled).toBe(true);
   });
@@ -364,12 +396,12 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Welcome to Alisio");
     expect(container.textContent).toContain("Set up your personal agent.");
     expect(container.textContent).toContain("connect OpenAI");
-    expect(container.textContent).toContain("Create your account");
+    expect(container.textContent).toContain("Sign in to Alisio");
     expect(container.textContent).toContain("Email");
     expect(container.textContent).toContain("Continue with Google");
-    expect(container.textContent).toContain("Use the email you want to use to sign in to Alisio.");
-    expect(container.textContent).toContain("Reconnect Alisio");
-    expect(container.textContent).toContain("Wait for Alisio to connect automatically");
+    expect(container.textContent).toContain("Use the email address for your Alisio account.");
+    expect(container.textContent).toContain("Reconnect app");
+    expect(container.textContent).toContain("Wait for Alisio to reconnect");
   });
 
   it("submete o formulário de email quando o utilizador carrega Enter", () => {
@@ -385,7 +417,7 @@ describe("setup view", () => {
       container,
     );
 
-    const form = container.querySelector(".alisio-setup-account");
+    const form = container.querySelector("form.alisio-setup-account");
     expect(form).not.toBeNull();
 
     form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
@@ -441,11 +473,33 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Agent name");
+    expect(container.textContent).toContain("What should your agent be called?");
+    expect(container.textContent).toContain("I agree to the Terms and Privacy Policy.");
+    expect(container.textContent).toContain("Date of birth");
     const fields = Array.from(container.querySelectorAll(".field span")).map(
       (element) => element.textContent?.trim() ?? "",
     );
-    expect(fields).toContain("Agent name");
+    expect(fields).toContain("What should your agent be called?");
+  });
+
+  it("shows the verification-code stage while email sign-in is pending", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSetup(
+        createSetupProps({
+          authStage: "email-code",
+          authPendingEmail: "nuno@example.com",
+          authCode: "123456",
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Verification code");
+    expect(container.textContent).toContain("Send another code");
+    expect(container.textContent).toContain("Use another email");
+    expect(container.textContent).toContain("nuno@example.com");
   });
 
   it("shows the ready step instead of organization once onboarding is already complete", () => {
@@ -483,6 +537,67 @@ describe("setup view", () => {
 
     expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
     expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
+  });
+
+  it("shows the connector upgrade path on Free after the first occupied slot", () => {
+    const container = document.createElement("div");
+    render(
+      renderSetup(
+        createSetupProps({
+          bootstrap: createReadyBootstrap({
+            nextStep: "connectors",
+            organizationState: { mode: "owner", organizationName: "Team" },
+            organization: { mode: "owner", organizationName: "Team" },
+          }),
+          startupBootstrap: null,
+          requestedStep: "connectors",
+          authEmail: "",
+          connectorCatalog: [
+            {
+              id: "google-calendar",
+              title: "Google Calendar",
+              providerLabel: "Google",
+              category: "google",
+              connectLabel: "Connect with Google",
+              summary: "Calendar access.",
+              availability: "ready",
+              scopes: ["openid", "email"],
+            },
+            {
+              id: "github",
+              title: "GitHub",
+              providerLabel: "GitHub",
+              category: "development",
+              connectLabel: "Connect with GitHub",
+              summary: "Repositories and pull requests.",
+              availability: "ready",
+              scopes: ["repo"],
+            },
+          ],
+          connectorAuthorizations: [
+            {
+              connectorId: "google-calendar",
+              state: "connected",
+              health: "healthy",
+              scopes: ["openid", "email"],
+            },
+            {
+              connectorId: "github",
+              state: "not_connected",
+              health: "healthy",
+              scopes: ["repo"],
+            },
+          ],
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Free includes 1 connected app.");
+    const githubButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Connect with GitHub"),
+    );
+    expect(githubButton?.disabled).toBe(true);
   });
 
   it("ignores a stale runtime step once setup is already ready", () => {
@@ -675,7 +790,7 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Reconnect Alisio");
+    expect(container.textContent).toContain("Reconnect app");
     expect(container.textContent).not.toContain("You are ready");
   });
 });

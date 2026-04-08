@@ -3,6 +3,7 @@ import path from "node:path";
 import { runCommandWithTimeout } from "../process/exec.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 import { detectPackageManager as detectPackageManagerImpl } from "./detect-package-manager.js";
+import { resolveUpdateSourceConfig } from "./distribution-profile.js";
 import { compareComparableSemver, parseComparableSemver } from "./semver-compare.js";
 import { channelToNpmTag, type UpdateChannel } from "./update-channels.js";
 
@@ -31,12 +32,18 @@ export type DepsStatus = {
 
 export type RegistryStatus = {
   latestVersion: string | null;
+  disabled?: boolean;
+  reason?: string;
+  sourcePackage?: string | null;
   error?: string;
 };
 
 export type NpmTagStatus = {
   tag: string;
   version: string | null;
+  disabled?: boolean;
+  reason?: string;
+  sourcePackage?: string | null;
   error?: string;
 };
 
@@ -44,6 +51,9 @@ export type NpmPackageTargetStatus = {
   target: string;
   version: string | null;
   nodeEngine: string | null;
+  disabled?: boolean;
+  reason?: string;
+  sourcePackage?: string | null;
   error?: string;
 };
 
@@ -298,6 +308,9 @@ export async function fetchNpmLatestVersion(params?: {
   const res = await fetchNpmTagVersion({ tag: "latest", timeoutMs: params?.timeoutMs });
   return {
     latestVersion: res.version,
+    disabled: res.disabled,
+    reason: res.reason,
+    sourcePackage: res.sourcePackage,
     error: res.error,
   };
 }
@@ -308,14 +321,31 @@ export async function fetchNpmPackageTargetStatus(params: {
 }): Promise<NpmPackageTargetStatus> {
   const timeoutMs = params.timeoutMs ?? 3500;
   const target = params.target;
+  const updateSource = resolveUpdateSourceConfig({ moduleUrl: import.meta.url });
+  if (!updateSource.registryPackageName) {
+    return {
+      target,
+      version: null,
+      nodeEngine: null,
+      disabled: true,
+      reason: "registry updates disabled for this distribution",
+      sourcePackage: null,
+    };
+  }
   try {
     const res = await fetchWithTimeout(
-      `https://registry.npmjs.org/openclaw/${encodeURIComponent(target)}`,
+      `https://registry.npmjs.org/${encodeURIComponent(updateSource.registryPackageName)}/${encodeURIComponent(target)}`,
       {},
       Math.max(250, timeoutMs),
     );
     if (!res.ok) {
-      return { target, version: null, nodeEngine: null, error: `HTTP ${res.status}` };
+      return {
+        target,
+        version: null,
+        nodeEngine: null,
+        sourcePackage: updateSource.registryPackageName,
+        error: `HTTP ${res.status}`,
+      };
     }
     const json = (await res.json()) as {
       version?: unknown;
@@ -323,9 +353,20 @@ export async function fetchNpmPackageTargetStatus(params: {
     };
     const version = typeof json?.version === "string" ? json.version : null;
     const nodeEngine = typeof json?.engines?.node === "string" ? json.engines.node : null;
-    return { target, version, nodeEngine };
+    return {
+      target,
+      version,
+      nodeEngine,
+      sourcePackage: updateSource.registryPackageName,
+    };
   } catch (err) {
-    return { target, version: null, nodeEngine: null, error: String(err) };
+    return {
+      target,
+      version: null,
+      nodeEngine: null,
+      sourcePackage: updateSource.registryPackageName,
+      error: String(err),
+    };
   }
 }
 
@@ -340,6 +381,9 @@ export async function fetchNpmTagVersion(params: {
   return {
     tag: params.tag,
     version: res.version,
+    disabled: res.disabled,
+    reason: res.reason,
+    sourcePackage: res.sourcePackage,
     error: res.error,
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 
 async function loadToolsHarness(options?: {
   resolveToolsMock?: ReturnType<typeof vi.fn>;
@@ -91,7 +91,7 @@ function buildConfig() {
   return {
     commands: { text: true },
     channels: { whatsapp: { allowFrom: ["*"] } },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 describe("handleToolsCommand", () => {

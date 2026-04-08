@@ -222,4 +222,25 @@ describe("channelsCapabilitiesCommand", () => {
     });
     expect(logs.join("\n")).toContain("Probe: linked");
   });
+
+  it("hides non-product channels from the default capabilities surface", async () => {
+    const discord = buildPlugin({
+      id: "discord",
+      probe: { ok: true },
+    });
+    const signal = buildPlugin({
+      id: "signal",
+      probe: { ok: true },
+    });
+    vi.mocked(listChannelPlugins).mockReturnValue([discord, signal]);
+    vi.mocked(getChannelPlugin).mockImplementation((channel) =>
+      [discord, signal].find((plugin) => plugin.id === channel),
+    );
+
+    await channelsCapabilitiesCommand({}, runtime);
+
+    const output = logs.join("\n");
+    expect(output).toContain("discord:default");
+    expect(output).not.toContain("signal:default");
+  });
 });

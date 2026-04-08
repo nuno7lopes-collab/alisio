@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   cancelTaskById,
   createTaskRecord,
@@ -138,6 +138,6 @@ export function setDetachedTaskDeliveryStatusByRunId(params: {
   return setTaskRunDeliveryStatusByRunId(params);
 }
 
-export async function cancelDetachedTaskRunById(params: { cfg: OpenClawConfig; taskId: string }) {
+export async function cancelDetachedTaskRunById(params: { cfg: AlisioConfig; taskId: string }) {
   return cancelTaskById(params);
 }

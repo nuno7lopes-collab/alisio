@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it, test, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { RuntimeEnv } from "../runtime.js";
 import {
   buildCleanupPlan,
@@ -19,7 +19,7 @@ describe("buildCleanupPlan", () => {
       },
     };
     const plan = buildCleanupPlan({
-      cfg: cfg as unknown as OpenClawConfig,
+      cfg: cfg as unknown as AlisioConfig,
       stateDir: path.join(tmpRoot, "openclaw-state"),
       configPath: path.join(tmpRoot, "openclaw-state", "openclaw.json"),
       oauthDir: path.join(tmpRoot, "openclaw-oauth"),
@@ -38,14 +38,14 @@ describe("buildCleanupPlan", () => {
 
 describe("applyAgentDefaultPrimaryModel", () => {
   it("does not mutate when already set", () => {
-    const cfg = { agents: { defaults: { model: { primary: "a/b" } } } } as OpenClawConfig;
+    const cfg = { agents: { defaults: { model: { primary: "a/b" } } } } as AlisioConfig;
     const result = applyAgentDefaultPrimaryModel({ cfg, model: "a/b" });
     expect(result.changed).toBe(false);
     expect(result.next).toBe(cfg);
   });
 
   it("normalizes legacy models", () => {
-    const cfg = { agents: { defaults: { model: { primary: "legacy" } } } } as OpenClawConfig;
+    const cfg = { agents: { defaults: { model: { primary: "legacy" } } } } as AlisioConfig;
     const result = applyAgentDefaultPrimaryModel({
       cfg,
       model: "a/b",

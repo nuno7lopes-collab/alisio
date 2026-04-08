@@ -1,1 +1,1 @@
-export { resolvePreferredOpenClawTmpDir } from "../../infra/tmp-openclaw-dir.js";
+export { resolvePreferredAlisioTmpDir } from "../../infra/tmp-alisio-dir.js";

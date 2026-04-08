@@ -1,6 +1,6 @@
 import { createAllowlistProviderRestrictSendersWarningCollector } from "../channels/plugins/group-policy-warnings.js";
 import type { ChannelSecurityAdapter } from "../channels/plugins/types.adapters.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { GroupPolicy } from "../config/types.base.js";
 import { createScopedDmSecurityResolver } from "./channel-config-helpers.js";
 /** Shared policy warnings and DM/group policy helpers for channel plugins. */
@@ -59,7 +59,7 @@ export function createRestrictSendersChannelSecurity<
   groupPolicyPath: string;
   groupAllowFromPath: string;
   mentionGated?: boolean;
-  providerConfigPresent?: (cfg: OpenClawConfig) => boolean;
+  providerConfigPresent?: (cfg: AlisioConfig) => boolean;
   resolveFallbackAccountId?: (account: ResolvedAccount) => string | null | undefined;
   defaultDmPolicy?: string;
   allowFromPathSuffix?: string;

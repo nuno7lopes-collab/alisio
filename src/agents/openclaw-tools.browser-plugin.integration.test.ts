@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createBundledBrowserPluginFixture } from "../../test/helpers/browser-bundled-plugin-fixture.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { clearPluginDiscoveryCache } from "../plugins/discovery.js";
 import { clearPluginLoaderCache } from "../plugins/loader.js";
 import { clearPluginManifestRegistryCache } from "../plugins/manifest-registry.js";
@@ -36,7 +36,7 @@ describe("createOpenClawTools browser plugin integration", () => {
         plugins: {
           allow: ["browser"],
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(tools.map((tool) => tool.name)).toContain("browser");
@@ -53,7 +53,7 @@ describe("createOpenClawTools browser plugin integration", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(tools.map((tool) => tool.name)).not.toContain("browser");

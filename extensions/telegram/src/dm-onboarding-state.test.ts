@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const readChannelAllowFromStore = vi.hoisted(() => vi.fn(async () => [] as string[]));
 const listChannelPairingRequests = vi.hoisted(() =>
-  vi.fn(async () => [] as Array<{ code: string }>),
+  vi.fn(async () => [] as Array<{ id: string; meta?: Record<string, string> }>),
 );
 
 vi.mock("openclaw/plugin-sdk/conversation-runtime", () => ({
@@ -35,6 +35,7 @@ describe("resolveTelegramDmOnboardingStatus", () => {
       {
         state: "waiting_for_first_dm",
         pendingPairingRequests: 0,
+        pendingRequests: [],
       },
     );
   });
@@ -48,12 +49,27 @@ describe("resolveTelegramDmOnboardingStatus", () => {
         },
       },
     };
-    listChannelPairingRequests.mockResolvedValue([{ code: "PAIR1" }, { code: "PAIR2" }]);
+    listChannelPairingRequests.mockResolvedValue([
+      { id: "6074269928", meta: { firstName: "Nuno", username: "nuno" } },
+      { id: "1234567890", meta: { username: "alice" } },
+    ]);
 
     await expect(resolveTelegramDmOnboardingStatus({ cfg, accountId: "default" })).resolves.toEqual(
       {
         state: "pending_approval",
         pendingPairingRequests: 2,
+        pendingRequests: [
+          {
+            requestId: "6074269928",
+            label: "Nuno",
+            detail: "@nuno · 6074269928",
+          },
+          {
+            requestId: "1234567890",
+            label: "@alice",
+            detail: "@alice · 1234567890",
+          },
+        ],
       },
     );
   });

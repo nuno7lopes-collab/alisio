@@ -3,6 +3,12 @@ import {
   validateAlisioEmail,
   validateAlisioAccountDraft,
 } from "../../../../src/shared/alisio-account.js";
+import {
+  alisioConnectorLimit,
+  alisioConnectorUpgradeMessage,
+  countAlisioConnectorPlanSlots,
+  normalizeAlisioPlan,
+} from "../../../../src/shared/alisio-billing.js";
 import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
 import { t } from "../../i18n/index.ts";
 import {
@@ -10,6 +16,7 @@ import {
   resolveCurrentStartupState,
   resolveDisplayedSetupStep,
 } from "../alisio-setup-state.ts";
+import { alisioSetupStepLabel } from "../alisio-setup-step-label.ts";
 import type {
   AlisioAccountState,
   AlisioBootstrapState,
@@ -158,27 +165,6 @@ function currentAiStatus(props: SetupProps) {
   return props.bootstrap?.ai.status ?? props.startupBootstrap?.ai?.status ?? "disconnected";
 }
 
-function setupStepLabel(step: AlisioBootstrapStep | null) {
-  switch (step) {
-    case "gateway":
-      return t("alisio.setup.steps.gateway");
-    case "account":
-      return t("alisio.setup.steps.account");
-    case "runtime":
-      return t("alisio.setup.steps.runtime");
-    case "organization":
-      return t("alisio.setup.steps.organization");
-    case "connectors":
-      return t("alisio.setup.steps.connectors");
-    case "permissions":
-      return t("alisio.setup.steps.permissions");
-    case "ready":
-      return t("alisio.setup.steps.ready");
-    default:
-      return t("alisio.setup.steps.setup");
-  }
-}
-
 function accountValidationMessage(props: SetupProps) {
   const profile = props.account?.profile;
   if (!profile) {
@@ -290,7 +276,7 @@ function renderAccountStep(props: SetupProps) {
             </form>
           `
         : html`
-            <div class="alisio-setup-account">
+            <div class="alisio-setup-account-shell">
               <button
                 type="button"
                 class="btn alisio-setup-account__google"
@@ -719,6 +705,17 @@ function renderConnectorsStep(props: SetupProps) {
     definitions: props.connectorCatalog,
     authorizations: props.connectorAuthorizations,
   });
+  const currentPlan = normalizeAlisioPlan(
+    props.account?.profile.plan ??
+      props.bootstrap?.account?.profile.plan ??
+      props.startupBootstrap?.account?.plan,
+  );
+  const connectorLimit = alisioConnectorLimit(currentPlan);
+  const occupiedConnectorSlots = countAlisioConnectorPlanSlots(props.connectorAuthorizations);
+  const connectorLimitReached = connectorLimit != null && occupiedConnectorSlots >= connectorLimit;
+  const connectorLimitMessage = connectorLimitReached
+    ? alisioConnectorUpgradeMessage(currentPlan)
+    : null;
   const showInitialLoading =
     props.connectorsLoading &&
     props.connectorCatalog.length === 0 &&
@@ -737,6 +734,7 @@ function renderConnectorsStep(props: SetupProps) {
       <div class="card-title">${t("alisio.setup.steps.connectors")}</div>
       <div class="card-sub">${t("alisio.authentications.subtitle")}</div>
       ${renderCallout("danger", props.connectorsError)}
+      ${renderCallout("info", connectorLimitMessage)}
       <div class="alisio-summary-grid">
         ${showInitialLoading
           ? renderSkeletonStatCards(3)
@@ -802,6 +800,10 @@ function renderConnectorsStep(props: SetupProps) {
                           : html`
                               <button
                                 class="btn primary"
+                                ?disabled=${row.status === "ready" && connectorLimitReached}
+                                title=${row.status === "ready" && connectorLimitReached
+                                  ? (connectorLimitMessage ?? "")
+                                  : ""}
                                 @click=${() => props.onBeginConnector(row.definition.id)}
                               >
                                 ${row.status === "setup_required"
@@ -829,6 +831,10 @@ function renderOrganizationStep(props: SetupProps) {
   return renderOrganization({
     connected: props.connected,
     accountReady,
+    plan:
+      props.account?.profile.plan ??
+      props.bootstrap?.account?.profile.plan ??
+      props.startupBootstrap?.account?.plan,
     loading: props.organizationLoading,
     error: props.organizationError,
     organization: props.organization,
@@ -906,7 +912,7 @@ export function renderSetup(props: SetupProps) {
         ? t("alisio.setup.progress.twoOfThree")
         : displayStep === "ready"
           ? t("alisio.setup.steps.ready")
-          : setupStepLabel(displayStep);
+          : alisioSetupStepLabel(displayStep);
 
   return html`
     <section class="alisio-setup-page">
@@ -916,7 +922,7 @@ export function renderSetup(props: SetupProps) {
         <p>${t("alisio.setup.hero.subtitle")}</p>
         <div class="alisio-setup-page__progress">
           <span class="alisio-setup-page__progress-pill">${progressLabel}</span>
-          ${renderStatusPill(setupStepLabel(displayStep), ready ? "ok" : "warn")}
+          ${renderStatusPill(alisioSetupStepLabel(displayStep), ready ? "ok" : "warn")}
         </div>
       </div>
 

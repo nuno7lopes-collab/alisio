@@ -2,11 +2,8 @@ import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent
 import { listChannelPluginCatalogEntries } from "../channels/plugins/catalog.js";
 import { listChannelSetupPlugins } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
-import {
-  formatChannelPrimerLine,
-  formatChannelSelectionLine,
-  listChatChannels,
-} from "../channels/registry.js";
+import { isProductChatChannelId, listProductChatChannels } from "../channels/product-surface.js";
+import { formatChannelPrimerLine, formatChannelSelectionLine } from "../channels/registry.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import { resolveChannelSetupEntries } from "../commands/channel-setup/discovery.js";
 import { resolveChannelSetupWizardAdapterForPlugin } from "../commands/channel-setup/registry.js";
@@ -17,7 +14,7 @@ import type {
 } from "../commands/channel-setup/types.js";
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import { isChannelConfigured } from "../config/channel-configured.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { formatDocsLink } from "../terminal/links.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import type { FlowContribution } from "./types.js";
@@ -58,13 +55,15 @@ function buildChannelSetupSelectionContribution(params: {
 }
 
 export async function collectChannelStatus(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   options?: SetupChannelsOptions;
   accountOverrides: Partial<Record<ChannelChoice, string>>;
   installedPlugins?: ChannelSetupPlugin[];
   resolveAdapter?: (channel: ChannelChoice) => ChannelSetupWizardAdapter | undefined;
 }): Promise<ChannelStatusSummary> {
-  const installedPlugins = params.installedPlugins ?? listChannelSetupPlugins();
+  const installedPlugins = (params.installedPlugins ?? listChannelSetupPlugins()).filter((plugin) =>
+    isProductChatChannelId(plugin.id),
+  );
   const workspaceDir = resolveAgentWorkspaceDir(params.cfg, resolveDefaultAgentId(params.cfg));
   const { installedCatalogEntries, installableCatalogEntries } = resolveChannelSetupEntries({
     cfg: params.cfg,
@@ -91,7 +90,7 @@ export async function collectChannelStatus(params: {
     }),
   );
   const statusByChannel = new Map(statusEntries.map((entry) => [entry.channel, entry]));
-  const fallbackStatuses = listChatChannels()
+  const fallbackStatuses = listProductChatChannels()
     .filter((meta) => !statusByChannel.has(meta.id))
     .map((meta) => {
       const configured = isChannelConfigured(params.cfg, meta.id);
@@ -150,7 +149,7 @@ export async function collectChannelStatus(params: {
 }
 
 export async function noteChannelStatus(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   prompter: WizardPrompter;
   options?: SetupChannelsOptions;
   accountOverrides?: Partial<Record<ChannelChoice, string>>;
@@ -214,7 +213,7 @@ export function resolveQuickstartDefault(
 }
 
 export function resolveChannelSelectionNoteLines(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   installedPlugins: ChannelSetupPlugin[];
   selection: ChannelChoice[];
 }): string[] {
@@ -240,6 +239,7 @@ export function resolveChannelSetupSelectionContributions(params: {
   statusByChannel: Map<ChannelChoice, { selectionHint?: string }>;
   resolveDisabledHint: (channel: ChannelChoice) => string | undefined;
 }): ChannelSetupSelectionContribution[] {
+  const coreChannelIds = new Set(listProductChatChannels().map((channel) => channel.id));
   return params.entries.map((entry) => {
     const disabledHint = params.resolveDisabledHint(entry.id);
     const hint =
@@ -250,7 +250,7 @@ export function resolveChannelSetupSelectionContributions(params: {
       channel: entry.id,
       label: entry.meta.selectionLabel ?? entry.meta.label,
       hint,
-      source: listChatChannels().some((channel) => channel.id === entry.id) ? "core" : "plugin",
+      source: coreChannelIds.has(entry.id) ? "core" : "plugin",
     });
   });
 }

@@ -1,5 +1,4 @@
 import { resolveChannelDefaultAccountId } from "../../channels/plugins/helpers.js";
-import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
   createMessageActionDiscoveryContext,
   resolveMessageActionDiscoveryForPlugin,
@@ -10,10 +9,11 @@ import type {
   ChannelCapabilitiesDisplayLine,
   ChannelPlugin,
 } from "../../channels/plugins/types.js";
+import { listProductChannelPlugins } from "../../channels/product-surface.js";
 import {
   readConfigFileSnapshot,
   replaceConfigFile,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../../config/config.js";
 import { danger } from "../../globals.js";
 import { defaultRuntime, type RuntimeEnv, writeRuntimeJson } from "../../runtime.js";
@@ -128,7 +128,7 @@ function renderDisplayLine(line: ChannelCapabilitiesDisplayLine) {
 
 async function resolveChannelReports(params: {
   plugin: ChannelPlugin;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   timeoutMs: number;
   accountOverride?: string;
   target?: string;
@@ -232,7 +232,7 @@ export async function channelsCapabilitiesCommand(
     return;
   }
 
-  const plugins = listChannelPlugins();
+  const plugins = listProductChannelPlugins();
   const selected =
     !rawChannel || rawChannel === "all"
       ? plugins

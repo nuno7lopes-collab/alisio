@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { evaluateEntryRequirementsForCurrentPlatform } from "../shared/entry-status.js";
 import type { RequirementConfigCheck, Requirements } from "../shared/requirements.js";
 import { CONFIG_DIR } from "../utils.js";
@@ -14,10 +14,13 @@ import {
   type SkillEntry,
   type SkillEligibilityContext,
   type SkillInstallSpec,
+  type SkillManifestIssue,
+  type SkillPermissionSpec,
+  type SkillSubscriptionSpec,
   type SkillsInstallPreferences,
 } from "./skills.js";
 import { resolveBundledSkillsContext } from "./skills/bundled-context.js";
-import { resolveSkillSource } from "./skills/source.js";
+import { isBundledRuntimeSkillSource, resolveSkillSource } from "./skills/source.js";
 
 export type SkillStatusConfigCheck = RequirementConfigCheck;
 
@@ -47,6 +50,13 @@ export type SkillStatusEntry = {
   missing: Requirements;
   configChecks: SkillStatusConfigCheck[];
   install: SkillInstallOption[];
+  manifestVersion?: string;
+  manifestSource: "manifest" | "legacy-metadata" | "inferred";
+  manifestValid: boolean;
+  marketplaceReady: boolean;
+  manifestIssues: SkillManifestIssue[];
+  permissions: SkillPermissionSpec;
+  subscription?: SkillSubscriptionSpec;
 };
 
 export type SkillStatusReport = {
@@ -177,7 +187,7 @@ function normalizeInstallOptions(
 
 function buildSkillStatus(
   entry: SkillEntry,
-  config?: OpenClawConfig,
+  config?: AlisioConfig,
   prefs?: SkillsInstallPreferences,
   eligibility?: SkillEligibilityContext,
   bundledNames?: Set<string>,
@@ -197,7 +207,7 @@ function buildSkillStatus(
   const isConfigSatisfied = (pathStr: string) => isConfigPathTruthy(config, pathStr);
   const skillSource = resolveSkillSource(entry.skill);
   const bundled =
-    skillSource === "openclaw-bundled" ||
+    isBundledRuntimeSkillSource(skillSource) ||
     (skillSource === "unknown" && bundledNames?.has(entry.skill.name) === true);
 
   const { emoji, homepage, required, missing, requirementsSatisfied, configChecks } =
@@ -230,13 +240,28 @@ function buildSkillStatus(
     missing,
     configChecks,
     install: normalizeInstallOptions(entry, prefs ?? resolveSkillsInstallPreferences(config)),
+    manifestVersion: entry.manifest?.version,
+    manifestSource: entry.manifestValidation?.source ?? "inferred",
+    manifestValid: entry.manifestValidation?.valid ?? true,
+    marketplaceReady:
+      entry.manifestValidation?.explicit === true && entry.manifestValidation?.valid,
+    manifestIssues: entry.manifestValidation?.issues ?? [],
+    permissions: entry.manifest?.permissions ?? {
+      consent: "explicit",
+      sandbox: {
+        mode: "isolated",
+        filesystem: "read-only",
+        network: "off",
+      },
+    },
+    subscription: entry.manifest?.subscription,
   };
 }
 
 export function buildWorkspaceSkillStatus(
   workspaceDir: string,
   opts?: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     managedSkillsDir?: string;
     entries?: SkillEntry[];
     eligibility?: SkillEligibilityContext;

@@ -79,4 +79,52 @@ describe("collectDiscordStatusIssues", () => {
       ]),
     ).toEqual([]);
   });
+
+  it("reports disconnected runtime state with reconnect guidance", () => {
+    const issues = collectDiscordStatusIssues([
+      {
+        accountId: "ops",
+        enabled: true,
+        configured: true,
+        running: true,
+        connected: false,
+        reconnectAttempts: 4,
+        lastError: "gateway closed",
+      } as ChannelAccountSnapshot,
+    ]);
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        channel: "discord",
+        accountId: "ops",
+        kind: "runtime",
+        message: "Discord gateway disconnected (reconnectAttempts=4): gateway closed",
+      }),
+    ]);
+    expect(issues[0]?.fix).toContain("channels status --probe");
+  });
+
+  it("reports reconnecting runtime state explicitly", () => {
+    const issues = collectDiscordStatusIssues([
+      {
+        accountId: "ops",
+        enabled: true,
+        configured: true,
+        running: true,
+        connected: false,
+        reconnectAttempts: 2,
+        healthState: "reconnecting",
+        lastError: "hello-timeout",
+      } as ChannelAccountSnapshot,
+    ]);
+
+    expect(issues).toEqual([
+      expect.objectContaining({
+        channel: "discord",
+        accountId: "ops",
+        kind: "runtime",
+        message: "Discord gateway reconnecting (reconnectAttempts=2): hello-timeout",
+      }),
+    ]);
+  });
 });

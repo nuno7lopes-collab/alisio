@@ -39,7 +39,7 @@ function createJwt(payload: Record<string, unknown>) {
 
 async function createReadyAlisioAccountEnv(root: string): Promise<NodeJS.ProcessEnv> {
   const env = {
-    OPENCLAW_STATE_DIR: root,
+    ALISIO_STATE_DIR: root,
     ALISIO_SUPABASE_URL: "https://example.supabase.co",
     ALISIO_SUPABASE_ANON_KEY: "anon-key",
   } as NodeJS.ProcessEnv;
@@ -253,10 +253,10 @@ describe("Alisio OpenAI connect", () => {
 
   it("keeps active OpenAI runtime profiles in memory without persisting auth store secrets", async () => {
     const lifecycle = createAuthTestLifecycle([
-      "OPENCLAW_STATE_DIR",
-      "OPENCLAW_AGENT_DIR",
+      "ALISIO_STATE_DIR",
+      "ALISIO_AGENT_DIR",
       "PI_CODING_AGENT_DIR",
-      "OPENCLAW_CONFIG_PATH",
+      "ALISIO_CONFIG_PATH",
     ]);
     const env = await setupAuthTestEnv("alisio-runtime-");
     lifecycle.setStateDir(env.stateDir);
@@ -329,10 +329,10 @@ describe("Alisio OpenAI connect", () => {
 
   it("preserves an explicit OpenAI Codex model instead of forcing gpt-5.4", async () => {
     const lifecycle = createAuthTestLifecycle([
-      "OPENCLAW_STATE_DIR",
-      "OPENCLAW_AGENT_DIR",
+      "ALISIO_STATE_DIR",
+      "ALISIO_AGENT_DIR",
       "PI_CODING_AGENT_DIR",
-      "OPENCLAW_CONFIG_PATH",
+      "ALISIO_CONFIG_PATH",
     ]);
     const env = await setupAuthTestEnv("alisio-runtime-preserve-");
     lifecycle.setStateDir(env.stateDir);

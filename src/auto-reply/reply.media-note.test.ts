@@ -1,7 +1,7 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   createReplyRuntimeMocks,
   installReplyRuntimeMocks,
@@ -39,7 +39,7 @@ function makeCfg(home: string) {
     },
     channels: { whatsapp: { allowFrom: ["*"] } },
     session: { store: path.join(home, "sessions.json") },
-  } as unknown as OpenClawConfig;
+  } as unknown as AlisioConfig;
 }
 
 describe("getReplyFromConfig media note plumbing", () => {

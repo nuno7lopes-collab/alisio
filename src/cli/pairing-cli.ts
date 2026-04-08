@@ -1,11 +1,16 @@
 import type { Command } from "commander";
 import { normalizeChannelId } from "../channels/plugins/index.js";
-import { listPairingChannels, notifyPairingApproved } from "../channels/plugins/pairing.js";
-import { loadConfig } from "../config/config.js";
+import {
+  applyPairingApprovalToConfig,
+  listPairingChannels,
+  notifyPairingApproved,
+} from "../channels/plugins/pairing.js";
+import { loadConfig, writeConfigFile } from "../config/config.js";
 import { resolvePairingIdLabel } from "../pairing/pairing-labels.js";
 import {
   approveChannelPairingCode,
   listChannelPairingRequests,
+  removeChannelAllowFromStoreEntry,
   type PairingChannel,
 } from "../pairing/pairing-store.js";
 import { defaultRuntime } from "../runtime.js";
@@ -157,6 +162,24 @@ export function registerPairingCli(program: Command) {
           });
       if (!approved) {
         throw new Error(`No pending pairing request found for code: ${String(resolvedCode)}`);
+      }
+
+      const currentCfg = loadConfig();
+      const resolvedAccountId =
+        accountId || String(approved.entry?.meta?.accountId ?? "").trim() || undefined;
+      const nextCfg = await applyPairingApprovalToConfig({
+        channelId: channel,
+        id: approved.id,
+        cfg: currentCfg,
+        ...(resolvedAccountId ? { accountId: resolvedAccountId } : {}),
+      });
+      if (nextCfg !== currentCfg) {
+        await writeConfigFile(nextCfg);
+        await removeChannelAllowFromStoreEntry({
+          channel,
+          entry: approved.id,
+          ...(resolvedAccountId ? { accountId: resolvedAccountId } : {}),
+        }).catch(() => {});
       }
 
       defaultRuntime.log(

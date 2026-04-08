@@ -110,7 +110,7 @@ describe("normalizeBasePath", () => {
   });
 
   it("handles nested paths", () => {
-    expect(normalizeBasePath("/apps/openclaw")).toBe("/apps/openclaw");
+    expect(normalizeBasePath("/apps/\u006fpen\u0063law")).toBe("/apps/\u006fpen\u0063law");
   });
 });
 

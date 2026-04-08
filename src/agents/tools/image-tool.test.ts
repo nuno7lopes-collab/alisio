@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { ModelDefinitionConfig } from "../../config/types.models.js";
 import type {
   ImageDescriptionRequest,
@@ -20,7 +20,7 @@ import { __testing, createImageTool, resolveImageModelConfigForTool } from "./im
 type PiToolsModule = typeof import("../pi-tools.js");
 type CreateOpenClawCodingToolsArgs = Parameters<PiToolsModule["createOpenClawCodingTools"]>[0];
 type MockOpenClawToolsOptions = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   sandboxRoot?: string;
@@ -267,7 +267,7 @@ function stubOpenAiCompletionsOkFetch(text = "ok") {
   return fetch;
 }
 
-function createMinimaxImageConfig(): OpenClawConfig {
+function createMinimaxImageConfig(): AlisioConfig {
   return {
     agents: {
       defaults: {
@@ -498,7 +498,7 @@ describe("image tool implicit imageModel config", () => {
 
   it("stays disabled without auth when no pairing is possible", async () => {
     await withTempAgentDir(async (agentDir) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "openai/gpt-5.2" } } },
       };
       expect(resolveImageModelConfigForTool({ cfg, agentDir })).toBeNull();
@@ -511,7 +511,7 @@ describe("image tool implicit imageModel config", () => {
       vi.stubEnv("MINIMAX_API_KEY", "minimax-test");
       vi.stubEnv("OPENAI_API_KEY", "openai-test");
       vi.stubEnv("ANTHROPIC_API_KEY", "anthropic-test");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "minimax/MiniMax-M2.7" } } },
       };
       expect(resolveImageModelConfigForTool({ cfg, agentDir })).toEqual(
@@ -537,7 +537,7 @@ describe("image tool implicit imageModel config", () => {
       });
       vi.stubEnv("OPENAI_API_KEY", "openai-test");
       vi.stubEnv("ANTHROPIC_API_KEY", "anthropic-test");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "minimax-portal/MiniMax-M2.7" } } },
       };
       expect(resolveImageModelConfigForTool({ cfg, agentDir })).toEqual(
@@ -552,7 +552,7 @@ describe("image tool implicit imageModel config", () => {
       vi.stubEnv("ZAI_API_KEY", "zai-test");
       vi.stubEnv("OPENAI_API_KEY", "openai-test");
       vi.stubEnv("ANTHROPIC_API_KEY", "anthropic-test");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "zai/glm-4.7" } } },
       };
       expect(resolveImageModelConfigForTool({ cfg, agentDir })).toEqual(
@@ -570,7 +570,7 @@ describe("image tool implicit imageModel config", () => {
           "acme:default": { type: "api_key", provider: "acme", key: "sk-test" },
         },
       });
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "acme/text-1" } } },
         models: {
           providers: {
@@ -603,7 +603,7 @@ describe("image tool implicit imageModel config", () => {
           },
         },
       });
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "aws-bedrock/text-1" } } },
         models: {
           providers: {
@@ -626,7 +626,7 @@ describe("image tool implicit imageModel config", () => {
 
   it("prefers explicit agents.defaults.imageModel", async () => {
     await withTempAgentDir(async (agentDir) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "minimax/MiniMax-M2.7" },
@@ -646,7 +646,7 @@ describe("image tool implicit imageModel config", () => {
     // adjusted via modelHasVision to discourage redundant usage.
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     await withTempAgentDir(async (agentDir) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "acme/vision-1" },
@@ -678,7 +678,7 @@ describe("image tool implicit imageModel config", () => {
     await withTempAgentDir(async (agentDir) => {
       vi.stubEnv("MOONSHOT_API_KEY", "moonshot-test");
       const fetch = stubOpenAiCompletionsOkFetch("ok moonshot");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "moonshot/kimi-k2.5" },
@@ -742,7 +742,7 @@ describe("image tool implicit imageModel config", () => {
   it("falls back to the generic image runtime when openrouter has no media provider registration", async () => {
     await withTempAgentDir(async (agentDir) => {
       const fetch = stubOpenAiCompletionsOkFetch("ok openrouter");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "openrouter/google/gemini-2.5-flash-lite" },
@@ -777,7 +777,7 @@ describe("image tool implicit imageModel config", () => {
   it("falls back to the generic multi-image runtime when openrouter has no media provider registration", async () => {
     await withTempAgentDir(async (agentDir) => {
       const fetch = stubOpenAiCompletionsOkFetch("ok multi");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "openrouter/google/gemini-2.5-flash-lite" },
@@ -828,7 +828,7 @@ describe("image tool implicit imageModel config", () => {
         },
       });
       const fetch = stubMinimaxOkFetch();
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "minimax-portal/MiniMax-M2.7" },
@@ -981,7 +981,7 @@ describe("image tool implicit imageModel config", () => {
       const sandbox = { root: sandboxRoot, bridge: createHostSandboxFsBridge(sandboxRoot) };
 
       vi.stubEnv("OPENAI_API_KEY", "openai-test");
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: { defaults: { model: { primary: "minimax/MiniMax-M2.7" } } },
       };
       const tool = createRequiredImageTool({ config: cfg, agentDir, sandbox });
@@ -1004,7 +1004,7 @@ describe("image tool implicit imageModel config", () => {
       );
       const sandbox = createUnsafeMountedSandbox({ sandboxRoot, agentRoot: agentDir });
       const fetch = stubMinimaxOkFetch();
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         ...createMinimaxImageConfig(),
         tools: { fs: { workspaceOnly: true } },
       };
@@ -1046,7 +1046,7 @@ describe("image tool implicit imageModel config", () => {
 
       const fetch = stubMinimaxOkFetch();
 
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             model: { primary: "minimax/MiniMax-M2.7" },

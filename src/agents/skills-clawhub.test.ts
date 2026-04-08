@@ -13,12 +13,12 @@ const withExtractedArchiveRootMock = vi.fn();
 const installPackageDirMock = vi.fn();
 const fileExistsMock = vi.fn();
 
-vi.mock("../infra/clawhub.js", () => ({
-  fetchClawHubSkillDetail: fetchClawHubSkillDetailMock,
-  downloadClawHubSkillArchive: downloadClawHubSkillArchiveMock,
-  listClawHubSkills: listClawHubSkillsMock,
-  resolveClawHubBaseUrl: resolveClawHubBaseUrlMock,
-  searchClawHubSkills: searchClawHubSkillsMock,
+vi.mock("../infra/skills-marketplace-registry.js", () => ({
+  fetchMarketplaceSkillDetail: fetchClawHubSkillDetailMock,
+  downloadMarketplaceSkillArchive: downloadClawHubSkillArchiveMock,
+  listMarketplaceSkills: listClawHubSkillsMock,
+  resolveSkillsMarketplaceBaseUrl: resolveClawHubBaseUrlMock,
+  searchMarketplaceSkills: searchClawHubSkillsMock,
 }));
 
 vi.mock("../infra/install-flow.js", () => ({
@@ -101,6 +101,12 @@ describe("skills-clawhub", () => {
       version: "1.0.0",
       targetDir: "/tmp/workspace/skills/agentreceipt",
     });
+    await expect(
+      fs.readFile(
+        path.join("/tmp/workspace/skills/agentreceipt", ".alisio-marketplace", "origin.json"),
+        "utf8",
+      ),
+    ).resolves.toContain('"slug": "agentreceipt"');
     expect(archiveCleanupMock).toHaveBeenCalledTimes(1);
   });
 

@@ -282,117 +282,11 @@ function resolveExecApprovalsSelection(state: ExecApprovalsState): ResolvedExecA
   };
 }
 
-function resolveExecApprovalsTargetLabel(state: ExecApprovalsState): string {
-  if (state.target !== "node") {
-    return t("alisio.connections.execApprovals.gateway");
-  }
-  return (
-    state.targetNodes.find((node) => node.id === state.targetNodeId)?.label ??
-    state.targetNodeId ??
-    t("alisio.connections.execApprovals.selectNode")
-  );
-}
-
-function resolveExecApprovalsScopeLabel(state: ExecApprovalsState): string {
-  if (state.selectedScope === EXEC_APPROVALS_DEFAULT_SCOPE) {
-    return t("alisio.connections.execApprovals.defaults");
-  }
-  const agent = state.agents.find((entry) => entry.id === state.selectedScope) ?? {
-    id: state.selectedScope,
-  };
-  return resolveAgentDisplayLabel(agent, {
-    assistantName: state.assistantName,
-    assistantAgentId: state.assistantAgentId,
-    primaryAgentId: state.primaryAgentId,
-  });
-}
-
-function resolveSecurityLabel(value: ExecSecurity): string {
-  return securityOptions().find((option) => option.value === value)?.label ?? value;
-}
-
-function resolveAskLabel(value: ExecAsk): string {
-  return askOptions().find((option) => option.value === value)?.label ?? value;
-}
-
-function renderExecApprovalsSummaryCard(label: string, value: string, note?: string) {
-  return html`
-    <article class="alisio-exec-approvals-summary-card">
-      <span class="alisio-exec-approvals-summary-card__label">${label}</span>
-      <strong class="alisio-exec-approvals-summary-card__value">${value}</strong>
-      ${note
-        ? html`<span class="alisio-exec-approvals-summary-card__note">${note}</span>`
-        : nothing}
-    </article>
-  `;
-}
-
-function renderExecApprovalsOverview(state: ExecApprovalsState) {
-  const selection = resolveExecApprovalsSelection(state);
-  const defaults = state.defaults;
-  const securityNote = selection.isDefaults
-    ? t("alisio.connections.execApprovals.securityDefault")
-    : selection.securityValue === "__default__"
-      ? t("alisio.connections.execApprovals.useDefault", {
-          value: resolveSecurityLabel(defaults.security),
-        })
-      : t("alisio.connections.execApprovals.defaultValue", {
-          value: resolveSecurityLabel(defaults.security),
-        });
-  const askNote = selection.isDefaults
-    ? t("alisio.connections.execApprovals.askDefault")
-    : selection.askValue === "__default__"
-      ? t("alisio.connections.execApprovals.useDefault", {
-          value: resolveAskLabel(defaults.ask),
-        })
-      : t("alisio.connections.execApprovals.defaultValue", {
-          value: resolveAskLabel(defaults.ask),
-        });
-  const fallbackNote = selection.isDefaults
-    ? t("alisio.connections.execApprovals.askFallbackDefault")
-    : selection.askFallbackValue === "__default__"
-      ? t("alisio.connections.execApprovals.useDefault", {
-          value: resolveSecurityLabel(defaults.askFallback),
-        })
-      : t("alisio.connections.execApprovals.defaultValue", {
-          value: resolveSecurityLabel(defaults.askFallback),
-        });
-
-  return html`
-    <div class="alisio-exec-approvals-summary">
-      ${renderExecApprovalsSummaryCard(
-        t("alisio.connections.execApprovals.targetTitle"),
-        resolveExecApprovalsTargetLabel(state),
-      )}
-      ${renderExecApprovalsSummaryCard(
-        t("alisio.connections.execApprovals.scope"),
-        resolveExecApprovalsScopeLabel(state),
-      )}
-      ${renderExecApprovalsSummaryCard(
-        t("alisio.connections.execApprovals.security"),
-        resolveSecurityLabel(selection.effectiveSecurity),
-        securityNote,
-      )}
-      ${renderExecApprovalsSummaryCard(
-        t("alisio.connections.execApprovals.ask"),
-        resolveAskLabel(selection.effectiveAsk),
-        askNote,
-      )}
-      ${renderExecApprovalsSummaryCard(
-        t("alisio.connections.execApprovals.askFallback"),
-        resolveSecurityLabel(selection.effectiveAskFallback),
-        fallbackNote,
-      )}
-    </div>
-  `;
-}
-
 export function renderExecApprovals(state: ExecApprovalsState) {
   const ready = state.ready;
   const targetReady = state.target !== "node" || Boolean(state.targetNodeId);
   const text = {
     title: t("alisio.connections.execApprovals.title"),
-    subtitle: t("alisio.connections.execApprovals.subtitle"),
     saving: t("alisio.connections.saving"),
     save: t("alisio.connections.save"),
     loadMessage: t("alisio.connections.execApprovals.loadMessage"),
@@ -402,10 +296,7 @@ export function renderExecApprovals(state: ExecApprovalsState) {
   return html`
     <section class="card">
       <div class="alisio-exec-approvals-head">
-        <div>
-          <div class="card-title">${text.title}</div>
-          <div class="card-sub">${text.subtitle}</div>
-        </div>
+        <div class="card-title">${text.title}</div>
         <button
           class="btn"
           ?disabled=${state.disabled || !state.dirty || !targetReady}
@@ -424,8 +315,7 @@ export function renderExecApprovals(state: ExecApprovalsState) {
             </button>
           </div>`
         : html`
-            ${renderExecApprovalsOverview(state)} ${renderExecApprovalsTabs(state)}
-            ${renderExecApprovalsPolicy(state)}
+            ${renderExecApprovalsTabs(state)} ${renderExecApprovalsPolicy(state)}
             ${state.selectedScope === EXEC_APPROVALS_DEFAULT_SCOPE
               ? nothing
               : renderExecApprovalsAllowlist(state)}
@@ -450,10 +340,7 @@ function renderExecApprovalsTarget(state: ExecApprovalsState) {
   };
   return html`
     <div class="alisio-exec-approvals-target">
-      <div class="alisio-exec-approvals-target__head">
-        <div class="list-title">${text.title}</div>
-        <div class="list-sub">${text.subtitle}</div>
-      </div>
+      <div class="list-title">${text.title}</div>
       <div class="alisio-exec-approvals-target__controls">
         <label class="field alisio-exec-approvals-target__field">
           <span>${text.host}</span>
@@ -768,10 +655,7 @@ function renderExecApprovalsAllowlist(state: ExecApprovalsState) {
   const entries = state.allowlist;
   return html`
     <div class="alisio-exec-approvals-allowlist__head">
-      <div>
-        <div class="card-title">${t("alisio.connections.execApprovals.allowlistTitle")}</div>
-        <div class="card-sub">${t("alisio.connections.execApprovals.allowlistSubtitle")}</div>
-      </div>
+      <div class="card-title">${t("alisio.connections.execApprovals.allowlistTitle")}</div>
       <button
         class="btn btn--sm"
         ?disabled=${state.disabled}

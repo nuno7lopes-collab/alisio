@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { currentPluginManifestName } from "./alisio-branding.mjs";
 
 export function readIfExists(filePath) {
   try {
@@ -12,6 +13,7 @@ export function readIfExists(filePath) {
 export function collectBundledPluginSources(params = {}) {
   const repoRoot = path.resolve(params.repoRoot ?? process.cwd());
   const extensionsRoot = path.join(repoRoot, "extensions");
+  const pluginManifestName = currentPluginManifestName(repoRoot);
   if (!fs.existsSync(extensionsRoot)) {
     return [];
   }
@@ -24,7 +26,7 @@ export function collectBundledPluginSources(params = {}) {
     }
 
     const pluginDir = path.join(extensionsRoot, dirent.name);
-    const manifestPath = path.join(pluginDir, "openclaw.plugin.json");
+    const manifestPath = path.join(pluginDir, pluginManifestName);
     const packageJsonPath = path.join(pluginDir, "package.json");
     if (!fs.existsSync(manifestPath)) {
       continue;

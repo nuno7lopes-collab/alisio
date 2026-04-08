@@ -16,7 +16,7 @@ export type SkillInstallSpec = {
   targetDir?: string;
 };
 
-export type OpenClawSkillMetadata = {
+export type LegacySkillMetadata = {
   always?: boolean;
   skillKey?: string;
   primaryEnv?: string;
@@ -30,6 +30,97 @@ export type OpenClawSkillMetadata = {
     config?: string[];
   };
   install?: SkillInstallSpec[];
+};
+
+export type SkillManifestIssue = {
+  level: "error" | "warn";
+  path?: string;
+  message: string;
+};
+
+export type SkillSandboxMode = "isolated" | "inherit";
+
+export type SkillSandboxFilesystemMode = "read-only" | "workspace-write";
+
+export type SkillSandboxNetworkMode = "off" | "inherit";
+
+export type SkillPermissionSpec = {
+  consent: "implicit" | "explicit";
+  sandbox: {
+    mode: SkillSandboxMode;
+    filesystem: SkillSandboxFilesystemMode;
+    network: SkillSandboxNetworkMode;
+  };
+  exec?: {
+    bins?: string[];
+  };
+  env?: {
+    read?: string[];
+  };
+  files?: {
+    read?: string[];
+    write?: string[];
+  };
+  network?: {
+    outbound?: boolean;
+    hosts?: string[];
+  };
+  mcp?: {
+    consume?: boolean;
+    exposeTools?: boolean;
+    exposePrompts?: boolean;
+    exposeResources?: boolean;
+  };
+};
+
+export type SkillOutputsSpec = {
+  primary: "instructions" | "tool" | "prompt" | "resource";
+  formats: string[];
+};
+
+export type SkillCompatibilitySpec = {
+  os?: string[];
+  runtimes?: string[];
+  requires?: {
+    bins?: string[];
+    anyBins?: string[];
+    env?: string[];
+    config?: string[];
+  };
+  mcp?: {
+    transports?: string[];
+    capabilities?: Array<"tools" | "prompts" | "resources">;
+  };
+};
+
+export type SkillSubscriptionSpec = {
+  required: boolean;
+  plan?: string;
+  featureFlag?: string;
+};
+
+export type SkillManifest = {
+  schemaVersion: 1;
+  name: string;
+  version: string;
+  description?: string;
+  always?: boolean;
+  skillKey?: string;
+  primaryEnv?: string;
+  emoji?: string;
+  homepage?: string;
+  install?: SkillInstallSpec[];
+  permissions: SkillPermissionSpec;
+  outputs: SkillOutputsSpec;
+  compat: SkillCompatibilitySpec;
+  subscription?: SkillSubscriptionSpec;
+};
+
+export type SkillManifestValidation = {
+  valid: boolean;
+  explicit: boolean;
+  source: "manifest" | "legacy-metadata" | "inferred";
+  issues: SkillManifestIssue[];
 };
 
 export type SkillInvocationPolicy = {
@@ -70,7 +161,9 @@ export type ParsedSkillFrontmatter = Record<string, string>;
 export type SkillEntry = {
   skill: Skill;
   frontmatter: ParsedSkillFrontmatter;
-  metadata?: OpenClawSkillMetadata;
+  metadata?: LegacySkillMetadata;
+  manifest?: SkillManifest;
+  manifestValidation?: SkillManifestValidation;
   invocation?: SkillInvocationPolicy;
 };
 

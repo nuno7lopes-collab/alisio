@@ -6,6 +6,7 @@ import type { GatewayHelloOk } from "./gateway.ts";
 
 const loadChatHistoryMock = vi.hoisted(() => vi.fn(async () => undefined));
 const refreshActiveTabMock = vi.hoisted(() => vi.fn());
+const loadAlisioDoctorSummaryMock = vi.hoisted(() => vi.fn(async () => undefined));
 const loadControlUiBootstrapConfigMock = vi.hoisted(() =>
   vi.fn(
     async (state: {
@@ -142,6 +143,14 @@ vi.mock("./app-settings.ts", async (importOriginal) => {
   };
 });
 
+vi.mock("./controllers/alisio.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./controllers/alisio.ts")>();
+  return {
+    ...actual,
+    loadAlisioDoctorSummary: loadAlisioDoctorSummaryMock,
+  };
+});
+
 vi.mock("./device-auth.ts", () => ({
   clearDeviceAuthToken: clearDeviceAuthTokenMock,
 }));
@@ -187,7 +196,6 @@ function createHost(): GatewayTestHost {
       navCollapsed: false,
       navWidth: 280,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     },
     password: "",
     gatewayBootstrapUrl: null,
@@ -271,6 +279,7 @@ describe("connectGateway", () => {
     gatewayClientInstances.length = 0;
     loadChatHistoryMock.mockClear();
     refreshActiveTabMock.mockClear();
+    loadAlisioDoctorSummaryMock.mockClear();
     loadControlUiBootstrapConfigMock.mockClear();
     clearDeviceAuthTokenMock.mockClear();
     loadOrCreateDeviceIdentityMock.mockClear();
@@ -445,6 +454,39 @@ describe("connectGateway", () => {
     expect(refreshActiveTabMock).toHaveBeenCalledTimes(1);
     expect(refreshActiveTabMock).toHaveBeenCalledWith(host, { includeChatHistory: false });
     expect(loadChatHistoryMock).not.toHaveBeenCalled();
+  });
+
+  it("precarrega o doctor antes de refrescar o setup no hello", async () => {
+    const host = createHost();
+    host.tab = "setup";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitHello();
+
+    await vi.waitFor(() => {
+      expect(loadAlisioDoctorSummaryMock).toHaveBeenCalledTimes(1);
+      expect(refreshActiveTabMock).toHaveBeenCalledWith(host, {
+        includeChatHistory: true,
+        preloadedShellState: "doctor",
+      });
+    });
+  });
+
+  it("mantem refresh imediato nas tabs normais e faz prefetch do doctor em background", () => {
+    const host = createHost();
+    host.tab = "connections";
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitHello();
+
+    expect(loadAlisioDoctorSummaryMock).toHaveBeenCalledTimes(1);
+    expect(refreshActiveTabMock).toHaveBeenCalledWith(host, { includeChatHistory: true });
   });
 
   it("reloads chat history after transparent reconnect when a run was interrupted", () => {
@@ -693,7 +735,7 @@ describe("connectGateway", () => {
     });
 
     expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH);
-    expect(host.lastError).toBe("Failed to fetch gateway metadata from ws://127.0.0.1:18789");
+    expect(host.lastError).toBe("Failed to fetch Alisio metadata from ws://127.0.0.1:18789");
   });
 
   it("prefers structured connect errors over close reason", () => {

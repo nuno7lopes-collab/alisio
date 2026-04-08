@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { captureFullEnv } from "../test-utils/env.js";
 import { resolveSandboxContext } from "./sandbox/context.js";
 import { writeSkill } from "./skills.e2e-test-helpers.js";
@@ -43,7 +43,7 @@ describe("sandbox skill mirroring", () => {
       description: "Demo skill",
     });
 
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       agents: {
         defaults: {
           sandbox: {

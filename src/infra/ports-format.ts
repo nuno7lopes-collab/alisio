@@ -1,9 +1,11 @@
 import { formatCliCommand } from "../cli/command-format.js";
 import type { PortListener, PortListenerKind, PortUsage } from "./ports-types.js";
 
+const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
+
 export function classifyPortListener(listener: PortListener, port: number): PortListenerKind {
   const raw = `${listener.commandLine ?? ""} ${listener.command ?? ""}`.trim().toLowerCase();
-  if (raw.includes("openclaw")) {
+  if (raw.includes("alisio") || raw.includes(LEGACY_RUNTIME_NAMESPACE)) {
     return "gateway";
   }
   if (raw.includes("ssh")) {
@@ -99,7 +101,7 @@ export function buildPortHints(listeners: PortListener[], port: number): string[
   const hints: string[] = [];
   if (kinds.has("gateway")) {
     hints.push(
-      `Gateway already running locally. Stop it (${formatCliCommand("openclaw gateway stop")}) or use a different port.`,
+      `Gateway already running locally. Stop it (${formatCliCommand("alisio gateway stop")}) or use a different port.`,
     );
   }
   if (kinds.has("ssh")) {

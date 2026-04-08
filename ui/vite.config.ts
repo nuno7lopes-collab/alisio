@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import { legacyControlUiConfigPath } from "./src/brand-compat.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,7 +44,7 @@ export default defineConfig(() => {
           target: "http://127.0.0.1:18789",
           changeOrigin: true,
         },
-        "/__openclaw/control-ui-config.json": {
+        [legacyControlUiConfigPath]: {
           target: "http://127.0.0.1:18789",
           changeOrigin: true,
         },

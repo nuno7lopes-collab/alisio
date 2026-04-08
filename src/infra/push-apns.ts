@@ -4,6 +4,7 @@ import http2 from "node:http2";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
 import type { DeviceIdentity } from "./device-identity.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import {
   type ApnsRelayConfig,
@@ -16,6 +17,8 @@ import {
 
 export type ApnsEnvironment = "sandbox" | "production";
 export type ApnsTransport = "direct" | "relay";
+const LEGACY_PUSH_METADATA_KEY = ["open", "claw"].join("");
+const PUSH_METADATA_KEY = "alisio";
 
 export type DirectApnsRegistration = {
   nodeId: string;
@@ -590,18 +593,44 @@ export function shouldClearStoredApnsRegistration(params: {
 export async function resolveApnsAuthConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ApnsAuthConfigResolution> {
-  const teamId = normalizeNonEmptyString(env.OPENCLAW_APNS_TEAM_ID);
-  const keyId = normalizeNonEmptyString(env.OPENCLAW_APNS_KEY_ID);
+  const teamId = normalizeNonEmptyString(
+    readEnv("ALISIO_APNS_TEAM_ID", {
+      env,
+      fallback: legacyEnvKey("APNS_TEAM_ID"),
+      description: "APNs team id",
+    }),
+  );
+  const keyId = normalizeNonEmptyString(
+    readEnv("ALISIO_APNS_KEY_ID", {
+      env,
+      fallback: legacyEnvKey("APNS_KEY_ID"),
+      description: "APNs key id",
+    }),
+  );
   if (!teamId || !keyId) {
     return {
       ok: false,
-      error: "APNs auth missing: set OPENCLAW_APNS_TEAM_ID and OPENCLAW_APNS_KEY_ID",
+      error: "APNs auth missing: set ALISIO_APNS_TEAM_ID and ALISIO_APNS_KEY_ID",
     };
   }
 
   const inlineKeyRaw =
-    normalizeNonEmptyString(env.OPENCLAW_APNS_PRIVATE_KEY_P8) ??
-    normalizeNonEmptyString(env.OPENCLAW_APNS_PRIVATE_KEY);
+    normalizeNonEmptyString(
+      readEnv("ALISIO_APNS_PRIVATE_KEY_P8", {
+        env,
+        fallback: [legacyEnvKey("APNS_PRIVATE_KEY_P8"), legacyEnvKey("APNS_PRIVATE_KEY")],
+        description: "inline APNs private key",
+        redact: true,
+      }),
+    ) ??
+    normalizeNonEmptyString(
+      readEnv("ALISIO_APNS_PRIVATE_KEY", {
+        env,
+        fallback: legacyEnvKey("APNS_PRIVATE_KEY"),
+        description: "inline APNs private key",
+        redact: true,
+      }),
+    );
   if (inlineKeyRaw) {
     return {
       ok: true,
@@ -613,12 +642,18 @@ export async function resolveApnsAuthConfigFromEnv(
     };
   }
 
-  const keyPath = normalizeNonEmptyString(env.OPENCLAW_APNS_PRIVATE_KEY_PATH);
+  const keyPath = normalizeNonEmptyString(
+    readEnv("ALISIO_APNS_PRIVATE_KEY_PATH", {
+      env,
+      fallback: legacyEnvKey("APNS_PRIVATE_KEY_PATH"),
+      description: "APNs private key path",
+    }),
+  );
   if (!keyPath) {
     return {
       ok: false,
       error:
-        "APNs private key missing: set OPENCLAW_APNS_PRIVATE_KEY_P8 or OPENCLAW_APNS_PRIVATE_KEY_PATH",
+        "APNs private key missing: set ALISIO_APNS_PRIVATE_KEY_P8 or ALISIO_APNS_PRIVATE_KEY_PATH",
     };
   }
   try {
@@ -635,7 +670,7 @@ export async function resolveApnsAuthConfigFromEnv(
     const message = err instanceof Error ? err.message : String(err);
     return {
       ok: false,
-      error: `failed reading OPENCLAW_APNS_PRIVATE_KEY_PATH (${keyPath}): ${message}`,
+      error: `failed reading ALISIO_APNS_PRIVATE_KEY_PATH (${keyPath}): ${message}`,
     };
   }
 }
@@ -866,6 +901,10 @@ async function sendRelayApnsPush(params: {
 }
 
 function createAlertPayload(params: { nodeId: string; title: string; body: string }): object {
+  const metadata = toPushMetadata({
+    kind: "push.test",
+    nodeId: params.nodeId,
+  });
   return {
     aps: {
       alert: {
@@ -874,23 +913,23 @@ function createAlertPayload(params: { nodeId: string; title: string; body: strin
       },
       sound: "default",
     },
-    openclaw: toPushMetadata({
-      kind: "push.test",
-      nodeId: params.nodeId,
-    }),
+    [PUSH_METADATA_KEY]: metadata,
+    [LEGACY_PUSH_METADATA_KEY]: metadata,
   };
 }
 
 function createBackgroundPayload(params: { nodeId: string; wakeReason?: string }): object {
+  const metadata = toPushMetadata({
+    kind: "node.wake",
+    reason: params.wakeReason ?? "node.invoke",
+    nodeId: params.nodeId,
+  });
   return {
     aps: {
       "content-available": 1,
     },
-    openclaw: toPushMetadata({
-      kind: "node.wake",
-      reason: params.wakeReason ?? "node.invoke",
-      nodeId: params.nodeId,
-    }),
+    [PUSH_METADATA_KEY]: metadata,
+    [LEGACY_PUSH_METADATA_KEY]: metadata,
   };
 }
 

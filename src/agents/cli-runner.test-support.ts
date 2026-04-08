@@ -3,7 +3,7 @@ import { beforeEach, vi } from "vitest";
 import { buildAnthropicCliBackend } from "../../extensions/anthropic/test-api.js";
 import { buildGoogleGeminiCliBackend } from "../../extensions/google/test-api.js";
 import { buildOpenAICodexCliBackend } from "../../extensions/openai/test-api.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import { setActivePluginRegistry } from "../plugins/runtime.js";
 import { setCliRunnerExecuteTestDeps } from "./cli-runner/execute.js";
@@ -112,7 +112,7 @@ export const EXISTING_CODEX_CONFIG = {
       },
     },
   },
-} satisfies OpenClawConfig;
+} satisfies AlisioConfig;
 
 export async function setupCliRunnerTestModule() {
   const registry = createEmptyPluginRegistry();
@@ -177,7 +177,7 @@ export async function runCliAgentWithBackendConfig(params: {
           },
         },
       },
-    } satisfies OpenClawConfig,
+    } satisfies AlisioConfig,
     prompt: "hi",
     provider: "codex-cli",
     model: "gpt-5.2-codex",

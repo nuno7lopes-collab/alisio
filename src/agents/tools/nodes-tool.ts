@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { OperatorScope } from "../../gateway/method-scopes.js";
 import { NODE_SYSTEM_RUN_COMMANDS } from "../../infra/node-commands.js";
 import type { GatewayMessageChannel } from "../../utils/message-channel.js";
@@ -133,7 +133,7 @@ export function createNodesTool(options?: {
   agentAccountId?: string;
   currentChannelId?: string;
   currentThreadTs?: string | number;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   modelHasVision?: boolean;
   allowMediaInvokeCommands?: boolean;
 }): AnyAgentTool {

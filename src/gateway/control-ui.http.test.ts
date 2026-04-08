@@ -16,6 +16,50 @@ import {
 import { makeMockHttpResponse } from "./test-http-response.js";
 
 describe("handleControlUiHttpRequest", () => {
+  async function writeReadyAlisioState(root: string) {
+    const statePath = path.join(root, "alisio", "state.json");
+    await fs.mkdir(path.dirname(statePath), { recursive: true });
+    await fs.writeFile(
+      statePath,
+      JSON.stringify(
+        {
+          version: 1,
+          account: {
+            profile: {
+              userId: "user-1",
+              username: "nuno",
+              displayName: "Nuno Lopes",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: "2026-04-04T15:00:00.000Z",
+              plan: "Free Plan",
+              backend: "supabase",
+            },
+            preferences: {
+              language: "pt-PT",
+              theme: "dark",
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+              signedInAt: "2026-04-04T15:00:00.000Z",
+              backend: "supabase",
+            },
+          },
+          organization: {
+            mode: "none",
+          },
+          ai: {},
+          authorizations: {},
+          oauthCredentials: {},
+          pendingAuthorizations: {},
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
   async function withControlUiRoot<T>(params: {
     indexHtml?: string;
     fn: (tmp: string) => Promise<T>;
@@ -270,7 +314,14 @@ describe("handleControlUiHttpRequest", () => {
         {
           trustedProxies: [],
           allowRealIpFallback: false,
-          loadRuntimeSetup: async () => ({ providerReady: false }),
+          loadRuntimeSetup: async () => ({
+            providerReady: false,
+            models: {
+              total: 0,
+              defaultProvider: "openai",
+              providers: [],
+            },
+          }),
         },
       );
 
@@ -288,6 +339,52 @@ describe("handleControlUiHttpRequest", () => {
       expect(parsed.ai).toEqual({ provider: "openai", status: "disconnected" });
       expect(typeof parsed.bootstrapToken).toBe("string");
       expect(parsed.bootstrapToken?.length).toBeGreaterThan(10);
+    } finally {
+      if (previousStateDir === undefined) {
+        delete process.env.OPENCLAW_STATE_DIR;
+      } else {
+        process.env.OPENCLAW_STATE_DIR = previousStateDir;
+      }
+      await fs.rm(stateDir, { recursive: true, force: true });
+    }
+  });
+
+  it("treats local-only runtime bootstrap as ready before the websocket connects", async () => {
+    const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-alisio-bootstrap-"));
+    const previousStateDir = process.env.OPENCLAW_STATE_DIR;
+    process.env.OPENCLAW_STATE_DIR = stateDir;
+    try {
+      await writeReadyAlisioState(stateDir);
+      const { res, end } = makeMockHttpResponse();
+      const handled = await handleAlisioBootstrapHttpRequest(
+        {
+          url: ALISIO_BOOTSTRAP_HTTP_PATH,
+          method: "GET",
+          headers: { host: "127.0.0.1:18789" },
+          socket: { remoteAddress: "127.0.0.1" },
+        } as IncomingMessage,
+        res,
+        {
+          trustedProxies: [],
+          allowRealIpFallback: false,
+          loadRuntimeSetup: async () => ({
+            providerReady: false,
+            models: {
+              total: 1,
+              defaultProvider: "alisio-local-current",
+              providers: ["alisio-local-current"],
+            },
+          }),
+        },
+      );
+
+      expect(handled).toBe(true);
+      expect(res.statusCode).toBe(200);
+      const parsed = parseAlisioBootstrapPayload(end);
+      expect(parsed.startupState).toBe("ready");
+      expect(parsed.providerReady).toBe(true);
+      expect(parsed.accountReady).toBe(true);
+      expect(parsed.nextStep).toBe("organization");
     } finally {
       if (previousStateDir === undefined) {
         delete process.env.OPENCLAW_STATE_DIR;

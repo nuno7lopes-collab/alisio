@@ -53,9 +53,9 @@ function tokenOnlyPluginConfig() {
 
 function makeUnavailableTokenPlugin(): ChannelPlugin {
   return makeDirectPlugin({
-    id: "token-only",
-    label: "TokenOnly",
-    docsPath: "/channels/token-only",
+    id: "discord",
+    label: "Discord",
+    docsPath: "/channels/discord",
     config: {
       ...tokenOnlyPluginConfig(),
       resolveAccount: () => unresolvedTokenAccount(),
@@ -65,9 +65,9 @@ function makeUnavailableTokenPlugin(): ChannelPlugin {
 
 function makeResolvedTokenPlugin(): ChannelPlugin {
   return makeDirectPlugin({
-    id: "token-only",
-    label: "TokenOnly",
-    docsPath: "/channels/token-only",
+    id: "discord",
+    label: "Discord",
+    docsPath: "/channels/discord",
     config: {
       ...tokenOnlyPluginConfig(),
       inspectAccount: (cfg) =>
@@ -89,12 +89,12 @@ function makeResolvedTokenPlugin(): ChannelPlugin {
 
 function makeResolvedTokenPluginWithoutInspectAccount(): ChannelPlugin {
   return {
-    id: "token-only",
+    id: "discord",
     meta: {
-      id: "token-only",
-      label: "TokenOnly",
-      selectionLabel: "TokenOnly",
-      docsPath: "/channels/token-only",
+      id: "discord",
+      label: "Discord",
+      selectionLabel: "Discord",
+      docsPath: "/channels/discord",
       blurb: "test",
     },
     capabilities: { chatTypes: ["direct"] },
@@ -155,11 +155,39 @@ function makeUnavailableHttpSlackPlugin(): ChannelPlugin {
   });
 }
 
+function makeHiddenSignalPlugin(): ChannelPlugin {
+  return makeDirectPlugin({
+    id: "signal",
+    label: "Signal",
+    docsPath: "/channels/signal",
+    config: {
+      listAccountIds: () => ["primary"],
+      defaultAccountId: () => "primary",
+      inspectAccount: () => ({
+        accountId: "primary",
+        name: "Primary",
+        enabled: true,
+        configured: true,
+        token: "signal-token",
+        tokenSource: "config",
+        tokenStatus: "available",
+      }),
+      resolveAccount: () => ({
+        name: "Primary",
+        enabled: true,
+        configured: true,
+      }),
+      isConfigured: () => true,
+      isEnabled: () => true,
+    },
+  });
+}
+
 function expectResolvedTokenStatusSummary(
   summary: string,
   options?: { includeUnavailableTokenLine?: boolean },
 ) {
-  expect(summary).toContain("TokenOnly");
+  expect(summary).toContain("Discord");
   expect(summary).toContain("configured");
   expect(summary).toContain("token:config");
   expect(summary).not.toContain("secret unavailable in this command path");
@@ -174,16 +202,16 @@ describe("config-only channels status output", () => {
   });
 
   it("shows configured-but-unavailable credentials distinctly from not configured", async () => {
-    registerSingleTestPlugin("token-only", makeUnavailableTokenPlugin());
+    registerSingleTestPlugin("discord", makeUnavailableTokenPlugin());
 
     const joined = await formatLocalStatusSummary({ channels: {} });
-    expect(joined).toContain("TokenOnly");
+    expect(joined).toContain("Discord");
     expect(joined).toContain("configured, secret unavailable in this command path");
     expect(joined).toContain("token:config (unavailable)");
   });
 
   it("prefers resolved config snapshots when command-local secret resolution succeeds", async () => {
-    registerSingleTestPlugin("token-only", makeResolvedTokenPlugin());
+    registerSingleTestPlugin("discord", makeResolvedTokenPlugin());
 
     const joined = await formatLocalStatusSummary(
       { secretResolved: true, channels: {} },
@@ -195,7 +223,7 @@ describe("config-only channels status output", () => {
   });
 
   it("does not resolve raw source config for extension channels without inspectAccount", async () => {
-    registerSingleTestPlugin("token-only", makeResolvedTokenPluginWithoutInspectAccount());
+    registerSingleTestPlugin("discord", makeResolvedTokenPluginWithoutInspectAccount());
 
     const joined = await formatLocalStatusSummary(
       { secretResolved: true, channels: {} },
@@ -206,14 +234,34 @@ describe("config-only channels status output", () => {
     expectResolvedTokenStatusSummary(joined);
   });
 
-  it("renders Slack HTTP signing-secret availability in config-only status", async () => {
+  it("hides Slack from config-only status output", async () => {
     registerSingleTestPlugin("slack", makeUnavailableHttpSlackPlugin());
 
     const joined = await formatLocalStatusSummary({ channels: {} });
-    expect(joined).toContain("Slack");
-    expect(joined).toContain("configured, secret unavailable in this command path");
-    expect(joined).toContain("mode:http");
-    expect(joined).toContain("bot:config");
-    expect(joined).toContain("signing:config (unavailable)");
+    expect(joined).not.toContain("Slack");
+    expect(joined).not.toContain("signing:config");
+  });
+
+  it("hides non-product channels from config-only status output", async () => {
+    setActivePluginRegistry(
+      createTestRegistry([
+        {
+          pluginId: "signal",
+          source: "test",
+          plugin: makeHiddenSignalPlugin(),
+        },
+      ]),
+    );
+
+    const joined = await formatLocalStatusSummary({
+      channels: {
+        signal: {
+          token: "signal-token",
+        },
+      },
+    });
+
+    expect(joined).not.toContain("Signal");
+    expect(joined).not.toContain("signal");
   });
 });

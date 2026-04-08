@@ -1,5 +1,6 @@
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { legacyColonKey } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import type { AssistantIdentity } from "../assistant-identity.ts";
@@ -358,7 +359,7 @@ function extractGroupText(group: MessageGroup): string {
 }
 
 const SKIP_DELETE_CONFIRM_KEY = "alisio:skipDeleteConfirm";
-const LEGACY_SKIP_DELETE_CONFIRM_KEYS = ["openclaw:skipDeleteConfirm"];
+const LEGACY_SKIP_DELETE_CONFIRM_KEYS = [legacyColonKey("skipDeleteConfirm")];
 
 type DeleteConfirmSide = "left" | "right";
 

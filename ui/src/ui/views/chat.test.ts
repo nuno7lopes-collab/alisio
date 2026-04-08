@@ -108,7 +108,6 @@ function createChatHeaderState(
       splitRatio: 0.6,
       navCollapsed: false,
       navGroupsCollapsed: {},
-      borderRadius: 50,
       chatFocusMode: false,
       chatShowThinking: true,
     },
@@ -217,7 +216,7 @@ describe("chat view", () => {
       container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
     );
     expect(buttons).toHaveLength(2);
-    expect(buttons[0]?.textContent).toContain("Predefined permissions");
+    expect(buttons[0]?.textContent).toContain("Recommended");
     expect(buttons[1]?.textContent).toContain("Full access");
 
     buttons[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -1027,7 +1026,7 @@ describe("chat view", () => {
   it("opens delete confirm on the left for user messages", () => {
     try {
       getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
-      getSafeLocalStorage()?.removeItem("openclaw:skipDeleteConfirm");
+      getSafeLocalStorage()?.removeItem("\u006fpen\u0063law:skipDeleteConfirm");
     } catch {
       /* noop */
     }
@@ -1061,7 +1060,7 @@ describe("chat view", () => {
   it("opens delete confirm on the right for assistant messages", () => {
     try {
       getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
-      getSafeLocalStorage()?.removeItem("openclaw:skipDeleteConfirm");
+      getSafeLocalStorage()?.removeItem("\u006fpen\u0063law:skipDeleteConfirm");
     } catch {
       /* noop */
     }

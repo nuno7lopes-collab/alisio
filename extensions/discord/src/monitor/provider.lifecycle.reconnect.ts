@@ -89,6 +89,11 @@ export function createDiscordGatewayReconnectController(params: {
     params.gateway.state.sequence = null;
     params.gateway.sequence = null;
   };
+  const readReconnectAttempts = () => {
+    const attempts = (params.gateway as { reconnectAttempts?: unknown } | undefined)
+      ?.reconnectAttempts;
+    return typeof attempts === "number" && Number.isFinite(attempts) ? attempts : 0;
+  };
   const triggerForceStop = (err: unknown) => {
     if (forceStopHandler) {
       forceStopHandler(err);
@@ -111,12 +116,14 @@ export function createDiscordGatewayReconnectController(params: {
       );
       params.pushStatus({
         connected: false,
+        reconnectAttempts: readReconnectAttempts(),
         lastEventAt: at,
         lastDisconnect: {
           at,
           error: error.message,
         },
         lastError: error.message,
+        healthState: "reconnecting",
       });
       params.runtime.error?.(
         danger(
@@ -129,7 +136,10 @@ export function createDiscordGatewayReconnectController(params: {
   const pushConnectedStatus = (at: number) => {
     params.pushStatus({
       ...createConnectedChannelStatusPatch(at),
+      reconnectAttempts: 0,
       lastDisconnect: null,
+      lastError: null,
+      healthState: "healthy",
     });
   };
   const disconnectGatewaySocketWithoutAutoReconnect = async () => {
@@ -309,10 +319,12 @@ export function createDiscordGatewayReconnectController(params: {
       reconnectStallWatchdog.arm(at);
       params.pushStatus({
         connected: false,
+        reconnectAttempts: readReconnectAttempts(),
         lastDisconnect: {
           at,
           status: parseGatewayCloseCode(message),
         },
+        healthState: "reconnecting",
       });
       clearHelloWatch();
       return;
@@ -361,11 +373,13 @@ export function createDiscordGatewayReconnectController(params: {
           reconnectStallWatchdog.arm(stalledAt);
           params.pushStatus({
             connected: false,
+            reconnectAttempts: readReconnectAttempts(),
             lastEventAt: stalledAt,
             lastDisconnect: {
               at: stalledAt,
               error: "hello-timeout",
             },
+            healthState: "reconnecting",
           });
           params.runtime.log?.(
             danger(
@@ -397,7 +411,12 @@ export function createDiscordGatewayReconnectController(params: {
   const onAbort = () => {
     reconnectStallWatchdog.disarm();
     const at = Date.now();
-    params.pushStatus({ connected: false, lastEventAt: at });
+    params.pushStatus({
+      connected: false,
+      reconnectAttempts: readReconnectAttempts(),
+      lastEventAt: at,
+      healthState: "stopped",
+    });
     if (!params.gateway) {
       return;
     }
@@ -430,11 +449,13 @@ export function createDiscordGatewayReconnectController(params: {
       const startupRetryAt = Date.now();
       params.pushStatus({
         connected: false,
+        reconnectAttempts: readReconnectAttempts(),
         lastEventAt: startupRetryAt,
         lastDisconnect: {
           at: startupRetryAt,
           error: "startup-not-ready",
         },
+        healthState: "reconnecting",
       });
       await reconnectGatewayFresh();
       const reconnected = await waitForDiscordGatewayReady({
@@ -453,12 +474,14 @@ export function createDiscordGatewayReconnectController(params: {
         const startupFailureAt = Date.now();
         params.pushStatus({
           connected: false,
+          reconnectAttempts: readReconnectAttempts(),
           lastEventAt: startupFailureAt,
           lastDisconnect: {
             at: startupFailureAt,
             error: "startup-reconnect-timeout",
           },
           lastError: error.message,
+          healthState: "stopped",
         });
         throw error;
       }

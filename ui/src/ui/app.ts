@@ -75,7 +75,7 @@ import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import { todayMemoryDate } from "./memory-files.ts";
 import type { ModelsOperationMap, ModelsServerDraft } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
-import { FIXED_BORDER_RADIUS, loadSettings, type UiSettings } from "./storage.ts";
+import { loadSettings, type UiSettings } from "./storage.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
 import type {
   AgentsListResult,
@@ -111,7 +111,7 @@ declare global {
 
 const bootAssistantIdentity = normalizeAssistantIdentity({});
 
-export class OpenClawApp extends LitElement {
+export class AlisioApp extends LitElement {
   private i18nController = new I18nController(this);
   clientInstanceId = generateUUID();
   connectGeneration = 0;
@@ -797,14 +797,6 @@ export class OpenClawApp extends LitElement {
     );
   }
 
-  setBorderRadius(_value: number) {
-    applySettingsInternal(this as unknown as Parameters<typeof applySettingsInternal>[0], {
-      ...this.settings,
-      borderRadius: FIXED_BORDER_RADIUS,
-    });
-    this.requestUpdate();
-  }
-
   async loadOverview() {
     await loadOverviewInternal(this as unknown as Parameters<typeof loadOverviewInternal>[0]);
   }
@@ -916,5 +908,5 @@ export class OpenClawApp extends LitElement {
 }
 
 if (typeof customElements !== "undefined" && !customElements.get("alisio-app")) {
-  customElements.define("alisio-app", OpenClawApp);
+  customElements.define("alisio-app", AlisioApp);
 }

@@ -5,25 +5,37 @@ import {
   listChannelPlugins,
   normalizeChannelId,
 } from "../../channels/plugins/index.js";
+import {
+  applyPairingApprovalToConfig,
+  getPairingAdapter,
+  notifyPairingApproved,
+} from "../../channels/plugins/pairing.js";
 import { buildChannelAccountSnapshot } from "../../channels/plugins/status.js";
 import type {
   ChannelAccountSnapshot,
   ChannelPlugin,
   ChannelStatusIssue,
 } from "../../channels/plugins/types.js";
-import { listChatChannels } from "../../channels/registry.js";
+import { listProductChatChannels } from "../../channels/product-surface.js";
 import { isChannelConfigured } from "../../config/channel-configured.js";
-import type { OpenClawConfig } from "../../config/config.js";
-import { loadConfig, readConfigFileSnapshot } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
+import { loadConfig, readConfigFileSnapshot, writeConfigFile } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { getChannelActivity } from "../../infra/channel-activity.js";
 import { collectChannelStatusIssues } from "../../infra/channels-status-issues.js";
+import {
+  approveChannelPairingRequestById,
+  rejectChannelPairingRequest,
+  removeChannelAllowFromStoreEntry,
+} from "../../pairing/pairing-store.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import { defaultRuntime } from "../../runtime.js";
 import {
   ErrorCodes,
   errorShape,
   formatValidationErrors,
+  validateChannelsPairingApproveParams,
+  validateChannelsPairingRejectParams,
   validateChannelsLogoutParams,
   validateChannelsStatusParams,
 } from "../protocol/index.js";
@@ -37,18 +49,30 @@ type ChannelLogoutPayload = {
   [key: string]: unknown;
 };
 
+type ChannelPairingPayload = {
+  channel: ChannelId;
+  accountId: string;
+  requestId: string;
+};
+
 function appendChannelIssue(issuesMap: Record<string, unknown>, issue: ChannelStatusIssue): void {
   const channelIssues = (issuesMap[issue.channel] as ChannelStatusIssue[] | undefined) ?? [];
   channelIssues.push(issue);
   issuesMap[issue.channel] = channelIssues;
 }
 
-const ALISIO_PUBLIC_CHANNEL_IDS = ["telegram", "whatsapp", "discord"] as const;
+function resolvePairingChannelId(rawChannel: unknown): ChannelId | null {
+  const channelId = typeof rawChannel === "string" ? normalizeChannelId(rawChannel) : null;
+  if (!channelId || !getPairingAdapter(channelId)) {
+    return null;
+  }
+  return channelId;
+}
 
 export async function logoutChannelAccount(params: {
   channelId: ChannelId;
   accountId?: string | null;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   context: GatewayRequestContext;
   plugin: ChannelPlugin;
 }): Promise<ChannelLogoutPayload> {
@@ -106,14 +130,10 @@ export const channelsHandlers: GatewayRequestHandlers = {
     const pluginMap = new Map<ChannelId, ChannelPlugin>(
       runtimePlugins.map((plugin) => [plugin.id, plugin]),
     );
-    const resolvedEntries = listChatChannels()
-      .filter((entry) =>
-        ALISIO_PUBLIC_CHANNEL_IDS.includes(entry.id as (typeof ALISIO_PUBLIC_CHANNEL_IDS)[number]),
-      )
-      .map((entry) => ({
-        id: entry.id,
-        meta: entry,
-      }));
+    const resolvedEntries = listProductChatChannels().map((entry) => ({
+      id: entry.id,
+      meta: entry,
+    }));
 
     const resolveRuntimeSnapshot = (
       channelId: ChannelId,
@@ -388,5 +408,129 @@ export const channelsHandlers: GatewayRequestHandlers = {
     } catch (err) {
       respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatForLog(err)));
     }
+  },
+  "channels.pairing.approve": async ({ params, respond, context }) => {
+    if (!validateChannelsPairingApproveParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid channels.pairing.approve params: ${formatValidationErrors(
+            validateChannelsPairingApproveParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const channelId = resolvePairingChannelId((params as { channel?: unknown }).channel);
+    if (!channelId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid channels.pairing channel"),
+      );
+      return;
+    }
+    const requestId = String((params as { requestId: string }).requestId ?? "").trim();
+    const accountId = String((params as { accountId?: string }).accountId ?? "").trim();
+    const approved = await approveChannelPairingRequestById({
+      channel: channelId,
+      requestId,
+      ...(accountId ? { accountId } : {}),
+    });
+    if (!approved) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"));
+      return;
+    }
+
+    const currentCfg = loadConfig();
+    const nextCfg = await applyPairingApprovalToConfig({
+      channelId,
+      id: approved.id,
+      cfg: currentCfg,
+      ...(accountId ? { accountId } : {}),
+    });
+    const resolvedAccountId =
+      accountId || String(approved.entry?.meta?.accountId ?? "").trim() || DEFAULT_ACCOUNT_ID;
+    if (nextCfg !== currentCfg) {
+      await writeConfigFile(nextCfg);
+      await removeChannelAllowFromStoreEntry({
+        channel: channelId,
+        entry: approved.id,
+        accountId: resolvedAccountId,
+      }).catch(() => {});
+    }
+    await notifyPairingApproved({
+      channelId,
+      id: approved.id,
+      cfg: nextCfg,
+      runtime: defaultRuntime,
+    }).catch((err) => {
+      context.logGateway.warn(
+        `channel pairing approval notification failed channel=${channelId} id=${approved.id}: ${formatForLog(err)}`,
+      );
+    });
+    context.logGateway.info(
+      `channel pairing approved channel=${channelId} account=${resolvedAccountId} id=${approved.id}`,
+    );
+    respond(
+      true,
+      {
+        channel: channelId,
+        accountId: resolvedAccountId,
+        requestId: approved.id,
+      } satisfies ChannelPairingPayload,
+      undefined,
+    );
+  },
+  "channels.pairing.reject": async ({ params, respond, context }) => {
+    if (!validateChannelsPairingRejectParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid channels.pairing.reject params: ${formatValidationErrors(
+            validateChannelsPairingRejectParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    const channelId = resolvePairingChannelId((params as { channel?: unknown }).channel);
+    if (!channelId) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, "invalid channels.pairing channel"),
+      );
+      return;
+    }
+    const requestId = String((params as { requestId: string }).requestId ?? "").trim();
+    const accountId = String((params as { accountId?: string }).accountId ?? "").trim();
+    const rejected = await rejectChannelPairingRequest({
+      channel: channelId,
+      requestId,
+      ...(accountId ? { accountId } : {}),
+    });
+    if (!rejected) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown requestId"));
+      return;
+    }
+    const resolvedAccountId =
+      accountId || String(rejected.entry?.meta?.accountId ?? "").trim() || DEFAULT_ACCOUNT_ID;
+    context.logGateway.info(
+      `channel pairing rejected channel=${channelId} account=${resolvedAccountId} id=${rejected.id}`,
+    );
+    respond(
+      true,
+      {
+        channel: channelId,
+        accountId: resolvedAccountId,
+        requestId: rejected.id,
+      } satisfies ChannelPairingPayload,
+      undefined,
+    );
   },
 };

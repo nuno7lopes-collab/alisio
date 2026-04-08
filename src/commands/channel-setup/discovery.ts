@@ -4,8 +4,8 @@ import {
   type ChannelPluginCatalogEntry,
 } from "../../channels/plugins/catalog.js";
 import type { ChannelMeta, ChannelPlugin } from "../../channels/plugins/types.js";
-import { listChatChannels } from "../../channels/registry.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import { isProductChatChannelId, listProductChatChannels } from "../../channels/product-surface.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { loadPluginManifestRegistry } from "../../plugins/manifest-registry.js";
 import type { ChannelChoice } from "../onboard-types.js";
@@ -23,12 +23,12 @@ export type ResolvedChannelSetupEntries = {
   installableCatalogById: Map<ChannelChoice, ChannelPluginCatalogEntry>;
 };
 
-function resolveWorkspaceDir(cfg: OpenClawConfig, workspaceDir?: string): string | undefined {
+function resolveWorkspaceDir(cfg: AlisioConfig, workspaceDir?: string): string | undefined {
   return workspaceDir ?? resolveAgentWorkspaceDir(cfg, resolveDefaultAgentId(cfg));
 }
 
 export function listManifestInstalledChannelIds(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): Set<ChannelChoice> {
@@ -47,7 +47,7 @@ export function listManifestInstalledChannelIds(params: {
 }
 
 export function isCatalogChannelInstalled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   entry: ChannelPluginCatalogEntry;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -56,7 +56,7 @@ export function isCatalogChannelInstalled(params: {
 }
 
 export function resolveChannelSetupEntries(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   installedPlugins: ChannelPlugin[];
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -67,8 +67,13 @@ export function resolveChannelSetupEntries(params: {
     workspaceDir,
     env: params.env,
   });
-  const installedPluginIds = new Set(params.installedPlugins.map((plugin) => plugin.id));
-  const catalogEntries = listChannelPluginCatalogEntries({ workspaceDir });
+  const installedPlugins = params.installedPlugins.filter((plugin) =>
+    isProductChatChannelId(plugin.id),
+  );
+  const installedPluginIds = new Set(installedPlugins.map((plugin) => plugin.id));
+  const catalogEntries = listChannelPluginCatalogEntries({ workspaceDir }).filter((entry) =>
+    isProductChatChannelId(entry.id),
+  );
   const installedCatalogEntries = catalogEntries.filter(
     (entry) =>
       !installedPluginIds.has(entry.id) && manifestInstalledIds.has(entry.id as ChannelChoice),
@@ -79,10 +84,10 @@ export function resolveChannelSetupEntries(params: {
   );
 
   const metaById = new Map<string, ChannelMeta>();
-  for (const meta of listChatChannels()) {
+  for (const meta of listProductChatChannels()) {
     metaById.set(meta.id, meta);
   }
-  for (const plugin of params.installedPlugins) {
+  for (const plugin of installedPlugins) {
     metaById.set(plugin.id, plugin.meta);
   }
   for (const entry of installedCatalogEntries) {

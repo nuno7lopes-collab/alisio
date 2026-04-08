@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { installModelsConfigTestHooks, withModelsTempHome } from "./models-config.e2e-harness.js";
 import { ensureOpenClawModelsJson } from "./models-config.js";
 import { readGeneratedModelsJson } from "./models-config.test-utils.js";
 
-function createGoogleModelsConfig(models: ModelDefinitionConfig[]): OpenClawConfig {
+function createGoogleModelsConfig(models: ModelDefinitionConfig[]): AlisioConfig {
   return {
     models: {
       providers: {
@@ -119,7 +119,7 @@ describe("models-config", () => {
             },
           },
         },
-      } satisfies OpenClawConfig;
+      } satisfies AlisioConfig;
 
       await ensureOpenClawModelsJson(cfg);
       await expectGeneratedProvider("google-paid", {
@@ -152,7 +152,7 @@ describe("models-config", () => {
             },
           },
         },
-      } satisfies OpenClawConfig;
+      } satisfies AlisioConfig;
 
       await ensureOpenClawModelsJson(cfg);
       await expectGeneratedProvider("google", {

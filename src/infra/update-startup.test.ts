@@ -5,8 +5,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { captureEnv } from "../test-utils/env.js";
 import type { UpdateCheckResult } from "./update-check.js";
 
-vi.mock("./openclaw-root.js", () => ({
-  resolveOpenClawPackageRoot: vi.fn(),
+vi.mock("./alisio-root.js", () => ({
+  resolveAlisioPackageRoot: vi.fn(),
 }));
 
 vi.mock("./update-check.js", async () => {
@@ -45,7 +45,7 @@ describe("update-startup", () => {
   let tempDir: string;
   let envSnapshot: ReturnType<typeof captureEnv>;
 
-  let resolveOpenClawPackageRoot: (typeof import("./openclaw-root.js"))["resolveOpenClawPackageRoot"];
+  let resolveAlisioPackageRoot: (typeof import("./alisio-root.js"))["resolveAlisioPackageRoot"];
   let checkUpdateStatus: (typeof import("./update-check.js"))["checkUpdateStatus"];
   let resolveNpmChannelTag: (typeof import("./update-check.js"))["resolveNpmChannelTag"];
   let runCommandWithTimeout: (typeof import("../process/exec.js"))["runCommandWithTimeout"];
@@ -56,7 +56,7 @@ describe("update-startup", () => {
   let loaded = false;
 
   beforeAll(async () => {
-    suiteRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-check-suite-"));
+    suiteRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-check-suite-"));
   });
 
   beforeEach(async () => {
@@ -64,8 +64,17 @@ describe("update-startup", () => {
     vi.setSystemTime(new Date("2026-01-17T10:00:00Z"));
     tempDir = path.join(suiteRoot, `case-${++suiteCase}`);
     await fs.mkdir(tempDir);
-    envSnapshot = captureEnv(["OPENCLAW_STATE_DIR", "NODE_ENV", "VITEST"]);
-    process.env.OPENCLAW_STATE_DIR = tempDir;
+    envSnapshot = captureEnv([
+      "ALISIO_STATE_DIR",
+      "NODE_ENV",
+      "VITEST",
+      "ALISIO_DISTRIBUTION",
+      "ALISIO_UPDATE_REGISTRY_PACKAGE",
+      "ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX",
+      "ALISIO_UPDATE_MAIN_PACKAGE_SPEC",
+      "ALISIO_UPDATE_GIT_REPO_URL",
+    ]);
+    process.env.ALISIO_STATE_DIR = tempDir;
 
     process.env.NODE_ENV = "test";
 
@@ -74,7 +83,7 @@ describe("update-startup", () => {
 
     // Perf: load mocked modules once (after timers/env are set up).
     if (!loaded) {
-      ({ resolveOpenClawPackageRoot } = await import("./openclaw-root.js"));
+      ({ resolveAlisioPackageRoot } = await import("./alisio-root.js"));
       ({ checkUpdateStatus, resolveNpmChannelTag } = await import("./update-check.js"));
       ({ runCommandWithTimeout } = await import("../process/exec.js"));
       ({
@@ -85,7 +94,7 @@ describe("update-startup", () => {
       } = await import("./update-startup.js"));
       loaded = true;
     }
-    vi.mocked(resolveOpenClawPackageRoot).mockClear();
+    vi.mocked(resolveAlisioPackageRoot).mockClear();
     vi.mocked(checkUpdateStatus).mockClear();
     vi.mocked(resolveNpmChannelTag).mockClear();
     vi.mocked(runCommandWithTimeout).mockClear();
@@ -112,9 +121,9 @@ describe("update-startup", () => {
   }
 
   function mockPackageInstallStatus() {
-    vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue("/opt/openclaw");
+    vi.mocked(resolveAlisioPackageRoot).mockResolvedValue("/opt/alisio");
     vi.mocked(checkUpdateStatus).mockResolvedValue({
-      root: "/opt/openclaw",
+      root: "/opt/alisio",
       installKind: "package",
       packageManager: "npm",
     } satisfies UpdateCheckResult);
@@ -215,6 +224,45 @@ describe("update-startup", () => {
     expect(parsed.lastNotifiedVersion).toBe("2.0.0");
     expect(parsed.lastAvailableVersion).toBe("2.0.0");
     expect(parsed.lastNotifiedTag).toBe("latest");
+  });
+
+  it("clears persisted availability and skips registry checks when Alicio has no configured source", async () => {
+    process.env.ALISIO_DISTRIBUTION = "alisio";
+    const statePath = path.join(tempDir, "update-check.json");
+    await fs.writeFile(
+      statePath,
+      JSON.stringify(
+        {
+          lastCheckedAt: new Date(Date.now() - 86_400_000).toISOString(),
+          lastAvailableVersion: "2.0.0",
+          lastAvailableTag: "latest",
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+
+    const onUpdateAvailableChange = vi.fn();
+    await runGatewayUpdateCheck({
+      cfg: { update: { channel: "stable" } },
+      log: { info: vi.fn() },
+      isNixMode: false,
+      allowInTests: true,
+      onUpdateAvailableChange,
+    });
+
+    expect(vi.mocked(checkUpdateStatus)).not.toHaveBeenCalled();
+    expect(vi.mocked(resolveNpmChannelTag)).not.toHaveBeenCalled();
+    expect(onUpdateAvailableChange).not.toHaveBeenCalled();
+    expect(getUpdateAvailable()).toBeNull();
+
+    const persisted = JSON.parse(await fs.readFile(statePath, "utf-8")) as {
+      lastAvailableVersion?: string;
+      lastAvailableTag?: string;
+    };
+    expect(persisted.lastAvailableVersion).toBeUndefined();
+    expect(persisted.lastAvailableTag).toBeUndefined();
   });
 
   it("hydrates cached update from persisted state during throttle window", async () => {
@@ -335,7 +383,7 @@ describe("update-startup", () => {
     expect(runAutoUpdate).toHaveBeenCalledWith({
       channel: "stable",
       timeoutMs: 45 * 60 * 1000,
-      root: "/opt/openclaw",
+      root: "/opt/alisio",
     });
   });
 
@@ -352,7 +400,7 @@ describe("update-startup", () => {
     expect(runAutoUpdate).toHaveBeenCalledWith({
       channel: "beta",
       timeoutMs: 45 * 60 * 1000,
-      root: "/opt/openclaw",
+      root: "/opt/alisio",
     });
   });
 
@@ -381,7 +429,7 @@ describe("update-startup", () => {
     });
 
     const originalArgv = process.argv.slice();
-    process.argv = [process.execPath, "/opt/openclaw/dist/entry.js"];
+    process.argv = [process.execPath, "/opt/alisio/dist/entry.js"];
     try {
       await runAutoUpdateCheckWithDefaults({
         cfg: createBetaAutoUpdateConfig(),
@@ -393,7 +441,7 @@ describe("update-startup", () => {
     expect(runCommandWithTimeout).toHaveBeenCalledWith(
       [
         process.execPath,
-        "/opt/openclaw/dist/entry.js",
+        "/opt/alisio/dist/entry.js",
         "update",
         "--yes",
         "--channel",
@@ -403,7 +451,7 @@ describe("update-startup", () => {
       expect.objectContaining({
         timeoutMs: 45 * 60 * 1000,
         env: expect.objectContaining({
-          OPENCLAW_AUTO_UPDATE: "1",
+          ALISIO_AUTO_UPDATE: "1",
         }),
       }),
     );

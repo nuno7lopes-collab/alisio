@@ -11,9 +11,11 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { currentExtensionScope } from "./lib/alisio-branding.mjs";
 import { pluginSdkSubpaths } from "./lib/plugin-sdk-entries.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const generatedFacadeExtensionScope = currentExtensionScope();
 const distFile = resolve(__dirname, "..", "dist", "plugin-sdk", "index.js");
 const generatedFacadeTypeMapDts = resolve(
   __dirname,
@@ -98,9 +100,9 @@ if (!existsSync(generatedFacadeTypeMapDts)) {
   missing += 1;
 } else {
   const facadeTypeMapContent = readFileSync(generatedFacadeTypeMapDts, "utf-8");
-  if (facadeTypeMapContent.includes("@openclaw/")) {
+  if (facadeTypeMapContent.includes(`${generatedFacadeExtensionScope}/`)) {
     console.error(
-      "INVALID GENERATED FACADE TYPE MAP DTS: dist/plugin-sdk/src/generated/plugin-sdk-facade-type-map.generated.d.ts leaks @openclaw/* imports",
+      `INVALID GENERATED FACADE TYPE MAP DTS: dist/plugin-sdk/src/generated/plugin-sdk-facade-type-map.generated.d.ts leaks ${generatedFacadeExtensionScope}/* imports`,
     );
     missing += 1;
   }

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   installModelsConfigTestHooks,
   withModelsTempHome as withTempHome,
@@ -71,7 +71,7 @@ async function withMinimaxApiKey(run: () => Promise<void>) {
   }
 }
 
-async function generateAndReadMinimaxModel(cfg: OpenClawConfig): Promise<ModelEntry | undefined> {
+async function generateAndReadMinimaxModel(cfg: AlisioConfig): Promise<ModelEntry | undefined> {
   await ensureOpenClawModelsJson(cfg);
   const parsed = await readGeneratedModelsJson<ModelsJson>();
   return parsed.providers.minimax?.models?.find((model) => model.id === MINIMAX_MODEL_ID);
@@ -83,7 +83,7 @@ describe("models-config: explicit reasoning override", () => {
     // User explicitly sets reasoning:false to avoid message-ordering conflicts.
     await withTempHome(async () => {
       await withMinimaxApiKey(async () => {
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           models: {
             providers: {
               minimax: {
@@ -126,7 +126,7 @@ describe("models-config: explicit reasoning override", () => {
           contextWindow: 1_000_000,
           maxTokens: 8192,
         };
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           models: {
             providers: {
               minimax: {

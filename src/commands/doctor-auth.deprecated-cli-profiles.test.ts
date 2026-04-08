@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { ProviderPlugin } from "../plugins/types.js";
 import { captureEnv } from "../test-utils/env.js";
 import {
@@ -129,7 +129,7 @@ describe("maybeRemoveDeprecatedCliAuthProfiles", () => {
     } as const;
 
     const next = await maybeRemoveDeprecatedCliAuthProfiles(
-      cfg as unknown as OpenClawConfig,
+      cfg as unknown as AlisioConfig,
       makePrompter(true),
     );
 
@@ -198,7 +198,7 @@ describe("maybeRepairLegacyOAuthProfileIds", () => {
             anthropic: ["anthropic:default"],
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       makePrompter(true),
     );
 

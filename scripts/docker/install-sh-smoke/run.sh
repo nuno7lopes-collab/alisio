@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_URL="${OPENCLAW_INSTALL_URL:-https://openclaw.bot/install.sh}"
-SMOKE_PREVIOUS_VERSION="${OPENCLAW_INSTALL_SMOKE_PREVIOUS:-}"
-SKIP_PREVIOUS="${OPENCLAW_INSTALL_SMOKE_SKIP_PREVIOUS:-0}"
-DEFAULT_PACKAGE="openclaw"
-PACKAGE_NAME="${OPENCLAW_INSTALL_PACKAGE:-$DEFAULT_PACKAGE}"
+INSTALL_URL="${ALISIO_INSTALL_URL:-https://alisio.pt/install.sh}"
+SMOKE_PREVIOUS_VERSION="${ALISIO_INSTALL_SMOKE_PREVIOUS:-}"
+SKIP_PREVIOUS="${ALISIO_INSTALL_SMOKE_SKIP_PREVIOUS:-0}"
+DEFAULT_PACKAGE="alisio"
+PACKAGE_NAME="${ALISIO_INSTALL_PACKAGE:-$DEFAULT_PACKAGE}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # shellcheck source=../install-sh-common/cli-verify.sh
@@ -49,7 +49,7 @@ fi
 echo "package=$PACKAGE_NAME latest=$LATEST_VERSION previous=$PREVIOUS_VERSION"
 
 if [[ "$SKIP_PREVIOUS" == "1" ]]; then
-  echo "==> Skip preinstall previous (OPENCLAW_INSTALL_SMOKE_SKIP_PREVIOUS=1)"
+  echo "==> Skip preinstall previous (ALISIO_INSTALL_SMOKE_SKIP_PREVIOUS=1)"
 else
   echo "==> Preinstall previous (forces installer upgrade path)"
   npm install -g "${PACKAGE_NAME}@${PREVIOUS_VERSION}"
@@ -59,8 +59,8 @@ echo "==> Run official installer one-liner"
 curl -fsSL "$INSTALL_URL" | bash
 
 echo "==> Verify installed version"
-if [[ -n "${OPENCLAW_INSTALL_LATEST_OUT:-}" ]]; then
-  printf "%s" "$LATEST_VERSION" > "${OPENCLAW_INSTALL_LATEST_OUT:-}"
+if [[ -n "${ALISIO_INSTALL_LATEST_OUT:-}" ]]; then
+  printf "%s" "$LATEST_VERSION" > "${ALISIO_INSTALL_LATEST_OUT:-}"
 fi
 verify_installed_cli "$PACKAGE_NAME" "$LATEST_VERSION"
 

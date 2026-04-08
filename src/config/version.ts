@@ -3,7 +3,7 @@ import {
   normalizeLegacyDotBetaVersion,
 } from "../infra/semver-compare.js";
 
-export type OpenClawVersion = {
+export type AlisioVersion = {
   major: number;
   minor: number;
   patch: number;
@@ -13,7 +13,7 @@ export type OpenClawVersion = {
 
 const VERSION_RE = /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$/;
 
-export function parseOpenClawVersion(raw: string | null | undefined): OpenClawVersion | null {
+export function parseAlisioVersion(raw: string | null | undefined): AlisioVersion | null {
   if (!raw) {
     return null;
   }
@@ -33,20 +33,20 @@ export function parseOpenClawVersion(raw: string | null | undefined): OpenClawVe
   };
 }
 
-export function normalizeOpenClawVersionBase(raw: string | null | undefined): string | null {
-  const parsed = parseOpenClawVersion(raw);
+export function normalizeAlisioVersionBase(raw: string | null | undefined): string | null {
+  const parsed = parseAlisioVersion(raw);
   if (!parsed) {
     return null;
   }
   return `${parsed.major}.${parsed.minor}.${parsed.patch}`;
 }
 
-export function isSameOpenClawStableFamily(
+export function isSameAlisioStableFamily(
   a: string | null | undefined,
   b: string | null | undefined,
 ): boolean {
-  const parsedA = parseOpenClawVersion(a);
-  const parsedB = parseOpenClawVersion(b);
+  const parsedA = parseAlisioVersion(a);
+  const parsedB = parseAlisioVersion(b);
   if (!parsedA || !parsedB) {
     return false;
   }
@@ -60,12 +60,12 @@ export function isSameOpenClawStableFamily(
   );
 }
 
-export function compareOpenClawVersions(
+export function compareAlisioVersions(
   a: string | null | undefined,
   b: string | null | undefined,
 ): number | null {
-  const parsedA = parseOpenClawVersion(a);
-  const parsedB = parseOpenClawVersion(b);
+  const parsedA = parseAlisioVersion(a);
+  const parsedB = parseAlisioVersion(b);
   if (!parsedA || !parsedB) {
     return null;
   }
@@ -104,8 +104,8 @@ export function shouldWarnOnTouchedVersion(
   current: string | null | undefined,
   touched: string | null | undefined,
 ): boolean {
-  const parsedCurrent = parseOpenClawVersion(current);
-  const parsedTouched = parseOpenClawVersion(touched);
+  const parsedCurrent = parseAlisioVersion(current);
+  const parsedTouched = parseAlisioVersion(touched);
   if (
     parsedCurrent &&
     parsedTouched &&
@@ -116,14 +116,14 @@ export function shouldWarnOnTouchedVersion(
   ) {
     return false;
   }
-  if (isSameOpenClawStableFamily(current, touched)) {
+  if (isSameAlisioStableFamily(current, touched)) {
     return false;
   }
-  const cmp = compareOpenClawVersions(current, touched);
+  const cmp = compareAlisioVersions(current, touched);
   return cmp !== null && cmp < 0;
 }
 
-function releaseRank(version: OpenClawVersion): number {
+function releaseRank(version: AlisioVersion): number {
   if (version.prerelease?.length) {
     return 0;
   }

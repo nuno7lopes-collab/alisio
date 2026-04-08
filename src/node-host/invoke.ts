@@ -30,6 +30,7 @@ import {
 } from "../infra/exec-host.js";
 import { sanitizeHostExecEnv } from "../infra/host-env-security.js";
 import { runBrowserProxyCommand } from "../plugin-sdk/browser-runtime.js";
+import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
 import { buildSystemRunApprovalPlan, handleSystemRunInvoke } from "./invoke-system-run.js";
 import type {
   ExecEventPayload,
@@ -561,11 +562,15 @@ async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskReques
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(requestBody),
-      signal,
+    response = await fetchOpenAiCompatibleEndpoint({
+      baseUrl,
+      endpoint: "chat/completions",
+      init: {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
+        signal,
+      },
     });
   } catch (err) {
     await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));

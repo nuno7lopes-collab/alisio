@@ -1,7 +1,8 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
+import { legacySkillSources } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
-import type { SkillMessageMap } from "../controllers/skills.ts";
+import { skillEnvEditKey, type SkillMessageMap } from "../controllers/skills.ts";
 import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
@@ -13,9 +14,15 @@ type SkillDetailDialogProps = {
   messages: SkillMessageMap;
   onToggle: (skillKey: string, enabled: boolean) => void;
   onEdit: (skillKey: string, value: string) => void;
+  onEnvEdit: (skillKey: string, envName: string, value: string) => void;
   onSaveKey: (skillKey: string) => void;
+  onSaveEnv: (skillKey: string, envName: string) => void;
   onInstall: (skillKey: string, name: string, installId: string) => void;
+  onEnableConfig: (skillKey: string, configPath: string) => void;
+  onAllowBundled: (skillKey: string) => void;
   onDetailClose: () => void;
+  onOpenChannels: () => void;
+  onOpenSettings: () => void;
 };
 
 type SkillMissingKind = "bin" | "anyBin" | "env" | "config" | "os";
@@ -75,19 +82,19 @@ export function skillStatusLabel(skill: SkillStatusEntry) {
 
 export function humanizeSkillSource(source: string) {
   switch (source) {
-    case "openclaw-bundled":
+    case legacySkillSources.bundled:
       return t("alisio.capabilities.sources.builtIn");
-    case "openclaw-managed":
+    case legacySkillSources.managed:
       return t("alisio.capabilities.sources.managed");
-    case "openclaw-workspace":
+    case legacySkillSources.workspace:
       return t("alisio.capabilities.sources.workspace");
     case "agents-skills-project":
       return t("alisio.capabilities.sources.project");
     case "agents-skills-personal":
       return t("alisio.capabilities.sources.personal");
-    case "openclaw-plugin":
+    case legacySkillSources.plugin:
       return t("alisio.capabilities.sources.plugin");
-    case "openclaw-extra":
+    case legacySkillSources.extra:
       return t("alisio.capabilities.sources.extra");
     default:
       return t("alisio.capabilities.sources.external");
@@ -110,6 +117,66 @@ function safeExternalHref(raw?: string): string | null {
     return null;
   }
   return resolveSafeExternalUrl(raw, window.location.href);
+}
+
+function resolveEditableEnvNames(skill: SkillStatusEntry): string[] {
+  const required = skill.requirements.env ?? [];
+  const missing = skill.missing.env ?? [];
+  return Array.from(new Set([...required, ...missing])).filter(
+    (envName) => envName !== skill.primaryEnv,
+  );
+}
+
+function isSecretLikeEnvName(envName: string): boolean {
+  const normalized = envName.toUpperCase();
+  return ["KEY", "TOKEN", "SECRET", "PASSWORD", "PASS", "PWD"].some((part) =>
+    normalized.includes(part),
+  );
+}
+
+type SkillSetupAction = {
+  label: string;
+  action: () => void;
+};
+
+function resolveSetupActions(
+  skill: SkillStatusEntry,
+  props: Pick<
+    SkillDetailDialogProps,
+    "onAllowBundled" | "onEnableConfig" | "onOpenChannels" | "onOpenSettings"
+  >,
+): SkillSetupAction[] {
+  const actions: SkillSetupAction[] = [];
+  if (skill.blockedByAllowlist && skill.bundled) {
+    actions.push({
+      label: t("alisio.capabilities.detail.allowBundled"),
+      action: () => props.onAllowBundled(skill.skillKey),
+    });
+  }
+  if (skill.missing.config.length === 0) {
+    return actions;
+  }
+  const configPaths = Array.from(new Set(skill.missing.config));
+  if (skill.missing.config.every((path) => path.startsWith("channels."))) {
+    actions.push({
+      label: t("alisio.capabilities.detail.openChannels"),
+      action: props.onOpenChannels,
+    });
+    return actions;
+  }
+  const enablePath = configPaths.find((path) => path.endsWith(".enabled"));
+  if (configPaths.length === 1 && enablePath) {
+    actions.push({
+      label: t("alisio.capabilities.detail.enableInConfig"),
+      action: () => props.onEnableConfig(skill.skillKey, enablePath),
+    });
+    return actions;
+  }
+  actions.push({
+    label: t("alisio.capabilities.detail.openSettings"),
+    action: props.onOpenSettings,
+  });
+  return actions;
 }
 
 export function computeSkillMissing(skill: SkillStatusEntry): string[] {
@@ -157,11 +224,22 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
   const hasEditedValue = Object.hasOwn(props.edits, skill.skillKey);
   const apiKey = hasEditedValue ? (props.edits[skill.skillKey] ?? "") : "";
   const message = props.messages[skill.skillKey] ?? null;
+  const editableEnvNames = resolveEditableEnvNames(skill);
+  const installHelpsEnvSetup = skill.install.some(
+    (option) => option.kind === "download" || option.bins.length === 0,
+  );
   const canInstall =
-    skill.install.length > 0 && (skill.missing.bins.length > 0 || skill.missing.anyBins.length > 0);
-  const showBundledBadge = Boolean(skill.bundled && skill.source !== "openclaw-bundled");
+    skill.install.length > 0 &&
+    !skill.disabled &&
+    !skill.blockedByAllowlist &&
+    !skill.eligible &&
+    (skill.missing.bins.length > 0 ||
+      skill.missing.anyBins.length > 0 ||
+      (skill.missing.env.length > 0 && installHelpsEnvSetup));
+  const showBundledBadge = Boolean(skill.bundled && skill.source !== legacySkillSources.bundled);
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);
+  const setupActions = resolveSetupActions(skill, props);
   const ensureModalOpen = (el?: Element) => {
     if (!(el instanceof HTMLDialogElement) || el.open) {
       return;
@@ -246,19 +324,39 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                 ? t("alisio.capabilities.detail.disabled")
                 : t("alisio.capabilities.detail.enabled")}
             </span>
-            ${canInstall
-              ? html`
-                  <button
-                    class="btn"
-                    ?disabled=${busy}
-                    @click=${() => props.onInstall(skill.skillKey, skill.name, skill.install[0].id)}
-                  >
-                    ${busy ? t("alisio.capabilities.detail.installing") : skill.install[0].label}
-                  </button>
-                `
-              : nothing}
           </div>
 
+          ${canInstall || setupActions.length > 0
+            ? html`
+                <div class="skill-detail__section">
+                  <div class="skill-detail__section-title">
+                    ${t("alisio.capabilities.detail.setupActions")}
+                  </div>
+                  <div class="chip-row skill-detail__chip-list">
+                    ${canInstall
+                      ? skill.install.map(
+                          (option) => html`
+                            <button
+                              class="btn"
+                              ?disabled=${busy}
+                              @click=${() => props.onInstall(skill.skillKey, skill.name, option.id)}
+                            >
+                              ${busy ? t("alisio.capabilities.detail.installing") : option.label}
+                            </button>
+                          `,
+                        )
+                      : nothing}
+                    ${setupActions.map(
+                      (setupAction) => html`
+                        <button class="btn" @click=${setupAction.action}>
+                          ${setupAction.label}
+                        </button>
+                      `,
+                    )}
+                  </div>
+                </div>
+              `
+            : nothing}
           ${message
             ? html`<div class="callout ${message.kind === "error" ? "danger" : "success"}">
                 ${message.message}
@@ -305,6 +403,51 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
                 </div>
               `
             : nothing}
+          ${editableEnvNames.map((envName) => {
+            const editKey = skillEnvEditKey(skill.skillKey, envName);
+            const hasEditedEnvValue = Object.hasOwn(props.edits, editKey);
+            const envValue = hasEditedEnvValue ? (props.edits[editKey] ?? "") : "";
+            return html`
+              <div class="skill-detail__section">
+                <label class="field">
+                  <span>${envName}</span>
+                  <input
+                    type=${isSecretLikeEnvName(envName) ? "password" : "text"}
+                    .value=${envValue}
+                    @input=${(event: Event) =>
+                      props.onEnvEdit(
+                        skill.skillKey,
+                        envName,
+                        (event.target as HTMLInputElement).value,
+                      )}
+                  />
+                </label>
+                <div class="muted skill-detail__field-note">
+                  ${t("alisio.capabilities.detail.valueHint")}
+                </div>
+                ${(() => {
+                  const href = safeExternalHref(skill.homepage);
+                  return href
+                    ? html`
+                        <div class="muted skill-detail__field-note">
+                          ${t("alisio.capabilities.detail.source")}:
+                          <a href=${href} target="_blank" rel="noopener noreferrer"
+                            >${skill.homepage}</a
+                          >
+                        </div>
+                      `
+                    : nothing;
+                })()}
+                <button
+                  class="btn primary"
+                  ?disabled=${busy || !hasEditedEnvValue}
+                  @click=${() => props.onSaveEnv(skill.skillKey, envName)}
+                >
+                  ${t("alisio.capabilities.detail.saveValue")}
+                </button>
+              </div>
+            `;
+          })}
 
           <div class="skill-detail__meta">
             <div>

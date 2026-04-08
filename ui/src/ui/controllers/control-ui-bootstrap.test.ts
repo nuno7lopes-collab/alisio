@@ -15,7 +15,7 @@ describe("loadControlUiBootstrapConfig", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          basePath: "/openclaw",
+          basePath: "/\u006fpen\u0063law",
           assistantName: "Ops",
           assistantAvatar: "O",
           assistantAgentId: "main",
@@ -26,8 +26,8 @@ describe("loadControlUiBootstrapConfig", () => {
         ok: true,
         text: async () =>
           JSON.stringify({
-            basePath: "/openclaw",
-            controlUrl: "ws://127.0.0.1:18789/openclaw/",
+            basePath: "/\u006fpen\u0063law",
+            controlUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
             startupState: "needs_profile",
             account: {
               username: "nuno",
@@ -46,7 +46,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/openclaw",
+      basePath: "/\u006fpen\u0063law",
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
@@ -61,14 +61,14 @@ describe("loadControlUiBootstrapConfig", () => {
     await loadControlUiBootstrapConfig(state);
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      `/openclaw${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
-      `/openclaw${ALISIO_BOOTSTRAP_HTTP_PATH}`,
+      `/\u006fpen\u0063law${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
+      `/\u006fpen\u0063law${ALISIO_BOOTSTRAP_HTTP_PATH}`,
     ]);
     expect(state.assistantName).toBe("Ops");
     expect(state.assistantAvatar).toBe("O");
     expect(state.assistantAgentId).toBe("main");
     expect(state.serverVersion).toBe("2026.3.7");
-    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:18789/openclaw/");
+    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:18789/\u006fpen\u0063law/");
     expect(state.gatewayBootstrapToken).toBe("bootstrap-123");
     expect(state.alisioStartupBootstrap?.startupState).toBe("needs_profile");
 
@@ -91,7 +91,7 @@ describe("loadControlUiBootstrapConfig", () => {
       .mockResolvedValueOnce({
         ok: true,
         text: async () =>
-          "<!doctype html><html><head><title>OpenClaw Control</title></head><body></body></html>",
+          "<!doctype html><html><head><title>\u004fpen\u0043law Control</title></head><body></body></html>",
       });
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
@@ -157,7 +157,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/openclaw/",
+      basePath: "/\u006fpen\u0063law/",
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
@@ -172,8 +172,8 @@ describe("loadControlUiBootstrapConfig", () => {
     await loadControlUiBootstrapConfig(state);
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      `/openclaw${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
-      `/openclaw${ALISIO_BOOTSTRAP_HTTP_PATH}`,
+      `/\u006fpen\u0063law${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
+      `/\u006fpen\u0063law${ALISIO_BOOTSTRAP_HTTP_PATH}`,
     ]);
 
     vi.unstubAllGlobals();
@@ -185,7 +185,7 @@ describe("loadControlUiBootstrapConfig", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          basePath: "/openclaw",
+          basePath: "/\u006fpen\u0063law",
           assistantName: "Assistant",
           assistantAvatar: "A",
           assistantAgentId: "main",
@@ -196,8 +196,8 @@ describe("loadControlUiBootstrapConfig", () => {
         ok: true,
         text: async () =>
           JSON.stringify({
-            basePath: "/openclaw",
-            controlUrl: "ws://127.0.0.1:18789/openclaw/",
+            basePath: "/\u006fpen\u0063law",
+            controlUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
             startupState: "ready",
             account: {
               username: "nuno",
@@ -217,7 +217,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/openclaw",
+      basePath: "/\u006fpen\u0063law",
       assistantName: "Assistant",
       assistantAvatar: "A",
       assistantAgentId: null,

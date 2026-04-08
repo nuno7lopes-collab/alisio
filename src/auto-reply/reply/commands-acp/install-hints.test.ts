@@ -2,13 +2,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { resolveAcpInstallCommandHint, resolveConfiguredAcpBackendId } from "./install-hints.js";
 
 const tempDirs: string[] = [];
 
-function withAcpConfig(acp: OpenClawConfig["acp"]): OpenClawConfig {
-  return { acp } as OpenClawConfig;
+function withAcpConfig(acp: AlisioConfig["acp"]): AlisioConfig {
+  return { acp } as AlisioConfig;
 }
 
 afterEach(() => {

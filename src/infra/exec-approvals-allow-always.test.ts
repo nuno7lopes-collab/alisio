@@ -155,7 +155,7 @@ describe("resolveAllowAlwaysPatterns", () => {
   }
 
   it("returns direct executable paths for non-shell segments", () => {
-    const exe = path.join("/tmp", "openclaw-tool");
+    const exe = path.join("/tmp", "alisio-tool");
     const patterns = resolveAllowAlwaysPatterns({
       segments: [
         {
@@ -165,7 +165,7 @@ describe("resolveAllowAlwaysPatterns", () => {
             execution: makeMockExecutableResolution({
               rawExecutable: exe,
               resolvedPath: exe,
-              executableName: "openclaw-tool",
+              executableName: "alisio-tool",
             }),
           }),
         },

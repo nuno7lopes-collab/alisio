@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { captureEnv } from "../test-utils/env.js";
 import {
   checkDepsStatus,
   checkUpdateStatus,
@@ -35,9 +36,17 @@ describe("compareSemverStrings", () => {
 
 describe("resolveNpmChannelTag", () => {
   let versionByTag: Record<string, string | null>;
+  let envSnapshot: ReturnType<typeof captureEnv>;
 
   beforeEach(() => {
     versionByTag = {};
+    envSnapshot = captureEnv([
+      "ALISIO_DISTRIBUTION",
+      "ALISIO_UPDATE_REGISTRY_PACKAGE",
+      "ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX",
+      "ALISIO_UPDATE_MAIN_PACKAGE_SPEC",
+      "ALISIO_UPDATE_GIT_REPO_URL",
+    ]);
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -59,6 +68,7 @@ describe("resolveNpmChannelTag", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    envSnapshot.restore();
   });
 
   it("falls back to latest when beta is older", async () => {
@@ -106,19 +116,64 @@ describe("resolveNpmChannelTag", () => {
       target: "latest",
       version: "1.0.4",
       nodeEngine: ">=22.14.0",
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
+      error: undefined,
     });
     await expect(fetchNpmTagVersion({ tag: "latest", timeoutMs: 1000 })).resolves.toEqual({
       tag: "latest",
       version: "1.0.4",
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
+      error: undefined,
     });
     await expect(fetchNpmLatestVersion({ timeoutMs: 1000 })).resolves.toEqual({
       latestVersion: "1.0.4",
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
       error: undefined,
     });
     await expect(fetchNpmTagVersion({ tag: "beta", timeoutMs: 1000 })).resolves.toEqual({
       tag: "beta",
       version: null,
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
       error: "HTTP 404",
+    });
+  });
+
+  it("reports registry checks as disabled for Alicio without a configured source", async () => {
+    process.env.ALISIO_DISTRIBUTION = "alisio";
+
+    await expect(fetchNpmLatestVersion({ timeoutMs: 1000 })).resolves.toEqual({
+      latestVersion: null,
+      disabled: true,
+      reason: "registry updates disabled for this distribution",
+      sourcePackage: null,
+      error: undefined,
+    });
+    await expect(resolveNpmChannelTag({ channel: "stable", timeoutMs: 1000 })).resolves.toEqual({
+      tag: "latest",
+      version: null,
+    });
+  });
+
+  it("uses the configured Alicio registry package when provided", async () => {
+    process.env.ALISIO_DISTRIBUTION = "alisio";
+    process.env.ALISIO_UPDATE_REGISTRY_PACKAGE = "alisio";
+    versionByTag.latest = "2.0.0";
+
+    await expect(fetchNpmTagVersion({ tag: "latest", timeoutMs: 1000 })).resolves.toEqual({
+      tag: "latest",
+      version: "2.0.0",
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
+      error: undefined,
     });
   });
 });
@@ -175,7 +230,7 @@ describe("formatGitInstallLabel", () => {
 
 describe("checkDepsStatus", () => {
   it("reports unknown, missing, stale, and ok states from lockfile markers", async () => {
-    const base = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-check-"));
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-check-"));
 
     await expect(checkDepsStatus({ root: base, manager: "unknown" })).resolves.toEqual({
       manager: "unknown",
@@ -228,7 +283,7 @@ describe("checkUpdateStatus", () => {
   });
 
   it("detects package installs for non-git roots", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-check-"));
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-check-"));
     await fs.writeFile(
       path.join(root, "package.json"),
       JSON.stringify({ packageManager: "npm@10.0.0" }),

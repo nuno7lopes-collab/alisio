@@ -1,5 +1,5 @@
 import type { Api, Model } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import type { PluginHookBeforeAgentStartResult } from "../../../plugins/types.js";
 import {
   CONTEXT_WINDOW_HARD_MIN_TOKENS,
@@ -96,7 +96,7 @@ export async function resolveHookModelSelection(params: {
 }
 
 export function resolveEffectiveRuntimeModel(params: {
-  cfg: OpenClawConfig | undefined;
+  cfg: AlisioConfig | undefined;
   provider: string;
   modelId: string;
   runtimeModel: Model<Api>;

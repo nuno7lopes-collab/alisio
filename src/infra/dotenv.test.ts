@@ -38,17 +38,17 @@ type DotEnvFixture = {
 };
 
 async function withDotEnvFixture(run: (fixture: DotEnvFixture) => Promise<void>) {
-  const base = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-dotenv-test-"));
+  const base = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-dotenv-test-"));
   const cwdDir = path.join(base, "cwd");
   const stateDir = path.join(base, "state");
-  process.env.OPENCLAW_STATE_DIR = stateDir;
+  process.env.ALISIO_STATE_DIR = stateDir;
   await fs.mkdir(cwdDir, { recursive: true });
   await fs.mkdir(stateDir, { recursive: true });
   await run({ base, cwdDir, stateDir });
 }
 
 describe("loadDotEnv", () => {
-  it("loads ~/.openclaw/.env as fallback without overriding CWD .env", async () => {
+  it("loads ~/.alisio/.env as fallback without overriding CWD .env", async () => {
     await withIsolatedEnvAndCwd(async () => {
       await withDotEnvFixture(async ({ cwdDir, stateDir }) => {
         await writeEnvFile(path.join(stateDir, ".env"), "FOO=from-global\nBAR=1\n");
@@ -105,8 +105,8 @@ describe("loadDotEnv", () => {
           [
             "SAFE_KEY=from-cwd",
             "NODE_OPTIONS=--require ./evil.js",
-            "OPENCLAW_STATE_DIR=./evil-state",
-            "OPENCLAW_CONFIG_PATH=./evil-config.json",
+            "ALISIO_STATE_DIR=./evil-state",
+            "ALISIO_CONFIG_PATH=./evil-config.json",
             "ANTHROPIC_BASE_URL=https://evil.example.com/v1",
             "HTTP_PROXY=http://evil-proxy:8080",
           ].join("\n"),
@@ -116,7 +116,7 @@ describe("loadDotEnv", () => {
         vi.spyOn(process, "cwd").mockReturnValue(cwdDir);
         delete process.env.SAFE_KEY;
         delete process.env.NODE_OPTIONS;
-        delete process.env.OPENCLAW_CONFIG_PATH;
+        delete process.env.ALISIO_CONFIG_PATH;
         delete process.env.ANTHROPIC_BASE_URL;
         delete process.env.HTTP_PROXY;
 
@@ -125,54 +125,54 @@ describe("loadDotEnv", () => {
         expect(process.env.SAFE_KEY).toBe("from-cwd");
         expect(process.env.BAR).toBe("from-global");
         expect(process.env.NODE_OPTIONS).toBeUndefined();
-        expect(process.env.OPENCLAW_STATE_DIR).toBe(stateDir);
-        expect(process.env.OPENCLAW_CONFIG_PATH).toBeUndefined();
+        expect(process.env.ALISIO_STATE_DIR).toBe(stateDir);
+        expect(process.env.ALISIO_CONFIG_PATH).toBeUndefined();
         expect(process.env.ANTHROPIC_BASE_URL).toBeUndefined();
         expect(process.env.HTTP_PROXY).toBeUndefined();
       });
     });
   });
 
-  it("blocks OPENCLAW_STATE_DIR from workspace .env even when unset in process env", async () => {
+  it("blocks ALISIO_STATE_DIR from workspace .env even when unset in process env", async () => {
     await withIsolatedEnvAndCwd(async () => {
       await withDotEnvFixture(async ({ cwdDir }) => {
         await writeEnvFile(
           path.join(cwdDir, ".env"),
-          "OPENCLAW_STATE_DIR=./evil-state\nOPENCLAW_CONFIG_PATH=./evil-config.json\n",
+          "ALISIO_STATE_DIR=./evil-state\nALISIO_CONFIG_PATH=./evil-config.json\n",
         );
 
-        delete process.env.OPENCLAW_STATE_DIR;
-        delete process.env.OPENCLAW_CONFIG_PATH;
+        delete process.env.ALISIO_STATE_DIR;
+        delete process.env.ALISIO_CONFIG_PATH;
 
         loadWorkspaceDotEnvFile(path.join(cwdDir, ".env"), { quiet: true });
 
-        expect(process.env.OPENCLAW_STATE_DIR).toBeUndefined();
-        expect(process.env.OPENCLAW_CONFIG_PATH).toBeUndefined();
+        expect(process.env.ALISIO_STATE_DIR).toBeUndefined();
+        expect(process.env.ALISIO_CONFIG_PATH).toBeUndefined();
       });
     });
   });
 
-  it("blocks path-override vars (OPENCLAW_AGENT_DIR, PI_CODING_AGENT_DIR, OPENCLAW_OAUTH_DIR) from workspace .env", async () => {
+  it("blocks path-override vars (ALISIO_AGENT_DIR, PI_CODING_AGENT_DIR, ALISIO_OAUTH_DIR) from workspace .env", async () => {
     await withIsolatedEnvAndCwd(async () => {
       await withDotEnvFixture(async ({ cwdDir }) => {
         await writeEnvFile(
           path.join(cwdDir, ".env"),
           [
-            "OPENCLAW_AGENT_DIR=./evil-agent",
+            "ALISIO_AGENT_DIR=./evil-agent",
             "PI_CODING_AGENT_DIR=./evil-coding",
-            "OPENCLAW_OAUTH_DIR=./evil-oauth",
+            "ALISIO_OAUTH_DIR=./evil-oauth",
           ].join("\n"),
         );
 
-        delete process.env.OPENCLAW_AGENT_DIR;
+        delete process.env.ALISIO_AGENT_DIR;
         delete process.env.PI_CODING_AGENT_DIR;
-        delete process.env.OPENCLAW_OAUTH_DIR;
+        delete process.env.ALISIO_OAUTH_DIR;
 
         loadWorkspaceDotEnvFile(path.join(cwdDir, ".env"), { quiet: true });
 
-        expect(process.env.OPENCLAW_AGENT_DIR).toBeUndefined();
+        expect(process.env.ALISIO_AGENT_DIR).toBeUndefined();
         expect(process.env.PI_CODING_AGENT_DIR).toBeUndefined();
-        expect(process.env.OPENCLAW_OAUTH_DIR).toBeUndefined();
+        expect(process.env.ALISIO_OAUTH_DIR).toBeUndefined();
       });
     });
   });
@@ -200,7 +200,7 @@ describe("loadDotEnv", () => {
     await withIsolatedEnvAndCwd(async () => {
       await withDotEnvFixture(async ({ base, cwdDir, stateDir }) => {
         const evilStateDir = path.join(base, "evil-state");
-        await writeEnvFile(path.join(cwdDir, ".env"), "OPENCLAW_STATE_DIR=./evil-state\n");
+        await writeEnvFile(path.join(cwdDir, ".env"), "ALISIO_STATE_DIR=./evil-state\n");
         await writeEnvFile(path.join(stateDir, ".env"), "SAFE_KEY=trusted-global\n");
         await writeEnvFile(path.join(evilStateDir, ".env"), "SAFE_KEY=evil-global\n");
 
@@ -209,7 +209,7 @@ describe("loadDotEnv", () => {
 
         loadDotEnv({ quiet: true });
 
-        expect(process.env.OPENCLAW_STATE_DIR).toBe(stateDir);
+        expect(process.env.ALISIO_STATE_DIR).toBe(stateDir);
         expect(process.env.SAFE_KEY).toBe("trusted-global");
       });
     });
@@ -217,19 +217,19 @@ describe("loadDotEnv", () => {
 });
 
 describe("loadCliDotEnv", () => {
-  it("blocks OPENCLAW_STATE_DIR from workspace .env even when unset in process env", async () => {
+  it("blocks ALISIO_STATE_DIR from workspace .env even when unset in process env", async () => {
     await withIsolatedEnvAndCwd(async () => {
       await withDotEnvFixture(async ({ cwdDir }) => {
-        await writeEnvFile(path.join(cwdDir, ".env"), "OPENCLAW_STATE_DIR=./evil-state\n");
+        await writeEnvFile(path.join(cwdDir, ".env"), "ALISIO_STATE_DIR=./evil-state\n");
 
         // Delete the fixture-provided value so the blocking must come from
         // the workspace blocklist, not the "already set" skip.
-        delete process.env.OPENCLAW_STATE_DIR;
+        delete process.env.ALISIO_STATE_DIR;
         vi.spyOn(process, "cwd").mockReturnValue(cwdDir);
 
         loadCliDotEnv({ quiet: true });
 
-        expect(process.env.OPENCLAW_STATE_DIR).toBeUndefined();
+        expect(process.env.ALISIO_STATE_DIR).toBeUndefined();
       });
     });
   });
@@ -241,8 +241,8 @@ describe("loadCliDotEnv", () => {
           path.join(cwdDir, ".env"),
           [
             "SAFE_KEY=from-cwd",
-            "OPENCLAW_STATE_DIR=./evil-state",
-            "OPENCLAW_CONFIG_PATH=./evil-config.json",
+            "ALISIO_STATE_DIR=./evil-state",
+            "ALISIO_CONFIG_PATH=./evil-config.json",
             "NODE_OPTIONS=--require ./evil.js",
             "ANTHROPIC_BASE_URL=https://evil.example.com/v1",
           ].join("\n"),
@@ -251,7 +251,7 @@ describe("loadCliDotEnv", () => {
 
         vi.spyOn(process, "cwd").mockReturnValue(cwdDir);
         delete process.env.SAFE_KEY;
-        delete process.env.OPENCLAW_CONFIG_PATH;
+        delete process.env.ALISIO_CONFIG_PATH;
         delete process.env.NODE_OPTIONS;
         delete process.env.ANTHROPIC_BASE_URL;
         delete process.env.BAR;
@@ -260,8 +260,8 @@ describe("loadCliDotEnv", () => {
 
         expect(process.env.SAFE_KEY).toBe("from-cwd");
         expect(process.env.BAR).toBe("from-global");
-        expect(process.env.OPENCLAW_STATE_DIR).toBe(stateDir);
-        expect(process.env.OPENCLAW_CONFIG_PATH).toBeUndefined();
+        expect(process.env.ALISIO_STATE_DIR).toBe(stateDir);
+        expect(process.env.ALISIO_CONFIG_PATH).toBeUndefined();
         expect(process.env.NODE_OPTIONS).toBeUndefined();
         expect(process.env.ANTHROPIC_BASE_URL).toBeUndefined();
       });

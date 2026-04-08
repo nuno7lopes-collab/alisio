@@ -2,17 +2,20 @@ import {
   hasConfiguredUnavailableCredentialStatus,
   hasResolvedCredentialValue,
 } from "../../channels/account-snapshot-fields.js";
-import { listChannelPlugins } from "../../channels/plugins/index.js";
 import {
   buildChannelAccountSnapshot,
   buildReadOnlySourceChannelAccountSnapshot,
 } from "../../channels/plugins/status.js";
 import type { ChannelAccountSnapshot } from "../../channels/plugins/types.js";
+import {
+  isProductChatChannelId,
+  listProductChannelPlugins,
+} from "../../channels/product-surface.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { resolveCommandSecretRefsViaGateway } from "../../cli/command-secret-gateway.js";
 import { getChannelsCommandSecretTargetIds } from "../../cli/command-secret-targets.js";
 import { withProgress } from "../../cli/progress.js";
-import { type OpenClawConfig, readConfigFileSnapshot } from "../../config/config.js";
+import { type AlisioConfig, readConfigFileSnapshot } from "../../config/config.js";
 import { callGateway } from "../../gateway/call.js";
 import { collectChannelStatusIssues } from "../../infra/channels-status-issues.js";
 import { formatTimeAgo } from "../../infra/format-time/format-relative.ts";
@@ -174,7 +177,7 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
       return buildChannelAccountLine(provider, account, bits);
     });
 
-  const plugins = listChannelPlugins();
+  const plugins = listProductChannelPlugins();
   const accountsByChannel = payload.channelAccounts as Record<string, unknown> | undefined;
   const accountPayloads: Partial<Record<string, Array<Record<string, unknown>>>> = {};
   for (const plugin of plugins) {
@@ -192,7 +195,9 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
   }
 
   lines.push("");
-  const issues = collectChannelStatusIssues(payload);
+  const issues = collectChannelStatusIssues(payload).filter((issue) =>
+    isProductChatChannelId(issue.channel),
+  );
   if (issues.length > 0) {
     lines.push(theme.warn("Warnings:"));
     for (const issue of issues) {
@@ -210,9 +215,9 @@ export function formatGatewayChannelsStatusLines(payload: Record<string, unknown
 }
 
 export async function formatConfigChannelsStatusLines(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   meta: { path?: string; mode?: "local" | "remote" },
-  opts?: { sourceConfig?: OpenClawConfig },
+  opts?: { sourceConfig?: AlisioConfig },
 ): Promise<string[]> {
   const lines: string[] = [];
   lines.push(theme.warn("Gateway not reachable; showing config-only status."));
@@ -236,7 +241,7 @@ export async function formatConfigChannelsStatusLines(
       return buildChannelAccountLine(provider, account, bits);
     });
 
-  const plugins = listChannelPlugins();
+  const plugins = listProductChannelPlugins();
   const sourceConfig = opts?.sourceConfig ?? cfg;
   for (const plugin of plugins) {
     const accountIds = plugin.config.listAccountIds(cfg);

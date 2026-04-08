@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   evaluatePersonSubagentGuard,
   evaluatePersonToolCallGuard,
@@ -7,7 +7,7 @@ import {
   resolvePersonWorkspaceSummary,
 } from "./person-agent.js";
 
-function createCfg(): OpenClawConfig {
+function createCfg(): AlisioConfig {
   return {
     agents: {
       defaults: {
@@ -49,7 +49,7 @@ describe("person-agent", () => {
   });
 
   it("builds a suggested workspace summary for the default agent even before activation", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       agents: {
         list: [{ id: "main", default: true, name: "Nuno" }],
       },

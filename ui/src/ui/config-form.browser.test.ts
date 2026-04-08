@@ -242,7 +242,7 @@ describe("config form renderer", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Gateway");
+    expect(container.textContent).toContain("Alisio");
     expect(container.textContent).toContain("Token");
     expect(container.textContent).not.toContain("Allow From");
     expect(container.textContent).not.toContain("Mode");

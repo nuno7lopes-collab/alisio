@@ -3,7 +3,7 @@
 
 import path from "node:path";
 import { loadConfig } from "../config/config.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { computeBackoff, type BackoffPolicy } from "../infra/backoff.js";
 import { consumeRootOptionToken, FLAG_TERMINATOR } from "../infra/cli-root-options.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
@@ -80,7 +80,7 @@ export function applyConfiguredContextWindows(params: {
 }
 
 let loadPromise: Promise<void> | null = null;
-let configuredConfig: OpenClawConfig | undefined;
+let configuredConfig: AlisioConfig | undefined;
 let configLoadFailures = 0;
 let nextConfigLoadAttemptAtMs = 0;
 let modelsConfigRuntimePromise: Promise<typeof import("./models-config.runtime.js")> | undefined;
@@ -90,12 +90,14 @@ function loadModelsConfigRuntime() {
   return modelsConfigRuntimePromise;
 }
 
-function isLikelyOpenClawCliProcess(argv: string[] = process.argv): boolean {
+function isLikelyCliProcess(argv: string[] = process.argv): boolean {
   const entryBasename = path
     .basename(argv[1] ?? "")
     .trim()
     .toLowerCase();
   return (
+    entryBasename === "alisio" ||
+    entryBasename === "alisio.mjs" ||
     entryBasename === "openclaw" ||
     entryBasename === "openclaw.mjs" ||
     entryBasename === "entry.js" ||
@@ -145,21 +147,21 @@ const SKIP_EAGER_WARMUP_PRIMARY_COMMANDS = new Set([
 ]);
 
 function shouldEagerWarmContextWindowCache(argv: string[] = process.argv): boolean {
-  // Keep this gate tied to the real OpenClaw CLI entrypoints.
+  // Keep this gate tied to the real CLI entrypoints only.
   //
   // This module can also land inside shared dist chunks that are imported from
   // plugin-sdk/library surfaces during smoke tests and plugin loading. If we do
   // eager warmup for those generic Node script imports, merely importing the
   // built plugin-sdk can call ensureOpenClawModelsJson(), which cascades into
   // plugin discovery and breaks dist/source singleton assumptions.
-  if (!isLikelyOpenClawCliProcess(argv)) {
+  if (!isLikelyCliProcess(argv)) {
     return false;
   }
   const [primary] = getCommandPathFromArgv(argv);
   return Boolean(primary) && !SKIP_EAGER_WARMUP_PRIMARY_COMMANDS.has(primary);
 }
 
-function primeConfiguredContextWindows(): OpenClawConfig | undefined {
+function primeConfiguredContextWindows(): AlisioConfig | undefined {
   if (configuredConfig) {
     return configuredConfig;
   }
@@ -264,7 +266,7 @@ if (shouldEagerWarmContextWindowCache()) {
 }
 
 function resolveConfiguredModelParams(
-  cfg: OpenClawConfig | undefined,
+  cfg: AlisioConfig | undefined,
   provider: string,
   model: string,
 ): Record<string, unknown> | undefined {
@@ -316,7 +318,7 @@ function resolveProviderModelRef(params: {
 // keys overlap with raw slash-containing model IDs (e.g. OpenRouter's
 // "google/gemini-2.5-pro" stored as a raw catalog entry).
 function resolveConfiguredProviderContextWindow(
-  cfg: OpenClawConfig | undefined,
+  cfg: AlisioConfig | undefined,
   provider: string,
   model: string,
 ): number | undefined {
@@ -373,7 +375,7 @@ function isAnthropic1MModel(provider: string, model: string): boolean {
 }
 
 export function resolveContextTokensForModel(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   provider?: string;
   model?: string;
   contextTokensOverride?: number;

@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import { parseImageGenerationModelRef } from "../../image-generation/model-ref.js";
 import {
@@ -114,7 +114,7 @@ function getImageGenerationProviderAuthEnvVars(providerId: string): string[] {
 }
 
 function resolveImageGenerationModelCandidates(
-  cfg: OpenClawConfig | undefined,
+  cfg: AlisioConfig | undefined,
 ): Array<string | undefined> {
   const providerDefaults = new Map<string, string>();
   for (const provider of listRuntimeImageGenerationProviders({ config: cfg })) {
@@ -146,7 +146,7 @@ function resolveImageGenerationModelCandidates(
 }
 
 export function resolveImageGenerationModelConfigForTool(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   agentDir?: string;
 }): ToolModelConfig | null {
   const explicit = coerceToolModelConfig(params.cfg?.agents?.defaults?.imageGenerationModel);
@@ -238,7 +238,7 @@ function normalizeReferenceImages(args: Record<string, unknown>): string[] {
 }
 
 function resolveSelectedImageGenerationProvider(params: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   imageGenerationModelConfig: ToolModelConfig;
   modelOverride?: string;
 }): ImageGenerationProvider | undefined {
@@ -465,7 +465,7 @@ async function inferResolutionFromInputImages(
 }
 
 export function createImageGenerateTool(options?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   sandbox?: ImageGenerateSandboxConfig;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 
 const ensureOpenClawModelsJsonMock = vi.fn<
   (config: unknown, agentDir: unknown) => Promise<{ agentDir: string; wrote: boolean }>
@@ -55,7 +55,7 @@ describe("gateway startup primary model warmup", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     await __testing.prewarmConfiguredPrimaryModel({
       cfg,
@@ -72,7 +72,7 @@ describe("gateway startup primary model warmup", () => {
     const { __testing } = await import("./server-startup.js");
 
     await __testing.prewarmConfiguredPrimaryModel({
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       log: { warn: vi.fn() },
     });
 

@@ -1,6 +1,8 @@
+import { legacyColonKey } from "../../brand-compat.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 
-const PREFIX = "openclaw:pinned:";
+const PREFIX = "alisio:pinned:";
+const LEGACY_PREFIX = `${legacyColonKey("pinned")}:`;
 
 export class PinnedMessages {
   private key: string;
@@ -44,13 +46,20 @@ export class PinnedMessages {
 
   private load(): void {
     try {
-      const raw = getSafeLocalStorage()?.getItem(this.key);
-      if (!raw) {
+      const storage = getSafeLocalStorage();
+      const raw = storage?.getItem(this.key);
+      const legacyKey = LEGACY_PREFIX + this.key.slice(PREFIX.length);
+      const legacyRaw = raw ? null : storage?.getItem(legacyKey);
+      const source = raw ?? legacyRaw;
+      if (!source) {
         return;
       }
-      const arr = JSON.parse(raw);
+      const arr = JSON.parse(source);
       if (Array.isArray(arr)) {
         this._indices = new Set(arr.filter((n) => typeof n === "number"));
+        if (legacyRaw) {
+          this.save();
+        }
       }
     } catch {
       // ignore
@@ -59,7 +68,9 @@ export class PinnedMessages {
 
   private save(): void {
     try {
-      getSafeLocalStorage()?.setItem(this.key, JSON.stringify([...this._indices]));
+      const storage = getSafeLocalStorage();
+      storage?.setItem(this.key, JSON.stringify([...this._indices]));
+      storage?.removeItem(LEGACY_PREFIX + this.key.slice(PREFIX.length));
     } catch {
       // ignore
     }

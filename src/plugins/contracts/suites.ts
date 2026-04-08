@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { ProviderPlugin, WebSearchProviderPlugin } from "../types.js";
 
 type Lazy<T> = T | (() => T);
@@ -120,7 +120,7 @@ export function installWebSearchProviderContractSuite(params: {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const tool = provider.createTool({ config, searchConfig: searchConfigTarget });
 
     expect(tool).not.toBeNull();

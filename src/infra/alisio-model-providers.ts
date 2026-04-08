@@ -10,7 +10,7 @@ import {
   isAlisioDynamicProvider,
 } from "../shared/alisio-remote-model-provider.js";
 
-const ALISIO_DYNAMIC_API_PREFIX = "openclaw-alisio:";
+const ALISIO_DYNAMIC_API_PREFIX = "alisio:";
 const DEFAULT_CONTEXT_WINDOW = 32_768;
 const DEFAULT_MAX_TOKENS = 8_192;
 
@@ -34,6 +34,12 @@ export type AlisioDynamicProviderSource =
   | (AlisioDynamicSourceBase & {
       kind: "current-llama";
       targetId: string;
+    })
+  | (AlisioDynamicSourceBase & {
+      kind: "current-openai";
+      targetId: string;
+      baseUrl: string;
+      apiKey?: string;
     })
   | (AlisioDynamicSourceBase & {
       kind: "node-llama";

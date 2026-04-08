@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import "./test-helpers/fast-coding-tools.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 import type { SandboxDockerConfig } from "./sandbox.js";
 import type { SandboxFsBridge } from "./sandbox/fs-bridge.js";
@@ -54,7 +54,7 @@ describe("Agent-specific tool filtering", () => {
     const relativeEscape = path.relative(workspaceDir, escapedPath);
 
     try {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         tools: {
           allow: ["read", "write", "exec"],
           exec: {
@@ -93,7 +93,7 @@ describe("Agent-specific tool filtering", () => {
     }
   }
 
-  function createMainSessionTools(cfg: OpenClawConfig) {
+  function createMainSessionTools(cfg: AlisioConfig) {
     return createOpenClawCodingTools({
       config: cfg,
       sessionKey: "agent:main:main",
@@ -103,9 +103,9 @@ describe("Agent-specific tool filtering", () => {
   }
 
   function createMainAgentConfig(params: {
-    tools: NonNullable<OpenClawConfig["tools"]>;
-    agentTools?: NonNullable<NonNullable<OpenClawConfig["agents"]>["list"]>[number]["tools"];
-  }): OpenClawConfig {
+    tools: NonNullable<AlisioConfig["tools"]>;
+    agentTools?: NonNullable<NonNullable<AlisioConfig["agents"]>["list"]>[number]["tools"];
+  }): AlisioConfig {
     return {
       tools: params.tools,
       agents: {
@@ -122,7 +122,7 @@ describe("Agent-specific tool filtering", () => {
 
   function createExecHostDefaultsConfig(
     agents: Array<{ id: string; execHost?: "auto" | "gateway" | "sandbox" }>,
-  ): OpenClawConfig {
+  ): AlisioConfig {
     return {
       tools: {
         exec: {
@@ -186,7 +186,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should allow apply_patch for OpenAI models when write is allow-listed", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         allow: ["read", "write", "exec"],
       },
@@ -208,7 +208,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should allow disabling apply_patch explicitly", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         allow: ["read", "write", "exec"],
         exec: {
@@ -252,7 +252,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply agent-specific tool policy", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         allow: ["read", "write", "exec"],
         deny: [],
@@ -285,7 +285,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply provider-specific tool policy", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         allow: ["read", "write", "exec"],
         byProvider: {
@@ -309,7 +309,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply provider-specific tool profile overrides", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         profile: "coding",
         byProvider: {
@@ -334,7 +334,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should allow different tool policies for different agents", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       agents: {
         list: [
           {
@@ -383,7 +383,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply group tool policy overrides (group-specific beats wildcard)", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         whatsapp: {
           groups: {
@@ -422,7 +422,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply per-sender tool policies for group tools", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         whatsapp: {
           groups: {
@@ -461,7 +461,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should not let default sender policy override group tools", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         whatsapp: {
           groups: {
@@ -491,7 +491,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should resolve telegram group tool policy for topic session keys", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           groups: {
@@ -516,7 +516,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should inherit group tool policy for subagents from spawnedBy session keys", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         whatsapp: {
           groups: {
@@ -541,7 +541,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should apply global tool policy before agent-specific policy", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         deny: ["browser"], // Global deny
       },
@@ -629,7 +629,7 @@ describe("Agent-specific tool filtering", () => {
   });
 
   it("should run exec synchronously when process is denied", async () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       tools: {
         deny: ["process"],
         exec: {

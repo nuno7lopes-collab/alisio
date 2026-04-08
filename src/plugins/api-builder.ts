@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { PluginRuntime } from "./runtime/types.js";
 import type { OpenClawPluginApi, PluginLogger } from "./types.js";
 
@@ -10,7 +10,7 @@ export type BuildPluginApiParams = {
   source: string;
   rootDir?: string;
   registrationMode: OpenClawPluginApi["registrationMode"];
-  config: OpenClawConfig;
+  config: AlisioConfig;
   pluginConfig?: Record<string, unknown>;
   runtime: PluginRuntime;
   logger: PluginLogger;

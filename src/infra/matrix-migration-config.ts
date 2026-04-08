@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import os from "node:os";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveStateDir } from "../config/paths.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 import {
@@ -129,14 +129,14 @@ function resolveGlobalMatrixEnvConfig(env: NodeJS.ProcessEnv): {
 }
 
 function resolveMatrixAccountConfigEntry(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   accountId: string,
 ): Record<string, unknown> | null {
   return findMatrixAccountEntry(cfg, accountId);
 }
 
 function resolveMatrixFlatStoreSelectionNote(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   accountId: string,
 ): string | undefined {
   if (resolveConfiguredMatrixAccountIds(cfg).length <= 1) {
@@ -149,7 +149,7 @@ function resolveMatrixFlatStoreSelectionNote(
 }
 
 export function resolveMatrixMigrationConfigFields(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   env: NodeJS.ProcessEnv;
   accountId: string;
 }): {
@@ -240,7 +240,7 @@ export function credentialsMatchResolvedIdentity(
 }
 
 export function resolveMatrixMigrationAccountTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   env: NodeJS.ProcessEnv;
   accountId: string;
 }): MatrixMigrationAccountTarget | null {
@@ -280,7 +280,7 @@ export function resolveMatrixMigrationAccountTarget(params: {
 }
 
 export function resolveLegacyMatrixFlatStoreTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   env: NodeJS.ProcessEnv;
   detectedPath: string;
   detectedKind: MatrixLegacyFlatStoreKind;
@@ -290,14 +290,14 @@ export function resolveLegacyMatrixFlatStoreTarget(params: {
     return {
       warning:
         `Legacy Matrix ${params.detectedKind} detected at ${params.detectedPath}, but channels.matrix is not configured yet. ` +
-        'Configure Matrix, then rerun "openclaw doctor --fix" or restart the gateway.',
+        'Configure Matrix, then rerun "alisio doctor --fix" or restart the gateway.',
     };
   }
   if (requiresExplicitMatrixDefaultAccount(params.cfg)) {
     return {
       warning:
         `Legacy Matrix ${params.detectedKind} detected at ${params.detectedPath}, but multiple Matrix accounts are configured and channels.matrix.defaultAccount is not set. ` +
-        'Set "channels.matrix.defaultAccount" to the intended target account before rerunning "openclaw doctor --fix" or restarting the gateway.',
+        'Set "channels.matrix.defaultAccount" to the intended target account before rerunning "alisio doctor --fix" or restarting the gateway.',
     };
   }
 
@@ -316,7 +316,7 @@ export function resolveLegacyMatrixFlatStoreTarget(params: {
       warning:
         `Legacy Matrix ${params.detectedKind} detected at ${params.detectedPath}, but ${targetDescription} could not be resolved yet ` +
         `(need homeserver, userId, and access token for channels.matrix${accountId === DEFAULT_ACCOUNT_ID ? "" : `.accounts.${accountId}`}). ` +
-        'Start the gateway once with a working Matrix login, or rerun "openclaw doctor --fix" after cached credentials are available.',
+        'Start the gateway once with a working Matrix login, or rerun "alisio doctor --fix" after cached credentials are available.',
     };
   }
 

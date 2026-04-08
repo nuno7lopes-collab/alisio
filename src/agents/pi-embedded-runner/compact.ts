@@ -10,7 +10,7 @@ import {
 import { resolveHeartbeatPrompt } from "../../auto-reply/heartbeat.js";
 import type { ReasoningLevel, ThinkLevel } from "../../auto-reply/thinking.js";
 import { resolveChannelCapabilities } from "../../config/channel-capabilities.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import {
   ensureContextEnginesInitialized,
   resolveContextEngine,
@@ -150,7 +150,7 @@ export type CompactEmbeddedPiSessionParams = {
   currentTokenCount?: number;
   workspaceDir: string;
   agentDir?: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   skillsSnapshot?: SkillSnapshot;
   provider?: string;
   model?: string;

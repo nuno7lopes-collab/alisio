@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 import { loadChannelConfigSurfaceModule } from "./load-channel-config-surface.ts";
 
 const GENERATED_BY = "scripts/generate-bundled-channel-config-metadata.ts";
@@ -81,19 +82,13 @@ function resolveChannelConfigSchemaModulePath(rootDir: string): string | null {
 }
 
 function resolvePackageChannelMeta(source: BundledPluginSource) {
-  const openclawMeta =
-    source.packageJson &&
-    typeof source.packageJson === "object" &&
-    !Array.isArray(source.packageJson) &&
-    "openclaw" in source.packageJson
-      ? (source.packageJson.openclaw as Record<string, unknown> | undefined)
-      : undefined;
+  const pluginMeta = readPackageBrandConfig(source.packageJson) as Record<string, unknown> | null;
   const channelMeta =
-    openclawMeta &&
-    typeof openclawMeta.channel === "object" &&
-    openclawMeta.channel &&
-    !Array.isArray(openclawMeta.channel)
-      ? (openclawMeta.channel as Record<string, unknown>)
+    pluginMeta &&
+    typeof pluginMeta.channel === "object" &&
+    pluginMeta.channel &&
+    !Array.isArray(pluginMeta.channel)
+      ? (pluginMeta.channel as Record<string, unknown>)
       : undefined;
   return channelMeta;
 }

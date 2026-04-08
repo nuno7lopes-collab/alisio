@@ -156,10 +156,10 @@ describe("nodes devices pending rendering", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Devices");
-    expect(text).toContain("Nodes and execution");
+    expect(text).toContain("Computers and execution");
     expect(text).toContain("Execution");
-    expect(text).toContain("Nodes");
-    expect(text).toContain("Node requests");
+    expect(text).toContain("Computers");
+    expect(text).toContain("Computer requests");
   });
 
   it("lets the operator remove a linked device from the paired list", () => {
@@ -338,7 +338,7 @@ describe("nodes devices pending rendering", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Node requests");
+    expect(text).toContain("Computer requests");
     expect(text).toContain("Runner");
     expect(text).toContain("1 commands");
     expect(text).toContain("Approve");

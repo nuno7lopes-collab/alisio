@@ -3,7 +3,7 @@ import {
   resolveMemorySearchConfig,
   type ResolvedMemorySearchConfig,
 } from "../../agents/memory-search.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { loadConfig } from "../../config/config.js";
 import {
   getActiveMemorySearchManager,
@@ -157,7 +157,7 @@ function buildRuntimeStatus(
   return runtime;
 }
 
-function resolveMemoryBackendSnapshot(params: { cfg: OpenClawConfig; agentId: string }) {
+function resolveMemoryBackendSnapshot(params: { cfg: AlisioConfig; agentId: string }) {
   const backend = resolveActiveMemoryBackendConfig(params);
   if (!backend) {
     return undefined;
@@ -249,7 +249,7 @@ async function collectManagerStatus(params: {
   }
 }
 
-function resolveMemoryStatusState(cfg: OpenClawConfig, agentId: string) {
+function resolveMemoryStatusState(cfg: AlisioConfig, agentId: string) {
   let config: MemoryStatusConfig | undefined;
   let enabled = false;
   let configError: string | undefined;

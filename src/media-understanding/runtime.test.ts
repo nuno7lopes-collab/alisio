@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   withBundledPluginAllowlistCompat,
   withBundledPluginEnablementCompat,
@@ -21,7 +21,7 @@ let resolveRuntimePluginRegistryMock: ReturnType<
 
 function setCompatibleActiveMediaUnderstandingRegistry(
   pluginRegistry: ReturnType<typeof createEmptyPluginRegistry>,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
 ) {
   const pluginIds = loadPluginManifestRegistry({
     config: cfg,
@@ -96,7 +96,7 @@ describe("media-understanding runtime helpers", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     setCompatibleActiveMediaUnderstandingRegistry(pluginRegistry, cfg);
 
     const result = await describeImageFile({
@@ -137,7 +137,7 @@ describe("media-understanding runtime helpers", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       agentDir: "/tmp/agent",
     });
 

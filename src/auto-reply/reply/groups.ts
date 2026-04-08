@@ -1,5 +1,5 @@
 import type { ChannelId } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { resolveChannelGroupRequireMention } from "../../config/group-policy.js";
 import type { GroupKeyResolution, SessionEntry } from "../../config/sessions.js";
 import { isInternalMessageChannel } from "../../utils/message-channel.js";
@@ -63,7 +63,7 @@ async function resolveRuntimeChannelId(raw?: string | null): Promise<ChannelId |
 }
 
 async function resolveBuiltInRequireMentionFromConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel: ChannelId;
   groupChannel?: string;
   groupId?: string;
@@ -82,7 +82,7 @@ async function resolveBuiltInRequireMentionFromConfig(params: {
 }
 
 export async function resolveGroupRequireMention(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   ctx: TemplateContext;
   groupResolution?: GroupKeyResolution;
 }): Promise<boolean> {
@@ -170,7 +170,7 @@ export function buildGroupChatContext(params: { sessionCtx: TemplateContext }): 
 }
 
 export function buildGroupIntro(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionCtx: TemplateContext;
   sessionEntry?: SessionEntry;
   defaultActivation: "always" | "mention";

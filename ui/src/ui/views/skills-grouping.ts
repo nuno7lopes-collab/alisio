@@ -1,3 +1,4 @@
+import { legacySkillSources } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
@@ -16,25 +17,33 @@ const SKILL_SOURCE_GROUPS: Array<{ id: string; labelKey: string; sources: string
   {
     id: "workspace",
     labelKey: "alisio.capabilities.groups.workspace",
-    sources: ["openclaw-workspace"],
+    sources: [legacySkillSources.workspace],
   },
   {
     id: "personal",
     labelKey: "alisio.capabilities.groups.personal",
     sources: ["agents-skills-personal"],
   },
-  { id: "built-in", labelKey: "alisio.capabilities.groups.builtIn", sources: ["openclaw-bundled"] },
+  {
+    id: "built-in",
+    labelKey: "alisio.capabilities.groups.builtIn",
+    sources: [legacySkillSources.bundled],
+  },
   {
     id: "installed",
     labelKey: "alisio.capabilities.groups.installed",
-    sources: ["openclaw-managed"],
+    sources: [legacySkillSources.managed],
   },
   {
     id: "plugins",
     labelKey: "alisio.capabilities.groups.plugins",
-    sources: ["openclaw-plugin"],
+    sources: [legacySkillSources.plugin],
   },
-  { id: "extra", labelKey: "alisio.capabilities.groups.extra", sources: ["openclaw-extra"] },
+  {
+    id: "extra",
+    labelKey: "alisio.capabilities.groups.extra",
+    sources: [legacySkillSources.extra],
+  },
 ];
 
 export function groupSkills(skills: SkillStatusEntry[]): SkillGroup[] {

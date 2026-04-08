@@ -1,5 +1,5 @@
 import { formatCliCommand } from "../../cli/command-format.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { replaceConfigFile } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { type RuntimeEnv, writeRuntimeJson } from "../../runtime.js";
@@ -9,7 +9,7 @@ import type { OnboardOptions } from "../onboard-types.js";
 export async function runNonInteractiveRemoteSetup(params: {
   opts: OnboardOptions;
   runtime: RuntimeEnv;
-  baseConfig: OpenClawConfig;
+  baseConfig: AlisioConfig;
   baseHash?: string;
 }) {
   const { opts, runtime, baseConfig, baseHash } = params;
@@ -30,7 +30,7 @@ export async function runNonInteractiveRemoteSetup(params: {
   }
 
   const existingRemote = baseConfig.gateway?.remote ?? {};
-  let nextConfig: OpenClawConfig = {
+  let nextConfig: AlisioConfig = {
     ...baseConfig,
     gateway: {
       ...baseConfig.gateway,

@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { refreshAfterAlisioConnectorOAuth } from "./alisio-connector-oauth.ts";
 
 const loadAlisioConnectorsMock = vi.hoisted(() => vi.fn(async () => undefined));
+const loadAlisioDoctorSummaryMock = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("./controllers/alisio.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./controllers/alisio.ts")>();
   return {
     ...actual,
     loadAlisioConnectors: loadAlisioConnectorsMock,
+    loadAlisioDoctorSummary: loadAlisioDoctorSummaryMock,
   };
 });
 
@@ -28,5 +30,6 @@ describe("refreshAfterAlisioConnectorOAuth", () => {
     );
 
     expect(loadAlisioConnectorsMock).toHaveBeenCalledTimes(1);
+    expect(loadAlisioDoctorSummaryMock).toHaveBeenCalledTimes(1);
   });
 });

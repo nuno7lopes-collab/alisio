@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createEmptyPluginRegistry } from "../plugins/registry-empty.js";
 import type { SpeechProviderPlugin } from "../plugins/types.js";
 
@@ -74,7 +74,7 @@ describe("speech provider registry", () => {
       ],
     });
 
-    const cfg = {} as OpenClawConfig;
+    const cfg = {} as AlisioConfig;
 
     expect(listSpeechProviders(cfg).map((provider) => provider.id)).toEqual(["microsoft"]);
     expect(getSpeechProvider("edge", cfg)?.id).toBe("microsoft");
@@ -97,7 +97,7 @@ describe("speech provider registry", () => {
           },
     );
 
-    const cfg = {} as OpenClawConfig;
+    const cfg = {} as AlisioConfig;
 
     expect(listSpeechProviders(cfg).map((provider) => provider.id)).toEqual(["microsoft"]);
     expect(getSpeechProvider("edge", cfg)?.id).toBe("microsoft");

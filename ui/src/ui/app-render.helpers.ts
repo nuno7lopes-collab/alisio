@@ -5,7 +5,7 @@ import { t } from "../i18n/index.ts";
 import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { createChatModelOverride } from "./chat-model-ref.ts";
 import {
   resolveChatModelOverrideValue,
@@ -116,12 +116,12 @@ function resetChatStateForSessionSwitch(state: AppViewState, sessionKey: string)
   state.chatMessage = "";
   state.chatAttachments = [];
   state.chatStream = null;
-  (state as unknown as OpenClawApp).chatStreamStartedAt = null;
+  (state as unknown as AlisioApp).chatStreamStartedAt = null;
   state.chatRunId = null;
   state.chatFinalizing = false;
   state.chatQueue = [];
-  (state as unknown as OpenClawApp).resetToolStream();
-  (state as unknown as OpenClawApp).resetChatScroll();
+  (state as unknown as AlisioApp).resetToolStream();
+  (state as unknown as AlisioApp).resetChatScroll();
   state.applySettings({
     ...state.settings,
     sessionKey,
@@ -314,7 +314,7 @@ export function renderChatControls(state: AppViewState) {
         class="btn btn--sm btn--icon"
         ?disabled=${state.chatLoading || !state.connected}
         @click=${async () => {
-          const app = state as unknown as OpenClawApp;
+          const app = state as unknown as AlisioApp;
           const preserveEphemeral = Boolean(app.chatRunId || app.chatFinalizing);
           app.chatManualRefreshInFlight = true;
           app.chatNewMessagesBelow = false;
@@ -584,11 +584,11 @@ export function switchChatSession(state: AppViewState, nextSessionKey: string) {
   state.chatStream = null;
   // P1: Clear queued chat items from the previous session
   (state as unknown as { chatQueue: unknown[] }).chatQueue = [];
-  (state as unknown as OpenClawApp).chatStreamStartedAt = null;
+  (state as unknown as AlisioApp).chatStreamStartedAt = null;
   state.chatRunId = null;
   state.chatFinalizing = false;
-  (state as unknown as OpenClawApp).resetToolStream();
-  (state as unknown as OpenClawApp).resetChatScroll();
+  (state as unknown as AlisioApp).resetToolStream();
+  (state as unknown as AlisioApp).resetChatScroll();
   state.applySettings({
     ...state.settings,
     sessionKey: nextSessionKey,

@@ -21,7 +21,7 @@ import { normalizeProviderId } from "../../agents/model-selection.js";
 import { resolveDefaultAgentWorkspaceDir } from "../../agents/workspace.js";
 import { formatCliCommand } from "../../cli/command-format.js";
 import { parseDurationMs } from "../../cli/parse-duration.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { logConfigUpdated } from "../../config/logging.js";
 import { runProviderModelSelectedHook } from "../../plugins/provider-auth-choice.runtime.js";
 import { applyAuthProfileConfig } from "../../plugins/provider-auth-helpers.js";
@@ -84,7 +84,7 @@ function resolveDefaultTokenProfileId(provider: string): string {
 }
 
 type ResolvedModelsAuthContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir: string;
   workspaceDir: string;
   providers: ProviderPlugin[];
@@ -263,13 +263,13 @@ function persistAuthProfiles(result: ProviderAuthResult, agentDir: string) {
 }
 
 function applyProviderAuthResultConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   result: ProviderAuthResult,
   params?: {
     setDefault?: boolean;
     defaultModel?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   let next = cfg;
   if (result.configPatch) {
     next = mergeConfigPatch(next, result.configPatch);
@@ -309,7 +309,7 @@ function normalizeSelectedDefaultModel(
 }
 
 async function runProviderAuthMethod(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir: string;
   workspaceDir: string;
   provider: ProviderPlugin;

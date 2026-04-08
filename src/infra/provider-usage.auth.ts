@@ -9,7 +9,7 @@ import { resolveAuthProfileMetadata } from "../agents/auth-profiles/identity.js"
 import { isNonSecretApiKeyMarker } from "../agents/model-auth-markers.js";
 import { resolveUsableCustomProviderApiKey } from "../agents/model-auth.js";
 import { normalizeProviderId } from "../agents/model-selection.js";
-import { loadConfig, type OpenClawConfig } from "../config/config.js";
+import { loadConfig, type AlisioConfig } from "../config/config.js";
 import { resolveProviderUsageAuthWithPlugin } from "../plugins/provider-runtime.js";
 import { normalizeSecretInput } from "../utils/normalize-secret-input.js";
 import { resolveLegacyPiAgentAccessToken } from "./provider-usage.shared.js";
@@ -27,7 +27,7 @@ export type ProviderAuth = {
 type AuthStore = ReturnType<typeof ensureAuthProfileStore>;
 
 type UsageAuthState = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   store: AuthStore;
   env: NodeJS.ProcessEnv;
   agentDir?: string;
@@ -263,7 +263,7 @@ export async function resolveProviderAuths(params: {
   providers: UsageProviderId[];
   auth?: ProviderAuth[];
   agentDir?: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   env?: NodeJS.ProcessEnv;
 }): Promise<ProviderAuth[]> {
   if (params.auth) {

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ExternalPluginCompatibility } from "../../packages/plugin-package-contract/src/index.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import { isAtLeast, parseSemver } from "./runtime-guard.js";
 import { compareComparableSemver, parseComparableSemver } from "./semver-compare.js";
 import { createTempDownloadTarget } from "./temp-download.js";
@@ -194,7 +195,10 @@ export class ClawHubRequestError extends Error {
 
 function normalizeBaseUrl(baseUrl?: string): string {
   const envValue =
-    process.env.OPENCLAW_CLAWHUB_URL?.trim() ||
+    readEnv("ALISIO_CLAWHUB_URL", {
+      fallback: legacyEnvKey("CLAWHUB_URL"),
+      description: "ClawHub base URL",
+    }) ||
     process.env.CLAWHUB_URL?.trim() ||
     DEFAULT_CLAWHUB_URL;
   const value = (baseUrl?.trim() || envValue).replace(/\/+$/, "");
@@ -224,7 +228,10 @@ function extractTokenFromClawHubConfig(value: unknown): string | undefined {
 
 function resolveClawHubConfigPaths(): string[] {
   const explicit =
-    process.env.OPENCLAW_CLAWHUB_CONFIG_PATH?.trim() ||
+    readEnv("ALISIO_CLAWHUB_CONFIG_PATH", {
+      fallback: legacyEnvKey("CLAWHUB_CONFIG_PATH"),
+      description: "ClawHub config path",
+    }) ||
     process.env.CLAWHUB_CONFIG_PATH?.trim() ||
     process.env.CLAWDHUB_CONFIG_PATH?.trim(); // legacy misspelling from older clawhub CLI builds; keep for back-compat
   if (explicit) {
@@ -248,7 +255,11 @@ function resolveClawHubConfigPaths(): string[] {
 
 export async function resolveClawHubAuthToken(): Promise<string | undefined> {
   const envToken =
-    process.env.OPENCLAW_CLAWHUB_TOKEN?.trim() ||
+    readEnv("ALISIO_CLAWHUB_TOKEN", {
+      fallback: legacyEnvKey("CLAWHUB_TOKEN"),
+      description: "ClawHub auth token",
+      redact: true,
+    }) ||
     process.env.CLAWHUB_TOKEN?.trim() ||
     process.env.CLAWHUB_AUTH_TOKEN?.trim();
   if (envToken) {
@@ -577,7 +588,7 @@ export async function downloadClawHubPackageArchive(params: {
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const target = await createTempDownloadTarget({
-    prefix: "openclaw-clawhub-package",
+    prefix: "alisio-clawhub-package",
     fileName: `${params.name}.zip`,
     tmpDir: os.tmpdir(),
   });
@@ -619,7 +630,7 @@ export async function downloadClawHubSkillArchive(params: {
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const target = await createTempDownloadTarget({
-    prefix: "openclaw-clawhub-skill",
+    prefix: "alisio-clawhub-skill",
     fileName: `${params.slug}.zip`,
     tmpDir: os.tmpdir(),
   });

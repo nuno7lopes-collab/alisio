@@ -17,6 +17,7 @@ import { normalizeAlisioPlan, type AlisioPlan } from "../shared/alisio-billing.j
 import { summarizeAlisioConnectorUiStatuses } from "../shared/alisio-connector-status.js";
 import {
   AlisioAccountCloudError,
+  listMissingRequiredAlisioCloudEnvVars,
   beginAlisioCloudAccountEmailAuth,
   buildAlisioCloudGoogleAuthUrl,
   completeAlisioCloudAccountProfile,
@@ -61,6 +62,12 @@ import {
   resolveAlisioOpenAiTokenIdentity,
   type AlisioStoredAiState,
 } from "./alisio-ai.js";
+import {
+  countAlisioLimitedConnectorSlots,
+  gateAlisioConnectorConnection,
+  gateAlisioOrganizationMembership,
+  gateAlisioRemoteModelServers,
+} from "./alisio-plan-gating.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 
 export type AlisioConnectorCategory = "social" | "google" | "productivity" | "development";
@@ -340,6 +347,7 @@ export type AlisioOAuthCallbackResult =
         | "missing_client_config"
         | "missing_token_encryption"
         | "oauth_denied"
+        | "plan_upgrade_required"
         | "token_exchange_failed"
         | "profile_fetch_failed";
       message: string;
@@ -379,7 +387,7 @@ const STORE_FILENAME = "alisio/state.json";
 const PENDING_AUTHORIZATION_TTL_MS = 15 * 60 * 1000;
 const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY";
 const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encryption";
-const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "OpenClaw Alisio Connector Token Encryption";
+const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = `${["Open", "Claw"].join("")} Alisio Connector Token Encryption`;
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const withLock = createAsyncLock();
 
@@ -768,6 +776,10 @@ function encryptConnectorToken(plaintext: string, env: NodeJS.ProcessEnv) {
   };
 }
 
+function secureLocalTokenStorageRequiredMessage(action = "continue") {
+  return `Secure local token storage is required. Restore the macOS login keychain or configure ${CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV} before you ${action}.`;
+}
+
 function decryptConnectorToken(
   encrypted:
     | {
@@ -857,8 +869,8 @@ function buildStoredOAuthCredential(params: {
     ? encryptConnectorToken(params.refreshToken, params.env)
     : null;
   if (!accessTokenEncrypted || (params.refreshToken && !refreshTokenEncrypted)) {
-    throw new Error(
-      `${CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV} must be configured with a valid 32-byte key.`,
+    throw new AlisioAccountValidationError(
+      secureLocalTokenStorageRequiredMessage("continue connector setup"),
     );
   }
   return {
@@ -895,6 +907,12 @@ function hydrateStoredTokenSecrets<
     ...rest,
     ...(accessToken ? { accessToken } : {}),
     ...(refreshToken ? { refreshToken } : {}),
+    ...(!accessToken && credential.accessTokenEncrypted
+      ? { accessTokenEncrypted: credential.accessTokenEncrypted }
+      : {}),
+    ...(!refreshToken && credential.refreshTokenEncrypted
+      ? { refreshTokenEncrypted: credential.refreshTokenEncrypted }
+      : {}),
   } as T;
 }
 
@@ -918,7 +936,7 @@ function serializeStoredTokenSecrets<
     if (encrypted) {
       next.accessTokenEncrypted = encrypted;
     } else {
-      next.accessToken = accessToken;
+      throw new AlisioAccountValidationError(secureLocalTokenStorageRequiredMessage());
     }
   } else if (accessTokenEncrypted) {
     next.accessTokenEncrypted = accessTokenEncrypted;
@@ -929,7 +947,7 @@ function serializeStoredTokenSecrets<
     if (encrypted) {
       next.refreshTokenEncrypted = encrypted;
     } else {
-      next.refreshToken = refreshToken;
+      throw new AlisioAccountValidationError(secureLocalTokenStorageRequiredMessage());
     }
   } else if (refreshTokenEncrypted) {
     next.refreshTokenEncrypted = refreshTokenEncrypted;
@@ -1019,7 +1037,9 @@ function serializeStoredApiKeySecret<
     if (encrypted) {
       next.apiKeyEncrypted = encrypted;
     } else {
-      next.apiKey = apiKey;
+      throw new AlisioAccountValidationError(
+        secureLocalTokenStorageRequiredMessage("save remote model server credentials"),
+      );
     }
   } else if (apiKeyEncrypted) {
     next.apiKeyEncrypted = apiKeyEncrypted;
@@ -1526,6 +1546,27 @@ function normalizeStoredAccountProfile(
   };
 }
 
+function resolveAlisioPlanFromProfile(
+  profile: Pick<AlisioLocalAccountProfile, "plan">,
+): AlisioPlan {
+  return normalizeAlisioPlan(profile.plan);
+}
+
+function resolveStoredAlisioPlan(state: Pick<AlisioStoredState, "account">): AlisioPlan {
+  return resolveAlisioPlanFromProfile(state.account.profile);
+}
+
+function resolveEffectiveAlisioOrganizationState(params: {
+  plan: AlisioPlan;
+  organization: AlisioOrganizationMembershipState;
+}): AlisioOrganizationMembershipState {
+  const gate = gateAlisioOrganizationMembership({
+    plan: params.plan,
+    mode: params.organization.mode,
+  });
+  return gate.ok ? params.organization : { mode: "none" };
+}
+
 function toAccountSessionFromCloud(
   session: AlisioStoredCloudSession | undefined,
   profileCompleted: boolean,
@@ -1768,13 +1809,16 @@ export async function getAlisioDoctorSummary(
     ).summary;
   const doctorState = await loadStoredState(runtimeEnv);
   const issues: AlisioDoctorIssue[] = [];
+  const missingCloudEnvVars = listMissingRequiredAlisioCloudEnvVars(runtimeEnv);
+  const hasSensitiveLocalTokens = hasAlisioSensitiveLocalTokens(doctorState);
+  const hasTokenEncryption = Boolean(resolveConnectorTokenEncryptionKey(runtimeEnv));
 
   if (bootstrap.connectionRequired) {
     issues.push({
       code: "gateway_not_connected",
       severity: "error",
-      title: "Gateway not connected",
-      message: "Connect to the local gateway before continuing setup.",
+      title: "Alisio app not connected",
+      message: "Open or reconnect the Alisio app before continuing setup.",
       step: "gateway",
     });
   }
@@ -1783,8 +1827,8 @@ export async function getAlisioDoctorSummary(
     issues.push({
       code: "gateway_unhealthy",
       severity: "error",
-      title: "Gateway health check failed",
-      message: "Refresh or restart the gateway before continuing setup.",
+      title: "Alisio app not responding",
+      message: "Reconnect the Alisio app before continuing setup.",
       step: "gateway",
     });
   }
@@ -1803,12 +1847,22 @@ export async function getAlisioDoctorSummary(
     });
   }
 
+  if (missingCloudEnvVars.length > 0) {
+    issues.push({
+      code: "account_backend_env_missing",
+      severity: "error",
+      title: "Account backend environment is incomplete",
+      message: `Set the required Alisio account env vars before continuing: ${missingCloudEnvVars.join(", ")}.`,
+      step: "account",
+    });
+  }
+
   if (!bootstrap.providerReady) {
     issues.push({
       code: "runtime_not_ready",
       severity: "error",
-      title: "OpenAI not connected",
-      message: "Connect OpenAI before starting the first chat.",
+      title: "AI runtime not ready",
+      message: "Connect OpenAI, a local model, or a model server before starting the first chat.",
       step: "runtime",
     });
   }
@@ -1843,19 +1897,19 @@ export async function getAlisioDoctorSummary(
     });
   }
 
-  if (
-    !resolveConnectorTokenEncryptionKey(runtimeEnv) &&
-    hasAlisioSensitiveLocalTokens(doctorState)
-  ) {
+  if (!hasTokenEncryption && hasSensitiveLocalTokens) {
     issues.push({
       code: "local_token_encryption_not_configured",
       severity: "warning",
-      title: "Local token encryption not configured",
-      message: `${CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV} is not configured, so persisted Alisio session tokens on this device cannot be encrypted at rest yet.`,
+      title: "Secure local token storage is unavailable",
+      message:
+        "Restore the macOS login keychain or configure ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY before using saved Alisio account, connector, AI, or remote model server credentials on this device.",
       step: "permissions",
     });
   }
 
+  const permissionsOk =
+    missingCloudEnvVars.length === 0 && (hasTokenEncryption || !hasSensitiveLocalTokens);
   const ok = !issues.some((issue) => issue.severity === "error");
   return {
     ok,
@@ -1866,7 +1920,7 @@ export async function getAlisioDoctorSummary(
       account: bootstrap.accountReady,
       organization: bootstrap.organizationState.mode !== "none",
       connectors: bootstrap.connectorSummary.needsReconnect === 0,
-      permissions: true,
+      permissions: permissionsOk,
     },
     bootstrap,
   };
@@ -1875,12 +1929,39 @@ export async function getAlisioDoctorSummary(
 function hasAlisioSensitiveLocalTokens(state: AlisioStoredState) {
   if (
     state.account.cloudSession?.state === "signed_in" &&
-    (state.account.cloudSession.accessToken || state.account.cloudSession.refreshToken)
+    (state.account.cloudSession.accessToken ||
+      state.account.cloudSession.refreshToken ||
+      state.account.cloudSession.accessTokenEncrypted ||
+      state.account.cloudSession.refreshTokenEncrypted)
   ) {
     return true;
   }
-  return Object.values(state.ai?.workerCredentials ?? {}).some((credential) =>
-    Boolean(credential.accessToken || credential.refreshToken),
+  if (
+    Object.values(state.ai?.workerCredentials ?? {}).some((credential) =>
+      Boolean(
+        credential.accessToken ||
+        credential.refreshToken ||
+        credential.accessTokenEncrypted ||
+        credential.refreshTokenEncrypted,
+      ),
+    )
+  ) {
+    return true;
+  }
+  if (
+    Object.values(state.oauthCredentials ?? {}).some((credential) =>
+      Boolean(
+        credential.accessToken ||
+        credential.refreshToken ||
+        credential.accessTokenEncrypted ||
+        credential.refreshTokenEncrypted,
+      ),
+    )
+  ) {
+    return true;
+  }
+  return Object.values(state.modelServers ?? {}).some((server) =>
+    Boolean(server.apiKey || server.apiKeyEncrypted),
   );
 }
 
@@ -2310,16 +2391,25 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     ...defaults.organization,
     ...loaded.organization,
   };
-  const mergedSession = normalizeStoredAccountSession(loaded.account?.session, mergedProfile, env);
+  const normalizedProfile = normalizeStoredAccountProfile(mergedProfile);
+  const mergedSession = normalizeStoredAccountSession(
+    loaded.account?.session,
+    normalizedProfile,
+    env,
+  );
+  const effectiveOrganization = resolveEffectiveAlisioOrganizationState({
+    plan: resolveAlisioPlanFromProfile(normalizedProfile),
+    organization: mergedOrganization,
+  });
   const defaultAiState: AlisioStoredAiState = defaults.ai ?? {};
   const nextAi = normalizeStoredAiState(
     hydrateStoredAiSecrets(loaded.ai, runtimeEnv),
     defaultAiState,
     {
       owner: resolveAlisioAiOwnerContext({
-        profile: mergedProfile,
+        profile: normalizedProfile,
         cloudSession: loadedCloudSession,
-        organization: mergedOrganization,
+        organization: effectiveOrganization,
       }),
       workerId: currentWorkerId(),
     },
@@ -2330,7 +2420,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
     account: {
       ...defaults.account,
       ...loadedAccountWithoutSecrets,
-      profile: normalizeStoredAccountProfile(mergedProfile),
+      profile: normalizedProfile,
       preferences: {
         ...defaults.account.preferences,
         ...loaded.account?.preferences,
@@ -2650,7 +2740,10 @@ function resolveCurrentOwnerContext(state: AlisioStoredState): AlisioAiOwnerCont
   return resolveAlisioAiOwnerContext({
     profile: state.account.profile,
     cloudSession: state.account.cloudSession,
-    organization: state.organization,
+    organization: resolveEffectiveAlisioOrganizationState({
+      plan: resolveStoredAlisioPlan(state),
+      organization: state.organization,
+    }),
   });
 }
 
@@ -2978,7 +3071,10 @@ export async function loadAlisioBootstrapSnapshot(
         status: "disconnected",
       };
   const organization: AlisioOrganizationMembershipState = hasReadyAlisioAccountSession(state)
-    ? state.organization
+    ? resolveEffectiveAlisioOrganizationState({
+        plan: resolveStoredAlisioPlan(state),
+        organization: state.organization,
+      })
     : { mode: "none" };
   return {
     account,
@@ -3051,6 +3147,11 @@ export async function listAlisioRemoteModelServers(
   return sortRemoteModelServers(Object.values(state.modelServers ?? {}));
 }
 
+export async function resolveCurrentAlisioPlan(env?: NodeJS.ProcessEnv): Promise<AlisioPlan> {
+  const state = await loadStoredState(env);
+  return resolveStoredAlisioPlan(state);
+}
+
 export async function saveAlisioRemoteModelServer(
   input: {
     serverId?: string;
@@ -3064,16 +3165,22 @@ export async function saveAlisioRemoteModelServer(
 ): Promise<AlisioRemoteModelServer> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    const gate = gateAlisioRemoteModelServers({
+      plan: resolveStoredAlisioPlan(state),
+    });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
     const now = new Date().toISOString();
     const serverId = input.serverId?.trim() || randomUUID();
     const existing = state.modelServers?.[serverId];
     const label = input.label.trim();
     const baseUrl = normalizeRemoteModelServerBaseUrl(input.baseUrl);
     if (!label) {
-      throw new AlisioAccountValidationError("Dá um nome ao servidor.");
+      throw new AlisioAccountValidationError("Add a name for this server.");
     }
     if (!baseUrl) {
-      throw new AlisioAccountValidationError("Indica o endereço do servidor.");
+      throw new AlisioAccountValidationError("Enter the server address.");
     }
     const duplicate = Object.values(state.modelServers ?? {}).find(
       (server) =>
@@ -3082,7 +3189,7 @@ export async function saveAlisioRemoteModelServer(
         normalizeRemoteModelServerBaseUrl(server.baseUrl).toLowerCase() === baseUrl.toLowerCase(),
     );
     if (duplicate) {
-      throw new AlisioAccountValidationError("Esse servidor já foi adicionado.");
+      throw new AlisioAccountValidationError("That server has already been added.");
     }
     const nextServer: AlisioRemoteModelServer = {
       serverId,
@@ -3149,9 +3256,15 @@ export async function selectAlisioRemoteModelServer(
 ): Promise<{ serverId: string }> {
   return withLock(async () => {
     const state = await loadStoredState(env);
+    const gate = gateAlisioRemoteModelServers({
+      plan: resolveStoredAlisioPlan(state),
+    });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
     const serverId = input.serverId.trim();
     if (!state.modelServers?.[serverId]) {
-      throw new AlisioAccountValidationError("O servidor já não existe.");
+      throw new AlisioAccountValidationError("That server no longer exists.");
     }
     const now = new Date().toISOString();
     state.modelServers = Object.fromEntries(
@@ -3981,7 +4094,10 @@ export async function getAlisioOrganizationState(
   if (!hasReadyAlisioAccountSession(state)) {
     return { mode: "none" };
   }
-  return state.organization;
+  return resolveEffectiveAlisioOrganizationState({
+    plan: resolveStoredAlisioPlan(state),
+    organization: state.organization,
+  });
 }
 
 function normalizeAlisioOrganizationStateInput(
@@ -4027,9 +4143,20 @@ export async function setAlisioOrganizationState(
   return withLock(async () => {
     const state = await loadStoredState(env);
     assertAlisioAccountSetupAccess(state, "organization");
-    state.organization = normalizeAlisioOrganizationStateInput(input);
+    const nextOrganization = normalizeAlisioOrganizationStateInput(input);
+    const gate = gateAlisioOrganizationMembership({
+      plan: resolveStoredAlisioPlan(state),
+      mode: nextOrganization.mode,
+    });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
+    state.organization = nextOrganization;
     await persistState(state, env);
-    return state.organization;
+    return resolveEffectiveAlisioOrganizationState({
+      plan: resolveStoredAlisioPlan(state),
+      organization: state.organization,
+    });
   });
 }
 
@@ -4488,7 +4615,7 @@ function resolveOAuthClientConfig(provider: AlisioOAuthProvider, env: NodeJS.Pro
   }
 }
 
-export async function requestAlisioAccountPasswordReset(
+export async function requestAlisioAccountRecoveryEmail(
   input: { email: string },
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<{ ok: true; message: string }> {
@@ -4660,6 +4787,16 @@ export async function beginAlisioConnectorSetup(
     }
     const state = await loadStoredState(env);
     assertAlisioAccountSetupAccess(state, "connector");
+    const gate = gateAlisioConnectorConnection({
+      plan: resolveStoredAlisioPlan(state),
+      connectedCount: countAlisioLimitedConnectorSlots(Object.values(state.authorizations)),
+      connectorAlreadyConnected:
+        state.authorizations[connector.id]?.state === "connected" ||
+        state.authorizations[connector.id]?.state === "needs_reconnect",
+    });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
     const provider = resolveConnectorOAuthProvider(connector.id);
     const providerGuide =
       provider == null
@@ -5197,6 +5334,32 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
           "Secure local token storage is unavailable on this gateway. Restore the macOS login keychain or configure ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY and try again.",
       } satisfies AlisioOAuthCallbackResult;
     }
+    const connector = CONNECTOR_CATALOG.find((entry) => entry.id === pending.connectorId);
+    if (!connector) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "pending_not_found",
+        message: "Connector metadata was not found for this authorization.",
+      } satisfies AlisioOAuthCallbackResult;
+    }
+    const gate = gateAlisioConnectorConnection({
+      plan: resolveStoredAlisioPlan(state),
+      connectedCount: countAlisioLimitedConnectorSlots(Object.values(state.authorizations)),
+      connectorAlreadyConnected:
+        state.authorizations[connector.id]?.state === "connected" ||
+        state.authorizations[connector.id]?.state === "needs_reconnect",
+    });
+    if (!gate.ok) {
+      delete state.pendingAuthorizations[input.stateToken!];
+      await persistState(state, env);
+      return {
+        ok: false,
+        reason: "plan_upgrade_required",
+        message: gate.message,
+      } satisfies AlisioOAuthCallbackResult;
+    }
 
     const exchanged =
       pending.provider === "google"
@@ -5220,17 +5383,6 @@ export async function completeAlisioConnectorAuthorizationFromCallback(
         ok: false,
         reason: "token_exchange_failed",
         message: "Failed to exchange OAuth code for an access token.",
-      } satisfies AlisioOAuthCallbackResult;
-    }
-
-    const connector = CONNECTOR_CATALOG.find((entry) => entry.id === pending.connectorId);
-    if (!connector) {
-      delete state.pendingAuthorizations[input.stateToken!];
-      await persistState(state, env);
-      return {
-        ok: false,
-        reason: "pending_not_found",
-        message: "Connector metadata was not found for this authorization.",
       } satisfies AlisioOAuthCallbackResult;
     }
 
@@ -5317,6 +5469,16 @@ export async function completeAlisioConnectorAuthorization(
     }
     const state = await loadStoredState(env);
     assertAlisioAccountSetupAccess(state, "connector");
+    const gate = gateAlisioConnectorConnection({
+      plan: resolveStoredAlisioPlan(state),
+      connectedCount: countAlisioLimitedConnectorSlots(Object.values(state.authorizations)),
+      connectorAlreadyConnected:
+        state.authorizations[connector.id]?.state === "connected" ||
+        state.authorizations[connector.id]?.state === "needs_reconnect",
+    });
+    if (!gate.ok) {
+      throw new AlisioAccountValidationError(gate.message);
+    }
     const connectedAccount =
       input.account ??
       ({

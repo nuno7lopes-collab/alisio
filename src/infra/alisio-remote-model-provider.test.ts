@@ -5,8 +5,9 @@ import {
 } from "./alisio-remote-model-provider.js";
 import type { AlisioRemoteModelServer } from "./alisio-store.js";
 
-const { listAlisioRemoteModelServersMock } = vi.hoisted(() => ({
+const { listAlisioRemoteModelServersMock, resolveCurrentAlisioPlanMock } = vi.hoisted(() => ({
   listAlisioRemoteModelServersMock: vi.fn<() => Promise<AlisioRemoteModelServer[]>>(async () => []),
+  resolveCurrentAlisioPlanMock: vi.fn(async () => "plus"),
 }));
 
 vi.mock("./alisio-store.js", async (importOriginal) => {
@@ -14,11 +15,40 @@ vi.mock("./alisio-store.js", async (importOriginal) => {
   return {
     ...actual,
     listAlisioRemoteModelServers: listAlisioRemoteModelServersMock,
+    resolveCurrentAlisioPlan: resolveCurrentAlisioPlanMock,
   };
 });
 
 describe("alisio remote model provider", () => {
+  it("skips remote catalog and provider injection on Free", async () => {
+    resolveCurrentAlisioPlanMock.mockResolvedValue("free");
+    listAlisioRemoteModelServersMock.mockResolvedValueOnce([
+      {
+        serverId: "server-1",
+        label: "Studio",
+        kind: "openai-compatible",
+        baseUrl: "http://192.168.1.50:1234",
+        active: true,
+        createdAt: "2026-04-06T10:00:00.000Z",
+        updatedAt: "2026-04-06T10:00:00.000Z",
+      },
+    ]);
+
+    const entries = await loadAlisioRemoteCatalogEntries({
+      fetchImpl: vi.fn(async () => new Response("should not be called")),
+    });
+    const config = await augmentConfigWithAlisioRemoteProvider({
+      config: {},
+      requiredModelIds: ["gpt-oss-20b"],
+      fetchImpl: vi.fn(async () => new Response("should not be called")),
+    });
+
+    expect(entries).toEqual([]);
+    expect(config.models?.providers?.["alisio-remote"]).toBeUndefined();
+  });
+
   it("lists active remote endpoint models in the gateway catalog", async () => {
+    resolveCurrentAlisioPlanMock.mockResolvedValueOnce("plus");
     listAlisioRemoteModelServersMock.mockResolvedValueOnce([
       {
         serverId: "server-1",
@@ -66,6 +96,7 @@ describe("alisio remote model provider", () => {
   });
 
   it("injects the active remote endpoint as a runtime provider for selected models", async () => {
+    resolveCurrentAlisioPlanMock.mockResolvedValueOnce("plus");
     listAlisioRemoteModelServersMock.mockResolvedValueOnce([
       {
         serverId: "server-1",

@@ -1,9 +1,9 @@
 import { getChannelPlugin } from "../channels/plugins/index.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { normalizeMessageChannel } from "../utils/message-channel.js";
 
 export function resolveApprovalCommandAuthorization(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel?: string | null;
   accountId?: string | null;
   senderId?: string | null;

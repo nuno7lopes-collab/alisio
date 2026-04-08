@@ -121,7 +121,7 @@ export async function loadExecApprovals(
   try {
     const rpc = resolveExecApprovalsRpc(target);
     if (!rpc) {
-      state.lastError = "Select a node before loading exec approvals.";
+      state.lastError = "Select a computer before loading exec approvals.";
       return;
     }
     const res = await state.client.request<ExecApprovalsSnapshot>(rpc.method, rpc.params);
@@ -171,7 +171,7 @@ export async function saveExecApprovals(
     const file = state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? {};
     const rpc = resolveExecApprovalsSaveRpc(target, { file, baseHash });
     if (!rpc) {
-      state.lastError = "Select a node before saving exec approvals.";
+      state.lastError = "Select a computer before saving exec approvals.";
       return;
     }
     await state.client.request(rpc.method, rpc.params);

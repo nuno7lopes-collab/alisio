@@ -9,7 +9,7 @@ import {
   listChannelSetupPlugins,
 } from "../channels/plugins/setup-registry.js";
 import type { ChannelSetupPlugin } from "../channels/plugins/setup-wizard-types.js";
-import { listChatChannels } from "../channels/registry.js";
+import { isProductChatChannelId, listProductChatChannels } from "../channels/product-surface.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import {
   isCatalogChannelInstalled,
@@ -29,7 +29,7 @@ import type {
 } from "../commands/channel-setup/types.js";
 import type { ChannelChoice } from "../commands/onboard-types.js";
 import { isChannelConfigured } from "../config/channel-configured.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { enablePluginInConfig } from "../plugins/enable.js";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 import type { RuntimeEnv } from "../runtime.js";
@@ -65,7 +65,7 @@ export function createChannelOnboardingPostWriteHookCollector() {
 
 export async function runCollectedChannelOnboardingPostWriteHooks(params: {
   hooks: ChannelOnboardingPostWriteHook[];
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
 }): Promise<void> {
   for (const hook of params.hooks) {
@@ -83,11 +83,11 @@ export async function runCollectedChannelOnboardingPostWriteHooks(params: {
 // Channel-specific prompts moved into setup flow adapters.
 
 export async function setupChannels(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   runtime: RuntimeEnv,
   prompter: WizardPrompter,
   options?: SetupChannelsOptions,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   let next = cfg;
   const forceAllowFromChannels = new Set(options?.forceAllowFromChannels ?? []);
   const accountOverrides: Partial<Record<ChannelChoice, string>> = {
@@ -97,6 +97,9 @@ export async function setupChannels(
   const resolveWorkspaceDir = () => resolveAgentWorkspaceDir(next, resolveDefaultAgentId(next));
   const rememberScopedPlugin = (plugin: ChannelSetupPlugin) => {
     const channel = plugin.id;
+    if (!isProductChatChannelId(channel)) {
+      return;
+    }
     scopedPluginsById.set(channel, plugin);
     options?.onResolvedPlugin?.(channel, plugin);
   };
@@ -105,10 +108,14 @@ export async function setupChannels(
   const listVisibleInstalledPlugins = (): ChannelSetupPlugin[] => {
     const merged = new Map<string, ChannelSetupPlugin>();
     for (const plugin of listChannelSetupPlugins()) {
-      merged.set(plugin.id, plugin);
+      if (isProductChatChannelId(plugin.id)) {
+        merged.set(plugin.id, plugin);
+      }
     }
     for (const plugin of scopedPluginsById.values()) {
-      merged.set(plugin.id, plugin);
+      if (isProductChatChannelId(plugin.id)) {
+        merged.set(plugin.id, plugin);
+      }
     }
     return Array.from(merged.values());
   };
@@ -148,6 +155,9 @@ export async function setupChannels(
     const workspaceDir = resolveWorkspaceDir();
     for (const entry of listChannelPluginCatalogEntries({ workspaceDir })) {
       const channel = entry.id as ChannelChoice;
+      if (!isProductChatChannelId(channel)) {
+        continue;
+      }
       if (getVisibleChannelPlugin(channel)) {
         continue;
       }
@@ -162,7 +172,9 @@ export async function setupChannels(
   if (options?.whatsappAccountId?.trim()) {
     accountOverrides.whatsapp = options.whatsappAccountId.trim();
   }
-  const presetSelection = Array.from(new Set(options?.initialSelection ?? []));
+  const presetSelection = Array.from(
+    new Set((options?.initialSelection ?? []).filter((channel) => isProductChatChannelId(channel))),
+  );
   const useSingleChannelFastPath =
     options?.skipSelectionPrompt === true && presetSelection.length === 1;
   if (!useSingleChannelFastPath) {
@@ -205,7 +217,7 @@ export async function setupChannels(
     return cfg;
   }
 
-  const corePrimer = listChatChannels().map((meta) => ({
+  const corePrimer = listProductChatChannels().map((meta) => ({
     id: meta.id,
     label: meta.label,
     blurb: meta.blurb,

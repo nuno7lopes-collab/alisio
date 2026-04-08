@@ -235,8 +235,16 @@
         "reason": "This plugin auto-enable suite validates config schema and plugin metadata across many cases; keep it isolated so the shared unit-fast batches do not starve its longer validation loop."
       },
       {
+        "file": "src/config/schema.base.generated.test.ts",
+        "reason": "This generated base-schema suite measured about a 0.9 GiB worker RSS jump in targeted memory-trace reruns on constrained local hosts; keep it isolated so schema regeneration coverage cannot push the shared unit-fast lane into OOM territory."
+      },
+      {
         "file": "src/infra/matrix-legacy-crypto.test.ts",
         "reason": "This Matrix legacy crypto migration suite touches temp-home filesystem fixtures and can time out when it shares the busy unit-fast lane; keep it isolated for deterministic migration timing."
+      },
+      {
+        "file": "src/config/load-channel-config-surface.test.ts",
+        "reason": "This channel config surface loader suite can add roughly 0.75 GiB in targeted memory-trace reruns once earlier schema/session hotspots recycle; keep it isolated so dynamic loader coverage does not inherit or extend the shared unit-fast peak."
       },
       {
         "file": "src/infra/state-migrations.test.ts",
@@ -257,6 +265,10 @@
       {
         "file": "src/secrets/runtime.test.ts",
         "reason": "This secrets runtime snapshot suite can time out only inside the shared unit-fast swarm; keep it isolated so secret-resolution setup remains deterministic."
+      },
+      {
+        "file": "src/config/sessions/store.lock.test.ts",
+        "reason": "This session-store lock suite can add about a 1 GiB worker RSS jump in targeted memory-trace reruns after earlier schema hotspots are peeled out; keep it isolated so lock coverage does not become the next shared unit-fast memory spike."
       },
       {
         "file": "src/security/audit.test.ts",

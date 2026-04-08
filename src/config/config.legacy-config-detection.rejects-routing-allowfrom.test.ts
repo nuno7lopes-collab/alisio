@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { migrateLegacyConfig } from "./legacy-migrate.js";
-import type { OpenClawConfig } from "./types.js";
+import type { AlisioConfig } from "./types.js";
 import { validateConfigObject } from "./validation.js";
 
 function getChannelConfig(config: unknown, provider: string) {
@@ -54,7 +54,7 @@ describe("legacy config detection", () => {
   });
   it("does not rewrite removed routing.groupChat.mentionPatterns migrations", async () => {
     const res = migrateLegacyConfig({
-      routing: { groupChat: { mentionPatterns: ["@openclaw"] } },
+      routing: { groupChat: { mentionPatterns: ["@alisio"] } },
     });
     expect(res.changes).toEqual([]);
     expect(res.config).toBeNull();
@@ -213,7 +213,7 @@ describe("legacy config detection", () => {
         list: [
           {
             id: "work",
-            workspace: "~/openclaw-work",
+            workspace: "~/alisio-work",
             tools: {
               elevated: {
                 enabled: false,
@@ -384,7 +384,7 @@ describe("legacy config detection", () => {
     {
       name: "top-level off",
       input: { channels: { telegram: { streamMode: "off" } } },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.telegram?.streaming).toBe("off");
         expect(config.channels?.telegram?.streamMode).toBeUndefined();
       },
@@ -392,7 +392,7 @@ describe("legacy config detection", () => {
     {
       name: "top-level block",
       input: { channels: { telegram: { streamMode: "block" } } },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.telegram?.streaming).toBe("block");
         expect(config.channels?.telegram?.streamMode).toBeUndefined();
       },
@@ -410,7 +410,7 @@ describe("legacy config detection", () => {
           },
         },
       },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.telegram?.accounts?.ops?.streaming).toBe("off");
         expect(config.channels?.telegram?.accounts?.ops?.streamMode).toBeUndefined();
       },
@@ -492,7 +492,7 @@ describe("legacy config detection", () => {
           },
         },
       },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.discord?.accounts?.work?.streaming).toBe("partial");
         expect(config.channels?.discord?.accounts?.work?.streamMode).toBeUndefined();
       },
@@ -506,7 +506,7 @@ describe("legacy config detection", () => {
           },
         },
       },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.slack?.streaming).toBe("progress");
         expect(config.channels?.slack?.streamMode).toBeUndefined();
         expect(config.channels?.slack?.nativeStreaming).toBe(true);
@@ -521,7 +521,7 @@ describe("legacy config detection", () => {
           },
         },
       },
-      assert: (config: NonNullable<OpenClawConfig>) => {
+      assert: (config: NonNullable<AlisioConfig>) => {
         expect(config.channels?.slack?.streaming).toBe("off");
         expect(config.channels?.slack?.nativeStreaming).toBe(false);
       },

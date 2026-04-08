@@ -5,7 +5,7 @@ import {
   resolveModelRefFromString,
 } from "../agents/model-selection.js";
 import { listPotentialConfiguredChannelIds } from "../channels/config-presence.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   resolveAgentModelFallbackValues,
   resolveAgentModelPrimaryValue,
@@ -67,7 +67,7 @@ function addProviderModelPairActivationId(params: {
   params.activationIds.add(provider);
 }
 
-function collectConfiguredActivationIds(config: OpenClawConfig): Set<string> {
+function collectConfiguredActivationIds(config: AlisioConfig): Set<string> {
   const activationIds = new Set<string>();
   const aliasIndex = buildModelAliasIndex({
     cfg: config,
@@ -236,7 +236,7 @@ function collectConfiguredActivationIds(config: OpenClawConfig): Set<string> {
 }
 
 export function resolveChannelPluginIds(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
 }): string[] {
@@ -250,7 +250,7 @@ export function resolveChannelPluginIds(params: {
 }
 
 export function resolveConfiguredChannelPluginIds(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
 }): string[] {
@@ -264,7 +264,7 @@ export function resolveConfiguredChannelPluginIds(params: {
 }
 
 export function resolveConfiguredDeferredChannelPluginIds(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
 }): string[] {
@@ -288,7 +288,7 @@ export function resolveConfiguredDeferredChannelPluginIds(params: {
 }
 
 export function resolveGatewayStartupPluginIds(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   workspaceDir?: string;
   env: NodeJS.ProcessEnv;
 }): string[] {

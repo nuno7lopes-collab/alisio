@@ -43,6 +43,8 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "plugin.approval.resolve",
   ],
   [PAIRING_SCOPE]: [
+    "channels.pairing.approve",
+    "channels.pairing.reject",
     "node.pair.request",
     "node.pair.list",
     "node.pair.reject",
@@ -115,8 +117,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.account.beginEmailAuth",
     "alisio.account.verifyEmailAuth",
     "alisio.account.beginGoogleAuth",
-    "alisio.account.signUp",
-    "alisio.account.signIn",
+    "alisio.account.requestRecoveryEmail",
     "alisio.account.signOut",
     "alisio.account.requestPasswordReset",
     "alisio.account.completeProfile",

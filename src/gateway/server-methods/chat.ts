@@ -15,7 +15,7 @@ import { augmentConfigWithAlisioRemoteProvider } from "../../infra/alisio-remote
 import { readLocalFileSafely } from "../../infra/fs-safe.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
 import { isWithinDir } from "../../infra/path-safety.js";
-import { detectMime } from "../../media/mime.js";
+import { detectMime, normalizeMimeType } from "../../media/mime.js";
 import { type SavedMedia, saveMediaBuffer } from "../../media/store.js";
 import { extractOriginalFilename, getMediaDir } from "../../media/store.js";
 import { optimizeImageToJpeg } from "../../media/web-media.js";
@@ -495,8 +495,7 @@ function normalizeChatHistoryMediaMime(value: unknown): string | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
-  const normalized = value.split(";")[0]?.trim().toLowerCase();
-  return normalized || undefined;
+  return normalizeMimeType(value);
 }
 
 function resolveChatHistoryMediaDescriptors(

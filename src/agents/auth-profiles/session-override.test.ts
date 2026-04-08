@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import { withStateDirEnv } from "../../test-helpers/state-dir-env.js";
 import { resolveSessionAuthProfileOverride } from "./session-override.js";
@@ -36,7 +36,7 @@ describe("resolveSessionAuthProfileOverride", () => {
       const sessionStore = { "agent:main:main": sessionEntry };
 
       const resolved = await resolveSessionAuthProfileOverride({
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         provider: "z.ai",
         agentDir,
         sessionEntry,

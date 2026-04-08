@@ -1,11 +1,11 @@
 ---
 name: node-connect
-description: Diagnose OpenClaw node connection and pairing failures for Android, iOS, and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.
+description: Diagnose Alisio node connection and pairing failures for Android, iOS, and macOS companion apps. Use when QR/setup code/manual connect fails, local Wi-Fi works but VPS/tailnet does not, or errors mention pairing required, unauthorized, bootstrap token invalid or expired, gateway.bind, gateway.remote.url, Tailscale, or plugins.entries.device-pair.config.publicUrl.
 ---
 
 # Node Connect
 
-Goal: find the one real route from node -> gateway, verify OpenClaw is advertising that route, then fix pairing/auth.
+Goal: find the one real route from node -> gateway, verify Alisio is advertising that route, then fix pairing/auth.
 
 ## Topology first
 
@@ -51,7 +51,7 @@ openclaw devices list
 openclaw nodes status
 ```
 
-If this OpenClaw instance is pointed at a remote gateway, also run:
+If this Alisio instance is pointed at a remote gateway, also run:
 
 ```bash
 openclaw qr --remote --json

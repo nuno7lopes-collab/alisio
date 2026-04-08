@@ -27,6 +27,10 @@ import {
   AlisioAccountPasswordResetParamsSchema,
   type AlisioAccountPasswordResetResult,
   AlisioAccountPasswordResetResultSchema,
+  type AlisioAccountRecoveryEmailParams,
+  AlisioAccountRecoveryEmailParamsSchema,
+  type AlisioAccountRecoveryEmailResult,
+  AlisioAccountRecoveryEmailResultSchema,
   type AlisioAccountEmailAuthBeginParams,
   AlisioAccountEmailAuthBeginParamsSchema,
   type AlisioAccountEmailAuthBeginResult,
@@ -169,6 +173,10 @@ import {
   AgentWaitParamsSchema,
   type ChannelsLogoutParams,
   ChannelsLogoutParamsSchema,
+  type ChannelsPairingApproveParams,
+  ChannelsPairingApproveParamsSchema,
+  type ChannelsPairingRejectParams,
+  ChannelsPairingRejectParamsSchema,
   type TalkConfigParams,
   TalkConfigParamsSchema,
   type TalkConfigResult,
@@ -479,6 +487,8 @@ export const validateAlisioAccountGetParams = ajv.compile<AlisioAccountGetParams
 );
 export const validateAlisioAccountPasswordResetParams =
   ajv.compile<AlisioAccountPasswordResetParams>(AlisioAccountPasswordResetParamsSchema);
+export const validateAlisioAccountRecoveryEmailParams =
+  ajv.compile<AlisioAccountRecoveryEmailParams>(AlisioAccountRecoveryEmailParamsSchema);
 export const validateAlisioAccountEmailAuthBeginParams =
   ajv.compile<AlisioAccountEmailAuthBeginParams>(AlisioAccountEmailAuthBeginParamsSchema);
 export const validateAlisioAccountEmailAuthBeginResult =
@@ -502,6 +512,8 @@ export const validateAlisioAccountResult =
   ajv.compile<AlisioAccountResult>(AlisioAccountResultSchema);
 export const validateAlisioAccountPasswordResetResult =
   ajv.compile<AlisioAccountPasswordResetResult>(AlisioAccountPasswordResetResultSchema);
+export const validateAlisioAccountRecoveryEmailResult =
+  ajv.compile<AlisioAccountRecoveryEmailResult>(AlisioAccountRecoveryEmailResultSchema);
 export const validateAlisioAccountCompleteProfileParams =
   ajv.compile<AlisioAccountCompleteProfileParams>(AlisioAccountCompleteProfileParamsSchema);
 export const validateAlisioAccountUpdateParams = ajv.compile<AlisioAccountUpdateParams>(
@@ -728,6 +740,12 @@ export const validateChannelsStatusResult = ajv.compile<ChannelsStatusResult>(
 );
 export const validateChannelsLogoutParams = ajv.compile<ChannelsLogoutParams>(
   ChannelsLogoutParamsSchema,
+);
+export const validateChannelsPairingApproveParams = ajv.compile<ChannelsPairingApproveParams>(
+  ChannelsPairingApproveParamsSchema,
+);
+export const validateChannelsPairingRejectParams = ajv.compile<ChannelsPairingRejectParams>(
+  ChannelsPairingRejectParamsSchema,
 );
 export const validateModelsListParams = ajv.compile<ModelsListParams>(ModelsListParamsSchema);
 export const validateSkillsStatusParams = ajv.compile<SkillsStatusParams>(SkillsStatusParamsSchema);
@@ -968,6 +986,8 @@ export {
   ChannelsStatusParamsSchema,
   ChannelsStatusResultSchema,
   ChannelsLogoutParamsSchema,
+  ChannelsPairingApproveParamsSchema,
+  ChannelsPairingRejectParamsSchema,
   WebLoginStartParamsSchema,
   WebLoginWaitParamsSchema,
   AgentSummarySchema,

@@ -21,12 +21,12 @@ function resolveTestLockDir() {
 async function makeEnv() {
   const dir = path.join(fixtureRoot, `case-${fixtureCount++}`);
   await fs.mkdir(dir, { recursive: true });
-  const configPath = path.join(dir, "openclaw.json");
+  const configPath = path.join(dir, "alisio.json");
   await fs.writeFile(configPath, "{}", "utf8");
   return {
     ...process.env,
-    OPENCLAW_STATE_DIR: dir,
-    OPENCLAW_CONFIG_PATH: configPath,
+    ALISIO_STATE_DIR: dir,
+    ALISIO_CONFIG_PATH: configPath,
   };
 }
 
@@ -149,7 +149,7 @@ async function writeRecentLockFile(env: NodeJS.ProcessEnv, startTime = 111) {
 
 describe("gateway lock", () => {
   beforeAll(async () => {
-    fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gateway-lock-"));
+    fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gateway-lock-"));
   });
 
   beforeEach(() => {
@@ -283,7 +283,7 @@ describe("gateway lock", () => {
   it("returns null when multi-gateway override is enabled", async () => {
     const env = await makeEnv();
     const lock = await acquireGatewayLock({
-      env: { ...env, OPENCLAW_ALLOW_MULTI_GATEWAY: "1", VITEST: "" },
+      env: { ...env, ALISIO_ALLOW_MULTI_GATEWAY: "1", VITEST: "" },
       lockDir: resolveTestLockDir(),
     });
     expect(lock).toBeNull();

@@ -11,7 +11,7 @@ import {
 } from "./device-bootstrap.js";
 
 const tempDirs = createTrackedTempDirs();
-const createTempDir = () => tempDirs.make("openclaw-device-bootstrap-test-");
+const createTempDir = () => tempDirs.make("alisio-device-bootstrap-test-");
 
 function resolveBootstrapPath(baseDir: string): string {
   return path.join(baseDir, "devices", "bootstrap.json");

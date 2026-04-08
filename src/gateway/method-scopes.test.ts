@@ -24,7 +24,7 @@ describe("method scope resolution", () => {
     ["sessions.messages.unsubscribe", ["operator.read"]],
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
-    ["alisio.account.requestPasswordReset", ["operator.write"]],
+    ["alisio.account.requestRecoveryEmail", ["operator.write"]],
     ["alisio.models.server.save", ["operator.write"]],
     ["alisio.models.uninstall", ["operator.write"]],
     ["alisio.runtime.restart", ["operator.admin"]],
@@ -120,6 +120,12 @@ describe("plugin approval method registration", () => {
     expect(methods).toContain("plugin.approval.request");
     expect(methods).toContain("plugin.approval.waitDecision");
     expect(methods).toContain("plugin.approval.resolve");
+  });
+
+  it("lists the public recovery-email method and hides the legacy password-reset alias", () => {
+    const methods = listGatewayMethods();
+    expect(methods).toContain("alisio.account.requestRecoveryEmail");
+    expect(methods).not.toContain("alisio.account.requestPasswordReset");
   });
 
   it("classifies plugin approval methods", () => {

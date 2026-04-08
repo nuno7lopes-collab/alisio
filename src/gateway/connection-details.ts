@@ -1,5 +1,5 @@
 import { resolveConfigPath, resolveGatewayPort } from "../config/paths.js";
-import type { OpenClawConfig } from "../config/types.js";
+import type { AlisioConfig } from "../config/types.js";
 import { isSecureWebSocketUrl } from "./net.js";
 
 export type GatewayConnectionDetails = {
@@ -11,9 +11,9 @@ export type GatewayConnectionDetails = {
 };
 
 type GatewayConnectionDetailResolvers = {
-  loadConfig?: () => OpenClawConfig;
+  loadConfig?: () => AlisioConfig;
   resolveConfigPath?: (env: NodeJS.ProcessEnv) => string;
-  resolveGatewayPort?: (cfg?: OpenClawConfig, env?: NodeJS.ProcessEnv) => number;
+  resolveGatewayPort?: (cfg?: AlisioConfig, env?: NodeJS.ProcessEnv) => number;
 };
 
 function trimToUndefined(value: string | undefined): string | undefined {
@@ -23,7 +23,7 @@ function trimToUndefined(value: string | undefined): string | undefined {
 
 export function buildGatewayConnectionDetailsWithResolvers(
   options: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     url?: string;
     configPath?: string;
     urlSource?: "cli" | "env";

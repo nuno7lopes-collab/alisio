@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   resolveGatewayProbeAuthSafe,
   resolveGatewayProbeAuthSafeWithSecretInputs,
   resolveGatewayProbeAuthWithSecretInputs,
 } from "./probe-auth.js";
 
-function expectUnresolvedProbeTokenWarning(cfg: OpenClawConfig) {
+function expectUnresolvedProbeTokenWarning(cfg: AlisioConfig) {
   const result = resolveGatewayProbeAuthSafe({
     cfg,
     mode: "local",
@@ -27,7 +27,7 @@ describe("resolveGatewayProbeAuthSafe", () => {
             token: "token-value",
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       mode: "local",
       env: {} as NodeJS.ProcessEnv,
     });
@@ -53,7 +53,7 @@ describe("resolveGatewayProbeAuthSafe", () => {
           default: { source: "env" },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
   });
 
   it("does not fall through to remote token when local token SecretRef is unresolved", () => {
@@ -73,7 +73,7 @@ describe("resolveGatewayProbeAuthSafe", () => {
           default: { source: "env" },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
   });
 
   it("ignores unresolved local token SecretRef in remote mode when remote-only auth is requested", () => {
@@ -94,7 +94,7 @@ describe("resolveGatewayProbeAuthSafe", () => {
             default: { source: "env" },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       mode: "remote",
       env: {} as NodeJS.ProcessEnv,
     });
@@ -123,7 +123,7 @@ describe("resolveGatewayProbeAuthSafeWithSecretInputs", () => {
             default: { source: "env" },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       mode: "local",
       env: {
         OPENCLAW_GATEWAY_TOKEN: "test-token-from-env",
@@ -151,7 +151,7 @@ describe("resolveGatewayProbeAuthSafeWithSecretInputs", () => {
             default: { source: "env" },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       mode: "local",
       env: {} as NodeJS.ProcessEnv,
     });
@@ -177,7 +177,7 @@ describe("resolveGatewayProbeAuthWithSecretInputs", () => {
             default: { source: "env" },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       mode: "local",
       env: {
         DAEMON_GATEWAY_TOKEN: "resolved-daemon-token",

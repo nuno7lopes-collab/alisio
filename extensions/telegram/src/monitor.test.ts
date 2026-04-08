@@ -722,6 +722,38 @@ describe("monitorTelegramProvider (grammY)", () => {
     vi.useRealTimers();
   });
 
+  it("emits runtime health patches for healthy, reconnecting, and stopped polling states", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const abort = new AbortController();
+      const patches: Array<Record<string, unknown>> = [];
+      mockRunOnceWithStalledPollingRunner();
+      mockRunOnceAndAbort(abort);
+
+      const monitor = monitorTelegramProvider({
+        token: "tok",
+        abortSignal: abort.signal,
+        statusSink: (patch) => patches.push({ ...patch }),
+      });
+      await vi.waitFor(() => expect(runSpy).toHaveBeenCalledTimes(1));
+
+      vi.advanceTimersByTime(120_000);
+      await monitor;
+
+      expect(patches.some((patch) => patch.healthState === "healthy")).toBe(true);
+      expect(
+        patches.some(
+          (patch) => patch.healthState === "reconnecting" && patch.reconnectAttempts === 1,
+        ),
+      ).toBe(true);
+      expect(
+        patches.some((patch) => patch.healthState === "stopped" && patch.running === false),
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("confirms persisted offset with Telegram before starting runner", async () => {
     const { order } = await runMonitorAndCaptureStartupOrder({
       persistedOffset: 549076203,

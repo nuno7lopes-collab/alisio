@@ -133,7 +133,7 @@ if (rawCli.showHelp) {
     [
       "Usage: node scripts/test-parallel.mjs [wrapper flags] [-- vitest args]",
       "",
-      "Runs the planner-backed OpenClaw test wrapper.",
+      "Runs the planner-backed Alisio test wrapper.",
       "",
       "Wrapper flags:",
       "  --plan                 Print the resolved execution plan and exit",
@@ -155,8 +155,8 @@ if (rawCli.showHelp) {
       "  node scripts/test-parallel.mjs --files src/foo.test.ts -- --reporter=dot",
       "",
       "Environment:",
-      "  OPENCLAW_TEST_LIST_LANES=1          Print the resolved plan before execution",
-      "  OPENCLAW_TEST_SHOW_POOL_DECISION=1  Include thread/fork pool decisions in diagnostics",
+      "  ALISIO_TEST_LIST_LANES=1          Print the resolved plan before execution",
+      "  ALISIO_TEST_SHOW_POOL_DECISION=1  Include thread/fork pool decisions in diagnostics",
     ].join("\n"),
   );
   process.exit(0);
@@ -198,7 +198,7 @@ try {
   exitWithCleanup(artifacts, 2);
 }
 
-if (process.env.OPENCLAW_TEST_LIST_LANES === "1" || rawCli.plan) {
+if (process.env.ALISIO_TEST_LIST_LANES === "1" || rawCli.plan) {
   console.log(formatPlanOutput(plan));
   exitWithCleanup(artifacts, 0);
 }

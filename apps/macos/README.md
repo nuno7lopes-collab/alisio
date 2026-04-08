@@ -1,4 +1,4 @@
-# OpenClaw macOS app (dev + signing)
+# Alisio macOS app (dev + signing)
 
 ## Quick dev run
 
@@ -62,3 +62,13 @@ Use for local dev only; keep off for release builds.
 - `CODESIGN_TIMESTAMP=off` (offline debug)
 - `DISABLE_LIBRARY_VALIDATION=1` (dev-only Sparkle workaround)
 - `SKIP_TEAM_ID_CHECK=1` (bypass audit)
+
+## Notarization placeholders
+
+`scripts/package-mac-dist.sh` already supports notarization, but the Apple account details are not set in this repo.
+Before a release build, fill the placeholders in `apps/macos/signing.env.example` and export the values you actually use.
+
+Supported auth modes:
+
+- `NOTARYTOOL_PROFILE` for a keychain profile created with `xcrun notarytool store-credentials`
+- `NOTARYTOOL_KEY` + `NOTARYTOOL_KEY_ID` + `NOTARYTOOL_ISSUER` for App Store Connect API key auth

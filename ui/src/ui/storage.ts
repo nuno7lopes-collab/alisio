@@ -1,10 +1,12 @@
+import { legacyDotKey } from "../brand-compat.ts";
+
 const SETTINGS_KEY_PREFIX = "alisio.control.settings.v2:";
-const LEGACY_SETTINGS_KEY_PREFIX = "openclaw.control.settings.v1:";
+const LEGACY_SETTINGS_KEY_PREFIX = `${legacyDotKey("control", "settings", "v1")}:`;
 const DEFAULT_SETTINGS_KEY = "alisio.control.settings.v2";
-const LEGACY_SETTINGS_KEY = "openclaw.control.settings.v1";
+const LEGACY_SETTINGS_KEY = legacyDotKey("control", "settings", "v1");
 const TOKEN_SESSION_KEY_PREFIX = "alisio.control.token.v2:";
-const LEGACY_TOKEN_SESSION_KEY_PREFIX = "openclaw.control.token.v1:";
-const LEGACY_TOKEN_SESSION_KEY = "openclaw.control.token.v1";
+const LEGACY_TOKEN_SESSION_KEY_PREFIX = `${legacyDotKey("control", "token", "v1")}:`;
+const LEGACY_TOKEN_SESSION_KEY = legacyDotKey("control", "token", "v1");
 const MAX_SCOPED_SESSION_ENTRIES = 10;
 
 function settingsKeyForGateway(gatewayUrl: string): string {
@@ -34,23 +36,6 @@ import { normalizeBasePath } from "./base-path.ts";
 import { inferBasePathFromPathname } from "./navigation.ts";
 import { parseThemeSelection, type ThemeMode, type ThemeName } from "./theme.ts";
 
-export const BORDER_RADIUS_STOPS = [0, 25, 50, 75, 100] as const;
-export type BorderRadiusStop = (typeof BORDER_RADIUS_STOPS)[number];
-export const FIXED_BORDER_RADIUS = 75 as const;
-
-function snapBorderRadius(value: number): BorderRadiusStop {
-  let best: BorderRadiusStop = BORDER_RADIUS_STOPS[0];
-  let bestDist = Math.abs(value - best);
-  for (const stop of BORDER_RADIUS_STOPS) {
-    const dist = Math.abs(value - stop);
-    if (dist < bestDist) {
-      best = stop;
-      bestDist = dist;
-    }
-  }
-  return best;
-}
-
 export type UiSettings = {
   gatewayUrl: string;
   token: string;
@@ -65,7 +50,6 @@ export type UiSettings = {
   navCollapsed: boolean; // Collapsible sidebar state
   navWidth: number; // Sidebar width when expanded (240–400px)
   navGroupsCollapsed: Record<string, boolean>; // Which nav groups are collapsed
-  borderRadius: number; // Corner roundness (0–100, default 50)
   locale?: string;
 };
 
@@ -228,7 +212,6 @@ export function loadSettings(): UiSettings {
     navCollapsed: false,
     navWidth: 220,
     navGroupsCollapsed: {},
-    borderRadius: 50,
   };
 
   try {
@@ -267,6 +250,10 @@ export function loadSettings(): UiSettings {
         : 0;
     const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
     const shouldMigrateLocale = !isSupportedLocale(parsed.locale) && locale !== undefined;
+    const shouldMigrateLegacyBorderRadius = Object.prototype.hasOwnProperty.call(
+      parsed,
+      "borderRadius",
+    );
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.
@@ -302,15 +289,14 @@ export function loadSettings(): UiSettings {
         typeof parsed.navGroupsCollapsed === "object" && parsed.navGroupsCollapsed !== null
           ? parsed.navGroupsCollapsed
           : defaults.navGroupsCollapsed,
-      borderRadius:
-        typeof parsed.borderRadius === "number" &&
-        parsed.borderRadius >= 0 &&
-        parsed.borderRadius <= 100
-          ? snapBorderRadius(parsed.borderRadius)
-          : defaults.borderRadius,
       locale,
     };
-    if ("token" in parsed || shouldMigrateChatPresentation || shouldMigrateLocale) {
+    if (
+      "token" in parsed ||
+      shouldMigrateChatPresentation ||
+      shouldMigrateLocale ||
+      shouldMigrateLegacyBorderRadius
+    ) {
       persistSettings(settings);
     }
     return settings;
@@ -371,7 +357,6 @@ function persistSettings(next: UiSettings) {
     navCollapsed: next.navCollapsed,
     navWidth: next.navWidth,
     navGroupsCollapsed: next.navGroupsCollapsed,
-    borderRadius: next.borderRadius,
     sessionsByGateway,
     ...(next.locale ? { locale: next.locale } : {}),
   };

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import * as imageGenerationRuntime from "../image-generation/runtime.js";
 import { createOpenClawTools } from "./openclaw-tools.js";
 
@@ -9,8 +9,8 @@ vi.mock("../plugins/tools.js", () => ({
   getPluginToolMeta: () => undefined,
 }));
 
-function asConfig(value: unknown): OpenClawConfig {
-  return value as OpenClawConfig;
+function asConfig(value: unknown): AlisioConfig {
+  return value as AlisioConfig;
 }
 
 function stubImageGenerationProviders() {

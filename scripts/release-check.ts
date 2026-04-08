@@ -4,6 +4,7 @@ import { execSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { packageBrandConfigKey, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 import {
   collectBundledExtensionManifestErrors,
   type BundledExtension,
@@ -99,7 +100,8 @@ export function collectBundledExtensionRootDependencyMirrorErrors(
   const errors: string[] = [];
 
   for (const extension of extensions) {
-    const rawReleaseChecks = extension.packageJson.openclaw?.releaseChecks;
+    const brandKey = packageBrandConfigKey(extension.packageJson);
+    const rawReleaseChecks = readPackageBrandConfig(extension.packageJson)?.releaseChecks;
     const allowlist = (rawReleaseChecks as { rootDependencyMirrorAllowlist?: unknown } | undefined)
       ?.rootDependencyMirrorAllowlist;
 
@@ -108,7 +110,7 @@ export function collectBundledExtensionRootDependencyMirrorErrors(
     }
     if (!Array.isArray(allowlist)) {
       errors.push(
-        `bundled extension '${extension.id}' manifest invalid | openclaw.releaseChecks.rootDependencyMirrorAllowlist must be an array`,
+        `bundled extension '${extension.id}' manifest invalid | ${brandKey}.releaseChecks.rootDependencyMirrorAllowlist must be an array`,
       );
       continue;
     }
@@ -118,7 +120,7 @@ export function collectBundledExtensionRootDependencyMirrorErrors(
     for (const entry of allowlist) {
       if (typeof entry !== "string" || entry.trim().length === 0) {
         errors.push(
-          `bundled extension '${extension.id}' manifest invalid | openclaw.releaseChecks.rootDependencyMirrorAllowlist entries must be non-empty strings`,
+          `bundled extension '${extension.id}' manifest invalid | ${brandKey}.releaseChecks.rootDependencyMirrorAllowlist entries must be non-empty strings`,
         );
         continue;
       }
@@ -126,13 +128,13 @@ export function collectBundledExtensionRootDependencyMirrorErrors(
       const extensionSpec = extensionRuntimeDeps.get(entry);
       if (!extensionSpec) {
         errors.push(
-          `bundled extension '${extension.id}' manifest invalid | openclaw.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must be declared in extension runtime dependencies`,
+          `bundled extension '${extension.id}' manifest invalid | ${brandKey}.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must be declared in extension runtime dependencies`,
         );
       }
       const rootSpec = rootRuntimeDeps.get(entry);
       if (!rootSpec) {
         errors.push(
-          `bundled extension '${extension.id}' manifest invalid | openclaw.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must be mirrored in root runtime dependencies`,
+          `bundled extension '${extension.id}' manifest invalid | ${brandKey}.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must be mirrored in root runtime dependencies`,
         );
       }
       if (!extensionSpec || !rootSpec) {
@@ -140,7 +142,7 @@ export function collectBundledExtensionRootDependencyMirrorErrors(
       }
       if (extensionSpec !== rootSpec) {
         errors.push(
-          `bundled extension '${extension.id}' manifest invalid | openclaw.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must match root runtime dependency version (extension '${extensionSpec}', root '${rootSpec}')`,
+          `bundled extension '${extension.id}' manifest invalid | ${brandKey}.releaseChecks.rootDependencyMirrorAllowlist entry '${entry}' must match root runtime dependency version (extension '${extensionSpec}', root '${rootSpec}')`,
         );
       }
     }
@@ -303,7 +305,7 @@ function checkAppcastSparkleVersions() {
   }
 }
 
-// Critical functions that channel extension plugins import from openclaw/plugin-sdk.
+// Critical functions that channel extension plugins import from alisio/plugin-sdk.
 // If any are missing from the compiled output, plugins crash at runtime (#27569).
 const requiredPluginSdkExports = [
   "isDangerousNameMatchingEnabled",

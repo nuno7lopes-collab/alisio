@@ -60,7 +60,6 @@ import {
   PAIRING_APPROVED_MESSAGE,
   projectCredentialSnapshotFields,
   resolveConfiguredFromCredentialStatuses,
-  type OpenClawConfig,
 } from "./runtime-api.js";
 import { getDiscordRuntime } from "./runtime.js";
 import { fetchChannelPermissionsDiscord } from "./send.js";
@@ -73,6 +72,7 @@ import { DiscordUiContainer } from "./ui.js";
 type DiscordSendFn = ReturnType<
   typeof getDiscordRuntime
 >["channel"]["discord"]["sendMessageDiscord"];
+type DiscordConfig = Parameters<typeof resolveDiscordAccount>[0]["cfg"];
 
 let discordProviderRuntimePromise:
   | Promise<typeof import("./monitor/provider.runtime.js")>
@@ -138,7 +138,7 @@ const discordMessageActions: ChannelMessageActionAdapter = {
 function buildDiscordCrossContextComponents(params: {
   originLabel: string;
   message: string;
-  cfg: OpenClawConfig;
+  cfg: DiscordConfig;
   accountId?: string | null;
 }) {
   const trimmed = params.message.trim();
@@ -329,7 +329,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
       agentPrompt: {
         messageToolHints: () => [
           "- Discord components: set `components` when sending messages to include buttons, selects, or v2 containers.",
-          "- Forms: add `components.modal` (title, fields). OpenClaw adds a trigger button and routes submissions as new messages.",
+          "- Forms: add `components.modal` (title, fields). The gateway adds a trigger button and routes submissions as new messages.",
         ],
       },
       messaging: {
@@ -573,6 +573,7 @@ export const discordPlugin: ChannelPlugin<ResolvedDiscordAccount, DiscordProbe> 
               lastConnectedAt: runtime?.lastConnectedAt ?? null,
               lastDisconnect: runtime?.lastDisconnect ?? null,
               lastEventAt: runtime?.lastEventAt ?? null,
+              healthState: runtime?.healthState ?? undefined,
               application: app ?? undefined,
               bot: bot ?? undefined,
               audit,

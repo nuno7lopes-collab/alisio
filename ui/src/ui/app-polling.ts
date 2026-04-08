@@ -1,4 +1,4 @@
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
@@ -26,7 +26,7 @@ export function startNodesPolling(host: PollingHost) {
     if (!shouldPollNodes(host)) {
       return;
     }
-    void loadNodes(host as unknown as OpenClawApp, { quiet: true });
+    void loadNodes(host as unknown as AlisioApp, { quiet: true });
   }, 5000);
 }
 
@@ -46,7 +46,7 @@ export function startLogsPolling(host: PollingHost) {
     if (!(host.tab === "settings" && host.settingsSection === "logs")) {
       return;
     }
-    void loadLogs(host as unknown as OpenClawApp, { quiet: true });
+    void loadLogs(host as unknown as AlisioApp, { quiet: true });
   }, 2000);
 }
 
@@ -66,7 +66,7 @@ export function startDebugPolling(host: PollingHost) {
     if (!(host.tab === "settings" && host.settingsSection === "debug")) {
       return;
     }
-    void loadDebug(host as unknown as OpenClawApp);
+    void loadDebug(host as unknown as AlisioApp);
   }, 3000);
 }
 

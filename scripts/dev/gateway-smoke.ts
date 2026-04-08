@@ -9,13 +9,13 @@ function writeStderrLine(message: string): void {
 }
 
 const { get: getArg } = createArgReader();
-const urlRaw = getArg("--url") ?? process.env.OPENCLAW_GATEWAY_URL;
-const token = getArg("--token") ?? process.env.OPENCLAW_GATEWAY_TOKEN;
+const urlRaw = getArg("--url") ?? process.env.ALISIO_GATEWAY_URL;
+const token = getArg("--token") ?? process.env.ALISIO_GATEWAY_TOKEN;
 
 if (!urlRaw || !token) {
   writeStderrLine(
     "Usage: bun scripts/dev/gateway-smoke.ts --url <wss://host[:port]> --token <gateway.auth.token>\n" +
-      "Or set env: OPENCLAW_GATEWAY_URL / OPENCLAW_GATEWAY_TOKEN",
+      "Or set env: ALISIO_GATEWAY_URL / ALISIO_GATEWAY_TOKEN",
   );
   process.exit(1);
 }
@@ -39,12 +39,12 @@ async function main() {
     minProtocol: 3,
     maxProtocol: 3,
     client: {
-      id: "openclaw-ios",
-      displayName: "openclaw gateway smoke test",
+      id: "alisio-ios",
+      displayName: "alisio gateway smoke test",
       version: "dev",
       platform: "dev",
       mode: "ui",
-      instanceId: "openclaw-dev-smoke",
+      instanceId: "alisio-dev-smoke",
     },
     locale: "en-US",
     userAgent: "gateway-smoke",

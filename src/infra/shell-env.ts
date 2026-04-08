@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { isTruthyEnvValue } from "./env.js";
+import { isTruthyEnvValue, legacyEnvKey, readEnv } from "./env.js";
 import { sanitizeHostExecEnv } from "./host-env-security.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -166,7 +166,7 @@ export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFal
     exec: opts.exec,
   });
   if (!probe.ok) {
-    logger.warn(`[openclaw] shell env fallback failed: ${probe.error}`);
+    logger.warn(`[alisio] shell env fallback failed: ${probe.error}`);
     lastAppliedKeys = [];
     return { ok: false, error: probe.error, applied: [] };
   }
@@ -189,15 +189,31 @@ export function loadShellEnvFallback(opts: ShellEnvFallbackOptions): ShellEnvFal
 }
 
 export function shouldEnableShellEnvFallback(env: NodeJS.ProcessEnv): boolean {
-  return isTruthyEnvValue(env.OPENCLAW_LOAD_SHELL_ENV);
+  return isTruthyEnvValue(
+    readEnv("ALISIO_LOAD_SHELL_ENV", {
+      env,
+      fallback: legacyEnvKey("LOAD_SHELL_ENV"),
+      description: "shell env fallback toggle",
+    }),
+  );
 }
 
 export function shouldDeferShellEnvFallback(env: NodeJS.ProcessEnv): boolean {
-  return isTruthyEnvValue(env.OPENCLAW_DEFER_SHELL_ENV_FALLBACK);
+  return isTruthyEnvValue(
+    readEnv("ALISIO_DEFER_SHELL_ENV_FALLBACK", {
+      env,
+      fallback: legacyEnvKey("DEFER_SHELL_ENV_FALLBACK"),
+      description: "shell env fallback deferral",
+    }),
+  );
 }
 
 export function resolveShellEnvFallbackTimeoutMs(env: NodeJS.ProcessEnv): number {
-  const raw = env.OPENCLAW_SHELL_ENV_TIMEOUT_MS?.trim();
+  const raw = readEnv("ALISIO_SHELL_ENV_TIMEOUT_MS", {
+    env,
+    fallback: legacyEnvKey("SHELL_ENV_TIMEOUT_MS"),
+    description: "shell env fallback timeout",
+  })?.trim();
   if (!raw) {
     return DEFAULT_TIMEOUT_MS;
   }

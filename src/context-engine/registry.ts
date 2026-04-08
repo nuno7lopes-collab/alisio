@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { defaultSlotIdForKey } from "../plugins/slots.js";
 import { resolveGlobalSingleton } from "../shared/global-singleton.js";
 import type { ContextEngine } from "./types.js";
@@ -408,7 +408,7 @@ export function listContextEngineIds(): string[] {
  *
  * Throws if the resolved engine id has no registered factory.
  */
-export async function resolveContextEngine(config?: OpenClawConfig): Promise<ContextEngine> {
+export async function resolveContextEngine(config?: AlisioConfig): Promise<ContextEngine> {
   const slotValue = config?.plugins?.slots?.contextEngine;
   const engineId =
     typeof slotValue === "string" && slotValue.trim()

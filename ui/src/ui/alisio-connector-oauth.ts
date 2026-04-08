@@ -9,7 +9,7 @@ import {
   type AlisioConnectorOAuthSignal,
 } from "../../../src/shared/alisio-connector-oauth.js";
 import { extractTextCached } from "./chat/message-extract.ts";
-import { loadAlisioConnectors } from "./controllers/alisio.ts";
+import { loadAlisioConnectors, loadAlisioDoctorSummary } from "./controllers/alisio.ts";
 import type { ChatAttachment } from "./ui-types.ts";
 
 export type { AlisioConnectorOAuthSignal } from "../../../src/shared/alisio-connector-oauth.js";
@@ -332,5 +332,8 @@ export function buildPendingAlisioConnectorChatResume(params: {
 export async function refreshAfterAlisioConnectorOAuth(
   host: ConnectorOAuthRefreshHost,
 ): Promise<void> {
-  await loadAlisioConnectors(host, { force: true });
+  await Promise.allSettled([
+    loadAlisioConnectors(host, { force: true }),
+    loadAlisioDoctorSummary(host, { force: true }),
+  ]);
 }

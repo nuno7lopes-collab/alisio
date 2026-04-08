@@ -51,8 +51,6 @@ export type ConfigProps = {
   themeMode: ThemeMode;
   setTheme: (theme: ThemeName, context?: ThemeTransitionContext) => void;
   setThemeMode: (mode: ThemeMode, context?: ThemeTransitionContext) => void;
-  borderRadius: number;
-  setBorderRadius: (value: number) => void;
   gatewayUrl: string;
   assistantName: string;
   configPath?: string | null;
@@ -399,7 +397,7 @@ const SECTION_CATEGORIES: SectionCategory[] = [
     id: "infrastructure",
     label: "Infrastructure",
     sections: [
-      { key: "gateway", label: "Gateway" },
+      { key: "gateway", label: "Alisio" },
       { key: "web", label: "Web" },
       { key: "browser", label: "Browser" },
       { key: "nodeHost", label: "NodeHost" },
@@ -559,17 +557,15 @@ function renderAppearanceSection(props: ConfigProps) {
       ${renderAppearanceControls({
         theme: props.theme,
         themeMode: props.themeMode,
-        borderRadius: props.borderRadius,
         onThemeChange: props.setTheme,
         onThemeModeChange: props.setThemeMode,
-        onBorderRadiusChange: props.setBorderRadius,
       })}
 
       <div class="settings-appearance__section">
         <h3 class="settings-appearance__heading">Connection</h3>
         <div class="settings-info-grid">
           <div class="settings-info-row">
-            <span class="settings-info-row__label">Gateway</span>
+            <span class="settings-info-row__label">Workspace</span>
             <span class="settings-info-row__value mono">${props.gatewayUrl || "-"}</span>
           </div>
           <div class="settings-info-row">

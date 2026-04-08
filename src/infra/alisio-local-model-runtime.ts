@@ -1,4 +1,6 @@
 import { ALISIO_LOCAL_MODEL_BACKEND } from "../shared/alisio-local-models.js";
+import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import type { AlisioModelHardwareProfile } from "./model-hardware.js";
 import { inspectLocalModelHardwareProfile } from "./model-hardware.js";
 
@@ -20,12 +22,24 @@ export type AlisioLocalModelRuntimeInspection = {
 
 export function resolveLocalModelRuntimeConfig(env: NodeJS.ProcessEnv = process.env): {
   baseUrl: string | null;
+  apiKey: string | null;
   authHeader: string | null;
 } {
-  const baseUrlRaw = env.OPENCLAW_NODE_MODEL_BASE_URL?.trim();
-  const apiKey = env.OPENCLAW_NODE_MODEL_API_KEY?.trim() || env.OPENAI_API_KEY?.trim();
+  const baseUrlRaw = readEnv("ALISIO_NODE_MODEL_BASE_URL", {
+    env,
+    fallback: legacyEnvKey("NODE_MODEL_BASE_URL"),
+    description: "local model runtime base URL",
+  })?.trim();
+  const apiKey =
+    readEnv("ALISIO_NODE_MODEL_API_KEY", {
+      env,
+      fallback: legacyEnvKey("NODE_MODEL_API_KEY"),
+      description: "local model runtime API key",
+      redact: true,
+    })?.trim() || env.OPENAI_API_KEY?.trim();
   return {
     baseUrl: baseUrlRaw ? baseUrlRaw.replace(/\/+$/, "") : null,
+    apiKey: apiKey || null,
     authHeader: apiKey ? `Bearer ${apiKey}` : null,
   };
 }
@@ -87,9 +101,14 @@ export async function inspectLocalModelRuntime(params: {
   }
 
   try {
-    const response = await (params.fetchImpl ?? fetch)(`${baseUrl}/models`, {
-      method: "GET",
-      headers,
+    const response = await fetchOpenAiCompatibleEndpoint({
+      baseUrl,
+      endpoint: "models",
+      fetchImpl: params.fetchImpl,
+      init: {
+        method: "GET",
+        headers,
+      },
     });
     if (!response.ok) {
       const message = await response.text().catch(() => response.statusText);

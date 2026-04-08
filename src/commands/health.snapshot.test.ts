@@ -443,4 +443,38 @@ describe("getHealthSnapshot", () => {
     expect(ops?.heartbeat.everyMs).toBeTruthy();
     expect(ops?.heartbeat.every).toBe("1h");
   });
+
+  it("hides non-product channels from the health snapshot", async () => {
+    testConfig = {};
+    testStore = {};
+    setActivePluginRegistry(
+      createTestRegistry([
+        { pluginId: "telegram", plugin: createTelegramHealthPlugin(), source: "test" },
+        {
+          pluginId: "slack",
+          source: "test",
+          plugin: {
+            ...createChannelTestPluginBase({ id: "slack", label: "Slack" }),
+            config: {
+              listAccountIds: () => ["default"],
+              resolveAccount: () => ({}),
+              isConfigured: () => true,
+            },
+            status: {
+              buildChannelSummary: () => ({
+                accountId: "default",
+                configured: true,
+              }),
+            },
+          },
+        },
+      ]),
+    );
+
+    const snap = await getHealthSnapshot({ timeoutMs: 10, probe: false });
+
+    expect(snap.channelOrder).toEqual(["telegram"]);
+    expect(Object.keys(snap.channels)).toEqual(["telegram"]);
+    expect(snap.channelLabels.slack).toBeUndefined();
+  });
 });

@@ -1,5 +1,5 @@
 import { estimateBase64DecodedBytes } from "../media/base64.js";
-import { kindFromMime } from "../media/mime.js";
+import { kindFromMime, normalizeMimeType } from "../media/mime.js";
 import { sniffMimeFromBase64 } from "../media/sniff-mime-from-base64.js";
 
 export type ChatAttachment = {
@@ -39,14 +39,6 @@ type NormalizedAttachment = {
   mime: string;
   base64: string;
 };
-
-function normalizeMime(mime?: string): string | undefined {
-  if (!mime) {
-    return undefined;
-  }
-  const cleaned = mime.split(";")[0]?.trim().toLowerCase();
-  return cleaned || undefined;
-}
 
 function isValidBase64(value: string): boolean {
   // Minimal validation; avoid full decode allocations for large payloads.
@@ -134,8 +126,8 @@ export async function parseChatAttachments(
       requireImageMime: false,
     });
     const sizeBytes = validateAttachmentBase64OrThrow(normalized, { maxBytes });
-    const providedMime = normalizeMime(normalized.mime);
-    const sniffedMime = normalizeMime(await sniffMimeFromBase64(normalized.base64));
+    const providedMime = normalizeMimeType(normalized.mime);
+    const sniffedMime = normalizeMimeType(await sniffMimeFromBase64(normalized.base64));
     if (sniffedMime && providedMime && sniffedMime !== providedMime) {
       log?.warn(
         `attachment ${normalized.label}: mime mismatch (${providedMime} -> ${sniffedMime}), using sniffed`,

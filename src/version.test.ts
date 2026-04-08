@@ -54,6 +54,15 @@ describe("version resolution", () => {
     });
   });
 
+  it("accepts alisio package metadata when resolving versions", async () => {
+    await withTempDir(async (root) => {
+      await writeJsonFixture(root, "package.json", { name: "alisio", version: "2.3.4" });
+      const moduleUrl = await ensureModuleFixture(root);
+      expect(readVersionFromPackageJsonForModuleUrl(moduleUrl)).toBe("2.3.4");
+      expect(resolveVersionFromModuleUrl(moduleUrl)).toBe("2.3.4");
+    });
+  });
+
   it("ignores unrelated nearby package.json files", async () => {
     await withTempDir(async (root) => {
       await writeJsonFixture(root, "package.json", { name: "openclaw", version: "2.3.4" });

@@ -3,7 +3,7 @@ import type { SsrFPolicy } from "../infra/net/ssrf.js";
 import { logWarn } from "../logger.js";
 import { canonicalizeBase64, estimateBase64DecodedBytes } from "./base64.js";
 import { convertHeicToJpeg } from "./image-ops.js";
-import { detectMime } from "./mime.js";
+import { detectMime, normalizeMimeType } from "./mime.js";
 import { extractPdfContent, type PdfExtractedImage } from "./pdf-extract.js";
 import { readResponseWithLimit } from "./read-response-with-limit.js";
 
@@ -125,15 +125,6 @@ function rejectOversizedBase64Payload(params: {
       `${params.label} too large: ${estimated} bytes (limit: ${params.maxBytes} bytes)`,
     );
   }
-}
-
-export function normalizeMimeType(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const [raw] = value.split(";");
-  const normalized = raw?.trim().toLowerCase();
-  return normalized || undefined;
 }
 
 export function parseContentType(value: string | undefined): {

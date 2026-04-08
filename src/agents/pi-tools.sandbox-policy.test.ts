@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 import { resolveSandboxConfigForAgent } from "./sandbox/config.js";
 import { createHostSandboxFsBridge } from "./test-helpers/host-sandbox-fs-bridge.js";
 import { createPiToolsSandboxContext } from "./test-helpers/pi-tools-sandbox-context.js";
 
 function listToolNames(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId?: string;
   sessionKey?: string;
   sandboxAgentId?: string;
@@ -52,7 +52,7 @@ describe("pi-tools sandbox policy", () => {
             },
           ],
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(names).toContain("message");
@@ -75,7 +75,7 @@ describe("pi-tools sandbox policy", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(names).toContain("browser");
@@ -102,7 +102,7 @@ describe("pi-tools sandbox policy", () => {
           },
         ],
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const names = listToolNames({
       cfg,
@@ -131,7 +131,7 @@ describe("pi-tools sandbox policy", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(names).toContain("browser");
@@ -155,7 +155,7 @@ describe("pi-tools sandbox policy", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(names).not.toContain("browser");

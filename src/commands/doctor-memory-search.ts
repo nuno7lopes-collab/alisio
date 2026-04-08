@@ -3,7 +3,7 @@ import { resolveAgentDir, resolveDefaultAgentId } from "../agents/agent-scope.js
 import { resolveMemorySearchConfig } from "../agents/memory-search.js";
 import { resolveApiKeyForProvider } from "../agents/model-auth.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   getBuiltinMemoryEmbeddingProviderDoctorMetadata,
   listBuiltinAutoSelectMemoryEmbeddingProviderDoctorMetadata,
@@ -28,7 +28,7 @@ function resolveSuggestedRemoteMemoryProvider(): string | undefined {
  * the configured `qmd` binary is available.
  */
 export async function noteMemorySearchHealth(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   opts?: {
     gatewayMemoryProbe?: {
       checked: boolean;
@@ -233,7 +233,7 @@ function hasLocalEmbeddings(local: { modelPath?: string }, useDefaultFallback = 
 
 async function hasApiKeyForProvider(
   provider: string,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentDir: string,
 ): Promise<boolean> {
   const metadata = getBuiltinMemoryEmbeddingProviderDoctorMetadata(provider);

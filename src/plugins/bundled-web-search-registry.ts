@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveBundledPluginWebSearchProviders } from "./web-search-providers.js";
 
 function hasConfiguredCredentialValue(value: unknown): boolean {
@@ -9,7 +9,7 @@ function hasConfiguredCredentialValue(value: unknown): boolean {
 }
 
 export function hasBundledWebSearchCredential(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   env?: NodeJS.ProcessEnv;
   searchConfig?: Record<string, unknown>;
 }): boolean {

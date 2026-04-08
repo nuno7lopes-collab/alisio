@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionBindingRecord } from "../../infra/outbound/session-binding-service.js";
 
 function resolveThreadBindingIdleTimeoutMs(params: {
@@ -124,7 +124,7 @@ const { buildCommandTestParams } = await import("./commands.test-harness.js");
 
 const baseCfg = {
   session: { mainKey: "main", scope: "per-sender" },
-} satisfies OpenClawConfig;
+} satisfies AlisioConfig;
 
 type FakeBinding = {
   accountId: string;

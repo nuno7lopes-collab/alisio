@@ -6,6 +6,7 @@ import {
   normalizeAlisioPlan,
 } from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
+import { alisioSetupStepLabel } from "../alisio-setup-step-label.ts";
 import { icons } from "../icons.ts";
 import type { SettingsSection } from "../navigation.ts";
 import type { ThemeTransitionContext } from "../theme-transition.ts";
@@ -93,6 +94,13 @@ function renderDoctorCard(props: {
   onReconnectRuntime: () => void;
   onOpenSetup: () => void;
 }) {
+  const reconnectRequired =
+    props.doctor?.issues.some(
+      (issue) =>
+        issue.step === "gateway" ||
+        issue.code === "gateway_not_connected" ||
+        issue.code === "gateway_unhealthy",
+    ) ?? false;
   const text = {
     loading: t("alisio.settings.doctor.loading"),
     healthy: t("alisio.settings.doctor.healthy"),
@@ -102,6 +110,7 @@ function renderDoctorCard(props: {
       count: String(props.doctor?.issues.length ?? 0),
     }),
     restartRuntime: t("alisio.settings.doctor.restartRuntime"),
+    reconnectApp: t("alisio.settings.doctor.reconnectApp"),
     openSetup: t("alisio.settings.doctor.openSetup"),
   };
   if (props.doctorError) {
@@ -150,7 +159,7 @@ function renderDoctorCard(props: {
                 (issue) => html`
                   <div class="alisio-settings-doctor__issue">
                     <span>${issue.title}</span>
-                    <strong>${issue.step ?? issue.code}</strong>
+                    <strong>${issue.step ? alisioSetupStepLabel(issue.step) : issue.code}</strong>
                   </div>
                 `,
               )}
@@ -165,7 +174,9 @@ function renderDoctorCard(props: {
           `
         : html`
             <div class="alisio-settings-doctor__actions">
-              <button class="btn" @click=${props.onReconnectRuntime}>${text.restartRuntime}</button>
+              <button class="btn" @click=${props.onReconnectRuntime}>
+                ${reconnectRequired ? text.reconnectApp : text.restartRuntime}
+              </button>
               <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
             </div>
           `}
@@ -387,20 +398,16 @@ function renderMacSection(props: {
 function renderAppearanceSection(props: {
   theme: ThemeName;
   themeMode: "system" | "light" | "dark";
-  borderRadius: number;
   onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
-  onBorderRadiusChange: (value: number) => void;
 }) {
   return html`
     <div class="settings-appearance">
       ${renderAppearanceControls({
         theme: props.theme,
         themeMode: props.themeMode,
-        borderRadius: props.borderRadius,
         onThemeChange: props.onThemeChange,
         onThemeModeChange: props.onThemeModeChange,
-        onBorderRadiusChange: props.onBorderRadiusChange,
       })}
     </div>
   `;
@@ -456,7 +463,7 @@ function renderAccountSection(props: {
   }) => void;
   locale?: string;
   onSignOut: () => void;
-  onRequestPasswordReset: () => void;
+  onRequestRecoveryEmail: () => void;
 }) {
   const text = {
     title: t("alisio.settings.account.title"),
@@ -469,11 +476,13 @@ function renderAccountSection(props: {
     email: t("alisio.settings.account.email"),
     avatarLabel: t("alisio.settings.account.avatarLabel"),
     emailManagedByCloud: t("alisio.settings.account.emailManagedByCloud"),
-    resetPassword: t("alisio.settings.account.resetPassword"),
+    recoveryEmail: t("alisio.settings.account.recoveryEmail"),
     signOut: t("alisio.settings.account.signOut"),
   };
   const joinedFormatter = new Intl.DateTimeFormat(props.locale ?? undefined);
-  const emailManagedByCloud = props.account?.session.backend === "supabase";
+  const account = props.account;
+  const emailManagedByCloud = account?.session.backend === "supabase";
+  const showRecoveryEmail = Boolean(account && account.session.authMethod !== "google");
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
@@ -568,13 +577,17 @@ function renderAccountSection(props: {
                 })}
               </fieldset>
               <div class="row" style="margin-top: 16px;">
-                <button
-                  class="btn"
-                  ?disabled=${props.accountLoading}
-                  @click=${props.onRequestPasswordReset}
-                >
-                  ${text.resetPassword}
-                </button>
+                ${showRecoveryEmail
+                  ? html`
+                      <button
+                        class="btn"
+                        ?disabled=${props.accountLoading}
+                        @click=${props.onRequestRecoveryEmail}
+                      >
+                        ${text.recoveryEmail}
+                      </button>
+                    `
+                  : nothing}
                 <button
                   class="btn danger"
                   ?disabled=${props.accountLoading}
@@ -779,11 +792,9 @@ export function renderSettingsHub(props: {
   locale: string | undefined;
   theme: ThemeName;
   themeMode: "system" | "light" | "dark";
-  borderRadius: number;
   onLocaleChange: (value: "en" | "pt-PT" | "es") => void;
   onThemeChange: (value: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (value: "system" | "light" | "dark") => void;
-  onBorderRadiusChange: (value: number) => void;
   onSaveAccountField: (patch: {
     username?: string;
     displayName?: string;
@@ -802,7 +813,7 @@ export function renderSettingsHub(props: {
   onRevealLogs: () => void;
   onOpenSetup: () => void;
   onSignOutAccount: () => void;
-  onRequestPasswordReset: () => void;
+  onRequestRecoveryEmail: () => void;
   onReconnectRuntime: () => void;
 }) {
   const activeSection = resolveVisibleSection(props.section);
@@ -820,10 +831,8 @@ export function renderSettingsHub(props: {
             ${renderAppearanceSection({
               theme: props.theme,
               themeMode: props.themeMode,
-              borderRadius: props.borderRadius,
               onThemeChange: props.onThemeChange,
               onThemeModeChange: props.onThemeModeChange,
-              onBorderRadiusChange: props.onBorderRadiusChange,
             })}
             ${renderLanguageSection({
               locale: props.locale,
@@ -849,7 +858,7 @@ export function renderSettingsHub(props: {
                   locale: props.locale,
                   onSaveField: props.onSaveAccountField,
                   onSignOut: props.onSignOutAccount,
-                  onRequestPasswordReset: props.onRequestPasswordReset,
+                  onRequestRecoveryEmail: props.onRequestRecoveryEmail,
                 })}
                 ${renderDevicesSection({
                   account: props.account,
@@ -865,7 +874,7 @@ export function renderSettingsHub(props: {
                   locale: props.locale,
                   onSaveField: props.onSaveAccountField,
                   onSignOut: props.onSignOutAccount,
-                  onRequestPasswordReset: props.onRequestPasswordReset,
+                  onRequestRecoveryEmail: props.onRequestRecoveryEmail,
                 })}
                 ${renderDevicesSection({
                   account: props.account,

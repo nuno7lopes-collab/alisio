@@ -485,6 +485,7 @@ export const AlisioAccountPasswordResetParamsSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioAccountRecoveryEmailParamsSchema = AlisioAccountPasswordResetParamsSchema;
 export const AlisioAccountSignOutParamsSchema = Type.Object({}, { additionalProperties: false });
 export const AlisioAccountPasswordResetResultSchema = Type.Object(
   {
@@ -493,6 +494,7 @@ export const AlisioAccountPasswordResetResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioAccountRecoveryEmailResultSchema = AlisioAccountPasswordResetResultSchema;
 
 export const AlisioAiGetParamsSchema = Type.Object({}, { additionalProperties: false });
 export const AlisioAiBeginConnectParamsSchema = Type.Object(

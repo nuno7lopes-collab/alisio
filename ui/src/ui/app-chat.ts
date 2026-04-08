@@ -2,7 +2,7 @@ import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js
 import { scheduleChatScroll, resetChatScroll } from "./app-scroll.ts";
 import { setLastActiveSessionKey } from "./app-settings.ts";
 import { resetToolStream } from "./app-tool-stream.ts";
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { executeSlashCommand } from "./chat/slash-command-executor.ts";
 import { parseSlashCommand } from "./chat/slash-commands.ts";
@@ -82,7 +82,7 @@ export async function handleAbortChat(host: ChatHost) {
     return;
   }
   host.chatMessage = "";
-  await abortChatRun(host as unknown as OpenClawApp);
+  await abortChatRun(host as unknown as AlisioApp);
 }
 
 function enqueueChatMessage(
@@ -142,7 +142,7 @@ async function sendChatMessageNow(
   resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
   // Reset scroll state before sending to ensure auto-scroll works for the response
   resetChatScroll(host as unknown as Parameters<typeof resetChatScroll>[0]);
-  const runId = await sendChatMessage(host as unknown as OpenClawApp, message, opts?.attachments);
+  const runId = await sendChatMessage(host as unknown as AlisioApp, message, opts?.attachments);
   const ok = Boolean(runId);
   if (!ok && opts?.previousDraft != null) {
     host.chatMessage = opts.previousDraft;
@@ -378,7 +378,7 @@ async function clearChatHistory(host: ChatHost) {
     host.chatStream = null;
     host.chatRunId = null;
     host.chatFinalizing = false;
-    await loadChatHistory(host as unknown as OpenClawApp);
+    await loadChatHistory(host as unknown as AlisioApp);
   } catch (err) {
     host.lastError = String(err);
   }
@@ -403,11 +403,11 @@ export async function refreshChat(
   const includeHistory = opts?.includeHistory ?? true;
   await Promise.all([
     includeHistory
-      ? loadChatHistory(host as unknown as OpenClawApp, {
+      ? loadChatHistory(host as unknown as AlisioApp, {
           preserveEphemeral: Boolean(host.chatRunId || host.chatFinalizing),
         })
       : Promise.resolve(),
-    loadSessions(host as unknown as OpenClawApp, {
+    loadSessions(host as unknown as AlisioApp, {
       activeMinutes: 0,
       limit: 0,
       includeGlobal: true,

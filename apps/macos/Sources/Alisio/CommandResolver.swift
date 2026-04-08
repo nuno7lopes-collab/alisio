@@ -1,0 +1,720 @@
+import Foundation
+
+import AlisioSupport
+enum CommandResolver {
+    private static let projectRootDefaultsKey = AlisioBrand.defaultsPrefix + "gatewayProjectRootPath"
+    private static let helperName = AlisioBrand.commandName
+    private static let legacyHelperName = LegacyBrand.commandName
+    private static let bundledPackageDirName = AlisioBrand.bundledPackageDirectoryName
+
+    static func gatewayEntrypoint(in root: URL) -> String? {
+        let distEntry = root.appendingPathComponent("dist/index.js").path
+        if FileManager().isReadableFile(atPath: distEntry) { return distEntry }
+        let candidates = [
+            root.appendingPathComponent("\(AlisioBrand.commandName).mjs").path,
+            root.appendingPathComponent("\(LegacyBrand.commandName).mjs").path,
+            root.appendingPathComponent("bin/\(AlisioBrand.commandName).js").path,
+            root.appendingPathComponent("bin/\(LegacyBrand.commandName).js").path,
+        ]
+        for candidate in candidates where FileManager().isReadableFile(atPath: candidate) {
+            return candidate
+        }
+        return nil
+    }
+
+    static func runtimeResolution() -> Result<RuntimeResolution, RuntimeResolutionError> {
+        RuntimeLocator.resolve(searchPaths: self.preferredPaths())
+    }
+
+    static func runtimeResolution(searchPaths: [String]?) -> Result<RuntimeResolution, RuntimeResolutionError> {
+        RuntimeLocator.resolve(searchPaths: searchPaths ?? self.preferredPaths())
+    }
+
+    static func makeRuntimeCommand(
+        runtime: RuntimeResolution,
+        entrypoint: String,
+        subcommand: String,
+        extraArgs: [String]) -> [String]
+    {
+        [runtime.path, entrypoint, subcommand] + extraArgs
+    }
+
+    static func runtimeErrorCommand(_ error: RuntimeResolutionError) -> [String] {
+        let message = RuntimeLocator.describeFailure(error)
+        return self.errorCommand(with: message)
+    }
+
+    static func errorCommand(with message: String) -> [String] {
+        let script = """
+        cat <<'__ALISIO_ERR__' >&2
+        \(message)
+        __ALISIO_ERR__
+        exit 1
+        """
+        return ["/bin/sh", "-c", script]
+    }
+
+    static func projectRoot(
+        defaults: UserDefaults = .standard,
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default,
+        homeDirectory: URL = FileManager().homeDirectoryForCurrentUser) -> URL
+    {
+        if let bundled = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return bundled
+        }
+        if let inferred = self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager) {
+            return inferred
+        }
+        if let stored = defaults.string(forKey: self.projectRootDefaultsKey),
+           let url = self.expandPath(stored),
+           fileManager.fileExists(atPath: url.path)
+        {
+            return url
+        }
+        let fallbacks = [
+            homeDirectory.appendingPathComponent("Projects/\(AlisioBrand.projectRootDirectoryName)"),
+            homeDirectory.appendingPathComponent("Projects/\(LegacyBrand.projectRootDirectoryName)"),
+        ]
+        for fallback in fallbacks where fileManager.fileExists(atPath: fallback.path) {
+            return fallback
+        }
+        return homeDirectory
+    }
+
+    static func setProjectRoot(_ path: String) {
+        UserDefaults.standard.set(path, forKey: self.projectRootDefaultsKey)
+    }
+
+    static func projectRootPath() -> String {
+        self.projectRoot().path
+    }
+
+    static func inferBundledProjectRoot(bundleURL: URL, fileManager: FileManager = .default) -> URL? {
+        #if DEBUG
+        let standardized = bundleURL.standardizedFileURL
+        var cursor = standardized.deletingLastPathComponent()
+        for _ in 0..<8 {
+            if cursor.lastPathComponent == "dist" {
+                let candidate = cursor.deletingLastPathComponent()
+                if self.isProjectRoot(candidate, fileManager: fileManager) {
+                    return candidate
+                }
+            }
+            let parent = cursor.deletingLastPathComponent()
+            if parent.path == cursor.path {
+                break
+            }
+            cursor = parent
+        }
+        #endif
+        return nil
+    }
+
+    static func preferredPaths() -> [String] {
+        let current = ProcessInfo.processInfo.environment["PATH"]?
+            .split(separator: ":").map(String.init) ?? []
+        let home = FileManager().homeDirectoryForCurrentUser
+        let projectRoot = self.projectRoot()
+        return self.preferredPaths(
+            home: home,
+            current: current,
+            projectRoot: projectRoot,
+            bundleURL: Bundle.main.bundleURL)
+    }
+
+    static func preferredPaths(home: URL, current: [String], projectRoot: URL) -> [String] {
+        self.preferredPaths(
+            home: home,
+            current: current,
+            projectRoot: projectRoot,
+            bundleURL: Bundle.main.bundleURL)
+    }
+
+    static func preferredPaths(
+        home: URL,
+        current: [String],
+        projectRoot: URL,
+        bundleURL: URL,
+        fileManager: FileManager = .default) -> [String]
+    {
+        var extras: [String] = []
+        if let bundledNodeBin = self.bundledNodeBinDir(bundleURL: bundleURL, fileManager: fileManager) {
+            extras.append(bundledNodeBin)
+        }
+        extras.append(contentsOf: [
+            home.appendingPathComponent("Library/pnpm").path,
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+        ])
+        #if DEBUG
+        // Dev-only convenience. Avoid project-local PATH hijacking in release builds.
+        extras.insert(projectRoot.appendingPathComponent("node_modules/.bin").path, at: 0)
+        #endif
+        let alisioPaths = self.alisioManagedPaths(home: home)
+        if !alisioPaths.isEmpty {
+            extras.insert(contentsOf: alisioPaths, at: 1)
+        }
+        extras.insert(contentsOf: self.nodeManagerBinPaths(home: home), at: 1 + alisioPaths.count)
+        var seen = Set<String>()
+        // Preserve order while stripping duplicates so PATH lookups remain deterministic.
+        return (extras + current).filter { seen.insert($0).inserted }
+    }
+
+    static func bundledPackageRoot(
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> URL?
+    {
+        guard bundleURL.pathExtension == "app" else { return nil }
+        let resourcesRoot = bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Resources", isDirectory: true)
+        let candidates = [
+            resourcesRoot.appendingPathComponent(self.bundledPackageDirName, isDirectory: true),
+            resourcesRoot.appendingPathComponent(LegacyBrand.bundledPackageDirectoryName, isDirectory: true),
+        ]
+        return candidates.first(where: { self.isBundledPackageRoot($0, fileManager: fileManager) })
+    }
+
+    static func isBundledPackageRoot(_ candidate: URL, fileManager: FileManager = .default) -> Bool {
+        guard fileManager.fileExists(atPath: candidate.appendingPathComponent("package.json").path) else {
+            return false
+        }
+        return self.gatewayEntrypoint(in: candidate) != nil
+    }
+
+    private static func bundledNodeBinDir(
+        bundleURL: URL,
+        fileManager: FileManager = .default) -> String?
+    {
+        guard let root = self.bundledPackageRoot(bundleURL: bundleURL, fileManager: fileManager) else {
+            return nil
+        }
+        let binDir = root
+            .appendingPathComponent("tools", isDirectory: true)
+            .appendingPathComponent("node", isDirectory: true)
+            .appendingPathComponent("bin", isDirectory: true)
+        let node = binDir.appendingPathComponent("node")
+        return fileManager.isExecutableFile(atPath: node.path) ? binDir.path : nil
+    }
+
+    private static func alisioManagedPaths(home: URL) -> [String] {
+        let bases = [
+            home.appendingPathComponent(AlisioBrand.stateDirectoryName),
+            home.appendingPathComponent(LegacyBrand.stateDirectoryName),
+        ]
+        var paths: [String] = []
+        for base in bases {
+            let bin = base.appendingPathComponent("bin")
+            let nodeBin = base.appendingPathComponent("tools/node/bin")
+            if FileManager().fileExists(atPath: bin.path) {
+                paths.append(bin.path)
+            }
+            if FileManager().fileExists(atPath: nodeBin.path) {
+                paths.append(nodeBin.path)
+            }
+        }
+        return paths
+    }
+
+    private static func nodeManagerBinPaths(home: URL) -> [String] {
+        var bins: [String] = []
+
+        // Volta
+        let volta = home.appendingPathComponent(".volta/bin")
+        if FileManager().fileExists(atPath: volta.path) {
+            bins.append(volta.path)
+        }
+
+        // asdf
+        let asdf = home.appendingPathComponent(".asdf/shims")
+        if FileManager().fileExists(atPath: asdf.path) {
+            bins.append(asdf.path)
+        }
+
+        // fnm
+        bins.append(contentsOf: self.versionedNodeBinPaths(
+            base: home.appendingPathComponent(".local/share/fnm/node-versions"),
+            suffix: "installation/bin"))
+
+        // nvm
+        bins.append(contentsOf: self.versionedNodeBinPaths(
+            base: home.appendingPathComponent(".nvm/versions/node"),
+            suffix: "bin"))
+
+        return bins
+    }
+
+    private static func versionedNodeBinPaths(base: URL, suffix: String) -> [String] {
+        guard FileManager().fileExists(atPath: base.path) else { return [] }
+        let entries: [String]
+        do {
+            entries = try FileManager().contentsOfDirectory(atPath: base.path)
+        } catch {
+            return []
+        }
+
+        func parseVersion(_ name: String) -> [Int] {
+            let trimmed = name.hasPrefix("v") ? String(name.dropFirst()) : name
+            return trimmed.split(separator: ".").compactMap { Int($0) }
+        }
+
+        let sorted = entries.sorted { a, b in
+            let va = parseVersion(a)
+            let vb = parseVersion(b)
+            let maxCount = max(va.count, vb.count)
+            for i in 0..<maxCount {
+                let ai = i < va.count ? va[i] : 0
+                let bi = i < vb.count ? vb[i] : 0
+                if ai != bi { return ai > bi }
+            }
+            // If identical numerically, keep stable ordering.
+            return a > b
+        }
+
+        var paths: [String] = []
+        for entry in sorted {
+            let binDir = base.appendingPathComponent(entry).appendingPathComponent(suffix)
+            let node = binDir.appendingPathComponent("node")
+            if FileManager().isExecutableFile(atPath: node.path) {
+                paths.append(binDir.path)
+            }
+        }
+        return paths
+    }
+
+    static func findExecutable(named name: String, searchPaths: [String]? = nil) -> String? {
+        for dir in searchPaths ?? self.preferredPaths() {
+            let candidate = (dir as NSString).appendingPathComponent(name)
+            if FileManager().isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    static func alisioExecutable(searchPaths: [String]? = nil) -> String? {
+        self.findExecutable(named: self.helperName, searchPaths: searchPaths)
+            ?? self.findExecutable(named: self.legacyHelperName, searchPaths: searchPaths)
+    }
+
+    static func projectAlisioExecutable(projectRoot: URL? = nil) -> String? {
+        #if DEBUG
+        let root = projectRoot ?? self.projectRoot()
+        let candidates = [
+            root.appendingPathComponent("node_modules/.bin").appendingPathComponent(self.helperName).path,
+            root.appendingPathComponent("node_modules/.bin").appendingPathComponent(self.legacyHelperName).path,
+        ]
+        return candidates.first(where: { FileManager().isExecutableFile(atPath: $0) })
+        #else
+        return nil
+        #endif
+    }
+
+    static func nodeCliPath() -> String? {
+        let root = self.projectRoot()
+        let candidates = [
+            root.appendingPathComponent("\(AlisioBrand.commandName).mjs").path,
+            root.appendingPathComponent("\(LegacyBrand.commandName).mjs").path,
+            root.appendingPathComponent("bin/\(AlisioBrand.commandName).js").path,
+            root.appendingPathComponent("bin/\(LegacyBrand.commandName).js").path,
+        ]
+        for candidate in candidates where FileManager().isReadableFile(atPath: candidate) {
+            return candidate
+        }
+        return nil
+    }
+
+    static func hasAnyAlisioInvoker(searchPaths: [String]? = nil) -> Bool {
+        if self.alisioExecutable(searchPaths: searchPaths) != nil { return true }
+        if self.findExecutable(named: "pnpm", searchPaths: searchPaths) != nil { return true }
+        if self.findExecutable(named: "node", searchPaths: searchPaths) != nil,
+           self.nodeCliPath() != nil
+        {
+            return true
+        }
+        return false
+    }
+
+    static func alisioNodeCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard,
+        configRoot: [String: Any]? = nil,
+        searchPaths: [String]? = nil) -> [String]
+    {
+        let settings = self.connectionSettings(defaults: defaults, configRoot: configRoot)
+        if settings.mode == .remote, let ssh = self.sshNodeCommand(
+            subcommand: subcommand,
+            extraArgs: extraArgs,
+            settings: settings)
+        {
+            return ssh
+        }
+
+        let root = self.projectRoot()
+        if let alisioPath = self.projectAlisioExecutable(projectRoot: root) {
+            return [alisioPath, subcommand] + extraArgs
+        }
+        if let alisioPath = self.alisioExecutable(searchPaths: searchPaths) {
+            return [alisioPath, subcommand] + extraArgs
+        }
+
+        let runtimeResult = self.runtimeResolution(searchPaths: searchPaths)
+        switch runtimeResult {
+        case let .success(runtime):
+            if let entry = self.gatewayEntrypoint(in: root) {
+                return self.makeRuntimeCommand(
+                    runtime: runtime,
+                    entrypoint: entry,
+                    subcommand: subcommand,
+                    extraArgs: extraArgs)
+            }
+        case .failure:
+            break
+        }
+
+        if let pnpm = self.findExecutable(named: "pnpm", searchPaths: searchPaths) {
+            // Use --silent to avoid pnpm lifecycle banners that would corrupt JSON outputs.
+            return [pnpm, "--silent", AlisioBrand.commandName, subcommand] + extraArgs
+        }
+
+        switch runtimeResult {
+        case .success:
+            let missingEntry = """
+            alisio entrypoint missing (looked for dist/index.js or alisio.mjs); run pnpm build.
+            """
+            return self.errorCommand(with: missingEntry)
+        case let .failure(error):
+            return self.runtimeErrorCommand(error)
+        }
+    }
+
+    static func alisioCommand(
+        subcommand: String,
+        extraArgs: [String] = [],
+        defaults: UserDefaults = .standard,
+        configRoot: [String: Any]? = nil,
+        searchPaths: [String]? = nil) -> [String]
+    {
+        self.alisioNodeCommand(
+            subcommand: subcommand,
+            extraArgs: extraArgs,
+            defaults: defaults,
+            configRoot: configRoot,
+            searchPaths: searchPaths)
+    }
+
+    // MARK: - SSH helpers
+
+    private static func sshNodeCommand(subcommand: String, extraArgs: [String], settings: RemoteSettings) -> [String]? {
+        guard !settings.target.isEmpty else { return nil }
+        guard let parsed = self.parseSSHTarget(settings.target) else { return nil }
+
+        // Run the real Alisio CLI on the remote host, with a legacy fallback while the repo-wide rename is incomplete.
+        let exportedPath = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+            "/usr/sbin",
+            "/sbin",
+            "$HOME/Library/pnpm",
+            "$PATH",
+        ].joined(separator: ":")
+        let quotedArgs = ([subcommand] + extraArgs).map(self.shellQuote).joined(separator: " ")
+        let userPRJ = settings.projectRoot.trimmingCharacters(in: .whitespacesAndNewlines)
+        let userCLI = settings.cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let projectSection = if userPRJ.isEmpty {
+            """
+            DEFAULT_PRJ="$HOME/Projects/\(AlisioBrand.projectRootDirectoryName)"
+            LEGACY_PRJ="$HOME/Projects/\(LegacyBrand.projectRootDirectoryName)"
+            if [ -d "$DEFAULT_PRJ" ]; then
+              PRJ="$DEFAULT_PRJ"
+            elif [ -d "$LEGACY_PRJ" ]; then
+              PRJ="$LEGACY_PRJ"
+            else
+              PRJ=""
+            fi
+            if [ -n "$PRJ" ]; then
+              cd "$PRJ" || { echo "Project root not found: $PRJ"; exit 127; }
+            fi
+            """
+        } else {
+            """
+            PRJ=\(self.shellQuote(userPRJ))
+            cd "$PRJ" || { echo "Project root not found: $PRJ"; exit 127; }
+            """
+        }
+
+        let cliSection = if userCLI.isEmpty {
+            ""
+        } else {
+            """
+            CLI_HINT=\(self.shellQuote(userCLI))
+            if [ -n "$CLI_HINT" ]; then
+              if [ -x "$CLI_HINT" ]; then
+                CLI="$CLI_HINT"
+                "$CLI_HINT" \(quotedArgs);
+                exit $?;
+              elif [ -f "$CLI_HINT" ]; then
+                if command -v node >/dev/null 2>&1; then
+                  CLI="node $CLI_HINT"
+                  node "$CLI_HINT" \(quotedArgs);
+                  exit $?;
+                fi
+              fi
+            fi
+            """
+        }
+
+        let scriptBody = """
+        PATH=\(exportedPath);
+        CLI="";
+        \(cliSection)
+        \(projectSection)
+        if command -v \(AlisioBrand.commandName) >/dev/null 2>&1; then
+          CLI="$(command -v \(AlisioBrand.commandName))"
+          \(AlisioBrand.commandName) \(quotedArgs);
+        elif command -v \(LegacyBrand.commandName) >/dev/null 2>&1; then
+          CLI="$(command -v \(LegacyBrand.commandName))"
+          \(LegacyBrand.commandName) \(quotedArgs);
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/dist/index.js" ]; then
+          if command -v node >/dev/null 2>&1; then
+            CLI="node $PRJ/dist/index.js"
+            node "$PRJ/dist/index.js" \(quotedArgs);
+          else
+            echo "Node >=22 required on remote host"; exit 127;
+          fi
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/\(AlisioBrand.commandName).mjs" ]; then
+          if command -v node >/dev/null 2>&1; then
+            CLI="node $PRJ/\(AlisioBrand.commandName).mjs"
+            node "$PRJ/\(AlisioBrand.commandName).mjs" \(quotedArgs);
+          else
+            echo "Node >=22 required on remote host"; exit 127;
+          fi
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/\(LegacyBrand.commandName).mjs" ]; then
+          if command -v node >/dev/null 2>&1; then
+            CLI="node $PRJ/\(LegacyBrand.commandName).mjs"
+            node "$PRJ/\(LegacyBrand.commandName).mjs" \(quotedArgs);
+          else
+            echo "Node >=22 required on remote host"; exit 127;
+          fi
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/\(AlisioBrand.commandName).js" ]; then
+          if command -v node >/dev/null 2>&1; then
+            CLI="node $PRJ/bin/\(AlisioBrand.commandName).js"
+            node "$PRJ/bin/\(AlisioBrand.commandName).js" \(quotedArgs);
+          else
+            echo "Node >=22 required on remote host"; exit 127;
+          fi
+        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/\(LegacyBrand.commandName).js" ]; then
+          if command -v node >/dev/null 2>&1; then
+            CLI="node $PRJ/bin/\(LegacyBrand.commandName).js"
+            node "$PRJ/bin/\(LegacyBrand.commandName).js" \(quotedArgs);
+          else
+            echo "Node >=22 required on remote host"; exit 127;
+          fi
+        elif command -v pnpm >/dev/null 2>&1; then
+          CLI="pnpm --silent \(AlisioBrand.commandName)"
+          pnpm --silent \(AlisioBrand.commandName) \(quotedArgs);
+        else
+          echo "alisio CLI missing on remote host"; exit 127;
+        fi
+        """
+        let options: [String] = [
+            "-o", "BatchMode=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "UpdateHostKeys=yes",
+        ]
+        let args = self.sshArguments(
+            target: parsed,
+            identity: settings.identity,
+            options: options,
+            remoteCommand: ["/bin/sh", "-c", scriptBody])
+        return ["/usr/bin/ssh"] + args
+    }
+
+    struct RemoteSettings {
+        let mode: AppState.ConnectionMode
+        let target: String
+        let identity: String
+        let projectRoot: String
+        let cliPath: String
+    }
+
+    static func connectionSettings(
+        defaults: UserDefaults = .standard,
+        configRoot: [String: Any]? = nil) -> RemoteSettings
+    {
+        let root = configRoot ?? AlisioConfigFile.loadDict()
+        let mode = ConnectionModeResolver.resolve(root: root, defaults: defaults).mode
+        let target = defaults.string(forKey: remoteTargetKey) ?? ""
+        let identity = defaults.string(forKey: remoteIdentityKey) ?? ""
+        let projectRoot = defaults.string(forKey: remoteProjectRootKey) ?? ""
+        let cliPath = defaults.string(forKey: remoteCliPathKey) ?? ""
+        return RemoteSettings(
+            mode: mode,
+            target: self.sanitizedTarget(target),
+            identity: identity,
+            projectRoot: projectRoot,
+            cliPath: cliPath)
+    }
+
+    static func connectionModeIsRemote(defaults: UserDefaults = .standard) -> Bool {
+        self.connectionSettings(defaults: defaults).mode == .remote
+    }
+
+    private static func sanitizedTarget(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("ssh ") {
+            return trimmed.replacingOccurrences(of: "ssh ", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
+    }
+
+    struct SSHParsedTarget {
+        let user: String?
+        let host: String
+        let port: Int
+    }
+
+    static func parseSSHTarget(_ target: String) -> SSHParsedTarget? {
+        let trimmed = self.normalizeSSHTargetInput(target)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.union(.controlCharacters)) != nil {
+            return nil
+        }
+        let userHostPort: String
+        let user: String?
+        if let atRange = trimmed.range(of: "@") {
+            user = String(trimmed[..<atRange.lowerBound])
+            userHostPort = String(trimmed[atRange.upperBound...])
+        } else {
+            user = nil
+            userHostPort = trimmed
+        }
+
+        let host: String
+        let port: Int
+        if let colon = userHostPort.lastIndex(of: ":"), colon != userHostPort.startIndex {
+            host = String(userHostPort[..<colon])
+            let portStr = String(userHostPort[userHostPort.index(after: colon)...])
+            guard let parsedPort = Int(portStr), parsedPort > 0, parsedPort <= 65535 else {
+                return nil
+            }
+            port = parsedPort
+        } else {
+            host = userHostPort
+            port = 22
+        }
+
+        return self.makeSSHTarget(user: user, host: host, port: port)
+    }
+
+    static func sshTargetValidationMessage(_ target: String) -> String? {
+        let trimmed = self.normalizeSSHTargetInput(target)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("-") {
+            return "SSH target cannot start with '-'"
+        }
+        if trimmed.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.union(.controlCharacters)) != nil {
+            return "SSH target cannot contain spaces"
+        }
+        if self.parseSSHTarget(trimmed) == nil {
+            return "SSH target must look like user@host[:port]"
+        }
+        return nil
+    }
+
+    private static func shellQuote(_ text: String) -> String {
+        if text.isEmpty { return "''" }
+        let escaped = text.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
+    }
+
+    private static func isProjectRoot(_ url: URL, fileManager: FileManager) -> Bool {
+        let required = [
+            url.appendingPathComponent("package.json"),
+            url.appendingPathComponent("src", isDirectory: true),
+            url.appendingPathComponent("ui", isDirectory: true),
+            url.appendingPathComponent("apps/macos", isDirectory: true),
+        ]
+        return required.allSatisfy { fileManager.fileExists(atPath: $0.path) }
+    }
+
+    private static func expandPath(_ path: String) -> URL? {
+        var expanded = path
+        if expanded.hasPrefix("~") {
+            let home = FileManager().homeDirectoryForCurrentUser.path
+            expanded.replaceSubrange(expanded.startIndex...expanded.startIndex, with: home)
+        }
+        return URL(fileURLWithPath: expanded)
+    }
+
+    private static func normalizeSSHTargetInput(_ target: String) -> String {
+        var trimmed = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("ssh ") {
+            trimmed = trimmed.replacingOccurrences(of: "ssh ", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
+    }
+
+    private static func isValidSSHComponent(_ value: String, allowLeadingDash: Bool = false) -> Bool {
+        if value.isEmpty { return false }
+        if !allowLeadingDash, value.hasPrefix("-") { return false }
+        let invalid = CharacterSet.whitespacesAndNewlines.union(.controlCharacters)
+        return value.rangeOfCharacter(from: invalid) == nil
+    }
+
+    static func makeSSHTarget(user: String?, host: String, port: Int) -> SSHParsedTarget? {
+        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard self.isValidSSHComponent(trimmedHost) else { return nil }
+        let trimmedUser = user?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedUser: String?
+        if let trimmedUser {
+            guard self.isValidSSHComponent(trimmedUser) else { return nil }
+            normalizedUser = trimmedUser.isEmpty ? nil : trimmedUser
+        } else {
+            normalizedUser = nil
+        }
+        guard port > 0, port <= 65535 else { return nil }
+        return SSHParsedTarget(user: normalizedUser, host: trimmedHost, port: port)
+    }
+
+    private static func sshTargetString(_ target: SSHParsedTarget) -> String {
+        target.user.map { "\($0)@\(target.host)" } ?? target.host
+    }
+
+    static func sshArguments(
+        target: SSHParsedTarget,
+        identity: String,
+        options: [String],
+        remoteCommand: [String] = []) -> [String]
+    {
+        var args = options
+        if target.port > 0 {
+            args.append(contentsOf: ["-p", String(target.port)])
+        }
+        let trimmedIdentity = identity.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedIdentity.isEmpty {
+            // Only use IdentitiesOnly when an explicit identity file is provided.
+            // This allows 1Password SSH agent and other SSH agents to provide keys.
+            args.append(contentsOf: ["-o", "IdentitiesOnly=yes"])
+            args.append(contentsOf: ["-i", trimmedIdentity])
+        }
+        args.append("--")
+        args.append(self.sshTargetString(target))
+        args.append(contentsOf: remoteCommand)
+        return args
+    }
+
+    #if SWIFT_PACKAGE
+    static func _testNodeManagerBinPaths(home: URL) -> [String] {
+        self.nodeManagerBinPaths(home: home)
+    }
+    #endif
+}

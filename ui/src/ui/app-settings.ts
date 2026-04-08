@@ -1,4 +1,5 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
+import { legacyDocsUrl } from "../brand-compat.ts";
 import { i18n, isSupportedLocale } from "../i18n/index.ts";
 import {
   alisioBootstrapBlocksChatAccess,
@@ -13,7 +14,7 @@ import {
   stopDebugPolling,
 } from "./app-polling.ts";
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
 import { loadAgentFiles } from "./controllers/agent-files.ts";
 import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
@@ -57,7 +58,7 @@ import {
   type SettingsSection,
   type Tab,
 } from "./navigation.ts";
-import { FIXED_BORDER_RADIUS, saveSettings, type UiSettings } from "./storage.ts";
+import { saveSettings, type UiSettings } from "./storage.ts";
 import { startThemeTransition, type ThemeTransitionContext } from "./theme-transition.ts";
 import { resolveTheme, type ResolvedTheme, type ThemeMode, type ThemeName } from "./theme.ts";
 import type { AgentsListResult, AttentionItem } from "./types.ts";
@@ -103,6 +104,11 @@ type SettingsHost = {
   sessionsError?: string | null;
   chatModelsLoading?: boolean;
   chatModelCatalog?: import("./types.ts").ModelCatalogEntry[];
+};
+
+type RefreshActiveTabOptions = {
+  includeChatHistory?: boolean;
+  preloadedShellState?: "bootstrap" | "doctor";
 };
 
 function bootstrapBlocksChatAccess(
@@ -162,7 +168,7 @@ export function applySettings(host: SettingsHost, next: UiSettings) {
     applyResolvedTheme(host, resolveTheme(next.theme, next.themeMode));
     syncSystemThemeListener(host);
   }
-  applyBorderRadius(next.borderRadius);
+  applyBorderRadius();
   host.applySessionKey = host.settings.lastActiveSessionKey;
 }
 
@@ -303,33 +309,35 @@ export function setThemeMode(
   syncSystemThemeListener(host);
 }
 
-export async function refreshActiveTab(
-  host: SettingsHost,
-  opts?: { includeChatHistory?: boolean },
-) {
+export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveTabOptions) {
+  const hasBootstrapShellState =
+    opts?.preloadedShellState === "bootstrap" || opts?.preloadedShellState === "doctor";
   if (host.tab === "setup") {
     await Promise.allSettled([
-      loadAlisioBootstrap(host as unknown as OpenClawApp),
-      loadAlisioDoctorSummary(host as unknown as OpenClawApp),
+      ...(opts?.preloadedShellState === "doctor"
+        ? []
+        : [loadAlisioDoctorSummary(host as unknown as AlisioApp)]),
       loadNativeShellState(host),
     ]);
     return;
   }
   if (host.tab === "authentications") {
     await Promise.allSettled([
-      loadAlisioAccount(host as unknown as OpenClawApp),
-      loadAlisioConnectors(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as AlisioApp),
+      loadAlisioConnectors(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "channels") {
-    await loadChannels(host as unknown as OpenClawApp, false);
+    await loadChannels(host as unknown as AlisioApp, false);
   }
   if (host.tab === "models") {
     // Legacy model fallbacks derive local targets from bootstrap/account state.
     // Load bootstrap first so older gateways do not briefly render an empty models view.
-    await loadAlisioBootstrap(host as unknown as OpenClawApp);
-    await loadAlisioModels(host as unknown as OpenClawApp);
-    await loadSessions(host as unknown as OpenClawApp, {
+    if (!hasBootstrapShellState) {
+      await loadAlisioBootstrap(host as unknown as AlisioApp);
+    }
+    await loadAlisioModels(host as unknown as AlisioApp);
+    await loadSessions(host as unknown as AlisioApp, {
       activeMinutes: 0,
       limit: 0,
       includeGlobal: true,
@@ -350,27 +358,27 @@ export async function refreshActiveTab(
   }
   if (host.tab === "agents") {
     await Promise.allSettled([
-      loadAgents(host as unknown as OpenClawApp),
-      loadConfig(host as unknown as OpenClawApp),
+      loadAgents(host as unknown as AlisioApp),
+      loadConfig(host as unknown as AlisioApp),
     ]);
     const agentIds = host.agentsList?.agents.map((entry) => entry.id) ?? [];
     if (agentIds.length > 0) {
-      void loadAgentIdentities(host as unknown as OpenClawApp, agentIds);
+      void loadAgentIdentities(host as unknown as AlisioApp, agentIds);
     }
     const agentId =
       host.agentsSelectedId ?? host.agentsList?.defaultId ?? host.agentsList?.agents?.[0]?.id;
     if (agentId) {
       host.agentsSelectedId = agentId;
-      void loadAgentIdentity(host as unknown as OpenClawApp, agentId);
+      void loadAgentIdentity(host as unknown as AlisioApp, agentId);
       switch (host.agentsPanel) {
         case "files":
-          await loadAgentFiles(host as unknown as OpenClawApp, agentId);
+          await loadAgentFiles(host as unknown as AlisioApp, agentId);
           break;
         case "skills":
-          await loadAgentSkills(host as unknown as OpenClawApp, agentId);
+          await loadAgentSkills(host as unknown as AlisioApp, agentId);
           break;
         case "channels":
-          await loadChannels(host as unknown as OpenClawApp, false);
+          await loadChannels(host as unknown as AlisioApp, false);
           break;
         case "cron":
           await loadCron(host);
@@ -382,9 +390,9 @@ export async function refreshActiveTab(
   }
   if (host.tab === "memory") {
     await Promise.allSettled([
-      loadAgents(host as unknown as OpenClawApp),
-      loadConfig(host as unknown as OpenClawApp),
-      loadConfigSchema(host as unknown as OpenClawApp),
+      loadAgents(host as unknown as AlisioApp),
+      loadConfig(host as unknown as AlisioApp),
+      loadConfigSchema(host as unknown as AlisioApp),
     ]);
     const agentId = resolvePreferredMemoryAgentId({
       agentsList: host.agentsList ?? null,
@@ -395,44 +403,46 @@ export async function refreshActiveTab(
     if (agentId) {
       host.memorySelectedAgentId = agentId;
       await Promise.allSettled([
-        loadAgentMemoryFiles(host as unknown as OpenClawApp, agentId, {
+        loadAgentMemoryFiles(host as unknown as AlisioApp, agentId, {
           preferredName: host.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
         }),
-        loadMemoryStatus(host as unknown as OpenClawApp, agentId, { reset: true }),
+        loadMemoryStatus(host as unknown as AlisioApp, agentId, { reset: true }),
       ]);
     }
   }
   if (host.tab === "capabilities") {
     await Promise.allSettled([
-      loadSkills(host as unknown as OpenClawApp),
-      loadChannels(host as unknown as OpenClawApp, false),
-      loadAlisioConnectors(host as unknown as OpenClawApp),
+      loadSkills(host as unknown as AlisioApp),
+      loadChannels(host as unknown as AlisioApp, false),
+      loadAlisioConnectors(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "connections") {
     await Promise.allSettled([
-      loadNodes(host as unknown as OpenClawApp),
-      loadDevices(host as unknown as OpenClawApp),
-      loadNodePairings(host as unknown as OpenClawApp),
-      loadConfig(host as unknown as OpenClawApp),
+      loadNodes(host as unknown as AlisioApp),
+      loadDevices(host as unknown as AlisioApp),
+      loadNodePairings(host as unknown as AlisioApp),
+      loadConfig(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "security") {
     await Promise.allSettled([
-      loadNodes(host as unknown as OpenClawApp),
-      loadConfig(host as unknown as OpenClawApp),
-      loadSelectedExecApprovals(host as unknown as OpenClawApp),
-      loadGatewayAccessMode(host as unknown as OpenClawApp),
+      loadNodes(host as unknown as AlisioApp),
+      loadConfig(host as unknown as AlisioApp),
+      loadSelectedExecApprovals(host as unknown as AlisioApp),
+      loadGatewayAccessMode(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "organization") {
     await Promise.allSettled([
-      loadAlisioAccount(host as unknown as OpenClawApp),
-      loadAlisioOrganization(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as AlisioApp),
+      loadAlisioOrganization(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "chat") {
-    await loadAlisioBootstrap(host as unknown as OpenClawApp);
+    if (!hasBootstrapShellState) {
+      await loadAlisioBootstrap(host as unknown as AlisioApp);
+    }
     if (bootstrapBlocksChatAccess(host.alisioBootstrap)) {
       host.setupStep = resolveBlockingSetupStep({
         connected: host.connected,
@@ -445,8 +455,8 @@ export async function refreshActiveTab(
       refreshChat(host as unknown as Parameters<typeof refreshChat>[0], {
         includeHistory: opts?.includeChatHistory ?? true,
       }),
-      loadAlisioAccount(host as unknown as OpenClawApp),
-      loadGatewayAccessMode(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as AlisioApp),
+      loadGatewayAccessMode(host as unknown as AlisioApp),
     ]);
     scheduleChatScroll(
       host as unknown as Parameters<typeof scheduleChatScroll>[0],
@@ -455,16 +465,18 @@ export async function refreshActiveTab(
   }
   if (host.tab === "settings") {
     await Promise.allSettled([
-      loadAlisioAccount(host as unknown as OpenClawApp),
-      loadAlisioDoctorSummary(host as unknown as OpenClawApp),
+      loadAlisioAccount(host as unknown as AlisioApp),
+      ...(opts?.preloadedShellState === "doctor"
+        ? []
+        : [loadAlisioDoctorSummary(host as unknown as AlisioApp)]),
     ]);
     if (host.settingsSection === "debug") {
-      await loadDebug(host as unknown as OpenClawApp);
+      await loadDebug(host as unknown as AlisioApp);
       host.eventLog = host.eventLogBuffer;
     }
     if (host.settingsSection === "logs") {
       host.logsAtBottom = true;
-      await loadLogs(host as unknown as OpenClawApp, { reset: true });
+      await loadLogs(host as unknown as AlisioApp, { reset: true });
       scheduleLogsScroll(host as unknown as Parameters<typeof scheduleLogsScroll>[0], true);
     }
     if (host.settingsSection === "mac") {
@@ -488,7 +500,7 @@ export function syncThemeWithSettings(host: SettingsHost) {
   host.theme = host.settings.theme ?? "claw";
   host.themeMode = host.settings.themeMode ?? "system";
   applyResolvedTheme(host, resolveTheme(host.theme, host.themeMode));
-  applyBorderRadius(host.settings.borderRadius ?? FIXED_BORDER_RADIUS);
+  applyBorderRadius();
   syncSystemThemeListener(host);
 }
 
@@ -540,7 +552,7 @@ export function detachThemeListener(host: SettingsHost) {
 
 const FIXED_ROUND_RADII = { sm: 9, md: 15, lg: 21, xl: 30, full: 9999, default: 15 };
 
-export function applyBorderRadius(_value: number) {
+export function applyBorderRadius(_value?: number) {
   if (typeof document === "undefined") {
     return;
   }
@@ -767,7 +779,7 @@ export function syncUrlWithSessionKey(host: SettingsHost, sessionKey: string, re
 }
 
 export async function loadOverview(host: SettingsHost) {
-  const app = host as unknown as OpenClawApp;
+  const app = host as unknown as AlisioApp;
   await Promise.allSettled([
     loadChannels(app, false),
     loadPresence(app),
@@ -803,14 +815,14 @@ export function hasMissingSkillDependencies(
   return Object.values(missing).some((value) => Array.isArray(value) && value.length > 0);
 }
 
-function buildAttentionItems(host: OpenClawApp) {
+function buildAttentionItems(host: AlisioApp) {
   const items: AttentionItem[] = [];
 
   if (host.lastError) {
     items.push({
       severity: "error",
       icon: "x",
-      title: "Gateway Error",
+      title: "Alisio Error",
       description: host.lastError,
     });
   }
@@ -824,7 +836,7 @@ function buildAttentionItems(host: OpenClawApp) {
       title: "Missing operator.read scope",
       description:
         "This connection does not have the operator.read scope. Some features may be unavailable.",
-      href: "https://docs.openclaw.ai/web/dashboard",
+      href: legacyDocsUrl("/web/dashboard"),
       external: true,
     });
   }
@@ -880,7 +892,7 @@ function buildAttentionItems(host: OpenClawApp) {
 }
 
 export async function loadCron(host: SettingsHost) {
-  const app = host as unknown as OpenClawApp;
+  const app = host as unknown as AlisioApp;
   const activeCronJobId = app.cronRunsScope === "job" ? app.cronRunsJobId : null;
   await Promise.all([
     loadChannels(app, false),

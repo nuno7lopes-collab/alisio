@@ -2,7 +2,7 @@ import { expect, it, vi } from "vitest";
 import type { MsgContext } from "../../../src/auto-reply/templating.js";
 import { inboundCtxCapture } from "../../../src/channels/plugins/contracts/inbound-testkit.js";
 import { expectChannelInboundContextContract } from "../../../src/channels/plugins/contracts/suites.js";
-import type { OpenClawConfig } from "../../../src/config/config.js";
+import type { AlisioConfig } from "../../../src/config/config.js";
 import type { ResolvedSlackAccount } from "../../../src/plugin-sdk/slack.js";
 import {
   loadBundledPluginTestApiSync,
@@ -24,7 +24,7 @@ const { buildFinalizedDiscordDirectInboundContext } = loadBundledPluginTestApiSy
   buildFinalizedDiscordDirectInboundContext: () => MsgContext;
 }>("discord");
 const { createInboundSlackTestContext, prepareSlackMessage } = loadBundledPluginTestApiSync<{
-  createInboundSlackTestContext: (params: { cfg: OpenClawConfig }) => {
+  createInboundSlackTestContext: (params: { cfg: AlisioConfig }) => {
     resolveUserName?: () => Promise<unknown>;
   };
   prepareSlackMessage: (params: {
@@ -53,12 +53,12 @@ const whatsAppTestApiModuleId = resolveRelativeBundledPluginPublicModuleId({
 });
 
 async function buildTelegramMessageContextForTest(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   message: Record<string, unknown>;
 }): Promise<{ ctxPayload: MsgContext } | null | undefined> {
   const telegramHarnessModule = (await import(telegramHarnessModuleId)) as {
     buildTelegramMessageContextForTest: (params: {
-      cfg: OpenClawConfig;
+      cfg: AlisioConfig;
       message: Record<string, unknown>;
     }) => Promise<{ ctxPayload: MsgContext } | null | undefined>;
   };
@@ -202,7 +202,7 @@ export function installSlackInboundContractSuite() {
       const ctx = createInboundSlackTestContext({
         cfg: {
           channels: { slack: { enabled: true } },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       });
       ctx.resolveUserName = async () => ({ name: "Alice" }) as never;
 
@@ -234,7 +234,7 @@ export function installTelegramInboundContractSuite() {
             groups: { "*": { requireMention: false } },
           },
         },
-      } satisfies OpenClawConfig,
+      } satisfies AlisioConfig,
       message: {
         chat: { id: 42, type: "group", title: "Ops" },
         text: "hello",

@@ -1,38 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build and bundle Alisio into a minimal .app we can open.
-# Outputs to dist/Alisio.app
-
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_ROOT="$ROOT_DIR/dist/Alisio.app"
+# shellcheck source=lib/alisio-branding.sh
+source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
+
+APP_NAME="$(alisio_app_name)"
+APP_SLUG="$(alisio_app_slug)"
+LEGACY_TITLE="$(alisio_legacy_title)"
+LEGACY_SLUG="$(alisio_legacy_slug)"
+LEGACY_ENTRYPOINT="$(alisio_legacy_entrypoint)"
+PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
+
+APP_ROOT="$ROOT_DIR/dist/${APP_NAME}.app"
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
-PRODUCT="OpenClaw"
-BUNDLE_ID="${BUNDLE_ID:-ai.openclaw.mac.debug}"
+PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
+BUNDLE_ID="${BUNDLE_ID:-$(alisio_bundle_domain).mac.debug}"
 PKG_VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")"
-BUILD_TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_COMMIT=$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-GIT_BUILD_NUMBER=$(cd "$ROOT_DIR" && git rev-list --count HEAD 2>/dev/null || echo "0")
+BUILD_TS="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+GIT_COMMIT="$(cd "$ROOT_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")"
+GIT_BUILD_NUMBER="$(cd "$ROOT_DIR" && git rev-list --count HEAD 2>/dev/null || echo "0")"
 APP_VERSION="${APP_VERSION:-$PKG_VERSION}"
 APP_BUILD="${APP_BUILD:-}"
 BUILD_CONFIG="${BUILD_CONFIG:-debug}"
+BUILD_INFO_TS_KEY="${APP_NAME}BuildTimestamp"
+BUILD_INFO_COMMIT_KEY="${APP_NAME}GitCommit"
+BUILD_INFO_DIST_KEY="${APP_NAME}Distribution"
 if [[ -n "${BUILD_ARCHS:-}" ]]; then
   BUILD_ARCHS_VALUE="${BUILD_ARCHS}"
 elif [[ "$BUILD_CONFIG" == "release" ]]; then
-  # Release packaging should be universal unless explicitly overridden.
   BUILD_ARCHS_VALUE="all"
 else
   BUILD_ARCHS_VALUE="$(uname -m)"
 fi
-if [[ "${BUILD_ARCHS_VALUE}" == "all" ]]; then
+if [[ "$BUILD_ARCHS_VALUE" == "all" ]]; then
   BUILD_ARCHS_VALUE="arm64 x86_64"
 fi
 IFS=' ' read -r -a BUILD_ARCHS <<< "$BUILD_ARCHS_VALUE"
 PRIMARY_ARCH="${BUILD_ARCHS[0]}"
+DISTRO_ID="$(alisio_read_prefixed_env DISTRIBUTION "$APP_SLUG")"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=}"
-SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-https://raw.githubusercontent.com/openclaw/openclaw/main/appcast.xml}"
+SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-$(alisio_repo_raw_base "$DISTRO_ID")/appcast.xml}"
 AUTO_CHECKS=true
-if [[ "$BUNDLE_ID" == *.debug ]]; then
+if [[ "$BUNDLE_ID" == *.debug || -z "$SPARKLE_FEED_URL" ]]; then
   SPARKLE_FEED_URL=""
   AUTO_CHECKS=false
 fi
@@ -66,6 +76,7 @@ merge_framework_machos() {
   arch_in_list() {
     local needle="$1"
     shift
+    local item
     for item in "$@"; do
       if [[ "$item" == "$needle" ]]; then
         return 0
@@ -78,23 +89,21 @@ merge_framework_machos() {
     if /usr/bin/file "$file" | /usr/bin/grep -q "Mach-O"; then
       local rel="${file#$primary/}"
       local primary_archs
-      primary_archs=$(archs_for "$file")
+      primary_archs="$(archs_for "$file")"
       IFS=' ' read -r -a primary_arch_array <<< "$primary_archs"
 
       local missing_files=()
       local tmp_dir
-      tmp_dir=$(mktemp -d)
+      tmp_dir="$(mktemp -d)"
+      local fw
       for fw in "${others[@]}"; do
         local other_file="$fw/$rel"
-        if [[ ! -f "$other_file" ]]; then
-          echo "ERROR: Missing $rel in $fw" >&2
-          rm -rf "$tmp_dir"
-          exit 1
-        fi
+        [[ -f "$other_file" ]] || continue
         if /usr/bin/file "$other_file" | /usr/bin/grep -q "Mach-O"; then
           local other_archs
-          other_archs=$(archs_for "$other_file")
+          other_archs="$(archs_for "$other_file")"
           IFS=' ' read -r -a other_arch_array <<< "$other_archs"
+          local arch
           for arch in "${other_arch_array[@]}"; do
             if ! arch_in_list "$arch" "${primary_arch_array[@]}"; then
               local thin_file="$tmp_dir/$(echo "$rel" | tr '/' '_')-$arch"
@@ -127,41 +136,55 @@ resolve_bundled_node_source() {
   if [[ "${SKIP_BUNDLED_NODE:-0}" == "1" ]]; then
     return 1
   fi
-
-  local candidate="${BUNDLED_NODE_SOURCE:-}"
-  if [[ -z "$candidate" ]]; then
-    candidate="$(command -v node || true)"
-  fi
-
-  if [[ -z "$candidate" || ! -x "$candidate" ]]; then
-    return 1
-  fi
-
+  local candidate="${BUNDLED_NODE_SOURCE:-$(command -v node || true)}"
+  [[ -n "$candidate" && -x "$candidate" ]] || return 1
   if node_binary_meets_min "$candidate"; then
     printf '%s\n' "$candidate"
     return 0
   fi
-
-  local found_version
-  found_version="$("$candidate" --version 2>/dev/null | tr -d '\r' | head -n 1)"
-  echo "WARN: skipping bundled Node at $candidate ($found_version); need >=22.16.0" >&2
   return 1
+}
+
+find_info_plist_template() {
+  local preferred="$ROOT_DIR/apps/macos/Sources/${APP_NAME}/Resources/Info.plist"
+  if [[ -f "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+    return 0
+  fi
+  find "$ROOT_DIR/apps/macos/Sources" -path "*/Resources/Info.plist" -print -quit
+}
+
+find_resource_dir() {
+  local preferred="$ROOT_DIR/apps/macos/Sources/${APP_NAME}/Resources"
+  if [[ -d "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+    return 0
+  fi
+  find "$ROOT_DIR/apps/macos/Sources" -path "*/Resources" -type d -print -quit
+}
+
+plist_get() {
+  /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null || true
+}
+
+plist_set_or_add() {
+  local plist="$1"
+  local key="$2"
+  local type="$3"
+  local value="$4"
+  /usr/libexec/PlistBuddy -c "Set :${key} ${value}" "$plist" >/dev/null 2>&1 \
+    || /usr/libexec/PlistBuddy -c "Add :${key} ${type} ${value}" "$plist" >/dev/null 2>&1
 }
 
 if [[ "${SKIP_PNPM_INSTALL:-0}" != "1" ]]; then
   echo "📦 Ensuring deps (pnpm install)"
   (cd "$ROOT_DIR" && pnpm install --no-frozen-lockfile --config.node-linker=hoisted)
-else
-  echo "📦 Skipping pnpm install (SKIP_PNPM_INSTALL=1)"
 fi
 
-if [[ -z "${APP_BUILD:-}" ]]; then
+if [[ -z "$APP_BUILD" ]]; then
   APP_BUILD="$GIT_BUILD_NUMBER"
   if [[ "$APP_VERSION" =~ ^[0-9]{4}\.[0-9]{1,2}\.[0-9]{1,2}([.-].*)?$ ]]; then
-    CANONICAL_BUILD="$(sparkle_canonical_build_from_version "$APP_VERSION")" || {
-      echo "ERROR: Failed to derive canonical Sparkle APP_BUILD from APP_VERSION '$APP_VERSION'." >&2
-      exit 1
-    }
+    CANONICAL_BUILD="$(sparkle_canonical_build_from_version "$APP_VERSION" 2>/dev/null || true)"
     if [[ "$CANONICAL_BUILD" =~ ^[0-9]+$ ]] && (( CANONICAL_BUILD > APP_BUILD )); then
       APP_BUILD="$CANONICAL_BUILD"
     fi
@@ -169,207 +192,180 @@ if [[ -z "${APP_BUILD:-}" ]]; then
 fi
 
 if [[ "$AUTO_CHECKS" == "true" && ! "$APP_BUILD" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: APP_BUILD must be numeric for Sparkle compare (CFBundleVersion). Got: $APP_BUILD" >&2
+  echo "ERROR: APP_BUILD tem de ser numérico." >&2
   exit 1
 fi
 
 if [[ "${SKIP_TSC:-0}" != "1" ]]; then
   echo "📦 Building JS (pnpm build)"
   (cd "$ROOT_DIR" && pnpm build)
-else
-  echo "📦 Skipping JS build (SKIP_TSC=1)"
 fi
 
 if [[ "${SKIP_UI_BUILD:-0}" != "1" ]]; then
-  echo "🖥  Building Control UI (ui:build)"
+  echo "🖥  Building Control UI"
   (cd "$ROOT_DIR" && node scripts/ui.js build)
-else
-  echo "🖥  Skipping Control UI build (SKIP_UI_BUILD=1)"
 fi
 
 cd "$ROOT_DIR/apps/macos"
 
-echo "🔨 Building $PRODUCT ($BUILD_CONFIG) [${BUILD_ARCHS[*]}]"
+echo "🔨 Building ${PRODUCT} ($BUILD_CONFIG) [${BUILD_ARCHS[*]}]"
 for arch in "${BUILD_ARCHS[@]}"; do
   BUILD_PATH="$(build_path_for_arch "$arch")"
   swift build -c "$BUILD_CONFIG" --product "$PRODUCT" --build-path "$BUILD_PATH" --arch "$arch" -Xlinker -rpath -Xlinker @executable_path/../Frameworks
 done
 
 BIN_PRIMARY="$(bin_for_arch "$PRIMARY_ARCH")"
-echo "pkg: binary $BIN_PRIMARY" >&2
-echo "🧹 Cleaning old app bundle"
 rm -rf "$APP_ROOT"
-mkdir -p "$APP_ROOT/Contents/MacOS"
-mkdir -p "$APP_ROOT/Contents/Resources"
-mkdir -p "$APP_ROOT/Contents/Frameworks"
+mkdir -p "$APP_ROOT/Contents/MacOS" "$APP_ROOT/Contents/Resources" "$APP_ROOT/Contents/Frameworks"
 
-echo "📄 Copying Info.plist template"
-INFO_PLIST_SRC="$ROOT_DIR/apps/macos/Sources/OpenClaw/Resources/Info.plist"
-if [ ! -f "$INFO_PLIST_SRC" ]; then
-  echo "ERROR: Info.plist template missing at $INFO_PLIST_SRC" >&2
+INFO_PLIST_SRC="$(find_info_plist_template)"
+RESOURCE_DIR="$(find_resource_dir)"
+if [[ -z "$INFO_PLIST_SRC" || ! -f "$INFO_PLIST_SRC" ]]; then
+  echo "ERROR: Info.plist template em falta." >&2
   exit 1
 fi
 cp "$INFO_PLIST_SRC" "$APP_ROOT/Contents/Info.plist"
-/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier ${BUNDLE_ID}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${APP_VERSION}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${APP_BUILD}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :OpenClawBuildTimestamp ${BUILD_TS}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :OpenClawGitCommit ${GIT_COMMIT}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :SUFeedURL ${SPARKLE_FEED_URL}" "$APP_ROOT/Contents/Info.plist" \
-  || /usr/libexec/PlistBuddy -c "Add :SUFeedURL string ${SPARKLE_FEED_URL}" "$APP_ROOT/Contents/Info.plist" || true
-/usr/libexec/PlistBuddy -c "Set :SUPublicEDKey ${SPARKLE_PUBLIC_ED_KEY}" "$APP_ROOT/Contents/Info.plist" \
-  || /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${SPARKLE_PUBLIC_ED_KEY}" "$APP_ROOT/Contents/Info.plist" || true
-if /usr/libexec/PlistBuddy -c "Set :SUEnableAutomaticChecks ${AUTO_CHECKS}" "$APP_ROOT/Contents/Info.plist"; then
-  true
-else
-  /usr/libexec/PlistBuddy -c "Add :SUEnableAutomaticChecks bool ${AUTO_CHECKS}" "$APP_ROOT/Contents/Info.plist" || true
+
+EXECUTABLE_NAME="$(plist_get "$APP_ROOT/Contents/Info.plist" CFBundleExecutable)"
+if [[ -z "$EXECUTABLE_NAME" ]]; then
+  EXECUTABLE_NAME="$PRODUCT"
+fi
+ICON_FILE="$(plist_get "$APP_ROOT/Contents/Info.plist" CFBundleIconFile)"
+if [[ -z "$ICON_FILE" ]]; then
+  ICON_FILE="$APP_NAME"
 fi
 
-echo "🚚 Copying binary"
-cp "$BIN_PRIMARY" "$APP_ROOT/Contents/MacOS/OpenClaw"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" CFBundleIdentifier string "$BUNDLE_ID"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" CFBundleName string "$APP_NAME"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" CFBundleDisplayName string "$APP_NAME"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" CFBundleShortVersionString string "$APP_VERSION"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" CFBundleVersion string "$APP_BUILD"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" "$BUILD_INFO_TS_KEY" string "$BUILD_TS"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" "$BUILD_INFO_COMMIT_KEY" string "$GIT_COMMIT"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" "$BUILD_INFO_DIST_KEY" string "$DISTRO_ID"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" SUFeedURL string "$SPARKLE_FEED_URL"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" SUPublicEDKey string "$SPARKLE_PUBLIC_ED_KEY"
+plist_set_or_add "$APP_ROOT/Contents/Info.plist" SUEnableAutomaticChecks bool "$AUTO_CHECKS"
+
+cp "$BIN_PRIMARY" "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME"
 if [[ "${#BUILD_ARCHS[@]}" -gt 1 ]]; then
   BIN_INPUTS=()
   for arch in "${BUILD_ARCHS[@]}"; do
     BIN_INPUTS+=("$(bin_for_arch "$arch")")
   done
-  /usr/bin/lipo -create "${BIN_INPUTS[@]}" -output "$APP_ROOT/Contents/MacOS/OpenClaw"
+  /usr/bin/lipo -create "${BIN_INPUTS[@]}" -output "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME"
 fi
-chmod +x "$APP_ROOT/Contents/MacOS/OpenClaw"
-# SwiftPM outputs ad-hoc signed binaries; strip the signature before install_name_tool to avoid warnings.
-/usr/bin/codesign --remove-signature "$APP_ROOT/Contents/MacOS/OpenClaw" 2>/dev/null || true
+chmod +x "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME"
+/usr/bin/codesign --remove-signature "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME" 2>/dev/null || true
 
 SPARKLE_FRAMEWORK_PRIMARY="$(sparkle_framework_for_arch "$PRIMARY_ARCH")"
-if [ -d "$SPARKLE_FRAMEWORK_PRIMARY" ]; then
-  echo "✨ Embedding Sparkle.framework"
+if [[ -d "$SPARKLE_FRAMEWORK_PRIMARY" ]]; then
   cp -R "$SPARKLE_FRAMEWORK_PRIMARY" "$APP_ROOT/Contents/Frameworks/"
   if [[ "${#BUILD_ARCHS[@]}" -gt 1 ]]; then
     OTHER_FRAMEWORKS=()
     for arch in "${BUILD_ARCHS[@]}"; do
-      if [[ "$arch" == "$PRIMARY_ARCH" ]]; then
-        continue
-      fi
+      [[ "$arch" == "$PRIMARY_ARCH" ]] && continue
       OTHER_FRAMEWORKS+=("$(sparkle_framework_for_arch "$arch")")
     done
     merge_framework_machos "$SPARKLE_FRAMEWORK_PRIMARY" "$APP_ROOT/Contents/Frameworks/Sparkle.framework" "${OTHER_FRAMEWORKS[@]}"
   fi
-  chmod -R a+rX "$APP_ROOT/Contents/Frameworks/Sparkle.framework"
 fi
 
-echo "📦 Copying Swift 6.2 compatibility libraries"
 SWIFT_COMPAT_LIB="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-6.2/macosx/libswiftCompatibilitySpan.dylib"
-if [ -f "$SWIFT_COMPAT_LIB" ]; then
+if [[ -f "$SWIFT_COMPAT_LIB" ]]; then
   cp "$SWIFT_COMPAT_LIB" "$APP_ROOT/Contents/Frameworks/"
   chmod +x "$APP_ROOT/Contents/Frameworks/libswiftCompatibilitySpan.dylib"
-else
-  echo "WARN: Swift compatibility library not found at $SWIFT_COMPAT_LIB (continuing)" >&2
 fi
 
-echo "🖼  Copying app icon"
-cp "$ROOT_DIR/apps/macos/Sources/OpenClaw/Resources/OpenClaw.icns" "$APP_ROOT/Contents/Resources/OpenClaw.icns"
+ICON_SOURCE="${RESOURCE_DIR}/${ICON_FILE}.icns"
+if [[ -f "$ICON_SOURCE" ]]; then
+  cp "$ICON_SOURCE" "$APP_ROOT/Contents/Resources/${ICON_FILE}.icns"
+fi
 
-echo "📦 Copying device model resources"
-rm -rf "$APP_ROOT/Contents/Resources/DeviceModels"
-cp -R "$ROOT_DIR/apps/macos/Sources/OpenClaw/Resources/DeviceModels" "$APP_ROOT/Contents/Resources/DeviceModels"
+if [[ -d "$RESOURCE_DIR/DeviceModels" ]]; then
+  rm -rf "$APP_ROOT/Contents/Resources/DeviceModels"
+  cp -R "$RESOURCE_DIR/DeviceModels" "$APP_ROOT/Contents/Resources/DeviceModels"
+fi
 
-echo "📦 Copying model catalog"
 MODEL_CATALOG_SRC="$ROOT_DIR/node_modules/@mariozechner/pi-ai/dist/models.generated.js"
-MODEL_CATALOG_DEST="$APP_ROOT/Contents/Resources/models.generated.js"
-if [ -f "$MODEL_CATALOG_SRC" ]; then
-  cp "$MODEL_CATALOG_SRC" "$MODEL_CATALOG_DEST"
-else
-  echo "WARN: model catalog missing at $MODEL_CATALOG_SRC (continuing)" >&2
+if [[ -f "$MODEL_CATALOG_SRC" ]]; then
+  cp "$MODEL_CATALOG_SRC" "$APP_ROOT/Contents/Resources/models.generated.js"
 fi
 
-echo "📦 Copying Control UI assets"
 CONTROL_UI_SRC="$ROOT_DIR/dist/control-ui"
 CONTROL_UI_DEST="$APP_ROOT/Contents/Resources/control-ui"
-if [ -d "$CONTROL_UI_SRC" ] && [ -f "$CONTROL_UI_SRC/index.html" ]; then
+if [[ -d "$CONTROL_UI_SRC" && -f "$CONTROL_UI_SRC/index.html" ]]; then
   rm -rf "$CONTROL_UI_DEST"
   cp -R "$CONTROL_UI_SRC" "$CONTROL_UI_DEST"
 else
-  echo "ERROR: Control UI assets missing at $CONTROL_UI_SRC. Run pnpm ui:build first." >&2
+  echo "ERROR: Control UI assets em falta em $CONTROL_UI_SRC." >&2
   exit 1
 fi
 
-echo "📦 Copying bundled gateway package"
-BUNDLED_PACKAGE_DEST="$APP_ROOT/Contents/Resources/openclaw-package"
-BUNDLED_PACKAGE_STAGE_ROOT="$(mktemp -d -t openclaw-bundled-package.XXXXXX)"
-BUNDLED_PACKAGE_STAGE="$BUNDLED_PACKAGE_STAGE_ROOT/openclaw-package"
+BUNDLED_PACKAGE_DEST="$APP_ROOT/Contents/Resources/${PACKAGE_DIR_NAME}"
+BUNDLED_PACKAGE_STAGE_ROOT="$(mktemp -d -t ${APP_SLUG}-bundled-package.XXXXXX)"
+BUNDLED_PACKAGE_STAGE="$BUNDLED_PACKAGE_STAGE_ROOT/${PACKAGE_DIR_NAME}"
 BUNDLED_NODE_RESOLVED="$(resolve_bundled_node_source || true)"
+ENTRYPOINT_SOURCE=""
+if [[ -f "$ROOT_DIR/${APP_SLUG}.mjs" ]]; then
+  ENTRYPOINT_SOURCE="$ROOT_DIR/${APP_SLUG}.mjs"
+elif [[ -f "$ROOT_DIR/${LEGACY_ENTRYPOINT}" ]]; then
+  ENTRYPOINT_SOURCE="$ROOT_DIR/${LEGACY_ENTRYPOINT}"
+fi
 rm -rf "$BUNDLED_PACKAGE_DEST"
 mkdir -p "$BUNDLED_PACKAGE_STAGE"
 cp "$ROOT_DIR/package.json" "$BUNDLED_PACKAGE_STAGE/package.json"
-if [ -f "$ROOT_DIR/openclaw.mjs" ]; then
-  cp "$ROOT_DIR/openclaw.mjs" "$BUNDLED_PACKAGE_STAGE/openclaw.mjs"
+if [[ -n "$ENTRYPOINT_SOURCE" ]]; then
+  cp "$ENTRYPOINT_SOURCE" "$BUNDLED_PACKAGE_STAGE/$(basename "$ENTRYPOINT_SOURCE")"
 fi
-if [ -d "$ROOT_DIR/bin" ]; then
+if [[ -d "$ROOT_DIR/bin" ]]; then
   (cd "$ROOT_DIR" && tar -cf - bin) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
 fi
 (cd "$ROOT_DIR" && tar -cf - \
-  --exclude='dist/Alisio.app' \
-  --exclude='dist/Alisio-*.zip' \
-  --exclude='dist/Alisio-*.dmg' \
-  --exclude='dist/Alisio-*.dSYM.zip' \
+  --exclude="dist/${APP_NAME}.app" \
+  --exclude="dist/${APP_NAME}-*.zip" \
+  --exclude="dist/${APP_NAME}-*.dmg" \
+  --exclude="dist/${APP_NAME}-*.dSYM.zip" \
   dist) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
-if [ -d "$ROOT_DIR/dist-runtime" ]; then
+if [[ -d "$ROOT_DIR/dist-runtime" ]]; then
   (cd "$ROOT_DIR" && tar -cf - dist-runtime) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
-else
-  echo "WARN: dist-runtime missing; bundled gateway runtime may be incomplete" >&2
 fi
-if [ -n "$BUNDLED_NODE_RESOLVED" ]; then
-  echo "📦 Copying bundled Node runtime"
+if [[ -n "$BUNDLED_NODE_RESOLVED" ]]; then
   mkdir -p "$BUNDLED_PACKAGE_STAGE/tools/node/bin"
   cp "$BUNDLED_NODE_RESOLVED" "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
   chmod +x "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
 elif [[ "$BUILD_CONFIG" == "release" ]]; then
-  echo "ERROR: release packaging requires a bundled Node runtime (>=22.16.0)." >&2
+  echo "ERROR: release packaging exige Node bundled >=22.16.0." >&2
   exit 1
-else
-  echo "WARN: no bundled Node runtime found; this build will rely on Node in PATH." >&2
 fi
 mv "$BUNDLED_PACKAGE_STAGE" "$BUNDLED_PACKAGE_DEST"
 rm -rf "$BUNDLED_PACKAGE_STAGE_ROOT"
 
-echo "📦 Copying OpenClawKit resources"
-OPENCLAWKIT_BUNDLE="$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG/OpenClawKit_OpenClawKit.bundle"
-if [ -d "$OPENCLAWKIT_BUNDLE" ]; then
-  rm -rf "$APP_ROOT/Contents/Resources/OpenClawKit_OpenClawKit.bundle"
-  cp -R "$OPENCLAWKIT_BUNDLE" "$APP_ROOT/Contents/Resources/OpenClawKit_OpenClawKit.bundle"
-else
-  echo "WARN: OpenClawKit resource bundle not found at $OPENCLAWKIT_BUNDLE (continuing)" >&2
+KIT_BUNDLE_CANDIDATE="$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG/${LEGACY_TITLE}Kit_${LEGACY_TITLE}Kit.bundle"
+if [[ -d "$KIT_BUNDLE_CANDIDATE" ]]; then
+  rm -rf "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
+  cp -R "$KIT_BUNDLE_CANDIDATE" "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
 fi
 
-echo "📦 Copying Textual resources"
 TEXTUAL_BUNDLE_DIR="$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG"
 TEXTUAL_BUNDLE=""
-for candidate in \
-  "$TEXTUAL_BUNDLE_DIR/textual_Textual.bundle" \
-  "$TEXTUAL_BUNDLE_DIR/Textual_Textual.bundle"
-do
-  if [ -d "$candidate" ]; then
+for candidate in "$TEXTUAL_BUNDLE_DIR/textual_Textual.bundle" "$TEXTUAL_BUNDLE_DIR/Textual_Textual.bundle"; do
+  if [[ -d "$candidate" ]]; then
     TEXTUAL_BUNDLE="$candidate"
     break
   fi
 done
-if [ -z "$TEXTUAL_BUNDLE" ]; then
+if [[ -z "$TEXTUAL_BUNDLE" ]]; then
   TEXTUAL_BUNDLE="$(find "$BUILD_ROOT" -type d \( -name "textual_Textual.bundle" -o -name "Textual_Textual.bundle" \) -print -quit)"
 fi
-if [ -n "$TEXTUAL_BUNDLE" ] && [ -d "$TEXTUAL_BUNDLE" ]; then
+if [[ -n "$TEXTUAL_BUNDLE" && -d "$TEXTUAL_BUNDLE" ]]; then
   rm -rf "$APP_ROOT/Contents/Resources/$(basename "$TEXTUAL_BUNDLE")"
   cp -R "$TEXTUAL_BUNDLE" "$APP_ROOT/Contents/Resources/"
-else
-  if [[ "${ALLOW_MISSING_TEXTUAL_BUNDLE:-0}" == "1" ]]; then
-    echo "WARN: Textual resource bundle not found (continuing due to ALLOW_MISSING_TEXTUAL_BUNDLE=1)" >&2
-  else
-    echo "ERROR: Textual resource bundle not found. Set ALLOW_MISSING_TEXTUAL_BUNDLE=1 to bypass." >&2
-    exit 1
-  fi
+elif [[ "${ALLOW_MISSING_TEXTUAL_BUNDLE:-0}" != "1" ]]; then
+  echo "ERROR: Textual resource bundle em falta." >&2
+  exit 1
 fi
 
-echo "⏹  Stopping any running Alisio"
-killall -q OpenClaw 2>/dev/null || true
-
-echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"
+killall -q "$PRODUCT" 2>/dev/null || true
 "$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"
-
-echo "✅ Bundle ready at $APP_ROOT"
+echo "✅ Bundle pronto em $APP_ROOT"

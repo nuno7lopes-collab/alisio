@@ -1,4 +1,10 @@
 import { html, nothing } from "lit";
+import {
+  alisioConnectorLimit,
+  alisioConnectorUpgradeMessage,
+  countAlisioConnectorPlanSlots,
+  normalizeAlisioPlan,
+} from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
 import type {
   AlisioAccountState,
@@ -79,6 +85,8 @@ function renderConnectorAction(
   props: {
     onBeginConnector: (connectorId: string) => void;
     onRevokeConnector: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
   },
   text: {
     revoke: string;
@@ -94,8 +102,14 @@ function renderConnectorAction(
     `;
   }
   if (row.status === "ready") {
+    const disabled = props.planBlocksNewConnections === true;
     return html`
-      <button class="btn btn--sm primary" @click=${() => props.onBeginConnector(row.definition.id)}>
+      <button
+        class="btn btn--sm primary"
+        ?disabled=${disabled}
+        title=${disabled ? (props.planLimitMessage ?? "") : ""}
+        @click=${() => props.onBeginConnector(row.definition.id)}
+      >
         ${row.definition.connectLabel}
       </button>
     `;
@@ -123,6 +137,8 @@ function renderConnectorCard(
     compact?: boolean;
     onBeginConnector: (connectorId: string) => void;
     onRevokeConnector: (connectorId: string) => void;
+    planBlocksNewConnections?: boolean;
+    planLimitMessage?: string | null;
   },
   text: {
     revoke: string;
@@ -227,6 +243,15 @@ export function renderAuthentications(props: {
     attention: rows.filter((row) => row.status === "needs_reconnect").length,
   };
   const hasVisibleRows = connectedRows.length > 0 || sections.length > 0;
+  const currentPlan = normalizeAlisioPlan(props.account?.profile.plan);
+  const connectorLimit = alisioConnectorLimit(currentPlan);
+  const occupiedConnectorSlots = countAlisioConnectorPlanSlots(
+    rows.map((row) => row.authorization),
+  );
+  const connectorLimitReached = connectorLimit != null && occupiedConnectorSlots >= connectorLimit;
+  const connectorLimitMessage = connectorLimitReached
+    ? alisioConnectorUpgradeMessage(currentPlan)
+    : null;
 
   return html`
     <section class="alisio-page alisio-auth-page">
@@ -293,6 +318,9 @@ export function renderAuthentications(props: {
       ${props.error
         ? html`<div class="callout danger alisio-auth-page__error">${props.error}</div>`
         : nothing}
+      ${connectorLimitMessage
+        ? html`<div class="callout info alisio-auth-page__error">${connectorLimitMessage}</div>`
+        : nothing}
       ${connectedRows.length > 0
         ? html`
             <section class="card alisio-auth-section">
@@ -310,6 +338,8 @@ export function renderAuthentications(props: {
                       compact: true,
                       onBeginConnector: props.onBeginConnector,
                       onRevokeConnector: props.onRevokeConnector,
+                      planBlocksNewConnections: connectorLimitReached,
+                      planLimitMessage: connectorLimitMessage,
                     },
                     text,
                   ),
@@ -372,6 +402,8 @@ export function renderAuthentications(props: {
                         {
                           onBeginConnector: props.onBeginConnector,
                           onRevokeConnector: props.onRevokeConnector,
+                          planBlocksNewConnections: connectorLimitReached,
+                          planLimitMessage: connectorLimitMessage,
                         },
                         text,
                       ),

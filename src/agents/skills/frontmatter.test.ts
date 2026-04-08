@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveOpenClawMetadata, resolveSkillInvocationPolicy } from "./frontmatter.js";
+import {
+  resolveLegacySkillMetadata,
+  resolveSkillInvocationPolicy,
+  resolveSkillManifestContract,
+} from "./frontmatter.js";
 
 describe("resolveSkillInvocationPolicy", () => {
   it("defaults to enabled behaviors", () => {
@@ -18,9 +22,9 @@ describe("resolveSkillInvocationPolicy", () => {
   });
 });
 
-describe("resolveOpenClawMetadata install validation", () => {
+describe("resolveLegacySkillMetadata install validation", () => {
   function resolveInstall(frontmatter: Record<string, string>) {
-    return resolveOpenClawMetadata(frontmatter)?.install;
+    return resolveLegacySkillMetadata(frontmatter)?.install;
   }
 
   it("accepts safe install specs", () => {
@@ -72,5 +76,108 @@ describe("resolveOpenClawMetadata install validation", () => {
       metadata: '{"openclaw":{"install":[{"kind":"download","url":"file:///tmp/payload.tgz"}]}}',
     });
     expect(install).toBeUndefined();
+  });
+});
+
+describe("resolveSkillManifestContract", () => {
+  it("parses canonical manifests with explicit permissions", () => {
+    const contract = resolveSkillManifestContract({
+      skill: {
+        name: "mcporter",
+        description: "desc",
+        baseDir: "/tmp/mcporter",
+        filePath: "/tmp/mcporter/SKILL.md",
+      } as never,
+      frontmatter: {
+        name: "mcporter",
+        description: "Use mcporter",
+        manifest: JSON.stringify({
+          name: "mcporter",
+          version: "1.2.3",
+          permissions: {
+            consent: "explicit",
+            sandbox: {
+              mode: "isolated",
+              filesystem: "read-only",
+              network: "off",
+            },
+            exec: { bins: ["mcporter"] },
+            mcp: { consume: true },
+          },
+          outputs: {
+            primary: "instructions",
+            formats: ["markdown", "json"],
+          },
+          compat: {
+            runtimes: ["alisio"],
+            requires: { bins: ["mcporter"] },
+            mcp: {
+              transports: ["stdio"],
+              capabilities: ["tools", "prompts", "resources"],
+            },
+          },
+          subscription: {
+            required: false,
+            plan: "free",
+          },
+        }),
+      },
+    });
+
+    expect(contract.validation).toEqual({
+      valid: true,
+      explicit: true,
+      source: "manifest",
+      issues: [],
+    });
+    expect(contract.manifest.version).toBe("1.2.3");
+    expect(contract.manifest.permissions.exec?.bins).toEqual(["mcporter"]);
+    expect(contract.metadata.requires?.bins).toEqual(["mcporter"]);
+  });
+
+  it("marks canonical manifests invalid when dangerous permissions omit explicit consent", () => {
+    const contract = resolveSkillManifestContract({
+      skill: {
+        name: "network-probe",
+        description: "desc",
+        baseDir: "/tmp/network-probe",
+        filePath: "/tmp/network-probe/SKILL.md",
+      } as never,
+      frontmatter: {
+        name: "network-probe",
+        description: "Probe a remote host",
+        manifest: JSON.stringify({
+          name: "network-probe",
+          version: "1.0.0",
+          permissions: {
+            consent: "implicit",
+            sandbox: {
+              mode: "isolated",
+              filesystem: "read-only",
+              network: "off",
+            },
+            network: { outbound: true },
+          },
+          outputs: {
+            primary: "instructions",
+            formats: ["markdown"],
+          },
+          compat: {
+            runtimes: ["alisio"],
+          },
+        }),
+      },
+    });
+
+    expect(contract.validation.valid).toBe(false);
+    expect(contract.validation.explicit).toBe(true);
+    expect(contract.validation.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          level: "error",
+          path: "manifest.permissions.consent",
+        }),
+      ]),
+    );
   });
 });

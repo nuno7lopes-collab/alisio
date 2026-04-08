@@ -1,5 +1,5 @@
 import type { EmbeddingInput } from "../../packages/memory-host-sdk/src/host/embedding-inputs.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { SecretInput } from "../config/types.secrets.js";
 
 export type MemoryEmbeddingBatchChunk = {
@@ -33,7 +33,7 @@ export type MemoryEmbeddingProvider = {
 };
 
 export type MemoryEmbeddingProviderCreateOptions = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   agentDir?: string;
   remote?: {
     baseUrl?: string;

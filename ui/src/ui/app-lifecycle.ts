@@ -34,6 +34,7 @@ type LifecycleHost = {
   assistantAvatar: string | null;
   assistantAgentId: string | null;
   serverVersion: string | null;
+  alisioAuthMode?: "sign-in" | "sign-up";
   alisioAuthEmail?: string;
   alisioAuthPendingEmail?: string;
   alisioStartupLoading: boolean;
@@ -76,6 +77,7 @@ export function handleConnected(host: LifecycleHost) {
       if (!host.alisioAuthPendingEmail?.trim()) {
         host.alisioAuthPendingEmail = restoredEmail;
       }
+      host.alisioAuthMode = "sign-in";
     }
     const startupState = host.alisioStartupBootstrap?.startupState ?? null;
     if (startupState && startupState !== "ready" && host.tab !== "setup") {

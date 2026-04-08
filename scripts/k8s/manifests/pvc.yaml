@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: openclaw-home-pvc
+  name: alisio-home-pvc
   labels:
-    app: openclaw
+    app: alisio
 spec:
   accessModes:
     - ReadWriteOnce

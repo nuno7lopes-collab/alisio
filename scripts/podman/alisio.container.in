@@ -1,0 +1,22 @@
+[Unit]
+Description=Alisio gateway (rootless Podman)
+
+[Container]
+ContainerName={{CONTAINER_NAME}}
+Image={{IMAGE_NAME}}
+EnvironmentFile={{ENV_FILE}}
+Environment=ALISIO_STATE_DIR=/home/node/.alisio
+Environment=ALISIO_CONFIG_PATH=/home/node/.alisio/alisio.json
+Environment={{LEGACY_STATE_ENV}}=/home/node/.alisio
+Environment={{LEGACY_CONFIG_ENV}}=/home/node/.alisio/alisio.json
+Environment=NPM_CONFIG_CACHE=/home/node/.alisio/.npm
+Volume={{CONFIG_DIR}}:/home/node/.alisio:Z
+Volume={{WORKSPACE_DIR}}:/home/node/.alisio/workspace:Z
+PublishPort={{HOST_GATEWAY_PORT}}:18789
+Exec=alisio gateway run --bind {{GATEWAY_BIND}} --port 18789 --force
+
+[Service]
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

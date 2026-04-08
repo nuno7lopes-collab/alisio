@@ -1,6 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
+import { legacyToolStreamMarkerKey } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   CHAT_ATTACHMENT_ACCEPT,
@@ -594,7 +595,7 @@ function renderAccessStrip(props: ChatProps): TemplateResult | typeof nothing {
         ?disabled=${disabled || !props.onApplyAccessMode || selectedMode === "recommended"}
         @click=${() => props.onApplyAccessMode?.("recommended")}
       >
-        <span>${t("alisio.security.access.recommended.title")}</span>
+        <span>${t("alisio.security.access.recommended.label")}</span>
       </button>
       <button
         type="button"
@@ -1598,7 +1599,7 @@ function resolveChatMarker(record: Record<string, unknown>): Record<string, unkn
   if (preferred && typeof preferred === "object") {
     return preferred as Record<string, unknown>;
   }
-  const legacy = record.__openclaw;
+  const legacy = record[legacyToolStreamMarkerKey];
   if (legacy && typeof legacy === "object") {
     return legacy as Record<string, unknown>;
   }

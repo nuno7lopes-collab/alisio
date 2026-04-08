@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 
 const hoisted = vi.hoisted(() => {
   const resolveAllAgentSessionStoreTargetsMock = vi.fn();
@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => {
 
 vi.mock("../../config/sessions.js", () => ({
   loadSessionStore: (storePath: string) => hoisted.loadSessionStoreMock(storePath),
-  resolveAllAgentSessionStoreTargets: (cfg: OpenClawConfig, opts: unknown) =>
+  resolveAllAgentSessionStoreTargets: (cfg: AlisioConfig, opts: unknown) =>
     hoisted.resolveAllAgentSessionStoreTargetsMock(cfg, opts),
   resolveStorePath: vi.fn(() => "/tmp/sessions.json"),
   updateSessionStore: vi.fn(),
@@ -31,7 +31,7 @@ describe("listAcpSessionEntries", () => {
       session: {
         store: "/custom/sessions/{agentId}.json",
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     hoisted.resolveAllAgentSessionStoreTargetsMock.mockResolvedValue([
       {
         agentId: "ops",

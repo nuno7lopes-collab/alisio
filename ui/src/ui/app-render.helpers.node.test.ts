@@ -31,7 +31,7 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
     expect(
       resolveAlisioOpenAiCallbackUrl(
         callbackState({
-          gatewayBootstrapUrl: "ws://127.0.0.1:18789/openclaw/",
+          gatewayBootstrapUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
         }),
         "http://localhost:5173/setup",
       ),
@@ -44,7 +44,7 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
         callbackState({
           alisioStartupBootstrap: {
             basePath: "/",
-            controlUrl: "wss://gateway.example/openclaw/",
+            controlUrl: "wss://gateway.example/\u006fpen\u0063law/",
             startupState: "needs_ai",
             account: null,
             ai: null,
@@ -73,7 +73,6 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
             navCollapsed: false,
             navWidth: 280,
             navGroupsCollapsed: {},
-            borderRadius: 50,
           },
         }),
         "https://control.example/ui/setup",

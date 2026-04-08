@@ -14,7 +14,7 @@ import {
 import { DEFAULT_PROVIDER, DEFAULT_MODEL } from "../agents/defaults.js";
 import { parseModelRef } from "../agents/model-selection.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 
 const log = createSubsystemLogger("llm-slug-generator");
@@ -24,7 +24,7 @@ const log = createSubsystemLogger("llm-slug-generator");
  */
 export async function generateSlugViaLLM(params: {
   sessionContent: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
 }): Promise<string | null> {
   let tempSessionFile: string | null = null;
 

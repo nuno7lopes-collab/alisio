@@ -1,6 +1,6 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { Api, Model } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveProviderStreamFn } from "../plugins/provider-runtime.js";
 import { isAlisioDynamicProvider } from "../shared/alisio-remote-model-provider.js";
 import { resolveAlisioProviderStream } from "./alisio-provider-stream.js";
@@ -8,7 +8,7 @@ import { ensureCustomApiRegistered } from "./custom-api-registry.js";
 
 export function registerProviderStreamForModel<TApi extends Api>(params: {
   model: Model<TApi>;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   agentDir?: string;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;

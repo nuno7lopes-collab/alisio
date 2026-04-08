@@ -3,6 +3,7 @@ import DOMPurify from "dompurify";
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { marked } from "marked";
+import { legacyDocsUrl } from "../../brand-compat.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
 import {
@@ -168,7 +169,7 @@ export function renderAgentChannels(params: {
         <div class="row" style="justify-content: space-between;">
           <div>
             <div class="card-title">Channels</div>
-            <div class="card-sub">Gateway-wide channel status snapshot.</div>
+            <div class="card-sub">Workspace-wide channel status snapshot.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
             ${params.loading ? "Refreshing…" : "Refresh"}
@@ -217,7 +218,7 @@ export function renderAgentChannels(params: {
                           ? html`
                               <div>
                                 <a
-                                  href="https://docs.openclaw.ai/channels"
+                                  href=${legacyDocsUrl("/channels")}
                                   target="_blank"
                                   rel="noopener"
                                   style="color: var(--accent); font-size: 12px"
@@ -263,7 +264,7 @@ export function renderAgentCron(params: {
         <div class="row" style="justify-content: space-between;">
           <div>
             <div class="card-title">Scheduler</div>
-            <div class="card-sub">Gateway cron status.</div>
+            <div class="card-sub">Workspace scheduler status.</div>
           </div>
           <button class="btn btn--sm" ?disabled=${params.loading} @click=${params.onRefresh}>
             ${params.loading ? "Refreshing…" : "Refresh"}

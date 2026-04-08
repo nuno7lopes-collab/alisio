@@ -467,7 +467,7 @@ describe("cron view", () => {
     );
 
     expect(container.textContent).toContain(
-      "Optional. Leave blank to use the gateway default timeout behavior for this run.",
+      "Optional. Leave blank to use the workspace default timeout behavior for this run.",
     );
     expect(container.textContent).toContain("Need jitter? Use Advanced");
   });

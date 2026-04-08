@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
+import { isKnownDistributionPackageName } from "./infra/distribution-profile.js";
 
 declare const __OPENCLAW_VERSION__: string | undefined;
-const CORE_PACKAGE_NAME = "openclaw";
 
 const PACKAGE_JSON_CANDIDATES = [
   "../package.json",
@@ -30,7 +30,7 @@ function readVersionFromJsonCandidates(
         if (!version) {
           continue;
         }
-        if (opts.requirePackageName && parsed.name !== CORE_PACKAGE_NAME) {
+        if (opts.requirePackageName && !isKnownDistributionPackageName(parsed.name)) {
           continue;
         }
         return version;

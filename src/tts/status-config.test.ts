@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveStatusTtsSnapshot } from "./status-config.js";
 
 describe("resolveStatusTtsSnapshot", () => {
@@ -30,7 +30,7 @@ describe("resolveStatusTtsSnapshot", () => {
                 prefsPath,
               },
             },
-          } as OpenClawConfig,
+          } as AlisioConfig,
         }),
       ).toEqual({
         autoMode: "always",
@@ -51,7 +51,7 @@ describe("resolveStatusTtsSnapshot", () => {
                 auto: "always",
               },
             },
-          } as OpenClawConfig,
+          } as AlisioConfig,
         }),
       ).toEqual({
         autoMode: "always",

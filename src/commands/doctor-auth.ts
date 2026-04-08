@@ -13,7 +13,7 @@ import {
 import { formatAuthDoctorHint } from "../agents/auth-profiles/doctor.js";
 import { updateAuthProfileStoreWithLock } from "../agents/auth-profiles/store.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolvePluginProviders } from "../plugins/providers.runtime.js";
 import { note } from "../terminal/note.js";
 import type { DoctorPrompter } from "./doctor-prompter.js";
@@ -23,9 +23,9 @@ import {
 } from "./provider-auth-guidance.js";
 
 export async function maybeRepairLegacyOAuthProfileIds(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   prompter: DoctorPrompter,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   const store = ensureAuthProfileStore();
   let nextCfg = cfg;
   const providers = resolvePluginProviders({
@@ -82,9 +82,9 @@ function pruneAuthOrder(
 }
 
 function pruneAuthProfiles(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   profileIds: Set<string>,
-): { next: OpenClawConfig; changed: boolean } {
+): { next: AlisioConfig; changed: boolean } {
   const profiles = cfg.auth?.profiles;
   const order = cfg.auth?.order;
   const nextProfiles = profiles ? { ...profiles } : undefined;
@@ -127,9 +127,9 @@ function pruneAuthProfiles(
 }
 
 export async function maybeRemoveDeprecatedCliAuthProfiles(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   prompter: DoctorPrompter,
-): Promise<OpenClawConfig> {
+): Promise<AlisioConfig> {
   const store = ensureAuthProfileStore(undefined, { allowKeychainPrompt: false });
   const providers = resolvePluginProviders({
     config: cfg,
@@ -247,7 +247,7 @@ export function resolveUnusableProfileHint(params: {
 
 export async function resolveAuthIssueHint(
   issue: AuthIssue,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   store: ReturnType<typeof ensureAuthProfileStore>,
 ): Promise<string | null> {
   if (issue.reasonCode === "invalid_expires") {
@@ -269,7 +269,7 @@ export async function resolveAuthIssueHint(
 
 async function formatAuthIssueLine(
   issue: AuthIssue,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   store: ReturnType<typeof ensureAuthProfileStore>,
 ): Promise<string> {
   const remaining =
@@ -280,7 +280,7 @@ async function formatAuthIssueLine(
 }
 
 export async function noteAuthProfileHealth(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   prompter: DoctorPrompter;
   allowKeychainPrompt: boolean;
 }): Promise<void> {

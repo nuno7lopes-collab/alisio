@@ -3,7 +3,7 @@ import path from "node:path";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../../agents/agent-scope.js";
 import type { ChannelPluginCatalogEntry } from "../../channels/plugins/catalog.js";
 import { resolveBundledInstallPlanForCatalogEntry } from "../../cli/plugin-install-plan.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { applyPluginAutoEnable } from "../../config/plugin-auto-enable.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import {
@@ -24,7 +24,7 @@ import type { WizardPrompter } from "../../wizard/prompts.js";
 type InstallChoice = "npm" | "local" | "skip";
 
 type InstallResult = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   installed: boolean;
   pluginId?: string;
 };
@@ -68,7 +68,7 @@ function resolveLocalPath(
   return null;
 }
 
-function addPluginLoadPath(cfg: OpenClawConfig, pluginPath: string): OpenClawConfig {
+function addPluginLoadPath(cfg: AlisioConfig, pluginPath: string): AlisioConfig {
   const existing = cfg.plugins?.load?.paths ?? [];
   const merged = Array.from(new Set([...existing, pluginPath]));
   return {
@@ -114,7 +114,7 @@ async function promptInstallChoice(params: {
 }
 
 function resolveInstallDefaultChoice(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   entry: ChannelPluginCatalogEntry;
   localPath?: string | null;
   bundledLocalPath?: string | null;
@@ -141,7 +141,7 @@ function resolveInstallDefaultChoice(params: {
 }
 
 export async function ensureChannelSetupPluginInstalled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   entry: ChannelPluginCatalogEntry;
   prompter: WizardPrompter;
   runtime: RuntimeEnv;
@@ -227,7 +227,7 @@ export async function ensureChannelSetupPluginInstalled(params: {
 }
 
 export function reloadChannelSetupPluginRegistry(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
   workspaceDir?: string;
 }): void {
@@ -235,7 +235,7 @@ export function reloadChannelSetupPluginRegistry(params: {
 }
 
 function loadChannelSetupPluginRegistry(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
   workspaceDir?: string;
   onlyPluginIds?: string[];
@@ -259,7 +259,7 @@ function loadChannelSetupPluginRegistry(params: {
 }
 
 export function reloadChannelSetupPluginRegistryForChannel(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
   channel: string;
   pluginId?: string;
@@ -278,7 +278,7 @@ export function reloadChannelSetupPluginRegistryForChannel(params: {
 }
 
 export function loadChannelSetupPluginRegistrySnapshotForChannel(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
   channel: string;
   pluginId?: string;

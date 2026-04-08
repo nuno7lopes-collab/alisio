@@ -410,8 +410,8 @@ vi.mock("../gateway/session-utils.js", async (importOriginal) => {
     ...actual,
   };
 });
-vi.mock("../infra/openclaw-root.js", () => ({
-  resolveOpenClawPackageRoot: vi.fn().mockResolvedValue("/tmp/openclaw"),
+vi.mock("../infra/alisio-root.js", () => ({
+  resolveAlisioPackageRoot: vi.fn().mockResolvedValue("/tmp/openclaw"),
 }));
 vi.mock("../infra/os-summary.js", () => ({
   resolveOsSummary: () => ({

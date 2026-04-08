@@ -2487,6 +2487,52 @@
   align-items: center;
 }
 
+.channel-pending-pairing {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-elevated));
+}
+
+.channel-pending-pairing__label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
+.channel-pending-pairing__item {
+  display: grid;
+  gap: 10px;
+}
+
+.channel-pending-pairing__copy {
+  display: grid;
+  gap: 4px;
+}
+
+.channel-pending-pairing__title {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.channel-pending-pairing__detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.channel-pending-pairing__actions {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .channel-issue-list {
   display: grid;
   gap: 10px;
@@ -4763,6 +4809,7 @@ td.data-table-key-col {
   border: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--bg-elevated) 60%, transparent);
+  min-width: 0;
 }
 
 .alisio-connections-overview-card__label {
@@ -4798,8 +4845,8 @@ td.data-table-key-col {
 
 .alisio-connections-layout {
   display: grid;
-  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: 16px;
   align-items: start;
 }
 
@@ -4817,6 +4864,7 @@ td.data-table-key-col {
   display: grid;
   gap: 14px;
   padding: 18px;
+  min-width: 0;
 }
 
 .alisio-connections-panel__head,
@@ -4826,6 +4874,14 @@ td.data-table-key-col {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.alisio-connections-hero__head > *,
+.alisio-connections-panel__head > *,
+.alisio-connections-subpanel__head > *,
+.alisio-connections-subsection__head > *,
+.alisio-node-card__head > * {
+  min-width: 0;
 }
 
 .alisio-connections-panel__identity {
@@ -4867,6 +4923,11 @@ td.data-table-key-col {
   gap: 10px;
 }
 
+.alisio-binding-list,
+.alisio-token-list {
+  container-type: inline-size;
+}
+
 .alisio-connections-subsection,
 .alisio-connections-subpanel {
   display: grid;
@@ -4875,6 +4936,7 @@ td.data-table-key-col {
   border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--bg-elevated) 48%, transparent);
+  min-width: 0;
 }
 
 .alisio-connections-subsection__title {
@@ -4951,6 +5013,7 @@ td.data-table-key-col {
 .alisio-connections-entry {
   border-color: color-mix(in srgb, var(--border) 58%, transparent);
   background: color-mix(in srgb, var(--card) 86%, transparent);
+  min-width: 0;
 }
 
 .alisio-connections-entry--split {
@@ -4990,6 +5053,8 @@ td.data-table-key-col {
 }
 
 .alisio-connections-entry__identifier,
+.alisio-connections-entry .list-title,
+.alisio-connections-entry__note,
 .alisio-token-row__subtitle,
 .alisio-node-card__details {
   overflow-wrap: anywhere;
@@ -5033,6 +5098,7 @@ td.data-table-key-col {
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--bg) 84%, transparent);
+  min-width: 0;
 }
 
 .alisio-token-row__main {
@@ -5080,6 +5146,7 @@ td.data-table-key-col {
   border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   border-radius: 14px;
   background: color-mix(in srgb, var(--card) 86%, transparent);
+  min-width: 0;
 }
 
 .alisio-node-card__head {
@@ -5138,43 +5205,18 @@ td.data-table-key-col {
 
 .alisio-security-shell {
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
-.alisio-security-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
+.alisio-security-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.alisio-security-summary-chip {
-  display: grid;
-  gap: 6px;
-  min-height: 92px;
-  padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  border-radius: 18px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-elevated) 78%, transparent) 0%,
-    color-mix(in srgb, var(--card) 90%, transparent) 100%
-  );
-}
-
-.alisio-security-summary-chip span {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.alisio-security-summary-chip strong {
-  color: var(--text-strong);
-  font-size: 15px;
-  font-weight: 700;
+.alisio-security-meta-item {
+  font-size: 12px;
   line-height: 1.35;
-  overflow-wrap: anywhere;
 }
 
 .alisio-security-panel {
@@ -5259,45 +5301,6 @@ td.data-table-key-col {
   margin-top: -2px;
 }
 
-.alisio-exec-approvals-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.alisio-exec-approvals-summary-card {
-  display: grid;
-  gap: 6px;
-  min-height: 92px;
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--card) 88%, transparent);
-}
-
-.alisio-exec-approvals-summary-card__label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.alisio-exec-approvals-summary-card__value {
-  color: var(--text-strong);
-  font-size: 14px;
-  line-height: 1.35;
-  letter-spacing: -0.01em;
-  overflow-wrap: anywhere;
-}
-
-.alisio-exec-approvals-summary-card__note {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .alisio-exec-approvals-scopes {
   display: grid;
   gap: 8px;
@@ -5343,9 +5346,25 @@ td.data-table-key-col {
   min-width: min(240px, 100%);
 }
 
-@media (max-width: 980px) {
-  .alisio-connections-overview,
+@container (max-width: 680px) {
+  .alisio-binding-row--split,
+  .alisio-token-row {
+    grid-template-columns: 1fr;
+  }
+
+  .alisio-token-row .alisio-connections-action-row {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 1240px) {
   .alisio-connections-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .alisio-connections-overview {
     grid-template-columns: 1fr;
   }
 }

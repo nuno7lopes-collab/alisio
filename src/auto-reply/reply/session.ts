@@ -5,7 +5,7 @@ import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshotOnSessionRollover } from "../../agents/bootstrap-cache.js";
 import { disposeSessionMcpRuntime } from "../../agents/pi-bundle-mcp-tools.js";
 import { normalizeChatType } from "../../channels/chat-type.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { resolveGroupSessionKey } from "../../config/sessions/group.js";
 import { canonicalizeMainSessionAlias } from "../../config/sessions/main-session.js";
 import { deriveSessionMetaPatch } from "../../config/sessions/metadata.js";
@@ -79,7 +79,7 @@ export type SessionInitResult = {
 
 function isResetAuthorizedForContext(params: {
   ctx: MsgContext;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   commandAuthorized: boolean;
 }): boolean {
   const auth = resolveCommandAuthorization(params);
@@ -101,7 +101,7 @@ function isResetAuthorizedForContext(params: {
 }
 
 function resolveSessionConversationBindingContext(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   ctx: MsgContext,
 ): {
   channel: string;
@@ -127,7 +127,7 @@ function resolveSessionConversationBindingContext(
 }
 
 function resolveBoundAcpSessionForReset(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   ctx: MsgContext;
   bindingContext?: {
     channel: string;
@@ -153,7 +153,7 @@ function resolveBoundAcpSessionForReset(params: {
 }
 
 function resolveBoundConversationSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   ctx: MsgContext;
   bindingContext?: {
     channel: string;
@@ -184,7 +184,7 @@ function resolveBoundConversationSessionKey(params: {
 
 export async function initSessionState(params: {
   ctx: MsgContext;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   commandAuthorized: boolean;
 }): Promise<SessionInitResult> {
   const { ctx, cfg, commandAuthorized } = params;

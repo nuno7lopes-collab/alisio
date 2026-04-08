@@ -2,7 +2,12 @@ import type { ChannelsStatusSnapshot, WizardStep } from "./types.ts";
 
 export const DEFAULT_CHANNEL_ACCOUNT_ID = "default";
 
-export type ChannelBusyAction = "login-start" | "login-wait" | "logout";
+export type ChannelBusyAction =
+  | "login-start"
+  | "login-wait"
+  | "logout"
+  | "pairing-approve"
+  | "pairing-reject";
 
 export function normalizeChannelAccountId(accountId?: string | null): string {
   return accountId?.trim() || DEFAULT_CHANNEL_ACCOUNT_ID;

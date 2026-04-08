@@ -8,7 +8,10 @@ import {
   clearAlisioModelProviderSnapshotCache,
   loadAlisioModelProviderSnapshot,
 } from "../../infra/alisio-model-snapshot.js";
-import { loadAlisioRuntimeSetupState } from "../../infra/alisio-runtime.js";
+import {
+  loadAlisioRuntimeSetupState,
+  resolveAlisioRuntimeProviderReady,
+} from "../../infra/alisio-runtime.js";
 import {
   beginAlisioAccountEmailAuth,
   beginAlisioAccountGoogleAuth,
@@ -28,7 +31,7 @@ import {
   removeAlisioRemoteModelServer,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
-  requestAlisioAccountPasswordReset,
+  requestAlisioAccountRecoveryEmail,
   revokeAlisioConnectorAuthorization,
   saveAlisioRemoteModelServer,
   selectAlisioAiProfile,
@@ -58,6 +61,8 @@ import {
   validateAlisioAccountEmailAuthVerifyParams,
   validateAlisioAccountGoogleAuthBeginParams,
   validateAlisioAccountGoogleAuthBeginResult,
+  validateAlisioAccountRecoveryEmailParams,
+  validateAlisioAccountRecoveryEmailResult,
   validateAlisioAccountPasswordResetParams,
   validateAlisioAccountPasswordResetResult,
   validateAlisioAccountCompleteProfileParams,
@@ -125,6 +130,7 @@ function safeParseJson(value: string | null | undefined) {
     return null;
   }
 }
+
 export async function publishAlisioDynamicModelProvidersForContext(
   context: Pick<GatewayRequestContext, "nodeRegistry">,
   opts?: { force?: boolean },
@@ -306,6 +312,51 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
     }
   },
+  "alisio.account.requestRecoveryEmail": async ({ params, respond }) => {
+    if (!validateAlisioAccountRecoveryEmailParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid alisio.account.requestRecoveryEmail params: ${formatValidationErrors(
+            validateAlisioAccountRecoveryEmailParams.errors,
+          )}`,
+        ),
+      );
+      return;
+    }
+    try {
+      const result = await requestAlisioAccountRecoveryEmail({ email: params.email }, process.env);
+      if (!validateAlisioAccountRecoveryEmailResult(result)) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            `invalid alisio.account.requestRecoveryEmail result: ${formatValidationErrors(
+              validateAlisioAccountRecoveryEmailResult.errors,
+            )}`,
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to start Alisio account recovery: ${formatError(err)}`,
+        ),
+      );
+    }
+  },
   "alisio.account.requestPasswordReset": async ({ params, respond }) => {
     if (!validateAlisioAccountPasswordResetParams(params)) {
       respond(
@@ -321,7 +372,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
       return;
     }
     try {
-      const result = await requestAlisioAccountPasswordReset({ email: params.email }, process.env);
+      const result = await requestAlisioAccountRecoveryEmail({ email: params.email }, process.env);
       if (!validateAlisioAccountPasswordResetResult(result)) {
         respond(
           false,
@@ -346,7 +397,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
         undefined,
         errorShape(
           ErrorCodes.UNAVAILABLE,
-          `failed to start Alisio password recovery: ${formatError(err)}`,
+          `failed to start Alisio account recovery: ${formatError(err)}`,
         ),
       );
     }
@@ -416,7 +467,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
         undefined,
       );
     } catch (err) {
-      if (err instanceof AlisioAccountCloudError) {
+      if (err instanceof AlisioAccountCloudError || err instanceof AlisioAccountValidationError) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
         return;
       }
@@ -781,11 +832,12 @@ export const alisioHandlers: GatewayRequestHandlers = {
     try {
       const wizardSessionId = context.findRunningWizard();
       const runtimeSetup = await loadAlisioRuntimeSetupState(context);
+      const providerReady = resolveAlisioRuntimeProviderReady(runtimeSetup);
       const [{ models }, { snapshot, summary }] = await Promise.all([
         Promise.resolve(runtimeSetup),
         loadAlisioBootstrapState({
           wizardRunning: Boolean(wizardSessionId),
-          providerReady: runtimeSetup.providerReady,
+          providerReady,
           connectionRequired: false,
         }),
       ]);
@@ -1297,8 +1349,11 @@ export const alisioHandlers: GatewayRequestHandlers = {
       clearAlisioModelProviderSnapshotCache();
       respond(true, payload, undefined);
     } catch (err) {
-      const message = err instanceof AlisioAccountValidationError ? err.message : formatError(err);
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, message));
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
     }
   },
   "alisio.models.server.remove": async ({ params, respond }) => {
@@ -1380,8 +1435,11 @@ export const alisioHandlers: GatewayRequestHandlers = {
       clearAlisioModelProviderSnapshotCache();
       respond(true, payload, undefined);
     } catch (err) {
-      const message = err instanceof AlisioAccountValidationError ? err.message : formatError(err);
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, message));
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
     }
   },
   "alisio.doctor.summary": async ({ params, respond, context }) => {
@@ -1401,15 +1459,16 @@ export const alisioHandlers: GatewayRequestHandlers = {
     try {
       const wizardSessionId = context.findRunningWizard();
       const runtimeSetup = await loadAlisioRuntimeSetupState(context);
+      const providerReady = resolveAlisioRuntimeProviderReady(runtimeSetup);
       const bootstrapStatePromise = loadAlisioBootstrapState({
         wizardRunning: wizardSessionId !== null,
-        providerReady: runtimeSetup.providerReady,
+        providerReady,
         connectionRequired: false,
       });
       const doctorSummaryPromise = bootstrapStatePromise.then(({ summary }) =>
         getAlisioDoctorSummary({
           wizardRunning: wizardSessionId !== null,
-          providerReady: runtimeSetup.providerReady,
+          providerReady,
           connectionRequired: false,
           bootstrap: summary,
         }),
@@ -1528,7 +1587,22 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    respond(true, await setAlisioOrganizationState(params as never), undefined);
+    try {
+      respond(true, await setAlisioOrganizationState(params as never), undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to update Alisio organization: ${formatError(err)}`,
+        ),
+      );
+    }
   },
   "alisio.connectors.catalog": async ({ params, respond }) => {
     if (!validateAlisioConnectorsCatalogParams(params)) {
@@ -1576,12 +1650,29 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const result = await beginAlisioConnectorSetup((params as { connectorId: string }).connectorId);
-    if (!result) {
-      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown connectorId"));
-      return;
+    try {
+      const result = await beginAlisioConnectorSetup(
+        (params as { connectorId: string }).connectorId,
+      );
+      if (!result) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown connectorId"));
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to begin Alisio connector setup: ${formatError(err)}`,
+        ),
+      );
     }
-    respond(true, result, undefined);
   },
   "alisio.connectors.complete": async ({ params, respond }) => {
     if (!validateAlisioConnectorsCompleteParams(params)) {
@@ -1597,16 +1688,34 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const result = await completeAlisioConnectorAuthorization(params as never);
-    if (!result) {
+    try {
+      const result = await completeAlisioConnectorAuthorization(params as never);
+      if (!result) {
+        respond(
+          false,
+          undefined,
+          errorShape(
+            ErrorCodes.INVALID_REQUEST,
+            "connector cannot be completed in this environment",
+          ),
+        );
+        return;
+      }
+      respond(true, result, undefined);
+    } catch (err) {
+      if (err instanceof AlisioAccountValidationError) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
+        return;
+      }
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.INVALID_REQUEST, "connector cannot be completed in this environment"),
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to complete Alisio connector setup: ${formatError(err)}`,
+        ),
       );
-      return;
     }
-    respond(true, result, undefined);
   },
   "alisio.connectors.revoke": async ({ params, respond }) => {
     if (!validateAlisioConnectorsRevokeParams(params)) {

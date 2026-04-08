@@ -3,16 +3,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/lib/live-docker-auth.sh"
-IMAGE_NAME="${OPENCLAW_IMAGE:-openclaw:local}"
-LIVE_IMAGE_NAME="${OPENCLAW_LIVE_IMAGE:-${IMAGE_NAME}-live}"
-CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
-WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
-PROFILE_FILE="${OPENCLAW_PROFILE_FILE:-$HOME/.profile}"
-CLI_TOOLS_DIR="${OPENCLAW_DOCKER_CLI_TOOLS_DIR:-$HOME/.cache/openclaw/docker-cli-tools}"
+IMAGE_NAME="${ALISIO_IMAGE:-alisio:local}"
+LIVE_IMAGE_NAME="${ALISIO_LIVE_IMAGE:-${IMAGE_NAME}-live}"
+CONFIG_DIR="${ALISIO_CONFIG_DIR:-$HOME/.alisio}"
+WORKSPACE_DIR="${ALISIO_WORKSPACE_DIR:-$HOME/.alisio/workspace}"
+PROFILE_FILE="${ALISIO_PROFILE_FILE:-$HOME/.profile}"
+CLI_TOOLS_DIR="${ALISIO_DOCKER_CLI_TOOLS_DIR:-$HOME/.cache/alisio/docker-cli-tools}"
 DEFAULT_MODEL="claude-cli/claude-sonnet-4-6"
-CLI_MODEL="${OPENCLAW_LIVE_CLI_BACKEND_MODEL:-$DEFAULT_MODEL}"
+CLI_MODEL="${ALISIO_LIVE_CLI_BACKEND_MODEL:-$DEFAULT_MODEL}"
 CLI_PROVIDER="${CLI_MODEL%%/*}"
-CLI_DISABLE_MCP_CONFIG="${OPENCLAW_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG:-}"
+CLI_DISABLE_MCP_CONFIG="${ALISIO_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG:-}"
 
 if [[ -z "$CLI_PROVIDER" || "$CLI_PROVIDER" == "$CLI_MODEL" ]]; then
   CLI_PROVIDER="claude-cli"
@@ -29,18 +29,18 @@ if [[ -f "$PROFILE_FILE" ]]; then
 fi
 
 AUTH_DIRS=()
-if [[ -n "${OPENCLAW_DOCKER_AUTH_DIRS:-}" ]]; then
+if [[ -n "${ALISIO_DOCKER_AUTH_DIRS:-}" ]]; then
   while IFS= read -r auth_dir; do
     [[ -n "$auth_dir" ]] || continue
     AUTH_DIRS+=("$auth_dir")
-  done < <(openclaw_live_collect_auth_dirs)
+  done < <(alisio_live_collect_auth_dirs)
 else
   while IFS= read -r auth_dir; do
     [[ -n "$auth_dir" ]] || continue
     AUTH_DIRS+=("$auth_dir")
-  done < <(openclaw_live_collect_auth_dirs_from_csv "$CLI_PROVIDER")
+  done < <(alisio_live_collect_auth_dirs_from_csv "$CLI_PROVIDER")
 fi
-AUTH_DIRS_CSV="$(openclaw_live_join_csv "${AUTH_DIRS[@]}")"
+AUTH_DIRS_CSV="$(alisio_live_join_csv "${AUTH_DIRS[@]}")"
 
 EXTERNAL_AUTH_MOUNTS=()
 for auth_dir in "${AUTH_DIRS[@]}"; do
@@ -54,7 +54,7 @@ read -r -d '' LIVE_TEST_CMD <<'EOF' || true
 set -euo pipefail
 [ -f "$HOME/.profile" ] && source "$HOME/.profile" || true
 export PATH="$HOME/.npm-global/bin:$PATH"
-IFS=',' read -r -a auth_dirs <<<"${OPENCLAW_DOCKER_AUTH_DIRS_RESOLVED:-}"
+IFS=',' read -r -a auth_dirs <<<"${ALISIO_DOCKER_AUTH_DIRS_RESOLVED:-}"
 for auth_dir in "${auth_dirs[@]}"; do
   [ -n "$auth_dir" ] || continue
   if [ -d "/host-auth/$auth_dir" ]; then
@@ -63,16 +63,16 @@ for auth_dir in "${auth_dirs[@]}"; do
     chmod -R u+rwX "$HOME/$auth_dir" || true
   fi
 done
-provider="${OPENCLAW_DOCKER_CLI_BACKEND_PROVIDER:-claude-cli}"
+provider="${ALISIO_DOCKER_CLI_BACKEND_PROVIDER:-claude-cli}"
 if [ "$provider" = "claude-cli" ]; then
-  if [ -z "${OPENCLAW_LIVE_CLI_BACKEND_COMMAND:-}" ]; then
-    export OPENCLAW_LIVE_CLI_BACKEND_COMMAND="$HOME/.npm-global/bin/claude"
+  if [ -z "${ALISIO_LIVE_CLI_BACKEND_COMMAND:-}" ]; then
+    export ALISIO_LIVE_CLI_BACKEND_COMMAND="$HOME/.npm-global/bin/claude"
   fi
-  if [ ! -x "${OPENCLAW_LIVE_CLI_BACKEND_COMMAND}" ]; then
+  if [ ! -x "${ALISIO_LIVE_CLI_BACKEND_COMMAND}" ]; then
     npm_config_prefix="$HOME/.npm-global" npm install -g @anthropic-ai/claude-code
   fi
-  if [ -z "${OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV:-}" ]; then
-    export OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV='["ANTHROPIC_API_KEY","ANTHROPIC_API_KEY_OLD"]'
+  if [ -z "${ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV:-}" ]; then
+    export ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV='["ANTHROPIC_API_KEY","ANTHROPIC_API_KEY_OLD"]'
   fi
   claude auth status || true
 fi
@@ -91,9 +91,9 @@ tar -C /src \
 ln -s /app/node_modules "$tmp_dir/node_modules"
 ln -s /app/dist "$tmp_dir/dist"
 if [ -d /app/dist-runtime/extensions ]; then
-  export OPENCLAW_BUNDLED_PLUGINS_DIR=/app/dist-runtime/extensions
+  export ALISIO_BUNDLED_PLUGINS_DIR=/app/dist-runtime/extensions
 elif [ -d /app/dist/extensions ]; then
-  export OPENCLAW_BUNDLED_PLUGINS_DIR=/app/dist/extensions
+  export ALISIO_BUNDLED_PLUGINS_DIR=/app/dist/extensions
 fi
 cd "$tmp_dir"
 pnpm test:live src/gateway/gateway-cli-backend.live.test.ts
@@ -114,25 +114,25 @@ docker run --rm -t \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -e HOME=/home/node \
   -e NODE_OPTIONS=--disable-warning=ExperimentalWarning \
-  -e OPENCLAW_SKIP_CHANNELS=1 \
-  -e OPENCLAW_VITEST_FS_MODULE_CACHE=0 \
-  -e OPENCLAW_DOCKER_AUTH_DIRS_RESOLVED="$AUTH_DIRS_CSV" \
-  -e OPENCLAW_DOCKER_CLI_BACKEND_PROVIDER="$CLI_PROVIDER" \
-  -e OPENCLAW_LIVE_TEST=1 \
-  -e OPENCLAW_LIVE_CLI_BACKEND=1 \
-  -e OPENCLAW_LIVE_CLI_BACKEND_MODEL="$CLI_MODEL" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_COMMAND="${OPENCLAW_LIVE_CLI_BACKEND_COMMAND:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_ARGS="${OPENCLAW_LIVE_CLI_BACKEND_ARGS:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV="${OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV="${OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG="$CLI_DISABLE_MCP_CONFIG" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE="${OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_IMAGE_PROBE="${OPENCLAW_LIVE_CLI_BACKEND_IMAGE_PROBE:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG="${OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG:-}" \
-  -e OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE="${OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE:-}" \
+  -e ALISIO_SKIP_CHANNELS=1 \
+  -e ALISIO_VITEST_FS_MODULE_CACHE=0 \
+  -e ALISIO_DOCKER_AUTH_DIRS_RESOLVED="$AUTH_DIRS_CSV" \
+  -e ALISIO_DOCKER_CLI_BACKEND_PROVIDER="$CLI_PROVIDER" \
+  -e ALISIO_LIVE_TEST=1 \
+  -e ALISIO_LIVE_CLI_BACKEND=1 \
+  -e ALISIO_LIVE_CLI_BACKEND_MODEL="$CLI_MODEL" \
+  -e ALISIO_LIVE_CLI_BACKEND_COMMAND="${ALISIO_LIVE_CLI_BACKEND_COMMAND:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_ARGS="${ALISIO_LIVE_CLI_BACKEND_ARGS:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV="${ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV="${ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG="$CLI_DISABLE_MCP_CONFIG" \
+  -e ALISIO_LIVE_CLI_BACKEND_RESUME_PROBE="${ALISIO_LIVE_CLI_BACKEND_RESUME_PROBE:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_IMAGE_PROBE="${ALISIO_LIVE_CLI_BACKEND_IMAGE_PROBE:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG="${ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG:-}" \
+  -e ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE="${ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE:-}" \
   -v "$ROOT_DIR":/src:ro \
-  -v "$CONFIG_DIR":/home/node/.openclaw \
-  -v "$WORKSPACE_DIR":/home/node/.openclaw/workspace \
+  -v "$CONFIG_DIR":/home/node/.alisio \
+  -v "$WORKSPACE_DIR":/home/node/.alisio/workspace \
   -v "$CLI_TOOLS_DIR":/home/node/.npm-global \
   "${EXTERNAL_AUTH_MOUNTS[@]}" \
   "${PROFILE_MOUNT[@]}" \

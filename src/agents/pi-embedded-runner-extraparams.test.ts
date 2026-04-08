@@ -14,7 +14,7 @@ import { __testing as providerCapabilitiesTesting } from "./provider-capabilitie
 const resolveProviderCapabilitiesWithPluginMock = vi.fn(
   (params: {
     provider: string;
-    config?: import("../config/config.js").OpenClawConfig;
+    config?: import("../config/config.js").AlisioConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
   }): Partial<ProviderCapabilities> | undefined => {

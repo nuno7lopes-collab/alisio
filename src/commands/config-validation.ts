@@ -1,7 +1,7 @@
 import { formatCliCommand } from "../cli/command-format.js";
 import {
   type ConfigFileSnapshot,
-  type OpenClawConfig,
+  type AlisioConfig,
   readConfigFileSnapshot,
 } from "../config/config.js";
 import { formatConfigIssueLines } from "../config/issue-format.js";
@@ -48,6 +48,6 @@ export async function requireValidConfigFileSnapshot(
 export async function requireValidConfigSnapshot(
   runtime: RuntimeEnv,
   opts?: { includeCompatibilityAdvisory?: boolean },
-): Promise<OpenClawConfig | null> {
+): Promise<AlisioConfig | null> {
   return (await requireValidConfigFileSnapshot(runtime, opts))?.config ?? null;
 }

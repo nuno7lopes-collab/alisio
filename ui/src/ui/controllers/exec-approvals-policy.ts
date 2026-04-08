@@ -77,3 +77,12 @@ export function resolveExecApprovalAccessMode(
   }
   return "custom";
 }
+
+// Keep this aligned with the runtime host-ask merge logic.
+export function resolveEffectiveExecAsk(toolAsk: ExecAsk, approvalsAsk: ExecAsk): ExecAsk {
+  if (approvalsAsk === "off") {
+    return "off";
+  }
+  const order: Record<ExecAsk, number> = { off: 0, "on-miss": 1, always: 2 };
+  return order[toolAsk] >= order[approvalsAsk] ? toolAsk : approvalsAsk;
+}

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   loadConfig,
   resolveConfigPath,
@@ -50,7 +50,7 @@ type CallGatewayBaseOptions = {
   token?: string;
   password?: string;
   tlsFingerprint?: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   method: string;
   params?: unknown;
   expectFinal?: boolean;
@@ -97,7 +97,7 @@ const gatewayCallDeps = {
   ...defaultGatewayCallDeps,
 };
 
-function loadGatewayConfig(): OpenClawConfig {
+function loadGatewayConfig(): AlisioConfig {
   const loadConfigFn =
     typeof gatewayCallDeps.loadConfig === "function"
       ? gatewayCallDeps.loadConfig
@@ -123,7 +123,7 @@ function resolveGatewayConfigPath(env: NodeJS.ProcessEnv): string {
   return resolveConfigPathFn(env, resolveGatewayStateDir(env));
 }
 
-function resolveGatewayPortValue(config?: OpenClawConfig, env?: NodeJS.ProcessEnv): number {
+function resolveGatewayPortValue(config?: AlisioConfig, env?: NodeJS.ProcessEnv): number {
   const resolveGatewayPortFn =
     typeof gatewayCallDeps.resolveGatewayPort === "function"
       ? gatewayCallDeps.resolveGatewayPort
@@ -133,7 +133,7 @@ function resolveGatewayPortValue(config?: OpenClawConfig, env?: NodeJS.ProcessEn
 
 export function buildGatewayConnectionDetails(
   options: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     url?: string;
     configPath?: string;
     urlSource?: "cli" | "env";
@@ -253,7 +253,7 @@ type GatewayRemoteSettings = {
 };
 
 type ResolvedGatewayCallContext = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   configPath: string;
   isRemoteMode: boolean;
   remote?: GatewayRemoteSettings;
@@ -321,7 +321,7 @@ function ensureRemoteModeUrlConfigured(context: ResolvedGatewayCallContext): voi
 }
 
 async function resolveGatewaySecretInputString(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   value: unknown;
   path: string;
   env: NodeJS.ProcessEnv;
@@ -387,7 +387,7 @@ function isSupportedGatewaySecretInputPath(path: string): path is SupportedGatew
 }
 
 function readGatewaySecretInputValue(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   path: SupportedGatewaySecretInputPath,
 ): unknown {
   if (path === "gateway.auth.token") {
@@ -403,7 +403,7 @@ function readGatewaySecretInputValue(
 }
 
 function hasConfiguredGatewaySecretRef(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   path: SupportedGatewaySecretInputPath,
 ): boolean {
   return Boolean(
@@ -417,7 +417,7 @@ function hasConfiguredGatewaySecretRef(
 function resolveGatewayCredentialsFromConfigOptions(params: {
   context: ResolvedGatewayCallContext;
   env: NodeJS.ProcessEnv;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
 }) {
   const { context, env, cfg } = params;
   return {
@@ -460,7 +460,7 @@ function localAuthModeAllowsGatewaySecretInputPath(params: {
 function gatewaySecretInputPathCanWin(params: {
   context: ResolvedGatewayCallContext;
   env: NodeJS.ProcessEnv;
-  config: OpenClawConfig;
+  config: AlisioConfig;
   path: SupportedGatewaySecretInputPath;
 }): boolean {
   if (!hasConfiguredGatewaySecretRef(params.config, params.path)) {
@@ -511,7 +511,7 @@ function gatewaySecretInputPathCanWin(params: {
 }
 
 async function resolveConfiguredGatewaySecretInput(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   path: SupportedGatewaySecretInputPath;
   env: NodeJS.ProcessEnv;
 }): Promise<string | undefined> {
@@ -549,7 +549,7 @@ async function resolveConfiguredGatewaySecretInput(params: {
 }
 
 function assignResolvedGatewaySecretInput(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   path: SupportedGatewaySecretInputPath;
   value: string | undefined;
 }): void {
@@ -580,8 +580,8 @@ function assignResolvedGatewaySecretInput(params: {
 async function resolvePreferredGatewaySecretInputs(params: {
   context: ResolvedGatewayCallContext;
   env: NodeJS.ProcessEnv;
-  config: OpenClawConfig;
-}): Promise<OpenClawConfig> {
+  config: AlisioConfig;
+}): Promise<AlisioConfig> {
   let nextConfig = params.config;
   for (const path of ALL_GATEWAY_SECRET_INPUT_PATHS) {
     if (
@@ -663,7 +663,7 @@ async function resolveGatewayCredentialsFromConfigWithSecretInputs(params: {
 }
 
 export async function resolveGatewayCredentialsWithSecretInputs(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   explicitAuth?: ExplicitGatewayAuth;
   urlOverride?: string;
   urlOverrideSource?: "cli" | "env";

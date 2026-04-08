@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { coerceSecretRef } from "../config/types.secrets.js";
 import type { TelegramAccountConfig } from "../config/types.telegram.js";
 import { tryReadSecretFileSync } from "../infra/secret-file.js";
@@ -41,7 +41,7 @@ export function isNumericTelegramUserId(raw: string): boolean {
   return /^-?\d+$/.test(raw);
 }
 
-function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {
+function listConfiguredAccountIds(cfg: AlisioConfig): string[] {
   const ids = new Set<string>();
   for (const key of Object.keys(cfg.channels?.telegram?.accounts ?? {})) {
     if (key) {
@@ -51,7 +51,7 @@ function listConfiguredAccountIds(cfg: OpenClawConfig): string[] {
   return [...ids];
 }
 
-export function listTelegramAccountIds(cfg: OpenClawConfig): string[] {
+export function listTelegramAccountIds(cfg: AlisioConfig): string[] {
   return listCombinedAccountIds({
     configuredAccountIds: listConfiguredAccountIds(cfg),
     additionalAccountIds: listBoundAccountIds(cfg, "telegram"),
@@ -59,7 +59,7 @@ export function listTelegramAccountIds(cfg: OpenClawConfig): string[] {
   });
 }
 
-function resolveDefaultTelegramAccountId(cfg: OpenClawConfig): string {
+function resolveDefaultTelegramAccountId(cfg: AlisioConfig): string {
   const boundDefault = resolveDefaultAgentBoundAccountId(cfg, "telegram");
   if (boundDefault) {
     return boundDefault;
@@ -71,13 +71,13 @@ function resolveDefaultTelegramAccountId(cfg: OpenClawConfig): string {
 }
 
 function resolveTelegramAccountConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   accountId: string,
 ): TelegramAccountConfig | undefined {
   return resolveAccountEntry(cfg.channels?.telegram?.accounts, normalizeAccountId(accountId));
 }
 
-function mergeTelegramAccountConfig(cfg: OpenClawConfig, accountId: string): TelegramAccountConfig {
+function mergeTelegramAccountConfig(cfg: AlisioConfig, accountId: string): TelegramAccountConfig {
   const {
     accounts: _ignored,
     defaultAccount: _ignoredDefaultAccount,
@@ -113,7 +113,7 @@ function inspectTokenFile(pathValue: unknown): {
 }
 
 function canResolveEnvSecretRefInReadOnlyPath(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   provider: string;
   id: string;
 }): boolean {
@@ -136,7 +136,7 @@ function normalizeSecretInputString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function inspectTokenValue(params: { cfg: OpenClawConfig; value: unknown }): {
+function inspectTokenValue(params: { cfg: AlisioConfig; value: unknown }): {
   token: string;
   tokenSource: "config" | "env" | "none";
   tokenStatus: TelegramCredentialStatus;
@@ -169,7 +169,7 @@ function inspectTokenValue(params: { cfg: OpenClawConfig; value: unknown }): {
 }
 
 function inspectTelegramAccountPrimary(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   envToken?: string | null;
 }): InspectedTelegramAccount {
@@ -267,7 +267,7 @@ function inspectTelegramAccountPrimary(params: {
 }
 
 export function inspectTelegramAccount(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   envToken?: string | null;
 }): InspectedTelegramAccount {

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions.js";
 import * as sessions from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
@@ -19,7 +19,7 @@ import {
 } from "./queue.js";
 import { createMockTypingController } from "./test-helpers.js";
 
-function buildTestMemoryFlushPlan(params: { cfg?: OpenClawConfig; nowMs?: number }) {
+function buildTestMemoryFlushPlan(params: { cfg?: AlisioConfig; nowMs?: number }) {
   const defaults = params.cfg?.agents?.defaults?.compaction?.memoryFlush;
   if (defaults?.enabled === false) {
     return null;

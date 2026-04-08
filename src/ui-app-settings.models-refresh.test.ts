@@ -53,7 +53,6 @@ function createHost(): Parameters<typeof refreshActiveTab>[0] {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     },
     theme: "claw",
     themeMode: "system",

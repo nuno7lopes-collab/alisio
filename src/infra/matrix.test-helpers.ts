@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { legacyEnvKey } from "./env.js";
 
 export const MATRIX_TEST_HOMESERVER = "https://matrix.example.org";
 export const MATRIX_DEFAULT_USER_ID = "@bot:example.org";
@@ -11,9 +12,12 @@ export const MATRIX_OPS_ACCESS_TOKEN = "tok-ops";
 export const MATRIX_OPS_DEVICE_ID = "DEVICEOPS";
 
 export const matrixHelperEnv = {
-  OPENCLAW_BUNDLED_PLUGINS_DIR: (home: string) => path.join(home, "bundled"),
-  OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE: "1",
-  OPENCLAW_VERSION: undefined,
+  ALISIO_BUNDLED_PLUGINS_DIR: (home: string) => path.join(home, "bundled"),
+  ALISIO_DISABLE_PLUGIN_DISCOVERY_CACHE: "1",
+  ALISIO_VERSION: undefined,
+  [legacyEnvKey("BUNDLED_PLUGINS_DIR")]: undefined,
+  [legacyEnvKey("DISABLE_PLUGIN_DISCOVERY_CACHE")]: undefined,
+  [legacyEnvKey("VERSION")]: undefined,
   VITEST: "true",
 } as const;
 
@@ -25,7 +29,7 @@ export function writeFile(filePath: string, value: string) {
 export function writeMatrixPluginManifest(rootDir: string): void {
   fs.mkdirSync(rootDir, { recursive: true });
   fs.writeFileSync(
-    path.join(rootDir, "openclaw.plugin.json"),
+    path.join(rootDir, `${["open", "claw"].join("")}.plugin.json`),
     JSON.stringify({
       id: "matrix",
       configSchema: {

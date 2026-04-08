@@ -18,7 +18,7 @@ import {
   resolveNativeCommandsEnabled,
   resolveNativeSkillsEnabled,
 } from "openclaw/plugin-sdk/config-runtime";
-import type { OpenClawConfig, ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
+import type { ReplyToMode } from "openclaw/plugin-sdk/config-runtime";
 import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
 import {
   GROUP_POLICY_BLOCKED_LABEL,
@@ -83,7 +83,7 @@ import { formatThreadBindingDurationLabel } from "./thread-bindings.messages.js"
 export type MonitorDiscordOpts = {
   token?: string;
   accountId?: string;
-  config?: OpenClawConfig;
+  config?: DiscordConfig;
   runtime?: RuntimeEnv;
   abortSignal?: AbortSignal;
   mediaMaxMb?: number;
@@ -93,6 +93,7 @@ export type MonitorDiscordOpts = {
 };
 
 type DiscordVoiceManager = import("../voice/manager.js").DiscordVoiceManager;
+type DiscordConfig = Parameters<typeof resolveDiscordAccount>[0]["cfg"];
 
 type DiscordVoiceRuntimeModule = typeof import("../voice/manager.runtime.js");
 type DiscordProviderSessionRuntimeModule = typeof import("./provider-session.runtime.js");
@@ -230,7 +231,7 @@ function classifyAcpStatusProbeError(params: {
 }
 
 async function probeDiscordAcpBindingHealth(params: {
-  cfg: OpenClawConfig;
+  cfg: DiscordConfig;
   sessionKey: string;
   storedState?: "idle" | "running" | "error";
   lastActivityAt?: number;
@@ -1086,7 +1087,11 @@ export async function monitorDiscordProvider(opts: MonitorDiscordOpts = {}) {
   } finally {
     deactivateMessageHandler?.();
     autoPresenceController?.stop();
-    opts.setStatus?.({ connected: false });
+    opts.setStatus?.({
+      connected: false,
+      healthState: "stopped",
+      lastEventAt: Date.now(),
+    });
     if (onEarlyGatewayDebug) {
       earlyGatewayEmitter?.removeListener("debug", onEarlyGatewayDebug);
     }

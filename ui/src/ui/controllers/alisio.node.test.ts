@@ -1,14 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  verifyAlisioAccountEmailAuth,
   refreshAlisioAiProfile,
+  loadAlisioAccount,
   loadAlisioBootstrap,
   loadAlisioConnectors,
   loadAlisioDoctorSummary,
-  requestAlisioPasswordReset,
+  requestAlisioRecoveryEmail,
   saveAlisioAccount,
   saveAlisioOrganization,
   selectAlisioModelsServer,
-  signInAlisioAccount,
   signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
@@ -84,6 +85,45 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     setupStep: null,
     ...overrides,
   };
+}
+
+function createBootstrapSnapshot(
+  overrides: Partial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
+): NonNullable<AlisioState["alisioBootstrap"]> {
+  return {
+    account: {
+      profile: {
+        email: "",
+      },
+      preferences: {
+        language: "en",
+        theme: "system",
+      },
+      session: {
+        state: "signed_out",
+        profileCompleted: false,
+      },
+      devices: [],
+    },
+    ai: {
+      provider: "openai",
+      status: "disconnected",
+    },
+    organization: { mode: "none" },
+    connectors: { catalog: [], authorizations: [], summary: [] },
+    wizard: { running: false, sessionId: null },
+    ...overrides,
+  } as unknown as NonNullable<AlisioState["alisioBootstrap"]>;
+}
+
+function createDoctorSummary(
+  bootstrapOverrides: Partial<NonNullable<AlisioState["alisioBootstrap"]>> = {},
+) {
+  return {
+    bootstrap: createBootstrapSnapshot(bootstrapOverrides),
+    ok: true,
+    issues: [],
+  } as unknown as NonNullable<AlisioState["alisioDoctor"]>;
 }
 
 describe("alisio controller reconnect safety", () => {
@@ -201,7 +241,7 @@ describe("alisio controller reconnect safety", () => {
   it("reutiliza doctor recente e evita novo fetch imediato", async () => {
     const nowSpy = vi.spyOn(Date, "now");
     nowSpy.mockReturnValue(1_000);
-    const request = vi.fn(async () => ({ ok: true, issues: [] }));
+    const request = vi.fn(async () => createDoctorSummary());
     const state = createState({ client: createClient(request) });
 
     await loadAlisioDoctorSummary(state);
@@ -210,6 +250,76 @@ describe("alisio controller reconnect safety", () => {
 
     expect(request).toHaveBeenCalledTimes(1);
     nowSpy.mockRestore();
+  });
+
+  it("hidrata o bootstrap a partir do doctor sem fetch separado", async () => {
+    const doctor = createDoctorSummary({
+      account: {
+        profile: {
+          username: "doctor",
+          displayName: "Doctor",
+          email: "doctor@example.com",
+          avatarLabel: "D",
+          joinedAt: "2026-04-05T09:00:00.000Z",
+          plan: "free",
+        },
+        preferences: {
+          language: "pt-PT",
+          theme: "dark",
+        },
+        session: {
+          state: "signed_in",
+          profileCompleted: true,
+        },
+        devices: [],
+      },
+    });
+    const request = vi.fn(async () => doctor);
+    const state = createState({ client: createClient(request) });
+
+    await loadAlisioDoctorSummary(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(state.alisioBootstrap).toEqual(doctor.bootstrap);
+    expect(state.alisioAccount?.profile.email).toBe("doctor@example.com");
+  });
+
+  it("actualiza a conta sem refazer bootstrap nem doctor em leitura simples", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.get") {
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioBootstrap: createBootstrapSnapshot(),
+    });
+
+    await loadAlisioAccount(state);
+
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.account.get", {});
+    expect(state.alisioBootstrap?.account.profile.email).toBe("owner@example.com");
   });
 
   it("ignora um erro antigo ao refrescar telemetria AI depois de reconectar", async () => {
@@ -446,11 +556,15 @@ describe("alisio controller reconnect safety", () => {
       alisioTermsAccepted: true,
       alisioMarketingOptIn: true,
       alisioBirthdate: "1990-04-06",
+      alisioDoctor: createDoctorSummary(),
+      alisioDoctorError: "stale doctor",
     });
 
     await signOutAlisioAccount(state);
 
     expect(state.alisioBootstrap).toBeNull();
+    expect(state.alisioDoctor).toBeNull();
+    expect(state.alisioDoctorError).toBeNull();
     expect(state.alisioModelsLoading).toBe(false);
     expect(state.alisioModelsError).toBeNull();
     expect(state.alisioModels).toBeNull();
@@ -719,9 +833,9 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAuthEmail).toBe("owner@example.com");
   });
 
-  it("pede reset da palavra-passe com o email actual da conta", async () => {
+  it("pede o email de recuperação com o email actual da conta", async () => {
     const request = vi.fn(async (method: string, params: unknown) => {
-      if (method === "alisio.account.requestPasswordReset") {
+      if (method === "alisio.account.requestRecoveryEmail") {
         expect(params).toEqual({ email: "owner@example.com" });
         return {
           ok: true,
@@ -740,11 +854,35 @@ describe("alisio controller reconnect safety", () => {
       } as unknown as AlisioState["alisioAccount"],
     });
 
-    await requestAlisioPasswordReset(state);
+    await requestAlisioRecoveryEmail(state);
 
     expect(state.alisioAuthEmail).toBe("owner@example.com");
     expect(state.alisioAccountNotice).toBe("Reset sent");
     expect(state.alisioAccountError).toBeNull();
+  });
+
+  it("troca wording antigo de password por copy de recuperação de conta", async () => {
+    const request = vi.fn(async (method: string) => {
+      if (method === "alisio.account.requestRecoveryEmail") {
+        return {
+          ok: true,
+          message: "We've sent a password reset email.",
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioAccount: {
+        profile: {
+          email: "owner@example.com",
+        },
+      } as unknown as AlisioState["alisioAccount"],
+    });
+
+    await requestAlisioRecoveryEmail(state);
+
+    expect(state.alisioAccountNotice).toBe("Check your email for the Alisio recovery link.");
   });
 
   it("limpa o código pendente depois de verificar o email", async () => {
@@ -800,7 +938,7 @@ describe("alisio controller reconnect safety", () => {
       alisioAuthStage: "email-code",
     });
 
-    await signInAlisioAccount(state);
+    await verifyAlisioAccountEmailAuth(state);
 
     expect(state.alisioAuthCode).toBe("");
     expect(state.alisioAuthStage).toBe("entry");

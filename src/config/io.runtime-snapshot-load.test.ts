@@ -9,15 +9,15 @@ import {
   setRuntimeConfigSnapshotRefreshHandler,
   writeConfigFile,
 } from "./io.js";
-import type { OpenClawConfig } from "./types.js";
+import type { AlisioConfig } from "./types.js";
 
 function resetRuntimeConfigState(): void {
   setRuntimeConfigSnapshotRefreshHandler(null);
   resetConfigRuntimeState();
 }
 
-async function writeConfig(home: string, config: OpenClawConfig): Promise<string> {
-  const configPath = path.join(home, ".openclaw", "openclaw.json");
+async function writeConfig(home: string, config: AlisioConfig): Promise<string> {
+  const configPath = path.join(home, ".alisio", "alisio.json");
   await fs.mkdir(path.dirname(configPath), { recursive: true });
   await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
   return configPath;
@@ -25,7 +25,7 @@ async function writeConfig(home: string, config: OpenClawConfig): Promise<string
 
 describe("loadConfig runtime snapshot pinning", () => {
   it("pins the first successful load in memory until the snapshot is cleared", async () => {
-    await withTempHome("openclaw-config-runtime-load-pin-", async (home) => {
+    await withTempHome("alisio-config-runtime-load-pin-", async (home) => {
       await writeConfig(home, { gateway: { port: 18789 } });
 
       try {
@@ -45,7 +45,7 @@ describe("loadConfig runtime snapshot pinning", () => {
   });
 
   it("refreshes a plain runtime snapshot after writes without falling back to disk reads", async () => {
-    await withTempHome("openclaw-config-runtime-load-write-", async (home) => {
+    await withTempHome("alisio-config-runtime-load-write-", async (home) => {
       await writeConfig(home, { gateway: { port: 18789 } });
 
       try {

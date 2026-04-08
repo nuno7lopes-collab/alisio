@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 
 const resolveCommandSecretRefsViaGatewayMock = vi.hoisted(() => vi.fn());
 const listTelegramAccountIdsMock = vi.hoisted(() => vi.fn());
@@ -43,14 +43,14 @@ describe("doctor telegram provider warnings", () => {
       targetStatesByPath: {},
       hadUnresolvedTargets: false,
     }));
-    listTelegramAccountIdsMock.mockReset().mockImplementation((cfg: OpenClawConfig) => {
+    listTelegramAccountIdsMock.mockReset().mockImplementation((cfg: AlisioConfig) => {
       const telegram = cfg.channels?.telegram;
       const accountIds = Object.keys(telegram?.accounts ?? {});
       return accountIds.length > 0 ? ["default", ...accountIds] : ["default"];
     });
     inspectTelegramAccountMock
       .mockReset()
-      .mockImplementation((_params: { cfg: OpenClawConfig; accountId: string }) => ({
+      .mockImplementation((_params: { cfg: AlisioConfig; accountId: string }) => ({
         enabled: true,
         token: "tok",
         tokenSource: "config",
@@ -292,7 +292,7 @@ describe("doctor telegram provider warnings", () => {
           allowFrom: ["@testuser"],
         },
       },
-    } as unknown as OpenClawConfig);
+    } as unknown as AlisioConfig);
 
     const cfg = result.config as {
       channels?: {

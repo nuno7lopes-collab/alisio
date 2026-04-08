@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 
-OPENCLAW_DOCKER_LIVE_AUTH_ALL=(.claude .codex .minimax)
+ALISIO_DOCKER_LIVE_AUTH_ALL=(.claude .codex .minimax)
 
-openclaw_live_trim() {
+alisio_live_trim() {
   local value="${1:-}"
   value="${value#"${value%%[![:space:]]*}"}"
   value="${value%"${value##*[![:space:]]}"}"
   printf '%s' "$value"
 }
 
-openclaw_live_normalize_auth_dir() {
+alisio_live_normalize_auth_dir() {
   local value
-  value="$(openclaw_live_trim "${1:-}")"
+  value="$(alisio_live_trim "${1:-}")"
   [[ -n "$value" ]] || return 1
   value="${value#.}"
   printf '.%s' "$value"
 }
 
-openclaw_live_should_include_auth_dir_for_provider() {
+alisio_live_should_include_auth_dir_for_provider() {
   local provider
-  provider="$(openclaw_live_trim "${1:-}")"
+  provider="$(alisio_live_trim "${1:-}")"
   case "$provider" in
     anthropic | claude-cli)
       printf '%s\n' ".claude"
@@ -33,11 +33,11 @@ openclaw_live_should_include_auth_dir_for_provider() {
   esac
 }
 
-openclaw_live_collect_auth_dirs_from_csv() {
+alisio_live_collect_auth_dirs_from_csv() {
   local raw="${1:-}"
   local token normalized
   local -A seen=()
-  [[ -n "$(openclaw_live_trim "$raw")" ]] || return 0
+  [[ -n "$(alisio_live_trim "$raw")" ]] || return 0
   IFS=',' read -r -a tokens <<<"$raw"
   for token in "${tokens[@]}"; do
     while IFS= read -r normalized; do
@@ -46,17 +46,17 @@ openclaw_live_collect_auth_dirs_from_csv() {
         printf '%s\n' "$normalized"
         seen[$normalized]=1
       fi
-    done < <(openclaw_live_should_include_auth_dir_for_provider "$token")
+    done < <(alisio_live_should_include_auth_dir_for_provider "$token")
   done
 }
 
-openclaw_live_collect_auth_dirs_from_override() {
+alisio_live_collect_auth_dirs_from_override() {
   local raw token normalized
-  raw="$(openclaw_live_trim "${OPENCLAW_DOCKER_AUTH_DIRS:-}")"
+  raw="$(alisio_live_trim "${ALISIO_DOCKER_AUTH_DIRS:-}")"
   [[ -n "$raw" ]] || return 1
   case "$raw" in
     all)
-      printf '%s\n' "${OPENCLAW_DOCKER_LIVE_AUTH_ALL[@]}"
+      printf '%s\n' "${ALISIO_DOCKER_LIVE_AUTH_ALL[@]}"
       return 0
       ;;
     none)
@@ -65,20 +65,20 @@ openclaw_live_collect_auth_dirs_from_override() {
   esac
   IFS=',' read -r -a tokens <<<"$raw"
   for token in "${tokens[@]}"; do
-    normalized="$(openclaw_live_normalize_auth_dir "$token")" || continue
+    normalized="$(alisio_live_normalize_auth_dir "$token")" || continue
     printf '%s\n' "$normalized"
   done | awk '!seen[$0]++'
   return 0
 }
 
-openclaw_live_collect_auth_dirs() {
-  if openclaw_live_collect_auth_dirs_from_override; then
+alisio_live_collect_auth_dirs() {
+  if alisio_live_collect_auth_dirs_from_override; then
     return 0
   fi
-  printf '%s\n' "${OPENCLAW_DOCKER_LIVE_AUTH_ALL[@]}"
+  printf '%s\n' "${ALISIO_DOCKER_LIVE_AUTH_ALL[@]}"
 }
 
-openclaw_live_join_csv() {
+alisio_live_join_csv() {
   local first=1 value
   for value in "$@"; do
     [[ -n "$value" ]] || continue

@@ -2,7 +2,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { jsonResult } from "../../agents/tools/common.js";
 import type { ChannelPlugin } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
 import { createOutboundTestPlugin, createTestRegistry } from "../../test-utils/channel-plugins.js";
 import { runMessageAction } from "./message-action-runner.js";
@@ -102,7 +102,7 @@ describe("runMessageAction plugin dispatch", () => {
               enabled: true,
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         action: "pin",
         params: {
           channel: "feishu",
@@ -118,7 +118,7 @@ describe("runMessageAction plugin dispatch", () => {
               enabled: true,
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         action: "list-pins",
         params: {
           channel: "feishu",
@@ -148,9 +148,9 @@ describe("runMessageAction plugin dispatch", () => {
     });
 
     it("routes execution context ids into plugin handleAction", async () => {
-      const stateDir = path.join("/tmp", "openclaw-plugin-dispatch-media-roots");
+      const stateDir = path.join("/tmp", "alisio-plugin-dispatch-media-roots");
       const expectedWorkspaceRoot = path.resolve(stateDir, "workspace-alpha");
-      vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
+      vi.stubEnv("ALISIO_STATE_DIR", stateDir);
 
       await runMessageAction({
         cfg: {
@@ -159,7 +159,7 @@ describe("runMessageAction plugin dispatch", () => {
               enabled: true,
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         action: "pin",
         params: {
           channel: "feishu",
@@ -234,7 +234,7 @@ describe("runMessageAction plugin dispatch", () => {
             enabled: true,
           },
         },
-      } as OpenClawConfig;
+      } as AlisioConfig;
 
       const result = await runMessageAction({
         cfg,
@@ -289,7 +289,7 @@ describe("runMessageAction plugin dispatch", () => {
             enabled: true,
           },
         },
-      } as OpenClawConfig;
+      } as AlisioConfig;
 
       const result = await runMessageAction({
         cfg,
@@ -370,7 +370,7 @@ describe("runMessageAction plugin dispatch", () => {
             enabled: true,
           },
         },
-      } as OpenClawConfig;
+      } as AlisioConfig;
 
       const card = {
         type: "AdaptiveCard",
@@ -447,7 +447,7 @@ describe("runMessageAction plugin dispatch", () => {
               botToken: "tok",
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         action: "poll",
         params: {
           channel: "telegram",
@@ -538,7 +538,7 @@ describe("runMessageAction plugin dispatch", () => {
               token: "tok",
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         action: "poll",
         params: {
           channel: "discord",
@@ -619,7 +619,7 @@ describe("runMessageAction plugin dispatch", () => {
         buttons: [{ label: "A", customId: "a" }],
       };
       const result = await runMessageAction({
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         action: "send",
         params: {
           channel: "discord",
@@ -638,7 +638,7 @@ describe("runMessageAction plugin dispatch", () => {
     it("throws on invalid components JSON strings", async () => {
       await expect(
         runMessageAction({
-          cfg: {} as OpenClawConfig,
+          cfg: {} as AlisioConfig,
           action: "send",
           params: {
             channel: "discord",
@@ -698,7 +698,7 @@ describe("runMessageAction plugin dispatch", () => {
       {
         name: "uses defaultAccountId override",
         args: {
-          cfg: {} as OpenClawConfig,
+          cfg: {} as AlisioConfig,
           defaultAccountId: "ops",
         },
         expectedAccountId: "ops",
@@ -710,7 +710,7 @@ describe("runMessageAction plugin dispatch", () => {
             bindings: [
               { agentId: "agent-b", match: { channel: "discord", accountId: "account-b" } },
             ],
-          } as OpenClawConfig,
+          } as AlisioConfig,
           agentId: "agent-b",
         },
         expectedAccountId: "account-b",

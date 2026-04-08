@@ -5,7 +5,7 @@ import { installedPluginRoot } from "../../test/helpers/bundled-plugin-paths.js"
 import {
   clearRuntimeConfigSnapshot,
   setRuntimeConfigSnapshot,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../config/config.js";
 import { createFixtureSuite } from "../test-utils/fixture-suite.js";
 import { createTempHomeEnv, type TempHomeEnv } from "../test-utils/temp-home.js";
@@ -391,7 +391,7 @@ describe("applySkillEnvOverrides", () => {
     await writeEnvSkill(workspaceDir);
 
     const entries = loadWorkspaceSkillEntries(workspaceDir, resolveTestSkillDirs(workspaceDir));
-    const sourceConfig: OpenClawConfig = {
+    const sourceConfig: AlisioConfig = {
       skills: {
         entries: {
           "env-skill": {
@@ -404,7 +404,7 @@ describe("applySkillEnvOverrides", () => {
         },
       },
     };
-    const runtimeConfig: OpenClawConfig = {
+    const runtimeConfig: AlisioConfig = {
       skills: {
         entries: {
           "env-skill": {

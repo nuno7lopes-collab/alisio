@@ -6,7 +6,7 @@ import {
   type ThinkLevel,
   type VerboseLevel,
 } from "../../auto-reply/thinking.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import {
   evaluateSessionFreshness,
   loadSessionStore,
@@ -42,7 +42,7 @@ type SessionKeyResolution = {
 };
 
 export function resolveSessionKeyForRequest(opts: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   to?: string;
   sessionId?: string;
   sessionKey?: string;
@@ -119,7 +119,7 @@ export function resolveSessionKeyForRequest(opts: {
 }
 
 export function resolveSession(opts: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   to?: string;
   sessionId?: string;
   sessionKey?: string;

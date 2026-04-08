@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import { runCapability } from "./runner.js";
 import { withVideoFixture } from "./runner.test-utils.js";
@@ -41,7 +41,7 @@ describe("runCapability video provider wiring", () => {
             },
           },
         },
-      } as unknown as OpenClawConfig;
+      } as unknown as AlisioConfig;
 
       const result = await runCapability({
         capability: "video",
@@ -105,7 +105,7 @@ describe("runCapability video provider wiring", () => {
                   },
                 },
               },
-            } as unknown as OpenClawConfig;
+            } as unknown as AlisioConfig;
 
             const result = await runCapability({
               capability: "video",

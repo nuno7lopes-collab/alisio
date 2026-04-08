@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CONTEXT_WINDOW_HARD_MIN_TOKENS } from "../agents/context-window-guard.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { defaultRuntime } from "../runtime.js";
 import {
   applyCustomApiConfig,
@@ -97,7 +97,7 @@ function getFirstFetchVerificationCall(fetchMock: ReturnType<typeof vi.fn>) {
 
 function buildCustomProviderConfig(contextWindow?: number) {
   if (contextWindow === undefined) {
-    return {} as OpenClawConfig;
+    return {} as AlisioConfig;
   }
   return {
     models: {
@@ -119,7 +119,7 @@ function buildCustomProviderConfig(contextWindow?: number) {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 function applyCustomModelConfigWithContextWindow(contextWindow?: number) {
@@ -617,7 +617,7 @@ describe("applyCustomApiConfig", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       baseUrl: "https://llm.example.com/v1",
       modelId: "foo-large",
       compatibility: "openai",
@@ -647,7 +647,7 @@ describe("applyCustomApiConfig", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       baseUrl: "https://my-resource.openai.azure.com",
       modelId: "o3-mini",
       compatibility: "openai",

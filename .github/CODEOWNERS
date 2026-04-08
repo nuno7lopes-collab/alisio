@@ -47,8 +47,9 @@
 /docs/reference/secretref-user-supplied-credentials-matrix.json @openclaw/secops
 
 # Release workflow and its supporting release-path checks.
-/.github/workflows/openclaw-npm-release.yml @openclaw/openclaw-release-managers
+/.github/workflows/alisio-npm-release.yml @openclaw/openclaw-release-managers
 /docs/reference/RELEASING.md @openclaw/openclaw-release-managers
-/scripts/openclaw-npm-publish.sh @openclaw/openclaw-release-managers
-/scripts/openclaw-npm-release-check.ts @openclaw/openclaw-release-managers
+/scripts/alisio-npm-publish.sh @openclaw/openclaw-release-managers
+/scripts/alisio-npm-release-check.ts @openclaw/openclaw-release-managers
+/scripts/alisio-npm-postpublish-verify.ts @openclaw/openclaw-release-managers
 /scripts/release-check.ts @openclaw/openclaw-release-managers

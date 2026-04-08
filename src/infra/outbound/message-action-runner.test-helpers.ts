@@ -1,5 +1,5 @@
 import type { ChannelPlugin } from "../../channels/plugins/types.plugin.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
 import { createPluginRuntime, type PluginRuntime } from "../../plugins/runtime/index.js";
 import { loadBundledPluginTestApiSync } from "../../test-utils/bundled-plugin-public-surface.js";
@@ -21,7 +21,7 @@ export const slackConfig = {
       appToken: "xapp-test",
     },
   },
-} as OpenClawConfig;
+} as AlisioConfig;
 
 export const telegramConfig = {
   channels: {
@@ -29,7 +29,7 @@ export const telegramConfig = {
       botToken: "telegram-test",
     },
   },
-} as OpenClawConfig;
+} as AlisioConfig;
 
 export function installMessageActionRunnerTestRegistry() {
   const runtime = createPluginRuntime();

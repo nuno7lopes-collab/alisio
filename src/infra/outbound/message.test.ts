@@ -32,7 +32,7 @@ describe("sendMessage", () => {
         const match = sessionKey?.match(/^agent:([^:]+)/i);
         return match?.[1] ?? "main";
       },
-      resolveAgentWorkspaceDir: () => "/tmp/openclaw-test-workspace",
+      resolveAgentWorkspaceDir: () => "/tmp/alisio-test-workspace",
     }));
     vi.doMock("../../config/plugin-auto-enable.js", () => ({
       applyPluginAutoEnable: ({ config }: { config: unknown }) => ({ config, changes: [] }),

@@ -98,6 +98,11 @@ type SupabaseConfig = {
   profilesTable: string;
 };
 
+export const ALISIO_REQUIRED_SUPABASE_ENV_VARS = [
+  "ALISIO_SUPABASE_URL",
+  "ALISIO_SUPABASE_ANON_KEY",
+] as const;
+
 type SupabaseSessionResponse = {
   access_token?: string;
   refresh_token?: string;
@@ -170,12 +175,18 @@ function buildCodeChallenge(verifier: string) {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
+export function listMissingRequiredAlisioCloudEnvVars(
+  env: NodeJS.ProcessEnv,
+): Array<(typeof ALISIO_REQUIRED_SUPABASE_ENV_VARS)[number]> {
+  return ALISIO_REQUIRED_SUPABASE_ENV_VARS.filter((key) => !(env[key]?.trim() || ""));
+}
+
 function resolveSupabaseConfig(env: NodeJS.ProcessEnv): SupabaseConfig | null {
-  const url = env.ALISIO_SUPABASE_URL?.trim() || "";
-  const anonKey = env.ALISIO_SUPABASE_ANON_KEY?.trim() || "";
-  if (!url || !anonKey) {
+  if (listMissingRequiredAlisioCloudEnvVars(env).length > 0) {
     return null;
   }
+  const url = env.ALISIO_SUPABASE_URL?.trim() || "";
+  const anonKey = env.ALISIO_SUPABASE_ANON_KEY?.trim() || "";
   return {
     url: url.replace(/\/+$/, ""),
     anonKey,
@@ -1171,11 +1182,11 @@ export async function requestAlisioCloudPasswordReset(params: {
   if (!result.ok) {
     throw new AlisioAccountCloudError(
       "password_reset_failed",
-      "Alisio could not start password recovery right now.",
+      "Alisio could not start account recovery right now.",
     );
   }
   return {
     ok: true,
-    message: "If this Alisio account exists, a password reset email is on its way.",
+    message: "If this Alisio account exists, a recovery email is on its way.",
   };
 }

@@ -20,8 +20,8 @@ for (const arg of process.argv.slice(2)) {
 
 const env = {
   ...process.env,
-  OPENCLAW_LIVE_TEST: process.env.OPENCLAW_LIVE_TEST || "1",
-  OPENCLAW_LIVE_TEST_QUIET: quietOverride ?? process.env.OPENCLAW_LIVE_TEST_QUIET ?? "1",
+  ALISIO_LIVE_TEST: process.env.ALISIO_LIVE_TEST || "1",
+  ALISIO_LIVE_TEST_QUIET: quietOverride ?? process.env.ALISIO_LIVE_TEST_QUIET ?? "1",
 };
 
 const command = process.platform === "win32" ? "pnpm.cmd" : "pnpm";

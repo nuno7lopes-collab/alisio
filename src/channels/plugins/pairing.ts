@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { RuntimeEnv } from "../../runtime.js";
 import {
   type ChannelId,
@@ -51,7 +51,7 @@ export function resolvePairingChannel(raw: unknown): ChannelId {
 export async function notifyPairingApproved(params: {
   channelId: ChannelId;
   id: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime?: RuntimeEnv;
   /** Extension channels can pass their adapter directly to bypass registry lookup. */
   pairingAdapter?: ChannelPairingAdapter;
@@ -65,5 +65,22 @@ export async function notifyPairingApproved(params: {
     cfg: params.cfg,
     id: params.id,
     runtime: params.runtime,
+  });
+}
+
+export async function applyPairingApprovalToConfig(params: {
+  channelId: ChannelId;
+  id: string;
+  cfg: AlisioConfig;
+  accountId?: string;
+}): Promise<AlisioConfig> {
+  const adapter = getPairingAdapter(params.channelId);
+  if (!adapter?.applyApprovalToConfig) {
+    return params.cfg;
+  }
+  return await adapter.applyApprovalToConfig({
+    cfg: params.cfg,
+    id: params.id,
+    accountId: params.accountId,
   });
 }

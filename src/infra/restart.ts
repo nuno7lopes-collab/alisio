@@ -7,6 +7,7 @@ import {
   resolveGatewaySystemdServiceName,
 } from "../daemon/constants.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import { cleanStaleGatewayProcessesSync, findGatewayPidsOnPortSync } from "./restart-stale-pids.js";
 import { relaunchGatewayScheduledTask } from "./windows-task-restart.js";
 
@@ -292,7 +293,7 @@ function normalizeSystemdUnit(raw?: string, profile?: string): string {
   return unit.endsWith(".service") ? unit : `${unit}.service`;
 }
 
-export function triggerOpenClawRestart(): RestartAttempt {
+export function triggerAlisioRestart(): RestartAttempt {
   if (process.env.VITEST || process.env.NODE_ENV === "test") {
     return { ok: true, method: "supervisor", detail: "test mode" };
   }
@@ -301,9 +302,16 @@ export function triggerOpenClawRestart(): RestartAttempt {
 
   const tried: string[] = [];
   if (process.platform === "linux") {
+    const profile = readEnv("ALISIO_PROFILE", {
+      fallback: legacyEnvKey("PROFILE"),
+      description: "gateway profile for restart",
+    });
     const unit = normalizeSystemdUnit(
-      process.env.OPENCLAW_SYSTEMD_UNIT,
-      process.env.OPENCLAW_PROFILE,
+      readEnv("ALISIO_SYSTEMD_UNIT", {
+        fallback: legacyEnvKey("SYSTEMD_UNIT"),
+        description: "systemd unit override",
+      }),
+      profile,
     );
     const userArgs = ["--user", "restart", unit];
     tried.push(`systemctl ${userArgs.join(" ")}`);
@@ -343,8 +351,16 @@ export function triggerOpenClawRestart(): RestartAttempt {
   }
 
   const label =
-    process.env.OPENCLAW_LAUNCHD_LABEL ||
-    resolveGatewayLaunchAgentLabel(process.env.OPENCLAW_PROFILE);
+    readEnv("ALISIO_LAUNCHD_LABEL", {
+      fallback: legacyEnvKey("LAUNCHD_LABEL"),
+      description: "launchd label override",
+    }) ||
+    resolveGatewayLaunchAgentLabel(
+      readEnv("ALISIO_PROFILE", {
+        fallback: legacyEnvKey("PROFILE"),
+        description: "gateway profile for launchd restart",
+      }),
+    );
   const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
   const domain = uid !== undefined ? `gui/${uid}` : "gui/501";
   const target = `${domain}/${label}`;

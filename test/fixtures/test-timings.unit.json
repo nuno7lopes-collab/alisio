@@ -903,7 +903,7 @@
       "durationMs": 41.73974609375,
       "testCount": 19
     },
-    "src/infra/openclaw-root.test.ts": {
+    "src/infra/alisio-root.test.ts": {
       "durationMs": 41.5361328125,
       "testCount": 10
     },

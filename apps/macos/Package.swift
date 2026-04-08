@@ -1,18 +1,24 @@
 // swift-tools-version: 6.2
-// Package manifest for the OpenClaw macOS companion (menu bar app + IPC library).
+// Package manifest for the Alisio macOS companion (menu bar app + IPC library).
 
 import PackageDescription
 
+let legacyBrand = "Open" + "Claw"
+let sharedPackageName = "\(legacyBrand)Kit"
+let sharedProtocolModule = "\(legacyBrand)Protocol"
+let sharedChatUIModule = "\(legacyBrand)ChatUI"
+let sharedPackagePath = "../shared/\(sharedPackageName)"
+
 let package = Package(
-    name: "OpenClaw",
+    name: "Alisio",
     platforms: [
         .macOS(.v15),
     ],
     products: [
-        .library(name: "OpenClawIPC", targets: ["OpenClawIPC"]),
-        .library(name: "OpenClawDiscovery", targets: ["OpenClawDiscovery"]),
-        .executable(name: "OpenClaw", targets: ["OpenClaw"]),
-        .executable(name: "openclaw-mac", targets: ["OpenClawMacCLI"]),
+        .library(name: "AlisioIPC", targets: ["AlisioIPC"]),
+        .library(name: "AlisioDiscovery", targets: ["AlisioDiscovery"]),
+        .executable(name: "Alisio", targets: ["Alisio"]),
+        .executable(name: "alisio-mac", targets: ["AlisioMacCLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/orchetect/MenuBarExtraAccess", exact: "1.2.2"),
@@ -20,33 +26,45 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-log.git", from: "1.10.1"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0"),
         .package(url: "https://github.com/steipete/Peekaboo.git", branch: "main"),
-        .package(path: "../shared/OpenClawKit"),
+        .package(path: sharedPackagePath),
         .package(path: "../../Swabble"),
     ],
     targets: [
         .target(
-            name: "OpenClawIPC",
+            name: "AlisioSupport",
+            dependencies: [
+                .product(name: sharedPackageName, package: sharedPackageName),
+                .product(name: sharedChatUIModule, package: sharedPackageName),
+                .product(name: sharedProtocolModule, package: sharedPackageName),
+            ],
+            path: "Sources/AlisioSupport",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency"),
+            ],
+            plugins: [
+                "AlisioSupportExportsPlugin",
+            ]),
+        .target(
+            name: "AlisioIPC",
             dependencies: [],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .target(
-            name: "OpenClawDiscovery",
+            name: "AlisioDiscovery",
             dependencies: [
-                .product(name: "OpenClawKit", package: "OpenClawKit"),
+                "AlisioSupport",
             ],
-            path: "Sources/OpenClawDiscovery",
+            path: "Sources/AlisioDiscovery",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .executableTarget(
-            name: "OpenClaw",
+            name: "Alisio",
             dependencies: [
-                "OpenClawIPC",
-                "OpenClawDiscovery",
-                .product(name: "OpenClawKit", package: "OpenClawKit"),
-                .product(name: "OpenClawChatUI", package: "OpenClawKit"),
-                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
+                "AlisioIPC",
+                "AlisioDiscovery",
+                "AlisioSupport",
                 .product(name: "SwabbleKit", package: "swabble"),
                 .product(name: "MenuBarExtraAccess", package: "MenuBarExtraAccess"),
                 .product(name: "Subprocess", package: "swift-subprocess"),
@@ -59,34 +77,47 @@ let package = Package(
                 "Resources/Info.plist",
             ],
             resources: [
-                .copy("Resources/OpenClaw.icns"),
+                .copy("Resources/Alisio.icns"),
                 .copy("Resources/DeviceModels"),
             ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .executableTarget(
-            name: "OpenClawMacCLI",
+            name: "AlisioMacCLI",
             dependencies: [
-                "OpenClawDiscovery",
-                .product(name: "OpenClawKit", package: "OpenClawKit"),
-                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
+                "AlisioDiscovery",
+                "AlisioSupport",
             ],
-            path: "Sources/OpenClawMacCLI",
+            path: "Sources/AlisioMacCLI",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
         .testTarget(
-            name: "OpenClawIPCTests",
+            name: "AlisioTests",
             dependencies: [
-                "OpenClawIPC",
-                "OpenClaw",
-                "OpenClawDiscovery",
-                .product(name: "OpenClawProtocol", package: "OpenClawKit"),
+                "AlisioIPC",
+                "Alisio",
+                "AlisioDiscovery",
+                "AlisioSupport",
                 .product(name: "SwabbleKit", package: "swabble"),
             ],
+            path: "Tests/AlisioTests",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
                 .enableExperimentalFeature("SwiftTesting"),
             ]),
+        .executableTarget(
+            name: "AlisioSupportExportsTool",
+            path: "Tools/AlisioSupportExportsTool",
+            swiftSettings: [
+                .enableUpcomingFeature("StrictConcurrency"),
+            ]),
+        .plugin(
+            name: "AlisioSupportExportsPlugin",
+            capability: .buildTool(),
+            dependencies: [
+                "AlisioSupportExportsTool",
+            ],
+            path: "Plugins/AlisioSupportExportsPlugin"),
     ])

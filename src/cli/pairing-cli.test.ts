@@ -4,6 +4,9 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 const listChannelPairingRequests = vi.fn();
 const approveChannelPairingCode = vi.fn();
 const notifyPairingApproved = vi.fn();
+const applyPairingApprovalToConfig = vi.fn(async ({ cfg }: { cfg: unknown }) => cfg);
+const removeChannelAllowFromStoreEntry = vi.fn(async () => undefined);
+const writeConfigFile = vi.fn(async () => undefined);
 const pairingIdLabels: Record<string, string> = {
   telegram: "telegramUserId",
   discord: "discordUserId",
@@ -28,12 +31,14 @@ const listPairingChannels = vi.fn(() => ["telegram", "discord", "imessage"]);
 vi.mock("../pairing/pairing-store.js", () => ({
   listChannelPairingRequests,
   approveChannelPairingCode,
+  removeChannelAllowFromStoreEntry,
 }));
 
 vi.mock("../channels/plugins/pairing.js", () => ({
   listPairingChannels,
   notifyPairingApproved,
   getPairingAdapter,
+  applyPairingApprovalToConfig,
 }));
 
 vi.mock("../channels/plugins/index.js", () => ({
@@ -42,6 +47,7 @@ vi.mock("../channels/plugins/index.js", () => ({
 
 vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn().mockReturnValue({}),
+  writeConfigFile,
 }));
 
 describe("pairing cli", () => {
@@ -70,6 +76,12 @@ describe("pairing cli", () => {
     getPairingAdapter.mockClear();
     listPairingChannels.mockClear();
     notifyPairingApproved.mockResolvedValue(undefined);
+    applyPairingApprovalToConfig.mockClear();
+    applyPairingApprovalToConfig.mockImplementation(async ({ cfg }: { cfg: unknown }) => cfg);
+    removeChannelAllowFromStoreEntry.mockClear();
+    removeChannelAllowFromStoreEntry.mockResolvedValue(undefined);
+    writeConfigFile.mockClear();
+    writeConfigFile.mockResolvedValue(undefined);
   });
 
   function createProgram() {

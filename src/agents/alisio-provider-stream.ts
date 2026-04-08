@@ -11,6 +11,7 @@ import {
   resolveAlisioDynamicProviderSource,
   type AlisioDynamicProviderSource,
 } from "../infra/alisio-model-providers.js";
+import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
 import { CUSTOM_LOCAL_AUTH_MARKER } from "./model-auth-markers.js";
 import {
   buildAssistantMessageWithZeroUsage,
@@ -207,13 +208,6 @@ function beginTextStream(params: {
   return stream;
 }
 
-function resolveOpenAiChatUrl(baseUrl: string): string {
-  const normalized = baseUrl.replace(/\/+$/, "");
-  return normalized.toLowerCase().endsWith("/v1")
-    ? `${normalized}/chat/completions`
-    : `${normalized}/v1/chat/completions`;
-}
-
 function resolveOllamaChatUrl(baseUrl: string): string {
   const normalized = baseUrl.replace(/\/+$/, "");
   return normalized.toLowerCase().endsWith("/api")
@@ -245,10 +239,14 @@ function resolveOpenAiDeltaText(payload: unknown): string {
 
 async function streamOpenAiCompatibleSource(params: {
   model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "server-openai" }>;
+  source: Extract<AlisioDynamicProviderSource, { kind: "current-openai" | "server-openai" }>;
   context: StreamContext;
   options?: StreamOptions;
 }): Promise<AssistantMessageEventStream> {
+  const sourceLabel =
+    params.source.kind === "current-openai"
+      ? "local OpenAI-compatible runtime"
+      : "remote OpenAI-compatible server";
   return beginTextStream({
     model: params.model,
     run: async ({ pushText }) => {
@@ -261,30 +259,34 @@ async function streamOpenAiCompatibleSource(params: {
       if (apiKey) {
         headers.authorization = `Bearer ${apiKey}`;
       }
-      const response = await fetch(resolveOpenAiChatUrl(params.source.baseUrl), {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: params.model.id,
-          messages: buildRuntimeMessages(params.context),
-          stream: true,
-          ...(typeof params.options?.temperature === "number"
-            ? { temperature: params.options.temperature }
-            : {}),
-          ...(typeof params.options?.maxTokens === "number"
-            ? { max_tokens: params.options.maxTokens }
-            : {}),
-        }),
-        signal: params.options?.signal,
+      const response = await fetchOpenAiCompatibleEndpoint({
+        baseUrl: params.source.baseUrl,
+        endpoint: "chat/completions",
+        init: {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: params.model.id,
+            messages: buildRuntimeMessages(params.context),
+            stream: true,
+            ...(typeof params.options?.temperature === "number"
+              ? { temperature: params.options.temperature }
+              : {}),
+            ...(typeof params.options?.maxTokens === "number"
+              ? { max_tokens: params.options.maxTokens }
+              : {}),
+          }),
+          signal: params.options?.signal,
+        },
       });
       if (!response.ok) {
         const message = await response.text().catch(() => response.statusText);
         throw new Error(
-          `remote OpenAI-compatible server request failed (${response.status}): ${message || response.statusText}`,
+          `${sourceLabel} request failed (${response.status}): ${message || response.statusText}`,
         );
       }
       if (!response.body) {
-        throw new Error("remote OpenAI-compatible server returned no body");
+        throw new Error(`${sourceLabel} returned no body`);
       }
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
       if (!contentType.includes("text/event-stream")) {
@@ -509,6 +511,14 @@ export async function resolveAlisioProviderStream(
   }
   if (source.kind === "current-llama") {
     return await streamCurrentLlamaSource({
+      model,
+      source,
+      context,
+      options,
+    });
+  }
+  if (source.kind === "current-openai") {
+    return await streamOpenAiCompatibleSource({
       model,
       source,
       context,

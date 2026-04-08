@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createOpenClawCodingTools } from "./pi-tools.js";
 import {
   expectReadWriteEditTools,
@@ -26,7 +26,7 @@ const APPLY_PATCH_PAYLOAD = `*** Begin Patch
 *** End Patch`;
 
 function resolveApplyPatchTool(
-  params: Pick<CodingToolsInput, "sandbox" | "workspaceDir"> & { config: OpenClawConfig },
+  params: Pick<CodingToolsInput, "sandbox" | "workspaceDir"> & { config: AlisioConfig },
 ): ToolWithExecute {
   const tools = createOpenClawCodingTools({
     sandbox: params.sandbox,
@@ -62,7 +62,7 @@ describe("tools.fs.workspaceOnly", () => {
     await withUnsafeMountedSandboxHarness(async ({ sandboxRoot, agentRoot, sandbox }) => {
       await fs.writeFile(path.join(agentRoot, "secret.txt"), "shh", "utf8");
 
-      const cfg = { tools: { fs: { workspaceOnly: true } } } as unknown as OpenClawConfig;
+      const cfg = { tools: { fs: { workspaceOnly: true } } } as unknown as AlisioConfig;
       const tools = createOpenClawCodingTools({ sandbox, workspaceDir: sandboxRoot, config: cfg });
       const { readTool, writeTool, editTool } = expectReadWriteEditTools(tools);
 
@@ -94,7 +94,7 @@ describe("tools.fs.workspaceOnly", () => {
             allow: ["read", "write", "exec"],
             exec: { applyPatch: {} },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       });
 
       await expect(applyPatchTool.execute("t1", { input: APPLY_PATCH_PAYLOAD })).rejects.toThrow(
@@ -116,7 +116,7 @@ describe("tools.fs.workspaceOnly", () => {
             allow: ["read", "write", "exec"],
             exec: { applyPatch: { workspaceOnly: false } },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       });
 
       await applyPatchTool.execute("t2", { input: APPLY_PATCH_PAYLOAD });

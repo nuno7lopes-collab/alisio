@@ -3,6 +3,7 @@ import {
   createNestedAllowlistOverrideResolver,
 } from "openclaw/plugin-sdk/allowlist-config-edit";
 import { createApproverRestrictedNativeApprovalAdapter } from "openclaw/plugin-sdk/approval-runtime";
+import { createAccountStatusSink } from "openclaw/plugin-sdk/channel-lifecycle";
 import { createPairingPrefixStripper } from "openclaw/plugin-sdk/channel-pairing";
 import { createAllowlistProviderRouteAllowlistWarningCollector } from "openclaw/plugin-sdk/channel-policy";
 import { attachChannelToResult } from "openclaw/plugin-sdk/channel-send-result";
@@ -32,7 +33,6 @@ import {
   projectCredentialSnapshotFields,
   resolveConfiguredFromCredentialStatuses,
   type ChannelMessageActionAdapter,
-  type OpenClawConfig,
 } from "openclaw/plugin-sdk/telegram-core";
 import {
   listTelegramAccountIds,
@@ -67,6 +67,7 @@ import * as monitorModule from "./monitor.js";
 import { looksLikeTelegramTargetId, normalizeTelegramMessagingTarget } from "./normalize.js";
 import { sendTelegramPayloadMessages } from "./outbound-adapter.js";
 import { parseTelegramReplyToMessageId, parseTelegramThreadId } from "./outbound-params.js";
+import { buildTelegramOwnerAllowlistConfig } from "./owner-allowlist.js";
 import * as probeModule from "./probe.js";
 import type { TelegramProbe } from "./probe.js";
 import { resolveTelegramReactionLevel } from "./reaction-level.js";
@@ -88,6 +89,8 @@ import {
   setTelegramThreadBindingMaxAgeBySessionKey,
 } from "./thread-bindings.js";
 import { resolveTelegramToken } from "./token.js";
+
+type TelegramConfig = Parameters<typeof resolveTelegramAccount>[0]["cfg"];
 
 type TelegramSendFn = typeof sendMessageTelegram;
 
@@ -143,7 +146,7 @@ function resolveTelegramTokenHelper() {
 }
 
 function buildTelegramSendOptions(params: {
-  cfg: OpenClawConfig;
+  cfg: TelegramConfig;
   mediaUrl?: string | null;
   mediaLocalRoots?: readonly string[] | null;
   accountId?: string | null;
@@ -170,7 +173,7 @@ function buildTelegramSendOptions(params: {
 }
 
 async function sendTelegramOutbound(params: {
-  cfg: OpenClawConfig;
+  cfg: TelegramConfig;
   to: string;
   text: string;
   mediaUrl?: string | null;
@@ -298,7 +301,7 @@ function parseTelegramExplicitTarget(raw: string) {
 }
 
 function buildTelegramBaseSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: TelegramConfig;
   agentId: string;
   accountId?: string | null;
   peer: RoutePeer;
@@ -307,7 +310,7 @@ function buildTelegramBaseSessionKey(params: {
 }
 
 function resolveTelegramOutboundSessionRoute(params: {
-  cfg: OpenClawConfig;
+  cfg: TelegramConfig;
   agentId: string;
   accountId?: string | null;
   target: string;
@@ -358,7 +361,7 @@ function resolveTelegramOutboundSessionRoute(params: {
 }
 
 async function resolveTelegramTargets(params: {
-  cfg: OpenClawConfig;
+  cfg: TelegramConfig;
   accountId?: string | null;
   inputs: string[];
   kind: "user" | "group";
@@ -607,12 +610,20 @@ export const telegramPlugin = createChatChannelPlugin({
       TelegramProbe,
       unknown
     >({
-      defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID),
+      defaultRuntime: createDefaultChannelRuntimeState(DEFAULT_ACCOUNT_ID, {
+        connected: false,
+        reconnectAttempts: 0,
+        lastConnectedAt: null,
+        lastDisconnect: null,
+        lastEventAt: null,
+        healthState: "stopped",
+      }),
       collectStatusIssues: collectTelegramStatusIssues,
       buildChannelSummary: ({ snapshot }) => ({
         ...buildTokenChannelStatusSummary(snapshot),
         dmOnboardingState: snapshot.dmOnboardingState ?? null,
         pendingPairingRequests: snapshot.pendingPairingRequests ?? 0,
+        pendingPairing: snapshot.pendingPairing ?? [],
       }),
       probeAccount: async ({ account, timeoutMs }) =>
         resolveTelegramProbe()(account.token, timeoutMs, {
@@ -710,11 +721,18 @@ export const telegramPlugin = createChatChannelPlugin({
           extra: {
             ...projectCredentialSnapshotFields(account),
             lastError: runtime?.lastError ?? duplicateTokenReason,
+            connected: runtime?.connected ?? false,
+            reconnectAttempts: runtime?.reconnectAttempts,
+            lastConnectedAt: runtime?.lastConnectedAt ?? null,
+            lastDisconnect: runtime?.lastDisconnect ?? null,
+            lastEventAt: runtime?.lastEventAt ?? null,
+            healthState: runtime?.healthState ?? "stopped",
             mode: runtime?.mode ?? (account.config.webhookUrl ? "webhook" : "polling"),
             audit,
             allowUnmentionedGroups,
             dmOnboardingState: dmOnboarding?.state ?? null,
             pendingPairingRequests: dmOnboarding?.pendingPairingRequests ?? 0,
+            pendingPairing: dmOnboarding?.pendingRequests ?? [],
           },
         };
       },
@@ -753,6 +771,10 @@ export const telegramPlugin = createChatChannelPlugin({
           }
         }
         ctx.log?.info(`[${account.accountId}] starting provider${telegramBotLabel}`);
+        const statusSink = createAccountStatusSink({
+          accountId: account.accountId,
+          setStatus: ctx.setStatus,
+        });
         return resolveTelegramMonitor()({
           token,
           accountId: account.accountId,
@@ -766,11 +788,12 @@ export const telegramPlugin = createChatChannelPlugin({
           webhookHost: account.config.webhookHost,
           webhookPort: account.config.webhookPort,
           webhookCertPath: account.config.webhookCertPath,
+          statusSink,
         });
       },
       logoutAccount: async ({ accountId, cfg }) => {
         const envToken = process.env.TELEGRAM_BOT_TOKEN?.trim() ?? "";
-        const nextCfg = { ...cfg } as OpenClawConfig;
+        const nextCfg = { ...cfg } as TelegramConfig;
         const nextTelegram = cfg.channels?.telegram ? { ...cfg.channels.telegram } : undefined;
         let cleared = false;
         let changed = false;
@@ -827,6 +850,12 @@ export const telegramPlugin = createChatChannelPlugin({
       idLabel: "telegramUserId",
       message: PAIRING_APPROVED_MESSAGE,
       normalizeAllowEntry: createPairingPrefixStripper(/^(telegram|tg):/i),
+      applyApprovalToConfig: ({ cfg, id, accountId }) =>
+        buildTelegramOwnerAllowlistConfig({
+          cfg,
+          accountId: accountId?.trim() || DEFAULT_ACCOUNT_ID,
+          telegramUserId: id,
+        }),
       notify: async ({ cfg, id, message, accountId }) => {
         const { token } = resolveTelegramTokenHelper()(cfg, { accountId });
         if (!token) {

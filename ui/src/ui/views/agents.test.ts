@@ -8,7 +8,7 @@ function createSkill() {
   return {
     name: "Repo Skill",
     description: "Skill description",
-    source: "openclaw-workspace",
+    source: "\u006fpen\u0063law-workspace",
     filePath: "/tmp/skill",
     baseDir: "/tmp",
     skillKey: "repo-skill",

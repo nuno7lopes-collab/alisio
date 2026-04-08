@@ -19,10 +19,8 @@ const THEME_OPTIONS: AppearanceThemeOption[] = [
 export type AppearanceControlsProps = {
   theme: ThemeName;
   themeMode: ThemeMode;
-  borderRadius: number;
   onThemeChange: (theme: ThemeName, context?: ThemeTransitionContext) => void;
   onThemeModeChange: (mode: ThemeMode) => void;
-  onBorderRadiusChange: (value: number) => void;
 };
 
 export function renderAppearanceControls(props: AppearanceControlsProps) {
@@ -114,23 +112,6 @@ export function renderAppearanceControls(props: AppearanceControlsProps) {
             </button>
           `,
         )}
-      </div>
-    </div>
-
-    <div class="settings-appearance__section">
-      <h3 class="settings-appearance__heading">
-        ${t("alisio.settings.appearance.roundnessTitle")}
-      </h3>
-      <div
-        class="settings-roundness__options"
-        aria-label=${t("alisio.settings.appearance.roundnessTitle")}
-      >
-        <div class="settings-roundness__btn settings-roundness__btn--fixed active">
-          <span class="settings-roundness__swatch"></span>
-          <span class="settings-roundness__label">
-            ${t("alisio.settings.appearance.roundnessOptions.round")}
-          </span>
-        </div>
       </div>
     </div>
   `;

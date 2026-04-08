@@ -6,6 +6,7 @@ import { runExec } from "../process/exec.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
 import { ensureBinary } from "./binaries.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 
 function parsePossiblyNoisyJsonObject(stdout: string): Record<string, unknown> {
   const trimmed = stdout.trim();
@@ -150,7 +151,10 @@ export async function getTailnetHostname(exec: typeof runExec = runExec, detecte
 let cachedTailscaleBinary: string | null = null;
 
 export async function getTailscaleBinary(): Promise<string> {
-  const forcedBinary = process.env.OPENCLAW_TEST_TAILSCALE_BINARY?.trim();
+  const forcedBinary = readEnv("ALISIO_TEST_TAILSCALE_BINARY", {
+    fallback: legacyEnvKey("TEST_TAILSCALE_BINARY"),
+    description: "tailscale binary override for tests",
+  });
   if (forcedBinary) {
     cachedTailscaleBinary = forcedBinary;
     return forcedBinary;
@@ -372,7 +376,7 @@ export async function ensureFunnel(
     runtime.error("Failed to enable Tailscale Funnel. Is it allowed on your tailnet?");
     runtime.error(
       info(
-        `Tip: Funnel is optional for Alisio. You can keep running the web gateway without it: \`${formatCliCommand("openclaw gateway")}\``,
+        `Tip: Funnel is optional for Alisio. You can keep running the web gateway without it: \`${formatCliCommand("alisio gateway")}\``,
       ),
     );
     if (shouldLogVerbose()) {

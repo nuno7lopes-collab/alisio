@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../../src/config/config.js";
+import type { AlisioConfig } from "../../../src/config/config.js";
 import { loadBundledCapabilityRuntimeRegistry } from "../../../src/plugins/bundled-capability-runtime.js";
 import { BUNDLED_WEB_SEARCH_PLUGIN_IDS } from "../../../src/plugins/bundled-web-search-ids.js";
 import { resolveBundledWebSearchPluginId } from "../../../src/plugins/bundled-web-search-provider-ids.js";
@@ -138,8 +138,8 @@ export function describeBundledWebSearchFastPathContract(pluginId: string) {
           contractProvider.getCredentialValue(contractSearchConfig),
         );
 
-        const fastConfig = {} as OpenClawConfig;
-        const contractConfig = {} as OpenClawConfig;
+        const fastConfig = {} as AlisioConfig;
+        const contractConfig = {} as AlisioConfig;
         fastPathProvider.setConfiguredCredentialValue?.(fastConfig, "test-key");
         contractProvider.setConfiguredCredentialValue?.(contractConfig, "test-key");
         expect(fastConfig).toEqual(contractConfig);
@@ -148,8 +148,8 @@ export function describeBundledWebSearchFastPathContract(pluginId: string) {
         );
 
         if (fastPathProvider.applySelectionConfig || contractProvider.applySelectionConfig) {
-          expect(fastPathProvider.applySelectionConfig?.({} as OpenClawConfig)).toEqual(
-            contractProvider.applySelectionConfig?.({} as OpenClawConfig),
+          expect(fastPathProvider.applySelectionConfig?.({} as AlisioConfig)).toEqual(
+            contractProvider.applySelectionConfig?.({} as AlisioConfig),
           );
         }
 

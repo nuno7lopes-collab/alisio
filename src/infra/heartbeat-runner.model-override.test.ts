@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as replyModule from "../auto-reply/reply.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveAgentMainSessionKey, resolveMainSessionKey } from "../config/sessions.js";
 import { runHeartbeatOnce } from "./heartbeat-runner.js";
 import { seedSessionStore, withTempHeartbeatSandbox } from "./heartbeat-runner.test-utils.js";
@@ -34,7 +34,7 @@ async function withHeartbeatFixture(
       };
       return run({ tmpDir, storePath, seedSession });
     },
-    { prefix: "openclaw-hb-model-" },
+    { prefix: "alisio-hb-model-" },
   );
 }
 
@@ -47,7 +47,7 @@ afterEach(() => {
 describe("runHeartbeatOnce – heartbeat model override", () => {
   async function runHeartbeatWithSeed(params: {
     seedSession: (sessionKey: string, input: SeedSessionInput) => Promise<void>;
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     sessionKey: string;
     agentId?: string;
   }) {
@@ -80,7 +80,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
     isolatedSession?: boolean;
   }) {
     return withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             workspace: tmpDir,
@@ -140,7 +140,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
 
   it("uses isolated session key when isolatedSession is enabled", async () => {
     await withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             workspace: tmpDir,
@@ -168,7 +168,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
 
   it("uses main session key when isolatedSession is not set", async () => {
     await withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             workspace: tmpDir,
@@ -194,7 +194,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
 
   it("passes per-agent heartbeat model override (merged with defaults)", async () => {
     await withHeartbeatFixture(async ({ tmpDir, storePath, seedSession }) => {
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         agents: {
           defaults: {
             heartbeat: {

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { currentExtensionScope } from "./lib/alisio-branding.mjs";
 import { pluginSdkEntrypoints } from "./lib/plugin-sdk-entries.mjs";
 
 const RUNTIME_SHIMS: Partial<Record<string, string>> = {
@@ -61,12 +62,18 @@ const GENERATED_FACADE_TYPE_MAP_SOURCE = path.join(
   "dist/plugin-sdk/src/generated/plugin-sdk-facade-type-map.generated.d.ts",
 );
 const GENERATED_FACADE_TYPE_MAP_DIST_PREFIX = "../../../extensions/";
+const GENERATED_FACADE_EXTENSION_SCOPE = currentExtensionScope();
+
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 function rewriteFacadeTypeMapSpecifier(specifier: string): string {
-  if (!specifier.startsWith("@openclaw/")) {
+  const scopePrefix = `${GENERATED_FACADE_EXTENSION_SCOPE}/`;
+  if (!specifier.startsWith(scopePrefix)) {
     return specifier;
   }
-  return `${GENERATED_FACADE_TYPE_MAP_DIST_PREFIX}${specifier.slice("@openclaw/".length)}`;
+  return `${GENERATED_FACADE_TYPE_MAP_DIST_PREFIX}${specifier.slice(scopePrefix.length)}`;
 }
 
 function rewriteGeneratedFacadeTypeMapDts(): void {
@@ -74,8 +81,12 @@ function rewriteGeneratedFacadeTypeMapDts(): void {
     return;
   }
   const source = fs.readFileSync(GENERATED_FACADE_TYPE_MAP_SOURCE, "utf8");
-  const rewritten = source.replace(/@openclaw\/([a-z0-9-]+\/[^")\s]+)/g, (_match, suffix: string) =>
-    rewriteFacadeTypeMapSpecifier(`@openclaw/${suffix}`),
+  const scopePattern = new RegExp(
+    `${escapeForRegExp(GENERATED_FACADE_EXTENSION_SCOPE)}/([a-z0-9-]+/[^")\\s]+)`,
+    "g",
+  );
+  const rewritten = source.replace(scopePattern, (_match, suffix: string) =>
+    rewriteFacadeTypeMapSpecifier(`${GENERATED_FACADE_EXTENSION_SCOPE}/${suffix}`),
   );
   if (rewritten !== source) {
     fs.writeFileSync(GENERATED_FACADE_TYPE_MAP_SOURCE, rewritten, "utf8");

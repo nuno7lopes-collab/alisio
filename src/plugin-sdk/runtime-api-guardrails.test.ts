@@ -29,7 +29,7 @@ const RUNTIME_API_EXPORT_GUARDS: Record<string, readonly string[]> = {
     'export * from "./src/send.js";',
   ],
   [bundledPluginFile("imessage", "runtime-api.ts")]: [
-    'export { DEFAULT_ACCOUNT_ID, buildChannelConfigSchema, getChatChannelMeta, type ChannelPlugin, type OpenClawConfig } from "openclaw/plugin-sdk/core";',
+    'export { DEFAULT_ACCOUNT_ID, buildChannelConfigSchema, getChatChannelMeta, type ChannelPlugin, type AlisioConfig } from "openclaw/plugin-sdk/core";',
     'export { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-status";',
     'export { buildComputedAccountStatusSnapshot, collectStatusIssuesFromLastError } from "openclaw/plugin-sdk/status-helpers";',
     'export { formatTrimmedAllowFromEntries, resolveIMessageConfigAllowFrom, resolveIMessageConfigDefaultTo } from "openclaw/plugin-sdk/channel-config-helpers";',
@@ -42,7 +42,7 @@ const RUNTIME_API_EXPORT_GUARDS: Record<string, readonly string[]> = {
     'export { probeIMessage } from "./src/probe.js";',
     'export type { IMessageProbe } from "./src/probe.js";',
     'export { sendMessageIMessage } from "./src/send.js";',
-    'export type IMessageAccountConfig = Omit< NonNullable<NonNullable<RuntimeApiOpenClawConfig["channels"]>["imessage"]>, "accounts" | "defaultAccount" >;',
+    'export type IMessageAccountConfig = Omit< NonNullable<NonNullable<RuntimeApiAlisioConfig["channels"]>["imessage"]>, "accounts" | "defaultAccount" >;',
     'export function chunkTextForOutbound(text: string, limit: number): string[] { const chunks: string[] = []; let remaining = text; while (remaining.length > limit) { const window = remaining.slice(0, limit); const splitAt = Math.max(window.lastIndexOf("\\n"), window.lastIndexOf(" ")); const breakAt = splitAt > 0 ? splitAt : limit; chunks.push(remaining.slice(0, breakAt).trimEnd()); remaining = remaining.slice(breakAt).trimStart(); } if (remaining.length > 0 || text.length === 0) { chunks.push(remaining); } return chunks; }',
   ],
   [bundledPluginFile("googlechat", "runtime-api.ts")]: [
@@ -58,7 +58,7 @@ const RUNTIME_API_EXPORT_GUARDS: Record<string, readonly string[]> = {
     'export { setMatrixThreadBindingIdleTimeoutBySessionKey, setMatrixThreadBindingMaxAgeBySessionKey } from "./src/matrix/thread-bindings-shared.js";',
     'export { setMatrixRuntime } from "./src/runtime.js";',
     'export { writeJsonFileAtomically } from "openclaw/plugin-sdk/json-store";',
-    'export type { ChannelDirectoryEntry, ChannelMessageActionContext, OpenClawConfig, PluginRuntime, RuntimeLogger, RuntimeEnv, WizardPrompter } from "openclaw/plugin-sdk/matrix-runtime-shared";',
+    'export type { ChannelDirectoryEntry, ChannelMessageActionContext, AlisioConfig, PluginRuntime, RuntimeLogger, RuntimeEnv, WizardPrompter } from "openclaw/plugin-sdk/matrix-runtime-shared";',
     'export { formatZonedTimestamp } from "openclaw/plugin-sdk/matrix-runtime-shared";',
     'export function chunkTextForOutbound(text: string, limit: number): string[] { const chunks: string[] = []; let remaining = text; while (remaining.length > limit) { const window = remaining.slice(0, limit); const splitAt = Math.max(window.lastIndexOf("\\n"), window.lastIndexOf(" ")); const breakAt = splitAt > 0 ? splitAt : limit; chunks.push(remaining.slice(0, breakAt).trimEnd()); remaining = remaining.slice(breakAt).trimStart(); } if (remaining.length > 0 || text.length === 0) { chunks.push(remaining); } return chunks; }',
   ],
@@ -74,7 +74,7 @@ const RUNTIME_API_EXPORT_GUARDS: Record<string, readonly string[]> = {
     'export * from "./src/resolve-users.js";',
   ],
   [bundledPluginFile("telegram", "runtime-api.ts")]: [
-    'export type { ChannelMessageActionAdapter, ChannelPlugin, OpenClawConfig, OpenClawPluginApi, PluginRuntime, TelegramAccountConfig, TelegramActionConfig, TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";',
+    'export type { ChannelMessageActionAdapter, ChannelPlugin, AlisioConfig, OpenClawPluginApi, PluginRuntime, TelegramAccountConfig, TelegramActionConfig, TelegramNetworkConfig } from "openclaw/plugin-sdk/telegram-core";',
     'export type { TelegramApiOverride } from "./src/send.js";',
     'export type { OpenClawPluginService, OpenClawPluginServiceContext, PluginLogger } from "openclaw/plugin-sdk/core";',
     'export type { AcpRuntime, AcpRuntimeCapabilities, AcpRuntimeDoctorReport, AcpRuntimeEnsureInput, AcpRuntimeEvent, AcpRuntimeHandle, AcpRuntimeStatus, AcpRuntimeTurnInput, AcpRuntimeErrorCode, AcpSessionUpdateTag } from "openclaw/plugin-sdk/acp-runtime";',

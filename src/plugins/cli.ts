@@ -2,7 +2,7 @@ import type { Command } from "commander";
 import { resolveAgentWorkspaceDir, resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { removeCommandByName } from "../cli/program/command-tree.js";
 import { registerLazyCommand } from "../cli/program/register-lazy-command.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
@@ -57,7 +57,7 @@ function mergeCliRegistrars(params: {
   ];
 }
 
-function resolvePluginCliLoadContext(cfg?: OpenClawConfig, env?: NodeJS.ProcessEnv) {
+function resolvePluginCliLoadContext(cfg?: AlisioConfig, env?: NodeJS.ProcessEnv) {
   const config = cfg ?? loadConfig();
   const resolvedConfig = applyPluginAutoEnable({ config, env: env ?? process.env }).config;
   const workspaceDir = resolveAgentWorkspaceDir(
@@ -78,7 +78,7 @@ function resolvePluginCliLoadContext(cfg?: OpenClawConfig, env?: NodeJS.ProcessE
 }
 
 async function loadPluginCliMetadataRegistry(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env?: NodeJS.ProcessEnv,
   loaderOptions?: Pick<PluginLoadOptions, "pluginSdkResolution">,
 ) {
@@ -96,7 +96,7 @@ async function loadPluginCliMetadataRegistry(
 }
 
 async function loadPluginCliCommandRegistry(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env?: NodeJS.ProcessEnv,
   loaderOptions?: Pick<PluginLoadOptions, "pluginSdkResolution">,
 ) {
@@ -144,7 +144,7 @@ async function loadPluginCliCommandRegistry(
 }
 
 export async function getPluginCliCommandDescriptors(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env?: NodeJS.ProcessEnv,
 ): Promise<OpenClawPluginCliCommandDescriptor[]> {
   try {
@@ -168,7 +168,7 @@ export async function getPluginCliCommandDescriptors(
 
 export async function registerPluginCliCommands(
   program: Command,
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env?: NodeJS.ProcessEnv,
   loaderOptions?: Pick<PluginLoadOptions, "pluginSdkResolution">,
   options?: RegisterPluginCliOptions,

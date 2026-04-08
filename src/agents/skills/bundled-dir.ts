@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveOpenClawPackageRootSync } from "../../infra/openclaw-root.js";
+import { resolveAlisioPackageRootSync } from "../../infra/alisio-root.js";
 
 function looksLikeSkillsDir(dir: string): boolean {
   try {
@@ -59,7 +59,7 @@ export function resolveBundledSkillsDir(
     const moduleDir = path.dirname(fileURLToPath(moduleUrl));
     const argv1 = opts.argv1 ?? process.argv[1];
     const cwd = opts.cwd ?? process.cwd();
-    const packageRoot = resolveOpenClawPackageRootSync({
+    const packageRoot = resolveAlisioPackageRootSync({
       argv1,
       moduleUrl,
       cwd,

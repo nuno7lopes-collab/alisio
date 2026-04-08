@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { GroupKeyResolution } from "../config/sessions.js";
 import { resetPluginRuntimeStateForTest } from "../plugins/runtime.js";
 import { createInboundDebouncer } from "./inbound-debounce.js";
@@ -686,7 +686,7 @@ describe("initSessionState BodyStripped", () => {
   it("prefers BodyForAgent over Body for group chats", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sender-meta-"));
     const storePath = path.join(root, "sessions.json");
-    const cfg = { session: { store: storePath } } as OpenClawConfig;
+    const cfg = { session: { store: storePath } } as AlisioConfig;
 
     const result = await initSessionState({
       ctx: {
@@ -708,7 +708,7 @@ describe("initSessionState BodyStripped", () => {
   it("prefers BodyForAgent over Body for direct chats", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-sender-meta-direct-"));
     const storePath = path.join(root, "sessions.json");
-    const cfg = { session: { store: storePath } } as OpenClawConfig;
+    const cfg = { session: { store: storePath } } as AlisioConfig;
 
     const result = await initSessionState({
       ctx: {
@@ -788,7 +788,7 @@ describe("mention helpers", () => {
 describe("resolveGroupRequireMention", () => {
   it("respects Discord guild/channel requireMention settings", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         discord: {
           guilds: {
@@ -819,7 +819,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("respects Slack channel requireMention settings", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         slack: {
           channels: {
@@ -845,7 +845,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("uses Slack fallback resolver semantics for default-account wildcard channels", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         slack: {
           defaultAccount: "work",
@@ -876,7 +876,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("keeps core reply-stage resolution aligned for Slack default-account wildcard fallbacks", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         slack: {
           defaultAccount: "work",
@@ -907,7 +907,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("uses Discord fallback resolver semantics for guild slug matches", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         discord: {
           guilds: {
@@ -937,7 +937,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("keeps core reply-stage resolution aligned for Discord slug + wildcard guild fallbacks", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         discord: {
           guilds: {
@@ -969,7 +969,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("respects LINE prefixed group keys in reply-stage requireMention resolution", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         line: {
           groups: {
@@ -994,7 +994,7 @@ describe("resolveGroupRequireMention", () => {
 
   it("preserves plugin-backed channel requireMention resolution", async () => {
     resetPluginRuntimeStateForTest();
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         bluebubbles: {
           groups: {

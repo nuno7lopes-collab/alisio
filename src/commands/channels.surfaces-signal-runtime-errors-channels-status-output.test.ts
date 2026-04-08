@@ -13,6 +13,14 @@ const signalPlugin = {
   },
 };
 
+const discordPlugin = {
+  ...createChannelTestPluginBase({ id: "discord" }),
+  status: {
+    collectStatusIssues: (accounts: Parameters<typeof collectStatusIssuesFromLastError>[1]) =>
+      collectStatusIssuesFromLastError("discord", accounts),
+  },
+};
+
 describe("channels command", () => {
   beforeEach(() => {
     setActivePluginRegistry(
@@ -24,7 +32,7 @@ describe("channels command", () => {
     setActivePluginRegistry(createTestRegistry([]));
   });
 
-  it("surfaces Signal runtime errors in channels status output", () => {
+  it("hides Signal runtime errors from the default channels status surface", () => {
     const lines = formatGatewayChannelsStatusLines({
       channelAccounts: {
         signal: [
@@ -38,12 +46,11 @@ describe("channels command", () => {
         ],
       },
     });
-    expect(lines.join("\n")).toMatch(/Warnings:/);
-    expect(lines.join("\n")).toMatch(/signal/i);
-    expect(lines.join("\n")).toMatch(/Channel error/i);
+    expect(lines.join("\n")).not.toMatch(/Warnings:/);
+    expect(lines.join("\n")).not.toMatch(/signal/i);
   });
 
-  it("surfaces iMessage runtime errors in channels status output", () => {
+  it("hides iMessage runtime errors from the default channels status surface", () => {
     setActivePluginRegistry(
       createTestRegistry([
         {
@@ -66,8 +73,30 @@ describe("channels command", () => {
         ],
       },
     });
+    expect(lines.join("\n")).not.toMatch(/Warnings:/);
+    expect(lines.join("\n")).not.toMatch(/imessage/i);
+  });
+
+  it("still surfaces Discord runtime errors in channels status output", () => {
+    setActivePluginRegistry(
+      createTestRegistry([{ pluginId: "discord", source: "test", plugin: discordPlugin }]),
+    );
+
+    const lines = formatGatewayChannelsStatusLines({
+      channelAccounts: {
+        discord: [
+          {
+            accountId: "default",
+            enabled: true,
+            configured: true,
+            running: false,
+            lastError: "gateway unreachable",
+          },
+        ],
+      },
+    });
     expect(lines.join("\n")).toMatch(/Warnings:/);
-    expect(lines.join("\n")).toMatch(/imessage/i);
+    expect(lines.join("\n")).toMatch(/discord/i);
     expect(lines.join("\n")).toMatch(/Channel error/i);
   });
 });

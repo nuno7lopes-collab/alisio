@@ -1,4 +1,4 @@
-import { type OpenClawConfig, loadConfig } from "../config/config.js";
+import { type AlisioConfig, loadConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { augmentModelCatalogWithProviderPlugins } from "../plugins/provider-runtime.runtime.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
@@ -57,7 +57,7 @@ function normalizeConfiguredModelInput(input: unknown): ModelInputType[] | undef
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function readConfiguredOptInProviderModels(config: OpenClawConfig): ModelCatalogEntry[] {
+function readConfiguredOptInProviderModels(config: AlisioConfig): ModelCatalogEntry[] {
   const providers = config.models?.providers;
   if (!providers || typeof providers !== "object") {
     return [];
@@ -106,7 +106,7 @@ function readConfiguredOptInProviderModels(config: OpenClawConfig): ModelCatalog
 }
 
 function mergeConfiguredOptInProviderModels(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   models: ModelCatalogEntry[];
 }): void {
   const configured = readConfiguredOptInProviderModels(params.config);
@@ -142,7 +142,7 @@ export function __setModelCatalogImportForTest(loader?: () => Promise<PiSdkModul
 }
 
 export async function loadModelCatalog(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   useCache?: boolean;
 }): Promise<ModelCatalogEntry[]> {
   if (params?.useCache === false) {

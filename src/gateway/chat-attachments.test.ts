@@ -107,6 +107,20 @@ describe("parseMessageWithAttachments", () => {
     expect(logs[0]).toMatch(/mime mismatch/i);
   });
 
+  it("normalizes provided mime parameters before comparing with sniffed content", async () => {
+    const { parsed, logs } = await parseWithWarnings("x", [
+      {
+        type: "image",
+        mimeType: "Image/PNG; charset=utf-8",
+        fileName: "dot.png",
+        content: PNG_1x1,
+      },
+    ]);
+    expect(parsed.images).toHaveLength(1);
+    expect(parsed.images[0]?.mimeType).toBe("image/png");
+    expect(logs).toHaveLength(0);
+  });
+
   it("drops unknown mime when sniff fails and logs", async () => {
     const unknown = Buffer.from("not an image").toString("base64");
     const { parsed, logs } = await parseWithWarnings("x", [

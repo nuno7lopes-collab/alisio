@@ -1,6 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 
 const loadConfigMock = vi.fn();
 const loadGatewayModelCatalogMock = vi.fn();
@@ -30,7 +30,7 @@ describe("resolveOpenAiCompatModelOverride", () => {
           },
         },
       },
-    } satisfies OpenClawConfig);
+    } satisfies AlisioConfig);
     loadGatewayModelCatalogMock
       .mockReset()
       .mockResolvedValue([{ id: "gpt-5.4", name: "GPT 5.4", provider: "openai" }]);

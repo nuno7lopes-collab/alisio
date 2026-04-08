@@ -19,6 +19,7 @@ import type { ChatAbortControllerEntry } from "./chat-abort.js";
 import type { ControlUiRootState } from "./control-ui.js";
 import type { HooksConfigResolved } from "./hooks.js";
 import { isLoopbackHost, resolveGatewayListenHosts } from "./net.js";
+import type { NodeRegistry } from "./node-registry.js";
 import {
   createGatewayBroadcaster,
   type GatewayBroadcastFn,
@@ -52,9 +53,10 @@ import type { GatewayTlsRuntime } from "./server/tls.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 
 export async function createGatewayRuntimeState(params: {
-  cfg: import("../config/config.js").OpenClawConfig;
+  cfg: import("../config/config.js").AlisioConfig;
   bindHost: string;
   port: number;
+  nodeRegistry: NodeRegistry;
   controlUiEnabled: boolean;
   controlUiBasePath: string;
   controlUiRoot?: ControlUiRootState;
@@ -176,6 +178,7 @@ export async function createGatewayRuntimeState(params: {
       const httpServer = createGatewayHttpServer({
         canvasHost,
         clients,
+        nodeRegistry: params.nodeRegistry,
         controlUiEnabled: params.controlUiEnabled,
         controlUiBasePath: params.controlUiBasePath,
         controlUiRoot: params.controlUiRoot,

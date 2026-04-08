@@ -13,6 +13,12 @@ type TelegramAccountStatus = {
   accountId?: unknown;
   enabled?: unknown;
   configured?: unknown;
+  running?: unknown;
+  connected?: unknown;
+  reconnectAttempts?: unknown;
+  lastError?: unknown;
+  healthState?: unknown;
+  lastDisconnect?: unknown;
   dmOnboardingState?: unknown;
   pendingPairingRequests?: unknown;
   allowUnmentionedGroups?: unknown;
@@ -40,11 +46,24 @@ function readTelegramAccountStatus(value: ChannelAccountSnapshot): TelegramAccou
     accountId: value.accountId,
     enabled: value.enabled,
     configured: value.configured,
+    running: value.running,
+    connected: value.connected,
+    reconnectAttempts: value.reconnectAttempts,
+    lastError: value.lastError,
+    healthState: value.healthState,
+    lastDisconnect: value.lastDisconnect,
     dmOnboardingState: value.dmOnboardingState,
     pendingPairingRequests: value.pendingPairingRequests,
     allowUnmentionedGroups: value.allowUnmentionedGroups,
     audit: value.audit,
   };
+}
+
+function readTelegramDisconnectStatus(value: unknown): number | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  return typeof value.status === "number" && Number.isFinite(value.status) ? value.status : null;
 }
 
 function readTelegramGroupMembershipAuditSummary(
@@ -113,9 +132,8 @@ export function collectTelegramStatusIssues(
         channel: "telegram",
         accountId,
         kind: "intent",
-        message:
-          "Telegram token is configured, but the first DM is not approved yet. Send a message to the bot from the Telegram account that should use it.",
-        fix: "Keep the Telegram setup open while you send that first message so OpenClaw can authorize it automatically.",
+        message: "Telegram token is configured, but your Telegram account is not linked yet.",
+        fix: "Open Finish setup in Channels and use the Telegram setup link to approve your account automatically.",
       });
     }
     if (dmOnboardingState === "pending_approval") {
@@ -128,7 +146,7 @@ export function collectTelegramStatusIssues(
         accountId,
         kind: "intent",
         message: `${requestLabel} waiting for approval before the first conversation can start.`,
-        fix: "Open Telegram setup again and send a message from the account that should use the bot. OpenClaw will finish the first approval automatically.",
+        fix: "Approve the detected Telegram request in Channels, or reopen Finish setup and use the Telegram setup link for your own account.",
       });
     }
 
@@ -163,6 +181,37 @@ export function collectTelegramStatusIssues(
         fix: "Use numeric chat IDs (e.g. -100...) as keys in channels.telegram.groups for requireMention=false groups.",
       });
     }
+    const running = account.running === true;
+    const connected = account.connected === true;
+    const reconnectAttempts =
+      typeof account.reconnectAttempts === "number" && Number.isFinite(account.reconnectAttempts)
+        ? account.reconnectAttempts
+        : null;
+    const lastError = asString(account.lastError);
+    const healthState = asString(account.healthState);
+    const disconnectStatus = readTelegramDisconnectStatus(account.lastDisconnect);
+    const hasConflict =
+      disconnectStatus === 409 ||
+      lastError?.toLowerCase().includes("getupdates conflict") === true ||
+      lastError?.toLowerCase().includes("other getupdates request") === true;
+    if (healthState === "reconnecting" || healthState === "stopped" || (running && !connected)) {
+      const stateLabel = hasConflict
+        ? "Telegram polling conflict"
+        : healthState === "reconnecting"
+          ? "Telegram bot is reconnecting"
+          : healthState === "stopped"
+            ? "Telegram monitor stopped"
+            : "Telegram bot is disconnected";
+      issues.push({
+        channel: "telegram",
+        accountId,
+        kind: "runtime",
+        message: `${stateLabel}${reconnectAttempts != null ? ` (reconnectAttempts=${reconnectAttempts})` : ""}${lastError ? `: ${lastError}` : "."}`,
+        fix: hasConflict
+          ? "Stop the other polling or webhook consumer that is using this bot token, then restart the gateway."
+          : "Check the Telegram token, proxy/network settings, and rerun channels status --probe. If it persists, restart the gateway.",
+      });
+    }
     for (const group of audit.groups ?? []) {
       if (group.ok === true) {
         continue;
@@ -178,7 +227,7 @@ export function collectTelegramStatusIssues(
           matchKey: group.matchKey,
           matchSource: group.matchSource,
         }),
-        fix: "Invite the bot to the group, then DM the bot once (/start) and restart the gateway.",
+        fix: "Invite the bot to the group, finish Telegram DM approval in Channels, and restart the gateway.",
       });
     }
   }

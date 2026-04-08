@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthProfileStore } from "../../agents/auth-profiles.js";
 import { OLLAMA_LOCAL_AUTH_MARKER } from "../../agents/model-auth-markers.js";
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 
 let mockStore: AuthProfileStore;
 let mockAllowedProfiles: string[];
@@ -50,7 +50,7 @@ async function buildAnthropicProbePlan(order: string[]) {
           anthropic: order,
         },
       },
-    } as OpenClawConfig,
+    } as AlisioConfig,
     providers: ["anthropic"],
     modelCandidates: ["anthropic/claude-sonnet-4-6"],
     options: {
@@ -116,7 +116,7 @@ async function buildAnthropicPlanFromModelsJsonApiKey(apiKey: string) {
           },
         },
       },
-    } as OpenClawConfig,
+    } as AlisioConfig,
     providers: ["anthropic"],
     modelCandidates: ["anthropic/claude-sonnet-4-6"],
     options: {
@@ -266,7 +266,7 @@ describe("buildProbeTargets reason codes", () => {
               },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         providers: ["zai"],
         modelCandidates: [],
         options: {

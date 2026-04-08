@@ -12,9 +12,13 @@ vi.mock("./image-ops.js", () => ({
   convertHeicToJpeg: (...args: unknown[]) => convertHeicToJpegMock(...args),
 }));
 
-vi.mock("./mime.js", () => ({
-  detectMime: (...args: unknown[]) => detectMimeMock(...args),
-}));
+vi.mock("./mime.js", async () => {
+  const actual = await vi.importActual<typeof import("./mime.js")>("./mime.js");
+  return {
+    ...actual,
+    detectMime: (...args: unknown[]) => detectMimeMock(...args),
+  };
+});
 
 async function waitForMicrotaskTurn(): Promise<void> {
   await new Promise<void>((resolve) => queueMicrotask(resolve));

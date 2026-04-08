@@ -6,7 +6,7 @@ import { withTempHome as withTempHomeHelper } from "../../test/helpers/temp-home
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import { runEmbeddedPiAgent } from "../agents/pi-embedded.js";
 import type { CliDeps } from "../cli/deps.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { runCronIsolatedAgentTurn } from "./isolated-agent.js";
 import type { CronJob } from "./types.js";
 
@@ -40,9 +40,9 @@ async function writeSessionStore(home: string) {
 function makeCfg(
   home: string,
   storePath: string,
-  overrides: Partial<OpenClawConfig> = {},
-): OpenClawConfig {
-  const base: OpenClawConfig = {
+  overrides: Partial<AlisioConfig> = {},
+): AlisioConfig {
+  const base: AlisioConfig = {
     agents: {
       defaults: {
         model: "anthropic/claude-sonnet-4-5",
@@ -50,7 +50,7 @@ function makeCfg(
       },
     },
     session: { store: storePath, mainKey: "main" },
-  } as OpenClawConfig;
+  } as AlisioConfig;
   return { ...base, ...overrides };
 }
 
@@ -93,7 +93,7 @@ function mockEmbeddedAgent() {
 
 async function runSubagentModelCase(params: {
   home: string;
-  cfgOverrides?: Partial<OpenClawConfig>;
+  cfgOverrides?: Partial<AlisioConfig>;
   jobModelOverride?: string;
 }) {
   const storePath = await writeSessionStore(params.home);
@@ -131,7 +131,7 @@ describe("runCronIsolatedAgentTurn: subagent model resolution (#11461)", () => {
             subagents: { model: "ollama/llama3.2:3b" },
           },
         },
-      } satisfies Partial<OpenClawConfig>,
+      } satisfies Partial<AlisioConfig>,
       expectedProvider: "ollama",
       expectedModel: "llama3.2:3b",
     },
@@ -150,7 +150,7 @@ describe("runCronIsolatedAgentTurn: subagent model resolution (#11461)", () => {
             subagents: { model: { primary: "google/gemini-2.5-flash" } },
           },
         },
-      } satisfies Partial<OpenClawConfig>,
+      } satisfies Partial<AlisioConfig>,
       expectedProvider: "google",
       expectedModel: "gemini-2.5-flash",
     },
@@ -166,7 +166,7 @@ describe("runCronIsolatedAgentTurn: subagent model resolution (#11461)", () => {
                   workspace: path.join(home, "openclaw"),
                 },
               },
-            } satisfies Partial<OpenClawConfig>);
+            } satisfies Partial<AlisioConfig>);
       const call = await runSubagentModelCase({ home, cfgOverrides: resolvedCfg });
       expect(call?.provider).toBe(expectedProvider);
       expect(call?.model).toBe(expectedModel);

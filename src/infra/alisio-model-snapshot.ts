@@ -5,6 +5,10 @@ import type {
   NodeTaskResult,
 } from "../gateway/node-registry.js";
 import {
+  alisioRemoteModelServersUpgradeMessage,
+  alisioSupportsRemoteModelServers,
+} from "../shared/alisio-billing.js";
+import {
   ALISIO_LOCAL_MODEL_BACKEND,
   listPublishedAlisioLocalModels,
 } from "../shared/alisio-local-models.js";
@@ -14,7 +18,11 @@ import {
   buildAlisioTargetProviderId,
 } from "../shared/alisio-remote-model-provider.js";
 import { inspectManagedLocalModelRuntime } from "./alisio-local-llama-runtime.js";
-import type { AlisioInstalledLocalModel } from "./alisio-local-model-runtime.js";
+import {
+  inspectLocalModelRuntime,
+  resolveLocalModelRuntimeConfig,
+  type AlisioInstalledLocalModel,
+} from "./alisio-local-model-runtime.js";
 import {
   listAlisioDynamicCatalogEntries,
   setAlisioDynamicModelProviders,
@@ -25,7 +33,11 @@ import {
   type AlisioRemoteListedModel,
   inspectAlisioRemoteModelServer,
 } from "./alisio-remote-model-provider.js";
-import { listAlisioRemoteModelServers, type AlisioRemoteModelServerKind } from "./alisio-store.js";
+import {
+  listAlisioRemoteModelServers,
+  resolveCurrentAlisioPlan,
+  type AlisioRemoteModelServerKind,
+} from "./alisio-store.js";
 import {
   summarizeHardwareRecommendation,
   type AlisioModelHardwareProfile,
@@ -81,6 +93,17 @@ export type AlisioModelProviderSnapshot = {
 
 type ConnectedTargetInspection = AlisioModelTargetSnapshot & {
   chatCapabilityId?: string;
+};
+
+type TargetRuntimeCandidate = {
+  runtimeKind: RuntimeKind;
+  runtimeStatus: RuntimeStatus;
+  runtimeMessage?: string;
+  chatCapabilityId?: string;
+  installedModels: AlisioInstalledLocalModel[];
+  hardware?: AlisioModelHardwareProfile;
+  baseUrl?: string;
+  apiKey?: string;
 };
 
 type CurrentDevice = {
@@ -153,6 +176,52 @@ function buildTargetRecommendations(params: { hardware?: AlisioModelHardwareProf
   };
 }
 
+function buildEmptyRecommendations() {
+  return {
+    recommendations: [],
+    bestModelId: undefined,
+    bestModelName: undefined,
+  };
+}
+
+function rankRuntimeCandidate(candidate: TargetRuntimeCandidate | null | undefined) {
+  if (!candidate) {
+    return -1;
+  }
+  if (candidate.runtimeStatus === "ready") {
+    return candidate.installedModels.length > 0 ? 4 : 3;
+  }
+  if (candidate.runtimeStatus === "error") {
+    return 2;
+  }
+  return 1;
+}
+
+function choosePreferredRuntimeCandidate(
+  candidates: readonly (TargetRuntimeCandidate | null | undefined)[],
+): TargetRuntimeCandidate | null {
+  return candidates.reduce<TargetRuntimeCandidate | null>((best, candidate) => {
+    if (!candidate) {
+      return best;
+    }
+    if (!best) {
+      return candidate;
+    }
+    const bestRank = rankRuntimeCandidate(best);
+    const candidateRank = rankRuntimeCandidate(candidate);
+    if (candidateRank !== bestRank) {
+      return candidateRank > bestRank ? candidate : best;
+    }
+    if (
+      candidate.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND &&
+      best.runtimeKind !== ALISIO_LOCAL_MODEL_BACKEND
+    ) {
+      return candidate;
+    }
+    return best;
+  }, null);
+}
+
 function hasCapability(node: NodeSession, capabilityId: string) {
   return node.capabilities.some((capability) => capability.id === capabilityId);
 }
@@ -204,82 +273,30 @@ function coerceNodeInspectionPayload(result: NodeTaskResult) {
   };
 }
 
-async function inspectConnectedNodeTarget(params: {
+async function inspectNodeRuntimeCandidate(params: {
   nodeRegistry: NodeRegistry;
   node: NodeSession;
-}): Promise<ConnectedTargetInspection> {
-  const { node } = params;
-  const supportsInstall = hasCapability(node, "model.manage.llamacpp.v1");
-  const supportsLlamaCatalog = hasCapability(node, "model.catalog.llamacpp.v1");
-  const supportsLlamaChat = hasCapability(node, "model.chat.llamacpp.v1");
-  const supportsOpenAiCatalog = hasCapability(node, "model.catalog.openai.v1");
-  const supportsOpenAiChat = hasCapability(node, "model.chat.openai.v1");
-
-  const preferred =
-    supportsLlamaCatalog && supportsLlamaChat
-      ? {
-          runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
-          catalogCapabilityId: "model.catalog.llamacpp.v1",
-          chatCapabilityId: "model.chat.llamacpp.v1",
-        }
-      : supportsOpenAiCatalog && supportsOpenAiChat
-        ? {
-            runtimeKind: "openai-compatible" as const,
-            catalogCapabilityId: "model.catalog.openai.v1",
-            chatCapabilityId: "model.chat.openai.v1",
-          }
-        : supportsLlamaCatalog || supportsInstall
-          ? {
-              runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
-              catalogCapabilityId: supportsLlamaCatalog ? "model.catalog.llamacpp.v1" : null,
-              chatCapabilityId: supportsLlamaChat ? "model.chat.llamacpp.v1" : undefined,
-            }
-          : supportsOpenAiCatalog
-            ? {
-                runtimeKind: "openai-compatible" as const,
-                catalogCapabilityId: "model.catalog.openai.v1",
-                chatCapabilityId: supportsOpenAiChat ? "model.chat.openai.v1" : undefined,
-              }
-            : null;
-
-  if (!preferred?.catalogCapabilityId) {
-    return {
-      targetId: node.nodeId,
-      label: resolveNodeTargetLabel(node),
-      platform: node.platform,
-      current: false,
-      connected: true,
-      backend: ALISIO_LOCAL_MODEL_BACKEND,
-      runtimeKind: preferred?.runtimeKind ?? "openai-compatible",
-      runtimeStatus: "not_configured",
-      runtimeMessage: "no model source is configured on this computer",
-      supportsInstall,
-      installedModels: [],
-      recommendations: [],
-    };
+  runtimeKind: RuntimeKind;
+  catalogCapabilityId?: string;
+  chatCapabilityId?: string;
+}): Promise<TargetRuntimeCandidate | null> {
+  if (!params.catalogCapabilityId) {
+    return null;
   }
 
   const task = params.nodeRegistry.startTask({
-    nodeId: node.nodeId,
-    capabilityId: preferred.catalogCapabilityId,
+    nodeId: params.node.nodeId,
+    capabilityId: params.catalogCapabilityId,
     input: {},
     timeoutMs: 5_000,
   });
   if (!task.ok) {
     return {
-      targetId: node.nodeId,
-      label: resolveNodeTargetLabel(node),
-      platform: node.platform,
-      current: false,
-      connected: true,
-      backend: ALISIO_LOCAL_MODEL_BACKEND,
-      runtimeKind: preferred.runtimeKind,
+      runtimeKind: params.runtimeKind,
       runtimeStatus: "error",
       runtimeMessage: task.error.message,
-      supportsInstall,
       installedModels: [],
-      recommendations: [],
-      ...(preferred.chatCapabilityId ? { chatCapabilityId: preferred.chatCapabilityId } : {}),
+      ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
     };
   }
 
@@ -291,14 +308,68 @@ async function inspectConnectedNodeTarget(params: {
       }) satisfies NodeTaskResult,
   );
   const payload = coerceNodeInspectionPayload(result);
-  const recommendations =
-    preferred.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND && supportsInstall
-      ? buildTargetRecommendations({ hardware: payload?.hardware })
-      : {
-          recommendations: [],
-          bestModelId: undefined,
-          bestModelName: undefined,
-        };
+  return {
+    runtimeKind: params.runtimeKind,
+    runtimeStatus: payload?.status ?? "error",
+    runtimeMessage:
+      payload?.message ??
+      result.error?.message ??
+      (!result.ok ? "failed to read local model runtime" : undefined),
+    installedModels: normalizeListedModels(payload?.models),
+    hardware: payload?.hardware,
+    ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
+  };
+}
+
+async function inspectConnectedNodeTarget(params: {
+  nodeRegistry: NodeRegistry;
+  node: NodeSession;
+}): Promise<ConnectedTargetInspection> {
+  const { node } = params;
+  const supportsInstall = hasCapability(node, "model.manage.llamacpp.v1");
+  const supportsLlamaCatalog = hasCapability(node, "model.catalog.llamacpp.v1");
+  const supportsLlamaChat = hasCapability(node, "model.chat.llamacpp.v1");
+  const supportsOpenAiCatalog = hasCapability(node, "model.catalog.openai.v1");
+  const supportsOpenAiChat = hasCapability(node, "model.chat.openai.v1");
+
+  const [llamaCandidate, openAiCandidate] = await Promise.all([
+    inspectNodeRuntimeCandidate({
+      nodeRegistry: params.nodeRegistry,
+      node,
+      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+      catalogCapabilityId: supportsLlamaCatalog ? "model.catalog.llamacpp.v1" : undefined,
+      chatCapabilityId: supportsLlamaChat ? "model.chat.llamacpp.v1" : undefined,
+    }),
+    inspectNodeRuntimeCandidate({
+      nodeRegistry: params.nodeRegistry,
+      node,
+      runtimeKind: "openai-compatible",
+      catalogCapabilityId: supportsOpenAiCatalog ? "model.catalog.openai.v1" : undefined,
+      chatCapabilityId: supportsOpenAiChat ? "model.chat.openai.v1" : undefined,
+    }),
+  ]);
+
+  const preferred = choosePreferredRuntimeCandidate([llamaCandidate, openAiCandidate]);
+  if (!preferred) {
+    return {
+      targetId: node.nodeId,
+      label: resolveNodeTargetLabel(node),
+      platform: node.platform,
+      current: false,
+      connected: true,
+      backend: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeKind: supportsInstall ? ALISIO_LOCAL_MODEL_BACKEND : "openai-compatible",
+      runtimeStatus: "not_configured",
+      runtimeMessage: "no model source is configured on this computer",
+      supportsInstall,
+      installedModels: [],
+      recommendations: buildEmptyRecommendations().recommendations,
+    };
+  }
+  const hardware = preferred.hardware ?? llamaCandidate?.hardware ?? openAiCandidate?.hardware;
+  const recommendations = supportsInstall
+    ? buildTargetRecommendations({ hardware })
+    : buildEmptyRecommendations();
 
   return {
     targetId: node.nodeId,
@@ -308,14 +379,11 @@ async function inspectConnectedNodeTarget(params: {
     connected: true,
     backend: ALISIO_LOCAL_MODEL_BACKEND,
     runtimeKind: preferred.runtimeKind,
-    runtimeStatus: payload?.status ?? "error",
-    runtimeMessage:
-      payload?.message ??
-      result.error?.message ??
-      (!result.ok ? "failed to read local model runtime" : undefined),
+    runtimeStatus: preferred.runtimeStatus,
+    runtimeMessage: preferred.runtimeMessage,
     supportsInstall,
-    installedModels: normalizeListedModels(payload?.models),
-    hardware: payload?.hardware,
+    installedModels: preferred.installedModels,
+    hardware,
     recommendations: recommendations.recommendations,
     bestModelId: recommendations.bestModelId,
     bestModelName: recommendations.bestModelName,
@@ -326,11 +394,32 @@ async function inspectConnectedNodeTarget(params: {
 function buildCurrentSource(params: {
   currentDevice?: CurrentDevice;
   target: AlisioModelTargetSnapshot;
+  runtimeConfig: ReturnType<typeof resolveLocalModelRuntimeConfig>;
 }): AlisioDynamicProviderSource | null {
   if (params.target.runtimeStatus !== "ready" || params.target.installedModels.length === 0) {
     return null;
   }
   const providerId = buildAlisioCurrentProviderId();
+  if (params.target.runtimeKind === "openai-compatible") {
+    if (!params.runtimeConfig.baseUrl) {
+      return null;
+    }
+    return {
+      kind: "current-openai",
+      providerId,
+      providerLabel: params.currentDevice?.label?.trim() || "This computer",
+      targetId: params.target.targetId,
+      baseUrl: params.runtimeConfig.baseUrl,
+      ...(params.runtimeConfig.apiKey ? { apiKey: params.runtimeConfig.apiKey } : {}),
+      catalogEntries: params.target.installedModels.map((model) => ({
+        id: model.id,
+        name: model.name,
+        provider: providerId,
+        providerLabel: params.currentDevice?.label?.trim() || "This computer",
+        input: ["text"],
+      })),
+    };
+  }
   return {
     kind: "current-llama",
     providerId,
@@ -383,7 +472,7 @@ function buildConnectedTargetSource(params: {
 }
 
 function buildServerSource(server: AlisioRemoteServerSnapshot): AlisioDynamicProviderSource | null {
-  if (server.status !== "ready" || server.models.length === 0) {
+  if (!server.active || server.status !== "ready" || server.models.length === 0) {
     return null;
   }
   const providerId = buildAlisioServerProviderId(server.serverId);
@@ -410,32 +499,74 @@ async function loadSnapshot(params: {
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }): Promise<AlisioModelProviderSnapshot> {
-  const currentInspection = await inspectManagedLocalModelRuntime(params.env ?? process.env);
+  const env = params.env ?? process.env;
+  const currentPlan = await resolveCurrentAlisioPlan(env);
+  const remoteModelServersAllowed = alisioSupportsRemoteModelServers(currentPlan);
+  const currentRuntimeConfig = resolveLocalModelRuntimeConfig(env);
+  const [currentLlamaInspection, currentOpenAiInspection] = await Promise.all([
+    inspectManagedLocalModelRuntime(env),
+    inspectLocalModelRuntime({
+      env,
+      fetchImpl: params.fetchImpl,
+    }),
+  ]);
+  const currentLlamaCandidate: TargetRuntimeCandidate = {
+    runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+    runtimeStatus: currentLlamaInspection.status,
+    runtimeMessage: currentLlamaInspection.message,
+    installedModels: normalizeListedModels(currentLlamaInspection.models),
+    hardware: currentLlamaInspection.hardware,
+  };
+  const currentOpenAiCandidate = currentRuntimeConfig.baseUrl
+    ? ({
+        runtimeKind: "openai-compatible",
+        runtimeStatus: currentOpenAiInspection.status,
+        runtimeMessage: currentOpenAiInspection.message,
+        installedModels: normalizeListedModels(currentOpenAiInspection.models),
+        hardware: currentOpenAiInspection.hardware,
+        baseUrl: currentRuntimeConfig.baseUrl,
+        ...(currentRuntimeConfig.apiKey ? { apiKey: currentRuntimeConfig.apiKey } : {}),
+      } satisfies TargetRuntimeCandidate)
+    : null;
+  const currentPreferredRuntime =
+    choosePreferredRuntimeCandidate([currentLlamaCandidate, currentOpenAiCandidate]) ??
+    currentLlamaCandidate;
+  const currentHardware =
+    currentPreferredRuntime.hardware ??
+    currentLlamaCandidate.hardware ??
+    currentOpenAiCandidate?.hardware;
   const currentRecommendations = buildTargetRecommendations({
-    hardware: currentInspection.hardware,
+    hardware: currentHardware,
   });
-  const currentProviderId =
-    currentInspection.status === "ready" && currentInspection.models.length > 0
-      ? buildAlisioCurrentProviderId()
-      : undefined;
-  const currentTarget: AlisioModelTargetSnapshot = {
+  const currentTargetBase: AlisioModelTargetSnapshot = {
     targetId: params.currentDevice?.id?.trim() || "current",
     label: params.currentDevice?.label?.trim() || "This computer",
     platform: params.currentDevice?.platform,
     current: true,
     connected: true,
     backend: ALISIO_LOCAL_MODEL_BACKEND,
-    runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
-    runtimeStatus: currentInspection.status,
-    runtimeMessage: currentInspection.message,
+    runtimeKind: currentPreferredRuntime.runtimeKind,
+    runtimeStatus: currentPreferredRuntime.runtimeStatus,
+    runtimeMessage: currentPreferredRuntime.runtimeMessage,
     supportsInstall: true,
-    ...(currentProviderId ? { chatProviderId: currentProviderId } : {}),
-    installedModels: normalizeListedModels(currentInspection.models),
-    hardware: currentInspection.hardware,
+    installedModels: currentPreferredRuntime.installedModels,
+    hardware: currentHardware,
     recommendations: currentRecommendations.recommendations,
     bestModelId: currentRecommendations.bestModelId,
     bestModelName: currentRecommendations.bestModelName,
   };
+  const currentSource = buildCurrentSource({
+    currentDevice: params.currentDevice,
+    target: currentTargetBase,
+    runtimeConfig: currentRuntimeConfig,
+  });
+  const currentTarget =
+    currentSource && currentSource.catalogEntries.length > 0
+      ? {
+          ...currentTargetBase,
+          chatProviderId: currentSource.providerId,
+        }
+      : currentTargetBase;
 
   const connectedTargets = await Promise.all(
     params.nodeRegistry.listConnected().map(async (node) => {
@@ -462,6 +593,20 @@ async function loadSnapshot(params: {
 
   const servers = await Promise.all(
     (await listAlisioRemoteModelServers(params.env ?? process.env)).map(async (server) => {
+      if (!remoteModelServersAllowed) {
+        return {
+          serverId: server.serverId,
+          label: server.label,
+          kind: server.kind,
+          baseUrl: server.baseUrl,
+          active: server.active,
+          hasApiKey: Boolean(server.apiKey?.trim() || server.apiKeyEncrypted),
+          apiKey: server.apiKey?.trim() || undefined,
+          status: "not_configured",
+          message: alisioRemoteModelServersUpgradeMessage(),
+          models: [],
+        } satisfies AlisioRemoteServerSnapshot;
+      }
       const inspection = await inspectAlisioRemoteModelServer(server, {
         fetchImpl: params.fetchImpl,
       });
@@ -488,10 +633,7 @@ async function loadSnapshot(params: {
   );
 
   const dynamicSources = [
-    buildCurrentSource({
-      currentDevice: params.currentDevice,
-      target: currentTarget,
-    }),
+    currentSource,
     ...connectedTargets.map((entry) => entry.source),
     ...servers.map(buildServerSource),
   ].filter((source): source is AlisioDynamicProviderSource => Boolean(source));

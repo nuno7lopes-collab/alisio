@@ -155,6 +155,16 @@ describe("formatUpdateOneLiner", () => {
 
     expect(formatUpdateOneLiner(update)).toBe("Update: npm · npm latest unknown · deps missing");
   });
+
+  it("renders disabled registry checks explicitly", () => {
+    const update = buildUpdate({
+      installKind: "package",
+      packageManager: "npm",
+      registry: { latestVersion: null, disabled: true, reason: "disabled" },
+    });
+
+    expect(formatUpdateOneLiner(update)).toBe("Update: npm · updates disabled");
+  });
 });
 
 describe("formatUpdateAvailableHint", () => {
@@ -187,7 +197,7 @@ describe("formatUpdateAvailableHint", () => {
     });
 
     expect(formatUpdateAvailableHint(update)).toBe(
-      `Update available (git behind 2 · npm ${latestVersion}). Run: openclaw update`,
+      `Update available (git behind 2 · npm ${latestVersion}). Run: alisio update`,
     );
   });
 });

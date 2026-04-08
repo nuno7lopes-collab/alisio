@@ -663,17 +663,14 @@ export function toAlisioAiState(params: {
   const workerCredentials = params.state?.workerCredentials ?? {};
   const runtimeBindings = params.state?.runtimeBindings ?? {};
   const currentBinding = runtimeBindings[params.workerId];
-  const profiles = Object.entries(aiProfiles)
-    .map(([profileId, profile]) => {
+  const mappedProfiles = Object.entries(aiProfiles).map(
+    ([profileId, profile]): AlisioAiProfileState | null => {
       const relatedCredentials = Object.entries(workerCredentials)
         .filter(([, credential]) => credential.aiProfileId === profileId)
         .map(([workerCredentialId, credential]) => ({
           workerCredentialId,
           credential,
         }));
-      const aggregatedTelemetry = resolveAggregatedTelemetry(
-        relatedCredentials.map((entry) => entry.credential),
-      );
       const currentWorkerCredentials = relatedCredentials
         .filter((entry) => entry.credential.workerId === params.workerId)
         .map((entry) => ({
@@ -701,13 +698,23 @@ export function toAlisioAiState(params: {
             : {}),
           runtimeBound: currentBinding?.workerCredentialId === entry.workerCredentialId,
         }));
+      if (currentWorkerCredentials.length === 0) {
+        return null;
+      }
+      const currentWorkerRelatedCredentials = relatedCredentials.filter(
+        (entry) => entry.credential.workerId === params.workerId,
+      );
+      const aggregatedTelemetry = resolveAggregatedTelemetry(
+        currentWorkerRelatedCredentials.map((entry) => entry.credential),
+      );
       const currentWorkerBest = selectBestWorkerCredentialForProfile({
         aiProfileId: profileId,
         workerId: params.workerId,
         state: params.state,
         authStore: params.authStore,
       });
-      const representative = currentWorkerBest?.record ?? relatedCredentials[0]?.credential;
+      const representative =
+        currentWorkerBest?.record ?? currentWorkerRelatedCredentials[0]?.credential;
       return {
         profileId,
         label: resolveAlisioAiProfileLabel({
@@ -719,7 +726,9 @@ export function toAlisioAiState(params: {
         ownerKey: profile.ownerKey,
         canonicalIdentityKey: profile.canonicalIdentityKey,
         identity: profile.identity,
-        status: resolveAggregatedAiStatus(relatedCredentials.map((entry) => entry.credential)),
+        status: resolveAggregatedAiStatus(
+          currentWorkerRelatedCredentials.map((entry) => entry.credential),
+        ),
         ...(normalizeOptionalEmail(representative?.email)
           ? { email: normalizeOptionalEmail(representative?.email) }
           : {}),
@@ -742,11 +751,12 @@ export function toAlisioAiState(params: {
           ? { limits: toAlisioAiLimits(aggregatedTelemetry) }
           : {}),
         ...(aggregatedTelemetry ? { aggregatedTelemetry } : {}),
-        ...(currentWorkerCredentials.length > 0
-          ? { workerCredentials: currentWorkerCredentials }
-          : {}),
+        workerCredentials: currentWorkerCredentials,
       } satisfies AlisioAiProfileState;
-    })
+    },
+  );
+  const profiles = mappedProfiles
+    .filter((profile): profile is AlisioAiProfileState => Boolean(profile))
     .toSorted((left, right) => {
       const leftBound =
         currentBinding &&

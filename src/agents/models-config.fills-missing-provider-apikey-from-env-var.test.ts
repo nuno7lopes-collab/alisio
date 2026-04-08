@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { validateConfigObject } from "../config/validation.js";
 import { resolveOpenClawAgentDir } from "./agent-paths.js";
 import { NON_ENV_SECRETREF_MARKER } from "./model-auth-markers.js";
@@ -158,7 +158,7 @@ async function expectCustomProviderApiKeyRewrite(params: {
 function createMoonshotConfig(overrides: {
   contextWindow: number;
   maxTokens: number;
-}): OpenClawConfig {
+}): AlisioConfig {
   return {
     models: {
       providers: {
@@ -182,7 +182,7 @@ function createMoonshotConfig(overrides: {
   };
 }
 
-function createOpenAiConfigWithResolvedApiKey(mergeMode = false): OpenClawConfig {
+function createOpenAiConfigWithResolvedApiKey(mergeMode = false): AlisioConfig {
   return {
     models: {
       ...(mergeMode ? { mode: "merge" as const } : {}),
@@ -301,7 +301,7 @@ describe("models-config", () => {
   it("fills missing provider.apiKey from env var name when models exist", async () => {
     await withTempHome(async () => {
       await withEnvVar("MINIMAX_API_KEY", "sk-minimax-test", async () => {
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           models: {
             providers: {
               minimax: {

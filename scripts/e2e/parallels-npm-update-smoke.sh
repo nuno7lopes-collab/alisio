@@ -13,7 +13,7 @@ AUTH_KEY_FLAG=""
 MODEL_ID=""
 PACKAGE_SPEC=""
 JSON_OUTPUT=0
-RUN_DIR="$(mktemp -d /tmp/openclaw-parallels-npm-update.XXXXXX)"
+RUN_DIR="$(mktemp -d /tmp/alisio-parallels-npm-update.XXXXXX)"
 MAIN_TGZ_DIR="$(mktemp -d)"
 MAIN_TGZ_PATH=""
 WINDOWS_UPDATE_SCRIPT_PATH=""
@@ -62,7 +62,7 @@ usage() {
 Usage: bash scripts/e2e/parallels-npm-update-smoke.sh [options]
 
 Options:
-  --package-spec <npm-spec>  Baseline npm package spec. Default: openclaw@latest
+  --package-spec <npm-spec>  Baseline npm package spec. Default: alisio@latest
   --provider <openai|anthropic|minimax>
                              Provider auth/model lane. Default: openai
   --api-key-env <var>        Host env var name for provider API key.
@@ -163,7 +163,7 @@ PY
 }
 
 resolve_latest_version() {
-  npm view openclaw version --userconfig "$(mktemp)"
+  npm view alisio version --userconfig "$(mktemp)"
 }
 
 resolve_host_ip() {
@@ -198,12 +198,12 @@ pack_main_tgz() {
     npm pack --ignore-scripts --json --pack-destination "$MAIN_TGZ_DIR" \
       | python3 -c 'import json, sys; data = json.load(sys.stdin); print(data[-1]["filename"])'
   )"
-  MAIN_TGZ_PATH="$MAIN_TGZ_DIR/openclaw-main-$CURRENT_HEAD_SHORT.tgz"
+  MAIN_TGZ_PATH="$MAIN_TGZ_DIR/alisio-main-$CURRENT_HEAD_SHORT.tgz"
   cp "$MAIN_TGZ_DIR/$pkg" "$MAIN_TGZ_PATH"
 }
 
 write_windows_update_script() {
-  WINDOWS_UPDATE_SCRIPT_PATH="$MAIN_TGZ_DIR/openclaw-main-update.ps1"
+  WINDOWS_UPDATE_SCRIPT_PATH="$MAIN_TGZ_DIR/alisio-main-update.ps1"
   cat >"$WINDOWS_UPDATE_SCRIPT_PATH" <<'EOF'
 param(
   [Parameter(Mandatory = $true)][string]$TgzUrl,
@@ -231,7 +231,7 @@ function Invoke-Logged {
   try {
     $ErrorActionPreference = 'Continue'
     $PSNativeCommandUseErrorActionPreference = $false
-    # Merge native stderr into stdout before logging so npm/openclaw warnings do not
+    # Merge native stderr into stdout before logging so npm/alisio warnings do not
     # surface as PowerShell error records and abort a healthy in-place update.
     $output = & $Command *>&1
     $exitCode = $LASTEXITCODE
@@ -279,24 +279,24 @@ function Invoke-CaptureLogged {
 }
 
 try {
-  $env:PATH = "$env:LOCALAPPDATA\OpenClaw\deps\portable-git\cmd;$env:LOCALAPPDATA\OpenClaw\deps\portable-git\mingw64\bin;$env:LOCALAPPDATA\OpenClaw\deps\portable-git\usr\bin;$env:PATH"
-  $tgz = Join-Path $env:TEMP 'openclaw-main-update.tgz'
+  $env:PATH = "$env:LOCALAPPDATA\Alisio\deps\portable-git\cmd;$env:LOCALAPPDATA\Alisio\deps\portable-git\mingw64\bin;$env:LOCALAPPDATA\Alisio\deps\portable-git\usr\bin;$env:PATH"
+  $tgz = Join-Path $env:TEMP 'alisio-main-update.tgz'
   Remove-Item $tgz, $LogPath, $DonePath -Force -ErrorAction SilentlyContinue
   Set-Item -Path ('Env:' + $ProviderKeyEnv) -Value $ProviderKey
   Invoke-Logged 'download current tgz' { curl.exe -fsSL $TgzUrl -o $tgz }
   Invoke-Logged 'npm install current tgz' { npm.cmd install -g $tgz --no-fund --no-audit }
-  $openclaw = Join-Path $env:APPDATA 'npm\openclaw.cmd'
-  $version = Invoke-CaptureLogged 'openclaw --version' { & $openclaw --version }
+  $alisio = Join-Path $env:APPDATA 'npm\alisio.cmd'
+  $version = Invoke-CaptureLogged 'alisio --version' { & $alisio --version }
   if ($version -notmatch [regex]::Escape($HeadShort)) {
     throw "version mismatch: expected substring $HeadShort"
   }
-  Invoke-Logged 'openclaw models set' { & $openclaw models set $ModelId }
+  Invoke-Logged 'alisio models set' { & $alisio models set $ModelId }
   # Windows can keep the old hashed dist modules alive across in-place global npm upgrades.
   # Restart the gateway/service before verifying status or the next agent turn.
-  Invoke-Logged 'openclaw gateway restart' { & $openclaw gateway restart }
+  Invoke-Logged 'alisio gateway restart' { & $alisio gateway restart }
   Start-Sleep -Seconds 5
-  Invoke-Logged 'openclaw gateway status' { & $openclaw gateway status --deep --require-rpc }
-  Invoke-CaptureLogged 'openclaw agent' { & $openclaw agent --agent main --session-id $SessionId --message 'Reply with exact ASCII text OK only.' --json } | Out-Null
+  Invoke-Logged 'alisio gateway status' { & $alisio gateway status --deep --require-rpc }
+  Invoke-CaptureLogged 'alisio agent' { & $alisio agent --agent main --session-id $SessionId --message 'Reply with exact ASCII text OK only.' --json } | Out-Null
   $exitCode = $LASTEXITCODE
   if ($null -eq $exitCode) {
     $exitCode = 0
@@ -322,7 +322,7 @@ start_server() {
   (
     cd "$MAIN_TGZ_DIR"
     exec python3 -m http.server "$HOST_PORT" --bind 0.0.0.0
-  ) >/tmp/openclaw-parallels-npm-update-http.log 2>&1 &
+  ) >/tmp/alisio-parallels-npm-update-http.log 2>&1 &
   SERVER_PID=$!
   sleep 1
   kill -0 "$SERVER_PID" >/dev/null 2>&1 || die "failed to start host HTTP server"
@@ -346,8 +346,8 @@ import re
 import sys
 
 text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-matches = re.findall(r"OpenClaw [^\r\n]+", text)
-matches = [match for match in matches if re.search(r"OpenClaw \d", match)]
+matches = re.findall(r"Alisio [^\r\n]+", text)
+matches = [match for match in matches if re.search(r"Alisio \d", match)]
 print(matches[-1] if matches else "")
 PY
 }
@@ -424,9 +424,9 @@ run_windows_script_via_log() {
   local provider_key="$7"
   local runner_name log_name done_name done_status launcher_state
   local start_seconds poll_deadline startup_checked poll_rc state_rc log_rc
-  runner_name="openclaw-update-$RANDOM-$RANDOM.ps1"
-  log_name="openclaw-update-$RANDOM-$RANDOM.log"
-  done_name="openclaw-update-$RANDOM-$RANDOM.done"
+  runner_name="alisio-update-$RANDOM-$RANDOM.ps1"
+  log_name="alisio-update-$RANDOM-$RANDOM.log"
+  done_name="alisio-update-$RANDOM-$RANDOM.done"
   start_seconds="$SECONDS"
   poll_deadline=$((SECONDS + 900))
   startup_checked=0
@@ -513,14 +513,14 @@ EOF
 run_macos_update() {
   local tgz_url="$1"
   local head_short="$2"
-  cat <<EOF | prlctl exec "$MACOS_VM" --current-user /usr/bin/tee /tmp/openclaw-main-update.sh >/dev/null
+  cat <<EOF | prlctl exec "$MACOS_VM" --current-user /usr/bin/tee /tmp/alisio-main-update.sh >/dev/null
 set -euo pipefail
 export PATH=/opt/homebrew/bin:/opt/homebrew/opt/node/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin
 if [ -z "\${HOME:-}" ]; then export HOME="/Users/\$(id -un)"; fi
 cd "\$HOME"
-curl -fsSL "$tgz_url" -o /tmp/openclaw-main-update.tgz
-/opt/homebrew/bin/npm install -g /tmp/openclaw-main-update.tgz
-version="\$(/opt/homebrew/bin/openclaw --version)"
+curl -fsSL "$tgz_url" -o /tmp/alisio-main-update.tgz
+/opt/homebrew/bin/npm install -g /tmp/alisio-main-update.tgz
+version="\$(/opt/homebrew/bin/alisio --version)"
 printf '%s\n' "\$version"
 case "\$version" in
   *"$head_short"*) ;;
@@ -529,11 +529,11 @@ case "\$version" in
     exit 1
     ;;
 esac
-/opt/homebrew/bin/openclaw models set "$MODEL_ID"
-/opt/homebrew/bin/openclaw gateway status --deep --require-rpc
-/usr/bin/env "$API_KEY_ENV=$API_KEY_VALUE" /opt/homebrew/bin/openclaw agent --agent main --session-id parallels-npm-update-macos-$head_short --message "Reply with exact ASCII text OK only." --json
+/opt/homebrew/bin/alisio models set "$MODEL_ID"
+/opt/homebrew/bin/alisio gateway status --deep --require-rpc
+/usr/bin/env "$API_KEY_ENV=$API_KEY_VALUE" /opt/homebrew/bin/alisio agent --agent main --session-id parallels-npm-update-macos-$head_short --message "Reply with exact ASCII text OK only." --json
 EOF
-  prlctl exec "$MACOS_VM" --current-user /bin/bash /tmp/openclaw-main-update.sh
+  prlctl exec "$MACOS_VM" --current-user /bin/bash /tmp/alisio-main-update.sh
 }
 
 run_windows_update() {
@@ -553,13 +553,13 @@ run_windows_update() {
 run_linux_update() {
   local tgz_url="$1"
   local head_short="$2"
-  cat <<EOF | prlctl exec "$LINUX_VM" /usr/bin/tee /tmp/openclaw-main-update.sh >/dev/null
+  cat <<EOF | prlctl exec "$LINUX_VM" /usr/bin/tee /tmp/alisio-main-update.sh >/dev/null
 set -euo pipefail
 export HOME=/root
 cd "\$HOME"
-curl -fsSL "$tgz_url" -o /tmp/openclaw-main-update.tgz
-npm install -g /tmp/openclaw-main-update.tgz --no-fund --no-audit
-version="\$(openclaw --version)"
+curl -fsSL "$tgz_url" -o /tmp/alisio-main-update.tgz
+npm install -g /tmp/alisio-main-update.tgz --no-fund --no-audit
+version="\$(alisio --version)"
 printf '%s\n' "\$version"
 case "\$version" in
   *"$head_short"*) ;;
@@ -568,10 +568,10 @@ case "\$version" in
     exit 1
     ;;
 esac
-openclaw models set "$MODEL_ID"
-openclaw agent --local --agent main --session-id parallels-npm-update-linux-$head_short --message "Reply with exact ASCII text OK only." --json
+alisio models set "$MODEL_ID"
+alisio agent --local --agent main --session-id parallels-npm-update-linux-$head_short --message "Reply with exact ASCII text OK only." --json
 EOF
-  prlctl exec "$LINUX_VM" /usr/bin/env "$API_KEY_ENV=$API_KEY_VALUE" /bin/bash /tmp/openclaw-main-update.sh
+  prlctl exec "$LINUX_VM" /usr/bin/env "$API_KEY_ENV=$API_KEY_VALUE" /bin/bash /tmp/alisio-main-update.sh
 }
 
 write_summary_json() {
@@ -616,7 +616,7 @@ PY
 
 LATEST_VERSION="$(resolve_latest_version)"
 if [[ -z "$PACKAGE_SPEC" ]]; then
-  PACKAGE_SPEC="openclaw@$LATEST_VERSION"
+  PACKAGE_SPEC="alisio@$LATEST_VERSION"
 fi
 
 RESOLVED_LINUX_VM="$(resolve_linux_vm_name)"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { evaluateGatewayAuthSurfaceStates } from "./runtime-gateway-auth-surfaces.js";
 
 const EMPTY_ENV = {} as NodeJS.ProcessEnv;
@@ -8,7 +8,7 @@ function envRef(id: string) {
   return { source: "env", provider: "default", id } as const;
 }
 
-function evaluate(config: OpenClawConfig, env: NodeJS.ProcessEnv = EMPTY_ENV) {
+function evaluate(config: AlisioConfig, env: NodeJS.ProcessEnv = EMPTY_ENV) {
   return evaluateGatewayAuthSurfaceStates({
     config,
     env,
@@ -24,7 +24,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           token: envRef("GW_AUTH_TOKEN"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.auth.token"]).toMatchObject({
       hasSecretRef: true,
@@ -42,7 +42,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
             token: envRef("GW_AUTH_TOKEN"),
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       { OPENCLAW_GATEWAY_TOKEN: "env-token" } as NodeJS.ProcessEnv,
     );
 
@@ -61,7 +61,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           token: envRef("GW_AUTH_TOKEN"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.auth.token"]).toMatchObject({
       hasSecretRef: true,
@@ -78,7 +78,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           password: envRef("GW_AUTH_PASSWORD"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.auth.password"]).toMatchObject({
       hasSecretRef: true,
@@ -95,7 +95,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
             password: envRef("GW_AUTH_PASSWORD"),
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       { OPENCLAW_GATEWAY_TOKEN: "env-token" } as NodeJS.ProcessEnv,
     );
 
@@ -114,7 +114,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           token: envRef("GW_REMOTE_TOKEN"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.remote.token"]).toMatchObject({
       hasSecretRef: true,
@@ -133,7 +133,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           token: envRef("GW_REMOTE_TOKEN"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.remote.token"]).toMatchObject({
       hasSecretRef: true,
@@ -154,7 +154,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           token: envRef("GW_REMOTE_TOKEN"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.remote.token"]).toMatchObject({
       hasSecretRef: true,
@@ -171,7 +171,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           password: envRef("GW_REMOTE_PASSWORD"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.remote.password"].hasSecretRef).toBe(true);
     expect(states["gateway.remote.password"].active).toBe(true);
@@ -189,7 +189,7 @@ describe("evaluateGatewayAuthSurfaceStates", () => {
           password: envRef("GW_REMOTE_PASSWORD"),
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     expect(states["gateway.remote.password"]).toMatchObject({
       hasSecretRef: true,

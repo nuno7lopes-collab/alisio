@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { telegramOutbound, whatsappOutbound } from "../../../test/channel-outbounds.js";
 import type { ChannelOutboundAdapter } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionEntry } from "../../config/sessions/types.js";
 import { isWhatsAppGroupJid, normalizeWhatsAppTarget } from "../../plugin-sdk/whatsapp-targets.js";
 import { setActivePluginRegistry } from "../../plugins/runtime.js";
@@ -77,7 +77,7 @@ beforeEach(() => {
 
 describe("resolveOutboundTarget defaultTo config fallback", () => {
   installResolveOutboundTargetPluginRegistryHooks();
-  const whatsappDefaultCfg: OpenClawConfig = {
+  const whatsappDefaultCfg: AlisioConfig = {
     channels: { whatsapp: { defaultTo: "+15551234567", allowFrom: ["*"] } },
   };
 
@@ -92,7 +92,7 @@ describe("resolveOutboundTarget defaultTo config fallback", () => {
   });
 
   it("uses telegram defaultTo when no explicit target is provided", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { telegram: { defaultTo: "123456789" } },
     };
     const res = resolveOutboundTarget({
@@ -115,7 +115,7 @@ describe("resolveOutboundTarget defaultTo config fallback", () => {
   });
 
   it("still errors when no defaultTo and no explicit target", () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: { whatsapp: { allowFrom: ["+1555"] } },
     };
     const res = resolveOutboundTarget({
@@ -634,7 +634,7 @@ describe("resolveSessionDeliveryTarget", () => {
     {
       name: "allows heartbeat delivery to Discord DMs by default",
       request: {
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         entry: {
           sessionId: "sess-heartbeat-discord-dm",
           updatedAt: 1,
@@ -653,7 +653,7 @@ describe("resolveSessionDeliveryTarget", () => {
     {
       name: "keeps heartbeat delivery to Discord channels",
       request: {
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         entry: {
           sessionId: "sess-heartbeat-discord-channel",
           updatedAt: 1,
@@ -672,7 +672,7 @@ describe("resolveSessionDeliveryTarget", () => {
     {
       name: "parses explicit heartbeat topic targets into threadId",
       request: {
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         heartbeat: {
           target: "telegram",
           to: "-10063448508:topic:1008013",

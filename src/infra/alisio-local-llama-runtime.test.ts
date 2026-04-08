@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const resolveModelFileMock = vi.hoisted(() =>
   vi.fn(async (_sourceUri: string, options?: string | { directory?: string }) => {
     const directory =
-      typeof options === "string" ? options : options?.directory?.trim() || "/tmp/openclaw-models";
+      typeof options === "string" ? options : options?.directory?.trim() || "/tmp/alisio-models";
     return `${directory}/resolved.gguf`;
   }),
 );
@@ -29,7 +29,7 @@ describe("installAlisioLocalModel", () => {
 
   beforeEach(async () => {
     resolveModelFileMock.mockClear();
-    stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-alisio-llama-"));
+    stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-alisio-llama-"));
   });
 
   afterEach(async () => {
@@ -38,8 +38,8 @@ describe("installAlisioLocalModel", () => {
 
   it("downloads the published quantization configured in the catalog and persists it", async () => {
     const env = {
-      OPENCLAW_STATE_DIR: stateDir,
-      OPENCLAW_TEST_FAST: "1",
+      ALISIO_STATE_DIR: stateDir,
+      ALISIO_TEST_FAST: "1",
       HOME: stateDir,
     } as NodeJS.ProcessEnv;
 
@@ -85,8 +85,8 @@ describe("installAlisioLocalModel", () => {
 
   it("drops unusable manifest entries and only reports real installed files", async () => {
     const env = {
-      OPENCLAW_STATE_DIR: stateDir,
-      OPENCLAW_TEST_FAST: "1",
+      ALISIO_STATE_DIR: stateDir,
+      ALISIO_TEST_FAST: "1",
       HOME: stateDir,
     } as NodeJS.ProcessEnv;
     const modelsDir = path.join(stateDir, "models", "llama.cpp");
@@ -133,8 +133,8 @@ describe("installAlisioLocalModel", () => {
 
   it("removes the model from the manifest and deletes its file on uninstall", async () => {
     const env = {
-      OPENCLAW_STATE_DIR: stateDir,
-      OPENCLAW_TEST_FAST: "1",
+      ALISIO_STATE_DIR: stateDir,
+      ALISIO_TEST_FAST: "1",
       HOME: stateDir,
     } as NodeJS.ProcessEnv;
 

@@ -25,7 +25,7 @@ import {
 } from "../channels/thread-bindings-policy.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
 import { loadConfig } from "../config/config.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveStorePath } from "../config/sessions/paths.js";
 import { loadSessionStore } from "../config/sessions/store.js";
 import { resolveSessionTranscriptFile } from "../config/sessions/transcript.js";
@@ -106,7 +106,7 @@ export const ACP_SPAWN_SESSION_ACCEPTED_NOTE =
   "thread-bound ACP session stays active after this task; continue in-thread for follow-ups.";
 
 export function resolveAcpSpawnRuntimePolicyError(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   requesterSessionKey?: string;
   requesterSandboxed?: boolean;
   sandbox?: SpawnAcpSandboxMode;
@@ -185,7 +185,7 @@ function resolveAcpSessionMode(mode: SpawnAcpMode): AcpRuntimeSessionMode {
 }
 
 function isHeartbeatEnabledForSessionAgent(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionKey?: string;
 }): boolean {
   if (!areHeartbeatsEnabled()) {
@@ -223,9 +223,9 @@ function isHeartbeatEnabledForSessionAgent(params: {
 }
 
 function resolveHeartbeatConfigForAgent(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
-}): NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>["heartbeat"] {
+}): NonNullable<NonNullable<AlisioConfig["agents"]>["defaults"]>["heartbeat"] {
   const defaults = params.cfg.agents?.defaults?.heartbeat;
   const overrides = resolveAgentConfig(params.cfg, params.agentId)?.heartbeat;
   if (!defaults && !overrides) {
@@ -238,7 +238,7 @@ function resolveHeartbeatConfigForAgent(params: {
 }
 
 function hasSessionLocalHeartbeatRelayRoute(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   parentSessionKey: string;
   requesterAgentId: string;
 }): boolean {
@@ -275,7 +275,7 @@ function hasSessionLocalHeartbeatRelayRoute(params: {
 
 function resolveTargetAcpAgentId(params: {
   requestedAgentId?: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
 }): { ok: true; agentId: string } | { ok: false; error: string } {
   const requested = normalizeOptionalAgentId(params.requestedAgentId);
   if (requested) {
@@ -313,7 +313,7 @@ function summarizeError(err: unknown): string {
 }
 
 function resolveRequesterInternalSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   requesterSessionKey?: string;
 }): string {
   const { mainKey, alias } = resolveMainSessionAlias(params.cfg);
@@ -385,7 +385,7 @@ function resolveConversationIdForThreadBinding(params: {
 }
 
 function prepareAcpThreadBinding(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel?: string;
   accountId?: string;
   to?: string;
@@ -468,7 +468,7 @@ function prepareAcpThreadBinding(params: {
 }
 
 function resolveAcpSpawnRequesterState(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   parentSessionKey?: string;
   ctx: SpawnAcpContext;
 }): AcpSpawnRequesterState {
@@ -544,7 +544,7 @@ function resolveAcpSpawnStreamPlan(params: {
 }
 
 async function initializeAcpSpawnRuntime(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionKey: string;
   targetAgentId: string;
   runtimeMode: AcpRuntimeSessionMode;
@@ -591,7 +591,7 @@ async function initializeAcpSpawnRuntime(params: {
 }
 
 async function bindPreparedAcpThread(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionKey: string;
   targetAgentId: string;
   label?: string;

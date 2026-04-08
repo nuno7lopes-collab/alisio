@@ -194,6 +194,24 @@ describe("scripts/test-parallel memory trace parsing", () => {
     ]);
   });
 
+  it("extracts completed verbose Vitest test-case lines by file", () => {
+    const output = [
+      " ✓ src/config/schema.base.generated.test.ts > generated base config schema > matches the computed base config schema payload 917ms",
+      " ✓ src/config/schema.help.quality.test.ts > config help copy quality > keeps labels in parity for all help keys 9ms",
+    ].join("\n");
+
+    expect(parseCompletedTestFileLines(output)).toEqual([
+      {
+        file: "src/config/schema.base.generated.test.ts",
+        durationMs: 917,
+      },
+      {
+        file: "src/config/schema.help.quality.test.ts",
+        durationMs: 9,
+      },
+    ]);
+  });
+
   it("ignores non-file summary lines", () => {
     expect(
       parseCompletedTestFileLines(

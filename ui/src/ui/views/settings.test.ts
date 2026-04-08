@@ -51,11 +51,9 @@ function createProps(
     locale: "en",
     theme: "claw",
     themeMode: "system",
-    borderRadius: 50,
     onLocaleChange: vi.fn(),
     onThemeChange: vi.fn(),
     onThemeModeChange: vi.fn(),
-    onBorderRadiusChange: vi.fn(),
     onSaveAccountField: vi.fn(),
     nativeShellLoading: false,
     nativeShellError: null,
@@ -68,7 +66,7 @@ function createProps(
     onRevealLogs: vi.fn(),
     onOpenSetup: vi.fn(),
     onSignOutAccount: vi.fn(),
-    onRequestPasswordReset: vi.fn(),
+    onRequestRecoveryEmail: vi.fn(),
     onReconnectRuntime: vi.fn(),
     ...overrides,
   };
@@ -105,7 +103,6 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).toContain("Amber");
     expect(container.textContent).toContain("Violet");
     expect(container.textContent).toContain("Bronze");
-    expect(container.textContent).toContain("Round");
     expect(container.textContent).not.toContain("None");
     expect(container.textContent).not.toContain("Slight");
     expect(container.textContent).not.toContain("Default");
@@ -117,14 +114,12 @@ describe("renderSettingsHub", () => {
     const container = document.createElement("div");
     const onThemeChange = vi.fn();
     const onThemeModeChange = vi.fn();
-    const onBorderRadiusChange = vi.fn();
 
     render(
       renderSettingsHub(
         createProps({
           onThemeChange,
           onThemeModeChange,
-          onBorderRadiusChange,
         }),
       ),
       container,
@@ -135,7 +130,6 @@ describe("renderSettingsHub", () => {
 
     expect(onThemeChange.mock.calls[0]?.[0]).toBe("knot");
     expect(onThemeModeChange).toHaveBeenCalledWith("light");
-    expect(onBorderRadiusChange).not.toHaveBeenCalled();
     expect(container.querySelectorAll("[data-radius-option]")).toHaveLength(0);
   });
 
@@ -198,5 +192,61 @@ describe("renderSettingsHub", () => {
 
     expect(container.textContent).toContain("Agent name");
     expect(container.textContent).toContain("Muse");
+  });
+
+  it("hides the recovery action for Google accounts", () => {
+    const container = document.createElement("div");
+    const account = createAccount();
+    account.session.authMethod = "google";
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "account",
+          account,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).not.toContain("Send recovery email");
+    expect(container.textContent).toContain("Sign out");
+  });
+
+  it("renders translated setup labels in doctor issues", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          doctor: {
+            ok: false,
+            bootstrap: {} as never,
+            issues: [
+              {
+                code: "gateway_not_connected",
+                severity: "error",
+                title: "Alisio app not connected",
+                message: "Open or reconnect the Alisio app before continuing setup.",
+                step: "gateway",
+              },
+            ],
+            checks: {
+              gateway: false,
+              runtime: true,
+              account: true,
+              organization: true,
+              connectors: true,
+              permissions: true,
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Alisio");
+    expect(container.textContent).toContain("Reconnect Alisio");
+    expect(container.textContent).not.toContain("gateway");
   });
 });

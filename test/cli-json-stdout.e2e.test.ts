@@ -16,14 +16,17 @@ describe("cli json stdout contract", () => {
           ...process.env,
           HOME: tempHome,
           USERPROFILE: tempHome,
-          OPENCLAW_TEST_FAST: "1",
+          ALISIO_TEST_FAST: "1",
         };
+        delete env.ALISIO_HOME;
+        delete env.ALISIO_STATE_DIR;
+        delete env.ALISIO_CONFIG_PATH;
         delete env.OPENCLAW_HOME;
         delete env.OPENCLAW_STATE_DIR;
         delete env.OPENCLAW_CONFIG_PATH;
         delete env.VITEST;
 
-        const entry = path.resolve(process.cwd(), "openclaw.mjs");
+        const entry = path.resolve(process.cwd(), "alisio.mjs");
         const result = spawnSync(
           process.execPath,
           [entry, "update", "status", "--json", "--timeout", "1"],
@@ -38,7 +41,7 @@ describe("cli json stdout contract", () => {
         expect(stdout).not.toContain("Doctor changes");
         expect(stdout).not.toContain("Config invalid");
       },
-      { prefix: "openclaw-json-e2e-" },
+      { prefix: "alisio-json-e2e-" },
     );
   });
 });

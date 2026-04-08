@@ -1,6 +1,6 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import { streamSimple } from "@mariozechner/pi-ai";
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 
 /**
  * Default idle timeout for LLM streaming responses in milliseconds.
@@ -20,7 +20,7 @@ const MAX_SAFE_TIMEOUT_MS = 2_147_000_000;
  * @param cfg - OpenClaw configuration
  * @returns Idle timeout in milliseconds, or 0 to disable
  */
-export function resolveLlmIdleTimeoutMs(cfg?: OpenClawConfig): number {
+export function resolveLlmIdleTimeoutMs(cfg?: AlisioConfig): number {
   const raw = cfg?.agents?.defaults?.llm?.idleTimeoutSeconds;
   // 0 means disabled (no timeout)
   if (raw === 0) {

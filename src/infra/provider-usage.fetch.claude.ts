@@ -71,6 +71,7 @@ async function fetchClaudeWebUsage(
   const headers: Record<string, string> = {
     Cookie: `sessionKey=${sessionKey}`,
     Accept: "application/json",
+    "User-Agent": "alisio",
   };
 
   const orgRes = await fetchJson(
@@ -122,7 +123,7 @@ export async function fetchClaudeUsage(
     {
       headers: {
         Authorization: `Bearer ${token}`,
-        "User-Agent": "openclaw",
+        "User-Agent": "alisio",
         Accept: "application/json",
         "anthropic-version": "2023-06-01",
         "anthropic-beta": "oauth-2025-04-20",

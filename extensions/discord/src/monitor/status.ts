@@ -1,5 +1,6 @@
 export type DiscordMonitorStatusPatch = {
   connected?: boolean;
+  reconnectAttempts?: number;
   lastEventAt?: number | null;
   lastConnectedAt?: number | null;
   lastDisconnect?:
@@ -13,6 +14,7 @@ export type DiscordMonitorStatusPatch = {
     | null;
   lastInboundAt?: number | null;
   lastError?: string | null;
+  healthState?: "healthy" | "reconnecting" | "stopped";
   busy?: boolean;
   activeRuns?: number;
   lastRunActivityAt?: number | null;

@@ -1,11 +1,11 @@
 import type { RunOptions } from "@grammyjs/runner";
 import { resolveAgentMaxConcurrent } from "openclaw/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "openclaw/plugin-sdk/config-runtime";
 import { loadConfig } from "openclaw/plugin-sdk/config-runtime";
 import { waitForAbortSignal } from "openclaw/plugin-sdk/runtime-env";
 import { registerUnhandledRejectionHandler } from "openclaw/plugin-sdk/runtime-env";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import { formatErrorMessage } from "openclaw/plugin-sdk/ssrf-runtime";
+import { redactSensitiveText } from "openclaw/plugin-sdk/text-runtime";
 import { resolveTelegramAccount } from "./accounts.js";
 import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { TelegramExecApprovalHandler } from "./exec-approvals-handler.js";
@@ -19,10 +19,12 @@ import { makeProxyFetch } from "./proxy.js";
 import { readTelegramUpdateOffset, writeTelegramUpdateOffset } from "./update-offset-store.js";
 import { startTelegramWebhook } from "./webhook.js";
 
+type TelegramConfig = Parameters<typeof resolveTelegramAccount>[0]["cfg"];
+
 export type MonitorTelegramOpts = {
   token?: string;
   accountId?: string;
-  config?: OpenClawConfig;
+  config?: TelegramConfig;
   runtime?: RuntimeEnv;
   abortSignal?: AbortSignal;
   useWebhook?: boolean;
@@ -33,9 +35,38 @@ export type MonitorTelegramOpts = {
   proxyFetch?: typeof fetch;
   webhookUrl?: string;
   webhookCertPath?: string;
+  statusSink?: TelegramMonitorStatusSink;
 };
 
-export function createTelegramRunnerOptions(cfg: OpenClawConfig): RunOptions<unknown> {
+export type TelegramMonitorStatusPatch = {
+  running?: boolean;
+  connected?: boolean;
+  reconnectAttempts?: number;
+  lastConnectedAt?: number | null;
+  lastDisconnect?:
+    | string
+    | {
+        at: number;
+        status?: number;
+        error?: string;
+        loggedOut?: boolean;
+      }
+    | null;
+  lastEventAt?: number | null;
+  lastError?: string | null;
+  healthState?: "starting" | "healthy" | "reconnecting" | "stopped";
+  mode?: "polling" | "webhook";
+  lastStartAt?: number | null;
+  lastStopAt?: number | null;
+};
+
+export type TelegramMonitorStatusSink = (patch: TelegramMonitorStatusPatch) => void;
+
+function sanitizeTelegramRuntimeError(err: unknown): string {
+  return redactSensitiveText(formatErrorMessage(err));
+}
+
+export function createTelegramRunnerOptions(cfg: TelegramConfig): RunOptions<unknown> {
   return {
     sink: {
       concurrency: resolveAgentMaxConcurrent(cfg),
@@ -79,6 +110,15 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
   const log = opts.runtime?.error ?? console.error;
   let pollingSession: TelegramPollingSession | undefined;
   let execApprovalsHandler: TelegramExecApprovalHandler | undefined;
+  const mode = opts.useWebhook ? "webhook" : "polling";
+  let startedAt: number | null = null;
+  let lastFatalError: string | null = null;
+  const pushStatus = (patch: TelegramMonitorStatusPatch) => {
+    opts.statusSink?.({
+      mode,
+      ...patch,
+    });
+  };
 
   const unregisterHandler = registerUnhandledRejectionHandler((err) => {
     const isNetworkError = isRecoverableTelegramNetworkError(err, { context: "polling" });
@@ -116,6 +156,16 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         `Telegram bot token missing for account "${account.accountId}" (set channels.telegram.accounts.${account.accountId}.botToken/tokenFile or TELEGRAM_BOT_TOKEN for default).`,
       );
     }
+    startedAt = Date.now();
+    pushStatus({
+      running: true,
+      connected: false,
+      reconnectAttempts: 0,
+      healthState: "starting",
+      lastError: null,
+      lastStartAt: startedAt,
+      lastStopAt: null,
+    });
 
     const proxyFetch =
       opts.proxyFetch ?? (account.config.proxy ? makeProxyFetch(account.config.proxy) : undefined);
@@ -177,6 +227,15 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
         publicUrl: opts.webhookUrl,
         webhookCertPath: opts.webhookCertPath,
       });
+      pushStatus({
+        running: true,
+        connected: true,
+        reconnectAttempts: 0,
+        healthState: "healthy",
+        lastConnectedAt: Date.now(),
+        lastEventAt: Date.now(),
+        lastError: null,
+      });
       await waitForAbortSignal(opts.abortSignal);
       return;
     }
@@ -200,11 +259,29 @@ export async function monitorTelegramProvider(opts: MonitorTelegramOpts = {}) {
       getLastUpdateId: () => lastUpdateId,
       persistUpdateId,
       log,
+      statusSink: pushStatus,
       telegramTransport,
       createTelegramTransport: createTelegramTransportForPolling,
     });
     await pollingSession.runUntilAbort();
+  } catch (err) {
+    lastFatalError = sanitizeTelegramRuntimeError(err);
+    pushStatus({
+      connected: false,
+      healthState: "stopped",
+      lastError: lastFatalError,
+      lastEventAt: Date.now(),
+    });
+    throw err;
   } finally {
+    pushStatus({
+      running: false,
+      connected: false,
+      healthState: "stopped",
+      lastStopAt: Date.now(),
+      ...(lastFatalError ? { lastError: lastFatalError } : {}),
+      ...(startedAt ? { lastStartAt: startedAt } : {}),
+    });
     await execApprovalsHandler?.stop().catch(() => {});
     unregisterHandler();
   }

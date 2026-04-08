@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { telegramMessagingForTest } from "../infra/outbound/targets.test-helpers.js";
 
 const mockStore: Record<string, Record<string, unknown>> = {};
@@ -42,7 +42,7 @@ afterAll(() => {
 });
 
 describe("resolveDeliveryTarget thread session lookup", () => {
-  const cfg: OpenClawConfig = {};
+  const cfg: AlisioConfig = {};
 
   it("uses thread session entry when sessionKey is provided and entry exists", async () => {
     mockStore["/mock/store.json"] = {

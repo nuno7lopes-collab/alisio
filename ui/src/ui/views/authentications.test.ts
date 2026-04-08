@@ -189,6 +189,72 @@ describe("authentications view", () => {
     expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
   });
 
+  it("shows the upgrade path and disables new connector buttons on Free once a slot is occupied", () => {
+    const container = document.createElement("div");
+    const onBeginConnector = vi.fn();
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: {
+          profile: {
+            plan: "free",
+          },
+        } as never,
+        connectorCatalog: [
+          {
+            id: "gmail-send",
+            title: "Gmail Send",
+            providerLabel: "Google",
+            category: "google",
+            connectLabel: "Connect with Google",
+            summary: "Send email via Gmail.",
+            availability: "ready",
+            scopes: ["https://www.googleapis.com/auth/gmail.send"],
+          },
+          {
+            id: "github",
+            title: "GitHub",
+            providerLabel: "GitHub",
+            category: "development",
+            connectLabel: "Connect with GitHub",
+            summary: "Repositories and pull requests.",
+            availability: "ready",
+            scopes: ["repo"],
+          },
+        ],
+        connectorAuthorizations: [
+          {
+            connectorId: "gmail-send",
+            state: "connected",
+            health: "healthy",
+            scopes: ["https://www.googleapis.com/auth/gmail.send"],
+          },
+        ],
+        setupGuide: null,
+        search: "",
+        categoryFilter: "all",
+        onSearchChange: vi.fn(),
+        onCategoryChange: vi.fn(),
+        onBeginConnector,
+        onRevokeConnector: vi.fn(),
+        onOpenChannels: vi.fn(),
+        onDismissSetupGuide: vi.fn(),
+        onOpenSupportUrl: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("Free includes 1 connected app.");
+    const githubButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Connect with GitHub"),
+    );
+    expect(githubButton?.disabled).toBe(true);
+    githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onBeginConnector).not.toHaveBeenCalled();
+  });
+
   it("does not duplicate already connected apps in category sections", () => {
     const container = document.createElement("div");
 

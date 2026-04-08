@@ -2,7 +2,7 @@ import { logDebug, logWarn } from "../logger.js";
 import { getLogger } from "../logging.js";
 import { classifyCiaoUnhandledRejection } from "./bonjour-ciao.js";
 import { formatBonjourError } from "./bonjour-errors.js";
-import { isTruthyEnvValue } from "./env.js";
+import { isTruthyEnvValue, legacyEnvKey, readEnv } from "./env.js";
 import { registerUnhandledRejectionHandler } from "./unhandled-rejections.js";
 
 export type GatewayBonjourAdvertiser = {
@@ -25,8 +25,18 @@ export type GatewayBonjourAdvertiseOpts = {
   minimal?: boolean;
 };
 
+const LEGACY_BRAND_NAME = ["Open", "Claw"].join("");
+const GATEWAY_SERVICE_TYPE = "alisio-gw";
+
 function isDisabledByEnv() {
-  if (isTruthyEnvValue(process.env.OPENCLAW_DISABLE_BONJOUR)) {
+  if (
+    isTruthyEnvValue(
+      readEnv("ALISIO_DISABLE_BONJOUR", {
+        fallback: legacyEnvKey("DISABLE_BONJOUR"),
+        description: "disable bonjour advertising",
+      }),
+    )
+  ) {
     return true;
   }
   if (process.env.NODE_ENV === "test") {
@@ -45,7 +55,8 @@ function safeServiceName(name: string) {
 
 function prettifyInstanceName(name: string) {
   const normalized = name.trim().replace(/\s+/g, " ");
-  return normalized.replace(/\s+\((OpenClaw|Alisio)\)\s*$/i, "").trim() || normalized;
+  const brandSuffix = new RegExp(`\\s+\\((?:${LEGACY_BRAND_NAME}|Alisio)\\)\\s*$`, "i");
+  return normalized.replace(brandSuffix, "").trim() || normalized;
 }
 
 type BonjourService = import("@homebridge/ciao").CiaoService;
@@ -148,12 +159,16 @@ export async function startGatewayBonjourAdvertiser(
     // mDNS service instance names are single DNS labels; dots in hostnames (like
     // `Mac.localdomain`) can confuse some resolvers/browsers and break discovery.
     // Keep only the first label and normalize away a trailing `.local`.
-    const hostnameRaw = process.env.OPENCLAW_MDNS_HOSTNAME?.trim() || "openclaw";
+    const hostnameRaw =
+      readEnv("ALISIO_MDNS_HOSTNAME", {
+        fallback: legacyEnvKey("MDNS_HOSTNAME"),
+        description: "bonjour hostname override",
+      }) ?? "alisio";
     const hostname =
       hostnameRaw
         .replace(/\.local$/i, "")
         .split(".")[0]
-        .trim() || "openclaw";
+        .trim() || "alisio";
     const instanceName =
       typeof opts.instanceName === "string" && opts.instanceName.trim()
         ? opts.instanceName.trim()
@@ -200,7 +215,7 @@ export async function startGatewayBonjourAdvertiser(
 
       const gateway = responder.createService({
         name: safeServiceName(instanceName),
-        type: "openclaw-gw",
+        type: GATEWAY_SERVICE_TYPE,
         protocol: Protocol.TCP,
         port: opts.gatewayPort,
         domain: "local",

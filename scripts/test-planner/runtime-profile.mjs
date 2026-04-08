@@ -33,7 +33,7 @@ const parseProfile = (rawProfile) => {
 };
 
 const resolveLoadRatio = (env, cpuCount, platform, loadAverage) => {
-  const loadAwareDisabledRaw = env.OPENCLAW_TEST_LOAD_AWARE?.trim().toLowerCase();
+  const loadAwareDisabledRaw = env.ALISIO_TEST_LOAD_AWARE?.trim().toLowerCase();
   const loadAwareDisabled = loadAwareDisabledRaw === "0" || loadAwareDisabledRaw === "false";
   if (loadAwareDisabled || platform === "win32" || cpuCount <= 0) {
     return 0;
@@ -224,15 +224,15 @@ export function resolveRuntimeCapabilities(env = process.env, options = {}) {
   const isWindows = platform === "win32" || runnerOs === "Windows";
   const isWindowsCi = isCI && isWindows;
   const hostCpuCount =
-    parsePositiveInt(env.OPENCLAW_TEST_HOST_CPU_COUNT) ?? options.cpuCount ?? os.cpus().length;
+    parsePositiveInt(env.ALISIO_TEST_HOST_CPU_COUNT) ?? options.cpuCount ?? os.cpus().length;
   const totalMemoryBytes = options.totalMemoryBytes ?? os.totalmem();
   const hostMemoryGiB =
-    parsePositiveInt(env.OPENCLAW_TEST_HOST_MEMORY_GIB) ?? Math.floor(totalMemoryBytes / 1024 ** 3);
+    parsePositiveInt(env.ALISIO_TEST_HOST_MEMORY_GIB) ?? Math.floor(totalMemoryBytes / 1024 ** 3);
   const nodeMajor = Number.parseInt(
     (options.nodeVersion ?? process.versions.node).split(".")[0] ?? "",
     10,
   );
-  const intentProfile = parseProfile(options.profile ?? env.OPENCLAW_TEST_PROFILE ?? "normal");
+  const intentProfile = parseProfile(options.profile ?? env.ALISIO_TEST_PROFILE ?? "normal");
   const loadRatio = !isCI ? resolveLoadRatio(env, hostCpuCount, platform, options.loadAverage) : 0;
   const loadAware = !isCI && platform !== "win32";
   const memoryBand = resolveMemoryBand(hostMemoryGiB);
@@ -359,7 +359,7 @@ export function resolveExecutionBudget(runtimeCapabilities) {
 }
 
 export function resolveLocalVitestMaxWorkers(env = process.env, options = {}) {
-  const explicit = parsePositiveInt(env.OPENCLAW_VITEST_MAX_WORKERS);
+  const explicit = parsePositiveInt(env.ALISIO_VITEST_MAX_WORKERS);
   if (explicit !== null) {
     return explicit;
   }

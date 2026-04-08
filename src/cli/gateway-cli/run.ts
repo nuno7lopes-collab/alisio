@@ -19,6 +19,7 @@ import { setVerbose } from "../../globals.js";
 import { GatewayLockError } from "../../infra/gateway-lock.js";
 import { formatPortDiagnostics, inspectPortUsage } from "../../infra/ports.js";
 import { cleanStaleGatewayProcessesSync } from "../../infra/restart-stale-pids.js";
+import { autoMigrateLegacyStateDir } from "../../infra/state-migrations.js";
 import { detectRespawnSupervisor } from "../../infra/supervisor-markers.js";
 import { setConsoleSubsystemFilter, setConsoleTimestampPrefix } from "../../logging/console.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
@@ -214,6 +215,22 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   const rawStreamPath = toOptionString(opts.rawStreamPath);
   if (rawStreamPath) {
     process.env.OPENCLAW_RAW_STREAM_PATH = rawStreamPath;
+  }
+
+  const stateDirMigration = await autoMigrateLegacyStateDir({ env: process.env });
+  if (stateDirMigration.changes.length > 0) {
+    gatewayLog.info(
+      `gateway: migrated state dir before startup:\n${stateDirMigration.changes
+        .map((entry) => `- ${entry}`)
+        .join("\n")}`,
+    );
+  }
+  if (stateDirMigration.warnings.length > 0) {
+    gatewayLog.warn(
+      `gateway: state-dir migration warnings:\n${stateDirMigration.warnings
+        .map((entry) => `- ${entry}`)
+        .join("\n")}`,
+    );
   }
 
   if (devMode) {

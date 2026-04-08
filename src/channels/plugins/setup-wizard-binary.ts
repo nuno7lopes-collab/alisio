@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { detectBinary as defaultDetectBinary } from "../../plugins/setup-binary.js";
 import type {
   ChannelSetupWizard,
@@ -18,8 +18,8 @@ export function createDetectedBinaryStatus(params: {
   unconfiguredHint: string;
   configuredScore: number;
   unconfiguredScore: number;
-  resolveConfigured: (params: { cfg: OpenClawConfig }) => boolean | Promise<boolean>;
-  resolveBinaryPath: (params: { cfg: OpenClawConfig }) => string;
+  resolveConfigured: (params: { cfg: AlisioConfig }) => boolean | Promise<boolean>;
+  resolveBinaryPath: (params: { cfg: AlisioConfig }) => string;
   detectBinary?: (path: string) => Promise<boolean>;
 }): ChannelSetupWizardStatus {
   const detectBinary = params.detectBinary ?? defaultDetectBinary;
@@ -43,7 +43,7 @@ export function createDetectedBinaryStatus(params: {
     async resolveSelectionHint({
       cfg,
     }: {
-      cfg: OpenClawConfig;
+      cfg: AlisioConfig;
       configured: boolean;
     }): Promise<string | undefined> {
       return (await detectBinary(params.resolveBinaryPath({ cfg })))
@@ -53,7 +53,7 @@ export function createDetectedBinaryStatus(params: {
     async resolveQuickstartScore({
       cfg,
     }: {
-      cfg: OpenClawConfig;
+      cfg: AlisioConfig;
       configured: boolean;
     }): Promise<number | undefined> {
       return (await detectBinary(params.resolveBinaryPath({ cfg })))

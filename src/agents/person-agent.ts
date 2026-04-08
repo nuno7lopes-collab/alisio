@@ -2,7 +2,7 @@ import type {
   AgentConfig,
   AgentToolsConfig,
   MemorySearchConfig,
-  OpenClawConfig,
+  AlisioConfig,
   PersonAgentConfig,
   PersonArtifactType,
   PersonMemoryScope,
@@ -124,7 +124,7 @@ function readStringField(value: unknown, key: string): string | undefined {
   return trimmed || undefined;
 }
 
-function resolveProfileTimezone(cfg: OpenClawConfig, person?: PersonAgentConfig): string {
+function resolveProfileTimezone(cfg: AlisioConfig, person?: PersonAgentConfig): string {
   return (
     person?.profile?.timezone?.trim() ||
     cfg.agents?.defaults?.userTimezone?.trim() ||
@@ -166,7 +166,7 @@ function resolveConnectedAccountsSummary(
 }
 
 function buildResolvedPersonConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   status: PersonWorkspaceSummary["status"];
   person?: PersonAgentConfig;
   agentName?: string;
@@ -214,7 +214,7 @@ function buildResolvedPersonConfig(params: {
 }
 
 export function resolveActivePersonAgentConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   agent: Pick<AgentConfig, "name" | "identity" | "person">;
 }): ResolvedPersonAgentConfig | undefined {
@@ -232,7 +232,7 @@ export function resolveActivePersonAgentConfig(params: {
 }
 
 export function resolvePersonWorkspaceSummary(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   defaultAgentId: string;
   agent: Pick<AgentConfig, "name" | "identity" | "person">;

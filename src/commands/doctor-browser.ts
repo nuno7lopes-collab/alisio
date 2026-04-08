@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   parseBrowserMajorVersion,
   readBrowserVersion,
@@ -24,7 +24,7 @@ type ExistingSessionProfile = {
   userDataDir?: string;
 };
 
-function collectChromeMcpProfiles(cfg: OpenClawConfig): ExistingSessionProfile[] {
+function collectChromeMcpProfiles(cfg: AlisioConfig): ExistingSessionProfile[] {
   const browser = asRecord(cfg.browser);
   if (!browser) {
     return [];
@@ -56,7 +56,7 @@ function collectChromeMcpProfiles(cfg: OpenClawConfig): ExistingSessionProfile[]
 }
 
 export async function noteChromeMcpBrowserReadiness(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   deps?: {
     platform?: NodeJS.Platform;
     noteFn?: typeof note;

@@ -5,6 +5,7 @@ import type {
   ExecApprovalRequest,
   ExecApprovalRequestPayload,
 } from "../controllers/exec-approval.ts";
+import { sortExecApprovalQueue } from "../controllers/exec-approval.ts";
 import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
 import { resolveSessionDisplayName } from "./session-display.ts";
 
@@ -80,7 +81,8 @@ ${active.pluginDescription}</pre
 }
 
 export function renderExecApprovalPrompt(state: AppViewState) {
-  const active = state.execApprovalQueue[0];
+  const queue = sortExecApprovalQueue(state.execApprovalQueue);
+  const active = queue[0];
   if (!active) {
     return nothing;
   }
@@ -90,7 +92,7 @@ export function renderExecApprovalPrompt(state: AppViewState) {
     remainingMs > 0
       ? t("alisio.security.queue.expiresIn", { value: formatApprovalRemaining(remainingMs) })
       : t("alisio.security.queue.expired");
-  const queueCount = state.execApprovalQueue.length;
+  const queueCount = queue.length;
   const isPlugin = active.kind === "plugin";
   const title = isPlugin
     ? (active.pluginTitle ?? t("alisio.security.queue.pluginApproval"))

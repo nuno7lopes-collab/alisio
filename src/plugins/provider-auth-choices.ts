@@ -1,5 +1,5 @@
 import { normalizeProviderIdForAuth } from "../agents/model-selection.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
 
 export type ProviderAuthChoiceMetadata = {
@@ -29,7 +29,7 @@ export type ProviderOnboardAuthFlag = {
 };
 
 export function resolveManifestProviderAuthChoices(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderAuthChoiceMetadata[] {
@@ -63,7 +63,7 @@ export function resolveManifestProviderAuthChoices(params?: {
 export function resolveManifestProviderAuthChoice(
   choiceId: string,
   params?: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
   },
@@ -79,7 +79,7 @@ export function resolveManifestProviderAuthChoice(
 
 export function resolveManifestProviderApiKeyChoice(params: {
   providerId: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderAuthChoiceMetadata | undefined {
@@ -99,7 +99,7 @@ export function resolveManifestProviderApiKeyChoice(params: {
 export function resolveManifestDeprecatedProviderAuthChoice(
   choiceId: string,
   params?: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     workspaceDir?: string;
     env?: NodeJS.ProcessEnv;
   },
@@ -114,7 +114,7 @@ export function resolveManifestDeprecatedProviderAuthChoice(
 }
 
 export function resolveManifestProviderOnboardAuthFlags(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }): ProviderOnboardAuthFlag[] {

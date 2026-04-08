@@ -3,7 +3,7 @@ import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
 import { collectProviderApiKeys } from "../agents/live-auth-keys.js";
 import { isLiveTestEnabled } from "../agents/live-test-helpers.js";
 import { resolveApiKeyForProvider } from "../agents/model-auth.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadConfig } from "../config/config.js";
 import { isTruthyEnvValue } from "../infra/env.js";
 import { getShellEnvAppliedKeys, loadShellEnvFallback } from "../infra/shell-env.js";
@@ -63,7 +63,7 @@ function createEditReferencePng(): Buffer {
   return encodePngRgba(buf, width, height);
 }
 
-function withPluginsEnabled(cfg: OpenClawConfig): OpenClawConfig {
+function withPluginsEnabled(cfg: AlisioConfig): AlisioConfig {
   return {
     ...cfg,
     plugins: {

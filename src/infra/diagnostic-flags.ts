@@ -1,6 +1,7 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 
-const DIAGNOSTICS_ENV = "OPENCLAW_DIAGNOSTICS";
+const DIAGNOSTICS_ENV = "ALISIO_DIAGNOSTICS";
 
 function normalizeFlag(value: string): string {
   return value.trim().toLowerCase();
@@ -42,11 +43,17 @@ function uniqueFlags(flags: string[]): string[] {
 }
 
 export function resolveDiagnosticFlags(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const configFlags = Array.isArray(cfg?.diagnostics?.flags) ? cfg?.diagnostics?.flags : [];
-  const envFlags = parseEnvFlags(env[DIAGNOSTICS_ENV]);
+  const envFlags = parseEnvFlags(
+    readEnv(DIAGNOSTICS_ENV, {
+      env,
+      fallback: legacyEnvKey("DIAGNOSTICS"),
+      description: "diagnostic flags",
+    }),
+  );
   return uniqueFlags([...configFlags, ...envFlags]);
 }
 
@@ -84,7 +91,7 @@ export function matchesDiagnosticFlag(flag: string, enabledFlags: string[]): boo
 
 export function isDiagnosticFlagEnabled(
   flag: string,
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
   const flags = resolveDiagnosticFlags(cfg, env);

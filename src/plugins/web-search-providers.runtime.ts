@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { isRecord } from "../utils.js";
 import {
@@ -22,13 +22,13 @@ type WebSearchProviderSnapshotCacheEntry = {
   providers: PluginWebSearchProviderEntry[];
 };
 let webSearchProviderSnapshotCache = new WeakMap<
-  OpenClawConfig,
+  AlisioConfig,
   WeakMap<NodeJS.ProcessEnv, Map<string, WebSearchProviderSnapshotCacheEntry>>
 >();
 
 function resetWebSearchProviderSnapshotCacheForTests() {
   webSearchProviderSnapshotCache = new WeakMap<
-    OpenClawConfig,
+    AlisioConfig,
     WeakMap<NodeJS.ProcessEnv, Map<string, WebSearchProviderSnapshotCacheEntry>>
   >();
 }
@@ -37,7 +37,7 @@ export const __testing = {
   resetWebSearchProviderSnapshotCacheForTests,
 } as const;
 function buildWebSearchSnapshotCacheKey(params: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   workspaceDir?: string;
   bundledAllowlistCompat?: boolean;
   onlyPluginIds?: readonly string[];

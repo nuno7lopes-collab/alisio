@@ -4,18 +4,29 @@ import fs from "node:fs";
 import path from "node:path";
 import { quoteCmdScriptArg } from "../daemon/cmd-argv.js";
 import { resolveGatewayWindowsTaskName } from "../daemon/constants.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import type { RestartAttempt } from "./restart.js";
-import { resolvePreferredOpenClawTmpDir } from "./tmp-openclaw-dir.js";
+import { resolvePreferredAlisioTmpDir } from "./tmp-alisio-dir.js";
 
 const TASK_RESTART_RETRY_LIMIT = 12;
 const TASK_RESTART_RETRY_DELAY_SEC = 1;
 
 function resolveWindowsTaskName(env: NodeJS.ProcessEnv): string {
-  const override = env.OPENCLAW_WINDOWS_TASK_NAME?.trim();
+  const override = readEnv("ALISIO_WINDOWS_TASK_NAME", {
+    env,
+    fallback: legacyEnvKey("WINDOWS_TASK_NAME"),
+    description: "Windows Scheduled Task name",
+  })?.trim();
   if (override) {
     return override;
   }
-  return resolveGatewayWindowsTaskName(env.OPENCLAW_PROFILE);
+  return resolveGatewayWindowsTaskName(
+    readEnv("ALISIO_PROFILE", {
+      env,
+      fallback: legacyEnvKey("PROFILE"),
+      description: "gateway profile",
+    }),
+  );
 }
 
 function buildScheduledTaskRestartScript(taskName: string): string {
@@ -39,8 +50,8 @@ function buildScheduledTaskRestartScript(taskName: string): string {
 export function relaunchGatewayScheduledTask(env: NodeJS.ProcessEnv = process.env): RestartAttempt {
   const taskName = resolveWindowsTaskName(env);
   const scriptPath = path.join(
-    resolvePreferredOpenClawTmpDir(),
-    `openclaw-schtasks-restart-${randomUUID()}.cmd`,
+    resolvePreferredAlisioTmpDir(),
+    `alisio-schtasks-restart-${randomUUID()}.cmd`,
   );
   const quotedScriptPath = quoteCmdScriptArg(scriptPath);
   try {
