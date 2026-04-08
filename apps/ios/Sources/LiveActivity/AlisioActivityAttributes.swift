@@ -2,7 +2,7 @@ import ActivityKit
 import Foundation
 
 /// Shared schema used by iOS app + Live Activity widget extension.
-struct OpenClawActivityAttributes: ActivityAttributes {
+struct AlisioActivityAttributes: ActivityAttributes {
     var agentName: String
     var sessionKey: String
 
@@ -16,26 +16,26 @@ struct OpenClawActivityAttributes: ActivityAttributes {
 }
 
 #if DEBUG
-extension OpenClawActivityAttributes {
-    static let preview = OpenClawActivityAttributes(agentName: "main", sessionKey: "main")
+extension AlisioActivityAttributes {
+    static let preview = AlisioActivityAttributes(agentName: "main", sessionKey: "main")
 }
 
-extension OpenClawActivityAttributes.ContentState {
-    static let connecting = OpenClawActivityAttributes.ContentState(
+extension AlisioActivityAttributes.ContentState {
+    static let connecting = AlisioActivityAttributes.ContentState(
         statusText: "Connecting...",
         isIdle: false,
         isDisconnected: false,
         isConnecting: true,
         startedAt: .now)
 
-    static let idle = OpenClawActivityAttributes.ContentState(
+    static let idle = AlisioActivityAttributes.ContentState(
         statusText: "Idle",
         isIdle: true,
         isDisconnected: false,
         isConnecting: false,
         startedAt: .now)
 
-    static let disconnected = OpenClawActivityAttributes.ContentState(
+    static let disconnected = AlisioActivityAttributes.ContentState(
         statusText: "Disconnected",
         isIdle: false,
         isDisconnected: true,

@@ -1,5 +1,5 @@
 import Foundation
-import OpenClawKit
+import AlisioKit
 
 struct TalkModeGatewayConfigState {
     let activeProvider: String

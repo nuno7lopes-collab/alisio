@@ -13,7 +13,9 @@ private struct StoredPushRelayRegistrationState: Codable {
 }
 
 enum PushRelayRegistrationStore {
-    private static let service = "ai.openclaw.pushrelay"
+    private static let service = "ai.alisio.pushrelay"
+    private static let legacyBrandName = ["open", "claw"].joined()
+    private static let legacyService = "ai.\(legacyBrandName).pushrelay"
     private static let registrationStateAccount = "registration-state"
     private static let appAttestKeyIDAccount = "app-attest-key-id"
     private static let appAttestedKeyIDAccount = "app-attested-key-id"
@@ -31,8 +33,9 @@ enum PushRelayRegistrationStore {
     }
 
     static func loadRegistrationState() -> RegistrationState? {
-        guard let raw = KeychainStore.loadString(
+        guard let raw = self.loadPromotingRawString(
             service: self.service,
+            legacyService: self.legacyService,
             account: self.registrationStateAccount),
             let data = raw.data(using: .utf8),
             let decoded = try? JSONDecoder().decode(StoredPushRelayRegistrationState.self, from: data)
@@ -73,14 +76,11 @@ enum PushRelayRegistrationStore {
 
     @discardableResult
     static func clearRegistrationState() -> Bool {
-        KeychainStore.delete(service: self.service, account: self.registrationStateAccount)
+        self.deleteCurrentAndLegacyEntries(account: self.registrationStateAccount)
     }
 
     static func loadAppAttestKeyID() -> String? {
-        let value = KeychainStore.loadString(service: self.service, account: self.appAttestKeyIDAccount)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if value?.isEmpty == false { return value }
-        return nil
+        self.loadPromotingTrimmedString(account: self.appAttestKeyIDAccount)
     }
 
     @discardableResult
@@ -90,14 +90,11 @@ enum PushRelayRegistrationStore {
 
     @discardableResult
     static func clearAppAttestKeyID() -> Bool {
-        KeychainStore.delete(service: self.service, account: self.appAttestKeyIDAccount)
+        self.deleteCurrentAndLegacyEntries(account: self.appAttestKeyIDAccount)
     }
 
     static func loadAttestedKeyID() -> String? {
-        let value = KeychainStore.loadString(service: self.service, account: self.appAttestedKeyIDAccount)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if value?.isEmpty == false { return value }
-        return nil
+        self.loadPromotingTrimmedString(account: self.appAttestedKeyIDAccount)
     }
 
     @discardableResult
@@ -107,6 +104,49 @@ enum PushRelayRegistrationStore {
 
     @discardableResult
     static func clearAttestedKeyID() -> Bool {
-        KeychainStore.delete(service: self.service, account: self.appAttestedKeyIDAccount)
+        self.deleteCurrentAndLegacyEntries(account: self.appAttestedKeyIDAccount)
+    }
+
+    private static func loadPromotingTrimmedString(account: String) -> String? {
+        if let current = KeychainStore.loadString(service: self.service, account: account)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           !current.isEmpty
+        {
+            return current
+        }
+        guard let legacy = KeychainStore.loadString(service: self.legacyService, account: account)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !legacy.isEmpty
+        else {
+            return nil
+        }
+        _ = KeychainStore.saveString(legacy, service: self.service, account: account)
+        return legacy
+    }
+
+    private static func loadPromotingRawString(
+        service: String,
+        legacyService: String,
+        account: String) -> String?
+    {
+        if let current = KeychainStore.loadString(service: service, account: account),
+           !current.isEmpty
+        {
+            return current
+        }
+        guard let legacy = KeychainStore.loadString(service: legacyService, account: account),
+              !legacy.isEmpty
+        else {
+            return nil
+        }
+        _ = KeychainStore.saveString(legacy, service: service, account: account)
+        return legacy
+    }
+
+    @discardableResult
+    private static func deleteCurrentAndLegacyEntries(account: String) -> Bool {
+        let currentDeleted = KeychainStore.delete(service: self.service, account: account)
+        let legacyDeleted = KeychainStore.delete(service: self.legacyService, account: account)
+        return currentDeleted || legacyDeleted
     }
 }

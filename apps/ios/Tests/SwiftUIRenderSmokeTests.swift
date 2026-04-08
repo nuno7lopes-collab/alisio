@@ -1,8 +1,8 @@
-import OpenClawKit
+import AlisioKit
 import SwiftUI
 import Testing
 import UIKit
-@testable import OpenClaw
+@testable import Alisio
 
 @Suite struct SwiftUIRenderSmokeTests {
     @MainActor private static func host(_ view: some View) -> UIWindow {
@@ -75,7 +75,7 @@ import UIKit
     }
 
     @Test @MainActor func voiceWakeToastBuildsAViewHierarchy() {
-        let root = VoiceWakeToast(command: "openclaw: do something")
+        let root = VoiceWakeToast(command: "alisio: do something")
         _ = Self.host(root)
     }
 }

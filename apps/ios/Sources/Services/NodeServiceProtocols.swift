@@ -1,15 +1,15 @@
 import CoreLocation
 import Foundation
-import OpenClawKit
+import AlisioKit
 import UIKit
 
-typealias OpenClawCameraSnapResult = (format: String, base64: String, width: Int, height: Int)
-typealias OpenClawCameraClipResult = (format: String, base64: String, durationMs: Int, hasAudio: Bool)
+typealias AlisioCameraSnapResult = (format: String, base64: String, width: Int, height: Int)
+typealias AlisioCameraClipResult = (format: String, base64: String, durationMs: Int, hasAudio: Bool)
 
 protocol CameraServicing: Sendable {
     func listDevices() async -> [CameraController.CameraDeviceInfo]
-    func snap(params: OpenClawCameraSnapParams) async throws -> OpenClawCameraSnapResult
-    func clip(params: OpenClawCameraClipParams) async throws -> OpenClawCameraClipResult
+    func snap(params: AlisioCameraSnapParams) async throws -> AlisioCameraSnapResult
+    func clip(params: AlisioCameraClipParams) async throws -> AlisioCameraClipResult
 }
 
 protocol ScreenRecordingServicing: Sendable {
@@ -25,14 +25,14 @@ protocol ScreenRecordingServicing: Sendable {
 protocol LocationServicing: Sendable {
     func authorizationStatus() -> CLAuthorizationStatus
     func accuracyAuthorization() -> CLAccuracyAuthorization
-    func ensureAuthorization(mode: OpenClawLocationMode) async -> CLAuthorizationStatus
+    func ensureAuthorization(mode: AlisioLocationMode) async -> CLAuthorizationStatus
     func currentLocation(
-        params: OpenClawLocationGetParams,
-        desiredAccuracy: OpenClawLocationAccuracy,
+        params: AlisioLocationGetParams,
+        desiredAccuracy: AlisioLocationAccuracy,
         maxAgeMs: Int?,
         timeoutMs: Int?) async throws -> CLLocation
     func startLocationUpdates(
-        desiredAccuracy: OpenClawLocationAccuracy,
+        desiredAccuracy: AlisioLocationAccuracy,
         significantChangesOnly: Bool) -> AsyncStream<CLLocation>
     func stopLocationUpdates()
     func startMonitoringSignificantLocationChanges(onUpdate: @escaping @Sendable (CLLocation) -> Void)
@@ -41,32 +41,32 @@ protocol LocationServicing: Sendable {
 
 @MainActor
 protocol DeviceStatusServicing: Sendable {
-    func status() async throws -> OpenClawDeviceStatusPayload
-    func info() -> OpenClawDeviceInfoPayload
+    func status() async throws -> AlisioDeviceStatusPayload
+    func info() -> AlisioDeviceInfoPayload
 }
 
 protocol PhotosServicing: Sendable {
-    func latest(params: OpenClawPhotosLatestParams) async throws -> OpenClawPhotosLatestPayload
+    func latest(params: AlisioPhotosLatestParams) async throws -> AlisioPhotosLatestPayload
 }
 
 protocol ContactsServicing: Sendable {
-    func search(params: OpenClawContactsSearchParams) async throws -> OpenClawContactsSearchPayload
-    func add(params: OpenClawContactsAddParams) async throws -> OpenClawContactsAddPayload
+    func search(params: AlisioContactsSearchParams) async throws -> AlisioContactsSearchPayload
+    func add(params: AlisioContactsAddParams) async throws -> AlisioContactsAddPayload
 }
 
 protocol CalendarServicing: Sendable {
-    func events(params: OpenClawCalendarEventsParams) async throws -> OpenClawCalendarEventsPayload
-    func add(params: OpenClawCalendarAddParams) async throws -> OpenClawCalendarAddPayload
+    func events(params: AlisioCalendarEventsParams) async throws -> AlisioCalendarEventsPayload
+    func add(params: AlisioCalendarAddParams) async throws -> AlisioCalendarAddPayload
 }
 
 protocol RemindersServicing: Sendable {
-    func list(params: OpenClawRemindersListParams) async throws -> OpenClawRemindersListPayload
-    func add(params: OpenClawRemindersAddParams) async throws -> OpenClawRemindersAddPayload
+    func list(params: AlisioRemindersListParams) async throws -> AlisioRemindersListPayload
+    func add(params: AlisioRemindersAddParams) async throws -> AlisioRemindersAddPayload
 }
 
 protocol MotionServicing: Sendable {
-    func activities(params: OpenClawMotionActivityParams) async throws -> OpenClawMotionActivityPayload
-    func pedometer(params: OpenClawPedometerParams) async throws -> OpenClawPedometerPayload
+    func activities(params: AlisioMotionActivityParams) async throws -> AlisioMotionActivityPayload
+    func pedometer(params: AlisioPedometerParams) async throws -> AlisioPedometerPayload
 }
 
 struct WatchMessagingStatus: Sendable, Equatable {
@@ -99,7 +99,7 @@ protocol WatchMessagingServicing: AnyObject, Sendable {
     func setReplyHandler(_ handler: (@Sendable (WatchQuickReplyEvent) -> Void)?)
     func sendNotification(
         id: String,
-        params: OpenClawWatchNotifyParams) async throws -> WatchNotificationSendResult
+        params: AlisioWatchNotifyParams) async throws -> WatchNotificationSendResult
 }
 
 extension CameraController: CameraServicing {}

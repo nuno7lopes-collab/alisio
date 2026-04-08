@@ -1,10 +1,10 @@
 import Foundation
 import Testing
-@testable import OpenClaw
+@testable import Alisio
 
 @Suite struct VoiceWakePreferencesTests {
     @Test func sanitizeTriggerWordsTrimsAndDropsEmpty() {
-        #expect(VoiceWakePreferences.sanitizeTriggerWords([" openclaw ", "", " \nclaude\t"]) == ["openclaw", "claude"])
+        #expect(VoiceWakePreferences.sanitizeTriggerWords([" alisio ", "", " \nclaude\t"]) == ["alisio", "claude"])
     }
 
     @Test func sanitizeTriggerWordsFallsBackToDefaultsWhenEmpty() {
@@ -23,8 +23,14 @@ import Testing
         #expect(cleaned.count == VoiceWakePreferences.maxWords)
     }
 
+    @Test func sanitizeTriggerWordsPromotesLegacyBrandAndDedupes() {
+        let legacyBrand = ["open", "claw"].joined()
+        #expect(
+            VoiceWakePreferences.sanitizeTriggerWords([legacyBrand, " Alisio ", "claude"]) == ["alisio", "claude"])
+    }
+
     @Test func displayStringUsesSanitizedWords() {
-        #expect(VoiceWakePreferences.displayString(for: ["", " "]) == "openclaw, claude")
+        #expect(VoiceWakePreferences.displayString(for: ["", " "]) == "alisio, claude")
     }
 
     @Test func loadAndSaveTriggerWordsRoundTrip() {

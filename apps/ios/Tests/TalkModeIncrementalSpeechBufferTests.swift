@@ -1,5 +1,5 @@
 import Testing
-@testable import OpenClaw
+@testable import Alisio
 
 @MainActor
 @Suite struct TalkModeIncrementalSpeechBufferTests {

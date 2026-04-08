@@ -1,1 +1,1 @@
-First App Store release of OpenClaw for iPhone. Pair with your OpenClaw Gateway to use chat, voice, sharing, and device actions from iOS.
+First App Store release of Alisio for iPhone. Pair with your Alisio Gateway to use chat, voice, sharing, and device actions from iOS.

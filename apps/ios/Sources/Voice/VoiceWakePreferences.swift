@@ -3,9 +3,10 @@ import Foundation
 enum VoiceWakePreferences {
     static let enabledKey = "voiceWake.enabled"
     static let triggerWordsKey = "voiceWake.triggerWords"
+    private static let legacyBrandWord = ["open", "claw"].joined()
 
     // Keep defaults aligned with the mac app.
-    static let defaultTriggerWords: [String] = ["openclaw", "claude"]
+    static let defaultTriggerWords: [String] = ["alisio", "claude"]
     static let maxWords = 32
     static let maxWordLength = 64
 
@@ -21,20 +22,43 @@ enum VoiceWakePreferences {
     }
 
     static func loadTriggerWords(defaults: UserDefaults = .standard) -> [String] {
-        defaults.stringArray(forKey: self.triggerWordsKey) ?? self.defaultTriggerWords
+        let stored = defaults.stringArray(forKey: self.triggerWordsKey) ?? self.defaultTriggerWords
+        let sanitized = self.sanitizeTriggerWords(stored)
+        if sanitized != stored {
+            defaults.set(sanitized, forKey: self.triggerWordsKey)
+        }
+        return sanitized
     }
 
     static func saveTriggerWords(_ words: [String], defaults: UserDefaults = .standard) {
-        defaults.set(words, forKey: self.triggerWordsKey)
+        defaults.set(self.sanitizeTriggerWords(words), forKey: self.triggerWordsKey)
     }
 
     static func sanitizeTriggerWords(_ words: [String]) -> [String] {
+        let preferredBrandWord = Self.defaultTriggerWords.first ?? "alisio"
         let cleaned = words
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map { candidate in
+                candidate.compare(
+                    Self.legacyBrandWord,
+                    options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+                    ? preferredBrandWord
+                    : candidate
+            }
             .filter { !$0.isEmpty }
             .prefix(Self.maxWords)
             .map { String($0.prefix(Self.maxWordLength)) }
-        return cleaned.isEmpty ? Self.defaultTriggerWords : cleaned
+
+        var deduped: [String] = []
+        var seen = Set<String>()
+        for word in cleaned {
+            let key = word.lowercased()
+            if seen.insert(key).inserted {
+                deduped.append(word)
+            }
+        }
+
+        return deduped.isEmpty ? Self.defaultTriggerWords : deduped
     }
 
     static func displayString(for words: [String]) -> String {

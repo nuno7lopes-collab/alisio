@@ -1,6 +1,6 @@
-name: OpenClaw
+name: Alisio
 options:
-  bundleIdPrefix: ai.openclaw
+  bundleIdPrefix: ai.alisio
   deploymentTarget:
     iOS: "18.0"
   xcodeVersion: "16.0"
@@ -11,32 +11,32 @@ settings:
     ENABLE_APP_INTENTS_METADATA_GENERATION: NO
 
 packages:
-  OpenClawKit:
-    path: ../shared/OpenClawKit
+  AlisioKit:
+    path: ../shared/AlisioKit
   Swabble:
     path: ../../Swabble
 
 schemes:
-  OpenClaw:
+  Alisio:
     shared: true
     build:
       targets:
-        OpenClaw: all
+        Alisio: all
     test:
       targets:
-        - OpenClawTests
-        - OpenClawLogicTests
-  OpenClawLogicTests:
+        - AlisioTests
+        - AlisioLogicTests
+  AlisioLogicTests:
     shared: true
     build:
       targets:
-        OpenClawLogicTests: all
+        AlisioLogicTests: all
     test:
       targets:
-        - OpenClawLogicTests
+        - AlisioLogicTests
 
 targets:
-  OpenClaw:
+  Alisio:
     type: application
     platform: iOS
     configFiles:
@@ -45,16 +45,16 @@ targets:
     sources:
       - path: Sources
     dependencies:
-      - target: OpenClawShareExtension
+      - target: AlisioShareExtension
         embed: true
-      - target: OpenClawActivityWidget
+      - target: AlisioActivityWidget
         embed: true
-      - target: OpenClawWatchApp
-      - package: OpenClawKit
-      - package: OpenClawKit
-        product: OpenClawChatUI
-      - package: OpenClawKit
-        product: OpenClawProtocol
+      - target: AlisioWatchApp
+      - package: AlisioKit
+      - package: AlisioKit
+        product: AlisioChatUI
+      - package: AlisioKit
+        product: AlisioProtocol
       - package: Swabble
         product: SwabbleKit
       - sdk: AppIntents.framework
@@ -87,11 +87,11 @@ targets:
     settings:
       base:
         CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_ENTITLEMENTS: Sources/OpenClaw.entitlements
-        CODE_SIGN_STYLE: "$(OPENCLAW_CODE_SIGN_STYLE)"
-        DEVELOPMENT_TEAM: "$(OPENCLAW_DEVELOPMENT_TEAM)"
-        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_APP_BUNDLE_ID)"
-        PROVISIONING_PROFILE_SPECIFIER: "$(OPENCLAW_APP_PROFILE)"
+        CODE_SIGN_ENTITLEMENTS: Sources/Alisio.entitlements
+        CODE_SIGN_STYLE: "$(ALISIO_CODE_SIGN_STYLE)"
+        DEVELOPMENT_TEAM: "$(ALISIO_DEVELOPMENT_TEAM)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(ALISIO_APP_BUNDLE_ID)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(ALISIO_APP_PROFILE)"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
@@ -100,26 +100,26 @@ targets:
         ENABLE_APP_INTENTS_METADATA_GENERATION: NO
       configs:
         Debug:
-          OPENCLAW_PUSH_TRANSPORT: direct
-          OPENCLAW_PUSH_DISTRIBUTION: local
-          OPENCLAW_PUSH_RELAY_BASE_URL: ""
-          OPENCLAW_PUSH_APNS_ENVIRONMENT: sandbox
+          ALISIO_PUSH_TRANSPORT: direct
+          ALISIO_PUSH_DISTRIBUTION: local
+          ALISIO_PUSH_RELAY_BASE_URL: ""
+          ALISIO_PUSH_APNS_ENVIRONMENT: sandbox
         Release:
-          OPENCLAW_PUSH_TRANSPORT: direct
-          OPENCLAW_PUSH_DISTRIBUTION: local
-          OPENCLAW_PUSH_RELAY_BASE_URL: ""
-          OPENCLAW_PUSH_APNS_ENVIRONMENT: production
+          ALISIO_PUSH_TRANSPORT: direct
+          ALISIO_PUSH_DISTRIBUTION: local
+          ALISIO_PUSH_RELAY_BASE_URL: ""
+          ALISIO_PUSH_APNS_ENVIRONMENT: production
     info:
       path: Sources/Info.plist
       properties:
-        CFBundleDisplayName: OpenClaw
+        CFBundleDisplayName: Alisio
         CFBundleIconName: AppIcon
         CFBundleURLTypes:
-          - CFBundleURLName: ai.openclaw.ios
+          - CFBundleURLName: ai.alisio.ios
             CFBundleURLSchemes:
-              - openclaw
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+              - alisio
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
@@ -127,25 +127,25 @@ targets:
           - audio
           - remote-notification
         BGTaskSchedulerPermittedIdentifiers:
-          - ai.openclaw.ios.bgrefresh
-        NSLocalNetworkUsageDescription: OpenClaw discovers and connects to your OpenClaw gateway on the local network.
+          - ai.alisio.ios.bgrefresh
+        NSLocalNetworkUsageDescription: Alisio discovers and connects to your Alisio gateway on the local network.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoadsInWebContent: true
         NSBonjourServices:
-          - _openclaw-gw._tcp
-        NSCameraUsageDescription: OpenClaw can capture photos or short video clips when requested via the gateway.
-        NSLocationWhenInUseUsageDescription: OpenClaw uses your location when you allow location sharing.
-        NSLocationAlwaysAndWhenInUseUsageDescription: OpenClaw can share your location in the background when you enable Always.
-        NSMicrophoneUsageDescription: OpenClaw needs microphone access for voice wake.
-        NSMotionUsageDescription: OpenClaw may use motion data to support device-aware interactions and automations.
-        NSPhotoLibraryUsageDescription: OpenClaw needs photo library access when you choose existing photos to share with your assistant.
-        NSSpeechRecognitionUsageDescription: OpenClaw uses on-device speech recognition for voice wake.
+          - _alisio-gw._tcp
+        NSCameraUsageDescription: Alisio can capture photos or short video clips when requested via the gateway.
+        NSLocationWhenInUseUsageDescription: Alisio uses your location when you allow location sharing.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Alisio can share your location in the background when you enable Always.
+        NSMicrophoneUsageDescription: Alisio needs microphone access for voice wake.
+        NSMotionUsageDescription: Alisio may use motion data to support device-aware interactions and automations.
+        NSPhotoLibraryUsageDescription: Alisio needs photo library access when you choose existing photos to share with your assistant.
+        NSSpeechRecognitionUsageDescription: Alisio uses on-device speech recognition for voice wake.
         NSSupportsLiveActivities: true
         ITSAppUsesNonExemptEncryption: false
-        OpenClawPushTransport: "$(OPENCLAW_PUSH_TRANSPORT)"
-        OpenClawPushDistribution: "$(OPENCLAW_PUSH_DISTRIBUTION)"
-        OpenClawPushRelayBaseURL: "$(OPENCLAW_PUSH_RELAY_BASE_URL)"
-        OpenClawPushAPNsEnvironment: "$(OPENCLAW_PUSH_APNS_ENVIRONMENT)"
+        AlisioPushTransport: "$(ALISIO_PUSH_TRANSPORT)"
+        AlisioPushDistribution: "$(ALISIO_PUSH_DISTRIBUTION)"
+        AlisioPushRelayBaseURL: "$(ALISIO_PUSH_RELAY_BASE_URL)"
+        AlisioPushAPNsEnvironment: "$(ALISIO_PUSH_APNS_ENVIRONMENT)"
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
@@ -157,7 +157,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
 
-  OpenClawShareExtension:
+  AlisioShareExtension:
     type: app-extension
     platform: iOS
     configFiles:
@@ -166,25 +166,25 @@ targets:
     sources:
       - path: ShareExtension
     dependencies:
-      - package: OpenClawKit
+      - package: AlisioKit
       - sdk: AppIntents.framework
     settings:
       base:
         CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: "$(OPENCLAW_CODE_SIGN_STYLE)"
-        DEVELOPMENT_TEAM: "$(OPENCLAW_DEVELOPMENT_TEAM)"
+        CODE_SIGN_STYLE: "$(ALISIO_CODE_SIGN_STYLE)"
+        DEVELOPMENT_TEAM: "$(ALISIO_DEVELOPMENT_TEAM)"
         ENABLE_APPINTENTS_METADATA: NO
         ENABLE_APP_INTENTS_METADATA_GENERATION: NO
-        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_SHARE_BUNDLE_ID)"
-        PROVISIONING_PROFILE_SPECIFIER: "$(OPENCLAW_SHARE_PROFILE)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(ALISIO_SHARE_BUNDLE_ID)"
+        PROVISIONING_PROFILE_SPECIFIER: "$(ALISIO_SHARE_PROFILE)"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
     info:
       path: ShareExtension/Info.plist
       properties:
-        CFBundleDisplayName: OpenClaw Share
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+        CFBundleDisplayName: Alisio Share
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
@@ -195,7 +195,7 @@ targets:
               NSExtensionActivationSupportsImageWithMaxCount: 10
               NSExtensionActivationSupportsMovieWithMaxCount: 1
 
-  OpenClawActivityWidget:
+  AlisioActivityWidget:
     type: app-extension
     platform: iOS
     configFiles:
@@ -203,37 +203,37 @@ targets:
       Release: Signing.xcconfig
     sources:
       - path: ActivityWidget
-      - path: Sources/LiveActivity/OpenClawActivityAttributes.swift
+      - path: Sources/LiveActivity/AlisioActivityAttributes.swift
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: ActivityKit.framework
     settings:
       base:
         CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: "$(OPENCLAW_CODE_SIGN_STYLE)"
-        DEVELOPMENT_TEAM: "$(OPENCLAW_DEVELOPMENT_TEAM)"
-        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_ACTIVITY_WIDGET_BUNDLE_ID)"
+        CODE_SIGN_STYLE: "$(ALISIO_CODE_SIGN_STYLE)"
+        DEVELOPMENT_TEAM: "$(ALISIO_DEVELOPMENT_TEAM)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(ALISIO_ACTIVITY_WIDGET_BUNDLE_ID)"
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
         SUPPORTS_LIVE_ACTIVITIES: YES
     info:
       path: ActivityWidget/Info.plist
       properties:
-        CFBundleDisplayName: OpenClaw Activity
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+        CFBundleDisplayName: Alisio Activity
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
         NSSupportsLiveActivities: true
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
-  OpenClawWatchApp:
+  AlisioWatchApp:
     type: application.watchapp2
     platform: watchOS
     deploymentTarget: "11.0"
     sources:
       - path: WatchApp
     dependencies:
-      - target: OpenClawWatchExtension
+      - target: AlisioWatchExtension
     configFiles:
       Debug: Config/Signing.xcconfig
       Release: Config/Signing.xcconfig
@@ -242,17 +242,17 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_APPINTENTS_METADATA: NO
         ENABLE_APP_INTENTS_METADATA_GENERATION: NO
-        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_WATCH_APP_BUNDLE_ID)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(ALISIO_WATCH_APP_BUNDLE_ID)"
     info:
       path: WatchApp/Info.plist
       properties:
-        CFBundleDisplayName: OpenClaw
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
-        WKCompanionAppBundleIdentifier: "$(OPENCLAW_APP_BUNDLE_ID)"
+        CFBundleDisplayName: Alisio
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
+        WKCompanionAppBundleIdentifier: "$(ALISIO_APP_BUNDLE_ID)"
         WKWatchKitApp: true
 
-  OpenClawWatchExtension:
+  AlisioWatchExtension:
     type: watchkit2-extension
     platform: watchOS
     deploymentTarget: "11.0"
@@ -267,19 +267,19 @@ targets:
       Release: Config/Signing.xcconfig
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "$(OPENCLAW_WATCH_EXTENSION_BUNDLE_ID)"
+        PRODUCT_BUNDLE_IDENTIFIER: "$(ALISIO_WATCH_EXTENSION_BUNDLE_ID)"
     info:
       path: WatchExtension/Info.plist
       properties:
-        CFBundleDisplayName: OpenClaw
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+        CFBundleDisplayName: Alisio
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
         NSExtension:
           NSExtensionAttributes:
-            WKAppBundleIdentifier: "$(OPENCLAW_WATCH_APP_BUNDLE_ID)"
+            WKAppBundleIdentifier: "$(ALISIO_WATCH_APP_BUNDLE_ID)"
           NSExtensionPointIdentifier: com.apple.watchkit
 
-  OpenClawTests:
+  AlisioTests:
     type: bundle.unit-test
     platform: iOS
     configFiles:
@@ -290,29 +290,29 @@ targets:
         excludes:
           - Logic
     dependencies:
-      - target: OpenClaw
+      - target: Alisio
       - package: Swabble
         product: SwabbleKit
       - sdk: AppIntents.framework
     settings:
       base:
         CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: "$(OPENCLAW_CODE_SIGN_STYLE)"
-        DEVELOPMENT_TEAM: "$(OPENCLAW_DEVELOPMENT_TEAM)"
-        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.ios.tests
+        CODE_SIGN_STYLE: "$(ALISIO_CODE_SIGN_STYLE)"
+        DEVELOPMENT_TEAM: "$(ALISIO_DEVELOPMENT_TEAM)"
+        PRODUCT_BUNDLE_IDENTIFIER: ai.alisio.ios.tests
         ENABLE_APP_INTENTS_METADATA_GENERATION: NO
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/OpenClaw.app/OpenClaw"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Alisio.app/Alisio"
         BUNDLE_LOADER: "$(TEST_HOST)"
     info:
       path: Tests/Info.plist
       properties:
-        CFBundleDisplayName: OpenClawTests
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+        CFBundleDisplayName: AlisioTests
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"
 
-  OpenClawLogicTests:
+  AlisioLogicTests:
     type: bundle.unit-test
     platform: iOS
     configFiles:
@@ -321,19 +321,19 @@ targets:
     sources:
       - path: Tests/Logic
     dependencies:
-      - package: OpenClawKit
+      - package: AlisioKit
     settings:
       base:
         CODE_SIGN_IDENTITY: "Apple Development"
-        CODE_SIGN_STYLE: "$(OPENCLAW_CODE_SIGN_STYLE)"
-        DEVELOPMENT_TEAM: "$(OPENCLAW_DEVELOPMENT_TEAM)"
-        PRODUCT_BUNDLE_IDENTIFIER: ai.openclaw.ios.logic-tests
+        CODE_SIGN_STYLE: "$(ALISIO_CODE_SIGN_STYLE)"
+        DEVELOPMENT_TEAM: "$(ALISIO_DEVELOPMENT_TEAM)"
+        PRODUCT_BUNDLE_IDENTIFIER: ai.alisio.ios.logic-tests
         ENABLE_APP_INTENTS_METADATA_GENERATION: NO
         SWIFT_VERSION: "6.0"
         SWIFT_STRICT_CONCURRENCY: complete
     info:
       path: Tests/Info.plist
       properties:
-        CFBundleDisplayName: OpenClawLogicTests
-        CFBundleShortVersionString: "$(OPENCLAW_MARKETING_VERSION)"
-        CFBundleVersion: "$(OPENCLAW_BUILD_VERSION)"
+        CFBundleDisplayName: AlisioLogicTests
+        CFBundleShortVersionString: "$(ALISIO_MARKETING_VERSION)"
+        CFBundleVersion: "$(ALISIO_BUILD_VERSION)"

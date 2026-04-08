@@ -68,11 +68,11 @@ actor PushRegistrationManager {
     async throws -> String {
         guard self.buildConfig.distribution == .official else {
             throw PushRelayError.relayMisconfigured(
-                "Relay transport requires OpenClawPushDistribution=official")
+                "Relay transport requires AlisioPushDistribution=official")
         }
         guard self.buildConfig.apnsEnvironment == .production else {
             throw PushRelayError.relayMisconfigured(
-                "Relay transport requires OpenClawPushAPNsEnvironment=production")
+                "Relay transport requires AlisioPushAPNsEnvironment=production")
         }
         guard let relayClient = self.relayClient else {
             throw PushRelayError.relayBaseURLMissing
