@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { packageBrandConfigKey, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 import { writeTextFileIfChanged } from "./runtime-postbuild-shared.mjs";
 
 export const OFFICIAL_CHANNEL_CATALOG_RELATIVE_PATH = "dist/channel-catalog.json";
@@ -31,7 +32,8 @@ function buildCatalogEntry(packageJson) {
     return null;
   }
   const packageName = trimString(packageJson.name);
-  const manifest = isRecord(packageJson.openclaw) ? packageJson.openclaw : null;
+  const manifest = readPackageBrandConfig(packageJson);
+  const manifestKey = packageBrandConfigKey(packageJson);
   const release = manifest && isRecord(manifest.release) ? manifest.release : null;
   const channel = manifest && isRecord(manifest.channel) ? manifest.channel : null;
   if (!packageName || !channel || release?.publishToNpm !== true) {
@@ -47,7 +49,7 @@ function buildCatalogEntry(packageJson) {
     name: packageName,
     ...(version ? { version } : {}),
     ...(description ? { description } : {}),
-    openclaw: {
+    [manifestKey]: {
       channel,
       install,
     },
@@ -82,8 +84,8 @@ export function buildOfficialChannelCatalog(params = {}) {
   }
 
   entries.sort((left, right) => {
-    const leftId = trimString(left.openclaw?.channel?.id) || left.name;
-    const rightId = trimString(right.openclaw?.channel?.id) || right.name;
+    const leftId = trimString(readPackageBrandConfig(left)?.channel?.id) || left.name;
+    const rightId = trimString(readPackageBrandConfig(right)?.channel?.id) || right.name;
     return leftId.localeCompare(rightId);
   });
 

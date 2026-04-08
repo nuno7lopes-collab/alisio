@@ -100,9 +100,23 @@ export function validateAlisioBirthdate(value: string | null | undefined): strin
   if (!SIMPLE_BIRTHDATE_PATTERN.test(normalized)) {
     return "Use a birthdate in YYYY-MM-DD format.";
   }
-  const parsed = Date.parse(`${normalized}T00:00:00.000Z`);
-  if (Number.isNaN(parsed)) {
+  const [yearRaw, monthRaw, dayRaw] = normalized.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
     return "Use a real calendar date.";
+  }
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  if (parsed.getTime() > todayUtc) {
+    return "Use a birthdate in the past.";
   }
   return null;
 }

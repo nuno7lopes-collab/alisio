@@ -3,8 +3,19 @@ import os from "node:os";
 import path from "node:path";
 import { BUNDLED_RUNTIME_SIDECAR_PATHS } from "../plugins/public-artifacts.js";
 import { pathExists } from "../utils.js";
+import {
+  CORE_PACKAGE_NAME as distributionCorePackageName,
+  ALISIO_MAIN_PACKAGE_SPEC as distributionMainPackageSpec,
+  PUBLIC_PACKAGE_NAME as distributionPublicPackageName,
+  resolveUpdateSourceConfig,
+} from "./distribution-profile.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 import { readPackageVersion } from "./package-json.js";
 import { applyPathPrepend } from "./path-prepend.js";
+
+export const CORE_PACKAGE_NAME = distributionCorePackageName;
+export const ALISIO_MAIN_PACKAGE_SPEC = distributionMainPackageSpec;
+export const PUBLIC_PACKAGE_NAME = distributionPublicPackageName;
 
 export type GlobalInstallManager = "npm" | "pnpm" | "bun";
 
@@ -13,12 +24,9 @@ export type CommandRunner = (
   options: { timeoutMs: number; cwd?: string; env?: NodeJS.ProcessEnv },
 ) => Promise<{ stdout: string; stderr: string; code: number | null }>;
 
-export const CORE_PACKAGE_NAME = "openclaw";
-export const PUBLIC_PACKAGE_NAME = "alisio";
-const PRIMARY_PACKAGE_NAME = CORE_PACKAGE_NAME;
+const PRIMARY_PACKAGE_NAME = PUBLIC_PACKAGE_NAME;
 const ALL_PACKAGE_NAMES = [PUBLIC_PACKAGE_NAME, PRIMARY_PACKAGE_NAME] as const;
 const GLOBAL_RENAME_PREFIX = ".";
-export const OPENCLAW_MAIN_PACKAGE_SPEC = "github:openclaw/openclaw#main";
 const NPM_GLOBAL_INSTALL_QUIET_FLAGS = ["--no-fund", "--no-audit", "--loglevel=error"] as const;
 const NPM_GLOBAL_INSTALL_OMIT_OPTIONAL_FLAGS = [
   "--omit=optional",
@@ -44,11 +52,25 @@ function resolveInstallSpecPrefixes(packageName: string): string[] {
   if (!normalizedPackageName) {
     return [];
   }
+  const updateSource = resolveUpdateSourceConfig({ moduleUrl: import.meta.url });
+  const configuredPrefix = updateSource.registryInstallPrefix;
   if (normalizedPackageName === PUBLIC_PACKAGE_NAME) {
-    return [`${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`, `${CORE_PACKAGE_NAME}@`];
+    return Array.from(
+      new Set([
+        configuredPrefix,
+        `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`,
+        `${CORE_PACKAGE_NAME}@`,
+      ]).values(),
+    ).filter((value): value is string => Boolean(value));
   }
   if (normalizedPackageName === CORE_PACKAGE_NAME) {
-    return [`${CORE_PACKAGE_NAME}@`, `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`];
+    return Array.from(
+      new Set([
+        configuredPrefix,
+        `${CORE_PACKAGE_NAME}@`,
+        `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@`,
+      ]).values(),
+    ).filter((value): value is string => Boolean(value));
   }
   return [`${normalizedPackageName}@`];
 }
@@ -142,7 +164,7 @@ async function resolvePortableGitPathPrepend(
   if (!localAppData) {
     return [];
   }
-  const portableGitRoot = path.join(localAppData, "OpenClaw", "deps", "portable-git");
+  const portableGitRoot = path.join(localAppData, "Alisio", "deps", "portable-git");
   const candidates = [
     path.join(portableGitRoot, "mingw64", "bin"),
     path.join(portableGitRoot, "usr", "bin"),
@@ -174,22 +196,47 @@ export function resolveGlobalInstallSpec(params: {
   tag: string;
   env?: NodeJS.ProcessEnv;
 }): string {
+  const updateSource = resolveUpdateSourceConfig({
+    moduleUrl: import.meta.url,
+    env: params.env,
+  });
   const override =
-    params.env?.OPENCLAW_UPDATE_PACKAGE_SPEC?.trim() ||
-    process.env.OPENCLAW_UPDATE_PACKAGE_SPEC?.trim();
+    readEnv("ALISIO_UPDATE_PACKAGE_SPEC", {
+      env: params.env,
+      fallback: legacyEnvKey("UPDATE_PACKAGE_SPEC"),
+      description: "update package spec override",
+    }) ??
+    readEnv("ALISIO_UPDATE_PACKAGE_SPEC", {
+      fallback: legacyEnvKey("UPDATE_PACKAGE_SPEC"),
+      description: "update package spec override",
+    });
   if (override) {
     return override;
   }
   const target = normalizePackageTarget(params.tag);
   if (isMainPackageTarget(target)) {
-    return OPENCLAW_MAIN_PACKAGE_SPEC;
+    if (!updateSource.mainPackageSpec) {
+      throw new Error(
+        "No main update source is configured for this distribution. Configure ALISIO_UPDATE_MAIN_PACKAGE_SPEC first.",
+      );
+    }
+    return updateSource.mainPackageSpec;
   }
   if (isExplicitPackageInstallSpec(target)) {
     return target;
   }
   const normalizedPackageName = normalizeKnownPackageName(params.packageName);
-  if (normalizedPackageName === PUBLIC_PACKAGE_NAME) {
-    return `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@${target}`;
+  if (
+    normalizedPackageName === PUBLIC_PACKAGE_NAME ||
+    (normalizedPackageName === CORE_PACKAGE_NAME &&
+      updateSource.distribution === PUBLIC_PACKAGE_NAME)
+  ) {
+    if (!updateSource.registryInstallPrefix) {
+      throw new Error(
+        "No package update source is configured for this distribution. Configure ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX first.",
+      );
+    }
+    return `${updateSource.registryInstallPrefix}${target}`;
   }
   return `${normalizedPackageName ?? params.packageName}@${target}`;
 }

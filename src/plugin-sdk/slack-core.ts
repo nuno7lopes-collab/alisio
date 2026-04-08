@@ -1,4 +1,5 @@
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { ChannelPlugin } from "./channel-plugin-common.js";
 export { buildChannelConfigSchema, getChatChannelMeta } from "./channel-plugin-common.js";
 export { withNormalizedTimestamp } from "../agents/date-time.js";

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { DEFAULT_ACCOUNT_ID } from "../../routing/session-key.js";
 import type { WizardPrompter } from "../../wizard/prompts.js";
 import { configureChannelAccessWithAllowlist } from "./setup-group-access-configure.js";
@@ -26,17 +26,17 @@ export type ChannelSetupWizardStatus = {
   unconfiguredHint?: string;
   configuredScore?: number;
   unconfiguredScore?: number;
-  resolveConfigured: (params: { cfg: OpenClawConfig }) => boolean | Promise<boolean>;
+  resolveConfigured: (params: { cfg: AlisioConfig }) => boolean | Promise<boolean>;
   resolveStatusLines?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     configured: boolean;
   }) => string[] | Promise<string[]>;
   resolveSelectionHint?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     configured: boolean;
   }) => string | undefined | Promise<string | undefined>;
   resolveQuickstartScore?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     configured: boolean;
   }) => number | undefined | Promise<number | undefined>;
 };
@@ -54,7 +54,7 @@ export type ChannelSetupWizardNote = {
   title: string;
   lines: string[];
   shouldShow?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
   }) => boolean | Promise<boolean>;
@@ -63,11 +63,8 @@ export type ChannelSetupWizardNote = {
 export type ChannelSetupWizardEnvShortcut = {
   prompt: string;
   preferredEnvVar?: string;
-  isAvailable: (params: { cfg: OpenClawConfig; accountId: string }) => boolean;
-  apply: (params: {
-    cfg: OpenClawConfig;
-    accountId: string;
-  }) => OpenClawConfig | Promise<OpenClawConfig>;
+  isAvailable: (params: { cfg: AlisioConfig; accountId: string }) => boolean;
+  apply: (params: { cfg: AlisioConfig; accountId: string }) => AlisioConfig | Promise<AlisioConfig>;
 };
 
 export type ChannelSetupWizardCredential = {
@@ -80,29 +77,26 @@ export type ChannelSetupWizardCredential = {
   envPrompt: string;
   keepPrompt: string;
   inputPrompt: string;
-  allowEnv?: (params: { cfg: OpenClawConfig; accountId: string }) => boolean;
-  inspect: (params: {
-    cfg: OpenClawConfig;
-    accountId: string;
-  }) => ChannelSetupWizardCredentialState;
+  allowEnv?: (params: { cfg: AlisioConfig; accountId: string }) => boolean;
+  inspect: (params: { cfg: AlisioConfig; accountId: string }) => ChannelSetupWizardCredentialState;
   shouldPrompt?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
     currentValue?: string;
     state: ChannelSetupWizardCredentialState;
   }) => boolean | Promise<boolean>;
   applyUseEnv?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
-  }) => OpenClawConfig | Promise<OpenClawConfig>;
+  }) => AlisioConfig | Promise<AlisioConfig>;
   applySet?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
     value: unknown;
     resolvedValue: string;
-  }) => OpenClawConfig | Promise<OpenClawConfig>;
+  }) => AlisioConfig | Promise<AlisioConfig>;
 };
 
 export type ChannelSetupWizardTextInput = {
@@ -116,17 +110,17 @@ export type ChannelSetupWizardTextInput = {
   confirmCurrentValue?: boolean;
   keepPrompt?: string | ((value: string) => string);
   currentValue?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
   }) => string | undefined | Promise<string | undefined>;
   initialValue?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
   }) => string | undefined | Promise<string | undefined>;
   shouldPrompt?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
     currentValue?: string;
@@ -134,21 +128,21 @@ export type ChannelSetupWizardTextInput = {
   applyCurrentValue?: boolean;
   validate?: (params: {
     value: string;
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
   }) => string | undefined;
   normalizeValue?: (params: {
     value: string;
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
   }) => string;
   applySet?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     value: string;
-  }) => OpenClawConfig | Promise<OpenClawConfig>;
+  }) => AlisioConfig | Promise<AlisioConfig>;
 };
 
 export type ChannelSetupWizardAllowFromEntry = {
@@ -167,16 +161,16 @@ export type ChannelSetupWizardAllowFrom = {
   parseInputs?: (raw: string) => string[];
   parseId: (raw: string) => string | null;
   resolveEntries: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
     entries: string[];
   }) => Promise<ChannelSetupWizardAllowFromEntry[]>;
   apply: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     allowFrom: string[];
-  }) => OpenClawConfig | Promise<OpenClawConfig>;
+  }) => AlisioConfig | Promise<AlisioConfig>;
 };
 
 export type ChannelSetupWizardGroupAccess = {
@@ -185,30 +179,30 @@ export type ChannelSetupWizardGroupAccess = {
   helpTitle?: string;
   helpLines?: string[];
   skipAllowlistEntries?: boolean;
-  currentPolicy: (params: { cfg: OpenClawConfig; accountId: string }) => ChannelAccessPolicy;
-  currentEntries: (params: { cfg: OpenClawConfig; accountId: string }) => string[];
-  updatePrompt: (params: { cfg: OpenClawConfig; accountId: string }) => boolean;
+  currentPolicy: (params: { cfg: AlisioConfig; accountId: string }) => ChannelAccessPolicy;
+  currentEntries: (params: { cfg: AlisioConfig; accountId: string }) => string[];
+  updatePrompt: (params: { cfg: AlisioConfig; accountId: string }) => boolean;
   setPolicy: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     policy: ChannelAccessPolicy;
-  }) => OpenClawConfig;
+  }) => AlisioConfig;
   resolveAllowlist?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     credentialValues: ChannelSetupWizardCredentialValues;
     entries: string[];
     prompter: Pick<WizardPrompter, "note">;
   }) => Promise<unknown>;
   applyAllowlist?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     accountId: string;
     resolved: unknown;
-  }) => OpenClawConfig;
+  }) => AlisioConfig;
 };
 
 export type ChannelSetupWizardPrepare = (params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   credentialValues: ChannelSetupWizardCredentialValues;
   runtime: ChannelSetupConfigureContext["runtime"];
@@ -216,17 +210,17 @@ export type ChannelSetupWizardPrepare = (params: {
   options?: ChannelSetupConfigureContext["options"];
 }) =>
   | {
-      cfg?: OpenClawConfig;
+      cfg?: AlisioConfig;
       credentialValues?: ChannelSetupWizardCredentialValues;
     }
   | void
   | Promise<{
-      cfg?: OpenClawConfig;
+      cfg?: AlisioConfig;
       credentialValues?: ChannelSetupWizardCredentialValues;
     } | void>;
 
 export type ChannelSetupWizardFinalize = (params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   credentialValues: ChannelSetupWizardCredentialValues;
   runtime: ChannelSetupConfigureContext["runtime"];
@@ -235,12 +229,12 @@ export type ChannelSetupWizardFinalize = (params: {
   forceAllowFrom: boolean;
 }) =>
   | {
-      cfg?: OpenClawConfig;
+      cfg?: AlisioConfig;
       credentialValues?: ChannelSetupWizardCredentialValues;
     }
   | void
   | Promise<{
-      cfg?: OpenClawConfig;
+      cfg?: AlisioConfig;
       credentialValues?: ChannelSetupWizardCredentialValues;
     } | void>;
 
@@ -250,7 +244,7 @@ export type ChannelSetupWizard = {
   introNote?: ChannelSetupWizardNote;
   envShortcut?: ChannelSetupWizardEnvShortcut;
   resolveAccountIdForConfigure?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     prompter: WizardPrompter;
     options?: ChannelSetupConfigureContext["options"];
     accountOverride?: string;
@@ -259,7 +253,7 @@ export type ChannelSetupWizard = {
     defaultAccountId: string;
   }) => string | Promise<string>;
   resolveShouldPromptAccountIds?: (params: {
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
     options?: ChannelSetupConfigureContext["options"];
     shouldPromptAccountIds: boolean;
   }) => boolean;
@@ -273,7 +267,7 @@ export type ChannelSetupWizard = {
   dmPolicy?: ChannelSetupDmPolicy;
   allowFrom?: ChannelSetupWizardAllowFrom;
   groupAccess?: ChannelSetupWizardGroupAccess;
-  disable?: (cfg: OpenClawConfig) => OpenClawConfig;
+  disable?: (cfg: AlisioConfig) => AlisioConfig;
   onAccountRecorded?: ChannelSetupWizardAdapter["onAccountRecorded"];
 };
 
@@ -312,7 +306,7 @@ async function buildStatus(
 
 function applySetupInput(params: {
   plugin: ChannelSetupWizardPlugin;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   input: ChannelSetupInput;
 }) {
@@ -359,7 +353,7 @@ function trimResolvedValue(value?: string): string | undefined {
 
 function collectCredentialValues(params: {
   wizard: ChannelSetupWizard;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): ChannelSetupWizardCredentialValues {
   const values: ChannelSetupWizardCredentialValues = {};
@@ -380,7 +374,7 @@ function collectCredentialValues(params: {
 async function applyWizardTextInputValue(params: {
   plugin: ChannelSetupWizardPlugin;
   input: ChannelSetupWizardTextInput;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   value: string;
 }) {

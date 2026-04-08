@@ -37,7 +37,8 @@ export type { ChannelSetupDmPolicy } from "../channels/plugins/setup-wizard-type
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export type { ChannelSetupWizard } from "../channels/plugins/setup-wizard.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { mapAllowFromEntries } from "./channel-config-helpers.js";
 export { evaluateMatchedGroupAccessForPolicy } from "./group-access.js";
 export {

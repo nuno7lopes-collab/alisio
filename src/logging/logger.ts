@@ -1,11 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Logger as TsLogger } from "tslog";
-import type { OpenClawConfig } from "../config/types.js";
-import {
-  POSIX_OPENCLAW_TMP_DIR,
-  resolvePreferredOpenClawTmpDir,
-} from "../infra/tmp-openclaw-dir.js";
+import type { AlisioConfig } from "../config/types.js";
+import { POSIX_ALISIO_TMP_DIR, resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
 import { readLoggingConfig, shouldSkipMutatingLoggingConfigRead } from "./config.js";
 import type { ConsoleStyle } from "./console.js";
 import { resolveEnvLogLevelOverride } from "./env-log-level.js";
@@ -31,19 +28,19 @@ function canUseNodeFs(): boolean {
 }
 
 function resolveDefaultLogDir(): string {
-  return canUseNodeFs() ? resolvePreferredOpenClawTmpDir() : POSIX_OPENCLAW_TMP_DIR;
+  return canUseNodeFs() ? resolvePreferredAlisioTmpDir() : POSIX_ALISIO_TMP_DIR;
 }
 
 function resolveDefaultLogFile(defaultLogDir: string): string {
   return canUseNodeFs()
-    ? path.join(defaultLogDir, "openclaw.log")
-    : `${POSIX_OPENCLAW_TMP_DIR}/openclaw.log`;
+    ? path.join(defaultLogDir, "alisio.log")
+    : `${POSIX_ALISIO_TMP_DIR}/alisio.log`;
 }
 
 export const DEFAULT_LOG_DIR = resolveDefaultLogDir();
 export const DEFAULT_LOG_FILE = resolveDefaultLogFile(DEFAULT_LOG_DIR); // legacy single-file path
 
-const LOG_PREFIX = "openclaw";
+const LOG_PREFIX = "alisio";
 const LOG_SUFFIX = ".log";
 const MAX_LOG_AGE_MS = 24 * 60 * 60 * 1000; // 24h
 const DEFAULT_MAX_LOG_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
@@ -113,13 +110,13 @@ function resolveSettings(): ResolvedSettings {
     };
   }
 
-  let cfg: OpenClawConfig["logging"] | undefined =
+  let cfg: AlisioConfig["logging"] | undefined =
     (loggingState.overrideSettings as LoggerSettings | null) ?? readLoggingConfig();
   if (!cfg && !shouldSkipMutatingLoggingConfigRead()) {
     try {
       const loaded = requireConfig?.("../config/config.js") as
         | {
-            loadConfig?: () => OpenClawConfig;
+            loadConfig?: () => AlisioConfig;
           }
         | undefined;
       cfg = loaded?.loadConfig?.().logging;
@@ -195,7 +192,7 @@ function buildLogger(settings: ResolvedSettings): TsLogger<LogObj> {
           });
           appendLogLine(settings.file, `${warningLine}\n`);
           process.stderr.write(
-            `[openclaw] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
+            `[alisio] log file size cap reached; suppressing writes file=${settings.file} maxFileBytes=${settings.maxFileBytes}\n`,
           );
         }
         return;

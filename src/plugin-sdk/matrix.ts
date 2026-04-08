@@ -88,7 +88,8 @@ export {
 } from "./matrix-thread-bindings.js";
 export { createTypingCallbacks } from "../channels/typing.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export {
   GROUP_POLICY_BLOCKED_LABEL,
   resolveAllowlistProviderRuntimeGroupPolicy,

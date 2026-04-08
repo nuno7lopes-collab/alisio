@@ -1,14 +1,11 @@
 import path from "node:path";
 import { finalizeInboundContext } from "../auto-reply/reply/inbound-context.js";
 import type { MsgContext } from "../auto-reply/templating.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { logVerbose, shouldLogVerbose } from "../globals.js";
 import { renderFileContextBlock } from "../media/file-context.js";
-import {
-  extractFileContentFromSource,
-  normalizeMimeType,
-  resolveInputFileLimits,
-} from "../media/input-files.js";
+import { extractFileContentFromSource, resolveInputFileLimits } from "../media/input-files.js";
+import { normalizeMimeType } from "../media/mime.js";
 import { resolveAttachmentKind } from "./attachments.js";
 import { runWithConcurrency } from "./concurrency.js";
 import { DEFAULT_ECHO_TRANSCRIPT_FORMAT, sendTranscriptEcho } from "./echo-transcript.js";
@@ -81,7 +78,7 @@ function sanitizeMimeType(value?: string): string | undefined {
   return match?.[1];
 }
 
-function resolveFileLimits(cfg: OpenClawConfig) {
+function resolveFileLimits(cfg: AlisioConfig) {
   const files = cfg.gateway?.http?.endpoints?.responses?.files;
   const allowedMimesConfigured = Boolean(files?.allowedMimes?.length);
   return {
@@ -448,7 +445,7 @@ async function extractFileBlocks(params: {
 
 export async function applyMediaUnderstanding(params: {
   ctx: MsgContext;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentDir?: string;
   providers?: Record<string, MediaUnderstandingProvider>;
   activeModel?: ActiveMediaModel;

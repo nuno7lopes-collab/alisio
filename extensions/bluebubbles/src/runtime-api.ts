@@ -24,7 +24,7 @@ export type {
   ChannelMessageActionName,
 } from "openclaw/plugin-sdk/bluebubbles";
 export type { ChannelPlugin } from "openclaw/plugin-sdk/bluebubbles";
-export type { OpenClawConfig } from "openclaw/plugin-sdk/bluebubbles";
+export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "openclaw/plugin-sdk/bluebubbles";
 export { parseFiniteNumber } from "openclaw/plugin-sdk/bluebubbles";
 export type { PluginRuntime } from "openclaw/plugin-sdk/bluebubbles";
 export { DEFAULT_ACCOUNT_ID } from "openclaw/plugin-sdk/bluebubbles";

@@ -50,7 +50,8 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { getChatChannelMeta } from "../channels/registry.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
 export {
   GROUP_POLICY_BLOCKED_LABEL,
@@ -90,7 +91,7 @@ export {
 } from "./webhook-ingress.js";
 
 type GoogleChatGroupContext = {
-  cfg: import("../config/config.js").OpenClawConfig;
+  cfg: import("../config/config.js").AlisioConfig;
   accountId?: string | null;
   groupId?: string | null;
 };

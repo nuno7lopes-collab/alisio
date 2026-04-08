@@ -17,7 +17,7 @@ import type { EffectiveToolInventoryResult } from "../agents/tools-effective-inv
 import { derivePromptTokens, normalizeUsage, type UsageLike } from "../agents/usage.js";
 import { resolveChannelModelOverride } from "../channels/model-overrides.js";
 import { isCommandFlagEnabled } from "../config/commands.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   resolveMainSessionKey,
   resolveSessionFilePath,
@@ -48,7 +48,7 @@ import { resolveActiveFallbackState } from "./fallback-state.js";
 import { formatProviderModelRef, resolveSelectedAndActiveModel } from "./model-runtime.js";
 import type { ElevatedLevel, ReasoningLevel, ThinkLevel, VerboseLevel } from "./thinking.js";
 
-type AgentDefaults = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>;
+type AgentDefaults = NonNullable<NonNullable<AlisioConfig["agents"]>["defaults"]>;
 type AgentConfig = Partial<AgentDefaults> & {
   model?: AgentDefaults["model"] | string;
 };
@@ -65,7 +65,7 @@ type QueueStatus = {
 };
 
 type StatusArgs = {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agent: AgentConfig;
   agentId?: string;
   runtimeContextTokens?: number;
@@ -121,7 +121,7 @@ function normalizeAuthMode(value?: string): NormalizedAuthMode | undefined {
 }
 
 function resolveConfiguredTextVerbosity(params: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentId?: string;
   provider?: string | null;
   model?: string | null;
@@ -407,10 +407,7 @@ const formatMediaUnderstandingLine = (decisions?: ReadonlyArray<MediaUnderstandi
   return `📎 Media: ${parts.join(" · ")}`;
 };
 
-const formatVoiceModeLine = (
-  config?: OpenClawConfig,
-  sessionEntry?: SessionEntry,
-): string | null => {
+const formatVoiceModeLine = (config?: AlisioConfig, sessionEntry?: SessionEntry): string | null => {
   if (!config) {
     return null;
   }
@@ -431,7 +428,7 @@ export function buildStatusMessage(args: StatusArgs): string {
     agents: {
       defaults: args.agent ?? {},
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
   const contextConfig = args.config
     ? ({
         ...args.config,
@@ -442,12 +439,12 @@ export function buildStatusMessage(args: StatusArgs): string {
             ...args.agent,
           },
         },
-      } as OpenClawConfig)
+      } as AlisioConfig)
     : ({
         agents: {
           defaults: args.agent ?? {},
         },
-      } as OpenClawConfig);
+      } as AlisioConfig);
   const resolved = resolveConfiguredModelRef({
     cfg: selectionConfig,
     defaultProvider: DEFAULT_PROVIDER,
@@ -865,7 +862,7 @@ function groupCommandsByCategory(
   return grouped;
 }
 
-export function buildHelpMessage(cfg?: OpenClawConfig): string {
+export function buildHelpMessage(cfg?: AlisioConfig): string {
   const lines = ["ℹ️ Help", ""];
 
   lines.push("Session");
@@ -1071,7 +1068,7 @@ function formatCommandList(items: CommandsListItem[]): string {
 }
 
 export function buildCommandsMessage(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   skillCommands?: SkillCommandSpec[],
   options?: CommandsMessageOptions,
 ): string {
@@ -1080,7 +1077,7 @@ export function buildCommandsMessage(
 }
 
 export function buildCommandsMessagePaginated(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   skillCommands?: SkillCommandSpec[],
   options?: CommandsMessageOptions,
 ): CommandsMessageResult {

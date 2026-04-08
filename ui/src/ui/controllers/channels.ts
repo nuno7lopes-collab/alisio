@@ -38,6 +38,12 @@ type ChannelLogoutResult = {
   envToken?: boolean | null;
 };
 
+type ChannelPairingResult = {
+  channel?: string | null;
+  accountId?: string | null;
+  requestId?: string | null;
+};
+
 const CHANNELS_CACHE_TTL_MS = 15_000;
 const CHANNEL_SETUP_REQUEST_TIMEOUT_MS = 8_000;
 
@@ -311,6 +317,21 @@ function clearChannelSetupState(state: ChannelsState) {
   syncSetupDraftState(state, null);
 }
 
+function findChannelDefaultAccount(
+  snapshot: ChannelsStatusSnapshot | null,
+  channelId: string | null,
+) {
+  if (!snapshot || !channelId?.trim()) {
+    return null;
+  }
+  const accounts = snapshot.channelAccounts?.[channelId];
+  if (!Array.isArray(accounts) || accounts.length === 0) {
+    return null;
+  }
+  const defaultAccountId = snapshot.channelDefaultAccountId?.[channelId];
+  return accounts.find((account) => account.accountId === defaultAccountId) ?? accounts[0] ?? null;
+}
+
 function syncSetupDraftState(state: ChannelsState, step: WizardStep | null) {
   if (!step) {
     setSetupDraftText(state, "");
@@ -496,13 +517,16 @@ async function finalizeChannelSetup(
     if (restartingGateway) {
       state.channelsError = null;
     }
+    const defaultAccount = findChannelDefaultAccount(state.channelsSnapshot, info.channelId);
     setActionMessage(
       state,
       restartingGateway
         ? t("alisio.channels.setupRestarting")
         : info.channelId === "whatsapp"
           ? t("alisio.channels.setupSavedQr")
-          : t("alisio.channels.setupSaved"),
+          : info.channelId === "telegram" && defaultAccount?.dmOnboardingState
+            ? t("alisio.channels.setupSavedTelegram")
+            : t("alisio.channels.setupSaved"),
     );
     if (info.channelId === "whatsapp") {
       clearWhatsAppLoginState(state);
@@ -752,6 +776,77 @@ export async function logoutChannelAccount(
     if (params.channelId === "whatsapp") {
       clearWhatsAppLoginState(state);
     }
+    await loadChannels(state, true);
+  } catch (err) {
+    state.channelsError = getErrorMessage(err);
+  } finally {
+    if (state.channelsBusyKey === busyKey) {
+      setBusyKey(state, null);
+    }
+  }
+}
+
+export async function approveChannelPairingRequest(
+  state: ChannelsState,
+  params: { channelId: string; accountId?: string | null; requestId: string },
+) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  const busyKey = makeChannelBusyKey({
+    channelId: params.channelId,
+    action: "pairing-approve",
+    accountId: params.accountId,
+  });
+  setBusyKey(state, busyKey);
+  state.channelsError = null;
+  try {
+    await state.client.request<ChannelPairingResult>("channels.pairing.approve", {
+      channel: params.channelId,
+      requestId: params.requestId,
+      ...(params.accountId?.trim() ? { accountId: params.accountId.trim() } : {}),
+    });
+    setActionMessage(
+      state,
+      params.channelId === "telegram"
+        ? t("alisio.channels.pairing.approvedTelegram")
+        : t("alisio.channels.pairing.approved"),
+    );
+    await loadChannels(state, true);
+  } catch (err) {
+    state.channelsError = getErrorMessage(err);
+  } finally {
+    if (state.channelsBusyKey === busyKey) {
+      setBusyKey(state, null);
+    }
+  }
+}
+
+export async function rejectChannelPairingRequest(
+  state: ChannelsState,
+  params: { channelId: string; accountId?: string | null; requestId: string },
+) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  const confirmed = window.confirm(t("alisio.channels.pairing.rejectConfirm"));
+  if (!confirmed) {
+    return;
+  }
+  const busyKey = makeChannelBusyKey({
+    channelId: params.channelId,
+    action: "pairing-reject",
+    accountId: params.accountId,
+  });
+  setBusyKey(state, busyKey);
+  state.channelsError = null;
+  try {
+    await state.client.request<ChannelPairingResult>("channels.pairing.reject", {
+      channel: params.channelId,
+      requestId: params.requestId,
+      ...(params.accountId?.trim() ? { accountId: params.accountId.trim() } : {}),
+    });
+    setActionMessage(state, t("alisio.channels.pairing.rejected"));
     await loadChannels(state, true);
   } catch (err) {
     state.channelsError = getErrorMessage(err);

@@ -13,6 +13,7 @@ import {
 import { formatConfigIssueLines } from "../../config/issue-format.js";
 import { asResolvedSourceConfig, asRuntimeConfig } from "../../config/materialize.js";
 import { resolveGatewayService } from "../../daemon/service.js";
+import { resolveUpdateSourceConfig } from "../../infra/distribution-profile.js";
 import { nodeVersionSatisfiesEngine } from "../../infra/runtime-guard.js";
 import {
   channelToNpmTag,
@@ -29,10 +30,11 @@ import {
 import {
   collectInstalledGlobalPackageErrors,
   canResolveRegistryVersionForPackageTarget,
-  CORE_PACKAGE_NAME,
   createGlobalInstallEnv,
   cleanupGlobalRenameDirs,
   globalInstallArgs,
+  isExplicitPackageInstallSpec,
+  isMainPackageTarget,
   PUBLIC_PACKAGE_NAME,
   resolveExpectedInstalledVersionFromSpec,
   resolveGlobalInstallSpec,
@@ -105,11 +107,36 @@ const UPDATE_QUIPS = [
   "Version bump! Same chaos energy, fewer crashes (probably).",
 ];
 
-const PUBLIC_NPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest`;
-const PUBLIC_PNPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest`;
+const PUBLIC_NPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@latest`;
+const PUBLIC_PNPM_INSTALL_LATEST = `${PUBLIC_PACKAGE_NAME}@latest`;
 
 function pickUpdateQuip(): string {
   return UPDATE_QUIPS[Math.floor(Math.random() * UPDATE_QUIPS.length)] ?? "Update complete.";
+}
+
+function formatAlisioUpdateSourceError(kind: "registry" | "package" | "main" | "git"): string {
+  if (kind === "registry") {
+    return [
+      "Os updates do Alisio estão desactivados porque não existe uma fonte Alisio configurada para verificar versões.",
+      "Configura ALISIO_UPDATE_REGISTRY_PACKAGE no build ou no ambiente para voltar a activar a verificação.",
+    ].join("\n");
+  }
+  if (kind === "package") {
+    return [
+      "Os updates de pacote do Alisio estão desactivados porque não existe uma fonte Alisio configurada para instalação.",
+      "Configura ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX no build ou no ambiente para voltar a activar `alisio update`.",
+    ].join("\n");
+  }
+  if (kind === "main") {
+    return [
+      "Os updates `main` do Alisio estão desactivados porque não existe uma spec Alisio configurada para esse canal.",
+      "Configura ALISIO_UPDATE_MAIN_PACKAGE_SPEC no build ou no ambiente para activar esse caminho.",
+    ].join("\n");
+  }
+  return [
+    "Os updates git/dev do Alisio estão desactivados porque não existe um repositório Alisio configurado.",
+    "Configura ALISIO_UPDATE_GIT_REPO_URL no build ou no ambiente para activar o canal dev.",
+  ].join("\n");
 }
 
 function resolveGatewayInstallEntrypointCandidates(root?: string): string[] {
@@ -667,6 +694,7 @@ async function maybeRestartService(params: {
       if (!params.opts.json && restarted) {
         defaultRuntime.log(theme.success("Daemon restarted successfully."));
         defaultRuntime.log("");
+        process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
         process.env.OPENCLAW_UPDATE_IN_PROGRESS = "1";
         try {
           const interactiveDoctor =
@@ -677,6 +705,7 @@ async function maybeRestartService(params: {
         } catch (err) {
           defaultRuntime.log(theme.warn(`Doctor failed: ${String(err)}`));
         } finally {
+          delete process.env.ALISIO_UPDATE_IN_PROGRESS;
           delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
         }
       }
@@ -793,6 +822,10 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
   const defaultChannel =
     updateInstallKind === "git" ? DEFAULT_GIT_CHANNEL : DEFAULT_PACKAGE_CHANNEL;
   const channel = requestedChannel ?? storedChannel ?? defaultChannel;
+  const updateSource = resolveUpdateSourceConfig({
+    moduleUrl: import.meta.url,
+    env: process.env,
+  });
 
   const explicitTag = normalizeTag(opts.tag);
   let tag = explicitTag ?? channelToNpmTag(channel);
@@ -802,7 +835,30 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
   let fallbackToLatest = false;
   let packageInstallSpec: string | null = null;
 
+  if (switchToGit && !updateSource.gitRepoUrl) {
+    defaultRuntime.error(formatAlisioUpdateSourceError("git"));
+    defaultRuntime.exit(1);
+    return;
+  }
+
   if (updateInstallKind !== "git") {
+    if (isMainPackageTarget(tag) && !updateSource.mainPackageSpec) {
+      defaultRuntime.error(formatAlisioUpdateSourceError("main"));
+      defaultRuntime.exit(1);
+      return;
+    }
+    if (!isExplicitPackageInstallSpec(tag)) {
+      if (!updateSource.registryInstallPrefix) {
+        defaultRuntime.error(formatAlisioUpdateSourceError("package"));
+        defaultRuntime.exit(1);
+        return;
+      }
+      if (!updateSource.registryPackageName) {
+        defaultRuntime.error(formatAlisioUpdateSourceError("registry"));
+        defaultRuntime.exit(1);
+        return;
+      }
+    }
     currentVersion = switchToPackage ? null : await readPackageVersion(root);
     if (explicitTag) {
       targetVersion = await resolveTargetVersion(tag, timeoutMs);

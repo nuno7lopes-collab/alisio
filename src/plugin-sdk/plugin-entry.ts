@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 import type {
   AnyAgentTool,
@@ -97,7 +97,8 @@ export type {
   PluginLogger,
   PluginInteractiveTelegramHandlerContext,
 };
-export type { OpenClawConfig };
+export type { AlisioConfig };
+export type { AlisioConfig as OpenClawConfig };
 
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 

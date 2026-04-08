@@ -2,6 +2,8 @@
 
 import type { BaseConfigSchemaResponse } from "./schema-base.js";
 
+const LEGACY_BROWSER_DRIVER = "openclaw";
+
 export const GENERATED_BASE_CONFIG_SCHEMA = {
   schema: {
     $schema: "http://json-schema.org/draft-07/schema#",
@@ -473,7 +475,11 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                   anyOf: [
                     {
                       type: "string",
-                      const: "openclaw",
+                      const: "alisio",
+                    },
+                    {
+                      type: "string",
+                      const: LEGACY_BROWSER_DRIVER,
                     },
                     {
                       type: "string",
@@ -11653,7 +11659,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     required: ["commands"],
     additionalProperties: false,
-    title: "OpenClawConfig",
+    title: "AlisioConfig",
   },
   uiHints: {
     wizard: {
@@ -12052,7 +12058,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "diagnostics.cacheTrace.filePath": {
       label: "Cache Trace File Path",
-      help: "JSONL output path for cache trace logs (default: $OPENCLAW_STATE_DIR/logs/cache-trace.jsonl).",
+      help: "JSONL output path for cache trace logs (default: $ALISIO_STATE_DIR/logs/cache-trace.jsonl).",
       tags: ["observability", "storage"],
     },
     "diagnostics.cacheTrace.includeMessages": {
@@ -12097,7 +12103,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.list[].runtime.acp.agent": {
       label: "Agent ACP Harness Agent",
-      help: "Optional ACP harness agent id to use for this Alisio agent (for example codex, claude, cursor, gemini, openclaw).",
+      help: "Optional ACP harness agent id to use for this Alisio agent (for example codex, claude, cursor, gemini, alisio).",
       tags: ["advanced"],
     },
     "agents.list[].runtime.acp.backend": {
@@ -12429,7 +12435,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "browser.profiles.*.driver": {
       label: "Browser Profile Driver",
-      help: 'Per-profile browser driver mode. Use "openclaw" (or legacy "clawd") for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.',
+      help: `Per-profile browser driver mode. Use "alisio" (compatibility "${LEGACY_BROWSER_DRIVER}" and legacy "clawd" also accepted) for CDP-based profiles, or use "existing-session" for host-local Chrome DevTools MCP attachment.`,
       tags: ["storage"],
     },
     "browser.profiles.*.attachOnly": {
@@ -13116,8 +13122,8 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "gateway.controlUi.basePath": {
       label: "Control UI Base Path",
-      help: "Optional URL prefix where the Control UI is served (e.g. /openclaw).",
-      placeholder: "/openclaw",
+      help: "Optional URL prefix where the Control UI is served (e.g. /alisio).",
+      placeholder: "/alisio",
       tags: ["network", "storage"],
     },
     "gateway.controlUi.root": {
@@ -13255,7 +13261,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "gateway.nodes.allowCommands": {
       label: "Gateway Node Allowlist (Extra Commands)",
-      help: "Extra node.invoke commands to allow beyond the gateway defaults (array of command strings). Enabling dangerous commands here is a security-sensitive override and is flagged by `openclaw security audit`.",
+      help: "Extra node.invoke commands to allow beyond the gateway defaults (array of command strings). Enabling dangerous commands here is a security-sensitive override and is flagged by `alisio security audit`.",
       tags: ["access", "network"],
     },
     "gateway.nodes.denyCommands": {
@@ -13566,7 +13572,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.memorySearch.store.path": {
       label: "Memory Search Index Path",
-      help: "Sets where the SQLite memory index is stored on disk for each agent. Keep the default `~/.openclaw/memory/{agentId}.sqlite` unless you need custom storage placement or backup policy alignment.",
+      help: "Sets where the SQLite memory index is stored on disk for each agent. Keep the default `~/.alisio/memory/{agentId}.sqlite` unless you need custom storage placement or backup policy alignment.",
       tags: ["storage"],
     },
     "agents.defaults.memorySearch.store.vector.enabled": {
@@ -14287,7 +14293,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.sandbox.browser.network": {
       label: "Sandbox Browser Network",
-      help: "Docker network for sandbox browser containers (default: openclaw-sandbox-browser). Avoid bridge if you need stricter isolation.",
+      help: "Docker network for sandbox browser containers (default: alisio-sandbox-browser). Avoid bridge if you need stricter isolation.",
       tags: ["storage"],
     },
     "agents.defaults.sandbox.browser.cdpSourceRange": {
@@ -15117,7 +15123,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "discovery.wideArea.domain": {
       label: "Wide-area Discovery Domain",
-      help: "Optional unicast DNS-SD domain for wide-area discovery, such as openclaw.internal. Use this when you intentionally publish gateway discovery beyond local mDNS scopes.",
+      help: "Optional unicast DNS-SD domain for wide-area discovery, such as alisio.internal. Use this when you intentionally publish gateway discovery beyond local mDNS scopes.",
       tags: ["network"],
     },
     "discovery.mdns": {
@@ -15401,7 +15407,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     "agents.list[].identity.avatar": {
       label: "Agent Avatar",
       help: "Avatar image path (relative to the agent workspace only) or a remote URL/data URL.",
-      placeholder: "avatars/openclaw.png",
+      placeholder: "avatars/alisio.png",
       tags: ["advanced"],
     },
     "agents.list[].heartbeat.suppressToolErrorWarnings": {
@@ -15521,7 +15527,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "plugins.installs": {
       label: "Plugin Install Records",
-      help: "CLI-managed install metadata (used by `openclaw plugins update` to locate install sources).",
+      help: "CLI-managed install metadata (used by `alisio plugins update` to locate install sources).",
       tags: ["advanced"],
     },
     "plugins.installs.*.source": {

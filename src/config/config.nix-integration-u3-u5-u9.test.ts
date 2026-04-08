@@ -20,7 +20,7 @@ function envWith(overrides: Record<string, string | undefined>): NodeJS.ProcessE
 
 function loadConfigForHome(home: string) {
   return createConfigIO({
-    env: envWith({ OPENCLAW_HOME: home }),
+    env: envWith({ ALISIO_HOME: home }),
     homedir: () => home,
   }).loadConfig();
 }
@@ -41,95 +41,93 @@ describe("Nix integration (U3, U5, U9)", () => {
   });
 
   describe("U3: isNixMode env var detection", () => {
-    it("isNixMode is false when OPENCLAW_NIX_MODE is not set", () => {
-      expect(resolveIsNixMode(envWith({ OPENCLAW_NIX_MODE: undefined }))).toBe(false);
+    it("isNixMode is false when ALISIO_NIX_MODE is not set", () => {
+      expect(resolveIsNixMode(envWith({ ALISIO_NIX_MODE: undefined }))).toBe(false);
     });
 
-    it("isNixMode is false when OPENCLAW_NIX_MODE is empty", () => {
-      expect(resolveIsNixMode(envWith({ OPENCLAW_NIX_MODE: "" }))).toBe(false);
+    it("isNixMode is false when ALISIO_NIX_MODE is empty", () => {
+      expect(resolveIsNixMode(envWith({ ALISIO_NIX_MODE: "" }))).toBe(false);
     });
 
-    it("isNixMode is false when OPENCLAW_NIX_MODE is not '1'", () => {
-      expect(resolveIsNixMode(envWith({ OPENCLAW_NIX_MODE: "true" }))).toBe(false);
+    it("isNixMode is false when ALISIO_NIX_MODE is not '1'", () => {
+      expect(resolveIsNixMode(envWith({ ALISIO_NIX_MODE: "true" }))).toBe(false);
     });
 
-    it("isNixMode is true when OPENCLAW_NIX_MODE=1", () => {
-      expect(resolveIsNixMode(envWith({ OPENCLAW_NIX_MODE: "1" }))).toBe(true);
+    it("isNixMode is true when ALISIO_NIX_MODE=1", () => {
+      expect(resolveIsNixMode(envWith({ ALISIO_NIX_MODE: "1" }))).toBe(true);
     });
   });
 
   describe("U5: CONFIG_PATH and STATE_DIR env var overrides", () => {
-    it("STATE_DIR defaults to ~/.openclaw when env not set", () => {
-      expect(resolveStateDir(envWith({ OPENCLAW_STATE_DIR: undefined }))).toMatch(/\.openclaw$/);
+    it("STATE_DIR defaults to ~/.alisio when env not set", () => {
+      expect(resolveStateDir(envWith({ ALISIO_STATE_DIR: undefined }))).toMatch(/\.alisio$/);
     });
 
-    it("STATE_DIR respects OPENCLAW_STATE_DIR override", () => {
-      expect(resolveStateDir(envWith({ OPENCLAW_STATE_DIR: "/custom/state/dir" }))).toBe(
+    it("STATE_DIR respects ALISIO_STATE_DIR override", () => {
+      expect(resolveStateDir(envWith({ ALISIO_STATE_DIR: "/custom/state/dir" }))).toBe(
         path.resolve("/custom/state/dir"),
       );
     });
 
-    it("STATE_DIR respects OPENCLAW_HOME when state override is unset", () => {
+    it("STATE_DIR respects ALISIO_HOME when state override is unset", () => {
       const customHome = path.join(path.sep, "custom", "home");
       expect(
-        resolveStateDir(envWith({ OPENCLAW_HOME: customHome, OPENCLAW_STATE_DIR: undefined })),
-      ).toBe(path.join(path.resolve(customHome), ".openclaw"));
+        resolveStateDir(envWith({ ALISIO_HOME: customHome, ALISIO_STATE_DIR: undefined })),
+      ).toBe(path.join(path.resolve(customHome), ".alisio"));
     });
 
-    it("CONFIG_PATH defaults to OPENCLAW_HOME/.openclaw/openclaw.json", () => {
+    it("CONFIG_PATH defaults to ALISIO_HOME/.alisio/alisio.json", () => {
       const customHome = path.join(path.sep, "custom", "home");
       expect(
         resolveConfigPathCandidate(
           envWith({
-            OPENCLAW_HOME: customHome,
-            OPENCLAW_CONFIG_PATH: undefined,
-            OPENCLAW_STATE_DIR: undefined,
+            ALISIO_HOME: customHome,
+            ALISIO_CONFIG_PATH: undefined,
+            ALISIO_STATE_DIR: undefined,
           }),
         ),
-      ).toBe(path.join(path.resolve(customHome), ".openclaw", "openclaw.json"));
+      ).toBe(path.join(path.resolve(customHome), ".alisio", "alisio.json"));
     });
 
-    it("CONFIG_PATH defaults to ~/.openclaw/openclaw.json when env not set", () => {
+    it("CONFIG_PATH defaults to ~/.alisio/alisio.json when env not set", () => {
       expect(
         resolveConfigPathCandidate(
-          envWith({ OPENCLAW_CONFIG_PATH: undefined, OPENCLAW_STATE_DIR: undefined }),
+          envWith({ ALISIO_CONFIG_PATH: undefined, ALISIO_STATE_DIR: undefined }),
         ),
-      ).toMatch(/\.openclaw[\\/]openclaw\.json$/);
+      ).toMatch(/\.alisio[\\/]alisio\.json$/);
     });
 
-    it("CONFIG_PATH respects OPENCLAW_CONFIG_PATH override", () => {
+    it("CONFIG_PATH respects ALISIO_CONFIG_PATH override", () => {
       expect(
-        resolveConfigPathCandidate(
-          envWith({ OPENCLAW_CONFIG_PATH: "/nix/store/abc/openclaw.json" }),
-        ),
-      ).toBe(path.resolve("/nix/store/abc/openclaw.json"));
+        resolveConfigPathCandidate(envWith({ ALISIO_CONFIG_PATH: "/nix/store/abc/alisio.json" })),
+      ).toBe(path.resolve("/nix/store/abc/alisio.json"));
     });
 
-    it("CONFIG_PATH expands ~ in OPENCLAW_CONFIG_PATH override", async () => {
+    it("CONFIG_PATH expands ~ in ALISIO_CONFIG_PATH override", async () => {
       await withTempHome(async (home) => {
         expect(
           resolveConfigPathCandidate(
-            envWith({ OPENCLAW_HOME: home, OPENCLAW_CONFIG_PATH: "~/.openclaw/custom.json" }),
+            envWith({ ALISIO_HOME: home, ALISIO_CONFIG_PATH: "~/.alisio/custom.json" }),
             () => home,
           ),
-        ).toBe(path.join(home, ".openclaw", "custom.json"));
+        ).toBe(path.join(home, ".alisio", "custom.json"));
       });
     });
 
     it("CONFIG_PATH uses STATE_DIR when only state dir is overridden", () => {
       expect(
         resolveConfigPathCandidate(
-          envWith({ OPENCLAW_STATE_DIR: "/custom/state", OPENCLAW_TEST_FAST: "1" }),
-          () => path.join(path.sep, "tmp", "openclaw-config-home"),
+          envWith({ ALISIO_STATE_DIR: "/custom/state", ALISIO_TEST_FAST: "1" }),
+          () => path.join(path.sep, "tmp", "alisio-config-home"),
         ),
-      ).toBe(path.join(path.resolve("/custom/state"), "openclaw.json"));
+      ).toBe(path.join(path.resolve("/custom/state"), "alisio.json"));
     });
   });
 
   describe("U5b: tilde expansion for config paths", () => {
     it("expands ~ in common path-ish config fields", async () => {
       await withTempHome(async (home) => {
-        const configDir = path.join(home, ".openclaw");
+        const configDir = path.join(home, ".alisio");
         await fs.mkdir(configDir, { recursive: true });
         const pluginDir = path.join(home, "plugins", "demo-plugin");
         await fs.mkdir(pluginDir, { recursive: true });
@@ -139,7 +137,7 @@ describe("Nix integration (U3, U5, U9)", () => {
           "utf-8",
         );
         await fs.writeFile(
-          path.join(pluginDir, "openclaw.plugin.json"),
+          path.join(pluginDir, "alisio.plugin.json"),
           JSON.stringify(
             {
               id: "demo-plugin",
@@ -151,7 +149,7 @@ describe("Nix integration (U3, U5, U9)", () => {
           "utf-8",
         );
         await fs.writeFile(
-          path.join(configDir, "openclaw.json"),
+          path.join(configDir, "alisio.json"),
           JSON.stringify(
             {
               plugins: {
@@ -165,7 +163,7 @@ describe("Nix integration (U3, U5, U9)", () => {
                   {
                     id: "main",
                     workspace: "~/ws-agent",
-                    agentDir: "~/.openclaw/agents/main",
+                    agentDir: "~/.alisio/agents/main",
                     sandbox: { workspaceRoot: "~/sandbox-root" },
                   },
                 ],
@@ -174,7 +172,7 @@ describe("Nix integration (U3, U5, U9)", () => {
                 whatsapp: {
                   accounts: {
                     personal: {
-                      authDir: "~/.openclaw/credentials/wa-personal",
+                      authDir: "~/.alisio/credentials/wa-personal",
                     },
                   },
                 },
@@ -191,12 +189,10 @@ describe("Nix integration (U3, U5, U9)", () => {
         expect(cfg.plugins?.load?.paths?.[0]).toBe(path.join(home, "plugins", "demo-plugin"));
         expect(cfg.agents?.defaults?.workspace).toBe(path.join(home, "ws-default"));
         expect(cfg.agents?.list?.[0]?.workspace).toBe(path.join(home, "ws-agent"));
-        expect(cfg.agents?.list?.[0]?.agentDir).toBe(
-          path.join(home, ".openclaw", "agents", "main"),
-        );
+        expect(cfg.agents?.list?.[0]?.agentDir).toBe(path.join(home, ".alisio", "agents", "main"));
         expect(cfg.agents?.list?.[0]?.sandbox?.workspaceRoot).toBe(path.join(home, "sandbox-root"));
         expect(cfg.channels?.whatsapp?.accounts?.personal?.authDir).toBe(
-          path.join(home, ".openclaw", "credentials", "wa-personal"),
+          path.join(home, ".alisio", "credentials", "wa-personal"),
         );
       });
     });
@@ -204,26 +200,20 @@ describe("Nix integration (U3, U5, U9)", () => {
 
   describe("U6: gateway port resolution", () => {
     it("uses default when env and config are unset", () => {
-      expect(resolveGatewayPort({}, envWith({ OPENCLAW_GATEWAY_PORT: undefined }))).toBe(
+      expect(resolveGatewayPort({}, envWith({ ALISIO_GATEWAY_PORT: undefined }))).toBe(
         DEFAULT_GATEWAY_PORT,
       );
     });
 
-    it("prefers OPENCLAW_GATEWAY_PORT over config", () => {
+    it("prefers ALISIO_GATEWAY_PORT over config", () => {
       expect(
-        resolveGatewayPort(
-          { gateway: { port: 19002 } },
-          envWith({ OPENCLAW_GATEWAY_PORT: "19001" }),
-        ),
+        resolveGatewayPort({ gateway: { port: 19002 } }, envWith({ ALISIO_GATEWAY_PORT: "19001" })),
       ).toBe(19001);
     });
 
     it("falls back to config when env is invalid", () => {
       expect(
-        resolveGatewayPort(
-          { gateway: { port: 19003 } },
-          envWith({ OPENCLAW_GATEWAY_PORT: "nope" }),
-        ),
+        resolveGatewayPort({ gateway: { port: 19003 } }, envWith({ ALISIO_GATEWAY_PORT: "nope" })),
       ).toBe(19003);
     });
   });

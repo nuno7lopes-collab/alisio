@@ -9,7 +9,12 @@ export {
   looksLikeSlackTargetId,
   normalizeSlackMessagingTarget,
 } from "openclaw/plugin-sdk/slack-targets";
-export type { ChannelPlugin, OpenClawConfig, SlackAccountConfig } from "openclaw/plugin-sdk/slack";
+export type {
+  ChannelPlugin,
+  AlisioConfig,
+  AlisioConfig as OpenClawConfig,
+  SlackAccountConfig,
+} from "openclaw/plugin-sdk/slack";
 export {
   buildChannelConfigSchema,
   getChatChannelMeta,

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { Command } from "commander";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig, ConfigFileSnapshot } from "../config/types.openclaw.js";
+import type { AlisioConfig, ConfigFileSnapshot } from "../config/types.alisio.js";
 import type { UpdateRunResult } from "../infra/update-runner.js";
 import { BUNDLED_RUNTIME_SIDECAR_PATHS } from "../plugins/public-artifacts.js";
 import { withEnvAsync } from "../test-utils/env.js";
@@ -43,8 +43,8 @@ vi.mock("../infra/update-runner.js", () => ({
   runGatewayUpdate: vi.fn(),
 }));
 
-vi.mock("../infra/openclaw-root.js", () => ({
-  resolveOpenClawPackageRoot: vi.fn(),
+vi.mock("../infra/alisio-root.js", () => ({
+  resolveAlisioPackageRoot: vi.fn(),
 }));
 
 vi.mock("../config/config.js", () => ({
@@ -148,7 +148,7 @@ vi.mock("../runtime.js", () => ({
 }));
 
 const { runGatewayUpdate } = await import("../infra/update-runner.js");
-const { resolveOpenClawPackageRoot } = await import("../infra/openclaw-root.js");
+const { resolveAlisioPackageRoot } = await import("../infra/alisio-root.js");
 const { readConfigFileSnapshot, replaceConfigFile } = await import("../config/config.js");
 const { checkUpdateStatus, fetchNpmPackageTargetStatus, fetchNpmTagVersion, resolveNpmChannelTag } =
   await import("../infra/update-check.js");
@@ -175,7 +175,7 @@ describe("update-cli", () => {
     return dir;
   };
 
-  const baseConfig = {} as OpenClawConfig;
+  const baseConfig = {} as AlisioConfig;
   const baseSnapshot: ConfigFileSnapshot = {
     path: "/tmp/openclaw-config.json",
     exists: true,
@@ -206,7 +206,7 @@ describe("update-cli", () => {
   };
 
   const mockPackageInstallStatus = (root: string) => {
-    vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue(root);
+    vi.mocked(resolveAlisioPackageRoot).mockResolvedValue(root);
     vi.mocked(checkUpdateStatus).mockResolvedValue({
       root,
       installKind: "package",
@@ -316,7 +316,7 @@ describe("update-cli", () => {
     vi.clearAllMocks();
     resetRuntimeCapture();
     vi.mocked(defaultRuntime.exit).mockImplementation(() => {});
-    vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue(process.cwd());
+    vi.mocked(resolveAlisioPackageRoot).mockResolvedValue(process.cwd());
     vi.mocked(readConfigFileSnapshot).mockResolvedValue(baseSnapshot);
     vi.mocked(fetchNpmTagVersion).mockResolvedValue({
       tag: "latest",
@@ -365,7 +365,7 @@ describe("update-cli", () => {
       killed: false,
       termination: "exit",
     });
-    readPackageName.mockResolvedValue("openclaw");
+    readPackageName.mockResolvedValue("alisio");
     readPackageVersion.mockResolvedValue("1.0.0");
     resolveGlobalManager.mockResolvedValue("npm");
     serviceLoaded.mockResolvedValue(false);
@@ -516,7 +516,7 @@ describe("update-cli", () => {
       prepare: async () => {
         vi.mocked(readConfigFileSnapshot).mockResolvedValue({
           ...baseSnapshot,
-          config: { update: { channel: "beta" } } as OpenClawConfig,
+          config: { update: { channel: "beta" } } as AlisioConfig,
         });
       },
       expectedChannel: "beta" as const,
@@ -549,15 +549,7 @@ describe("update-cli", () => {
       } else {
         expect(runGatewayUpdate).not.toHaveBeenCalled();
         expect(runCommandWithTimeout).toHaveBeenCalledWith(
-          [
-            "npm",
-            "i",
-            "-g",
-            "alisio@npm:openclaw@latest",
-            "--no-fund",
-            "--no-audit",
-            "--loglevel=error",
-          ],
+          ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
           expect.any(Object),
         );
       }
@@ -578,7 +570,7 @@ describe("update-cli", () => {
     mockPackageInstallStatus(tempDir);
     vi.mocked(readConfigFileSnapshot).mockResolvedValue({
       ...baseSnapshot,
-      config: { update: { channel: "beta" } } as OpenClawConfig,
+      config: { update: { channel: "beta" } } as AlisioConfig,
     });
     vi.mocked(resolveNpmChannelTag).mockResolvedValue({
       tag: "latest",
@@ -588,15 +580,7 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).toHaveBeenCalledWith(
-      [
-        "npm",
-        "i",
-        "-g",
-        "alisio@npm:openclaw@latest",
-        "--no-fund",
-        "--no-audit",
-        "--loglevel=error",
-      ],
+      ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
       expect.any(Object),
     );
   });
@@ -614,15 +598,7 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).not.toHaveBeenCalledWith(
-      [
-        "npm",
-        "i",
-        "-g",
-        "alisio@npm:openclaw@latest",
-        "--no-fund",
-        "--no-audit",
-        "--loglevel=error",
-      ],
+      ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
       expect.any(Object),
     );
     expect(defaultRuntime.exit).toHaveBeenCalledWith(1);
@@ -633,6 +609,28 @@ describe("update-cli", () => {
     );
   });
 
+  it("uses the default Alisio package source for the public distribution", async () => {
+    mockPackageInstallStatus(createCaseDir("openclaw-update"));
+
+    await withEnvAsync({ ALISIO_DISTRIBUTION: "alisio" }, async () => {
+      await updateCommand({ yes: true });
+    });
+
+    expect(runGatewayUpdate).not.toHaveBeenCalled();
+    expectPackageInstallSpec("alisio@latest");
+  });
+
+  it("uses the default Alisio git source for dev updates", async () => {
+    mockPackageInstallStatus(createCaseDir("openclaw-update"));
+
+    await withEnvAsync({ ALISIO_DISTRIBUTION: "alisio" }, async () => {
+      await updateCommand({ channel: "dev" });
+    });
+
+    const call = expectUpdateCallChannel("dev");
+    expect(call?.cwd).toContain("/alisio");
+  });
+
   it.each([
     {
       name: "explicit dist-tag",
@@ -640,7 +638,7 @@ describe("update-cli", () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
         await updateCommand({ tag: "next" });
       },
-      expectedSpec: "alisio@npm:openclaw@next",
+      expectedSpec: "alisio@next",
     },
     {
       name: "main shorthand",
@@ -648,37 +646,37 @@ describe("update-cli", () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
         await updateCommand({ yes: true, tag: "main" });
       },
-      expectedSpec: "github:openclaw/openclaw#main",
+      expectedSpec: "github:alisio/alisio#main",
     },
     {
       name: "explicit git package spec",
       run: async () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
-        await updateCommand({ yes: true, tag: "github:openclaw/openclaw#main" });
+        await updateCommand({ yes: true, tag: "github:alisio/alisio#main" });
       },
-      expectedSpec: "github:openclaw/openclaw#main",
+      expectedSpec: "github:alisio/alisio#main",
     },
     {
-      name: "OPENCLAW_UPDATE_PACKAGE_SPEC override",
+      name: "ALISIO_UPDATE_PACKAGE_SPEC override",
       run: async () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
         await withEnvAsync(
-          { OPENCLAW_UPDATE_PACKAGE_SPEC: "http://10.211.55.2:8138/openclaw-next.tgz" },
+          { ALISIO_UPDATE_PACKAGE_SPEC: "http://10.211.55.2:8138/alisio-next.tgz" },
           async () => {
             await updateCommand({ yes: true, tag: "latest" });
           },
         );
       },
-      expectedSpec: "http://10.211.55.2:8138/openclaw-next.tgz",
+      expectedSpec: "http://10.211.55.2:8138/alisio-next.tgz",
     },
   ] as const)(
     "resolves package install specs from tags and env overrides: $name",
     async ({ run, expectedSpec }) => {
       vi.clearAllMocks();
-      readPackageName.mockResolvedValue("openclaw");
+      readPackageName.mockResolvedValue("alisio");
       readPackageVersion.mockResolvedValue("1.0.0");
       resolveGlobalManager.mockResolvedValue("npm");
-      vi.mocked(resolveOpenClawPackageRoot).mockResolvedValue(process.cwd());
+      vi.mocked(resolveAlisioPackageRoot).mockResolvedValue(process.cwd());
       await run();
       expectPackageInstallSpec(expectedSpec);
     },
@@ -687,12 +685,12 @@ describe("update-cli", () => {
   it("fails package updates when the installed correction version does not match the requested target", async () => {
     const tempDir = createCaseDir("openclaw-update");
     const nodeModules = path.join(tempDir, "node_modules");
-    const pkgRoot = path.join(nodeModules, "openclaw");
+    const pkgRoot = path.join(nodeModules, "alisio");
     mockPackageInstallStatus(tempDir);
     await fs.mkdir(pkgRoot, { recursive: true });
     await fs.writeFile(
       path.join(pkgRoot, "package.json"),
-      JSON.stringify({ name: "openclaw", version: "2026.3.23" }),
+      JSON.stringify({ name: "alisio", version: "2026.3.23" }),
       "utf-8",
     );
     for (const relativePath of BUNDLED_RUNTIME_SIDECAR_PATHS) {
@@ -739,23 +737,16 @@ describe("update-cli", () => {
   it("prepends portable Git PATH for package updates on Windows", async () => {
     const platformSpy = vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const tempDir = createCaseDir("openclaw-update");
-    const localAppData = createCaseDir("openclaw-localappdata");
+    const localAppData = createCaseDir("alisio-localappdata");
     const portableGitMingw = path.join(
       localAppData,
-      "OpenClaw",
+      "Alisio",
       "deps",
       "portable-git",
       "mingw64",
       "bin",
     );
-    const portableGitUsr = path.join(
-      localAppData,
-      "OpenClaw",
-      "deps",
-      "portable-git",
-      "usr",
-      "bin",
-    );
+    const portableGitUsr = path.join(localAppData, "Alisio", "deps", "portable-git", "usr", "bin");
     await fs.mkdir(portableGitMingw, { recursive: true });
     await fs.mkdir(portableGitUsr, { recursive: true });
     mockPackageInstallStatus(tempDir);
@@ -1198,7 +1189,7 @@ describe("update-cli", () => {
 
   it("updateWizardCommand offers dev checkout and forwards selections", async () => {
     const tempDir = createCaseDir("openclaw-update-wizard");
-    await withEnvAsync({ OPENCLAW_GIT_DIR: tempDir }, async () => {
+    await withEnvAsync({ ALISIO_GIT_DIR: tempDir }, async () => {
       setTty(true);
 
       vi.mocked(checkUpdateStatus).mockResolvedValue({
@@ -1228,10 +1219,10 @@ describe("update-cli", () => {
     });
   });
 
-  it("uses ~/openclaw as the default dev checkout directory", async () => {
+  it("uses ~/alisio as the default dev checkout directory", async () => {
     const homedirSpy = vi.spyOn(os, "homedir").mockReturnValue("/tmp/oc-home");
-    await withEnvAsync({ OPENCLAW_GIT_DIR: undefined }, async () => {
-      expect(resolveGitInstallDir()).toBe(path.posix.join("/tmp/oc-home", "openclaw"));
+    await withEnvAsync({ ALISIO_GIT_DIR: undefined, OPENCLAW_GIT_DIR: undefined }, async () => {
+      expect(resolveGitInstallDir()).toBe(path.posix.join("/tmp/oc-home", "alisio"));
     });
     homedirSpy.mockRestore();
   });

@@ -40,7 +40,8 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createReplyPrefixContext } from "../channels/reply-prefix.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig as ClawdbotConfig, OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig as ClawdbotConfig, AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export {
   resolveAllowlistProviderRuntimeGroupPolicy,
   resolveDefaultGroupPolicy,

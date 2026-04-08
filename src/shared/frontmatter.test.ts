@@ -1,14 +1,14 @@
 import { describe, expect, it, test } from "vitest";
 import {
-  applyOpenClawManifestInstallCommonFields,
+  applyAlisioManifestInstallCommonFields,
   getFrontmatterString,
   normalizeStringList,
   parseFrontmatterBool,
-  parseOpenClawManifestInstallBase,
-  resolveOpenClawManifestBlock,
-  resolveOpenClawManifestInstall,
-  resolveOpenClawManifestOs,
-  resolveOpenClawManifestRequires,
+  parseAlisioManifestInstallBase,
+  resolveAlisioManifestBlock,
+  resolveAlisioManifestInstall,
+  resolveAlisioManifestOs,
+  resolveAlisioManifestRequires,
 } from "./frontmatter.js";
 
 describe("shared/frontmatter", () => {
@@ -30,62 +30,57 @@ describe("shared/frontmatter", () => {
     expect(parseFrontmatterBool("maybe", false)).toBe(false);
   });
 
-  test("resolveOpenClawManifestBlock reads current manifest keys and custom metadata fields", () => {
+  test("resolveAlisioManifestBlock reads current manifest keys and custom metadata fields", () => {
     expect(
-      resolveOpenClawManifestBlock({
+      resolveAlisioManifestBlock({
         frontmatter: {
-          metadata: "{ openclaw: { foo: 1, bar: 'baz' } }",
+          metadata: "{ alisio: { foo: 1, bar: 'baz' } }",
         },
       }),
     ).toEqual({ foo: 1, bar: "baz" });
 
     expect(
-      resolveOpenClawManifestBlock({
+      resolveAlisioManifestBlock({
         frontmatter: {
-          pluginMeta: "{ openclaw: { foo: 2 } }",
+          pluginMeta: "{ alisio: { foo: 2 } }",
         },
         key: "pluginMeta",
       }),
     ).toEqual({ foo: 2 });
   });
 
-  test("resolveOpenClawManifestBlock returns undefined for invalid input", () => {
-    expect(resolveOpenClawManifestBlock({ frontmatter: {} })).toBeUndefined();
+  test("resolveAlisioManifestBlock returns undefined for invalid input", () => {
+    expect(resolveAlisioManifestBlock({ frontmatter: {} })).toBeUndefined();
+    expect(resolveAlisioManifestBlock({ frontmatter: { metadata: "not-json5" } })).toBeUndefined();
+    expect(resolveAlisioManifestBlock({ frontmatter: { metadata: "123" } })).toBeUndefined();
+    expect(resolveAlisioManifestBlock({ frontmatter: { metadata: "[]" } })).toBeUndefined();
     expect(
-      resolveOpenClawManifestBlock({ frontmatter: { metadata: "not-json5" } }),
-    ).toBeUndefined();
-    expect(resolveOpenClawManifestBlock({ frontmatter: { metadata: "123" } })).toBeUndefined();
-    expect(resolveOpenClawManifestBlock({ frontmatter: { metadata: "[]" } })).toBeUndefined();
-    expect(
-      resolveOpenClawManifestBlock({ frontmatter: { metadata: "{ nope: { a: 1 } }" } }),
+      resolveAlisioManifestBlock({ frontmatter: { metadata: "{ nope: { a: 1 } }" } }),
     ).toBeUndefined();
   });
 
   it("normalizes manifest requirement and os lists", () => {
     expect(
-      resolveOpenClawManifestRequires({
+      resolveAlisioManifestRequires({
         requires: {
           bins: "bun, node",
           anyBins: [" ffmpeg ", ""],
-          env: ["OPENCLAW_TOKEN", " OPENCLAW_URL "],
+          env: ["ALISIO_TOKEN", " ALISIO_URL "],
           config: null,
         },
       }),
     ).toEqual({
       bins: ["bun", "node"],
       anyBins: ["ffmpeg"],
-      env: ["OPENCLAW_TOKEN", "OPENCLAW_URL"],
+      env: ["ALISIO_TOKEN", "ALISIO_URL"],
       config: [],
     });
-    expect(resolveOpenClawManifestRequires({})).toBeUndefined();
-    expect(resolveOpenClawManifestOs({ os: [" darwin ", "linux", ""] })).toEqual([
-      "darwin",
-      "linux",
-    ]);
+    expect(resolveAlisioManifestRequires({})).toBeUndefined();
+    expect(resolveAlisioManifestOs({ os: [" darwin ", "linux", ""] })).toEqual(["darwin", "linux"]);
   });
 
   it("parses and applies install common fields", () => {
-    const parsed = parseOpenClawManifestInstallBase(
+    const parsed = parseAlisioManifestInstallBase(
       {
         type: " Brew ",
         id: "brew.git",
@@ -107,9 +102,9 @@ describe("shared/frontmatter", () => {
       label: "Git",
       bins: ["git", "git"],
     });
-    expect(parseOpenClawManifestInstallBase({ kind: "bad" }, ["brew"])).toBeUndefined();
+    expect(parseAlisioManifestInstallBase({ kind: "bad" }, ["brew"])).toBeUndefined();
     expect(
-      applyOpenClawManifestInstallCommonFields<{
+      applyAlisioManifestInstallCommonFields<{
         extra: boolean;
         id?: string;
         label?: string;
@@ -124,7 +119,7 @@ describe("shared/frontmatter", () => {
   });
 
   it("prefers explicit kind, ignores invalid common fields, and leaves missing ones untouched", () => {
-    const parsed = parseOpenClawManifestInstallBase(
+    const parsed = parseAlisioManifestInstallBase(
       {
         kind: " npm ",
         type: "brew",
@@ -146,10 +141,7 @@ describe("shared/frontmatter", () => {
       kind: "npm",
     });
     expect(
-      applyOpenClawManifestInstallCommonFields(
-        { id: "keep", label: "Keep", bins: ["bun"] },
-        parsed!,
-      ),
+      applyAlisioManifestInstallCommonFields({ id: "keep", label: "Keep", bins: ["bun"] }, parsed!),
     ).toEqual({
       id: "keep",
       label: "Keep",
@@ -159,7 +151,7 @@ describe("shared/frontmatter", () => {
 
   it("maps install entries through the parser and filters rejected specs", () => {
     expect(
-      resolveOpenClawManifestInstall(
+      resolveAlisioManifestInstall(
         {
           install: [{ id: "keep" }, { id: "drop" }, "bad"],
         },

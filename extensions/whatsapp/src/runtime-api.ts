@@ -14,7 +14,8 @@ export {
   ToolAuthorizationError,
   WhatsAppConfigSchema,
   type ChannelPlugin,
-  type OpenClawConfig,
+  type AlisioConfig,
+  type AlisioConfig as OpenClawConfig,
 } from "openclaw/plugin-sdk/whatsapp-core";
 
 export {

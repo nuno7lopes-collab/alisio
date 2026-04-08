@@ -17,7 +17,7 @@ import type {
   ChannelPlugin,
 } from "../../channels/plugins/types.js";
 import { inspectReadOnlyChannelAccount } from "../../channels/read-only-account-inspect.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { sha256HexPrefix } from "../../logging/redact-identifier.js";
 import { formatTimeAgo } from "./format.js";
 
@@ -39,8 +39,8 @@ type ChannelAccountRow = {
 
 type ResolvedChannelAccountRowParams = {
   plugin: ChannelPlugin;
-  cfg: OpenClawConfig;
-  sourceConfig: OpenClawConfig;
+  cfg: AlisioConfig;
+  sourceConfig: AlisioConfig;
   accountId: string;
 };
 
@@ -91,11 +91,7 @@ function formatTokenHint(token: string, opts: { showSecrets: boolean }): string 
   return `${head}…${tail} · len ${t.length}`;
 }
 
-async function inspectChannelAccount(
-  plugin: ChannelPlugin,
-  cfg: OpenClawConfig,
-  accountId: string,
-) {
+async function inspectChannelAccount(plugin: ChannelPlugin, cfg: AlisioConfig, accountId: string) {
   return (
     plugin.config.inspectAccount?.(cfg, accountId) ??
     (await inspectReadOnlyChannelAccount({
@@ -160,7 +156,7 @@ const formatAccountLabel = (params: { accountId: string; name?: string }) => {
 
 const buildAccountNotes = (params: {
   plugin: ChannelPlugin;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   entry: ChannelAccountRow;
 }) => {
   const { plugin, cfg, entry } = params;
@@ -259,7 +255,7 @@ function collectMissingPaths(accounts: ChannelAccountRow[]): string[] {
 
 function summarizeTokenConfig(params: {
   plugin: ChannelPlugin;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accounts: ChannelAccountRow[];
   showSecrets: boolean;
 }): { state: "ok" | "setup" | "warn" | null; detail: string | null } {
@@ -470,8 +466,8 @@ function summarizeTokenConfig(params: {
 // `status --all` channels table.
 // Keep this generic: channel-specific rules belong in the channel plugin.
 export async function buildChannelsTable(
-  cfg: OpenClawConfig,
-  opts?: { showSecrets?: boolean; sourceConfig?: OpenClawConfig },
+  cfg: AlisioConfig,
+  opts?: { showSecrets?: boolean; sourceConfig?: AlisioConfig },
 ): Promise<{
   rows: ChannelRow[];
   details: Array<{

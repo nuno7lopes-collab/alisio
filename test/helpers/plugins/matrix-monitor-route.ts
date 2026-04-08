@@ -1,4 +1,4 @@
-export type { OpenClawConfig } from "../../../src/config/config.js";
+export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "../../../src/config/config.js";
 export {
   __testing,
   registerSessionBindingAdapter,

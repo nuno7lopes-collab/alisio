@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SessionBindingRecord } from "../../infra/outbound/session-binding-service.js";
 import type {
   PluginHookBeforeDispatchResult,
@@ -109,7 +109,7 @@ const ttsMocks = vi.hoisted(() => {
     normalizeTtsAutoMode: vi.fn((value: unknown) =>
       typeof value === "string" ? value : undefined,
     ),
-    resolveTtsConfig: vi.fn((_cfg: OpenClawConfig) => ({ mode: "final" })),
+    resolveTtsConfig: vi.fn((_cfg: AlisioConfig) => ({ mode: "final" })),
   };
 });
 
@@ -220,18 +220,18 @@ vi.mock("../../infra/agent-events.js", async (importOriginal) => {
 vi.mock("../../tts/tts.js", () => ({
   maybeApplyTtsToPayload: (params: unknown) => ttsMocks.maybeApplyTtsToPayload(params),
   normalizeTtsAutoMode: (value: unknown) => ttsMocks.normalizeTtsAutoMode(value),
-  resolveTtsConfig: (cfg: OpenClawConfig) => ttsMocks.resolveTtsConfig(cfg),
+  resolveTtsConfig: (cfg: AlisioConfig) => ttsMocks.resolveTtsConfig(cfg),
 }));
 vi.mock("../../tts/tts.runtime.js", () => ({
   maybeApplyTtsToPayload: (params: unknown) => ttsMocks.maybeApplyTtsToPayload(params),
 }));
 vi.mock("../../tts/tts-config.js", () => ({
   normalizeTtsAutoMode: (value: unknown) => ttsMocks.normalizeTtsAutoMode(value),
-  resolveConfiguredTtsMode: (cfg: OpenClawConfig) => ttsMocks.resolveTtsConfig(cfg).mode,
+  resolveConfiguredTtsMode: (cfg: AlisioConfig) => ttsMocks.resolveTtsConfig(cfg).mode,
 }));
 
 const noAbortResult = { handled: false, aborted: false } as const;
-const emptyConfig = {} as OpenClawConfig;
+const emptyConfig = {} as AlisioConfig;
 let dispatchReplyFromConfig: typeof import("./dispatch-from-config.js").dispatchReplyFromConfig;
 let resetInboundDedupe: typeof import("./inbound-dedupe.js").resetInboundDedupe;
 let acpManagerTesting: typeof import("../../acp/control-plane/manager.js").__testing;
@@ -391,11 +391,8 @@ describe("dispatchReplyFromConfig", () => {
       OriginatingTo: "channel:C123",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      _opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => ({ text: "hi" }) satisfies ReplyPayload;
+    const replyResolver = async (_ctx: MsgContext, _opts?: GetReplyOptions, _cfg?: AlisioConfig) =>
+      ({ text: "hi" }) satisfies ReplyPayload;
     await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
 
     expect(mocks.routeReply).not.toHaveBeenCalled();
@@ -416,11 +413,8 @@ describe("dispatchReplyFromConfig", () => {
       OriginatingTo: "telegram:999",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      _opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => ({ text: "hi" }) satisfies ReplyPayload;
+    const replyResolver = async (_ctx: MsgContext, _opts?: GetReplyOptions, _cfg?: AlisioConfig) =>
+      ({ text: "hi" }) satisfies ReplyPayload;
     await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
 
     expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
@@ -636,11 +630,8 @@ describe("dispatchReplyFromConfig", () => {
       OriginatingTo: "imessage:+15550001111",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      _opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => ({ text: "hi" }) satisfies ReplyPayload;
+    const replyResolver = async (_ctx: MsgContext, _opts?: GetReplyOptions, _cfg?: AlisioConfig) =>
+      ({ text: "hi" }) satisfies ReplyPayload;
     await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
 
     expect(mocks.routeReply).not.toHaveBeenCalled();
@@ -660,11 +651,8 @@ describe("dispatchReplyFromConfig", () => {
       ExplicitDeliverRoute: true,
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      _opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => ({ text: "hi" }) satisfies ReplyPayload;
+    const replyResolver = async (_ctx: MsgContext, _opts?: GetReplyOptions, _cfg?: AlisioConfig) =>
+      ({ text: "hi" }) satisfies ReplyPayload;
     await dispatchReplyFromConfig({ ctx, cfg, dispatcher, replyResolver });
 
     expect(dispatcher.sendFinalReply).not.toHaveBeenCalled();
@@ -689,11 +677,7 @@ describe("dispatchReplyFromConfig", () => {
       OriginatingTo: "telegram:999",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       expect(opts?.onToolResult).toBeDefined();
       await opts?.onToolResult?.({
         text: "NO_REPLY",
@@ -722,11 +706,7 @@ describe("dispatchReplyFromConfig", () => {
       ChatType: "direct",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       expect(opts?.onToolResult).toBeDefined();
       expect(typeof opts?.onToolResult).toBe("function");
       return { text: "hi" } satisfies ReplyPayload;
@@ -745,11 +725,7 @@ describe("dispatchReplyFromConfig", () => {
       ChatType: "group",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       expect(opts?.onToolResult).toBeDefined();
       await opts?.onToolResult?.({ text: "🔧 exec: ls" });
       await opts?.onToolResult?.({
@@ -779,11 +755,7 @@ describe("dispatchReplyFromConfig", () => {
       MessageThreadId: 99,
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       await opts?.onToolResult?.({ text: "🔧 exec: ls" });
       return { text: "done" } satisfies ReplyPayload;
     };
@@ -805,11 +777,7 @@ describe("dispatchReplyFromConfig", () => {
       ChatType: "group",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       await opts?.onToolResult?.({
         text: "Approval required.\n\n```txt\n/approve 117ba06d allow-once\n```",
         channelData: {
@@ -850,11 +818,7 @@ describe("dispatchReplyFromConfig", () => {
       ChatType: "direct",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       // Simulate tool result emission
       await opts?.onToolResult?.({ text: "🔧 exec: ls" });
       return { text: "done" } satisfies ReplyPayload;
@@ -877,11 +841,7 @@ describe("dispatchReplyFromConfig", () => {
       CommandSource: "native",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       expect(opts?.onToolResult).toBeDefined();
       await opts?.onToolResult?.({ text: "🔧 tools/sessions_send" });
       await opts?.onToolResult?.({
@@ -908,11 +868,7 @@ describe("dispatchReplyFromConfig", () => {
       CommandSource: "native",
     });
 
-    const replyResolver = async (
-      _ctx: MsgContext,
-      opts?: GetReplyOptions,
-      _cfg?: OpenClawConfig,
-    ) => {
+    const replyResolver = async (_ctx: MsgContext, opts?: GetReplyOptions, _cfg?: AlisioConfig) => {
       await opts?.onToolResult?.({
         text: "Approval required.\n\n```txt\n/approve 117ba06d allow-once\n```",
         channelData: {
@@ -1022,7 +978,7 @@ describe("dispatchReplyFromConfig", () => {
         dispatch: { enabled: true },
         stream: { coalesceIdleMs: 0, maxChunkChars: 128 },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1108,7 +1064,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1177,7 +1133,7 @@ describe("dispatchReplyFromConfig", () => {
           dispatch: { enabled: true },
           stream: { coalesceIdleMs: 0, maxChunkChars: 128 },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       dispatcher,
       replyOptions: {
         runId: "run-acp-lifecycle-end",
@@ -1239,7 +1195,7 @@ describe("dispatchReplyFromConfig", () => {
           dispatch: { enabled: true },
           stream: { coalesceIdleMs: 0, maxChunkChars: 128 },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       dispatcher,
       replyOptions: {
         runId: "run-acp-lifecycle-error",
@@ -1306,7 +1262,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1388,7 +1344,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1445,7 +1401,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "deny",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1494,7 +1450,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "deny",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1551,7 +1507,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "deny",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1618,7 +1574,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "allow",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1671,7 +1627,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "deny",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1727,7 +1683,7 @@ describe("dispatchReplyFromConfig", () => {
           default: "deny",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1786,7 +1742,7 @@ describe("dispatchReplyFromConfig", () => {
         dispatch: { enabled: true },
         stream: { coalesceIdleMs: 0, maxChunkChars: 256 },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1839,7 +1795,7 @@ describe("dispatchReplyFromConfig", () => {
         dispatch: { enabled: true },
         stream: { coalesceIdleMs: 0, maxChunkChars: 256 },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1889,7 +1845,7 @@ describe("dispatchReplyFromConfig", () => {
         dispatch: { enabled: true },
         stream: { coalesceIdleMs: 0, maxChunkChars: 128 },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1941,7 +1897,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -1982,7 +1938,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: false },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -2010,7 +1966,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -2058,7 +2014,7 @@ describe("dispatchReplyFromConfig", () => {
         enabled: true,
         dispatch: { enabled: true },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -2109,7 +2065,7 @@ describe("dispatchReplyFromConfig", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "discord",
@@ -2342,7 +2298,7 @@ describe("dispatchReplyFromConfig", () => {
 
   it("emits diagnostics when enabled", async () => {
     setNoAbort();
-    const cfg = { diagnostics: { enabled: true } } as OpenClawConfig;
+    const cfg = { diagnostics: { enabled: true } } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({
       Provider: "slack",
@@ -2777,7 +2733,7 @@ describe("dispatchReplyFromConfig", () => {
 
   it("marks diagnostics skipped for duplicate inbound messages", async () => {
     setNoAbort();
-    const cfg = { diagnostics: { enabled: true } } as OpenClawConfig;
+    const cfg = { diagnostics: { enabled: true } } as AlisioConfig;
     const ctx = buildTestCtx({
       Provider: "whatsapp",
       OriginatingChannel: "whatsapp",
@@ -2810,13 +2766,13 @@ describe("dispatchReplyFromConfig", () => {
 
     const overrideCfg = {
       agents: { defaults: { userTimezone: "America/New_York" } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
-    let receivedCfg: OpenClawConfig | undefined;
+    let receivedCfg: AlisioConfig | undefined;
     const replyResolver = async (
       _ctx: MsgContext,
       _opts?: GetReplyOptions,
-      cfgArg?: OpenClawConfig,
+      cfgArg?: AlisioConfig,
     ) => {
       receivedCfg = cfgArg;
       return { text: "hi" } satisfies ReplyPayload;
@@ -2835,15 +2791,15 @@ describe("dispatchReplyFromConfig", () => {
 
   it("does not pass cfg as implicit configOverride when configOverride is not provided", async () => {
     setNoAbort();
-    const cfg = { agents: { defaults: { userTimezone: "UTC" } } } as OpenClawConfig;
+    const cfg = { agents: { defaults: { userTimezone: "UTC" } } } as AlisioConfig;
     const dispatcher = createDispatcher();
     const ctx = buildTestCtx({ Provider: "telegram", Surface: "telegram" });
 
-    let receivedCfg: OpenClawConfig | undefined;
+    let receivedCfg: AlisioConfig | undefined;
     const replyResolver = async (
       _ctx: MsgContext,
       _opts?: GetReplyOptions,
-      cfgArg?: OpenClawConfig,
+      cfgArg?: AlisioConfig,
     ) => {
       receivedCfg = cfgArg;
       return { text: "hi" } satisfies ReplyPayload;

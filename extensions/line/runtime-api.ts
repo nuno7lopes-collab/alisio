@@ -3,7 +3,8 @@
 
 export type {
   ChannelPlugin,
-  OpenClawConfig,
+  AlisioConfig,
+  AlisioConfig as OpenClawConfig,
   OpenClawPluginApi,
   PluginRuntime,
 } from "openclaw/plugin-sdk/core";

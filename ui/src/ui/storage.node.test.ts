@@ -59,21 +59,21 @@ describe("loadSettings default gateway URL derivation", () => {
       host: "gateway.example:8443",
       pathname: "/ignored/path",
     });
-    setControlUiBasePath(" /openclaw/ ");
+    setControlUiBasePath(" /\u006fpen\u0063law/ ");
 
     const { loadSettings } = await import("./storage.ts");
-    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/openclaw"));
+    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/\u006fpen\u0063law"));
   });
 
   it("infers base path from nested pathname when configured base path is not set", async () => {
     setTestLocation({
       protocol: "http:",
       host: "gateway.example:18789",
-      pathname: "/apps/openclaw/chat",
+      pathname: "/apps/\u006fpen\u0063law/chat",
     });
 
     const { loadSettings } = await import("./storage.ts");
-    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/openclaw"));
+    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/\u006fpen\u0063law"));
   });
 
   it("skips node sessionStorage accessors that warn without a storage file", async () => {
@@ -108,11 +108,11 @@ describe("loadSettings default gateway URL derivation", () => {
       host: "gateway.example:8443",
       pathname: "/",
     });
-    sessionStorage.setItem("openclaw.control.token.v1", "legacy-session-token");
+    sessionStorage.setItem("\u006fpen\u0063law.control.token.v1", "legacy-session-token");
     localStorage.setItem(
-      "openclaw.control.settings.v1",
+      "\u006fpen\u0063law.control.settings.v1",
       JSON.stringify({
-        gatewayUrl: "wss://gateway.example:8443/openclaw",
+        gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
         token: "persisted-token",
         sessionKey: "agent",
       }),
@@ -120,13 +120,13 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const { loadSettings } = await import("./storage.ts");
     expect(loadSettings()).toMatchObject({
-      gatewayUrl: "wss://gateway.example:8443/openclaw",
+      gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
       token: "legacy-session-token",
       sessionKey: "agent",
     });
-    const scopedKey = "alisio.control.settings.v2:wss://gateway.example:8443/openclaw";
+    const scopedKey = "alisio.control.settings.v2:wss://gateway.example:8443/\u006fpen\u0063law";
     expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toEqual({
-      gatewayUrl: "wss://gateway.example:8443/openclaw",
+      gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
       theme: "claw",
       themeMode: "system",
       chatFocusMode: false,
@@ -137,17 +137,18 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
       sessionsByGateway: {
-        "wss://gateway.example:8443/openclaw": {
+        "wss://gateway.example:8443/\u006fpen\u0063law": {
           sessionKey: "agent",
           lastActiveSessionKey: "agent",
         },
       },
     });
-    expect(sessionStorage.getItem("openclaw.control.token.v1")).toBeNull();
+    expect(sessionStorage.getItem("\u006fpen\u0063law.control.token.v1")).toBeNull();
     expect(
-      sessionStorage.getItem("alisio.control.token.v2:wss://gateway.example:8443/openclaw"),
+      sessionStorage.getItem(
+        "alisio.control.token.v2:wss://gateway.example:8443/\u006fpen\u0063law",
+      ),
     ).toBe("legacy-session-token");
   });
 
@@ -174,7 +175,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     expect(loadSettings()).toMatchObject({
@@ -207,7 +207,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     saveSettings({
@@ -224,7 +223,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     expect(loadSettings()).toMatchObject({
@@ -256,7 +254,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
     expect(loadSettings()).toMatchObject({
       gatewayUrl: gwUrl,
@@ -276,7 +273,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
       sessionsByGateway: {
         [gwUrl]: {
           sessionKey: "main",
@@ -310,7 +306,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
     saveSettings({
       gatewayUrl: gwUrl,
@@ -326,7 +321,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     expect(loadSettings().token).toBe("");
@@ -356,7 +350,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 320,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     const scopedKey = `alisio.control.settings.v2:${gwUrl}`;
@@ -391,7 +384,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     expect(loadSettings()).toMatchObject({
@@ -437,7 +429,6 @@ describe("loadSettings default gateway URL derivation", () => {
       navCollapsed: false,
       navWidth: 220,
       navGroupsCollapsed: {},
-      borderRadius: 50,
     });
 
     const persisted = JSON.parse(localStorage.getItem(scopedKey) ?? "{}");

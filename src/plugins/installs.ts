@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import { buildNpmResolutionFields, type NpmSpecResolution } from "../infra/install-source-utils.js";
 
@@ -13,10 +13,7 @@ export function buildNpmResolutionInstallFields(
   return buildNpmResolutionFields(resolution);
 }
 
-export function recordPluginInstall(
-  cfg: OpenClawConfig,
-  update: PluginInstallUpdate,
-): OpenClawConfig {
+export function recordPluginInstall(cfg: AlisioConfig, update: PluginInstallUpdate): AlisioConfig {
   const { pluginId, ...record } = update;
   const installs = {
     ...cfg.plugins?.installs,

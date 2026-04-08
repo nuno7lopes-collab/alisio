@@ -1,3 +1,4 @@
+import { legacyDotKey } from "../../brand-compat.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { SessionsUsageResult, CostUsageSummary, SessionUsageTimeSeries } from "../types.ts";
@@ -35,7 +36,7 @@ type UsageDateInterpretationParams = {
   utcOffset?: string;
 };
 
-const LEGACY_USAGE_DATE_PARAMS_STORAGE_KEY = "openclaw.control.usage.date-params.v1";
+const LEGACY_USAGE_DATE_PARAMS_STORAGE_KEY = legacyDotKey("control", "usage", "date-params", "v1");
 const LEGACY_USAGE_DATE_PARAMS_DEFAULT_GATEWAY_KEY = "__default__";
 const LEGACY_USAGE_DATE_PARAMS_MODE_RE = /unexpected property ['"]mode['"]/i;
 const LEGACY_USAGE_DATE_PARAMS_OFFSET_RE = /unexpected property ['"]utcoffset['"]/i;

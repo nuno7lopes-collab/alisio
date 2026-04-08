@@ -36,7 +36,8 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { logTypingFailure } from "../channels/logging.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export {
   resolveDefaultGroupPolicy,
   resolveOpenProviderRuntimeGroupPolicy,

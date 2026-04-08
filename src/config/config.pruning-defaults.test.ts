@@ -6,13 +6,9 @@ import { loadConfig, resetConfigRuntimeState } from "./config.js";
 import { withTempHome } from "./test-helpers.js";
 
 async function writeConfigForTest(home: string, config: unknown): Promise<void> {
-  const configDir = path.join(home, ".openclaw");
+  const configDir = path.join(home, ".alisio");
   await fs.mkdir(configDir, { recursive: true });
-  await fs.writeFile(
-    path.join(configDir, "openclaw.json"),
-    JSON.stringify(config, null, 2),
-    "utf-8",
-  );
+  await fs.writeFile(path.join(configDir, "alisio.json"), JSON.stringify(config, null, 2), "utf-8");
 }
 
 async function loadConfigForHome(config: unknown) {

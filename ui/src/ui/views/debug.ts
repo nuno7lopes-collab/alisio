@@ -50,8 +50,8 @@ export function renderDebug(props: DebugProps) {
             <div class="muted">Status</div>
             ${securitySummary
               ? html`<div class="callout ${securityTone}" style="margin-top: 8px;">
-                  Security audit: ${securityLabel}${info > 0 ? ` · ${info} info` : ""}. Run
-                  <span class="mono">openclaw security audit --deep</span> for details.
+                  Security audit: ${securityLabel}${info > 0 ? ` · ${info} info` : ""}. Run the full
+                  CLI audit for details.
                 </div>`
               : nothing}
             <pre class="code-block">${JSON.stringify(props.status ?? {}, null, 2)}</pre>
@@ -69,7 +69,7 @@ export function renderDebug(props: DebugProps) {
 
       <div class="card">
         <div class="card-title">Manual RPC</div>
-        <div class="card-sub">Send a raw gateway method with JSON params.</div>
+        <div class="card-sub">Send a raw RPC method to Alisio with JSON params.</div>
         <div class="stack" style="margin-top: 16px;">
           <label class="field">
             <span>Method</span>
@@ -116,7 +116,7 @@ ${JSON.stringify(props.models ?? [], null, 2)}</pre
 
     <section class="card" style="margin-top: 18px;">
       <div class="card-title">Event Log</div>
-      <div class="card-sub">Latest gateway events.</div>
+      <div class="card-sub">Latest Alisio events.</div>
       ${props.eventLog.length === 0
         ? html` <div class="muted" style="margin-top: 12px">No events yet.</div> `
         : html`

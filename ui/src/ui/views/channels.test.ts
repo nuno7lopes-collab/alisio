@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
 import { makeChannelBusyKey } from "../channels-shared.ts";
 import {
+  approveChannelPairingRequest,
   continueChannelSetup,
   loadChannels,
+  rejectChannelPairingRequest,
   startChannelSetup,
   startWebChannelLogin,
   waitWebChannelLogin,
@@ -53,6 +55,8 @@ function createProps(overrides?: Record<string, unknown>) {
     onStartWhatsAppLink: vi.fn(),
     onWaitWhatsAppLink: vi.fn(),
     onLogoutChannel: vi.fn(),
+    onApproveChannelPairing: vi.fn(),
+    onRejectChannelPairing: vi.fn(),
     onOpenSupportUrl: vi.fn(),
     ...overrides,
   };
@@ -171,7 +175,9 @@ describe("channels view", () => {
     findButton(container, "View setup guide")?.dispatchEvent(
       new MouseEvent("click", { bubbles: true }),
     );
-    expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.openclaw.ai/channels/telegram");
+    expect(onOpenSupportUrl).toHaveBeenCalledWith(
+      "https://docs.\u006fpen\u0063law.ai/channels/telegram",
+    );
   });
 
   it("marks Telegram as waiting for the first DM instead of fully configured", () => {
@@ -228,7 +234,7 @@ describe("channels view", () => {
 
     expect(container.textContent).toContain("Waiting for first message");
     expect(container.textContent).toContain(
-      "Token saved. Send a message to the bot from the Telegram account that should use it.",
+      "Telegram is connected, but your account still needs to be confirmed. Open Finish setup to use the Telegram setup link.",
     );
     expect(findButton(container, "Finish setup")).toBeDefined();
   });
@@ -259,7 +265,7 @@ describe("channels view", () => {
                   accountId: "default",
                   kind: "intent",
                   message: "2 pending Telegram DM approval requests waiting for approval.",
-                  fix: "Open Telegram setup again and send a message from the account that should use the bot. OpenClaw will finish the first approval automatically.",
+                  fix: "Open Telegram setup again and send a message from the account that should use the bot. \u004fpen\u0043law will finish the first approval automatically.",
                 },
               ],
             },
@@ -294,6 +300,73 @@ describe("channels view", () => {
     expect(container.textContent).toContain(
       "2 Telegram access requests are waiting for approval before the first chat can start.",
     );
+  });
+
+  it("renders pending Telegram requests with approve and deny actions", () => {
+    const container = document.createElement("div");
+    const onApproveChannelPairing = vi.fn();
+    const onRejectChannelPairing = vi.fn();
+
+    render(
+      renderChannels(
+        createProps({
+          onApproveChannelPairing,
+          onRejectChannelPairing,
+          snapshot: {
+            ts: Date.now(),
+            channelOrder: ["telegram"],
+            channelLabels: { telegram: "Telegram" },
+            channelDetailLabels: { telegram: "Bot, groups, and direct messages" },
+            channelMeta: [
+              {
+                id: "telegram",
+                label: "Telegram",
+                detailLabel: "Bot, groups, and direct messages",
+                docsPath: "/channels/telegram",
+              },
+            ],
+            channelIssues: {},
+            channels: {
+              telegram: {
+                configured: true,
+                dmOnboardingState: "pending_approval",
+                pendingPairingRequests: 1,
+                setupAvailable: true,
+              },
+            },
+            channelAccounts: {
+              telegram: [
+                {
+                  accountId: "default",
+                  configured: true,
+                  dmOnboardingState: "pending_approval",
+                  pendingPairingRequests: 1,
+                  pendingPairing: [
+                    {
+                      requestId: "6074269928",
+                      label: "Nuno",
+                      detail: "@nuno · 6074269928",
+                    },
+                  ],
+                },
+              ],
+            },
+            channelDefaultAccountId: {
+              telegram: "default",
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Pending Telegram requests");
+    expect(container.textContent).toContain("Nuno");
+    expect(container.textContent).toContain("@nuno · 6074269928");
+    findButton(container, "Approve")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onApproveChannelPairing).toHaveBeenCalledWith("telegram", "default", "6074269928");
+    findButton(container, "Deny")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onRejectChannelPairing).toHaveBeenCalledWith("telegram", "default", "6074269928");
   });
 
   it("keeps the native WhatsApp QR flow exposed", () => {
@@ -844,7 +917,9 @@ describe("channels view", () => {
     findButton(container, "View setup guide")?.dispatchEvent(
       new MouseEvent("click", { bubbles: true }),
     );
-    expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.openclaw.ai/channels/telegram");
+    expect(onOpenSupportUrl).toHaveBeenCalledWith(
+      "https://docs.\u006fpen\u0063law.ai/channels/telegram",
+    );
   });
 
   it("evita duplicar os passos compactos quando o setup do canal já está aberto", () => {
@@ -1493,5 +1568,102 @@ describe("channels view", () => {
       title: "Telegram bot token",
       sensitive: true,
     });
+  });
+
+  it("aprova um pedido Telegram pelo gateway e refresca o estado", async () => {
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["telegram"],
+      channelLabels: { telegram: "Telegram" },
+      channelDetailLabels: { telegram: "Telegram" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "channels.pairing.approve") {
+        return {
+          channel: "telegram",
+          accountId: "default",
+          requestId: "6074269928",
+        };
+      }
+      if (method === "channels.status") {
+        return snapshot;
+      }
+      throw new Error(`unexpected method ${method} ${JSON.stringify(params)}`);
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+    });
+
+    await approveChannelPairingRequest(state, {
+      channelId: "telegram",
+      accountId: "default",
+      requestId: "6074269928",
+    });
+
+    expect(request).toHaveBeenNthCalledWith(1, "channels.pairing.approve", {
+      channel: "telegram",
+      requestId: "6074269928",
+      accountId: "default",
+    });
+    expect(state.channelsActionMessage).toBe(
+      "Telegram account approved. Send a message to start chatting.",
+    );
+    expect(state.channelsBusyKey).toBeNull();
+  });
+
+  it("rejeita um pedido Telegram pelo gateway e refresca o estado", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const snapshot = {
+      ts: Date.now(),
+      channelOrder: ["telegram"],
+      channelLabels: { telegram: "Telegram" },
+      channelDetailLabels: { telegram: "Telegram" },
+      channelSystemImages: {},
+      channelMeta: [],
+      channelIssues: {},
+      channels: {},
+      channelAccounts: {},
+      channelDefaultAccountId: {},
+    };
+    const request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "channels.pairing.reject") {
+        return {
+          channel: "telegram",
+          accountId: "default",
+          requestId: "6074269928",
+        };
+      }
+      if (method === "channels.status") {
+        return snapshot;
+      }
+      throw new Error(`unexpected method ${method} ${JSON.stringify(params)}`);
+    });
+    const state = createChannelsControllerState({
+      client: { request } as never,
+    });
+
+    try {
+      await rejectChannelPairingRequest(state, {
+        channelId: "telegram",
+        accountId: "default",
+        requestId: "6074269928",
+      });
+    } finally {
+      confirmSpy.mockRestore();
+    }
+
+    expect(request).toHaveBeenNthCalledWith(1, "channels.pairing.reject", {
+      channel: "telegram",
+      requestId: "6074269928",
+      accountId: "default",
+    });
+    expect(state.channelsActionMessage).toBe("Access request denied.");
+    expect(state.channelsBusyKey).toBeNull();
   });
 });

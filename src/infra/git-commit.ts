@@ -2,8 +2,8 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveAlisioPackageRootSync } from "./alisio-root.js";
 import { resolveGitHeadPath } from "./git-root.js";
-import { resolveOpenClawPackageRootSync } from "./openclaw-root.js";
 
 const formatCommit = (value?: string | null) => {
   if (!value) {
@@ -201,7 +201,7 @@ export const resolveCommitHash = (
   if (cachedGitCommitBySearchDir.has(searchDir)) {
     return cachedGitCommitBySearchDir.get(searchDir) ?? null;
   }
-  const packageRoot = resolveOpenClawPackageRootSync({
+  const packageRoot = resolveAlisioPackageRootSync({
     cwd: options.cwd,
     moduleUrl: options.moduleUrl,
   });

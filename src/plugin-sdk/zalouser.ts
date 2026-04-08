@@ -35,6 +35,7 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
 export {
   resolveDefaultGroupPolicy,

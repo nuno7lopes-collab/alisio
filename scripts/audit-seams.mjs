@@ -4,6 +4,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { hostPackageNames, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 import {
   BUNDLED_PLUGIN_PATH_PREFIX,
   BUNDLED_PLUGIN_ROOT_DIR,
@@ -420,7 +421,7 @@ function packageClusterMeta(relativePackagePath) {
   if (relativePackagePath === "ui/package.json") {
     return {
       cluster: "ui",
-      packageName: "openclaw-control-ui",
+      packageName: "alisio-control-ui",
       packagePath: relativePackagePath,
       reachability: "workspace-ui",
     };
@@ -473,6 +474,7 @@ function classifyMissingPackageCluster(params) {
 }
 
 async function buildMissingPackages(params = {}) {
+  const rootPackageNames = new Set(hostPackageNames(repoRoot));
   const rootPackage = JSON.parse(await fs.readFile(path.join(repoRoot, "package.json"), "utf8"));
   const rootDeps = new Set([
     ...Object.keys(rootPackage.dependencies ?? {}),
@@ -503,7 +505,7 @@ async function buildMissingPackages(params = {}) {
       continue;
     }
     const missing = Object.keys(pkg.dependencies ?? {})
-      .filter((dep) => dep !== "openclaw" && !rootDeps.has(dep))
+      .filter((dep) => !rootPackageNames.has(dep) && !rootDeps.has(dep))
       .toSorted(compareStrings);
     if (missing.length === 0) {
       continue;
@@ -523,7 +525,7 @@ async function buildMissingPackages(params = {}) {
       decisionReason: classification.reason,
       packageName: pkg.name ?? meta.packageName,
       packagePath: relativePackagePath,
-      npmSpec: redactNpmSpec(pkg.openclaw?.install?.npmSpec),
+      npmSpec: redactNpmSpec(readPackageBrandConfig(pkg)?.install?.npmSpec),
       private: pkg.private === true,
       pluginSdkReachability:
         pluginSdkEntries.length > 0 ? { staticEntryPoints: pluginSdkEntries } : undefined,

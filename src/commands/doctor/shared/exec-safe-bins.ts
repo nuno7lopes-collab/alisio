@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../../config/config.js";
+import type { AlisioConfig } from "../../../config/config.js";
 import { resolveCommandResolutionFromArgv } from "../../../infra/exec-command-resolution.js";
 import {
   listInterpreterLikeSafeBins,
@@ -57,7 +57,7 @@ function normalizeConfiguredTrustedSafeBinDirs(entries: unknown): string[] {
   );
 }
 
-function collectExecSafeBinScopes(cfg: OpenClawConfig): ExecSafeBinScopeRef[] {
+function collectExecSafeBinScopes(cfg: AlisioConfig): ExecSafeBinScopeRef[] {
   const scopes: ExecSafeBinScopeRef[] = [];
   const globalExec = asObjectRecord(cfg.tools?.exec);
   const globalTrustedDirs = normalizeConfiguredTrustedSafeBinDirs(globalExec?.safeBinTrustedDirs);
@@ -111,7 +111,7 @@ function collectExecSafeBinScopes(cfg: OpenClawConfig): ExecSafeBinScopeRef[] {
   return scopes;
 }
 
-export function scanExecSafeBinCoverage(cfg: OpenClawConfig): ExecSafeBinCoverageHit[] {
+export function scanExecSafeBinCoverage(cfg: AlisioConfig): ExecSafeBinCoverageHit[] {
   const hits: ExecSafeBinCoverageHit[] = [];
   for (const scope of collectExecSafeBinScopes(cfg)) {
     const interpreterBins = new Set(listInterpreterLikeSafeBins(scope.safeBins));
@@ -138,9 +138,7 @@ export function scanExecSafeBinCoverage(cfg: OpenClawConfig): ExecSafeBinCoverag
   return hits;
 }
 
-export function scanExecSafeBinTrustedDirHints(
-  cfg: OpenClawConfig,
-): ExecSafeBinTrustedDirHintHit[] {
+export function scanExecSafeBinTrustedDirHints(cfg: AlisioConfig): ExecSafeBinTrustedDirHintHit[] {
   const hits: ExecSafeBinTrustedDirHintHit[] = [];
   for (const scope of collectExecSafeBinScopes(cfg)) {
     for (const bin of scope.safeBins) {
@@ -242,8 +240,8 @@ export function collectExecSafeBinTrustedDirHintWarnings(
   return lines;
 }
 
-export function maybeRepairExecSafeBinProfiles(cfg: OpenClawConfig): {
-  config: OpenClawConfig;
+export function maybeRepairExecSafeBinProfiles(cfg: AlisioConfig): {
+  config: AlisioConfig;
   changes: string[];
   warnings: string[];
 } {

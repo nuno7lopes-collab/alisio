@@ -1,10 +1,14 @@
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { resolveChannelDefaultAccountId } from "../channels/plugins/helpers.js";
-import { getChannelPlugin, listChannelPlugins } from "../channels/plugins/index.js";
+import { getChannelPlugin } from "../channels/plugins/index.js";
 import type { ChannelAccountSnapshot, ChannelPlugin } from "../channels/plugins/types.js";
+import {
+  PRODUCT_CHAT_CHANNEL_IDS,
+  listProductChannelPlugins,
+} from "../channels/product-surface.js";
 import { inspectReadOnlyChannelAccount } from "../channels/read-only-account-inspect.js";
 import { withProgress } from "../cli/progress.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { loadConfig, readBestEffortConfig } from "../config/config.js";
 import { loadSessionStore, resolveStorePath } from "../config/sessions.js";
 import { buildGatewayConnectionDetails, callGateway } from "../gateway/call.js";
@@ -165,7 +169,7 @@ const buildSessionSummary = (storePath: string) => {
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 
-async function inspectHealthAccount(plugin: ChannelPlugin, cfg: OpenClawConfig, accountId: string) {
+async function inspectHealthAccount(plugin: ChannelPlugin, cfg: AlisioConfig, accountId: string) {
   return (
     plugin.config.inspectAccount?.(cfg, accountId) ??
     (await inspectReadOnlyChannelAccount({
@@ -186,7 +190,7 @@ function readBooleanField(value: unknown, key: string): boolean | undefined {
 
 async function resolveHealthAccountContext(params: {
   plugin: ChannelPlugin;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): Promise<{
   account: unknown;
@@ -449,10 +453,13 @@ export async function getHealthSnapshot(params?: {
   const cappedTimeout = timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : Math.max(50, timeoutMs);
   const doProbe = params?.probe !== false;
   const channels: Record<string, ChannelHealthSummary> = {};
-  const channelOrder = listChannelPlugins().map((plugin) => plugin.id);
+  const channelPlugins = listProductChannelPlugins();
+  const channelOrder = PRODUCT_CHAT_CHANNEL_IDS.filter((channelId) =>
+    channelPlugins.some((plugin) => plugin.id === channelId),
+  );
   const channelLabels: Record<string, string> = {};
 
-  for (const plugin of listChannelPlugins()) {
+  for (const plugin of channelPlugins) {
     channelLabels[plugin.id] = plugin.meta.label ?? plugin.id;
     const accountIds = plugin.config.listAccountIds(cfg);
     const defaultAccountId = resolveChannelDefaultAccountId({
@@ -595,7 +602,7 @@ export async function getHealthSnapshot(params?: {
 }
 
 export async function healthCommand(
-  opts: { json?: boolean; timeoutMs?: number; verbose?: boolean; config?: OpenClawConfig },
+  opts: { json?: boolean; timeoutMs?: number; verbose?: boolean; config?: AlisioConfig },
   runtime: RuntimeEnv,
 ) {
   const cfg = opts.config ?? (await readBestEffortConfig());
@@ -631,6 +638,7 @@ export async function healthCommand(
     }
     const localAgents = resolveAgentOrder(cfg);
     const defaultAgentId = summary.defaultAgentId ?? localAgents.defaultAgentId;
+    const channelPlugins = listProductChannelPlugins();
     const agents = Array.isArray(summary.agents) ? summary.agents : [];
     const fallbackAgents = localAgents.ordered.map((entry) => {
       const storePath = resolveStorePath(cfg.session?.store, { agentId: entry.id });
@@ -649,7 +657,7 @@ export async function healthCommand(
     const channelBindings = buildChannelAccountBindings(cfg);
     if (debugEnabled) {
       runtime.log(info("[debug] local channel accounts"));
-      for (const plugin of listChannelPlugins()) {
+      for (const plugin of channelPlugins) {
         const accountIds = plugin.config.listAccountIds(cfg);
         const defaultAccountId = resolveChannelDefaultAccountId({
           plugin,
@@ -696,7 +704,7 @@ export async function healthCommand(
       }
     }
     const channelAccountFallbacks = Object.fromEntries(
-      listChannelPlugins().map((plugin) => {
+      channelPlugins.map((plugin) => {
         const accountIds = plugin.config.listAccountIds(cfg);
         const defaultAccountId = resolveChannelDefaultAccountId({
           plugin,
@@ -747,7 +755,7 @@ export async function healthCommand(
     for (const line of channelLines) {
       runtime.log(styleHealthChannelLine(line, rich));
     }
-    for (const plugin of listChannelPlugins()) {
+    for (const plugin of channelPlugins) {
       const channelSummary = summary.channels?.[plugin.id];
       if (!channelSummary || channelSummary.linked !== true) {
         continue;

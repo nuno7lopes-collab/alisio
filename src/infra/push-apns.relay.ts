@@ -5,6 +5,7 @@ import {
   signDevicePayload,
   type DeviceIdentity,
 } from "./device-identity.js";
+import { legacyEnvKey, readEnv } from "./env.js";
 
 export type ApnsRelayPushType = "alert" | "background";
 
@@ -40,9 +41,15 @@ export type ApnsRelayRequestSender = (params: {
 }) => Promise<ApnsRelayPushResponse>;
 
 const DEFAULT_APNS_RELAY_TIMEOUT_MS = 10_000;
-const GATEWAY_DEVICE_ID_HEADER = "x-openclaw-gateway-device-id";
-const GATEWAY_SIGNATURE_HEADER = "x-openclaw-gateway-signature";
-const GATEWAY_SIGNED_AT_HEADER = "x-openclaw-gateway-signed-at-ms";
+const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
+const GATEWAY_DEVICE_ID_HEADER = "x-alisio-gateway-device-id";
+const GATEWAY_SIGNATURE_HEADER = "x-alisio-gateway-signature";
+const GATEWAY_SIGNED_AT_HEADER = "x-alisio-gateway-signed-at-ms";
+const LEGACY_GATEWAY_DEVICE_ID_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-device-id`;
+const LEGACY_GATEWAY_SIGNATURE_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signature`;
+const LEGACY_GATEWAY_SIGNED_AT_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signed-at-ms`;
+const LEGACY_RELAY_SIGNATURE_VERSION = `${LEGACY_RUNTIME_NAMESPACE}-relay-send-v1`;
+const CURRENT_RELAY_SIGNATURE_VERSION = "alisio-relay-send-v1";
 
 function normalizeNonEmptyString(value: string | undefined): string | null {
   const trimmed = value?.trim() ?? "";
@@ -87,7 +94,7 @@ function buildRelayGatewaySignaturePayload(params: {
   bodyJson: string;
 }): string {
   return [
-    "openclaw-relay-send-v1",
+    CURRENT_RELAY_SIGNATURE_VERSION,
     params.gatewayDeviceId.trim(),
     String(Math.trunc(params.signedAtMs)),
     params.bodyJson,
@@ -99,17 +106,21 @@ export function resolveApnsRelayConfigFromEnv(
   gatewayConfig?: GatewayConfig,
 ): ApnsRelayConfigResolution {
   const configuredRelay = gatewayConfig?.push?.apns?.relay;
-  const envBaseUrl = normalizeNonEmptyString(env.OPENCLAW_APNS_RELAY_BASE_URL);
+  const currentEnvBaseUrl = normalizeNonEmptyString(env.ALISIO_APNS_RELAY_BASE_URL);
+  const legacyEnvBaseUrl = normalizeNonEmptyString(env[legacyEnvKey("APNS_RELAY_BASE_URL")]);
+  const envBaseUrl = currentEnvBaseUrl ?? legacyEnvBaseUrl;
   const configBaseUrl = normalizeNonEmptyString(configuredRelay?.baseUrl);
   const baseUrl = envBaseUrl ?? configBaseUrl;
-  const baseUrlSource = envBaseUrl
-    ? "OPENCLAW_APNS_RELAY_BASE_URL"
-    : "gateway.push.apns.relay.baseUrl";
+  const baseUrlSource = currentEnvBaseUrl
+    ? "ALISIO_APNS_RELAY_BASE_URL"
+    : legacyEnvBaseUrl
+      ? legacyEnvKey("APNS_RELAY_BASE_URL")
+      : "gateway.push.apns.relay.baseUrl";
   if (!baseUrl) {
     return {
       ok: false,
       error:
-        "APNs relay config missing: set gateway.push.apns.relay.baseUrl or OPENCLAW_APNS_RELAY_BASE_URL",
+        "APNs relay config missing: set gateway.push.apns.relay.baseUrl or ALISIO_APNS_RELAY_BASE_URL",
     };
   }
 
@@ -121,9 +132,18 @@ export function resolveApnsRelayConfigFromEnv(
     if (!parsed.hostname) {
       throw new Error("host required");
     }
-    if (parsed.protocol === "http:" && !readAllowHttp(env.OPENCLAW_APNS_RELAY_ALLOW_HTTP)) {
+    if (
+      parsed.protocol === "http:" &&
+      !readAllowHttp(
+        readEnv("ALISIO_APNS_RELAY_ALLOW_HTTP", {
+          env,
+          fallback: legacyEnvKey("APNS_RELAY_ALLOW_HTTP"),
+          description: "allow insecure APNs relay http",
+        }),
+      )
+    ) {
       throw new Error(
-        "http relay URLs require OPENCLAW_APNS_RELAY_ALLOW_HTTP=true (development only)",
+        "http relay URLs require ALISIO_APNS_RELAY_ALLOW_HTTP=true (development only)",
       );
     }
     if (parsed.protocol === "http:" && !isLoopbackRelayHostname(parsed.hostname)) {
@@ -140,7 +160,11 @@ export function resolveApnsRelayConfigFromEnv(
       value: {
         baseUrl: parsed.toString().replace(/\/+$/, ""),
         timeoutMs: normalizeTimeoutMs(
-          env.OPENCLAW_APNS_RELAY_TIMEOUT_MS ?? configuredRelay?.timeoutMs,
+          readEnv("ALISIO_APNS_RELAY_TIMEOUT_MS", {
+            env,
+            fallback: legacyEnvKey("APNS_RELAY_TIMEOUT_MS"),
+            description: "APNs relay timeout",
+          }) ?? configuredRelay?.timeoutMs,
         ),
       },
     };
@@ -172,8 +196,11 @@ async function sendApnsRelayRequest(params: {
       authorization: `Bearer ${params.sendGrant}`,
       "content-type": "application/json",
       [GATEWAY_DEVICE_ID_HEADER]: params.gatewayDeviceId,
+      [LEGACY_GATEWAY_DEVICE_ID_HEADER]: params.gatewayDeviceId,
       [GATEWAY_SIGNATURE_HEADER]: params.signature,
+      [LEGACY_GATEWAY_SIGNATURE_HEADER]: params.signature,
       [GATEWAY_SIGNED_AT_HEADER]: String(params.signedAtMs),
+      [LEGACY_GATEWAY_SIGNED_AT_HEADER]: String(params.signedAtMs),
     },
     body: params.bodyJson,
     signal: AbortSignal.timeout(params.relayConfig.timeoutMs),
@@ -231,14 +258,16 @@ export async function sendApnsRelayPush(params: {
     priority: Number(params.priority),
     payload: params.payload,
   });
-  const signature = signDevicePayload(
-    gatewayIdentity.privateKeyPem,
-    buildRelayGatewaySignaturePayload({
-      gatewayDeviceId: gatewayIdentity.deviceId,
-      signedAtMs,
-      bodyJson,
-    }),
+  const signaturePayload = buildRelayGatewaySignaturePayload({
+    gatewayDeviceId: gatewayIdentity.deviceId,
+    signedAtMs,
+    bodyJson,
+  });
+  const legacySignaturePayload = signaturePayload.replace(
+    CURRENT_RELAY_SIGNATURE_VERSION,
+    LEGACY_RELAY_SIGNATURE_VERSION,
   );
+  const signature = signDevicePayload(gatewayIdentity.privateKeyPem, legacySignaturePayload);
   return await sender({
     relayConfig: params.relayConfig,
     sendGrant: params.sendGrant,

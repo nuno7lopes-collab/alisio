@@ -1,5 +1,5 @@
 import { normalizeProviderId } from "../agents/model-selection.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { isBlockedObjectKey } from "../infra/prototype-keys.js";
 import { resolvePluginCapabilityProviders } from "../plugins/capability-provider-runtime.js";
 import type { ImageGenerationProviderPlugin } from "../plugins/types.js";
@@ -20,7 +20,7 @@ function isSafeImageGenerationProviderId(id: string | undefined): id is string {
 }
 
 function resolvePluginImageGenerationProviders(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
 ): ImageGenerationProviderPlugin[] {
   return resolvePluginCapabilityProviders({
     key: "imageGenerationProviders",
@@ -28,7 +28,7 @@ function resolvePluginImageGenerationProviders(
   });
 }
 
-function buildProviderMaps(cfg?: OpenClawConfig): {
+function buildProviderMaps(cfg?: AlisioConfig): {
   canonical: Map<string, ImageGenerationProviderPlugin>;
   aliases: Map<string, ImageGenerationProviderPlugin>;
 } {
@@ -59,15 +59,13 @@ function buildProviderMaps(cfg?: OpenClawConfig): {
   return { canonical, aliases };
 }
 
-export function listImageGenerationProviders(
-  cfg?: OpenClawConfig,
-): ImageGenerationProviderPlugin[] {
+export function listImageGenerationProviders(cfg?: AlisioConfig): ImageGenerationProviderPlugin[] {
   return [...buildProviderMaps(cfg).canonical.values()];
 }
 
 export function getImageGenerationProvider(
   providerId: string | undefined,
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
 ): ImageGenerationProviderPlugin | undefined {
   const normalized = normalizeImageGenerationProviderId(providerId);
   if (!normalized) {

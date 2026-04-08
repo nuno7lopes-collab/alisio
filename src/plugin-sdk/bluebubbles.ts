@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import {
   parseChatTargetPrefixesOrThrow,
   resolveServicePrefixedTarget,
@@ -22,7 +22,7 @@ export type BlueBubblesConversationBindingManager = {
 type BlueBubblesFacadeModule = {
   createBlueBubblesConversationBindingManager: (params: {
     accountId?: string;
-    cfg: OpenClawConfig;
+    cfg: AlisioConfig;
   }) => BlueBubblesConversationBindingManager;
 };
 
@@ -35,7 +35,7 @@ function loadBlueBubblesFacadeModule(): BlueBubblesFacadeModule {
 
 export function createBlueBubblesConversationBindingManager(params: {
   accountId?: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
 }): BlueBubblesConversationBindingManager {
   return loadBlueBubblesFacadeModule().createBlueBubblesConversationBindingManager(params);
 }
@@ -314,7 +314,8 @@ export type {
 } from "../channels/plugins/types.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { DmPolicy, GroupPolicy } from "../config/types.js";
 export { ToolPolicySchema } from "../config/zod-schema.agent-runtime.js";
 export { MarkdownConfigSchema } from "../config/zod-schema.core.js";

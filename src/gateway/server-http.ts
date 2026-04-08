@@ -12,6 +12,7 @@ import { resolveAgentAvatar } from "../agents/identity-avatar.js";
 import { CANVAS_WS_PATH, handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { loadConfig } from "../config/config.js";
+import { loadAlisioModelProviderSnapshot } from "../infra/alisio-model-snapshot.js";
 import { loadAlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { handleSlackHttpRequest } from "../plugin-sdk/slack.js";
@@ -61,6 +62,7 @@ import { sendGatewayAuthFailure, setDefaultSecurityHeaders } from "./http-common
 import { getBearerToken } from "./http-utils.js";
 import { handleOpenAiModelsHttpRequest } from "./models-http.js";
 import { resolveRequestClientIp } from "./net.js";
+import type { NodeRegistry } from "./node-registry.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
 import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
 import { DEDUPE_MAX, DEDUPE_TTL_MS } from "./server-constants.js";
@@ -743,6 +745,7 @@ export function createHooksRequestHandler(
 export function createGatewayHttpServer(opts: {
   canvasHost: CanvasHostHandler | null;
   clients: Set<GatewayWsClient>;
+  nodeRegistry?: NodeRegistry;
   controlUiEnabled: boolean;
   controlUiBasePath: string;
   controlUiRoot?: ControlUiRootState;
@@ -763,6 +766,7 @@ export function createGatewayHttpServer(opts: {
   const {
     canvasHost,
     clients,
+    nodeRegistry,
     controlUiEnabled,
     controlUiBasePath,
     controlUiRoot,
@@ -976,7 +980,20 @@ export function createGatewayHttpServer(opts: {
               basePath: controlUiBasePath,
               trustedProxies,
               allowRealIpFallback,
-              loadRuntimeSetup: () => loadAlisioRuntimeSetupState(),
+              loadRuntimeSetup: () =>
+                loadAlisioRuntimeSetupState({
+                  ...(nodeRegistry
+                    ? {
+                        loadAlisioModelProviderSnapshot: () =>
+                          loadAlisioModelProviderSnapshot({
+                            nodeRegistry,
+                            env: process.env,
+                          }),
+                        nodeRegistry,
+                      }
+                    : {}),
+                  env: process.env,
+                }),
             }),
         });
         requestStages.push({

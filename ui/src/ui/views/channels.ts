@@ -1,4 +1,5 @@
 import { html, nothing } from "lit";
+import { legacyCommandPrefixPattern, legacyDocsUrl } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   isChannelBusyKey,
@@ -63,6 +64,8 @@ type ChannelsProps = {
   onStartWhatsAppLink: (force: boolean, accountId?: string) => void;
   onWaitWhatsAppLink: (accountId?: string) => void;
   onLogoutChannel: (channelId: string, accountId?: string) => void;
+  onApproveChannelPairing: (channelId: string, accountId: string, requestId: string) => void;
+  onRejectChannelPairing: (channelId: string, accountId: string, requestId: string) => void;
   onOpenSupportUrl: (url: string) => void;
 };
 
@@ -116,7 +119,7 @@ function buildChannelDocsUrl(docsPath?: string): string | null {
   if (/^https?:\/\//i.test(raw)) {
     return raw;
   }
-  return `https://docs.openclaw.ai${raw.startsWith("/") ? raw : `/${raw}`}`;
+  return legacyDocsUrl(raw);
 }
 
 function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | null {
@@ -444,7 +447,7 @@ function resolveSetupContinueLabel(
 }
 
 function isSetupCommandLine(line: string) {
-  return /^(alisio|openclaw)\s+/i.test(line.trim());
+  return legacyCommandPrefixPattern.test(line.trim());
 }
 
 function readSetupDocsUrl(line: string) {
@@ -773,16 +776,76 @@ function renderWhatsAppQr(linkState: WhatsAppLinkState, accountId: string, props
   `;
 }
 
+function renderPendingPairingRequests(
+  row: ResolvedChannelRow,
+  account: ChannelAccountSnapshot,
+  props: ChannelsProps,
+) {
+  const pendingRequests = Array.isArray(account.pendingPairing) ? account.pendingPairing : [];
+  if (row.id !== "telegram" || pendingRequests.length === 0) {
+    return nothing;
+  }
+  const approveBusy = isChannelBusyKey(props.busyKey, {
+    channelId: row.id,
+    action: "pairing-approve",
+    accountId: account.accountId,
+  });
+  const rejectBusy = isChannelBusyKey(props.busyKey, {
+    channelId: row.id,
+    action: "pairing-reject",
+    accountId: account.accountId,
+  });
+  return html`
+    <div class="channel-pending-pairing">
+      <div class="channel-pending-pairing__label">${channelText("pairing.pendingLabel")}</div>
+      ${pendingRequests.map(
+        (request) => html`
+          <div class="channel-pending-pairing__item">
+            <div class="channel-pending-pairing__copy">
+              <div class="channel-pending-pairing__title">${request.label}</div>
+              ${request.detail
+                ? html`<div class="channel-pending-pairing__detail">${request.detail}</div>`
+                : nothing}
+            </div>
+            <div class="row channel-pending-pairing__actions">
+              <button
+                class="btn btn--sm primary"
+                ?disabled=${approveBusy || rejectBusy}
+                @click=${() => {
+                  props.onApproveChannelPairing(row.id, account.accountId, request.requestId);
+                }}
+              >
+                ${channelText("pairing.approve")}
+              </button>
+              <button
+                class="btn btn--sm danger"
+                ?disabled=${approveBusy || rejectBusy}
+                @click=${() => {
+                  props.onRejectChannelPairing(row.id, account.accountId, request.requestId);
+                }}
+              >
+                ${channelText("pairing.reject")}
+              </button>
+            </div>
+          </div>
+        `,
+      )}
+    </div>
+  `;
+}
+
 function renderAccountBlock(
   row: ResolvedChannelRow,
   account: ChannelAccountSnapshot,
   props: ChannelsProps,
 ) {
   const status = resolveAccountStatus(row, account);
-  const issues = resolveChannelIssues(row, account.accountId);
   const identifier = resolveAccountIdentifier(row, account);
   const lastActivity = formatLastActivity(account);
   const flags = resolveAccountFlags(row, account);
+  const issues = resolveChannelIssues(row, account.accountId).filter(
+    (issue) => !(row.id === "telegram" && flags.dmOnboardingState && issue.kind === "intent"),
+  );
   const whatsappLinkState = resolveWhatsAppLinkState(row, account, props);
   const canLogout =
     flags.logoutAvailable && (flags.linked || flags.connected) && Boolean(account.accountId);
@@ -811,7 +874,7 @@ function renderAccountBlock(
       ${dmOnboardingCopy
         ? html`<div class="card-sub channel-account__note">${dmOnboardingCopy}</div>`
         : nothing}
-      ${renderIssueList(row, issues)}
+      ${renderPendingPairingRequests(row, account, props)} ${renderIssueList(row, issues)}
       ${whatsappLinkState ? renderWhatsAppQr(whatsappLinkState, account.accountId, props) : nothing}
       ${whatsappLinkState || canLogout
         ? html`

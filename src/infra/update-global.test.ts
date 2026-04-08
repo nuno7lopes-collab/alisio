@@ -15,7 +15,7 @@ import {
   globalInstallFallbackArgs,
   isExplicitPackageInstallSpec,
   isMainPackageTarget,
-  OPENCLAW_MAIN_PACKAGE_SPEC,
+  ALISIO_MAIN_PACKAGE_SPEC,
   resolveExpectedInstalledVersionFromSpec,
   resolveGlobalPackageRoot,
   resolveGlobalInstallSpec,
@@ -34,19 +34,19 @@ describe("update global helpers", () => {
   });
 
   it("prefers explicit package spec overrides", () => {
-    envSnapshot = captureEnv(["OPENCLAW_UPDATE_PACKAGE_SPEC"]);
-    process.env.OPENCLAW_UPDATE_PACKAGE_SPEC = "file:/tmp/openclaw.tgz";
+    envSnapshot = captureEnv(["ALISIO_UPDATE_PACKAGE_SPEC", "ALISIO_UPDATE_PACKAGE_SPEC"]);
+    process.env.ALISIO_UPDATE_PACKAGE_SPEC = "file:/tmp/alisio.tgz";
 
-    expect(resolveGlobalInstallSpec({ packageName: "openclaw", tag: "latest" })).toBe(
-      "file:/tmp/openclaw.tgz",
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
+      "file:/tmp/alisio.tgz",
     );
     expect(
       resolveGlobalInstallSpec({
-        packageName: "openclaw",
+        packageName: "alisio",
         tag: "beta",
-        env: { OPENCLAW_UPDATE_PACKAGE_SPEC: "openclaw@next" },
+        env: { ALISIO_UPDATE_PACKAGE_SPEC: "alisio@next" },
       }),
-    ).toBe("openclaw@next");
+    ).toBe("alisio@next");
   });
 
   it("resolves global roots and package roots from runner output", async () => {
@@ -66,32 +66,68 @@ describe("update global helpers", () => {
       path.join(".bun", "install", "global", "node_modules"),
     );
     await expect(resolveGlobalPackageRoot("npm", runCommand, 1000)).resolves.toBe(
-      path.join("/tmp/npm-root", "openclaw"),
+      path.join("/tmp/npm-root", "alisio"),
     );
   });
 
   it("maps main and explicit install specs for global installs", () => {
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
-      "alisio@npm:openclaw@latest",
+      "alisio@latest",
     );
-    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe(
-      "alisio@npm:openclaw@beta",
-    );
-    expect(resolveGlobalInstallSpec({ packageName: "openclaw", tag: "main" })).toBe(
-      OPENCLAW_MAIN_PACKAGE_SPEC,
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe("alisio@beta");
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
+      ALISIO_MAIN_PACKAGE_SPEC,
     );
     expect(
       resolveGlobalInstallSpec({
-        packageName: "openclaw",
-        tag: "github:openclaw/openclaw#feature/my-branch",
+        packageName: "alisio",
+        tag: "github:alisio/alisio#feature/my-branch",
       }),
-    ).toBe("github:openclaw/openclaw#feature/my-branch");
+    ).toBe("github:alisio/alisio#feature/my-branch");
     expect(
       resolveGlobalInstallSpec({
-        packageName: "openclaw",
-        tag: "https://example.com/openclaw-main.tgz",
+        packageName: "alisio",
+        tag: "https://example.com/alisio-main.tgz",
       }),
-    ).toBe("https://example.com/openclaw-main.tgz");
+    ).toBe("https://example.com/alisio-main.tgz");
+  });
+
+  it("keeps default package and main update sources for the public distribution", () => {
+    envSnapshot = captureEnv([
+      "ALISIO_DISTRIBUTION",
+      "ALISIO_UPDATE_REGISTRY_PACKAGE",
+      "ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX",
+      "ALISIO_UPDATE_MAIN_PACKAGE_SPEC",
+    ]);
+    process.env.ALISIO_DISTRIBUTION = "alisio";
+    delete process.env.ALISIO_UPDATE_REGISTRY_PACKAGE;
+    delete process.env.ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX;
+    delete process.env.ALISIO_UPDATE_MAIN_PACKAGE_SPEC;
+
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
+      "alisio@latest",
+    );
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
+      "github:alisio/alisio#main",
+    );
+  });
+
+  it("uses the configured Alisio package and main sources", () => {
+    envSnapshot = captureEnv([
+      "ALISIO_DISTRIBUTION",
+      "ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX",
+      "ALISIO_UPDATE_MAIN_PACKAGE_SPEC",
+    ]);
+    process.env.ALISIO_DISTRIBUTION = "alisio";
+    process.env.ALISIO_UPDATE_REGISTRY_INSTALL_PREFIX = "alisio@";
+    process.env.ALISIO_UPDATE_MAIN_PACKAGE_SPEC = "github:acme/alisio#main";
+
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
+      "alisio@latest",
+    );
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
+      "github:acme/alisio#main",
+    );
   });
 
   it("classifies main and raw install specs separately from registry selectors", () => {
@@ -99,32 +135,28 @@ describe("update global helpers", () => {
     expect(isMainPackageTarget(" MAIN ")).toBe(true);
     expect(isMainPackageTarget("beta")).toBe(false);
 
-    expect(isExplicitPackageInstallSpec("github:openclaw/openclaw#main")).toBe(true);
-    expect(isExplicitPackageInstallSpec("https://example.com/openclaw-main.tgz")).toBe(true);
-    expect(isExplicitPackageInstallSpec("file:/tmp/openclaw-main.tgz")).toBe(true);
+    expect(isExplicitPackageInstallSpec("github:alisio/alisio#main")).toBe(true);
+    expect(isExplicitPackageInstallSpec("https://example.com/alisio-main.tgz")).toBe(true);
+    expect(isExplicitPackageInstallSpec("file:/tmp/alisio-main.tgz")).toBe(true);
     expect(isExplicitPackageInstallSpec("beta")).toBe(false);
 
     expect(canResolveRegistryVersionForPackageTarget("latest")).toBe(true);
     expect(canResolveRegistryVersionForPackageTarget("2026.3.22")).toBe(true);
     expect(canResolveRegistryVersionForPackageTarget("main")).toBe(false);
-    expect(canResolveRegistryVersionForPackageTarget("github:openclaw/openclaw#main")).toBe(false);
-    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@npm:openclaw@2026.3.22")).toBe(
-      "2026.3.22",
-    );
-    expect(
-      resolveExpectedInstalledVersionFromSpec("openclaw", "alisio@npm:openclaw@2026.3.22"),
-    ).toBe("2026.3.22");
+    expect(canResolveRegistryVersionForPackageTarget("github:alisio/alisio#main")).toBe(false);
+    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@2026.3.22")).toBe("2026.3.22");
+    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@2026.3.22")).toBe("2026.3.22");
   });
 
   it("detects install managers from resolved roots and on-disk presence", async () => {
-    const base = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-global-"));
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-global-"));
     const npmRoot = path.join(base, "npm-root");
     const pnpmRoot = path.join(base, "pnpm-root");
     const bunRoot = path.join(base, ".bun", "install", "global", "node_modules");
-    const pkgRoot = path.join(pnpmRoot, "openclaw");
+    const pkgRoot = path.join(pnpmRoot, "alisio");
     await fs.mkdir(pkgRoot, { recursive: true });
-    await fs.mkdir(path.join(npmRoot, "openclaw"), { recursive: true });
-    await fs.mkdir(path.join(bunRoot, "openclaw"), { recursive: true });
+    await fs.mkdir(path.join(npmRoot, "alisio"), { recursive: true });
+    await fs.mkdir(path.join(bunRoot, "alisio"), { recursive: true });
 
     envSnapshot = captureEnv(["BUN_INSTALL"]);
     process.env.BUN_INSTALL = path.join(base, ".bun");
@@ -144,16 +176,16 @@ describe("update global helpers", () => {
     );
     await expect(detectGlobalInstallManagerByPresence(runCommand, 1000)).resolves.toBe("npm");
 
-    await fs.rm(path.join(npmRoot, "openclaw"), { recursive: true, force: true });
-    await fs.rm(path.join(pnpmRoot, "openclaw"), { recursive: true, force: true });
+    await fs.rm(path.join(npmRoot, "alisio"), { recursive: true, force: true });
+    await fs.rm(path.join(pnpmRoot, "alisio"), { recursive: true, force: true });
     await expect(detectGlobalInstallManagerByPresence(runCommand, 1000)).resolves.toBe("bun");
   });
 
   it("prefers the public alias package root when present", async () => {
-    const base = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-global-alias-"));
+    const base = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-global-alias-"));
     const npmRoot = path.join(base, "npm-root");
     await fs.mkdir(path.join(npmRoot, "alisio"), { recursive: true });
-    await fs.mkdir(path.join(npmRoot, "openclaw"), { recursive: true });
+    await fs.mkdir(path.join(npmRoot, "alisio"), { recursive: true });
 
     const runCommand: CommandRunner = async (argv) => {
       if (argv[0] === "npm") {
@@ -168,71 +200,71 @@ describe("update global helpers", () => {
     await expect(resolveGlobalPackageRoot("npm", runCommand, 1000)).resolves.toBe(
       path.join(npmRoot, "alisio"),
     );
-    await expect(resolveGlobalPackageRoot("npm", runCommand, 1000, ["openclaw"])).resolves.toBe(
-      path.join(npmRoot, "openclaw"),
+    await expect(resolveGlobalPackageRoot("npm", runCommand, 1000, ["alisio"])).resolves.toBe(
+      path.join(npmRoot, "alisio"),
     );
   });
 
   it("builds install argv and npm fallback argv", () => {
-    expect(globalInstallArgs("npm", "openclaw@latest")).toEqual([
+    expect(globalInstallArgs("npm", "alisio@latest")).toEqual([
       "npm",
       "i",
       "-g",
-      "openclaw@latest",
+      "alisio@latest",
       "--no-fund",
       "--no-audit",
       "--loglevel=error",
     ]);
-    expect(globalInstallArgs("pnpm", "openclaw@latest")).toEqual([
+    expect(globalInstallArgs("pnpm", "alisio@latest")).toEqual([
       "pnpm",
       "add",
       "-g",
-      "openclaw@latest",
+      "alisio@latest",
     ]);
-    expect(globalInstallArgs("bun", "openclaw@latest")).toEqual([
+    expect(globalInstallArgs("bun", "alisio@latest")).toEqual([
       "bun",
       "add",
       "-g",
-      "openclaw@latest",
+      "alisio@latest",
     ]);
 
-    expect(globalInstallFallbackArgs("npm", "openclaw@latest")).toEqual([
+    expect(globalInstallFallbackArgs("npm", "alisio@latest")).toEqual([
       "npm",
       "i",
       "-g",
-      "openclaw@latest",
+      "alisio@latest",
       "--omit=optional",
       "--no-fund",
       "--no-audit",
       "--loglevel=error",
     ]);
-    expect(globalInstallFallbackArgs("pnpm", "openclaw@latest")).toBeNull();
+    expect(globalInstallFallbackArgs("pnpm", "alisio@latest")).toBeNull();
   });
 
   it("cleans only renamed package directories", async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-cleanup-"));
-    await fs.mkdir(path.join(root, ".openclaw-123"), { recursive: true });
-    await fs.mkdir(path.join(root, ".openclaw-456"), { recursive: true });
-    await fs.writeFile(path.join(root, ".openclaw-file"), "nope", "utf8");
-    await fs.mkdir(path.join(root, "openclaw"), { recursive: true });
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-cleanup-"));
+    await fs.mkdir(path.join(root, ".alisio-123"), { recursive: true });
+    await fs.mkdir(path.join(root, ".alisio-456"), { recursive: true });
+    await fs.writeFile(path.join(root, ".alisio-file"), "nope", "utf8");
+    await fs.mkdir(path.join(root, "alisio"), { recursive: true });
 
     await expect(
       cleanupGlobalRenameDirs({
         globalRoot: root,
-        packageName: "openclaw",
+        packageName: "alisio",
       }),
     ).resolves.toEqual({
-      removed: [".openclaw-123", ".openclaw-456"],
+      removed: [".alisio-123", ".alisio-456"],
     });
-    await expect(fs.stat(path.join(root, "openclaw"))).resolves.toBeDefined();
-    await expect(fs.stat(path.join(root, ".openclaw-file"))).resolves.toBeDefined();
+    await expect(fs.stat(path.join(root, "alisio"))).resolves.toBeDefined();
+    await expect(fs.stat(path.join(root, ".alisio-file"))).resolves.toBeDefined();
   });
 
   it("checks bundled runtime sidecars, including Matrix helper-api", async () => {
-    const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-update-global-pkg-"));
+    const packageRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-update-global-pkg-"));
     await fs.writeFile(
       path.join(packageRoot, "package.json"),
-      JSON.stringify({ name: "openclaw", version: "1.0.0" }),
+      JSON.stringify({ name: "alisio", version: "1.0.0" }),
       "utf-8",
     );
     for (const relativePath of BUNDLED_RUNTIME_SIDECAR_PATHS) {

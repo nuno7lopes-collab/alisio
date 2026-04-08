@@ -18,7 +18,8 @@ export {
   createPreCryptoDirectDmAuthorizer,
   resolveInboundDirectDmAccessWithRuntime,
 } from "./direct-dm.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { MarkdownConfigSchema } from "../config/zod-schema.core.js";
 export { readJsonBodyWithLimit, requestBodyErrorToText } from "../infra/http-body.js";
 export { isBlockedHostnameOrIp } from "../infra/net/ssrf.js";

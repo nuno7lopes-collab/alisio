@@ -1,6 +1,10 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
-import type { ExecApprovalRequest } from "../controllers/exec-approval.ts";
+import { sortExecApprovalQueue, type ExecApprovalRequest } from "../controllers/exec-approval.ts";
+import {
+  resolveEffectiveExecAsk,
+  resolveExecApprovalsDefaults,
+} from "../controllers/exec-approvals-policy.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import {
   resolveConfiguredExecDefaults,
@@ -100,13 +104,8 @@ function promptModeLabel(ask: ExecAsk) {
   return t("alisio.connections.execApprovals.askOptions.onMiss");
 }
 
-function renderSecuritySummaryChip(value: string | number, label: string) {
-  return html`
-    <div class="alisio-security-summary-chip">
-      <span>${label}</span>
-      <strong>${value}</strong>
-    </div>
-  `;
+function renderSecurityMetaItem(label: string, value: string | number) {
+  return html`<span class="pill alisio-security-meta-item">${label}: ${value}</span>`;
 }
 
 function renderApprovalMeta(
@@ -148,11 +147,6 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
       <div class="exec-approval-header">
         <div>
           <div class="exec-approval-title">${title}</div>
-          <div class="exec-approval-sub">
-            ${entry.kind === "plugin"
-              ? t("alisio.security.queue.pluginSubtitle")
-              : t("alisio.security.queue.execSubtitle")}
-          </div>
         </div>
         <span class="pill">
           ${t("alisio.security.queue.expiresIn", { value: formatApprovalRemaining(expiresIn) })}
@@ -210,23 +204,17 @@ ${entry.pluginDescription}</pre
 }
 
 function renderApprovalQueue(props: SecurityProps, nowMs: number) {
-  const queue = [...props.execApprovalQueue].toSorted(
-    (left, right) => left.expiresAtMs - right.expiresAtMs,
-  );
+  const queue = sortExecApprovalQueue(props.execApprovalQueue);
   return html`
     <section class="card alisio-security-panel">
       <div class="alisio-security-panel__head">
-        <div>
-          <div class="card-title">${t("alisio.security.queue.title")}</div>
-          <div class="card-sub">${t("alisio.security.queue.subtitle")}</div>
-        </div>
+        <div class="card-title">${t("alisio.security.queue.title")}</div>
         ${queue.length > 0
           ? html`<span class="pill">
               ${t("alisio.security.queue.pendingCount", { count: String(queue.length) })}
             </span>`
           : nothing}
       </div>
-      <div class="alisio-security-panel__note">${t("alisio.security.queue.waitingGuarantee")}</div>
       ${props.execApprovalError
         ? html`<div class="callout danger">${props.execApprovalError}</div>`
         : nothing}
@@ -234,7 +222,6 @@ function renderApprovalQueue(props: SecurityProps, nowMs: number) {
         ? html`
             <div class="alisio-security-empty">
               <strong>${t("alisio.security.queue.emptyTitle")}</strong>
-              <span>${t("alisio.security.queue.emptyBody")}</span>
             </div>
           `
         : html`
@@ -281,10 +268,7 @@ function renderAccessModePanel(props: SecurityProps) {
 
   return html`
     <div class="alisio-security-access">
-      <div>
-        <div class="card-title">${t("alisio.security.access.title")}</div>
-        <div class="card-sub">${t("alisio.security.access.subtitle")}</div>
-      </div>
+      <div class="card-title">${t("alisio.security.access.title")}</div>
       ${!ready
         ? html`
             <div class="alisio-security-empty">
@@ -302,7 +286,7 @@ function renderAccessModePanel(props: SecurityProps) {
                 aria-pressed=${mode === "recommended"}
                 @click=${() => props.onApplyAccessMode("recommended")}
               >
-                <span>${t("alisio.security.access.recommended.title")}</span>
+                <span>${t("alisio.security.access.recommended.label")}</span>
               </button>
               <button
                 type="button"
@@ -325,24 +309,40 @@ function renderAccessModePanel(props: SecurityProps) {
   `;
 }
 
+function resolveSecurityPromptAsk(
+  props: SecurityProps,
+  approvalsSnapshot: ExecApprovalsSnapshot | null,
+  approvalsForm: ExecApprovalsFile | null,
+  gatewayDefaultsAsk: ExecAsk,
+): ExecAsk {
+  const approvalsDefaults = resolveExecApprovalsDefaults(approvalsSnapshot?.file ?? approvalsForm);
+  if (props.execApprovalsTarget === "node") {
+    return approvalsDefaults.ask;
+  }
+  return resolveEffectiveExecAsk(gatewayDefaultsAsk, approvalsDefaults.ask);
+}
+
 export function renderSecurity(props: SecurityProps) {
+  const approvalQueue = sortExecApprovalQueue(props.execApprovalQueue);
   const approvalsState = resolveExecApprovalsState(props);
   const mode = supportsRuntimeAccessModeTarget(props.execApprovalsTarget)
     ? props.gatewayAccessMode
     : null;
   const gatewayDefaults = resolveConfiguredExecDefaults(props.configSnapshot?.config ?? null);
-  const promptAsk =
-    props.execApprovalsTarget === "node" ? approvalsState.defaults.ask : gatewayDefaults.ask;
+  const promptAsk = resolveSecurityPromptAsk(
+    props,
+    props.execApprovalsSnapshot,
+    props.execApprovalsForm,
+    gatewayDefaults.ask,
+  );
   const nowMs = Date.now();
 
   return html`
     <section class="alisio-page alisio-security-page">
       <div class="card alisio-connections-hero alisio-security-hero alisio-security-shell">
-        <div class="alisio-page__eyebrow">${t("alisio.security.eyebrow")}</div>
         <div class="alisio-connections-hero__head">
           <div>
             <div class="card-title">${t("alisio.security.title")}</div>
-            <div class="card-sub">${t("alisio.security.subtitle")}</div>
           </div>
           <button
             class="btn"
@@ -355,27 +355,22 @@ export function renderSecurity(props: SecurityProps) {
           </button>
         </div>
 
-        <div class="alisio-security-summary">
-          ${renderSecuritySummaryChip(
-            mode ? accessModeLabel(mode) : t("alisio.security.access.gatewayOnlyShort"),
+        <div class="alisio-security-meta">
+          ${renderSecurityMetaItem(
             t("alisio.security.stats.mode"),
+            mode ? accessModeLabel(mode) : t("alisio.security.access.gatewayOnlyShort"),
           )}
-          ${renderSecuritySummaryChip(
-            props.execApprovalQueue.length,
-            t("alisio.security.stats.pending"),
-          )}
-          ${renderSecuritySummaryChip(resolveTargetLabel(props), t("alisio.security.stats.target"))}
-          ${renderSecuritySummaryChip(
-            promptModeLabel(promptAsk),
-            t("alisio.security.stats.prompt"),
-          )}
+          ${renderSecurityMetaItem(t("alisio.security.stats.pending"), approvalQueue.length)}
+          ${renderSecurityMetaItem(t("alisio.security.stats.target"), resolveTargetLabel(props))}
+          ${renderSecurityMetaItem(t("alisio.security.stats.prompt"), promptModeLabel(promptAsk))}
         </div>
 
         ${renderAccessModePanel(props)}
       </div>
 
       <div class="alisio-connections-stack">
-        ${renderApprovalQueue(props, nowMs)} ${renderExecApprovals(approvalsState)}
+        ${renderApprovalQueue({ ...props, execApprovalQueue: approvalQueue }, nowMs)}
+        ${renderExecApprovals(approvalsState)}
       </div>
     </section>
   `;

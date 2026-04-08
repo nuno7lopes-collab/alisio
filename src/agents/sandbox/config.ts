@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { SandboxSshSettings } from "../../config/types.sandbox.js";
 import { normalizeSecretInputString } from "../../config/types.secrets.js";
 import { resolveAgentConfig } from "../agent-scope.js";
@@ -221,10 +221,7 @@ export function resolveSandboxSshConfig(params: {
   };
 }
 
-export function resolveSandboxConfigForAgent(
-  cfg?: OpenClawConfig,
-  agentId?: string,
-): SandboxConfig {
+export function resolveSandboxConfigForAgent(cfg?: AlisioConfig, agentId?: string): SandboxConfig {
   const agent = cfg?.agents?.defaults?.sandbox;
 
   // Agent-specific sandbox config overrides global

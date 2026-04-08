@@ -1,11 +1,12 @@
-import type { OpenClawConfig as RuntimeApiOpenClawConfig } from "openclaw/plugin-sdk/core";
+import type { AlisioConfig as RuntimeApiAlisioConfig } from "openclaw/plugin-sdk/core";
 
 export {
   DEFAULT_ACCOUNT_ID,
   buildChannelConfigSchema,
   getChatChannelMeta,
   type ChannelPlugin,
-  type OpenClawConfig,
+  type AlisioConfig,
+  type AlisioConfig as OpenClawConfig,
 } from "openclaw/plugin-sdk/core";
 export { PAIRING_APPROVED_MESSAGE } from "openclaw/plugin-sdk/channel-status";
 export {
@@ -32,7 +33,7 @@ export type { IMessageProbe } from "./src/probe.js";
 export { sendMessageIMessage } from "./src/send.js";
 
 export type IMessageAccountConfig = Omit<
-  NonNullable<NonNullable<RuntimeApiOpenClawConfig["channels"]>["imessage"]>,
+  NonNullable<NonNullable<RuntimeApiAlisioConfig["channels"]>["imessage"]>,
   "accounts" | "defaultAccount"
 >;
 

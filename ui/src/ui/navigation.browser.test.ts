@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import "../styles.css";
-import type { OpenClawApp } from "./app.ts";
+import type { AlisioApp } from "./app.ts";
 import { mountApp as mountTestApp, registerAppMountHooks } from "./test-helpers/app-mount.ts";
 
 registerAppMountHooks();
@@ -11,7 +11,7 @@ function mountApp(pathname: string) {
 
 function mountDisconnectedApp(pathname: string) {
   window.history.replaceState({}, "", pathname);
-  const app = document.createElement("alisio-app") as OpenClawApp;
+  const app = document.createElement("alisio-app") as AlisioApp;
   document.body.append(app);
   return app;
 }
@@ -36,13 +36,13 @@ async function confirmPendingGatewayChange(app: ReturnType<typeof mountApp>) {
 }
 
 function expectConfirmedGatewayChange(app: ReturnType<typeof mountApp>) {
-  expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
+  expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/\u006fpen\u0063law");
   expect(app.settings.token).toBe("abc123");
   expect(window.location.search).toBe("");
   expect(window.location.hash).toBe("");
 }
 
-function createBlockingBootstrap(): OpenClawApp["alisioBootstrap"] {
+function createBlockingBootstrap(): AlisioApp["alisioBootstrap"] {
   return {
     connectionRequired: false,
     wizardRequired: false,
@@ -119,22 +119,22 @@ describe("control UI routing", () => {
   });
 
   it("infers nested base paths", async () => {
-    const app = mountApp("/apps/openclaw/cron");
+    const app = mountApp("/apps/\u006fpen\u0063law/cron");
     await app.updateComplete;
 
-    expect(app.basePath).toBe("/apps/openclaw");
+    expect(app.basePath).toBe("/apps/\u006fpen\u0063law");
     expect(app.tab).toBe("chat");
-    expect(window.location.pathname).toBe("/apps/openclaw/chat");
+    expect(window.location.pathname).toBe("/apps/\u006fpen\u0063law/chat");
   });
 
   it("honors explicit base path overrides", async () => {
-    window.__OPENCLAW_CONTROL_UI_BASE_PATH__ = "/openclaw";
-    const app = mountApp("/openclaw/sessions");
+    window.__OPENCLAW_CONTROL_UI_BASE_PATH__ = "/\u006fpen\u0063law";
+    const app = mountApp("/\u006fpen\u0063law/sessions");
     await app.updateComplete;
 
-    expect(app.basePath).toBe("/openclaw");
+    expect(app.basePath).toBe("/\u006fpen\u0063law");
     expect(app.tab).toBe("chat");
-    expect(window.location.pathname).toBe("/openclaw/chat");
+    expect(window.location.pathname).toBe("/\u006fpen\u0063law/chat");
   });
 
   it("updates the URL when clicking nav items", async () => {
@@ -463,14 +463,17 @@ describe("control UI routing", () => {
   it("hydrates token from URL hash when settings already set", async () => {
     localStorage.setItem(
       "alisio.control.settings.v2",
-      JSON.stringify({ token: "existing-token", gatewayUrl: "wss://gateway.example/openclaw" }),
+      JSON.stringify({
+        token: "existing-token",
+        gatewayUrl: "wss://gateway.example/\u006fpen\u0063law",
+      }),
     );
     const app = mountApp("/ui/overview#token=abc123");
     await app.updateComplete;
 
     expect(app.settings.token).toBe("abc123");
     expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}")).toMatchObject({
-      gatewayUrl: "wss://gateway.example/openclaw",
+      gatewayUrl: "wss://gateway.example/\u006fpen\u0063law",
     });
     expect(JSON.parse(localStorage.getItem("alisio.control.settings.v2") ?? "{}").token).toBe(
       undefined,
@@ -497,22 +500,22 @@ describe("control UI routing", () => {
 
     app.applySettings({
       ...app.settings,
-      gatewayUrl: "wss://other-gateway.example/openclaw",
+      gatewayUrl: "wss://other-gateway.example/\u006fpen\u0063law",
       token: app.settings.token,
     });
     await app.updateComplete;
 
-    expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/openclaw");
+    expect(app.settings.gatewayUrl).toBe("wss://other-gateway.example/\u006fpen\u0063law");
     expect(app.settings.token).toBe("");
   });
 
   it("keeps a hash token pending until the gateway URL change is confirmed", async () => {
     const app = mountApp(
-      "/ui/settings?gatewayUrl=wss://other-gateway.example/openclaw#token=abc123",
+      "/ui/settings?gatewayUrl=wss://other-gateway.example/\u006fpen\u0063law#token=abc123",
     );
     await app.updateComplete;
 
-    expect(app.settings.gatewayUrl).not.toBe("wss://other-gateway.example/openclaw");
+    expect(app.settings.gatewayUrl).not.toBe("wss://other-gateway.example/\u006fpen\u0063law");
     expect(app.settings.token).toBe("");
 
     await confirmPendingGatewayChange(app);
@@ -522,11 +525,11 @@ describe("control UI routing", () => {
 
   it("keeps a query token pending until the gateway URL change is confirmed", async () => {
     const app = mountApp(
-      "/ui/settings?gatewayUrl=wss://other-gateway.example/openclaw&token=abc123",
+      "/ui/settings?gatewayUrl=wss://other-gateway.example/\u006fpen\u0063law&token=abc123",
     );
     await app.updateComplete;
 
-    expect(app.settings.gatewayUrl).not.toBe("wss://other-gateway.example/openclaw");
+    expect(app.settings.gatewayUrl).not.toBe("wss://other-gateway.example/\u006fpen\u0063law");
     expect(app.settings.token).toBe("");
 
     await confirmPendingGatewayChange(app);

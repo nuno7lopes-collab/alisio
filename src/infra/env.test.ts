@@ -14,14 +14,22 @@ vi.mock("../logging/subsystem.js", () => ({
 type EnvModule = typeof import("./env.js");
 
 let isTruthyEnvValue: EnvModule["isTruthyEnvValue"];
+let legacyEnvKey: EnvModule["legacyEnvKey"];
 let logAcceptedEnvOption: EnvModule["logAcceptedEnvOption"];
 let normalizeEnv: EnvModule["normalizeEnv"];
 let normalizeZaiEnv: EnvModule["normalizeZaiEnv"];
+let readEnv: EnvModule["readEnv"];
 
 beforeEach(async () => {
   vi.resetModules();
-  ({ isTruthyEnvValue, logAcceptedEnvOption, normalizeEnv, normalizeZaiEnv } =
-    await import("./env.js"));
+  ({
+    isTruthyEnvValue,
+    legacyEnvKey,
+    logAcceptedEnvOption,
+    normalizeEnv,
+    normalizeZaiEnv,
+    readEnv,
+  } = await import("./env.js"));
 });
 
 describe("normalizeZaiEnv", () => {
@@ -78,16 +86,16 @@ describe("logAcceptedEnvOption", () => {
       {
         VITEST: "",
         NODE_ENV: "development",
-        OPENCLAW_TEST_ENV: "  line one\nline two  ",
+        ALISIO_TEST_ENV: "  line one\nline two  ",
       },
       () => {
         logAcceptedEnvOption({
-          key: "OPENCLAW_TEST_ENV",
+          key: "ALISIO_TEST_ENV",
           description: "test option",
           redact: true,
         });
         logAcceptedEnvOption({
-          key: "OPENCLAW_TEST_ENV",
+          key: "ALISIO_TEST_ENV",
           description: "test option",
           redact: true,
         });
@@ -95,9 +103,7 @@ describe("logAcceptedEnvOption", () => {
     );
 
     expect(loggerMocks.info).toHaveBeenCalledTimes(1);
-    expect(loggerMocks.info).toHaveBeenCalledWith(
-      "env: OPENCLAW_TEST_ENV=<redacted> (test option)",
-    );
+    expect(loggerMocks.info).toHaveBeenCalledWith("env: ALISIO_TEST_ENV=<redacted> (test option)");
   });
 
   it("skips blank values and test-mode logging", () => {
@@ -107,11 +113,11 @@ describe("logAcceptedEnvOption", () => {
       {
         VITEST: "1",
         NODE_ENV: "development",
-        OPENCLAW_BLANK_ENV: "value",
+        ALISIO_BLANK_ENV: "value",
       },
       () => {
         logAcceptedEnvOption({
-          key: "OPENCLAW_BLANK_ENV",
+          key: "ALISIO_BLANK_ENV",
           description: "skipped in vitest",
         });
       },
@@ -121,17 +127,30 @@ describe("logAcceptedEnvOption", () => {
       {
         VITEST: "",
         NODE_ENV: "development",
-        OPENCLAW_BLANK_ENV: "   ",
+        ALISIO_BLANK_ENV: "   ",
       },
       () => {
         logAcceptedEnvOption({
-          key: "OPENCLAW_BLANK_ENV",
+          key: "ALISIO_BLANK_ENV",
           description: "blank value",
         });
       },
     );
 
     expect(loggerMocks.info).not.toHaveBeenCalled();
+  });
+});
+
+describe("readEnv", () => {
+  it("prefers the Alisio key and falls back to the compatibility key", () => {
+    const compatKey = legacyEnvKey("STATE_DIR");
+    expect(readEnv("ALISIO_STATE_DIR", { env: { ALISIO_STATE_DIR: "/new" } })).toBe("/new");
+    expect(
+      readEnv("ALISIO_STATE_DIR", {
+        env: { [compatKey]: "/legacy" } as NodeJS.ProcessEnv,
+        fallback: compatKey,
+      }),
+    ).toBe("/legacy");
   });
 });
 

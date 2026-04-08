@@ -2,8 +2,12 @@
 // Keep this list additive and scoped to the bundled diffs surface.
 
 export { definePluginEntry } from "./plugin-entry.js";
-export type { OpenClawConfig } from "../config/config.js";
-export { resolvePreferredOpenClawTmpDir } from "../infra/tmp-openclaw-dir.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
+export {
+  resolvePreferredAlisioTmpDir,
+  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
+} from "../infra/tmp-alisio-dir.js";
 export type {
   AnyAgentTool,
   OpenClawPluginApi,

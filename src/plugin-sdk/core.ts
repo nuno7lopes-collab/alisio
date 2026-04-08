@@ -16,7 +16,7 @@ import type {
   ChannelThreadingAdapter,
 } from "../channels/plugins/types.core.js";
 import type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { ReplyToMode } from "../config/types.base.js";
 import { buildOutboundBaseSessionKey } from "../infra/outbound/base-session-key.js";
 import type { OutboundDeliveryResult } from "../infra/outbound/deliver.js";
@@ -67,7 +67,8 @@ export type {
   SpeechProviderPlugin,
 } from "./plugin-entry.js";
 export type { OpenClawPluginToolContext, OpenClawPluginToolFactory } from "../plugins/types.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isSecretRef } from "../config/types.secrets.js";
 export type { GatewayRequestHandlerOptions } from "../gateway/server-methods/types.js";
 export type {
@@ -79,6 +80,7 @@ function createInlineTextPairingAdapter(params: {
   idLabel: string;
   message: string;
   normalizeAllowEntry?: ChannelPairingAdapter["normalizeAllowEntry"];
+  applyApprovalToConfig?: ChannelPairingAdapter["applyApprovalToConfig"];
   notify: (
     params: Parameters<NonNullable<ChannelPairingAdapter["notifyApproval"]>>[0] & {
       message: string;
@@ -88,6 +90,7 @@ function createInlineTextPairingAdapter(params: {
   return {
     idLabel: params.idLabel,
     normalizeAllowEntry: params.normalizeAllowEntry,
+    applyApprovalToConfig: params.applyApprovalToConfig,
     notifyApproval: async (ctx) => {
       await params.notify({ ...ctx, message: params.message });
     },
@@ -182,7 +185,7 @@ export function stripTargetKindPrefix(raw: string): string {
  * message adapters.
  */
 export function buildChannelOutboundSessionRoute(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   channel: string;
   accountId?: string | null;
@@ -354,6 +357,7 @@ type ChatChannelPairingOptions = {
     idLabel: string;
     message: string;
     normalizeAllowEntry?: ChannelPairingAdapter["normalizeAllowEntry"];
+    applyApprovalToConfig?: ChannelPairingAdapter["applyApprovalToConfig"];
     notify: (
       params: Parameters<NonNullable<ChannelPairingAdapter["notifyApproval"]>>[0] & {
         message: string;
@@ -366,7 +370,7 @@ type ChatChannelThreadingReplyModeOptions<TResolvedAccount> =
   | { topLevelReplyToMode: string }
   | {
       scopedAccountReplyToMode: {
-        resolveAccount: (cfg: OpenClawConfig, accountId?: string | null) => TResolvedAccount;
+        resolveAccount: (cfg: AlisioConfig, accountId?: string | null) => TResolvedAccount;
         resolveReplyToMode: (
           account: TResolvedAccount,
           chatType?: string | null,

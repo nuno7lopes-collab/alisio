@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { currentPluginManifestName, readPackageBrandConfig } from "./alisio-branding.mjs";
 import {
   BUNDLED_PLUGIN_ROOT_DIR,
   bundledDistPluginFile,
@@ -21,15 +22,13 @@ function readBundledPluginPackageJson(packageJsonPath) {
 }
 
 function collectPluginSourceEntries(packageJson) {
-  let packageEntries = Array.isArray(packageJson?.openclaw?.extensions)
-    ? packageJson.openclaw.extensions.filter(
-        (entry) => typeof entry === "string" && entry.trim().length > 0,
-      )
+  const brandConfig = readPackageBrandConfig(packageJson);
+  let packageEntries = Array.isArray(brandConfig?.extensions)
+    ? brandConfig.extensions.filter((entry) => typeof entry === "string" && entry.trim().length > 0)
     : [];
   const setupEntry =
-    typeof packageJson?.openclaw?.setupEntry === "string" &&
-    packageJson.openclaw.setupEntry.trim().length > 0
-      ? packageJson.openclaw.setupEntry
+    typeof brandConfig?.setupEntry === "string" && brandConfig.setupEntry.trim().length > 0
+      ? brandConfig.setupEntry
       : undefined;
   if (setupEntry) {
     packageEntries = Array.from(new Set([...packageEntries, setupEntry]));
@@ -74,6 +73,7 @@ export function collectBundledPluginBuildEntries(params = {}) {
   const cwd = params.cwd ?? process.cwd();
   const env = params.env ?? process.env;
   const extensionsRoot = path.join(cwd, BUNDLED_PLUGIN_ROOT_DIR);
+  const pluginManifestName = currentPluginManifestName(cwd);
   const entries = [];
 
   for (const dirent of fs.readdirSync(extensionsRoot, { withFileTypes: true })) {
@@ -82,7 +82,7 @@ export function collectBundledPluginBuildEntries(params = {}) {
     }
 
     const pluginDir = path.join(extensionsRoot, dirent.name);
-    const manifestPath = path.join(pluginDir, "openclaw.plugin.json");
+    const manifestPath = path.join(pluginDir, pluginManifestName);
     if (!fs.existsSync(manifestPath)) {
       continue;
     }
@@ -123,10 +123,11 @@ export function listBundledPluginBuildEntries(params = {}) {
 
 export function listBundledPluginPackArtifacts(params = {}) {
   const entries = collectBundledPluginBuildEntries(params);
+  const pluginManifestName = currentPluginManifestName(params.cwd ?? process.cwd());
   const artifacts = new Set();
 
   for (const { id, hasPackageJson, sourceEntries } of entries) {
-    artifacts.add(bundledDistPluginFile(id, "openclaw.plugin.json"));
+    artifacts.add(bundledDistPluginFile(id, pluginManifestName));
     if (hasPackageJson) {
       artifacts.add(bundledDistPluginFile(id, "package.json"));
     }

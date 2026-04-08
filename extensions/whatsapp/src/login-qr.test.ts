@@ -114,4 +114,43 @@ describe("login-qr", () => {
       accountId: "default",
     });
   });
+
+  it("returns actionable startup guidance when the WhatsApp socket cannot start", async () => {
+    createWaSocketMock.mockRejectedValueOnce(new Error("browser launch failed"));
+
+    const result = await startWebLoginWithQr({ timeoutMs: 5000 });
+
+    expect(result.accountId).toBe("default");
+    expect(result.message).toContain(
+      "Failed to start WhatsApp login: formatted:Error: browser launch failed",
+    );
+    expect(result.message).toContain("openclaw channels login");
+    expect(result.message).toContain("gateway host");
+  });
+
+  it("returns actionable QR guidance when the QR never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      createWaSocketMock.mockImplementationOnce((async (
+        _printQr: boolean,
+        _verbose: boolean,
+        _opts?: { onQr?: (qr: string) => void },
+      ) => {
+        return { ws: { close: vi.fn() } } as unknown as Awaited<ReturnType<typeof createWaSocket>>;
+      }) as unknown as typeof createWaSocket);
+
+      const resultPromise = startWebLoginWithQr({ timeoutMs: 5000 });
+      await vi.advanceTimersByTimeAsync(5000);
+      const result = await resultPromise;
+
+      expect(result.accountId).toBe("default");
+      expect(result.message).toContain(
+        "Failed to get QR: formatted:Error: Timed out waiting for WhatsApp QR",
+      );
+      expect(result.message).toContain("openclaw channels login");
+      expect(result.message).toContain("fresh QR");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

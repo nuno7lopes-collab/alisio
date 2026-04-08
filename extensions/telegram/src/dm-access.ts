@@ -4,6 +4,8 @@ import { createChannelPairingChallengeIssuer } from "openclaw/plugin-sdk/channel
 import type { DmPolicy } from "openclaw/plugin-sdk/config-runtime";
 import {
   addChannelAllowFromStoreEntry,
+  rejectChannelPairingRequest,
+  removeChannelAllowFromStoreEntry,
   upsertChannelPairingRequest,
 } from "openclaw/plugin-sdk/conversation-runtime";
 import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
@@ -11,10 +13,7 @@ import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { resolveSenderAllowMatch, type NormalizedAllowFrom } from "./bot-access.js";
 import { renderTelegramHtmlText } from "./format.js";
 import { persistTelegramOwnerAllowlistFromRuntime } from "./owner-allowlist.js";
-import {
-  disarmTelegramOwnerAutoApproval,
-  isTelegramOwnerAutoApprovalArmed,
-} from "./owner-auto-approval.js";
+import { clearTelegramOwnerOnboarding, readTelegramOwnerOnboarding } from "./owner-onboarding.js";
 
 type TelegramDmAccessLogger = {
   info: (obj: Record<string, unknown>, msg: string) => void;
@@ -39,6 +38,29 @@ function resolveTelegramSenderIdentity(msg: Message, chatId: number): TelegramSe
     lastName: from?.last_name,
   };
 }
+
+function resolveTelegramStartPayload(msg: Message): string | null {
+  const text = typeof msg.text === "string" ? msg.text.trim() : "";
+  if (!text) {
+    return null;
+  }
+  const match = text.match(/^\/start(?:@[a-z0-9_]+)?(?:\s+(.+))?$/i);
+  const payload = match?.[1]?.trim() || "";
+  return payload || null;
+}
+
+function buildTelegramPendingApprovalReply(params: { senderIdLine: string }): string {
+  return [
+    "Alisio: this Telegram account is waiting for approval.",
+    "",
+    params.senderIdLine,
+    "",
+    "If you own this bot, open Alisio and approve this Telegram request in Channels.",
+  ].join("\n");
+}
+
+const TELEGRAM_OWNER_ONBOARDING_APPROVED_MESSAGE =
+  "Alisio: Telegram is ready. Send a message to start chatting.";
 
 export async function enforceTelegramDmAccess(params: {
   isGroup: boolean;
@@ -89,7 +111,12 @@ export async function enforceTelegramDmAccess(params: {
 
   if (dmPolicy === "pairing") {
     const telegramUserId = sender.userId ?? sender.candidateId;
-    if (telegramUserId && isTelegramOwnerAutoApprovalArmed({ accountId })) {
+    const onboardingPayload = resolveTelegramStartPayload(msg);
+    const ownerOnboarding =
+      telegramUserId && onboardingPayload
+        ? await readTelegramOwnerOnboarding({ accountId }).catch(() => null)
+        : null;
+    if (telegramUserId && ownerOnboarding?.token === onboardingPayload) {
       try {
         await addChannelAllowFromStoreEntry({
           channel: "telegram",
@@ -100,17 +127,48 @@ export async function enforceTelegramDmAccess(params: {
           effectiveDmAllow.entries.push(telegramUserId);
         }
         effectiveDmAllow.hasEntries = true;
+        let persistedAllowlist = false;
         try {
           await persistTelegramOwnerAllowlistFromRuntime({
             accountId,
             telegramUserId,
           });
+          persistedAllowlist = true;
         } catch (err) {
           logVerbose(
             `telegram setup allowlist persistence failed for chat ${chatId}: ${String(err)}`,
           );
         }
-        disarmTelegramOwnerAutoApproval(accountId);
+        if (persistedAllowlist) {
+          await removeChannelAllowFromStoreEntry({
+            channel: "telegram",
+            entry: telegramUserId,
+            accountId,
+          }).catch(() => {});
+        }
+        await rejectChannelPairingRequest({
+          channel: "telegram",
+          requestId: telegramUserId,
+          accountId,
+        }).catch(() => {});
+        await clearTelegramOwnerOnboarding({ accountId }).catch(() => {});
+        try {
+          await withTelegramApiErrorLogging({
+            operation: "sendMessage",
+            fn: () =>
+              bot.api.sendMessage(
+                chatId,
+                renderTelegramHtmlText(TELEGRAM_OWNER_ONBOARDING_APPROVED_MESSAGE),
+                {
+                  parse_mode: "HTML",
+                },
+              ),
+          });
+        } catch (err) {
+          logVerbose(
+            `telegram onboarding approval reply failed for chat ${chatId}: ${String(err)}`,
+          );
+        }
         logger.info(
           {
             chatId: String(chatId),
@@ -119,11 +177,11 @@ export async function enforceTelegramDmAccess(params: {
             firstName: sender.firstName,
             lastName: sender.lastName,
           },
-          "telegram auto-approved first DM during setup",
+          "telegram owner onboarding approved",
         );
-        return true;
+        return false;
       } catch (err) {
-        logVerbose(`telegram setup auto-approval failed for chat ${chatId}: ${String(err)}`);
+        logVerbose(`telegram owner onboarding approval failed for chat ${chatId}: ${String(err)}`);
       }
     }
     try {
@@ -144,6 +202,7 @@ export async function enforceTelegramDmAccess(params: {
           firstName: sender.firstName,
           lastName: sender.lastName,
         },
+        buildReplyText: ({ senderIdLine }) => buildTelegramPendingApprovalReply({ senderIdLine }),
         onCreated: () => {
           logger.info(
             {

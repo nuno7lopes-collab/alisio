@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 
 const listPotentialConfiguredChannelIds = vi.hoisted(() => vi.fn());
 const loadPluginManifestRegistry = vi.hoisted(() => vi.fn());
@@ -62,7 +62,7 @@ function createManifestRegistryFixture() {
   };
 }
 
-function expectStartupPluginIds(config: OpenClawConfig, expected: readonly string[]) {
+function expectStartupPluginIds(config: AlisioConfig, expected: readonly string[]) {
   expect(
     resolveGatewayStartupPluginIds({
       config,
@@ -73,10 +73,7 @@ function expectStartupPluginIds(config: OpenClawConfig, expected: readonly strin
   expect(loadPluginManifestRegistry).toHaveBeenCalled();
 }
 
-function expectStartupPluginIdsCase(params: {
-  config: OpenClawConfig;
-  expected: readonly string[];
-}) {
+function expectStartupPluginIdsCase(params: { config: AlisioConfig; expected: readonly string[] }) {
   expectStartupPluginIds(params.config, params.expected);
 }
 
@@ -122,7 +119,7 @@ function createStartupConfig(params: {
           },
         }
       : {}),
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 describe("resolveGatewayStartupPluginIds", () => {
@@ -142,7 +139,7 @@ describe("resolveGatewayStartupPluginIds", () => {
     ],
     [
       "does not pull default-on bundled non-channel plugins into startup",
-      {} as OpenClawConfig,
+      {} as AlisioConfig,
       ["demo-channel", "demo-global-sidecar"],
     ],
     [

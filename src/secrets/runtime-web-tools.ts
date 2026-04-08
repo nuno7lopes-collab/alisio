@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { resolveSecretInputRef } from "../config/types.secrets.js";
 import { listBundledWebSearchPluginIds } from "../plugins/bundled-web-search-ids.js";
 import { resolveBundledWebSearchPluginId } from "../plugins/bundled-web-search-provider-ids.js";
@@ -38,7 +38,7 @@ export type {
   RuntimeWebXSearchMetadata,
 };
 
-type FetchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
+type FetchConfig = NonNullable<AlisioConfig["tools"]>["web"] extends infer Web
   ? Web extends { fetch?: infer Fetch }
     ? Fetch
     : undefined
@@ -71,7 +71,7 @@ function normalizeProvider(
   return undefined;
 }
 
-function hasCustomWebSearchPluginRisk(config: OpenClawConfig): boolean {
+function hasCustomWebSearchPluginRisk(config: AlisioConfig): boolean {
   const plugins = config.plugins;
   if (!plugins) {
     return false;
@@ -126,7 +126,7 @@ function buildUnresolvedReason(params: {
 }
 
 async function resolveSecretInputWithEnvFallback(params: {
-  sourceConfig: OpenClawConfig;
+  sourceConfig: AlisioConfig;
   context: ResolverContext;
   defaults: SecretDefaults | undefined;
   value: unknown;
@@ -240,7 +240,7 @@ function ensureObject(target: Record<string, unknown>, key: string): Record<stri
 }
 
 function setResolvedWebSearchApiKey(params: {
-  resolvedConfig: OpenClawConfig;
+  resolvedConfig: AlisioConfig;
   provider: PluginWebSearchProviderEntry;
   value: string;
 }): void {
@@ -253,10 +253,7 @@ function setResolvedWebSearchApiKey(params: {
   params.provider.setCredentialValue(search, params.value);
 }
 
-function setResolvedFirecrawlApiKey(params: {
-  resolvedConfig: OpenClawConfig;
-  value: string;
-}): void {
+function setResolvedFirecrawlApiKey(params: { resolvedConfig: AlisioConfig; value: string }): void {
   const tools = ensureObject(params.resolvedConfig as Record<string, unknown>, "tools");
   const web = ensureObject(tools, "web");
   const fetch = ensureObject(web, "fetch");
@@ -264,7 +261,7 @@ function setResolvedFirecrawlApiKey(params: {
   firecrawl.apiKey = params.value;
 }
 
-function setResolvedXSearchApiKey(params: { resolvedConfig: OpenClawConfig; value: string }): void {
+function setResolvedXSearchApiKey(params: { resolvedConfig: AlisioConfig; value: string }): void {
   const tools = ensureObject(params.resolvedConfig as Record<string, unknown>, "tools");
   const web = ensureObject(tools, "web");
   const xSearch = ensureObject(web, "x_search");
@@ -294,8 +291,8 @@ function hasConfiguredSecretRef(value: unknown, defaults: SecretDefaults | undef
 }
 
 export async function resolveRuntimeWebTools(params: {
-  sourceConfig: OpenClawConfig;
-  resolvedConfig: OpenClawConfig;
+  sourceConfig: AlisioConfig;
+  resolvedConfig: AlisioConfig;
   context: ResolverContext;
 }): Promise<RuntimeWebToolsMetadata> {
   const defaults = params.sourceConfig.secrets?.defaults;

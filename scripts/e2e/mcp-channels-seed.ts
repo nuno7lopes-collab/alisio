@@ -4,7 +4,7 @@ import path from "node:path";
 import {
   applyProviderConfigWithDefaultModelPreset,
   type ModelDefinitionConfig,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../../src/plugin-sdk/provider-onboard.ts";
 
 const DOCKER_OPENAI_MODEL_REF = "openai/gpt-5.4";
@@ -25,9 +25,8 @@ const DOCKER_OPENAI_MODEL: ModelDefinitionConfig = {
 };
 
 async function main() {
-  const stateDir = process.env.OPENCLAW_STATE_DIR?.trim() || path.join(os.homedir(), ".openclaw");
-  const configPath =
-    process.env.OPENCLAW_CONFIG_PATH?.trim() || path.join(stateDir, "openclaw.json");
+  const stateDir = process.env.ALISIO_STATE_DIR?.trim() || path.join(os.homedir(), ".alisio");
+  const configPath = process.env.ALISIO_CONFIG_PATH?.trim() || path.join(stateDir, "alisio.json");
   const sessionsDir = path.join(stateDir, "agents", "main", "sessions");
   const sessionFile = path.join(sessionsDir, "sess-main.jsonl");
   const storePath = path.join(sessionsDir, "sessions.json");
@@ -44,7 +43,7 @@ async function main() {
           enabled: false,
         },
       },
-    } satisfies OpenClawConfig,
+    } satisfies AlisioConfig,
     {
       providerId: "openai",
       api: "openai-responses",

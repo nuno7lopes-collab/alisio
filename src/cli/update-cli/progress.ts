@@ -1,6 +1,6 @@
 import { spinner } from "@clack/prompts";
 import { formatDurationPrecise } from "../../infra/format-time/format-duration.ts";
-import { CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME } from "../../infra/update-global.js";
+import { PUBLIC_PACKAGE_NAME } from "../../infra/update-global.js";
 import type {
   UpdateRunResult,
   UpdateStepInfo,
@@ -25,8 +25,8 @@ const STEP_LABELS: Record<string, string> = {
   "ui:build": "Building UI assets",
   "ui:build (post-doctor repair)": "Restoring missing UI assets",
   "ui assets verify": "Validating UI assets",
-  "openclaw doctor entry": "Checking doctor entrypoint",
-  "openclaw doctor": "Running doctor checks",
+  "alisio doctor entry": "Checking doctor entrypoint",
+  "alisio doctor": "Running doctor checks",
   "git rev-parse HEAD (after)": "Verifying update",
   "global update": "Updating via package manager",
   "global update (omit optional)": "Retrying update without optional deps",
@@ -53,9 +53,7 @@ export function inferUpdateFailureHints(result: UpdateRunResult): string[] {
     hints.push(
       "Detected permission failure (EACCES). Re-run with a writable global prefix or sudo (for system-managed Node installs).",
     );
-    hints.push(
-      `Example: npm config set prefix ~/.local && npm i -g ${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest`,
-    );
+    hints.push(`Example: npm config set prefix ~/.local && npm i -g ${PUBLIC_PACKAGE_NAME}@latest`);
   }
 
   if (
@@ -65,9 +63,7 @@ export function inferUpdateFailureHints(result: UpdateRunResult): string[] {
     hints.push(
       "Detected native optional dependency build failure. The updater retries with --omit=optional automatically.",
     );
-    hints.push(
-      `If it still fails: npm i -g ${PUBLIC_PACKAGE_NAME}@npm:${CORE_PACKAGE_NAME}@latest --omit=optional`,
-    );
+    hints.push(`If it still fails: npm i -g ${PUBLIC_PACKAGE_NAME}@latest --omit=optional`);
   }
 
   return hints;

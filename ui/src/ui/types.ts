@@ -110,6 +110,11 @@ export type ChannelAccountSnapshot = {
   dmPolicy?: string | null;
   dmOnboardingState?: "waiting_for_first_dm" | "pending_approval" | null;
   pendingPairingRequests?: number | null;
+  pendingPairing?: Array<{
+    requestId: string;
+    label: string;
+    detail?: string | null;
+  }> | null;
   allowFrom?: string[] | null;
   tokenSource?: string | null;
   botTokenSource?: string | null;

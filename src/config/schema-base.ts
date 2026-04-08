@@ -9,7 +9,7 @@ import {
 } from "./schema.hints.js";
 import { asSchemaObject, cloneSchema } from "./schema.shared.js";
 import { applyDerivedTags } from "./schema.tags.js";
-import { OpenClawSchema } from "./zod-schema.js";
+import { AlisioSchema } from "./zod-schema.js";
 
 type ConfigSchema = Record<string, unknown>;
 
@@ -62,17 +62,13 @@ function computeBaseConfigSchemaStablePayload(): BaseConfigSchemaStablePayload {
       version: baseConfigSchemaStablePayload.version,
     };
   }
-  const schema = OpenClawSchema.toJSONSchema({
+  const schema = AlisioSchema.toJSONSchema({
     target: "draft-07",
     unrepresentable: "any",
   });
-  schema.title = "OpenClawConfig";
-  const baseHints = mapSensitivePaths(OpenClawSchema, "", buildBaseHints());
-  const sensitiveUrlPaths = collectMatchingSchemaPaths(
-    OpenClawSchema,
-    "",
-    isSensitiveUrlConfigPath,
-  );
+  schema.title = "AlisioConfig";
+  const baseHints = mapSensitivePaths(AlisioSchema, "", buildBaseHints());
+  const sensitiveUrlPaths = collectMatchingSchemaPaths(AlisioSchema, "", isSensitiveUrlConfigPath);
   const stablePayload = {
     schema: stripChannelSchema(schema),
     uiHints: applyDerivedTags(applySensitiveUrlHints(baseHints, sensitiveUrlPaths)),

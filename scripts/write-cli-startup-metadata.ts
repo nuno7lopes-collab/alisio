@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 
 function dedupe(values: string[]): string[] {
   const seen = new Set<string>();
@@ -49,21 +50,20 @@ export function readBundledChannelCatalogIds(
     const packageJsonPath = path.join(extensionsDirOverride, dirEntry.name, "package.json");
     try {
       const raw = readFileSync(packageJsonPath, "utf8");
-      const parsed = JSON.parse(raw) as {
-        openclaw?: {
-          channel?: {
-            id?: unknown;
-            order?: unknown;
-            label?: unknown;
-          };
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const brandConfig = readPackageBrandConfig(parsed) as {
+        channel?: {
+          id?: unknown;
+          order?: unknown;
+          label?: unknown;
         };
-      };
-      const id = parsed.openclaw?.channel?.id;
+      } | null;
+      const id = brandConfig?.channel?.id;
       if (typeof id !== "string" || !id.trim()) {
         continue;
       }
-      const orderRaw = parsed.openclaw?.channel?.order;
-      const labelRaw = parsed.openclaw?.channel?.label;
+      const orderRaw = brandConfig?.channel?.order;
+      const labelRaw = brandConfig?.channel?.label;
       entries.push({
         id: id.trim(),
         order: typeof orderRaw === "number" ? orderRaw : 999,

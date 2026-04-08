@@ -66,7 +66,22 @@ export type GatewayBonjourDiscoverOpts = {
 };
 
 const DEFAULT_TIMEOUT_MS = 2000;
-const GATEWAY_SERVICE_TYPE = "_openclaw-gw._tcp";
+const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
+const CURRENT_GATEWAY_SERVICE_TYPE = "_alisio-gw._tcp";
+const LEGACY_GATEWAY_SERVICE_TYPE = `_${LEGACY_RUNTIME_NAMESPACE}-gw._tcp`;
+const GATEWAY_SERVICE_TYPES = [CURRENT_GATEWAY_SERVICE_TYPE, LEGACY_GATEWAY_SERVICE_TYPE] as const;
+const GATEWAY_SERVICE_TYPE = CURRENT_GATEWAY_SERVICE_TYPE;
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const GATEWAY_SERVICE_MATCH_RE = new RegExp(
+  `(?:${GATEWAY_SERVICE_TYPES.map(escapeRegex).join("|")})\\.?\\s+(.+)$`,
+);
+const GATEWAY_SERVICE_SUFFIX_RE = new RegExp(
+  `\\.?_(?:alisio|${LEGACY_RUNTIME_NAMESPACE})-gw\\._tcp\\..*$`,
+);
 
 function decodeDnsSdEscapes(value: string): string {
   let decoded = false;
@@ -222,13 +237,13 @@ function parseDnsSdBrowse(stdout: string): string[] {
   const instances = new Set<string>();
   for (const raw of stdout.split("\n")) {
     const line = raw.trim();
-    if (!line || !line.includes(GATEWAY_SERVICE_TYPE)) {
+    if (!line || !GATEWAY_SERVICE_TYPES.some((type) => line.includes(type))) {
       continue;
     }
     if (!line.includes("Add")) {
       continue;
     }
-    const match = line.match(/_openclaw-gw\._tcp\.?\s+(.+)$/);
+    const match = line.match(GATEWAY_SERVICE_MATCH_RE);
     if (match?.[1]) {
       instances.add(decodeDnsSdEscapes(match[1].trim()));
     }
@@ -416,7 +431,7 @@ async function discoverWideAreaViaTailnetDns(
     if (!ptrName) {
       continue;
     }
-    const instanceName = ptrName.replace(/\.?_openclaw-gw\._tcp\..*$/, "");
+    const instanceName = ptrName.replace(GATEWAY_SERVICE_SUFFIX_RE, "");
 
     const srv = await run(["dig", "+short", "+time=1", "+tries=1", nameserverArg, ptrName, "SRV"], {
       timeoutMs: Math.max(1, Math.min(350, budget)),

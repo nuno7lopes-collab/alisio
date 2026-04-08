@@ -143,7 +143,7 @@ export function createExecutionArtifacts(env = process.env) {
   let tempArtifactDir = null;
   const ensureTempArtifactDir = () => {
     if (tempArtifactDir === null) {
-      tempArtifactDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-test-parallel-"));
+      tempArtifactDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-test-parallel-"));
     }
     return tempArtifactDir;
   };
@@ -156,7 +156,7 @@ export function createExecutionArtifacts(env = process.env) {
     if (tempArtifactDir === null) {
       return;
     }
-    if (env.OPENCLAW_TEST_KEEP_TEMP_ARTIFACTS === "1") {
+    if (env.ALISIO_TEST_KEEP_TEMP_ARTIFACTS === "1") {
       console.error(`[test-parallel] keeping temp artifacts at ${tempArtifactDir}`);
       return;
     }
@@ -221,9 +221,9 @@ const isWindowsEnv = (env, platform = process.platform) => {
 
 const isFsModuleCacheEnabled = (env, platform = process.platform) => {
   if (isWindowsEnv(env, platform)) {
-    return isEnvFlagEnabled(env.OPENCLAW_VITEST_FS_MODULE_CACHE);
+    return isEnvFlagEnabled(env.ALISIO_VITEST_FS_MODULE_CACHE);
   }
-  return !isEnvFlagDisabled(env.OPENCLAW_VITEST_FS_MODULE_CACHE);
+  return !isEnvFlagDisabled(env.ALISIO_VITEST_FS_MODULE_CACHE);
 };
 
 export const resolveVitestFsModuleCachePath = ({
@@ -232,7 +232,7 @@ export const resolveVitestFsModuleCachePath = ({
   platform = process.platform,
   unitId = "",
 } = {}) => {
-  const explicitPath = env.OPENCLAW_VITEST_FS_MODULE_CACHE_PATH?.trim();
+  const explicitPath = env.ALISIO_VITEST_FS_MODULE_CACHE_PATH?.trim();
   if (!isFsModuleCacheEnabled(env, platform)) {
     return undefined;
   }
@@ -342,8 +342,8 @@ export async function executePlan(plan, options = {}) {
   const windowsCiArgs = plan.runtimeCapabilities.isWindowsCi
     ? ["--dangerouslyIgnoreUnhandledErrors"]
     : [];
-  const silentArgs = env.OPENCLAW_TEST_SHOW_PASSED_LOGS === "1" ? [] : ["--silent=passed-only"];
-  const rawMemoryTrace = env.OPENCLAW_TEST_MEMORY_TRACE?.trim().toLowerCase();
+  const silentArgs = env.ALISIO_TEST_SHOW_PASSED_LOGS === "1" ? [] : ["--silent=passed-only"];
+  const rawMemoryTrace = env.ALISIO_TEST_MEMORY_TRACE?.trim().toLowerCase();
   const memoryTraceEnabled =
     process.platform !== "win32" &&
     (rawMemoryTrace === "1" ||
@@ -353,17 +353,11 @@ export async function executePlan(plan, options = {}) {
     const parsed = Number.parseInt(env[name] ?? "", 10);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
   };
-  const memoryTracePollMs = Math.max(
-    250,
-    parseEnvNumber("OPENCLAW_TEST_MEMORY_TRACE_POLL_MS", 1000),
-  );
-  const memoryTraceTopCount = Math.max(
-    1,
-    parseEnvNumber("OPENCLAW_TEST_MEMORY_TRACE_TOP_COUNT", 6),
-  );
+  const memoryTracePollMs = Math.max(250, parseEnvNumber("ALISIO_TEST_MEMORY_TRACE_POLL_MS", 1000));
+  const memoryTraceTopCount = Math.max(1, parseEnvNumber("ALISIO_TEST_MEMORY_TRACE_TOP_COUNT", 6));
   const requestedHeapSnapshotIntervalMs = Math.max(
     0,
-    parseEnvNumber("OPENCLAW_TEST_HEAPSNAPSHOT_INTERVAL_MS", 0),
+    parseEnvNumber("ALISIO_TEST_HEAPSNAPSHOT_INTERVAL_MS", 0),
   );
   const heapSnapshotMinIntervalMs = 1000;
   const heapSnapshotIntervalMs =
@@ -372,16 +366,16 @@ export async function executePlan(plan, options = {}) {
       : 0;
   const heapSnapshotEnabled =
     process.platform !== "win32" && heapSnapshotIntervalMs >= heapSnapshotMinIntervalMs;
-  const heapSnapshotSignal = env.OPENCLAW_TEST_HEAPSNAPSHOT_SIGNAL?.trim() || "SIGUSR2";
-  const closeGraceMs = Math.max(100, parseEnvNumber("OPENCLAW_TEST_CLOSE_GRACE_MS", 2000));
+  const heapSnapshotSignal = env.ALISIO_TEST_HEAPSNAPSHOT_SIGNAL?.trim() || "SIGUSR2";
+  const closeGraceMs = Math.max(100, parseEnvNumber("ALISIO_TEST_CLOSE_GRACE_MS", 2000));
   const heapSnapshotBaseDir = heapSnapshotEnabled
     ? path.resolve(
-        env.OPENCLAW_TEST_HEAPSNAPSHOT_DIR?.trim() ||
-          path.join(os.tmpdir(), `openclaw-heapsnapshots-${Date.now()}`),
+        env.ALISIO_TEST_HEAPSNAPSHOT_DIR?.trim() ||
+          path.join(os.tmpdir(), `alisio-heapsnapshots-${Date.now()}`),
       )
     : null;
   const maxOldSpaceSizeMb = (() => {
-    const raw = env.OPENCLAW_TEST_MAX_OLD_SPACE_SIZE_MB ?? "";
+    const raw = env.ALISIO_TEST_MAX_OLD_SPACE_SIZE_MB ?? "";
     const parsed = Number.parseInt(raw, 10);
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed;
@@ -726,7 +720,7 @@ export async function executePlan(plan, options = {}) {
           unitId: unit.id,
         });
         if (vitestFsModuleCachePath) {
-          childEnv.OPENCLAW_VITEST_FS_MODULE_CACHE_PATH = vitestFsModuleCachePath;
+          childEnv.ALISIO_VITEST_FS_MODULE_CACHE_PATH = vitestFsModuleCachePath;
           laneLogStream.write(`[test-parallel] fsModuleCachePath=${vitestFsModuleCachePath}\n`);
         }
         child = spawn(pnpmInvocation.command, spawnArgs, {

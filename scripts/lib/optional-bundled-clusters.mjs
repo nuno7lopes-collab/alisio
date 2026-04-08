@@ -1,3 +1,5 @@
+import { readPackageBrandConfig } from "./alisio-branding.mjs";
+
 export const optionalBundledClusters = [
   "acpx",
   "diagnostics-otel",
@@ -16,7 +18,7 @@ export const optionalBundledClusters = [
 
 export const optionalBundledClusterSet = new Set(optionalBundledClusters);
 
-export const OPTIONAL_BUNDLED_BUILD_ENV = "OPENCLAW_INCLUDE_OPTIONAL_BUNDLED";
+export const OPTIONAL_BUNDLED_BUILD_ENV = "ALISIO_INCLUDE_OPTIONAL_BUNDLED";
 
 export function isOptionalBundledCluster(cluster) {
   return optionalBundledClusterSet.has(cluster);
@@ -29,9 +31,10 @@ export function shouldIncludeOptionalBundledClusters(env = process.env) {
 }
 
 export function hasReleasedBundledInstall(packageJson) {
+  const brandConfig = readPackageBrandConfig(packageJson);
   return (
-    typeof packageJson?.openclaw?.install?.npmSpec === "string" &&
-    packageJson.openclaw.install.npmSpec.trim().length > 0
+    typeof brandConfig?.install?.npmSpec === "string" &&
+    brandConfig.install.npmSpec.trim().length > 0
   );
 }
 

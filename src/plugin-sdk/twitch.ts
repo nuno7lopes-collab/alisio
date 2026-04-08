@@ -25,7 +25,8 @@ export type {
 } from "../channels/plugins/types.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { MarkdownConfigSchema } from "../config/zod-schema.core.js";
 export type { OutboundDeliveryResult } from "../infra/outbound/deliver.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "./account-id.js";

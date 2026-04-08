@@ -1,5 +1,5 @@
 import { findNormalizedProviderKey } from "../agents/provider-id.js";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import type { AgentModelEntryConfig } from "../config/types.agent-defaults.js";
 import type {
   ModelApi,
@@ -51,12 +51,12 @@ export function withAgentModelAliases(
 }
 
 export function applyOnboardAuthAgentModelsAndProviders(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providers: Record<string, ModelProviderConfig>;
   },
-): OpenClawConfig {
+): AlisioConfig {
   return {
     ...cfg,
     agents: {
@@ -73,10 +73,7 @@ export function applyOnboardAuthAgentModelsAndProviders(
   };
 }
 
-export function applyAgentDefaultModelPrimary(
-  cfg: OpenClawConfig,
-  primary: string,
-): OpenClawConfig {
+export function applyAgentDefaultModelPrimary(cfg: AlisioConfig, primary: string): AlisioConfig {
   const existingFallbacks = extractAgentDefaultModelFallbacks(cfg.agents?.defaults?.model);
   return {
     ...cfg,
@@ -94,7 +91,7 @@ export function applyAgentDefaultModelPrimary(
 }
 
 export function applyProviderConfigWithDefaultModels(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providerId: string;
@@ -103,7 +100,7 @@ export function applyProviderConfigWithDefaultModels(
     defaultModels: ModelDefinitionConfig[];
     defaultModelId?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   const providerState = resolveProviderModelMergeState(cfg, params.providerId);
 
   const defaultModels = params.defaultModels;
@@ -129,7 +126,7 @@ export function applyProviderConfigWithDefaultModels(
 }
 
 export function applyProviderConfigWithDefaultModel(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providerId: string;
@@ -138,7 +135,7 @@ export function applyProviderConfigWithDefaultModel(
     defaultModel: ModelDefinitionConfig;
     defaultModelId?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   return applyProviderConfigWithDefaultModels(cfg, {
     agentModels: params.agentModels,
     providerId: params.providerId,
@@ -150,7 +147,7 @@ export function applyProviderConfigWithDefaultModel(
 }
 
 export function applyProviderConfigWithDefaultModelPreset(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     providerId: string;
     api: ModelApi;
@@ -160,7 +157,7 @@ export function applyProviderConfigWithDefaultModelPreset(
     aliases?: readonly AgentModelAliasEntry[];
     primaryModelRef?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   const next = applyProviderConfigWithDefaultModel(cfg, {
     agentModels: withAgentModelAliases(cfg.agents?.defaults?.models, params.aliases ?? []),
     providerId: params.providerId,
@@ -175,8 +172,8 @@ export function applyProviderConfigWithDefaultModelPreset(
 }
 
 export type ProviderOnboardPresetAppliers<TArgs extends unknown[]> = {
-  applyProviderConfig: (cfg: OpenClawConfig, ...args: TArgs) => OpenClawConfig;
-  applyConfig: (cfg: OpenClawConfig, ...args: TArgs) => OpenClawConfig;
+  applyProviderConfig: (cfg: AlisioConfig, ...args: TArgs) => AlisioConfig;
+  applyConfig: (cfg: AlisioConfig, ...args: TArgs) => AlisioConfig;
 };
 
 function createProviderPresetAppliers<
@@ -186,10 +183,10 @@ function createProviderPresetAppliers<
   },
 >(params: {
   resolveParams: (
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
     ...args: TArgs
   ) => Omit<TParams, "primaryModelRef"> | null | undefined;
-  applyPreset: (cfg: OpenClawConfig, preset: TParams) => OpenClawConfig;
+  applyPreset: (cfg: AlisioConfig, preset: TParams) => AlisioConfig;
   primaryModelRef: string;
 }): ProviderOnboardPresetAppliers<TArgs> {
   return {
@@ -212,7 +209,7 @@ function createProviderPresetAppliers<
 
 export function createDefaultModelPresetAppliers<TArgs extends unknown[]>(params: {
   resolveParams: (
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
     ...args: TArgs
   ) =>
     | Omit<Parameters<typeof applyProviderConfigWithDefaultModelPreset>[1], "primaryModelRef">
@@ -228,7 +225,7 @@ export function createDefaultModelPresetAppliers<TArgs extends unknown[]>(params
 }
 
 export function applyProviderConfigWithDefaultModelsPreset(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     providerId: string;
     api: ModelApi;
@@ -238,7 +235,7 @@ export function applyProviderConfigWithDefaultModelsPreset(
     aliases?: readonly AgentModelAliasEntry[];
     primaryModelRef?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   const next = applyProviderConfigWithDefaultModels(cfg, {
     agentModels: withAgentModelAliases(cfg.agents?.defaults?.models, params.aliases ?? []),
     providerId: params.providerId,
@@ -254,7 +251,7 @@ export function applyProviderConfigWithDefaultModelsPreset(
 
 export function createDefaultModelsPresetAppliers<TArgs extends unknown[]>(params: {
   resolveParams: (
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
     ...args: TArgs
   ) =>
     | Omit<Parameters<typeof applyProviderConfigWithDefaultModelsPreset>[1], "primaryModelRef">
@@ -270,7 +267,7 @@ export function createDefaultModelsPresetAppliers<TArgs extends unknown[]>(param
 }
 
 export function applyProviderConfigWithModelCatalog(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providerId: string;
@@ -278,7 +275,7 @@ export function applyProviderConfigWithModelCatalog(
     baseUrl: string;
     catalogModels: ModelDefinitionConfig[];
   },
-): OpenClawConfig {
+): AlisioConfig {
   const providerState = resolveProviderModelMergeState(cfg, params.providerId);
   const catalogModels = params.catalogModels;
   const mergedModels =
@@ -302,7 +299,7 @@ export function applyProviderConfigWithModelCatalog(
 }
 
 export function applyProviderConfigWithModelCatalogPreset(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     providerId: string;
     api: ModelApi;
@@ -311,7 +308,7 @@ export function applyProviderConfigWithModelCatalogPreset(
     aliases?: readonly AgentModelAliasEntry[];
     primaryModelRef?: string;
   },
-): OpenClawConfig {
+): AlisioConfig {
   const next = applyProviderConfigWithModelCatalog(cfg, {
     agentModels: withAgentModelAliases(cfg.agents?.defaults?.models, params.aliases ?? []),
     providerId: params.providerId,
@@ -326,7 +323,7 @@ export function applyProviderConfigWithModelCatalogPreset(
 
 export function createModelCatalogPresetAppliers<TArgs extends unknown[]>(params: {
   resolveParams: (
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
     ...args: TArgs
   ) =>
     | Omit<Parameters<typeof applyProviderConfigWithModelCatalogPreset>[1], "primaryModelRef">
@@ -348,7 +345,7 @@ type ProviderModelMergeState = {
 };
 
 function resolveProviderModelMergeState(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   providerId: string,
 ): ProviderModelMergeState {
   const providers = { ...cfg.models?.providers } as Record<string, ModelProviderConfig>;
@@ -367,7 +364,7 @@ function resolveProviderModelMergeState(
 }
 
 function applyProviderConfigWithMergedModels(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: {
     agentModels: Record<string, AgentModelEntryConfig>;
     providerId: string;
@@ -377,7 +374,7 @@ function applyProviderConfigWithMergedModels(
     mergedModels: ModelDefinitionConfig[];
     fallbackModels: ModelDefinitionConfig[];
   },
-): OpenClawConfig {
+): AlisioConfig {
   params.providerState.providers[params.providerId] = buildProviderConfig({
     existingProvider: params.providerState.existingProvider,
     api: params.api,

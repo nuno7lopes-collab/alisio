@@ -1,4 +1,9 @@
 import { html, nothing } from "lit";
+import {
+  alisioRemoteModelServersUpgradeMessage,
+  alisioSupportsRemoteModelServers,
+  normalizeAlisioPlan,
+} from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
 import {
@@ -46,6 +51,7 @@ function aiText() {
     daysSuffix: t("alisio.settings.ai.daysSuffix"),
     ready: t("alisio.settings.ai.profileStatus.ready"),
     connected: t("alisio.settings.ai.profileStatus.connected"),
+    connectedNoLimits: t("alisio.settings.ai.status.connectedNoLimits"),
     connecting: t("alisio.settings.ai.profileStatus.connecting"),
     expired: t("alisio.settings.ai.profileStatus.expired"),
     disconnected: t("alisio.settings.ai.profileStatus.disconnected"),
@@ -55,6 +61,7 @@ function aiText() {
     refresh: t("alisio.settings.ai.refresh"),
     remove: t("alisio.settings.ai.remove"),
     refreshAll: t("alisio.settings.ai.refreshAll"),
+    emptyRefresh: t("alisio.settings.ai.emptyRefresh"),
   };
 }
 
@@ -90,6 +97,13 @@ function modelsText() {
     noInstalledModels: t("alisio.settings.models.noInstalledModels"),
     runtimeNotConfigured: t("alisio.settings.models.runtimeNotConfigured"),
     runtimeError: t("alisio.settings.models.runtimeError"),
+    targetNotConnected: t("alisio.settings.models.targetNotConnected"),
+    currentComputerOffline: t("alisio.settings.models.currentComputerOffline"),
+    linkedComputerOffline: t("alisio.settings.models.linkedComputerOffline"),
+    localRuntimeHint: t("alisio.settings.models.localRuntimeHint"),
+    linkedRuntimeHint: t("alisio.settings.models.linkedRuntimeHint"),
+    openAiRuntimeHint: t("alisio.settings.models.openAiRuntimeHint"),
+    runtimeErrorHint: t("alisio.settings.models.runtimeErrorHint"),
     hardware: t("alisio.settings.models.hardware"),
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
@@ -128,8 +142,12 @@ function modelsText() {
     autoModel: t("alisio.settings.models.autoModel"),
     noModelChoices: t("alisio.settings.models.noModelChoices"),
     modelsAvailable: t("alisio.settings.models.modelsAvailable"),
+    suggestion: t("alisio.settings.models.suggestion"),
+    suggestions: t("alisio.settings.models.suggestions"),
     server: t("alisio.settings.models.server"),
     servers: t("alisio.settings.models.servers"),
+    endpoint: t("alisio.settings.models.endpoint"),
+    endpoints: t("alisio.settings.models.endpoints"),
     recommendedToInstall: t("alisio.settings.models.recommendedToInstall"),
   };
 }
@@ -218,6 +236,7 @@ function resolveProfilePlanLabel(profile: AiProfile | null | undefined) {
 function resolveProfileUsageWindows(
   profile: AiProfile | null | undefined,
   ai: AlisioAiState | null | undefined,
+  opts?: { allowActiveFallback?: boolean },
 ) {
   const telemetryWindows = [
     profile?.aggregatedTelemetry?.primaryWindow,
@@ -230,7 +249,8 @@ function resolveProfileUsageWindows(
       resetAt: window.resetAt,
     }));
   }
-  return (profile?.limits?.windows ?? ai?.limits?.windows ?? []).map((window) => ({
+  const fallbackWindows = opts?.allowActiveFallback ? (ai?.limits?.windows ?? []) : [];
+  return (profile?.limits?.windows ?? fallbackWindows).map((window) => ({
     label: window.label,
     remainingPercent: Math.max(0, Math.min(100, 100 - window.usedPercent)),
     resetAt: window.resetAt,
@@ -489,6 +509,38 @@ function resolveProviderModelOptions(
   );
 }
 
+function resolveProviderFallbackModels(
+  options: readonly ChatModelOption[],
+  providerId: string | null | undefined,
+) {
+  const seen = new Set<string>();
+  return resolveProviderModelOptions(options, providerId)
+    .map((option) => {
+      const id = resolveProviderModelId(option.value, providerId);
+      const name = resolveScopedModelChipLabel(option.label);
+      const key = id.trim().toLowerCase();
+      if (!key || seen.has(key)) {
+        return null;
+      }
+      seen.add(key);
+      return { id, name: name || id };
+    })
+    .filter((entry): entry is { id: string; name: string } => Boolean(entry));
+}
+
+function resolveTargetDisplayModels(
+  target: LocalModelTarget,
+  options: readonly ChatModelOption[],
+  providerId: string | null | undefined,
+) {
+  if (target.installedModels.length > 0) {
+    return target.installedModels;
+  }
+  return target.runtimeKind === "openai-compatible"
+    ? resolveProviderFallbackModels(options, providerId)
+    : target.installedModels;
+}
+
 function resolveScopedModelChipLabel(label: string) {
   const trimmed = label.trim();
   if (!trimmed) {
@@ -521,6 +573,10 @@ function resolvePrimaryLocalSummary(
   return catalog[0]?.name ?? "";
 }
 
+function formatCount(value: number, singular: string, plural: string) {
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
 function splitTargets(targets: readonly LocalModelTarget[]) {
   const currentTarget = targets.find((target) => target.current) ?? targets[0] ?? null;
   const linkedTargets = currentTarget
@@ -536,16 +592,85 @@ function resolveTargetRuntimeLabel(target: LocalModelTarget) {
 
 function resolveTargetModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" && !target.supportsInstall
-    ? text.availableModels
-    : text.installedModels;
+  return target.runtimeKind === "openai-compatible" ? text.availableModels : text.installedModels;
 }
 
 function resolveTargetEmptyModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" && !target.supportsInstall
-    ? text.noModelChoices
-    : text.noInstalledModels;
+  return target.runtimeKind === "openai-compatible" ? text.noModelChoices : text.noInstalledModels;
+}
+
+function isGenericRuntimeMessage(message: string | null | undefined) {
+  const normalized = message?.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized === "local model runtime not configured on this computer" ||
+    normalized === "no model source is configured on this computer" ||
+    normalized === "failed to read local model runtime"
+  );
+}
+
+function resolveTargetStatusDetail(target: LocalModelTarget) {
+  const text = modelsText();
+  if (!target.connected) {
+    return target.current ? text.currentComputerOffline : text.linkedComputerOffline;
+  }
+  if (target.runtimeStatus === "not_configured") {
+    if (target.runtimeKind === "openai-compatible") {
+      return text.openAiRuntimeHint;
+    }
+    return target.current ? text.localRuntimeHint : text.linkedRuntimeHint;
+  }
+  if (target.runtimeStatus === "error") {
+    return text.runtimeErrorHint;
+  }
+  return "";
+}
+
+function recommendationWeight(grade: LocalModelTarget["recommendations"][number]["grade"]): number {
+  switch (grade) {
+    case "recommended":
+      return 0;
+    case "works":
+      return 1;
+    case "slow":
+      return 2;
+    default:
+      return 3;
+  }
+}
+
+function resolveSuggestedCatalogEntries(
+  target: LocalModelTarget,
+  catalog: readonly AlisioModelsState["catalog"][number][],
+) {
+  return catalog
+    .filter(
+      (model) => !target.installedModels.some((installedModel) => installedModel.id === model.id),
+    )
+    .map((model) => ({
+      model,
+      recommendation: resolveModelRecommendation(target, model.id),
+    }))
+    .filter(
+      (
+        entry,
+      ): entry is {
+        model: AlisioModelsState["catalog"][number];
+        recommendation: NonNullable<ReturnType<typeof resolveModelRecommendation>>;
+      } => Boolean(entry.recommendation && entry.recommendation.grade !== "unsupported"),
+    )
+    .toSorted((left, right) => {
+      const gradeDelta =
+        recommendationWeight(left.recommendation.grade) -
+        recommendationWeight(right.recommendation.grade);
+      if (gradeDelta !== 0) {
+        return gradeDelta;
+      }
+      return left.model.name.localeCompare(right.model.name);
+    });
 }
 
 function formatModelBytes(value: number | undefined) {
@@ -695,28 +820,23 @@ function renderTargetCatalog(props: {
   busy: boolean;
   onInstallModel: (targetId: string, modelId: string) => void;
 }) {
-  const text = modelsText();
   if (!props.target.supportsInstall || props.catalog.length === 0) {
     return nothing;
   }
-  const installableCatalog = props.catalog.filter(
-    (model) =>
-      !props.target.installedModels.some((installedModel) => installedModel.id === model.id),
-  );
-  if (installableCatalog.length === 0) {
+  const text = modelsText();
+  const suggestedCatalog = resolveSuggestedCatalogEntries(props.target, props.catalog);
+  if (suggestedCatalog.length === 0) {
     return nothing;
   }
 
   return html`
     <div class="alisio-models__catalog">
-      ${installableCatalog.map((model) => {
+      ${suggestedCatalog.map(({ model, recommendation }) => {
         const operation = findTargetModelOperation(
           props.operations,
           props.target.targetId,
           model.id,
         );
-        const recommendation = resolveModelRecommendation(props.target, model.id);
-        const unsupported = recommendation?.grade === "unsupported";
         const installBusy = operation?.action === "install" && operation.phase !== "failed";
         return html`
           <div class="alisio-models__catalog-item">
@@ -738,9 +858,9 @@ function renderTargetCatalog(props: {
             <div class="alisio-models__catalog-actions">
               <button
                 class="btn primary"
-                ?disabled=${props.busy || !props.target.connected || unsupported || installBusy}
+                ?disabled=${props.busy || !props.target.connected || installBusy}
                 @click=${() => props.onInstallModel(props.target.targetId, model.id)}
-                title=${recommendation?.reason ?? ""}
+                title=${recommendation.reason}
               >
                 ${installBusy ? text.installing : text.install}
               </button>
@@ -765,22 +885,37 @@ function renderTargetCard(props: {
   onSelectChatModel?: (value: string) => void;
 }) {
   const text = modelsText();
-  const canManageInstalledModels = Boolean(props.onUninstallModel && props.target.supportsInstall);
+  const canManageInstalledModels = Boolean(
+    props.onUninstallModel &&
+    props.target.supportsInstall &&
+    props.target.runtimeKind !== "openai-compatible",
+  );
   const targetProviderId = props.target.chatProviderId?.trim() || "";
-  const targetModelOptions = resolveProviderModelOptions(
+  const targetDisplayModels = resolveTargetDisplayModels(
+    props.target,
     props.chatModelOptions ?? [],
     targetProviderId,
   );
-  const hasInstallableCatalog = Boolean(
-    props.installCatalog?.some(
-      (model) =>
-        !props.target.installedModels.some((installedModel) => installedModel.id === model.id),
-    ),
-  );
+  const suggestedCatalog = props.installCatalog
+    ? resolveSuggestedCatalogEntries(props.target, props.installCatalog)
+    : [];
+  const hasInstallableCatalog = suggestedCatalog.length > 0;
+  const statusLabel = !props.target.connected
+    ? text.targetNotConnected
+    : props.target.runtimeStatus === "ready"
+      ? text.modelSourceReady
+      : props.target.runtimeStatus === "not_configured"
+        ? text.runtimeNotConfigured
+        : text.runtimeError;
+  const statusDetail = resolveTargetStatusDetail(props.target);
+  const runtimeMessage =
+    props.target.runtimeMessage && !isGenericRuntimeMessage(props.target.runtimeMessage)
+      ? props.target.runtimeMessage
+      : "";
   return html`
     <div
-      class="alisio-models__target ${props.target.current ? "is-current" : ""} ${props.target
-        .runtimeStatus === "error"
+      class="alisio-models__target ${props.target.current ? "is-current" : ""} ${!props.target
+        .connected || props.target.runtimeStatus === "error"
         ? "is-error"
         : props.target.runtimeStatus === "ready"
           ? "is-ready"
@@ -806,36 +941,25 @@ function renderTargetCard(props: {
       </div>
       <div class="alisio-models__target-meta">
         <span
-          class=${props.target.runtimeStatus === "ready"
+          class=${props.target.connected && props.target.runtimeStatus === "ready"
             ? "alisio-models__status is-ready"
             : "alisio-models__status"}
         >
-          ${props.target.runtimeStatus === "ready"
-            ? text.modelSourceReady
-            : props.target.runtimeStatus === "not_configured"
-              ? text.runtimeNotConfigured
-              : text.runtimeError}
+          ${statusLabel}
         </span>
         ${formatHardwareSummary(props.target)
           ? html`<span class="alisio-models__status">${formatHardwareSummary(props.target)}</span>`
           : nothing}
       </div>
-      ${props.target.runtimeMessage
-        ? html`<div class="list-sub">${props.target.runtimeMessage}</div>`
-        : nothing}
+      ${statusDetail ? html`<div class="list-sub">${statusDetail}</div>` : nothing}
+      ${runtimeMessage ? html`<div class="list-sub">${runtimeMessage}</div>` : nothing}
       ${resolveTargetRecommendationLabel(props.target)
         ? html`<div class="list-sub">${resolveTargetRecommendationLabel(props.target)}</div>`
         : nothing}
       ${targetProviderId && props.onSelectChatModel
         ? renderScopedModelChooser({
             providerId: targetProviderId,
-            models:
-              props.target.installedModels.length > 0
-                ? props.target.installedModels
-                : targetModelOptions.map((option) => ({
-                    id: resolveProviderModelId(option.value, targetProviderId),
-                    name: resolveScopedModelChipLabel(option.label),
-                  })),
+            models: targetDisplayModels,
             effectiveChatModelValue: props.effectiveChatModelValue ?? "",
             busy: props.busy ?? false,
             onSelectModel: props.onSelectChatModel,
@@ -852,17 +976,20 @@ function renderTargetCard(props: {
               busy: props.busy ?? false,
               onUninstallModel: props.onUninstallModel!,
             })
-          : props.target.installedModels.length > 0
+          : targetDisplayModels.length > 0
             ? html`
                 <div class="alisio-models__installed-list">
-                  ${props.target.installedModels.map(
+                  ${targetDisplayModels.map(
                     (model) => html`<span class="pill">${model.name}</span>`,
                   )}
                 </div>
               `
             : html`<div class="list-sub">${resolveTargetEmptyModelsLabel(props.target)}</div>`}
       </div>
-      ${props.installCatalog && props.onInstallModel && hasInstallableCatalog
+      ${props.installCatalog &&
+      props.onInstallModel &&
+      props.target.supportsInstall &&
+      hasInstallableCatalog
         ? html`
             <div class="alisio-models__installed">
               <div class="alisio-models__installed-title">${text.recommendedToInstall}</div>
@@ -938,7 +1065,8 @@ function renderOpenAiModelChooser(props: {
           ? html`<div class="list-sub">${text.noModelChoices}</div>`
           : html`
               <div class="alisio-models__model-chips">
-                ${props.defaultChatModelValue && isOpenAiModelValue(props.defaultChatModelValue)
+                ${props.currentChatModelOverrideValue ||
+                (props.defaultChatModelValue && isOpenAiModelValue(props.defaultChatModelValue))
                   ? html`
                       <button
                         class="alisio-models__model-chip ${props.currentChatModelOverrideValue
@@ -967,7 +1095,9 @@ function renderOpenAiModelChooser(props: {
                 )}
               </div>
             `}
-        ${props.currentChatModelOverrideValue && props.defaultChatModelLabel
+        ${props.currentChatModelOverrideValue &&
+        props.defaultChatModelValue &&
+        props.defaultChatModelLabel
           ? html`<div class="list-sub">${props.defaultChatModelLabel}</div>`
           : nothing}
       </section>
@@ -1138,8 +1268,14 @@ function resolveProfiles(ai: AlisioAiState | null | undefined) {
   });
 }
 
-function renderUsagePreview(profile: AiProfile, ai: AlisioAiState | null | undefined) {
-  const windows = resolveProfileUsageWindows(profile, ai).slice(0, 2);
+function renderUsagePreview(
+  profile: AiProfile,
+  ai: AlisioAiState | null | undefined,
+  active: boolean,
+) {
+  const windows = resolveProfileUsageWindows(profile, ai, {
+    allowActiveFallback: active,
+  }).slice(0, 2);
   const text = aiText();
   if (windows.length === 0) {
     return nothing;
@@ -1173,15 +1309,21 @@ function renderAiProfileCard(
     profile.status === "connected"
       ? text.ready
       : profile.status === "limits_unavailable"
-        ? text.connected
+        ? text.connectedNoLimits
         : profile.status === "connecting"
           ? text.connecting
           : profile.status === "expired"
             ? text.expired
             : text.disconnected;
-  const usageWindows = resolveProfileUsageWindows(profile, props.ai);
+  const usageWindows = resolveProfileUsageWindows(profile, props.ai, {
+    allowActiveFallback: props.active,
+  });
   const planLabel = resolveProfilePlanLabel(profile);
   const canRename = profileSupportsRename(profile);
+  const showEmptyRefreshHint =
+    props.active &&
+    usageWindows.length === 0 &&
+    (profile.status === "connected" || profile.status === "limits_unavailable");
 
   return html`
     <article
@@ -1215,7 +1357,7 @@ function renderAiProfileCard(
           <span class="alisio-models__meta">
             ${text.connectedOn} ${formatConnectedAt(props.locale, profile.connectedAt)}
           </span>
-          ${props.expanded ? nothing : renderUsagePreview(profile, props.ai)}
+          ${props.expanded ? nothing : renderUsagePreview(profile, props.ai, props.active)}
         </div>
       </button>
 
@@ -1245,6 +1387,9 @@ function renderAiProfileCard(
                       )}
                     </div>
                   `
+                : nothing}
+              ${showEmptyRefreshHint
+                ? html`<div class="alisio-settings-ai__empty">${text.emptyRefresh}</div>`
                 : nothing}
               <div class="alisio-settings-ai__profile-actions">
                 ${props.active
@@ -1465,6 +1610,7 @@ function renderLocalModelsSection(props: {
 
 function renderServersSection(props: {
   models: AlisioModelsState | null;
+  planValue?: string | null | undefined;
   modelsLoading: boolean;
   modelsError: string | null;
   chatModelOptions: readonly ChatModelOption[];
@@ -1484,6 +1630,12 @@ function renderServersSection(props: {
 }) {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
+  const remoteServersSupported = alisioSupportsRemoteModelServers(
+    normalizeAlisioPlan(props.planValue),
+  );
+  const remoteServerUpgradeMessage = remoteServersSupported
+    ? null
+    : alisioRemoteModelServersUpgradeMessage();
   const servers = props.models?.servers ?? [];
   const catalog = props.models?.catalog ?? [];
   const { linkedTargets } = splitTargets(props.models?.targets ?? []);
@@ -1499,7 +1651,8 @@ function renderServersSection(props: {
           : html`
               <button
                 class="btn"
-                ?disabled=${props.modelsLoading}
+                ?disabled=${props.modelsLoading || !remoteServersSupported}
+                title=${!remoteServersSupported ? (remoteServerUpgradeMessage ?? "") : ""}
                 @click=${props.onStartCreateServer}
               >
                 ${text.addServer}
@@ -1507,6 +1660,9 @@ function renderServersSection(props: {
             `}
       </div>
       ${props.modelsError ? html`<div class="callout danger">${props.modelsError}</div>` : nothing}
+      ${remoteServerUpgradeMessage
+        ? html`<div class="callout info">${remoteServerUpgradeMessage}</div>`
+        : nothing}
       ${showInitialLoading
         ? html`
             <div role="status" aria-label=${text.serversSubtitle}>
@@ -1549,7 +1705,7 @@ function renderServersSection(props: {
                 <div class="list-title">${text.endpointsTitle}</div>
                 <div class="list-sub">${text.endpointsSubtitle}</div>
               </div>
-              ${props.serverDraft
+              ${props.serverDraft && remoteServersSupported
                 ? renderServerDraftForm({
                     draft: props.serverDraft,
                     busy: props.modelsLoading,
@@ -1623,7 +1779,10 @@ function renderServersSection(props: {
                                 ? html`
                                     <button
                                       class="btn"
-                                      ?disabled=${props.modelsLoading}
+                                      ?disabled=${props.modelsLoading || !remoteServersSupported}
+                                      title=${!remoteServersSupported
+                                        ? (remoteServerUpgradeMessage ?? "")
+                                        : ""}
                                       @click=${() => props.onSelectServer(server.serverId)}
                                     >
                                       ${text.activateServer}
@@ -1632,7 +1791,10 @@ function renderServersSection(props: {
                                 : nothing}
                               <button
                                 class="btn"
-                                ?disabled=${props.modelsLoading}
+                                ?disabled=${props.modelsLoading || !remoteServersSupported}
+                                title=${!remoteServersSupported
+                                  ? (remoteServerUpgradeMessage ?? "")
+                                  : ""}
                                 @click=${() => props.onStartEditServer(server)}
                               >
                                 ${text.editServer}
@@ -1704,12 +1866,23 @@ export function renderModelsHub(props: {
   const localTargets = props.models?.targets ?? [];
   const { currentTarget, linkedTargets } = splitTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
+  const currentTargetDisplayModels = currentTarget
+    ? resolveTargetDisplayModels(
+        currentTarget,
+        props.chatModelOptions,
+        currentTarget.chatProviderId ?? null,
+      )
+    : [];
+  const localSuggestionsCount =
+    currentTarget && localCatalog.length > 0
+      ? resolveSuggestedCatalogEntries(currentTarget, localCatalog).length
+      : 0;
   const providerPickerLoading =
     (props.aiLoading && profiles.length === 0) || (props.modelsLoading && !props.models);
   const uniqueInstalledModels = countUniqueInstalledModels(currentTarget ? [currentTarget] : []);
   const selectedLocalModelLabel = currentTarget?.chatProviderId
     ? resolveProviderModelLabel({
-        models: currentTarget.installedModels,
+        models: currentTargetDisplayModels,
         providerId: currentTarget.chatProviderId,
         value: props.effectiveChatModelValue,
       })
@@ -1721,9 +1894,15 @@ export function renderModelsHub(props: {
   const localSecondary =
     selectedLocalModelLabel && currentTarget
       ? currentTarget.label
-      : uniqueInstalledModels > 0
-        ? text.installedModels
-        : `${localCatalog.length} ${text.modelsAvailable}`;
+      : currentTarget && !currentTarget.connected
+        ? text.targetNotConnected
+        : uniqueInstalledModels > 0
+          ? currentTarget?.runtimeKind === "openai-compatible"
+            ? text.availableModels
+            : text.installedModels
+          : localSuggestionsCount > 0
+            ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
+            : text.noLocalModels;
   const selectedServerTarget =
     linkedTargets.find((target) =>
       isProviderModelValue(props.effectiveChatModelValue, target.chatProviderId),
@@ -1734,7 +1913,11 @@ export function renderModelsHub(props: {
     ) ?? null;
   const selectedRemoteModelLabel = selectedServerTarget?.chatProviderId
     ? resolveProviderModelLabel({
-        models: selectedServerTarget.installedModels,
+        models: resolveTargetDisplayModels(
+          selectedServerTarget,
+          props.chatModelOptions,
+          selectedServerTarget.chatProviderId ?? null,
+        ),
         providerId: selectedServerTarget.chatProviderId,
         value: props.effectiveChatModelValue,
       })
@@ -1752,11 +1935,17 @@ export function renderModelsHub(props: {
     ? selectedServerTarget.label
     : selectedServerEndpoint
       ? selectedServerEndpoint.label
-      : linkedTargets.length > 0
-        ? `${linkedTargets.length} ${linkedTargets.length === 1 ? text.linkedComputerShort : text.linkedComputersShort}`
-        : activeServer
+      : [
+          linkedTargets.length > 0
+            ? formatCount(linkedTargets.length, text.linkedComputerShort, text.linkedComputersShort)
+            : "",
+          servers.length > 0 ? formatCount(servers.length, text.endpoint, text.endpoints) : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") ||
+        (activeServer
           ? `${activeServer.models.length} ${text.modelsAvailable}`
-          : `${servers.length} ${servers.length === 1 ? text.server : text.servers}`;
+          : `${servers.length} ${servers.length === 1 ? text.server : text.servers}`);
   const primaryOpenAiProfile = profiles[0] ?? null;
   const openAiPrimary =
     primaryOpenAiProfile && isOpenAiModelValue(props.effectiveChatModelValue)
@@ -1839,6 +2028,7 @@ export function renderModelsHub(props: {
         ${selectedProviderId === "server"
           ? renderServersSection({
               models: props.models,
+              planValue: props.bootstrap?.account?.profile.plan,
               modelsLoading: props.modelsLoading,
               modelsError: props.modelsError,
               chatModelOptions: props.chatModelOptions,

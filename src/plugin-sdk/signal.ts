@@ -2,7 +2,8 @@
 // Keep this list additive and scoped to the bundled Signal surface.
 
 export type { ChannelMessageActionAdapter } from "../channels/plugins/types.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { SignalAccountConfig } from "../config/types.js";
 export type { ResolvedSignalAccount } from "./signal-surface.js";
 export type {

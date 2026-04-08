@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import path from "node:path";
 import { resolveCliName } from "../cli/cli-name.js";
 import {
   completionCacheExists,
@@ -9,7 +8,8 @@ import {
   resolveShellFromEnv,
   usesSlowDynamicCompletion,
 } from "../cli/completion-cli.js";
-import { resolveOpenClawPackageRoot } from "../infra/openclaw-root.js";
+import { resolveAlisioPackageRoot } from "../infra/alisio-root.js";
+import { resolveCliEntrypointPath } from "../infra/cli-entrypoint.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { note } from "../terminal/note.js";
 import type { DoctorPrompter } from "./doctor-prompter.js";
@@ -18,7 +18,7 @@ type CompletionShell = "zsh" | "bash" | "fish" | "powershell";
 
 /** Generate the completion cache by spawning the CLI. */
 async function generateCompletionCache(): Promise<boolean> {
-  const root = await resolveOpenClawPackageRoot({
+  const root = await resolveAlisioPackageRoot({
     moduleUrl: import.meta.url,
     argv1: process.argv[1],
     cwd: process.cwd(),
@@ -27,7 +27,10 @@ async function generateCompletionCache(): Promise<boolean> {
     return false;
   }
 
-  const binPath = path.join(root, "openclaw.mjs");
+  const binPath = await resolveCliEntrypointPath(root);
+  if (!binPath) {
+    return false;
+  }
   const result = spawnSync(process.execPath, [binPath, "completion", "--write-state"], {
     cwd: root,
     env: process.env,
@@ -42,13 +45,13 @@ export type ShellCompletionStatus = {
   profileInstalled: boolean;
   cacheExists: boolean;
   cachePath: string;
-  /** True if profile uses slow dynamic pattern like `source <(openclaw completion ...)` */
+  /** True if profile uses slow dynamic pattern like `source <(alisio completion ...)` */
   usesSlowPattern: boolean;
 };
 
 /** Check the status of shell completion for the current shell. */
 export async function checkShellCompletionStatus(
-  binName = "openclaw",
+  binName = "alisio",
 ): Promise<ShellCompletionStatus> {
   const shell = resolveShellFromEnv() as CompletionShell;
   const profileInstalled = await isCompletionInstalled(shell, binName);
@@ -167,7 +170,7 @@ export async function doctorShellCompletion(
  * cases where profile has completion but no cache.
  * This is a silent fix - no prompts.
  */
-export async function ensureCompletionCacheExists(binName = "openclaw"): Promise<boolean> {
+export async function ensureCompletionCacheExists(binName = "alisio"): Promise<boolean> {
   const shell = resolveShellFromEnv() as CompletionShell;
   const cacheExists = await completionCacheExists(shell, binName);
 

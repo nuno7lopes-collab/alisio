@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import type { ProviderPlugin } from "../../plugins/types.js";
 import type { RuntimeEnv } from "../../runtime.js";
 
@@ -139,8 +139,8 @@ function createProvider(params: {
 
 describe("modelsAuthLoginCommand", () => {
   let restoreStdin: (() => void) | null = null;
-  let currentConfig: OpenClawConfig;
-  let lastUpdatedConfig: OpenClawConfig | null;
+  let currentConfig: AlisioConfig;
+  let lastUpdatedConfig: AlisioConfig | null;
   let runProviderAuth: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -162,13 +162,11 @@ describe("modelsAuthLoginCommand", () => {
     mocks.resolveAgentWorkspaceDir.mockReturnValue("/tmp/openclaw/workspace");
     mocks.resolveDefaultAgentWorkspaceDir.mockReturnValue("/tmp/openclaw/workspace");
     mocks.loadValidConfigOrThrow.mockImplementation(async () => currentConfig);
-    mocks.updateConfig.mockImplementation(
-      async (mutator: (cfg: OpenClawConfig) => OpenClawConfig) => {
-        lastUpdatedConfig = mutator(currentConfig);
-        currentConfig = lastUpdatedConfig;
-        return lastUpdatedConfig;
-      },
-    );
+    mocks.updateConfig.mockImplementation(async (mutator: (cfg: AlisioConfig) => AlisioConfig) => {
+      lastUpdatedConfig = mutator(currentConfig);
+      currentConfig = lastUpdatedConfig;
+      return lastUpdatedConfig;
+    });
     mocks.createClackPrompter.mockReturnValue({
       note: vi.fn(async () => {}),
       select: vi.fn(),

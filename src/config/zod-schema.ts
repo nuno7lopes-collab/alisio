@@ -2,6 +2,7 @@ import path from "node:path";
 import { z } from "zod";
 import { parseByteSize } from "../cli/parse-bytes.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
+import { LEGACY_BROWSER_DRIVER } from "./types.browser.js";
 import { ToolsSchema } from "./zod-schema.agent-runtime.js";
 import { AgentsSchema, AudioSchema, BindingsSchema, BroadcastSchema } from "./zod-schema.agents.js";
 import { ApprovalsSchema } from "./zod-schema.approvals.js";
@@ -261,7 +262,7 @@ const McpConfigSchema = z
   .strict()
   .optional();
 
-export const OpenClawSchema = z
+export const AlisioSchema = z
   .object({
     $schema: z.string().optional(),
     meta: z
@@ -419,7 +420,12 @@ export const OpenClawSchema = z
                 cdpUrl: z.string().optional(),
                 userDataDir: z.string().optional(),
                 driver: z
-                  .union([z.literal("openclaw"), z.literal("clawd"), z.literal("existing-session")])
+                  .union([
+                    z.literal("alisio"),
+                    z.literal(LEGACY_BROWSER_DRIVER),
+                    z.literal("clawd"),
+                    z.literal("existing-session"),
+                  ])
                   .optional(),
                 attachOnly: z.boolean().optional(),
                 color: HexColorSchema,

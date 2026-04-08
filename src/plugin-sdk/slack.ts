@@ -1,4 +1,5 @@
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { SlackAccountConfig } from "../config/types.slack.js";
 export type { InspectedSlackAccount, ResolvedSlackAccount } from "./slack-surface.js";
 export type {

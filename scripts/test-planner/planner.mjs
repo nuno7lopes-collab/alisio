@@ -117,20 +117,20 @@ const buildRequestedSurfaces = (request, env) => {
     return explicit;
   }
   const surfaces = [];
-  const skipDefaultRuns = env.OPENCLAW_TEST_SKIP_DEFAULT === "1";
+  const skipDefaultRuns = env.ALISIO_TEST_SKIP_DEFAULT === "1";
   if (!skipDefaultRuns) {
     surfaces.push("unit");
   }
-  if (env.OPENCLAW_TEST_INCLUDE_EXTENSIONS === "1") {
+  if (env.ALISIO_TEST_INCLUDE_EXTENSIONS === "1") {
     surfaces.push("extensions");
   }
-  if (env.OPENCLAW_TEST_INCLUDE_CHANNELS === "1") {
+  if (env.ALISIO_TEST_INCLUDE_CHANNELS === "1") {
     surfaces.push("channels");
   }
-  if (env.OPENCLAW_TEST_INCLUDE_CONTRACTS === "1") {
+  if (env.ALISIO_TEST_INCLUDE_CONTRACTS === "1") {
     surfaces.push("contracts");
   }
-  if (env.OPENCLAW_TEST_INCLUDE_GATEWAY === "1") {
+  if (env.ALISIO_TEST_INCLUDE_GATEWAY === "1") {
     surfaces.push("gateway");
   }
   return surfaces;
@@ -209,27 +209,21 @@ const createPlannerContext = (request, options = {}) => {
 
 const resolveCIManifestScope = (scope = {}, env = process.env) => ({
   eventName: scope.eventName ?? env.GITHUB_EVENT_NAME ?? "pull_request",
-  docsOnly: parseBooleanLike(scope.docsOnly ?? env.OPENCLAW_CI_DOCS_ONLY, false),
-  docsChanged: parseBooleanLike(scope.docsChanged ?? env.OPENCLAW_CI_DOCS_CHANGED, false),
-  runNode: parseBooleanLike(scope.runNode ?? env.OPENCLAW_CI_RUN_NODE, true),
-  runMacos: parseBooleanLike(scope.runMacos ?? env.OPENCLAW_CI_RUN_MACOS, true),
-  runAndroid: parseBooleanLike(scope.runAndroid ?? env.OPENCLAW_CI_RUN_ANDROID, true),
-  runWindows: parseBooleanLike(scope.runWindows ?? env.OPENCLAW_CI_RUN_WINDOWS, true),
-  runSkillsPython: parseBooleanLike(
-    scope.runSkillsPython ?? env.OPENCLAW_CI_RUN_SKILLS_PYTHON,
-    true,
-  ),
+  docsOnly: parseBooleanLike(scope.docsOnly ?? env.ALISIO_CI_DOCS_ONLY, false),
+  docsChanged: parseBooleanLike(scope.docsChanged ?? env.ALISIO_CI_DOCS_CHANGED, false),
+  runNode: parseBooleanLike(scope.runNode ?? env.ALISIO_CI_RUN_NODE, true),
+  runMacos: parseBooleanLike(scope.runMacos ?? env.ALISIO_CI_RUN_MACOS, true),
+  runAndroid: parseBooleanLike(scope.runAndroid ?? env.ALISIO_CI_RUN_ANDROID, true),
+  runWindows: parseBooleanLike(scope.runWindows ?? env.ALISIO_CI_RUN_WINDOWS, true),
+  runSkillsPython: parseBooleanLike(scope.runSkillsPython ?? env.ALISIO_CI_RUN_SKILLS_PYTHON, true),
   hasChangedExtensions: parseBooleanLike(
-    scope.hasChangedExtensions ?? env.OPENCLAW_CI_HAS_CHANGED_EXTENSIONS,
+    scope.hasChangedExtensions ?? env.ALISIO_CI_HAS_CHANGED_EXTENSIONS,
     false,
   ),
   changedExtensionsMatrix: parseChangedExtensionsMatrix(
-    scope.changedExtensionsMatrix ?? env.OPENCLAW_CI_CHANGED_EXTENSIONS_MATRIX,
+    scope.changedExtensionsMatrix ?? env.ALISIO_CI_CHANGED_EXTENSIONS_MATRIX,
   ),
-  runChangedSmoke: parseBooleanLike(
-    scope.runChangedSmoke ?? env.OPENCLAW_CI_RUN_CHANGED_SMOKE,
-    true,
-  ),
+  runChangedSmoke: parseBooleanLike(scope.runChangedSmoke ?? env.ALISIO_CI_RUN_CHANGED_SMOKE, true),
 });
 
 const estimateEntryFilesDurationMs = (entry, files, context) => {
@@ -316,7 +310,7 @@ const resolveUnitFastBatchTargetMs = ({ context, selectedSurfaceSet, unitOnlyRun
 };
 
 const resolveMaxWorkersForUnit = (unit, context) => {
-  const overrideWorkers = Number.parseInt(context.env.OPENCLAW_TEST_WORKERS ?? "", 10);
+  const overrideWorkers = Number.parseInt(context.env.ALISIO_TEST_WORKERS ?? "", 10);
   const resolvedOverride =
     Number.isFinite(overrideWorkers) && overrideWorkers > 0 ? overrideWorkers : null;
   if (resolvedOverride) {
@@ -373,7 +367,7 @@ const createExecutionUnit = (context, config) => {
 };
 
 const withIncludeFileEnv = (context, unitId, files) => ({
-  OPENCLAW_VITEST_INCLUDE_FILE: context.writeTempJsonArtifact(unitId, files),
+  ALISIO_VITEST_INCLUDE_FILE: context.writeTempJsonArtifact(unitId, files),
 });
 
 const resolveUnitHeavyFileGroups = (context) => {
@@ -381,27 +375,27 @@ const resolveUnitHeavyFileGroups = (context) => {
     context;
   const heavyUnitFileLimit = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_HEAVY_UNIT_FILE_LIMIT",
+    "ALISIO_TEST_HEAVY_UNIT_FILE_LIMIT",
     runtime.intentProfile === "max"
       ? Math.max(executionBudget.heavyUnitFileLimit, 90)
       : executionBudget.heavyUnitFileLimit,
   );
   const heavyUnitLaneCount = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_HEAVY_UNIT_LANES",
+    "ALISIO_TEST_HEAVY_UNIT_LANES",
     runtime.intentProfile === "max"
       ? Math.max(executionBudget.heavyUnitLaneCount, 6)
       : executionBudget.heavyUnitLaneCount,
   );
-  const heavyUnitMinDurationMs = parseEnvNumber(env, "OPENCLAW_TEST_HEAVY_UNIT_MIN_MS", 1200);
+  const heavyUnitMinDurationMs = parseEnvNumber(env, "ALISIO_TEST_HEAVY_UNIT_MIN_MS", 1200);
   const memoryHeavyUnitFileLimit = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_MEMORY_HEAVY_UNIT_FILE_LIMIT",
+    "ALISIO_TEST_MEMORY_HEAVY_UNIT_FILE_LIMIT",
     executionBudget.memoryHeavyUnitFileLimit,
   );
   const memoryHeavyUnitMinDeltaKb = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_MEMORY_HEAVY_UNIT_MIN_KB",
+    "ALISIO_TEST_MEMORY_HEAVY_UNIT_MIN_KB",
     unitMemoryHotspotManifest.defaultMinDeltaKb,
   );
   return {
@@ -483,13 +477,13 @@ const buildDefaultUnits = (context, request) => {
   const defaultExtensionsBatchTargetMs = executionBudget.extensionsBatchTargetMs;
   const extensionsBatchTargetMs = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_EXTENSIONS_BATCH_TARGET_MS",
+    "ALISIO_TEST_EXTENSIONS_BATCH_TARGET_MS",
     defaultExtensionsBatchTargetMs,
   );
   const defaultUnitFastLaneCount = executionBudget.unitFastLaneCount;
   const unitFastLaneCount = Math.max(
     1,
-    parseEnvNumber(env, "OPENCLAW_TEST_UNIT_FAST_LANES", defaultUnitFastLaneCount),
+    parseEnvNumber(env, "ALISIO_TEST_UNIT_FAST_LANES", defaultUnitFastLaneCount),
   );
   const defaultUnitFastBatchTargetMs = resolveUnitFastBatchTargetMs({
     context,
@@ -498,13 +492,13 @@ const buildDefaultUnits = (context, request) => {
   });
   const unitFastBatchTargetMs = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_UNIT_FAST_BATCH_TARGET_MS",
+    "ALISIO_TEST_UNIT_FAST_BATCH_TARGET_MS",
     defaultUnitFastBatchTargetMs,
   );
   const defaultChannelsBatchTargetMs = executionBudget.channelsBatchTargetMs;
   const channelsBatchTargetMs = parseEnvNumber(
     env,
-    "OPENCLAW_TEST_CHANNELS_BATCH_TARGET_MS",
+    "ALISIO_TEST_CHANNELS_BATCH_TARGET_MS",
     defaultChannelsBatchTargetMs,
   );
   const unitFastBuckets =
@@ -917,13 +911,13 @@ const buildTargetedUnits = (context, request) => {
   const defaultTargetedUnitBatchTargetMs = 12_000;
   const targetedUnitBatchTargetMs = parseEnvNumber(
     context.env,
-    "OPENCLAW_TEST_TARGETED_UNIT_BATCH_TARGET_MS",
+    "ALISIO_TEST_TARGETED_UNIT_BATCH_TARGET_MS",
     defaultTargetedUnitBatchTargetMs,
   );
   const defaultTargetedChannelsBatchTargetMs = 11_000;
   const targetedChannelsBatchTargetMs = parseEnvNumber(
     context.env,
-    "OPENCLAW_TEST_TARGETED_CHANNELS_BATCH_TARGET_MS",
+    "ALISIO_TEST_TARGETED_CHANNELS_BATCH_TARGET_MS",
     defaultTargetedChannelsBatchTargetMs,
   );
   const groups = request.fileFilters.reduce((acc, fileFilter) => {
@@ -1032,7 +1026,7 @@ const createPinnedShardUnit = (context, unit, files, fixedShardIndex) => {
       Array.isArray(unit.includeFiles) && unit.includeFiles.length > 0
         ? {
             ...unit.env,
-            OPENCLAW_VITEST_INCLUDE_FILE: context.writeTempJsonArtifact(
+            ALISIO_VITEST_INCLUDE_FILE: context.writeTempJsonArtifact(
               `${unit.id}-shard-${String(fixedShardIndex)}-include`,
               files,
             ),
@@ -1244,8 +1238,8 @@ export function buildCIExecutionManifest(scopeInput = {}, options = {}) {
                 command: [
                   "pnpm build",
                   "pnpm ui:build",
-                  "node openclaw.mjs --help",
-                  "node openclaw.mjs status --json --timeout 1",
+                  "node alisio.mjs --help",
+                  "node alisio.mjs status --json --timeout 1",
                   "pnpm test:build:singleton",
                 ].join("\n"),
               },
@@ -1413,10 +1407,9 @@ function resolveSurfaceAwareTopLevelParallelLimit(context, units, defaultLimit) 
 export function explainExecutionTarget(request, options = {}) {
   const context = createPlannerContext(request, options);
   context.noIsolateArgs =
-    context.env.OPENCLAW_TEST_ISOLATE === "1" || context.env.OPENCLAW_TEST_ISOLATE === "true"
+    context.env.ALISIO_TEST_ISOLATE === "1" || context.env.ALISIO_TEST_ISOLATE === "true"
       ? []
-      : context.env.OPENCLAW_TEST_NO_ISOLATE !== "0" &&
-          context.env.OPENCLAW_TEST_NO_ISOLATE !== "false"
+      : context.env.ALISIO_TEST_NO_ISOLATE !== "0" && context.env.ALISIO_TEST_NO_ISOLATE !== "false"
         ? ["--isolate=false"]
         : [];
   const [target] = request.fileFilters;
@@ -1480,9 +1473,9 @@ export function buildExecutionPlan(request, options = {}) {
     options,
   );
   context.noIsolateArgs =
-    env.OPENCLAW_TEST_ISOLATE === "1" || env.OPENCLAW_TEST_ISOLATE === "true"
+    env.ALISIO_TEST_ISOLATE === "1" || env.ALISIO_TEST_ISOLATE === "true"
       ? []
-      : env.OPENCLAW_TEST_NO_ISOLATE !== "0" && env.OPENCLAW_TEST_NO_ISOLATE !== "false"
+      : env.ALISIO_TEST_NO_ISOLATE !== "0" && env.ALISIO_TEST_NO_ISOLATE !== "false"
         ? ["--isolate=false"]
         : [];
   context.writeTempJsonArtifact =
@@ -1491,22 +1484,22 @@ export function buildExecutionPlan(request, options = {}) {
       throw new Error("buildExecutionPlan requires writeTempJsonArtifact for include-file units");
     });
 
-  const shardOverride = Number.parseInt(env.OPENCLAW_TEST_SHARDS ?? "", 10);
+  const shardOverride = Number.parseInt(env.ALISIO_TEST_SHARDS ?? "", 10);
   context.configuredShardCount =
     Number.isFinite(shardOverride) && shardOverride > 1 ? shardOverride : null;
   context.shardCount = context.configuredShardCount ?? (context.runtime.isWindowsCi ? 2 : 1);
-  const shardIndexOverride = Number.parseInt(env.OPENCLAW_TEST_SHARD_INDEX ?? "", 10);
+  const shardIndexOverride = Number.parseInt(env.ALISIO_TEST_SHARD_INDEX ?? "", 10);
   context.shardIndexOverride =
     Number.isFinite(shardIndexOverride) && shardIndexOverride > 0 ? shardIndexOverride : null;
 
   if (context.shardIndexOverride !== null && context.shardCount <= 1) {
     throw new Error(
-      `OPENCLAW_TEST_SHARD_INDEX=${String(context.shardIndexOverride)} requires OPENCLAW_TEST_SHARDS>1.`,
+      `ALISIO_TEST_SHARD_INDEX=${String(context.shardIndexOverride)} requires ALISIO_TEST_SHARDS>1.`,
     );
   }
   if (context.shardIndexOverride !== null && context.shardIndexOverride > context.shardCount) {
     throw new Error(
-      `OPENCLAW_TEST_SHARD_INDEX=${String(context.shardIndexOverride)} exceeds OPENCLAW_TEST_SHARDS=${String(context.shardCount)}.`,
+      `ALISIO_TEST_SHARD_INDEX=${String(context.shardIndexOverride)} exceeds ALISIO_TEST_SHARDS=${String(context.shardCount)}.`,
     );
   }
 
@@ -1523,11 +1516,11 @@ export function buildExecutionPlan(request, options = {}) {
   const selectedUnits = targetedUnits.length > 0 ? targetedUnits : units;
   const topLevelSingleShardAssignments = buildTopLevelSingleShardAssignments(context, units);
   const parallelGatewayEnabled =
-    env.OPENCLAW_TEST_PARALLEL_GATEWAY === "1" ||
+    env.ALISIO_TEST_PARALLEL_GATEWAY === "1" ||
     (!context.runtime.isCI && context.executionBudget.gatewayWorkers > 1);
   const keepGatewaySerial =
     context.runtime.isWindowsCi ||
-    env.OPENCLAW_TEST_SERIAL_GATEWAY === "1" ||
+    env.ALISIO_TEST_SERIAL_GATEWAY === "1" ||
     context.runtime.intentProfile === "serial" ||
     !parallelGatewayEnabled;
   const parallelUnits = keepGatewaySerial
@@ -1550,7 +1543,7 @@ export function buildExecutionPlan(request, options = {}) {
   );
   const topLevelParallelLimit = Math.max(
     1,
-    parseEnvNumber(env, "OPENCLAW_TEST_TOP_LEVEL_CONCURRENCY", defaultTopLevelParallelLimit),
+    parseEnvNumber(env, "ALISIO_TEST_TOP_LEVEL_CONCURRENCY", defaultTopLevelParallelLimit),
   );
   const deferredRunConcurrency = context.executionBudget.deferredRunConcurrency;
 

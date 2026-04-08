@@ -1,5 +1,5 @@
 import type { Command } from "commander";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { isTruthyEnvValue } from "../../infra/env.js";
 import { getPrimaryCommand, hasHelpOrVersion } from "../argv.js";
 import { removeCommandByName } from "./command-tree.js";
@@ -32,15 +32,14 @@ const shouldEagerRegisterSubcommands = (_argv: string[]) => {
   return isTruthyEnvValue(process.env.OPENCLAW_DISABLE_LAZY_SUBCOMMANDS);
 };
 
-export const loadValidatedConfigForPluginRegistration =
-  async (): Promise<OpenClawConfig | null> => {
-    const mod = await import("../../config/config.js");
-    const snapshot = await mod.readConfigFileSnapshot();
-    if (!snapshot.valid) {
-      return null;
-    }
-    return mod.loadConfig();
-  };
+export const loadValidatedConfigForPluginRegistration = async (): Promise<AlisioConfig | null> => {
+  const mod = await import("../../config/config.js");
+  const snapshot = await mod.readConfigFileSnapshot();
+  if (!snapshot.valid) {
+    return null;
+  }
+  return mod.loadConfig();
+};
 
 // Note for humans and agents:
 // If you update the list of commands, also check whether they have subcommands

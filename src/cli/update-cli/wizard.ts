@@ -1,5 +1,6 @@
 import { confirm, isCancel } from "@clack/prompts";
 import { readConfigFileSnapshot } from "../../config/config.js";
+import { resolveUpdateSourceConfig } from "../../infra/distribution-profile.js";
 import {
   formatUpdateChannelLabel,
   normalizeUpdateChannel,
@@ -24,7 +25,7 @@ import { updateCommand } from "./update-command.js";
 export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promise<void> {
   if (!process.stdin.isTTY) {
     defaultRuntime.error(
-      "Update wizard requires a TTY. Use `openclaw update --channel <stable|beta|dev>` instead.",
+      "Update wizard requires a TTY. Use `alisio update --channel <stable|beta|dev>` instead.",
     );
     defaultRuntime.exit(1);
     return;
@@ -99,6 +100,17 @@ export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promi
   const requestedChannel = pickedChannel === "keep" ? null : pickedChannel;
 
   if (requestedChannel === "dev" && updateStatus.installKind !== "git") {
+    const updateSource = resolveUpdateSourceConfig({
+      moduleUrl: import.meta.url,
+      env: process.env,
+    });
+    if (!updateSource.gitRepoUrl) {
+      defaultRuntime.error(
+        "Os updates git/dev do Alisio estão desactivados porque não existe um repositório Alisio configurado.",
+      );
+      defaultRuntime.exit(1);
+      return;
+    }
     const gitDir = resolveGitInstallDir();
     const hasGit = await isGitCheckout(gitDir);
     if (!hasGit) {
@@ -107,7 +119,7 @@ export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promi
         const empty = await isEmptyDir(gitDir);
         if (!empty) {
           defaultRuntime.error(
-            `OPENCLAW_GIT_DIR points at a non-git directory: ${gitDir}. Set OPENCLAW_GIT_DIR to an empty folder or an openclaw checkout.`,
+            `ALISIO_GIT_DIR points at a non-git directory: ${gitDir}. Set ALISIO_GIT_DIR to an empty folder or an Alisio checkout.`,
           );
           defaultRuntime.exit(1);
           return;
@@ -116,7 +128,7 @@ export async function updateWizardCommand(opts: UpdateWizardOptions = {}): Promi
 
       const ok = await confirm({
         message: stylePromptMessage(
-          `Create a git checkout at ${gitDir}? (override via OPENCLAW_GIT_DIR)`,
+          `Create a git checkout at ${gitDir}? (override via ALISIO_GIT_DIR)`,
         ),
         initialValue: true,
       });

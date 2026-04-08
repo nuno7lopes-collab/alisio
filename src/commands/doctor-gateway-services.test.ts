@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { withEnvAsync } from "../test-utils/env.js";
 import { createDoctorPrompter } from "./doctor-prompter.js";
 import {
@@ -126,14 +126,11 @@ function makeDoctorPrompts() {
   };
 }
 
-async function runRepair(cfg: OpenClawConfig) {
+async function runRepair(cfg: AlisioConfig) {
   await maybeRepairGatewayServiceConfig(cfg, "local", makeDoctorIo(), makeDoctorPrompts());
 }
 
-async function runNonInteractiveRepair(params: {
-  cfg?: OpenClawConfig;
-  updateInProgress?: boolean;
-}) {
+async function runNonInteractiveRepair(params: { cfg?: AlisioConfig; updateInProgress?: boolean }) {
   Object.defineProperty(process.stdin, "isTTY", {
     value: false,
     configurable: true,
@@ -226,7 +223,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fsMocks.realpath.mockImplementation(async (value: string) => value);
-    mocks.resolveGatewayAuthTokenForService.mockImplementation(async (cfg: OpenClawConfig, env) => {
+    mocks.resolveGatewayAuthTokenForService.mockImplementation(async (cfg: AlisioConfig, env) => {
       const configToken =
         typeof cfg.gateway?.auth?.token === "string" ? cfg.gateway.auth.token.trim() : undefined;
       const envToken = env.OPENCLAW_GATEWAY_TOKEN?.trim() || undefined;
@@ -249,7 +246,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
   it("treats gateway.auth.token as source of truth for service token repairs", async () => {
     setupGatewayTokenRepairScenario();
 
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       gateway: {
         auth: {
           mode: "token",
@@ -285,7 +282,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
     await withEnvAsync({ OPENCLAW_GATEWAY_TOKEN: "env-token" }, async () => {
       setupGatewayTokenRepairScenario();
 
-      const cfg: OpenClawConfig = {
+      const cfg: AlisioConfig = {
         gateway: {},
       };
 
@@ -439,7 +436,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
     });
     mocks.install.mockResolvedValue(undefined);
 
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       gateway: {
         auth: {
           mode: "token",
@@ -476,7 +473,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
       async () => {
         setupGatewayTokenRepairScenario();
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           gateway: {},
         };
 
@@ -527,7 +524,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
       async () => {
         setupGatewayTokenRepairScenario();
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           gateway: {},
         };
 
@@ -577,7 +574,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
         });
         mocks.install.mockResolvedValue(undefined);
 
-        const cfg: OpenClawConfig = {
+        const cfg: AlisioConfig = {
           gateway: {},
         };
 

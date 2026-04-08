@@ -1,3 +1,4 @@
+import { legacyDotKey } from "../../brand-compat.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { en } from "../locales/en.ts";
 import {
@@ -14,7 +15,7 @@ type Subscriber = (locale: Locale) => void;
 export { SUPPORTED_LOCALES, isSupportedLocale };
 
 const LOCALE_STORAGE_KEY = "alisio.i18n.locale";
-const LEGACY_LOCALE_STORAGE_KEY = "openclaw.i18n.locale";
+const LEGACY_LOCALE_STORAGE_KEY = legacyDotKey("i18n", "locale");
 
 function readStoredLocaleValue(): string | null {
   const storage = getSafeLocalStorage();

@@ -1,5 +1,5 @@
 import { listConfiguredBindings } from "../../config/bindings.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import { getActivePluginChannelRegistryVersion } from "../../plugins/runtime.js";
 import { pickFirstExistingAgentId } from "../../routing/resolve-route.js";
 import { resolveChannelConfiguredBindingProvider } from "./binding-provider.js";
@@ -23,10 +23,7 @@ type CachedCompiledConfiguredBindingRegistry = {
   registry: CompiledConfiguredBindingRegistry;
 };
 
-const compiledRegistryCache = new WeakMap<
-  OpenClawConfig,
-  CachedCompiledConfiguredBindingRegistry
->();
+const compiledRegistryCache = new WeakMap<AlisioConfig, CachedCompiledConfiguredBindingRegistry>();
 
 function resolveLoadedChannelPlugin(channel: string) {
   const normalized = channel.trim().toLowerCase();
@@ -79,7 +76,7 @@ function compileConfiguredBindingTarget(params: {
 }
 
 function compileConfiguredBindingRule(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel: ConfiguredBindingChannel;
   binding: CompiledConfiguredBinding["binding"];
   target: ChannelConfiguredBindingConversationRef;
@@ -127,7 +124,7 @@ function pushCompiledRule(
 }
 
 function compileConfiguredBindingRegistry(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
 }): CompiledConfiguredBindingRegistry {
   const rulesByChannel = new Map<ConfiguredBindingChannel, CompiledConfiguredBinding[]>();
 
@@ -171,7 +168,7 @@ function compileConfiguredBindingRegistry(params: {
 }
 
 export function resolveCompiledBindingRegistry(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
 ): CompiledConfiguredBindingRegistry {
   const registryVersion = getActivePluginChannelRegistryVersion();
   const cached = compiledRegistryCache.get(cfg);
@@ -189,9 +186,7 @@ export function resolveCompiledBindingRegistry(
   return registry;
 }
 
-export function primeCompiledBindingRegistry(
-  cfg: OpenClawConfig,
-): CompiledConfiguredBindingRegistry {
+export function primeCompiledBindingRegistry(cfg: AlisioConfig): CompiledConfiguredBindingRegistry {
   const registry = compileConfiguredBindingRegistry({ cfg });
   compiledRegistryCache.set(cfg, {
     registryVersion: getActivePluginChannelRegistryVersion(),

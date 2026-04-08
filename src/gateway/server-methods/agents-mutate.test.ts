@@ -757,7 +757,7 @@ describe("agents.files.list memory scope", () => {
         memoryPath: "Alisio Memory",
       },
     };
-    mocks.fsReaddir.mockImplementation(async (target: string) => {
+    mocks.fsReaddir.mockImplementation((async (target: string) => {
       if (target === "/workspace/test-agent/Alisio Memory") {
         return [
           {
@@ -785,7 +785,7 @@ describe("agents.files.list memory scope", () => {
         ];
       }
       return [];
-    });
+    }) as unknown as () => Promise<MockDirent[]>);
     const fileStats = new Map<string, import("node:fs").Stats>([
       ["/workspace/test-agent/Alisio Memory", makeDirectoryStat()],
       ["/workspace/test-agent/Alisio Memory/daily", makeDirectoryStat()],

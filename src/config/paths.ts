@@ -1,33 +1,46 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 import { resolveHomeRelativePath, resolveRequiredHomeDir } from "../infra/home-dir.js";
-import type { OpenClawConfig } from "./types.js";
+
+type GatewayPortConfig = {
+  gateway?: {
+    port?: number;
+  };
+};
 
 /**
- * Nix mode detection: When OPENCLAW_NIX_MODE=1, the gateway is running under Nix.
+ * Nix mode detection: when `ALISIO_NIX_MODE=1`, the gateway is running under Nix.
  * In this mode:
  * - No auto-install flows should be attempted
  * - Missing dependencies should produce actionable Nix-specific error messages
  * - Config is managed externally (read-only from Nix perspective)
  */
 export function resolveIsNixMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.OPENCLAW_NIX_MODE === "1";
+  return readEnv("ALISIO_NIX_MODE", { env, fallback: legacyEnvKey("NIX_MODE") }) === "1";
 }
 
 export const isNixMode = resolveIsNixMode();
 
-// Support the remaining legacy pre-rebrand state dir.
-const LEGACY_STATE_DIRNAMES = [".clawdbot"] as const;
-const NEW_STATE_DIRNAME = ".openclaw";
-const CONFIG_FILENAME = "openclaw.json";
-const LEGACY_CONFIG_FILENAMES = ["clawdbot.json"] as const;
+const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
+const LEGACY_ALT_RUNTIME_NAMESPACE = ["claw", "dbot"].join("");
+const LEGACY_STATE_DIRNAMES = [
+  `.${LEGACY_RUNTIME_NAMESPACE}`,
+  `.${LEGACY_ALT_RUNTIME_NAMESPACE}`,
+] as const;
+const STATE_DIRNAME = ".alisio";
+const CONFIG_FILENAME = "alisio.json";
+const LEGACY_CONFIG_FILENAMES = [
+  `${LEGACY_RUNTIME_NAMESPACE}.json`,
+  `${LEGACY_ALT_RUNTIME_NAMESPACE}.json`,
+] as const;
 
 function resolveDefaultHomeDir(): string {
   return resolveRequiredHomeDir(process.env, os.homedir);
 }
 
-/** Build a homedir thunk that respects OPENCLAW_HOME for the given env. */
+/** Build a homedir thunk that respects `ALISIO_HOME` for the given env. */
 function envHomedir(env: NodeJS.ProcessEnv): () => string {
   return () => resolveRequiredHomeDir(env, os.homedir);
 }
@@ -37,7 +50,7 @@ function legacyStateDirs(homedir: () => string = resolveDefaultHomeDir): string[
 }
 
 function newStateDir(homedir: () => string = resolveDefaultHomeDir): string {
-  return path.join(homedir(), NEW_STATE_DIRNAME);
+  return path.join(homedir(), STATE_DIRNAME);
 }
 
 export function resolveLegacyStateDir(homedir: () => string = resolveDefaultHomeDir): string {
@@ -54,20 +67,20 @@ export function resolveNewStateDir(homedir: () => string = resolveDefaultHomeDir
 
 /**
  * State directory for mutable data (sessions, logs, caches).
- * Can be overridden via OPENCLAW_STATE_DIR.
- * Default: ~/.openclaw
+ * Can be overridden via `ALISIO_STATE_DIR`.
+ * Default: `~/.alisio`
  */
 export function resolveStateDir(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = envHomedir(env),
 ): string {
   const effectiveHomedir = () => resolveRequiredHomeDir(env, homedir);
-  const override = env.OPENCLAW_STATE_DIR?.trim();
+  const override = readEnv("ALISIO_STATE_DIR", { env, fallback: legacyEnvKey("STATE_DIR") });
   if (override) {
     return resolveUserPath(override, env, effectiveHomedir);
   }
   const newDir = newStateDir(effectiveHomedir);
-  if (env.OPENCLAW_TEST_FAST === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
     return newDir;
   }
   const legacyDirs = legacyStateDirs(effectiveHomedir);
@@ -100,14 +113,14 @@ export const STATE_DIR = resolveStateDir();
 
 /**
  * Config file path (JSON or JSON5).
- * Can be overridden via OPENCLAW_CONFIG_PATH.
- * Default: ~/.openclaw/openclaw.json (or $OPENCLAW_STATE_DIR/openclaw.json)
+ * Can be overridden via `ALISIO_CONFIG_PATH`.
+ * Default: `~/.alisio/alisio.json` (or `$ALISIO_STATE_DIR/alisio.json`)
  */
 export function resolveCanonicalConfigPath(
   env: NodeJS.ProcessEnv = process.env,
   stateDir: string = resolveStateDir(env, envHomedir(env)),
 ): string {
-  const override = env.OPENCLAW_CONFIG_PATH?.trim();
+  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
   if (override) {
     return resolveUserPath(override, env, envHomedir(env));
   }
@@ -122,7 +135,7 @@ export function resolveConfigPathCandidate(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = envHomedir(env),
 ): string {
-  if (env.OPENCLAW_TEST_FAST === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
     return resolveCanonicalConfigPath(env, resolveStateDir(env, homedir));
   }
   const candidates = resolveDefaultConfigCandidates(env, homedir);
@@ -147,14 +160,14 @@ export function resolveConfigPath(
   stateDir: string = resolveStateDir(env, envHomedir(env)),
   homedir: () => string = envHomedir(env),
 ): string {
-  const override = env.OPENCLAW_CONFIG_PATH?.trim();
+  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
   if (override) {
     return resolveUserPath(override, env, homedir);
   }
-  if (env.OPENCLAW_TEST_FAST === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
     return path.join(stateDir, CONFIG_FILENAME);
   }
-  const stateOverride = env.OPENCLAW_STATE_DIR?.trim();
+  const stateOverride = readEnv("ALISIO_STATE_DIR", { env, fallback: legacyEnvKey("STATE_DIR") });
   const candidates = [
     path.join(stateDir, CONFIG_FILENAME),
     ...LEGACY_CONFIG_FILENAMES.map((name) => path.join(stateDir, name)),
@@ -190,15 +203,18 @@ export function resolveDefaultConfigCandidates(
   homedir: () => string = envHomedir(env),
 ): string[] {
   const effectiveHomedir = () => resolveRequiredHomeDir(env, homedir);
-  const explicit = env.OPENCLAW_CONFIG_PATH?.trim();
+  const explicit = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
   if (explicit) {
     return [resolveUserPath(explicit, env, effectiveHomedir)];
   }
 
   const candidates: string[] = [];
-  const openclawStateDir = env.OPENCLAW_STATE_DIR?.trim();
-  if (openclawStateDir) {
-    const resolved = resolveUserPath(openclawStateDir, env, effectiveHomedir);
+  const stateDirOverride = readEnv("ALISIO_STATE_DIR", {
+    env,
+    fallback: legacyEnvKey("STATE_DIR"),
+  });
+  if (stateDirOverride) {
+    const resolved = resolveUserPath(stateDirOverride, env, effectiveHomedir);
     candidates.push(path.join(resolved, CONFIG_FILENAME));
     candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(resolved, name)));
   }
@@ -215,12 +231,12 @@ export const DEFAULT_GATEWAY_PORT = 18789;
 
 /**
  * Gateway lock directory (ephemeral).
- * Default: os.tmpdir()/openclaw-<uid> (uid suffix when available).
+ * Default: `os.tmpdir()/alisio-<uid>` (uid suffix when available).
  */
 export function resolveGatewayLockDir(tmpdir: () => string = os.tmpdir): string {
   const base = tmpdir();
   const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
-  const suffix = uid != null ? `openclaw-${uid}` : "openclaw";
+  const suffix = uid != null ? `alisio-${uid}` : "alisio";
   return path.join(base, suffix);
 }
 
@@ -230,14 +246,14 @@ const OAUTH_FILENAME = "oauth.json";
  * OAuth credentials storage directory.
  *
  * Precedence:
- * - `OPENCLAW_OAUTH_DIR` (explicit override)
+ * - `ALISIO_OAUTH_DIR` (explicit override)
  * - `$*_STATE_DIR/credentials` (canonical server/default)
  */
 export function resolveOAuthDir(
   env: NodeJS.ProcessEnv = process.env,
   stateDir: string = resolveStateDir(env, envHomedir(env)),
 ): string {
-  const override = env.OPENCLAW_OAUTH_DIR?.trim();
+  const override = readEnv("ALISIO_OAUTH_DIR", { env, fallback: legacyEnvKey("OAUTH_DIR") });
   if (override) {
     return resolveUserPath(override, env, envHomedir(env));
   }
@@ -283,10 +299,10 @@ function parseGatewayPortEnvValue(raw: string | undefined): number | null {
 }
 
 export function resolveGatewayPort(
-  cfg?: OpenClawConfig,
+  cfg?: GatewayPortConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): number {
-  const envRaw = env.OPENCLAW_GATEWAY_PORT?.trim();
+  const envRaw = readEnv("ALISIO_GATEWAY_PORT", { env, fallback: legacyEnvKey("GATEWAY_PORT") });
   const envPort = parseGatewayPortEnvValue(envRaw);
   if (envPort !== null) {
     return envPort;

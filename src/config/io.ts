@@ -6,6 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import JSON5 from "json5";
 import { ensureOwnerDisplaySecret } from "../agents/owner-display.js";
 import { loadDotEnv } from "../infra/dotenv.js";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import {
   loadShellEnvFallback,
@@ -42,7 +43,7 @@ import { applyMergePatch } from "./merge-patch.js";
 import { resolveConfigPath, resolveDefaultConfigCandidates, resolveStateDir } from "./paths.js";
 import { isBlockedObjectKey } from "./prototype-keys.js";
 import { applyConfigOverrides } from "./runtime-overrides.js";
-import type { OpenClawConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
+import type { AlisioConfig, ConfigFileSnapshot, LegacyConfigIssue } from "./types.js";
 import {
   validateConfigObjectRawWithPlugins,
   validateConfigObjectWithPlugins,
@@ -71,8 +72,10 @@ const SHELL_ENV_EXPECTED_KEYS = [
   "DISCORD_BOT_TOKEN",
   "SLACK_BOT_TOKEN",
   "SLACK_APP_TOKEN",
-  "OPENCLAW_GATEWAY_TOKEN",
-  "OPENCLAW_GATEWAY_PASSWORD",
+  "ALISIO_GATEWAY_TOKEN",
+  legacyEnvKey("GATEWAY_TOKEN"),
+  "ALISIO_GATEWAY_PASSWORD",
+  legacyEnvKey("GATEWAY_PASSWORD"),
 ];
 
 const OPEN_DM_POLICY_ALLOW_FROM_RE =
@@ -230,7 +233,7 @@ export type ReadConfigFileSnapshotForWriteResult = {
 };
 
 export type RuntimeConfigSnapshotRefreshParams = {
-  sourceConfig: OpenClawConfig;
+  sourceConfig: AlisioConfig;
 };
 
 export type RuntimeConfigSnapshotRefreshHandler = {
@@ -240,8 +243,8 @@ export type RuntimeConfigSnapshotRefreshHandler = {
 
 export type ConfigWriteNotification = {
   configPath: string;
-  sourceConfig: OpenClawConfig;
-  runtimeConfig: OpenClawConfig;
+  sourceConfig: AlisioConfig;
+  runtimeConfig: AlisioConfig;
   persistedHash: string;
   writtenAtMs: number;
 };
@@ -300,10 +303,10 @@ function formatConfigValidationFailure(pathLabel: string, issueMessage: string):
     `Configuration mismatch: ${policyPath} is "open", but ${allowPath} does not include "*".`,
     "",
     "Fix with:",
-    `  openclaw config set ${allowPath} '["*"]'`,
+    `  alisio config set ${allowPath} '["*"]'`,
     "",
     "Or switch policy:",
-    `  openclaw config set ${policyPath} "pairing"`,
+    `  alisio config set ${policyPath} "pairing"`,
   ].join("\n");
 }
 
@@ -396,9 +399,9 @@ function unsetPathForWriteAt(
 }
 
 function unsetPathForWrite(
-  root: OpenClawConfig,
+  root: AlisioConfig,
   pathSegments: string[],
-): { changed: boolean; next: OpenClawConfig } {
+): { changed: boolean; next: AlisioConfig } {
   if (pathSegments.length === 0) {
     return { changed: false, next: root };
   }
@@ -431,11 +434,11 @@ export function resolveConfigSnapshotHash(snapshot: {
   return hashConfigRaw(snapshot.raw);
 }
 
-function coerceConfig(value: unknown): OpenClawConfig {
+function coerceConfig(value: unknown): AlisioConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return {};
   }
-  return value as OpenClawConfig;
+  return value as AlisioConfig;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -1498,7 +1501,7 @@ function warnOnConfigMiskeys(raw: unknown, logger: Pick<typeof console, "warn">)
   }
 }
 
-function stampConfigVersion(cfg: OpenClawConfig): OpenClawConfig {
+function stampConfigVersion(cfg: AlisioConfig): AlisioConfig {
   const now = new Date().toISOString();
   return {
     ...cfg,
@@ -1510,7 +1513,7 @@ function stampConfigVersion(cfg: OpenClawConfig): OpenClawConfig {
   };
 }
 
-function warnIfConfigFromFuture(cfg: OpenClawConfig, logger: Pick<typeof console, "warn">): void {
+function warnIfConfigFromFuture(cfg: AlisioConfig, logger: Pick<typeof console, "warn">): void {
   const touched = cfg.meta?.lastTouchedVersion;
   if (!touched) {
     return;
@@ -1596,7 +1599,7 @@ function resolveConfigForRead(
 ): ConfigReadResolution {
   // Apply config.env to process.env BEFORE substitution so ${VAR} can reference config-defined vars.
   if (resolvedIncludes && typeof resolvedIncludes === "object" && "env" in resolvedIncludes) {
-    applyConfigEnvVars(resolvedIncludes as OpenClawConfig, env);
+    applyConfigEnvVars(resolvedIncludes as AlisioConfig, env);
   }
 
   // Collect missing env var references as warnings instead of throwing,
@@ -1637,9 +1640,9 @@ function createConfigFileSnapshot(params: {
   exists: boolean;
   raw: string | null;
   parsed: unknown;
-  sourceConfig: OpenClawConfig;
+  sourceConfig: AlisioConfig;
   valid: boolean;
-  runtimeConfig: OpenClawConfig;
+  runtimeConfig: AlisioConfig;
   hash?: string;
   issues: ConfigFileSnapshot["issues"];
   warnings: ConfigFileSnapshot["warnings"];
@@ -1686,7 +1689,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     return snapshot;
   }
 
-  function loadConfig(): OpenClawConfig {
+  function loadConfig(): AlisioConfig {
     try {
       maybeLoadDotEnvForConfig(deps.env);
       if (!deps.fs.existsSync(configPath)) {
@@ -1743,7 +1746,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         });
         return {};
       }
-      const preValidationDuplicates = findDuplicateAgentDirs(effectiveConfigRaw as OpenClawConfig, {
+      const preValidationDuplicates = findDuplicateAgentDirs(effectiveConfigRaw as AlisioConfig, {
         env: deps.env,
         homedir: deps.homedir,
       });
@@ -2072,7 +2075,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
   }
 
   async function writeConfigFile(
-    cfg: OpenClawConfig,
+    cfg: AlisioConfig,
     options: ConfigWriteOptions = {},
   ): Promise<{ persistedHash: string }> {
     clearConfigCache();
@@ -2134,7 +2137,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     // persisted to disk (issue #56772).
     // Apply legacy web-search normalization so that migration results are still
     // persisted even though we bypass validated.config.
-    let cfgToWrite = normalizeLegacyWebSearchConfig(persistCandidate) as OpenClawConfig;
+    let cfgToWrite = normalizeLegacyWebSearchConfig(persistCandidate) as AlisioConfig;
     try {
       if (deps.fs.existsSync(configPath)) {
         const currentRaw = await deps.fs.promises.readFile(configPath, "utf-8");
@@ -2148,7 +2151,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
             cfgToWrite,
             parsedRes.parsed,
             envForRestore,
-          ) as OpenClawConfig;
+          ) as AlisioConfig;
         }
       }
     } catch {
@@ -2165,7 +2168,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
     });
     const outputConfigBase =
       envRefMap && changedPaths
-        ? (restoreEnvRefsFromMap(cfgToWrite, "", envRefMap, changedPaths) as OpenClawConfig)
+        ? (restoreEnvRefsFromMap(cfgToWrite, "", envRefMap, changedPaths) as AlisioConfig)
         : cfgToWrite;
     let outputConfig = outputConfigBase;
     if (options.unsetPaths?.length) {
@@ -2209,7 +2212,11 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
         return;
       }
       const isVitest = deps.env.VITEST === "true";
-      const shouldLogInVitest = deps.env.OPENCLAW_TEST_CONFIG_OVERWRITE_LOG === "1";
+      const shouldLogInVitest =
+        readEnv("ALISIO_TEST_CONFIG_OVERWRITE_LOG", {
+          env: deps.env,
+          fallback: legacyEnvKey("TEST_CONFIG_OVERWRITE_LOG"),
+        }) === "1";
       if (isVitest && !shouldLogInVitest) {
         return;
       }
@@ -2225,7 +2232,11 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       }
       // Tests often write minimal configs (missing meta, etc); keep output quiet unless requested.
       const isVitest = deps.env.VITEST === "true";
-      const shouldLogInVitest = deps.env.OPENCLAW_TEST_CONFIG_WRITE_ANOMALY_LOG === "1";
+      const shouldLogInVitest =
+        readEnv("ALISIO_TEST_CONFIG_WRITE_ANOMALY_LOG", {
+          env: deps.env,
+          fallback: legacyEnvKey("TEST_CONFIG_WRITE_ANOMALY_LOG"),
+        }) === "1";
       if (isVitest && !shouldLogInVitest) {
         return;
       }
@@ -2241,17 +2252,21 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       cwd: process.cwd(),
       argv: process.argv.slice(0, 8),
       execArgv: process.execArgv.slice(0, 8),
-      watchMode: deps.env.OPENCLAW_WATCH_MODE === "1",
+      watchMode:
+        readEnv("ALISIO_WATCH_MODE", {
+          env: deps.env,
+          fallback: legacyEnvKey("WATCH_MODE"),
+        }) === "1",
       watchSession:
-        typeof deps.env.OPENCLAW_WATCH_SESSION === "string" &&
-        deps.env.OPENCLAW_WATCH_SESSION.trim().length > 0
-          ? deps.env.OPENCLAW_WATCH_SESSION.trim()
-          : null,
+        readEnv("ALISIO_WATCH_SESSION", {
+          env: deps.env,
+          fallback: legacyEnvKey("WATCH_SESSION"),
+        }) ?? null,
       watchCommand:
-        typeof deps.env.OPENCLAW_WATCH_COMMAND === "string" &&
-        deps.env.OPENCLAW_WATCH_COMMAND.trim().length > 0
-          ? deps.env.OPENCLAW_WATCH_COMMAND.trim()
-          : null,
+        readEnv("ALISIO_WATCH_COMMAND", {
+          env: deps.env,
+          fallback: legacyEnvKey("WATCH_COMMAND"),
+        }) ?? null,
       existsBefore: snapshot.exists,
       previousHash: previousHash ?? null,
       nextHash,
@@ -2372,13 +2387,13 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
 }
 
 // NOTE: These wrappers intentionally do *not* cache the resolved config path at
-// module scope. `OPENCLAW_CONFIG_PATH` (and friends) are expected to work even
+// module scope. `ALISIO_CONFIG_PATH` (and friends) are expected to work even
 // when set after the module has been imported (tests, one-off scripts, etc.).
 const AUTO_OWNER_DISPLAY_SECRET_BY_PATH = new Map<string, string>();
 const AUTO_OWNER_DISPLAY_SECRET_PERSIST_IN_FLIGHT = new Set<string>();
 const AUTO_OWNER_DISPLAY_SECRET_PERSIST_WARNED = new Set<string>();
-let runtimeConfigSnapshot: OpenClawConfig | null = null;
-let runtimeConfigSourceSnapshot: OpenClawConfig | null = null;
+let runtimeConfigSnapshot: AlisioConfig | null = null;
+let runtimeConfigSourceSnapshot: AlisioConfig | null = null;
 let runtimeConfigSnapshotRefreshHandler: RuntimeConfigSnapshotRefreshHandler | null = null;
 const configWriteListeners = new Set<(event: ConfigWriteNotification) => void>();
 
@@ -2405,10 +2420,7 @@ export function registerConfigWriteListener(
   };
 }
 
-export function setRuntimeConfigSnapshot(
-  config: OpenClawConfig,
-  sourceConfig?: OpenClawConfig,
-): void {
+export function setRuntimeConfigSnapshot(config: AlisioConfig, sourceConfig?: AlisioConfig): void {
   runtimeConfigSnapshot = config;
   runtimeConfigSourceSnapshot = sourceConfig ?? null;
 }
@@ -2422,17 +2434,17 @@ export function clearRuntimeConfigSnapshot(): void {
   resetConfigRuntimeState();
 }
 
-export function getRuntimeConfigSnapshot(): OpenClawConfig | null {
+export function getRuntimeConfigSnapshot(): AlisioConfig | null {
   return runtimeConfigSnapshot;
 }
 
-export function getRuntimeConfigSourceSnapshot(): OpenClawConfig | null {
+export function getRuntimeConfigSourceSnapshot(): AlisioConfig | null {
   return runtimeConfigSourceSnapshot;
 }
 
 function isCompatibleTopLevelRuntimeProjectionShape(params: {
-  runtimeSnapshot: OpenClawConfig;
-  candidate: OpenClawConfig;
+  runtimeSnapshot: AlisioConfig;
+  candidate: AlisioConfig;
 }): boolean {
   const runtime = params.runtimeSnapshot as Record<string, unknown>;
   const candidate = params.candidate as Record<string, unknown>;
@@ -2459,7 +2471,7 @@ function isCompatibleTopLevelRuntimeProjectionShape(params: {
   return true;
 }
 
-export function projectConfigOntoRuntimeSourceSnapshot(config: OpenClawConfig): OpenClawConfig {
+export function projectConfigOntoRuntimeSourceSnapshot(config: AlisioConfig): AlisioConfig {
   if (!runtimeConfigSnapshot || !runtimeConfigSourceSnapshot) {
     return config;
   }
@@ -2488,23 +2500,23 @@ export function setRuntimeConfigSnapshotRefreshHandler(
   runtimeConfigSnapshotRefreshHandler = refreshHandler;
 }
 
-export function loadConfig(): OpenClawConfig {
+export function loadConfig(): AlisioConfig {
   if (runtimeConfigSnapshot) {
     return runtimeConfigSnapshot;
   }
   const config = createConfigIO().loadConfig();
   // First successful load becomes the process snapshot. Long-lived runtimes
   // should swap this snapshot via explicit reload/watcher paths instead of
-  // reparsing openclaw.json on hot code paths.
+  // reparsing alisio.json on hot code paths.
   setRuntimeConfigSnapshot(config);
   return runtimeConfigSnapshot ?? config;
 }
 
-export function getRuntimeConfig(): OpenClawConfig {
+export function getRuntimeConfig(): AlisioConfig {
   return loadConfig();
 }
 
-export async function readBestEffortConfig(): Promise<OpenClawConfig> {
+export async function readBestEffortConfig(): Promise<AlisioConfig> {
   const snapshot = await readConfigFileSnapshot();
   return snapshot.valid ? loadConfig() : snapshot.config;
 }
@@ -2526,7 +2538,7 @@ export async function readSourceConfigSnapshotForWrite(): Promise<ReadConfigFile
 }
 
 export async function writeConfigFile(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   options: ConfigWriteOptions = {},
 ): Promise<void> {
   const io = createConfigIO();

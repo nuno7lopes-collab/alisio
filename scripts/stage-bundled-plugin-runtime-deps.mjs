@@ -1,8 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { hostPackageNames, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
 
 const WINDOWS_UNSAFE_CMD_CHARS_RE = /[&|<>^%\r\n]/;
 
@@ -18,8 +20,8 @@ function removePathIfExists(targetPath) {
   fs.rmSync(targetPath, { recursive: true, force: true });
 }
 
-function makeTempDir(parentDir, prefix) {
-  return fs.mkdtempSync(path.join(parentDir, prefix));
+function makeTempDir(prefix) {
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
 function listBundledPluginRuntimeDirs(repoRoot) {
@@ -43,10 +45,11 @@ function hasRuntimeDeps(packageJson) {
 }
 
 function shouldStageRuntimeDeps(packageJson) {
-  return packageJson.openclaw?.bundle?.stageRuntimeDependencies === true;
+  return readPackageBrandConfig(packageJson)?.bundle?.stageRuntimeDependencies === true;
 }
 
 function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.cwd()) {
+  const removableHostPackages = new Set(hostPackageNames(repoRoot));
   const manifestPath = path.join(pluginDir, "package.json");
   let packageJson;
   let shouldWriteManifest = false;
@@ -68,9 +71,13 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.
   }
   let changed = false;
 
-  if (packageJson.peerDependencies?.openclaw) {
+  if (
+    Object.keys(packageJson.peerDependencies ?? {}).some((name) => removableHostPackages.has(name))
+  ) {
     const nextPeerDependencies = { ...packageJson.peerDependencies };
-    delete nextPeerDependencies.openclaw;
+    for (const name of removableHostPackages) {
+      delete nextPeerDependencies[name];
+    }
     if (Object.keys(nextPeerDependencies).length === 0) {
       delete packageJson.peerDependencies;
     } else {
@@ -79,9 +86,15 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.
     changed = true;
   }
 
-  if (packageJson.peerDependenciesMeta?.openclaw) {
+  if (
+    Object.keys(packageJson.peerDependenciesMeta ?? {}).some((name) =>
+      removableHostPackages.has(name),
+    )
+  ) {
     const nextPeerDependenciesMeta = { ...packageJson.peerDependenciesMeta };
-    delete nextPeerDependenciesMeta.openclaw;
+    for (const name of removableHostPackages) {
+      delete nextPeerDependenciesMeta[name];
+    }
     if (Object.keys(nextPeerDependenciesMeta).length === 0) {
       delete packageJson.peerDependenciesMeta;
     } else {
@@ -90,9 +103,13 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.
     changed = true;
   }
 
-  if (packageJson.devDependencies?.openclaw) {
+  if (
+    Object.keys(packageJson.devDependencies ?? {}).some((name) => removableHostPackages.has(name))
+  ) {
     const nextDevDependencies = { ...packageJson.devDependencies };
-    delete nextDevDependencies.openclaw;
+    for (const name of removableHostPackages) {
+      delete nextDevDependencies[name];
+    }
     if (Object.keys(nextDevDependencies).length === 0) {
       delete packageJson.devDependencies;
     } else {
@@ -110,7 +127,7 @@ function sanitizeBundledManifestForRuntimeInstall(pluginDir, repoRoot = process.
 }
 
 function resolveRuntimeDepsStampPath(pluginDir) {
-  return path.join(pluginDir, ".openclaw-runtime-deps-stamp.json");
+  return path.join(pluginDir, ".alisio-runtime-deps-stamp.json");
 }
 
 function createRuntimeDepsFingerprint(packageJson) {
@@ -158,7 +175,7 @@ export function resolveNpmRunner(params = {}) {
     throw new Error(
       `failed to resolve a toolchain-local npm next to ${execPath}. ` +
         `Checked: ${expectedPaths.join(", ")}. ` +
-        "OpenClaw refuses to shell out to bare npm on Windows; install a Node.js toolchain that bundles npm or run with a matching Node installation.",
+        "Alisio refuses to shell out to bare npm on Windows; install a Node.js toolchain that bundles npm or run with a matching Node installation.",
     );
   }
   const pathKey = resolvePathEnvKey(env);
@@ -238,7 +255,7 @@ function installPluginRuntimeDeps(params) {
   const { fingerprint, packageJson, pluginDir, pluginId } = params;
   const nodeModulesDir = path.join(pluginDir, "node_modules");
   const stampPath = resolveRuntimeDepsStampPath(pluginDir);
-  const tempInstallDir = makeTempDir(pluginDir, ".runtime-deps-");
+  const tempInstallDir = makeTempDir(`alisio-runtime-deps-${pluginId}-`);
   const npmRunner = resolveNpmRunner({
     npmArgs: [
       "install",
@@ -274,7 +291,7 @@ function installPluginRuntimeDeps(params) {
     }
 
     removePathIfExists(nodeModulesDir);
-    fs.renameSync(stagedNodeModulesDir, nodeModulesDir);
+    fs.cpSync(stagedNodeModulesDir, nodeModulesDir, { recursive: true });
     writeJson(stampPath, {
       fingerprint,
       generatedAt: new Date().toISOString(),

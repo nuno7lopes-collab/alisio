@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { getPath } from "./path-utils.js";
 import { SECRET_TARGET_REGISTRY } from "./target-registry-data.js";
 import {
@@ -257,14 +257,12 @@ export function resolveConfigSecretTargetByPath(pathSegments: string[]): Resolve
   return null;
 }
 
-export function discoverConfigSecretTargets(
-  config: OpenClawConfig,
-): DiscoveredConfigSecretTarget[] {
+export function discoverConfigSecretTargets(config: AlisioConfig): DiscoveredConfigSecretTarget[] {
   return discoverConfigSecretTargetsByIds(config);
 }
 
 export function discoverConfigSecretTargetsByIds(
-  config: OpenClawConfig,
+  config: AlisioConfig,
   targetIds?: Iterable<string>,
 ): DiscoveredConfigSecretTarget[] {
   const allowedTargetIds = normalizeAllowedTargetIds(targetIds);

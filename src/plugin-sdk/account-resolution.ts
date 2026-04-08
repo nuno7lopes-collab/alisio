@@ -1,4 +1,5 @@
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 
 export { createAccountActionGate } from "../channels/plugins/account-action-gate.js";
 export {

@@ -1,7 +1,8 @@
 export type {
   ChannelMessageActionAdapter,
   ChannelPlugin,
-  OpenClawConfig,
+  AlisioConfig,
+  AlisioConfig as OpenClawConfig,
   OpenClawPluginApi,
   PluginRuntime,
   TelegramAccountConfig,

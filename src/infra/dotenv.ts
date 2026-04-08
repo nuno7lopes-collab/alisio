@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { resolveConfigDir } from "../utils.js";
+import { legacyEnvKey } from "./env.js";
 import {
   isDangerousHostEnvOverrideVarName,
   isDangerousHostEnvVarName,
@@ -14,13 +15,11 @@ const BLOCKED_WORKSPACE_DOTENV_KEYS = new Set([
   "HTTPS_PROXY",
   "NODE_TLS_REJECT_UNAUTHORIZED",
   "NO_PROXY",
-  "OPENCLAW_AGENT_DIR",
-  "OPENCLAW_CONFIG_PATH",
-  "OPENCLAW_HOME",
-  "OPENCLAW_OAUTH_DIR",
-  "OPENCLAW_PROFILE",
-  "OPENCLAW_STATE_DIR",
   "PI_CODING_AGENT_DIR",
+  ...["AGENT_DIR", "CONFIG_PATH", "HOME", "OAUTH_DIR", "PROFILE", "STATE_DIR"].flatMap((suffix) => [
+    `ALISIO_${suffix}`,
+    legacyEnvKey(suffix),
+  ]),
 ]);
 
 const BLOCKED_WORKSPACE_DOTENV_SUFFIXES = ["_BASE_URL"];
@@ -99,7 +98,7 @@ export function loadDotEnv(opts?: { quiet?: boolean }) {
   const cwdEnvPath = path.join(process.cwd(), ".env");
   loadWorkspaceDotEnvFile(cwdEnvPath, { quiet });
 
-  // Then load global fallback: ~/.openclaw/.env (or OPENCLAW_STATE_DIR/.env),
+  // Then load global fallback: ~/.alisio/.env (or ALISIO_STATE_DIR/.env),
   // without overriding any env vars already present.
   const globalEnvPath = path.join(resolveConfigDir(process.env), ".env");
   loadRuntimeDotEnvFile(globalEnvPath, { quiet });

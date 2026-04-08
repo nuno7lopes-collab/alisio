@@ -320,8 +320,7 @@ async function run() {
   const rawArgs = process.argv.slice(2);
   const dryRun = rawArgs.includes("--dry-run");
   const requireTests =
-    rawArgs.includes("--require-tests") ||
-    process.env.OPENCLAW_TEST_EXTENSION_REQUIRE_TESTS === "1";
+    rawArgs.includes("--require-tests") || process.env.ALISIO_TEST_EXTENSION_REQUIRE_TESTS === "1";
   const json = rawArgs.includes("--json");
   const list = rawArgs.includes("--list");
   const listChanged = rawArgs.includes("--list-changed");
@@ -448,7 +447,7 @@ async function run() {
     const isolatedExitCode = await runVitestBatch({
       args: passthroughArgs,
       config: plan.config,
-      env: { ...process.env, OPENCLAW_TEST_ISOLATE: "1" },
+      env: { ...process.env, ALISIO_TEST_ISOLATE: "1" },
       files: plan.isolatedTestFiles,
     });
     process.exit(isolatedExitCode);

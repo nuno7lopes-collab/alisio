@@ -1,8 +1,4 @@
 import {
-  resolveSendableOutboundReplyParts,
-  sendMediaWithLeadingCaption,
-} from "openclaw/plugin-sdk/reply-payload";
-import {
   chunkByParagraph,
   chunkMarkdownTextWithMode,
   resolveChunkMode,
@@ -14,7 +10,7 @@ import type {
   ChannelOutboundAdapter,
   ChannelOutboundContext,
 } from "../../channels/plugins/types.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import {
   appendAssistantMessageToSessionTranscript,
   resolveMirroredTranscriptText,
@@ -30,6 +26,10 @@ import {
 import { hasReplyPayloadContent } from "../../interactive/payload.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
 import { getAgentScopedMediaLocalRootsForSources } from "../../media/local-roots.js";
+import {
+  resolveSendableOutboundReplyParts,
+  sendMediaWithLeadingCaption,
+} from "../../plugin-sdk/reply-payload.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { throwIfAborted } from "./abort.js";
 import { resolveOutboundChannelPlugin } from "./channel-resolution.js";
@@ -118,7 +118,7 @@ type ChannelHandler = {
 };
 
 type ChannelHandlerParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel: Exclude<OutboundChannel, "none">;
   to: string;
   accountId?: string;
@@ -258,7 +258,7 @@ function createChannelOutboundContextBase(
 const isAbortError = (err: unknown): boolean => err instanceof Error && err.name === "AbortError";
 
 type DeliverOutboundPayloadsCoreParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel: Exclude<OutboundChannel, "none">;
   to: string;
   accountId?: string;
@@ -326,7 +326,7 @@ function normalizePayloadsForChannelDelivery(
     let sanitizedPayload = payload;
     // Strip HTML tags for plain-text surfaces (WhatsApp, Signal, etc.)
     // Models occasionally produce <br>, <b>, etc. that render as literal text.
-    // See https://github.com/openclaw/openclaw/issues/31884
+    // See https://github.com/alisio/alisio/issues/31884
     if (isPlainTextSurface(channel) && sanitizedPayload.text) {
       if (!handler.shouldSkipPlainTextSanitization?.(sanitizedPayload)) {
         sanitizedPayload = {

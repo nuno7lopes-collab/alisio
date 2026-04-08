@@ -1,4 +1,3 @@
-import { listChannelPairingRequests } from "openclaw/plugin-sdk/conversation-runtime";
 import {
   createAllowFromSection,
   createTopLevelChannelDmPolicy,
@@ -11,7 +10,6 @@ import {
   splitSetupEntries,
 } from "openclaw/plugin-sdk/setup";
 import type { ChannelSetupWizard } from "openclaw/plugin-sdk/setup";
-import { formatDocsLink } from "openclaw/plugin-sdk/setup-tools";
 import { inspectTelegramAccount } from "./account-inspect.js";
 import {
   listTelegramAccountIds,
@@ -22,8 +20,12 @@ import {
   resolveTelegramDmOnboardingStatus,
   type TelegramDmOnboardingStatus,
 } from "./dm-onboarding-state.js";
-import { buildTelegramOwnerAllowlistConfig } from "./owner-allowlist.js";
-import { armTelegramOwnerAutoApproval } from "./owner-auto-approval.js";
+import {
+  beginTelegramOwnerOnboarding,
+  clearTelegramOwnerOnboarding,
+  type TelegramOwnerOnboardingSession,
+} from "./owner-onboarding.js";
+import { probeTelegram } from "./probe.js";
 import {
   parseTelegramAllowFromId,
   promptTelegramAllowFromForAccount,
@@ -87,54 +89,45 @@ function shouldShowTelegramDmAccessWarning(cfg: OpenClawConfig, accountId: strin
   return policy === "pairing" && !hasAllowFrom;
 }
 
-function buildTelegramDmAccessWarningLines(_accountId: string): string[] {
-  return [
-    "Telegram is connected, but it still needs to identify your account.",
-    "Open Telegram and send a message to the bot from the account that should use it.",
-    "OpenClaw will authorize that first direct message automatically.",
-    "Keep this setup window open until Telegram is ready.",
-    `Docs: ${formatDocsLink("/channels/pairing", "channels/pairing")}`,
+async function createTelegramOwnerOnboardingSession(params: {
+  cfg: OpenClawConfig;
+  accountId: string;
+}): Promise<TelegramOwnerOnboardingSession> {
+  const inspected = inspectTelegramAccount({
+    cfg: params.cfg,
+    accountId: params.accountId,
+  });
+  const probe = inspected.token
+    ? await probeTelegram(inspected.token, 2500, {
+        accountId: params.accountId,
+        proxyUrl: inspected.config.proxy,
+        network: inspected.config.network,
+        apiRoot: inspected.config.apiRoot,
+      }).catch(() => null)
+    : null;
+  return await beginTelegramOwnerOnboarding({
+    accountId: params.accountId,
+    botUsername: probe?.bot?.username ?? null,
+  });
+}
+
+function buildTelegramDmAccessWarningLines(onboarding: TelegramOwnerOnboardingSession): string[] {
+  const lines = [
+    "Telegram is connected. Now Alisio needs to confirm which Telegram account is yours.",
   ];
-}
-
-async function shouldArmTelegramOwnerAutoApproval(params: {
-  cfg: OpenClawConfig;
-  accountId: string;
-}): Promise<boolean> {
-  const onboarding = await resolveTelegramDmOnboardingStatus(params);
-  return onboarding !== null;
-}
-
-async function resolvePendingTelegramPairingUserIds(accountId: string): Promise<string[]> {
-  const pendingRequests = await listChannelPairingRequests(
-    "telegram",
-    process.env,
-    accountId,
-  ).catch(() => []);
-  return Array.from(
-    new Set(pendingRequests.map((entry) => String(entry.id ?? "").trim()).filter(Boolean)),
-  );
-}
-
-async function maybeAutoApproveExistingTelegramRequest(params: {
-  cfg: OpenClawConfig;
-  accountId: string;
-}): Promise<{ cfg: OpenClawConfig; autoApproved: boolean }> {
-  if (!shouldShowTelegramDmAccessWarning(params.cfg, params.accountId)) {
-    return { cfg: params.cfg, autoApproved: false };
+  if (onboarding.deepLink) {
+    lines.push("Open Telegram with this link and tap Start:");
+    lines.push(onboarding.deepLink);
+    lines.push("If the link does not open Telegram, send this one-time setup message instead:");
+    lines.push(onboarding.startCommand);
+  } else {
+    lines.push(
+      "Send this one-time setup message to the bot from the Telegram account that should use it:",
+    );
+    lines.push(onboarding.startCommand);
   }
-  const pendingUserIds = await resolvePendingTelegramPairingUserIds(params.accountId);
-  if (pendingUserIds.length !== 1) {
-    return { cfg: params.cfg, autoApproved: false };
-  }
-  return {
-    cfg: buildTelegramOwnerAllowlistConfig({
-      cfg: params.cfg,
-      accountId: params.accountId,
-      telegramUserId: pendingUserIds[0]!,
-    }),
-    autoApproved: true,
-  };
+  lines.push("As soon as Telegram receives it, Alisio will approve that account automatically.");
+  return lines;
 }
 
 const dmPolicy = createTopLevelChannelDmPolicy({
@@ -250,30 +243,20 @@ export const telegramSetupWizard: ChannelSetupWizard = {
       }),
   }),
   finalize: async ({ cfg, accountId, prompter }) => {
-    const autoApproved = await maybeAutoApproveExistingTelegramRequest({ cfg, accountId });
-    if (autoApproved.autoApproved) {
-      await prompter.note(
-        [
-          "OpenClaw found your previous Telegram message and finished the first approval automatically.",
-          "You can go back to Telegram and start chatting.",
-        ].join("\n"),
-        "Telegram ready",
-      );
-      return { cfg: autoApproved.cfg };
-    }
     if (!shouldShowTelegramDmAccessWarning(cfg, accountId)) {
+      await clearTelegramOwnerOnboarding({ accountId }).catch(() => {});
       return;
     }
+    const onboarding = await createTelegramOwnerOnboardingSession({ cfg, accountId });
     await prompter.note(
-      buildTelegramDmAccessWarningLines(accountId).join("\n"),
-      "Telegram DM access warning",
+      buildTelegramDmAccessWarningLines(onboarding).join("\n"),
+      "Finish Telegram setup",
     );
   },
   afterConfigWritten: async ({ cfg, accountId }) => {
-    if (!(await shouldArmTelegramOwnerAutoApproval({ cfg, accountId }))) {
-      return;
+    if (!shouldShowTelegramDmAccessWarning(cfg, accountId)) {
+      await clearTelegramOwnerOnboarding({ accountId }).catch(() => {});
     }
-    armTelegramOwnerAutoApproval({ accountId });
   },
   dmPolicy,
   disable: (cfg) => setSetupChannelEnabled(cfg, channel, false),

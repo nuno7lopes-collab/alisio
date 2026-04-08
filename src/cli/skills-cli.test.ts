@@ -14,6 +14,18 @@ function createMockSkill(overrides: Partial<SkillStatusEntry> = {}): SkillStatus
     name: "test-skill",
     description: "A test skill",
     source: "bundled",
+    manifestSource: "manifest",
+    manifestValid: true,
+    marketplaceReady: true,
+    manifestIssues: [],
+    permissions: {
+      consent: "explicit",
+      sandbox: {
+        mode: "isolated",
+        filesystem: "read-only",
+        network: "off",
+      },
+    },
     bundled: false,
     filePath: "/path/to/SKILL.md",
     baseDir: "/path/to",

@@ -1,5 +1,5 @@
 import { formatCliCommand } from "../../cli/command-format.js";
-import type { OpenClawConfig } from "../../config/config.js";
+import type { AlisioConfig } from "../../config/config.js";
 import {
   canonicalizeMainSessionAlias,
   resolveAgentMainSessionKey,
@@ -22,10 +22,7 @@ function shouldSandboxSession(cfg: SandboxConfig, sessionKey: string, mainSessio
   return sessionKey.trim() !== mainSessionKey.trim();
 }
 
-function resolveMainSessionKeyForSandbox(params: {
-  cfg?: OpenClawConfig;
-  agentId: string;
-}): string {
+function resolveMainSessionKeyForSandbox(params: { cfg?: AlisioConfig; agentId: string }): string {
   if (params.cfg?.session?.scope === "global") {
     return "global";
   }
@@ -36,7 +33,7 @@ function resolveMainSessionKeyForSandbox(params: {
 }
 
 function resolveComparableSessionKeyForSandbox(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   agentId: string;
   sessionKey: string;
 }): string {
@@ -47,10 +44,7 @@ function resolveComparableSessionKeyForSandbox(params: {
   });
 }
 
-export function resolveSandboxRuntimeStatus(params: {
-  cfg?: OpenClawConfig;
-  sessionKey?: string;
-}): {
+export function resolveSandboxRuntimeStatus(params: { cfg?: AlisioConfig; sessionKey?: string }): {
   agentId: string;
   sessionKey: string;
   mainSessionKey: string;
@@ -125,7 +119,7 @@ function shellEscapeSingleArg(value: string): string {
 }
 
 export function formatSandboxToolPolicyBlockedMessage(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   sessionKey?: string;
   toolName: string;
 }): string | undefined {

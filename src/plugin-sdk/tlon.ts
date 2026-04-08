@@ -16,7 +16,8 @@ export type {
 } from "../channels/plugins/types.js";
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
-export type { OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
+export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { createDedupeCache } from "../infra/dedupe.js";
 export { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 export type { LookupFn, SsrFPolicy } from "../infra/net/ssrf.js";

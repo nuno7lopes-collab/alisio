@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../config/config.js";
+import type { AlisioConfig } from "../config/config.js";
 import { createEmptyPluginRegistry } from "../plugins/registry.js";
 import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../plugins/runtime.js";
 
@@ -18,7 +18,7 @@ let listRuntimeImageGenerationProviders: typeof import("./runtime.js").listRunti
 
 function setCompatibleActiveImageGenerationRegistry(
   pluginRegistry: ReturnType<typeof createEmptyPluginRegistry>,
-  _cfg: OpenClawConfig,
+  _cfg: AlisioConfig,
 ) {
   setActivePluginRegistry(pluginRegistry);
 }
@@ -79,7 +79,7 @@ describe("image-generation runtime helpers", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     setCompatibleActiveImageGenerationRegistry(pluginRegistry, cfg);
 
     const result = await generateImage({
@@ -130,7 +130,7 @@ describe("image-generation runtime helpers", () => {
       },
     });
     resolveRuntimePluginRegistryMock.mockReturnValue(pluginRegistry);
-    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as OpenClawConfig);
+    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as AlisioConfig);
 
     expect(listRuntimeImageGenerationProviders()).toMatchObject([
       {
@@ -190,9 +190,9 @@ describe("image-generation runtime helpers", () => {
       },
     );
     resolveRuntimePluginRegistryMock.mockReturnValue(pluginRegistry);
-    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as OpenClawConfig);
+    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as AlisioConfig);
 
-    const promise = generateImage({ cfg: {} as OpenClawConfig, prompt: "draw a cat" });
+    const promise = generateImage({ cfg: {} as AlisioConfig, prompt: "draw a cat" });
 
     await expect(promise).rejects.toThrow("No image-generation model configured.");
     await expect(promise).rejects.toThrow(
@@ -221,10 +221,10 @@ describe("image-generation runtime helpers", () => {
       },
     });
     resolveRuntimePluginRegistryMock.mockReturnValue(pluginRegistry);
-    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as OpenClawConfig);
+    setCompatibleActiveImageGenerationRegistry(pluginRegistry, {} as AlisioConfig);
 
-    await expect(
-      generateImage({ cfg: {} as OpenClawConfig, prompt: "draw a cat" }),
-    ).rejects.toThrow("No image-generation model configured.");
+    await expect(generateImage({ cfg: {} as AlisioConfig, prompt: "draw a cat" })).rejects.toThrow(
+      "No image-generation model configured.",
+    );
   });
 });

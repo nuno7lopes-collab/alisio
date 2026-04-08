@@ -1,17 +1,17 @@
-import type { OpenClawConfig, HumanDelayConfig, IdentityConfig } from "../config/config.js";
+import type { AlisioConfig, HumanDelayConfig, IdentityConfig } from "../config/config.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 
 const DEFAULT_ACK_REACTION = "👀";
 
 export function resolveAgentIdentity(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
 ): IdentityConfig | undefined {
   return resolveAgentConfig(cfg, agentId)?.identity;
 }
 
 export function resolveAckReaction(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
   opts?: { channel?: string; accountId?: string },
 ): string {
@@ -45,10 +45,7 @@ export function resolveAckReaction(
   return emoji || DEFAULT_ACK_REACTION;
 }
 
-export function resolveIdentityNamePrefix(
-  cfg: OpenClawConfig,
-  agentId: string,
-): string | undefined {
+export function resolveIdentityNamePrefix(cfg: AlisioConfig, agentId: string): string | undefined {
   const name = resolveAgentIdentity(cfg, agentId)?.name?.trim();
   if (!name) {
     return undefined;
@@ -57,12 +54,12 @@ export function resolveIdentityNamePrefix(
 }
 
 /** Returns just the identity name (without brackets) for template context. */
-export function resolveIdentityName(cfg: OpenClawConfig, agentId: string): string | undefined {
+export function resolveIdentityName(cfg: AlisioConfig, agentId: string): string | undefined {
   return resolveAgentIdentity(cfg, agentId)?.name?.trim() || undefined;
 }
 
 export function resolveMessagePrefix(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
   opts?: { configured?: string; hasAllowFrom?: boolean; fallback?: string },
 ): string {
@@ -80,10 +77,7 @@ export function resolveMessagePrefix(
 }
 
 /** Helper to extract a channel config value by dynamic key. */
-function getChannelConfig(
-  cfg: OpenClawConfig,
-  channel: string,
-): Record<string, unknown> | undefined {
+function getChannelConfig(cfg: AlisioConfig, channel: string): Record<string, unknown> | undefined {
   const channels = cfg.channels as Record<string, unknown> | undefined;
   const value = channels?.[channel];
   return typeof value === "object" && value !== null
@@ -92,7 +86,7 @@ function getChannelConfig(
 }
 
 export function resolveResponsePrefix(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
   opts?: { channel?: string; accountId?: string },
 ): string | undefined {
@@ -133,7 +127,7 @@ export function resolveResponsePrefix(
 }
 
 export function resolveEffectiveMessagesConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
   opts?: {
     hasAllowFrom?: boolean;
@@ -155,7 +149,7 @@ export function resolveEffectiveMessagesConfig(
 }
 
 export function resolveHumanDelayConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId: string,
 ): HumanDelayConfig | undefined {
   const defaults = cfg.agents?.defaults?.humanDelay;

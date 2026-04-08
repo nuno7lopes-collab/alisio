@@ -2,6 +2,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 
 let log: ReturnType<typeof createSubsystemLogger> | null = null;
 const loggedEnv = new Set<string>();
+const LEGACY_RUNTIME_PREFIX = "OPENCLAW";
 
 function getLog(): ReturnType<typeof createSubsystemLogger> {
   if (!log) {
@@ -43,6 +44,51 @@ export function logAcceptedEnvOption(option: AcceptedEnvOption): void {
   getLog().info(
     `env: ${option.key}=${formatEnvValue(rawValue, option.redact)} (${option.description})`,
   );
+}
+
+export function legacyEnvKey(suffix: string): string {
+  return `${LEGACY_RUNTIME_PREFIX}_${suffix.trim()}`;
+}
+
+export function readEnv(
+  key: string,
+  options: {
+    env?: NodeJS.ProcessEnv;
+    fallback?: string | readonly string[];
+    description?: string;
+    redact?: boolean;
+  } = {},
+): string | undefined {
+  const env = options.env ?? process.env;
+  const candidates = [
+    key,
+    ...(Array.isArray(options.fallback)
+      ? options.fallback
+      : options.fallback
+        ? [options.fallback]
+        : []),
+  ];
+
+  for (const candidate of candidates) {
+    const value = env[candidate]?.trim();
+    if (!value) {
+      continue;
+    }
+    if (options.description) {
+      logAcceptedEnvOption({
+        key: candidate,
+        description:
+          candidate === key
+            ? options.description
+            : `${options.description}; compatibility fallback for ${key}`,
+        value,
+        redact: options.redact,
+      });
+    }
+    return value;
+  }
+
+  return undefined;
 }
 
 export function normalizeZaiEnv(): void {
