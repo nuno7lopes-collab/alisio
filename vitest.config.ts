@@ -83,6 +83,7 @@ export default defineConfig({
       "ui/src/ui/app-chat.test.ts",
       "ui/src/ui/app-polling.test.ts",
       "ui/src/ui/app-settings.test.ts",
+      "ui/src/ui/alisio-account-auth.node.test.ts",
       "ui/src/ui/alisio-connector-oauth.node.test.ts",
       "ui/src/ui/chat/**/*.test.ts",
       "ui/src/ui/memory-files.test.ts",

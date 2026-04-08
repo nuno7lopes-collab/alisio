@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  beginAlisioCloudAccountEmailAuth,
+  completeAlisioCloudAccountEmailLinkAuth,
   completeAlisioCloudAccountProfile,
   listMissingRequiredAlisioCloudEnvVars,
   resolveAlisioAccountBackend,
@@ -119,6 +121,86 @@ describe("alisio-account-cloud", () => {
       fetchImpl: fetchMock,
     });
 
+    expect(result.profile).toMatchObject({
+      email: "owner@example.com",
+      profileCompleted: false,
+      backend: "supabase",
+    });
+  });
+
+  it("passes a redirect_to header when email auth provides a callback url", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      expect(new Headers(init?.headers).get("redirect_to")).toBe(
+        "http://localhost:18789/logout/setup?step=account",
+      );
+      expect(String(input)).toContain(
+        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+      );
+      expect(parseJsonBody(init?.body)).toEqual({
+        email: "owner@example.com",
+        create_user: true,
+      });
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const result = await beginAlisioCloudAccountEmailAuth({
+      email: "owner@example.com",
+      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      email: "owner@example.com",
+      message: "Check your email for the verification code or sign-in link, then return to Alisio.",
+    });
+  });
+
+  it("completes email link auth from returned Supabase tokens", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "user-1",
+            email: "owner@example.com",
+            created_at: "2026-04-04T15:30:00.000Z",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => {
+        const payload = parseJsonBody(init?.body);
+        expect(payload.user_id).toBe("user-1");
+        expect(payload.email).toBe("owner@example.com");
+        expect(payload.profile_completed).toBe(false);
+        return new Response(JSON.stringify([payload]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+    const result = await completeAlisioCloudAccountEmailLinkAuth({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresIn: 3600,
+      tokenType: "bearer",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result.session).toMatchObject({
+      backend: "supabase",
+      state: "signed_in",
+      authMethod: "email",
+      userId: "user-1",
+      email: "owner@example.com",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      tokenType: "bearer",
+    });
     expect(result.profile).toMatchObject({
       email: "owner@example.com",
       profileCompleted: false,

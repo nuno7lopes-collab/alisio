@@ -2,6 +2,7 @@ export type ExecApprovalRequestPayload = {
   command: string;
   cwd?: string | null;
   host?: string | null;
+  nodeId?: string | null;
   security?: string | null;
   ask?: string | null;
   agentId?: string | null;
@@ -26,10 +27,72 @@ export type ExecApprovalResolved = {
   decision?: string | null;
   resolvedBy?: string | null;
   ts?: number | null;
+  request?: ExecApprovalRequestPayload | null;
+};
+
+export type ExecApprovalAuditEntry = {
+  id: string;
+  kind: "exec" | "plugin";
+  title: string;
+  summary: string;
+  decision: string;
+  resolvedBy?: string | null;
+  ts: number;
+  request: ExecApprovalRequestPayload;
+  pluginId?: string | null;
+  pluginSeverity?: string | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function parseExecApprovalRequestPayload(request: unknown): ExecApprovalRequestPayload | null {
+  if (!isRecord(request)) {
+    return null;
+  }
+  const command = typeof request.command === "string" ? request.command.trim() : "";
+  if (!command) {
+    return null;
+  }
+  return {
+    command,
+    cwd: typeof request.cwd === "string" ? request.cwd : null,
+    host: typeof request.host === "string" ? request.host : null,
+    nodeId: typeof request.nodeId === "string" ? request.nodeId : null,
+    security: typeof request.security === "string" ? request.security : null,
+    ask: typeof request.ask === "string" ? request.ask : null,
+    agentId: typeof request.agentId === "string" ? request.agentId : null,
+    resolvedPath: typeof request.resolvedPath === "string" ? request.resolvedPath : null,
+    sessionKey: typeof request.sessionKey === "string" ? request.sessionKey : null,
+  };
+}
+
+function parsePluginApprovalRequestDetails(request: unknown): {
+  request: ExecApprovalRequestPayload;
+  title: string;
+  description: string | null;
+  severity: string | null;
+  pluginId: string | null;
+} | null {
+  if (!isRecord(request)) {
+    return null;
+  }
+  const title = typeof request.title === "string" ? request.title.trim() : "";
+  if (!title) {
+    return null;
+  }
+  return {
+    request: {
+      command: title,
+      agentId: typeof request.agentId === "string" ? request.agentId : null,
+      sessionKey: typeof request.sessionKey === "string" ? request.sessionKey : null,
+    },
+    title,
+    description: typeof request.description === "string" ? request.description : null,
+    severity: typeof request.severity === "string" ? request.severity : null,
+    pluginId: typeof request.pluginId === "string" ? request.pluginId : null,
+  };
 }
 
 export function parseExecApprovalRequested(payload: unknown): ExecApprovalRequest | null {
@@ -38,11 +101,11 @@ export function parseExecApprovalRequested(payload: unknown): ExecApprovalReques
   }
   const id = typeof payload.id === "string" ? payload.id.trim() : "";
   const request = payload.request;
-  if (!id || !isRecord(request)) {
+  if (!id) {
     return null;
   }
-  const command = typeof request.command === "string" ? request.command.trim() : "";
-  if (!command) {
+  const parsedRequest = parseExecApprovalRequestPayload(request);
+  if (!parsedRequest) {
     return null;
   }
   const createdAtMs = typeof payload.createdAtMs === "number" ? payload.createdAtMs : 0;
@@ -53,16 +116,7 @@ export function parseExecApprovalRequested(payload: unknown): ExecApprovalReques
   return {
     id,
     kind: "exec",
-    request: {
-      command,
-      cwd: typeof request.cwd === "string" ? request.cwd : null,
-      host: typeof request.host === "string" ? request.host : null,
-      security: typeof request.security === "string" ? request.security : null,
-      ask: typeof request.ask === "string" ? request.ask : null,
-      agentId: typeof request.agentId === "string" ? request.agentId : null,
-      resolvedPath: typeof request.resolvedPath === "string" ? request.resolvedPath : null,
-      sessionKey: typeof request.sessionKey === "string" ? request.sessionKey : null,
-    },
+    request: parsedRequest,
     createdAtMs,
     expiresAtMs,
   };
@@ -81,6 +135,7 @@ export function parseExecApprovalResolved(payload: unknown): ExecApprovalResolve
     decision: typeof payload.decision === "string" ? payload.decision : null,
     resolvedBy: typeof payload.resolvedBy === "string" ? payload.resolvedBy : null,
     ts: typeof payload.ts === "number" ? payload.ts : null,
+    request: parseExecApprovalRequestPayload(payload.request),
   };
 }
 
@@ -97,31 +152,79 @@ export function parsePluginApprovalRequested(payload: unknown): ExecApprovalRequ
   if (!createdAtMs || !expiresAtMs) {
     return null;
   }
-  // title, description, severity, pluginId, agentId, sessionKey live inside payload.request
-  const request = isRecord(payload.request) ? payload.request : {};
-  const title = typeof request.title === "string" ? request.title.trim() : "";
-  if (!title) {
+  const details = parsePluginApprovalRequestDetails(payload.request);
+  if (!details) {
     return null;
   }
-  const description = typeof request.description === "string" ? request.description : null;
-  const severity = typeof request.severity === "string" ? request.severity : null;
-  const pluginId = typeof request.pluginId === "string" ? request.pluginId : null;
 
   return {
     id,
     kind: "plugin",
-    request: {
-      command: title,
-      agentId: typeof request.agentId === "string" ? request.agentId : null,
-      sessionKey: typeof request.sessionKey === "string" ? request.sessionKey : null,
-    },
-    pluginTitle: title,
-    pluginDescription: description,
-    pluginSeverity: severity,
-    pluginId,
+    request: details.request,
+    pluginTitle: details.title,
+    pluginDescription: details.description,
+    pluginSeverity: details.severity,
+    pluginId: details.pluginId,
     createdAtMs,
     expiresAtMs,
   };
+}
+
+export function parseApprovalAuditEntry(
+  kind: "exec" | "plugin",
+  payload: unknown,
+): ExecApprovalAuditEntry | null {
+  if (!isRecord(payload)) {
+    return null;
+  }
+  const id = typeof payload.id === "string" ? payload.id.trim() : "";
+  const decision = typeof payload.decision === "string" ? payload.decision.trim() : "";
+  const ts = typeof payload.ts === "number" ? payload.ts : 0;
+  if (!id || !decision || !ts) {
+    return null;
+  }
+  if (kind === "plugin") {
+    const details = parsePluginApprovalRequestDetails(payload.request);
+    if (!details) {
+      return null;
+    }
+    return {
+      id,
+      kind,
+      title: details.title,
+      summary: details.description ?? details.title,
+      decision,
+      resolvedBy: typeof payload.resolvedBy === "string" ? payload.resolvedBy : null,
+      ts,
+      request: details.request,
+      pluginId: details.pluginId,
+      pluginSeverity: details.severity,
+    };
+  }
+  const request = parseExecApprovalRequestPayload(payload.request);
+  if (!request) {
+    return null;
+  }
+  return {
+    id,
+    kind,
+    title: request.command,
+    summary: request.command,
+    decision,
+    resolvedBy: typeof payload.resolvedBy === "string" ? payload.resolvedBy : null,
+    ts,
+    request,
+  };
+}
+
+export function addExecApprovalAuditEntry(
+  entries: ExecApprovalAuditEntry[],
+  entry: ExecApprovalAuditEntry,
+  limit = 12,
+): ExecApprovalAuditEntry[] {
+  const next = entries.filter((item) => item.id !== entry.id);
+  next.unshift(entry);
+  return next.slice(0, limit);
 }
 
 export function pruneExecApprovalQueue(queue: ExecApprovalRequest[]): ExecApprovalRequest[] {

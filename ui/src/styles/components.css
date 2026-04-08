@@ -5243,6 +5243,103 @@ td.data-table-key-col {
   gap: 12px;
 }
 
+.alisio-security-mode-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-elevated) 46%, transparent);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) ease,
+    background var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease,
+    transform var(--duration-fast) ease;
+}
+
+.alisio-security-mode-card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  background: color-mix(in srgb, var(--bg-hover) 72%, transparent);
+  transform: translateY(-1px);
+}
+
+.alisio-security-mode-card.is-active {
+  border-color: color-mix(in srgb, var(--accent) 46%, transparent);
+  background: color-mix(in srgb, var(--accent-subtle) 72%, transparent);
+  box-shadow: 0 12px 24px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.alisio-security-mode-card.is-custom {
+  cursor: default;
+}
+
+.alisio-security-mode-card:disabled {
+  opacity: 1;
+}
+
+.alisio-security-mode-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alisio-security-mode-card__head > span:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.alisio-security-mode-card__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.alisio-security-mode-card__title {
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.alisio-security-mode-card__body {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.alisio-security-mode-card__list,
+.alisio-security-checklist {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.alisio-security-mode-card__list {
+  padding-left: 0;
+}
+
+.alisio-security-mode-card__list-item {
+  position: relative;
+  display: block;
+  padding-left: 18px;
+}
+
+.alisio-security-mode-card__list-item::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
 .alisio-security-access__strip {
   display: flex;
   flex-wrap: wrap;

@@ -33,9 +33,11 @@ import { loadChatHistory } from "./controllers/chat.ts";
 import { handleChatEvent, type ChatEventPayload } from "./controllers/chat.ts";
 import { loadControlUiBootstrapConfig } from "./controllers/control-ui-bootstrap.ts";
 import { loadDevices } from "./controllers/devices.ts";
-import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
+import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import {
   addExecApproval,
+  addExecApprovalAuditEntry,
+  parseApprovalAuditEntry,
   parseExecApprovalRequested,
   parseExecApprovalResolved,
   parsePluginApprovalRequested,
@@ -103,6 +105,7 @@ type GatewayHost = {
   chatFinalizing?: boolean;
   refreshSessionsAfterChat: Set<string>;
   execApprovalQueue: ExecApprovalRequest[];
+  execApprovalAuditTrail: ExecApprovalAuditEntry[];
   execApprovalError: string | null;
   updateAvailable: UpdateAvailable | null;
   bootstrapDeviceRetryConsumed?: boolean;
@@ -315,6 +318,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
     shutdownHost.resumeChatQueueAfterReconnect = true;
   } else {
     host.execApprovalQueue = [];
+    host.execApprovalAuditTrail = [];
   }
   host.execApprovalError = null;
 
@@ -737,6 +741,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     const resolved = parseExecApprovalResolved(evt.payload);
     if (resolved) {
       host.execApprovalQueue = removeExecApproval(host.execApprovalQueue, resolved.id);
+      const audit = parseApprovalAuditEntry("exec", evt.payload);
+      if (audit) {
+        host.execApprovalAuditTrail = addExecApprovalAuditEntry(host.execApprovalAuditTrail, audit);
+      }
     }
     return;
   }
@@ -758,6 +766,10 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     const resolved = parseExecApprovalResolved(evt.payload);
     if (resolved) {
       host.execApprovalQueue = removeExecApproval(host.execApprovalQueue, resolved.id);
+      const audit = parseApprovalAuditEntry("plugin", evt.payload);
+      if (audit) {
+        host.execApprovalAuditTrail = addExecApprovalAuditEntry(host.execApprovalAuditTrail, audit);
+      }
     }
     return;
   }

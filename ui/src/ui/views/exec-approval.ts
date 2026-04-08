@@ -7,6 +7,11 @@ import type {
 } from "../controllers/exec-approval.ts";
 import { sortExecApprovalQueue } from "../controllers/exec-approval.ts";
 import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
+import {
+  resolveApprovalAccessLabel,
+  resolveApprovalAskLabel,
+  resolveApprovalEffectText,
+} from "./approval-summary.ts";
 import { resolveSessionDisplayName } from "./session-display.ts";
 
 export function formatApprovalRemaining(ms: number): string {
@@ -50,11 +55,18 @@ function renderExecBody(request: ExecApprovalRequestPayload, identity: ApprovalP
   return html`
     <div class="exec-approval-command mono">${request.command}</div>
     <div class="exec-approval-meta">
+      ${renderMetaRow(
+        t("alisio.security.queue.labels.access"),
+        resolveApprovalAccessLabel(request),
+      )}
+      ${renderMetaRow(
+        t("alisio.security.queue.labels.review"),
+        resolveApprovalAskLabel(request.ask),
+      )}
       ${renderMetaRow("Host", request.host)} ${renderMetaRow("Agent", agentLabel)}
       ${renderMetaRow("Session", sessionLabel)}
       ${renderMetaRow("CWD", request.cwd, { tone: "code" })}
       ${renderMetaRow("Resolved", request.resolvedPath, { tone: "code" })}
-      ${renderMetaRow("Security", request.security)} ${renderMetaRow("Ask", request.ask)}
     </div>
   `;
 }
@@ -73,6 +85,10 @@ ${active.pluginDescription}</pre
         >`
       : nothing}
     <div class="exec-approval-meta">
+      ${renderMetaRow(
+        t("alisio.security.queue.labels.review"),
+        t("alisio.security.queue.review.human"),
+      )}
       ${renderMetaRow("Severity", active.pluginSeverity)}
       ${renderMetaRow("Plugin", active.pluginId, { tone: "code" })}
       ${renderMetaRow("Agent", agentLabel)} ${renderMetaRow("Session", sessionLabel)}
@@ -97,12 +113,14 @@ export function renderExecApprovalPrompt(state: AppViewState) {
   const title = isPlugin
     ? (active.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
     : t("alisio.security.queue.execApproval");
+  const effectText = resolveApprovalEffectText(active);
   return html`
     <div class="exec-approval-overlay" role="dialog" aria-modal="true" aria-live="polite">
       <div class="exec-approval-card">
         <div class="exec-approval-header">
           <div>
             <div class="exec-approval-title">${title}</div>
+            <div class="exec-approval-sub">${effectText}</div>
             <div class="exec-approval-sub">${remaining}</div>
           </div>
           ${queueCount > 1

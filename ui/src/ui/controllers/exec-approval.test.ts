@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { parseExecApprovalRequested, parsePluginApprovalRequested } from "./exec-approval.ts";
+import {
+  addExecApprovalAuditEntry,
+  parseApprovalAuditEntry,
+  parseExecApprovalRequested,
+  parsePluginApprovalRequested,
+} from "./exec-approval.ts";
 
 describe("parseExecApprovalRequested", () => {
   it("returns entries with kind 'exec'", () => {
     const result = parseExecApprovalRequested({
       id: "exec-1",
-      request: { command: "rm -rf /" },
+      request: { command: "rm -rf /", nodeId: "node-1" },
       createdAtMs: 1000,
       expiresAtMs: 2000,
     });
     expect(result).not.toBeNull();
     expect(result!.kind).toBe("exec");
     expect(result!.request.command).toBe("rm -rf /");
+    expect(result!.request.nodeId).toBe("node-1");
   });
 });
 
@@ -94,5 +100,82 @@ describe("parsePluginApprovalRequested", () => {
     expect(result!.pluginId).toBeNull();
     expect(result!.request.agentId).toBeNull();
     expect(result!.request.sessionKey).toBeNull();
+  });
+});
+
+describe("parseApprovalAuditEntry", () => {
+  it("parses resolved exec approvals into audit entries", () => {
+    expect(
+      parseApprovalAuditEntry("exec", {
+        id: "exec-1",
+        decision: "allow-once",
+        resolvedBy: "Operator",
+        ts: 1234,
+        request: {
+          command: "uname -a",
+          host: "gateway",
+          security: "allowlist",
+          ask: "on-miss",
+        },
+      }),
+    ).toMatchObject({
+      id: "exec-1",
+      kind: "exec",
+      decision: "allow-once",
+      resolvedBy: "Operator",
+      request: { command: "uname -a" },
+    });
+  });
+
+  it("parses resolved plugin approvals into audit entries", () => {
+    expect(
+      parseApprovalAuditEntry("plugin", {
+        id: "plugin-1",
+        decision: "deny",
+        ts: 4567,
+        request: {
+          title: "Dangerous action",
+          description: "Changes production data",
+          severity: "high",
+          pluginId: "sage",
+        },
+      }),
+    ).toMatchObject({
+      id: "plugin-1",
+      kind: "plugin",
+      decision: "deny",
+      title: "Dangerous action",
+      pluginId: "sage",
+      pluginSeverity: "high",
+    });
+  });
+});
+
+describe("addExecApprovalAuditEntry", () => {
+  it("keeps the newest unique audit entries first", () => {
+    expect(
+      addExecApprovalAuditEntry(
+        [
+          {
+            id: "old",
+            kind: "exec",
+            title: "echo old",
+            summary: "echo old",
+            decision: "allow-once",
+            ts: 1,
+            request: { command: "echo old" },
+          },
+        ],
+        {
+          id: "new",
+          kind: "exec",
+          title: "echo new",
+          summary: "echo new",
+          decision: "deny",
+          ts: 2,
+          request: { command: "echo new" },
+        },
+      ),
+    ).toMatchObject([{ id: "new" }, { id: "old" }]);
   });
 });

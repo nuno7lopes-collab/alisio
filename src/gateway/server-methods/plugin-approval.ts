@@ -15,6 +15,7 @@ import {
   validatePluginApprovalRequestParams,
   validatePluginApprovalResolveParams,
 } from "../protocol/index.js";
+import { logPluginApprovalRequested, logPluginApprovalResolved } from "./approval-audit.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 const APPROVAL_NOT_FOUND_DETAILS = {
@@ -106,6 +107,10 @@ export function createPluginApprovalHandlers(
         },
         { dropIfSlow: true },
       );
+      logPluginApprovalRequested(context.logGateway, {
+        id: record.id,
+        request: record.request,
+      });
 
       let forwarded = false;
       if (opts?.forwarder?.handlePluginApprovalRequested) {
@@ -257,6 +262,12 @@ export function createPluginApprovalHandlers(
         { id: approvalId, decision, resolvedBy, ts: Date.now(), request: snapshot?.request },
         { dropIfSlow: true },
       );
+      logPluginApprovalResolved(context.logGateway, {
+        id: approvalId,
+        request: snapshot?.request,
+        decision,
+        resolvedBy,
+      });
       void opts?.forwarder
         ?.handlePluginApprovalResolved?.({
           id: approvalId,

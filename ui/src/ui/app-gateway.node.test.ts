@@ -241,6 +241,7 @@ function createHost(): GatewayTestHost {
     toolStreamSyncTimer: null,
     refreshSessionsAfterChat: new Set<string>(),
     execApprovalQueue: [],
+    execApprovalAuditTrail: [],
     execApprovalError: null,
     updateAvailable: null,
     alisioModelOperations: {},
@@ -919,9 +920,16 @@ describe("connectGateway", () => {
     // Resolve it
     client.emitEvent({
       event: "plugin.approval.resolved",
-      payload: { id: "plugin-approval-2", decision: "allow-once" },
+      payload: {
+        id: "plugin-approval-2",
+        decision: "allow-once",
+        ts: Date.now(),
+        request: { title: "Alert" },
+      },
     });
     expect(host.execApprovalQueue).toHaveLength(0);
+    expect(host.execApprovalAuditTrail).toHaveLength(1);
+    expect(host.execApprovalAuditTrail[0]?.id).toBe("plugin-approval-2");
   });
 
   it("reloads chat history once after the final chat event when tool output was used", () => {

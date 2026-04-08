@@ -99,6 +99,9 @@ describe("createPluginApprovalHandlers", () => {
         expect.objectContaining({ id: expect.any(String) }),
         { dropIfSlow: true },
       );
+      expect(opts.context.logGateway.info).toHaveBeenCalledWith(
+        expect.stringContaining("approval audit kind=plugin phase=requested"),
+      );
 
       // Resolve the approval so the handler can complete
       const acceptedCall = respond.mock.calls.find(
@@ -410,6 +413,9 @@ describe("createPluginApprovalHandlers", () => {
         "plugin.approval.resolved",
         expect.objectContaining({ id: record.id, decision: "deny" }),
         { dropIfSlow: true },
+      );
+      expect(opts.context.logGateway.info).toHaveBeenCalledWith(
+        expect.stringContaining("approval audit kind=plugin phase=resolved"),
       );
     });
 

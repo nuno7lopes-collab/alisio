@@ -1,6 +1,10 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
-import { sortExecApprovalQueue, type ExecApprovalRequest } from "../controllers/exec-approval.ts";
+import {
+  sortExecApprovalQueue,
+  type ExecApprovalAuditEntry,
+  type ExecApprovalRequest,
+} from "../controllers/exec-approval.ts";
 import {
   resolveEffectiveExecAsk,
   resolveExecApprovalsDefaults,
@@ -8,9 +12,18 @@ import {
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/exec-approvals.ts";
 import {
   resolveConfiguredExecDefaults,
+  resolveSecurityAccessDiagnostics,
   type SecurityAccessMode,
 } from "../controllers/security-access.ts";
+import { formatRelativeTimestamp } from "../format.ts";
 import { resolveAgentIdDisplayLabel } from "./agent-display.ts";
+import {
+  resolveApprovalAccessLabel,
+  resolveApprovalAskLabel,
+  resolveApprovalAuditEffectText,
+  resolveApprovalDecisionLabel,
+  resolveApprovalEffectText,
+} from "./approval-summary.ts";
 import { formatApprovalRemaining } from "./exec-approval.ts";
 import { renderExecApprovals, resolveExecApprovalsState } from "./nodes-exec-approvals.ts";
 import { resolveNodeTargets } from "./nodes-shared.ts";
@@ -39,6 +52,7 @@ export type SecurityProps = {
   execApprovalsTarget: "gateway" | "node";
   execApprovalsTargetNodeId: string | null;
   execApprovalQueue: ExecApprovalRequest[];
+  execApprovalAuditTrail: ExecApprovalAuditEntry[];
   execApprovalBusy: boolean;
   execApprovalError: string | null;
   gatewayAccessModeLoading: boolean;
@@ -94,6 +108,35 @@ function accessModeDescription(mode: SecurityAccessMode) {
   return t("alisio.security.access.customBody");
 }
 
+function accessModeTitle(mode: Exclude<SecurityAccessMode, "custom">) {
+  if (mode === "recommended") {
+    return t("alisio.security.access.recommended.title");
+  }
+  return t("alisio.security.access.fullAccess.title");
+}
+
+function accessModeBadge(mode: Exclude<SecurityAccessMode, "custom">) {
+  if (mode === "recommended") {
+    return t("alisio.security.access.recommended.badge");
+  }
+  return t("alisio.security.access.fullAccess.badge");
+}
+
+function accessModeChecklist(mode: Exclude<SecurityAccessMode, "custom">): string[] {
+  if (mode === "recommended") {
+    return [
+      t("alisio.security.access.recommended.points.allowlist"),
+      t("alisio.security.access.recommended.points.prompts"),
+      t("alisio.security.access.recommended.points.failClosed"),
+    ];
+  }
+  return [
+    t("alisio.security.access.fullAccess.points.host"),
+    t("alisio.security.access.fullAccess.points.prompts"),
+    t("alisio.security.access.fullAccess.points.scope"),
+  ];
+}
+
 function promptModeLabel(ask: ExecAsk) {
   if (ask === "always") {
     return t("alisio.connections.execApprovals.askOptions.always");
@@ -133,6 +176,7 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
     entry.kind === "plugin"
       ? (entry.pluginTitle ?? t("alisio.security.queue.pluginApproval"))
       : entry.request.command;
+  const effectText = resolveApprovalEffectText(entry);
   const agentLabel = resolveAgentIdDisplayLabel(entry.request.agentId, {
     assistantName: props.assistantName,
     assistantAgentId: props.assistantAgentId,
@@ -147,6 +191,7 @@ function renderPendingApproval(entry: ExecApprovalRequest, props: SecurityProps,
       <div class="exec-approval-header">
         <div>
           <div class="exec-approval-title">${title}</div>
+          <div class="exec-approval-sub">${effectText}</div>
         </div>
         <span class="pill">
           ${t("alisio.security.queue.expiresIn", { value: formatApprovalRemaining(expiresIn) })}
@@ -161,6 +206,14 @@ ${entry.pluginDescription}</pre
         : html`<div class="exec-approval-command mono">${entry.request.command}</div>`}
       <div class="exec-approval-meta">
         ${renderApprovalMeta(t("alisio.security.queue.labels.type"), entry.kind)}
+        ${renderApprovalMeta(
+          t("alisio.security.queue.labels.access"),
+          resolveApprovalAccessLabel(entry.request),
+        )}
+        ${renderApprovalMeta(
+          t("alisio.security.queue.labels.review"),
+          resolveApprovalAskLabel(entry.request.ask),
+        )}
         ${renderApprovalMeta(t("alisio.connections.execApprovals.host"), entry.request.host)}
         ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId, {
           tone: "code",
@@ -170,11 +223,6 @@ ${entry.pluginDescription}</pre
         ${renderApprovalMeta(t("alisio.security.queue.labels.cwd"), entry.request.cwd, {
           tone: "code",
         })}
-        ${renderApprovalMeta(
-          t("alisio.connections.execApprovals.security"),
-          entry.request.security,
-        )}
-        ${renderApprovalMeta(t("alisio.connections.execApprovals.ask"), entry.request.ask)}
       </div>
       <div class="exec-approval-actions">
         <button
@@ -200,6 +248,66 @@ ${entry.pluginDescription}</pre
         </button>
       </div>
     </article>
+  `;
+}
+
+function renderAuditEntry(entry: ExecApprovalAuditEntry) {
+  return html`
+    <article class="exec-approval-card alisio-security-queue-item">
+      <div class="exec-approval-header">
+        <div>
+          <div class="exec-approval-title">${entry.title}</div>
+          <div class="exec-approval-sub">${resolveApprovalAuditEffectText(entry)}</div>
+        </div>
+        <span class="pill">${resolveApprovalDecisionLabel(entry.decision)}</span>
+      </div>
+      <div class="exec-approval-meta">
+        ${renderApprovalMeta(
+          t("alisio.security.audit.labels.when"),
+          formatRelativeTimestamp(entry.ts, { dateFallback: true }),
+        )}
+        ${renderApprovalMeta(
+          t("alisio.security.audit.labels.resolvedBy"),
+          entry.resolvedBy ?? t("alisio.security.audit.systemActor"),
+        )}
+        ${renderApprovalMeta(
+          t("alisio.security.queue.labels.access"),
+          resolveApprovalAccessLabel(entry.request),
+        )}
+        ${renderApprovalMeta(
+          t("alisio.security.queue.labels.review"),
+          resolveApprovalAskLabel(entry.request.ask),
+        )}
+        ${renderApprovalMeta(t("alisio.security.queue.labels.plugin"), entry.pluginId, {
+          tone: "code",
+        })}
+      </div>
+    </article>
+  `;
+}
+
+function renderAuditTrail(entries: ExecApprovalAuditEntry[]) {
+  return html`
+    <section class="card alisio-security-panel">
+      <div class="alisio-security-panel__head">
+        <div>
+          <div class="card-title">${t("alisio.security.audit.title")}</div>
+          <div class="card-sub">${t("alisio.security.audit.subtitle")}</div>
+        </div>
+      </div>
+      ${entries.length === 0
+        ? html`
+            <div class="alisio-security-empty">
+              <strong>${t("alisio.security.audit.emptyTitle")}</strong>
+              <span>${t("alisio.security.audit.emptyBody")}</span>
+            </div>
+          `
+        : html`
+            <div class="alisio-security-approval-list">
+              ${entries.map((entry) => renderAuditEntry(entry))}
+            </div>
+          `}
+    </section>
   `;
 }
 
@@ -243,6 +351,60 @@ function resolveAccessModeBlockMessage(props: SecurityProps): string | null {
   return null;
 }
 
+function renderAccessModeCard(
+  props: SecurityProps,
+  mode: Exclude<SecurityAccessMode, "custom">,
+  disabled: boolean,
+) {
+  const active = props.gatewayAccessMode === mode;
+  return html`
+    <button
+      type="button"
+      data-security-mode=${mode}
+      class="alisio-security-mode-card ${active ? "is-active" : ""}"
+      ?disabled=${disabled || active}
+      aria-pressed=${active}
+      @click=${() => props.onApplyAccessMode(mode)}
+    >
+      <span class="alisio-security-mode-card__head">
+        <span>
+          <span class="alisio-security-mode-card__label">
+            ${mode === "recommended"
+              ? t("alisio.security.access.recommended.label")
+              : t("alisio.security.access.fullAccess.label")}
+          </span>
+          <span class="alisio-security-mode-card__title">${accessModeTitle(mode)}</span>
+        </span>
+        <span class="pill">${accessModeBadge(mode)}</span>
+      </span>
+      <span class="alisio-security-mode-card__body">${accessModeDescription(mode)}</span>
+      <span class="alisio-security-mode-card__list">
+        ${accessModeChecklist(mode).map(
+          (line) => html`<span class="alisio-security-mode-card__list-item">${line}</span>`,
+        )}
+      </span>
+    </button>
+  `;
+}
+
+function renderSecureDefaultsChecklist() {
+  return html`
+    <section class="card alisio-security-panel">
+      <div class="alisio-security-panel__head">
+        <div>
+          <div class="card-title">${t("alisio.security.defaults.title")}</div>
+          <div class="card-sub">${t("alisio.security.defaults.subtitle")}</div>
+        </div>
+      </div>
+      <ul class="alisio-security-checklist">
+        <li>${t("alisio.security.defaults.items.review")}</li>
+        <li>${t("alisio.security.defaults.items.overrides")}</li>
+        <li>${t("alisio.security.defaults.items.repeat")}</li>
+      </ul>
+    </section>
+  `;
+}
+
 function renderAccessModePanel(props: SecurityProps) {
   if (!supportsRuntimeAccessModeTarget(props.execApprovalsTarget)) {
     return html`
@@ -265,6 +427,10 @@ function renderAccessModePanel(props: SecurityProps) {
   const blockedMessage = resolveAccessModeBlockMessage(props);
   const busy = props.gatewayAccessModeBusy || props.gatewayAccessModeLoading;
   const disabled = busy || Boolean(blockedMessage);
+  const appliedDiagnostics = resolveSecurityAccessDiagnostics({
+    configForm: props.configSnapshot?.config ?? null,
+    execApprovalsForm: props.execApprovalsSnapshot?.file ?? null,
+  });
 
   return html`
     <div class="alisio-security-access">
@@ -277,33 +443,56 @@ function renderAccessModePanel(props: SecurityProps) {
             </div>
           `
         : html`
-            <div class="alisio-security-access__strip">
-              <button
-                type="button"
-                data-security-mode="recommended"
-                class="alisio-chat__access-pill ${mode === "recommended" ? "is-active" : ""}"
-                ?disabled=${disabled || mode === "recommended"}
-                aria-pressed=${mode === "recommended"}
-                @click=${() => props.onApplyAccessMode("recommended")}
-              >
-                <span>${t("alisio.security.access.recommended.label")}</span>
-              </button>
-              <button
-                type="button"
-                data-security-mode="full-access"
-                class="alisio-chat__access-pill ${mode === "full-access" ? "is-active" : ""}"
-                ?disabled=${disabled || mode === "full-access"}
-                aria-pressed=${mode === "full-access"}
-                @click=${() => props.onApplyAccessMode("full-access")}
-              >
-                <span>${t("alisio.security.access.fullAccess.label")}</span>
-              </button>
+            <div class="alisio-security-mode-grid">
+              ${renderAccessModeCard(props, "recommended", disabled)}
+              ${renderAccessModeCard(props, "full-access", disabled)}
               ${mode === "custom"
-                ? html`<span class="pill">${t("alisio.security.access.custom.label")}</span>`
+                ? html`
+                    <div class="alisio-security-mode-card is-custom">
+                      <div class="alisio-security-mode-card__head">
+                        <div>
+                          <div class="alisio-security-mode-card__label">
+                            ${t("alisio.security.access.custom.label")}
+                          </div>
+                          <div class="alisio-security-mode-card__title">
+                            ${t("alisio.security.access.custom.title")}
+                          </div>
+                        </div>
+                        <span class="pill">${t("alisio.security.access.custom.badge")}</span>
+                      </div>
+                      <div class="alisio-security-mode-card__body">
+                        ${t("alisio.security.access.customBody")}
+                      </div>
+                      <ul class="alisio-security-mode-card__list">
+                        ${appliedDiagnostics.configOverrideAgentCount > 0
+                          ? html`<li>
+                              ${t("alisio.security.access.custom.points.configOverrides", {
+                                count: String(appliedDiagnostics.configOverrideAgentCount),
+                              })}
+                            </li>`
+                          : nothing}
+                        ${appliedDiagnostics.approvalOverrideAgentCount > 0
+                          ? html`<li>
+                              ${t("alisio.security.access.custom.points.approvalOverrides", {
+                                count: String(appliedDiagnostics.approvalOverrideAgentCount),
+                              })}
+                            </li>`
+                          : nothing}
+                        <li>${t("alisio.security.access.custom.points.reset")}</li>
+                      </ul>
+                    </div>
+                  `
                 : nothing}
             </div>
             ${blockedMessage ? html`<div class="callout warn">${blockedMessage}</div>` : nothing}
-            <div class="alisio-security-access__note">${accessModeDescription(mode)}</div>
+            <div class="alisio-security-access__note">
+              ${mode === "custom"
+                ? t("alisio.security.access.customFooter", {
+                    config: String(appliedDiagnostics.configOverrideAgentCount),
+                    approvals: String(appliedDiagnostics.approvalOverrideAgentCount),
+                  })
+                : t("alisio.security.access.modeFooter")}
+            </div>
           `}
     </div>
   `;
@@ -370,7 +559,8 @@ export function renderSecurity(props: SecurityProps) {
 
       <div class="alisio-connections-stack">
         ${renderApprovalQueue({ ...props, execApprovalQueue: approvalQueue }, nowMs)}
-        ${renderExecApprovals(approvalsState)}
+        ${renderAuditTrail(props.execApprovalAuditTrail)} ${renderExecApprovals(approvalsState)}
+        ${renderSecureDefaultsChecklist()}
       </div>
     </section>
   `;

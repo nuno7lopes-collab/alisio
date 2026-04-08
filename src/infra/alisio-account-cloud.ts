@@ -638,6 +638,7 @@ async function signInWithSupabasePassword(params: {
 
 export async function beginAlisioCloudAccountEmailAuth(params: {
   email: string;
+  callbackUrl?: string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }): Promise<EmailAuthResult> {
@@ -653,11 +654,17 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
   }
 
   const url = new URL("/auth/v1/otp", config.url);
+  if (params.callbackUrl?.trim()) {
+    url.searchParams.set("redirect_to", params.callbackUrl.trim());
+  }
   const result = await fetchJson(
     url.toString(),
     {
       method: "POST",
-      headers: supabaseHeaders(config),
+      headers: {
+        ...supabaseHeaders(config),
+        ...(params.callbackUrl?.trim() ? { redirect_to: params.callbackUrl.trim() } : {}),
+      },
       body: JSON.stringify({
         email,
         create_user: true,
@@ -675,8 +682,32 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
   return {
     ok: true,
     email,
-    message: "Check your email for the verification code, then return to Alisio.",
+    message:
+      "Check your email for the verification code or sign-in link, then return to Alisio.",
   };
+}
+
+async function fetchSupabaseUser(params: {
+  config: SupabaseConfig;
+  accessToken: string;
+  fetchImpl: typeof fetch;
+}) {
+  const userUrl = new URL("/auth/v1/user", params.config.url);
+  const userResult = await fetchJson(
+    userUrl.toString(),
+    {
+      method: "GET",
+      headers: supabaseHeaders(params.config, params.accessToken),
+    },
+    params.fetchImpl,
+  );
+  if (!userResult.ok) {
+    throw new AlisioAccountCloudError(
+      "session_refresh_failed",
+      "The Alisio account session is no longer valid. Sign in again.",
+    );
+  }
+  return userResult.body as SupabaseUserResponse;
 }
 
 export async function verifyAlisioCloudAccountEmailAuth(params: {
@@ -1040,22 +1071,11 @@ export async function restoreAlisioCloudAccountSession(params: {
     };
   }
 
-  const userUrl = new URL("/auth/v1/user", config.url);
-  const userResult = await fetchJson(
-    userUrl.toString(),
-    {
-      method: "GET",
-      headers: supabaseHeaders(config, session.accessToken),
-    },
+  const user = await fetchSupabaseUser({
+    config,
+    accessToken: session.accessToken ?? "",
     fetchImpl,
-  );
-  if (!userResult.ok) {
-    throw new AlisioAccountCloudError(
-      "session_refresh_failed",
-      "The Alisio account session is no longer valid. Sign in again.",
-    );
-  }
-  const user = userResult.body as SupabaseUserResponse;
+  });
   const profile = await ensureSupabaseProfile({
     config,
     accessToken: session.accessToken ?? "",
@@ -1071,6 +1091,77 @@ export async function restoreAlisioCloudAccountSession(params: {
       userId: user.id ?? session.userId,
       email: user.email ?? session.email,
     },
+    profile,
+  };
+}
+
+export async function completeAlisioCloudAccountEmailLinkAuth(params: {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+  tokenType?: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+}): Promise<{
+  session: AlisioStoredCloudSession;
+  profile: AlisioCloudAccountProfile;
+}> {
+  const env = params.env ?? process.env;
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const accessToken = params.accessToken.trim();
+  if (!accessToken) {
+    throw new AlisioAccountCloudError(
+      "email_verification_failed",
+      "Alisio could not complete that sign-in link.",
+    );
+  }
+
+  const config = resolveSupabaseConfig(env);
+  if (!config) {
+    throw new AlisioAccountCloudError(
+      "backend_unavailable",
+      "The Alisio cloud account backend is not configured in this environment yet.",
+    );
+  }
+
+  const user = await fetchSupabaseUser({
+    config,
+    accessToken,
+    fetchImpl,
+  });
+  const userId = user.id?.trim() || "";
+  const email = user.email?.trim().toLowerCase() || "";
+  if (!userId || !email) {
+    throw new AlisioAccountCloudError(
+      "email_verification_failed",
+      "Alisio could not complete that sign-in link.",
+    );
+  }
+
+  const joinedAt = user.created_at?.trim() || new Date().toISOString();
+  const profile = await ensureSupabaseProfile({
+    config,
+    accessToken,
+    userId,
+    email,
+    joinedAt,
+    fetchImpl,
+  });
+
+  return {
+    session: buildStoredSupabaseSession({
+      accessToken,
+      refreshToken: params.refreshToken?.trim() || undefined,
+      expiresAt:
+        typeof params.expiresIn === "number" && Number.isFinite(params.expiresIn)
+          ? new Date(Date.now() + params.expiresIn * 1000).toISOString()
+          : undefined,
+      tokenType: params.tokenType?.trim() || undefined,
+      authMethod: "email",
+      userId,
+      email,
+      joinedAt,
+    }),
     profile,
   };
 }

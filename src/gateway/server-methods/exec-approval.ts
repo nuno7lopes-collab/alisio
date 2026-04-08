@@ -18,6 +18,7 @@ import {
   validateExecApprovalRequestParams,
   validateExecApprovalResolveParams,
 } from "../protocol/index.js";
+import { logExecApprovalRequested, logExecApprovalResolved } from "./approval-audit.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 const APPROVAL_NOT_FOUND_DETAILS = {
@@ -188,6 +189,10 @@ export function createExecApprovalHandlers(
         },
         { dropIfSlow: true },
       );
+      logExecApprovalRequested(context.logGateway, {
+        id: record.id,
+        request: record.request,
+      });
       const hasExecApprovalClients = context.hasExecApprovalClients?.(client?.connId) ?? false;
       const hasTurnSourceRoute = hasApprovalTurnSourceRoute({
         turnSourceChannel: record.request.turnSourceChannel,
@@ -344,6 +349,12 @@ export function createExecApprovalHandlers(
         { id: approvalId, decision, resolvedBy, ts: Date.now(), request: snapshot?.request },
         { dropIfSlow: true },
       );
+      logExecApprovalResolved(context.logGateway, {
+        id: approvalId,
+        request: snapshot?.request,
+        decision,
+        resolvedBy,
+      });
       void opts?.forwarder
         ?.handleResolved({
           id: approvalId,

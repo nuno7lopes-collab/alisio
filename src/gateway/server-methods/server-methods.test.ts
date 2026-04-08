@@ -437,12 +437,14 @@ describe("exec approval handlers", () => {
     const manager = new ExecApprovalManager();
     const handlers = createExecApprovalHandlers(manager);
     const broadcasts: Array<{ event: string; payload: unknown }> = [];
+    const logGateway = { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() };
     const respond = vi.fn();
     const context = {
       broadcast: (event: string, payload: unknown) => {
         broadcasts.push({ event, payload });
       },
       hasExecApprovalClients: () => true,
+      logGateway,
     };
     return { handlers, broadcasts, respond, context };
   }
@@ -459,6 +461,7 @@ describe("exec approval handlers", () => {
     const context = {
       broadcast: (_event: string, _payload: unknown) => {},
       hasExecApprovalClients: () => false,
+      logGateway: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
     };
     return { manager, handlers, forwarder, respond, context };
   }
@@ -564,6 +567,12 @@ describe("exec approval handlers", () => {
       undefined,
     );
     expect(broadcasts.some((entry) => entry.event === "exec.approval.resolved")).toBe(true);
+    expect(context.logGateway.info).toHaveBeenCalledWith(
+      expect.stringContaining("approval audit kind=exec phase=requested"),
+    );
+    expect(context.logGateway.info).toHaveBeenCalledWith(
+      expect.stringContaining("approval audit kind=exec phase=resolved"),
+    );
   });
 
   it("does not reuse a resolved exact id as a prefix for another pending approval", () => {

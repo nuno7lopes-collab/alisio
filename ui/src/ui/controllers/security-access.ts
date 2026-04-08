@@ -52,6 +52,14 @@ export type GatewayAccessModeState = {
   gatewayAccessMode: SecurityAccessMode | null;
 };
 
+export type SecurityAccessDiagnostics = {
+  mode: SecurityAccessMode;
+  configDefaults: ConfigExecDefaults;
+  approvalDefaults: ExecApprovalsResolvedDefaults;
+  configOverrideAgentCount: number;
+  approvalOverrideAgentCount: number;
+};
+
 function normalizeSecurity(value: unknown): ExecSecurity {
   return value === "deny" || value === "allowlist" || value === "full"
     ? value
@@ -85,23 +93,35 @@ function resolveAgentExecConfig(entry: Record<string, unknown>): Record<string, 
   return isRecord(tools?.exec) ? tools.exec : null;
 }
 
-function hasConfiguredExecScopedOverrides(configForm: Record<string, unknown> | null): boolean {
-  return resolveConfigAgentEntries(configForm).some((entry) => {
+function countConfiguredExecScopedOverrides(configForm: Record<string, unknown> | null): number {
+  return resolveConfigAgentEntries(configForm).reduce((count, entry) => {
     const exec = resolveAgentExecConfig(entry);
-    return exec ? hasOwn(exec, "security") || hasOwn(exec, "ask") : false;
-  });
+    return exec && (hasOwn(exec, "security") || hasOwn(exec, "ask")) ? count + 1 : count;
+  }, 0);
 }
 
-function hasExecApprovalScopedOverrides(form: ExecApprovalsFile | null): boolean {
+function hasConfiguredExecScopedOverrides(configForm: Record<string, unknown> | null): boolean {
+  return countConfiguredExecScopedOverrides(configForm) > 0;
+}
+
+function countExecApprovalScopedOverrides(form: ExecApprovalsFile | null): number {
   const agents = isRecord(form?.agents) ? form.agents : null;
-  return Object.values(agents ?? {}).some(
-    (agent) =>
+  return Object.values(agents ?? {}).reduce((count, agent) => {
+    if (
       isRecord(agent) &&
       (hasOwn(agent, "security") ||
         hasOwn(agent, "ask") ||
         hasOwn(agent, "askFallback") ||
-        hasOwn(agent, "autoAllowSkills")),
-  );
+        hasOwn(agent, "autoAllowSkills"))
+    ) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+}
+
+function hasExecApprovalScopedOverrides(form: ExecApprovalsFile | null): boolean {
+  return countExecApprovalScopedOverrides(form) > 0;
 }
 
 function buildGatewayAccessModeConfigPatch(
@@ -253,11 +273,21 @@ export function resolveSecurityAccessMode(params: {
   configForm: Record<string, unknown> | null;
   execApprovalsForm: import("./exec-approvals.ts").ExecApprovalsFile | null;
 }): SecurityAccessMode {
+  return resolveSecurityAccessDiagnostics(params).mode;
+}
+
+export function resolveSecurityAccessDiagnostics(params: {
+  configForm: Record<string, unknown> | null;
+  execApprovalsForm: import("./exec-approvals.ts").ExecApprovalsFile | null;
+}): SecurityAccessDiagnostics {
   const configDefaults = resolveConfiguredExecDefaults(params.configForm);
   const approvalDefaults = resolveExecApprovalsDefaults(params.execApprovalsForm);
   const policyMode = resolveExecApprovalAccessMode(approvalDefaults);
-  const hasConfigOverrides = hasConfiguredExecScopedOverrides(params.configForm);
-  const hasApprovalOverrides = hasExecApprovalScopedOverrides(params.execApprovalsForm);
+  const configOverrideAgentCount = countConfiguredExecScopedOverrides(params.configForm);
+  const approvalOverrideAgentCount = countExecApprovalScopedOverrides(params.execApprovalsForm);
+  const hasConfigOverrides = configOverrideAgentCount > 0;
+  const hasApprovalOverrides = approvalOverrideAgentCount > 0;
+  let mode: SecurityAccessMode = "custom";
 
   if (
     !hasConfigOverrides &&
@@ -266,18 +296,24 @@ export function resolveSecurityAccessMode(params: {
     configDefaults.ask === RECOMMENDED_CONFIG_DEFAULTS.ask &&
     policyMode === "recommended"
   ) {
-    return "recommended";
-  }
-  if (
+    mode = "recommended";
+  } else if (
     !hasConfigOverrides &&
     !hasApprovalOverrides &&
     configDefaults.security === FULL_ACCESS_CONFIG_DEFAULTS.security &&
     configDefaults.ask === FULL_ACCESS_CONFIG_DEFAULTS.ask &&
     policyMode === "full-access"
   ) {
-    return "full-access";
+    mode = "full-access";
   }
-  return "custom";
+
+  return {
+    mode,
+    configDefaults,
+    approvalDefaults,
+    configOverrideAgentCount,
+    approvalOverrideAgentCount,
+  };
 }
 
 function syncGatewayAccessMode(

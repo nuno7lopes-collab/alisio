@@ -15,6 +15,7 @@ import {
   RECOMMENDED_CONFIG_DEFAULTS,
   applyGatewayAccessMode,
   resolveConfiguredExecDefaults,
+  resolveSecurityAccessDiagnostics,
   resolveSecurityAccessMode,
 } from "../controllers/security-access.ts";
 import type { GatewayAccessModeState } from "../controllers/security-access.ts";
@@ -162,6 +163,44 @@ describe("resolveSecurityAccessMode", () => {
   });
 });
 
+describe("resolveSecurityAccessDiagnostics", () => {
+  it("counts config and approval overrides separately", () => {
+    expect(
+      resolveSecurityAccessDiagnostics({
+        configForm: {
+          tools: {
+            exec: {
+              security: "allowlist",
+              ask: "on-miss",
+            },
+          },
+          agents: {
+            list: [
+              { id: "main", tools: { exec: { ask: "always" } } },
+              { id: "ops", tools: { exec: { security: "full" } } },
+            ],
+          },
+        },
+        execApprovalsForm: {
+          version: 1,
+          defaults: {
+            security: "allowlist",
+            ask: "on-miss",
+            askFallback: "deny",
+          },
+          agents: {
+            main: { ask: "always" },
+          },
+        },
+      }),
+    ).toMatchObject({
+      mode: "custom",
+      configOverrideAgentCount: 2,
+      approvalOverrideAgentCount: 1,
+    });
+  });
+});
+
 describe("supportsRuntimeAccessModeTarget", () => {
   it("allows runtime access modes only on the gateway target", () => {
     expect(supportsRuntimeAccessModeTarget("gateway")).toBe(true);
@@ -269,6 +308,7 @@ describe("renderSecurity", () => {
       execApprovalsTarget: "gateway" as const,
       execApprovalsTargetNodeId: null,
       execApprovalQueue: [],
+      execApprovalAuditTrail: [],
       execApprovalBusy: false,
       execApprovalError: null,
       gatewayAccessModeLoading: false,
@@ -356,6 +396,85 @@ describe("renderSecurity", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Live approvals");
     expect(text).toContain("No approvals waiting");
+  });
+
+  it("renders the recent approval audit trail", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        execApprovalAuditTrail: [
+          {
+            id: "approval-1",
+            kind: "exec",
+            title: "uname -a",
+            summary: "uname -a",
+            decision: "allow-once",
+            resolvedBy: "Operator",
+            ts: Date.now() - 60_000,
+            request: {
+              command: "uname -a",
+              host: "gateway",
+              security: "allowlist",
+              ask: "on-miss",
+            },
+          },
+        ],
+      }),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Recent decisions");
+    expect(text).toContain("Operator");
+    expect(text).toContain("Allow once");
+  });
+
+  it("shows visible override counts when the runtime is custom", () => {
+    const container = document.createElement("div");
+    render(
+      renderSecurity({
+        ...createProps(),
+        gatewayAccessMode: "custom",
+        configSnapshot: {
+          config: {
+            tools: {
+              exec: {
+                security: "allowlist",
+                ask: "on-miss",
+              },
+            },
+            agents: {
+              list: [{ id: "main", tools: { exec: { ask: "always" } } }],
+            },
+          },
+        },
+        execApprovalsSnapshot: {
+          path: "/tmp/exec-approvals.json",
+          exists: true,
+          hash: "hash-custom",
+          file: {
+            version: 1,
+            defaults: {
+              security: "allowlist",
+              ask: "on-miss",
+              askFallback: "deny",
+            },
+            agents: {
+              main: {
+                ask: "always",
+              },
+            },
+          },
+        },
+      }),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Overrides active");
+    expect(text).toContain("1 agent override(s) change `tools.exec` defaults.");
+    expect(text).toContain("1 agent override(s) change approval defaults.");
   });
 
   it("shows the selected node prompt instead of the gateway prompt in hero stats", () => {
