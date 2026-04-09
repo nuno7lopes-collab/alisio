@@ -22,7 +22,7 @@ function isRetryableEndpointStatus(status: number) {
   return status === 404 || status === 405 || status === 501;
 }
 
-export async function fetchOpenAiCompatibleEndpoint(params: {
+export async function fetchModelRuntimeEndpoint(params: {
   baseUrl: string;
   endpoint: OpenAiCompatibleEndpointPath;
   init?: RequestInit;

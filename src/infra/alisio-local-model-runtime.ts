@@ -1,9 +1,9 @@
-import { resolveOllamaApiBase } from "../plugin-sdk/ollama-surface.js";
 import {
   ALISIO_LOCAL_MODEL_BACKEND,
   listPublishedAlisioLocalModels,
 } from "../shared/alisio-local-models.js";
-import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
+import { fetchModelRuntimeEndpoint } from "../shared/openai-compatible-endpoints.js";
+import { stripOpenAiCompatV1Suffix } from "../utils/openai-compat-url.js";
 import { legacyEnvKey, readEnv } from "./env.js";
 import {
   buildRuntimeCapabilities,
@@ -362,8 +362,8 @@ function normalizeRuntimeBaseUrl(value: string) {
 
 function isOllamaBaseUrl(value: string) {
   return (
-    normalizeRuntimeBaseUrl(resolveOllamaApiBase(value)) ===
-    normalizeRuntimeBaseUrl(resolveOllamaApiBase(DEFAULT_OLLAMA_BASE_URL))
+    normalizeRuntimeBaseUrl(stripOpenAiCompatV1Suffix(value)) ===
+    normalizeRuntimeBaseUrl(stripOpenAiCompatV1Suffix(DEFAULT_OLLAMA_BASE_URL))
   );
 }
 
@@ -473,7 +473,7 @@ const ollamaRuntime: LocalRuntime = {
     if (params.authHeader) {
       headers.authorization = params.authHeader;
     }
-    const apiBase = resolveOllamaApiBase(params.baseUrl);
+    const apiBase = stripOpenAiCompatV1Suffix(params.baseUrl);
     let tagsResponse: Response;
     try {
       tagsResponse = await (params.fetchImpl ?? fetch)(`${apiBase}/api/tags`, {
@@ -562,7 +562,7 @@ const lmStudioRuntime: LocalRuntime = {
       headers.authorization = params.authHeader;
     }
     try {
-      const response = await fetchOpenAiCompatibleEndpoint({
+      const response = await fetchModelRuntimeEndpoint({
         baseUrl: params.baseUrl,
         endpoint: "models",
         fetchImpl: params.fetchImpl,
@@ -636,7 +636,7 @@ const openAiCompatibleRuntime: LocalRuntime = {
     }
 
     try {
-      const response = await fetchOpenAiCompatibleEndpoint({
+      const response = await fetchModelRuntimeEndpoint({
         baseUrl: params.baseUrl,
         endpoint: "models",
         fetchImpl: params.fetchImpl,
@@ -777,15 +777,18 @@ export async function installOllamaLocalModel(params: {
   const { authHeader } = resolveLocalModelRuntimeConfig(env);
   const baseUrl = resolveOllamaManagementBaseUrl(env);
 
-  const response = await (params.fetchImpl ?? fetch)(`${resolveOllamaApiBase(baseUrl)}/api/pull`, {
-    method: "POST",
-    headers: buildLocalRuntimeHeaders({ authHeader, includeJson: true }),
-    body: JSON.stringify({
-      model: params.modelId,
-      stream: true,
-    }),
-    signal: AbortSignal.timeout(1_800_000),
-  });
+  const response = await (params.fetchImpl ?? fetch)(
+    `${stripOpenAiCompatV1Suffix(baseUrl)}/api/pull`,
+    {
+      method: "POST",
+      headers: buildLocalRuntimeHeaders({ authHeader, includeJson: true }),
+      body: JSON.stringify({
+        model: params.modelId,
+        stream: true,
+      }),
+      signal: AbortSignal.timeout(1_800_000),
+    },
+  );
   if (!response.ok) {
     const message = await response.text().catch(() => response.statusText);
     throw new Error(
@@ -856,7 +859,7 @@ export async function uninstallOllamaLocalModel(params: {
   const baseUrl = resolveOllamaManagementBaseUrl(env);
 
   const response = await (params.fetchImpl ?? fetch)(
-    `${resolveOllamaApiBase(baseUrl)}/api/delete`,
+    `${stripOpenAiCompatV1Suffix(baseUrl)}/api/delete`,
     {
       method: "DELETE",
       headers: buildLocalRuntimeHeaders({ authHeader, includeJson: true }),

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
+import { fetchModelRuntimeEndpoint } from "../shared/openai-compatible-endpoints.js";
 import {
   DEFAULT_LM_STUDIO_BASE_URL,
   resolveCurrentRuntimeBaseUrlForKind,
@@ -59,7 +59,7 @@ export async function isLmStudioServerReady(params?: {
 }): Promise<boolean> {
   const baseUrl = params?.baseUrl ?? resolveLmStudioServerBaseUrl(params?.env);
   try {
-    const response = await fetchOpenAiCompatibleEndpoint({
+    const response = await fetchModelRuntimeEndpoint({
       baseUrl,
       endpoint: "models",
       fetchImpl: params?.fetchImpl,

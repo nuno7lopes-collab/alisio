@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildOpenAiCompatibleEndpointUrls,
-  fetchOpenAiCompatibleEndpoint,
+  fetchModelRuntimeEndpoint,
 } from "./openai-compatible-endpoints.js";
 
 describe("openai-compatible endpoints", () => {
@@ -29,7 +29,7 @@ describe("openai-compatible endpoints", () => {
         }),
       );
 
-    const response = await fetchOpenAiCompatibleEndpoint({
+    const response = await fetchModelRuntimeEndpoint({
       baseUrl: "http://127.0.0.1:1234",
       endpoint: "models",
       fetchImpl: fetchMock,
@@ -51,7 +51,7 @@ describe("openai-compatible endpoints", () => {
       .fn<typeof fetch>()
       .mockResolvedValueOnce(new Response("unauthorized", { status: 401 }));
 
-    const response = await fetchOpenAiCompatibleEndpoint({
+    const response = await fetchModelRuntimeEndpoint({
       baseUrl: "http://127.0.0.1:1234",
       endpoint: "models",
       fetchImpl: fetchMock,
