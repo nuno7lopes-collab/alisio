@@ -22,10 +22,10 @@ describe("check-no-legacy-provider-adapter", () => {
         filePath: "src/provider-adapters/alisio-provider-adapters.ts",
         content: [
           "",
-          'const a = "server-\\u006fpenai";',
+          'const a = "server-\u006fpenai";',
           'const b = "ollama";',
           'const c = "remote model servers";',
-          'const d = "model\\u0053ervers";',
+          'const d = "model\u0053ervers";',
           "",
         ].join("\n"),
       },
