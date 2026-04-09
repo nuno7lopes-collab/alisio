@@ -86,6 +86,12 @@ final class GatewayProcessManager {
             self.logger.info("gateway launchd auto-enable skipped (disable marker set)")
             return
         }
+        let cleanupErrors = await GatewayLaunchAgentManager.cleanupLegacyCompatibilityLaunchAgents()
+        if !cleanupErrors.isEmpty {
+            let detail = cleanupErrors.joined(separator: "; ")
+            self.appendLog("[gateway] legacy launchd cleanup failed: \(detail)\n")
+            self.logger.error("gateway legacy launchd cleanup failed: \(detail, privacy: .public)")
+        }
         let enabled = await GatewayLaunchAgentManager.isLoaded()
         guard !enabled else { return }
         let bundlePath = Bundle.main.bundleURL.path

@@ -155,7 +155,7 @@ describe("buildWorkspaceSkillStatus", () => {
       const skill = report.skills.find((reportEntry) => reportEntry.name === "peekaboo");
 
       expect(skill).toBeDefined();
-      expect(skill?.source).toBe("openclaw-workspace");
+      expect(skill?.source).toBe("alisio-workspace");
       expect(skill?.bundled).toBe(false);
       expect(skill?.blockedByAllowlist).toBe(false);
       expect(skill?.eligible).toBe(true);

@@ -18,6 +18,31 @@ export const legacySkillSources = {
   extra: `${LEGACY_BRAND_ID}-extra`,
 } as const;
 
+export const canonicalSkillSources = {
+  bundled: "alisio-bundled",
+  managed: "alisio-managed",
+  workspace: "alisio-workspace",
+  plugin: "alisio-plugin",
+  extra: "alisio-extra",
+} as const;
+
+export function normalizeSkillSource(source: string): string {
+  switch (source) {
+    case legacySkillSources.bundled:
+      return canonicalSkillSources.bundled;
+    case legacySkillSources.managed:
+      return canonicalSkillSources.managed;
+    case legacySkillSources.workspace:
+      return canonicalSkillSources.workspace;
+    case legacySkillSources.plugin:
+      return canonicalSkillSources.plugin;
+    case legacySkillSources.extra:
+      return canonicalSkillSources.extra;
+    default:
+      return source;
+  }
+}
+
 export const legacyCommandPrefixPattern = new RegExp(
   `^(?:alisio|${LEGACY_BRAND_ID})\\s+|^\\/start(?:@[a-z0-9_]+)?(?:\\s+.+)?$`,
   "i",

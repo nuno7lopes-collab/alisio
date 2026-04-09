@@ -10,6 +10,7 @@ const RUNTIME_SKILL_SOURCE_ALIASES = new Map<string, string>([
   ["openclaw-bundled", "alisio-bundled"],
   ["openclaw-extra", "alisio-extra"],
   ["openclaw-managed", "alisio-managed"],
+  ["openclaw-plugin", "alisio-plugin"],
   ["openclaw-workspace", "alisio-workspace"],
 ]);
 
@@ -17,6 +18,9 @@ const TRUSTED_MARKETPLACE_INSTALL_SOURCES = new Set([
   "openclaw-bundled",
   "openclaw-managed",
   "openclaw-extra",
+  "alisio-bundled",
+  "alisio-managed",
+  "alisio-extra",
 ]);
 
 export function resolveSkillSource(skill: Skill): string {

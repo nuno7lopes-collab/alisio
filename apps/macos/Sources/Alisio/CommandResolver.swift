@@ -4,7 +4,6 @@ import AlisioSupport
 enum CommandResolver {
     private static let projectRootDefaultsKey = AlisioBrand.defaultsPrefix + "gatewayProjectRootPath"
     private static let helperName = AlisioBrand.commandName
-    private static let legacyHelperName = LegacyBrand.commandName
     private static let bundledPackageDirName = AlisioBrand.bundledPackageDirectoryName
 
     static func gatewayEntrypoint(in root: URL) -> String? {
@@ -12,9 +11,7 @@ enum CommandResolver {
         if FileManager().isReadableFile(atPath: distEntry) { return distEntry }
         let candidates = [
             root.appendingPathComponent("\(AlisioBrand.commandName).mjs").path,
-            root.appendingPathComponent("\(LegacyBrand.commandName).mjs").path,
             root.appendingPathComponent("bin/\(AlisioBrand.commandName).js").path,
-            root.appendingPathComponent("bin/\(LegacyBrand.commandName).js").path,
         ]
         for candidate in candidates where FileManager().isReadableFile(atPath: candidate) {
             return candidate
@@ -74,7 +71,6 @@ enum CommandResolver {
         }
         let fallbacks = [
             homeDirectory.appendingPathComponent("Projects/\(AlisioBrand.projectRootDirectoryName)"),
-            homeDirectory.appendingPathComponent("Projects/\(LegacyBrand.projectRootDirectoryName)"),
         ]
         for fallback in fallbacks where fileManager.fileExists(atPath: fallback.path) {
             return fallback
@@ -175,7 +171,6 @@ enum CommandResolver {
             .appendingPathComponent("Resources", isDirectory: true)
         let candidates = [
             resourcesRoot.appendingPathComponent(self.bundledPackageDirName, isDirectory: true),
-            resourcesRoot.appendingPathComponent(LegacyBrand.bundledPackageDirectoryName, isDirectory: true),
         ]
         return candidates.first(where: { self.isBundledPackageRoot($0, fileManager: fileManager) })
     }
@@ -213,7 +208,6 @@ enum CommandResolver {
     private static func alisioManagedPaths(home: URL) -> [String] {
         let bases = [
             home.appendingPathComponent(AlisioBrand.stateDirectoryName),
-            home.appendingPathComponent(LegacyBrand.stateDirectoryName),
         ]
         var paths: [String] = []
         for base in bases {
@@ -307,7 +301,6 @@ enum CommandResolver {
 
     static func alisioExecutable(searchPaths: [String]? = nil) -> String? {
         self.findExecutable(named: self.helperName, searchPaths: searchPaths)
-            ?? self.findExecutable(named: self.legacyHelperName, searchPaths: searchPaths)
     }
 
     static func projectAlisioExecutable(projectRoot: URL? = nil) -> String? {
@@ -315,7 +308,6 @@ enum CommandResolver {
         let root = projectRoot ?? self.projectRoot()
         let candidates = [
             root.appendingPathComponent("node_modules/.bin").appendingPathComponent(self.helperName).path,
-            root.appendingPathComponent("node_modules/.bin").appendingPathComponent(self.legacyHelperName).path,
         ]
         return candidates.first(where: { FileManager().isExecutableFile(atPath: $0) })
         #else
@@ -327,9 +319,7 @@ enum CommandResolver {
         let root = self.projectRoot()
         let candidates = [
             root.appendingPathComponent("\(AlisioBrand.commandName).mjs").path,
-            root.appendingPathComponent("\(LegacyBrand.commandName).mjs").path,
             root.appendingPathComponent("bin/\(AlisioBrand.commandName).js").path,
-            root.appendingPathComponent("bin/\(LegacyBrand.commandName).js").path,
         ]
         for candidate in candidates where FileManager().isReadableFile(atPath: candidate) {
             return candidate
@@ -460,7 +450,7 @@ enum CommandResolver {
         guard !settings.target.isEmpty else { return nil }
         guard let parsed = self.parseSSHTarget(settings.target) else { return nil }
 
-        // Run the real Alisio CLI on the remote host, with a legacy fallback while the repo-wide rename is incomplete.
+        // Run the real Alisio CLI on the remote host.
         let exportedPath = [
             "/opt/homebrew/bin",
             "/usr/local/bin",
@@ -478,11 +468,8 @@ enum CommandResolver {
         let projectSection = if userPRJ.isEmpty {
             """
             DEFAULT_PRJ="$HOME/Projects/\(AlisioBrand.projectRootDirectoryName)"
-            LEGACY_PRJ="$HOME/Projects/\(LegacyBrand.projectRootDirectoryName)"
             if [ -d "$DEFAULT_PRJ" ]; then
               PRJ="$DEFAULT_PRJ"
-            elif [ -d "$LEGACY_PRJ" ]; then
-              PRJ="$LEGACY_PRJ"
             else
               PRJ=""
             fi
@@ -526,9 +513,6 @@ enum CommandResolver {
         if command -v \(AlisioBrand.commandName) >/dev/null 2>&1; then
           CLI="$(command -v \(AlisioBrand.commandName))"
           \(AlisioBrand.commandName) \(quotedArgs);
-        elif command -v \(LegacyBrand.commandName) >/dev/null 2>&1; then
-          CLI="$(command -v \(LegacyBrand.commandName))"
-          \(LegacyBrand.commandName) \(quotedArgs);
         elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/dist/index.js" ]; then
           if command -v node >/dev/null 2>&1; then
             CLI="node $PRJ/dist/index.js"
@@ -543,24 +527,10 @@ enum CommandResolver {
           else
             echo "Node >=22 required on remote host"; exit 127;
           fi
-        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/\(LegacyBrand.commandName).mjs" ]; then
-          if command -v node >/dev/null 2>&1; then
-            CLI="node $PRJ/\(LegacyBrand.commandName).mjs"
-            node "$PRJ/\(LegacyBrand.commandName).mjs" \(quotedArgs);
-          else
-            echo "Node >=22 required on remote host"; exit 127;
-          fi
         elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/\(AlisioBrand.commandName).js" ]; then
           if command -v node >/dev/null 2>&1; then
             CLI="node $PRJ/bin/\(AlisioBrand.commandName).js"
             node "$PRJ/bin/\(AlisioBrand.commandName).js" \(quotedArgs);
-          else
-            echo "Node >=22 required on remote host"; exit 127;
-          fi
-        elif [ -n "${PRJ:-}" ] && [ -f "$PRJ/bin/\(LegacyBrand.commandName).js" ]; then
-          if command -v node >/dev/null 2>&1; then
-            CLI="node $PRJ/bin/\(LegacyBrand.commandName).js"
-            node "$PRJ/bin/\(LegacyBrand.commandName).js" \(quotedArgs);
           else
             echo "Node >=22 required on remote host"; exit 127;
           fi

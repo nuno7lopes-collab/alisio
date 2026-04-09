@@ -15,12 +15,10 @@ extension ProcessInfo {
         stableSuites: [UserDefaults],
         isAppBundle: Bool) -> Bool
     {
-        if environment[AlisioBrand.nixModeEnv] == "1" || environment[LegacyBrand.nixModeEnv] == "1" {
+        if environment[AlisioBrand.nixModeEnv] == "1" {
             return true
         }
-        if standard.bool(forKey: AlisioBrand.defaultsPrefix + "nixMode")
-            || standard.bool(forKey: LegacyBrand.defaultsPrefix + "nixMode")
-        {
+        if standard.bool(forKey: AlisioBrand.defaultsPrefix + "nixMode") {
             return true
         }
 
@@ -29,7 +27,6 @@ extension ProcessInfo {
         if isAppBundle {
             for stableSuite in stableSuites
             where stableSuite.bool(forKey: AlisioBrand.defaultsPrefix + "nixMode")
-                || stableSuite.bool(forKey: LegacyBrand.defaultsPrefix + "nixMode")
             {
                 return true
             }
@@ -40,10 +37,7 @@ extension ProcessInfo {
 
     var isNixMode: Bool {
         let isAppBundle = Bundle.main.bundleURL.pathExtension == "app"
-        let stableSuites = [
-            UserDefaults(suiteName: launchdLabel),
-            UserDefaults(suiteName: LegacyBrand.launchdLabel),
-        ].compactMap { $0 }
+        let stableSuites = [UserDefaults(suiteName: launchdLabel)].compactMap { $0 }
         return Self.resolveNixMode(
             environment: self.environment,
             standard: .standard,

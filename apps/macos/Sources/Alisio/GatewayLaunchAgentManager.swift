@@ -4,9 +4,13 @@ import AlisioSupport
 enum GatewayLaunchAgentManager {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
+    private static var currentLaunchAgentLabel: String { gatewayLaunchdLabel }
     private static var launchAgentLabels: [String] {
         var seen = Set<String>()
         return [gatewayLaunchdLabel, LegacyBrand.gatewayLaunchdLabel].filter { seen.insert($0).inserted }
+    }
+    private static var legacyLaunchAgentLabels: [String] {
+        self.launchAgentLabels.filter { $0 != self.currentLaunchAgentLabel }
     }
 
     private static var disableLaunchAgentMarkerURL: URL {
@@ -21,6 +25,10 @@ enum GatewayLaunchAgentManager {
 
     private static var plistURLs: [URL] {
         self.launchAgentLabels.map { self.plistURL(for: $0) }
+    }
+
+    private static var legacyPlistURLs: [URL] {
+        self.legacyLaunchAgentLabels.map { self.plistURL(for: $0) }
     }
 
     static func isLaunchAgentWriteDisabled() -> Bool {
@@ -55,7 +63,7 @@ enum GatewayLaunchAgentManager {
     }
 
     static func isLoaded() async -> Bool {
-        !(await self.loadedLaunchAgentLabels()).isEmpty
+        (await self.loadedLaunchAgentLabels()).contains(self.currentLaunchAgentLabel)
     }
 
     static func set(enabled: Bool, bundlePath: String, port: Int) async -> String? {
@@ -157,6 +165,33 @@ extension GatewayLaunchAgentManager {
         }
 
         for url in self.plistURLs where FileManager().fileExists(atPath: url.path) {
+            do {
+                try FileManager().removeItem(at: url)
+            } catch {
+                errors.append("remove \(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        return errors
+    }
+
+    static func cleanupLegacyCompatibilityLaunchAgents() async -> [String] {
+        var errors: [String] = []
+        let loadedLabels = await self.loadedLaunchAgentLabels()
+            .filter { self.legacyLaunchAgentLabels.contains($0) }
+
+        for label in loadedLabels {
+            let result = await Launchctl.run(["bootout", "gui/\(getuid())/\(label)"])
+            if result.status != 0 {
+                let output = result.output.lowercased()
+                if !output.contains("could not find service") && !output.contains("service not found") {
+                    let detail = self.summarize(result.output) ?? "exit \(result.status)"
+                    errors.append("launchctl bootout \(label): \(detail)")
+                }
+            }
+        }
+
+        for url in self.legacyPlistURLs where FileManager().fileExists(atPath: url.path) {
             do {
                 try FileManager().removeItem(at: url)
             } catch {

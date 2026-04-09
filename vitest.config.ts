@@ -100,6 +100,7 @@ export default defineConfig({
       "ui/src/i18n/**/*.test.ts",
       "ui/src/ui/alisio-account-auth.node.test.ts",
       "ui/src/ui/alisio-connector-oauth.node.test.ts",
+      "ui/src/ui/alisio-oauth.node.test.ts",
       "ui/src/ui/chat/**/*.test.ts",
       "ui/src/ui/memory-files.test.ts",
       "ui/src/ui/navigation-groups.test.ts",

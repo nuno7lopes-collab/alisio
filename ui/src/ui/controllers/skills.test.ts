@@ -34,7 +34,7 @@ function createMarketplaceSkill() {
   return {
     name: "Demo Skill",
     description: "Marketplace demo",
-    source: "openclaw-managed",
+    source: "alisio-managed",
     filePath: "/tmp/demo-skill",
     baseDir: "/tmp",
     skillKey: "demo",

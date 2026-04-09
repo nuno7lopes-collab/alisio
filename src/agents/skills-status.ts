@@ -36,7 +36,11 @@ import type {
   SkillMarketplaceAccess,
   SkillMarketplaceAccessContext,
 } from "./skills/marketplace-access.js";
-import { isBundledRuntimeSkillSource, resolveSkillSource } from "./skills/source.js";
+import {
+  isBundledRuntimeSkillSource,
+  normalizeRuntimeSkillSource,
+  resolveSkillSource,
+} from "./skills/source.js";
 
 export type SkillStatusConfigCheck = RequirementConfigCheck;
 
@@ -237,7 +241,7 @@ function buildSkillStatus(
       (skillConfig?.apiKey && entry.metadata?.primaryEnv === envName),
     );
   const isConfigSatisfied = (pathStr: string) => isConfigPathTruthy(config, pathStr);
-  const skillSource = resolveSkillSource(entry.skill);
+  const skillSource = normalizeRuntimeSkillSource(resolveSkillSource(entry.skill));
   const bundled =
     isBundledRuntimeSkillSource(skillSource) ||
     (skillSource === "unknown" && bundledNames?.has(entry.skill.name) === true);
@@ -321,12 +325,13 @@ export function buildWorkspaceSkillStatus(
 }
 
 function isInstalledMarketplaceSource(source: string): boolean {
+  const normalizedSource = normalizeRuntimeSkillSource(source);
   return (
-    source === "openclaw-workspace" ||
-    source === "agents-skills-project" ||
-    source === "agents-skills-personal" ||
-    source === "openclaw-managed" ||
-    source === "alisio-mcp"
+    normalizedSource === "alisio-workspace" ||
+    normalizedSource === "agents-skills-project" ||
+    normalizedSource === "agents-skills-personal" ||
+    normalizedSource === "alisio-managed" ||
+    normalizedSource === "alisio-mcp"
   );
 }
 
@@ -389,7 +394,7 @@ function createSyntheticMarketplaceStatusEntry(params: {
     kind: params.catalog.kind,
     name: params.catalog.name,
     description: params.catalog.description,
-    source: params.catalog.source,
+    source: normalizeRuntimeSkillSource(params.catalog.source),
     bundled: false,
     filePath: params.catalog.filePath ?? `mcp:${params.catalog.name}`,
     baseDir: params.catalog.baseDir ?? "",

@@ -14,20 +14,20 @@ enum CLIInstaller {
         fileManager: FileManager) -> String?
     {
         for basePath in searchPaths {
-            for commandName in [AlisioBrand.commandName, LegacyBrand.commandName] {
-                let candidate = URL(fileURLWithPath: basePath).appendingPathComponent(commandName).path
-                var isDirectory: ObjCBool = false
+            let candidate = URL(fileURLWithPath: basePath)
+                .appendingPathComponent(AlisioBrand.commandName)
+                .path
+            var isDirectory: ObjCBool = false
 
-                guard fileManager.fileExists(atPath: candidate, isDirectory: &isDirectory),
-                      !isDirectory.boolValue
-                else {
-                    continue
-                }
-
-                guard fileManager.isExecutableFile(atPath: candidate) else { continue }
-
-                return candidate
+            guard fileManager.fileExists(atPath: candidate, isDirectory: &isDirectory),
+                  !isDirectory.boolValue
+            else {
+                continue
             }
+
+            guard fileManager.isExecutableFile(atPath: candidate) else { continue }
+
+            return candidate
         }
 
         return nil

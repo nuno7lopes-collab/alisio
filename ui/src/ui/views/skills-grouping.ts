@@ -1,4 +1,4 @@
-import { legacySkillSources } from "../../brand-compat.ts";
+import { canonicalSkillSources, normalizeSkillSource } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
@@ -17,7 +17,7 @@ const SKILL_SOURCE_GROUPS: Array<{ id: string; labelKey: string; sources: string
   {
     id: "workspace",
     labelKey: "alisio.capabilities.groups.workspace",
-    sources: [legacySkillSources.workspace],
+    sources: [canonicalSkillSources.workspace],
   },
   {
     id: "personal",
@@ -27,22 +27,22 @@ const SKILL_SOURCE_GROUPS: Array<{ id: string; labelKey: string; sources: string
   {
     id: "built-in",
     labelKey: "alisio.capabilities.groups.builtIn",
-    sources: [legacySkillSources.bundled],
+    sources: [canonicalSkillSources.bundled],
   },
   {
     id: "installed",
     labelKey: "alisio.capabilities.groups.installed",
-    sources: [legacySkillSources.managed],
+    sources: [canonicalSkillSources.managed],
   },
   {
     id: "plugins",
     labelKey: "alisio.capabilities.groups.plugins",
-    sources: [legacySkillSources.plugin],
+    sources: [canonicalSkillSources.plugin],
   },
   {
     id: "extra",
     labelKey: "alisio.capabilities.groups.extra",
-    sources: [legacySkillSources.extra],
+    sources: [canonicalSkillSources.extra],
   },
 ];
 
@@ -58,9 +58,10 @@ export function groupSkills(skills: SkillStatusEntry[]): SkillGroup[] {
     skills: [],
   };
   for (const skill of skills) {
+    const normalizedSource = normalizeSkillSource(skill.source);
     const match = skill.bundled
       ? builtInGroup
-      : SKILL_SOURCE_GROUPS.find((group) => group.sources.includes(skill.source));
+      : SKILL_SOURCE_GROUPS.find((group) => group.sources.includes(normalizedSource));
     if (match) {
       groups.get(match.id)?.skills.push(skill);
     } else {

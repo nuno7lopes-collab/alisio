@@ -1,6 +1,6 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
-import { legacySkillSources } from "../../brand-compat.ts";
+import { canonicalSkillSources, normalizeSkillSource } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   skillEnvEditKey,
@@ -93,20 +93,20 @@ export function skillStatusLabel(skill: SkillStatusEntry) {
 }
 
 export function humanizeSkillSource(source: string) {
-  switch (source) {
-    case legacySkillSources.bundled:
+  switch (normalizeSkillSource(source)) {
+    case canonicalSkillSources.bundled:
       return t("alisio.capabilities.sources.builtIn");
-    case legacySkillSources.managed:
+    case canonicalSkillSources.managed:
       return t("alisio.capabilities.sources.managed");
-    case legacySkillSources.workspace:
+    case canonicalSkillSources.workspace:
       return t("alisio.capabilities.sources.workspace");
     case "agents-skills-project":
       return t("alisio.capabilities.sources.project");
     case "agents-skills-personal":
       return t("alisio.capabilities.sources.personal");
-    case legacySkillSources.plugin:
+    case canonicalSkillSources.plugin:
       return t("alisio.capabilities.sources.plugin");
-    case legacySkillSources.extra:
+    case canonicalSkillSources.extra:
       return t("alisio.capabilities.sources.extra");
     case "alisio-mcp":
       return "MCP server";
@@ -305,7 +305,9 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
     (skill.missing.bins.length > 0 ||
       skill.missing.anyBins.length > 0 ||
       (skill.missing.env.length > 0 && installHelpsEnvSetup));
-  const showBundledBadge = Boolean(skill.bundled && skill.source !== legacySkillSources.bundled);
+  const showBundledBadge = Boolean(
+    skill.bundled && normalizeSkillSource(skill.source) !== canonicalSkillSources.bundled,
+  );
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);
   const setupActions = resolveSetupActions(skill, props);

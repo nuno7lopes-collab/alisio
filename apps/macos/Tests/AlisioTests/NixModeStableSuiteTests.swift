@@ -44,4 +44,14 @@ struct NixModeStableSuiteTests {
             isAppBundle: false)
         #expect(!resolved)
     }
+
+    @Test func `ignores legacy openclaw nix env`() throws {
+        let standard = try #require(UserDefaults(suiteName: "NixModeStableSuiteTests.\(UUID().uuidString)"))
+        let resolved = ProcessInfo.resolveNixMode(
+            environment: ["OPENCLAW_NIX_MODE": "1"],
+            standard: standard,
+            stableSuites: [],
+            isAppBundle: true)
+        #expect(!resolved)
+    }
 }

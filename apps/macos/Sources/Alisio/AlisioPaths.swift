@@ -15,13 +15,8 @@ enum AlisioEnv {
 }
 
 enum AlisioPaths {
-    private static let configPathEnv = [AlisioBrand.configPathEnv, LegacyBrand.configPathEnv]
-    private static let stateDirEnv = [AlisioBrand.stateDirEnv, LegacyBrand.stateDirEnv]
-
-    private static var legacyStateDirURL: URL {
-        FileManager().homeDirectoryForCurrentUser
-            .appendingPathComponent(LegacyBrand.stateDirectoryName, isDirectory: true)
-    }
+    private static let configPathEnv = [AlisioBrand.configPathEnv]
+    private static let stateDirEnv = [AlisioBrand.stateDirEnv]
 
     static var stateDirURL: URL {
         for key in self.stateDirEnv {
@@ -30,17 +25,11 @@ enum AlisioPaths {
             }
         }
         let home = FileManager().homeDirectoryForCurrentUser
-        let preferred = home.appendingPathComponent(AlisioBrand.stateDirectoryName, isDirectory: true)
-        if FileManager().fileExists(atPath: preferred.path) { return preferred }
-        if FileManager().fileExists(atPath: self.legacyStateDirURL.path) { return self.legacyStateDirURL }
-        return preferred
+        return home.appendingPathComponent(AlisioBrand.stateDirectoryName, isDirectory: true)
     }
 
     private static func resolveConfigCandidate(in dir: URL) -> URL? {
-        let candidates = [
-            dir.appendingPathComponent(AlisioBrand.configFileName),
-            dir.appendingPathComponent(LegacyBrand.configFileName),
-        ]
+        let candidates = [dir.appendingPathComponent(AlisioBrand.configFileName)]
         return candidates.first(where: { FileManager().fileExists(atPath: $0.path) })
     }
 

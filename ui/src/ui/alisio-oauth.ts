@@ -40,6 +40,7 @@ export function emitAlisioOpenAiOAuthSignal(
   const serialized = JSON.stringify(signal);
   try {
     window.localStorage.setItem(ALISIO_OPENAI_OAUTH_STORAGE_KEY, serialized);
+    window.localStorage.setItem(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY, serialized);
     window.localStorage.removeItem(ALISIO_OPENAI_OAUTH_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY);
   } catch {

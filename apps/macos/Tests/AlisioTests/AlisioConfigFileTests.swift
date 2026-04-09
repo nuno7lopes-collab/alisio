@@ -100,6 +100,23 @@ struct AlisioConfigFileTests {
         }
     }
 
+    @Test
+    func `ignores legacy openclaw env overrides`() async {
+        let legacyDir = FileManager().temporaryDirectory
+            .appendingPathComponent("openclaw-state-\(UUID().uuidString)", isDirectory: true)
+            .path
+
+        await TestIsolation.withEnvValues([
+            "ALISIO_CONFIG_PATH": nil,
+            "ALISIO_STATE_DIR": nil,
+            "OPENCLAW_CONFIG_PATH": "\(legacyDir)/openclaw.json",
+            "OPENCLAW_STATE_DIR": legacyDir,
+        ]) {
+            #expect(AlisioConfigFile.stateDirURL().path != legacyDir)
+            #expect(AlisioConfigFile.url().path != "\(legacyDir)/openclaw.json")
+        }
+    }
+
     @MainActor
     @Test
     func `save dict appends config audit log`() async throws {

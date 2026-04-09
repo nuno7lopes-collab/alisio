@@ -39,4 +39,22 @@ struct CLIInstallerTests {
         #expect(rendered.contains(AlisioBrand.installCLIURL))
         #expect(!rendered.contains(LegacyBrand.installHost))
     }
+
+    @Test func `installed location ignores legacy openclaw executable`() throws {
+        let fm = FileManager()
+        let root = fm.temporaryDirectory.appendingPathComponent(
+            "alisio-cli-installer-legacy-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+
+        let binDir = root.appendingPathComponent("bin")
+        try fm.createDirectory(at: binDir, withIntermediateDirectories: true)
+        let legacy = binDir.appendingPathComponent("openclaw")
+        fm.createFile(atPath: legacy.path, contents: Data())
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: legacy.path)
+
+        let found = CLIInstaller.installedLocation(
+            searchPaths: [binDir.path],
+            fileManager: fm)
+        #expect(found == nil)
+    }
 }
