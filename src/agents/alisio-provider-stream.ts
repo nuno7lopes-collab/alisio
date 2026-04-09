@@ -6,13 +6,14 @@ import {
   type Message,
   type Model,
 } from "@mariozechner/pi-ai";
-import { chatWithInstalledAlisioLocalModel } from "../infra/alisio-local-llama-runtime.js";
+import { resolveAlisioDynamicProviderSource } from "../infra/alisio-model-providers.js";
+import { resolveAlisioProviderAdapter } from "../provider-adapters/alisio-provider-adapters.js";
 import {
-  resolveAlisioDynamicProviderSource,
-  type AlisioDynamicProviderSource,
-} from "../infra/alisio-model-providers.js";
-import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
-import { CUSTOM_LOCAL_AUTH_MARKER } from "./model-auth-markers.js";
+  normalizeProviderAdapterError,
+  type ProviderAdapter,
+  type ProviderAdapterMessage,
+  type ProviderAdapterRequest,
+} from "../provider-adapters/provider-adapter.js";
 import {
   buildAssistantMessageWithZeroUsage,
   buildStreamErrorAssistantMessage,
@@ -91,10 +92,8 @@ function summarizeAssistantMessage(message: Extract<Message, { role: "assistant"
   return chunks.join("\n\n").trim();
 }
 
-function buildRuntimeMessages(
-  context: StreamContext,
-): Array<{ role: "system" | "user" | "assistant"; content: string }> {
-  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
+function buildRuntimeMessages(context: StreamContext): ProviderAdapterMessage[] {
+  const messages: ProviderAdapterMessage[] = [];
   const systemPrompt = context.systemPrompt?.trim();
   if (systemPrompt) {
     messages.push({ role: "system", content: systemPrompt });
@@ -124,8 +123,26 @@ function buildRuntimeMessages(
   return messages;
 }
 
-function isSyntheticNoAuthKey(apiKey: string | undefined): boolean {
-  return !apiKey?.trim() || apiKey.trim() === CUSTOM_LOCAL_AUTH_MARKER;
+function buildProviderAdapterRequest(params: {
+  model: StreamModel;
+  context: StreamContext;
+  options?: StreamOptions;
+}): ProviderAdapterRequest {
+  return {
+    model: {
+      id: params.model.id,
+      api: params.model.api,
+      provider: params.model.provider,
+    },
+    messages: buildRuntimeMessages(params.context),
+    signal: params.options?.signal,
+    ...(typeof params.options?.temperature === "number"
+      ? { temperature: params.options.temperature }
+      : {}),
+    ...(typeof params.options?.maxTokens === "number"
+      ? { maxTokens: params.options.maxTokens }
+      : {}),
+  };
 }
 
 function buildStreamStart(model: StreamModel): AssistantMessage {
@@ -140,15 +157,16 @@ function buildStreamStart(model: StreamModel): AssistantMessage {
   });
 }
 
-function beginTextStream(params: {
+function beginProviderAdapterStream(params: {
   model: StreamModel;
-  run: (helpers: { pushText: (chunk: string) => void }) => Promise<string>;
+  adapter: ProviderAdapter;
+  request: ProviderAdapterRequest;
 }): AssistantMessageEventStream {
   const stream = createAssistantMessageEventStream();
   queueMicrotask(async () => {
     const partial = buildStreamStart(params.model);
     stream.push({ type: "start", partial });
-    let text = "";
+    let streamedText = "";
     let contentIndex: number | null = null;
     const pushText = (chunk: string) => {
       if (!chunk) {
@@ -159,347 +177,62 @@ function beginTextStream(params: {
         contentIndex = partial.content.length - 1;
         stream.push({ type: "text_start", contentIndex, partial });
       }
-      text += chunk;
+      streamedText += chunk;
       const content = partial.content[contentIndex];
       if (content?.type === "text") {
-        content.text = text;
+        content.text = streamedText;
       }
       stream.push({ type: "text_delta", contentIndex, delta: chunk, partial });
     };
+
     try {
-      const finalText = await params.run({ pushText });
-      if (finalText && finalText !== text) {
-        pushText(finalText.slice(text.length));
+      const result = await params.adapter.stream(params.request, async (event) => {
+        if (event.type === "text-delta") {
+          pushText(event.text);
+        }
+      });
+      const stopReason = result.stopReason;
+      const finalText = streamedText || result.text;
+      if (!streamedText && result.text) {
+        pushText(result.text);
       }
       if (contentIndex !== null) {
-        stream.push({ type: "text_end", contentIndex, content: text, partial });
+        stream.push({ type: "text_end", contentIndex, content: finalText, partial });
       }
       stream.push({
         type: "done",
-        reason: "stop",
+        reason: stopReason,
         message: buildAssistantMessageWithZeroUsage({
           model: {
             api: params.model.api,
             provider: params.model.provider,
             id: params.model.id,
           },
-          content: text ? [{ type: "text", text }] : [],
-          stopReason: "stop",
+          content: finalText ? [{ type: "text", text: finalText }] : [],
+          stopReason,
         }),
       });
       stream.end();
     } catch (error) {
+      const normalized = normalizeProviderAdapterError(error, {
+        sourceLabel: params.adapter.sourceLabel,
+      });
       stream.push({
         type: "error",
-        reason:
-          params.model && (error as { name?: string })?.name === "AbortError" ? "aborted" : "error",
+        reason: normalized.code === "aborted" ? "aborted" : "error",
         error: buildStreamErrorAssistantMessage({
           model: {
             api: params.model.api,
             provider: params.model.provider,
             id: params.model.id,
           },
-          errorMessage: String(error),
+          errorMessage: normalized.message,
         }),
       });
       stream.end();
     }
   });
   return stream;
-}
-
-function resolveOllamaChatUrl(baseUrl: string): string {
-  const normalized = baseUrl.replace(/\/+$/, "");
-  return normalized.toLowerCase().endsWith("/api")
-    ? `${normalized}/chat`
-    : `${normalized}/api/chat`;
-}
-
-function resolveOpenAiDeltaText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") {
-    return "";
-  }
-  if (typeof (payload as { text?: unknown }).text === "string") {
-    return (payload as { text: string }).text;
-  }
-  const choices = Array.isArray((payload as { choices?: unknown[] }).choices)
-    ? ((payload as { choices?: unknown[] }).choices ?? [])
-    : [];
-  return choices
-    .map((choice) => {
-      if (!choice || typeof choice !== "object") {
-        return "";
-      }
-      return typeof (choice as { delta?: { content?: unknown } }).delta?.content === "string"
-        ? ((choice as { delta: { content: string } }).delta.content ?? "")
-        : "";
-    })
-    .join("");
-}
-
-async function streamOpenAiCompatibleSource(params: {
-  model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "current-openai" | "server-openai" }>;
-  context: StreamContext;
-  options?: StreamOptions;
-}): Promise<AssistantMessageEventStream> {
-  const sourceLabel =
-    params.source.kind === "current-openai"
-      ? "local OpenAI-compatible runtime"
-      : "remote OpenAI-compatible server";
-  return beginTextStream({
-    model: params.model,
-    run: async ({ pushText }) => {
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-      };
-      const apiKey = !isSyntheticNoAuthKey(params.options?.apiKey)
-        ? params.options?.apiKey?.trim()
-        : params.source.apiKey?.trim();
-      if (apiKey) {
-        headers.authorization = `Bearer ${apiKey}`;
-      }
-      const response = await fetchOpenAiCompatibleEndpoint({
-        baseUrl: params.source.baseUrl,
-        endpoint: "chat/completions",
-        init: {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            model: params.model.id,
-            messages: buildRuntimeMessages(params.context),
-            stream: true,
-            ...(typeof params.options?.temperature === "number"
-              ? { temperature: params.options.temperature }
-              : {}),
-            ...(typeof params.options?.maxTokens === "number"
-              ? { max_tokens: params.options.maxTokens }
-              : {}),
-          }),
-          signal: params.options?.signal,
-        },
-      });
-      if (!response.ok) {
-        const message = await response.text().catch(() => response.statusText);
-        throw new Error(
-          `${sourceLabel} request failed (${response.status}): ${message || response.statusText}`,
-        );
-      }
-      if (!response.body) {
-        throw new Error(`${sourceLabel} returned no body`);
-      }
-      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("text/event-stream")) {
-        const payload: unknown = await response.json();
-        const text =
-          payload &&
-          typeof payload === "object" &&
-          typeof (payload as { text?: unknown }).text === "string"
-            ? ((payload as { text: string }).text ?? "")
-            : "";
-        return text.trim();
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let text = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-        const normalized = buffer.replace(/\r\n/g, "\n");
-        const events = normalized.split("\n\n");
-        buffer = events.pop() ?? "";
-        for (const event of events) {
-          const data = event
-            .split("\n")
-            .filter((line) => line.startsWith("data:"))
-            .map((line) => line.slice(5).trim())
-            .join("\n");
-          if (!data || data === "[DONE]") {
-            continue;
-          }
-          let payload: unknown;
-          try {
-            payload = JSON.parse(data) as unknown;
-          } catch {
-            payload = { raw: data };
-          }
-          const delta = resolveOpenAiDeltaText(payload);
-          if (delta) {
-            text += delta;
-            pushText(delta);
-          }
-        }
-        if (done) {
-          break;
-        }
-      }
-      return text;
-    },
-  });
-}
-
-async function streamOllamaSource(params: {
-  model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "current-ollama" | "server-ollama" }>;
-  context: StreamContext;
-  options?: StreamOptions;
-}): Promise<AssistantMessageEventStream> {
-  const sourceLabel =
-    params.source.kind === "current-ollama" ? "local Ollama runtime" : "remote Ollama server";
-  return beginTextStream({
-    model: params.model,
-    run: async ({ pushText }) => {
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-      };
-      const apiKey = !isSyntheticNoAuthKey(params.options?.apiKey)
-        ? params.options?.apiKey?.trim()
-        : params.source.apiKey?.trim();
-      if (apiKey) {
-        headers.authorization = `Bearer ${apiKey}`;
-      }
-      const response = await fetch(resolveOllamaChatUrl(params.source.baseUrl), {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          model: params.model.id,
-          messages: buildRuntimeMessages(params.context),
-          stream: true,
-          options: {
-            ...(typeof params.options?.temperature === "number"
-              ? { temperature: params.options.temperature }
-              : {}),
-            ...(typeof params.options?.maxTokens === "number"
-              ? { num_predict: params.options.maxTokens }
-              : {}),
-          },
-        }),
-        signal: params.options?.signal,
-      });
-      if (!response.ok) {
-        const message = await response.text().catch(() => response.statusText);
-        throw new Error(
-          `${sourceLabel} request failed (${response.status}): ${message || response.statusText}`,
-        );
-      }
-      if (!response.body) {
-        throw new Error(`${sourceLabel} returned no body`);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let text = "";
-      while (true) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) {
-            continue;
-          }
-          const payload = JSON.parse(trimmed) as {
-            done?: boolean;
-            message?: {
-              content?: string;
-            };
-          };
-          const delta = payload.message?.content?.trim() ? payload.message.content : "";
-          if (delta) {
-            text += delta;
-            pushText(delta);
-          }
-        }
-        if (done) {
-          break;
-        }
-      }
-      return text;
-    },
-  });
-}
-
-function resolveNodeTaskText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") {
-    return "";
-  }
-  if (typeof (payload as { text?: unknown }).text === "string") {
-    return (payload as { text: string }).text;
-  }
-  if (typeof (payload as { response?: { text?: unknown } }).response?.text === "string") {
-    return (payload as { response: { text: string } }).response.text;
-  }
-  return "";
-}
-
-async function streamNodeSource(params: {
-  model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "node-llama" | "node-openai" }>;
-  context: StreamContext;
-  options?: StreamOptions;
-}): Promise<AssistantMessageEventStream> {
-  return beginTextStream({
-    model: params.model,
-    run: async ({ pushText }) => {
-      const result = await params.source.runTask({
-        timeoutMs: 120_000,
-        input: {
-          model: params.model.id,
-          messages: buildRuntimeMessages(params.context),
-          ...(typeof params.options?.temperature === "number"
-            ? { temperature: params.options.temperature }
-            : {}),
-          ...(typeof params.options?.maxTokens === "number"
-            ? { maxTokens: params.options.maxTokens, max_tokens: params.options.maxTokens }
-            : {}),
-        },
-        onEvent: (event) => {
-          if (event.kind !== "delta") {
-            return;
-          }
-          const delta = resolveOpenAiDeltaText(event.payload) || resolveNodeTaskText(event.payload);
-          if (delta) {
-            pushText(delta);
-          }
-        },
-      });
-      if (!result.ok) {
-        throw new Error(result.error?.message ?? "remote model task failed");
-      }
-      return resolveNodeTaskText(result.payload);
-    },
-  });
-}
-
-async function streamCurrentLlamaSource(params: {
-  model: StreamModel;
-  source: Extract<AlisioDynamicProviderSource, { kind: "current-llama" }>;
-  context: StreamContext;
-  options?: StreamOptions;
-}): Promise<AssistantMessageEventStream> {
-  void params.source;
-  return beginTextStream({
-    model: params.model,
-    run: async ({ pushText }) => {
-      const result = await chatWithInstalledAlisioLocalModel({
-        modelId: params.model.id,
-        messages: buildRuntimeMessages(params.context),
-        signal: params.options?.signal,
-        maxTokens:
-          typeof params.options?.maxTokens === "number" ? params.options.maxTokens : undefined,
-        temperature:
-          typeof params.options?.temperature === "number" ? params.options.temperature : undefined,
-        onTextChunk: async (chunk) => {
-          pushText(chunk);
-        },
-      });
-      return result.text;
-    },
-  });
 }
 
 export async function resolveAlisioProviderStream(
@@ -511,53 +244,14 @@ export async function resolveAlisioProviderStream(
   if (!source) {
     return undefined;
   }
-  if (source.kind === "current-llama") {
-    return await streamCurrentLlamaSource({
+
+  return beginProviderAdapterStream({
+    model,
+    adapter: resolveAlisioProviderAdapter(source),
+    request: buildProviderAdapterRequest({
       model,
-      source,
       context,
       options,
-    });
-  }
-  if (source.kind === "current-openai") {
-    return await streamOpenAiCompatibleSource({
-      model,
-      source,
-      context,
-      options,
-    });
-  }
-  if (source.kind === "current-ollama") {
-    return await streamOllamaSource({
-      model,
-      source,
-      context,
-      options,
-    });
-  }
-  if (source.kind === "node-llama" || source.kind === "node-openai") {
-    return await streamNodeSource({
-      model,
-      source,
-      context,
-      options,
-    });
-  }
-  if (source.kind === "server-openai") {
-    return await streamOpenAiCompatibleSource({
-      model,
-      source,
-      context,
-      options,
-    });
-  }
-  if (source.kind === "server-ollama") {
-    return await streamOllamaSource({
-      model,
-      source,
-      context,
-      options,
-    });
-  }
-  return undefined;
+    }),
+  });
 }
