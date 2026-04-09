@@ -133,9 +133,9 @@ export interface PluginSdkFacadeTypeMap {
       BrowserStatus: import("@openclaw/browser/runtime-api.js").BrowserStatus;
       BrowserTab: import("@openclaw/browser/runtime-api.js").BrowserTab;
       BrowserTransport: import("@openclaw/browser/runtime-api.js").BrowserTransport;
-      OpenClawPluginApi: import("@openclaw/browser/runtime-api.js").OpenClawPluginApi;
-      OpenClawPluginToolContext: import("@openclaw/browser/runtime-api.js").OpenClawPluginToolContext;
-      OpenClawPluginToolFactory: import("@openclaw/browser/runtime-api.js").OpenClawPluginToolFactory;
+      AlisioPluginApi: import("@openclaw/browser/runtime-api.js").AlisioPluginApi;
+      AlisioPluginToolContext: import("@openclaw/browser/runtime-api.js").AlisioPluginToolContext;
+      AlisioPluginToolFactory: import("@openclaw/browser/runtime-api.js").AlisioPluginToolFactory;
       ProfileStatus: import("@openclaw/browser/runtime-api.js").ProfileStatus;
       ResolvedBrowserConfig: import("@openclaw/browser/runtime-api.js").ResolvedBrowserConfig;
       ResolvedBrowserProfile: import("@openclaw/browser/runtime-api.js").ResolvedBrowserProfile;
@@ -449,31 +449,6 @@ export interface PluginSdkFacadeTypeMap {
     };
     types: {};
   };
-  ollama: {
-    module: typeof import("@openclaw/ollama/runtime-api.js");
-    sourceModules: {
-      source1: {
-        module: typeof import("@openclaw/ollama/runtime-api.js");
-      };
-    };
-    types: {
-      OllamaEmbeddingClient: import("@openclaw/ollama/runtime-api.js").OllamaEmbeddingClient;
-      OllamaEmbeddingProvider: import("@openclaw/ollama/runtime-api.js").OllamaEmbeddingProvider;
-    };
-  };
-  "ollama-surface": {
-    module: typeof import("@openclaw/ollama/api.js");
-    sourceModules: {
-      source1: {
-        module: typeof import("@openclaw/ollama/api.js");
-      };
-    };
-    types: {
-      OllamaModelWithContext: import("@openclaw/ollama/api.js").OllamaModelWithContext;
-      OllamaTagModel: import("@openclaw/ollama/api.js").OllamaTagModel;
-      OllamaTagsResponse: import("@openclaw/ollama/api.js").OllamaTagsResponse;
-    };
-  };
   openai: {
     module: typeof import("@openclaw/openai/api.js");
     sourceModules: {
@@ -533,15 +508,6 @@ export interface PluginSdkFacadeTypeMap {
       SignalProbe: import("@openclaw/signal/api.js").SignalProbe;
       SignalSender: import("@openclaw/signal/api.js").SignalSender;
     };
-  };
-  "provider-reasoning": {
-    module: typeof import("@openclaw/ollama/api.js");
-    sourceModules: {
-      source1: {
-        module: typeof import("@openclaw/ollama/api.js");
-      };
-    };
-    types: {};
   };
   "speech-runtime": {
     module: typeof import("@openclaw/speech-core/runtime-api.js");

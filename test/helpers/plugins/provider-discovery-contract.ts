@@ -1,11 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthProfileStore } from "../../../src/agents/auth-profiles/types.js";
 import type { AlisioConfig } from "../../../src/config/config.js";
-import type { ModelDefinitionConfig } from "../../../src/config/types.models.js";
 import { registerProviders, requireProvider } from "../../../src/plugins/contracts/testkit.js";
 
 const resolveCopilotApiTokenMock = vi.hoisted(() => vi.fn());
-const buildOllamaProviderMock = vi.hoisted(() => vi.fn());
 const buildVllmProviderMock = vi.hoisted(() => vi.fn());
 const buildSglangProviderMock = vi.hoisted(() => vi.fn());
 const ensureAuthProfileStoreMock = vi.hoisted(() => vi.fn());
@@ -30,8 +28,6 @@ const bundledProviderModules = vi.hoisted(() => ({
   minimaxIndexModuleUrl: new URL("../../../extensions/minimax/index.ts", import.meta.url).href,
   modelStudioIndexModuleUrl: new URL("../../../extensions/modelstudio/index.ts", import.meta.url)
     .href,
-  ollamaApiModuleId: new URL("../../../extensions/ollama/api.js", import.meta.url).pathname,
-  ollamaIndexModuleUrl: new URL("../../../extensions/ollama/index.ts", import.meta.url).href,
   sglangApiModuleId: new URL("../../../extensions/sglang/api.js", import.meta.url).pathname,
   sglangIndexModuleUrl: new URL("../../../extensions/sglang/index.ts", import.meta.url).href,
   vllmApiModuleId: new URL("../../../extensions/vllm/api.js", import.meta.url).pathname,
@@ -43,7 +39,6 @@ type ProviderHandle = Awaited<ReturnType<typeof requireProvider>>;
 type DiscoveryState = {
   runProviderCatalog: typeof import("../../../src/plugins/provider-discovery.js").runProviderCatalog;
   githubCopilotProvider?: ProviderHandle;
-  ollamaProvider?: ProviderHandle;
   vllmProvider?: ProviderHandle;
   sglangProvider?: ProviderHandle;
   minimaxProvider?: ProviderHandle;
@@ -51,23 +46,6 @@ type DiscoveryState = {
   modelStudioProvider?: ProviderHandle;
   cloudflareAiGatewayProvider?: ProviderHandle;
 };
-
-function createModelConfig(id: string, name = id): ModelDefinitionConfig {
-  return {
-    id,
-    name,
-    reasoning: false,
-    input: ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: 128_000,
-    maxTokens: 8_192,
-  };
-}
 
 function setRuntimeAuthStore(store?: AuthProfileStore) {
   const resolvedStore = store ?? {
@@ -163,13 +141,6 @@ function installDiscoveryHooks(state: DiscoveryState) {
         resolveCopilotApiToken: resolveCopilotApiTokenMock,
       };
     });
-    vi.doMock(bundledProviderModules.ollamaApiModuleId, async () => {
-      const actual = await vi.importActual<object>(bundledProviderModules.ollamaApiModuleId);
-      return {
-        ...actual,
-        buildOllamaProvider: (...args: unknown[]) => buildOllamaProviderMock(...args),
-      };
-    });
     vi.doMock(bundledProviderModules.vllmApiModuleId, async () => {
       const actual = await vi.importActual<object>(bundledProviderModules.vllmApiModuleId);
       return {
@@ -188,7 +159,6 @@ function installDiscoveryHooks(state: DiscoveryState) {
       await import("../../../src/plugins/provider-discovery.js"));
     const [
       { default: githubCopilotPlugin },
-      { default: ollamaPlugin },
       { default: vllmPlugin },
       { default: sglangPlugin },
       { default: minimaxPlugin },
@@ -198,9 +168,6 @@ function installDiscoveryHooks(state: DiscoveryState) {
       importBundledProviderPlugin<{
         default: Parameters<typeof registerProviders>[0];
       }>(bundledProviderModules.githubCopilotIndexModuleUrl),
-      importBundledProviderPlugin<{
-        default: Parameters<typeof registerProviders>[0];
-      }>(bundledProviderModules.ollamaIndexModuleUrl),
       importBundledProviderPlugin<{
         default: Parameters<typeof registerProviders>[0];
       }>(bundledProviderModules.vllmIndexModuleUrl),
@@ -221,7 +188,6 @@ function installDiscoveryHooks(state: DiscoveryState) {
       registerProviders(githubCopilotPlugin),
       "github-copilot",
     );
-    state.ollamaProvider = requireProvider(registerProviders(ollamaPlugin), "ollama");
     state.vllmProvider = requireProvider(registerProviders(vllmPlugin), "vllm");
     state.sglangProvider = requireProvider(registerProviders(sglangPlugin), "sglang");
     state.minimaxProvider = requireProvider(registerProviders(minimaxPlugin), "minimax");
@@ -243,7 +209,6 @@ function installDiscoveryHooks(state: DiscoveryState) {
   afterEach(() => {
     vi.restoreAllMocks();
     resolveCopilotApiTokenMock.mockReset();
-    buildOllamaProviderMock.mockReset();
     buildVllmProviderMock.mockReset();
     buildSglangProviderMock.mockReset();
     ensureAuthProfileStoreMock.mockReset();
@@ -305,72 +270,6 @@ export function describeGithubCopilotProviderDiscoveryContract() {
           GITHUB_TOKEN: "github-env-token",
         }),
       });
-    });
-  });
-}
-
-export function describeOllamaProviderDiscoveryContract() {
-  const state = {} as DiscoveryState;
-
-  describe("ollama provider discovery contract", () => {
-    installDiscoveryHooks(state);
-
-    it("keeps explicit catalog normalization provider-owned", async () => {
-      await expect(
-        state.runProviderCatalog({
-          provider: state.ollamaProvider!,
-          config: {
-            models: {
-              providers: {
-                ollama: {
-                  baseUrl: "http://ollama-host:11434/v1/",
-                  models: [createModelConfig("llama3.2")],
-                },
-              },
-            },
-          },
-          env: {} as NodeJS.ProcessEnv,
-          resolveProviderApiKey: () => ({ apiKey: undefined }),
-          resolveProviderAuth: () => ({
-            apiKey: undefined,
-            discoveryApiKey: undefined,
-            mode: "none",
-            source: "none",
-          }),
-        }),
-      ).resolves.toMatchObject({
-        provider: {
-          baseUrl: "http://ollama-host:11434",
-          api: "ollama",
-          apiKey: "ollama-local",
-          models: [createModelConfig("llama3.2")],
-        },
-      });
-      expect(buildOllamaProviderMock).not.toHaveBeenCalled();
-    });
-
-    it("keeps empty autodiscovery disabled without keys or explicit config", async () => {
-      buildOllamaProviderMock.mockResolvedValueOnce({
-        baseUrl: "http://127.0.0.1:11434",
-        api: "ollama",
-        models: [],
-      });
-
-      await expect(
-        runCatalog(state, {
-          provider: state.ollamaProvider!,
-          config: {},
-          env: {} as NodeJS.ProcessEnv,
-          resolveProviderApiKey: () => ({ apiKey: undefined }),
-          resolveProviderAuth: () => ({
-            apiKey: undefined,
-            discoveryApiKey: undefined,
-            mode: "none",
-            source: "none",
-          }),
-        }),
-      ).resolves.toBeNull();
-      expect(buildOllamaProviderMock).toHaveBeenCalledWith(undefined, { quiet: true });
     });
   });
 }

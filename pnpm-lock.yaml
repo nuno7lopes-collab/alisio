@@ -542,8 +542,6 @@ importers:
 
   extensions/nvidia: {}
 
-  extensions/ollama: {}
-
   extensions/open-prose: {}
 
   extensions/openai: {}
