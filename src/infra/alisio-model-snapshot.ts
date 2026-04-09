@@ -5,27 +5,19 @@ import type {
   NodeTaskResult,
 } from "../gateway/node-registry.js";
 import {
-  alisioRemoteModelServersUpgradeMessage,
-  alisioSupportsRemoteModelServers,
-} from "../shared/alisio-billing.js";
+  buildAlisioCurrentProviderId,
+  buildAlisioTargetProviderId,
+} from "../shared/alisio-dynamic-provider.js";
 import {
   ALISIO_LOCAL_MODEL_BACKEND,
   listPublishedAlisioLocalModels,
 } from "../shared/alisio-local-models.js";
-import {
-  buildAlisioCurrentProviderId,
-  buildAlisioServerProviderId,
-  buildAlisioTargetProviderId,
-} from "../shared/alisio-remote-model-provider.js";
 import { inspectManagedLocalModelRuntime } from "./alisio-local-llama-runtime.js";
 import {
-  resolveConfiguredLocalRuntimeKind,
-  resolveCurrentRuntimeBaseUrlForKind,
   inspectLocalModelRuntimes,
   listManagedLocalAvailableModels,
   listLmStudioAvailableModels,
   listOllamaAvailableModels,
-  resolveLocalModelRuntimeConfig,
   type AlisioAvailableLocalModel,
   type AlisioInstalledLocalModel,
   type AlisioLocalRuntimeKind,
@@ -37,15 +29,8 @@ import {
   type AlisioDynamicProviderSource,
 } from "./alisio-model-providers.js";
 import {
-  type AlisioRemoteListedModel,
-  inspectAlisioRemoteModelServer,
-} from "./alisio-remote-model-provider.js";
-import {
   getAlisioSharingTargetAccessIndex,
-  listAlisioRemoteModelServers,
-  resolveCurrentAlisioPlan,
   type AlisioSharingRuntimeTarget,
-  type AlisioRemoteModelServerKind,
 } from "./alisio-store.js";
 import {
   buildRuntimeCapabilities,
@@ -58,6 +43,7 @@ import {
 
 type RuntimeKind = AlisioLocalRuntimeKind;
 type RuntimeStatus = "ready" | "not_configured" | "error";
+type AlisioRemoteServerKind = "openai-compatible" | "ollama";
 type PublishedCatalogEntry = Omit<
   ReturnType<typeof listPublishedAlisioLocalModels>[number],
   "sourceUri"
@@ -97,7 +83,7 @@ export type AlisioModelTargetSnapshot = {
 export type AlisioRemoteServerSnapshot = {
   serverId: string;
   label: string;
-  kind: AlisioRemoteModelServerKind;
+  kind: AlisioRemoteServerKind;
   baseUrl: string;
   active: boolean;
   hasApiKey: boolean;
@@ -105,7 +91,7 @@ export type AlisioRemoteServerSnapshot = {
   chatProviderId?: string;
   status: RuntimeStatus;
   message?: string;
-  models: AlisioRemoteListedModel[];
+  models: AlisioInstalledLocalModel[];
 };
 
 export type AlisioModelProviderSnapshot = {
@@ -573,58 +559,18 @@ async function inspectConnectedNodeTargets(params: {
 function buildCurrentSource(params: {
   currentDevice?: CurrentDevice;
   target: AlisioModelTargetSnapshot;
-  baseUrl?: string;
-  apiKey?: string;
 }): AlisioDynamicProviderSource | null {
-  if (params.target.runtimeStatus !== "ready" || params.target.installedModels.length === 0) {
+  if (
+    params.target.runtimeKind !== ALISIO_LOCAL_MODEL_BACKEND ||
+    params.target.runtimeStatus !== "ready" ||
+    params.target.installedModels.length === 0
+  ) {
     return null;
   }
-  const providerId = buildAlisioCurrentProviderId(params.target.runtimeKind);
-  if (
-    params.target.runtimeKind === "openai-compatible" ||
-    params.target.runtimeKind === "lmstudio"
-  ) {
-    if (!params.baseUrl) {
-      return null;
-    }
-    return {
-      kind: "current-openai",
-      providerId,
-      providerLabel: params.currentDevice?.label?.trim() || "This device",
-      targetId: params.target.targetId,
-      baseUrl: params.baseUrl,
-      ...(params.apiKey ? { apiKey: params.apiKey } : {}),
-      catalogEntries: params.target.installedModels.map((model) => ({
-        id: model.id,
-        name: model.name,
-        provider: providerId,
-        providerLabel: params.currentDevice?.label?.trim() || "This device",
-        input: ["text"],
-      })),
-    };
-  }
-  if (params.target.runtimeKind === "ollama") {
-    if (!params.baseUrl) {
-      return null;
-    }
-    return {
-      kind: "current-ollama",
-      providerId,
-      providerLabel: params.currentDevice?.label?.trim() || "This device",
-      targetId: params.target.targetId,
-      baseUrl: params.baseUrl,
-      ...(params.apiKey ? { apiKey: params.apiKey } : {}),
-      catalogEntries: params.target.installedModels.map((model) => ({
-        id: model.id,
-        name: model.name,
-        provider: providerId,
-        providerLabel: params.currentDevice?.label?.trim() || "This device",
-        input: ["text"],
-      })),
-    };
-  }
+  const providerId = buildAlisioCurrentProviderId();
   return {
-    kind: "current-llama",
+    kind: "managed-local",
+    location: "current",
     providerId,
     providerLabel: params.currentDevice?.label?.trim() || "This device",
     targetId: params.target.targetId,
@@ -644,6 +590,7 @@ function buildConnectedTargetSource(params: {
 }): AlisioDynamicProviderSource | null {
   if (
     params.target.current ||
+    params.target.runtimeKind !== ALISIO_LOCAL_MODEL_BACKEND ||
     params.target.runtimeStatus !== "ready" ||
     params.target.installedModels.length === 0 ||
     !params.target.chatCapabilityId
@@ -655,7 +602,8 @@ function buildConnectedTargetSource(params: {
     runtimeKind: params.target.runtimeKind,
   });
   return {
-    kind: params.target.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND ? "node-llama" : "node-openai",
+    kind: "linked-node",
+    location: "target",
     providerId,
     providerLabel: params.target.label,
     targetId: params.target.targetId,
@@ -674,28 +622,6 @@ function buildConnectedTargetSource(params: {
   };
 }
 
-function buildServerSource(server: AlisioRemoteServerSnapshot): AlisioDynamicProviderSource | null {
-  if (!server.active || server.status !== "ready" || server.models.length === 0) {
-    return null;
-  }
-  const providerId = buildAlisioServerProviderId(server.serverId);
-  return {
-    kind: server.kind === "ollama" ? "server-ollama" : "server-openai",
-    providerId,
-    providerLabel: server.label,
-    serverId: server.serverId,
-    baseUrl: server.baseUrl,
-    ...(server.apiKey?.trim() ? { apiKey: server.apiKey.trim() } : {}),
-    catalogEntries: server.models.map((model) => ({
-      id: model.id,
-      name: model.name,
-      provider: providerId,
-      providerLabel: server.label,
-      input: ["text"],
-    })),
-  };
-}
-
 async function loadSnapshot(params: {
   nodeRegistry: NodeRegistry;
   currentDevice?: CurrentDevice;
@@ -703,12 +629,6 @@ async function loadSnapshot(params: {
   fetchImpl?: typeof fetch;
 }): Promise<AlisioModelProviderSnapshot> {
   const env = params.env ?? process.env;
-  const currentPlan = await resolveCurrentAlisioPlan(env);
-  const remoteModelServersAllowed = alisioSupportsRemoteModelServers(currentPlan);
-  const currentRuntimeConfig = resolveLocalModelRuntimeConfig(env);
-  const configuredRuntimeKind = currentRuntimeConfig.baseUrl
-    ? resolveConfiguredLocalRuntimeKind(currentRuntimeConfig.baseUrl)
-    : null;
   const [currentLlamaInspection, currentEndpointInspections] = await Promise.all([
     inspectManagedLocalModelRuntime(env),
     inspectLocalModelRuntimes({
@@ -801,22 +721,9 @@ async function loadSnapshot(params: {
       bestModelId: recommendations.bestModelId,
       bestModelName: recommendations.bestModelName,
     };
-    const endpointBaseUrl =
-      candidate.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND
-        ? undefined
-        : (resolveCurrentRuntimeBaseUrlForKind({
-            runtimeKind: candidate.runtimeKind,
-            env,
-          }) ?? undefined);
-    const endpointApiKey =
-      configuredRuntimeKind === candidate.runtimeKind
-        ? (currentRuntimeConfig.apiKey ?? undefined)
-        : undefined;
     const source = buildCurrentSource({
       currentDevice: params.currentDevice,
       target: targetBase,
-      baseUrl: endpointBaseUrl,
-      apiKey: endpointApiKey,
     });
     return {
       target:
@@ -927,52 +834,11 @@ async function loadSnapshot(params: {
       },
     ];
   });
-
-  const servers = await Promise.all(
-    (await listAlisioRemoteModelServers(params.env ?? process.env)).map(async (server) => {
-      if (!remoteModelServersAllowed) {
-        return {
-          serverId: server.serverId,
-          label: server.label,
-          kind: server.kind,
-          baseUrl: server.baseUrl,
-          active: server.active,
-          hasApiKey: Boolean(server.apiKey?.trim() || server.apiKeyEncrypted),
-          apiKey: server.apiKey?.trim() || undefined,
-          status: "not_configured",
-          message: alisioRemoteModelServersUpgradeMessage(),
-          models: [],
-        } satisfies AlisioRemoteServerSnapshot;
-      }
-      const inspection = await inspectAlisioRemoteModelServer(server, {
-        fetchImpl: params.fetchImpl,
-      });
-      const nextServer = {
-        serverId: server.serverId,
-        label: server.label,
-        kind: server.kind,
-        baseUrl: server.baseUrl,
-        active: server.active,
-        hasApiKey: Boolean(server.apiKey?.trim() || server.apiKeyEncrypted),
-        apiKey: server.apiKey?.trim() || undefined,
-        status: inspection.status,
-        message: "message" in inspection ? inspection.message : undefined,
-        models: normalizeListedModels(inspection.models),
-      } satisfies AlisioRemoteServerSnapshot;
-      const source = buildServerSource(nextServer);
-      return source && source.catalogEntries.length > 0
-        ? {
-            ...nextServer,
-            chatProviderId: source.providerId,
-          }
-        : nextServer;
-    }),
-  );
+  const servers: AlisioRemoteServerSnapshot[] = [];
 
   const dynamicSources = [
     ...currentTargetsWithAccess.map((entry) => entry.source),
     ...connectedTargetsWithAccess.map((entry) => entry.source),
-    ...servers.map(buildServerSource),
   ].filter((source): source is AlisioDynamicProviderSource => Boolean(source));
 
   setAlisioDynamicModelProviders(dynamicSources);

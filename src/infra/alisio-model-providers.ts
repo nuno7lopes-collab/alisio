@@ -2,13 +2,12 @@ import type { Api } from "@mariozechner/pi-ai";
 import type { ModelCatalogEntry } from "../agents/model-catalog.js";
 import type { ModelDefinitionConfig } from "../config/types.js";
 import type { NodeTaskEvent, NodeTaskResult } from "../gateway/node-registry.js";
-import { findAlisioLocalModelCatalogEntry } from "../shared/alisio-local-models.js";
 import {
   buildAlisioCurrentProviderId,
-  buildAlisioServerProviderId,
   buildAlisioTargetProviderId,
   isAlisioDynamicProvider,
-} from "../shared/alisio-remote-model-provider.js";
+} from "../shared/alisio-dynamic-provider.js";
+import { findAlisioLocalModelCatalogEntry } from "../shared/alisio-local-models.js";
 
 const ALISIO_DYNAMIC_API_PREFIX = "alisio:";
 const DEFAULT_CONTEXT_WINDOW = 32_768;
@@ -32,42 +31,15 @@ type AlisioDynamicSourceBase = {
 
 export type AlisioDynamicProviderSource =
   | (AlisioDynamicSourceBase & {
-      kind: "current-llama";
+      kind: "managed-local";
+      location: "current";
       targetId: string;
     })
   | (AlisioDynamicSourceBase & {
-      kind: "current-ollama";
-      targetId: string;
-      baseUrl: string;
-      apiKey?: string;
-    })
-  | (AlisioDynamicSourceBase & {
-      kind: "current-openai";
-      targetId: string;
-      baseUrl: string;
-      apiKey?: string;
-    })
-  | (AlisioDynamicSourceBase & {
-      kind: "node-llama";
+      kind: "linked-node";
+      location: "target";
       targetId: string;
       runTask: AlisioDynamicNodeTaskExecutor;
-    })
-  | (AlisioDynamicSourceBase & {
-      kind: "node-openai";
-      targetId: string;
-      runTask: AlisioDynamicNodeTaskExecutor;
-    })
-  | (AlisioDynamicSourceBase & {
-      kind: "server-openai";
-      serverId: string;
-      baseUrl: string;
-      apiKey?: string;
-    })
-  | (AlisioDynamicSourceBase & {
-      kind: "server-ollama";
-      serverId: string;
-      baseUrl: string;
-      apiKey?: string;
     });
 
 export type AlisioDynamicProviderConfig = {
@@ -236,15 +208,8 @@ export function resolveAlisioDynamicProviderConfig(
     provider: source.providerId,
     providerLabel: source.providerLabel,
     api,
-    baseUrl: "baseUrl" in source ? source.baseUrl : undefined,
-    apiKey: "apiKey" in source ? source.apiKey : undefined,
     models: source.catalogEntries.map((entry) => buildDynamicModelDefinition(entry, api)),
   };
 }
 
-export {
-  buildAlisioCurrentProviderId,
-  buildAlisioServerProviderId,
-  buildAlisioTargetProviderId,
-  isAlisioDynamicProvider,
-};
+export { buildAlisioCurrentProviderId, buildAlisioTargetProviderId, isAlisioDynamicProvider };

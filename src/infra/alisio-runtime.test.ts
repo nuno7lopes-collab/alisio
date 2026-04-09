@@ -20,11 +20,16 @@ vi.mock("../agents/live-auth-keys.js", () => ({
   collectProviderApiKeys: collectProviderApiKeysMock,
 }));
 
-import type { AlisioModelProviderSnapshot } from "./alisio-model-snapshot.js";
 import {
   loadAlisioRuntimeSetupState,
   resolveAlisioRuntimeProviderReady,
 } from "./alisio-runtime.js";
+
+type RuntimeSnapshot = {
+  targets: Array<{ chatProviderId?: string }>;
+  servers: Array<{ active?: boolean; chatProviderId?: string }>;
+  dynamicCatalogEntries: Array<{ provider: string; id: string; name: string }>;
+};
 
 function createRuntimeSnapshot(params?: {
   localTargetProviderId?: string;
@@ -59,7 +64,7 @@ function createRuntimeSnapshot(params?: {
         ]
       : [],
     dynamicCatalogEntries,
-  } as Pick<AlisioModelProviderSnapshot, "targets" | "servers" | "dynamicCatalogEntries">;
+  } satisfies RuntimeSnapshot;
 }
 
 describe("loadAlisioRuntimeSetupState", () => {
@@ -67,14 +72,14 @@ describe("loadAlisioRuntimeSetupState", () => {
     const runtime = await loadAlisioRuntimeSetupState({
       loadGatewayModelCatalog: async () => [
         {
-          provider: "alisio-local-current",
+          provider: "alisio-local-current-llama",
           id: "qwen3-4b-q4-k-m",
           name: "Qwen3 4B",
         },
       ],
     });
 
-    expect(runtime.models.providers).toEqual(["alisio-local-current"]);
+    expect(runtime.models.providers).toEqual(["alisio-local-current-llama"]);
     expect(runtime.providerReady).toBe(true);
   });
 
@@ -83,21 +88,21 @@ describe("loadAlisioRuntimeSetupState", () => {
       loadGatewayModelCatalog: async () => [],
       loadAlisioModelProviderSnapshot: async () =>
         createRuntimeSnapshot({
-          localTargetProviderId: "alisio-local-current",
+          localTargetProviderId: "alisio-local-current-llama",
         }),
     });
 
-    expect(runtime.models.providers).toEqual(["alisio-local-current"]);
+    expect(runtime.models.providers).toEqual(["alisio-local-current-llama"]);
     expect(runtime.signals.localTargetReady).toBe(true);
     expect(runtime.providerReady).toBe(true);
   });
 
-  it("requires remote servers to be active before treating them as ready", async () => {
+  it("continues to honor server readiness signals when the snapshot exposes them", async () => {
     const activeRuntime = await loadAlisioRuntimeSetupState({
       loadGatewayModelCatalog: async () => [],
       loadAlisioModelProviderSnapshot: async () =>
         createRuntimeSnapshot({
-          serverProviderId: "alisio-server-studio",
+          serverProviderId: "alisio-target-remote-1-llama",
           serverActive: true,
         }),
     });
@@ -105,13 +110,13 @@ describe("loadAlisioRuntimeSetupState", () => {
       loadGatewayModelCatalog: async () => [],
       loadAlisioModelProviderSnapshot: async () =>
         createRuntimeSnapshot({
-          serverProviderId: "alisio-server-studio",
+          serverProviderId: "alisio-target-remote-1-llama",
           serverActive: false,
         }),
     });
 
     expect(activeRuntime.signals.activeServerReady).toBe(true);
-    expect(activeRuntime.models.providers).toEqual(["alisio-server-studio"]);
+    expect(activeRuntime.models.providers).toEqual(["alisio-target-remote-1-llama"]);
     expect(activeRuntime.providerReady).toBe(true);
     expect(inactiveRuntime.signals.activeServerReady).toBe(false);
     expect(inactiveRuntime.models.providers).toEqual([]);

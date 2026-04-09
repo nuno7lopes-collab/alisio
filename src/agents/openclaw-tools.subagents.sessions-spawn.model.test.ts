@@ -221,7 +221,7 @@ describe("openclaw-tools: subagents (sessions_spawn model + thinking)", () => {
               current: true,
               connected: true,
               runtimeStatus: "ready",
-              chatProviderId: "alisio-local-current-ollama",
+              chatProviderId: "alisio-local-current-llama",
               installedModels: [{ id: "qwen3:8b", running: true }],
             },
           ],
@@ -254,7 +254,7 @@ describe("openclaw-tools: subagents (sessions_spawn model + thinking)", () => {
       (call) => call.method === "sessions.patch" && (call.params as { model?: string })?.model,
     );
     expect(patchCall?.params).toMatchObject({
-      model: "alisio-local-current-ollama/qwen3:8b",
+      model: "alisio-local-current-llama/qwen3:8b",
     });
   });
 
