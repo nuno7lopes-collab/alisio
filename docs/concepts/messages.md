@@ -68,12 +68,13 @@ Notes:
 
 Sessions are owned by the gateway, not by clients.
 
-- Direct chats collapse into the agent main session key.
+- Direct chats default to isolated per-channel direct session keys.
 - Groups/channels get their own session keys.
 - The session store and transcripts live on the gateway host.
 
-Multiple devices/channels can map to the same session, but history is not fully
-synced back to every client. Recommendation: use one primary device for long
+Multiple devices/channels can map to the same session when that continuity is
+configured explicitly, but history is not fully synced back to every client.
+Recommendation: use one primary device for long
 conversations to avoid divergent context. The Control UI and TUI always show the
 gateway-backed session transcript, so they are the source of truth.
 

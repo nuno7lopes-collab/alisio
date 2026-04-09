@@ -14,12 +14,19 @@ function withNodeServiceEnv(
 ): Record<string, string | undefined> {
   return {
     ...env,
+    ALISIO_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
     OPENCLAW_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
+    ALISIO_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
     OPENCLAW_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
+    ALISIO_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
     OPENCLAW_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
+    ALISIO_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
     OPENCLAW_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
+    ALISIO_LOG_PREFIX: "node",
     OPENCLAW_LOG_PREFIX: "node",
+    ALISIO_SERVICE_MARKER: NODE_SERVICE_MARKER,
     OPENCLAW_SERVICE_MARKER: NODE_SERVICE_MARKER,
+    ALISIO_SERVICE_KIND: NODE_SERVICE_KIND,
     OPENCLAW_SERVICE_KIND: NODE_SERVICE_KIND,
   };
 }
@@ -30,12 +37,19 @@ function withNodeInstallEnv(args: GatewayServiceInstallArgs): GatewayServiceInst
     env: withNodeServiceEnv(args.env),
     environment: {
       ...args.environment,
+      ALISIO_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
       OPENCLAW_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
+      ALISIO_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
       OPENCLAW_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
+      ALISIO_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
       OPENCLAW_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
+      ALISIO_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
       OPENCLAW_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
+      ALISIO_LOG_PREFIX: "node",
       OPENCLAW_LOG_PREFIX: "node",
+      ALISIO_SERVICE_MARKER: NODE_SERVICE_MARKER,
       OPENCLAW_SERVICE_MARKER: NODE_SERVICE_MARKER,
+      ALISIO_SERVICE_KIND: NODE_SERVICE_KIND,
       OPENCLAW_SERVICE_KIND: NODE_SERVICE_KIND,
     },
   };

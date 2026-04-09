@@ -1,4 +1,5 @@
 import { parseAgentSessionKey } from "../../../src/sessions/session-key-utils.js";
+import { t } from "../i18n/index.ts";
 import { scheduleChatScroll, resetChatScroll } from "./app-scroll.ts";
 import { setLastActiveSessionKey } from "./app-settings.ts";
 import { resetToolStream } from "./app-tool-stream.ts";
@@ -7,13 +8,37 @@ import { normalizeBasePath } from "./base-path.ts";
 import { executeSlashCommand } from "./chat/slash-command-executor.ts";
 import { parseSlashCommand } from "./chat/slash-commands.ts";
 import { abortChatRun, loadChatHistory, sendChatMessage } from "./controllers/chat.ts";
+import {
+  sortExecApprovalQueue,
+  type ExecApprovalAuditEntry,
+  type ExecApprovalRequest,
+} from "./controllers/exec-approval.ts";
+import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import { loadModels } from "./controllers/models.ts";
+import {
+  applyGatewayAccessMode,
+  resolveSecurityAccessDiagnostics,
+  type SecurityAccessMode,
+} from "./controllers/security-access.ts";
 import { loadSessions } from "./controllers/sessions.ts";
+import { formatRelativeTimestamp } from "./format.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { ChatModelOverride, ModelCatalogEntry } from "./types.ts";
-import type { SessionsListResult } from "./types.ts";
+import type { ConfigSnapshot, NativeShellState } from "./types.ts";
+import type { ChatModelOverride, ModelCatalogEntry, SessionsListResult } from "./types.ts";
 import type { ChatAttachment, ChatQueueItem } from "./ui-types.ts";
 import { generateUUID } from "./uuid.ts";
+import {
+  resolveApprovalAccessLabel,
+  resolveApprovalAskLabel,
+  resolveApprovalCommandText,
+  resolveApprovalDecisionLabel,
+  resolveApprovalEffectText,
+} from "./views/approval-summary.ts";
+import { formatApprovalRemaining } from "./views/exec-approval.ts";
+import {
+  nativeShellPermissionLabel,
+  NATIVE_SHELL_PERMISSION_ORDER,
+} from "./views/native-shell-permissions.ts";
 
 export type ChatHost = {
   client: GatewayBrowserClient | null;
@@ -34,6 +59,18 @@ export type ChatHost = {
   chatModelOverrides: Record<string, ChatModelOverride | null>;
   chatModelsLoading: boolean;
   chatModelCatalog: ModelCatalogEntry[];
+  configSnapshot?: ConfigSnapshot | null;
+  configForm?: Record<string, unknown> | null;
+  execApprovalsSnapshot?: ExecApprovalsSnapshot | null;
+  execApprovalsForm?: ExecApprovalsFile | null;
+  execApprovalQueue?: ExecApprovalRequest[];
+  execApprovalAuditTrail?: ExecApprovalAuditEntry[];
+  gatewayAccessMode?: SecurityAccessMode | null;
+  gatewayAccessModeLoading?: boolean;
+  gatewayAccessModeBusy?: boolean;
+  nativeShellLoading?: boolean;
+  nativeShellError?: string | null;
+  nativeShellState?: NativeShellState | null;
   sessionsResult?: SessionsListResult | null;
   updateComplete?: Promise<unknown>;
   refreshSessionsAfterChat: Set<string>;
@@ -93,7 +130,7 @@ function enqueueChatMessage(
   localCommand?: { args: string; name: string },
 ) {
   const trimmed = text.trim();
-  const hasAttachments = Boolean(attachments && attachments.length > 0);
+  const hasAttachments = (attachments?.length ?? 0) > 0;
   if (!trimmed && !hasAttachments) {
     return;
   }
@@ -143,7 +180,7 @@ async function sendChatMessageNow(
   // Reset scroll state before sending to ensure auto-scroll works for the response
   resetChatScroll(host as unknown as Parameters<typeof resetChatScroll>[0]);
   const runId = await sendChatMessage(host as unknown as AlisioApp, message, opts?.attachments);
-  const ok = Boolean(runId);
+  const ok = runId != null;
   if (!ok && opts?.previousDraft != null) {
     host.chatMessage = opts.previousDraft;
   }
@@ -217,6 +254,217 @@ export function clearPendingQueueItemsForRun(host: ChatHost, runId: string | und
   host.chatQueue = host.chatQueue.filter((item) => item.pendingRunId !== runId);
 }
 
+function resolveChatSecurityDiagnostics(host: ChatHost) {
+  return resolveSecurityAccessDiagnostics({
+    configForm:
+      host.configForm ?? (host.configSnapshot?.config as Record<string, unknown> | null) ?? null,
+    execApprovalsForm: host.execApprovalsForm ?? host.execApprovalsSnapshot?.file ?? null,
+  });
+}
+
+function readChatLastError(host: Pick<ChatHost, "lastError">): string | null {
+  return typeof host.lastError === "string" && host.lastError.length > 0 ? host.lastError : null;
+}
+
+function resolveGuardrailLabel(security?: string | null) {
+  return resolveApprovalAccessLabel({
+    command: "policy",
+    security,
+  });
+}
+
+function summarizeNativeShellAccess(state: NativeShellState | null | undefined) {
+  if (!state) {
+    return null;
+  }
+  const missing = NATIVE_SHELL_PERMISSION_ORDER.filter(
+    (permission) => !state.permissions[permission],
+  );
+  return {
+    total: NATIVE_SHELL_PERMISSION_ORDER.length,
+    granted: NATIVE_SHELL_PERMISSION_ORDER.length - missing.length,
+    missingLabels: missing.map((permission) => nativeShellPermissionLabel(permission)),
+  };
+}
+
+function formatMissingPermissions(labels: string[]) {
+  const visible = labels.slice(0, 2);
+  if (labels.length <= 2) {
+    return visible.join(", ");
+  }
+  return `${visible.join(", ")} +${labels.length - visible.length}`;
+}
+
+function buildSecuritySummaryMessage(host: ChatHost): string {
+  const diagnostics = resolveChatSecurityDiagnostics(host);
+  const queue = sortExecApprovalQueue(host.execApprovalQueue ?? []);
+  const recentAudit = (host.execApprovalAuditTrail ?? []).slice(0, 3);
+  const mode = host.gatewayAccessMode ?? diagnostics.mode;
+  const nativeShellSummary = summarizeNativeShellAccess(host.nativeShellState);
+
+  const lines = [
+    `**${t("alisio.chat.access.title")}**`,
+    t("alisio.chat.access.subtitle"),
+    "",
+    `- ${t("alisio.security.stats.mode")}: ${mode ? accessModeLabel(mode) : t("alisio.chat.access.loading")}`,
+    `- ${t("alisio.security.stats.pending")}: ${String(queue.length)}`,
+  ];
+
+  lines.push(
+    "",
+    `**${t("alisio.chat.access.policyTitle")}**`,
+    `- ${t("alisio.chat.access.policyRuntime", {
+      value: `${resolveGuardrailLabel(diagnostics.configDefaults.security)} · ${resolveApprovalAskLabel(
+        diagnostics.configDefaults.ask,
+      )}`,
+    })}`,
+    `- ${t("alisio.chat.access.policyApprovals", {
+      value: `${resolveGuardrailLabel(
+        diagnostics.approvalDefaults.security,
+      )} · ${resolveApprovalAskLabel(diagnostics.approvalDefaults.ask)}`,
+    })}`,
+    `- ${t("alisio.chat.access.policyFallback", {
+      value: resolveGuardrailLabel(diagnostics.approvalDefaults.askFallback),
+    })}`,
+    `- ${
+      diagnostics.mode === "custom"
+        ? t("alisio.security.access.customFooter", {
+            config: String(diagnostics.configOverrideAgentCount),
+            approvals: String(diagnostics.approvalOverrideAgentCount),
+          })
+        : t("alisio.chat.access.policyOverridesAligned")
+    }`,
+    "",
+    `**${t("alisio.chat.access.computerTitle")}**`,
+  );
+
+  if (host.nativeShellLoading && !nativeShellSummary) {
+    lines.push(`- ${t("alisio.chat.access.computerLoading")}`);
+  } else if (host.nativeShellError) {
+    lines.push(`- ${host.nativeShellError}`);
+  } else if (nativeShellSummary) {
+    lines.push(
+      `- ${t("alisio.chat.access.computerGranted", {
+        granted: String(nativeShellSummary.granted),
+        total: String(nativeShellSummary.total),
+      })}`,
+    );
+    lines.push(
+      `- ${
+        nativeShellSummary.missingLabels.length > 0
+          ? t("alisio.chat.access.computerNeedsReview", {
+              value: formatMissingPermissions(nativeShellSummary.missingLabels),
+            })
+          : t("alisio.chat.access.computerAllGranted")
+      }`,
+    );
+  } else {
+    lines.push(`- ${t("alisio.chat.access.computerUnavailable")}`);
+  }
+
+  if (queue.length > 0) {
+    lines.push("", `**${t("alisio.security.queue.title")}**`);
+    for (const entry of queue.slice(0, 5)) {
+      lines.push(
+        `- \`${entry.id}\` — ${resolveApprovalEffectText(entry)} (${formatApprovalRemaining(
+          Math.max(0, entry.expiresAtMs - Date.now()),
+        )})`,
+      );
+    }
+  }
+
+  if (recentAudit.length > 0) {
+    lines.push("", `**${t("alisio.security.audit.title")}**`);
+    for (const entry of recentAudit) {
+      lines.push(
+        `- ${resolveApprovalDecisionLabel(entry.decision)} · \`${resolveApprovalCommandText(
+          entry.request,
+        )}\` · ${formatRelativeTimestamp(entry.ts, { dateFallback: true })}`,
+      );
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function accessModeLabel(mode: SecurityAccessMode) {
+  if (mode === "full-access") {
+    return t("alisio.security.access.fullAccess.label");
+  }
+  if (mode === "recommended") {
+    return t("alisio.security.access.recommended.label");
+  }
+  return t("alisio.security.access.custom.label");
+}
+
+async function handleLocalSecurityCommand(host: ChatHost, name: string, args: string) {
+  if (name === "approvals") {
+    injectCommandResult(host, buildSecuritySummaryMessage(host));
+    return;
+  }
+
+  const action = args.trim().toLowerCase();
+  if (!action || action === "status") {
+    injectCommandResult(host, buildSecuritySummaryMessage(host));
+    return;
+  }
+
+  if (action === "advanced" || action === "review") {
+    host.onSlashAction?.("open-security");
+    injectCommandResult(
+      host,
+      `**${t("alisio.security.title")}**\n\n${t("alisio.chat.access.openAdvanced")}`,
+    );
+    return;
+  }
+
+  const nextMode =
+    action === "safe" || action === "recommended"
+      ? "recommended"
+      : action === "full"
+        ? "full-access"
+        : null;
+
+  if (!nextMode) {
+    injectCommandResult(
+      host,
+      `Unknown security mode \`${action}\`. Use \`/permissions status\`, \`/permissions safe\`, \`/permissions full\`, or \`/permissions advanced\`.`,
+    );
+    return;
+  }
+
+  if (!host.connected || !host.client) {
+    injectCommandResult(host, "Connect to Alisio before changing the access profile.");
+    return;
+  }
+
+  try {
+    host.lastError = null;
+    await applyGatewayAccessMode(
+      host as unknown as Parameters<typeof applyGatewayAccessMode>[0],
+      nextMode,
+    );
+    const accessProfileError = readChatLastError(host);
+    if (accessProfileError) {
+      injectCommandResult(
+        host,
+        "Failed to change the access profile: " + String(accessProfileError),
+      );
+      return;
+    }
+    injectCommandResult(
+      host,
+      `**${t("alisio.security.title")}**\n\n${t(
+        nextMode === "recommended"
+          ? "alisio.security.access.recommended.description"
+          : "alisio.security.access.fullAccess.description",
+      )}`,
+    );
+  } catch (err) {
+    injectCommandResult(host, `Failed to change the access profile: ${String(err)}`);
+  }
+}
+
 export async function handleSendChat(
   host: ChatHost,
   messageOverride?: string,
@@ -288,7 +536,15 @@ export async function handleSendChat(
 }
 
 function shouldQueueLocalSlashCommand(name: string): boolean {
-  return !["stop", "focus", "export-session", "steer", "redirect"].includes(name);
+  return ![
+    "stop",
+    "focus",
+    "export-session",
+    "steer",
+    "redirect",
+    "permissions",
+    "approvals",
+  ].includes(name);
 }
 
 // ── Slash Command Dispatch ──
@@ -325,6 +581,11 @@ async function dispatchSlashCommand(
       return;
     case "export-session":
       host.onSlashAction?.("export");
+      return;
+    case "permissions":
+    case "approvals":
+      await handleLocalSecurityCommand(host, name, args);
+      scheduleChatScroll(host as unknown as Parameters<typeof scheduleChatScroll>[0]);
       return;
   }
 

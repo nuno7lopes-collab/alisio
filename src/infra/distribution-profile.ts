@@ -14,7 +14,9 @@ const LEGACY_REGISTRY_INSTALL_PREFIX = `${CORE_PACKAGE_NAME}@`;
 export const ALISIO_MAIN_PACKAGE_SPEC = `github:${PUBLIC_REPO_NWO}#main`;
 export const ALISIO_GIT_REPO_URL = `https://github.com/${PUBLIC_REPO_NWO}.git`;
 export const ALISIO_REGISTRY_PACKAGE_NAME = PUBLIC_PACKAGE_NAME;
-export const ALISIO_REGISTRY_INSTALL_PREFIX = `${PUBLIC_PACKAGE_NAME}@`;
+// Keep the globally installed CLI on the public alias so in-place npm upgrades target the
+// `alisio` command consistently.
+export const ALISIO_REGISTRY_INSTALL_PREFIX = `${PUBLIC_PACKAGE_NAME}@npm:${PUBLIC_PACKAGE_NAME}@`;
 
 const KNOWN_DISTRIBUTIONS = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
 const KNOWN_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);

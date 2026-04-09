@@ -143,7 +143,7 @@ Alisio recommends running WhatsApp on a separate number when possible. (The chan
 - Gateway owns the WhatsApp socket and reconnect loop.
 - Outbound sends require an active WhatsApp listener for the target account.
 - Status and broadcast chats are ignored (`@status`, `@broadcast`).
-- Direct chats use DM session rules (`session.dmScope`; default `main` collapses DMs to the agent main session).
+- Direct chats use DM session rules (`session.dmScope`; default `per-channel-peer` keeps one active DM session per WhatsApp peer).
 - Group sessions are isolated (`agent:<agentId>:whatsapp:group:<jid>`).
 
 ## Access control and activation

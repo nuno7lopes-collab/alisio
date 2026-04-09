@@ -816,7 +816,8 @@ export function createMatrixRoomMessageHandler(params: MatrixMonitorHandlerParam
         ctx: ctxPayload,
         updateLastRoute: isDirectMessage
           ? {
-              sessionKey: _route.mainSessionKey,
+              sessionKey:
+                _route.lastRoutePolicy === "main" ? _route.mainSessionKey : _route.sessionKey,
               channel: "matrix",
               to: `room:${roomId}`,
               accountId: _route.accountId,

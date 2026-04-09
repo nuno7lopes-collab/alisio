@@ -16,7 +16,7 @@ import { isToolAllowedByPolicies } from "../agents/tool-policy-match.js";
 import { resolveToolProfilePolicy } from "../agents/tool-policy.js";
 import { listAgentWorkspaceDirs } from "../agents/workspace-dirs.js";
 import { formatCliCommand } from "../cli/command-format.js";
-import { MANIFEST_KEY } from "../compat/legacy-names.js";
+import { LEGACY_MANIFEST_KEYS, MANIFEST_KEY } from "../compat/legacy-names.js";
 import { resolveNativeSkillsEnabled } from "../config/commands.js";
 import type { AlisioConfig, ConfigFileSnapshot } from "../config/config.js";
 import { collectIncludePathsRecursive } from "../config/includes-scan.js";
@@ -95,13 +95,18 @@ async function readPluginManifestExtensions(pluginPath: string): Promise<string[
   }
 
   const parsed = JSON.parse(raw) as Partial<
-    Record<typeof MANIFEST_KEY, { extensions?: unknown }>
+    Record<typeof MANIFEST_KEY | (typeof LEGACY_MANIFEST_KEYS)[number], { extensions?: unknown }>
   > | null;
-  const extensions = parsed?.[MANIFEST_KEY]?.extensions;
-  if (!Array.isArray(extensions)) {
-    return [];
+  for (const manifestKey of [MANIFEST_KEY, ...LEGACY_MANIFEST_KEYS]) {
+    const extensions = parsed?.[manifestKey]?.extensions;
+    if (!Array.isArray(extensions)) {
+      continue;
+    }
+    return extensions
+      .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+      .filter(Boolean);
   }
-  return extensions.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean);
+  return [];
 }
 
 function formatCodeSafetyDetails(findings: SkillScanFinding[], rootDir: string): string {

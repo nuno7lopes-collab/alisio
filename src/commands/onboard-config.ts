@@ -1,8 +1,9 @@
 import type { AlisioConfig } from "../config/config.js";
+import { DEFAULT_DM_SCOPE } from "../config/session-defaults.js";
 import type { DmScope } from "../config/types.base.js";
 import type { ToolProfileId } from "../config/types.tools.js";
 
-export const ONBOARDING_DEFAULT_DM_SCOPE: DmScope = "per-channel-peer";
+export const ONBOARDING_DEFAULT_DM_SCOPE: DmScope = DEFAULT_DM_SCOPE;
 export const ONBOARDING_DEFAULT_TOOLS_PROFILE: ToolProfileId = "coding";
 
 export function applyLocalSetupWorkspaceConfig(

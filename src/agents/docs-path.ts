@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveAlisioPackageRoot } from "../infra/alisio-root.js";
 
-export async function resolveOpenClawDocsPath(params: {
+export async function resolveAlisioDocsPath(params: {
   workspaceDir?: string;
   argv1?: string;
   cwd?: string;

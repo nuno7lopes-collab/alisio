@@ -10,6 +10,8 @@ type MockNodeCommandPolicyParams = {
 
 const mocks = vi.hoisted(() => ({
   loadConfig: vi.fn(() => ({})),
+  getAlisioSharingTargetAccessIndex: vi.fn(),
+  listDevicePairing: vi.fn(),
   resolveNodeCommandAllowlist: vi.fn<() => Set<string>>(() => new Set()),
   isNodeCommandAllowed: vi.fn<
     (params: MockNodeCommandPolicyParams) => { ok: true } | { ok: false; reason: string }
@@ -30,6 +32,22 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../config/config.js", () => ({
   loadConfig: mocks.loadConfig,
 }));
+
+vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../infra/alisio-store.js")>();
+  return {
+    ...actual,
+    getAlisioSharingTargetAccessIndex: mocks.getAlisioSharingTargetAccessIndex,
+  };
+});
+
+vi.mock("../../infra/device-pairing.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../infra/device-pairing.js")>();
+  return {
+    ...actual,
+    listDevicePairing: mocks.listDevicePairing,
+  };
+});
 
 vi.mock("../node-command-policy.js", () => ({
   resolveNodeCommandAllowlist: mocks.resolveNodeCommandAllowlist,
@@ -66,6 +84,18 @@ function expectNodeNotConnected(respond: ReturnType<typeof vi.fn>) {
   expect(call?.[2]?.message).toBe("node not connected");
 }
 
+function createPairedNode(nodeId: string) {
+  return {
+    deviceId: nodeId,
+    publicKey: `pk-${nodeId}`,
+    displayName: nodeId,
+    platform: "iOS 26.4.0",
+    roles: ["node"],
+    createdAtMs: 1,
+    approvedAtMs: 1,
+  };
+}
+
 async function invokeDisconnectedNode(nodeId: string, idempotencyKey: string) {
   const nodeRegistry = {
     get: vi.fn(() => undefined),
@@ -82,6 +112,7 @@ type TestNodeSession = {
   nodeId: string;
   commands: string[];
   platform?: string;
+  displayName?: string;
 };
 
 const WAKE_WAIT_TIMEOUT_MS = 3_001;
@@ -186,6 +217,7 @@ function makeNodeInvokeParams(overrides?: Partial<Record<string, unknown>>) {
 async function invokeNode(params: {
   nodeRegistry: {
     get: (nodeId: string) => TestNodeSession | undefined;
+    listConnected?: () => TestNodeSession[];
     invoke: (payload: {
       nodeId: string;
       command: string;
@@ -201,16 +233,31 @@ async function invokeNode(params: {
   };
   requestParams?: Partial<Record<string, unknown>>;
 }) {
+  const requestParams = makeNodeInvokeParams(params.requestParams);
+  const requestNodeId = String(requestParams.nodeId ?? "").trim();
+  const listConnected =
+    params.nodeRegistry.listConnected ??
+    (() => {
+      const connected = requestNodeId ? params.nodeRegistry.get(requestNodeId) : undefined;
+      return connected ? [connected] : [];
+    });
+  mocks.listDevicePairing.mockResolvedValue({
+    pending: [],
+    paired: requestNodeId ? [createPairedNode(requestNodeId)] : [],
+  });
   const respond = vi.fn();
   const logGateway = {
     info: vi.fn(),
     warn: vi.fn(),
   };
   await nodeHandlers["node.invoke"]({
-    params: makeNodeInvokeParams(params.requestParams),
+    params: requestParams,
     respond: respond as never,
     context: {
-      nodeRegistry: params.nodeRegistry,
+      nodeRegistry: {
+        ...params.nodeRegistry,
+        listConnected,
+      },
       execApprovalManager: undefined,
       logGateway,
     } as never,
@@ -267,6 +314,32 @@ describe("node.invoke APNs wake path", () => {
   beforeEach(() => {
     mocks.loadConfig.mockClear();
     mocks.loadConfig.mockReturnValue({});
+    mocks.getAlisioSharingTargetAccessIndex.mockClear();
+    mocks.getAlisioSharingTargetAccessIndex.mockImplementation(
+      async (input?: { targets?: Array<{ targetId: string }> }) =>
+        Object.fromEntries(
+          (input?.targets ?? []).map((target) => [
+            target.targetId,
+            {
+              targetId: target.targetId,
+              label: target.targetId,
+              sourceKind: "node",
+              connected: true,
+              current: false,
+              ownerKey: "user:user-1",
+              ownerScope: "user",
+              ownerLabel: "Owner",
+              registeredAt: "2026-04-08T10:00:00.000Z",
+              updatedAt: "2026-04-08T10:00:00.000Z",
+              deviceAccess: "owner",
+              modelAccess: "owner",
+              execAccess: "owner",
+            },
+          ]),
+        ),
+    );
+    mocks.listDevicePairing.mockClear();
+    mocks.listDevicePairing.mockResolvedValue({ pending: [], paired: [] });
     mocks.resolveNodeCommandAllowlist.mockClear();
     mocks.resolveNodeCommandAllowlist.mockReturnValue(new Set());
     mocks.isNodeCommandAllowed.mockClear();
@@ -525,6 +598,49 @@ describe("node.invoke APNs wake path", () => {
       nodeId: "ios-node-queued",
       actions: [],
     });
+  });
+
+  it("blocks mutating node.invoke commands on shared devices", async () => {
+    mocks.getAlisioSharingTargetAccessIndex.mockResolvedValue({
+      "shared-node-1": {
+        targetId: "shared-node-1",
+        label: "shared-node-1",
+        sourceKind: "node",
+        connected: true,
+        current: false,
+        ownerKey: "user:user-1",
+        ownerScope: "user",
+        ownerLabel: "Owner",
+        registeredAt: "2026-04-08T10:00:00.000Z",
+        updatedAt: "2026-04-08T10:00:00.000Z",
+        deviceAccess: "shared",
+        modelAccess: "shared",
+        execAccess: "shared",
+      },
+    });
+
+    const nodeRegistry = {
+      get: vi.fn(() => ({
+        nodeId: "shared-node-1",
+        commands: ["model.manage.install"],
+        platform: "macOS",
+      })),
+      invoke: vi.fn().mockResolvedValue({ ok: true }),
+    };
+
+    const respond = await invokeNode({
+      nodeRegistry,
+      requestParams: {
+        nodeId: "shared-node-1",
+        command: "model.manage.install",
+        params: { modelId: "qwen3:8b" },
+        idempotencyKey: "idem-shared-readonly",
+      },
+    });
+    const call = respond.mock.calls[0] as RespondCall | undefined;
+    expect(call?.[0]).toBe(false);
+    expect(call?.[2]?.message).toBe("shared devices are read-only");
+    expect(nodeRegistry.invoke).not.toHaveBeenCalled();
   });
 
   it("drops queued actions that are no longer allowed at pull time", async () => {

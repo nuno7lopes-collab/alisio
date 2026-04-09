@@ -140,7 +140,7 @@ import { createReadinessChecker } from "./server/readiness.js";
 import { loadGatewayTlsRuntime } from "./server/tls.js";
 import { resolveSessionKeyForTranscriptFile } from "./session-transcript-key.js";
 import {
-  attachOpenClawTranscriptMeta,
+  attachAlisioTranscriptMeta,
   loadGatewaySessionRow,
   loadSessionEntry,
   readSessionMessages,
@@ -1045,7 +1045,7 @@ export async function startGatewayServer(
                 runtimeMs: sessionRow.runtimeMs,
               }
             : {};
-          const message = attachOpenClawTranscriptMeta(update.message, {
+          const message = attachAlisioTranscriptMeta(update.message, {
             ...(typeof update.messageId === "string" ? { id: update.messageId } : {}),
             ...(typeof messageSeq === "number" ? { seq: messageSeq } : {}),
           });

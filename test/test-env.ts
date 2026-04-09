@@ -3,10 +3,102 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import JSON5 from "json5";
+import {
+  isLiveEnvEnabled,
+  isLiveTestEnabled,
+  readLiveEnv,
+} from "../src/agents/live-test-helpers.js";
 
 type RestoreEntry = { key: string; value: string | undefined };
 
 const LIVE_EXTERNAL_AUTH_DIRS = [".claude", ".codex", ".minimax"] as const;
+const CANONICAL_STATE_DIRNAME = ".alisio";
+const LEGACY_STATE_DIRNAME = ".openclaw";
+const CANONICAL_CONFIG_FILENAME = "alisio.json";
+const LEGACY_CONFIG_FILENAME = "openclaw.json";
+
+function readEnvWithLegacyFallback(
+  env: NodeJS.ProcessEnv,
+  canonicalKey: string,
+  legacyKey: string,
+): string | undefined {
+  const canonicalValue = env[canonicalKey]?.trim();
+  if (canonicalValue) {
+    return canonicalValue;
+  }
+  const legacyValue = env[legacyKey]?.trim();
+  return legacyValue || undefined;
+}
+
+function resolveDefaultLiveStateDir(homeDir: string): string {
+  const canonicalDir = path.join(homeDir, CANONICAL_STATE_DIRNAME);
+  if (fs.existsSync(canonicalDir)) {
+    return canonicalDir;
+  }
+  const legacyDir = path.join(homeDir, LEGACY_STATE_DIRNAME);
+  if (fs.existsSync(legacyDir)) {
+    return legacyDir;
+  }
+  return canonicalDir;
+}
+
+function resolveLiveStateDir(env: NodeJS.ProcessEnv, homeDir: string): string {
+  const configuredStateDir = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_STATE_DIR",
+    "OPENCLAW_STATE_DIR",
+  );
+  if (configuredStateDir) {
+    return resolveHomeRelativePath(configuredStateDir, homeDir);
+  }
+  return resolveDefaultLiveStateDir(homeDir);
+}
+
+function resolveLiveConfigPath(env: NodeJS.ProcessEnv, homeDir: string, stateDir: string): string {
+  const configuredConfigPath = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_CONFIG_PATH",
+    "OPENCLAW_CONFIG_PATH",
+  );
+  if (configuredConfigPath) {
+    return resolveHomeRelativePath(configuredConfigPath, homeDir);
+  }
+  const canonicalConfigPath = path.join(stateDir, CANONICAL_CONFIG_FILENAME);
+  if (fs.existsSync(canonicalConfigPath)) {
+    return canonicalConfigPath;
+  }
+  const legacyConfigPath = path.join(stateDir, LEGACY_CONFIG_FILENAME);
+  if (fs.existsSync(legacyConfigPath)) {
+    return legacyConfigPath;
+  }
+  return canonicalConfigPath;
+}
+
+function stageLiveConfigSnapshot(sourcePath: string, targetStateDirs: string[]): void {
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+  const sanitizedConfig = sanitizeLiveConfig(fs.readFileSync(sourcePath, "utf8"));
+  for (const targetStateDir of targetStateDirs) {
+    fs.mkdirSync(targetStateDir, { recursive: true });
+    fs.writeFileSync(path.join(targetStateDir, CANONICAL_CONFIG_FILENAME), sanitizedConfig, "utf8");
+  }
+  const legacyStateDir = targetStateDirs[1];
+  if (legacyStateDir) {
+    fs.writeFileSync(path.join(legacyStateDir, LEGACY_CONFIG_FILENAME), sanitizedConfig, "utf8");
+  }
+}
+
+function stageLiveStateSubset(sourceStateDir: string, targetStateDirs: string[]): void {
+  for (const targetStateDir of targetStateDirs) {
+    fs.mkdirSync(targetStateDir, { recursive: true });
+    copyDirIfExists(
+      path.join(sourceStateDir, "credentials"),
+      path.join(targetStateDir, "credentials"),
+    );
+    copyLiveAuthProfiles(sourceStateDir, targetStateDir);
+  }
+}
 
 function isTruthyEnvValue(value: string | undefined): boolean {
   if (!value) {
@@ -50,6 +142,10 @@ function loadProfileEnv(homeDir = os.homedir()): void {
   if (!fs.existsSync(profilePath)) {
     return;
   }
+  const quietLiveLogs = isLiveEnvEnabled(
+    ["ALISIO_LIVE_TEST_QUIET", "OPENCLAW_LIVE_TEST_QUIET"],
+    process.env,
+  );
   const applyEntry = (entry: string) => {
     const idx = entry.indexOf("=");
     if (idx <= 0) {
@@ -78,7 +174,7 @@ function loadProfileEnv(homeDir = os.homedir()): void {
       { encoding: "utf8" },
     );
     const applied = countAppliedEntries(output.split("\0").filter(Boolean));
-    if (applied > 0 && !isTruthyEnvValue(process.env.OPENCLAW_LIVE_TEST_QUIET)) {
+    if (applied > 0 && !quietLiveLogs) {
       console.log(`[live] loaded ${applied} env vars from ~/.profile`);
     }
   } catch {
@@ -105,7 +201,7 @@ function loadProfileEnv(homeDir = os.homedir()): void {
         })
         .filter(Boolean);
       const applied = countAppliedEntries(fallbackEntries);
-      if (applied > 0 && !isTruthyEnvValue(process.env.OPENCLAW_LIVE_TEST_QUIET)) {
+      if (applied > 0 && !quietLiveLogs) {
         console.log(`[live] loaded ${applied} env vars from ~/.profile`);
       }
     } catch {
@@ -116,6 +212,7 @@ function loadProfileEnv(homeDir = os.homedir()): void {
 
 function resolveRestoreEntries(): RestoreEntry[] {
   return [
+    { key: "ALISIO_TEST_FAST", value: process.env.ALISIO_TEST_FAST },
     { key: "OPENCLAW_TEST_FAST", value: process.env.OPENCLAW_TEST_FAST },
     { key: "HOME", value: process.env.HOME },
     { key: "USERPROFILE", value: process.env.USERPROFILE },
@@ -123,6 +220,15 @@ function resolveRestoreEntries(): RestoreEntry[] {
     { key: "XDG_DATA_HOME", value: process.env.XDG_DATA_HOME },
     { key: "XDG_STATE_HOME", value: process.env.XDG_STATE_HOME },
     { key: "XDG_CACHE_HOME", value: process.env.XDG_CACHE_HOME },
+    { key: "ALISIO_STATE_DIR", value: process.env.ALISIO_STATE_DIR },
+    { key: "ALISIO_CONFIG_PATH", value: process.env.ALISIO_CONFIG_PATH },
+    { key: "ALISIO_GATEWAY_PORT", value: process.env.ALISIO_GATEWAY_PORT },
+    { key: "ALISIO_BRIDGE_ENABLED", value: process.env.ALISIO_BRIDGE_ENABLED },
+    { key: "ALISIO_BRIDGE_HOST", value: process.env.ALISIO_BRIDGE_HOST },
+    { key: "ALISIO_BRIDGE_PORT", value: process.env.ALISIO_BRIDGE_PORT },
+    { key: "ALISIO_CANVAS_HOST_PORT", value: process.env.ALISIO_CANVAS_HOST_PORT },
+    { key: "ALISIO_TEST_HOME", value: process.env.ALISIO_TEST_HOME },
+    { key: "ALISIO_AGENT_DIR", value: process.env.ALISIO_AGENT_DIR },
     { key: "OPENCLAW_STATE_DIR", value: process.env.OPENCLAW_STATE_DIR },
     { key: "OPENCLAW_CONFIG_PATH", value: process.env.OPENCLAW_CONFIG_PATH },
     { key: "OPENCLAW_GATEWAY_PORT", value: process.env.OPENCLAW_GATEWAY_PORT },
@@ -149,20 +255,30 @@ function createIsolatedTestHome(restore: RestoreEntry[]): {
   cleanup: () => void;
   tempHome: string;
 } {
-  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-test-home-"));
+  const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-test-home-"));
 
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
+  process.env.ALISIO_TEST_HOME = tempHome;
   process.env.OPENCLAW_TEST_HOME = tempHome;
+  process.env.ALISIO_TEST_FAST = "1";
   process.env.OPENCLAW_TEST_FAST = "1";
 
   // Ensure test runs never touch the developer's real config/state, even if they have overrides set.
+  delete process.env.ALISIO_CONFIG_PATH;
   delete process.env.OPENCLAW_CONFIG_PATH;
   // Prefer deriving state dir from HOME so nested tests that change HOME also isolate correctly.
+  delete process.env.ALISIO_STATE_DIR;
   delete process.env.OPENCLAW_STATE_DIR;
+  delete process.env.ALISIO_AGENT_DIR;
   delete process.env.OPENCLAW_AGENT_DIR;
   delete process.env.PI_CODING_AGENT_DIR;
   // Prefer test-controlled ports over developer overrides (avoid port collisions across tests/workers).
+  delete process.env.ALISIO_GATEWAY_PORT;
+  delete process.env.ALISIO_BRIDGE_ENABLED;
+  delete process.env.ALISIO_BRIDGE_HOST;
+  delete process.env.ALISIO_BRIDGE_PORT;
+  delete process.env.ALISIO_CANVAS_HOST_PORT;
   delete process.env.OPENCLAW_GATEWAY_PORT;
   delete process.env.OPENCLAW_BRIDGE_ENABLED;
   delete process.env.OPENCLAW_BRIDGE_HOST;
@@ -182,7 +298,9 @@ function createIsolatedTestHome(restore: RestoreEntry[]): {
 
   // Windows: prefer the default state dir so auth/profile tests match real paths.
   if (process.platform === "win32") {
-    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
+    const tempStateDir = path.join(tempHome, CANONICAL_STATE_DIRNAME);
+    process.env.ALISIO_STATE_DIR = tempStateDir;
+    process.env.OPENCLAW_STATE_DIR = tempStateDir;
   }
 
   process.env.XDG_CONFIG_HOME = path.join(tempHome, ".config");
@@ -277,37 +395,30 @@ function stageLiveTestState(params: {
   realHome: string;
   tempHome: string;
 }): void {
-  const rawStateDir = params.env.OPENCLAW_STATE_DIR?.trim();
-  let realStateDir = rawStateDir
-    ? resolveHomeRelativePath(rawStateDir, params.realHome)
-    : path.join(params.realHome, ".openclaw");
-  const priorIsolatedHome = params.env.OPENCLAW_TEST_HOME?.trim();
+  let realStateDir = resolveLiveStateDir(params.env, params.realHome);
+  const priorIsolatedHome = readEnvWithLegacyFallback(
+    params.env,
+    "ALISIO_TEST_HOME",
+    "OPENCLAW_TEST_HOME",
+  );
   const snapshotHome = params.env.HOME?.trim();
   if (
     priorIsolatedHome &&
     snapshotHome &&
     snapshotHome !== priorIsolatedHome &&
-    realStateDir === path.join(priorIsolatedHome, ".openclaw")
+    [CANONICAL_STATE_DIRNAME, LEGACY_STATE_DIRNAME]
+      .map((dirName) => path.join(priorIsolatedHome, dirName))
+      .includes(realStateDir)
   ) {
-    realStateDir = path.join(params.realHome, ".openclaw");
+    realStateDir = resolveDefaultLiveStateDir(params.realHome);
   }
-  const tempStateDir = path.join(params.tempHome, ".openclaw");
-  fs.mkdirSync(tempStateDir, { recursive: true });
-
-  const realConfigPath = params.env.OPENCLAW_CONFIG_PATH?.trim()
-    ? resolveHomeRelativePath(params.env.OPENCLAW_CONFIG_PATH, params.realHome)
-    : path.join(realStateDir, "openclaw.json");
-  if (fs.existsSync(realConfigPath)) {
-    const rawConfig = fs.readFileSync(realConfigPath, "utf8");
-    fs.writeFileSync(
-      path.join(tempStateDir, "openclaw.json"),
-      sanitizeLiveConfig(rawConfig),
-      "utf8",
-    );
-  }
-
-  copyDirIfExists(path.join(realStateDir, "credentials"), path.join(tempStateDir, "credentials"));
-  copyLiveAuthProfiles(realStateDir, tempStateDir);
+  const tempStateDirs = [
+    path.join(params.tempHome, CANONICAL_STATE_DIRNAME),
+    path.join(params.tempHome, LEGACY_STATE_DIRNAME),
+  ];
+  const realConfigPath = resolveLiveConfigPath(params.env, params.realHome, realStateDir);
+  stageLiveConfigSnapshot(realConfigPath, tempStateDirs);
+  stageLiveStateSubset(realStateDir, tempStateDirs);
 
   for (const authDir of LIVE_EXTERNAL_AUTH_DIRS) {
     copyDirIfExists(path.join(params.realHome, authDir), path.join(params.tempHome, authDir));
@@ -315,11 +426,10 @@ function stageLiveTestState(params: {
 }
 
 export function installTestEnv(): { cleanup: () => void; tempHome: string } {
-  const live =
-    process.env.LIVE === "1" ||
-    process.env.OPENCLAW_LIVE_TEST === "1" ||
-    process.env.OPENCLAW_LIVE_GATEWAY === "1";
-  const allowRealHome = isTruthyEnvValue(process.env.OPENCLAW_LIVE_USE_REAL_HOME);
+  const live = isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], process.env);
+  const allowRealHome = isTruthyEnvValue(
+    readLiveEnv(["ALISIO_LIVE_USE_REAL_HOME", "OPENCLAW_LIVE_USE_REAL_HOME"], process.env),
+  );
   const realHome = process.env.HOME ?? os.homedir();
   const liveEnvSnapshot = { ...process.env };
 

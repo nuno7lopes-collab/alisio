@@ -222,14 +222,27 @@ plist_set_or_add() {
     || /usr/libexec/PlistBuddy -c "Add :${key} ${type} ${value}" "$plist" >/dev/null 2>&1
 }
 
+copy_tree_snapshot() {
+  local source="$1"
+  local dest="$2"
+
+  if /bin/cp -cR "$source" "$dest" 2>/dev/null; then
+    return 0
+  fi
+
+  /usr/bin/ditto "$source" "$dest"
+}
+
 copy_dist_snapshot_with_retry() {
   local source="$1"
   local dest="$2"
   local attempt rc
+  local max_attempts="${DIST_SNAPSHOT_MAX_ATTEMPTS:-12}"
+  local sleep_seconds
 
-  for attempt in 1 2 3; do
+  for ((attempt = 1; attempt <= max_attempts; attempt += 1)); do
     rm -rf "$dest"
-    if /usr/bin/ditto "$source" "$dest"; then
+    if copy_tree_snapshot "$source" "$dest"; then
       rm -rf "$dest/${APP_NAME}.app"
       find "$dest" -maxdepth 1 -type f \( \
         -name "${APP_NAME}-*.zip" -o \
@@ -239,12 +252,60 @@ copy_dist_snapshot_with_retry() {
       return 0
     fi
     rc=$?
-    if [[ "$attempt" -eq 3 ]]; then
+    if (( attempt == max_attempts )); then
       return "$rc"
     fi
-    echo "WARN: transient staging copy failure for $(basename "$source") (attempt $attempt/3); retrying with a fresh snapshot." >&2
-    sleep 1
+    sleep_seconds=$((attempt < 5 ? attempt : 5))
+    echo "WARN: transient staging copy failure for $(basename "$source") (attempt $attempt/${max_attempts}); retrying in ${sleep_seconds}s." >&2
+    sleep "$sleep_seconds"
   done
+}
+
+prune_broken_symlinks() {
+  local target_root="$1"
+  local broken=()
+  local link
+
+  while IFS= read -r -d '' link; do
+    broken+=("$link")
+  done < <(find "$target_root" -type l ! -exec test -e {} \; -print0)
+
+  if [[ "${#broken[@]}" -eq 0 ]]; then
+    return 0
+  fi
+
+  echo "WARN: removing ${#broken[@]} broken symlink(s) from $(basename "$target_root")." >&2
+  for link in "${broken[@]}"; do
+    rm -f "$link"
+  done
+}
+
+materialize_dist_runtime_node_modules() {
+  local runtime_root="$1"
+  local link target
+  local count=0
+
+  while IFS= read -r -d '' link; do
+    target="$(readlink "$link" || true)"
+    if [[ -z "$target" || "$target" != /* ]]; then
+      continue
+    fi
+
+    if [[ ! -d "$target" ]]; then
+      echo "WARN: removing missing dist-runtime node_modules symlink $link -> $target." >&2
+      rm -f "$link"
+      continue
+    fi
+
+    rm -f "$link"
+    copy_tree_snapshot "$target" "$link"
+    prune_broken_symlinks "$link"
+    count=$((count + 1))
+  done < <(find "$runtime_root/extensions" -path '*/node_modules' -type l -print0 2>/dev/null)
+
+  if (( count > 0 )); then
+    echo "WARN: materialized ${count} dist-runtime node_modules symlink(s) for bundled packaging." >&2
+  fi
 }
 
 if [[ "${SKIP_PNPM_INSTALL:-0}" != "1" ]]; then
@@ -393,6 +454,14 @@ fi
 rm -rf "$BUNDLED_PACKAGE_DEST"
 mkdir -p "$BUNDLED_PACKAGE_STAGE"
 cp "$ROOT_DIR/package.json" "$BUNDLED_PACKAGE_STAGE/package.json"
+if [[ -f "$ROOT_DIR/pnpm-lock.yaml" ]]; then
+  cp "$ROOT_DIR/pnpm-lock.yaml" "$BUNDLED_PACKAGE_STAGE/pnpm-lock.yaml"
+fi
+if [[ -f "$ROOT_DIR/scripts/postinstall-bundled-plugins.mjs" ]]; then
+  mkdir -p "$BUNDLED_PACKAGE_STAGE/scripts"
+  cp "$ROOT_DIR/scripts/postinstall-bundled-plugins.mjs" \
+    "$BUNDLED_PACKAGE_STAGE/scripts/postinstall-bundled-plugins.mjs"
+fi
 if [[ -n "$ENTRYPOINT_SOURCE" ]]; then
   cp "$ENTRYPOINT_SOURCE" "$BUNDLED_PACKAGE_STAGE/$(basename "$ENTRYPOINT_SOURCE")"
 fi
@@ -401,7 +470,22 @@ if [[ -d "$ROOT_DIR/bin" ]]; then
 fi
 copy_dist_snapshot_with_retry "$ROOT_DIR/dist" "$BUNDLED_PACKAGE_STAGE/dist"
 if [[ -d "$ROOT_DIR/dist-runtime" ]]; then
-  (cd "$ROOT_DIR" && tar -cf - dist-runtime) | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+  copy_tree_snapshot "$ROOT_DIR/dist-runtime" "$BUNDLED_PACKAGE_STAGE/dist-runtime"
+  materialize_dist_runtime_node_modules "$BUNDLED_PACKAGE_STAGE/dist-runtime"
+fi
+# The embedded CLI resolves docs and built-in skills relative to the bundled package root.
+for runtime_dir in docs skills; do
+  if [[ -d "$ROOT_DIR/$runtime_dir" ]]; then
+    (cd "$ROOT_DIR" && tar -cf - "$runtime_dir") | (cd "$BUNDLED_PACKAGE_STAGE" && tar -xf -)
+  fi
+done
+if [[ ! -f "$BUNDLED_PACKAGE_STAGE/docs/reference/templates/AGENTS.md" ]]; then
+  echo "ERROR: bundled package missing docs/reference/templates/AGENTS.md." >&2
+  exit 1
+fi
+if [[ -d "$ROOT_DIR/skills" && ! -d "$BUNDLED_PACKAGE_STAGE/skills" ]]; then
+  echo "ERROR: bundled package missing skills/." >&2
+  exit 1
 fi
 if [[ -n "$BUNDLED_NODE_RESOLVED" ]]; then
   mkdir -p "$BUNDLED_PACKAGE_STAGE/tools/node/bin"
@@ -411,6 +495,8 @@ elif [[ "$BUILD_CONFIG" == "release" ]]; then
   echo "ERROR: release packaging exige Node bundled >=22.16.0." >&2
   exit 1
 fi
+(cd "$BUNDLED_PACKAGE_STAGE" && pnpm install --prod --frozen-lockfile --ignore-scripts)
+prune_broken_symlinks "$BUNDLED_PACKAGE_STAGE"
 mv "$BUNDLED_PACKAGE_STAGE" "$BUNDLED_PACKAGE_DEST"
 rm -rf "$BUNDLED_PACKAGE_STAGE_ROOT"
 
@@ -448,6 +534,18 @@ if [[ "$PACKAGE_MODE" != "debug" && "${ALLOW_ADHOC_SIGNING:-0}" == "1" ]]; then
   exit 1
 fi
 "$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"
+if [[ ! -d "$APP_ROOT" ]]; then
+  echo "ERROR: bundle final em falta em $APP_ROOT." >&2
+  exit 1
+fi
+if [[ ! -f "$APP_ROOT/Contents/Info.plist" ]]; then
+  echo "ERROR: bundle final sem Info.plist em $APP_ROOT." >&2
+  exit 1
+fi
+if [[ ! -x "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME" ]]; then
+  echo "ERROR: bundle final sem executável em $APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME." >&2
+  exit 1
+fi
 if [[ "$PACKAGE_MODE" == "release-placeholder" ]]; then
   echo "ℹ️ Release placeholder ready. Use scripts/package-mac-dist.sh for zip/dmg + notarized distribution."
 fi

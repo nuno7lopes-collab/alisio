@@ -172,7 +172,7 @@ imsg send <handle> "test"
 
   <Tab title="Sessions and deterministic replies">
     - DMs use direct routing; groups use group routing.
-    - With default `session.dmScope=main`, iMessage DMs collapse into the agent main session.
+    - With default `session.dmScope=per-channel-peer`, iMessage DMs keep isolated direct session keys.
     - Group sessions are isolated (`agent:<agentId>:imessage:group:<chat_id>`).
     - Replies route back to iMessage using originating channel/target metadata.
 

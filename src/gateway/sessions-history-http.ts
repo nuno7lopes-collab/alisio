@@ -19,7 +19,7 @@ import {
 import { getHeader } from "./http-request-helpers.js";
 import { authorizeOperatorScopesForMethod } from "./method-scopes.js";
 import {
-  attachOpenClawTranscriptMeta,
+  attachAlisioTranscriptMeta,
   readSessionMessages,
   resolveFreshestSessionEntryFromStoreKeys,
   resolveGatewaySessionStoreTarget,
@@ -87,7 +87,14 @@ function resolveMessageSeq(message: unknown): number | undefined {
   if (!message || typeof message !== "object" || Array.isArray(message)) {
     return undefined;
   }
-  const meta = (message as { __openclaw?: unknown }).__openclaw;
+  const record = message as { __alisio?: unknown; __openclaw?: unknown };
+  const meta =
+    (record.__alisio && typeof record.__alisio === "object" && !Array.isArray(record.__alisio)
+      ? record.__alisio
+      : undefined) ??
+    (record.__openclaw && typeof record.__openclaw === "object" && !Array.isArray(record.__openclaw)
+      ? record.__openclaw
+      : undefined);
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
     return undefined;
   }
@@ -253,7 +260,7 @@ export async function handleSessionHistoryHttpRequest(
     }
     if (update.message !== undefined) {
       const previousSeq = resolveMessageSeq(sentHistory.items.at(-1));
-      const nextMessage = attachOpenClawTranscriptMeta(update.message, {
+      const nextMessage = attachAlisioTranscriptMeta(update.message, {
         ...(typeof update.messageId === "string" ? { id: update.messageId } : {}),
         seq:
           typeof previousSeq === "number"

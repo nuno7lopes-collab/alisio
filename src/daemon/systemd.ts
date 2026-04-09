@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 import { parseStrictInteger, parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { splitArgsPreservingQuotes } from "./arg-split.js";
 import {
@@ -44,11 +45,18 @@ function resolveSystemdUnitPathForName(env: GatewayServiceEnv, name: string): st
 }
 
 function resolveSystemdServiceName(env: GatewayServiceEnv): string {
-  const override = env.OPENCLAW_SYSTEMD_UNIT?.trim();
+  const override = readEnv("ALISIO_SYSTEMD_UNIT", {
+    env,
+    fallback: legacyEnvKey("SYSTEMD_UNIT"),
+  });
   if (override) {
     return override.endsWith(".service") ? override.slice(0, -".service".length) : override;
   }
-  return resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE);
+  const profile = readEnv("ALISIO_PROFILE", {
+    env,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  return resolveGatewaySystemdServiceName(profile);
 }
 
 function resolveSystemdUnitPath(env: GatewayServiceEnv): string {
@@ -477,7 +485,11 @@ export async function stageSystemdService({
 }
 
 async function activateSystemdService(params: { env: GatewayServiceEnv }) {
-  const serviceName = resolveGatewaySystemdServiceName(params.env.OPENCLAW_PROFILE);
+  const profile = readEnv("ALISIO_PROFILE", {
+    env: params.env,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  const serviceName = resolveGatewaySystemdServiceName(profile);
   const unitName = `${serviceName}.service`;
   const reload = await execSystemctlUser(params.env, ["daemon-reload"]);
   if (reload.code !== 0) {
@@ -526,7 +538,11 @@ export async function uninstallSystemdService({
   stdout,
 }: GatewayServiceManageArgs): Promise<void> {
   await assertSystemdAvailable(env);
-  const serviceName = resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE);
+  const profile = readEnv("ALISIO_PROFILE", {
+    env,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  const serviceName = resolveGatewaySystemdServiceName(profile);
   const unitName = `${serviceName}.service`;
   await execSystemctlUser(env, ["disable", "--now", unitName]);
 

@@ -265,6 +265,18 @@ describe("gateway bonjour advertiser", () => {
 
     logDebug.mockClear();
     expect(
+      handler?.(
+        new Error(
+          "Can't probe for a service which is announced already. Received announcing for service test._alisio-gw._tcp.local.",
+        ),
+      ),
+    ).toBe(true);
+    expect(logDebug).toHaveBeenCalledWith(
+      expect.stringContaining("ignoring unhandled ciao rejection"),
+    );
+
+    logDebug.mockClear();
+    expect(
       handler?.(new Error("Reached illegal state! IPV4 address change from defined to undefined!")),
     ).toBe(true);
     expect(logWarn).toHaveBeenCalledWith(
@@ -413,10 +425,7 @@ describe("gateway bonjour advertiser", () => {
     const destroy = vi.fn().mockResolvedValue(undefined);
     const advertise = vi.fn().mockImplementation(() => {
       advertiseCount += 1;
-      if (advertiseCount === 2) {
-        stateRef.value = "announcing";
-      }
-      if (advertiseCount >= 3) {
+      if (advertiseCount >= 2) {
         stateRef.value = "announced";
       }
       return Promise.resolve();
@@ -433,9 +442,9 @@ describe("gateway bonjour advertiser", () => {
 
     await vi.advanceTimersByTimeAsync(15_000);
 
-    expect(logWarn).toHaveBeenCalledWith(expect.stringContaining("service stuck in announcing"));
+    expect(logWarn).toHaveBeenCalledWith(expect.stringContaining("service stuck in probing"));
     expect(createService).toHaveBeenCalledTimes(2);
-    expect(advertise).toHaveBeenCalledTimes(3);
+    expect(advertise).toHaveBeenCalledTimes(2);
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(shutdown).toHaveBeenCalledTimes(1);
 

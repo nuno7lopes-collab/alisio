@@ -202,11 +202,31 @@ sign_plain_item() {
   codesign --force ${options_args+"${options_args[@]}"} "${timestamp_args[@]}" --sign "$IDENTITY" "$target"
 }
 
+sign_if_exists() {
+  local target="$1"
+  if [[ -e "$target" ]]; then
+    sign_plain_item "$target"
+  fi
+}
+
+assert_signed() {
+  local target="$1"
+  if ! codesign -dv --verbose=4 "$target" >/dev/null 2>&1; then
+    echo "ERROR: codesign did not produce a valid signature for $target" >&2
+    exit 1
+  fi
+}
+
 team_id_for() {
   codesign -dv --verbose=4 "$1" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}'
 }
 
 verify_team_ids() {
+  if [[ "$IDENTITY" == "-" ]]; then
+    echo "Note: skipping Team ID audit for ad-hoc signing."
+    return 0
+  fi
+
   if [[ "$SKIP_TEAM_ID_CHECK" == "1" ]]; then
     echo "Note: skipping Team ID audit (SKIP_TEAM_ID_CHECK=1)."
     return 0
@@ -261,16 +281,15 @@ if [ -d "$SPARKLE" ]; then
       sign_plain_item "$f"
     fi
   done
-  sign_plain_item "$SPARKLE/Versions/B/Sparkle"
-  sign_plain_item "$SPARKLE/Versions/B/Autoupdate"
-  sign_plain_item "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
-  sign_plain_item "$SPARKLE/Versions/B/Updater.app"
-  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
-  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
-  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
-  sign_plain_item "$SPARKLE/Versions/B"
-  sign_plain_item "$SPARKLE"
+  find "$SPARKLE" \( -name "*.app" -o -name "*.xpc" \) -depth -print0 | while IFS= read -r -d '' bundle; do
+    sign_plain_item "$bundle"
+  done
+  if [[ -d "$SPARKLE/Versions" ]]; then
+    find "$SPARKLE/Versions" -mindepth 1 -maxdepth 1 -type d -print0 | while IFS= read -r -d '' version_dir; do
+      sign_plain_item "$version_dir"
+    done
+  fi
+  sign_if_exists "$SPARKLE"
 fi
 
 # Sign any other embedded frameworks/dylibs
@@ -282,6 +301,10 @@ fi
 
 # Finally sign the bundle
 sign_item "$APP_BUNDLE" "$APP_ENTITLEMENTS"
+if [ -f "$APP_BUNDLE/Contents/MacOS/Alisio" ]; then
+  assert_signed "$APP_BUNDLE/Contents/MacOS/Alisio"
+fi
+assert_signed "$APP_BUNDLE"
 
 verify_team_ids
 

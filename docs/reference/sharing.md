@@ -20,15 +20,24 @@ Sharing is scoped to an owner identity:
 
 Supported grant scopes:
 
-- `device.use`: the grantee can see and use the shared runtime target
-- `model.use`: the grantee can use the target's published model surface
+- `read-only`: the grantee can see the shared runtime target
+- `model-use`: the grantee can use the target's published model surface
+- `exec`: the grantee can run execution on the shared target
 
 Approvals are explicit. Shared access is revocable. Shared devices are read-only
 for model install and uninstall.
 
 ## Protocol
 
-Gateway methods:
+Canonical Gateway methods:
+
+- `devices.list`
+- `devices.share.request`
+- `devices.share.approve`
+- `devices.share.revoke`
+- `devices.policy.set`
+
+Legacy compatibility methods:
 
 - `alisio.sharing.get`
 - `alisio.sharing.request`
@@ -37,18 +46,38 @@ Gateway methods:
 - `alisio.sharing.revoke`
 - `alisio.sharing.policy.set`
 
+The `alisio.sharing.*` methods remain as a temporary compatibility bridge. New
+code should use the `devices.*` contract.
+
+Current sunset target for the remaining sharing compatibility layer: `2026-06-30`.
+
+This sunset covers:
+
+- `alisio.sharing.*`
+- scope aliases `device.use` and `model.use`
+- `approvalId` as a compatibility alias of `grantId`
+
+These compatibility paths stay only until first-party clients and supported
+external clients emit the canonical `devices.*` methods, canonical scopes, and
+`grantId` only.
+
 Target state includes:
 
 - owner identity and owner scope
-- `deviceAccess` and `modelAccess`: `owner`, `shared`, `requestable`, or `blocked`
+- `deviceAccess`, `modelAccess`, and `execAccess`: `owner`, `shared`,
+  `requestable`, or `blocked`
 - request metadata: `requestId`, `requestStatus`
 - grant metadata: `grantId`, `grantScopes`
+
+`grantId` is the canonical identifier for approved access. `approvalId` is still
+returned on some compatibility paths as a deprecated alias of `grantId` and is
+part of the same `2026-06-30` sunset.
 
 ## Flow
 
 1. The owner publishes runtime targets through the current device and connected
    devices inventory.
-2. Another account or organization calls `alisio.sharing.request` for a target
+2. Another account or organization calls `devices.share.request` for a target
    and requested scopes.
 3. The owner approves or rejects the request.
 4. Approval creates a grant and changes the target access from `requestable` to
@@ -70,7 +99,7 @@ Audit entries are stored for:
 - `policy.updated`
 - `request.created`
 - `request.approved`
-- `request.rejected`
+- `request.denied`
 - `grant.revoked`
 
 Each entry records the actor, target, related request or grant ids when
@@ -78,7 +107,11 @@ available, and a human-readable summary.
 
 ## Current persistence
 
-The current implementation persists sharing state in the local Alisio state
-store and keeps the target registry synchronized from the runtime inventory.
-This is compatible with a future Supabase-backed sync layer without changing
-the gateway method contract.
+When the current account has an active Supabase cloud session, Alisio uses the
+Supabase sharing tables as the source of truth for policies, targets, requests,
+grants, and audit entries. The local state file remains a compatibility fallback
+when cloud-backed sharing is unavailable.
+
+The runtime inventory still refreshes the target registry from the current
+device and connected devices list. Memory, vault, files, and other sensitive
+context are not auto-shared through this contract.

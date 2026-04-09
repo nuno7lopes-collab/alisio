@@ -1434,4 +1434,56 @@ describe("memory index", () => {
     const noResults = await manager.search("nonexistent_xyz_keyword");
     expect(noResults.length).toBe(0);
   });
+
+  it("reports canonical profile memory store status after sync", async () => {
+    const canonicalStateDir = path.join(fixtureRoot, "state-canonical");
+    vi.stubEnv("ALISIO_STATE_DIR", canonicalStateDir);
+    await fs.mkdir(path.join(canonicalStateDir, "alisio"), { recursive: true });
+    await fs.writeFile(
+      path.join(canonicalStateDir, "alisio", "state.json"),
+      JSON.stringify(
+        {
+          account: {
+            profile: {
+              username: "nuno",
+              displayName: "Nuno Lopes",
+              email: "nuno@example.com",
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(workspaceDir, "MEMORY.md"),
+      "# Canonical\n\nSee [[2026-01-12]].\n",
+    );
+
+    const cfg = createCfg({ storePath: indexMainPath, vectorEnabled: false });
+    const manager = requireManager(await getMemorySearchManager({ cfg, agentId: "main" }));
+    managersForCleanup.add(manager);
+    resetManagerForTest(manager);
+
+    await manager.sync({ reason: "test", force: true });
+
+    const canonicalStore = (manager.status().custom?.canonicalStore ?? null) as {
+      state?: string;
+      profileId?: string;
+      relations?: number;
+      projectionInterface?: string;
+      syncMode?: string;
+      cloudSync?: string;
+      path?: string;
+    } | null;
+
+    expect(canonicalStore?.state).toBe("ready");
+    expect(canonicalStore?.profileId).toBe("local-nuno");
+    expect(canonicalStore?.relations).toBeGreaterThanOrEqual(1);
+    expect(canonicalStore?.projectionInterface).toBe("markdown-vault");
+    expect(canonicalStore?.syncMode).toBe("local-first");
+    expect(canonicalStore?.cloudSync).toBe("not_implemented");
+    expect(canonicalStore?.path).toContain(path.join("memory", "profiles", "local-nuno"));
+  });
 });

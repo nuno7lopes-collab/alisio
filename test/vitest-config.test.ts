@@ -37,11 +37,11 @@ describe("resolveLocalVitestMaxWorkers", () => {
     ).toBe(4);
   });
 
-  it("lets OPENCLAW_VITEST_MAX_WORKERS override the inferred cap", () => {
+  it("lets ALISIO_VITEST_MAX_WORKERS override the inferred cap", () => {
     expect(
       resolveLocalVitestMaxWorkers(
         {
-          OPENCLAW_VITEST_MAX_WORKERS: "2",
+          ALISIO_VITEST_MAX_WORKERS: "2",
         },
         {
           cpuCount: 10,
@@ -55,7 +55,7 @@ describe("resolveLocalVitestMaxWorkers", () => {
   it("maps the legacy low profile to serial intent for compatibility", () => {
     const runtime = resolveRuntimeCapabilities(
       {
-        OPENCLAW_TEST_PROFILE: "low",
+        ALISIO_TEST_PROFILE: "low",
         RUNNER_OS: "Linux",
       },
       {

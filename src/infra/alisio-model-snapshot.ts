@@ -279,44 +279,6 @@ function buildRuntimeTargetId(deviceId: string, runtimeKind: RuntimeKind) {
   return `${deviceId}::${runtimeKind}`;
 }
 
-function rankRuntimeCandidate(candidate: TargetRuntimeCandidate | null | undefined) {
-  if (!candidate) {
-    return -1;
-  }
-  if (candidate.runtimeStatus === "ready") {
-    return candidate.installedModels.length > 0 ? 4 : 3;
-  }
-  if (candidate.runtimeStatus === "error") {
-    return 2;
-  }
-  return 1;
-}
-
-function choosePreferredRuntimeCandidate(
-  candidates: readonly (TargetRuntimeCandidate | null | undefined)[],
-): TargetRuntimeCandidate | null {
-  return candidates.reduce<TargetRuntimeCandidate | null>((best, candidate) => {
-    if (!candidate) {
-      return best;
-    }
-    if (!best) {
-      return candidate;
-    }
-    const bestRank = rankRuntimeCandidate(best);
-    const candidateRank = rankRuntimeCandidate(candidate);
-    if (candidateRank !== bestRank) {
-      return candidateRank > bestRank ? candidate : best;
-    }
-    if (
-      candidate.runtimeKind === ALISIO_LOCAL_MODEL_BACKEND &&
-      best.runtimeKind !== ALISIO_LOCAL_MODEL_BACKEND
-    ) {
-      return candidate;
-    }
-    return best;
-  }, null);
-}
-
 function hasCapability(node: NodeSession, capabilityId: string) {
   return node.capabilities.some((capability) => capability.id === capabilityId);
 }
@@ -382,6 +344,7 @@ async function inspectNodeRuntimeCandidate(params: {
   runtimeKind: RuntimeKind;
   catalogCapabilityId?: string;
   chatCapabilityId?: string;
+  fallbackCapabilities?: Partial<RuntimeCapabilities>;
 }): Promise<TargetRuntimeCandidate | null> {
   if (!params.catalogCapabilityId) {
     return null;
@@ -408,11 +371,11 @@ async function inspectNodeRuntimeCandidate(params: {
       runtimeMessage: task.error.message,
       installedModels: [],
       availableModels: [],
-      capabilities: buildRuntimeCapabilities(),
-      supportsInstall: false,
-      supportsUpdate: false,
-      supportsUninstall: false,
-      consentRequired: false,
+      capabilities: buildRuntimeCapabilities(params.fallbackCapabilities),
+      supportsInstall: params.fallbackCapabilities?.install ?? false,
+      supportsUpdate: params.fallbackCapabilities?.update ?? false,
+      supportsUninstall: params.fallbackCapabilities?.uninstall ?? false,
+      consentRequired: params.fallbackCapabilities?.consentRequired ?? false,
       ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
     };
   }
@@ -447,126 +410,164 @@ async function inspectNodeRuntimeCandidate(params: {
     capabilities:
       payload?.capabilities ??
       buildRuntimeCapabilities({
-        install: payload?.supportsInstall === true,
-        update: payload?.supportsUpdate === true,
-        uninstall: payload?.supportsUninstall === true,
-        consentRequired: payload?.consentRequired === true,
+        install: payload?.supportsInstall === true || params.fallbackCapabilities?.install === true,
+        update: payload?.supportsUpdate === true || params.fallbackCapabilities?.update === true,
+        uninstall:
+          payload?.supportsUninstall === true || params.fallbackCapabilities?.uninstall === true,
+        consentRequired:
+          payload?.consentRequired === true ||
+          params.fallbackCapabilities?.consentRequired === true,
+        startServer:
+          payload?.capabilities?.startServer === true ||
+          params.fallbackCapabilities?.startServer === true,
       }),
-    supportsInstall: payload?.supportsInstall === true,
-    supportsUpdate: payload?.supportsUpdate === true,
-    supportsUninstall: payload?.supportsUninstall === true,
-    consentRequired: payload?.consentRequired === true,
+    supportsInstall:
+      payload?.supportsInstall === true || params.fallbackCapabilities?.install === true,
+    supportsUpdate:
+      payload?.supportsUpdate === true || params.fallbackCapabilities?.update === true,
+    supportsUninstall:
+      payload?.supportsUninstall === true || params.fallbackCapabilities?.uninstall === true,
+    consentRequired:
+      payload?.consentRequired === true || params.fallbackCapabilities?.consentRequired === true,
     ...(params.chatCapabilityId ? { chatCapabilityId: params.chatCapabilityId } : {}),
   };
 }
 
-async function inspectConnectedNodeTarget(params: {
-  nodeRegistry: NodeRegistry;
+function buildConnectedNodeTarget(params: {
   node: NodeSession;
-}): Promise<ConnectedTargetInspection> {
-  const { node } = params;
-  const supportsInstall = hasCapability(node, "model.manage.llamacpp.v1");
-  const supportsLlamaCatalog = hasCapability(node, "model.catalog.llamacpp.v1");
-  const supportsLlamaChat = hasCapability(node, "model.chat.llamacpp.v1");
-  const supportsOpenAiCatalog = hasCapability(node, "model.catalog.openai.v1");
-  const supportsOpenAiChat = hasCapability(node, "model.chat.openai.v1");
-
-  const [llamaCandidate, openAiCandidate] = await Promise.all([
-    inspectNodeRuntimeCandidate({
-      nodeRegistry: params.nodeRegistry,
-      node,
-      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
-      catalogCapabilityId: supportsLlamaCatalog ? "model.catalog.llamacpp.v1" : undefined,
-      chatCapabilityId: supportsLlamaChat ? "model.chat.llamacpp.v1" : undefined,
-    }),
-    inspectNodeRuntimeCandidate({
-      nodeRegistry: params.nodeRegistry,
-      node,
-      runtimeKind: "openai-compatible",
-      catalogCapabilityId: supportsOpenAiCatalog ? "model.catalog.openai.v1" : undefined,
-      chatCapabilityId: supportsOpenAiChat ? "model.chat.openai.v1" : undefined,
-    }),
-  ]);
-
-  const preferred = choosePreferredRuntimeCandidate([llamaCandidate, openAiCandidate]);
-  if (!preferred) {
-    return {
-      targetId: buildRuntimeTargetId(
-        node.nodeId,
-        supportsInstall ? ALISIO_LOCAL_MODEL_BACKEND : "openai-compatible",
-      ),
-      deviceId: node.nodeId,
-      label: resolveNodeTargetLabel(node),
-      runtimeLabel: supportsInstall ? "Local GGUF" : "OpenAI-compatible",
-      platform: node.platform,
-      current: false,
-      connected: true,
-      location: "server",
-      backend: ALISIO_LOCAL_MODEL_BACKEND,
-      runtimeKind: supportsInstall ? ALISIO_LOCAL_MODEL_BACKEND : "openai-compatible",
-      runtimeStatus: "not_configured",
-      runtimeMessage: "no model source is configured on this device",
-      capabilities: supportsInstall
-        ? buildRuntimeCapabilities({
-            install: true,
-            update: true,
-            uninstall: true,
-            consentRequired: true,
-          })
-        : buildRuntimeCapabilities(),
-      supportsInstall,
-      supportsUpdate: supportsInstall,
-      supportsUninstall: supportsInstall,
-      consentRequired: supportsInstall,
-      installedModels: [],
-      availableModels: supportsInstall ? listManagedLocalAvailableModels() : [],
-      recommendations: buildEmptyRecommendations().recommendations,
-    };
-  }
-  const hardware = preferred.hardware ?? llamaCandidate?.hardware ?? openAiCandidate?.hardware;
-  const targetSupportsInstall = supportsInstall;
+  candidate: TargetRuntimeCandidate;
+}): ConnectedTargetInspection {
   const availableModels = resolveTargetAvailableModels({
-    runtimeKind: preferred.runtimeKind,
-    hardware,
-    supportsInstall: targetSupportsInstall,
-    discoveredAvailableModels: preferred.availableModels,
+    runtimeKind: params.candidate.runtimeKind,
+    hardware: params.candidate.hardware,
+    supportsInstall: params.candidate.supportsInstall,
+    discoveredAvailableModels: params.candidate.availableModels,
   });
-  const recommendations = targetSupportsInstall
+  const recommendations = params.candidate.supportsInstall
     ? buildTargetRecommendations({
-        hardware,
+        hardware: params.candidate.hardware,
         catalog:
-          preferred.runtimeKind === "ollama"
-            ? listOllamaAvailableModels(hardware)
-            : availableModels,
+          params.candidate.runtimeKind === "ollama"
+            ? listOllamaAvailableModels(params.candidate.hardware)
+            : params.candidate.runtimeKind === "lmstudio"
+              ? listLmStudioAvailableModels(params.candidate.hardware)
+              : availableModels,
       })
     : buildEmptyRecommendations();
 
   return {
-    targetId: buildRuntimeTargetId(node.nodeId, preferred.runtimeKind),
-    deviceId: node.nodeId,
-    label: resolveNodeTargetLabel(node),
-    runtimeLabel: preferred.runtimeLabel,
-    platform: node.platform,
+    targetId: buildRuntimeTargetId(params.node.nodeId, params.candidate.runtimeKind),
+    deviceId: params.node.nodeId,
+    label: resolveNodeTargetLabel(params.node),
+    runtimeLabel: params.candidate.runtimeLabel,
+    platform: params.node.platform,
     current: false,
     connected: true,
     location: "server",
     backend: ALISIO_LOCAL_MODEL_BACKEND,
-    runtimeKind: preferred.runtimeKind,
-    runtimeStatus: preferred.runtimeStatus,
-    runtimeMessage: preferred.runtimeMessage,
-    capabilities: preferred.capabilities,
-    supportsInstall: targetSupportsInstall,
-    supportsUpdate: preferred.supportsUpdate,
-    supportsUninstall: preferred.supportsUninstall,
-    consentRequired: preferred.consentRequired,
-    installedModels: preferred.installedModels,
+    runtimeKind: params.candidate.runtimeKind,
+    runtimeStatus: params.candidate.runtimeStatus,
+    runtimeMessage: params.candidate.runtimeMessage,
+    capabilities: params.candidate.capabilities,
+    supportsInstall: params.candidate.supportsInstall,
+    supportsUpdate: params.candidate.supportsUpdate,
+    supportsUninstall: params.candidate.supportsUninstall,
+    consentRequired: params.candidate.consentRequired,
+    installedModels: params.candidate.installedModels,
     availableModels,
-    hardware,
+    hardware: params.candidate.hardware,
     recommendations: recommendations.recommendations,
     bestModelId: recommendations.bestModelId,
     bestModelName: recommendations.bestModelName,
-    ...(preferred.chatCapabilityId ? { chatCapabilityId: preferred.chatCapabilityId } : {}),
+    ...(params.candidate.chatCapabilityId
+      ? { chatCapabilityId: params.candidate.chatCapabilityId }
+      : {}),
   };
+}
+
+async function inspectConnectedNodeTargets(params: {
+  nodeRegistry: NodeRegistry;
+  node: NodeSession;
+}): Promise<ConnectedTargetInspection[]> {
+  const { node } = params;
+  const runtimeCandidates = (
+    await Promise.all([
+      inspectNodeRuntimeCandidate({
+        nodeRegistry: params.nodeRegistry,
+        node,
+        runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+        catalogCapabilityId: hasCapability(node, "model.catalog.llamacpp.v1")
+          ? "model.catalog.llamacpp.v1"
+          : undefined,
+        chatCapabilityId: hasCapability(node, "model.chat.llamacpp.v1")
+          ? "model.chat.llamacpp.v1"
+          : undefined,
+        fallbackCapabilities: hasCapability(node, "model.manage.llamacpp.v1")
+          ? {
+              install: true,
+              update: true,
+              uninstall: true,
+              consentRequired: true,
+            }
+          : undefined,
+      }),
+      inspectNodeRuntimeCandidate({
+        nodeRegistry: params.nodeRegistry,
+        node,
+        runtimeKind: "ollama",
+        catalogCapabilityId: hasCapability(node, "model.catalog.ollama.v1")
+          ? "model.catalog.ollama.v1"
+          : undefined,
+        chatCapabilityId: hasCapability(node, "model.chat.ollama.v1")
+          ? "model.chat.ollama.v1"
+          : undefined,
+        fallbackCapabilities: hasCapability(node, "model.manage.ollama.v1")
+          ? {
+              install: true,
+              update: true,
+              uninstall: true,
+              consentRequired: true,
+            }
+          : undefined,
+      }),
+      inspectNodeRuntimeCandidate({
+        nodeRegistry: params.nodeRegistry,
+        node,
+        runtimeKind: "lmstudio",
+        catalogCapabilityId: hasCapability(node, "model.catalog.lmstudio.v1")
+          ? "model.catalog.lmstudio.v1"
+          : undefined,
+        chatCapabilityId: hasCapability(node, "model.chat.lmstudio.v1")
+          ? "model.chat.lmstudio.v1"
+          : undefined,
+        fallbackCapabilities: hasCapability(node, "model.server.start.lmstudio.v1")
+          ? { startServer: true }
+          : undefined,
+      }),
+      inspectNodeRuntimeCandidate({
+        nodeRegistry: params.nodeRegistry,
+        node,
+        runtimeKind: "openai-compatible",
+        catalogCapabilityId: hasCapability(node, "model.catalog.openai.v1")
+          ? "model.catalog.openai.v1"
+          : undefined,
+        chatCapabilityId: hasCapability(node, "model.chat.openai.v1")
+          ? "model.chat.openai.v1"
+          : undefined,
+      }),
+    ])
+  ).filter((candidate): candidate is TargetRuntimeCandidate => Boolean(candidate));
+
+  if (runtimeCandidates.length === 0) {
+    return [];
+  }
+
+  return runtimeCandidates.map((candidate) =>
+    buildConnectedNodeTarget({
+      node,
+      candidate,
+    }),
+  );
 }
 
 function buildCurrentSource(params: {
@@ -829,28 +830,32 @@ async function loadSnapshot(params: {
     };
   });
 
-  const connectedTargets = await Promise.all(
-    params.nodeRegistry.listConnected().map(async (node) => {
-      const target = await inspectConnectedNodeTarget({
-        nodeRegistry: params.nodeRegistry,
-        node,
-      });
-      const source = buildConnectedTargetSource({
-        nodeRegistry: params.nodeRegistry,
-        target,
-      });
-      return {
-        target:
-          source && source.catalogEntries.length > 0
-            ? {
-                ...target,
-                chatProviderId: source.providerId,
-              }
-            : target,
-        source,
-      };
-    }),
-  );
+  const connectedTargets = (
+    await Promise.all(
+      params.nodeRegistry.listConnected().map(async (node) => {
+        const targets = await inspectConnectedNodeTargets({
+          nodeRegistry: params.nodeRegistry,
+          node,
+        });
+        return targets.map((target) => {
+          const source = buildConnectedTargetSource({
+            nodeRegistry: params.nodeRegistry,
+            target,
+          });
+          return {
+            target:
+              source && source.catalogEntries.length > 0
+                ? {
+                    ...target,
+                    chatProviderId: source.providerId,
+                  }
+                : target,
+            source,
+          };
+        });
+      }),
+    )
+  ).flat();
   const sharingAccess = await getAlisioSharingTargetAccessIndex(
     {
       targets: [
@@ -871,6 +876,18 @@ async function loadSnapshot(params: {
         target: {
           ...entry.target,
           supportsInstall: access.modelAccess === "shared" ? false : entry.target.supportsInstall,
+          supportsUpdate: access.modelAccess === "shared" ? false : entry.target.supportsUpdate,
+          supportsUninstall:
+            access.modelAccess === "shared" ? false : entry.target.supportsUninstall,
+          capabilities:
+            access.modelAccess === "shared"
+              ? {
+                  ...entry.target.capabilities,
+                  install: false,
+                  update: false,
+                  uninstall: false,
+                }
+              : entry.target.capabilities,
           access: access.modelAccess,
           ownerLabel: access.ownerLabel,
           ownerScope: access.ownerScope,
@@ -890,6 +907,18 @@ async function loadSnapshot(params: {
         target: {
           ...entry.target,
           supportsInstall: access.modelAccess === "shared" ? false : entry.target.supportsInstall,
+          supportsUpdate: access.modelAccess === "shared" ? false : entry.target.supportsUpdate,
+          supportsUninstall:
+            access.modelAccess === "shared" ? false : entry.target.supportsUninstall,
+          capabilities:
+            access.modelAccess === "shared"
+              ? {
+                  ...entry.target.capabilities,
+                  install: false,
+                  update: false,
+                  uninstall: false,
+                }
+              : entry.target.capabilities,
           access: access.modelAccess,
           ownerLabel: access.ownerLabel,
           ownerScope: access.ownerScope,

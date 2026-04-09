@@ -27,7 +27,12 @@ import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
-import { resolveGatewayRequestContext, resolveOpenAiCompatModelOverride } from "./http-utils.js";
+import {
+  ALISIO_MODEL_ID,
+  normalizeGatewayModelAlias,
+  resolveGatewayRequestContext,
+  resolveOpenAiCompatModelOverride,
+} from "./http-utils.js";
 import { normalizeInputHostnameAllowlist } from "./input-allowlist.js";
 
 type OpenAiHttpOptions = {
@@ -432,7 +437,10 @@ export async function handleOpenAiHttpRequest(
 
   const payload = coerceRequest(handled.body);
   const stream = Boolean(payload.stream);
-  const model = typeof payload.model === "string" ? payload.model : "openclaw";
+  const model =
+    typeof payload.model === "string"
+      ? (normalizeGatewayModelAlias(payload.model) ?? ALISIO_MODEL_ID)
+      : ALISIO_MODEL_ID;
   const user = typeof payload.user === "string" ? payload.user : undefined;
 
   const { agentId, sessionKey, messageChannel } = resolveGatewayRequestContext({

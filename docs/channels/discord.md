@@ -262,7 +262,7 @@ Now create some channels on your Discord server and start chatting. Your agent c
 
 - Gateway owns the Discord connection.
 - Reply routing is deterministic: Discord inbound replies back to Discord.
-- By default (`session.dmScope=main`), direct chats share the agent main session (`agent:main:main`).
+- By default (`session.dmScope=per-channel-peer`), direct chats keep isolated per-channel session keys (`agent:<agentId>:discord:direct:<userId>`).
 - Guild channels are isolated session keys (`agent:<agentId>:discord:channel:<channelId>`).
 - Group DMs are ignored by default (`channels.discord.dm.groupEnabled=false`).
 - Native slash commands run in isolated command sessions (`agent:<agentId>:discord:slash:<userId>`), while still carrying `CommandTargetSessionKey` to the routed conversation session.
@@ -647,7 +647,7 @@ Default slash command settings:
   </Accordion>
 
   <Accordion title="Thread-bound sessions for subagents">
-    Discord can bind a thread to a session target so follow-up messages in that thread keep routing to the same session (including subagent sessions).
+    Discord can bind a thread to a session target so follow-up messages in that thread keep routing to the same session. For sub-agents, this binding is temporary task plumbing, not a persistent identity.
 
     Commands:
 
@@ -674,7 +674,7 @@ Default slash command settings:
         enabled: true,
         idleHours: 24,
         maxAgeHours: 0,
-        spawnSubagentSessions: false, // opt-in
+        spawnSubagentSessions: false, // opt-in legacy key name
       },
     },
   },
@@ -685,8 +685,9 @@ Default slash command settings:
 
     - `session.threadBindings.*` sets global defaults.
     - `channels.discord.threadBindings.*` overrides Discord behavior.
-    - `spawnSubagentSessions` must be true to auto-create/bind threads for `sessions_spawn({ thread: true })`.
+    - `spawnSubagentSessions` must be true to auto-create/bind temporary task threads for `sessions_spawn({ thread: true, runtime: "subagent" })`.
     - `spawnAcpSessions` must be true to auto-create/bind threads for ACP (`/acp spawn ... --thread ...` or `sessions_spawn({ runtime: "acp", thread: true })`).
+    - `spawnSubagentSessions` is a legacy config key name kept for compatibility. It now covers ephemeral sub-agent task threads and is scheduled for replacement after 2026-06-30.
     - If thread bindings are disabled for an account, `/focus` and related thread binding operations are unavailable.
 
     See [Sub-agents](/tools/subagents), [ACP Agents](/tools/acp-agents), and [Configuration Reference](/gateway/configuration-reference).

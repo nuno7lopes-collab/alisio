@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { FLAG_TERMINATOR } from "../infra/cli-root-options.js";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import { getPrimaryCommand } from "./argv.js";
 import { isValidProfileName } from "./profile-utils.js";
@@ -84,7 +85,7 @@ function resolveProfileStateDir(
   homedir: () => string,
 ): string {
   const suffix = profile.toLowerCase() === "default" ? "" : `-${profile}`;
-  return path.join(resolveRequiredHomeDir(env as NodeJS.ProcessEnv, homedir), `.openclaw${suffix}`);
+  return path.join(resolveRequiredHomeDir(env as NodeJS.ProcessEnv, homedir), `.alisio${suffix}`);
 }
 
 export function applyCliProfileEnv(params: {
@@ -100,18 +101,40 @@ export function applyCliProfileEnv(params: {
   }
 
   // Convenience only: fill defaults, never override explicit env values.
+  env.ALISIO_PROFILE = profile;
   env.OPENCLAW_PROFILE = profile;
 
-  const stateDir = env.OPENCLAW_STATE_DIR?.trim() || resolveProfileStateDir(profile, env, homedir);
+  const stateDir =
+    readEnv("ALISIO_STATE_DIR", {
+      env: env as NodeJS.ProcessEnv,
+      fallback: legacyEnvKey("STATE_DIR"),
+    }) || resolveProfileStateDir(profile, env, homedir);
+  if (!env.ALISIO_STATE_DIR?.trim()) {
+    env.ALISIO_STATE_DIR = stateDir;
+  }
   if (!env.OPENCLAW_STATE_DIR?.trim()) {
     env.OPENCLAW_STATE_DIR = stateDir;
   }
 
+  const configPath = path.join(stateDir, "alisio.json");
+  if (!env.ALISIO_CONFIG_PATH?.trim()) {
+    env.ALISIO_CONFIG_PATH = configPath;
+  }
   if (!env.OPENCLAW_CONFIG_PATH?.trim()) {
-    env.OPENCLAW_CONFIG_PATH = path.join(stateDir, "openclaw.json");
+    env.OPENCLAW_CONFIG_PATH = configPath;
   }
 
-  if (profile === "dev" && !env.OPENCLAW_GATEWAY_PORT?.trim()) {
-    env.OPENCLAW_GATEWAY_PORT = "19001";
+  const gatewayPort =
+    profile === "dev"
+      ? readEnv("ALISIO_GATEWAY_PORT", {
+          env: env as NodeJS.ProcessEnv,
+          fallback: legacyEnvKey("GATEWAY_PORT"),
+        }) || "19001"
+      : undefined;
+  if (gatewayPort && !env.ALISIO_GATEWAY_PORT?.trim()) {
+    env.ALISIO_GATEWAY_PORT = gatewayPort;
+  }
+  if (gatewayPort && !env.OPENCLAW_GATEWAY_PORT?.trim()) {
+    env.OPENCLAW_GATEWAY_PORT = gatewayPort;
   }
 }

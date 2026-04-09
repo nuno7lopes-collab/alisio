@@ -1,5 +1,9 @@
 import fs from "node:fs";
 import { deriveSessionTotalTokens, hasNonzeroUsage, normalizeUsage } from "../agents/usage.js";
+import {
+  ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
+  warnLegacyCompatibilityOnce,
+} from "../infra/compat-warning.js";
 import { jsonUtf8Bytes } from "../infra/json-utf8-bytes.js";
 import { hasInterSessionUserProvenance } from "../sessions/input-provenance.js";
 import { stripInlineDirectiveTagsForDisplay } from "../utils/directive-tags.js";
@@ -25,6 +29,23 @@ type SessionTitleFieldsCacheEntry = SessionTitleFields & {
 
 const sessionTitleFieldsCache = new Map<string, SessionTitleFieldsCacheEntry>();
 const MAX_SESSION_TITLE_FIELDS_CACHE_ENTRIES = 5000;
+const ALISIO_TRANSCRIPT_META_KEY = "__alisio";
+const LEGACY_OPENCLAW_TRANSCRIPT_META_KEY = "__openclaw";
+
+function asTranscriptMetaRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function resolveTranscriptMetaRecord(record: Record<string, unknown>): Record<string, unknown> {
+  const legacy = asTranscriptMetaRecord(record[LEGACY_OPENCLAW_TRANSCRIPT_META_KEY]) ?? {};
+  const canonical = asTranscriptMetaRecord(record[ALISIO_TRANSCRIPT_META_KEY]) ?? {};
+  return {
+    ...legacy,
+    ...canonical,
+  };
+}
 
 function readSessionTitleFieldsCacheKey(
   filePath: string,
@@ -67,7 +88,7 @@ function setCachedSessionTitleFields(cacheKey: string, stat: fs.Stats, value: Se
   }
 }
 
-export function attachOpenClawTranscriptMeta(
+export function attachAlisioTranscriptMeta(
   message: unknown,
   meta: Record<string, unknown>,
 ): unknown {
@@ -75,17 +96,33 @@ export function attachOpenClawTranscriptMeta(
     return message;
   }
   const record = message as Record<string, unknown>;
-  const existing =
-    record.__openclaw && typeof record.__openclaw === "object" && !Array.isArray(record.__openclaw)
-      ? (record.__openclaw as Record<string, unknown>)
-      : {};
+  const nextMeta = {
+    ...resolveTranscriptMetaRecord(record),
+    ...meta,
+  };
   return {
     ...record,
-    __openclaw: {
-      ...existing,
-      ...meta,
-    },
+    // Keep dual-write until transcript/history consumers and stored session data no longer
+    // depend on the legacy OpenClaw meta key.
+    [ALISIO_TRANSCRIPT_META_KEY]: nextMeta,
+    [LEGACY_OPENCLAW_TRANSCRIPT_META_KEY]: nextMeta,
   };
+}
+
+/**
+ * @deprecated Use attachAlisioTranscriptMeta instead. Sunset target: 2026-06-30.
+ */
+export function attachOpenClawTranscriptMeta(
+  message: unknown,
+  meta: Record<string, unknown>,
+): unknown {
+  warnLegacyCompatibilityOnce({
+    key: "attachOpenClawTranscriptMeta",
+    message: "attachOpenClawTranscriptMeta() is deprecated.",
+    replacement: "attachAlisioTranscriptMeta()",
+    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
+  });
+  return attachAlisioTranscriptMeta(message, meta);
 }
 
 export function readSessionMessages(
@@ -112,7 +149,7 @@ export function readSessionMessages(
       if (parsed?.message) {
         messageSeq += 1;
         messages.push(
-          attachOpenClawTranscriptMeta(parsed.message, {
+          attachAlisioTranscriptMeta(parsed.message, {
             ...(typeof parsed.id === "string" ? { id: parsed.id } : {}),
             seq: messageSeq,
           }),
@@ -126,16 +163,20 @@ export function readSessionMessages(
         const ts = typeof parsed.timestamp === "string" ? Date.parse(parsed.timestamp) : Number.NaN;
         const timestamp = Number.isFinite(ts) ? ts : Date.now();
         messageSeq += 1;
-        messages.push({
-          role: "system",
-          content: [{ type: "text", text: "Compaction" }],
-          timestamp,
-          __openclaw: {
-            kind: "compaction",
-            id: typeof parsed.id === "string" ? parsed.id : undefined,
-            seq: messageSeq,
-          },
-        });
+        messages.push(
+          attachAlisioTranscriptMeta(
+            {
+              role: "system",
+              content: [{ type: "text", text: "Compaction" }],
+              timestamp,
+            },
+            {
+              kind: "compaction",
+              id: typeof parsed.id === "string" ? parsed.id : undefined,
+              seq: messageSeq,
+            },
+          ),
+        );
       }
     } catch {
       // ignore bad lines

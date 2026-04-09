@@ -29,6 +29,10 @@ import {
   AlisioAiStateSchema,
   type AlisioAccountGetParams,
   AlisioAccountGetParamsSchema,
+  type AlisioAccountEmailChangeParams,
+  AlisioAccountEmailChangeParamsSchema,
+  type AlisioAccountEmailChangeResult,
+  AlisioAccountEmailChangeResultSchema,
   type AlisioAccountPasswordResetParams,
   AlisioAccountPasswordResetParamsSchema,
   type AlisioAccountPasswordResetResult,
@@ -49,6 +53,10 @@ import {
   AlisioAccountGoogleAuthBeginParamsSchema,
   type AlisioAccountGoogleAuthBeginResult,
   AlisioAccountGoogleAuthBeginResultSchema,
+  type AlisioAccountPasswordUpdateParams,
+  AlisioAccountPasswordUpdateParamsSchema,
+  type AlisioAccountPasswordUpdateResult,
+  AlisioAccountPasswordUpdateResultSchema,
   type AlisioAccountCompleteProfileParams,
   AlisioAccountCompleteProfileParamsSchema,
   type AlisioAccountSignInParams,
@@ -77,6 +85,8 @@ import {
   AlisioModelsInstallParamsSchema,
   type AlisioModelsInstallResult,
   AlisioModelsInstallResultSchema,
+  AlisioModelsRuntimeStartParamsSchema,
+  AlisioModelsRuntimeStartResultSchema,
   type AlisioModelsUninstallParams,
   AlisioModelsUninstallParamsSchema,
   type AlisioModelsUninstallResult,
@@ -95,6 +105,16 @@ import {
   AlisioDoctorSummaryParamsSchema,
   type AlisioDoctorSummaryResult,
   AlisioDoctorSummaryResultSchema,
+  type AlisioProviderOverviewItem,
+  AlisioProviderOverviewItemSchema,
+  type AlisioProviderOverviewSummary,
+  AlisioProviderOverviewSummarySchema,
+  type AlisioProviderOverviewUsageWindow,
+  AlisioProviderOverviewUsageWindowSchema,
+  type AlisioProvidersGetParams,
+  AlisioProvidersGetParamsSchema,
+  type AlisioProvidersResult,
+  AlisioProvidersResultSchema,
   type AlisioRuntimeRestartParams,
   AlisioRuntimeRestartParamsSchema,
   type AlisioRuntimeRestartResult,
@@ -522,6 +542,8 @@ import {
 import type {
   AlisioModelHardware,
   AlisioModelRecommendation,
+  AlisioModelsRuntimeStartParams,
+  AlisioModelsRuntimeStartResult,
   AlisioModelsServerRemoveParams,
   AlisioModelsServerRemoveResult,
   AlisioModelsServerSaveParams,
@@ -547,6 +569,12 @@ export const validateAgentParams = ajv.compile(AgentParamsSchema);
 export const validateAlisioAccountGetParams = ajv.compile<AlisioAccountGetParams>(
   AlisioAccountGetParamsSchema,
 );
+export const validateAlisioAccountEmailChangeParams = ajv.compile<AlisioAccountEmailChangeParams>(
+  AlisioAccountEmailChangeParamsSchema,
+);
+export const validateAlisioAccountEmailChangeResult = ajv.compile<AlisioAccountEmailChangeResult>(
+  AlisioAccountEmailChangeResultSchema,
+);
 export const validateAlisioAccountPasswordResetParams =
   ajv.compile<AlisioAccountPasswordResetParams>(AlisioAccountPasswordResetParamsSchema);
 export const validateAlisioAccountRecoveryEmailParams =
@@ -565,6 +593,10 @@ export const validateAlisioAccountGoogleAuthBeginParams =
   ajv.compile<AlisioAccountGoogleAuthBeginParams>(AlisioAccountGoogleAuthBeginParamsSchema);
 export const validateAlisioAccountGoogleAuthBeginResult =
   ajv.compile<AlisioAccountGoogleAuthBeginResult>(AlisioAccountGoogleAuthBeginResultSchema);
+export const validateAlisioAccountPasswordUpdateParams =
+  ajv.compile<AlisioAccountPasswordUpdateParams>(AlisioAccountPasswordUpdateParamsSchema);
+export const validateAlisioAccountPasswordUpdateResult =
+  ajv.compile<AlisioAccountPasswordUpdateResult>(AlisioAccountPasswordUpdateResultSchema);
 export const validateAlisioAccountSignUpParams = ajv.compile<AlisioAccountSignUpParams>(
   AlisioAccountSignUpParamsSchema,
 );
@@ -620,6 +652,12 @@ export const validateAlisioModelsInstallParams = ajv.compile<AlisioModelsInstall
 export const validateAlisioModelsInstallResult = ajv.compile<AlisioModelsInstallResult>(
   AlisioModelsInstallResultSchema,
 );
+export const validateAlisioModelsRuntimeStartParams = ajv.compile<AlisioModelsRuntimeStartParams>(
+  AlisioModelsRuntimeStartParamsSchema,
+);
+export const validateAlisioModelsRuntimeStartResult = ajv.compile<AlisioModelsRuntimeStartResult>(
+  AlisioModelsRuntimeStartResultSchema,
+);
 export const validateAlisioModelsUninstallParams = ajv.compile<AlisioModelsUninstallParams>(
   AlisioModelsUninstallParamsSchema,
 );
@@ -653,6 +691,20 @@ export const validateAlisioDoctorSummaryParams = ajv.compile<AlisioDoctorSummary
 );
 export const validateAlisioDoctorSummaryResult = ajv.compile<AlisioDoctorSummaryResult>(
   AlisioDoctorSummaryResultSchema,
+);
+export const validateAlisioProviderOverviewUsageWindow =
+  ajv.compile<AlisioProviderOverviewUsageWindow>(AlisioProviderOverviewUsageWindowSchema);
+export const validateAlisioProviderOverviewItem = ajv.compile<AlisioProviderOverviewItem>(
+  AlisioProviderOverviewItemSchema,
+);
+export const validateAlisioProviderOverviewSummary = ajv.compile<AlisioProviderOverviewSummary>(
+  AlisioProviderOverviewSummarySchema,
+);
+export const validateAlisioProvidersGetParams = ajv.compile<AlisioProvidersGetParams>(
+  AlisioProvidersGetParamsSchema,
+);
+export const validateAlisioProvidersResult = ajv.compile<AlisioProvidersResult>(
+  AlisioProvidersResultSchema,
 );
 export const validateAlisioRuntimeRestartParams = ajv.compile<AlisioRuntimeRestartParams>(
   AlisioRuntimeRestartParamsSchema,
@@ -1029,6 +1081,8 @@ export {
   AlisioModelsGetParamsSchema,
   AlisioModelsInstallParamsSchema,
   AlisioModelsInstallResultSchema,
+  AlisioModelsRuntimeStartParamsSchema,
+  AlisioModelsRuntimeStartResultSchema,
   AlisioModelsUninstallParamsSchema,
   AlisioModelsUninstallResultSchema,
   AlisioModelsServerSaveParamsSchema,
@@ -1041,6 +1095,11 @@ export {
   AlisioBootstrapResultSchema,
   AlisioDoctorSummaryParamsSchema,
   AlisioDoctorSummaryResultSchema,
+  AlisioProviderOverviewUsageWindowSchema,
+  AlisioProviderOverviewItemSchema,
+  AlisioProviderOverviewSummarySchema,
+  AlisioProvidersGetParamsSchema,
+  AlisioProvidersResultSchema,
   AlisioAccountGetParamsSchema,
   AlisioAccountPasswordResetParamsSchema,
   AlisioAccountPasswordResetResultSchema,
@@ -1250,6 +1309,8 @@ export type {
   AlisioModelsGetParams,
   AlisioModelsInstallParams,
   AlisioModelsInstallResult,
+  AlisioModelsRuntimeStartParams,
+  AlisioModelsRuntimeStartResult,
   AlisioModelsUninstallParams,
   AlisioModelsUninstallResult,
   AlisioModelsServerSaveParams,
@@ -1262,15 +1323,29 @@ export type {
   AlisioBootstrapResult,
   AlisioDoctorSummaryParams,
   AlisioDoctorSummaryResult,
+  AlisioProviderOverviewUsageWindow,
+  AlisioProviderOverviewItem,
+  AlisioProviderOverviewSummary,
+  AlisioProvidersGetParams,
+  AlisioProvidersResult,
   AlisioAccountGetParams,
+  AlisioAccountEmailChangeParams,
+  AlisioAccountEmailChangeResult,
   AlisioAccountPasswordResetParams,
   AlisioAccountPasswordResetResult,
+  AlisioAccountRecoveryEmailParams,
+  AlisioAccountRecoveryEmailResult,
   AlisioAccountEmailAuthBeginParams,
   AlisioAccountEmailAuthBeginResult,
   AlisioAccountEmailLinkAuthCompleteParams,
   AlisioAccountEmailAuthVerifyParams,
   AlisioAccountGoogleAuthBeginParams,
   AlisioAccountGoogleAuthBeginResult,
+  AlisioAccountPasswordUpdateParams,
+  AlisioAccountPasswordUpdateResult,
+  AlisioAccountSignUpParams,
+  AlisioAccountSignInParams,
+  AlisioAccountSignOutParams,
   AlisioAccountCompleteProfileParams,
   AlisioAccountResult,
   AlisioAccountUpdateParams,

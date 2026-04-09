@@ -68,8 +68,10 @@ export class AlisioAccountCloudError extends Error {
     | "profile_write_failed"
     | "session_refresh_failed"
     | "password_reset_failed"
+    | "password_update_failed"
     | "email_auth_failed"
     | "email_verification_failed"
+    | "email_change_failed"
     | "oauth_failed";
 
   constructor(
@@ -81,8 +83,10 @@ export class AlisioAccountCloudError extends Error {
       | "profile_write_failed"
       | "session_refresh_failed"
       | "password_reset_failed"
+      | "password_update_failed"
       | "email_auth_failed"
       | "email_verification_failed"
+      | "email_change_failed"
       | "oauth_failed",
     message: string,
   ) {
@@ -102,6 +106,10 @@ export const ALISIO_REQUIRED_SUPABASE_ENV_VARS = [
   "ALISIO_SUPABASE_URL",
   "ALISIO_SUPABASE_ANON_KEY",
 ] as const;
+
+function resolveSupabaseClientKey(env: NodeJS.ProcessEnv) {
+  return env.ALISIO_SUPABASE_ANON_KEY?.trim() || env.ALISIO_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
+}
 
 type SupabaseSessionResponse = {
   access_token?: string;
@@ -178,7 +186,9 @@ function buildCodeChallenge(verifier: string) {
 export function listMissingRequiredAlisioCloudEnvVars(
   env: NodeJS.ProcessEnv,
 ): Array<(typeof ALISIO_REQUIRED_SUPABASE_ENV_VARS)[number]> {
-  return ALISIO_REQUIRED_SUPABASE_ENV_VARS.filter((key) => !(env[key]?.trim() || ""));
+  return ALISIO_REQUIRED_SUPABASE_ENV_VARS.filter((key) =>
+    key === "ALISIO_SUPABASE_ANON_KEY" ? !resolveSupabaseClientKey(env) : !(env[key]?.trim() || ""),
+  );
 }
 
 function resolveSupabaseConfig(env: NodeJS.ProcessEnv): SupabaseConfig | null {
@@ -186,7 +196,7 @@ function resolveSupabaseConfig(env: NodeJS.ProcessEnv): SupabaseConfig | null {
     return null;
   }
   const url = env.ALISIO_SUPABASE_URL?.trim() || "";
-  const anonKey = env.ALISIO_SUPABASE_ANON_KEY?.trim() || "";
+  const anonKey = resolveSupabaseClientKey(env);
   return {
     url: url.replace(/\/+$/, ""),
     anonKey,
@@ -682,8 +692,7 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
   return {
     ok: true,
     email,
-    message:
-      "Check your email for the verification code or sign-in link, then return to Alisio.",
+    message: "Check your email for the verification code or sign-in link, then return to Alisio.",
   };
 }
 
@@ -877,6 +886,7 @@ export async function exchangeAlisioCloudGoogleAuthCode(params: {
 export async function signUpAlisioCloudAccount(params: {
   email: string;
   password: string;
+  callbackUrl?: string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }): Promise<{
@@ -896,6 +906,9 @@ export async function signUpAlisioCloudAccount(params: {
   }
 
   const signUpUrl = new URL("/auth/v1/signup", config.url);
+  if (params.callbackUrl?.trim()) {
+    signUpUrl.searchParams.set("redirect_to", params.callbackUrl.trim());
+  }
   const signUpResult = await fetchJson(
     signUpUrl.toString(),
     {
@@ -923,14 +936,30 @@ export async function signUpAlisioCloudAccount(params: {
     );
   }
 
-  const sessionResult = await signInWithSupabasePassword({
-    config,
-    email,
-    password: params.password,
-    fetchImpl,
-  });
+  const signUpBody = signUpResult.body as SupabaseSessionResponse;
+  if (!signUpBody.access_token?.trim()) {
+    const userId = signUpBody.user?.id?.trim() || undefined;
+    const joinedAt = signUpBody.user?.created_at?.trim() || new Date().toISOString();
+    return {
+      session: {
+        backend: "supabase",
+        state: "signed_out",
+        authMethod: "email",
+        ...(userId ? { userId } : {}),
+        email,
+        signedOutAt: new Date().toISOString(),
+      },
+      profile: mapSupabaseProfile(null, {
+        userId,
+        email,
+        joinedAt,
+        backend: "supabase",
+      }),
+    };
+  }
+
   const resolvedSession = resolveSupabaseSession({
-    body: sessionResult,
+    body: signUpBody,
     fallbackEmail: email,
     authMethod: "email",
     errorCode: "backend_unavailable",
@@ -1239,6 +1268,7 @@ export async function signOutAlisioCloudAccount(params: {
 
 export async function requestAlisioCloudPasswordReset(params: {
   email: string;
+  callbackUrl?: string;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;
 }): Promise<{ message: string; ok: true }> {
@@ -1261,12 +1291,17 @@ export async function requestAlisioCloudPasswordReset(params: {
   }
 
   const url = new URL("/auth/v1/recover", config.url);
+  if (params.callbackUrl?.trim()) {
+    url.searchParams.set("redirect_to", params.callbackUrl.trim());
+  }
   const result = await fetchJson(
     url.toString(),
     {
       method: "POST",
       headers: supabaseHeaders(config),
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({
+        email,
+      }),
     },
     fetchImpl,
   );
@@ -1279,5 +1314,121 @@ export async function requestAlisioCloudPasswordReset(params: {
   return {
     ok: true,
     message: "If this Alisio account exists, a recovery email is on its way.",
+  };
+}
+
+export async function requestAlisioCloudAccountEmailChange(params: {
+  session: AlisioStoredCloudSession;
+  email: string;
+  callbackUrl?: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+}): Promise<{ message: string; ok: true }> {
+  const env = params.env ?? process.env;
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const email = params.email.trim().toLowerCase();
+  if (!email) {
+    throw new AlisioAccountCloudError(
+      "email_change_failed",
+      "Enter the new email address for this Alisio account first.",
+    );
+  }
+
+  const config = resolveSupabaseConfig(env);
+  if (!config || !params.session.accessToken) {
+    throw new AlisioAccountCloudError(
+      "backend_unavailable",
+      "The Alisio cloud account backend is not configured in this environment yet.",
+    );
+  }
+
+  const url = new URL("/auth/v1/user", config.url);
+  if (params.callbackUrl?.trim()) {
+    url.searchParams.set("redirect_to", params.callbackUrl.trim());
+  }
+  const result = await fetchJson(
+    url.toString(),
+    {
+      method: "PUT",
+      headers: supabaseHeaders(config, params.session.accessToken),
+      body: JSON.stringify({
+        email,
+      }),
+    },
+    fetchImpl,
+  );
+  if (!result.ok) {
+    const message = readSupabaseErrorText(result.body as Record<string, unknown> | null);
+    if (message.includes("already") || message.includes("registered")) {
+      throw new AlisioAccountCloudError(
+        "email_in_use",
+        "An Alisio account already exists for that email.",
+      );
+    }
+    throw new AlisioAccountCloudError(
+      "email_change_failed",
+      "Alisio could not start the email change right now.",
+    );
+  }
+
+  return {
+    ok: true,
+    message: "Check your new email inbox to confirm the change.",
+  };
+}
+
+export async function updateAlisioCloudAccountPassword(params: {
+  session: AlisioStoredCloudSession;
+  password: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+}): Promise<{ message: string; ok: true }> {
+  const env = params.env ?? process.env;
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const password = params.password;
+  if (!password) {
+    throw new AlisioAccountCloudError(
+      "password_update_failed",
+      "Enter a new password for this Alisio account first.",
+    );
+  }
+
+  const config = resolveSupabaseConfig(env);
+  if (!config || !params.session.accessToken) {
+    throw new AlisioAccountCloudError(
+      "backend_unavailable",
+      "The Alisio cloud account backend is not configured in this environment yet.",
+    );
+  }
+
+  const url = new URL("/auth/v1/user", config.url);
+  const result = await fetchJson(
+    url.toString(),
+    {
+      method: "PUT",
+      headers: supabaseHeaders(config, params.session.accessToken),
+      body: JSON.stringify({
+        password,
+      }),
+    },
+    fetchImpl,
+  );
+  if (!result.ok) {
+    const message = readSupabaseErrorText(result.body as Record<string, unknown> | null);
+    if (message.includes("reauthentication") || message.includes("nonce")) {
+      throw new AlisioAccountCloudError(
+        "password_update_failed",
+        "Alisio needs you to reauthenticate before updating the password.",
+      );
+    }
+    throw new AlisioAccountCloudError(
+      "password_update_failed",
+      "Alisio could not update the password right now.",
+    );
+  }
+
+  return {
+    ok: true,
+    message: "Your Alisio password was updated.",
   };
 }

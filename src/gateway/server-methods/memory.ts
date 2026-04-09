@@ -165,6 +165,73 @@ function buildRuntimeStatus(
       ...(status.obsidianReadOnly.error ? { error: status.obsidianReadOnly.error } : {}),
     };
   }
+  const canonicalStore = (status.custom?.canonicalStore ?? null) as {
+    state?: "pending-sync" | "ready";
+    path?: string;
+    profileId?: string;
+    profileSource?: "cloud-user" | "local-profile" | "state-dir";
+    displayName?: string;
+    workspaceScope?: string;
+    workspaceDir?: string;
+    backend?: "builtin" | "qmd";
+    entities?: number;
+    relations?: number;
+    projections?: number;
+    projectionInterface?: "markdown-vault";
+    syncMode?: "local-first";
+    cloudSync?: "not_implemented";
+    projectionSources?: Array<"workspace-memory" | "obsidian-memory">;
+    lastSyncedAt?: string;
+    lastError?: string;
+    replica?: {
+      deviceId?: string;
+      stateDir?: string;
+    };
+  } | null;
+  if (
+    canonicalStore?.state &&
+    canonicalStore.path &&
+    canonicalStore.profileId &&
+    canonicalStore.profileSource &&
+    canonicalStore.workspaceScope &&
+    canonicalStore.workspaceDir &&
+    canonicalStore.backend &&
+    typeof canonicalStore.entities === "number" &&
+    typeof canonicalStore.relations === "number" &&
+    typeof canonicalStore.projections === "number" &&
+    canonicalStore.projectionInterface &&
+    canonicalStore.syncMode &&
+    canonicalStore.cloudSync &&
+    Array.isArray(canonicalStore.projectionSources)
+  ) {
+    runtime.canonicalStore = {
+      state: canonicalStore.state,
+      path: canonicalStore.path,
+      profileId: canonicalStore.profileId,
+      profileSource: canonicalStore.profileSource,
+      ...(canonicalStore.displayName ? { displayName: canonicalStore.displayName } : {}),
+      workspaceScope: canonicalStore.workspaceScope,
+      workspaceDir: canonicalStore.workspaceDir,
+      backend: canonicalStore.backend,
+      entities: canonicalStore.entities,
+      relations: canonicalStore.relations,
+      projections: canonicalStore.projections,
+      projectionInterface: canonicalStore.projectionInterface,
+      syncMode: canonicalStore.syncMode,
+      cloudSync: canonicalStore.cloudSync,
+      projectionSources: canonicalStore.projectionSources,
+      ...(canonicalStore.lastSyncedAt ? { lastSyncedAt: canonicalStore.lastSyncedAt } : {}),
+      ...(canonicalStore.lastError ? { lastError: canonicalStore.lastError } : {}),
+      ...(canonicalStore.replica?.deviceId && canonicalStore.replica.stateDir
+        ? {
+            replica: {
+              deviceId: canonicalStore.replica.deviceId,
+              stateDir: canonicalStore.replica.stateDir,
+            },
+          }
+        : {}),
+    };
+  }
 
   return runtime;
 }

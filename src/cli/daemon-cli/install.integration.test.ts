@@ -44,14 +44,20 @@ describe("runDaemonInstall integration", () => {
   beforeAll(async () => {
     envSnapshot = captureEnv([
       "HOME",
+      "ALISIO_STATE_DIR",
+      "ALISIO_CONFIG_PATH",
+      "ALISIO_GATEWAY_TOKEN",
+      "ALISIO_GATEWAY_PASSWORD",
       "OPENCLAW_STATE_DIR",
       "OPENCLAW_CONFIG_PATH",
       "OPENCLAW_GATEWAY_TOKEN",
       "OPENCLAW_GATEWAY_PASSWORD",
     ]);
-    tempHome = await makeTempWorkspace("openclaw-daemon-install-int-");
-    configPath = path.join(tempHome, "openclaw.json");
+    tempHome = await makeTempWorkspace("alisio-daemon-install-int-");
+    configPath = path.join(tempHome, "alisio.json");
     process.env.HOME = tempHome;
+    process.env.ALISIO_STATE_DIR = tempHome;
+    process.env.ALISIO_CONFIG_PATH = configPath;
     process.env.OPENCLAW_STATE_DIR = tempHome;
     process.env.OPENCLAW_CONFIG_PATH = configPath;
   });
@@ -66,6 +72,8 @@ describe("runDaemonInstall integration", () => {
     resetRuntimeCapture();
     clearRuntimeConfigSnapshot();
     // Keep these defined-but-empty so dotenv won't repopulate from local .env.
+    process.env.ALISIO_GATEWAY_TOKEN = "";
+    process.env.ALISIO_GATEWAY_PASSWORD = "";
     process.env.OPENCLAW_GATEWAY_TOKEN = "";
     process.env.OPENCLAW_GATEWAY_PASSWORD = "";
     serviceMock.isLoaded.mockResolvedValue(false);
@@ -134,6 +142,6 @@ describe("runDaemonInstall integration", () => {
     expect((persistedToken ?? "").length).toBeGreaterThan(0);
 
     const installEnv = serviceMock.install.mock.calls[0]?.[0]?.environment;
-    expect(installEnv?.OPENCLAW_GATEWAY_TOKEN).toBeUndefined();
+    expect(installEnv?.ALISIO_GATEWAY_TOKEN).toBeUndefined();
   });
 });

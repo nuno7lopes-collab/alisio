@@ -43,7 +43,7 @@ function loadAuthStoreWithProfiles(profiles: AuthProfileStore["profiles"]): Auth
 }
 
 async function createOpenAIFileRuntimeFixture(home: string) {
-  const configDir = path.join(home, ".openclaw");
+  const configDir = path.join(home, ".alisio");
   const secretFile = path.join(configDir, "secrets.json");
   const agentDir = path.join(configDir, "agents", "main", "agent");
   const authStorePath = path.join(agentDir, "auth-profiles.json");
@@ -118,13 +118,13 @@ describe("secrets runtime snapshot integration", () => {
 
   beforeEach(() => {
     envSnapshot = captureEnv([
-      "OPENCLAW_BUNDLED_PLUGINS_DIR",
-      "OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE",
-      "OPENCLAW_VERSION",
+      "ALISIO_BUNDLED_PLUGINS_DIR",
+      "ALISIO_DISABLE_PLUGIN_DISCOVERY_CACHE",
+      "ALISIO_VERSION",
     ]);
-    delete process.env.OPENCLAW_BUNDLED_PLUGINS_DIR;
-    process.env.OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE = "1";
-    delete process.env.OPENCLAW_VERSION;
+    delete process.env.ALISIO_BUNDLED_PLUGINS_DIR;
+    process.env.ALISIO_DISABLE_PLUGIN_DISCOVERY_CACHE = "1";
+    delete process.env.ALISIO_VERSION;
   });
 
   afterEach(() => {
@@ -138,9 +138,9 @@ describe("secrets runtime snapshot integration", () => {
   it("activates runtime snapshots for loadConfig and ensureAuthProfileStore", async () => {
     await withEnvAsync(
       {
-        OPENCLAW_BUNDLED_PLUGINS_DIR: undefined,
-        OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE: "1",
-        OPENCLAW_VERSION: undefined,
+        ALISIO_BUNDLED_PLUGINS_DIR: undefined,
+        ALISIO_DISABLE_PLUGIN_DISCOVERY_CACHE: "1",
+        ALISIO_VERSION: undefined,
       },
       async () => {
         const prepared = await prepareSecretsRuntimeSnapshot({
@@ -156,7 +156,7 @@ describe("secrets runtime snapshot integration", () => {
             },
           }),
           env: { OPENAI_API_KEY: "sk-runtime" },
-          agentDirs: ["/tmp/openclaw-agent-main"],
+          agentDirs: ["/tmp/alisio-agent-main"],
           loadAuthStore: () =>
             loadAuthStoreWithProfiles({
               "openai:default": {
@@ -171,7 +171,7 @@ describe("secrets runtime snapshot integration", () => {
 
         expect(loadConfig().models?.providers?.openai?.apiKey).toBe("sk-runtime");
         expect(
-          ensureAuthProfileStore("/tmp/openclaw-agent-main").profiles["openai:default"],
+          ensureAuthProfileStore("/tmp/alisio-agent-main").profiles["openai:default"],
         ).toMatchObject({
           type: "api_key",
           key: "sk-runtime",
@@ -184,7 +184,7 @@ describe("secrets runtime snapshot integration", () => {
     if (os.platform() === "win32") {
       return;
     }
-    await withTempHome("openclaw-secrets-runtime-write-", async (home) => {
+    await withTempHome("alisio-secrets-runtime-write-", async (home) => {
       const { secretFile, agentDir } = await createOpenAIFileRuntimeFixture(home);
 
       const prepared = await prepareSecretsRuntimeSnapshot({
@@ -210,7 +210,7 @@ describe("secrets runtime snapshot integration", () => {
     if (os.platform() === "win32") {
       return;
     }
-    await withTempHome("openclaw-secrets-runtime-refresh-fail-", async (home) => {
+    await withTempHome("alisio-secrets-runtime-refresh-fail-", async (home) => {
       const { secretFile, agentDir } = await createOpenAIFileRuntimeFixture(home);
 
       let loadAuthStoreCalls = 0;
@@ -258,7 +258,7 @@ describe("secrets runtime snapshot integration", () => {
   it(
     "keeps last-known-good web runtime snapshot when reload introduces unresolved active web refs",
     async () => {
-      await withTempHome("openclaw-secrets-runtime-web-reload-lkg-", async (home) => {
+      await withTempHome("alisio-secrets-runtime-web-reload-lkg-", async (home) => {
         const prepared = await prepareSecretsRuntimeSnapshot({
           config: asConfig({
             tools: {
@@ -275,7 +275,7 @@ describe("secrets runtime snapshot integration", () => {
           env: {
             WEB_SEARCH_GEMINI_API_KEY: "web-search-gemini-runtime-key",
           },
-          agentDirs: ["/tmp/openclaw-agent-main"],
+          agentDirs: ["/tmp/alisio-agent-main"],
           loadAuthStore: () => ({ version: 1, profiles: {} }),
         });
 
@@ -331,7 +331,7 @@ describe("secrets runtime snapshot integration", () => {
         expect(getActiveRuntimeWebToolsMetadata()?.search.selectedProvider).toBe("gemini");
 
         const persistedConfig = JSON.parse(
-          await fs.readFile(path.join(home, ".openclaw", "openclaw.json"), "utf8"),
+          await fs.readFile(path.join(home, ".alisio", "alisio.json"), "utf8"),
         ) as AlisioConfig;
         const persistedGoogleWebSearchConfig = persistedConfig.plugins?.entries?.google?.config as
           | { webSearch?: { apiKey?: unknown } }
@@ -347,9 +347,9 @@ describe("secrets runtime snapshot integration", () => {
   );
 
   it("recomputes config-derived agent dirs when refreshing active secrets runtime snapshots", async () => {
-    await withTempHome("openclaw-secrets-runtime-agent-dirs-", async (home) => {
-      const mainAgentDir = path.join(home, ".openclaw", "agents", "main", "agent");
-      const opsAgentDir = path.join(home, ".openclaw", "agents", "ops", "agent");
+    await withTempHome("alisio-secrets-runtime-agent-dirs-", async (home) => {
+      const mainAgentDir = path.join(home, ".alisio", "agents", "main", "agent");
+      const opsAgentDir = path.join(home, ".alisio", "agents", "ops", "agent");
       await fs.mkdir(mainAgentDir, { recursive: true });
       await fs.mkdir(opsAgentDir, { recursive: true });
       await fs.writeFile(

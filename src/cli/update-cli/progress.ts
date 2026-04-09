@@ -1,6 +1,6 @@
 import { spinner } from "@clack/prompts";
+import { ALISIO_REGISTRY_INSTALL_PREFIX } from "../../infra/distribution-profile.js";
 import { formatDurationPrecise } from "../../infra/format-time/format-duration.ts";
-import { PUBLIC_PACKAGE_NAME } from "../../infra/update-global.js";
 import type {
   UpdateRunResult,
   UpdateStepInfo,
@@ -32,6 +32,7 @@ const STEP_LABELS: Record<string, string> = {
   "global update (omit optional)": "Retrying update without optional deps",
   "global install": "Installing global package",
 };
+const PUBLIC_INSTALL_HINT_SPEC = `${ALISIO_REGISTRY_INSTALL_PREFIX}latest`;
 
 function getStepLabel(step: UpdateStepInfo): string {
   return STEP_LABELS[step.name] ?? step.name;
@@ -53,7 +54,7 @@ export function inferUpdateFailureHints(result: UpdateRunResult): string[] {
     hints.push(
       "Detected permission failure (EACCES). Re-run with a writable global prefix or sudo (for system-managed Node installs).",
     );
-    hints.push(`Example: npm config set prefix ~/.local && npm i -g ${PUBLIC_PACKAGE_NAME}@latest`);
+    hints.push(`Example: npm config set prefix ~/.local && npm i -g ${PUBLIC_INSTALL_HINT_SPEC}`);
   }
 
   if (
@@ -63,7 +64,7 @@ export function inferUpdateFailureHints(result: UpdateRunResult): string[] {
     hints.push(
       "Detected native optional dependency build failure. The updater retries with --omit=optional automatically.",
     );
-    hints.push(`If it still fails: npm i -g ${PUBLIC_PACKAGE_NAME}@latest --omit=optional`);
+    hints.push(`If it still fails: npm i -g ${PUBLIC_INSTALL_HINT_SPEC} --omit=optional`);
   }
 
   return hints;

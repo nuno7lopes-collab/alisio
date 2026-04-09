@@ -7,17 +7,17 @@ import {
 } from "./index.js";
 
 describe("@openclaw/plugin-package-contract", () => {
-  it("normalizes the OpenClaw compatibility block for external plugins", () => {
+  it("normalizes the canonical Alisio compatibility block for external plugins", () => {
     expect(
       normalizeExternalPluginCompatibility({
         version: "1.2.3",
-        openclaw: {
+        alisio: {
           compat: {
             pluginApi: ">=2026.3.24-beta.2",
             minGatewayVersion: "2026.3.24-beta.2",
           },
           build: {
-            openclawVersion: "2026.3.24-beta.2",
+            alisioVersion: "2026.3.24-beta.2",
             pluginSdkVersion: "0.9.0",
           },
         },
@@ -34,7 +34,7 @@ describe("@openclaw/plugin-package-contract", () => {
     expect(
       normalizeExternalPluginCompatibility({
         version: "1.2.3",
-        openclaw: {
+        alisio: {
           compat: {
             pluginApi: ">=1.0.0",
           },
@@ -50,35 +50,54 @@ describe("@openclaw/plugin-package-contract", () => {
     });
   });
 
+  it("accepts the legacy OpenClaw compatibility block as a fallback", () => {
+    expect(
+      normalizeExternalPluginCompatibility({
+        version: "1.2.3",
+        openclaw: {
+          compat: {
+            pluginApi: ">=2026.3.24-beta.2",
+          },
+          build: {
+            openclawVersion: "2026.3.24-beta.2",
+          },
+        },
+      }),
+    ).toEqual({
+      pluginApiRange: ">=2026.3.24-beta.2",
+      builtWithOpenClawVersion: "2026.3.24-beta.2",
+    });
+  });
+
   it("lists the required external code-plugin fields", () => {
     expect(EXTERNAL_CODE_PLUGIN_REQUIRED_FIELD_PATHS).toEqual([
-      "openclaw.compat.pluginApi",
-      "openclaw.build.openclawVersion",
+      "alisio.compat.pluginApi",
+      "alisio.build.alisioVersion",
     ]);
   });
 
   it("reports missing required fields with stable field paths", () => {
     const packageJson = {
-      openclaw: {
+      alisio: {
         compat: {},
         build: {},
       },
     };
 
     expect(listMissingExternalCodePluginFieldPaths(packageJson)).toEqual([
-      "openclaw.compat.pluginApi",
-      "openclaw.build.openclawVersion",
+      "alisio.compat.pluginApi",
+      "alisio.build.alisioVersion",
     ]);
     expect(validateExternalCodePluginPackageJson(packageJson).issues).toEqual([
       {
-        fieldPath: "openclaw.compat.pluginApi",
+        fieldPath: "alisio.compat.pluginApi",
         message:
-          "openclaw.compat.pluginApi is required for external code plugins published to ClawHub.",
+          "alisio.compat.pluginApi is required for external code plugins published to Local Marketplace.",
       },
       {
-        fieldPath: "openclaw.build.openclawVersion",
+        fieldPath: "alisio.build.alisioVersion",
         message:
-          "openclaw.build.openclawVersion is required for external code plugins published to ClawHub.",
+          "alisio.build.alisioVersion is required for external code plugins published to Local Marketplace.",
       },
     ]);
   });

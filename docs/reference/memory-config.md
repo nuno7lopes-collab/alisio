@@ -191,6 +191,13 @@ Evergreen files (`MEMORY.md`, non-dated files in `memory/`) are never decayed.
 Paths can be absolute or workspace-relative. Directories are scanned
 recursively for `.md` files. Symlinks are ignored.
 
+Current verified behavior in Alisio: these paths feed semantic search and
+readback, but they are not automatically the profile's canonical transactional
+memory. The active memory plugin also keeps a profile-scoped structured store
+under local state for entities, explicit relations, projections, and replica
+metadata. `memorySearch.extraPaths` stays a search surface, not canonical
+profile-owned memory.
+
 ---
 
 ## Obsidian read-only vault connector
@@ -231,6 +238,10 @@ runtime reports the reason instead of indexing partial unsafe state.
 
 This connector is read-only in this release. Writable Obsidian vault sync still
 uses the legacy `memory.vaultPath` / `memory.memoryPath` flow.
+
+The read-only connector also stays outside the canonical profile-owned memory
+store. It is indexed for search, but it does not become writable canonical
+memory owned by the profile on this device.
 
 ---
 

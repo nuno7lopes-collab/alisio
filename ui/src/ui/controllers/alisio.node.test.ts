@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   beginAlisioAccountEmailAuth,
   beginAlisioAccountGoogleAuth,
+  changeAlisioAccountEmail,
   completeAlisioAccountEmailLinkAuth,
+  signInAlisioAccountWithPassword,
+  signUpAlisioAccountWithPassword,
+  updateAlisioAccountPassword,
   verifyAlisioAccountEmailAuth,
   refreshAlisioAiProfile,
   loadAlisioAccount,
@@ -64,6 +68,7 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioAuthPendingEmail: "",
     alisioAuthCode: "",
     alisioAuthStage: "entry",
+    alisioPasswordResetRequired: false,
     alisioTermsAccepted: false,
     alisioMarketingOptIn: false,
     alisioBirthdate: "",
@@ -75,6 +80,9 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioSharingLoading: false,
     alisioSharingError: null,
     alisioSharing: null,
+    alisioProvidersLoading: false,
+    alisioProvidersError: null,
+    alisioProviders: null,
     alisioOrganizationDraftMode: "create",
     alisioOrganizationName: "",
     alisioOrganizationInviteEmail: "",
@@ -857,7 +865,10 @@ describe("alisio controller reconnect safety", () => {
   it("pede o email de recuperação com o email actual da conta", async () => {
     const request = vi.fn(async (method: string, params: unknown) => {
       if (method === "alisio.account.requestRecoveryEmail") {
-        expect(params).toEqual({ email: "owner@example.com" });
+        expect(params).toEqual({
+          email: "owner@example.com",
+          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+        });
         return {
           ok: true,
           message: "Reset sent",
@@ -865,6 +876,11 @@ describe("alisio controller reconnect safety", () => {
       }
       throw new Error(`unexpected method: ${method}`);
     });
+    vi.stubGlobal("window", {
+      location: {
+        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+      },
+    } as unknown as Window & typeof globalThis);
     const state = createState({
       client: createClient(request),
       alisioAuthEmail: "",
@@ -904,6 +920,69 @@ describe("alisio controller reconnect safety", () => {
     await requestAlisioRecoveryEmail(state);
 
     expect(state.alisioAccountNotice).toBe("Check your email for the Alisio recovery link.");
+  });
+
+  it("activa o modo de redefinição local quando o callback vem de recovery", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.completeEmailLinkAuth") {
+        expect(params).toEqual({
+          accessToken: "supabase-access",
+          refreshToken: "supabase-refresh",
+          expiresIn: 3600,
+          tokenType: "bearer",
+        });
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+    });
+
+    await completeAlisioAccountEmailLinkAuth(state, {
+      accessToken: "supabase-access",
+      refreshToken: "supabase-refresh",
+      expiresIn: 3600,
+      tokenType: "bearer",
+      authType: "recovery",
+    });
+
+    expect(state.alisioPasswordResetRequired).toBe(true);
+    expect(state.alisioAccountNotice).toContain("Set a new password");
   });
 
   it("limpa o código pendente depois de verificar o email", async () => {
@@ -1153,6 +1232,238 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAuthCode).toBe("");
     expect(state.alisioAuthStage).toBe("entry");
     expect(state.alisioAccountError).toBeNull();
+  });
+
+  it("inicia sessão por password através do método dedicado", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.signIn") {
+        expect(params).toEqual({
+          email: "owner@example.com",
+          password: "password123",
+        });
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: true,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+    });
+
+    await signInAlisioAccountWithPassword(state, {
+      email: "owner@example.com",
+      password: "password123",
+    });
+
+    expect(state.alisioAccount?.session.state).toBe("signed_in");
+    expect(state.alisioPasswordResetRequired).toBe(false);
+  });
+
+  it("cria conta por password através do método dedicado", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.signUp") {
+        expect(params).toEqual({
+          email: "owner@example.com",
+          password: "password123",
+        });
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_in",
+            profileCompleted: false,
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+    });
+
+    await signUpAlisioAccountWithPassword(state, {
+      email: "owner@example.com",
+      password: "password123",
+    });
+
+    expect(state.alisioAccount?.session.state).toBe("signed_in");
+  });
+
+  it("mantém o sign-up pendente até o email de confirmação voltar ao Alisio", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.signUp") {
+        expect(params).toEqual({
+          email: "owner@example.com",
+          password: "password123",
+          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+        });
+        return {
+          profile: {
+            email: "owner@example.com",
+            displayName: "Owner",
+            username: "owner",
+            avatarLabel: "O",
+            joinedAt: "2026-04-05T09:00:00.000Z",
+            plan: "free",
+          },
+          preferences: {
+            language: "en",
+            theme: "system",
+          },
+          session: {
+            state: "signed_out",
+            profileCompleted: false,
+            authMethod: "email",
+            backend: "supabase",
+          },
+          devices: [],
+        };
+      }
+      if (method === "alisio.bootstrap.get") {
+        return {
+          account: {
+            profile: {
+              email: "owner@example.com",
+            },
+          },
+          organization: { mode: "none" as const },
+          connectors: { catalog: [], authorizations: [], summary: [] },
+          wizard: { running: false, sessionId: null },
+        };
+      }
+      if (method === "alisio.doctor.summary") {
+        return { ok: true, issues: [] };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    vi.stubGlobal("window", {
+      location: {
+        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+      },
+    } as unknown as Window & typeof globalThis);
+    const state = createState({
+      client: createClient(request),
+    });
+
+    await signUpAlisioAccountWithPassword(state, {
+      email: "owner@example.com",
+      password: "password123",
+    });
+
+    expect(state.alisioAccount?.session.state).toBe("signed_out");
+    expect(state.alisioAccountNotice).toContain("Check your email");
+  });
+
+  it("pede a mudança de email com callbackUrl actual", async () => {
+    vi.stubGlobal("window", {
+      location: {
+        href: "http://localhost:18789/logout/settings#access_token=stale",
+      },
+    } as unknown as Window & typeof globalThis);
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.changeEmail") {
+        expect(params).toEqual({
+          email: "next@example.com",
+          callbackUrl: "http://localhost:18789/logout/settings",
+        });
+        return {
+          ok: true,
+          message: "Check your new email inbox to confirm the change.",
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+    });
+
+    await changeAlisioAccountEmail(state, { email: "next@example.com" });
+
+    expect(state.alisioAccountNotice).toContain("confirm the change");
+  });
+
+  it("fecha o reset pendente quando grava a nova password", async () => {
+    const request = vi.fn(async (method: string, params: unknown) => {
+      if (method === "alisio.account.updatePassword") {
+        expect(params).toEqual({
+          password: "password123",
+        });
+        return {
+          ok: true,
+          message: "Your Alisio password was updated.",
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+    const state = createState({
+      client: createClient(request),
+      alisioPasswordResetRequired: true,
+    });
+
+    await updateAlisioAccountPassword(state, { password: "password123" });
+
+    expect(state.alisioPasswordResetRequired).toBe(false);
+    expect(state.alisioAccountNotice).toContain("password was updated");
   });
 });
 

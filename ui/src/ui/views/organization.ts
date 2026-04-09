@@ -13,6 +13,11 @@ import {
   renderSkeletonListItem,
   renderSkeletonPill,
 } from "./loading-skeleton.ts";
+import {
+  expandSharingScopeSelection,
+  resolveSharingApprovalOptions,
+  resolveSharingRequestOptions,
+} from "./sharing-shared.ts";
 
 export function renderOrganization(props: {
   connected: boolean;
@@ -34,8 +39,8 @@ export function renderOrganization(props: {
   onJoinOrganization: () => void;
   onResetOrganization: () => void;
   onRefreshSharing: () => void;
-  onRequestAccess: (targetId: string) => void;
-  onApproveRequest: (requestId: string) => void;
+  onRequestAccess: (targetId: string, scopes?: readonly string[]) => void;
+  onApproveRequest: (requestId: string, scopes?: readonly string[]) => void;
   onRejectRequest: (requestId: string) => void;
   onRevokeGrant: (grantId: string) => void;
   onSetPolicy: (allowExternalUse: boolean) => void;
@@ -119,6 +124,9 @@ export function renderOrganization(props: {
     sharingApprove: t("alisio.organization.sharing.approve"),
     sharingReject: t("alisio.organization.sharing.reject"),
     sharingRevoke: t("alisio.organization.sharing.revoke"),
+    sharingReadOnly: t("alisio.organization.sharing.scope.readOnly"),
+    sharingModelUse: t("alisio.organization.sharing.scope.modelUse"),
+    sharingExec: t("alisio.organization.sharing.scope.exec"),
   };
   const sharing = props.sharing;
   const sharingDisabled = !props.connected || !props.accountReady || props.sharingLoading;
@@ -129,6 +137,12 @@ export function renderOrganization(props: {
   };
   const formatScopes = (scopes: readonly string[] | null | undefined) =>
     Array.isArray(scopes) && scopes.length > 0 ? scopes.join(" · ") : null;
+  const scopeLabel = (scope: string) =>
+    scope === "exec"
+      ? text.sharingExec
+      : scope === "model-use"
+        ? text.sharingModelUse
+        : text.sharingReadOnly;
 
   return html`
     <section class="alisio-page">
@@ -352,15 +366,24 @@ export function renderOrganization(props: {
                               <div>${target.label}</div>
                               <div class="list-sub">${target.ownerLabel}</div>
                               <div class="row">
-                                <button
-                                  class="btn"
-                                  ?disabled=${sharingDisabled || target.requestStatus === "pending"}
-                                  @click=${() => props.onRequestAccess(target.targetId)}
-                                >
-                                  ${target.requestStatus === "pending"
-                                    ? requestStatusLabel(target.requestStatus)
-                                    : text.sharingRequestAccess}
-                                </button>
+                                ${resolveSharingRequestOptions(target).map(
+                                  (scope) => html`
+                                    <button
+                                      class="btn"
+                                      ?disabled=${sharingDisabled ||
+                                      target.requestStatus === "pending"}
+                                      @click=${() =>
+                                        props.onRequestAccess(
+                                          target.targetId,
+                                          expandSharingScopeSelection(scope),
+                                        )}
+                                    >
+                                      ${target.requestStatus === "pending"
+                                        ? requestStatusLabel(target.requestStatus)
+                                        : `${text.sharingRequestAccess} ${scopeLabel(scope)}`}
+                                    </button>
+                                  `,
+                                )}
                               </div>
                             </div>
                           `,
@@ -415,13 +438,21 @@ export function renderOrganization(props: {
                                 ? html`<div class="list-sub">${formatScopes(request.scopes)}</div>`
                                 : nothing}
                               <div class="row">
-                                <button
-                                  class="btn primary"
-                                  ?disabled=${sharingDisabled || request.status !== "pending"}
-                                  @click=${() => props.onApproveRequest(request.requestId)}
-                                >
-                                  ${text.sharingApprove}
-                                </button>
+                                ${resolveSharingApprovalOptions(request.scopes).map(
+                                  (scope) => html`
+                                    <button
+                                      class="btn primary"
+                                      ?disabled=${sharingDisabled || request.status !== "pending"}
+                                      @click=${() =>
+                                        props.onApproveRequest(
+                                          request.requestId,
+                                          expandSharingScopeSelection(scope),
+                                        )}
+                                    >
+                                      ${text.sharingApprove} ${scopeLabel(scope)}
+                                    </button>
+                                  `,
+                                )}
                                 <button
                                   class="btn"
                                   ?disabled=${sharingDisabled || request.status !== "pending"}

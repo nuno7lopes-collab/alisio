@@ -20,6 +20,7 @@ import {
   deriveLastRoutePolicy,
   resolveAgentIdFromSessionKey,
   resolveAgentRoute,
+  resolveInboundLastRouteSessionKey,
 } from "alisio/plugin-sdk/routing";
 import { logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
 import { normalizeAllowFrom } from "./bot-access.js";
@@ -381,18 +382,24 @@ async function finalizeLineInboundContext(params: {
         normalizeEntry: (entry) => normalizeAllowFrom([entry]).entries[0],
       })
     : null;
+  const updateLastRouteSessionKey = resolveInboundLastRouteSessionKey({
+    route: params.route,
+    sessionKey: params.route.sessionKey,
+  });
   await recordInboundSession({
     storePath,
     sessionKey: ctxPayload.SessionKey ?? params.route.sessionKey,
     ctx: ctxPayload,
     updateLastRoute: !params.source.isGroup
       ? {
-          sessionKey: params.route.mainSessionKey,
+          sessionKey: updateLastRouteSessionKey,
           channel: "line",
           to: params.source.userId ?? params.source.peerId,
           accountId: params.route.accountId,
           mainDmOwnerPin:
-            pinnedMainDmOwner && params.source.userId
+            updateLastRouteSessionKey === params.route.mainSessionKey &&
+            pinnedMainDmOwner &&
+            params.source.userId
               ? {
                   ownerRecipient: pinnedMainDmOwner,
                   senderRecipient: params.source.userId,

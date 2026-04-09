@@ -1560,6 +1560,8 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
               ...options,
               env: {
                 ...process.env,
+                ALISIO_HOME: undefined,
+                ALISIO_STATE_DIR: stateDir,
                 HOME: homeA,
                 OPENCLAW_HOME: undefined,
                 OPENCLAW_STATE_DIR: stateDir,
@@ -1571,6 +1573,8 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
               ...options,
               env: {
                 ...process.env,
+                ALISIO_HOME: undefined,
+                ALISIO_STATE_DIR: stateDir,
                 HOME: homeB,
                 OPENCLAW_HOME: undefined,
                 OPENCLAW_STATE_DIR: stateDir,
@@ -1631,6 +1635,8 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
               ...options,
               env: {
                 ...process.env,
+                ALISIO_HOME: openclawHome,
+                ALISIO_STATE_DIR: stateDir,
                 OPENCLAW_HOME: openclawHome,
                 HOME: ignoredHome,
                 OPENCLAW_STATE_DIR: stateDir,
@@ -1642,6 +1648,8 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
               ...options,
               env: {
                 ...process.env,
+                ALISIO_HOME: secondHome,
+                ALISIO_STATE_DIR: stateDir,
                 OPENCLAW_HOME: secondHome,
                 HOME: ignoredHome,
                 OPENCLAW_STATE_DIR: stateDir,
@@ -1706,6 +1714,7 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
       loadOpenClawPlugins({
         env: {
           ...process.env,
+          ALISIO_STATE_DIR: stateDir,
           OPENCLAW_STATE_DIR: stateDir,
           OPENCLAW_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
         },
@@ -1784,6 +1793,8 @@ module.exports = { id: "skipped-scoped-only", register() { throw new Error("skip
     const registry = loadOpenClawPlugins({
       env: {
         ...process.env,
+        ALISIO_HOME: openclawHome,
+        ALISIO_STATE_DIR: stateDir,
         HOME: ignoredHome,
         OPENCLAW_HOME: openclawHome,
         OPENCLAW_STATE_DIR: stateDir,

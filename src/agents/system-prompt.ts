@@ -163,12 +163,10 @@ function buildDocsSection(params: { docsPath?: string; isMinimal: boolean; readT
   return [
     "## Documentation",
     `Alisio docs: ${docsPath}`,
-    "Mirror: https://docs.openclaw.ai",
-    "Source: https://github.com/openclaw/openclaw",
-    "Community: https://discord.com/invite/clawd",
-    "Find new skills: https://clawhub.ai",
+    "Source: https://github.com/alisio/alisio",
+    "Legacy docs mirror (temporary): https://docs.openclaw.ai",
     "For Alisio behavior, commands, config, or architecture: consult local docs first.",
-    "When diagnosing issues, run `openclaw status` yourself when possible; only ask the user if you lack access (e.g., sandboxed).",
+    "When diagnosing issues, run `alisio status` yourself when possible; only ask the user if you lack access (e.g., sandboxed).",
     "",
   ];
 }

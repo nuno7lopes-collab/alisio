@@ -9,6 +9,20 @@ status: active
 
 Goal: multiple _isolated_ agents (separate workspace + `agentDir` + sessions), plus multiple channel accounts (e.g. two WhatsApps) in one running Gateway. Inbound is routed to an agent via bindings.
 
+<Info>
+For the personal Alisio product model, the canonical shape is still one persistent
+main agent per account. The extra configured agents on this page are advanced
+gateway isolation and routing surfaces, not a claim of a mature personal
+multi-agent product. They do not auto-share profile memory, files, vault state,
+or active channel context, and continuity between channels remains explicit.
+</Info>
+
+<Info>
+For parallel work inside that personal model, prefer [Sub-agents](/tools/subagents).
+Sub-agents are ephemeral workers: they do not get a persistent identity, their
+own long-term memory, or implicit cross-channel continuity.
+</Info>
+
 ## What is "one agent"?
 
 An **agent** is a fully scoped brain with its own:
@@ -119,7 +133,7 @@ alisio channels status --probe
   </Step>
 </Steps>
 
-## Multiple agents = multiple people, multiple personalities
+## Advanced isolation with extra configured agents
 
 With **multiple agents**, each `agentId` becomes a **fully isolated persona**:
 
@@ -127,13 +141,15 @@ With **multiple agents**, each `agentId` becomes a **fully isolated persona**:
 - **Different personalities** (per-agent workspace files like `AGENTS.md` and `SOUL.md`).
 - **Separate auth + sessions** (no cross-talk unless explicitly enabled).
 
-This lets **multiple people** share one Gateway server while keeping their AI “brains” and data isolated.
+This is an advanced gateway pattern for intentionally separate runtimes on one
+host. It is not the default personal profile model, and it should not be read
+as automatic multi-device or multi-channel continuity for one person.
 
-## One WhatsApp number, multiple people (DM split)
+## One WhatsApp number, multiple isolated routes (advanced)
 
 You can route **different WhatsApp DMs** to different agents while staying on **one WhatsApp account**. Match on sender E.164 (like `+15551234567`) with `peer.kind: "direct"`. Replies still come from the same WhatsApp number (no per‑agent sender identity).
 
-Important detail: direct chats collapse to the agent’s **main session key**, so true isolation requires **one agent per person**.
+Important detail: direct chats now default to **per-channel-peer session keys**, so active DM context stays isolated even when multiple people share one channel account. Use separate agents only when you want separate personas, workspaces, or policy boundaries.
 
 Example:
 

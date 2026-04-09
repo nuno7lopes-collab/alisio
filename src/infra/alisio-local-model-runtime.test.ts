@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   inspectLocalModelRuntime,
+  inspectLocalModelRuntimes,
   installOllamaLocalModel,
   uninstallOllamaLocalModel,
 } from "./alisio-local-model-runtime.js";
@@ -59,7 +60,7 @@ describe("inspectLocalModelRuntime", () => {
     );
   });
 
-  it("falls back to OpenAI-compatible discovery when Ollama is not detected", async () => {
+  it("classifies the default local OpenAI-compatible endpoint as LM Studio", async () => {
     const fetchImpl: typeof fetch = async (input) => {
       const url = resolveFetchInputUrl(input);
       if (url.endsWith("/api/tags")) {
@@ -83,7 +84,7 @@ describe("inspectLocalModelRuntime", () => {
       fetchImpl,
     });
 
-    expect(inspection.runtimeKind).toBe("openai-compatible");
+    expect(inspection.runtimeKind).toBe("lmstudio");
     expect(inspection.supportsInstall).toBe(false);
     expect(inspection.models).toEqual([
       {
@@ -96,10 +97,54 @@ describe("inspectLocalModelRuntime", () => {
       {
         id: "gpt-oss-20b",
         name: "gpt-oss-20b",
-        runtimeKind: "openai-compatible",
+        runtimeKind: "lmstudio",
         ownedBy: "lmstudio",
       },
     ]);
+  });
+
+  it("discovers Ollama and LM Studio as separate local runtimes on the same computer", async () => {
+    const fetchImpl: typeof fetch = async (input) => {
+      const url = resolveFetchInputUrl(input);
+      if (url === "http://127.0.0.1:11434/api/tags") {
+        return new Response(
+          JSON.stringify({
+            models: [{ name: "qwen3:8b" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url === "http://127.0.0.1:11434/api/ps") {
+        return new Response(JSON.stringify({ models: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      if (url === "http://127.0.0.1:1234/v1/models") {
+        return new Response(
+          JSON.stringify({
+            data: [{ id: "gpt-oss-20b", owned_by: "lmstudio" }],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (url === "http://127.0.0.1:1234/models") {
+        return new Response("missing", { status: 404 });
+      }
+      throw new Error(`unexpected url: ${url}`);
+    };
+
+    const inspections = await inspectLocalModelRuntimes({ fetchImpl });
+
+    expect(inspections.map((inspection) => inspection.runtimeKind)).toEqual(
+      expect.arrayContaining(["ollama", "lmstudio"]),
+    );
+    expect(inspections.find((inspection) => inspection.runtimeKind === "ollama")?.models).toEqual([
+      { id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" },
+    ]);
+    expect(inspections.find((inspection) => inspection.runtimeKind === "lmstudio")?.models).toEqual(
+      [{ id: "gpt-oss-20b", name: "gpt-oss-20b", ownedBy: "lmstudio" }],
+    );
   });
 
   it("installs an Ollama model via /api/pull and forwards streamed progress", async () => {

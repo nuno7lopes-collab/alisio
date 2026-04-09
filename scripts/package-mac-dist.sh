@@ -26,7 +26,7 @@ if [[ -z "${APP_BUILD:-}" && "$BUILD_CONFIG" == "release" ]]; then
   fi
 fi
 
-"$ROOT_DIR/scripts/package-mac-app.sh"
+bash "$ROOT_DIR/scripts/package-mac-app.sh"
 
 APP="$ROOT_DIR/dist/${APP_NAME}.app"
 [[ -d "$APP" ]] || { echo "Error: missing app bundle at $APP" >&2; exit 1; }
@@ -69,7 +69,7 @@ if [[ "$SKIP_NOTARIZE" != "1" ]]; then
   echo "📦 Notary zip: $NOTARY_ZIP"
   rm -f "$NOTARY_ZIP"
   ditto -c -k --sequesterRsrc --keepParent "$APP" "$NOTARY_ZIP"
-  STAPLE_APP_PATH="$APP" "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$NOTARY_ZIP"
+  STAPLE_APP_PATH="$APP" bash "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$NOTARY_ZIP"
   rm -f "$NOTARY_ZIP"
 fi
 
@@ -79,12 +79,12 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
 if [[ "$SKIP_DMG" != "1" ]]; then
   echo "💿 DMG: $DMG"
-  "$ROOT_DIR/scripts/create-dmg.sh" "$APP" "$DMG"
+  bash "$ROOT_DIR/scripts/create-dmg.sh" "$APP" "$DMG"
   if [[ "$SKIP_NOTARIZE" != "1" ]]; then
     if [[ -n "${SIGN_IDENTITY:-}" ]]; then
       /usr/bin/codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
     fi
-    "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$DMG"
+    bash "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$DMG"
   fi
 fi
 

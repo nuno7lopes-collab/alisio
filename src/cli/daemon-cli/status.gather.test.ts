@@ -42,6 +42,8 @@ const serviceReadCommand = vi.fn<
 >(async (_env?: NodeJS.ProcessEnv) => ({
   programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
   environment: {
+    ALISIO_STATE_DIR: "/tmp/openclaw-daemon",
+    ALISIO_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
     OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon",
     OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
   },
@@ -52,10 +54,10 @@ const resolveGatewayBindHost = vi.fn(
 const pickPrimaryTailnetIPv4 = vi.fn(() => "100.64.0.9");
 const resolveGatewayPort = vi.fn((_cfg?: unknown, _env?: unknown) => 18789);
 const resolveStateDir = vi.fn(
-  (env: NodeJS.ProcessEnv) => env.OPENCLAW_STATE_DIR ?? "/tmp/openclaw-cli",
+  (env: NodeJS.ProcessEnv) => env.ALISIO_STATE_DIR ?? env.OPENCLAW_STATE_DIR ?? "/tmp/openclaw-cli",
 );
 const resolveConfigPath = vi.fn((env: NodeJS.ProcessEnv, stateDir: string) => {
-  return env.OPENCLAW_CONFIG_PATH ?? `${stateDir}/openclaw.json`;
+  return env.ALISIO_CONFIG_PATH ?? env.OPENCLAW_CONFIG_PATH ?? `${stateDir}/openclaw.json`;
 });
 let daemonLoadedConfig: Record<string, unknown> = {
   gateway: {
@@ -143,6 +145,10 @@ describe("gatherDaemonStatus", () => {
 
   beforeEach(() => {
     envSnapshot = captureEnv([
+      "ALISIO_STATE_DIR",
+      "ALISIO_CONFIG_PATH",
+      "ALISIO_GATEWAY_TOKEN",
+      "ALISIO_GATEWAY_PASSWORD",
       "OPENCLAW_STATE_DIR",
       "OPENCLAW_CONFIG_PATH",
       "OPENCLAW_GATEWAY_TOKEN",
@@ -150,8 +156,12 @@ describe("gatherDaemonStatus", () => {
       "DAEMON_GATEWAY_TOKEN",
       "DAEMON_GATEWAY_PASSWORD",
     ]);
+    process.env.ALISIO_STATE_DIR = "/tmp/openclaw-cli";
+    process.env.ALISIO_CONFIG_PATH = "/tmp/openclaw-cli/openclaw.json";
     process.env.OPENCLAW_STATE_DIR = "/tmp/openclaw-cli";
     process.env.OPENCLAW_CONFIG_PATH = "/tmp/openclaw-cli/openclaw.json";
+    delete process.env.ALISIO_GATEWAY_TOKEN;
+    delete process.env.ALISIO_GATEWAY_PASSWORD;
     delete process.env.OPENCLAW_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_GATEWAY_PASSWORD;
     delete process.env.DAEMON_GATEWAY_TOKEN;
@@ -265,6 +275,9 @@ describe("gatherDaemonStatus", () => {
     serviceReadCommand.mockResolvedValueOnce({
       programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
       environment: {
+        ALISIO_GATEWAY_PORT: "19001",
+        ALISIO_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
+        ALISIO_STATE_DIR: "/tmp/openclaw-daemon",
         OPENCLAW_GATEWAY_PORT: "19001",
         OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
         OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon",

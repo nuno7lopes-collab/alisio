@@ -6,15 +6,14 @@ const mocks = vi.hoisted(() => ({
   memoryRegister: vi.fn(),
   otherRegister: vi.fn(),
   memoryListAction: vi.fn(),
-  loadOpenClawPluginCliRegistry: vi.fn(),
-  loadOpenClawPlugins: vi.fn(),
+  loadAlisioPluginCliRegistry: vi.fn(),
+  loadAlisioPlugins: vi.fn(),
   applyPluginAutoEnable: vi.fn(),
 }));
 
 vi.mock("./loader.js", () => ({
-  loadOpenClawPluginCliRegistry: (...args: unknown[]) =>
-    mocks.loadOpenClawPluginCliRegistry(...args),
-  loadOpenClawPlugins: (...args: unknown[]) => mocks.loadOpenClawPlugins(...args),
+  loadAlisioPluginCliRegistry: (...args: unknown[]) => mocks.loadAlisioPluginCliRegistry(...args),
+  loadAlisioPlugins: (...args: unknown[]) => mocks.loadAlisioPlugins(...args),
 }));
 
 vi.mock("../config/plugin-auto-enable.js", () => ({
@@ -73,7 +72,7 @@ function createEmptyCliRegistry(params?: { diagnostics?: Array<{ message: string
 }
 
 function expectPluginLoaderConfig(config: AlisioConfig) {
-  expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+  expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
     expect.objectContaining({
       config,
     }),
@@ -119,10 +118,10 @@ describe("registerPluginCliCommands", () => {
       program.command("other").description("Other commands");
     });
     mocks.memoryListAction.mockReset();
-    mocks.loadOpenClawPluginCliRegistry.mockReset();
-    mocks.loadOpenClawPluginCliRegistry.mockResolvedValue(createCliRegistry());
-    mocks.loadOpenClawPlugins.mockReset();
-    mocks.loadOpenClawPlugins.mockReturnValue({
+    mocks.loadAlisioPluginCliRegistry.mockReset();
+    mocks.loadAlisioPluginCliRegistry.mockResolvedValue(createCliRegistry());
+    mocks.loadAlisioPlugins.mockReset();
+    mocks.loadAlisioPlugins.mockReturnValue({
       ...createCliRegistry(),
       diagnostics: [],
     });
@@ -140,11 +139,11 @@ describe("registerPluginCliCommands", () => {
   });
 
   it("forwards an explicit env to plugin loading", async () => {
-    const env = { OPENCLAW_HOME: "/srv/openclaw-home" } as NodeJS.ProcessEnv;
+    const env = { ALISIO_HOME: "/srv/alisio-home" } as NodeJS.ProcessEnv;
 
     await registerPluginCliCommands(createProgram(), {} as AlisioConfig, env);
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         env,
       }),
@@ -168,7 +167,7 @@ describe("registerPluginCliCommands", () => {
   it("loads root-help descriptors through the dedicated non-activating CLI collector", async () => {
     const { rawConfig, autoEnabledConfig } = createAutoEnabledCliFixture();
     mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
-    mocks.loadOpenClawPluginCliRegistry.mockResolvedValue({
+    mocks.loadAlisioPluginCliRegistry.mockResolvedValue({
       cliRegistrars: [
         {
           pluginId: "matrix",
@@ -206,7 +205,7 @@ describe("registerPluginCliCommands", () => {
         hasSubcommands: true,
       },
     ]);
-    expect(mocks.loadOpenClawPluginCliRegistry).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPluginCliRegistry).toHaveBeenCalledWith(
       expect.objectContaining({
         config: autoEnabledConfig,
       }),
@@ -216,7 +215,7 @@ describe("registerPluginCliCommands", () => {
   it("keeps runtime CLI command registration on the full plugin loader for legacy channel plugins", async () => {
     const { rawConfig, autoEnabledConfig } = createAutoEnabledCliFixture();
     mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
-    mocks.loadOpenClawPlugins.mockReturnValue(
+    mocks.loadAlisioPlugins.mockReturnValue(
       createCliRegistry({
         memoryCommands: ["legacy-channel"],
         memoryDescriptors: [
@@ -233,12 +232,12 @@ describe("registerPluginCliCommands", () => {
       mode: "lazy",
     });
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config: autoEnabledConfig,
       }),
     );
-    expect(mocks.loadOpenClawPluginCliRegistry).not.toHaveBeenCalled();
+    expect(mocks.loadAlisioPluginCliRegistry).not.toHaveBeenCalled();
   });
 
   it("falls back to awaited CLI metadata collection when runtime loading ignored async registration", async () => {
@@ -246,7 +245,7 @@ describe("registerPluginCliCommands", () => {
       const asyncCommand = program.command("async-cli").description("Async CLI");
       asyncCommand.command("run").action(mocks.memoryListAction);
     });
-    mocks.loadOpenClawPlugins.mockReturnValue(
+    mocks.loadAlisioPlugins.mockReturnValue(
       createEmptyCliRegistry({
         diagnostics: [
           {
@@ -255,7 +254,7 @@ describe("registerPluginCliCommands", () => {
         ],
       }),
     );
-    mocks.loadOpenClawPluginCliRegistry.mockResolvedValue({
+    mocks.loadAlisioPluginCliRegistry.mockResolvedValue({
       cliRegistrars: [
         {
           pluginId: "async-plugin",
@@ -280,7 +279,7 @@ describe("registerPluginCliCommands", () => {
       mode: "lazy",
     });
 
-    expect(mocks.loadOpenClawPluginCliRegistry).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAlisioPluginCliRegistry).toHaveBeenCalledTimes(1);
     await program.parseAsync(["async-cli", "run"], { from: "user" });
     expect(asyncRegistrar).toHaveBeenCalledTimes(1);
     expect(mocks.memoryListAction).toHaveBeenCalledTimes(1);
@@ -305,7 +304,7 @@ describe("registerPluginCliCommands", () => {
   });
 
   it("falls back to eager registration when descriptors do not cover every command root", async () => {
-    mocks.loadOpenClawPlugins.mockReturnValue(
+    mocks.loadAlisioPlugins.mockReturnValue(
       createCliRegistry({
         memoryCommands: ["memory", "memory-admin"],
         memoryDescriptors: [

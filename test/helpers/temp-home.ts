@@ -10,8 +10,10 @@ type EnvSnapshot = {
   userProfile: string | undefined;
   homeDrive: string | undefined;
   homePath: string | undefined;
+  alisioHome: string | undefined;
   openclawHome: string | undefined;
-  stateDir: string | undefined;
+  alisioStateDir: string | undefined;
+  openclawStateDir: string | undefined;
 };
 
 type SharedHomeRootState = {
@@ -27,8 +29,10 @@ function snapshotEnv(): EnvSnapshot {
     userProfile: process.env.USERPROFILE,
     homeDrive: process.env.HOMEDRIVE,
     homePath: process.env.HOMEPATH,
+    alisioHome: process.env.ALISIO_HOME,
     openclawHome: process.env.OPENCLAW_HOME,
-    stateDir: process.env.OPENCLAW_STATE_DIR,
+    alisioStateDir: process.env.ALISIO_STATE_DIR,
+    openclawStateDir: process.env.OPENCLAW_STATE_DIR,
   };
 }
 
@@ -44,8 +48,10 @@ function restoreEnv(snapshot: EnvSnapshot) {
   restoreKey("USERPROFILE", snapshot.userProfile);
   restoreKey("HOMEDRIVE", snapshot.homeDrive);
   restoreKey("HOMEPATH", snapshot.homePath);
+  restoreKey("ALISIO_HOME", snapshot.alisioHome);
   restoreKey("OPENCLAW_HOME", snapshot.openclawHome);
-  restoreKey("OPENCLAW_STATE_DIR", snapshot.stateDir);
+  restoreKey("ALISIO_STATE_DIR", snapshot.alisioStateDir);
+  restoreKey("OPENCLAW_STATE_DIR", snapshot.openclawStateDir);
 }
 
 function snapshotExtraEnv(keys: string[]): Record<string, string | undefined> {
@@ -67,11 +73,14 @@ function restoreExtraEnv(snapshot: Record<string, string | undefined>) {
 }
 
 function setTempHome(base: string) {
+  const tempStateDir = path.join(base, ".alisio");
   process.env.HOME = base;
   process.env.USERPROFILE = base;
-  // Ensure tests using HOME isolation aren't affected by leaked OPENCLAW_HOME.
+  // Ensure tests using HOME isolation aren't affected by leaked home overrides.
+  delete process.env.ALISIO_HOME;
   delete process.env.OPENCLAW_HOME;
-  process.env.OPENCLAW_STATE_DIR = path.join(base, ".openclaw");
+  process.env.ALISIO_STATE_DIR = tempStateDir;
+  process.env.OPENCLAW_STATE_DIR = tempStateDir;
 
   if (process.platform !== "win32") {
     return;
@@ -115,7 +124,10 @@ export async function withTempHome<T>(
   const envSnapshot = snapshotExtraEnv(envKeys);
 
   setTempHome(base);
-  await fs.mkdir(path.join(base, ".openclaw", "agents", "main", "sessions"), { recursive: true });
+  await fs.mkdir(path.join(base, ".alisio", "agents", "main", "sessions"), { recursive: true });
+  await fs.mkdir(path.join(base, ".openclaw", "agents", "main", "sessions"), {
+    recursive: true,
+  });
   if (opts.env) {
     for (const [key, raw] of Object.entries(opts.env)) {
       const value = typeof raw === "function" ? raw(base) : raw;

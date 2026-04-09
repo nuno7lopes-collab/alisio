@@ -280,7 +280,7 @@ describe("loadAlisioModelProviderSnapshot", () => {
     );
   });
 
-  it("prefers the linked OpenAI-compatible runtime when the advertised llama.cpp catalog is empty", async () => {
+  it("keeps linked runtimes separated and does not leak llama.cpp install support onto the OpenAI-compatible target", async () => {
     const node = {
       nodeId: "remote-1",
       displayName: "Studio Mac",
@@ -321,11 +321,19 @@ describe("loadAlisioModelProviderSnapshot", () => {
       current: false,
       runtimeKind: "openai-compatible",
       runtimeStatus: "ready",
-      supportsInstall: true,
+      supportsInstall: false,
       chatProviderId: "alisio-target-remote-1-openai",
       installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
     });
-    expect(target?.recommendations.length).toBeGreaterThan(0);
+    expect(target?.recommendations).toEqual([]);
+    expect(
+      snapshot.targets.find(
+        (entry) => entry.deviceId === "remote-1" && entry.runtimeKind === "llama.cpp",
+      ),
+    ).toMatchObject({
+      runtimeStatus: "not_configured",
+      supportsInstall: true,
+    });
     expect(snapshot.dynamicCatalogEntries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -334,6 +342,92 @@ describe("loadAlisioModelProviderSnapshot", () => {
         }),
       ]),
     );
+  });
+
+  it("publishes Ollama and LM Studio as separate linked runtimes on the same node", async () => {
+    const node = {
+      nodeId: "remote-2",
+      displayName: "Remote Studio",
+      platform: "darwin",
+      capabilities: [
+        { id: "model.catalog.ollama.v1" },
+        { id: "model.chat.ollama.v1" },
+        { id: "model.manage.ollama.v1" },
+        { id: "model.catalog.lmstudio.v1" },
+        { id: "model.chat.lmstudio.v1" },
+      ],
+    } as NodeSession;
+
+    const snapshot = await loadAlisioModelProviderSnapshot({
+      nodeRegistry: createRegistry({
+        nodes: [node],
+        taskPayloads: {
+          "remote-2:model.catalog.ollama.v1": {
+            runtimeKind: "ollama",
+            runtimeLabel: "Ollama",
+            status: "ready",
+            models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
+            availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
+            hardware: createHardware(),
+            capabilities: {
+              install: true,
+              update: true,
+              uninstall: true,
+              consentRequired: true,
+              startServer: false,
+            },
+            supportsInstall: true,
+            supportsUpdate: true,
+            supportsUninstall: true,
+            consentRequired: true,
+          },
+          "remote-2:model.catalog.lmstudio.v1": {
+            runtimeKind: "lmstudio",
+            runtimeLabel: "LM Studio",
+            status: "ready",
+            models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", ownedBy: "lmstudio" }],
+            availableModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", runtimeKind: "lmstudio" }],
+            hardware: createHardware(),
+            capabilities: {
+              install: false,
+              update: false,
+              uninstall: false,
+              consentRequired: false,
+              startServer: true,
+            },
+            supportsInstall: false,
+            supportsUpdate: false,
+            supportsUninstall: false,
+            consentRequired: false,
+          },
+        },
+      }),
+      force: true,
+    });
+
+    expect(
+      snapshot.targets.find(
+        (entry) => entry.deviceId === "remote-2" && entry.runtimeKind === "ollama",
+      ),
+    ).toMatchObject({
+      targetId: "remote-2::ollama",
+      runtimeLabel: "Ollama",
+      supportsInstall: true,
+      chatProviderId: "alisio-target-remote-2-ollama",
+      installedModels: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
+    });
+    expect(
+      snapshot.targets.find(
+        (entry) => entry.deviceId === "remote-2" && entry.runtimeKind === "lmstudio",
+      ),
+    ).toMatchObject({
+      targetId: "remote-2::lmstudio",
+      runtimeLabel: "LM Studio",
+      supportsInstall: false,
+      capabilities: expect.objectContaining({ startServer: true }),
+      chatProviderId: "alisio-target-remote-2-lmstudio",
+      installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", ownedBy: "lmstudio" }],
+    });
   });
 
   it("publishes only the active remote server as a dynamic chat provider", async () => {

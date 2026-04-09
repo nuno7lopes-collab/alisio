@@ -2,6 +2,7 @@ import { listChannelPlugins } from "../channels/plugins/index.js";
 import type { ChannelId } from "../channels/plugins/types.js";
 import { formatCliCommand } from "../cli/command-format.js";
 import type { AlisioConfig, GatewayBindMode } from "../config/config.js";
+import { resolveDmScope } from "../config/session-defaults.js";
 import type { AgentConfig } from "../config/types.agents.js";
 import { hasConfiguredSecretInput } from "../config/types.secrets.js";
 import { resolveGatewayAuth } from "../gateway/auth.js";
@@ -55,7 +56,7 @@ export async function noteSecurityWarnings(cfg: AlisioConfig) {
   if (cfg.approvals?.exec?.enabled === false) {
     warnings.push(
       "- Note: approvals.exec.enabled=false disables approval forwarding only.",
-      "  Host exec gating still comes from ~/.openclaw/exec-approvals.json.",
+      "  Host exec gating still comes from ~/.alisio/exec-approvals.json.",
       `  Check local policy with: ${formatCliCommand("openclaw approvals get --gateway")}`,
     );
   }
@@ -99,7 +100,7 @@ export async function noteSecurityWarnings(cfg: AlisioConfig) {
   const saferRemoteAccessLines = [
     "  Safer remote access: keep bind loopback and use Tailscale Serve/Funnel or an SSH tunnel.",
     "  Example tunnel: ssh -N -L 18789:127.0.0.1:18789 user@gateway-host",
-    "  Docs: https://docs.openclaw.ai/gateway/remote",
+    "  Docs: https://docs.alisio.pt/gateway/remote",
   ];
 
   if (isExposed) {
@@ -152,7 +153,7 @@ export async function noteSecurityWarnings(cfg: AlisioConfig) {
       allowFrom: params.allowFrom,
       normalizeEntry: params.normalizeEntry,
     });
-    const dmScope = cfg.session?.dmScope ?? "main";
+    const dmScope = resolveDmScope(cfg.session?.dmScope);
 
     if (dmPolicy === "open") {
       const allowFromPath = `${params.allowFromPath}allowFrom`;

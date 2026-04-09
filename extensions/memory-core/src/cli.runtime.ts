@@ -29,7 +29,15 @@ import {
   resolveObsidianMemoryLayout,
 } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import { buildAgentSessionKey } from "alisio/plugin-sdk/routing";
-import type { MemoryCommandOptions, MemorySearchCommandOptions } from "./cli.types.js";
+import type {
+  MemoryCommandOptions,
+  MemoryGraphCommandOptions,
+  MemorySearchCommandOptions,
+} from "./cli.types.js";
+import {
+  queryCanonicalMemoryGraph,
+  type CanonicalMemoryStoreStatus,
+} from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
 
 type MemoryManager = NonNullable<Awaited<ReturnType<typeof getMemorySearchManager>>["manager"]>;
@@ -148,6 +156,18 @@ function resolveAgentIds(cfg: OpenClawConfig, agent?: string): string[] {
 
 function formatExtraPaths(workspaceDir: string, extraPaths: string[]): string[] {
   return normalizeExtraMemoryPaths(workspaceDir, extraPaths).map((entry) => shortenHomePath(entry));
+}
+
+function normalizeGraphDirection(
+  value: string | undefined,
+): "incoming" | "outgoing" | "both" | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (value === "incoming" || value === "outgoing" || value === "both") {
+    return value;
+  }
+  return undefined;
 }
 
 async function withMemoryManagerForAgent(params: {
@@ -340,6 +360,34 @@ async function summarizeQmdIndexArtifact(manager: MemoryManager): Promise<string
   return `QMD index: ${shortenHomePath(dbPath)} (${stat.size} bytes)`;
 }
 
+async function loadCanonicalGraph(params: {
+  manager: MemoryManager;
+  query: string;
+  direction?: "incoming" | "outgoing" | "both";
+  matchLimit?: number;
+  relationLimit?: number;
+}) {
+  const initialStatus = params.manager.status();
+  const initialCanonical = (initialStatus.custom?.canonicalStore ??
+    null) as CanonicalMemoryStoreStatus | null;
+  if (params.manager.sync && (initialStatus.dirty || initialCanonical?.state !== "ready")) {
+    await params.manager.sync({ reason: "cli-canonical-graph" });
+  }
+  const status = params.manager.status();
+  const canonicalStore = (status.custom?.canonicalStore ??
+    null) as CanonicalMemoryStoreStatus | null;
+  if (!canonicalStore) {
+    throw new Error("canonical memory store unavailable");
+  }
+  return queryCanonicalMemoryGraph({
+    status: canonicalStore,
+    query: params.query,
+    ...(params.direction ? { direction: params.direction } : {}),
+    ...(typeof params.matchLimit === "number" ? { matchLimit: params.matchLimit } : {}),
+    ...(typeof params.relationLimit === "number" ? { relationLimit: params.relationLimit } : {}),
+  });
+}
+
 async function scanMemorySources(params: {
   workspaceDir: string;
   agentId: string;
@@ -487,6 +535,8 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
     const modelLabel = status.model ?? status.provider;
     const storePath = status.dbPath ? shortenHomePath(status.dbPath) : "<unknown>";
     const workspacePath = status.workspaceDir ? shortenHomePath(status.workspaceDir) : "<unknown>";
+    const canonicalStore = (status.custom?.canonicalStore ??
+      null) as CanonicalMemoryStoreStatus | null;
     const sourceList = status.sources?.length ? status.sources.join(", ") : null;
     const extraPaths = status.workspaceDir
       ? formatExtraPaths(status.workspaceDir, status.extraPaths ?? [])
@@ -502,6 +552,26 @@ export async function runMemoryStatus(opts: MemoryCommandOptions) {
       `${label("Store")} ${info(storePath)}`,
       `${label("Workspace")} ${info(workspacePath)}`,
     ].filter(Boolean) as string[];
+    if (canonicalStore) {
+      lines.push(`${label("Canonical store")} ${info(shortenHomePath(canonicalStore.path))}`);
+      lines.push(`${label("Canonical profile")} ${info(canonicalStore.profileId)}`);
+      lines.push(
+        `${label("Canonical graph")} ${info(
+          `${canonicalStore.entities} entities · ${canonicalStore.relations} relations · ${canonicalStore.projections} projections`,
+        )}`,
+      );
+      lines.push(
+        `${label("Canonical sync")} ${muted(
+          `${canonicalStore.syncMode} (cloud sync ${canonicalStore.cloudSync.replaceAll("_", " ")})`,
+        )}`,
+      );
+      if (canonicalStore.lastSyncedAt) {
+        lines.push(`${label("Canonical updated")} ${muted(canonicalStore.lastSyncedAt)}`);
+      }
+      if (canonicalStore.lastError) {
+        lines.push(`${label("Canonical error")} ${warn(canonicalStore.lastError)}`);
+      }
+    }
     if (embeddingProbe) {
       const state = embeddingProbe.ok ? "ready" : "unavailable";
       const stateColor = embeddingProbe.ok ? theme.success : theme.warn;
@@ -786,6 +856,108 @@ export async function runMemorySearch(
           )}`,
         );
         lines.push(colorize(rich, theme.muted, result.snippet));
+        lines.push("");
+      }
+      defaultRuntime.log(lines.join("\n").trim());
+    },
+  });
+}
+
+export async function runMemoryGraph(
+  queryArg: string | undefined,
+  opts: MemoryGraphCommandOptions,
+) {
+  const query = opts.query ?? queryArg;
+  if (!query) {
+    defaultRuntime.error("Missing graph query. Provide a positional query or use --query <text>.");
+    process.exitCode = 1;
+    return;
+  }
+  const direction = normalizeGraphDirection(opts.direction);
+  if (opts.direction && !direction) {
+    defaultRuntime.error("Invalid --direction value. Use incoming, outgoing, or both.");
+    process.exitCode = 1;
+    return;
+  }
+  const { config: cfg, diagnostics } = await loadMemoryCommandConfig("memory graph");
+  emitMemorySecretResolveDiagnostics(diagnostics, { json: Boolean(opts.json) });
+  const agentId = resolveAgent(cfg, opts.agent);
+  await withMemoryManagerForAgent({
+    cfg,
+    agentId,
+    run: async (manager) => {
+      let result: ReturnType<typeof queryCanonicalMemoryGraph>;
+      try {
+        result = await loadCanonicalGraph({
+          manager,
+          query,
+          ...(direction ? { direction } : {}),
+          ...(typeof opts.matchLimit === "number" ? { matchLimit: opts.matchLimit } : {}),
+          ...(typeof opts.relationLimit === "number" ? { relationLimit: opts.relationLimit } : {}),
+        });
+      } catch (err) {
+        const message = formatErrorMessage(err);
+        defaultRuntime.error(`Memory graph failed: ${message}`);
+        process.exitCode = 1;
+        return;
+      }
+      if (opts.json) {
+        defaultRuntime.writeJson(result);
+        return;
+      }
+      if (result.matches.length === 0) {
+        defaultRuntime.log("No graph matches.");
+        return;
+      }
+      const rich = isRich();
+      const lines: string[] = [];
+      lines.push(
+        `${colorize(rich, theme.heading, "Canonical Memory Graph")} ${colorize(
+          rich,
+          theme.muted,
+          `(${result.profileId})`,
+        )}`,
+      );
+      lines.push(
+        colorize(
+          rich,
+          theme.muted,
+          `${shortenHomePath(result.storePath)} · ${result.syncMode} · cloud sync ${result.cloudSync.replaceAll("_", " ")}`,
+        ),
+      );
+      lines.push("");
+      for (const match of result.matches) {
+        lines.push(
+          `${colorize(rich, theme.success, match.score.toFixed(2))} ${colorize(
+            rich,
+            theme.accent,
+            match.title,
+          )}`,
+        );
+        lines.push(colorize(rich, theme.muted, shortenHomePath(match.sourcePath)));
+        if (match.aliases.length > 0) {
+          lines.push(colorize(rich, theme.muted, `aliases: ${match.aliases.join(", ")}`));
+        }
+        if (match.tags.length > 0) {
+          lines.push(colorize(rich, theme.muted, `tags: ${match.tags.join(", ")}`));
+        }
+        if (match.relations.length === 0) {
+          lines.push(colorize(rich, theme.muted, "no explicit relations"));
+        } else {
+          for (const relation of match.relations) {
+            const arrow = relation.direction === "incoming" ? "<-" : "->";
+            const target = relation.relatedEntity
+              ? `${relation.relatedEntity.title} (${shortenHomePath(relation.relatedEntity.sourcePath)})`
+              : (relation.targetLocator ?? "unresolved");
+            lines.push(
+              colorize(
+                rich,
+                theme.muted,
+                `${relation.direction} ${arrow} ${relation.relationType}: ${target}`,
+              ),
+            );
+          }
+        }
         lines.push("");
       }
       defaultRuntime.log(lines.join("\n").trim());

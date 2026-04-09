@@ -77,7 +77,7 @@ export function resolveCliContainerTarget(
   if (!parsed.ok) {
     throw new Error(parsed.error);
   }
-  return parsed.container ?? env.OPENCLAW_CONTAINER?.trim() ?? null;
+  return parsed.container ?? env.ALISIO_CONTAINER?.trim() ?? env.OPENCLAW_CONTAINER?.trim() ?? null;
 }
 
 function isContainerRunning(params: {
@@ -157,11 +157,15 @@ function buildContainerExecArgs(params: {
     "exec",
     ...interactiveFlags,
     envFlag,
+    `ALISIO_CONTAINER_HINT=${params.containerName}`,
+    envFlag,
     `OPENCLAW_CONTAINER_HINT=${params.containerName}`,
+    envFlag,
+    "ALISIO_CLI_CONTAINER_BYPASS=1",
     envFlag,
     "OPENCLAW_CLI_CONTAINER_BYPASS=1",
     params.containerName,
-    "openclaw",
+    "alisio",
     ...params.argv,
   ];
 }
@@ -170,14 +174,20 @@ function buildContainerExecEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const next = { ...env };
   // Container-targeted CLI invocations should use the container's own profile
   // and gateway auth/runtime state rather than inheriting host overrides.
+  delete next.ALISIO_PROFILE;
+  delete next.ALISIO_GATEWAY_PORT;
+  delete next.ALISIO_GATEWAY_URL;
+  delete next.ALISIO_GATEWAY_TOKEN;
+  delete next.ALISIO_GATEWAY_PASSWORD;
   delete next.OPENCLAW_PROFILE;
   delete next.OPENCLAW_GATEWAY_PORT;
   delete next.OPENCLAW_GATEWAY_URL;
   delete next.OPENCLAW_GATEWAY_TOKEN;
   delete next.OPENCLAW_GATEWAY_PASSWORD;
   // The child CLI should render container-aware follow-up commands via
-  // OPENCLAW_CONTAINER_HINT, but it should not treat itself as still
+  // ALISIO_CONTAINER_HINT, but it should not treat itself as still
   // container-targeted for validation/routing.
+  next.ALISIO_CONTAINER = "";
   next.OPENCLAW_CONTAINER = "";
   return next;
 }
@@ -217,7 +227,10 @@ export function maybeRunCliInContainer(
     stdoutIsTTY: deps?.stdoutIsTTY ?? Boolean(process.stdout.isTTY),
   };
 
-  if (resolvedDeps.env.OPENCLAW_CLI_CONTAINER_BYPASS === "1") {
+  if (
+    resolvedDeps.env.ALISIO_CLI_CONTAINER_BYPASS === "1" ||
+    resolvedDeps.env.OPENCLAW_CLI_CONTAINER_BYPASS === "1"
+  ) {
     return { handled: false, argv };
   }
 
@@ -231,7 +244,7 @@ export function maybeRunCliInContainer(
   }
   if (isBlockedContainerCommand(parsed.argv.slice(2))) {
     throw new Error(
-      "openclaw update is not supported with --container; rebuild or restart the container image instead.",
+      "alisio update is not supported with --container; rebuild or restart the container image instead.",
     );
   }
 

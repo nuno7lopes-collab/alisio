@@ -18,9 +18,9 @@ describe("test planner", () => {
   it("builds a capability-aware plan for mid-memory local runs", () => {
     const artifacts = createExecutionArtifacts({
       RUNNER_OS: "macOS",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "10",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "64",
-      OPENCLAW_TEST_LOAD_AWARE: "0",
+      ALISIO_TEST_HOST_CPU_COUNT: "10",
+      ALISIO_TEST_HOST_MEMORY_GIB: "64",
+      ALISIO_TEST_LOAD_AWARE: "0",
     });
     const plan = buildExecutionPlan(
       {
@@ -32,9 +32,9 @@ describe("test planner", () => {
       {
         env: {
           RUNNER_OS: "macOS",
-          OPENCLAW_TEST_HOST_CPU_COUNT: "10",
-          OPENCLAW_TEST_HOST_MEMORY_GIB: "64",
-          OPENCLAW_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_HOST_CPU_COUNT: "10",
+          ALISIO_TEST_HOST_MEMORY_GIB: "64",
+          ALISIO_TEST_LOAD_AWARE: "0",
         },
         platform: "darwin",
         writeTempJsonArtifact: artifacts.writeTempJsonArtifact,
@@ -56,9 +56,9 @@ describe("test planner", () => {
   it("uses smaller shared extension batches on constrained local hosts", () => {
     const env = {
       RUNNER_OS: "macOS",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "8",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "16",
-      OPENCLAW_TEST_LOAD_AWARE: "0",
+      ALISIO_TEST_HOST_CPU_COUNT: "8",
+      ALISIO_TEST_HOST_MEMORY_GIB: "16",
+      ALISIO_TEST_LOAD_AWARE: "0",
     };
     const artifacts = createExecutionArtifacts(env);
     const plan = buildExecutionPlan(
@@ -90,8 +90,8 @@ describe("test planner", () => {
       CI: "true",
       GITHUB_ACTIONS: "true",
       RUNNER_OS: "Linux",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "4",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "16",
+      ALISIO_TEST_HOST_CPU_COUNT: "4",
+      ALISIO_TEST_HOST_MEMORY_GIB: "16",
     };
     const artifacts = createExecutionArtifacts(env);
     const plan = buildExecutionPlan(
@@ -122,8 +122,8 @@ describe("test planner", () => {
   it("scales down mid-tier local concurrency under saturated load", () => {
     const artifacts = createExecutionArtifacts({
       RUNNER_OS: "Linux",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "10",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "64",
+      ALISIO_TEST_HOST_CPU_COUNT: "10",
+      ALISIO_TEST_HOST_MEMORY_GIB: "64",
     });
     const plan = buildExecutionPlan(
       {
@@ -135,8 +135,8 @@ describe("test planner", () => {
       {
         env: {
           RUNNER_OS: "Linux",
-          OPENCLAW_TEST_HOST_CPU_COUNT: "10",
-          OPENCLAW_TEST_HOST_MEMORY_GIB: "64",
+          ALISIO_TEST_HOST_CPU_COUNT: "10",
+          ALISIO_TEST_HOST_MEMORY_GIB: "64",
         },
         platform: "linux",
         loadAverage: [11.5, 11.5, 11.5],
@@ -158,8 +158,8 @@ describe("test planner", () => {
   it("keeps saturated high-memory local unit bursts within a small set of shared batches", () => {
     const env = {
       RUNNER_OS: "macOS",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "16",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "128",
+      ALISIO_TEST_HOST_CPU_COUNT: "16",
+      ALISIO_TEST_HOST_MEMORY_GIB: "128",
     };
     const artifacts = createExecutionArtifacts(env);
     const plan = buildExecutionPlan(
@@ -193,9 +193,9 @@ describe("test planner", () => {
   it("keeps full local unit runs phased when isolated and heavy lanes are present", () => {
     const env = {
       RUNNER_OS: "macOS",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "16",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "128",
-      OPENCLAW_TEST_LOAD_AWARE: "0",
+      ALISIO_TEST_HOST_CPU_COUNT: "16",
+      ALISIO_TEST_HOST_MEMORY_GIB: "128",
+      ALISIO_TEST_LOAD_AWARE: "0",
     };
     const artifacts = createExecutionArtifacts(env);
     const plan = buildExecutionPlan(
@@ -225,10 +225,10 @@ describe("test planner", () => {
   it("honors the max-profile top-level no-isolate cap without adding extra lanes", () => {
     const artifacts = createExecutionArtifacts({
       RUNNER_OS: "Linux",
-      OPENCLAW_TEST_HOST_CPU_COUNT: "16",
-      OPENCLAW_TEST_HOST_MEMORY_GIB: "128",
-      OPENCLAW_TEST_LOAD_AWARE: "0",
-      OPENCLAW_TEST_PROFILE: "max",
+      ALISIO_TEST_HOST_CPU_COUNT: "16",
+      ALISIO_TEST_HOST_MEMORY_GIB: "128",
+      ALISIO_TEST_LOAD_AWARE: "0",
+      ALISIO_TEST_PROFILE: "max",
     });
     const plan = buildExecutionPlan(
       {
@@ -240,10 +240,10 @@ describe("test planner", () => {
       {
         env: {
           RUNNER_OS: "Linux",
-          OPENCLAW_TEST_HOST_CPU_COUNT: "16",
-          OPENCLAW_TEST_HOST_MEMORY_GIB: "128",
-          OPENCLAW_TEST_LOAD_AWARE: "0",
-          OPENCLAW_TEST_PROFILE: "max",
+          ALISIO_TEST_HOST_CPU_COUNT: "16",
+          ALISIO_TEST_HOST_MEMORY_GIB: "128",
+          ALISIO_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_PROFILE: "max",
         },
         platform: "linux",
         writeTempJsonArtifact: artifacts.writeTempJsonArtifact,
@@ -329,7 +329,7 @@ describe("test planner", () => {
       },
       {
         env: {
-          OPENCLAW_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_LOAD_AWARE: "0",
         },
       },
     );
@@ -346,7 +346,7 @@ describe("test planner", () => {
       },
       {
         env: {
-          OPENCLAW_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_LOAD_AWARE: "0",
         },
       },
     );
@@ -359,7 +359,7 @@ describe("test planner", () => {
       },
       {
         env: {
-          OPENCLAW_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_LOAD_AWARE: "0",
         },
       },
     );
@@ -381,9 +381,9 @@ describe("test planner", () => {
       },
       {
         env: {
-          OPENCLAW_TEST_SHARDS: "4",
-          OPENCLAW_TEST_SHARD_INDEX: "2",
-          OPENCLAW_TEST_LOAD_AWARE: "0",
+          ALISIO_TEST_SHARDS: "4",
+          ALISIO_TEST_SHARD_INDEX: "2",
+          ALISIO_TEST_LOAD_AWARE: "0",
         },
         writeTempJsonArtifact: artifacts.writeTempJsonArtifact,
       },
@@ -572,7 +572,7 @@ describe("resolveVitestFsModuleCachePath", () => {
       resolveVitestFsModuleCachePath({
         cwd: "/repo",
         env: {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "1",
+          ALISIO_VITEST_FS_MODULE_CACHE: "1",
         },
         platform: "win32",
         unitId: "unit-fast-1",
@@ -585,7 +585,7 @@ describe("resolveVitestFsModuleCachePath", () => {
       resolveVitestFsModuleCachePath({
         cwd: "/repo",
         env: {
-          OPENCLAW_VITEST_FS_MODULE_CACHE_PATH: "/tmp/custom-vitest-cache",
+          ALISIO_VITEST_FS_MODULE_CACHE_PATH: "/tmp/custom-vitest-cache",
         },
         platform: "linux",
         unitId: "unit-fast-1",
@@ -598,7 +598,7 @@ describe("resolveVitestFsModuleCachePath", () => {
       resolveVitestFsModuleCachePath({
         cwd: "/repo",
         env: {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "0",
+          ALISIO_VITEST_FS_MODULE_CACHE: "0",
         },
         platform: "linux",
         unitId: "unit-fast-1",

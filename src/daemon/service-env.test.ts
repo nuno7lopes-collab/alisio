@@ -285,15 +285,22 @@ describe("buildServiceEnvironment", () => {
     } else {
       expect(env.PATH).toContain("/usr/bin");
     }
+    expect(env.ALISIO_GATEWAY_PORT).toBe("18789");
     expect(env.OPENCLAW_GATEWAY_PORT).toBe("18789");
     expect(env.OPENCLAW_GATEWAY_TOKEN).toBeUndefined();
-    expect(env.OPENCLAW_SERVICE_MARKER).toBe("openclaw");
+    expect(env.ALISIO_SERVICE_MARKER).toBe("alisio");
+    expect(env.OPENCLAW_SERVICE_MARKER).toBe("alisio");
+    expect(env.ALISIO_SERVICE_KIND).toBe("gateway");
     expect(env.OPENCLAW_SERVICE_KIND).toBe("gateway");
+    expect(typeof env.ALISIO_SERVICE_VERSION).toBe("string");
     expect(typeof env.OPENCLAW_SERVICE_VERSION).toBe("string");
-    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("openclaw-gateway.service");
+    expect(env.ALISIO_SYSTEMD_UNIT).toBe("alisio-gateway.service");
+    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("alisio-gateway.service");
+    expect(env.ALISIO_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
     expect(env.OPENCLAW_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
     if (process.platform === "darwin") {
-      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.openclaw.gateway");
+      expect(env.ALISIO_LAUNCHD_LABEL).toBe("ai.alisio.gateway");
+      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.alisio.gateway");
     }
   });
 
@@ -318,10 +325,13 @@ describe("buildServiceEnvironment", () => {
       env: { HOME: "/home/user", OPENCLAW_PROFILE: "work" },
       port: 18789,
     });
-    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("openclaw-gateway-work.service");
+    expect(env.ALISIO_SYSTEMD_UNIT).toBe("alisio-gateway-work.service");
+    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("alisio-gateway-work.service");
+    expect(env.ALISIO_WINDOWS_TASK_NAME).toBe("Alisio Gateway (work)");
     expect(env.OPENCLAW_WINDOWS_TASK_NAME).toBe("Alisio Gateway (work)");
     if (process.platform === "darwin") {
-      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.openclaw.work");
+      expect(env.ALISIO_LAUNCHD_LABEL).toBe("ai.alisio.work");
+      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.alisio.work");
     }
   });
 
@@ -381,20 +391,30 @@ describe("buildNodeServiceEnvironment", () => {
     expect(env.HOME).toBe("/home/user");
   });
 
-  it("passes through OPENCLAW_GATEWAY_TOKEN for node services", () => {
+  it("passes through ALISIO_GATEWAY_TOKEN for node services", () => {
     const env = buildNodeServiceEnvironment({
-      env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: " node-token " },
+      env: { HOME: "/home/user", ALISIO_GATEWAY_TOKEN: " node-token " },
     });
+    expect(env.ALISIO_GATEWAY_TOKEN).toBe("node-token");
     expect(env.OPENCLAW_GATEWAY_TOKEN).toBe("node-token");
   });
 
-  it("omits OPENCLAW_GATEWAY_TOKEN when the env var is empty", () => {
+  it("accepts legacy OPENCLAW_GATEWAY_TOKEN for node services", () => {
+    const env = buildNodeServiceEnvironment({
+      env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: " legacy-token " },
+    });
+    expect(env.ALISIO_GATEWAY_TOKEN).toBe("legacy-token");
+    expect(env.OPENCLAW_GATEWAY_TOKEN).toBe("legacy-token");
+  });
+
+  it("omits ALISIO_GATEWAY_TOKEN when the env var is empty", () => {
     const env = buildNodeServiceEnvironment({
       env: {
         HOME: "/home/user",
-        OPENCLAW_GATEWAY_TOKEN: "   ",
+        ALISIO_GATEWAY_TOKEN: "   ",
       },
     });
+    expect(env.ALISIO_GATEWAY_TOKEN).toBeUndefined();
     expect(env.OPENCLAW_GATEWAY_TOKEN).toBeUndefined();
   });
 
@@ -486,32 +506,32 @@ describe("shared Node TLS env defaults", () => {
 describe("resolveGatewayStateDir", () => {
   it("uses the default state dir when no overrides are set", () => {
     const env = { HOME: "/Users/test" };
-    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".openclaw"));
+    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".alisio"));
   });
 
   it("appends the profile suffix when set", () => {
-    const env = { HOME: "/Users/test", OPENCLAW_PROFILE: "rescue" };
-    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".openclaw-rescue"));
+    const env = { HOME: "/Users/test", ALISIO_PROFILE: "rescue" };
+    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".alisio-rescue"));
   });
 
   it("treats default profiles as the base state dir", () => {
     const env = { HOME: "/Users/test", OPENCLAW_PROFILE: "Default" };
-    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".openclaw"));
+    expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".alisio"));
   });
 
-  it("uses OPENCLAW_STATE_DIR when provided", () => {
-    const env = { HOME: "/Users/test", OPENCLAW_STATE_DIR: "/var/lib/openclaw" };
-    expect(resolveGatewayStateDir(env)).toBe(path.resolve("/var/lib/openclaw"));
+  it("uses ALISIO_STATE_DIR when provided", () => {
+    const env = { HOME: "/Users/test", ALISIO_STATE_DIR: "/var/lib/alisio" };
+    expect(resolveGatewayStateDir(env)).toBe(path.resolve("/var/lib/alisio"));
   });
 
-  it("expands ~ in OPENCLAW_STATE_DIR", () => {
-    const env = { HOME: "/Users/test", OPENCLAW_STATE_DIR: "~/openclaw-state" };
-    expect(resolveGatewayStateDir(env)).toBe(path.resolve("/Users/test/openclaw-state"));
+  it("expands ~ in ALISIO_STATE_DIR", () => {
+    const env = { HOME: "/Users/test", ALISIO_STATE_DIR: "~/alisio-state" };
+    expect(resolveGatewayStateDir(env)).toBe(path.resolve("/Users/test/alisio-state"));
   });
 
   it("preserves Windows absolute paths without HOME", () => {
-    const env = { OPENCLAW_STATE_DIR: "C:\\State\\openclaw" };
-    expect(resolveGatewayStateDir(env)).toBe("C:\\State\\openclaw");
+    const env = { OPENCLAW_STATE_DIR: "C:\\State\\alisio" };
+    expect(resolveGatewayStateDir(env)).toBe("C:\\State\\alisio");
   });
 });
 

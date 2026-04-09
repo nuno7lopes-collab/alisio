@@ -13,6 +13,8 @@ export type AlisioBootstrapState =
 export type AlisioModelsState = import("../../../src/gateway/protocol/index.js").AlisioModelsResult;
 export type AlisioModelsInstallResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsInstallResult;
+export type AlisioModelsRuntimeStartResult =
+  import("../../../src/gateway/protocol/index.js").AlisioModelsRuntimeStartResult;
 export type AlisioModelsUninstallResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsUninstallResult;
 export type AlisioModelsServerSaveResult =
@@ -23,6 +25,10 @@ export type AlisioModelsServerSelectResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsServerSelectResult;
 export type AlisioDoctorSummaryState =
   import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
+export type AlisioProviderOverviewItem =
+  import("../../../src/gateway/protocol/index.js").AlisioProviderOverviewItem;
+export type AlisioProvidersState =
+  import("../../../src/gateway/protocol/index.js").AlisioProvidersResult;
 export type AlisioSharingState =
   import("../../../src/gateway/protocol/index.js").AlisioSharingState;
 export type AlisioSharingRequestResult =

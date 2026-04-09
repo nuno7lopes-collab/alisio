@@ -43,7 +43,7 @@ title: "Features"
 
 - Embedded agent runtime with tool streaming
 - Multi-agent routing with isolated sessions per workspace or sender
-- Sessions: direct chats collapse into shared `main`; groups are isolated
+- Sessions: direct chats default to isolated per-channel direct sessions; groups are isolated
 - Streaming and chunking for long responses
 
 **Auth and providers:**

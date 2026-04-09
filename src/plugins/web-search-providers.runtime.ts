@@ -6,7 +6,7 @@ import {
   resolvePluginSnapshotCacheTtlMs,
   shouldUsePluginSnapshotCache,
 } from "./cache-controls.js";
-import { loadOpenClawPlugins, resolveRuntimePluginRegistry } from "./loader.js";
+import { loadAlisioPlugins, resolveRuntimePluginRegistry } from "./loader.js";
 import type { PluginLoadOptions } from "./loader.js";
 import { createPluginLoaderLogger } from "./logger.js";
 import { loadPluginManifestRegistry, type PluginManifestRecord } from "./manifest-registry.js";
@@ -125,7 +125,7 @@ function resolveWebSearchLoadOptions(params: {
 }
 
 function mapRegistryWebSearchProviders(params: {
-  registry: ReturnType<typeof loadOpenClawPlugins>;
+  registry: ReturnType<typeof loadAlisioPlugins>;
   onlyPluginIds?: readonly string[];
 }): PluginWebSearchProviderEntry[] {
   const onlyPluginIdSet =
@@ -170,7 +170,7 @@ export function resolvePluginWebSearchProviders(params: {
   }
   const loadOptions = resolveWebSearchLoadOptions(params);
   const resolved = mapRegistryWebSearchProviders({
-    registry: loadOpenClawPlugins(loadOptions),
+    registry: loadAlisioPlugins(loadOptions),
   });
   if (cacheOwnerConfig && shouldMemoizeSnapshot) {
     const ttlMs = resolvePluginSnapshotCacheTtlMs(env);

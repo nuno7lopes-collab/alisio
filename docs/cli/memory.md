@@ -1,5 +1,5 @@
 ---
-summary: "CLI reference for `alisio memory` (status/index/search)"
+summary: "CLI reference for `alisio memory` (status/index/search/graph)"
 read_when:
   - You want to index or search semantic memory
   - You’re debugging memory availability or indexing
@@ -8,7 +8,7 @@ title: "memory"
 
 # `alisio memory`
 
-Manage semantic memory indexing and search.
+Manage semantic memory indexing, search, and canonical graph inspection.
 Provided by the active memory plugin (default: `memory-core`; set `plugins.slots.memory = "none"` to disable).
 
 Related:
@@ -23,7 +23,9 @@ alisio memory status
 alisio memory status --deep
 alisio memory index --force
 alisio memory search "meeting notes"
+alisio memory graph "project atlas"
 alisio memory search --query "deployment" --max-results 20
+alisio memory graph --query "roadmap" --direction incoming --relation-limit 12
 alisio memory status --json
 alisio memory status --deep --index
 alisio memory status --deep --index --verbose
@@ -58,9 +60,21 @@ alisio memory index --agent main --verbose
 - `--min-score <n>`: filter out low-score matches.
 - `--json`: print JSON results.
 
+`memory graph`:
+
+- Query input: pass either positional `[query]` or `--query <text>`.
+- If both are provided, `--query` wins.
+- If neither is provided, the command exits with an error.
+- `--agent <id>`: scope to a single agent (default: the default agent).
+- `--direction <dir>`: `incoming`, `outgoing`, or `both` (default).
+- `--match-limit <n>`: limit matched entities from the canonical store.
+- `--relation-limit <n>`: cap returned relations across the selected directions.
+- `--json`: print structured JSON results.
+
 Notes:
 
 - `memory index --verbose` prints per-phase details (provider, model, sources, batch activity).
 - `memory status` includes any extra paths configured via `memorySearch.extraPaths`.
+- `memory graph` reads the profile-scoped structured canonical store under the Markdown/Obsidian projection, so it can return explicit note-to-note relations instead of only text matches.
 - If effectively active memory remote API key fields are configured as SecretRefs, the command resolves those values from the active gateway snapshot. If gateway is unavailable, the command fails fast.
 - Gateway version skew note: this command path requires a gateway that supports `secrets.resolve`; older gateways return an unknown-method error.

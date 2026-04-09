@@ -314,7 +314,7 @@ WhatsApp runs through the gateway's web channel (Baileys Web). It starts automat
   - `enabled`: Discord override for thread-bound session features (`/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`, and bound delivery/routing)
   - `idleHours`: Discord override for inactivity auto-unfocus in hours (`0` disables)
   - `maxAgeHours`: Discord override for hard max age in hours (`0` disables)
-  - `spawnSubagentSessions`: opt-in switch for `sessions_spawn({ thread: true })` auto thread creation/binding
+  - `spawnSubagentSessions`: opt-in switch for `sessions_spawn({ thread: true, runtime: "subagent" })` temporary task-thread creation/binding. The key name is legacy and is scheduled for replacement after 2026-06-30.
 - Top-level `bindings[]` entries with `type: "acp"` configure persistent ACP bindings for channels and threads (use channel/thread id in `match.peer.id`). Field semantics are shared in [ACP Agents](/tools/acp-agents#channel-specific-settings).
 - `channels.discord.ui.components.accentColor` sets the accent color for Discord components v2 containers.
 - `channels.discord.voice` enables Discord voice channel conversations and optional auto-join + TTS overrides.
@@ -1612,7 +1612,7 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
 {
   session: {
     scope: "per-sender",
-    dmScope: "main", // main | per-peer | per-channel-peer | per-account-channel-peer
+    dmScope: "per-channel-peer", // main | per-peer | per-channel-peer | per-account-channel-peer
     identityLinks: {
       alice: ["telegram:123456789", "discord:987654321012345678"],
     },
@@ -1661,7 +1661,7 @@ See [Multi-Agent Sandbox & Tools](/tools/multi-agent-sandbox-tools) for preceden
 - **`dmScope`**: how DMs are grouped.
   - `main`: all DMs share the main session.
   - `per-peer`: isolate by sender id across channels.
-  - `per-channel-peer`: isolate per channel + sender (recommended for multi-user inboxes).
+  - `per-channel-peer`: isolate per channel + sender (default; recommended for multi-user inboxes).
   - `per-account-channel-peer`: isolate per account + channel + sender (recommended for multi-account).
 - **`identityLinks`**: map canonical ids to provider-prefixed peers for cross-channel session sharing.
 - **`reset`**: primary reset policy. `daily` resets at `atHour` local time; `idle` resets after `idleMinutes`. When both configured, whichever expires first wins.

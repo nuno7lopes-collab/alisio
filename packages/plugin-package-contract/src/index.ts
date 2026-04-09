@@ -18,8 +18,8 @@ export type ExternalCodePluginValidationResult = {
 };
 
 export const EXTERNAL_CODE_PLUGIN_REQUIRED_FIELD_PATHS = [
-  "openclaw.compat.pluginApi",
-  "openclaw.build.openclawVersion",
+  "alisio.compat.pluginApi",
+  "alisio.build.alisioVersion",
 ] as const;
 
 function isRecord(value: unknown): value is JsonObject {
@@ -30,19 +30,21 @@ function getTrimmedString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function readOpenClawBlock(packageJson: unknown) {
+function readPluginCompatibilityBlock(packageJson: unknown) {
   const root = isRecord(packageJson) ? packageJson : undefined;
-  const openclaw = isRecord(root?.openclaw) ? root.openclaw : undefined;
-  const compat = isRecord(openclaw?.compat) ? openclaw.compat : undefined;
-  const build = isRecord(openclaw?.build) ? openclaw.build : undefined;
-  const install = isRecord(openclaw?.install) ? openclaw.install : undefined;
-  return { root, openclaw, compat, build, install };
+  const alisio = isRecord(root?.alisio) ? root.alisio : undefined;
+  const legacyOpenClaw = isRecord(root?.openclaw) ? root.openclaw : undefined;
+  const pluginBlock = alisio ?? legacyOpenClaw;
+  const compat = isRecord(pluginBlock?.compat) ? pluginBlock.compat : undefined;
+  const build = isRecord(pluginBlock?.build) ? pluginBlock.build : undefined;
+  const install = isRecord(pluginBlock?.install) ? pluginBlock.install : undefined;
+  return { root, pluginBlock, compat, build, install };
 }
 
 export function normalizeExternalPluginCompatibility(
   packageJson: unknown,
 ): ExternalPluginCompatibility | undefined {
-  const { root, compat, build, install } = readOpenClawBlock(packageJson);
+  const { root, compat, build, install } = readPluginCompatibilityBlock(packageJson);
   const version = getTrimmedString(root?.version);
   const minHostVersion = getTrimmedString(install?.minHostVersion);
   const compatibility: ExternalPluginCompatibility = {};
@@ -57,7 +59,8 @@ export function normalizeExternalPluginCompatibility(
     compatibility.minGatewayVersion = minGatewayVersion;
   }
 
-  const builtWithOpenClawVersion = getTrimmedString(build?.openclawVersion) ?? version;
+  const builtWithOpenClawVersion =
+    getTrimmedString(build?.alisioVersion) ?? getTrimmedString(build?.openclawVersion) ?? version;
   if (builtWithOpenClawVersion) {
     compatibility.builtWithOpenClawVersion = builtWithOpenClawVersion;
   }
@@ -71,13 +74,13 @@ export function normalizeExternalPluginCompatibility(
 }
 
 export function listMissingExternalCodePluginFieldPaths(packageJson: unknown): string[] {
-  const { compat, build } = readOpenClawBlock(packageJson);
+  const { compat, build } = readPluginCompatibilityBlock(packageJson);
   const missing: string[] = [];
   if (!getTrimmedString(compat?.pluginApi)) {
-    missing.push("openclaw.compat.pluginApi");
+    missing.push("alisio.compat.pluginApi");
   }
-  if (!getTrimmedString(build?.openclawVersion)) {
-    missing.push("openclaw.build.openclawVersion");
+  if (!getTrimmedString(build?.alisioVersion) && !getTrimmedString(build?.openclawVersion)) {
+    missing.push("alisio.build.alisioVersion");
   }
   return missing;
 }
@@ -87,7 +90,7 @@ export function validateExternalCodePluginPackageJson(
 ): ExternalCodePluginValidationResult {
   const issues = listMissingExternalCodePluginFieldPaths(packageJson).map((fieldPath) => ({
     fieldPath,
-    message: `${fieldPath} is required for external code plugins published to ClawHub.`,
+    message: `${fieldPath} is required for external code plugins published to Local Marketplace.`,
   }));
   return {
     compatibility: normalizeExternalPluginCompatibility(packageJson),

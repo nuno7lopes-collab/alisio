@@ -12,7 +12,7 @@ import {
   withBundledPluginEnablementCompat,
 } from "./bundled-compat.js";
 import { normalizePluginsConfig } from "./config-state.js";
-import { loadOpenClawPlugins } from "./loader.js";
+import { loadAlisioPlugins } from "./loader.js";
 import { createPluginLoaderLogger } from "./logger.js";
 import { resolveBundledProviderCompatPluginIds } from "./providers.js";
 import type { PluginRegistry } from "./registry.js";
@@ -180,7 +180,7 @@ export function buildPluginStatusReport(params?: {
     pluginIds: bundledProviderIds,
   });
 
-  const registry = loadOpenClawPlugins({
+  const registry = loadAlisioPlugins({
     config: runtimeCompatConfig,
     workspaceDir,
     env: params?.env,

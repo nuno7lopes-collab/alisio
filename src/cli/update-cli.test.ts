@@ -549,7 +549,15 @@ describe("update-cli", () => {
       } else {
         expect(runGatewayUpdate).not.toHaveBeenCalled();
         expect(runCommandWithTimeout).toHaveBeenCalledWith(
-          ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+          [
+            "npm",
+            "i",
+            "-g",
+            "alisio@npm:alisio@latest",
+            "--no-fund",
+            "--no-audit",
+            "--loglevel=error",
+          ],
           expect.any(Object),
         );
       }
@@ -580,7 +588,7 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).toHaveBeenCalledWith(
-      ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+      ["npm", "i", "-g", "alisio@npm:alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
       expect.any(Object),
     );
   });
@@ -598,7 +606,7 @@ describe("update-cli", () => {
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
     expect(runCommandWithTimeout).not.toHaveBeenCalledWith(
-      ["npm", "i", "-g", "alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
+      ["npm", "i", "-g", "alisio@npm:alisio@latest", "--no-fund", "--no-audit", "--loglevel=error"],
       expect.any(Object),
     );
     expect(defaultRuntime.exit).toHaveBeenCalledWith(1);
@@ -617,7 +625,7 @@ describe("update-cli", () => {
     });
 
     expect(runGatewayUpdate).not.toHaveBeenCalled();
-    expectPackageInstallSpec("alisio@latest");
+    expectPackageInstallSpec("alisio@npm:alisio@latest");
   });
 
   it("uses the default Alisio git source for dev updates", async () => {
@@ -638,7 +646,7 @@ describe("update-cli", () => {
         mockPackageInstallStatus(createCaseDir("openclaw-update"));
         await updateCommand({ tag: "next" });
       },
-      expectedSpec: "alisio@next",
+      expectedSpec: "alisio@npm:alisio@next",
     },
     {
       name: "main shorthand",

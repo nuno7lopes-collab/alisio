@@ -31,7 +31,7 @@ function writeFile(targetPath: string, content: string): void {
 }
 
 function createTempHome(): string {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-test-env-real-home-"));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-test-env-real-home-"));
   tempDirs.add(tempDir);
   return tempDir;
 }
@@ -53,19 +53,19 @@ describe("installTestEnv", () => {
     const priorIsolatedHome = createTempHome();
     writeFile(path.join(realHome, ".profile"), "export TEST_PROFILE_ONLY=from-profile\n");
     writeFile(
-      path.join(realHome, "custom-openclaw.json5"),
+      path.join(realHome, "custom-alisio.json5"),
       `{
         // Preserve provider config, strip host-bound paths.
         agents: {
           defaults: {
             workspace: "/Users/peter/Projects",
-            agentDir: "/Users/peter/.openclaw/agents/main/agent",
+            agentDir: "/Users/peter/.alisio/agents/main/agent",
           },
           list: [
             {
               id: "dev",
               workspace: "/Users/peter/dev-workspace",
-              agentDir: "/Users/peter/.openclaw/agents/dev/agent",
+              agentDir: "/Users/peter/.alisio/agents/dev/agent",
             },
           ],
         },
@@ -76,30 +76,30 @@ describe("installTestEnv", () => {
         },
       }`,
     );
-    writeFile(path.join(realHome, ".openclaw", "credentials", "token.txt"), "secret\n");
+    writeFile(path.join(realHome, ".alisio", "credentials", "token.txt"), "secret\n");
     writeFile(
-      path.join(realHome, ".openclaw", "agents", "main", "agent", "auth-profiles.json"),
+      path.join(realHome, ".alisio", "agents", "main", "agent", "auth-profiles.json"),
       JSON.stringify({ version: 1, profiles: { default: { provider: "openai" } } }, null, 2),
     );
     writeFile(path.join(realHome, ".claude", ".credentials.json"), '{"accessToken":"token"}\n');
 
     process.env.HOME = realHome;
     process.env.USERPROFILE = realHome;
-    process.env.OPENCLAW_LIVE_TEST = "1";
-    process.env.OPENCLAW_LIVE_TEST_QUIET = "1";
-    process.env.OPENCLAW_CONFIG_PATH = "~/custom-openclaw.json5";
-    process.env.OPENCLAW_TEST_HOME = priorIsolatedHome;
-    process.env.OPENCLAW_STATE_DIR = path.join(priorIsolatedHome, ".openclaw");
+    process.env.ALISIO_LIVE_TEST = "1";
+    process.env.ALISIO_LIVE_TEST_QUIET = "1";
+    process.env.ALISIO_CONFIG_PATH = "~/custom-alisio.json5";
+    process.env.ALISIO_TEST_HOME = priorIsolatedHome;
+    process.env.ALISIO_STATE_DIR = path.join(priorIsolatedHome, ".alisio");
 
     const testEnv = installTestEnv();
     cleanupFns.push(testEnv.cleanup);
 
     expect(testEnv.tempHome).not.toBe(realHome);
     expect(process.env.HOME).toBe(testEnv.tempHome);
-    expect(process.env.OPENCLAW_TEST_HOME).toBe(testEnv.tempHome);
+    expect(process.env.ALISIO_TEST_HOME).toBe(testEnv.tempHome);
     expect(process.env.TEST_PROFILE_ONLY).toBe("from-profile");
 
-    const copiedConfigPath = path.join(testEnv.tempHome, ".openclaw", "openclaw.json");
+    const copiedConfigPath = path.join(testEnv.tempHome, ".alisio", "alisio.json");
     const copiedConfig = JSON.parse(fs.readFileSync(copiedConfigPath, "utf8")) as {
       agents?: {
         defaults?: Record<string, unknown>;
@@ -113,15 +113,31 @@ describe("installTestEnv", () => {
     expect(copiedConfig.agents?.list?.[0]?.workspace).toBeUndefined();
     expect(copiedConfig.agents?.list?.[0]?.agentDir).toBeUndefined();
 
-    expect(
-      fs.existsSync(path.join(testEnv.tempHome, ".openclaw", "credentials", "token.txt")),
-    ).toBe(true);
+    expect(fs.existsSync(path.join(testEnv.tempHome, ".alisio", "credentials", "token.txt"))).toBe(
+      true,
+    );
     expect(
       fs.existsSync(
-        path.join(testEnv.tempHome, ".openclaw", "agents", "main", "agent", "auth-profiles.json"),
+        path.join(testEnv.tempHome, ".alisio", "agents", "main", "agent", "auth-profiles.json"),
       ),
     ).toBe(true);
     expect(fs.existsSync(path.join(testEnv.tempHome, ".claude", ".credentials.json"))).toBe(true);
+  });
+
+  it("accepts legacy OpenClaw env aliases when staging live state", () => {
+    const realHome = createTempHome();
+    writeFile(path.join(realHome, ".openclaw", "openclaw.json"), JSON.stringify({ ok: true }));
+
+    process.env.HOME = realHome;
+    process.env.USERPROFILE = realHome;
+    process.env.ALISIO_LIVE_TEST = "1";
+    process.env.ALISIO_LIVE_TEST_QUIET = "1";
+    process.env.OPENCLAW_STATE_DIR = path.join(realHome, ".openclaw");
+
+    const testEnv = installTestEnv();
+    cleanupFns.push(testEnv.cleanup);
+
+    expect(fs.existsSync(path.join(testEnv.tempHome, ".alisio", "alisio.json"))).toBe(true);
   });
 
   it("allows explicit live runs against the real HOME", () => {
@@ -130,9 +146,9 @@ describe("installTestEnv", () => {
 
     process.env.HOME = realHome;
     process.env.USERPROFILE = realHome;
-    process.env.OPENCLAW_LIVE_TEST = "1";
-    process.env.OPENCLAW_LIVE_USE_REAL_HOME = "1";
-    process.env.OPENCLAW_LIVE_TEST_QUIET = "1";
+    process.env.ALISIO_LIVE_TEST = "1";
+    process.env.ALISIO_LIVE_USE_REAL_HOME = "1";
+    process.env.ALISIO_LIVE_TEST_QUIET = "1";
 
     const testEnv = installTestEnv();
 
@@ -147,9 +163,9 @@ describe("installTestEnv", () => {
 
     process.env.HOME = realHome;
     process.env.USERPROFILE = realHome;
-    process.env.OPENCLAW_LIVE_TEST = "1";
-    process.env.OPENCLAW_LIVE_USE_REAL_HOME = "1";
-    process.env.OPENCLAW_LIVE_TEST_QUIET = "1";
+    process.env.ALISIO_LIVE_TEST = "1";
+    process.env.ALISIO_LIVE_USE_REAL_HOME = "1";
+    process.env.ALISIO_LIVE_TEST_QUIET = "1";
 
     vi.doMock("node:child_process", () => ({
       execFileSync: () => {

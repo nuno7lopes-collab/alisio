@@ -509,6 +509,7 @@ Matrix supports native Matrix threads for both automatic replies and message-too
 - Runtime thread bindings are supported for Matrix. `/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`, and thread-bound `/acp spawn` now work in Matrix rooms and DMs.
 - Top-level Matrix room/DM `/focus` creates a new Matrix thread and binds it to the target session when `threadBindings.spawnSubagentSessions=true`.
 - Running `/focus` or `/acp spawn --thread here` inside an existing Matrix thread binds that current thread instead.
+- For sub-agents, these bindings are temporary task bindings, not persistent sub-agent identities.
 
 ## ACP conversation bindings
 
@@ -539,7 +540,7 @@ Matrix inherits global defaults from `session.threadBindings`, and also supports
 
 Matrix thread-bound spawn flags are opt-in:
 
-- Set `threadBindings.spawnSubagentSessions: true` to allow top-level `/focus` to create and bind new Matrix threads.
+- Set `threadBindings.spawnSubagentSessions: true` to allow top-level `/focus` to create and bind new Matrix threads for ephemeral sub-agent task runs. The config key name is legacy and is scheduled for replacement after 2026-06-30.
 - Set `threadBindings.spawnAcpSessions: true` to allow `/acp spawn --thread auto|here` to bind ACP sessions to Matrix threads.
 
 ## Reactions

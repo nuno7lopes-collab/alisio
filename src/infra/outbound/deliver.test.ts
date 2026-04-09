@@ -6,6 +6,7 @@ import {
   whatsappOutbound,
 } from "../../../test/channel-outbounds.js";
 import type { AlisioConfig } from "../../config/config.js";
+import { resolveStateDir } from "../../config/paths.js";
 import { createHookRunner } from "../../plugins/hooks.js";
 import { addTestHook } from "../../plugins/hooks.test-helpers.js";
 import { createEmptyPluginRegistry } from "../../plugins/registry.js";
@@ -99,6 +100,9 @@ const whatsappChunkConfig: AlisioConfig = {
 };
 
 const expectedResolvedTmpRoot = path.resolve(resolvePreferredAlisioTmpDir());
+const expectedAgentWorkspaceRoot = path.resolve(
+  path.join(resolveStateDir(process.env), "workspace-work"),
+);
 
 type DeliverOutboundArgs = Parameters<DeliverModule["deliverOutboundPayloads"]>[0];
 type DeliverOutboundPayload = DeliverOutboundArgs["payloads"][number];
@@ -473,9 +477,7 @@ describe("deliverOutboundPayloads", () => {
       }),
     );
     expect(
-      sendOpts?.mediaLocalRoots?.some((root) =>
-        root.endsWith(path.join(".alisio", "workspace-work")),
-      ),
+      sendOpts?.mediaLocalRoots?.some((root) => path.resolve(root) === expectedAgentWorkspaceRoot),
     ).toBe(true);
   });
 

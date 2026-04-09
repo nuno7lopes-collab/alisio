@@ -7,8 +7,8 @@ import { loadConfig } from "../config/config.js";
 import { applyPluginAutoEnable } from "../config/plugin-auto-enable.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import {
-  loadOpenClawPluginCliRegistry,
-  loadOpenClawPlugins,
+  loadAlisioPluginCliRegistry,
+  loadAlisioPlugins,
   type PluginLoadOptions,
 } from "./loader.js";
 import type { PluginRegistry } from "./registry.js";
@@ -85,7 +85,7 @@ async function loadPluginCliMetadataRegistry(
   const context = resolvePluginCliLoadContext(cfg, env);
   return {
     ...context,
-    registry: await loadOpenClawPluginCliRegistry({
+    registry: await loadAlisioPluginCliRegistry({
       config: context.config,
       workspaceDir: context.workspaceDir,
       env,
@@ -101,7 +101,7 @@ async function loadPluginCliCommandRegistry(
   loaderOptions?: Pick<PluginLoadOptions, "pluginSdkResolution">,
 ) {
   const context = resolvePluginCliLoadContext(cfg, env);
-  const runtimeRegistry = loadOpenClawPlugins({
+  const runtimeRegistry = loadAlisioPlugins({
     config: context.config,
     workspaceDir: context.workspaceDir,
     env,
@@ -117,7 +117,7 @@ async function loadPluginCliCommandRegistry(
   }
 
   try {
-    const metadataRegistry = await loadOpenClawPluginCliRegistry({
+    const metadataRegistry = await loadAlisioPluginCliRegistry({
       config: context.config,
       workspaceDir: context.workspaceDir,
       env,

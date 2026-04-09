@@ -26,7 +26,9 @@ describe("method scope resolution", () => {
     ["node.pair.approve", ["operator.write"]],
     ["poll", ["operator.write"]],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"]],
+    ["alisio.account.changeEmail", ["operator.write"]],
     ["alisio.account.requestRecoveryEmail", ["operator.write"]],
+    ["alisio.account.updatePassword", ["operator.write"]],
     ["alisio.account.signUp", ["operator.write"]],
     ["alisio.account.signIn", ["operator.write"]],
     ["alisio.sharing.request", ["operator.write"]],
@@ -74,8 +76,10 @@ describe("operator scope authorization", () => {
     ["alisio.models.install", ["operator.write"], { allowed: true }],
     ["alisio.models.uninstall", ["operator.write"], { allowed: true }],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"], { allowed: true }],
+    ["alisio.account.changeEmail", ["operator.write"], { allowed: true }],
     ["alisio.account.signUp", ["operator.write"], { allowed: true }],
     ["alisio.account.signIn", ["operator.write"], { allowed: true }],
+    ["alisio.account.updatePassword", ["operator.write"], { allowed: true }],
     ["alisio.models.server.save", ["operator.write"], { allowed: true }],
     ["alisio.models.server.remove", ["operator.write"], { allowed: true }],
     ["alisio.models.server.select", ["operator.write"], { allowed: true }],
@@ -142,7 +146,12 @@ describe("plugin approval method registration", () => {
 
   it("lists the public recovery-email method and hides the legacy password-reset alias", () => {
     const methods = listGatewayMethods();
+    expect(methods).toContain("alisio.account.completeEmailLinkAuth");
+    expect(methods).toContain("alisio.account.changeEmail");
     expect(methods).toContain("alisio.account.requestRecoveryEmail");
+    expect(methods).toContain("alisio.account.signUp");
+    expect(methods).toContain("alisio.account.signIn");
+    expect(methods).toContain("alisio.account.updatePassword");
     expect(methods).not.toContain("alisio.account.requestPasswordReset");
   });
 

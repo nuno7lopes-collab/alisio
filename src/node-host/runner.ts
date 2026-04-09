@@ -1,8 +1,6 @@
 import { loadConfig, type AlisioConfig } from "../config/config.js";
 import { GatewayClient } from "../gateway/client.js";
 import { resolveGatewayConnectionAuth } from "../gateway/connection-auth.js";
-import type { NodeCapabilityManifest } from "../gateway/protocol/index.js";
-import { resolveLocalModelRuntimeConfig } from "../infra/alisio-local-model-runtime.js";
 import { loadOrCreateDeviceIdentity } from "../infra/device-identity.js";
 import type { SkillBinTrustEntry } from "../infra/exec-approvals.js";
 import { resolveExecutableFromPathEnv } from "../infra/executable-path.js";
@@ -16,6 +14,7 @@ import { ensureAlisioCliOnPath } from "../infra/path-env.js";
 import { resolveBrowserConfig } from "../plugin-sdk/browser-runtime.js";
 import { GATEWAY_CLIENT_MODES, GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { VERSION } from "../version.js";
+import { resolveNodeHostCapabilities } from "./capabilities.js";
 import { ensureNodeHostConfig, saveNodeHostConfig, type NodeHostGatewayConfig } from "./config.js";
 import {
   coerceNodeInvokePayload,
@@ -117,92 +116,6 @@ function ensureNodePathEnv(): string {
   return DEFAULT_NODE_PATH;
 }
 
-function resolveNodeHostCapabilities(params: {
-  browserProxyEnabled: boolean;
-}): NodeCapabilityManifest[] {
-  const capabilities: NodeCapabilityManifest[] = [
-    {
-      id: "exec.shell.v1",
-      title: "Execucao remota",
-      description: "Executa comandos aprovados neste computador ligado.",
-      version: 1,
-      risk: "high",
-      streaming: false,
-      interactive: false,
-      supportsCancel: false,
-      supportsResume: false,
-      requiresCommands: ["system.run"],
-      tags: ["shell", "automation"],
-    },
-    {
-      id: "model.catalog.llamacpp.v1",
-      title: "Catalogo de modelos locais",
-      description: "Lista os modelos llama.cpp instalados neste computador ligado.",
-      version: 1,
-      risk: "low",
-      streaming: false,
-      interactive: false,
-      supportsCancel: false,
-      supportsResume: false,
-      tags: ["llm", "local-model", "catalog", "llama.cpp"],
-    },
-    {
-      id: "model.manage.llamacpp.v1",
-      title: "Gestao de modelos locais",
-      description: "Instala e remove modelos llama.cpp aprovados neste computador ligado.",
-      version: 1,
-      risk: "medium",
-      streaming: true,
-      interactive: false,
-      supportsCancel: false,
-      supportsResume: false,
-      tags: ["llm", "local-model", "install", "llama.cpp"],
-    },
-    {
-      id: "model.chat.llamacpp.v1",
-      title: "Modelo local",
-      description: "Executa chat directamente num modelo llama.cpp instalado neste computador.",
-      version: 1,
-      risk: "medium",
-      streaming: true,
-      interactive: true,
-      supportsCancel: false,
-      supportsResume: false,
-      tags: ["llm", "local-model", "llama.cpp"],
-    },
-  ];
-  const modelBaseUrl = resolveLocalModelRuntimeConfig(process.env).baseUrl;
-  if (modelBaseUrl) {
-    capabilities.push({
-      id: "model.chat.openai.v1",
-      title: "Modelo local",
-      description:
-        "Encaminha pedidos de chat para um servidor local compativel com OpenAI neste computador.",
-      version: 1,
-      risk: "medium",
-      streaming: true,
-      interactive: true,
-      supportsCancel: false,
-      supportsResume: false,
-      tags: ["llm", "local-model", "openai-compatible"],
-    });
-    capabilities.push({
-      id: "model.catalog.openai.v1",
-      title: "Catalogo de modelos locais",
-      description: "Lista os modelos locais disponiveis neste computador ligado.",
-      version: 1,
-      risk: "low",
-      streaming: false,
-      interactive: false,
-      supportsCancel: false,
-      supportsResume: false,
-      tags: ["llm", "local-model", "catalog"],
-    });
-  }
-  void params.browserProxyEnabled;
-  return capabilities;
-}
-
 export async function resolveNodeHostGatewayCredentials(params: {
   config: AlisioConfig;
   env?: NodeJS.ProcessEnv;
@@ -267,7 +180,7 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
   const scheme = gateway.tls ? "wss" : "ws";
   const url = `${scheme}://${host}:${port}`;
   const pathEnv = ensureNodePathEnv();
-  const capabilities = resolveNodeHostCapabilities({ browserProxyEnabled });
+  const capabilities = await resolveNodeHostCapabilities({ browserProxyEnabled });
 
   const client = new GatewayClient({
     url,

@@ -17,11 +17,12 @@ describe("buildPromptSection", () => {
 
   it("describes the two-step flow when both memory tools are available", () => {
     const result = buildPromptSection({
-      availableTools: new Set(["memory_search", "memory_get"]),
+      availableTools: new Set(["memory_search", "memory_get", "memory_graph"]),
     });
     expect(result[0]).toBe("## Memory Recall");
     expect(result[1]).toContain("run memory_search");
     expect(result[1]).toContain("then use memory_get");
+    expect(result[1]).toContain("memory_graph");
     expect(result).toContain(
       "Citations: include Source: <path#line> when it helps the user verify memory snippets.",
     );
@@ -76,9 +77,10 @@ describe("plugin registration", () => {
     expect(registerMemoryFlushPlan).toHaveBeenCalledWith(buildMemoryFlushPlan);
     expect(registerMemoryRuntime).toHaveBeenCalledWith(memoryRuntime);
     expect(registerMemoryEmbeddingProvider).toHaveBeenCalledTimes(6);
-    expect(registerTool).toHaveBeenCalledTimes(2);
+    expect(registerTool).toHaveBeenCalledTimes(3);
     expect(registerTool.mock.calls[0]?.[1]).toEqual({ names: ["memory_search"] });
     expect(registerTool.mock.calls[1]?.[1]).toEqual({ names: ["memory_get"] });
+    expect(registerTool.mock.calls[2]?.[1]).toEqual({ names: ["memory_graph"] });
     expect(registerCli).toHaveBeenCalledWith(expect.any(Function), {
       descriptors: [
         {
@@ -93,6 +95,7 @@ describe("plugin registration", () => {
       | ((ctx: unknown) => unknown)
       | undefined;
     const getFactory = registerTool.mock.calls[1]?.[0] as ((ctx: unknown) => unknown) | undefined;
+    const graphFactory = registerTool.mock.calls[2]?.[0] as ((ctx: unknown) => unknown) | undefined;
     const cliRegistrar = registerCli.mock.calls[0]?.[0] as
       | ((ctx: { program: unknown }) => void)
       | undefined;
@@ -101,6 +104,7 @@ describe("plugin registration", () => {
 
     expect((searchFactory?.(ctx) as { name?: string } | null)?.name).toBe("memory_search");
     expect((getFactory?.(ctx) as { name?: string } | null)?.name).toBe("memory_get");
+    expect((graphFactory?.(ctx) as { name?: string } | null)?.name).toBe("memory_graph");
     expect(() => cliRegistrar?.({ program } as never)).not.toThrow();
     expect(program.commands.map((command) => command.name())).toContain("memory");
   });

@@ -5,9 +5,8 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { getAcpRuntimeBackend } from "../acp/runtime/registry.js";
-import { isLiveTestEnabled } from "../agents/live-test-helpers.js";
+import { isLiveEnvEnabled, isLiveTestEnabled, readLiveEnv } from "../agents/live-test-helpers.js";
 import { clearRuntimeConfigSnapshot, loadConfig } from "../config/config.js";
-import { isTruthyEnvValue } from "../infra/env.js";
 import { extractFirstTextBlock } from "../shared/chat-message-content.js";
 import { sleep } from "../utils.js";
 import { GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
@@ -15,7 +14,10 @@ import { GatewayClient } from "./client.js";
 import { startGatewayServer } from "./server.js";
 
 const LIVE = isLiveTestEnabled();
-const ACP_BIND_LIVE = isTruthyEnvValue(process.env.OPENCLAW_LIVE_ACP_BIND);
+const ACP_BIND_LIVE = isLiveEnvEnabled(
+  ["ALISIO_LIVE_ACP_BIND", "OPENCLAW_LIVE_ACP_BIND"],
+  process.env,
+);
 const describeLive = LIVE && ACP_BIND_LIVE ? describe : describe.skip;
 
 const CONNECT_TIMEOUT_MS = 90_000;
@@ -207,11 +209,15 @@ describeLive("gateway live (ACP bind)", () => {
         skipCron: process.env.OPENCLAW_SKIP_CRON,
         skipCanvas: process.env.OPENCLAW_SKIP_CANVAS_HOST,
       };
-      const liveAgent = normalizeAcpAgent(process.env.OPENCLAW_LIVE_ACP_BIND_AGENT);
-      const acpxCommand = process.env.OPENCLAW_LIVE_ACP_BIND_ACPX_COMMAND?.trim() || undefined;
-      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-live-acp-bind-"));
+      const liveAgent = normalizeAcpAgent(
+        readLiveEnv(["ALISIO_LIVE_ACP_BIND_AGENT", "OPENCLAW_LIVE_ACP_BIND_AGENT"]),
+      );
+      const acpxCommand =
+        readLiveEnv(["ALISIO_LIVE_ACP_BIND_ACPX_COMMAND", "OPENCLAW_LIVE_ACP_BIND_ACPX_COMMAND"]) ||
+        undefined;
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-live-acp-bind-"));
       const tempStateDir = path.join(tempRoot, "state");
-      const tempConfigPath = path.join(tempRoot, "openclaw.json");
+      const tempConfigPath = path.join(tempRoot, "alisio.json");
       const port = await getFreeGatewayPort();
       const token = `test-${randomUUID()}`;
       const originalSessionKey = "main";

@@ -387,7 +387,11 @@ export async function startGatewayBonjourAdvertiser(
           );
           return;
         }
-        if (stateUnknown === "announced" || stateUnknown === "announcing") {
+        if (
+          stateUnknown === "announced" ||
+          stateUnknown === "announcing" ||
+          stateUnknown === "probing"
+        ) {
           continue;
         }
 

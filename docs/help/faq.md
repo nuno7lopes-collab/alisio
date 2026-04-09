@@ -713,11 +713,26 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Can multiple people use one WhatsApp number with different Alisio instances?">
-    Yes, via **multi-agent routing**. Bind each sender's WhatsApp **DM** (peer `kind: "direct"`, sender E.164 like `+15551234567`) to a different `agentId`, so each person gets their own workspace and session store. Replies still come from the **same WhatsApp account**, and DM access control (`channels.whatsapp.dmPolicy` / `channels.whatsapp.allowFrom`) is global per WhatsApp account. See [Multi-Agent Routing](/concepts/multi-agent) and [WhatsApp](/channels/whatsapp).
+    At the gateway layer, yes, via **multi-agent routing**. Treat it as an
+    advanced isolation pattern, not as the canonical personal Alisio model. The
+    normal personal shape is one persistent main agent with separate sessions per
+    chat or channel. If you intentionally route different WhatsApp DMs to
+    different `agentId` values, each route gets its own workspace and session
+    store, but replies still come from the **same WhatsApp account**, and DM
+    access control (`channels.whatsapp.dmPolicy` / `channels.whatsapp.allowFrom`)
+    stays global per WhatsApp account. See [Multi-Agent Routing](/concepts/multi-agent)
+    and [WhatsApp](/channels/whatsapp).
   </Accordion>
 
   <Accordion title='Can I run a "fast chat" agent and an "Opus for coding" agent?'>
-    Yes. Use multi-agent routing: give each agent its own default model, then bind inbound routes (provider account or specific peers) to each agent. Example config lives in [Multi-Agent Routing](/concepts/multi-agent). See also [Models](/concepts/models) and [Configuration](/gateway/configuration).
+    Yes, but it is still an advanced routing setup, not the default personal
+    account model. The normal recommendation is one persistent main agent plus
+    separate sessions, with [Sub-agents](/tools/subagents) for temporary parallel
+    work. If you still need separate long-lived runtimes with different model
+    defaults, use multi-agent routing and bind inbound routes (provider account
+    or specific peers) to each agent. Example config lives in
+    [Multi-Agent Routing](/concepts/multi-agent). See also [Models](/concepts/models)
+    and [Configuration](/gateway/configuration).
   </Accordion>
 
   <Accordion title="Does Homebrew work on Linux?">
@@ -944,34 +959,41 @@ for usage/billing and raise limits as needed.
 
   <Accordion title="The bot freezes while doing heavy work. How do I offload that?">
     Use **sub-agents** for long or parallel tasks. Sub-agents run in their own session,
-    return a summary, and keep your main chat responsive.
+    behave as ephemeral workers, return a summary, and keep your main chat responsive.
 
     Ask your bot to "spawn a sub-agent for this task" or use `/subagents`.
     Use `/status` in chat to see what the Gateway is doing right now (and whether it is busy).
 
-    Token tip: long tasks and sub-agents both consume tokens. If cost is a concern, set a
-    cheaper model for sub-agents via `agents.defaults.subagents.model`.
+    Token tip: long tasks and sub-agents both consume tokens. If you do not set an explicit
+    sub-agent model, Alisio now prefers a ready local model target for sub-agents first.
+    If you want a fixed provider or a cheaper hosted model, set `agents.defaults.subagents.model`.
 
     Docs: [Sub-agents](/tools/subagents), [Background Tasks](/automation/tasks).
 
   </Accordion>
 
-  <Accordion title="How do thread-bound subagent sessions work on Discord?">
-    Use thread bindings. You can bind a Discord thread to a subagent or session target so follow-up messages in that thread stay on that bound session.
+  <Accordion title="How do Discord threads work with sub-agents?">
+    Use thread bindings. A Discord thread can temporarily bind to a running sub-agent so you can watch or steer that task without turning the sub-agent into a persistent identity.
 
     Basic flow:
 
-    - Spawn with `sessions_spawn` using `thread: true` (and optionally `mode: "session"` for persistent follow-up).
+    - Spawn with `sessions_spawn` using `thread: true`.
     - Or manually bind with `/focus <target>`.
     - Use `/agents` to inspect binding state.
     - Use `/session idle <duration|off>` and `/session max-age <duration|off>` to control auto-unfocus.
     - Use `/unfocus` to detach the thread.
 
+    Important:
+
+    - `runtime: "subagent"` is always one-shot and ephemeral.
+    - Legacy `mode: "session"` requests are normalized to `run` and are scheduled for final removal after 2026-06-30.
+    - Persistent thread-bound follow-up conversations are for ACP sessions, not internal sub-agents.
+
     Required config:
 
     - Global defaults: `session.threadBindings.enabled`, `session.threadBindings.idleHours`, `session.threadBindings.maxAgeHours`.
     - Discord overrides: `channels.discord.threadBindings.enabled`, `channels.discord.threadBindings.idleHours`, `channels.discord.threadBindings.maxAgeHours`.
-    - Auto-bind on spawn: set `channels.discord.threadBindings.spawnSubagentSessions: true`.
+    - Auto-bind on spawn: set `channels.discord.threadBindings.spawnSubagentSessions: true` (legacy key name; still supported for compatibility).
 
     Docs: [Sub-agents](/tools/subagents), [Discord](/channels/discord), [Configuration Reference](/gateway/configuration-reference), [Slash commands](/tools/slash-commands).
 
@@ -1145,10 +1167,15 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How does memory work?">
-    Alisio memory is just Markdown files in the agent workspace:
+    Alisio memory is edited through Markdown files in the agent workspace or
+    configured Obsidian memory vault, but the active memory plugin now also keeps
+    a profile-scoped structured store underneath that surface.
 
     - Daily notes in `memory/YYYY-MM-DD.md`
     - Curated long-term notes in `MEMORY.md` (main/private sessions only)
+
+    Today, that structured store is local-only on each device. Cloud sync for it
+    remains roadmap work, not current shipped behavior.
 
     Alisio also runs a **silent pre-compaction memory flush** to remind the model
     to write durable notes before auto-compaction. This only runs when the workspace
@@ -1461,13 +1488,19 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How do I run a central Gateway with specialized workers across devices?">
-    The common pattern is **one Gateway** (e.g. Raspberry Pi) plus **devices (nodes)** and **agents**:
+    The currently verified pattern is **one Gateway** (for example a Raspberry Pi)
+    plus **devices (nodes)** and, when you need hard isolation, extra configured
+    **agents**:
 
     - **Gateway (central):** owns channels (Signal/WhatsApp), routing, and sessions.
     - **Devices (nodes):** Macs/iOS/Android connect as peripherals and expose local tools (`system.run`, `canvas`, `camera`).
-    - **Agents (workers):** separate brains/workspaces for special roles (e.g. "Hetzner ops", "Personal data").
-    - **Sub-agents:** spawn background work from a main agent when you want parallelism.
+    - **Extra configured agents:** optional isolated runtimes for explicit routing boundaries, not automatic personal multi-agent continuity.
+    - **Sub-agents:** ephemeral background workers spawned from a main agent when you want parallelism.
     - **TUI:** connect to the Gateway and switch agents/sessions.
+
+    Treat cloud-backed discovery, automatic cross-device coordination, and
+    persistent personal multi-agent behavior as roadmap work rather than as a
+    finished release promise.
 
     Docs: [Devices](/nodes), [Remote access](/gateway/remote), [Multi-Agent Routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [TUI](/web/tui).
 
@@ -1799,13 +1832,15 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Is there a way to make a team of Alisio instances (one CEO and many agents)?">
-    Yes, via **multi-agent routing** and **sub-agents**. You can create one coordinator
-    agent and several worker agents with their own workspaces and models.
+    Not as a mature persistent personal product model. Today, the canonical
+    personal setup is one persistent main agent plus explicit sessions and
+    ephemeral sub-agents when parallel work is needed.
 
-    That said, this is best seen as a **fun experiment**. It is token heavy and often
-    less efficient than using one bot with separate sessions. The typical model we
-    envision is one bot you talk to, with different sessions for parallel work. That
-    bot can also spawn sub-agents when needed.
+    You can still experiment with **multi-agent routing** and **sub-agents** to
+    approximate a coordinator plus workers, but treat it as advanced or
+    experimental gateway composition. It is token heavy, it does not create a
+    shared long-memory fabric across those agents, and it should not be read as
+    proof of fully shipped persistent multi-agent personal orchestration.
 
     Docs: [Multi-agent routing](/concepts/multi-agent), [Sub-agents](/tools/subagents), [Agents CLI](/cli/agents).
 

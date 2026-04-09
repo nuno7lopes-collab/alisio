@@ -9,13 +9,26 @@ function normalizeProviderToken(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function buildAlisioCurrentProviderId(): string {
-  return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}local-current`;
+export function buildAlisioCurrentProviderId(
+  runtimeKind?: "llama.cpp" | "ollama" | "lmstudio" | "openai-compatible",
+): string {
+  if (!runtimeKind) {
+    return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}local-current`;
+  }
+  const suffix =
+    runtimeKind === "openai-compatible"
+      ? "openai"
+      : runtimeKind === "ollama"
+        ? "ollama"
+        : runtimeKind === "lmstudio"
+          ? "lmstudio"
+          : "llama";
+  return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}local-current-${suffix}`;
 }
 
 export function buildAlisioTargetProviderId(params: {
   targetId: string;
-  runtimeKind: "llama.cpp" | "ollama" | "openai-compatible";
+  runtimeKind: "llama.cpp" | "ollama" | "lmstudio" | "openai-compatible";
 }): string {
   const target = normalizeProviderToken(params.targetId) || "target";
   const suffix =
@@ -23,7 +36,9 @@ export function buildAlisioTargetProviderId(params: {
       ? "openai"
       : params.runtimeKind === "ollama"
         ? "ollama"
-        : "llama";
+        : params.runtimeKind === "lmstudio"
+          ? "lmstudio"
+          : "llama";
   return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}target-${target}-${suffix}`;
 }
 

@@ -471,25 +471,27 @@ Details + files on disk: [Pairing](/channels/pairing)
 
 ## DM session isolation (multi-user mode)
 
-By default, Alisio routes **all DMs into the main session** so your assistant has continuity across devices and channels. If **multiple people** can DM the bot (open DMs or a multi-person allowlist), consider isolating DM sessions:
+By default, Alisio isolates DMs per channel and sender, so app chat, Telegram,
+WhatsApp, and other direct channels do not silently share one active short-term
+session. If you deliberately want one shared DM context, you can opt back into
+the main session:
 
 ```json5
 {
-  session: { dmScope: "per-channel-peer" },
+  session: { dmScope: "main" },
 }
 ```
 
-This prevents cross-user context leakage while keeping group chats isolated.
+The default prevents cross-user or cross-channel context leakage while keeping
+group chats isolated.
 
 This is a messaging-context boundary, not a host-admin boundary. If users are mutually adversarial and share the same Gateway host/config, run separate gateways per trust boundary instead.
 
-### Secure DM mode (recommended)
+### DM scope modes
 
-Treat the snippet above as **secure DM mode**:
-
-- Default: `session.dmScope: "main"` (all DMs share one session for continuity).
-- Local CLI onboarding default: writes `session.dmScope: "per-channel-peer"` when unset (keeps existing explicit values).
-- Secure DM mode: `session.dmScope: "per-channel-peer"` (each channel+sender pair gets an isolated DM context).
+- Default: `session.dmScope: "per-channel-peer"` (each channel+sender pair gets an isolated DM context).
+- Local CLI onboarding default: keeps `session.dmScope: "per-channel-peer"` when unset.
+- Shared continuity mode: `session.dmScope: "main"` (all DMs share one session).
 - Cross-channel peer isolation: `session.dmScope: "per-peer"` (each sender gets one session across all channels of the same type).
 
 If you run multiple accounts on the same channel, use `per-account-channel-peer` instead. If the same person contacts you on multiple channels, use `session.identityLinks` to collapse those DM sessions into one canonical identity. See [Session Management](/concepts/session) and [Configuration](/gateway/configuration).

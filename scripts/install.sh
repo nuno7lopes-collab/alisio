@@ -1,9 +1,90 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib/alisio-branding.sh
-source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
+resolve_install_sh_root_dir() {
+  if [[ -n "${ALISIO_INSTALL_SH_ROOT_DIR:-}" ]]; then
+    printf '%s\n' "$ALISIO_INSTALL_SH_ROOT_DIR"
+    return 0
+  fi
+  if [[ -n "${BASH_SOURCE[0]:-}" && "${BASH_SOURCE[0]}" != "bash" ]]; then
+    cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd
+    return 0
+  fi
+  printf '%s\n' ""
+}
+
+install_sh_define_branding_fallbacks() {
+  alisio_app_name() { printf '%s\n' "Alisio"; }
+  alisio_app_slug() { printf '%s\n' "alisio"; }
+  alisio_state_dir_name() { printf '%s\n' ".alisio"; }
+  alisio_config_file_name() { printf '%s\n' "alisio.json"; }
+  alisio_package_dir_name() { printf '%s\n' "alisio-package"; }
+  alisio_legacy_slug() { printf '%s\n' "open""claw"; }
+  alisio_legacy_env_name() { printf '%s_%s\n' "OPEN""CLAW" "${1:-}"; }
+  alisio_read_prefixed_env() {
+    local suffix="${1:-}"
+    local default_value="${2:-}"
+    local public_name="ALISIO_${suffix}"
+    local legacy_name
+    legacy_name="$(alisio_legacy_env_name "$suffix")"
+    local public_value="${!public_name-}"
+    if [[ -n "$public_value" ]]; then
+      printf '%s\n' "$public_value"
+      return 0
+    fi
+    local legacy_value="${!legacy_name-}"
+    if [[ -n "$legacy_value" ]]; then
+      printf '%s\n' "$legacy_value"
+      return 0
+    fi
+    printf '%s\n' "$default_value"
+  }
+  alisio_warn_legacy_env_usage() { return 0; }
+  alisio_export_legacy_env() {
+    local suffix="${1:-}"
+    local value="${2-}"
+    local legacy_name
+    legacy_name="$(alisio_legacy_env_name "$suffix")"
+    export "${legacy_name}=${value}"
+  }
+  alisio_install_sh_url() { printf '%s\n' "https://alisio.pt/install.sh"; }
+  alisio_install_ps1_url() { printf '%s\n' "https://alisio.pt/install.ps1"; }
+  alisio_npm_package_spec() { printf '%s@%s\n' "$(alisio_app_slug)" "${1:-latest}"; }
+  alisio_main_package_spec() { printf 'github:%s/%s#main\n' "$(alisio_app_slug)" "$(alisio_app_slug)"; }
+  alisio_release_download_base() {
+    local version="${1:-}"
+    if [[ -z "$version" ]]; then
+      return 1
+    fi
+    printf 'https://github.com/%s/%s/releases/download/v%s\n' "$(alisio_app_slug)" "$(alisio_app_slug)" "$version"
+  }
+  alisio_repo_https_url() {
+    printf 'https://github.com/%s/%s.git\n' "$(alisio_app_slug)" "$(alisio_app_slug)"
+  }
+}
+
+ROOT_DIR="$(resolve_install_sh_root_dir)"
+if [[ -n "$ROOT_DIR" && -f "$ROOT_DIR/scripts/lib/alisio-branding.sh" ]]; then
+  # shellcheck source=lib/alisio-branding.sh
+  source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
+else
+  install_sh_define_branding_fallbacks
+fi
+
+if ! declare -f extract_alisio_semver >/dev/null 2>&1; then
+  extract_alisio_semver() {
+    local raw="${1:-}"
+    local parsed=""
+    parsed="$(
+      printf '%s\n' "$raw" \
+        | tr -d '\r' \
+        | grep -Eo 'v?[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?(\+[0-9A-Za-z.-]+)?' \
+        | head -n 1 \
+        || true
+    )"
+    printf '%s' "${parsed#v}"
+  }
+fi
 
 APP_NAME="$(alisio_app_name)"
 APP_SLUG="$(alisio_app_slug)"
@@ -241,6 +322,21 @@ require_command() {
     ui_error "Falta dependência: $name"
     exit 1
   fi
+}
+
+resolve_alisio_version() {
+  local cli_bin="${ALISIO_BIN:-${FAKE_ALISIO_BIN:-${OPENCLAW_BIN:-${FAKE_OPENCLAW_BIN:-${CLI_BIN:-}}}}}"
+  if [[ -z "$cli_bin" ]]; then
+    cli_bin="$(command -v "$APP_SLUG" 2>/dev/null || true)"
+  fi
+  if [[ -z "$cli_bin" ]]; then
+    return 1
+  fi
+  local raw
+  raw="$("$cli_bin" --version 2>/dev/null || true)"
+  local parsed
+  parsed="$(extract_alisio_semver "$raw")"
+  printf '%s\n' "${parsed:-$raw}"
 }
 
 node_is_new_enough() {

@@ -14,11 +14,11 @@ describe("shared/assistant-identity-values", () => {
   });
 
   it("truncates overlong trimmed values at the exact limit", () => {
-    expect(coerceIdentityValue("  Alisio Assistant  ", 8)).toBe("Alisio");
+    expect(coerceIdentityValue("  Alisio Assistant  ", 8)).toBe("Alisio A");
   });
 
-  it("returns an empty string when truncating to a zero-length limit", () => {
+  it("returns an empty string at zero length and slices negative lengths", () => {
     expect(coerceIdentityValue("  Alisio  ", 0)).toBe("");
-    expect(coerceIdentityValue("  Alisio  ", -1)).toBe("OpenCla");
+    expect(coerceIdentityValue("  Alisio  ", -1)).toBe("Alisi");
   });
 });

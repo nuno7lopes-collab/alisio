@@ -35,6 +35,7 @@ const EMPTY_PLUGIN_MANIFEST_REGISTRY: PluginManifestRegistry = {
   diagnostics: [],
 };
 
+const CANONICAL_PLUGIN_MANIFEST_KEY = "alisio";
 const LEGACY_PLUGIN_MANIFEST_KEY = ["open", "claw"].join("");
 const ENV_CATALOG_PATHS = [legacyEnvKey("PLUGIN_CATALOG_PATHS"), legacyEnvKey("MPM_CATALOG_PATHS")];
 
@@ -235,7 +236,9 @@ function parseExternalCatalogChannelEntries(raw: unknown): ExternalCatalogChanne
 
   const channels: ExternalCatalogChannelEntry[] = [];
   for (const entry of list) {
-    const manifestBlock = isRecord(entry) ? entry[LEGACY_PLUGIN_MANIFEST_KEY] : undefined;
+    const manifestBlock = isRecord(entry)
+      ? (entry[CANONICAL_PLUGIN_MANIFEST_KEY] ?? entry[LEGACY_PLUGIN_MANIFEST_KEY])
+      : undefined;
     if (!isRecord(entry) || !isRecord(manifestBlock) || !isRecord(manifestBlock.channel)) {
       continue;
     }

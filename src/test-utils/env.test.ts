@@ -119,25 +119,33 @@ describe("env test utils", () => {
   });
 
   it("createPathResolutionEnv clears leaked path overrides before applying explicit ones", () => {
-    const homeDir = path.join(path.sep, "tmp", "openclaw-home");
+    const homeDir = path.join(path.sep, "tmp", "alisio-home");
     const resolvedHomeDir = path.resolve(homeDir);
+    const previousAlisioHome = process.env.ALISIO_HOME;
+    const previousAlisioStateDir = process.env.ALISIO_STATE_DIR;
     const previousOpenClawHome = process.env.OPENCLAW_HOME;
     const previousStateDir = process.env.OPENCLAW_STATE_DIR;
     const previousBundledDir = process.env.OPENCLAW_BUNDLED_PLUGINS_DIR;
+    process.env.ALISIO_HOME = "/srv/alisio-home";
+    process.env.ALISIO_STATE_DIR = "/srv/alisio-state";
     process.env.OPENCLAW_HOME = "/srv/openclaw-home";
     process.env.OPENCLAW_STATE_DIR = "/srv/openclaw-state";
     process.env.OPENCLAW_BUNDLED_PLUGINS_DIR = "/srv/openclaw-bundled";
 
     try {
       const env = createPathResolutionEnv(homeDir, {
-        OPENCLAW_STATE_DIR: "~/state",
+        ALISIO_STATE_DIR: "~/state",
       });
 
       expect(env.HOME).toBe(resolvedHomeDir);
+      expect(env.ALISIO_HOME).toBeUndefined();
+      expect(env.ALISIO_STATE_DIR).toBe("~/state");
       expect(env.OPENCLAW_HOME).toBeUndefined();
       expect(env.OPENCLAW_BUNDLED_PLUGINS_DIR).toBeUndefined();
-      expect(env.OPENCLAW_STATE_DIR).toBe("~/state");
+      expect(env.OPENCLAW_STATE_DIR).toBeUndefined();
     } finally {
+      restoreEnvKey("ALISIO_HOME", previousAlisioHome);
+      restoreEnvKey("ALISIO_STATE_DIR", previousAlisioStateDir);
       restoreEnvKey("OPENCLAW_HOME", previousOpenClawHome);
       restoreEnvKey("OPENCLAW_STATE_DIR", previousStateDir);
       restoreEnvKey("OPENCLAW_BUNDLED_PLUGINS_DIR", previousBundledDir);
@@ -145,9 +153,11 @@ describe("env test utils", () => {
   });
 
   it("withPathResolutionEnv only applies the explicit path env inside the callback", () => {
-    const homeDir = path.join(path.sep, "tmp", "openclaw-home");
+    const homeDir = path.join(path.sep, "tmp", "alisio-home");
     const resolvedHomeDir = path.resolve(homeDir);
+    const previousAlisioHome = process.env.ALISIO_HOME;
     const previousOpenClawHome = process.env.OPENCLAW_HOME;
+    process.env.ALISIO_HOME = "/srv/alisio-home";
     process.env.OPENCLAW_HOME = "/srv/openclaw-home";
 
     try {
@@ -156,6 +166,7 @@ describe("env test utils", () => {
         { OPENCLAW_BUNDLED_PLUGINS_DIR: "~/bundled" },
         (env) => ({
           processHome: process.env.HOME,
+          processAlisioHome: process.env.ALISIO_HOME,
           processOpenClawHome: process.env.OPENCLAW_HOME,
           processBundledDir: process.env.OPENCLAW_BUNDLED_PLUGINS_DIR,
           envBundledDir: env.OPENCLAW_BUNDLED_PLUGINS_DIR,
@@ -164,12 +175,15 @@ describe("env test utils", () => {
 
       expect(seen).toEqual({
         processHome: resolvedHomeDir,
+        processAlisioHome: undefined,
         processOpenClawHome: undefined,
         processBundledDir: "~/bundled",
         envBundledDir: "~/bundled",
       });
+      expect(process.env.ALISIO_HOME).toBe("/srv/alisio-home");
       expect(process.env.OPENCLAW_HOME).toBe("/srv/openclaw-home");
     } finally {
+      restoreEnvKey("ALISIO_HOME", previousAlisioHome);
       restoreEnvKey("OPENCLAW_HOME", previousOpenClawHome);
     }
   });

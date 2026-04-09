@@ -68,6 +68,8 @@ const LOCAL_COMMANDS = new Set([
   "kill",
   "steer",
   "redirect",
+  "permissions",
+  "approvals",
 ]);
 
 const UI_ONLY_COMMANDS: SlashCommandDef[] = [
@@ -88,6 +90,25 @@ const UI_ONLY_COMMANDS: SlashCommandDef[] = [
     category: "agents",
     executeLocal: true,
   },
+  {
+    key: "permissions",
+    name: "permissions",
+    aliases: ["security"],
+    description: "Review or switch the chat security profile",
+    args: "[status|safe|full|advanced]",
+    icon: "shield",
+    category: "tools",
+    executeLocal: true,
+    argOptions: ["status", "safe", "full", "advanced"],
+  },
+  {
+    key: "approvals",
+    name: "approvals",
+    description: "Summarize pending approvals and recent security decisions",
+    icon: "shield",
+    category: "tools",
+    executeLocal: true,
+  },
 ];
 
 const CATEGORY_OVERRIDES: Partial<Record<string, SlashCommandCategory>> = {
@@ -104,6 +125,8 @@ const CATEGORY_OVERRIDES: Partial<Record<string, SlashCommandCategory>> = {
   kill: "agents",
   steer: "agents",
   redirect: "agents",
+  permissions: "tools",
+  approvals: "tools",
   session: "session",
   stop: "session",
   reset: "session",

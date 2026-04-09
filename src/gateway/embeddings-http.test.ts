@@ -124,7 +124,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
     );
     expect(qualified.status).toBe(200);
     const qualifiedJson = (await qualified.json()) as { model?: string };
-    expect(qualifiedJson.model).toBe("openclaw/default");
+    expect(qualifiedJson.model).toBe("alisio/default");
     const lastCall = createEmbeddingProviderMock.mock.calls.at(-1)?.[0] as
       | { provider?: string; model?: string }
       | undefined;
@@ -173,7 +173,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
     const json = (await res.json()) as { error?: { type?: string; message?: string } };
     expect(json.error).toEqual({
       type: "invalid_request_error",
-      message: "Invalid `model`. Use `openclaw` or `openclaw/<agentId>`.",
+      message: "Invalid `model`. Use `alisio` or `alisio/<agentId>`.",
     });
   });
 

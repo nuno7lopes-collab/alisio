@@ -234,6 +234,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     onInstallModel: vi.fn(),
     onUpdateModel: vi.fn(),
     onUninstallModel: vi.fn(),
+    onStartRuntimeServer: vi.fn(),
     onStartCreateServer: vi.fn(),
     onStartEditServer: vi.fn(),
     onChangeServerDraft: vi.fn(),
@@ -255,6 +256,10 @@ describe("renderModelsHub", () => {
     expect(container.textContent).toContain("OpenAI");
     expect(container.textContent).toContain("Server");
     expect(container.textContent).toContain("Local");
+    const providerTitles = Array.from(
+      container.querySelectorAll<HTMLElement>(".alisio-models__provider-title"),
+    ).map((element) => element.textContent?.trim() ?? "");
+    expect(providerTitles).toEqual(["OpenAI", "Local", "Server"]);
 
     const localCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
       (button) => button.textContent?.includes("Local"),
@@ -466,6 +471,87 @@ describe("renderModelsHub", () => {
     updateButton?.click();
 
     expect(props.onUpdateModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
+  });
+
+  it("shows the LM Studio start action for a linked runtime that is not ready", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            targetId: "remote-lmstudio",
+            deviceId: "remote-lmstudio",
+            label: "Studio Mac",
+            runtimeLabel: "LM Studio",
+            platform: "darwin",
+            current: false,
+            connected: true,
+            location: "server",
+            backend: "llama.cpp",
+            runtimeKind: "lmstudio",
+            chatProviderId: "alisio-target-remote-lmstudio-lmstudio",
+            runtimeStatus: "not_configured",
+            runtimeMessage:
+              "Start the LM Studio local server on this device to expose models here.",
+            capabilities: {
+              install: false,
+              update: false,
+              uninstall: false,
+              consentRequired: false,
+              startServer: true,
+            },
+            supportsInstall: false,
+            supportsUpdate: false,
+            supportsUninstall: false,
+            consentRequired: false,
+            access: "owner",
+            installedModels: [],
+            recommendations: [],
+          },
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    const startButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Start server"),
+    );
+
+    expect(startButton).toBeDefined();
+    startButton?.click();
+    expect(props.onStartRuntimeServer).toHaveBeenCalledWith("remote-lmstudio");
+  });
+
+  it("marks shared linked targets as read-only and shows the owner", () => {
+    const baseModels = createModelsState();
+    const props = createProps({
+      selectedProviderId: "server",
+      models: {
+        ...baseModels,
+        targets: [
+          baseModels.targets[0],
+          {
+            ...baseModels.targets[1],
+            access: "shared",
+            ownerLabel: "Alice",
+            ownerScope: "user",
+            grantId: "grant-1",
+          },
+        ],
+      },
+    });
+    const container = document.createElement("div");
+
+    render(renderModelsHub(props), container);
+
+    expect(container.textContent).toContain("Read-only");
+    expect(container.textContent).toContain("Shared");
+    expect(container.textContent).toContain("Owned by Alice");
   });
 
   it("renders linked computers and remote endpoints in the server surface", () => {

@@ -3,7 +3,7 @@ import { getFreePort, installGatewayTestHooks } from "./test-helpers.js";
 
 installGatewayTestHooks({ scope: "suite" });
 
-const READ_SCOPE_HEADER = { "x-openclaw-scopes": "operator.read" };
+const READ_SCOPE_HEADER = { "x-alisio-scopes": "operator.read" };
 
 let startGatewayServer: typeof import("./server.js").startGatewayServer;
 let enabledServer: Awaited<ReturnType<typeof startServer>>;
@@ -46,10 +46,10 @@ describe("OpenAI-compatible models HTTP API (e2e)", () => {
     expect(json.object).toBe("list");
     expect(Array.isArray(json.data)).toBe(true);
     expect((json.data?.length ?? 0) > 0).toBe(true);
-    expect(json.data?.map((entry) => entry.id)).toContain("openclaw");
-    expect(json.data?.map((entry) => entry.id)).toContain("openclaw/default");
+    expect(json.data?.map((entry) => entry.id)).toContain("alisio");
+    expect(json.data?.map((entry) => entry.id)).toContain("alisio/default");
     expect(
-      json.data?.every((entry) => typeof entry.id === "string" && entry.id?.startsWith("openclaw")),
+      json.data?.every((entry) => typeof entry.id === "string" && entry.id?.startsWith("alisio")),
     ).toBe(true);
   });
 
@@ -67,7 +67,7 @@ describe("OpenAI-compatible models HTTP API (e2e)", () => {
   });
 
   it("rejects operator scopes that lack read access", async () => {
-    const res = await getModels("/v1/models", { "x-openclaw-scopes": "operator.approvals" });
+    const res = await getModels("/v1/models", { "x-alisio-scopes": "operator.approvals" });
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({
       ok: false,
@@ -79,7 +79,7 @@ describe("OpenAI-compatible models HTTP API (e2e)", () => {
   });
 
   it("rejects requests with no declared operator scopes", async () => {
-    const res = await getModels("/v1/models", { "x-openclaw-scopes": "" });
+    const res = await getModels("/v1/models", { "x-alisio-scopes": "" });
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({
       ok: false,
@@ -97,7 +97,7 @@ describe("OpenAI-compatible models HTTP API (e2e)", () => {
     const firstId = list.data?.[0]?.id;
     expect(typeof firstId).toBe("string");
     const res = await getModels(`/v1/models/${encodeURIComponent(firstId!)}`, {
-      "x-openclaw-scopes": "operator.approvals",
+      "x-alisio-scopes": "operator.approvals",
     });
     expect(res.status).toBe(403);
     await expect(res.json()).resolves.toMatchObject({

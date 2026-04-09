@@ -64,7 +64,7 @@ describe("titleForTab", () => {
     expect(titleForTab("capabilities")).toBe("Capabilities");
     expect(titleForTab("connections")).toBe("Connections");
     expect(titleForTab("security")).toBe("Security");
-    expect(titleForTab("authentications")).toBe("Apps");
+    expect(titleForTab("authentications")).toBe("Providers");
     expect(titleForTab("organization")).toBe("Organization");
     expect(titleForTab("settings")).toBe("Settings");
   });
@@ -87,7 +87,7 @@ describe("subtitleForTab", () => {
     expect(subtitleForTab("capabilities")).toContain("simpler");
     expect(subtitleForTab("connections")).toContain("Devices");
     expect(subtitleForTab("security")).toContain("Approvals");
-    expect(subtitleForTab("authentications")).toContain("apps");
+    expect(subtitleForTab("authentications")).toContain("runtime");
     expect(subtitleForTab("settings")).toContain("General");
   });
 });

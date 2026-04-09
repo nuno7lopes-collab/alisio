@@ -153,6 +153,7 @@ describe("handleSendChat", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.doUnmock("./chat/slash-command-executor.ts");
+    vi.doUnmock("./controllers/security-access.ts");
   });
 
   it("keeps slash-command model changes in sync with the chat header cache", async () => {
@@ -212,6 +213,106 @@ describe("handleSendChat", () => {
       value: "openai/gpt-5-mini",
     });
     expect(onSlashAction).toHaveBeenCalledWith("refresh-tools-effective");
+  });
+
+  it("summarizes chat security state locally for /permissions status", async () => {
+    const host = makeHost({
+      connected: true,
+      chatMessage: "/permissions status",
+      gatewayAccessMode: "recommended",
+      nativeShellState: {
+        platform: "macos",
+        launchAtLogin: true,
+        permissions: {
+          notifications: true,
+          appleScript: false,
+          accessibility: false,
+          screenRecording: true,
+          microphone: true,
+          speechRecognition: true,
+          camera: true,
+          location: true,
+        },
+        voiceWake: {
+          supported: true,
+          enabled: false,
+          talkEnabled: false,
+          triggers: ["alisio"],
+        },
+        logsPath: null,
+      },
+      execApprovalQueue: [
+        {
+          id: "approval-1",
+          kind: "exec",
+          request: {
+            command: "rm -rf /tmp/demo",
+            host: "gateway",
+            security: "allowlist",
+            ask: "on-miss",
+          },
+          createdAtMs: Date.now() - 1_000,
+          expiresAtMs: Date.now() + 60_000,
+        },
+      ],
+      execApprovalAuditTrail: [
+        {
+          id: "audit-1",
+          kind: "exec",
+          title: "ls",
+          summary: "ls",
+          decision: "allow-once",
+          resolvedBy: "operator",
+          ts: Date.now() - 30_000,
+          request: {
+            command: "ls",
+            host: "gateway",
+            security: "allowlist",
+            ask: "on-miss",
+          },
+        },
+      ],
+    });
+
+    await handleSendChat(host);
+
+    expect(host.chatMessages.at(-1)).toMatchObject({
+      role: "system",
+      content: expect.stringContaining("Security in chat"),
+    });
+    const content = String((host.chatMessages.at(-1) as { content?: string })?.content);
+    expect(content).toContain("Policy plane");
+    expect(content).toContain("Computer access");
+    expect(content).toContain("6/8 system permissions ready");
+    expect(content).toContain("Live approvals");
+  });
+
+  it("applies chat security profiles locally for /permissions safe", async () => {
+    const applyGatewayAccessModeMock = vi.fn(async () => undefined);
+    vi.doMock("./controllers/security-access.ts", async () => {
+      const actual = await vi.importActual<typeof import("./controllers/security-access.ts")>(
+        "./controllers/security-access.ts",
+      );
+      return {
+        ...actual,
+        applyGatewayAccessMode: applyGatewayAccessModeMock,
+      };
+    });
+    await loadChatHelpers();
+
+    const host = makeHost({
+      connected: true,
+      client: { request: vi.fn() } as unknown as ChatHost["client"],
+      chatMessage: "/permissions safe",
+    });
+
+    await handleSendChat(host);
+
+    expect(applyGatewayAccessModeMock).toHaveBeenCalledWith(host, "recommended");
+    expect(host.chatMessages.at(-1)).toMatchObject({
+      role: "system",
+      content: expect.stringContaining("Security"),
+    });
   });
 
   it("shows a visible pending item for /steer on the active run", async () => {

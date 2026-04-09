@@ -178,6 +178,7 @@ function createProps(overrides: Partial<ChatProps> = {}): ChatProps {
     focusMode: false,
     assistantName: "Alisio",
     assistantAvatar: null,
+    assistantAgentId: "main",
     onRefresh: () => undefined,
     onToggleFocusMode: () => undefined,
     onDraftChange: () => undefined,
@@ -226,6 +227,118 @@ describe("chat view", () => {
     expect(onApplyAccessMode).toHaveBeenNthCalledWith(2, "full-access");
   });
 
+  it("renders the chat security console with advanced details and approval actions", () => {
+    const container = document.createElement("div");
+    const onResolveApproval = vi.fn();
+    const onOpenAdvancedSecurity = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          accessMode: "custom",
+          securityDiagnostics: {
+            mode: "custom",
+            configDefaults: { security: "allowlist", ask: "on-miss" },
+            approvalDefaults: {
+              security: "allowlist",
+              ask: "on-miss",
+              askFallback: "deny",
+              autoAllowSkills: false,
+            },
+            configOverrideAgentCount: 1,
+            approvalOverrideAgentCount: 2,
+          },
+          approvalQueue: [
+            {
+              id: "approval-1",
+              kind: "exec",
+              request: {
+                command: "rm -rf /tmp/demo",
+                cwd: "/tmp",
+                host: "gateway",
+                security: "allowlist",
+                ask: "on-miss",
+                agentId: "main",
+                sessionKey: "agent:main:main",
+              },
+              createdAtMs: Date.now() - 1_000,
+              expiresAtMs: Date.now() + 120_000,
+            },
+          ],
+          approvalAuditTrail: [
+            {
+              id: "audit-1",
+              kind: "exec",
+              title: "ls",
+              summary: "ls",
+              decision: "allow-once",
+              resolvedBy: "operator",
+              ts: Date.now() - 30_000,
+              request: {
+                command: "ls",
+                host: "gateway",
+                security: "allowlist",
+                ask: "on-miss",
+                agentId: "main",
+                sessionKey: "agent:main:main",
+              },
+            },
+          ],
+          onApplyAccessMode: () => undefined,
+          onResolveApproval,
+          onOpenAdvancedSecurity,
+          nativeShellState: {
+            platform: "macos",
+            launchAtLogin: true,
+            permissions: {
+              notifications: true,
+              appleScript: false,
+              accessibility: false,
+              screenRecording: true,
+              microphone: true,
+              speechRecognition: true,
+              camera: true,
+              location: true,
+            },
+            voiceWake: {
+              supported: true,
+              enabled: false,
+              talkEnabled: false,
+              triggers: ["alisio"],
+            },
+            logsPath: null,
+          },
+          onOpenNativeSettings: () => undefined,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Security in chat");
+    expect(container.textContent).toContain("Policy plane");
+    expect(container.textContent).toContain("Computer access");
+    expect(container.textContent).toContain("Approval center");
+    expect(container.textContent).toContain("Recent decisions");
+    expect(container.textContent).toContain("6/8 system permissions ready");
+
+    const advancedButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Policy details"),
+    );
+    expect(advancedButton).not.toBeUndefined();
+    advancedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    const allowOnceButton = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".exec-approval-actions .btn"),
+    ).find((button) => button.textContent?.includes("Allow once"));
+    expect(allowOnceButton).not.toBeUndefined();
+    allowOnceButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+    expect(onOpenAdvancedSecurity).toHaveBeenCalledTimes(1);
+    expect(onResolveApproval).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "approval-1" }),
+      "allow-once",
+    );
+  });
+
   it("disables the already active quick access mode in chat", () => {
     const container = document.createElement("div");
     render(
@@ -245,7 +358,7 @@ describe("chat view", () => {
     expect(buttons[1]?.disabled).toBe(false);
   });
 
-  it("does not render a security shortcut in the chat access strip", () => {
+  it("keeps only safe and full as direct chat security toggles", () => {
     const container = document.createElement("div");
     render(
       renderChat(
@@ -257,8 +370,10 @@ describe("chat view", () => {
       container,
     );
 
-    expect(container.textContent).not.toContain("Custom");
-    expect(container.textContent).not.toContain("pending");
+    const buttons = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+    );
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual(["Safe", "Full"]);
   });
 
   it("resets transient search UI when switching sessions", () => {

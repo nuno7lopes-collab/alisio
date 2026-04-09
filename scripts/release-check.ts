@@ -1,7 +1,7 @@
 #!/usr/bin/env -S node --import tsx
 
 import { execSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { packageBrandConfigKey, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
@@ -39,6 +39,13 @@ const npmPackUnpackedSizeBudgetBytes = 191 * 1024 * 1024;
 const appcastPath = resolve("appcast.xml");
 const laneBuildMin = 1_000_000_000;
 const laneFloorAdoptionDateKey = 20260227;
+const requiredExecutableScripts = [
+  "scripts/package-mac-app.sh",
+  "scripts/package-mac-dist.sh",
+  "scripts/create-dmg.sh",
+  "scripts/make_appcast.sh",
+  "scripts/restart-mac.sh",
+];
 
 function collectBundledExtensions(): BundledExtension[] {
   const extensionsDir = resolve("extensions");
@@ -228,6 +235,26 @@ export function collectPackUnpackedSizeErrors(results: Iterable<PackResult>): st
   return errors;
 }
 
+export function collectNonExecutableScriptErrors(
+  entries: Iterable<{ path: string; mode: number | null }>,
+): string[] {
+  const errors: string[] = [];
+
+  for (const entry of entries) {
+    if (typeof entry.mode !== "number") {
+      errors.push(`required release script '${entry.path}' is missing.`);
+      continue;
+    }
+    if ((entry.mode & 0o111) === 0) {
+      errors.push(
+        `required release script '${entry.path}' is not executable; repo docs and helper scripts invoke it directly.`,
+      );
+    }
+  }
+
+  return errors;
+}
+
 function extractTag(item: string, tag: string): string | null {
   const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const regex = new RegExp(`<${escapedTag}>([^<]+)</${escapedTag}>`);
@@ -298,6 +325,30 @@ function checkAppcastSparkleVersions() {
   const errors = collectAppcastSparkleVersionErrors(xml);
   if (errors.length > 0) {
     console.error("release-check: appcast sparkle version validation failed:");
+    for (const error of errors) {
+      console.error(`  - ${error}`);
+    }
+    process.exit(1);
+  }
+}
+
+function checkRequiredExecutableScripts() {
+  if (process.platform === "win32") {
+    return;
+  }
+
+  const errors = collectNonExecutableScriptErrors(
+    requiredExecutableScripts.map((path) => {
+      try {
+        return { path, mode: statSync(resolve(path)).mode };
+      } catch {
+        return { path, mode: null };
+      }
+    }),
+  );
+
+  if (errors.length > 0) {
+    console.error("release-check: required macOS release scripts must stay directly executable:");
     for (const error of errors) {
       console.error(`  - ${error}`);
     }
@@ -385,6 +436,7 @@ async function checkPluginSdkExports() {
 
 async function main() {
   checkAppcastSparkleVersions();
+  checkRequiredExecutableScripts();
   await checkPluginSdkExports();
   checkBundledExtensionMetadata();
 

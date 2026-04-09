@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { GatewayClient } from "../gateway/client.js";
+import { startLmStudioLocalServer } from "../infra/alisio-lmstudio.js";
 import {
   chatWithInstalledAlisioLocalModel,
   inspectManagedLocalModelRuntime,
@@ -9,8 +10,11 @@ import {
   uninstallAlisioLocalModel,
 } from "../infra/alisio-local-llama-runtime.js";
 import {
-  inspectLocalModelRuntime,
+  installOllamaLocalModel,
+  inspectLocalModelRuntimes,
+  resolveCurrentRuntimeBaseUrlForKind,
   resolveLocalModelRuntimeConfig,
+  uninstallOllamaLocalModel,
 } from "../infra/alisio-local-model-runtime.js";
 import {
   ensureExecApprovals,
@@ -104,6 +108,8 @@ type LocalLlamaManageTaskInput = {
   action?: string;
   modelId?: string;
 };
+
+type EndpointRuntimeKind = "ollama" | "lmstudio" | "openai-compatible";
 
 export type { SkillBinsProvider } from "./invoke-types.js";
 
@@ -522,8 +528,32 @@ async function sendInvalidTaskRequestResult(
   await sendTaskErrorResult(client, frame, "INVALID_REQUEST", String(err));
 }
 
-async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  const { baseUrl, authHeader } = resolveLocalModelRuntimeConfig(process.env);
+function normalizeBaseUrlForComparison(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+function resolveRuntimeAuthHeader(
+  runtimeKind: EndpointRuntimeKind,
+  env: NodeJS.ProcessEnv = process.env,
+): string | null {
+  const runtimeConfig = resolveLocalModelRuntimeConfig(env);
+  const baseUrl = resolveCurrentRuntimeBaseUrlForKind({ runtimeKind, env });
+  if (
+    !runtimeConfig.baseUrl ||
+    !baseUrl ||
+    normalizeBaseUrlForComparison(runtimeConfig.baseUrl) !== normalizeBaseUrlForComparison(baseUrl)
+  ) {
+    return null;
+  }
+  return runtimeConfig.authHeader;
+}
+
+async function handleEndpointModelTask(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  runtimeKind: EndpointRuntimeKind,
+) {
+  const baseUrl = resolveCurrentRuntimeBaseUrlForKind({ runtimeKind, env: process.env });
   if (!baseUrl) {
     await sendTaskErrorResult(
       client,
@@ -533,6 +563,7 @@ async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskReques
     );
     return;
   }
+  const authHeader = resolveRuntimeAuthHeader(runtimeKind, process.env);
   let input: LocalModelTaskInput;
   try {
     input = decodeParams<LocalModelTaskInput>(frame.inputJSON);
@@ -680,8 +711,18 @@ async function handleLocalModelTask(client: GatewayClient, frame: NodeTaskReques
   await sendJsonTaskResult(client, frame, payload);
 }
 
-async function handleLocalModelCatalogTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  const inspection = await inspectLocalModelRuntime({ env: process.env });
+async function handleNamedRuntimeCatalogTask(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  runtimeKind: EndpointRuntimeKind,
+) {
+  const inspection = (await inspectLocalModelRuntimes({ env: process.env })).find(
+    (entry) => entry.runtimeKind === runtimeKind,
+  );
+  if (!inspection) {
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", "local model runtime not configured");
+    return;
+  }
   await sendTaskEvent(client, frame, {
     kind: "completed",
     seq: 1,
@@ -700,7 +741,11 @@ async function handleLlamaCppCatalogTask(client: GatewayClient, frame: NodeTaskR
   await sendJsonTaskResult(client, frame, inspection);
 }
 
-async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+async function handleManagedLocalModelTask(
+  client: GatewayClient,
+  frame: NodeTaskRequestPayload,
+  runtimeKind: "llama.cpp" | "ollama",
+) {
   let input: LocalLlamaManageTaskInput;
   try {
     input = decodeParams<LocalLlamaManageTaskInput>(frame.inputJSON);
@@ -743,31 +788,58 @@ async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRe
 
     const model =
       input.action === "install"
-        ? await installAlisioLocalModel({
-            modelId,
-            env: process.env,
-            onProgress: ({ downloadedSize, totalSize }) => {
-              const percent =
-                totalSize > 0
-                  ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
-                  : undefined;
-              void sendTaskEvent(client, frame, {
-                kind: "progress",
-                payload: {
-                  action: "install",
-                  modelId,
-                  phase: "running",
-                  downloadedSize,
-                  totalSize,
-                  percent,
-                },
-              });
-            },
-          })
-        : await uninstallAlisioLocalModel({
-            modelId,
-            env: process.env,
-          });
+        ? runtimeKind === "ollama"
+          ? await installOllamaLocalModel({
+              modelId,
+              env: process.env,
+              onProgress: ({ downloadedSize, totalSize }) => {
+                const percent =
+                  totalSize > 0
+                    ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                    : undefined;
+                void sendTaskEvent(client, frame, {
+                  kind: "progress",
+                  payload: {
+                    action: "install",
+                    modelId,
+                    phase: "running",
+                    downloadedSize,
+                    totalSize,
+                    percent,
+                  },
+                });
+              },
+            })
+          : await installAlisioLocalModel({
+              modelId,
+              env: process.env,
+              onProgress: ({ downloadedSize, totalSize }) => {
+                const percent =
+                  totalSize > 0
+                    ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                    : undefined;
+                void sendTaskEvent(client, frame, {
+                  kind: "progress",
+                  payload: {
+                    action: "install",
+                    modelId,
+                    phase: "running",
+                    downloadedSize,
+                    totalSize,
+                    percent,
+                  },
+                });
+              },
+            })
+        : runtimeKind === "ollama"
+          ? await uninstallOllamaLocalModel({
+              modelId,
+              env: process.env,
+            })
+          : await uninstallAlisioLocalModel({
+              modelId,
+              env: process.env,
+            });
 
     await sendTaskEvent(client, frame, {
       kind: "completed",
@@ -789,6 +861,54 @@ async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRe
       payload: {
         action: input.action,
         modelId,
+        phase: "failed",
+        message: String(error),
+      },
+    });
+    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(error));
+  }
+}
+
+async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  await handleManagedLocalModelTask(client, frame, "llama.cpp");
+}
+
+async function handleOllamaManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  await handleManagedLocalModelTask(client, frame, "ollama");
+}
+
+async function handleLmStudioStartServerTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
+  await sendTaskEvent(client, frame, {
+    kind: "status",
+    seq: 1,
+    payload: {
+      action: "start-server",
+      runtimeKind: "lmstudio",
+      phase: "started",
+    },
+  });
+  try {
+    const result = await startLmStudioLocalServer({ env: process.env });
+    await sendTaskEvent(client, frame, {
+      kind: "completed",
+      seq: 2,
+      payload: {
+        ok: true,
+        runtimeKind: "lmstudio",
+        ...result,
+      },
+    });
+    await sendJsonTaskResult(client, frame, {
+      ok: true,
+      runtimeKind: "lmstudio",
+      ...result,
+    });
+  } catch (error) {
+    await sendTaskEvent(client, frame, {
+      kind: "failed",
+      payload: {
+        action: "start-server",
+        runtimeKind: "lmstudio",
         phase: "failed",
         message: String(error),
       },
@@ -1003,9 +1123,33 @@ export async function handleTask(
     return;
   }
 
+  if (frame.capabilityId === "model.catalog.ollama.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleNamedRuntimeCatalogTask(client, frame, "ollama");
+    return;
+  }
+
+  if (frame.capabilityId === "model.catalog.lmstudio.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleNamedRuntimeCatalogTask(client, frame, "lmstudio");
+    return;
+  }
+
+  if (frame.capabilityId === "model.catalog.openai.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleNamedRuntimeCatalogTask(client, frame, "openai-compatible");
+    return;
+  }
+
   if (frame.capabilityId === "model.manage.llamacpp.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
     await handleLlamaCppManageTask(client, frame);
+    return;
+  }
+
+  if (frame.capabilityId === "model.manage.ollama.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleOllamaManageTask(client, frame);
     return;
   }
 
@@ -1015,15 +1159,27 @@ export async function handleTask(
     return;
   }
 
-  if (frame.capabilityId === "model.catalog.openai.v1") {
+  if (frame.capabilityId === "model.chat.ollama.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleLocalModelCatalogTask(client, frame);
+    await handleEndpointModelTask(client, frame, "ollama");
+    return;
+  }
+
+  if (frame.capabilityId === "model.chat.lmstudio.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleEndpointModelTask(client, frame, "lmstudio");
     return;
   }
 
   if (frame.capabilityId === "model.chat.openai.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleLocalModelTask(client, frame);
+    await handleEndpointModelTask(client, frame, "openai-compatible");
+    return;
+  }
+
+  if (frame.capabilityId === "model.server.start.lmstudio.v1") {
+    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
+    await handleLmStudioStartServerTask(client, frame);
     return;
   }
 

@@ -33,9 +33,13 @@ vi.mock("node:fs", async (importOriginal) => {
   return { ...wrapped, default: wrapped };
 });
 
-vi.mock("./env.js", () => ({
-  isTruthyEnvValue: (value?: string) => value === "1" || value === "true",
-}));
+vi.mock("./env.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./env.js")>();
+  return {
+    ...actual,
+    isTruthyEnvValue: (value?: string) => value === "1" || value === "true",
+  };
+});
 
 let ensureAlisioCliOnPath: typeof import("./path-env.js").ensureAlisioCliOnPath;
 

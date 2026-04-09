@@ -30,7 +30,6 @@ export const TAB_GROUPS = [
       "authentications",
       "capabilities",
       "connections",
-      "security",
       "organization",
       "settings",
     ],

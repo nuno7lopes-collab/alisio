@@ -24,10 +24,10 @@ import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
   loadAlisioAccount,
-  loadAlisioConnectors,
   loadAlisioDoctorSummary,
   loadAlisioModels,
   loadAlisioOrganization,
+  loadAlisioProviderOverview,
   loadAlisioSharing,
 } from "./controllers/alisio.ts";
 import { loadChannels } from "./controllers/channels.ts";
@@ -324,10 +324,7 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     return;
   }
   if (host.tab === "authentications") {
-    await Promise.allSettled([
-      loadAlisioAccount(host as unknown as AlisioApp),
-      loadAlisioConnectors(host as unknown as AlisioApp),
-    ]);
+    await loadAlisioProviderOverview(host as unknown as AlisioApp);
   }
   if (host.tab === "channels") {
     await loadChannels(host as unknown as AlisioApp, false);
@@ -416,13 +413,14 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     await Promise.allSettled([
       loadSkills(host as unknown as AlisioApp),
       loadChannels(host as unknown as AlisioApp, false),
-      loadAlisioConnectors(host as unknown as AlisioApp),
+      loadAlisioProviderOverview(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "connections") {
     await Promise.allSettled([
       loadNodes(host as unknown as AlisioApp),
       loadDevices(host as unknown as AlisioApp),
+      loadAlisioSharing(host as unknown as AlisioApp),
       loadNodePairings(host as unknown as AlisioApp),
       loadConfig(host as unknown as AlisioApp),
     ]);
@@ -461,6 +459,8 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       }),
       loadAlisioAccount(host as unknown as AlisioApp),
       loadGatewayAccessMode(host as unknown as AlisioApp),
+      loadApprovalAuditTrail(host as unknown as AlisioApp),
+      loadNativeShellState(host),
     ]);
     scheduleChatScroll(
       host as unknown as Parameters<typeof scheduleChatScroll>[0],

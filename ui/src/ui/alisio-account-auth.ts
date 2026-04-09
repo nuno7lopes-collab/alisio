@@ -34,6 +34,13 @@ const ACCOUNT_AUTH_TYPE_VALUES = new Set([
   "email_change",
 ]);
 
+export type AlisioAccountEmailLinkAuthType =
+  | "magiclink"
+  | "signup"
+  | "recovery"
+  | "invite"
+  | "email_change";
+
 export type AlisioAccountEmailLinkAuthResult =
   | {
       kind: "success";
@@ -41,6 +48,7 @@ export type AlisioAccountEmailLinkAuthResult =
       refreshToken?: string;
       expiresIn?: number;
       tokenType?: string;
+      authType?: AlisioAccountEmailLinkAuthType;
     }
   | {
       kind: "error";
@@ -107,6 +115,7 @@ export function readAlisioAccountEmailLinkAuthResultFromUrl(
   rawUrl: string,
 ): AlisioAccountEmailLinkAuthResult | null {
   const { searchParams, hashParams } = readUrlParams(rawUrl);
+  const authType = readParam(hashParams, searchParams, "type")?.trim().toLowerCase() ?? "";
   const accessToken = readParam(hashParams, searchParams, "access_token")?.trim() ?? "";
   if (accessToken) {
     const expiresInRaw = readParam(hashParams, searchParams, "expires_in")?.trim() ?? "";
@@ -117,10 +126,12 @@ export function readAlisioAccountEmailLinkAuthResultFromUrl(
       refreshToken: readParam(hashParams, searchParams, "refresh_token")?.trim() || undefined,
       expiresIn: Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : undefined,
       tokenType: readParam(hashParams, searchParams, "token_type")?.trim() || undefined,
+      ...(ACCOUNT_AUTH_TYPE_VALUES.has(authType)
+        ? { authType: authType as AlisioAccountEmailLinkAuthType }
+        : {}),
     };
   }
 
-  const authType = readParam(hashParams, searchParams, "type")?.trim().toLowerCase() ?? "";
   const error = readParam(hashParams, searchParams, "error");
   const errorCode = readParam(hashParams, searchParams, "error_code");
   const errorDescription = readParam(hashParams, searchParams, "error_description");
@@ -185,6 +196,7 @@ export function emitAlisioAccountAuthSignal(
   const serialized = JSON.stringify(signal);
   try {
     window.localStorage.setItem(ALISIO_ACCOUNT_AUTH_STORAGE_KEY, serialized);
+    window.localStorage.setItem(LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY, serialized);
     window.localStorage.removeItem(ALISIO_ACCOUNT_AUTH_STORAGE_KEY);
     window.localStorage.removeItem(LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY);
   } catch {

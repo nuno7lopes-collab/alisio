@@ -11,6 +11,14 @@ Goal: run Alisio as a **named delegate** — an agent with its own identity that
 
 This extends [Multi-Agent Routing](/concepts/multi-agent) from personal use into organizational deployments.
 
+<Warning>
+This page documents an architecture direction plus advanced gateway patterns. It
+should not be read as proof of a fully validated end-to-end organizations,
+billing, delegate, or secure inter-org product. Personal Alisio still centers
+on one persistent main agent per account; any delegate-style extra agent remains
+explicitly configured, isolated, and rollout-sensitive.
+</Warning>
+
 ## What is a delegate?
 
 A **delegate** is an Alisio agent that:
@@ -293,4 +301,6 @@ The delegate model works for any small organization:
 5. **Schedule cron jobs** for recurring tasks.
 6. **Review and adjust** the capability tier as trust builds.
 
-Multiple organizations can share one Gateway server using multi-agent routing — each org gets its own isolated agent, workspace, and credentials.
+Gateway isolation can be configured this way, but end-to-end organizations,
+billing, and sharing rollout is still evolving. Treat this as an advanced
+deployment pattern, not as a blanket claim of mature multi-organization support.

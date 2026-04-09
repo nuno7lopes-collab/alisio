@@ -7,6 +7,7 @@ import {
   runProviderCatalog,
 } from "../plugins/provider-discovery.js";
 import { ensureAuthProfileStore } from "./auth-profiles/store.js";
+import { isLiveTestEnabled, readLiveEnv } from "./live-test-helpers.js";
 import {
   isNonSecretApiKeyMarker,
   resolveNonEnvSecretRefApiKeyMarker,
@@ -51,12 +52,13 @@ type ImplicitProviderContext = ImplicitProviderParams & {
 };
 
 function resolveLiveProviderCatalogTimeoutMs(env: NodeJS.ProcessEnv): number | null {
-  const live =
-    env.OPENCLAW_LIVE_TEST === "1" || env.OPENCLAW_LIVE_GATEWAY === "1" || env.LIVE === "1";
-  if (!live) {
+  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], env)) {
     return null;
   }
-  const raw = env.OPENCLAW_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS?.trim();
+  const raw = readLiveEnv(
+    ["ALISIO_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS", "OPENCLAW_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS"],
+    env,
+  );
   if (!raw) {
     return 15_000;
   }
@@ -65,12 +67,10 @@ function resolveLiveProviderCatalogTimeoutMs(env: NodeJS.ProcessEnv): number | n
 }
 
 function resolveLiveProviderDiscoveryFilter(env: NodeJS.ProcessEnv): string[] | undefined {
-  const live =
-    env.OPENCLAW_LIVE_TEST === "1" || env.OPENCLAW_LIVE_GATEWAY === "1" || env.LIVE === "1";
-  if (!live) {
+  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], env)) {
     return undefined;
   }
-  const raw = env.OPENCLAW_LIVE_PROVIDERS?.trim();
+  const raw = readLiveEnv(["ALISIO_LIVE_PROVIDERS", "OPENCLAW_LIVE_PROVIDERS"], env);
   if (!raw || raw === "all") {
     return undefined;
   }

@@ -147,6 +147,7 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     authPendingEmail: "",
     authCode: "",
     authStage: "entry",
+    passwordResetRequired: false,
     termsAccepted: false,
     marketingOptIn: false,
     birthdate: "",
@@ -211,12 +212,16 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onWizardDraftMultiIndexesChange: vi.fn(),
     onAccountFieldChange: vi.fn(),
     onBeginEmailAuth: vi.fn(),
+    onRequestRecoveryEmail: vi.fn(),
+    onSignInWithPassword: vi.fn(),
+    onSignUpWithPassword: vi.fn(),
     onVerifyEmailAuth: vi.fn(),
     onBeginGoogleAuth: vi.fn(),
     onBeginAiConnect: vi.fn(),
     onDisconnectAi: vi.fn(),
     onRefreshAi: vi.fn(),
     onSaveAccount: vi.fn(),
+    onUpdatePassword: vi.fn(),
     ...overrides,
   };
 }
@@ -352,8 +357,8 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Organizations are available on Plus.");
-    expect(container.textContent).toContain("Open Settings -> Billing");
+    expect(container.textContent).toContain("Organizations currently require Plus");
+    expect(container.textContent).toContain("rollout-sensitive");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
     expect(action?.disabled).toBe(true);
   });
@@ -408,6 +413,9 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Sign in to Alisio");
     expect(container.textContent).toContain("Email");
     expect(container.textContent).toContain("Continue with Google");
+    expect(container.textContent).toContain("Sign in");
+    expect(container.textContent).toContain("Create account");
+    expect(container.textContent).toContain("Send recovery email");
     expect(container.textContent).toContain("Use the email address for your Alisio account.");
     expect(container.textContent).toContain("Reconnect app");
     expect(container.textContent).toContain("Wait for Alisio to reconnect");
@@ -514,6 +522,48 @@ describe("setup view", () => {
     expect(container.textContent).toContain("Send another code");
     expect(container.textContent).toContain("Use another email");
     expect(container.textContent).toContain("nuno@example.com");
+  });
+
+  it("mostra o formulário de nova password quando o recovery já abriu sessão", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSetup(
+        createSetupProps({
+          passwordResetRequired: true,
+          account: {
+            profile: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: "2026-04-01T00:00:00.000Z",
+              plan: "free",
+            },
+            preferences: {
+              language: "pt-PT",
+              theme: "dark",
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+              backend: "supabase",
+            },
+            devices: [],
+            cloud: {
+              backend: "supabase",
+              available: true,
+              missingEnvVars: [],
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Set a new password");
+    expect(container.textContent).toContain("Save new password");
+    expect(container.textContent).not.toContain("Verification code");
   });
 
   it("shows the ready step instead of organization once onboarding is already complete", () => {

@@ -10,9 +10,12 @@ import { formatCliCommand } from "../cli/command-format.js";
 import { resolveNativeCommandsEnabled, resolveNativeSkillsEnabled } from "../config/commands.js";
 import type { AlisioConfig } from "../config/config.js";
 import { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
+import { resolveDmScope } from "../config/session-defaults.js";
 import { formatErrorMessage } from "../infra/errors.js";
+import { resolveChannelAllowFromPath } from "../pairing/pairing-store.js";
 import { createLazyRuntimeSurface } from "../shared/lazy-runtime.js";
 import { normalizeStringEntries } from "../shared/string-normalization.js";
+import { displayPath } from "../utils.js";
 import type { SecurityAuditFinding, SecurityAuditSeverity } from "./audit.js";
 import { resolveDmAllowState } from "./dm-policy-shared.js";
 
@@ -307,7 +310,7 @@ export async function collectChannelSecurityFindings(params: {
       allowFrom: input.allowFrom,
       normalizeEntry: input.normalizeEntry,
     });
-    const dmScope = params.cfg.session?.dmScope ?? "main";
+    const dmScope = resolveDmScope(params.cfg.session?.dmScope);
 
     if (input.dmPolicy === "open") {
       const allowFromKey = `${input.allowFromPath}allowFrom`;
@@ -464,7 +467,7 @@ export async function collectChannelSecurityFindings(params: {
         addDiscordNameBasedEntries({
           target: discordNameBasedAllowEntries,
           values: storeAllowFrom,
-          source: "~/.openclaw/credentials/discord-allowFrom.json",
+          source: displayPath(resolveChannelAllowFromPath("discord", process.env, accountId)),
           isDiscordMutableAllowEntry,
         });
         const discordGuildEntries =

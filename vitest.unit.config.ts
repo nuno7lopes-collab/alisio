@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 import baseConfig from "./vitest.config.ts";
-import { loadPatternListFromEnv } from "./vitest.pattern-file.ts";
+import { loadPatternListFromEnvKeys } from "./vitest.pattern-file.ts";
 import { resolveVitestIsolation } from "./vitest.scoped-config.ts";
 import {
   unitTestAdditionalExcludePatterns,
@@ -14,13 +14,21 @@ const exclude = baseTest.exclude ?? [];
 export function loadIncludePatternsFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string[] | null {
-  return loadPatternListFromEnv("OPENCLAW_VITEST_INCLUDE_FILE", env);
+  return loadPatternListFromEnvKeys(
+    ["ALISIO_VITEST_INCLUDE_FILE", "OPENCLAW_VITEST_INCLUDE_FILE"],
+    env,
+  );
 }
 
 export function loadExtraExcludePatternsFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string[] {
-  return loadPatternListFromEnv("OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE", env) ?? [];
+  return (
+    loadPatternListFromEnvKeys(
+      ["ALISIO_VITEST_EXTRA_EXCLUDE_FILE", "OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE"],
+      env,
+    ) ?? []
+  );
 }
 
 export function createUnitVitestConfig(env: Record<string, string | undefined> = process.env) {

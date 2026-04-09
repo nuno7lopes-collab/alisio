@@ -97,13 +97,13 @@ export function resolveMissingBrowserCommandMessage(config?: AlisioConfig): stri
       : [];
   if (allow.length > 0 && !allow.includes("browser")) {
     return (
-      'The `openclaw browser` command is unavailable because `plugins.allow` excludes "browser". ' +
+      'The `alisio browser` command is unavailable because `plugins.allow` excludes "browser". ' +
       'Add "browser" to `plugins.allow` if you want the bundled browser CLI and tool.'
     );
   }
   if (config?.plugins?.entries?.browser?.enabled === false) {
     return (
-      "The `openclaw browser` command is unavailable because `plugins.entries.browser.enabled=false`. " +
+      "The `alisio browser` command is unavailable because `plugins.entries.browser.enabled=false`. " +
       "Re-enable that entry if you want the bundled browser CLI and tool."
     );
   }
@@ -131,7 +131,10 @@ export async function runCli(argv: string[] = process.argv) {
     applyCliProfileEnv({ profile: parsedProfile.profile });
   }
   const containerTargetName =
-    parsedContainer.container ?? process.env.OPENCLAW_CONTAINER?.trim() ?? null;
+    parsedContainer.container ??
+    process.env.ALISIO_CONTAINER?.trim() ??
+    process.env.OPENCLAW_CONTAINER?.trim() ??
+    null;
   if (containerTargetName && parsedProfile.profile) {
     throw new Error("--container cannot be combined with --profile/--dev");
   }
@@ -180,7 +183,7 @@ export async function runCli(argv: string[] = process.argv) {
     installUnhandledRejectionHandler();
 
     process.on("uncaughtException", (error) => {
-      console.error("[openclaw] Uncaught exception:", formatUncaughtError(error));
+      console.error("[alisio] Uncaught exception:", formatUncaughtError(error));
       process.exit(1);
     });
 

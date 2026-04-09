@@ -82,7 +82,7 @@ if [[ "$NO_SIGN" == "1" ]]; then
   export SIGN_IDENTITY="-"
 fi
 
-run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} '$ROOT_DIR/scripts/package-mac-app.sh'"
+run_step "package app" bash -lc "cd '$ROOT_DIR' && SKIP_TSC=${SKIP_TSC:-1} bash '$ROOT_DIR/scripts/package-mac-app.sh'"
 
 if [[ -z "$APP_BUNDLE" ]]; then
   if [[ -d "/Applications/${APP_NAME}.app" ]]; then

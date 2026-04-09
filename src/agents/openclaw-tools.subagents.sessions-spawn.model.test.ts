@@ -191,7 +191,7 @@ describe("openclaw-tools: subagents (sessions_spawn model + thinking)", () => {
     });
     const errorDetails = result.details as { error?: unknown };
     expect(String(errorDetails.error)).toMatch(/Invalid thinking level/i);
-    expect(calls).toHaveLength(0);
+    expect(calls.map((call) => call.method)).toEqual(["alisio.models.get"]);
   });
 
   it("sessions_spawn applies default subagent model from defaults config", async () => {
@@ -203,6 +203,58 @@ describe("openclaw-tools: subagents (sessions_spawn model + thinking)", () => {
       runId: "run-default-model",
       callId: "call-default-model",
       expectedModel: "minimax/MiniMax-M2.7",
+    });
+  });
+
+  it("sessions_spawn prefers a ready local Alisio model target when no explicit subagent model is configured", async () => {
+    const calls: GatewayCall[] = [];
+
+    callGatewayMock.mockImplementation(async (opts: unknown) => {
+      const request = opts as GatewayCall;
+      calls.push(request);
+      if (request.method === "alisio.models.get") {
+        return {
+          backend: "llama.cpp",
+          catalog: [],
+          targets: [
+            {
+              current: true,
+              connected: true,
+              runtimeStatus: "ready",
+              chatProviderId: "alisio-local-current-ollama",
+              installedModels: [{ id: "qwen3:8b", running: true }],
+            },
+          ],
+          servers: [],
+        };
+      }
+      if (request.method === "sessions.patch") {
+        return { ok: true };
+      }
+      if (request.method === "agent") {
+        return { runId: "run-local-target", status: "accepted" };
+      }
+      return {};
+    });
+
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "agent:research:main",
+      agentChannel: "discord",
+    });
+
+    const result = await tool.execute("call-local-target", {
+      task: "do thing",
+    });
+    expect(result.details).toMatchObject({
+      status: "accepted",
+      modelApplied: true,
+    });
+
+    const patchCall = calls.find(
+      (call) => call.method === "sessions.patch" && (call.params as { model?: string })?.model,
+    );
+    expect(patchCall?.params).toMatchObject({
+      model: "alisio-local-current-ollama/qwen3:8b",
     });
   });
 

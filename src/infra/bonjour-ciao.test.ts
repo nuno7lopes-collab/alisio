@@ -22,6 +22,20 @@ describe("bonjour-ciao", () => {
     });
   });
 
+  it("classifies ciao self-probe races separately from side effects", () => {
+    expect(
+      classifyCiaoUnhandledRejection(
+        new Error(
+          "Can't probe for a service which is announced already. Received announcing for service test._alisio-gw._tcp.local.",
+        ),
+      ),
+    ).toEqual({
+      kind: "self-probe-race",
+      formatted:
+        "Can't probe for a service which is announced already. Received announcing for service test._alisio-gw._tcp.local.",
+    });
+  });
+
   it("suppresses ciao announcement cancellation rejections", () => {
     expect(ignoreCiaoUnhandledRejection(new Error("Ciao announcement cancelled by shutdown"))).toBe(
       true,
@@ -43,6 +57,16 @@ describe("bonjour-ciao", () => {
     );
 
     expect(ignoreCiaoUnhandledRejection(error)).toBe(true);
+  });
+
+  it("suppresses ciao self-probe races as non-fatal", () => {
+    expect(
+      ignoreCiaoUnhandledRejection(
+        new Error(
+          "Can't probe for a service which is announced already. Received announcing for service test._alisio-gw._tcp.local.",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("keeps unrelated rejections visible", () => {

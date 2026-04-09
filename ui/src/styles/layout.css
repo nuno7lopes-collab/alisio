@@ -3,11 +3,11 @@
    =========================================== */
 
 .shell {
-  --shell-pad: 18px;
-  --shell-gap: 18px;
-  --shell-nav-width: 240px;
-  --shell-nav-rail-width: 76px;
-  --shell-topbar-height: 42px;
+  --shell-pad: 14px;
+  --shell-gap: 14px;
+  --shell-nav-width: 224px;
+  --shell-nav-rail-width: 68px;
+  --shell-topbar-height: 40px;
   --shell-focus-duration: 200ms;
   --shell-focus-ease: var(--ease-out);
   height: 100vh;
@@ -85,18 +85,18 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  padding: 0 16px 0 12px;
-  min-height: 42px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
-  background: color-mix(in srgb, var(--panel) 97%, transparent);
-  backdrop-filter: blur(10px) saturate(1.02);
-  -webkit-backdrop-filter: blur(10px) saturate(1.02);
+  padding: 0 14px 0 10px;
+  min-height: 40px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  background: color-mix(in srgb, var(--panel) 99%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .topnav-shell {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   min-height: var(--shell-topbar-height);
   padding: 0;
@@ -113,7 +113,7 @@
 .topnav-shell__actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
 }
 
@@ -206,7 +206,7 @@
     border-color var(--duration-fast) ease,
     background var(--duration-fast) ease,
     color var(--duration-fast) ease;
-  min-width: 128px;
+  min-width: 112px;
 }
 
 .topbar-search:hover {
@@ -248,7 +248,7 @@
   display: flex;
   min-height: 100%;
   overflow: hidden;
-  border-right: 1px solid color-mix(in srgb, var(--border) 44%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
   transition: width var(--shell-focus-duration) var(--shell-focus-ease);
   background: color-mix(in srgb, var(--panel) 98%, transparent);
 }
@@ -273,7 +273,7 @@
   min-height: 0;
   flex: 1;
   width: 100%;
-  padding: 14px 12px 12px;
+  padding: 12px 10px 10px;
   border-right: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
   border-radius: 0;
   background: color-mix(in srgb, var(--panel) 98%, transparent);
@@ -292,8 +292,8 @@
   flex: 0 0 var(--shell-nav-rail-width);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 10px 12px;
+  gap: 10px;
+  padding: 12px 8px 10px;
   background: color-mix(in srgb, var(--panel) 99%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--border) 56%, transparent);
 }
@@ -314,8 +314,8 @@
   justify-content: space-between;
   gap: 10px;
   min-height: 0;
-  padding: 0 2px 12px;
-  margin-bottom: 10px;
+  padding: 0 2px 10px;
+  margin-bottom: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 28%, transparent);
 }
 
@@ -547,7 +547,7 @@
 .sidebar-brand__copy,
 .sidebar-context__copy {
   display: grid;
-  gap: 3px;
+  gap: 0;
   min-width: 0;
 }
 
@@ -648,7 +648,7 @@
 }
 
 .nav-section__label {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 8px;
   width: 100%;
@@ -1138,7 +1138,7 @@
 
 .content {
   grid-area: content;
-  padding: 18px 24px 30px;
+  padding: 14px 20px 24px;
   display: block;
   min-height: 0;
   overflow-y: auto;
@@ -1174,12 +1174,7 @@
   overflow: hidden;
   padding-bottom: 0;
   padding-top: 0;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-accent) 94%, transparent) 0%,
-    var(--bg) 22%,
-    var(--bg) 100%
-  );
+  background: var(--bg);
 }
 
 .content--chat > * + * {
@@ -1252,17 +1247,7 @@
   min-height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr;
-  background:
-    radial-gradient(
-      circle at top left,
-      color-mix(in srgb, var(--accent) 10%, transparent),
-      transparent 30%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--bg-accent) 92%, transparent) 0%,
-      var(--bg) 100%
-    );
+  background: var(--bg);
 }
 
 .setup-frame__header {
@@ -1270,7 +1255,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 22px 0;
+  padding: 14px 18px 0;
 }
 
 .setup-frame__brand {
@@ -1334,19 +1319,15 @@
 .setup-frame__body {
   display: grid;
   align-items: center;
-  padding: 24px 22px 32px;
+  padding: 18px 18px 24px;
 }
 
 .alisio-page__hero {
-  padding: 22px 24px;
+  padding: 18px 20px;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: 24px;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-elevated) 98%, transparent),
-    color-mix(in srgb, var(--card) 96%, transparent)
-  );
-  box-shadow: var(--shadow-md);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--card) 98%, transparent);
+  box-shadow: none;
 }
 
 .alisio-metrics {
@@ -1467,6 +1448,14 @@
   display: grid;
   gap: 9px;
   min-width: 0;
+}
+
+.alisio-auth-card__brand-copy .list-sub,
+.alisio-auth-card .muted {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .alisio-auth-card__aside {
@@ -1658,10 +1647,10 @@
 
 .alisio-organization-hero {
   display: grid;
-  gap: 20px;
+  gap: 16px;
   max-width: 1040px;
   margin: 0 auto;
-  padding: 24px 24px;
+  padding: 18px 20px;
 }
 
 .alisio-organization-hero__topbar {
@@ -1674,18 +1663,18 @@
 
 .alisio-organization-grid {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   align-items: start;
   grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
 }
 
 .alisio-organization-panel {
   display: grid;
-  gap: 14px;
-  padding: 20px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--bg-elevated) 78%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
 }
 
 .alisio-organization-panel--muted {
@@ -1796,9 +1785,9 @@
 
 .alisio-settings-frame {
   display: grid;
-  width: min(100%, 940px);
-  grid-template-columns: 196px minmax(0, 1fr);
-  gap: 24px;
+  width: min(100%, 900px);
+  grid-template-columns: 184px minmax(0, 1fr);
+  gap: 20px;
   align-items: start;
   justify-content: start;
 }
@@ -1807,9 +1796,9 @@
   position: sticky;
   top: 10px;
   display: grid;
-  width: 196px;
-  gap: 14px;
-  padding: 0 18px 0 0;
+  width: 184px;
+  gap: 12px;
+  padding: 0 16px 0 0;
   border-right: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
   background: transparent;
   box-shadow: none;

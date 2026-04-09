@@ -10,6 +10,7 @@ import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/ex
 import type { PendingNodePairing, RuntimeNodePairingList } from "../controllers/node-pairing.ts";
 import { formatRelativeTimestamp, formatList } from "../format.ts";
 import { icons } from "../icons.ts";
+import type { AlisioSharingState } from "../types.ts";
 import {
   renderSkeletonButton,
   renderSkeletonListItem,
@@ -32,6 +33,9 @@ export type NodesProps = {
   devicesLoading: boolean;
   devicesError: string | null;
   devicesList: DevicePairingList | null;
+  sharingLoading?: boolean;
+  sharingError?: string | null;
+  sharing?: AlisioSharingState | null;
   nodePairingsLoading: boolean;
   nodePairingsError: string | null;
   nodePairingsList: RuntimeNodePairingList | null;
@@ -50,10 +54,16 @@ export type NodesProps = {
   execApprovalsTargetNodeId: string | null;
   onRefresh: () => void;
   onDevicesRefresh: () => void;
+  onSharingRefresh?: () => void;
   onNodePairingsRefresh: () => void;
   onDeviceApprove: (requestId: string) => void;
   onDeviceReject: (requestId: string) => void;
   onDeviceRemove: (deviceId: string) => void;
+  onSharingRequest?: (targetId: string, scopes?: readonly string[]) => void;
+  onSharingApprove?: (requestId: string, scopes?: readonly string[]) => void;
+  onSharingReject?: (requestId: string) => void;
+  onSharingRevoke?: (grantId: string) => void;
+  onSharingSetPolicy?: (allowExternalUse: boolean) => void;
   onNodeApprove: (requestId: string) => void;
   onNodeReject: (requestId: string) => void;
   onDeviceRotate: (deviceId: string, role: string, scopes?: string[]) => void;

@@ -4,7 +4,11 @@ import {
   theme,
 } from "alisio/plugin-sdk/memory-core-host-runtime-cli";
 import type { Command } from "commander";
-import type { MemoryCommandOptions, MemorySearchCommandOptions } from "./cli.types.js";
+import type {
+  MemoryCommandOptions,
+  MemoryGraphCommandOptions,
+  MemorySearchCommandOptions,
+} from "./cli.types.js";
 
 type MemoryCliRuntime = typeof import("./cli.runtime.js");
 
@@ -30,6 +34,11 @@ async function runMemorySearch(queryArg: string | undefined, opts: MemorySearchC
   await runtime.runMemorySearch(queryArg, opts);
 }
 
+async function runMemoryGraph(queryArg: string | undefined, opts: MemoryGraphCommandOptions) {
+  const runtime = await loadMemoryCliRuntime();
+  await runtime.runMemoryGraph(queryArg, opts);
+}
+
 export function registerMemoryCli(program: Command) {
   const memory = program
     .command("memory")
@@ -42,6 +51,7 @@ export function registerMemoryCli(program: Command) {
           ["openclaw memory status --deep", "Probe embedding provider readiness."],
           ["openclaw memory index --force", "Force a full reindex."],
           ['openclaw memory search "meeting notes"', "Quick search using positional query."],
+          ['openclaw memory graph "project atlas"', "Inspect explicit memory relationships."],
           [
             'openclaw memory search --query "deployment" --max-results 20',
             "Limit results for focused troubleshooting.",
@@ -83,5 +93,23 @@ export function registerMemoryCli(program: Command) {
     .option("--json", "Print JSON")
     .action(async (queryArg: string | undefined, opts: MemorySearchCommandOptions) => {
       await runMemorySearch(queryArg, opts);
+    });
+
+  memory
+    .command("graph")
+    .description("Inspect the structured canonical memory graph")
+    .argument("[query]", "Entity or note query")
+    .option("--query <text>", "Graph query (alternative to positional argument)")
+    .option("--agent <id>", "Agent id (default: default agent)")
+    .option("--direction <dir>", "Relation direction: incoming, outgoing, or both")
+    .option("--match-limit <n>", "Max entity matches", (value: string) => Number(value))
+    .option(
+      "--relation-limit <n>",
+      "Max relations across the selected directions",
+      (value: string) => Number(value),
+    )
+    .option("--json", "Print JSON")
+    .action(async (queryArg: string | undefined, opts: MemoryGraphCommandOptions) => {
+      await runMemoryGraph(queryArg, opts);
     });
 }

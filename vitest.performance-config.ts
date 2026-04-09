@@ -1,5 +1,11 @@
 type EnvMap = Record<string, string | undefined>;
 
+const readEnvWithLegacyFallback = (
+  env: EnvMap,
+  canonicalKey: string,
+  legacyKey: string,
+): string | undefined => env[canonicalKey] ?? env[legacyKey];
+
 const isEnabled = (value: string | undefined): boolean => {
   const normalized = value?.trim().toLowerCase();
   return normalized === "1" || normalized === "true";
@@ -38,20 +44,40 @@ export function loadVitestExperimentalConfig(
     printImportBreakdown?: true;
   } = {};
   const windowsEnv = isWindowsEnv(env, platform);
+  const fsModuleCache = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_VITEST_FS_MODULE_CACHE",
+    "OPENCLAW_VITEST_FS_MODULE_CACHE",
+  );
+  const fsModuleCachePath = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_VITEST_FS_MODULE_CACHE_PATH",
+    "OPENCLAW_VITEST_FS_MODULE_CACHE_PATH",
+  );
+  const importDurations = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_VITEST_IMPORT_DURATIONS",
+    "OPENCLAW_VITEST_IMPORT_DURATIONS",
+  );
+  const printImportBreakdown = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_VITEST_PRINT_IMPORT_BREAKDOWN",
+    "OPENCLAW_VITEST_PRINT_IMPORT_BREAKDOWN",
+  );
 
-  if (!windowsEnv && !isDisabled(env.OPENCLAW_VITEST_FS_MODULE_CACHE)) {
+  if (!windowsEnv && !isDisabled(fsModuleCache)) {
     experimental.fsModuleCache = true;
   }
-  if (windowsEnv && isEnabled(env.OPENCLAW_VITEST_FS_MODULE_CACHE)) {
+  if (windowsEnv && isEnabled(fsModuleCache)) {
     experimental.fsModuleCache = true;
   }
-  if (experimental.fsModuleCache && env.OPENCLAW_VITEST_FS_MODULE_CACHE_PATH?.trim()) {
-    experimental.fsModuleCachePath = env.OPENCLAW_VITEST_FS_MODULE_CACHE_PATH.trim();
+  if (experimental.fsModuleCache && fsModuleCachePath?.trim()) {
+    experimental.fsModuleCachePath = fsModuleCachePath.trim();
   }
-  if (isEnabled(env.OPENCLAW_VITEST_IMPORT_DURATIONS)) {
+  if (isEnabled(importDurations)) {
     experimental.importDurations = { print: true };
   }
-  if (isEnabled(env.OPENCLAW_VITEST_PRINT_IMPORT_BREAKDOWN)) {
+  if (isEnabled(printImportBreakdown)) {
     experimental.printImportBreakdown = true;
   }
 

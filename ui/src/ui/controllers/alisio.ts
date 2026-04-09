@@ -23,6 +23,7 @@ import type {
   AlisioAiState,
   AlisioBootstrapState,
   AlisioModelsInstallResult,
+  AlisioModelsRuntimeStartResult,
   AlisioModelsUninstallResult,
   AlisioModelsServerRemoveResult,
   AlisioModelsServerSaveResult,
@@ -33,6 +34,7 @@ import type {
   AlisioConnectorAuthorization,
   AlisioConnectorDefinition,
   AlisioOrganizationMembershipState,
+  AlisioProvidersState,
   AlisioSharingApproveResult,
   AlisioSharingPolicySetResult,
   AlisioSharingRejectResult,
@@ -87,6 +89,7 @@ export type AlisioState = {
   alisioAuthPendingEmail: string;
   alisioAuthCode: string;
   alisioAuthStage: "entry" | "email-code";
+  alisioPasswordResetRequired: boolean;
   alisioTermsAccepted: boolean;
   alisioMarketingOptIn: boolean;
   alisioBirthdate: string;
@@ -98,6 +101,9 @@ export type AlisioState = {
   alisioSharingLoading: boolean;
   alisioSharingError: string | null;
   alisioSharing: AlisioSharingState | null;
+  alisioProvidersLoading: boolean;
+  alisioProvidersError: string | null;
+  alisioProviders: AlisioProvidersState | null;
   alisioOrganizationDraftMode: "create" | "join";
   alisioOrganizationName: string;
   alisioOrganizationInviteEmail: string;
@@ -131,12 +137,15 @@ const accountRequests = new WeakMap<AlisioState, TrackedRequest>();
 const aiRequests = new WeakMap<AlisioState, TrackedRequest>();
 const organizationRequests = new WeakMap<AlisioState, TrackedRequest>();
 const sharingRequests = new WeakMap<AlisioState, TrackedRequest>();
+const providerRequests = new WeakMap<AlisioState, TrackedRequest>();
 const connectorRequests = new WeakMap<AlisioState, TrackedRequest>();
 const bootstrapLastSuccessAt = new WeakMap<AlisioState, number>();
 const doctorLastSuccessAt = new WeakMap<AlisioState, number>();
+const providerLastSuccessAt = new WeakMap<AlisioState, number>();
 const connectorLastSuccessAt = new WeakMap<AlisioState, number>();
 const BOOTSTRAP_CACHE_TTL_MS = 5_000;
 const DOCTOR_CACHE_TTL_MS = 5_000;
+const PROVIDERS_CACHE_TTL_MS = 10_000;
 const CONNECTORS_CACHE_TTL_MS = 15_000;
 
 function buildLegacyModelsState(state: AlisioState): AlisioModelsState {
@@ -511,6 +520,14 @@ function applySharingSnapshot(state: AlisioState, sharing: AlisioSharingState) {
   state.alisioSharing = sharing;
 }
 
+function applyProvidersSnapshot(state: AlisioState, providers: AlisioProvidersState) {
+  state.alisioProviders = providers;
+  applyAccountSnapshot(state, providers.account);
+  applyAiSnapshot(state, providers.ai);
+  applyConnectorSnapshot(state, providers.connectors);
+  providerLastSuccessAt.set(state, Date.now());
+}
+
 function applyConnectorSnapshot(
   state: AlisioState,
   params: {
@@ -564,6 +581,9 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioModelOperations = {};
   state.alisioOrganization = null;
   state.alisioOrganizationError = null;
+  state.alisioProvidersLoading = false;
+  state.alisioProviders = null;
+  state.alisioProvidersError = null;
   state.modelsExpandedProfileId = undefined;
   state.modelsSelectedProviderId = undefined;
   state.modelsServerDraft = null;
@@ -579,6 +599,7 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioConnectorsError = null;
   state.alisioConnectorSetupGuide = null;
   doctorLastSuccessAt.delete(state);
+  providerLastSuccessAt.delete(state);
   connectorLastSuccessAt.delete(state);
   state.setupWizardSessionId = null;
   state.setupWizardStatus = null;
@@ -587,6 +608,7 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioAuthPendingEmail = state.alisioAuthEmail;
   state.alisioAuthCode = "";
   state.alisioAuthStage = "entry";
+  state.alisioPasswordResetRequired = false;
   state.alisioTermsAccepted = false;
   state.alisioMarketingOptIn = false;
   state.alisioBirthdate = "";
@@ -855,6 +877,32 @@ export function applyAlisioModelOperation(
   });
 }
 
+export async function startAlisioModelsRuntimeServer(
+  state: AlisioState,
+  params: {
+    targetId: string;
+  },
+) {
+  if (!state.client || !state.connected || state.alisioModelsLoading) {
+    return;
+  }
+  state.alisioModelsLoading = true;
+  state.alisioModelsError = null;
+  try {
+    await state.client.request<AlisioModelsRuntimeStartResult>(
+      "alisio.models.runtime.start",
+      params,
+    );
+    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
+    syncModelOperationsWithSnapshot(state, state.alisioModels);
+    await refreshChatModelCatalog(state);
+  } catch (error) {
+    state.alisioModelsError = String(error);
+  } finally {
+    state.alisioModelsLoading = false;
+  }
+}
+
 export async function saveAlisioModelsServer(
   state: AlisioState,
   params: {
@@ -1015,6 +1063,7 @@ export async function completeAlisioAccountEmailLinkAuth(
     refreshToken?: string;
     expiresIn?: number;
     tokenType?: string;
+    authType?: "magiclink" | "signup" | "recovery" | "invite" | "email_change";
   },
 ): Promise<boolean> {
   if (!state.client || !state.connected) {
@@ -1043,6 +1092,15 @@ export async function completeAlisioAccountEmailLinkAuth(
       return false;
     }
     applyAccountSnapshot(state, account);
+    if (params.authType === "recovery") {
+      state.alisioPasswordResetRequired = true;
+      state.alisioAccountNotice = "Set a new password to finish recovering your Alisio account.";
+    } else {
+      state.alisioPasswordResetRequired = false;
+      if (params.authType === "email_change") {
+        state.alisioAccountNotice = "Your Alisio email address has been updated.";
+      }
+    }
     await loadAlisioDoctorSummary(state, { force: true });
     return true;
   } catch (error) {
@@ -1247,6 +1305,82 @@ export async function signOutAlisioAccount(state: AlisioState) {
   }
 }
 
+async function authenticateAlisioAccountWithPassword(
+  state: AlisioState,
+  params: { email: string; password: string; mode: "sign_in" | "sign_up" },
+) {
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    return;
+  }
+  if (!state.alisioAccount && !state.alisioAccountLoading) {
+    await loadAlisioAccount(state);
+  }
+  if (isAlisioLocalOnlyAccountMode(state)) {
+    showAlisioLocalOnlyAccountNotice(state);
+    return;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
+  state.alisioAccountLoading = true;
+  state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
+  try {
+    const method = params.mode === "sign_up" ? "alisio.account.signUp" : "alisio.account.signIn";
+    const callbackUrl =
+      params.mode === "sign_up" && typeof window !== "undefined"
+        ? resolveAlisioAccountEmailRedirectUrl()
+        : undefined;
+    const account = await request.client.request<AlisioAccountState>(method, {
+      email: params.email.trim(),
+      password: params.password,
+      ...(callbackUrl ? { callbackUrl } : {}),
+    });
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    applyAccountSnapshot(state, account);
+    state.alisioPasswordResetRequired = false;
+    if (params.mode === "sign_up" && account.session.state !== "signed_in") {
+      state.alisioAccountNotice =
+        "Check your email to confirm the new Alisio account, then return here.";
+    }
+    await loadAlisioDoctorSummary(state, { force: true });
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccountError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
+  }
+}
+
+export async function signInAlisioAccountWithPassword(
+  state: AlisioState,
+  params: { email: string; password: string },
+) {
+  await authenticateAlisioAccountWithPassword(state, {
+    ...params,
+    mode: "sign_in",
+  });
+}
+
+export async function signUpAlisioAccountWithPassword(
+  state: AlisioState,
+  params: { email: string; password: string },
+) {
+  await authenticateAlisioAccountWithPassword(state, {
+    ...params,
+    mode: "sign_up",
+  });
+}
+
 export async function requestAlisioRecoveryEmail(state: AlisioState) {
   if (!state.client || !state.connected) {
     state.alisioAccountError =
@@ -1266,11 +1400,16 @@ export async function requestAlisioRecoveryEmail(state: AlisioState) {
       state.alisioAccountError = "Enter the email for your Alisio account first.";
       return;
     }
+    const callbackUrl =
+      typeof window === "undefined" ? undefined : resolveAlisioAccountEmailRedirectUrl();
     state.alisioAuthEmail = email;
     state.alisioAuthPendingEmail = email;
     const result = await request.client.request<{ message: string; ok: true }>(
       "alisio.account.requestRecoveryEmail",
-      { email },
+      {
+        email,
+        ...(callbackUrl ? { callbackUrl } : {}),
+      },
     );
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return;
@@ -1280,6 +1419,85 @@ export async function requestAlisioRecoveryEmail(state: AlisioState) {
     state.alisioAccountNotice = /password/i.test(result.message)
       ? "Check your email for the Alisio recovery link."
       : result.message;
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccountError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
+  }
+}
+
+export async function changeAlisioAccountEmail(state: AlisioState, params: { email: string }) {
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    return;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
+  state.alisioAccountLoading = true;
+  state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
+  try {
+    const callbackUrl =
+      typeof window === "undefined" ? undefined : resolveAlisioAccountEmailRedirectUrl();
+    const result = await request.client.request<{ ok: true; message: string }>(
+      "alisio.account.changeEmail",
+      {
+        email: params.email.trim(),
+        ...(callbackUrl ? { callbackUrl } : {}),
+      },
+    );
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccountNotice = result.message;
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioAccountError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, accountRequests, request)) {
+      state.alisioAccountLoading = false;
+    }
+  }
+}
+
+export async function updateAlisioAccountPassword(
+  state: AlisioState,
+  params: { password: string },
+) {
+  if (!state.client || !state.connected) {
+    state.alisioAccountError =
+      "O Alisio ainda está a religar-se. Espera um momento e tenta novamente.";
+    return;
+  }
+  const request = beginTrackedRequest(state, accountRequests, false);
+  if (!request) {
+    return;
+  }
+  state.alisioAccountLoading = true;
+  state.alisioAccountError = null;
+  state.alisioAccountNotice = null;
+  try {
+    const result = await request.client.request<{ ok: true; message: string }>(
+      "alisio.account.updatePassword",
+      {
+        password: params.password,
+      },
+    );
+    if (!isTrackedRequestCurrent(state, accountRequests, request)) {
+      return;
+    }
+    state.alisioPasswordResetRequired = false;
+    state.alisioAccountNotice = result.message;
   } catch (error) {
     if (!isTrackedRequestCurrent(state, accountRequests, request)) {
       return;
@@ -1521,7 +1739,11 @@ export async function saveAlisioOrganization(
   }
 }
 
-export async function requestAlisioSharedDeviceAccess(state: AlisioState, targetId: string) {
+export async function requestAlisioSharedDeviceAccess(
+  state: AlisioState,
+  targetId: string,
+  scopes?: readonly string[],
+) {
   if (!state.client || !state.connected) {
     return;
   }
@@ -1530,6 +1752,7 @@ export async function requestAlisioSharedDeviceAccess(state: AlisioState, target
   try {
     await state.client.request<AlisioSharingRequestResult>("devices.share.request", {
       targetId,
+      ...(Array.isArray(scopes) && scopes.length > 0 ? { scopes: [...scopes] } : {}),
       idempotencyKey: generateUUID(),
     });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
@@ -1540,7 +1763,11 @@ export async function requestAlisioSharedDeviceAccess(state: AlisioState, target
   }
 }
 
-export async function approveAlisioSharedDeviceRequest(state: AlisioState, requestId: string) {
+export async function approveAlisioSharedDeviceRequest(
+  state: AlisioState,
+  requestId: string,
+  scopes?: readonly string[],
+) {
   if (!state.client || !state.connected) {
     return;
   }
@@ -1549,6 +1776,7 @@ export async function approveAlisioSharedDeviceRequest(state: AlisioState, reque
   try {
     await state.client.request<AlisioSharingApproveResult>("devices.share.approve", {
       requestId,
+      ...(Array.isArray(scopes) && scopes.length > 0 ? { scopes: [...scopes] } : {}),
       idempotencyKey: generateUUID(),
     });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
@@ -1587,7 +1815,7 @@ export async function revokeAlisioSharedDeviceGrant(state: AlisioState, grantId:
   state.alisioSharingError = null;
   try {
     await state.client.request<AlisioSharingRevokeResult>("devices.share.revoke", {
-      approvalId: grantId,
+      grantId,
       idempotencyKey: generateUUID(),
     });
     await Promise.allSettled([loadAlisioSharing(state), loadAlisioModels(state)]);
@@ -1614,6 +1842,39 @@ export async function saveAlisioSharingPolicy(state: AlisioState, allowExternalU
     state.alisioSharingError = String(error);
   } finally {
     state.alisioSharingLoading = false;
+  }
+}
+
+export async function loadAlisioProviderOverview(state: AlisioState, opts?: { force?: boolean }) {
+  const request = beginTrackedRequest(state, providerRequests, state.alisioProvidersLoading);
+  if (!request) {
+    return;
+  }
+  const cachedAt = providerLastSuccessAt.get(state);
+  if (
+    !opts?.force &&
+    typeof cachedAt === "number" &&
+    Date.now() - cachedAt < PROVIDERS_CACHE_TTL_MS
+  ) {
+    return;
+  }
+  state.alisioProvidersLoading = true;
+  state.alisioProvidersError = null;
+  try {
+    const result = await request.client.request<AlisioProvidersState>("alisio.providers.get", {});
+    if (!isTrackedRequestCurrent(state, providerRequests, request)) {
+      return;
+    }
+    applyProvidersSnapshot(state, result);
+  } catch (error) {
+    if (!isTrackedRequestCurrent(state, providerRequests, request)) {
+      return;
+    }
+    state.alisioProvidersError = String(error);
+  } finally {
+    if (isTrackedRequestCurrent(state, providerRequests, request)) {
+      state.alisioProvidersLoading = false;
+    }
   }
 }
 
@@ -1668,6 +1929,7 @@ export async function revokeAlisioConnector(state: AlisioState, connectorId: str
   }
   await state.client.request("alisio.connectors.revoke", { connectorId });
   await Promise.allSettled([
+    loadAlisioProviderOverview(state, { force: true }),
     loadAlisioConnectors(state, { force: true }),
     loadAlisioDoctorSummary(state, { force: true }),
   ]);

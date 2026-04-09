@@ -414,7 +414,7 @@ describe("GatewayChatClient", () => {
     expect(
       (client as unknown as { client: { opts: { clientName?: string; mode?: string } } }).client
         .opts.clientName,
-    ).toBe("openclaw-tui");
+    ).toBe("alisio-tui");
     expect(
       (client as unknown as { client: { opts: { clientName?: string; mode?: string } } }).client
         .opts.mode,

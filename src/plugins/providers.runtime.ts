@@ -4,7 +4,7 @@ import {
   withBundledPluginAllowlistCompat,
   withBundledPluginEnablementCompat,
 } from "./bundled-compat.js";
-import { loadOpenClawPlugins, type PluginLoadOptions } from "./loader.js";
+import { loadAlisioPlugins, type PluginLoadOptions } from "./loader.js";
 import { createPluginLoaderLogger } from "./logger.js";
 import {
   resolveEnabledProviderPluginIds,
@@ -69,7 +69,7 @@ export function resolvePluginProviders(params: {
     env,
     onlyPluginIds: params.onlyPluginIds,
   });
-  const registry = loadOpenClawPlugins({
+  const registry = loadAlisioPlugins({
     config,
     workspaceDir: params.workspaceDir,
     env,

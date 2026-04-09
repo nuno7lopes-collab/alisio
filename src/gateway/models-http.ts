@@ -8,11 +8,7 @@ import {
   resolveGatewayRequestedOperatorScopes,
 } from "./http-auth-helpers.js";
 import { sendInvalidRequest, sendJson, sendMethodNotAllowed } from "./http-common.js";
-import {
-  OPENCLAW_DEFAULT_MODEL_ID,
-  OPENCLAW_MODEL_ID,
-  resolveAgentIdFromModel,
-} from "./http-utils.js";
+import { ALISIO_DEFAULT_MODEL_ID, ALISIO_MODEL_ID, resolveAgentIdFromModel } from "./http-utils.js";
 import { authorizeOperatorScopesForMethod } from "./method-scopes.js";
 
 type OpenAiModelsHttpOptions = {
@@ -35,7 +31,7 @@ function toOpenAiModel(id: string): OpenAiModelObject {
     id,
     object: "model",
     created: 0,
-    owned_by: "openclaw",
+    owned_by: "alisio",
     permission: [],
   };
 }
@@ -58,10 +54,10 @@ async function authorizeRequest(
 function loadAgentModelIds(): string[] {
   const cfg = loadConfig();
   const defaultAgentId = resolveDefaultAgentId(cfg);
-  const ids = new Set<string>([OPENCLAW_MODEL_ID, OPENCLAW_DEFAULT_MODEL_ID]);
-  ids.add(`openclaw/${defaultAgentId}`);
+  const ids = new Set<string>([ALISIO_MODEL_ID, ALISIO_DEFAULT_MODEL_ID]);
+  ids.add(`alisio/${defaultAgentId}`);
   for (const agentId of listAgentIds(cfg)) {
-    ids.add(`openclaw/${agentId}`);
+    ids.add(`alisio/${agentId}`);
   }
   return Array.from(ids);
 }
@@ -125,7 +121,7 @@ export async function handleOpenAiModelsHttpRequest(
     return true;
   }
 
-  if (decodedId !== OPENCLAW_MODEL_ID && !resolveAgentIdFromModel(decodedId)) {
+  if (decodedId !== ALISIO_MODEL_ID && !resolveAgentIdFromModel(decodedId)) {
     sendInvalidRequest(res, "Invalid model id.");
     return true;
   }

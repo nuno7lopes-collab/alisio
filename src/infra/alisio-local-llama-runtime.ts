@@ -10,6 +10,7 @@ import type {
   AlisioLocalModelRuntimeInspection,
 } from "./alisio-local-model-runtime.js";
 import type { ChatHistoryItem, Llama, LlamaModel } from "./llama-cpp.runtime.js";
+import { buildRuntimeCapabilities } from "./local-model-runtime-contracts.js";
 import { inspectLocalModelHardwareProfile } from "./model-hardware.js";
 
 type InstalledLocalModelRecord = {
@@ -138,11 +139,18 @@ export async function inspectManagedLocalModelRuntime(
     return {
       backend: ALISIO_LOCAL_MODEL_BACKEND,
       runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+      runtimeLabel: "Local GGUF",
       status: "not_configured",
       message: "No local llama.cpp models are installed on this computer yet.",
       models: [],
       availableModels: [],
       hardware,
+      capabilities: buildRuntimeCapabilities({
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+      }),
       supportsInstall: true,
       supportsUpdate: true,
       supportsUninstall: true,
@@ -152,10 +160,17 @@ export async function inspectManagedLocalModelRuntime(
   return {
     backend: ALISIO_LOCAL_MODEL_BACKEND,
     runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
+    runtimeLabel: "Local GGUF",
     status: "ready",
     models,
     availableModels: [],
     hardware,
+    capabilities: buildRuntimeCapabilities({
+      install: true,
+      update: true,
+      uninstall: true,
+      consentRequired: true,
+    }),
     supportsInstall: true,
     supportsUpdate: true,
     supportsUninstall: true,

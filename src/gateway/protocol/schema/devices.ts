@@ -68,6 +68,7 @@ export const DevicesShareRequestResultSchema = Type.Object(
 export const DevicesShareApproveParamsSchema = Type.Object(
   {
     requestId: NonEmptyString,
+    scopes: Type.Optional(Type.Array(DeviceShareScopeSchema)),
     decision: Type.Optional(DeviceShareDecisionSchema),
     idempotencyKey: NonEmptyString,
   },
@@ -79,6 +80,7 @@ export const DevicesShareApproveResultSchema = Type.Object(
     ok: Type.Literal(true),
     requestId: NonEmptyString,
     status: DeviceShareDecisionSchema,
+    // Deprecated compatibility alias of grantId.
     approvalId: Type.Optional(NonEmptyString),
     grantId: Type.Optional(NonEmptyString),
   },
@@ -87,7 +89,9 @@ export const DevicesShareApproveResultSchema = Type.Object(
 
 export const DevicesShareRevokeParamsSchema = Type.Object(
   {
-    approvalId: NonEmptyString,
+    grantId: Type.Optional(NonEmptyString),
+    // Deprecated compatibility input alias kept until the sharing sunset.
+    approvalId: Type.Optional(NonEmptyString),
     idempotencyKey: NonEmptyString,
   },
   { additionalProperties: false },
@@ -96,6 +100,7 @@ export const DevicesShareRevokeParamsSchema = Type.Object(
 export const DevicesShareRevokeResultSchema = Type.Object(
   {
     ok: Type.Literal(true),
+    // Deprecated compatibility alias of grantId.
     approvalId: NonEmptyString,
     grantId: NonEmptyString,
     targetId: NonEmptyString,

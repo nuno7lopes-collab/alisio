@@ -4,7 +4,8 @@ import { authorizeHttpGatewayConnect, type ResolvedGatewayAuth } from "./auth.js
 import { sendGatewayAuthFailure } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-request-helpers.js";
 
-const OPERATOR_SCOPES_HEADER = "x-openclaw-scopes";
+const OPERATOR_SCOPES_HEADER = "x-alisio-scopes";
+const LEGACY_OPERATOR_SCOPES_HEADER = "x-openclaw-scopes";
 
 export async function authorizeGatewayBearerRequestOrReply(params: {
   req: IncomingMessage;
@@ -31,7 +32,9 @@ export async function authorizeGatewayBearerRequestOrReply(params: {
 }
 
 export function resolveGatewayRequestedOperatorScopes(req: IncomingMessage): string[] {
-  const raw = getHeader(req, OPERATOR_SCOPES_HEADER)?.trim();
+  const raw =
+    getHeader(req, OPERATOR_SCOPES_HEADER)?.trim() ||
+    getHeader(req, LEGACY_OPERATOR_SCOPES_HEADER)?.trim();
   if (!raw) {
     return [];
   }

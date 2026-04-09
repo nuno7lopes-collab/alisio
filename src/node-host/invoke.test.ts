@@ -2,27 +2,27 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleTask } from "./invoke.js";
 
 describe("handleTask", () => {
-  const originalBaseUrl = process.env.OPENCLAW_NODE_MODEL_BASE_URL;
-  const originalApiKey = process.env.OPENCLAW_NODE_MODEL_API_KEY;
+  const originalBaseUrl = process.env.ALISIO_NODE_MODEL_BASE_URL;
+  const originalApiKey = process.env.ALISIO_NODE_MODEL_API_KEY;
 
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
     if (originalBaseUrl === undefined) {
-      delete process.env.OPENCLAW_NODE_MODEL_BASE_URL;
+      delete process.env.ALISIO_NODE_MODEL_BASE_URL;
     } else {
-      process.env.OPENCLAW_NODE_MODEL_BASE_URL = originalBaseUrl;
+      process.env.ALISIO_NODE_MODEL_BASE_URL = originalBaseUrl;
     }
     if (originalApiKey === undefined) {
-      delete process.env.OPENCLAW_NODE_MODEL_API_KEY;
+      delete process.env.ALISIO_NODE_MODEL_API_KEY;
     } else {
-      process.env.OPENCLAW_NODE_MODEL_API_KEY = originalApiKey;
+      process.env.ALISIO_NODE_MODEL_API_KEY = originalApiKey;
     }
   });
 
   it("falls back to the bare chat completions path for OpenAI-compatible node tasks", async () => {
-    process.env.OPENCLAW_NODE_MODEL_BASE_URL = "http://127.0.0.1:1234";
-    delete process.env.OPENCLAW_NODE_MODEL_API_KEY;
+    process.env.ALISIO_NODE_MODEL_BASE_URL = "http://127.0.0.1:31337";
+    delete process.env.ALISIO_NODE_MODEL_API_KEY;
 
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -53,8 +53,8 @@ describe("handleTask", () => {
     );
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "http://127.0.0.1:1234/v1/chat/completions",
-      "http://127.0.0.1:1234/chat/completions",
+      "http://127.0.0.1:31337/v1/chat/completions",
+      "http://127.0.0.1:31337/chat/completions",
     ]);
 
     const requestCalls = request.mock.calls as Array<[string, Record<string, unknown>]>;

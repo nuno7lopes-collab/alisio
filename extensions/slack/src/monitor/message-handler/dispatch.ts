@@ -156,6 +156,10 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     const storePath = resolveStorePath(sessionCfg?.store, {
       agentId: route.agentId,
     });
+    const updateLastRouteSessionKey =
+      route.lastRoutePolicy === "main"
+        ? route.mainSessionKey
+        : (prepared.ctxPayload.SessionKey ?? route.sessionKey);
     const pinnedMainDmOwner = resolvePinnedMainDmOwnerFromAllowlist({
       dmScope: cfg.session?.dmScope,
       allowFrom: ctx.allowFrom,
@@ -163,6 +167,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     });
     const senderRecipient = message.user?.trim().toLowerCase();
     const skipMainUpdate =
+      updateLastRouteSessionKey === route.mainSessionKey &&
       pinnedMainDmOwner &&
       senderRecipient &&
       pinnedMainDmOwner.trim().toLowerCase() !== senderRecipient;
@@ -173,7 +178,7 @@ export async function dispatchPreparedSlackMessage(prepared: PreparedSlackMessag
     } else {
       await updateLastRoute({
         storePath,
-        sessionKey: route.mainSessionKey,
+        sessionKey: updateLastRouteSessionKey,
         deliveryContext: {
           channel: "slack",
           to: `user:${message.user}`,

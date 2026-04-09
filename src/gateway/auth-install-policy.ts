@@ -26,6 +26,7 @@ function hasDurableGatewayPasswordEnvForInstall(
 ): boolean {
   const durableServiceEnv = collectDurableServiceEnvVars({ env, config: cfg });
   return Boolean(
+    durableServiceEnv.ALISIO_GATEWAY_PASSWORD?.trim() ||
     durableServiceEnv.OPENCLAW_GATEWAY_PASSWORD?.trim() ||
     durableServiceEnv.CLAWDBOT_GATEWAY_PASSWORD?.trim(),
   );

@@ -162,7 +162,7 @@ export async function handleAlisioOAuthHttpRequest(
         res,
         200,
         "Alisio account connected",
-        "Your Google account is now connected to Alisio. You can return to the app.",
+        "Your Google account is now connected to Alisio. You can return to Alisio.",
         [
           `<script>${buildAlisioAccountAuthCompletionScript(
             buildAlisioAccountAuthSignal("google"),

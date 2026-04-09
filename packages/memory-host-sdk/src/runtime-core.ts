@@ -11,10 +11,17 @@ export { parseNonNegativeByteSize } from "../../../src/config/byte-size.js";
 export { loadConfig } from "../../../src/config/config.js";
 export { resolveStateDir } from "../../../src/config/paths.js";
 export { resolveSessionTranscriptsDirForAgent } from "../../../src/config/sessions/paths.js";
+export {
+  resolveAlisioCanonicalMemoryStorePath,
+  resolveAlisioMemoryOwnerProfile,
+} from "../../../src/infra/alisio-memory-profile.js";
+export { loadOrCreateDeviceIdentity } from "../../../src/infra/device-identity.js";
 export { emptyPluginConfigSchema } from "../../../src/plugins/config-schema.js";
 export { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 export type { OpenClawConfig } from "../../../src/config/config.js";
 export type { MemoryCitationsMode } from "../../../src/config/types.memory.js";
+export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";
+export type { DeviceIdentity } from "../../../src/infra/device-identity.js";
 export type {
   MemoryFlushPlan,
   MemoryFlushPlanResolver,

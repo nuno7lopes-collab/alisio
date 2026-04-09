@@ -77,6 +77,7 @@ type SetupProps = {
   authPendingEmail: string;
   authCode: string;
   authStage: "entry" | "email-code";
+  passwordResetRequired: boolean;
   termsAccepted: boolean;
   marketingOptIn: boolean;
   birthdate: string;
@@ -125,8 +126,8 @@ type SetupProps = {
   onJoinOrganization: () => void;
   onResetOrganization: () => void;
   onRefreshSharing: () => void;
-  onRequestAccess: (targetId: string) => void;
-  onApproveRequest: (requestId: string) => void;
+  onRequestAccess: (targetId: string, scopes?: readonly string[]) => void;
+  onApproveRequest: (requestId: string, scopes?: readonly string[]) => void;
   onRejectRequest: (requestId: string) => void;
   onRevokeGrant: (grantId: string) => void;
   onSetPolicy: (allowExternalUse: boolean) => void;
@@ -141,12 +142,16 @@ type SetupProps = {
   onWizardDraftMultiIndexesChange: (value: number[]) => void;
   onAccountFieldChange: (field: AccountProfileField, value: string) => void;
   onBeginEmailAuth: () => void;
+  onRequestRecoveryEmail: () => void;
+  onSignInWithPassword: (password: string) => void;
+  onSignUpWithPassword: (password: string) => void;
   onVerifyEmailAuth: () => void;
   onBeginGoogleAuth: () => void;
   onBeginAiConnect: () => void;
   onDisconnectAi: () => void;
   onRefreshAi: () => void;
   onSaveAccount: () => void;
+  onUpdatePassword: (password: string) => void;
 };
 
 function renderCallout(kind: "info" | "danger", message: string | null | undefined) {
@@ -217,15 +222,72 @@ function accountValidationMessage(props: SetupProps) {
 }
 
 function renderAccountStep(props: SetupProps) {
+  if (props.passwordResetRequired) {
+    const resetEmail = props.account?.profile.email ?? props.authPendingEmail.trim();
+    const handlePasswordResetSubmit = (event: Event) => {
+      event.preventDefault();
+      if (props.accountLoading) {
+        return;
+      }
+      const form = event.currentTarget as HTMLFormElement;
+      const passwordInput = form.elements.namedItem("alisio-reset-password");
+      const password = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
+      if (!form.reportValidity()) {
+        return;
+      }
+      props.onUpdatePassword(password);
+    };
+    return html`
+      <section class="card alisio-setup-card">
+        <div class="card-title">Set a new password</div>
+        <div class="card-sub">
+          Finish recovering your Alisio account by choosing a new password for
+          ${resetEmail || "this account"}.
+        </div>
+        ${props.accountError
+          ? html`<div class="callout danger">${props.accountError}</div>`
+          : props.accountNotice
+            ? html`<div class="callout info">${props.accountNotice}</div>`
+            : nothing}
+        <form class="alisio-setup-account" @submit=${handlePasswordResetSubmit}>
+          <fieldset
+            class="form-fieldset-reset alisio-setup-account__fields"
+            ?disabled=${props.accountLoading}
+          >
+            <label class="field">
+              <span>New password</span>
+              <input
+                name="alisio-reset-password"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                required
+                enterkeyhint="go"
+                placeholder="Use at least 8 characters"
+              />
+              <small class="field-note">
+                This password will be used for direct Alisio email sign-in on future logins.
+              </small>
+            </label>
+          </fieldset>
+          <div class="alisio-setup-actions">
+            <button class="btn primary" type="submit" ?disabled=${props.accountLoading}>
+              ${props.accountLoading ? t("alisio.setup.account.working") : "Save new password"}
+            </button>
+          </div>
+        </form>
+      </section>
+    `;
+  }
   if (props.account?.session.state === "signed_in" && !props.account.session.profileCompleted) {
     return renderProfileStep(props);
   }
   if (hasLocalOnlyAccountMode(props) && !props.account?.session.profileCompleted) {
     return renderProfileStep(props);
   }
-  const authEmail = props.authEmail ?? "";
+  const authEmail = props.authEmail;
   const authPendingEmail = props.authPendingEmail.trim() || authEmail;
-  const authCode = props.authCode ?? "";
+  const authCode = props.authCode;
   const emailError = validateAlisioEmail(authEmail);
   const suggestedEmail =
     props.account?.profile.email ?? props.startupBootstrap?.account?.email ?? "";
@@ -242,6 +304,24 @@ function renderAccountStep(props: SetupProps) {
       return;
     }
     props.onBeginEmailAuth();
+  };
+  const handlePasswordSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading || !canBeginEmail) {
+      return;
+    }
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) {
+      return;
+    }
+    const passwordInput = form.elements.namedItem("alisio-account-password");
+    const password = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
+    const submitEvent = event as SubmitEvent;
+    if ((submitEvent.submitter as HTMLButtonElement | null)?.value === "sign-up") {
+      props.onSignUpWithPassword(password);
+      return;
+    }
+    props.onSignInWithPassword(password);
   };
   const handleCodeSubmit = (event: Event) => {
     event.preventDefault();
@@ -384,6 +464,54 @@ function renderAccountStep(props: SetupProps) {
                       ? t("alisio.setup.account.working")
                       : t("alisio.setup.account.emailAction")}
                   </button>
+                  <button
+                    type="button"
+                    class="btn"
+                    ?disabled=${props.accountLoading || !canBeginEmail}
+                    @click=${props.onRequestRecoveryEmail}
+                  >
+                    Send recovery email
+                  </button>
+                </div>
+              </form>
+              <form class="alisio-setup-account" @submit=${handlePasswordSubmit}>
+                <fieldset
+                  class="form-fieldset-reset alisio-setup-account__fields"
+                  ?disabled=${props.accountLoading}
+                >
+                  <label class="field">
+                    <span>Password</span>
+                    <input
+                      name="alisio-account-password"
+                      type="password"
+                      autocomplete="current-password"
+                      minlength="8"
+                      required
+                      enterkeyhint="go"
+                      placeholder="Use your Alisio password"
+                    />
+                    <small class="field-note">
+                      Use direct email and password auth if you do not want a magic link.
+                    </small>
+                  </label>
+                </fieldset>
+                <div class="alisio-setup-actions">
+                  <button
+                    class="btn"
+                    type="submit"
+                    value="sign-in"
+                    ?disabled=${props.accountLoading || !canBeginEmail}
+                  >
+                    ${props.accountLoading ? t("alisio.setup.account.working") : "Sign in"}
+                  </button>
+                  <button
+                    class="btn"
+                    type="submit"
+                    value="sign-up"
+                    ?disabled=${props.accountLoading || !canBeginEmail}
+                  >
+                    ${props.accountLoading ? t("alisio.setup.account.working") : "Create account"}
+                  </button>
                 </div>
               </form>
             </div>
@@ -436,8 +564,7 @@ function renderProfileStep(props: SetupProps) {
   const profileSubtitle = localOnlyAccountMode
     ? t("alisio.setup.profile.localSubtitle")
     : t("alisio.setup.profile.subtitle");
-  const emailFallback =
-    profile?.email ?? props.authEmail ?? props.startupBootstrap?.account?.email ?? "";
+  const emailFallback = profile?.email ?? props.authEmail;
   const identityChip =
     profile?.email ??
     (props.authPendingEmail || emailFallback || t("alisio.setup.profile.localProfile"));
@@ -514,7 +641,7 @@ function renderProfileStep(props: SetupProps) {
           <button
             class="btn primary"
             type="submit"
-            ?disabled=${props.accountLoading || Boolean(validation) || missingTerms}
+            ?disabled=${props.accountLoading || validation !== null || missingTerms}
           >
             ${props.accountLoading
               ? t("alisio.setup.account.working")
@@ -876,10 +1003,9 @@ function renderConnectorsStep(props: SetupProps) {
 }
 
 function renderOrganizationStep(props: SetupProps) {
-  const accountReady = Boolean(
-    props.bootstrap?.accountReady ||
-    (props.account?.session.state === "signed_in" && props.account.session.profileCompleted),
-  );
+  const accountReady =
+    props.bootstrap?.accountReady === true ||
+    (props.account?.session.state === "signed_in" && props.account.session.profileCompleted);
   return renderOrganization({
     connected: props.connected,
     accountReady,

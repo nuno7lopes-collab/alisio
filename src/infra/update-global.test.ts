@@ -72,9 +72,11 @@ describe("update global helpers", () => {
 
   it("maps main and explicit install specs for global installs", () => {
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
-      "alisio@latest",
+      "alisio@npm:alisio@latest",
     );
-    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe("alisio@beta");
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe(
+      "alisio@npm:alisio@beta",
+    );
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
       ALISIO_MAIN_PACKAGE_SPEC,
     );
@@ -105,7 +107,7 @@ describe("update global helpers", () => {
     delete process.env.ALISIO_UPDATE_MAIN_PACKAGE_SPEC;
 
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
-      "alisio@latest",
+      "alisio@npm:alisio@latest",
     );
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
       "github:alisio/alisio#main",
@@ -144,7 +146,9 @@ describe("update global helpers", () => {
     expect(canResolveRegistryVersionForPackageTarget("2026.3.22")).toBe(true);
     expect(canResolveRegistryVersionForPackageTarget("main")).toBe(false);
     expect(canResolveRegistryVersionForPackageTarget("github:alisio/alisio#main")).toBe(false);
-    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@2026.3.22")).toBe("2026.3.22");
+    expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@npm:alisio@2026.3.22")).toBe(
+      "2026.3.22",
+    );
     expect(resolveExpectedInstalledVersionFromSpec("alisio", "alisio@2026.3.22")).toBe("2026.3.22");
   });
 

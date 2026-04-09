@@ -164,32 +164,20 @@
    =========================================== */
 
 .alisio-setup-page {
-  width: min(560px, 100%);
+  width: min(520px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .alisio-setup-page__hero {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   text-align: left;
 }
 
 .alisio-page__eyebrow {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: var(--radius-full);
-  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  display: none;
 }
 
 .alisio-setup-page__hero h1 {
@@ -202,17 +190,13 @@
 }
 
 .alisio-setup-page__hero p {
-  margin: 0;
-  max-width: 44ch;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
+  display: none;
 }
 
 .alisio-setup-page__progress {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -231,12 +215,12 @@
 
 .alisio-setup-page__card {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 22px;
+  border-radius: 18px;
   background: color-mix(in srgb, var(--card) 98%, transparent);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .alisio-setup-minimal__stack {
@@ -332,11 +316,7 @@
   min-height: 100vh;
   min-height: 100dvh;
   padding: clamp(20px, 3vw, 36px);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--bg-accent) 96%, transparent) 0%,
-    var(--bg) 100%
-  );
+  background: var(--bg);
 }
 
 .setup-shell {
@@ -913,8 +893,8 @@
 .card {
   border: 1px solid color-mix(in srgb, var(--border) 84%, transparent);
   background: var(--card);
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 14px;
   animation: rise 0.25s var(--ease-out) backwards;
   transition:
     border-color var(--duration-normal) var(--ease-out),
@@ -1085,11 +1065,11 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid var(--border);
-  padding: 5px 11px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  padding: 4px 10px;
   border-radius: var(--radius-full);
-  background: var(--secondary);
-  font-size: 12px;
+  background: color-mix(in srgb, var(--bg-elevated) 90%, transparent);
+  font-size: 11px;
   font-weight: 500;
   transition: border-color var(--duration-fast) ease;
 }
@@ -1109,23 +1089,23 @@
    =========================================== */
 
 .statusDot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: var(--radius-full);
   background: var(--danger);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
-  animation: pulse-subtle 2s ease-in-out infinite;
+  box-shadow: none;
+  animation: none;
 }
 
 .statusDot.ok {
   background: var(--ok);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+  box-shadow: none;
   animation: none;
 }
 
 .statusDot.warn {
   background: var(--warn);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  box-shadow: none;
   animation: none;
 }
 
@@ -1205,9 +1185,9 @@
   text-decoration: none;
   border: 1px solid var(--border);
   background: var(--bg-elevated);
-  padding: 8px 14px;
+  padding: 7px 12px;
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: -0.01em;
   cursor: pointer;
@@ -1241,13 +1221,13 @@
   border-color: var(--accent);
   background: var(--accent);
   color: var(--primary-foreground);
-  box-shadow: 0 1px 3px var(--accent-subtle);
+  box-shadow: none;
 }
 
 .btn.primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  box-shadow: 0 2px 12px var(--accent-glow);
+  box-shadow: none;
 }
 
 /* Keyboard shortcut badge (shadcn style) */
@@ -1296,7 +1276,7 @@
 }
 
 .btn--sm {
-  padding: 6px 10px;
+  padding: 5px 9px;
   font-size: 12px;
 }
 
@@ -1311,12 +1291,12 @@
   min-width: 36px;
   height: 36px;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-elevated);
 }
 
 .btn--icon:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
 }
 
 .btn--icon svg {
@@ -1345,6 +1325,18 @@
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.sidebar-brand__eyebrow,
+.setup-frame__brand-eyebrow {
+  display: none;
+}
+
+.alisio-auth-page__copy .card-sub,
+.alisio-connections-hero .card-sub,
+.capabilities-hero .card-sub,
+.channel-hero .card-sub {
+  display: none;
 }
 
 /* ===========================================
@@ -2274,20 +2266,20 @@
 
 .channel-summary-grid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .channel-summary-card {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   align-content: start;
-  min-height: 88px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
+  min-height: 72px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
   border-radius: var(--radius-md);
-  background: var(--card);
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
 }
 
 .channel-summary-card__value {
@@ -4619,12 +4611,125 @@ td.data-table-key-col {
   gap: 8px;
 }
 
+.alisio-chat__security-console {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 16px 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 82%, transparent), transparent),
+    color-mix(in srgb, var(--card) 86%, transparent);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+}
+
+.alisio-chat__security-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alisio-chat__security-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-chat__security-copy strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.alisio-chat__security-copy > span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.alisio-chat__security-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alisio-chat__security-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.alisio-chat__security-summary-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+}
+
+.alisio-chat__security-summary-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.alisio-chat__security-summary-card__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.alisio-chat__security-summary-card__value {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+
+.alisio-chat__security-summary-card__detail {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .alisio-chat__access-strip {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 8px;
+}
+
+.alisio-chat__security-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.alisio-chat__security-section {
+  display: grid;
+  gap: 10px;
+}
+
+.alisio-chat__security-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.alisio-chat__security-queue-item {
+  padding: 14px 16px;
 }
 
 .alisio-chat__access-pill {
@@ -4673,6 +4778,20 @@ td.data-table-key-col {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+@media (max-width: 640px) {
+  .alisio-chat__security-console {
+    padding: 14px;
+  }
+
+  .alisio-chat__security-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alisio-chat__security-head {
+    flex-direction: column;
+  }
 }
 
 .alisio-chat__attachment-thumb {
@@ -4773,19 +4892,9 @@ td.data-table-key-col {
 }
 
 .alisio-connections-hero {
-  padding: 20px 20px 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
-  background:
-    radial-gradient(
-      circle at top left,
-      color-mix(in srgb, var(--accent) 12%, transparent),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--card) 92%, transparent) 0%,
-      color-mix(in srgb, var(--bg) 96%, transparent) 100%
-    );
+  padding: 18px 18px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  background: color-mix(in srgb, var(--card) 98%, transparent);
 }
 
 .alisio-connections-hero__head {
@@ -4798,17 +4907,17 @@ td.data-table-key-col {
 .alisio-connections-overview {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 16px;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 .alisio-connections-overview-card {
   display: grid;
-  gap: 5px;
-  padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--border) 54%, transparent);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--bg-elevated) 60%, transparent);
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 66%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-elevated) 92%, transparent);
   min-width: 0;
 }
 
@@ -4821,7 +4930,7 @@ td.data-table-key-col {
 
 .alisio-connections-overview-card strong {
   color: var(--text-strong);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 750;
   letter-spacing: -0.04em;
 }
@@ -4834,36 +4943,32 @@ td.data-table-key-col {
 
 .alisio-connections-overview-card__detail {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .alisio-connections-stack {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .alisio-connections-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
-  gap: 16px;
+  gap: 14px;
   align-items: start;
 }
 
 .alisio-connections-stack > .card,
 .alisio-connections-panel {
   border-color: color-mix(in srgb, var(--border) 58%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--card) 92%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 96%, transparent) 100%
-  );
+  background: color-mix(in srgb, var(--card) 98%, transparent);
 }
 
 .alisio-connections-panel {
   display: grid;
-  gap: 14px;
-  padding: 18px;
+  gap: 12px;
+  padding: 16px;
   min-width: 0;
 }
 
@@ -5190,17 +5295,7 @@ td.data-table-key-col {
 }
 
 .alisio-security-hero {
-  background:
-    radial-gradient(
-      circle at top left,
-      color-mix(in srgb, var(--success, #78b5a6) 12%, transparent),
-      transparent 34%
-    ),
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--card) 92%, transparent) 0%,
-      color-mix(in srgb, var(--bg) 96%, transparent) 100%
-    );
+  background: color-mix(in srgb, var(--card) 98%, transparent);
 }
 
 .alisio-security-shell {
@@ -7112,8 +7207,8 @@ td.data-table-key-col {
 
 .capabilities-summary-card {
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  min-height: 88px;
+  gap: 4px;
+  min-height: 72px;
   align-content: start;
 }
 
@@ -7130,13 +7225,13 @@ td.data-table-key-col {
 
 .capabilities-card-grid {
   display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .capability-card {
-  min-height: 172px;
-  padding: 16px;
+  min-height: 140px;
+  padding: 14px;
 }
 
 .capability-card__header {
@@ -7146,12 +7241,16 @@ td.data-table-key-col {
 }
 
 .capability-card__body {
-  margin-top: 10px;
-  line-height: 1.55;
+  margin-top: 8px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 .capability-card__action {
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .capabilities-filters {

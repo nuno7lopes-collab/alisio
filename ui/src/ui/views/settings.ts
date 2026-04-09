@@ -464,6 +464,8 @@ function renderAccountSection(props: {
   locale?: string;
   onSignOut: () => void;
   onRequestRecoveryEmail: () => void;
+  onChangeEmail: (email: string) => void;
+  onUpdatePassword: (password: string) => void;
 }) {
   const text = {
     title: t("alisio.settings.account.title"),
@@ -480,14 +482,41 @@ function renderAccountSection(props: {
     recoveryEmail: t("alisio.settings.account.recoveryEmail"),
     signOut: t("alisio.settings.account.signOut"),
   };
-  const joinedFormatter = new Intl.DateTimeFormat(props.locale ?? undefined);
+  const joinedFormatter = new Intl.DateTimeFormat(props.locale);
   const account = props.account;
   const localOnlyAccountMode = account?.cloud?.available === false;
   const emailManagedByCloud = account?.session.backend === "supabase" && !localOnlyAccountMode;
-  const showRecoveryEmail = Boolean(
-    account && account.cloud?.available && account.session.authMethod !== "google",
-  );
-  const showSignOut = Boolean(account?.cloud?.available);
+  const showRecoveryEmail =
+    account?.cloud?.available === true && account.session.authMethod !== "google";
+  const showCredentialForms =
+    account?.cloud?.available === true && account.session.state === "signed_in";
+  const showSignOut = account?.cloud?.available === true;
+  const handleChangeEmailSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading) {
+      return;
+    }
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) {
+      return;
+    }
+    const emailInput = form.elements.namedItem("alisio-next-email");
+    const email = emailInput instanceof HTMLInputElement ? emailInput.value : "";
+    props.onChangeEmail(email);
+  };
+  const handlePasswordSubmit = (event: Event) => {
+    event.preventDefault();
+    if (props.accountLoading) {
+      return;
+    }
+    const form = event.currentTarget as HTMLFormElement;
+    if (!form.reportValidity()) {
+      return;
+    }
+    const passwordInput = form.elements.namedItem("alisio-next-password");
+    const password = passwordInput instanceof HTMLInputElement ? passwordInput.value : "";
+    props.onUpdatePassword(password);
+  };
   return html`
     <div class="card alisio-settings-card">
       <div class="card-title">${text.title}</div>
@@ -584,6 +613,63 @@ function renderAccountSection(props: {
                   },
                 })}
               </fieldset>
+              ${showCredentialForms
+                ? html`
+                    <form class="alisio-settings-form" @submit=${handleChangeEmailSubmit}>
+                      <fieldset
+                        class="form-fieldset-reset alisio-settings-form"
+                        ?disabled=${props.accountLoading}
+                      >
+                        <label class="field">
+                          <span>Change email</span>
+                          <input
+                            name="alisio-next-email"
+                            type="email"
+                            autocomplete="email"
+                            required
+                            placeholder=${props.account?.profile.email ?? "new@email.com"}
+                          />
+                          <small class="field-note">
+                            The current address stays active until you confirm the new email from
+                            your inbox.
+                          </small>
+                        </label>
+                      </fieldset>
+                      <div class="row" style="margin-top: 12px;">
+                        <button class="btn" type="submit" ?disabled=${props.accountLoading}>
+                          Send email change link
+                        </button>
+                      </div>
+                    </form>
+                    <form class="alisio-settings-form" @submit=${handlePasswordSubmit}>
+                      <fieldset
+                        class="form-fieldset-reset alisio-settings-form"
+                        ?disabled=${props.accountLoading}
+                      >
+                        <label class="field">
+                          <span>Update password</span>
+                          <input
+                            name="alisio-next-password"
+                            type="password"
+                            autocomplete="new-password"
+                            minlength="8"
+                            required
+                            placeholder="Use at least 8 characters"
+                          />
+                          <small class="field-note">
+                            Use this if you want direct Alisio email and password sign-in on this
+                            account.
+                          </small>
+                        </label>
+                      </fieldset>
+                      <div class="row" style="margin-top: 12px;">
+                        <button class="btn" type="submit" ?disabled=${props.accountLoading}>
+                          Save new password
+                        </button>
+                      </div>
+                    </form>
+                  `
+                : nothing}
               <div class="row" style="margin-top: 16px;">
                 ${showRecoveryEmail
                   ? html`
@@ -826,6 +912,8 @@ export function renderSettingsHub(props: {
   onOpenSetup: () => void;
   onSignOutAccount: () => void;
   onRequestRecoveryEmail: () => void;
+  onChangeEmail: (email: string) => void;
+  onUpdatePassword: (password: string) => void;
   onReconnectRuntime: () => void;
 }) {
   const activeSection = resolveVisibleSection(props.section);
@@ -871,6 +959,8 @@ export function renderSettingsHub(props: {
                   onSaveField: props.onSaveAccountField,
                   onSignOut: props.onSignOutAccount,
                   onRequestRecoveryEmail: props.onRequestRecoveryEmail,
+                  onChangeEmail: props.onChangeEmail,
+                  onUpdatePassword: props.onUpdatePassword,
                 })}
                 ${renderDevicesSection({
                   account: props.account,
@@ -887,6 +977,8 @@ export function renderSettingsHub(props: {
                   onSaveField: props.onSaveAccountField,
                   onSignOut: props.onSignOutAccount,
                   onRequestRecoveryEmail: props.onRequestRecoveryEmail,
+                  onChangeEmail: props.onChangeEmail,
+                  onUpdatePassword: props.onUpdatePassword,
                 })}
                 ${renderDevicesSection({
                   account: props.account,

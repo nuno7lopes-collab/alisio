@@ -23,9 +23,13 @@ host configuration.
 
 ## Session key shapes (examples)
 
-Direct messages collapse to the agent’s **main** session:
+By default, direct messages use isolated per-channel direct sessions:
 
-- `agent:<agentId>:<mainKey>` (default: `agent:main:main`)
+- `agent:<agentId>:<channel>:direct:<peerId>`
+
+You can still opt into a shared main session with `session.dmScope: "main"`:
+
+- `agent:<agentId>:<mainKey>` (default main key: `agent:main:main`)
 
 Groups and channels remain isolated per channel:
 

@@ -26,7 +26,7 @@ import {
 import { dispatchInboundMessage } from "alisio/plugin-sdk/reply-runtime";
 import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
 import { createReplyDispatcherWithTyping } from "alisio/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { resolveAgentRoute, resolveInboundLastRouteSessionKey } from "alisio/plugin-sdk/routing";
 import { danger, logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
 import {
   DM_GROUP_ACCESS_REASON,
@@ -220,31 +220,40 @@ export function createSignalEventHandler(deps: SignalEventHandlerDeps) {
       sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
       ctx: ctxPayload,
       updateLastRoute: !entry.isGroup
-        ? {
-            sessionKey: route.mainSessionKey,
-            channel: "signal",
-            to: entry.senderRecipient,
-            accountId: route.accountId,
-            mainDmOwnerPin: (() => {
-              const pinnedOwner = resolvePinnedMainDmOwnerFromAllowlist({
-                dmScope: deps.cfg.session?.dmScope,
-                allowFrom: deps.allowFrom,
-                normalizeEntry: normalizeSignalAllowRecipient,
-              });
-              if (!pinnedOwner) {
-                return undefined;
-              }
-              return {
-                ownerRecipient: pinnedOwner,
-                senderRecipient: entry.senderRecipient,
-                onSkip: ({ ownerRecipient, senderRecipient }) => {
-                  logVerbose(
-                    `signal: skip main-session last route for ${senderRecipient} (pinned owner ${ownerRecipient})`,
-                  );
-                },
-              };
-            })(),
-          }
+        ? (() => {
+            const updateLastRouteSessionKey = resolveInboundLastRouteSessionKey({
+              route,
+              sessionKey: ctxPayload.SessionKey ?? route.sessionKey,
+            });
+            return {
+              sessionKey: updateLastRouteSessionKey,
+              channel: "signal",
+              to: entry.senderRecipient,
+              accountId: route.accountId,
+              mainDmOwnerPin: (() => {
+                if (updateLastRouteSessionKey !== route.mainSessionKey) {
+                  return undefined;
+                }
+                const pinnedOwner = resolvePinnedMainDmOwnerFromAllowlist({
+                  dmScope: deps.cfg.session?.dmScope,
+                  allowFrom: deps.allowFrom,
+                  normalizeEntry: normalizeSignalAllowRecipient,
+                });
+                if (!pinnedOwner) {
+                  return undefined;
+                }
+                return {
+                  ownerRecipient: pinnedOwner,
+                  senderRecipient: entry.senderRecipient,
+                  onSkip: ({ ownerRecipient, senderRecipient }) => {
+                    logVerbose(
+                      `signal: skip main-session last route for ${senderRecipient} (pinned owner ${ownerRecipient})`,
+                    );
+                  },
+                };
+              })(),
+            };
+          })()
         : undefined,
       onRecordError: (err) => {
         logVerbose(`signal: failed updating session meta: ${String(err)}`);

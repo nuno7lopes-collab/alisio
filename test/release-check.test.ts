@@ -7,6 +7,7 @@ import {
   collectBundledExtensionRootDependencyMirrorErrors,
   collectForbiddenPackPaths,
   collectMissingPackPaths,
+  collectNonExecutableScriptErrors,
   collectPackUnpackedSizeErrors,
 } from "../scripts/release-check.ts";
 import { bundledDistPluginFile, bundledPluginFile } from "./helpers/bundled-plugin-paths.js";
@@ -264,11 +265,11 @@ describe("collectMissingPackPaths", () => {
         bundledDistPluginFile("matrix", "helper-api.js"),
         bundledDistPluginFile("matrix", "runtime-api.js"),
         bundledDistPluginFile("matrix", "thread-bindings-runtime.js"),
-        bundledDistPluginFile("matrix", "openclaw.plugin.json"),
+        bundledDistPluginFile("matrix", "alisio.plugin.json"),
         bundledDistPluginFile("matrix", "package.json"),
         bundledDistPluginFile("whatsapp", "light-runtime-api.js"),
         bundledDistPluginFile("whatsapp", "runtime-api.js"),
-        bundledDistPluginFile("whatsapp", "openclaw.plugin.json"),
+        bundledDistPluginFile("whatsapp", "alisio.plugin.json"),
         bundledDistPluginFile("whatsapp", "package.json"),
       ]),
     );
@@ -325,6 +326,31 @@ describe("collectPackUnpackedSizeErrors", () => {
       ]),
     ).toEqual([
       "npm pack --dry-run produced no unpackedSize data; pack size budget was not verified.",
+    ]);
+  });
+});
+
+describe("collectNonExecutableScriptErrors", () => {
+  it("accepts scripts that are present and executable", () => {
+    expect(
+      collectNonExecutableScriptErrors([
+        { path: "scripts/package-mac-app.sh", mode: 0o100755 },
+        { path: "scripts/package-mac-dist.sh", mode: 0o100755 },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("flags missing scripts", () => {
+    expect(
+      collectNonExecutableScriptErrors([{ path: "scripts/package-mac-app.sh", mode: null }]),
+    ).toEqual(["required release script 'scripts/package-mac-app.sh' is missing."]);
+  });
+
+  it("flags scripts that lost the executable bit", () => {
+    expect(
+      collectNonExecutableScriptErrors([{ path: "scripts/package-mac-app.sh", mode: 0o100644 }]),
+    ).toEqual([
+      "required release script 'scripts/package-mac-app.sh' is not executable; repo docs and helper scripts invoke it directly.",
     ]);
   });
 });

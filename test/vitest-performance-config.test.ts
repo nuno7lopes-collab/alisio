@@ -14,7 +14,7 @@ describe("loadVitestExperimentalConfig", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "1",
+          ALISIO_VITEST_FS_MODULE_CACHE: "1",
         },
         "linux",
       ),
@@ -29,14 +29,14 @@ describe("loadVitestExperimentalConfig", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_FS_MODULE_CACHE_PATH: "/tmp/openclaw-vitest-cache",
+          ALISIO_VITEST_FS_MODULE_CACHE_PATH: "/tmp/alisio-vitest-cache",
         },
         "linux",
       ),
     ).toEqual({
       experimental: {
         fsModuleCache: true,
-        fsModuleCachePath: "/tmp/openclaw-vitest-cache",
+        fsModuleCachePath: "/tmp/alisio-vitest-cache",
       },
     });
   });
@@ -49,7 +49,7 @@ describe("loadVitestExperimentalConfig", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "1",
+          ALISIO_VITEST_FS_MODULE_CACHE: "1",
         },
         "win32",
       ),
@@ -64,7 +64,7 @@ describe("loadVitestExperimentalConfig", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "0",
+          ALISIO_VITEST_FS_MODULE_CACHE: "0",
         },
         "linux",
       ),
@@ -75,8 +75,8 @@ describe("loadVitestExperimentalConfig", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_IMPORT_DURATIONS: "true",
-          OPENCLAW_VITEST_PRINT_IMPORT_BREAKDOWN: "1",
+          ALISIO_VITEST_IMPORT_DURATIONS: "true",
+          ALISIO_VITEST_PRINT_IMPORT_BREAKDOWN: "1",
         },
         "linux",
       ),
@@ -91,5 +91,20 @@ describe("loadVitestExperimentalConfig", () => {
 
   it("uses RUNNER_OS to detect Windows even when the platform is not win32", () => {
     expect(loadVitestExperimentalConfig({ RUNNER_OS: "Windows" }, "linux")).toEqual({});
+  });
+
+  it("accepts legacy OpenClaw env names as a fallback", () => {
+    expect(
+      loadVitestExperimentalConfig(
+        {
+          OPENCLAW_VITEST_FS_MODULE_CACHE: "1",
+        },
+        "linux",
+      ),
+    ).toEqual({
+      experimental: {
+        fsModuleCache: true,
+      },
+    });
   });
 });

@@ -4,9 +4,12 @@ import {
   completeAlisioCloudAccountEmailLinkAuth,
   completeAlisioCloudAccountProfile,
   listMissingRequiredAlisioCloudEnvVars,
+  requestAlisioCloudAccountEmailChange,
+  requestAlisioCloudPasswordReset,
   resolveAlisioAccountBackend,
   restoreAlisioCloudAccountSession,
   signUpAlisioCloudAccount,
+  updateAlisioCloudAccountPassword,
   type AlisioCloudAccountProfile,
   type AlisioStoredCloudSession,
 } from "./alisio-account-cloud.js";
@@ -81,18 +84,6 @@ describe("alisio-account-cloud", () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            user: {
-              id: "user-1",
-              email: "owner@example.com",
-              created_at: "2026-04-04T15:30:00.000Z",
-            },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
             access_token: "access-token",
             refresh_token: "refresh-token",
             expires_in: 3600,
@@ -134,6 +125,46 @@ describe("alisio-account-cloud", () => {
     });
   });
 
+  it("keeps sign-up pending when Supabase requires email confirmation", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const requestUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      expect(requestUrl).toContain(
+        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+      );
+      return new Response(
+        JSON.stringify({
+          user: {
+            id: "user-1",
+            email: "owner@example.com",
+            created_at: "2026-04-04T15:30:00.000Z",
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    const result = await signUpAlisioCloudAccount({
+      email: "owner@example.com",
+      password: "password123",
+      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result.session).toMatchObject({
+      backend: "supabase",
+      state: "signed_out",
+      authMethod: "email",
+      email: "owner@example.com",
+    });
+    expect(result.profile).toMatchObject({
+      email: "owner@example.com",
+      profileCompleted: false,
+      backend: "supabase",
+    });
+  });
+
   it("passes a redirect_to header when email auth provides a callback url", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const requestUrl =
@@ -162,6 +193,32 @@ describe("alisio-account-cloud", () => {
       ok: true,
       email: "owner@example.com",
       message: "Check your email for the verification code or sign-in link, then return to Alisio.",
+    });
+  });
+
+  it("passes redirect_to on recovery emails so Alisio can finish the reset locally", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const requestUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      expect(requestUrl).toContain(
+        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+      );
+      expect(parseJsonBody(init?.body)).toEqual({
+        email: "owner@example.com",
+      });
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const result = await requestAlisioCloudPasswordReset({
+      email: "owner@example.com",
+      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "If this Alisio account exists, a recovery email is on its way.",
     });
   });
 
@@ -242,6 +299,60 @@ describe("alisio-account-cloud", () => {
     expect(profile.email).toBe("owner@example.com");
     expect(profile.username).toBe("owner_handle");
     expect(profile.profileCompleted).toBe(true);
+  });
+
+  it("starts an email change through Supabase user update with redirect_to", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const requestUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      expect(requestUrl).toContain(
+        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsettings",
+      );
+      expect(parseJsonBody(init?.body)).toEqual({
+        email: "next@example.com",
+      });
+      return new Response(JSON.stringify({ email_change_sent_at: "2026-04-05T10:00:00.000Z" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    const result = await requestAlisioCloudAccountEmailChange({
+      session: createSupabaseSession(),
+      email: "next@example.com",
+      callbackUrl: "http://localhost:18789/logout/settings",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Check your new email inbox to confirm the change.",
+    });
+  });
+
+  it("updates the password through Supabase user update", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
+      expect(parseJsonBody(init?.body)).toEqual({
+        password: "password123",
+      });
+      return new Response(JSON.stringify({ id: "user-1" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    const result = await updateAlisioCloudAccountPassword({
+      session: createSupabaseSession(),
+      password: "password123",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Your Alisio password was updated.",
+    });
   });
 
   it("drops cloud tokens when a stored Supabase session cannot be restored", async () => {

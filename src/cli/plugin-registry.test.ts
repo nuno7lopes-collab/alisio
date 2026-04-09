@@ -5,8 +5,9 @@ const mocks = vi.hoisted(() => ({
   resolveAgentWorkspaceDir: vi.fn(() => "/tmp/workspace"),
   resolveDefaultAgentId: vi.fn(() => "main"),
   loadConfig: vi.fn(),
-  loadOpenClawPlugins: vi.fn(),
-  loadPluginManifestRegistry: vi.fn(),
+  loadAlisioPlugins: vi.fn(),
+  resolveConfiguredChannelPluginIds: vi.fn((): string[] => []),
+  resolveChannelPluginIds: vi.fn((): string[] => []),
   getActivePluginRegistry: vi.fn(),
 }));
 
@@ -24,11 +25,12 @@ vi.mock("../config/plugin-auto-enable.js", () => ({
 }));
 
 vi.mock("../plugins/loader.js", () => ({
-  loadOpenClawPlugins: mocks.loadOpenClawPlugins,
+  loadAlisioPlugins: mocks.loadAlisioPlugins,
 }));
 
-vi.mock("../plugins/manifest-registry.js", () => ({
-  loadPluginManifestRegistry: mocks.loadPluginManifestRegistry,
+vi.mock("../plugins/channel-plugin-ids.js", () => ({
+  resolveConfiguredChannelPluginIds: mocks.resolveConfiguredChannelPluginIds,
+  resolveChannelPluginIds: mocks.resolveChannelPluginIds,
 }));
 
 vi.mock("../plugins/runtime.js", () => ({
@@ -68,10 +70,7 @@ describe("ensurePluginRegistryLoaded", () => {
 
     mocks.loadConfig.mockReturnValue(baseConfig);
     mocks.applyPluginAutoEnable.mockReturnValue({ config: autoEnabledConfig, changes: [] });
-    mocks.loadPluginManifestRegistry.mockReturnValue({
-      plugins: [{ id: "demo-chat", channels: ["demo-chat"] }],
-      diagnostics: [],
-    });
+    mocks.resolveConfiguredChannelPluginIds.mockReturnValue(["demo-chat"]);
 
     const { ensurePluginRegistryLoaded } = await import("./plugin-registry.js");
 
@@ -83,13 +82,12 @@ describe("ensurePluginRegistryLoaded", () => {
     });
     expect(mocks.resolveDefaultAgentId).toHaveBeenCalledWith(autoEnabledConfig);
     expect(mocks.resolveAgentWorkspaceDir).toHaveBeenCalledWith(autoEnabledConfig, "main");
-    expect(mocks.loadPluginManifestRegistry).toHaveBeenCalledWith(
-      expect.objectContaining({
-        config: autoEnabledConfig,
-        workspaceDir: "/tmp/workspace",
-      }),
-    );
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.resolveConfiguredChannelPluginIds).toHaveBeenCalledWith({
+      config: autoEnabledConfig,
+      workspaceDir: "/tmp/workspace",
+      env: process.env,
+    });
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config: autoEnabledConfig,
         onlyPluginIds: ["demo-chat"],
@@ -107,14 +105,8 @@ describe("ensurePluginRegistryLoaded", () => {
 
     mocks.loadConfig.mockReturnValue(config);
     mocks.applyPluginAutoEnable.mockReturnValue({ config, changes: [] });
-    mocks.loadPluginManifestRegistry.mockReturnValue({
-      plugins: [
-        { id: "demo-channel-a", channels: ["demo-channel-a"] },
-        { id: "demo-channel-b", channels: ["demo-channel-b"] },
-        { id: "demo-provider", channels: [] },
-      ],
-      diagnostics: [],
-    });
+    mocks.resolveConfiguredChannelPluginIds.mockReturnValue([]);
+    mocks.resolveChannelPluginIds.mockReturnValue(["demo-channel-a", "demo-channel-b"]);
     mocks.getActivePluginRegistry
       .mockReturnValueOnce({
         plugins: [],
@@ -132,12 +124,12 @@ describe("ensurePluginRegistryLoaded", () => {
     ensurePluginRegistryLoaded({ scope: "configured-channels" });
     ensurePluginRegistryLoaded({ scope: "channels" });
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledTimes(2);
-    expect(mocks.loadOpenClawPlugins).toHaveBeenNthCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledTimes(2);
+    expect(mocks.loadAlisioPlugins).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ onlyPluginIds: [], throwOnLoadError: true }),
     );
-    expect(mocks.loadOpenClawPlugins).toHaveBeenNthCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
         onlyPluginIds: ["demo-channel-a", "demo-channel-b"],
@@ -154,6 +146,7 @@ describe("ensurePluginRegistryLoaded", () => {
 
     mocks.loadConfig.mockReturnValue(config);
     mocks.applyPluginAutoEnable.mockReturnValue({ config, changes: [] });
+    mocks.resolveConfiguredChannelPluginIds.mockReturnValue(["demo-channel-a"]);
     mocks.getActivePluginRegistry.mockReturnValue({
       plugins: [],
       channels: [{ plugin: { id: "demo-channel-a" } }],
@@ -164,8 +157,8 @@ describe("ensurePluginRegistryLoaded", () => {
 
     ensurePluginRegistryLoaded({ scope: "all" });
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledTimes(1);
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
         throwOnLoadError: true,
@@ -182,6 +175,7 @@ describe("ensurePluginRegistryLoaded", () => {
 
     mocks.loadConfig.mockReturnValue(config);
     mocks.applyPluginAutoEnable.mockReturnValue({ config, changes: [] });
+    mocks.resolveConfiguredChannelPluginIds.mockReturnValue(["demo-channel-a"]);
     mocks.getActivePluginRegistry.mockReturnValue({
       plugins: [],
       channels: [],
@@ -192,8 +186,8 @@ describe("ensurePluginRegistryLoaded", () => {
 
     ensurePluginRegistryLoaded({ scope: "configured-channels" });
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledTimes(1);
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
         throwOnLoadError: true,
@@ -215,13 +209,7 @@ describe("ensurePluginRegistryLoaded", () => {
 
     mocks.loadConfig.mockReturnValue(config);
     mocks.applyPluginAutoEnable.mockReturnValue({ config, changes: [] });
-    mocks.loadPluginManifestRegistry.mockReturnValue({
-      plugins: [
-        { id: "demo-channel-a", channels: ["demo-channel-a"] },
-        { id: "demo-channel-b", channels: ["demo-channel-b"] },
-      ],
-      diagnostics: [],
-    });
+    mocks.resolveConfiguredChannelPluginIds.mockReturnValue(["demo-channel-a"]);
     mocks.getActivePluginRegistry.mockReturnValue({
       plugins: [{ id: "demo-channel-b" }],
       channels: [{ plugin: { id: "demo-channel-b" } }],
@@ -232,8 +220,8 @@ describe("ensurePluginRegistryLoaded", () => {
 
     ensurePluginRegistryLoaded({ scope: "configured-channels" });
 
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledTimes(1);
-    expect(mocks.loadOpenClawPlugins).toHaveBeenCalledWith(
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledTimes(1);
+    expect(mocks.loadAlisioPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
         onlyPluginIds: ["demo-channel-a"],

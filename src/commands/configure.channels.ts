@@ -25,8 +25,8 @@ export async function removeChannelConfigWizard(
     if (configured.length === 0) {
       note(
         [
-          "No channel config found in openclaw.json.",
-          `Tip: \`${formatCliCommand("openclaw channels status")}\` shows what is configured and enabled.`,
+          "No channel config found in alisio.json.",
+          `Tip: \`${formatCliCommand("alisio channels status")}\` shows what is configured and enabled.`,
         ].join("\n"),
         "Remove channel",
       );

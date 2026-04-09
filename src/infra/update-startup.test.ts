@@ -226,8 +226,13 @@ describe("update-startup", () => {
     expect(parsed.lastNotifiedTag).toBe("latest");
   });
 
-  it("clears persisted availability and skips registry checks when Alicio has no configured source", async () => {
+  it("clears persisted availability when the Alisio registry reports no newer version", async () => {
     process.env.ALISIO_DISTRIBUTION = "alisio";
+    mockPackageInstallStatus();
+    vi.mocked(resolveNpmChannelTag).mockResolvedValue({
+      tag: "latest",
+      version: "1.0.0",
+    });
     const statePath = path.join(tempDir, "update-check.json");
     await fs.writeFile(
       statePath,
@@ -252,9 +257,9 @@ describe("update-startup", () => {
       onUpdateAvailableChange,
     });
 
-    expect(vi.mocked(checkUpdateStatus)).not.toHaveBeenCalled();
-    expect(vi.mocked(resolveNpmChannelTag)).not.toHaveBeenCalled();
-    expect(onUpdateAvailableChange).not.toHaveBeenCalled();
+    expect(vi.mocked(checkUpdateStatus)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(resolveNpmChannelTag)).toHaveBeenCalledTimes(1);
+    expect(onUpdateAvailableChange).toHaveBeenCalledWith(null);
     expect(getUpdateAvailable()).toBeNull();
 
     const persisted = JSON.parse(await fs.readFile(statePath, "utf-8")) as {

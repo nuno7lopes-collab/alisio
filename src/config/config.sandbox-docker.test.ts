@@ -4,6 +4,7 @@ import {
   resolveSandboxBrowserConfig,
   resolveSandboxDockerConfig,
 } from "../agents/sandbox/config.js";
+import { DEFAULT_SANDBOX_BROWSER_NETWORK } from "../agents/sandbox/constants.js";
 import { validateConfigObject } from "./config.js";
 
 describe("sandbox docker config", () => {
@@ -264,7 +265,7 @@ describe("sandbox browser binds config", () => {
       globalBrowser: {},
       agentBrowser: {},
     });
-    expect(resolved.network).toBe("alisio-sandbox-browser");
+    expect(resolved.network).toBe(DEFAULT_SANDBOX_BROWSER_NETWORK);
   });
 
   it("prefers agent browser network over global browser network", () => {

@@ -146,15 +146,15 @@ describe("resolveNpmChannelTag", () => {
     });
   });
 
-  it("reports registry checks as disabled for Alicio without a configured source", async () => {
+  it("uses the default Alisio registry source when no override is configured", async () => {
     process.env.ALISIO_DISTRIBUTION = "alisio";
 
     await expect(fetchNpmLatestVersion({ timeoutMs: 1000 })).resolves.toEqual({
       latestVersion: null,
-      disabled: true,
-      reason: "registry updates disabled for this distribution",
-      sourcePackage: null,
-      error: undefined,
+      disabled: undefined,
+      reason: undefined,
+      sourcePackage: "alisio",
+      error: "HTTP 404",
     });
     await expect(resolveNpmChannelTag({ channel: "stable", timeoutMs: 1000 })).resolves.toEqual({
       tag: "latest",
@@ -162,7 +162,7 @@ describe("resolveNpmChannelTag", () => {
     });
   });
 
-  it("uses the configured Alicio registry package when provided", async () => {
+  it("uses the configured Alisio registry package when provided", async () => {
     process.env.ALISIO_DISTRIBUTION = "alisio";
     process.env.ALISIO_UPDATE_REGISTRY_PACKAGE = "alisio";
     versionByTag.latest = "2.0.0";

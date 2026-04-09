@@ -100,4 +100,25 @@ describe("parseSlashCommand", () => {
       args: "",
     });
   });
+
+  it("keeps chat security commands local and supports the /security alias", () => {
+    expect(SLASH_COMMANDS.find((entry) => entry.key === "permissions")).toMatchObject({
+      name: "permissions",
+      aliases: ["security"],
+      argOptions: ["status", "safe", "full", "advanced"],
+      executeLocal: true,
+    });
+    expect(SLASH_COMMANDS.find((entry) => entry.key === "approvals")).toMatchObject({
+      name: "approvals",
+      executeLocal: true,
+    });
+    expect(parseSlashCommand("/permissions safe")).toMatchObject({
+      command: { key: "permissions" },
+      args: "safe",
+    });
+    expect(parseSlashCommand("/security advanced")).toMatchObject({
+      command: { key: "permissions" },
+      args: "advanced",
+    });
+  });
 });

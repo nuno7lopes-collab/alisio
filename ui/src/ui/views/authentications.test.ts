@@ -10,186 +10,184 @@ describe("authentications view", () => {
     await i18n.setLocale("en");
   });
 
-  it("never renders technical setup details in the public authentications view", () => {
-    window.history.replaceState({}, "", "/authentications");
+  it("renders the unified provider overview sections", () => {
     const container = document.createElement("div");
+    const onOpenModels = vi.fn();
 
     render(
       renderAuthentications({
         loading: false,
         error: null,
         account: null,
-        connectorCatalog: [
-          {
-            id: "google-calendar",
-            title: "Google Calendar",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Calendar access.",
-            availability: "ready",
-            scopes: ["openid", "email"],
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 3,
+            ready: 1,
+            attention: 1,
+            total: 5,
           },
-          {
-            id: "linkedin",
-            title: "LinkedIn",
-            providerLabel: "LinkedIn",
-            category: "social",
-            connectLabel: "Connect with LinkedIn",
-            summary: "LinkedIn access.",
-            availability: "ready",
-            scopes: ["r_liteprofile"],
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
           },
-        ],
-        connectorAuthorizations: [],
-        setupGuide: {
-          connectorId: "google-calendar",
-          availability: "ready",
-          mode: "setup",
-          provider: "google",
-          providerLabel: "Google",
-          statusReason: "missing_client_config",
-          callbackPath: "/oauth/google/callback",
-          requiredEnvVars: [
-            "ALISIO_GOOGLE_CLIENT_ID",
-            "ALISIO_GOOGLE_CLIENT_SECRET",
-            "ALISIO_GOOGLE_REDIRECT_URI",
+          assistant: [
+            {
+              id: "alisio-ai",
+              title: "Alisio AI",
+              subtitle: "nuno@example.com",
+              detail: "Primary AI account is ready for chat and runtime use.",
+              status: "connected",
+              authSource: "alisio-ai",
+              chips: ["OpenAI", "Plus"],
+              usageWindows: [{ label: "5h", usedPercent: 42 }],
+              current: true,
+              active: true,
+            },
           ],
-          setupUrl: "https://developers.google.com/identity/protocols/oauth2",
-          setupHint: "Google Calendar can complete native Google OAuth in Alisio.",
+          providers: [
+            {
+              id: "openai",
+              title: "OpenAI",
+              subtitle: "Text · Image · Speech",
+              detail: "Stored authentication is ready for runtime use.",
+              status: "connected",
+              authSource: "profiles",
+              chips: ["Text", "Image", "Speech"],
+              usageWindows: [],
+              current: false,
+              active: true,
+            },
+          ],
+          runtimes: [
+            {
+              id: "runtime-1",
+              title: "MacBook Pro",
+              subtitle: "Local GGUF",
+              detail: "1 installed model ready on this runtime.",
+              status: "connected",
+              authSource: "runtime",
+              chips: ["Local runtime", "Current device"],
+              usageWindows: [],
+              current: true,
+              active: true,
+            },
+          ],
+          apps: [],
         },
+        connectorCatalog: [],
+        connectorAuthorizations: [],
         search: "",
         categoryFilter: "all",
         onSearchChange: vi.fn(),
         onCategoryChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
+        onOpenModels,
       }),
       container,
     );
 
-    expect(container.textContent).not.toContain("Finish OAuth setup in Alisio");
-    expect(container.textContent).not.toContain("ALISIO_GOOGLE_CLIENT_ID");
-    expect(container.textContent).not.toContain("Suggested callback URL");
-    expect(container.textContent).not.toContain(`${window.location.origin}/oauth/google/callback`);
-    expect(container.textContent).not.toContain("Provider docs");
-    expect(container.querySelector(".alisio-auth-setup")).toBeNull();
-    expect(container.querySelector(".alisio-auth-card__icon-fallback")).toBeNull();
-    expect(
-      container.querySelector(
-        'img[src*="commons.wikimedia.org/wiki/Special:FilePath/LinkedIn_icon.svg"]',
-      ),
-    ).not.toBeNull();
-  });
+    expect(container.textContent).toContain("Providers");
+    expect(container.textContent).toContain("Primary assistant account");
+    expect(container.textContent).toContain("Model providers");
+    expect(container.textContent).toContain("Runtimes and servers");
 
-  it("shows setup-required connectors as preparing without exposing an action", () => {
-    const container = document.createElement("div");
-
-    render(
-      renderAuthentications({
-        loading: false,
-        error: null,
-        account: null,
-        connectorCatalog: [
-          {
-            id: "gmail-send",
-            title: "Gmail Send",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Send email via Gmail.",
-            availability: "ready",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-          },
-        ],
-        connectorAuthorizations: [
-          {
-            connectorId: "gmail-send",
-            state: "not_connected",
-            health: "config_missing",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-          },
-        ],
-        setupGuide: null,
-        search: "",
-        categoryFilter: "all",
-        onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
-        onBeginConnector: vi.fn(),
-        onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
-      }),
-      container,
+    const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
+      candidate.textContent?.includes("Open models"),
     );
-
-    const badge = container.querySelector(".pill");
-    expect(badge?.textContent).toContain("Preparing");
-    expect(
-      [...container.querySelectorAll("button")].some((button) =>
-        button.textContent?.includes("Configure"),
-      ),
-    ).toBe(false);
-  });
-
-  it("shows genuinely ready connectors as connectable before any OAuth exists", () => {
-    const container = document.createElement("div");
-    const onBeginConnector = vi.fn();
-
-    render(
-      renderAuthentications({
-        loading: false,
-        error: null,
-        account: null,
-        connectorCatalog: [
-          {
-            id: "gmail-send",
-            title: "Gmail Send",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Send email via Gmail.",
-            availability: "ready",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-          },
-        ],
-        connectorAuthorizations: [
-          {
-            connectorId: "gmail-send",
-            state: "not_connected",
-            health: "healthy",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-          },
-        ],
-        setupGuide: null,
-        search: "",
-        categoryFilter: "all",
-        onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
-        onBeginConnector,
-        onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
-      }),
-      container,
-    );
-
-    const badge = container.querySelector(".pill");
-    expect(badge?.textContent).toContain("Ready");
-    const button = [...container.querySelectorAll("button")].find((candidate) =>
-      candidate.textContent?.includes("Connect with Google"),
-    );
-    expect(button?.textContent).toContain("Connect with Google");
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onBeginConnector).toHaveBeenCalledWith("gmail-send");
+    expect(onOpenModels).toHaveBeenCalledOnce();
   });
 
-  it("shows the upgrade path and disables new connector buttons on Free once a slot is occupied", () => {
+  it("renders connected external apps from the overview and keeps revoke actions wired", () => {
+    const container = document.createElement("div");
+    const onRevokeConnector = vi.fn();
+
+    render(
+      renderAuthentications({
+        loading: false,
+        error: null,
+        account: null,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 1,
+            ready: 0,
+            attention: 0,
+            total: 1,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [
+              {
+                id: "gmail-send",
+                title: "Gmail Send",
+                providerLabel: "Google",
+                category: "google",
+                connectLabel: "Connect with Google",
+                summary: "Send outbound email drafts.",
+                availability: "ready",
+                scopes: ["https://www.googleapis.com/auth/gmail.send"],
+              },
+            ],
+            authorizations: [
+              {
+                connectorId: "gmail-send",
+                state: "connected",
+                health: "healthy",
+                scopes: ["https://www.googleapis.com/auth/gmail.send"],
+                connectedAccount: {
+                  label: "Nuno",
+                  email: "nuno@example.com",
+                },
+              },
+            ],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:gmail-send",
+              title: "Gmail Send",
+              subtitle: "Send outbound email drafts.",
+              status: "connected",
+              authSource: "connector",
+              connectorId: "gmail-send",
+              connectLabel: "Connect with Google",
+              chips: ["Google", "Productivity"],
+              usageWindows: [],
+              current: false,
+              active: true,
+            },
+          ],
+        },
+        connectorCatalog: [],
+        connectorAuthorizations: [],
+        search: "",
+        categoryFilter: "all",
+        onSearchChange: vi.fn(),
+        onCategoryChange: vi.fn(),
+        onBeginConnector: vi.fn(),
+        onRevokeConnector,
+        onOpenModels: vi.fn(),
+      }),
+      container,
+    );
+
+    expect(container.textContent).toContain("External apps");
+    const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
+      candidate.textContent?.includes("Revoke"),
+    );
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onRevokeConnector).toHaveBeenCalledWith("gmail-send");
+  });
+
+  it("disables new external app connections when the free plan slot is already occupied", () => {
     const container = document.createElement("div");
     const onBeginConnector = vi.fn();
 
@@ -202,6 +200,52 @@ describe("authentications view", () => {
             plan: "free",
           },
         } as never,
+        overview: {
+          generatedAt: new Date().toISOString(),
+          summary: {
+            connected: 1,
+            ready: 1,
+            attention: 0,
+            total: 2,
+          },
+          account: {} as never,
+          ai: {} as never,
+          connectors: {
+            catalog: [],
+            authorizations: [],
+          },
+          assistant: [],
+          providers: [],
+          runtimes: [],
+          apps: [
+            {
+              id: "connector:gmail-send",
+              title: "Gmail Send",
+              subtitle: "Send outbound email drafts.",
+              status: "connected",
+              authSource: "connector",
+              connectorId: "gmail-send",
+              connectLabel: "Connect with Google",
+              chips: ["Google"],
+              usageWindows: [],
+              current: false,
+              active: true,
+            },
+            {
+              id: "connector:github",
+              title: "GitHub",
+              subtitle: "Repository and pull request workflows.",
+              status: "ready",
+              authSource: "connector",
+              connectorId: "github",
+              connectLabel: "Connect with GitHub",
+              chips: ["GitHub"],
+              usageWindows: [],
+              current: false,
+              active: false,
+            },
+          ],
+        },
         connectorCatalog: [
           {
             id: "gmail-send",
@@ -209,7 +253,7 @@ describe("authentications view", () => {
             providerLabel: "Google",
             category: "google",
             connectLabel: "Connect with Google",
-            summary: "Send email via Gmail.",
+            summary: "Send outbound email drafts.",
             availability: "ready",
             scopes: ["https://www.googleapis.com/auth/gmail.send"],
           },
@@ -219,7 +263,7 @@ describe("authentications view", () => {
             providerLabel: "GitHub",
             category: "development",
             connectLabel: "Connect with GitHub",
-            summary: "Repositories and pull requests.",
+            summary: "Repository and pull request workflows.",
             availability: "ready",
             scopes: ["repo"],
           },
@@ -232,80 +276,27 @@ describe("authentications view", () => {
             scopes: ["https://www.googleapis.com/auth/gmail.send"],
           },
         ],
-        setupGuide: null,
         search: "",
         categoryFilter: "all",
         onSearchChange: vi.fn(),
         onCategoryChange: vi.fn(),
         onBeginConnector,
         onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
+        onOpenModels: vi.fn(),
       }),
       container,
     );
 
     expect(container.textContent).toContain("Free includes 1 connected app.");
-    const githubButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Connect with GitHub"),
+    const button = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (candidate) => candidate.textContent?.includes("Connect with GitHub"),
     );
-    expect(githubButton?.disabled).toBe(true);
-    githubButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(button?.disabled).toBe(true);
+    button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onBeginConnector).not.toHaveBeenCalled();
   });
 
-  it("does not duplicate already connected apps in category sections", () => {
-    const container = document.createElement("div");
-
-    render(
-      renderAuthentications({
-        loading: false,
-        error: null,
-        account: null,
-        connectorCatalog: [
-          {
-            id: "gmail-send",
-            title: "Gmail Send",
-            providerLabel: "Google",
-            category: "google",
-            connectLabel: "Connect with Google",
-            summary: "Send email via Gmail.",
-            availability: "ready",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-          },
-        ],
-        connectorAuthorizations: [
-          {
-            connectorId: "gmail-send",
-            state: "connected",
-            health: "healthy",
-            scopes: ["https://www.googleapis.com/auth/gmail.send"],
-            connectedAccount: {
-              label: "Nuno Lopes",
-              email: "nuno@example.com",
-            },
-          },
-        ],
-        setupGuide: null,
-        search: "",
-        categoryFilter: "all",
-        onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
-        onBeginConnector: vi.fn(),
-        onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
-      }),
-      container,
-    );
-
-    expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(1);
-    expect(container.textContent).toContain("Already connected");
-  });
-
-  it("renders skeleton stats and cards during the initial loading state", () => {
+  it("renders loading skeletons while the provider overview is still loading", () => {
     const container = document.createElement("div");
 
     render(
@@ -313,24 +304,21 @@ describe("authentications view", () => {
         loading: true,
         error: null,
         account: null,
+        overview: null,
         connectorCatalog: [],
         connectorAuthorizations: [],
-        setupGuide: null,
         search: "",
         categoryFilter: "all",
         onSearchChange: vi.fn(),
         onCategoryChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenChannels: vi.fn(),
-        onDismissSetupGuide: vi.fn(),
-        onOpenSupportUrl: vi.fn(),
+        onOpenModels: vi.fn(),
       }),
       container,
     );
 
     expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(3);
     expect(container.querySelectorAll(".alisio-auth-card")).toHaveLength(3);
-    expect(container.textContent).not.toContain("0");
   });
 });

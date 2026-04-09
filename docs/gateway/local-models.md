@@ -1,8 +1,8 @@
 ---
-summary: "Run Alisio with local models on this machine or with private Ollama and OpenAI-compatible servers."
+summary: "Run Alisio with local models on this machine or with private Ollama, LM Studio, and OpenAI-compatible servers."
 read_when:
   - Choosing between OpenAI, local models, and private servers
-  - Setting up Ollama or OpenAI-compatible endpoints for Alisio
+  - Setting up Ollama, LM Studio, or OpenAI-compatible endpoints for Alisio
 title: "Local Models and Servers"
 ---
 
@@ -45,13 +45,13 @@ Alisio should clearly support:
 - **Ollama**
 - **OpenAI-compatible servers**
 
-Those are the practical server categories most operators expect.
+Those are the practical server categories most operators expect. LM Studio also appears as a separate runtime when Alisio can see its local server directly.
 
 ## Recommended Setup Order
 
 1. Get a working setup with OpenAI
 2. Add a local model on the current computer if you need it
-3. Add an Ollama or OpenAI-compatible server if another machine should host inference
+3. Add an Ollama, LM Studio, or OpenAI-compatible server if another machine should host inference
 
 ## Practical Guidance
 
@@ -63,9 +63,16 @@ Those are the practical server categories most operators expect.
 
 ## Runtime Discovery
 
-- **Ollama on this computer**: Alisio discovers installed models from the local Ollama API and can request install, update, or uninstall actions with explicit user consent.
-- **LM Studio local server**: Alisio treats LM Studio as an OpenAI-compatible endpoint and lists the models exposed by that server. Model downloads and server-side loading remain managed in LM Studio itself.
+- **Ollama on this computer**: Alisio probes the local Ollama API on `127.0.0.1:11434`, discovers installed models, and can request install, update, or uninstall actions with explicit user consent.
+- **LM Studio on this computer**: Alisio probes the LM Studio local server on `127.0.0.1:1234`. If the server is not running yet, Alisio can offer a start action when the LM Studio CLI (`lms`) is available on that device. Model downloads and model loading still stay in LM Studio itself.
+- **Linked devices**: when a connected node exposes separate Ollama, LM Studio, or generic OpenAI-compatible runtimes, Alisio shows them as separate linked runtime targets instead of collapsing them into one generic server.
 - **Private servers on another machine**: add Ollama or any OpenAI-compatible endpoint in the **Server** tab when inference should run elsewhere.
+
+## Important Limits
+
+- Nothing syncs automatically between machines just because two devices appear in Alisio. A linked runtime is still a runtime on that specific machine.
+- LM Studio server start only turns on the local LM Studio API. It does not auto-download models and it does not auto-load a model for you.
+- `llama.cpp` runtime management still depends on native `node-llama-cpp` support for your platform and hardware. GGUF installs are only usable when that native runtime can build and run correctly on the target machine.
 
 ## Example Policy
 

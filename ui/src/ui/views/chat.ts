@@ -28,13 +28,18 @@ import {
 } from "../chat/slash-commands.ts";
 import { isSttSupported, startStt, stopStt } from "../chat/speech.ts";
 import type { ChatRuntimeSetupHint } from "../controllers/chat.ts";
-import type { SecurityAccessMode } from "../controllers/security-access.ts";
+import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "../controllers/exec-approval.ts";
+import type {
+  SecurityAccessDiagnostics,
+  SecurityAccessMode,
+} from "../controllers/security-access.ts";
 import { icons } from "../icons.ts";
 import { detectTextDirection } from "../text-direction.ts";
 import type { GatewaySessionRow, SessionsListResult } from "../types.ts";
 import type { ChatItem, ChatRunActivity, MessageGroup } from "../types/chat-types.ts";
 import type { ChatAttachment, ChatQueueItem } from "../ui-types.ts";
 import { agentLogoUrl, resolveAgentAvatarUrl } from "./agents-utils.ts";
+import { renderChatSecurityConsole } from "./chat-security.ts";
 import { renderMarkdownSidebar } from "./markdown-sidebar.ts";
 import "../components/resizable-divider.ts";
 
@@ -79,6 +84,13 @@ export type ChatProps = {
   accessMode?: SecurityAccessMode | null;
   accessModeLoading?: boolean;
   accessModeBusy?: boolean;
+  securityDiagnostics?: SecurityAccessDiagnostics | null;
+  approvalQueue?: ExecApprovalRequest[];
+  approvalAuditTrail?: ExecApprovalAuditEntry[];
+  approvalBusy?: boolean;
+  nativeShellLoading?: boolean;
+  nativeShellError?: string | null;
+  nativeShellState?: import("../types.ts").NativeShellState | null;
   disabledReason: string | null;
   error: string | null;
   runtimeSetupHint?: ChatRuntimeSetupHint | null;
@@ -90,6 +102,7 @@ export type ChatProps = {
   splitRatio?: number;
   assistantName: string;
   assistantAvatar: string | null;
+  assistantAgentId?: string | null;
   attachments?: ChatAttachment[];
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
   showNewMessages?: boolean;
@@ -97,6 +110,12 @@ export type ChatProps = {
   onRefresh: () => void;
   onToggleFocusMode: () => void;
   onApplyAccessMode?: (mode: Exclude<SecurityAccessMode, "custom">) => void;
+  onResolveApproval?: (
+    entry: ExecApprovalRequest,
+    decision: "allow-once" | "allow-always" | "deny",
+  ) => void;
+  onOpenAdvancedSecurity?: () => void;
+  onOpenNativeSettings?: () => void;
   getDraft?: () => string;
   onDraftChange: (next: string) => void;
   onOpenRuntimeSetup?: () => void;
@@ -575,36 +594,6 @@ function renderAttachmentPreview(props: ChatProps): TemplateResult | typeof noth
           </div>
         `,
       )}
-    </div>
-  `;
-}
-
-function renderAccessStrip(props: ChatProps): TemplateResult | typeof nothing {
-  if (!props.onApplyAccessMode) {
-    return nothing;
-  }
-  const selectedMode = props.accessMode ?? null;
-  const busy = Boolean(props.accessModeBusy || props.accessModeLoading);
-  const disabled = !props.connected || busy;
-
-  return html`
-    <div class="alisio-chat__access-strip" role="group" aria-label=${chatText("access.aria")}>
-      <button
-        type="button"
-        class="alisio-chat__access-pill ${selectedMode === "recommended" ? "is-active" : ""}"
-        ?disabled=${disabled || !props.onApplyAccessMode || selectedMode === "recommended"}
-        @click=${() => props.onApplyAccessMode?.("recommended")}
-      >
-        <span>${t("alisio.security.access.recommended.label")}</span>
-      </button>
-      <button
-        type="button"
-        class="alisio-chat__access-pill ${selectedMode === "full-access" ? "is-active" : ""}"
-        ?disabled=${disabled || !props.onApplyAccessMode || selectedMode === "full-access"}
-        @click=${() => props.onApplyAccessMode?.("full-access")}
-      >
-        <span>${t("alisio.security.access.fullAccess.label")}</span>
-      </button>
     </div>
   `;
 }
@@ -1430,7 +1419,25 @@ export function renderChat(props: ChatProps) {
       <!-- Input bar -->
       <div class="agent-chat__input alisio-chat__composer">
         ${renderSlashMenu(requestUpdate, props)} ${renderAttachmentPreview(props)}
-        ${renderAccessStrip(props)}
+        ${renderChatSecurityConsole({
+          assistantName: props.assistantName,
+          assistantAgentId: props.assistantAgentId ?? null,
+          accessMode: props.accessMode,
+          accessModeLoading: props.accessModeLoading,
+          accessModeBusy: props.accessModeBusy,
+          securityDiagnostics: props.securityDiagnostics ?? null,
+          connected: props.connected,
+          approvalQueue: props.approvalQueue ?? [],
+          approvalAuditTrail: props.approvalAuditTrail ?? [],
+          approvalBusy: props.approvalBusy,
+          nativeShellLoading: props.nativeShellLoading,
+          nativeShellError: props.nativeShellError ?? null,
+          nativeShellState: props.nativeShellState ?? null,
+          onApplyAccessMode: props.onApplyAccessMode,
+          onResolveApproval: props.onResolveApproval,
+          onOpenAdvancedSecurity: props.onOpenAdvancedSecurity,
+          onOpenNativeSettings: props.onOpenNativeSettings,
+        })}
 
         <input
           type="file"

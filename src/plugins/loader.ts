@@ -7,6 +7,10 @@ import type { AlisioConfig } from "../config/config.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { openBoundaryFileSync } from "../infra/boundary-file-read.js";
+import {
+  ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
+  warnLegacyCompatibilityOnce,
+} from "../infra/compat-warning.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveUserPath } from "../utils.js";
 import { buildPluginApi } from "./api-builder.js";
@@ -363,7 +367,7 @@ export function resolveRuntimePluginRegistry(
   if (!options || !hasExplicitCompatibilityInputs(options)) {
     return getCompatibleActivePluginRegistry();
   }
-  return getCompatibleActivePluginRegistry(options) ?? loadOpenClawPlugins(options);
+  return getCompatibleActivePluginRegistry(options) ?? loadAlisioPlugins(options);
 }
 
 function validatePluginConfig(params: {
@@ -810,12 +814,12 @@ function activatePluginRegistry(
   initializeGlobalHookRunner(registry);
 }
 
-export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegistry {
+export function loadAlisioPlugins(options: PluginLoadOptions = {}): PluginRegistry {
   // Snapshot (non-activating) loads must disable the cache to avoid storing a registry
   // whose commands were never globally registered.
   if (options.activate === false && options.cache !== false) {
     throw new Error(
-      "loadOpenClawPlugins: activate:false requires cache:false to prevent command registry divergence",
+      "loadAlisioPlugins: activate:false requires cache:false to prevent command registry divergence",
     );
   }
   const {
@@ -1410,7 +1414,20 @@ export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegi
   return registry;
 }
 
-export async function loadOpenClawPluginCliRegistry(
+/**
+ * @deprecated Use loadAlisioPlugins instead. Sunset target: 2026-06-30.
+ */
+export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegistry {
+  warnLegacyCompatibilityOnce({
+    key: "loadOpenClawPlugins",
+    message: "loadOpenClawPlugins() is deprecated.",
+    replacement: "loadAlisioPlugins()",
+    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
+  });
+  return loadAlisioPlugins(options);
+}
+
+export async function loadAlisioPluginCliRegistry(
   options: PluginLoadOptions = {},
 ): Promise<PluginRegistry> {
   const { env, cfg, normalized, onlyPluginIds, cacheKey } = resolvePluginLoadCacheContext({
@@ -1700,6 +1717,21 @@ export async function loadOpenClawPluginCliRegistry(
   }
 
   return registry;
+}
+
+/**
+ * @deprecated Use loadAlisioPluginCliRegistry instead. Sunset target: 2026-06-30.
+ */
+export async function loadOpenClawPluginCliRegistry(
+  options: PluginLoadOptions = {},
+): Promise<PluginRegistry> {
+  warnLegacyCompatibilityOnce({
+    key: "loadOpenClawPluginCliRegistry",
+    message: "loadOpenClawPluginCliRegistry() is deprecated.",
+    replacement: "loadAlisioPluginCliRegistry()",
+    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
+  });
+  return loadAlisioPluginCliRegistry(options);
 }
 
 function safeRealpathOrResolve(value: string): string {

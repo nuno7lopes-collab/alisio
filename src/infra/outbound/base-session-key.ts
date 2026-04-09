@@ -1,4 +1,5 @@
 import type { AlisioConfig } from "../../config/config.js";
+import { resolveDmScope } from "../../config/session-defaults.js";
 import { buildAgentSessionKey, type RoutePeer } from "../../routing/resolve-route.js";
 
 export function buildOutboundBaseSessionKey(params: {
@@ -13,7 +14,7 @@ export function buildOutboundBaseSessionKey(params: {
     channel: params.channel,
     accountId: params.accountId,
     peer: params.peer,
-    dmScope: params.cfg.session?.dmScope ?? "main",
+    dmScope: resolveDmScope(params.cfg.session?.dmScope),
     identityLinks: params.cfg.session?.identityLinks,
   });
 }

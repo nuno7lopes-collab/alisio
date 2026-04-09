@@ -9,7 +9,7 @@ title: "Sub-Agents"
 
 # Sub-agents
 
-Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<agentId>:subagent:<uuid>`) and, when finished, **announce** their result back to the requester chat channel. Each sub-agent run is tracked as a [background task](/automation/tasks).
+Sub-agents are background agent runs spawned from an existing agent run. They run in their own session (`agent:<agentId>:subagent:<uuid>`) as **ephemeral workers**, and when finished they **announce** their result back to the requester chat channel. They are not persistent product identities, do not get their own long-term memory, and do not imply cross-channel continuity. Each sub-agent run is tracked as a [background task](/automation/tasks).
 
 ## Slash command
 
@@ -25,7 +25,7 @@ Use `/subagents` to inspect or control sub-agent runs for the **current session*
 
 Thread binding controls:
 
-These commands work on channels that support persistent thread bindings. See **Thread supporting channels** below.
+These commands work on channels that support thread bindings. For sub-agents, a thread is only temporary task plumbing, not a persistent follow-up identity. See **Thread supporting channels** below.
 
 - `/focus <subagent-label|session-key|session-id|session-label>`
 - `/unfocus`
@@ -52,7 +52,8 @@ These commands work on channels that support persistent thread bindings. See **T
   - a delivery instruction telling the requester agent to rewrite in normal assistant voice (not forward raw internal metadata)
 - `--model` and `--thinking` override defaults for that specific run.
 - Use `info`/`log` to inspect details and output after completion.
-- `/subagents spawn` is one-shot mode (`mode: "run"`). For persistent thread-bound sessions, use `sessions_spawn` with `thread: true` and `mode: "session"`.
+- `/subagents spawn` is always one-shot (`mode: "run"`).
+- `sessions_spawn` with `runtime: "subagent"` is also always one-shot. `thread: true` may create a temporary bound task thread while the run is active, but the binding is removed when the task completes.
 - For ACP harness sessions (Codex, Claude Code, Gemini CLI), use `sessions_spawn` with `runtime: "acp"` and see [ACP Agents](/tools/acp-agents).
 
 Primary goals:
@@ -62,9 +63,10 @@ Primary goals:
 - Keep the tool surface hard to misuse: sub-agents do **not** get session tools by default.
 - Support configurable nesting depth for orchestrator patterns.
 
-Cost note: each sub-agent has its **own** context and token usage. For heavy or repetitive
-tasks, set a cheaper model for sub-agents and keep your main agent on a higher-quality model.
-You can configure this via `agents.defaults.subagents.model` or per-agent overrides.
+Cost note: each sub-agent has its **own** context and token usage. When no explicit sub-agent model
+is configured, Alisio now prefers a ready local Alisio model target first and falls back to the
+agent/default model only when no suitable local target is available. If you want a fixed provider,
+set `agents.defaults.subagents.model` or a per-agent `agents.list[].subagents.model`.
 
 ## Tool
 
@@ -72,7 +74,11 @@ Use `sessions_spawn`:
 
 - Starts a sub-agent run (`deliver: false`, global lane: `subagent`)
 - Then runs an announce step and posts the announce reply to the requester chat channel
-- Default model: inherits the caller unless you set `agents.defaults.subagents.model` (or per-agent `agents.list[].subagents.model`); an explicit `sessions_spawn.model` still wins.
+- Default model priority for `runtime: "subagent"`:
+  - explicit `sessions_spawn.model`
+  - explicit sub-agent model config (`agents.defaults.subagents.model` or `agents.list[].subagents.model`)
+  - ready local Alisio model target
+  - agent/default model fallback
 - Default thinking: inherits the caller unless you set `agents.defaults.subagents.thinking` (or per-agent `agents.list[].subagents.thinking`); an explicit `sessions_spawn.thinking` still wins.
 - Default run timeout: if `sessions_spawn.runTimeoutSeconds` is omitted, Alisio uses `agents.defaults.subagents.runTimeoutSeconds` when set; otherwise it falls back to `0` (no timeout).
 
@@ -86,28 +92,28 @@ Tool params:
 - `runTimeoutSeconds?` (defaults to `agents.defaults.subagents.runTimeoutSeconds` when set, otherwise `0`; when set, the sub-agent run is aborted after N seconds)
 - `thread?` (default `false`; when `true`, requests channel thread binding for this sub-agent session)
 - `mode?` (`run|session`)
-  - default is `run`
-  - if `thread: true` and `mode` omitted, default becomes `session`
-  - `mode: "session"` requires `thread: true`
+  - for `runtime: "subagent"`, effective mode is always `run`
+  - legacy `mode: "session"` requests are normalized to `run` for compatibility and are scheduled for final removal after 2026-06-30
+  - `mode: "session"` remains valid for `runtime: "acp"`
 - `cleanup?` (`delete|keep`, default `keep`)
 - `sandbox?` (`inherit|require`, default `inherit`; `require` rejects spawn unless target child runtime is sandboxed)
 - `sessions_spawn` does **not** accept channel-delivery params (`target`, `channel`, `to`, `threadId`, `replyTo`, `transport`). For delivery, use `message`/`sessions_send` from the spawned run.
 
 ## Thread-bound sessions
 
-When thread bindings are enabled for a channel, a sub-agent can stay bound to a thread so follow-up user messages in that thread keep routing to the same sub-agent session.
+When thread bindings are enabled for a channel, a sub-agent can temporarily bind to a thread while the task is active. That thread is for task visibility and steering only; it is not a persistent sub-agent identity.
 
 ### Thread supporting channels
 
-- Discord (currently the only supported channel): supports persistent thread-bound subagent sessions (`sessions_spawn` with `thread: true`), manual thread controls (`/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`), and adapter keys `channels.discord.threadBindings.enabled`, `channels.discord.threadBindings.idleHours`, `channels.discord.threadBindings.maxAgeHours`, and `channels.discord.threadBindings.spawnSubagentSessions`.
+- Discord (currently the only supported channel): supports temporary thread-bound subagent task runs (`sessions_spawn` with `thread: true`), manual thread controls (`/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`), and adapter keys `channels.discord.threadBindings.enabled`, `channels.discord.threadBindings.idleHours`, `channels.discord.threadBindings.maxAgeHours`, and `channels.discord.threadBindings.spawnSubagentSessions`.
 
 Quick flow:
 
-1. Spawn with `sessions_spawn` using `thread: true` (and optionally `mode: "session"`).
+1. Spawn with `sessions_spawn` using `thread: true`.
 2. Alisio creates or binds a thread to that session target in the active channel.
-3. Replies and follow-up messages in that thread route to the bound session.
+3. While the task is running, replies and steering messages in that thread route to the bound sub-agent session.
 4. Use `/session idle` to inspect/update inactivity auto-unfocus and `/session max-age` to control the hard cap.
-5. Use `/unfocus` to detach manually.
+5. When the run ends, the sub-agent binding is removed automatically. Use `/unfocus` to detach earlier if needed.
 
 Manual controls:
 
@@ -120,6 +126,10 @@ Config switches:
 
 - Global default: `session.threadBindings.enabled`, `session.threadBindings.idleHours`, `session.threadBindings.maxAgeHours`
 - Channel override and spawn auto-bind keys are adapter-specific. See **Thread supporting channels** above.
+
+Compatibility note:
+
+- `channels.<channel>.threadBindings.spawnSubagentSessions` is a legacy config key name kept for compatibility. It now controls temporary thread creation/binding for ephemeral sub-agent runs, not persistent sub-agent sessions. The legacy name is scheduled for replacement after 2026-06-30.
 
 See [Configuration Reference](/gateway/configuration-reference) and [Slash commands](/tools/slash-commands) for current adapter details.
 

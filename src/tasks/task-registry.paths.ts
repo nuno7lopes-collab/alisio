@@ -3,8 +3,18 @@ import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
 
 export function resolveTaskStateDir(env: NodeJS.ProcessEnv = process.env): string {
-  const explicit = env.OPENCLAW_STATE_DIR?.trim();
-  if (explicit) {
+  const explicitCanonical = env.ALISIO_STATE_DIR?.trim();
+  if (explicitCanonical) {
+    return resolveStateDir(env);
+  }
+  const explicitLegacy = env.OPENCLAW_STATE_DIR?.trim();
+  if (explicitLegacy) {
+    if (env.VITEST || env.NODE_ENV === "test") {
+      return resolveStateDir({
+        ...env,
+        ALISIO_STATE_DIR: explicitLegacy,
+      });
+    }
     return resolveStateDir(env);
   }
   if (env.VITEST || env.NODE_ENV === "test") {

@@ -70,6 +70,7 @@ import type {
 export {
   archiveFileOnDisk,
   archiveSessionTranscripts,
+  attachAlisioTranscriptMeta,
   attachOpenClawTranscriptMeta,
   capArrayByJsonBytes,
   readFirstUserMessageFromTranscript,

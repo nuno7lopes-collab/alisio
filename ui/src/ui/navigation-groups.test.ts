@@ -27,7 +27,6 @@ describe("TAB_GROUPS", () => {
       "authentications",
       "capabilities",
       "connections",
-      "security",
       "organization",
       "settings",
     ]);
@@ -39,6 +38,13 @@ describe("TAB_GROUPS", () => {
     expect(navigation.tabFromPath("/setup")).toBe("setup");
     const allTabs = navigation.TAB_GROUPS.flatMap((group) => [...group.tabs]);
     expect(allTabs).not.toContain("setup");
+  });
+
+  it("keeps security routable even after removing it from the primary sidebar", () => {
+    const allTabs = navigation.TAB_GROUPS.flatMap((group) => [...group.tabs]);
+    expect(allTabs).not.toContain("security");
+    expect(navigation.pathForTab("security")).toBe("/security");
+    expect(navigation.tabFromPath("/security")).toBe("security");
   });
 
   it("keeps legacy routes on public destinations", () => {

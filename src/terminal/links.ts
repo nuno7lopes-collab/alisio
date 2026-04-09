@@ -1,7 +1,16 @@
 import { formatTerminalLink } from "./terminal-link.js";
 
+const DOCS_ROOT_URL = "https://docs.alisio.pt";
+const LEGACY_DOCS_ROOT_URL = "https://docs.openclaw.ai";
+
+function canonicalizeDocsText(value: string): string {
+  return value
+    .replaceAll(LEGACY_DOCS_ROOT_URL, DOCS_ROOT_URL)
+    .replaceAll("docs.openclaw.ai", "docs.alisio.pt");
+}
+
 export function resolveDocsRoot(): string {
-  return "https://docs.openclaw.ai";
+  return DOCS_ROOT_URL;
 }
 
 export const DOCS_ROOT = resolveDocsRoot();
@@ -14,17 +23,20 @@ export function formatDocsLink(
   const trimmed = path.trim();
   const docsRoot = resolveDocsRoot();
   const url = trimmed.startsWith("http")
-    ? trimmed
+    ? canonicalizeDocsText(trimmed)
     : `${docsRoot}${trimmed.startsWith("/") ? trimmed : `/${trimmed}`}`;
-  return formatTerminalLink(label ?? url, url, {
-    fallback: opts?.fallback ?? url,
+  const resolvedLabel = label ? canonicalizeDocsText(label) : url;
+  const fallback = canonicalizeDocsText(opts?.fallback ?? url);
+  return formatTerminalLink(resolvedLabel, url, {
+    fallback,
     force: opts?.force,
   });
 }
 
 export function formatDocsRootLink(label?: string): string {
   const docsRoot = resolveDocsRoot();
-  return formatTerminalLink(label ?? docsRoot, docsRoot, {
+  const resolvedLabel = canonicalizeDocsText(label ?? docsRoot);
+  return formatTerminalLink(resolvedLabel, docsRoot, {
     fallback: docsRoot,
   });
 }

@@ -13,26 +13,26 @@ session based on where it came from -- DMs, group chats, cron jobs, etc.
 
 ## How messages are routed
 
-| Source          | Behavior                  |
-| --------------- | ------------------------- |
-| Direct messages | Shared session by default |
-| Group chats     | Isolated per group        |
-| Rooms/channels  | Isolated per room         |
-| Cron jobs       | Fresh session per run     |
-| Webhooks        | Isolated per hook         |
+| Source          | Behavior                                 |
+| --------------- | ---------------------------------------- |
+| Direct messages | Isolated per channel + sender by default |
+| Group chats     | Isolated per group                       |
+| Rooms/channels  | Isolated per room                        |
+| Cron jobs       | Fresh session per run                    |
+| Webhooks        | Isolated per hook                        |
 
 ## DM isolation
 
-By default, all DMs share one session for continuity. This is fine for
-single-user setups.
+By default, DMs are isolated per channel and sender. This keeps app chat,
+Telegram, WhatsApp, and other direct channels on separate short-term
+conversation tracks unless you explicitly collapse them.
 
 <Warning>
-If multiple people can message your agent, enable DM isolation. Without it, all
-users share the same conversation context -- Alice's private messages would be
-visible to Bob.
+If you override this back to `main`, multiple people can share the same
+conversation context. Alice's private messages could become visible to Bob.
 </Warning>
 
-**The fix:**
+**Default behavior:**
 
 ```json5
 {
@@ -44,9 +44,9 @@ visible to Bob.
 
 Other options:
 
-- `main` (default) -- all DMs share one session.
+- `main` -- all DMs share one session.
 - `per-peer` -- isolate by sender (across channels).
-- `per-channel-peer` -- isolate by channel + sender (recommended).
+- `per-channel-peer` (default) -- isolate by channel + sender.
 - `per-account-channel-peer` -- isolate by account + channel + sender.
 
 <Tip>

@@ -23,6 +23,7 @@ import {
   resolveObsidianReadOnlyVault,
 } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import { type FSWatcher } from "chokidar";
+import { buildCanonicalMemoryStoreStatus } from "./canonical-store.js";
 import {
   createEmbeddingProvider,
   type EmbeddingProvider,
@@ -275,6 +276,11 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
           maxFileBytes: vault.maxFileBytes,
         };
       })();
+    this.canonicalStoreStatus = buildCanonicalMemoryStoreStatus({
+      agentId: this.agentId,
+      workspaceDir: this.workspaceDir,
+      backend: "builtin",
+    });
     const statusOnly = params.purpose === "status";
     if (!statusOnly) {
       this.ensureWatcher();
@@ -829,6 +835,7 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       custom: {
         searchMode,
         providerUnavailableReason: this.providerUnavailableReason,
+        canonicalStore: this.canonicalStoreStatus,
         readonlyRecovery: {
           attempts: this.readonlyRecoveryAttempts,
           successes: this.readonlyRecoverySuccesses,

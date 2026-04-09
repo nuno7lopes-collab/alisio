@@ -210,11 +210,22 @@ export async function handleToolsInvokeHttpRequest(
 
   // Resolve message channel/account hints (optional headers) for policy inheritance.
   const messageChannel = normalizeGatewayRequestMessageChannel(
-    getHeader(req, "x-openclaw-message-channel") ?? "",
+    getHeader(req, "x-alisio-message-channel") ??
+      getHeader(req, "x-openclaw-message-channel") ??
+      "",
   );
-  const accountId = getHeader(req, "x-openclaw-account-id")?.trim() || undefined;
-  const agentTo = getHeader(req, "x-openclaw-message-to")?.trim() || undefined;
-  const agentThreadId = getHeader(req, "x-openclaw-thread-id")?.trim() || undefined;
+  const accountId =
+    getHeader(req, "x-alisio-account-id")?.trim() ||
+    getHeader(req, "x-openclaw-account-id")?.trim() ||
+    undefined;
+  const agentTo =
+    getHeader(req, "x-alisio-message-to")?.trim() ||
+    getHeader(req, "x-openclaw-message-to")?.trim() ||
+    undefined;
+  const agentThreadId =
+    getHeader(req, "x-alisio-thread-id")?.trim() ||
+    getHeader(req, "x-openclaw-thread-id")?.trim() ||
+    undefined;
 
   const {
     agentId,

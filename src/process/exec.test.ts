@@ -21,18 +21,18 @@ describe("runCommandWithTimeout", () => {
     const resolved = resolveCommandEnv({
       argv: ["node", "script.js"],
       baseEnv: {
-        OPENCLAW_BASE_ENV: "base",
-        OPENCLAW_TO_REMOVE: undefined,
+        ALISIO_BASE_ENV: "base",
+        ALISIO_TO_REMOVE: undefined,
       },
       env: {
-        OPENCLAW_TEST_ENV: "ok",
+        ALISIO_TEST_ENV: "ok",
       },
     });
 
-    expect(resolved.OPENCLAW_BASE_ENV).toBe("base");
-    expect(resolved.OPENCLAW_TEST_ENV).toBe("ok");
-    expect(resolved.OPENCLAW_TO_REMOVE).toBeUndefined();
-    expect(resolved.OPENCLAW_CLI).toBe(ALISIO_CLI_ENV_VALUE);
+    expect(resolved.ALISIO_BASE_ENV).toBe("base");
+    expect(resolved.ALISIO_TEST_ENV).toBe("ok");
+    expect(resolved.ALISIO_TO_REMOVE).toBeUndefined();
+    expect(resolved.ALISIO_CLI).toBe(ALISIO_CLI_ENV_VALUE);
   });
 
   it("suppresses npm fund prompts for npm argv", async () => {

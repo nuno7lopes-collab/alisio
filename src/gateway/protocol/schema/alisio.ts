@@ -139,6 +139,7 @@ const SharingScopeSchema = Type.Union([
   Type.Literal("model-use"),
   Type.Literal("exec"),
 ]);
+// Compatibility input aliases kept until the 2026-06-30 sharing sunset.
 const SharingScopeInputSchema = Type.Union([
   Type.Literal("read-only"),
   Type.Literal("model-use"),
@@ -173,6 +174,22 @@ const LocalModelTargetRuntimeKindSchema = Type.Union([
   Type.Literal("openai-compatible"),
 ]);
 const RuntimeLocationSchema = Type.Union([Type.Literal("local"), Type.Literal("server")]);
+const ProviderOverviewStatusSchema = Type.Union([
+  Type.Literal("connected"),
+  Type.Literal("ready"),
+  Type.Literal("attention"),
+  Type.Literal("coming_soon"),
+  Type.Literal("unavailable"),
+]);
+const ProviderOverviewAuthSourceSchema = Type.Union([
+  Type.Literal("alisio-ai"),
+  Type.Literal("profiles"),
+  Type.Literal("env"),
+  Type.Literal("models-json"),
+  Type.Literal("runtime"),
+  Type.Literal("connector"),
+  Type.Literal("none"),
+]);
 
 const ModelRecommendationGradeSchema = Type.Union([
   Type.Literal("recommended"),
@@ -527,6 +544,7 @@ export const AlisioAccountSignUpParamsSchema = Type.Object(
   {
     email: NonEmptyString,
     password: Type.String({ minLength: 8 }),
+    callbackUrl: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -540,10 +558,24 @@ export const AlisioAccountSignInParamsSchema = Type.Object(
 export const AlisioAccountPasswordResetParamsSchema = Type.Object(
   {
     email: NonEmptyString,
+    callbackUrl: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
 export const AlisioAccountRecoveryEmailParamsSchema = AlisioAccountPasswordResetParamsSchema;
+export const AlisioAccountEmailChangeParamsSchema = Type.Object(
+  {
+    email: NonEmptyString,
+    callbackUrl: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+export const AlisioAccountPasswordUpdateParamsSchema = Type.Object(
+  {
+    password: Type.String({ minLength: 8 }),
+  },
+  { additionalProperties: false },
+);
 export const AlisioAccountSignOutParamsSchema = Type.Object({}, { additionalProperties: false });
 export const AlisioAccountPasswordResetResultSchema = Type.Object(
   {
@@ -553,6 +585,8 @@ export const AlisioAccountPasswordResetResultSchema = Type.Object(
   { additionalProperties: false },
 );
 export const AlisioAccountRecoveryEmailResultSchema = AlisioAccountPasswordResetResultSchema;
+export const AlisioAccountEmailChangeResultSchema = AlisioAccountPasswordResetResultSchema;
+export const AlisioAccountPasswordUpdateResultSchema = AlisioAccountPasswordResetResultSchema;
 
 export const AlisioAiGetParamsSchema = Type.Object({}, { additionalProperties: false });
 export const AlisioAiBeginConnectParamsSchema = Type.Object(
@@ -659,7 +693,9 @@ export const AlisioSharingTargetSchema = Type.Object(
     execAccess: SharingTargetAccessSchema,
     requestId: Type.Optional(Type.String()),
     requestStatus: Type.Optional(SharingRequestStatusSchema),
+    // Deprecated compatibility alias of grantId.
     approvalId: Type.Optional(Type.String()),
+    // Deprecated compatibility alias of grantScopes.
     approvalScopes: Type.Optional(Type.Array(SharingScopeSchema)),
     grantId: Type.Optional(Type.String()),
     grantScopes: Type.Optional(Type.Array(SharingScopeSchema)),
@@ -680,6 +716,7 @@ export const AlisioSharingRequestSchema = Type.Object(
     status: SharingRequestStatusSchema,
     createdAt: NonEmptyString,
     resolvedAt: Type.Optional(Type.String()),
+    // Deprecated compatibility alias of grantId.
     approvalId: Type.Optional(Type.String()),
     grantId: Type.Optional(Type.String()),
   },
@@ -688,6 +725,7 @@ export const AlisioSharingRequestSchema = Type.Object(
 
 export const AlisioSharingGrantSchema = Type.Object(
   {
+    // Deprecated compatibility alias of grantId.
     approvalId: NonEmptyString,
     grantId: NonEmptyString,
     requestId: NonEmptyString,
@@ -971,6 +1009,22 @@ export const AlisioModelsUninstallResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
+export const AlisioModelsRuntimeStartParamsSchema = Type.Object(
+  {
+    targetId: NonEmptyString,
+  },
+  { additionalProperties: false },
+);
+export const AlisioModelsRuntimeStartResultSchema = Type.Object(
+  {
+    ok: Type.Literal(true),
+    targetId: NonEmptyString,
+    runtimeKind: Type.Literal("lmstudio"),
+    baseUrl: NonEmptyString,
+    alreadyRunning: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
 export const AlisioRemoteModelServerSchema = Type.Object(
   {
     serverId: NonEmptyString,
@@ -1110,6 +1164,70 @@ export const AlisioRuntimeRestartResultSchema = Type.Object(
     mode: Type.Union([Type.Literal("emit"), Type.Literal("signal")]),
     coalesced: Type.Boolean(),
     cooldownMsApplied: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioProviderOverviewUsageWindowSchema = Type.Object(
+  {
+    label: NonEmptyString,
+    usedPercent: Type.Number({ minimum: 0, maximum: 100 }),
+    resetAt: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioProviderOverviewItemSchema = Type.Object(
+  {
+    id: NonEmptyString,
+    title: NonEmptyString,
+    subtitle: NonEmptyString,
+    detail: Type.Optional(Type.String()),
+    status: ProviderOverviewStatusSchema,
+    providerId: Type.Optional(Type.String()),
+    providerLabel: Type.Optional(Type.String()),
+    connectorId: Type.Optional(Type.String()),
+    connectLabel: Type.Optional(Type.String()),
+    accountLabel: Type.Optional(Type.String()),
+    accountEmail: Type.Optional(Type.String()),
+    docsPath: Type.Optional(Type.String()),
+    authSource: ProviderOverviewAuthSourceSchema,
+    chips: Type.Array(NonEmptyString),
+    usageWindows: Type.Array(AlisioProviderOverviewUsageWindowSchema),
+    current: Type.Boolean(),
+    active: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioProviderOverviewSummarySchema = Type.Object(
+  {
+    connected: Type.Integer({ minimum: 0 }),
+    ready: Type.Integer({ minimum: 0 }),
+    attention: Type.Integer({ minimum: 0 }),
+    total: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioProvidersGetParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioProvidersResultSchema = Type.Object(
+  {
+    generatedAt: NonEmptyString,
+    summary: AlisioProviderOverviewSummarySchema,
+    account: AlisioAccountResultSchema,
+    ai: AlisioAiStateSchema,
+    connectors: Type.Object(
+      {
+        catalog: Type.Array(AlisioConnectorDefinitionSchema),
+        authorizations: Type.Array(AlisioConnectorAuthorizationSchema),
+      },
+      { additionalProperties: false },
+    ),
+    assistant: Type.Array(AlisioProviderOverviewItemSchema),
+    providers: Type.Array(AlisioProviderOverviewItemSchema),
+    runtimes: Type.Array(AlisioProviderOverviewItemSchema),
+    apps: Type.Array(AlisioProviderOverviewItemSchema),
   },
   { additionalProperties: false },
 );

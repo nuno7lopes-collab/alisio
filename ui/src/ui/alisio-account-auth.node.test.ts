@@ -17,6 +17,28 @@ describe("alisio account email link auth url helpers", () => {
       refreshToken: "rt_456",
       expiresIn: 3600,
       tokenType: "bearer",
+      authType: "magiclink",
+    });
+  });
+
+  it("preserva o tipo de callback para recovery e email_change", () => {
+    expect(
+      readAlisioAccountEmailLinkAuthResultFromUrl(
+        "http://localhost:18789/logout/setup#access_token=at_123&type=recovery",
+      ),
+    ).toEqual({
+      kind: "success",
+      accessToken: "at_123",
+      authType: "recovery",
+    });
+    expect(
+      readAlisioAccountEmailLinkAuthResultFromUrl(
+        "http://localhost:18789/logout/settings#access_token=at_123&type=email_change",
+      ),
+    ).toEqual({
+      kind: "success",
+      accessToken: "at_123",
+      authType: "email_change",
     });
   });
 

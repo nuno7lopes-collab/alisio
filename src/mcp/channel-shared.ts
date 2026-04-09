@@ -131,6 +131,9 @@ export function toText(value: unknown): string | undefined {
 export function resolveMessageId(entry: Record<string, unknown>): string | undefined {
   return (
     toText(entry.id) ??
+    (entry.__alisio && typeof entry.__alisio === "object"
+      ? toText((entry.__alisio as { id?: unknown }).id)
+      : undefined) ??
     (entry.__openclaw && typeof entry.__openclaw === "object"
       ? toText((entry.__openclaw as { id?: unknown }).id)
       : undefined)

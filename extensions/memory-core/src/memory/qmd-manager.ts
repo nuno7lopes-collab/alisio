@@ -53,6 +53,11 @@ import {
   type ResolvedObsidianReadOnlyVault,
 } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import chokidar, { type FSWatcher } from "chokidar";
+import {
+  buildCanonicalMemoryStoreStatus,
+  syncCanonicalMemoryStore,
+  type CanonicalMemoryStoreStatus,
+} from "./canonical-store.js";
 
 type SqliteDatabase = import("node:sqlite").DatabaseSync;
 
@@ -287,6 +292,7 @@ export class QmdMemoryManager implements MemorySearchManager {
   private attemptedDuplicateDocumentRepair = false;
   private readonly sessionWarm = new Set<string>();
   private collectionPatternFlag: QmdCollectionPatternFlag | null = null;
+  private canonicalStoreStatus?: CanonicalMemoryStoreStatus;
 
   private constructor(params: {
     cfg: OpenClawConfig;
@@ -372,6 +378,11 @@ export class QmdMemoryManager implements MemorySearchManager {
       ];
     }
     this.managedCollectionNames = this.computeManagedCollectionNames();
+    this.canonicalStoreStatus = buildCanonicalMemoryStoreStatus({
+      agentId: this.agentId,
+      workspaceDir: this.workspaceDir,
+      backend: "qmd",
+    });
   }
 
   private async initialize(mode: QmdManagerMode): Promise<void> {
@@ -1144,6 +1155,7 @@ export class QmdMemoryManager implements MemorySearchManager {
       },
       obsidianReadOnly,
       custom: {
+        canonicalStore: this.canonicalStoreStatus,
         qmd: {
           collections: this.qmd.collections.length,
           lastUpdateAt: this.lastUpdateAt,
@@ -1239,6 +1251,26 @@ export class QmdMemoryManager implements MemorySearchManager {
       }
       this.lastUpdateAt = Date.now();
       this.docPathCache.clear();
+      try {
+        this.canonicalStoreStatus = await syncCanonicalMemoryStore({
+          cfg: this.cfg,
+          agentId: this.agentId,
+          workspaceDir: this.workspaceDir,
+          backend: "qmd",
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.canonicalStoreStatus = {
+          ...(this.canonicalStoreStatus ??
+            buildCanonicalMemoryStoreStatus({
+              agentId: this.agentId,
+              workspaceDir: this.workspaceDir,
+              backend: "qmd",
+            })),
+          lastError: message,
+        };
+        log.warn(`failed to sync qmd canonical memory store: ${message}`);
+      }
     };
     this.pendingUpdate = run().finally(() => {
       this.pendingUpdate = null;

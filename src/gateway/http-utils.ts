@@ -4,8 +4,37 @@ import { loadConfig } from "../config/config.js";
 import { buildAgentMainSessionKey, normalizeAgentId } from "../routing/session-key.js";
 import { getHeader, normalizeGatewayRequestMessageChannel } from "./http-request-helpers.js";
 
-export const OPENCLAW_MODEL_ID = "openclaw";
-export const OPENCLAW_DEFAULT_MODEL_ID = "openclaw/default";
+export const ALISIO_MODEL_ID = "alisio";
+export const ALISIO_DEFAULT_MODEL_ID = "alisio/default";
+const LEGACY_MODEL_ID = "openclaw";
+const LEGACY_DEFAULT_MODEL_ID = "openclaw/default";
+
+function getCompatHeader(
+  req: IncomingMessage,
+  canonicalName: string,
+  legacyName: string,
+): string | undefined {
+  return getHeader(req, canonicalName) ?? getHeader(req, legacyName);
+}
+
+export function normalizeGatewayModelAlias(model: string | undefined): string | undefined {
+  const raw = model?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const lowered = raw.toLowerCase();
+  if (lowered === LEGACY_MODEL_ID) {
+    return ALISIO_MODEL_ID;
+  }
+  if (lowered === LEGACY_DEFAULT_MODEL_ID) {
+    return ALISIO_DEFAULT_MODEL_ID;
+  }
+  const legacyMatch = raw.match(/^openclaw[:/](?<agentId>[a-z0-9][a-z0-9_-]{0,63})$/i);
+  if (legacyMatch?.groups?.agentId) {
+    return `${ALISIO_MODEL_ID}/${legacyMatch.groups.agentId}`;
+  }
+  return raw;
+}
 
 function resolveDefaultAgentIdFromConfig(cfg = loadConfig()): string {
   const agents = Array.isArray(cfg.agents?.list) ? cfg.agents.list : [];
@@ -17,8 +46,8 @@ function resolveDefaultAgentIdFromConfig(cfg = loadConfig()): string {
 
 export function resolveAgentIdFromHeader(req: IncomingMessage): string | undefined {
   const raw =
-    getHeader(req, "x-openclaw-agent-id")?.trim() ||
-    getHeader(req, "x-openclaw-agent")?.trim() ||
+    getCompatHeader(req, "x-alisio-agent-id", "x-openclaw-agent-id")?.trim() ||
+    getCompatHeader(req, "x-alisio-agent", "x-openclaw-agent")?.trim() ||
     "";
   if (!raw) {
     return undefined;
@@ -30,17 +59,17 @@ export function resolveAgentIdFromModel(
   model: string | undefined,
   cfg = loadConfig(),
 ): string | undefined {
-  const raw = model?.trim();
+  const raw = normalizeGatewayModelAlias(model)?.trim();
   if (!raw) {
     return undefined;
   }
   const lowered = raw.toLowerCase();
-  if (lowered === OPENCLAW_MODEL_ID || lowered === OPENCLAW_DEFAULT_MODEL_ID) {
+  if (lowered === ALISIO_MODEL_ID || lowered === ALISIO_DEFAULT_MODEL_ID) {
     return resolveDefaultAgentIdFromConfig(cfg);
   }
 
   const m =
-    raw.match(/^openclaw[:/](?<agentId>[a-z0-9][a-z0-9_-]{0,63})$/i) ??
+    raw.match(/^alisio[:/](?<agentId>[a-z0-9][a-z0-9_-]{0,63})$/i) ??
     raw.match(/^agent:(?<agentId>[a-z0-9][a-z0-9_-]{0,63})$/i);
   const agentId = m?.groups?.agentId;
   if (!agentId) {
@@ -57,14 +86,16 @@ export async function resolveOpenAiCompatModelOverride(params: {
   const { buildAllowedModelSet, modelKey, parseModelRef, resolveDefaultModelForAgent } =
     await import("../agents/model-selection.js");
   const { loadGatewayModelCatalog } = await import("./server-model-catalog.js");
-  const requestModel = params.model?.trim();
+  const requestModel = normalizeGatewayModelAlias(params.model)?.trim();
   if (requestModel && !resolveAgentIdFromModel(requestModel)) {
     return {
-      errorMessage: "Invalid `model`. Use `openclaw` or `openclaw/<agentId>`.",
+      errorMessage: "Invalid `model`. Use `alisio` or `alisio/<agentId>`.",
     };
   }
 
-  const raw = getHeader(params.req, "x-openclaw-model")?.trim();
+  const raw = normalizeGatewayModelAlias(
+    getCompatHeader(params.req, "x-alisio-model", "x-openclaw-model"),
+  )?.trim();
   if (!raw) {
     return {};
   }
@@ -74,7 +105,7 @@ export async function resolveOpenAiCompatModelOverride(params: {
   const defaultProvider = defaultModelRef.provider;
   const parsed = parseModelRef(raw, defaultProvider);
   if (!parsed) {
-    return { errorMessage: "Invalid `x-openclaw-model`." };
+    return { errorMessage: "Invalid `x-alisio-model`." };
   }
 
   const catalog = await loadGatewayModelCatalog();
@@ -114,7 +145,11 @@ export function resolveSessionKey(params: {
   user?: string | undefined;
   prefix: string;
 }): string {
-  const explicit = getHeader(params.req, "x-openclaw-session-key")?.trim();
+  const explicit = getCompatHeader(
+    params.req,
+    "x-alisio-session-key",
+    "x-openclaw-session-key",
+  )?.trim();
   if (explicit) {
     return explicit;
   }
@@ -141,8 +176,9 @@ export function resolveGatewayRequestContext(params: {
   });
 
   const messageChannel = params.useMessageChannelHeader
-    ? (normalizeGatewayRequestMessageChannel(getHeader(params.req, "x-openclaw-message-channel")) ??
-      params.defaultMessageChannel)
+    ? (normalizeGatewayRequestMessageChannel(
+        getCompatHeader(params.req, "x-alisio-message-channel", "x-openclaw-message-channel"),
+      ) ?? params.defaultMessageChannel)
     : params.defaultMessageChannel;
 
   return { agentId, sessionKey, messageChannel };

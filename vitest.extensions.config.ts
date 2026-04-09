@@ -3,13 +3,16 @@ import {
   BUNDLED_PLUGIN_TEST_GLOB,
 } from "./scripts/lib/bundled-plugin-paths.mjs";
 import { channelTestExclude } from "./vitest.channel-paths.mjs";
-import { loadPatternListFromEnv } from "./vitest.pattern-file.ts";
+import { loadPatternListFromEnvKeys } from "./vitest.pattern-file.ts";
 import { createScopedVitestConfig } from "./vitest.scoped-config.ts";
 
 export function loadIncludePatternsFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string[] | null {
-  return loadPatternListFromEnv("OPENCLAW_VITEST_INCLUDE_FILE", env);
+  return loadPatternListFromEnvKeys(
+    ["ALISIO_VITEST_INCLUDE_FILE", "OPENCLAW_VITEST_INCLUDE_FILE"],
+    env,
+  );
 }
 
 export function createExtensionsVitestConfig(

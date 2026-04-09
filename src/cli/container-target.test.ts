@@ -146,16 +146,21 @@ describe("maybeRunCliInContainer", () => {
         "exec",
         "-i",
         "--env",
+        "ALISIO_CONTAINER_HINT=demo",
+        "--env",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "--env",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "--env",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "status",
       ],
       {
         stdio: "inherit",
         env: {
+          ALISIO_CONTAINER: "",
           OPENCLAW_CONTAINER: "",
         },
       },
@@ -197,16 +202,21 @@ describe("maybeRunCliInContainer", () => {
         "exec",
         "-i",
         "--env",
+        "ALISIO_CONTAINER_HINT=demo",
+        "--env",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "--env",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "--env",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "status",
       ],
       {
         stdio: "inherit",
         env: {
+          ALISIO_CONTAINER: "",
           OPENCLAW_CONTAINER: "",
         },
       },
@@ -252,16 +262,20 @@ describe("maybeRunCliInContainer", () => {
         "exec",
         "-i",
         "--env",
+        "ALISIO_CONTAINER_HINT=demo",
+        "--env",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "--env",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "--env",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "status",
       ],
       {
         stdio: "inherit",
-        env: { OPENCLAW_CONTAINER: "" },
+        env: { ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
       },
     );
   });
@@ -305,16 +319,20 @@ describe("maybeRunCliInContainer", () => {
         "exec",
         "-i",
         "-e",
+        "ALISIO_CONTAINER_HINT=demo",
+        "-e",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "-e",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "-e",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "health",
       ],
       {
         stdio: "inherit",
-        env: { USER: "openclaw", OPENCLAW_CONTAINER: "" },
+        env: { USER: "openclaw", ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
       },
     );
   });
@@ -368,16 +386,20 @@ describe("maybeRunCliInContainer", () => {
         "exec",
         "-i",
         "-e",
+        "ALISIO_CONTAINER_HINT=demo",
+        "-e",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "-e",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "-e",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "status",
       ],
       {
         stdio: "inherit",
-        env: { USER: "somalley", OPENCLAW_CONTAINER: "" },
+        env: { USER: "somalley", ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
       },
     );
     expect(spawnSync).toHaveBeenCalledTimes(3);
@@ -474,16 +496,20 @@ describe("maybeRunCliInContainer", () => {
         "-i",
         "-t",
         "--env",
+        "ALISIO_CONTAINER_HINT=demo",
+        "--env",
         "OPENCLAW_CONTAINER_HINT=demo",
+        "--env",
+        "ALISIO_CLI_CONTAINER_BYPASS=1",
         "--env",
         "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
-        "openclaw",
+        "alisio",
         "setup",
       ],
       {
         stdio: "inherit",
-        env: { OPENCLAW_CONTAINER: "" },
+        env: { ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
       },
     );
   });
@@ -559,7 +585,7 @@ describe("maybeRunCliInContainer", () => {
         spawnSync,
       }),
     ).toThrow(
-      "openclaw update is not supported with --container; rebuild or restart the container image instead.",
+      "alisio update is not supported with --container; rebuild or restart the container image instead.",
     );
     expect(spawnSync).not.toHaveBeenCalled();
   });
@@ -576,7 +602,7 @@ describe("maybeRunCliInContainer", () => {
         spawnSync,
       }),
     ).toThrow(
-      "openclaw update is not supported with --container; rebuild or restart the container image instead.",
+      "alisio update is not supported with --container; rebuild or restart the container image instead.",
     );
     expect(spawnSync).not.toHaveBeenCalled();
   });
@@ -593,7 +619,7 @@ describe("maybeRunCliInContainer", () => {
         spawnSync,
       }),
     ).toThrow(
-      "openclaw update is not supported with --container; rebuild or restart the container image instead.",
+      "alisio update is not supported with --container; rebuild or restart the container image instead.",
     );
     expect(spawnSync).not.toHaveBeenCalled();
   });

@@ -9,6 +9,7 @@ const HOME_ENV_KEYS = [
   "USERPROFILE",
   "HOMEDRIVE",
   "HOMEPATH",
+  "ALISIO_STATE_DIR",
   "OPENCLAW_STATE_DIR",
 ] as const;
 
@@ -19,12 +20,15 @@ export type TempHomeEnv = {
 
 export async function createTempHomeEnv(prefix: string): Promise<TempHomeEnv> {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  const stateDir = path.join(home, ".alisio");
+  await fs.mkdir(stateDir, { recursive: true });
   await fs.mkdir(path.join(home, ".openclaw"), { recursive: true });
 
   const snapshot = captureEnv([...HOME_ENV_KEYS]);
   process.env.HOME = home;
   process.env.USERPROFILE = home;
-  process.env.OPENCLAW_STATE_DIR = path.join(home, ".openclaw");
+  process.env.ALISIO_STATE_DIR = stateDir;
+  process.env.OPENCLAW_STATE_DIR = stateDir;
 
   if (process.platform === "win32") {
     const match = home.match(/^([A-Za-z]:)(.*)$/);

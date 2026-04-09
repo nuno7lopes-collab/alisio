@@ -1,18 +1,35 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import {
-  firstWrittenJsonArg,
-  spyRuntimeErrors,
-  spyRuntimeJson,
-  spyRuntimeLogs,
-} from "alisio/plugin-sdk/testing";
 import { Command } from "commander";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+type MockCallsWithFirstArg = {
+  mock: {
+    calls: Array<[unknown, ...unknown[]]>;
+  };
+};
+
+function spyRuntimeLogs(runtime: { log: (...args: unknown[]) => unknown }) {
+  return vi.spyOn(runtime, "log").mockImplementation(() => {});
+}
+
+function spyRuntimeErrors(runtime: { error: (...args: unknown[]) => unknown }) {
+  return vi.spyOn(runtime, "error").mockImplementation(() => {});
+}
+
+function spyRuntimeJson(runtime: { writeJson: (value: unknown, space?: number) => unknown }) {
+  return vi.spyOn(runtime, "writeJson").mockImplementation(() => {});
+}
+
+function firstWrittenJsonArg<T>(writeJson: MockCallsWithFirstArg): T | null {
+  return (writeJson.mock.calls[0]?.[0] ?? null) as T | null;
+}
 
 const getMemorySearchManager = vi.hoisted(() => vi.fn());
 const loadConfig = vi.hoisted(() => vi.fn(() => ({})));
 const resolveDefaultAgentId = vi.hoisted(() => vi.fn(() => "main"));
+const queryCanonicalMemoryGraph = vi.hoisted(() => vi.fn());
 const resolveCommandSecretRefsViaGateway = vi.hoisted(() =>
   vi.fn(async ({ config }: { config: unknown }) => ({
     resolvedConfig: config,
@@ -47,6 +64,14 @@ vi.mock("./memory/index.js", async (importOriginal) => {
   };
 });
 
+vi.mock("./memory/canonical-store.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./memory/canonical-store.js")>();
+  return {
+    ...actual,
+    queryCanonicalMemoryGraph,
+  };
+});
+
 let registerMemoryCli: typeof import("./cli.js").registerMemoryCli;
 let defaultRuntime: typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli").defaultRuntime;
 let isVerbose: typeof import("alisio/plugin-sdk/memory-core-host-runtime-cli").isVerbose;
@@ -62,6 +87,7 @@ beforeEach(() => {
   getMemorySearchManager.mockReset();
   loadConfig.mockReset().mockReturnValue({});
   resolveDefaultAgentId.mockReset().mockReturnValue("main");
+  queryCanonicalMemoryGraph.mockReset();
   resolveCommandSecretRefsViaGateway.mockReset().mockImplementation(async ({ config }) => ({
     resolvedConfig: config,
     diagnostics: [] as string[],
@@ -94,6 +120,7 @@ describe("memory cli", () => {
       model: "text-embedding-3-small",
       requestedProvider: "openai",
       vector: { enabled: true, available: true },
+      custom: undefined,
       ...overrides,
     };
   }
@@ -216,6 +243,88 @@ describe("memory cli", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("runs canonical graph queries from the CLI", async () => {
+    const close = vi.fn(async () => {});
+    queryCanonicalMemoryGraph.mockReturnValue({
+      query: "project atlas",
+      profileId: "local-main",
+      workspaceScope: "scope-main",
+      storePath: "/tmp/canonical.sqlite",
+      backend: "builtin",
+      state: "ready",
+      projectionInterface: "markdown-vault",
+      syncMode: "local-first",
+      cloudSync: "not_implemented",
+      matches: [
+        {
+          entityId: "note-1",
+          title: "Project Atlas",
+          slug: "project-atlas",
+          sourcePath: "memory/project-atlas.md",
+          sourceKind: "workspace-memory",
+          aliases: ["project-atlas"],
+          tags: ["project"],
+          score: 1,
+          projections: [],
+          relations: [
+            {
+              direction: "outgoing",
+              relationType: "references",
+              ordinal: 0,
+              metadata: {},
+              relatedEntity: {
+                entityId: "note-2",
+                title: "Roadmap",
+                slug: "roadmap",
+                sourcePath: "memory/roadmap.md",
+                sourceKind: "workspace-memory",
+              },
+            },
+          ],
+        },
+      ],
+    });
+    mockManager({
+      sync: vi.fn(async () => {}),
+      status: () =>
+        makeMemoryStatus({
+          custom: {
+            canonicalStore: {
+              state: "ready",
+              path: "/tmp/canonical.sqlite",
+              profileId: "local-main",
+              profileSource: "local-profile",
+              workspaceScope: "scope-main",
+              workspaceDir: "/tmp/workspace",
+              backend: "builtin",
+              entities: 1,
+              relations: 1,
+              projections: 1,
+              projectionInterface: "markdown-vault",
+              syncMode: "local-first",
+              cloudSync: "not_implemented",
+              projectionSources: ["workspace-memory"],
+            },
+          },
+        }),
+      close,
+    });
+
+    const log = spyRuntimeLogs(defaultRuntime);
+    await runMemoryCli(["graph", "project atlas"]);
+
+    expect(queryCanonicalMemoryGraph).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "project atlas",
+        status: expect.objectContaining({ profileId: "local-main" }),
+      }),
+    );
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Canonical Memory Graph"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Project Atlas"));
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Roadmap"));
+    expect(close).toHaveBeenCalled();
+  });
+
   it("resolves configured memory SecretRefs through gateway snapshot", async () => {
     loadConfig.mockReturnValue({
       agents: {
@@ -261,11 +370,11 @@ describe("memory cli", () => {
   it("documents memory help examples", () => {
     const helpText = getMemoryHelpText();
 
-    expect(helpText).toContain("openclaw memory status --deep");
+    expect(helpText).toContain("alisio memory status --deep");
     expect(helpText).toContain("Probe embedding provider readiness.");
-    expect(helpText).toContain('openclaw memory search "meeting notes"');
+    expect(helpText).toContain('alisio memory search "meeting notes"');
     expect(helpText).toContain("Quick search using positional query.");
-    expect(helpText).toContain('openclaw memory search --query "deployment" --max-results 20');
+    expect(helpText).toContain('alisio memory search --query "deployment" --max-results 20');
     expect(helpText).toContain("Limit results for focused troubleshooting.");
   });
 

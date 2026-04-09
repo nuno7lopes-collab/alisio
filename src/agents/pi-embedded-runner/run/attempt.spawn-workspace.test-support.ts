@@ -132,7 +132,7 @@ vi.mock("../context-engine-maintenance.js", () => ({
 }));
 
 vi.mock("../../docs-path.js", () => ({
-  resolveOpenClawDocsPath: async () => undefined,
+  resolveAlisioDocsPath: async () => undefined,
 }));
 
 vi.mock("../../pi-project-settings.js", () => ({

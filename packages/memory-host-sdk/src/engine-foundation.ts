@@ -15,6 +15,11 @@ export { loadConfig } from "../../../src/config/config.js";
 export { resolveStateDir } from "../../../src/config/paths.js";
 export { resolveSessionTranscriptsDirForAgent } from "../../../src/config/sessions/paths.js";
 export {
+  resolveAlisioCanonicalMemoryStorePath,
+  resolveAlisioMemoryOwnerProfile,
+} from "../../../src/infra/alisio-memory-profile.js";
+export { loadOrCreateDeviceIdentity } from "../../../src/infra/device-identity.js";
+export {
   hasConfiguredSecretInput,
   normalizeResolvedSecretInputString,
 } from "../../../src/config/types.secrets.js";
@@ -34,6 +39,8 @@ export {
 export type { OpenClawConfig } from "../../../src/config/config.js";
 export type { SessionSendPolicyConfig } from "../../../src/config/types.base.js";
 export type { SecretInput } from "../../../src/config/types.secrets.js";
+export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";
+export type { DeviceIdentity } from "../../../src/infra/device-identity.js";
 export type {
   MemoryBackend,
   MemoryCitationsMode,

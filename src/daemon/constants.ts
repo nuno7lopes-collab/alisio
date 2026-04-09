@@ -1,17 +1,20 @@
 // Default service labels (canonical + legacy compatibility)
-export const GATEWAY_LAUNCH_AGENT_LABEL = "ai.openclaw.gateway";
-export const GATEWAY_SYSTEMD_SERVICE_NAME = "openclaw-gateway";
+export const GATEWAY_LAUNCH_AGENT_LABEL = "ai.alisio.gateway";
+export const GATEWAY_SYSTEMD_SERVICE_NAME = "alisio-gateway";
 export const GATEWAY_WINDOWS_TASK_NAME = "Alisio Gateway";
-export const GATEWAY_SERVICE_MARKER = "openclaw";
+export const GATEWAY_SERVICE_MARKER = "alisio";
 export const GATEWAY_SERVICE_KIND = "gateway";
-export const NODE_LAUNCH_AGENT_LABEL = "ai.openclaw.node";
-export const NODE_SYSTEMD_SERVICE_NAME = "openclaw-node";
+export const NODE_LAUNCH_AGENT_LABEL = "ai.alisio.node";
+export const NODE_SYSTEMD_SERVICE_NAME = "alisio-node";
 export const NODE_WINDOWS_TASK_NAME = "Alisio Node";
-export const NODE_SERVICE_MARKER = "openclaw";
+export const NODE_SERVICE_MARKER = "alisio";
 export const NODE_SERVICE_KIND = "node";
 export const NODE_WINDOWS_TASK_SCRIPT_NAME = "node.cmd";
-export const LEGACY_GATEWAY_LAUNCH_AGENT_LABELS: string[] = [];
-export const LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES: string[] = ["clawdbot-gateway"];
+export const LEGACY_GATEWAY_LAUNCH_AGENT_LABELS: string[] = ["ai.openclaw.gateway"];
+export const LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES: string[] = [
+  "openclaw-gateway",
+  "clawdbot-gateway",
+];
 export const LEGACY_GATEWAY_WINDOWS_TASK_NAMES: string[] = [];
 
 export function normalizeGatewayProfile(profile?: string): string | null {
@@ -32,12 +35,15 @@ export function resolveGatewayLaunchAgentLabel(profile?: string): string {
   if (!normalized) {
     return GATEWAY_LAUNCH_AGENT_LABEL;
   }
-  return `ai.openclaw.${normalized}`;
+  return `ai.alisio.${normalized}`;
 }
 
 export function resolveLegacyGatewayLaunchAgentLabels(profile?: string): string[] {
-  void profile;
-  return [];
+  const normalized = normalizeGatewayProfile(profile);
+  if (!normalized) {
+    return LEGACY_GATEWAY_LAUNCH_AGENT_LABELS;
+  }
+  return [`ai.openclaw.${normalized}`];
 }
 
 export function resolveGatewaySystemdServiceName(profile?: string): string {
@@ -45,7 +51,7 @@ export function resolveGatewaySystemdServiceName(profile?: string): string {
   if (!suffix) {
     return GATEWAY_SYSTEMD_SERVICE_NAME;
   }
-  return `openclaw-gateway${suffix}`;
+  return `alisio-gateway${suffix}`;
 }
 
 export function resolveGatewayWindowsTaskName(profile?: string): string {
@@ -80,11 +86,17 @@ export function resolveGatewayServiceDescription(params: {
   environment?: Record<string, string | undefined>;
   description?: string;
 }): string {
+  const profile = params.env.ALISIO_PROFILE ?? params.env.OPENCLAW_PROFILE;
+  const environmentVersion =
+    params.environment?.ALISIO_SERVICE_VERSION ??
+    params.environment?.OPENCLAW_SERVICE_VERSION ??
+    params.env.ALISIO_SERVICE_VERSION ??
+    params.env.OPENCLAW_SERVICE_VERSION;
   return (
     params.description ??
     formatGatewayServiceDescription({
-      profile: params.env.OPENCLAW_PROFILE,
-      version: params.environment?.OPENCLAW_SERVICE_VERSION ?? params.env.OPENCLAW_SERVICE_VERSION,
+      profile,
+      version: environmentVersion,
     })
   );
 }

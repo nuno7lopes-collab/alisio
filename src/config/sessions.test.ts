@@ -154,7 +154,16 @@ describe("sessions", () => {
     ).toBe("discord:friends-of-alisio#general");
   });
 
-  const resolveSessionKeyCases = [
+  type ResolveSessionKeyCase = {
+    name: string;
+    scope: Parameters<typeof resolveSessionKey>[0];
+    ctx: Parameters<typeof resolveSessionKey>[1];
+    mainKey: Parameters<typeof resolveSessionKey>[2];
+    dmScope?: Parameters<typeof resolveSessionKey>[3];
+    expected: string;
+  };
+
+  const resolveSessionKeyCases: ResolveSessionKeyCase[] = [
     {
       name: "keeps explicit provider when provided in group key",
       scope: "per-sender" as const,
@@ -177,10 +186,25 @@ describe("sessions", () => {
       expected: "agent:main:main",
     },
     {
-      name: "maps direct chats to main key when provided",
+      name: "isolates channel-aware direct chats by default",
+      scope: "per-sender" as const,
+      ctx: { From: "whatsapp:+1555" },
+      mainKey: undefined,
+      expected: "agent:main:whatsapp:direct:+1555",
+    },
+    {
+      name: "uses sender ids to isolate non-phone direct chats by default",
+      scope: "per-sender" as const,
+      ctx: { From: "slack:D123", Provider: "slack", SenderId: "U1" },
+      mainKey: undefined,
+      expected: "agent:main:slack:direct:u1",
+    },
+    {
+      name: "maps direct chats to main key when dmScope=main",
       scope: "per-sender" as const,
       ctx: { From: "whatsapp:+1555" },
       mainKey: "main",
+      dmScope: "main" as const,
       expected: "agent:main:main",
     },
     {
@@ -204,13 +228,13 @@ describe("sessions", () => {
       mainKey: "main",
       expected: "agent:main:whatsapp:group:12345-678@g.us",
     },
-  ] as const;
+  ];
 
   for (const testCase of resolveSessionKeyCases) {
     it(testCase.name, () => {
-      expect(resolveSessionKey(testCase.scope, testCase.ctx, testCase.mainKey)).toBe(
-        testCase.expected,
-      );
+      expect(
+        resolveSessionKey(testCase.scope, testCase.ctx, testCase.mainKey, testCase.dmScope),
+      ).toBe(testCase.expected);
     });
   }
 

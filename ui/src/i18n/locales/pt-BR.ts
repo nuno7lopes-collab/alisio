@@ -153,6 +153,24 @@ export const pt_BR: TranslationMap = {
   },
   alisio: {
     chat: {
+      access: {
+        title: "Segurança no chat",
+        subtitle:
+          "Opera o acesso aqui. O runtime continua a manter por baixo a policy real, as permissões e o trilho de auditoria.",
+        openAdvanced: "Detalhes da policy",
+        policyTitle: "Plano de policy",
+        policyRuntime: "Padrão do runtime: {value}",
+        policyApprovals: "Padrão de approval: {value}",
+        policyFallback: "Fallback: {value}",
+        policyOverridesAligned: "Não há overrides por agente neste runtime.",
+        computerTitle: "Acesso ao computador",
+        computerLoading: "Carregando o acesso ao computador…",
+        computerUnavailable: "O acesso nativo ao computador não está disponível nesta superfície.",
+        computerGranted: "{granted}/{total} permissões do sistema prontas",
+        computerAllGranted: "Nenhuma permissão do sistema bloqueada foi detectada.",
+        computerNeedsReview: "Precisa de revisão: {value}",
+        openComputerSettings: "Ajustes do sistema",
+      },
       queue: {
         pendingCurrent: "À espera de a resposta atual terminar",
         pendingNext: "A seguir na fila",

@@ -2,6 +2,7 @@ import { evaluateMatchedGroupAccessForPolicy } from "openclaw/plugin-sdk/group-a
 import { mergeDmAllowFromSources, resolveGroupAllowFromSources } from "../channels/allow-from.js";
 import { resolveControlCommandGate } from "../channels/command-gating.js";
 import type { ChannelId } from "../channels/plugins/types.js";
+import { resolveDmScope } from "../config/session-defaults.js";
 import type { GroupPolicy } from "../config/types.base.js";
 import { readChannelAllowFromStore } from "../pairing/pairing-store.js";
 import { normalizeStringEntries } from "../shared/string-normalization.js";
@@ -11,7 +12,7 @@ export function resolvePinnedMainDmOwnerFromAllowlist(params: {
   allowFrom?: Array<string | number> | null;
   normalizeEntry: (entry: string) => string | undefined;
 }): string | null {
-  if ((params.dmScope ?? "main") !== "main") {
+  if (resolveDmScope(params.dmScope) !== "main") {
     return null;
   }
   const rawAllowFrom = Array.isArray(params.allowFrom) ? params.allowFrom : [];

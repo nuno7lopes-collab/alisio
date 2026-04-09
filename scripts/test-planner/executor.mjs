@@ -380,6 +380,12 @@ export async function executePlan(plan, options = {}) {
     if (Number.isFinite(parsed) && parsed > 0) {
       return parsed;
     }
+    if (
+      plan.runtimeCapabilities.intentProfile === "serial" &&
+      !plan.runtimeCapabilities.isWindows
+    ) {
+      return DEFAULT_CI_MAX_OLD_SPACE_SIZE_MB;
+    }
     if (plan.runtimeCapabilities.isCI && !plan.runtimeCapabilities.isWindows) {
       return DEFAULT_CI_MAX_OLD_SPACE_SIZE_MB;
     }

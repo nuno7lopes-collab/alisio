@@ -21,7 +21,7 @@ import { emitSessionLifecycleEvent } from "../sessions/session-lifecycle-events.
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "./lanes.js";
-import { resolveSubagentSpawnModelSelection } from "./model-selection.js";
+import { normalizeModelSelection, resolveSubagentSpawnModelSelection } from "./model-selection.js";
 import { evaluatePersonSubagentGuard } from "./person-agent.js";
 import { resolveSandboxRuntimeStatus } from "./sandbox/runtime-status.js";
 import {
@@ -49,6 +49,8 @@ export const SUBAGENT_SPAWN_MODES = ["run", "session"] as const;
 export type SpawnSubagentMode = (typeof SUBAGENT_SPAWN_MODES)[number];
 export const SUBAGENT_SPAWN_SANDBOX_MODES = ["inherit", "require"] as const;
 export type SpawnSubagentSandboxMode = (typeof SUBAGENT_SPAWN_SANDBOX_MODES)[number];
+const LEGACY_SUBAGENT_SESSION_MODE_SUNSET = "2026-06-30";
+const ALISIO_MODELS_GET_TIMEOUT_MS = 1_500;
 
 export { decodeStrictBase64 };
 
@@ -105,8 +107,6 @@ export type SpawnSubagentContext = {
 
 export const SUBAGENT_SPAWN_ACCEPTED_NOTE =
   "Auto-announce is push-based. After spawning children, do NOT call sessions_list, sessions_history, exec sleep, or any polling tool. Wait for completion events to arrive as user messages, track expected child session keys, and only send your final answer after ALL expected completions arrive. If a child completion event arrives AFTER your final answer, reply ONLY with NO_REPLY.";
-export const SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE =
-  "thread-bound session stays active after this task; continue in-thread for follow-ups.";
 
 export type SpawnSubagentResult = {
   status: "accepted" | "forbidden" | "error";
@@ -252,15 +252,12 @@ async function cleanupFailedSpawnBeforeAgentStart(params: {
   });
 }
 
-function resolveSpawnMode(params: {
-  requestedMode?: SpawnSubagentMode;
-  threadRequested: boolean;
-}): SpawnSubagentMode {
-  if (params.requestedMode === "run" || params.requestedMode === "session") {
+function resolveSpawnMode(params: { requestedMode?: SpawnSubagentMode }): SpawnSubagentMode {
+  if (params.requestedMode === "run") {
     return params.requestedMode;
   }
-  // Thread-bound spawns should default to persistent sessions.
-  return params.threadRequested ? "session" : "run";
+  // Subagents are always ephemeral workers, even when a temporary task thread is used.
+  return "run";
 }
 
 function summarizeError(err: unknown): string {
@@ -271,6 +268,130 @@ function summarizeError(err: unknown): string {
     return err;
   }
   return "error";
+}
+
+type AlisioModelsGetResult = {
+  targets?: Array<{
+    current?: boolean;
+    connected?: boolean;
+    access?: "owner" | "shared";
+    chatProviderId?: string;
+    runtimeStatus?: string;
+    bestModelId?: string;
+    installedModels?: Array<{ id?: string; running?: boolean }>;
+    availableModels?: Array<{ id?: string }>;
+  }>;
+};
+
+function normalizeLocalTargetModelId(
+  target: NonNullable<AlisioModelsGetResult["targets"]>[number],
+): string | undefined {
+  const installedIds = (target.installedModels ?? [])
+    .map((entry) => entry.id?.trim())
+    .filter((entry): entry is string => Boolean(entry));
+  const installedIdSet = new Set(installedIds.map((entry) => entry.toLowerCase()));
+  const bestModelId = target.bestModelId?.trim();
+  if (bestModelId && installedIdSet.has(bestModelId.toLowerCase())) {
+    return bestModelId;
+  }
+  const runningModelId = target.installedModels
+    ?.find((entry) => entry.running === true && entry.id?.trim())
+    ?.id?.trim();
+  if (runningModelId) {
+    return runningModelId;
+  }
+  if (installedIds.length > 0) {
+    return installedIds[0];
+  }
+  const availableModelId = target.availableModels
+    ?.map((entry) => entry.id?.trim())
+    .find((entry): entry is string => Boolean(entry));
+  return availableModelId;
+}
+
+function compareLocalSubagentTargets(
+  left: NonNullable<AlisioModelsGetResult["targets"]>[number],
+  right: NonNullable<AlisioModelsGetResult["targets"]>[number],
+) {
+  const leftCurrent = Number(left.current === true);
+  const rightCurrent = Number(right.current === true);
+  if (leftCurrent !== rightCurrent) {
+    return rightCurrent - leftCurrent;
+  }
+  const leftOwner = Number(left.access === "owner");
+  const rightOwner = Number(right.access === "owner");
+  if (leftOwner !== rightOwner) {
+    return rightOwner - leftOwner;
+  }
+  const leftShared = Number(left.access === "shared");
+  const rightShared = Number(right.access === "shared");
+  if (leftShared !== rightShared) {
+    return rightShared - leftShared;
+  }
+  const leftConnected = Number(left.connected === true);
+  const rightConnected = Number(right.connected === true);
+  if (leftConnected !== rightConnected) {
+    return rightConnected - leftConnected;
+  }
+  const leftRunning = Number(
+    (left.installedModels ?? []).some((entry) => entry.running === true && entry.id?.trim()),
+  );
+  const rightRunning = Number(
+    (right.installedModels ?? []).some((entry) => entry.running === true && entry.id?.trim()),
+  );
+  return rightRunning - leftRunning;
+}
+
+async function resolvePreferredLocalSubagentModelSelection(): Promise<string | undefined> {
+  try {
+    const result = (await callSubagentGateway({
+      method: "alisio.models.get",
+      params: {},
+      timeoutMs: ALISIO_MODELS_GET_TIMEOUT_MS,
+    })) as AlisioModelsGetResult;
+    const targets = (result.targets ?? [])
+      .filter(
+        (target) =>
+          target.runtimeStatus === "ready" &&
+          typeof target.chatProviderId === "string" &&
+          target.chatProviderId.trim().length > 0,
+      )
+      .toSorted(compareLocalSubagentTargets);
+    for (const target of targets) {
+      const providerId = target.chatProviderId?.trim();
+      const modelId = normalizeLocalTargetModelId(target);
+      if (providerId && modelId) {
+        return `${providerId}/${modelId}`;
+      }
+    }
+  } catch {
+    // Best-effort only: model fallback must keep working even if the local-runtime
+    // inventory is unavailable.
+  }
+  return undefined;
+}
+
+async function resolveSubagentSpawnModel(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  agentId: string;
+  modelOverride?: unknown;
+}): Promise<string> {
+  const explicitModelOverride = normalizeModelSelection(params.modelOverride);
+  if (explicitModelOverride) {
+    return explicitModelOverride;
+  }
+  const agentConfig = resolveAgentConfig(params.cfg, params.agentId);
+  const explicitSubagentModel =
+    normalizeModelSelection(agentConfig?.subagents?.model) ??
+    normalizeModelSelection(params.cfg.agents?.defaults?.subagents?.model);
+  if (explicitSubagentModel) {
+    return explicitSubagentModel;
+  }
+  const preferredLocalModel = await resolvePreferredLocalSubagentModelSelection();
+  if (preferredLocalModel) {
+    return preferredLocalModel;
+  }
+  return resolveSubagentSpawnModelSelection(params);
 }
 
 async function ensureThreadBindingForSubagentSpawn(params: {
@@ -356,16 +477,8 @@ export async function spawnSubagentDirect(
   const thinkingOverrideRaw = params.thinking;
   const requestThreadBinding = params.thread === true;
   const sandboxMode = params.sandbox === "require" ? "require" : "inherit";
-  const spawnMode = resolveSpawnMode({
-    requestedMode: params.mode,
-    threadRequested: requestThreadBinding,
-  });
-  if (spawnMode === "session" && !requestThreadBinding) {
-    return {
-      status: "error",
-      error: 'mode="session" requires thread=true so the subagent can stay bound to a thread.',
-    };
-  }
+  const requestedLegacySessionMode = params.mode === "session";
+  const spawnMode = resolveSpawnMode({ requestedMode: params.mode });
   const cleanup =
     spawnMode === "session"
       ? "keep"
@@ -492,7 +605,7 @@ export async function spawnSubagentDirect(
     maxSpawnDepth,
   });
   const targetAgentConfig = resolveAgentConfig(cfg, targetAgentId);
-  const resolvedModel = resolveSubagentSpawnModelSelection({
+  const resolvedModel = await resolveSubagentSpawnModel({
     cfg,
     agentId: targetAgentId,
     modelOverride,
@@ -656,8 +769,8 @@ export async function spawnSubagentDirect(
 
   const childTaskMessage = [
     `[Subagent Context] You are running as a subagent (depth ${childDepth}/${maxSpawnDepth}). Results auto-announce to your requester; do not busy-poll for status.`,
-    spawnMode === "session"
-      ? "[Subagent Context] This subagent session is persistent and remains available for thread follow-up messages."
+    requestThreadBinding
+      ? "[Subagent Context] If this run is bound to a thread, treat that thread as temporary task plumbing only. It will not remain your persistent identity after the task ends."
       : undefined,
     `[Subagent Task]: ${task}`,
   ]
@@ -883,12 +996,13 @@ export async function spawnSubagentDirect(
   // because cron sessions end immediately after the agent produces a response,
   // so the agent needs to wait for subagent results to keep the turn alive.
   const isCronSession = isCronSessionKey(ctx.agentSessionKey);
-  const note =
-    spawnMode === "session"
-      ? SUBAGENT_SPAWN_SESSION_ACCEPTED_NOTE
-      : isCronSession
-        ? undefined
-        : SUBAGENT_SPAWN_ACCEPTED_NOTE;
+  const noteParts = [
+    isCronSession ? undefined : SUBAGENT_SPAWN_ACCEPTED_NOTE,
+    requestedLegacySessionMode
+      ? `Legacy compatibility: runtime=subagent no longer supports persistent session mode. mode="session" was normalized to mode="run". Sunset for this compatibility shim: ${LEGACY_SUBAGENT_SESSION_MODE_SUNSET}.`
+      : undefined,
+  ].filter((line): line is string => Boolean(line));
+  const note = noteParts.length > 0 ? noteParts.join(" ") : undefined;
 
   return {
     status: "accepted",

@@ -6,6 +6,10 @@ import {
   type OpenClawConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
+  queryCanonicalMemoryGraph,
+  type CanonicalMemoryStoreStatus,
+} from "./memory/canonical-store.js";
+import {
   clampResultsByInjectedChars,
   decorateCitations,
   resolveMemoryCitationsMode,
@@ -13,11 +17,13 @@ import {
 } from "./tools.citations.js";
 import {
   buildMemorySearchUnavailableResult,
+  buildMemoryGraphUnavailableResult,
   createMemoryTool,
   getMemoryManagerContext,
   getMemoryManagerContextWithPurpose,
   loadMemoryToolRuntime,
   MemoryGetSchema,
+  MemoryGraphSchema,
   MemorySearchSchema,
 } from "./tools.shared.js";
 
@@ -130,6 +136,67 @@ export function createMemoryGetTool(options: {
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           return jsonResult({ path: relPath, text: "", disabled: true, error: message });
+        }
+      },
+  });
+}
+
+export function createMemoryGraphTool(options: {
+  config?: OpenClawConfig;
+  agentSessionKey?: string;
+}): AnyAgentTool | null {
+  return createMemoryTool({
+    options,
+    label: "Memory Graph",
+    name: "memory_graph",
+    description:
+      "Inspect the structured canonical memory graph under the Markdown/Obsidian projection; resolves note entities and explicit relations for navigation, dependency tracing, and memory link inspection.",
+    parameters: MemoryGraphSchema,
+    execute:
+      ({ cfg, agentId }) =>
+      async (_toolCallId, params) => {
+        const query = readStringParam(params, "query", { required: true });
+        const rawDirection = readStringParam(params, "direction");
+        const matchLimit = readNumberParam(params, "matchLimit", { integer: true });
+        const relationLimit = readNumberParam(params, "relationLimit", { integer: true });
+        const direction =
+          rawDirection === "incoming" || rawDirection === "outgoing" || rawDirection === "both"
+            ? rawDirection
+            : undefined;
+        const memory = await getMemoryManagerContext({ cfg, agentId });
+        if ("error" in memory) {
+          return jsonResult(buildMemoryGraphUnavailableResult({ query, error: memory.error }));
+        }
+        try {
+          const initialStatus = memory.manager.status();
+          const initialCanonical = (initialStatus.custom?.canonicalStore ??
+            null) as CanonicalMemoryStoreStatus | null;
+          if (memory.manager.sync && (initialStatus.dirty || initialCanonical?.state !== "ready")) {
+            await memory.manager.sync({ reason: "canonical-graph" });
+          }
+          const status = memory.manager.status();
+          const canonicalStore = (status.custom?.canonicalStore ??
+            null) as CanonicalMemoryStoreStatus | null;
+          if (!canonicalStore) {
+            return jsonResult(
+              buildMemoryGraphUnavailableResult({
+                query,
+                error: "canonical memory store unavailable",
+              }),
+            );
+          }
+          return jsonResult(
+            queryCanonicalMemoryGraph({
+              status: canonicalStore,
+              query,
+              ...(direction ? { direction } : {}),
+              ...(typeof matchLimit === "number" ? { matchLimit } : {}),
+              ...(typeof relationLimit === "number" ? { relationLimit } : {}),
+            }),
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          return jsonResult(buildMemoryGraphUnavailableResult({ query, error: message }));
         }
       },
   });

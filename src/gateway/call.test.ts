@@ -172,6 +172,9 @@ function makeRemotePasswordGatewayConfig(remotePassword: string, localPassword =
 
 describe("callGateway url resolution", () => {
   const envSnapshot = captureEnv([
+    "ALISIO_ALLOW_INSECURE_PRIVATE_WS",
+    "ALISIO_GATEWAY_URL",
+    "ALISIO_GATEWAY_TOKEN",
     "OPENCLAW_ALLOW_INSECURE_PRIVATE_WS",
     "OPENCLAW_GATEWAY_URL",
     "OPENCLAW_GATEWAY_TOKEN",
@@ -179,6 +182,9 @@ describe("callGateway url resolution", () => {
 
   beforeEach(() => {
     envSnapshot.restore();
+    delete process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS;
+    delete process.env.ALISIO_GATEWAY_URL;
+    delete process.env.ALISIO_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
     delete process.env.OPENCLAW_GATEWAY_URL;
     delete process.env.OPENCLAW_GATEWAY_TOKEN;
@@ -519,7 +525,7 @@ describe("buildGatewayConnectionDetails", () => {
       const details = buildGatewayConnectionDetails();
 
       expect(details.url).toBe("wss://browser-gateway.local:9443/ws");
-      expect(details.urlSource).toBe("env OPENCLAW_GATEWAY_URL");
+      expect(details.urlSource).toBe("env ALISIO_GATEWAY_URL");
       expect(details.bindDetail).toBeUndefined();
     } finally {
       if (prevUrl === undefined) {
@@ -539,7 +545,7 @@ describe("buildGatewayConnectionDetails", () => {
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://127.0.0.1:18789");
+    expect(details.url).toBe("ws://127.0.0.1:18800");
     expect(details.urlSource).toBe("local loopback");
   });
 
@@ -565,7 +571,7 @@ describe("buildGatewayConnectionDetails", () => {
     expect((thrown as Error).message).toContain("plaintext ws://");
     expect((thrown as Error).message).toContain("wss://");
     expect((thrown as Error).message).toContain("Tailscale Serve/Funnel");
-    expect((thrown as Error).message).toContain("openclaw doctor --fix");
+    expect((thrown as Error).message).toContain("alisio doctor --fix");
   });
 
   it("allows ws:// private remote URLs only when OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1", () => {
@@ -725,11 +731,17 @@ describe("callGateway url override auth requirements", () => {
 
   beforeEach(() => {
     envSnapshot = captureEnv([
+      "ALISIO_GATEWAY_TOKEN",
+      "ALISIO_GATEWAY_PASSWORD",
+      "ALISIO_GATEWAY_URL",
       "OPENCLAW_GATEWAY_TOKEN",
       "OPENCLAW_GATEWAY_PASSWORD",
       "OPENCLAW_GATEWAY_URL",
     ]);
     resetGatewayCallMocks();
+    delete process.env.ALISIO_GATEWAY_TOKEN;
+    delete process.env.ALISIO_GATEWAY_PASSWORD;
+    delete process.env.ALISIO_GATEWAY_URL;
     delete process.env.OPENCLAW_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_GATEWAY_PASSWORD;
     delete process.env.OPENCLAW_GATEWAY_URL;
@@ -791,6 +803,8 @@ describe("callGateway password resolution", () => {
 
   beforeEach(() => {
     envSnapshot = captureEnv([
+      "ALISIO_GATEWAY_PASSWORD",
+      "ALISIO_GATEWAY_TOKEN",
       "OPENCLAW_GATEWAY_PASSWORD",
       "OPENCLAW_GATEWAY_TOKEN",
       "LOCAL_REMOTE_FALLBACK_TOKEN",
@@ -799,6 +813,8 @@ describe("callGateway password resolution", () => {
       "REMOTE_REF_PASSWORD",
     ]);
     resetGatewayCallMocks();
+    delete process.env.ALISIO_GATEWAY_PASSWORD;
+    delete process.env.ALISIO_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_GATEWAY_PASSWORD;
     delete process.env.OPENCLAW_GATEWAY_TOKEN;
     delete process.env.LOCAL_REMOTE_FALLBACK_TOKEN;

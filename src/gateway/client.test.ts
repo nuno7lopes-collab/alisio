@@ -154,7 +154,7 @@ function expectSecurityConnectError(
     }),
   );
   const error = onConnectError.mock.calls[0]?.[0] as Error;
-  expect(error.message).toContain("openclaw doctor --fix");
+  expect(error.message).toContain("alisio doctor --fix");
   if (params?.expectTailscaleHint) {
     expect(error.message).toContain("Tailscale Serve/Funnel");
   }
@@ -165,16 +165,21 @@ beforeAll(async () => {
 });
 
 describe("GatewayClient security checks", () => {
-  const envSnapshot = captureEnv(["OPENCLAW_ALLOW_INSECURE_PRIVATE_WS"]);
+  const envSnapshot = captureEnv([
+    "ALISIO_ALLOW_INSECURE_PRIVATE_WS",
+    "OPENCLAW_ALLOW_INSECURE_PRIVATE_WS",
+  ]);
 
   beforeEach(() => {
     envSnapshot.restore();
+    delete process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS;
     delete process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
     wsInstances.length = 0;
   });
 
   afterEach(() => {
     envSnapshot.restore();
+    delete process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS;
     delete process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
   });
 

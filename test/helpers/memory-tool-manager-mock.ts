@@ -4,6 +4,24 @@ export type SearchImpl = () => Promise<unknown[]>;
 export type MemoryReadParams = { relPath: string; from?: number; lines?: number };
 export type MemoryReadResult = { text: string; path: string };
 type MemoryBackend = "builtin" | "qmd";
+type CanonicalStorePayload = {
+  state: "pending-sync" | "ready";
+  path: string;
+  profileId: string;
+  profileSource: string;
+  workspaceScope: string;
+  workspaceDir: string;
+  backend: MemoryBackend;
+  entities: number;
+  relations: number;
+  projections: number;
+  projectionInterface: "markdown-vault";
+  syncMode: "local-first";
+  cloudSync: "not_implemented";
+  projectionSources: Array<"workspace-memory" | "obsidian-memory">;
+  lastSyncedAt?: string;
+  lastError?: string;
+};
 
 let backend: MemoryBackend = "builtin";
 let searchImpl: SearchImpl = async () => [];
@@ -11,6 +29,23 @@ let readFileImpl: (params: MemoryReadParams) => Promise<MemoryReadResult> = asyn
   text: "",
   path: params.relPath,
 });
+let canonicalStoreStatus: CanonicalStorePayload | null = {
+  state: "ready",
+  path: "/workspace/.alisio/memory/profiles/local-main/canonical.sqlite",
+  profileId: "local-main",
+  profileSource: "local-profile",
+  workspaceScope: "scope-main",
+  workspaceDir: "/workspace",
+  backend: "builtin",
+  entities: 1,
+  relations: 0,
+  projections: 1,
+  projectionInterface: "markdown-vault",
+  syncMode: "local-first",
+  cloudSync: "not_implemented",
+  projectionSources: ["workspace-memory"],
+  lastSyncedAt: "2026-04-08T10:00:00.000Z",
+};
 
 const stubManager = {
   search: vi.fn(async () => await searchImpl()),
@@ -27,6 +62,7 @@ const stubManager = {
     requestedProvider: "builtin",
     sources: ["memory" as const],
     sourceCounts: [{ source: "memory" as const, files: 1, chunks: 1 }],
+    custom: canonicalStoreStatus ? { canonicalStore: canonicalStoreStatus } : undefined,
   }),
   sync: vi.fn(),
   probeVectorAvailability: vi.fn(async () => true),
@@ -82,13 +118,37 @@ export function resetMemoryToolMockState(overrides?: {
   backend?: MemoryBackend;
   searchImpl?: SearchImpl;
   readFileImpl?: (params: MemoryReadParams) => Promise<MemoryReadResult>;
+  canonicalStoreStatus?: CanonicalStorePayload | null;
 }): void {
   backend = overrides?.backend ?? "builtin";
   searchImpl = overrides?.searchImpl ?? (async () => []);
   readFileImpl =
     overrides?.readFileImpl ??
     (async (params: MemoryReadParams) => ({ text: "", path: params.relPath }));
+  canonicalStoreStatus =
+    overrides?.canonicalStoreStatus ??
+    ({
+      state: "ready",
+      path: "/workspace/.alisio/memory/profiles/local-main/canonical.sqlite",
+      profileId: "local-main",
+      profileSource: "local-profile",
+      workspaceScope: "scope-main",
+      workspaceDir: "/workspace",
+      backend,
+      entities: 1,
+      relations: 0,
+      projections: 1,
+      projectionInterface: "markdown-vault",
+      syncMode: "local-first",
+      cloudSync: "not_implemented",
+      projectionSources: ["workspace-memory"],
+      lastSyncedAt: "2026-04-08T10:00:00.000Z",
+    } satisfies CanonicalStorePayload);
   vi.clearAllMocks();
+}
+
+export function setCanonicalStoreStatus(next: CanonicalStorePayload | null): void {
+  canonicalStoreStatus = next;
 }
 
 export function getMemorySearchManagerMockCalls(): number {

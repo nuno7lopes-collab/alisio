@@ -109,6 +109,22 @@ function createProps(
           maxFiles: 2000,
           maxFileBytes: 1048576,
         },
+        canonicalStore: {
+          state: "ready",
+          path: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
+          profileId: "local-main",
+          profileSource: "local-profile",
+          workspaceScope: "scope-main",
+          workspaceDir: "/workspace/main",
+          backend: "builtin",
+          entities: 2,
+          relations: 1,
+          projections: 2,
+          projectionInterface: "markdown-vault",
+          syncMode: "local-first",
+          cloudSync: "not_implemented",
+          projectionSources: ["workspace-memory"],
+        },
       },
       embedding: {
         ok: true,
@@ -232,6 +248,8 @@ describe("renderMemoryHub", () => {
     expect(container.textContent).toContain("Trip Planning");
     expect(container.textContent).toContain("Obsidian vault");
     expect(container.textContent).toContain("/vaults/research");
+    expect(container.textContent).toContain("Canonical store");
+    expect(container.textContent).toContain("local-main");
     expect(container.textContent).not.toContain("Delete");
   });
 
@@ -382,6 +400,10 @@ describe("renderMemoryHub", () => {
         sourceCounts: baseRuntime.sourceCounts,
         fts: baseRuntime.fts,
         vector: baseRuntime.vector,
+        canonicalStore: {
+          ...baseRuntime.canonicalStore!,
+          path: "/Users/nuno/.openclaw/memory/profiles/local-main/canonical.sqlite",
+        },
       },
     };
 

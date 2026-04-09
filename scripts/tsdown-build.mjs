@@ -10,8 +10,34 @@ const extraArgs = process.argv.slice(2);
 const INEFFECTIVE_DYNAMIC_IMPORT_RE = /\[INEFFECTIVE_DYNAMIC_IMPORT\]/;
 const UNRESOLVED_IMPORT_RE = /\[UNRESOLVED_IMPORT\]/;
 const ANSI_ESCAPE_RE = new RegExp(String.raw`\u001B\[[0-9;]*m`, "g");
+const TRANSIENT_RM_ERROR_CODES = new Set(["EBUSY", "ENOTEMPTY", "EPERM", "EEXIST"]);
+const RM_RETRY_DELAYS_MS = [20, 80, 160];
 
-function removeDistPluginNodeModulesSymlinks(rootDir) {
+function sleepSync(delayMs) {
+  if (delayMs <= 0) {
+    return;
+  }
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+}
+
+function removePathSyncWithRetries(targetPath) {
+  const delays = [0, ...RM_RETRY_DELAYS_MS];
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    sleepSync(delays[attempt] ?? 0);
+    try {
+      fs.rmSync(targetPath, { force: true, recursive: true });
+      return;
+    } catch (error) {
+      const code =
+        error && typeof error === "object" && "code" in error ? String(error.code) : undefined;
+      if (!code || !TRANSIENT_RM_ERROR_CODES.has(code) || attempt === delays.length - 1) {
+        throw error;
+      }
+    }
+  }
+}
+
+function removeDistPluginNodeModules(rootDir) {
   const extensionsDir = path.join(rootDir, "extensions");
   if (!fs.existsSync(extensionsDir)) {
     return;
@@ -23,9 +49,7 @@ function removeDistPluginNodeModulesSymlinks(rootDir) {
     }
     const nodeModulesPath = path.join(extensionsDir, dirent.name, "node_modules");
     try {
-      if (fs.lstatSync(nodeModulesPath).isSymbolicLink()) {
-        fs.rmSync(nodeModulesPath, { force: true, recursive: true });
-      }
+      removePathSyncWithRetries(nodeModulesPath);
     } catch {
       // Skip missing or unreadable paths so the build can proceed.
     }
@@ -34,11 +58,11 @@ function removeDistPluginNodeModulesSymlinks(rootDir) {
 
 function pruneStaleRuntimeSymlinks() {
   const cwd = process.cwd();
-  // runtime-postbuild stages plugin-owned node_modules into dist/ and links the
-  // dist-runtime overlay back to that tree. Remove only those symlinks up front
-  // so tsdown's clean step cannot traverse stale runtime overlays on rebuilds.
-  removeDistPluginNodeModulesSymlinks(path.join(cwd, "dist"));
-  removeDistPluginNodeModulesSymlinks(path.join(cwd, "dist-runtime"));
+  // runtime-postbuild stages plugin-owned node_modules into dist*/extensions.
+  // Prune those trees before tsdown cleans dist to avoid transient macOS
+  // ENOTEMPTY/EBUSY failures while removing nested runtime overlays.
+  removeDistPluginNodeModules(path.join(cwd, "dist"));
+  removeDistPluginNodeModules(path.join(cwd, "dist-runtime"));
 }
 
 pruneStaleRuntimeSymlinks();

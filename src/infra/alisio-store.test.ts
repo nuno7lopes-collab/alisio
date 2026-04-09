@@ -9,6 +9,7 @@ import {
   beginAlisioConnectorSetup,
   completeAlisioConnectorAuthorization,
   completeAlisioConnectorAuthorizationFromCallback,
+  changeAlisioAccountEmail,
   disconnectAlisioAi,
   approveAlisioSharingRequest,
   getAlisioAccountState,
@@ -25,7 +26,9 @@ import {
   listAlisioConnectorAuthorizations,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
+  requestAlisioAccountRecoveryEmail,
   requestAlisioSharingAccess,
+  rejectAlisioSharingRequest,
   revokeAlisioSharingGrant,
   revokeAlisioConnectorAuthorization,
   setAlisioSharingPolicy,
@@ -35,6 +38,7 @@ import {
   signOutAlisioAccount,
   summarizeAlisioConnectorAuthorizations,
   type AlisioStoredState,
+  updateAlisioAccountPassword,
   updateAlisioAccountProfile,
 } from "./alisio-store.js";
 
@@ -45,6 +49,26 @@ function parseJsonBody(body: BodyInit | null | undefined): Record<string, unknow
     throw new Error("Expected request body to be a JSON string.");
   }
   return JSON.parse(body) as Record<string, unknown>;
+}
+
+function resolveRequestUrl(input: RequestInfo | URL): URL {
+  if (input instanceof URL) {
+    return input;
+  }
+  if (typeof input === "string") {
+    return new URL(input);
+  }
+  return new URL(input.url);
+}
+
+function stringifyPrimaryKey(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value).trim();
+  }
+  return "";
 }
 
 function alisioStateFile(root: string) {
@@ -176,6 +200,47 @@ async function switchStoredAlisioUser(
   });
 }
 
+async function switchStoredAlisioCloudUser(
+  root: string,
+  params: {
+    userId: string;
+    username: string;
+    displayName: string;
+    email: string;
+    accessToken: string;
+    plan?: "free" | "plus";
+  },
+) {
+  await updateStoredAlisioState(root, (state) => {
+    state.account.profile = {
+      ...state.account.profile,
+      userId: params.userId,
+      username: params.username,
+      displayName: params.displayName,
+      email: params.email,
+      avatarLabel: params.displayName.slice(0, 1).toUpperCase() || "A",
+      plan: params.plan ?? state.account.profile.plan,
+      backend: "supabase",
+    };
+    state.account.session = {
+      state: "signed_in",
+      profileCompleted: true,
+      signedInAt: "2026-04-04T15:00:00.000Z",
+      backend: "supabase",
+    };
+    state.account.cloudSession = {
+      backend: "supabase",
+      state: "signed_in",
+      userId: params.userId,
+      email: params.email,
+      accessToken: params.accessToken,
+      refreshToken: `refresh-${params.userId}`,
+      tokenType: "bearer",
+      signedInAt: "2026-04-04T15:00:00.000Z",
+    };
+  });
+}
+
 function createSharingTarget(targetId: string, label: string) {
   return {
     targetId,
@@ -185,6 +250,75 @@ function createSharingTarget(targetId: string, label: string) {
     connected: true,
     current: true,
   };
+}
+
+function createSharingCloudFetchMock() {
+  const tables = {
+    alisio_sharing_policies: new Map<string, Record<string, unknown>>(),
+    alisio_sharing_targets: new Map<string, Record<string, unknown>>(),
+    alisio_sharing_requests: new Map<string, Record<string, unknown>>(),
+    alisio_sharing_grants: new Map<string, Record<string, unknown>>(),
+    alisio_sharing_audit: new Map<string, Record<string, unknown>>(),
+  };
+  const primaryKeyByTable: Record<keyof typeof tables, string> = {
+    alisio_sharing_policies: "owner_key",
+    alisio_sharing_targets: "target_id",
+    alisio_sharing_requests: "request_id",
+    alisio_sharing_grants: "grant_id",
+    alisio_sharing_audit: "entry_id",
+  };
+
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const url = new URL(
+      typeof input === "string" ? input : input instanceof Request ? input.url : String(input),
+    );
+    const tableName = url.pathname.split("/").at(-1) as keyof typeof tables;
+    const table = tables[tableName];
+    if (!table) {
+      return new Response(JSON.stringify({ message: `unknown table ${tableName}` }), {
+        status: 404,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    const method = (init?.method ?? "GET").toUpperCase();
+    if (method === "GET") {
+      let rows = [...table.values()];
+      const ownerKey = url.searchParams.get("owner_key");
+      if (ownerKey?.startsWith("eq.")) {
+        rows = rows.filter((row) => row.owner_key === ownerKey.slice(3));
+      }
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    if (method === "POST") {
+      const rows = JSON.parse(typeof init?.body === "string" ? init.body : "[]") as Array<
+        Record<string, unknown>
+      >;
+      const primaryKey = primaryKeyByTable[tableName];
+      for (const row of rows) {
+        const key = stringifyPrimaryKey(row[primaryKey]);
+        if (!key) {
+          continue;
+        }
+        table.set(key, row);
+      }
+      return new Response(JSON.stringify([]), {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ message: `unsupported method ${method}` }), {
+      status: 405,
+      headers: { "content-type": "application/json" },
+    });
+  });
+
+  return { fetchMock, tables };
 }
 
 describe("legacy Alisio state-dir migration", () => {
@@ -305,12 +439,126 @@ describe("Alisio organization state", () => {
           },
           env,
         ),
-      ).rejects.toThrow("Organizations are available on Plus.");
+      ).rejects.toThrow("Organizations currently require Plus");
     });
   });
 });
 
 describe("Alisio sharing state", () => {
+  it("auto-shares model access for linked devices on the same account and keeps exec explicit", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await getAlisioSharingState(
+        {
+          targets: [
+            createSharingTarget("owner-device", "Owner Device"),
+            {
+              targetId: "linked-device",
+              label: "Linked Device",
+              platform: "macOS",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+            },
+          ],
+        },
+        env,
+      );
+
+      const initialState = await getAlisioSharingState(undefined, env);
+      expect(initialState.devices.owned).toEqual([
+        expect.objectContaining({
+          targetId: "owner-device",
+          deviceAccess: "owner",
+          modelAccess: "owner",
+          execAccess: "owner",
+        }),
+      ]);
+      expect(initialState.devices.sharedWithMe).toEqual([
+        expect.objectContaining({
+          targetId: "linked-device",
+          deviceAccess: "shared",
+          modelAccess: "shared",
+          execAccess: "requestable",
+          grantScopes: ["read-only", "model-use"],
+        }),
+      ]);
+      expect(initialState.devices.available).toEqual([
+        expect.objectContaining({
+          targetId: "linked-device",
+          execAccess: "requestable",
+        }),
+      ]);
+
+      const request = await requestAlisioSharingAccess(
+        {
+          targetId: "linked-device",
+          scopes: ["exec"],
+        },
+        env,
+      );
+      expect(request).toEqual({
+        ok: true,
+        requestId: expect.any(String),
+      });
+
+      const grantedState = await getAlisioSharingState(undefined, env);
+      expect(grantedState.devices.sharedWithMe).toEqual([
+        expect.objectContaining({
+          targetId: "linked-device",
+          deviceAccess: "shared",
+          modelAccess: "shared",
+          execAccess: "shared",
+          requestStatus: "approved",
+          grantId: expect.any(String),
+          grantScopes: ["read-only", "model-use", "exec"],
+        }),
+      ]);
+      expect(grantedState.devices.available).toEqual([]);
+      expect(grantedState.outgoingRequests).toEqual([
+        expect.objectContaining({
+          requestId: request.requestId,
+          targetId: "linked-device",
+          status: "approved",
+          scopes: ["read-only", "model-use", "exec"],
+          grantId: expect.any(String),
+        }),
+      ]);
+
+      await revokeAlisioSharingGrant(
+        {
+          grantId: grantedState.devices.sharedWithMe[0]?.grantId ?? "",
+        },
+        env,
+      );
+
+      const revokedState = await getAlisioSharingState(undefined, env);
+      expect(revokedState.devices.sharedWithMe).toEqual([
+        expect.objectContaining({
+          targetId: "linked-device",
+          modelAccess: "shared",
+          execAccess: "requestable",
+          grantScopes: ["read-only", "model-use"],
+        }),
+      ]);
+      expect(revokedState.devices.available).toEqual([
+        expect.objectContaining({
+          targetId: "linked-device",
+          execAccess: "requestable",
+        }),
+      ]);
+    });
+  });
+
   it("persists request, approval, revocation, and audit for shared devices", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
@@ -385,6 +633,73 @@ describe("Alisio sharing state", () => {
       expect(revokedState.audit.map((entry) => entry.action)).toEqual([
         "grant.revoked",
         "request.approved",
+        "request.created",
+      ]);
+    });
+  });
+
+  it("persists denied requests with canonical audit actions", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await getAlisioSharingState(
+        {
+          targets: [createSharingTarget("owner-device", "Owner Device")],
+        },
+        env,
+      );
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-requester",
+        username: "requester",
+        displayName: "Requester User",
+        email: "requester@example.com",
+        plan: "plus",
+      });
+      const request = await requestAlisioSharingAccess(
+        {
+          targetId: "owner-device",
+          scopes: ["exec"],
+        },
+        env,
+      );
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await rejectAlisioSharingRequest({ requestId: request.requestId }, env);
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-requester",
+        username: "requester",
+        displayName: "Requester User",
+        email: "requester@example.com",
+        plan: "plus",
+      });
+      const requesterState = await getAlisioSharingState(undefined, env);
+
+      expect(requesterState.devices.sharedWithMe).toEqual([]);
+      expect(requesterState.outgoingRequests).toEqual([
+        expect.objectContaining({
+          requestId: request.requestId,
+          status: "denied",
+          scopes: ["read-only", "model-use", "exec"],
+        }),
+      ]);
+      expect(requesterState.audit.map((entry) => entry.action)).toEqual([
+        "request.denied",
         "request.created",
       ]);
     });
@@ -498,6 +813,122 @@ describe("Alisio sharing state", () => {
         "request.created",
         "policy.updated",
       ]);
+    });
+  });
+
+  it("uses the cloud sharing tables as the source of truth when the Supabase session is active", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const { fetchMock, tables } = createSharingCloudFetchMock();
+      await setStoredAlisioPlan(root, "plus");
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        await switchStoredAlisioCloudUser(root, {
+          userId: "user-owner",
+          username: "owner",
+          displayName: "Owner User",
+          email: "owner@example.com",
+          accessToken: "owner-access-token",
+          plan: "plus",
+        });
+        await getAlisioSharingState(
+          {
+            targets: [createSharingTarget("cloud-device", "Cloud Device")],
+          },
+          env,
+        );
+
+        await switchStoredAlisioCloudUser(root, {
+          userId: "user-requester",
+          username: "requester",
+          displayName: "Requester User",
+          email: "requester@example.com",
+          accessToken: "requester-access-token",
+          plan: "plus",
+        });
+        const request = await requestAlisioSharingAccess(
+          {
+            targetId: "cloud-device",
+            scopes: ["exec"],
+          },
+          env,
+        );
+
+        await switchStoredAlisioCloudUser(root, {
+          userId: "user-owner",
+          username: "owner",
+          displayName: "Owner User",
+          email: "owner@example.com",
+          accessToken: "owner-access-token",
+          plan: "plus",
+        });
+        const approval = await approveAlisioSharingRequest(
+          {
+            requestId: request.requestId,
+            scopes: ["read-only", "model-use"],
+          },
+          env,
+        );
+
+        await switchStoredAlisioCloudUser(root, {
+          userId: "user-requester",
+          username: "requester",
+          displayName: "Requester User",
+          email: "requester@example.com",
+          accessToken: "requester-access-token",
+          plan: "plus",
+        });
+        const requesterState = await getAlisioSharingState(undefined, env);
+
+        expect(requesterState.devices.sharedWithMe).toEqual([
+          expect.objectContaining({
+            targetId: "cloud-device",
+            deviceAccess: "shared",
+            modelAccess: "shared",
+            execAccess: "requestable",
+            grantId: approval.grantId,
+            grantScopes: ["read-only", "model-use"],
+          }),
+        ]);
+        expect(requesterState.outgoingRequests).toEqual([
+          expect.objectContaining({
+            requestId: request.requestId,
+            status: "approved",
+            grantId: approval.grantId,
+            scopes: ["read-only", "model-use"],
+          }),
+        ]);
+
+        const persisted = JSON.parse(
+          await fs.readFile(alisioStateFile(root), "utf8"),
+        ) as AlisioStoredState;
+        expect(persisted.sharing).toBeUndefined();
+        expect([...tables.alisio_sharing_targets.values()]).toEqual([
+          expect.objectContaining({
+            target_id: "cloud-device",
+            owner_key: "user:user-owner",
+          }),
+        ]);
+        expect([...tables.alisio_sharing_requests.values()]).toEqual([
+          expect.objectContaining({
+            request_id: request.requestId,
+            target_id: "cloud-device",
+            status: "approved",
+            scopes: ["read-only", "model-use"],
+            grant_id: approval.grantId,
+          }),
+        ]);
+        expect([...tables.alisio_sharing_grants.values()]).toEqual([
+          expect.objectContaining({
+            grant_id: approval.grantId,
+            request_id: request.requestId,
+            scopes: ["read-only", "model-use"],
+          }),
+        ]);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 });
@@ -1968,6 +2399,145 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("forwards the Alisio recovery callback URL to Supabase", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        const url = resolveRequestUrl(input);
+        expect(url.pathname).toBe("/auth/v1/recover");
+        expect(url.searchParams.get("redirect_to")).toBe(
+          "http://localhost:18789/logout/setup?step=account",
+        );
+        expect(parseJsonBody(init?.body)).toEqual({
+          email: "nuno@example.com",
+        });
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const result = await requestAlisioAccountRecoveryEmail(
+          {
+            email: "Nuno@example.com",
+            callbackUrl: "http://localhost:18789/logout/setup?step=account",
+          },
+          env,
+        );
+
+        expect(result).toEqual({
+          ok: true,
+          message: "If this Alisio account exists, a recovery email is on its way.",
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  it("starts a Supabase email change with the Alisio callback URL", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const statePath = alisioStateFile(root);
+      const persisted = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+      persisted.account.cloudSession = {
+        backend: "supabase",
+        state: "signed_in",
+        authMethod: "email",
+        userId: "user-1",
+        email: "nuno@example.com",
+        accessToken: "supabase-access",
+        refreshToken: "supabase-refresh",
+        signedInAt: "2026-04-04T15:00:00.000Z",
+      };
+      await fs.writeFile(statePath, JSON.stringify(persisted, null, 2));
+
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        const url = resolveRequestUrl(input);
+        expect(url.pathname).toBe("/auth/v1/user");
+        expect(url.searchParams.get("redirect_to")).toBe("http://localhost:18789/logout/settings");
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer supabase-access");
+        expect(parseJsonBody(init?.body)).toEqual({
+          email: "next@example.com",
+        });
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const result = await changeAlisioAccountEmail(
+          {
+            email: "Next@example.com",
+            callbackUrl: "http://localhost:18789/logout/settings",
+          },
+          env,
+        );
+
+        expect(result).toEqual({
+          ok: true,
+          message: "Check your new email inbox to confirm the change.",
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
+  it("updates the Supabase password for a signed-in Alisio account", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      const statePath = alisioStateFile(root);
+      const persisted = JSON.parse(await fs.readFile(statePath, "utf8")) as AlisioStoredState;
+      persisted.account.cloudSession = {
+        backend: "supabase",
+        state: "signed_in",
+        authMethod: "email",
+        userId: "user-1",
+        email: "nuno@example.com",
+        accessToken: "supabase-access",
+        refreshToken: "supabase-refresh",
+        signedInAt: "2026-04-04T15:00:00.000Z",
+      };
+      await fs.writeFile(statePath, JSON.stringify(persisted, null, 2));
+
+      const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+        const url = resolveRequestUrl(input);
+        expect(url.pathname).toBe("/auth/v1/user");
+        expect(url.searchParams.get("redirect_to")).toBeNull();
+        expect(new Headers(init?.headers).get("authorization")).toBe("Bearer supabase-access");
+        expect(parseJsonBody(init?.body)).toEqual({
+          password: "password123",
+        });
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+      vi.stubGlobal("fetch", fetchMock);
+      try {
+        const result = await updateAlisioAccountPassword(
+          {
+            password: "password123",
+          },
+          env,
+        );
+
+        expect(result).toEqual({
+          ok: true,
+          message: "Your Alisio password was updated.",
+        });
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
+  });
+
   it("repairs an incomplete cloud profile from the stored account when the same user signs in", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root);
@@ -2661,7 +3231,7 @@ describe("beginAlisioConnectorSetup", () => {
         wizardRunning: true,
         providerReady: false,
         accountReady: false,
-        startupState: "signed_out",
+        startupState: "needs_profile",
         nextStep: "account",
       });
       expect(summary.organizationState.mode).toBe("none");
@@ -2704,11 +3274,11 @@ describe("beginAlisioConnectorSetup", () => {
         expect.arrayContaining([
           expect.objectContaining({
             code: "account_backend_env_missing",
-            severity: "error",
+            severity: "warning",
           }),
         ]),
       );
-      expect(summary.checks.permissions).toBe(false);
+      expect(summary.checks.permissions).toBe(true);
     });
   });
 

@@ -12,3 +12,10 @@ export type MemorySearchCommandOptions = MemoryCommandOptions & {
   maxResults?: number;
   minScore?: number;
 };
+
+export type MemoryGraphCommandOptions = MemoryCommandOptions & {
+  query?: string;
+  direction?: "incoming" | "outgoing" | "both";
+  matchLimit?: number;
+  relationLimit?: number;
+};

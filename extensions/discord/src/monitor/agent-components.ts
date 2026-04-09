@@ -44,7 +44,7 @@ import { resolveChunkMode, resolveTextChunkLimit } from "alisio/plugin-sdk/reply
 import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
 import { dispatchReplyWithBufferedBlockDispatcher } from "alisio/plugin-sdk/reply-runtime";
 import { createReplyReferencePlanner } from "alisio/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
+import { resolveAgentRoute, resolveInboundLastRouteSessionKey } from "alisio/plugin-sdk/routing";
 import { logVerbose } from "alisio/plugin-sdk/runtime-env";
 import { createNonExitingRuntime, type RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import { logDebug, logError } from "alisio/plugin-sdk/text-runtime";
@@ -413,23 +413,30 @@ async function dispatchDiscordComponentEvent(params: {
     sessionKey: ctxPayload.SessionKey ?? sessionKey,
     ctx: ctxPayload,
     updateLastRoute: interactionCtx.isDirectMessage
-      ? {
-          sessionKey: route.mainSessionKey,
-          channel: "discord",
-          to: `user:${interactionCtx.userId}`,
-          accountId,
-          mainDmOwnerPin: pinnedMainDmOwner
-            ? {
-                ownerRecipient: pinnedMainDmOwner,
-                senderRecipient: interactionCtx.userId,
-                onSkip: ({ ownerRecipient, senderRecipient }) => {
-                  logVerbose(
-                    `discord: skip main-session last route for ${senderRecipient} (pinned owner ${ownerRecipient})`,
-                  );
-                },
-              }
-            : undefined,
-        }
+      ? (() => {
+          const updateLastRouteSessionKey = resolveInboundLastRouteSessionKey({
+            route,
+            sessionKey: ctxPayload.SessionKey ?? sessionKey,
+          });
+          return {
+            sessionKey: updateLastRouteSessionKey,
+            channel: "discord",
+            to: `user:${interactionCtx.userId}`,
+            accountId,
+            mainDmOwnerPin:
+              updateLastRouteSessionKey === route.mainSessionKey && pinnedMainDmOwner
+                ? {
+                    ownerRecipient: pinnedMainDmOwner,
+                    senderRecipient: interactionCtx.userId,
+                    onSkip: ({ ownerRecipient, senderRecipient }) => {
+                      logVerbose(
+                        `discord: skip main-session last route for ${senderRecipient} (pinned owner ${ownerRecipient})`,
+                      );
+                    },
+                  }
+                : undefined,
+          };
+        })()
       : undefined,
     onRecordError: (err) => {
       logVerbose(`discord: failed updating component session meta: ${String(err)}`);

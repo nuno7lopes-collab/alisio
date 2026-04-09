@@ -45,12 +45,14 @@ import {
   beginAlisioAiConnect,
   beginAlisioConnector,
   cancelAlisioSetupWizard,
+  changeAlisioAccountEmail,
   continueAlisioSetupWizard,
   disconnectAlisioAi,
   disconnectAlisioAiProfile,
   installAlisioModel,
   loadAlisioAccount,
   loadAlisioConnectors,
+  loadAlisioProviderOverview,
   loadAlisioSharing,
   removeAlisioModelsServer,
   renameAlisioAiProfile,
@@ -66,10 +68,14 @@ import {
   selectAlisioAiProfile,
   selectAlisioModelsServer,
   saveAlisioSharingPolicy,
+  startAlisioModelsRuntimeServer,
+  signInAlisioAccountWithPassword,
   signOutAlisioAccount,
+  signUpAlisioAccountWithPassword,
   saveAlisioOrganization,
   startAlisioSetupWizard,
   uninstallAlisioModel,
+  updateAlisioAccountPassword,
   verifyAlisioAccountEmailAuth,
   approveAlisioSharedDeviceRequest,
   rejectAlisioSharedDeviceRequest,
@@ -119,7 +125,11 @@ import {
   rejectNodePairing,
 } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
-import { applyGatewayAccessMode, loadGatewayAccessMode } from "./controllers/security-access.ts";
+import {
+  applyGatewayAccessMode,
+  loadGatewayAccessMode,
+  resolveSecurityAccessDiagnostics,
+} from "./controllers/security-access.ts";
 import {
   allowBundledSkill,
   dismissSkillConsentRequest,
@@ -268,10 +278,15 @@ function scheduleConnectorAuthorizationRefresh(state: AppViewState, connectorId:
     window.setTimeout(
       async () => {
         attempts += 1;
-        await loadAlisioConnectors(state, { force: true });
-        const authorization = state.alisioConnectorAuthorizations.find(
-          (entry) => entry.connectorId === connectorId,
-        );
+        await Promise.allSettled([
+          loadAlisioProviderOverview(state, { force: true }),
+          loadAlisioConnectors(state, { force: true }),
+        ]);
+        const authorization =
+          state.alisioProviders?.connectors.authorizations.find(
+            (entry) => entry.connectorId === connectorId,
+          ) ??
+          state.alisioConnectorAuthorizations.find((entry) => entry.connectorId === connectorId);
         if (authorization?.state === "connected" || attempts >= maxAttempts) {
           return;
         }
@@ -542,6 +557,7 @@ export function renderApp(state: AppViewState) {
     authPendingEmail: state.alisioAuthPendingEmail,
     authCode: state.alisioAuthCode,
     authStage: state.alisioAuthStage,
+    passwordResetRequired: state.alisioPasswordResetRequired,
     termsAccepted: state.alisioTermsAccepted,
     marketingOptIn: state.alisioMarketingOptIn,
     birthdate: state.alisioBirthdate,
@@ -682,11 +698,11 @@ export function renderApp(state: AppViewState) {
     onRefreshSharing: () => {
       void loadAlisioSharing(state);
     },
-    onRequestAccess: (targetId) => {
-      void requestAlisioSharedDeviceAccess(state, targetId);
+    onRequestAccess: (targetId, scopes) => {
+      void requestAlisioSharedDeviceAccess(state, targetId, scopes);
     },
-    onApproveRequest: (requestId) => {
-      void approveAlisioSharedDeviceRequest(state, requestId);
+    onApproveRequest: (requestId, scopes) => {
+      void approveAlisioSharedDeviceRequest(state, requestId, scopes);
     },
     onRejectRequest: (requestId) => {
       void rejectAlisioSharedDeviceRequest(state, requestId);
@@ -740,6 +756,21 @@ export function renderApp(state: AppViewState) {
     },
     onBeginEmailAuth: () => {
       void beginAlisioAccountEmailAuth(state);
+    },
+    onRequestRecoveryEmail: () => {
+      void requestAlisioRecoveryEmail(state);
+    },
+    onSignInWithPassword: (password) => {
+      void signInAlisioAccountWithPassword(state, {
+        email: state.alisioAuthEmail,
+        password,
+      });
+    },
+    onSignUpWithPassword: (password) => {
+      void signUpAlisioAccountWithPassword(state, {
+        email: state.alisioAuthEmail,
+        password,
+      });
     },
     onVerifyEmailAuth: () => {
       void verifyAlisioAccountEmailAuth(state);
@@ -802,10 +833,17 @@ export function renderApp(state: AppViewState) {
         birthdate: state.alisioBirthdate,
       });
     },
+    onUpdatePassword: (password) => {
+      void updateAlisioAccountPassword(state, { password });
+    },
   });
 
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const activeTab = publicTabFor(state.tab);
+  const chatSecurityDiagnostics = resolveSecurityAccessDiagnostics({
+    configForm: state.configForm ?? state.configSnapshot?.config ?? null,
+    execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
+  });
   const chatModelSelectState = resolveChatModelSelectState(state);
   const effectiveChatModelValue =
     chatModelSelectState.currentOverride || chatModelSelectState.defaultModel;
@@ -813,6 +851,14 @@ export function renderApp(state: AppViewState) {
     chatModelSelectState.options.find((entry) => entry.value === effectiveChatModelValue)?.label ??
     chatModelSelectState.defaultDisplay;
   const isChat = activeTab === "chat";
+  const showContentHeader = ![
+    "authentications",
+    "capabilities",
+    "channels",
+    "connections",
+    "organization",
+    "security",
+  ].includes(activeTab);
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
   const navCollapsed = Boolean(state.settings.navCollapsed && !navDrawerOpen);
@@ -1152,29 +1198,37 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>`
           : nothing}
-        <section
-          class=${activeTab === "settings"
-            ? "content-header content-header--settings"
-            : "content-header"}
-        >
-          <div>
-            <div class="page-title">${titleForTab(activeTab)}</div>
-            ${activeTab === "settings"
-              ? nothing
-              : html`<div class="page-sub">${subtitleForTab(activeTab)}</div>`}
-          </div>
-          <div class="page-meta">
-            ${state.lastError ? html`<div class="pill danger">${state.lastError}</div>` : nothing}
-          </div>
-        </section>
+        ${showContentHeader
+          ? html`
+              <section
+                class=${activeTab === "settings"
+                  ? "content-header content-header--settings"
+                  : "content-header"}
+              >
+                <div>
+                  <div class="page-title">${titleForTab(activeTab)}</div>
+                  ${activeTab === "settings"
+                    ? nothing
+                    : html`<div class="page-sub">${subtitleForTab(activeTab)}</div>`}
+                </div>
+                <div class="page-meta">
+                  ${state.lastError
+                    ? html`<div class="pill danger">${state.lastError}</div>`
+                    : nothing}
+                </div>
+              </section>
+            `
+          : state.lastError
+            ? html`<div class="callout danger">${state.lastError}</div>`
+            : nothing}
         ${activeTab === "authentications"
           ? renderAuthentications({
-              loading: state.alisioConnectorsLoading,
-              error: state.alisioConnectorsError,
+              loading: state.alisioProvidersLoading,
+              error: state.alisioProvidersError,
               account: state.alisioAccount,
+              overview: state.alisioProviders,
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
-              setupGuide: state.alisioConnectorSetupGuide,
               search: state.alisioConnectorsSearch,
               categoryFilter: state.alisioConnectorsCategoryFilter,
               onSearchChange: (value) => {
@@ -1183,20 +1237,14 @@ export function renderApp(state: AppViewState) {
               onCategoryChange: (value) => {
                 state.alisioConnectorsCategoryFilter = value;
               },
-              onDismissSetupGuide: () => {
-                state.alisioConnectorSetupGuide = null;
-              },
-              onOpenSupportUrl: (targetUrl) => {
-                void openExternal(targetUrl);
-              },
               onBeginConnector: (connectorId) => {
                 beginConnectorFlow(state, connectorId);
               },
               onRevokeConnector: (connectorId) => {
                 void revokeAlisioConnector(state, connectorId);
               },
-              onOpenChannels: () => {
-                state.setTab("channels" as import("./navigation.ts").Tab);
+              onOpenModels: () => {
+                state.setTab("models" as import("./navigation.ts").Tab);
               },
             })
           : nothing}
@@ -1281,8 +1329,11 @@ export function renderApp(state: AppViewState) {
               consentRequest: state.skillConsentRequest,
               detailKey: state.skillsDetailKey,
               channelsSnapshot: state.channelsSnapshot,
-              connectorCatalog: state.alisioConnectorCatalog,
-              connectorAuthorizations: state.alisioConnectorAuthorizations,
+              connectorCatalog:
+                state.alisioProviders?.connectors.catalog ?? state.alisioConnectorCatalog,
+              connectorAuthorizations:
+                state.alisioProviders?.connectors.authorizations ??
+                state.alisioConnectorAuthorizations,
               onFilterChange: (value) => {
                 state.skillsFilter = value;
               },
@@ -1292,7 +1343,7 @@ export function renderApp(state: AppViewState) {
               onRefresh: () => {
                 void Promise.allSettled([
                   loadChannels(state, false),
-                  loadAlisioConnectors(state),
+                  loadAlisioProviderOverview(state),
                   refreshAlisioAi(state),
                   loadSkills(state),
                 ]);
@@ -1367,6 +1418,9 @@ export function renderApp(state: AppViewState) {
               devicesLoading: state.devicesLoading,
               devicesError: state.devicesError,
               devicesList: state.devicesList,
+              sharingLoading: state.alisioSharingLoading,
+              sharingError: state.alisioSharingError,
+              sharing: state.alisioSharing,
               nodePairingsLoading: state.nodePairingsLoading,
               nodePairingsError: state.nodePairingsError,
               nodePairingsList: state.nodePairingsList,
@@ -1387,6 +1441,7 @@ export function renderApp(state: AppViewState) {
                 void Promise.allSettled([
                   loadNodes(state),
                   loadDevices(state),
+                  loadAlisioSharing(state),
                   loadNodePairings(state),
                   loadConfig(state),
                   loadSelectedExecApprovals(state),
@@ -1394,6 +1449,9 @@ export function renderApp(state: AppViewState) {
               },
               onDevicesRefresh: () => {
                 void loadDevices(state);
+              },
+              onSharingRefresh: () => {
+                void loadAlisioSharing(state);
               },
               onNodePairingsRefresh: () => {
                 void Promise.allSettled([loadNodes(state), loadNodePairings(state)]);
@@ -1406,6 +1464,21 @@ export function renderApp(state: AppViewState) {
               },
               onDeviceRemove: (deviceId) => {
                 void removeDevicePairing(state, deviceId);
+              },
+              onSharingRequest: (targetId, scopes) => {
+                void requestAlisioSharedDeviceAccess(state, targetId, scopes);
+              },
+              onSharingApprove: (requestId, scopes) => {
+                void approveAlisioSharedDeviceRequest(state, requestId, scopes);
+              },
+              onSharingReject: (requestId) => {
+                void rejectAlisioSharedDeviceRequest(state, requestId);
+              },
+              onSharingRevoke: (grantId) => {
+                void revokeAlisioSharedDeviceGrant(state, grantId);
+              },
+              onSharingSetPolicy: (allowExternalUse) => {
+                void saveAlisioSharingPolicy(state, allowExternalUse);
               },
               onNodeApprove: (requestId) => {
                 void Promise.allSettled([approveNodePairing(state, requestId), loadNodes(state)]);
@@ -1596,11 +1669,11 @@ export function renderApp(state: AppViewState) {
               onRefreshSharing: () => {
                 void loadAlisioSharing(state);
               },
-              onRequestAccess: (targetId) => {
-                void requestAlisioSharedDeviceAccess(state, targetId);
+              onRequestAccess: (targetId, scopes) => {
+                void requestAlisioSharedDeviceAccess(state, targetId, scopes);
               },
-              onApproveRequest: (requestId) => {
-                void approveAlisioSharedDeviceRequest(state, requestId);
+              onApproveRequest: (requestId, scopes) => {
+                void approveAlisioSharedDeviceRequest(state, requestId, scopes);
               },
               onRejectRequest: (requestId) => {
                 void rejectAlisioSharedDeviceRequest(state, requestId);
@@ -1669,6 +1742,8 @@ export function renderApp(state: AppViewState) {
                   }),
                   refreshChatAvatar(state),
                   loadGatewayAccessMode(state),
+                  loadApprovalAuditTrail(state),
+                  loadNativeShellState(state),
                 ]);
               },
               onToggleFocusMode: () => {
@@ -1691,11 +1766,30 @@ export function renderApp(state: AppViewState) {
                 beginConnectorFlow(state, connectorId, { resumeChatIntent: true });
               },
               onRequestUpdate: requestHostUpdate,
+              securityDiagnostics: chatSecurityDiagnostics,
+              approvalQueue: state.execApprovalQueue,
+              approvalAuditTrail: state.execApprovalAuditTrail,
+              approvalBusy: state.execApprovalBusy,
+              nativeShellLoading: state.nativeShellLoading,
+              nativeShellError: state.nativeShellError,
+              nativeShellState: state.nativeShellState,
               attachments: state.chatAttachments,
               onAttachmentsChange: (next) => (state.chatAttachments = next),
               onSend: () => state.handleSendChat(),
               canAbort: Boolean(state.chatRunId),
               onAbort: () => void state.handleAbortChat(),
+              onResolveApproval: (entry, decision) => {
+                void resolveApprovalDecision(entry, decision);
+              },
+              onOpenAdvancedSecurity: () => {
+                state.setTab("security");
+              },
+              onOpenNativeSettings:
+                state.nativeShellState || state.nativeShellLoading || state.nativeShellError
+                  ? () => {
+                      void openNativeSettings();
+                    }
+                  : undefined,
               onQueueRemove: (id) => state.removeQueuedMessage(id),
               onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
               onClearHistory: async () => {
@@ -1752,6 +1846,7 @@ export function renderApp(state: AppViewState) {
               onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
               assistantName: state.assistantName,
               assistantAvatar: state.assistantAvatar,
+              assistantAgentId: state.assistantAgentId,
               basePath: state.basePath ?? "",
             })
           : nothing}
@@ -2047,6 +2142,9 @@ export function renderApp(state: AppViewState) {
                 }
                 void uninstallAlisioModel(state, { targetId, modelId });
               },
+              onStartRuntimeServer: (targetId) => {
+                void startAlisioModelsRuntimeServer(state, { targetId });
+              },
               onStartCreateServer: () => {
                 state.modelsServerDraft = createModelsServerDraft();
               },
@@ -2155,6 +2253,12 @@ export function renderApp(state: AppViewState) {
               },
               onRequestRecoveryEmail: () => {
                 void requestAlisioRecoveryEmail(state);
+              },
+              onChangeEmail: (email) => {
+                void changeAlisioAccountEmail(state, { email });
+              },
+              onUpdatePassword: (password) => {
+                void updateAlisioAccountPassword(state, { password });
               },
               onReconnectRuntime: () => {
                 void restartAlisioRuntime(state).catch(() => {

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 import { parseStrictInteger, parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { cleanStaleGatewayProcessesSync } from "../infra/restart-stale-pids.js";
 import {
@@ -35,11 +36,55 @@ const LAUNCH_AGENT_DIR_MODE = 0o755;
 const LAUNCH_AGENT_PLIST_MODE = 0o644;
 
 function resolveLaunchAgentLabel(args?: { env?: Record<string, string | undefined> }): string {
-  const envLabel = args?.env?.OPENCLAW_LAUNCHD_LABEL?.trim();
+  const envLabel = readEnv("ALISIO_LAUNCHD_LABEL", {
+    env: args?.env,
+    fallback: legacyEnvKey("LAUNCHD_LABEL"),
+  });
   if (envLabel) {
     return envLabel;
   }
-  return resolveGatewayLaunchAgentLabel(args?.env?.OPENCLAW_PROFILE);
+  const profile = readEnv("ALISIO_PROFILE", {
+    env: args?.env,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  return resolveGatewayLaunchAgentLabel(profile);
+}
+
+function resolveLaunchAgentInstallTarget(params: {
+  env: GatewayServiceEnv;
+  environment?: GatewayServiceEnv;
+}): {
+  env: GatewayServiceEnv;
+  label: string;
+  profile?: string;
+  plistPath: string;
+} {
+  // Forced reinstalls should migrate built-in legacy LaunchAgent labels to the
+  // canonical Alisio label instead of persisting the legacy OPENCLAW override.
+  const installEnv = {
+    ...params.env,
+    ...params.environment,
+  };
+  const label =
+    readEnv("ALISIO_LAUNCHD_LABEL", {
+      env: installEnv,
+    }) ||
+    resolveGatewayLaunchAgentLabel(
+      readEnv("ALISIO_PROFILE", {
+        env: installEnv,
+        fallback: legacyEnvKey("PROFILE"),
+      }),
+    );
+  const profile = readEnv("ALISIO_PROFILE", {
+    env: installEnv,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  return {
+    env: installEnv,
+    label,
+    profile,
+    plistPath: resolveLaunchAgentPlistPathForLabel(installEnv, label),
+  };
 }
 
 function resolveLaunchAgentPlistPathForLabel(
@@ -62,7 +107,11 @@ export function resolveGatewayLogPaths(env: GatewayServiceEnv): {
 } {
   const stateDir = resolveGatewayStateDir(env);
   const logDir = path.join(stateDir, "logs");
-  const prefix = env.OPENCLAW_LOG_PREFIX?.trim() || "gateway";
+  const prefix =
+    readEnv("ALISIO_LOG_PREFIX", {
+      env,
+      fallback: legacyEnvKey("LOG_PREFIX"),
+    }) || "gateway";
   return {
     logDir,
     stdoutPath: path.join(logDir, `${prefix}.log`),
@@ -148,7 +197,12 @@ async function resolveLaunchAgentGatewayPort(env: GatewayServiceEnv): Promise<nu
   if (fromArgs !== null) {
     return fromArgs;
   }
-  const fromEnv = parseStrictPositiveInteger(env.OPENCLAW_GATEWAY_PORT ?? "");
+  const fromEnv = parseStrictPositiveInteger(
+    readEnv("ALISIO_GATEWAY_PORT", {
+      env,
+      fallback: legacyEnvKey("GATEWAY_PORT"),
+    }) ?? "",
+  );
   return fromEnv ?? null;
 }
 
@@ -170,7 +224,7 @@ function throwBootstrapGuiSessionError(params: {
       `LaunchAgent ${params.actionHint} requires a logged-in macOS GUI session for this user (${params.domain}).`,
       "This usually means you are running from SSH/headless context or as the wrong user (including sudo).",
       `Fix: sign in to the macOS desktop as the target user and rerun \`${params.actionHint}\`.`,
-      "Headless deployments should use a dedicated logged-in user session or a custom LaunchDaemon (not shipped): https://docs.openclaw.ai/gateway",
+      "Headless deployments should use a dedicated logged-in user session or a custom LaunchDaemon (not shipped): https://docs.alisio.pt/gateway",
     ].join("\n"),
   );
 }
@@ -344,7 +398,11 @@ export type LegacyLaunchAgent = {
 export async function findLegacyLaunchAgents(env: GatewayServiceEnv): Promise<LegacyLaunchAgent[]> {
   const domain = resolveGuiDomain();
   const results: LegacyLaunchAgent[] = [];
-  for (const label of resolveLegacyGatewayLaunchAgentLabels(env.OPENCLAW_PROFILE)) {
+  const profile = readEnv("ALISIO_PROFILE", {
+    env,
+    fallback: legacyEnvKey("PROFILE"),
+  });
+  for (const label of resolveLegacyGatewayLaunchAgentLabels(profile)) {
     const plistPath = resolveLaunchAgentPlistPathForLabel(env, label);
     const res = await execLaunchctl(["print", `${domain}/${label}`]);
     const loaded = res.code === 0;
@@ -464,14 +522,20 @@ async function writeLaunchAgentPlist({
   workingDirectory,
   environment,
   description,
-}: Omit<GatewayServiceInstallArgs, "stdout">): Promise<{ plistPath: string; stdoutPath: string }> {
-  const { logDir, stdoutPath, stderrPath } = resolveGatewayLogPaths(env);
+}: Omit<GatewayServiceInstallArgs, "stdout">): Promise<{
+  env: GatewayServiceEnv;
+  label: string;
+  plistPath: string;
+  stdoutPath: string;
+}> {
+  const installTarget = resolveLaunchAgentInstallTarget({ env, environment });
+  const { env: installEnv, label, plistPath, profile } = installTarget;
+  const { logDir, stdoutPath, stderrPath } = resolveGatewayLogPaths(installEnv);
   await ensureSecureDirectory(logDir);
 
   const domain = resolveGuiDomain();
-  const label = resolveLaunchAgentLabel({ env });
-  for (const legacyLabel of resolveLegacyGatewayLaunchAgentLabels(env.OPENCLAW_PROFILE)) {
-    const legacyPlistPath = resolveLaunchAgentPlistPathForLabel(env, legacyLabel);
+  for (const legacyLabel of resolveLegacyGatewayLaunchAgentLabels(profile)) {
+    const legacyPlistPath = resolveLaunchAgentPlistPathForLabel(installEnv, legacyLabel);
     await execLaunchctl(["bootout", domain, legacyPlistPath]);
     await execLaunchctl(["unload", legacyPlistPath]);
     try {
@@ -481,14 +545,17 @@ async function writeLaunchAgentPlist({
     }
   }
 
-  const plistPath = resolveLaunchAgentPlistPathForLabel(env, label);
-  const home = toPosixPath(resolveHomeDir(env));
+  const home = toPosixPath(resolveHomeDir(installEnv));
   const libraryDir = path.posix.join(home, "Library");
   await ensureSecureDirectory(home);
   await ensureSecureDirectory(libraryDir);
   await ensureSecureDirectory(path.dirname(plistPath));
 
-  const serviceDescription = resolveGatewayServiceDescription({ env, environment, description });
+  const serviceDescription = resolveGatewayServiceDescription({
+    env: installEnv,
+    environment,
+    description,
+  });
   const plist = buildLaunchAgentPlist({
     label,
     comment: serviceDescription,
@@ -500,7 +567,7 @@ async function writeLaunchAgentPlist({
   });
   await fs.writeFile(plistPath, plist, { encoding: "utf8", mode: LAUNCH_AGENT_PLIST_MODE });
   await fs.chmod(plistPath, LAUNCH_AGENT_PLIST_MODE).catch(() => undefined);
-  return { plistPath, stdoutPath };
+  return { env: installEnv, label, plistPath, stdoutPath };
 }
 
 export async function stageLaunchAgent({
@@ -519,26 +586,29 @@ export async function stageLaunchAgent({
   return { plistPath };
 }
 
-async function activateLaunchAgent(params: { env: GatewayServiceEnv; plistPath: string }) {
+async function activateLaunchAgent(params: {
+  env: GatewayServiceEnv;
+  label: string;
+  plistPath: string;
+}) {
   const domain = resolveGuiDomain();
-  const label = resolveLaunchAgentLabel({ env: params.env });
 
   await execLaunchctl(["bootout", domain, params.plistPath]);
   await execLaunchctl(["unload", params.plistPath]);
   // launchd can persist "disabled" state even after bootout + plist removal; clear it before bootstrap.
   await bootstrapLaunchAgentOrThrow({
     domain,
-    serviceTarget: `${domain}/${label}`,
+    serviceTarget: `${domain}/${params.label}`,
     plistPath: params.plistPath,
-    actionHint: "openclaw gateway install --force",
+    actionHint: "alisio gateway install --force",
   });
 }
 
 export async function installLaunchAgent(
   args: GatewayServiceInstallArgs,
 ): Promise<{ plistPath: string }> {
-  const { plistPath, stdoutPath } = await writeLaunchAgentPlist(args);
-  await activateLaunchAgent({ env: args.env, plistPath });
+  const { env, label, plistPath, stdoutPath } = await writeLaunchAgentPlist(args);
+  await activateLaunchAgent({ env, label, plistPath });
   // `bootstrap` already loads RunAtLoad agents. Avoid `kickstart -k` here:
   // on slow macOS guests it SIGTERMs the freshly booted gateway and pushes the
   // real listener startup past setup's health deadline.
@@ -599,7 +669,7 @@ export async function restartLaunchAgent({
     domain,
     serviceTarget,
     plistPath,
-    actionHint: "openclaw gateway restart",
+    actionHint: "alisio gateway restart",
   });
 
   const retry = await execLaunchctl(["kickstart", "-k", serviceTarget]);

@@ -60,6 +60,17 @@ async function getServerModule() {
 const GATEWAY_TEST_ENV_KEYS = [
   "HOME",
   "USERPROFILE",
+  "ALISIO_HOME",
+  "ALISIO_STATE_DIR",
+  "ALISIO_CONFIG_PATH",
+  "ALISIO_SKIP_BROWSER_CONTROL_SERVER",
+  "ALISIO_SKIP_GMAIL_WATCHER",
+  "ALISIO_SKIP_CANVAS_HOST",
+  "ALISIO_BUNDLED_PLUGINS_DIR",
+  "ALISIO_SKIP_CHANNELS",
+  "ALISIO_SKIP_PROVIDERS",
+  "ALISIO_SKIP_CRON",
+  "ALISIO_TEST_MINIMAL_GATEWAY",
   "OPENCLAW_STATE_DIR",
   "OPENCLAW_CONFIG_PATH",
   "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
@@ -114,8 +125,14 @@ function hasUnsyncedGatewayTestSessionConfig(): boolean {
 
 async function persistTestSessionConfig(): Promise<void> {
   const configPaths = new Set<string>();
+  if (process.env.ALISIO_CONFIG_PATH) {
+    configPaths.add(process.env.ALISIO_CONFIG_PATH);
+  }
   if (process.env.OPENCLAW_CONFIG_PATH) {
     configPaths.add(process.env.OPENCLAW_CONFIG_PATH);
+  }
+  if (process.env.ALISIO_STATE_DIR) {
+    configPaths.add(path.join(process.env.ALISIO_STATE_DIR, "alisio.json"));
   }
   if (process.env.OPENCLAW_STATE_DIR) {
     configPaths.add(path.join(process.env.OPENCLAW_STATE_DIR, "openclaw.json"));
@@ -211,11 +228,24 @@ async function setupGatewayTestHome() {
   tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gateway-home-"));
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
+  process.env.ALISIO_HOME = tempHome;
+  process.env.ALISIO_STATE_DIR = path.join(tempHome, ".openclaw");
   process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
+  delete process.env.ALISIO_CONFIG_PATH;
   delete process.env.OPENCLAW_CONFIG_PATH;
 }
 
 function applyGatewaySkipEnv() {
+  process.env.ALISIO_SKIP_BROWSER_CONTROL_SERVER = "1";
+  process.env.ALISIO_SKIP_GMAIL_WATCHER = "1";
+  process.env.ALISIO_SKIP_CANVAS_HOST = "1";
+  process.env.ALISIO_SKIP_CHANNELS = "1";
+  process.env.ALISIO_SKIP_PROVIDERS = "1";
+  process.env.ALISIO_SKIP_CRON = "1";
+  process.env.ALISIO_TEST_MINIMAL_GATEWAY = "1";
+  process.env.ALISIO_BUNDLED_PLUGINS_DIR = tempHome
+    ? path.join(tempHome, "openclaw-test-no-bundled-extensions")
+    : "openclaw-test-no-bundled-extensions";
   process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = "1";
   process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
   process.env.OPENCLAW_SKIP_CANVAS_HOST = "1";

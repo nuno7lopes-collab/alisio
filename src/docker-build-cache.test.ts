@@ -37,7 +37,7 @@ describe("docker build cache layout", () => {
         dockerfile,
         `${path} should use a shared pnpm store cache under the active user's home`,
       ).toMatch(
-        /--mount=type=cache,id=openclaw-pnpm-store,target=\/(?:root|home\/appuser)\/\.local\/share\/pnpm\/store,sharing=locked/,
+        /--mount=type=cache,id=alisio-pnpm-store,target=\/(?:root|home\/appuser)\/\.local\/share\/pnpm\/store,sharing=locked/,
       );
     }
   });
@@ -106,15 +106,15 @@ describe("docker build cache layout", () => {
       ),
     ).toBeLessThan(installIndex);
     expect(
-      indexOfPattern(
-        dockerfile,
-        /^COPY(?:\s+--chown=\S+)?\s+extensions\/memory-core\/package\.json \.\/extensions\/memory-core\/package\.json$/m,
-      ),
+      indexOfPattern(dockerfile, /^COPY(?:\s+--chown=\S+)?\s+extensions \.\/extensions$/m),
+    ).toBeLessThan(installIndex);
+    expect(
+      indexOfPattern(dockerfile, /^COPY(?:\s+--chown=\S+)?\s+patches \.\/patches$/m),
     ).toBeLessThan(installIndex);
     expect(
       indexOfPattern(
         dockerfile,
-        /^COPY(?:\s+--chown=\S+)?\s+tsconfig\.json tsconfig\.plugin-sdk\.dts\.json tsdown\.config\.ts vitest\.config\.ts vitest\.e2e\.config\.ts vitest\.performance-config\.ts openclaw\.mjs \.\/$/m,
+        /^COPY(?:\s+--chown=\S+)?\s+tsconfig\.json tsconfig\.plugin-sdk\.dts\.json tsdown\.config\.ts vitest\.config\.ts vitest\.e2e\.config\.ts vitest\.performance-config\.ts alisio\.mjs \.\/$/m,
       ),
     ).toBeGreaterThan(installIndex);
     expect(indexOfPattern(dockerfile, /^COPY(?:\s+--chown=\S+)?\s+src \.\/src$/m)).toBeGreaterThan(
@@ -129,6 +129,9 @@ describe("docker build cache layout", () => {
     expect(indexOfPattern(dockerfile, /^COPY(?:\s+--chown=\S+)?\s+ui \.\/ui$/m)).toBeGreaterThan(
       installIndex,
     );
+    expect(
+      dockerfile.lastIndexOf("COPY --chown=appuser:appuser extensions ./extensions"),
+    ).toBeGreaterThan(installIndex);
   });
 
   it("copies manifests before install in the qr-import image", async () => {

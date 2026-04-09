@@ -46,6 +46,11 @@ import {
 } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import chokidar, { FSWatcher } from "chokidar";
 import {
+  buildCanonicalMemoryStoreStatus,
+  syncCanonicalMemoryStore,
+  type CanonicalMemoryStoreStatus,
+} from "./canonical-store.js";
+import {
   createEmbeddingProvider,
   type EmbeddingProvider,
   type EmbeddingProviderId,
@@ -158,6 +163,7 @@ export abstract class MemoryManagerSyncOps {
 
   protected abstract readonly cache: { enabled: boolean; maxEntries?: number };
   protected abstract db: DatabaseSync;
+  protected canonicalStoreStatus?: CanonicalMemoryStoreStatus;
   protected abstract computeProviderKey(): string;
   protected abstract sync(params?: {
     reason?: string;
@@ -1119,6 +1125,11 @@ export abstract class MemoryManagerSyncOps {
       if (shouldSyncMemory) {
         await this.syncMemoryFiles({ needsFullReindex, progress: progress ?? undefined });
         this.dirty = false;
+        try {
+          await this.refreshCanonicalStoreStatus("builtin");
+        } catch (err) {
+          this.recordCanonicalStoreError(err);
+        }
       }
 
       if (shouldSyncSessions) {
@@ -1175,6 +1186,32 @@ export abstract class MemoryManagerSyncOps {
       concurrency: Math.max(1, batch?.concurrency ?? 2),
       pollIntervalMs: batch?.pollIntervalMs ?? 2000,
       timeoutMs: (batch?.timeoutMinutes ?? 60) * 60 * 1000,
+    };
+  }
+
+  protected async refreshCanonicalStoreStatus(
+    backend: "builtin",
+  ): Promise<CanonicalMemoryStoreStatus> {
+    const nextStatus = await syncCanonicalMemoryStore({
+      cfg: this.cfg,
+      agentId: this.agentId,
+      workspaceDir: this.workspaceDir,
+      backend,
+    });
+    this.canonicalStoreStatus = nextStatus;
+    return nextStatus;
+  }
+
+  protected recordCanonicalStoreError(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.canonicalStoreStatus = {
+      ...(this.canonicalStoreStatus ??
+        buildCanonicalMemoryStoreStatus({
+          agentId: this.agentId,
+          workspaceDir: this.workspaceDir,
+          backend: "builtin",
+        })),
+      lastError: message,
     };
   }
 
@@ -1267,6 +1304,11 @@ export abstract class MemoryManagerSyncOps {
       if (shouldSyncMemory) {
         await this.syncMemoryFiles({ needsFullReindex: true, progress: params.progress });
         this.dirty = false;
+        try {
+          await this.refreshCanonicalStoreStatus("builtin");
+        } catch (err) {
+          this.recordCanonicalStoreError(err);
+        }
       }
 
       if (shouldSyncSessions) {
@@ -1341,6 +1383,11 @@ export abstract class MemoryManagerSyncOps {
     if (shouldSyncMemory) {
       await this.syncMemoryFiles({ needsFullReindex: true, progress: params.progress });
       this.dirty = false;
+      try {
+        await this.refreshCanonicalStoreStatus("builtin");
+      } catch (err) {
+        this.recordCanonicalStoreError(err);
+      }
     }
 
     if (shouldSyncSessions) {

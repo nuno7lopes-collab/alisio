@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadOpenClawPluginsMock = vi.fn();
+const loadAlisioPluginsMock = vi.fn();
 const loadPluginManifestRegistryMock = vi.fn();
 const applyPluginAutoEnableMock = vi.fn();
 
 vi.mock("./loader.js", () => ({
-  loadOpenClawPlugins: (...args: unknown[]) => loadOpenClawPluginsMock(...args),
+  loadAlisioPlugins: (...args: unknown[]) => loadAlisioPluginsMock(...args),
 }));
 
 vi.mock("../config/plugin-auto-enable.js", () => ({
@@ -52,7 +52,7 @@ function setOwningProviderManifestPlugins() {
 }
 
 function getLastLoadPluginsCall(): Record<string, unknown> {
-  const call = loadOpenClawPluginsMock.mock.calls.at(-1)?.[0];
+  const call = loadAlisioPluginsMock.mock.calls.at(-1)?.[0];
   expect(call).toBeDefined();
   return (call ?? {}) as Record<string, unknown>;
 }
@@ -69,7 +69,7 @@ function expectLastLoadPluginsCall(params?: {
   env?: NodeJS.ProcessEnv;
   onlyPluginIds?: readonly string[];
 }) {
-  expect(loadOpenClawPluginsMock).toHaveBeenCalledWith(
+  expect(loadAlisioPluginsMock).toHaveBeenCalledWith(
     expect.objectContaining({
       cache: false,
       activate: false,
@@ -154,7 +154,7 @@ function expectOwningPluginIds(provider: string, expectedPluginIds?: readonly st
 }
 
 function expectBundledProviderLoad(params?: { config?: unknown; env?: NodeJS.ProcessEnv }) {
-  expect(loadOpenClawPluginsMock).toHaveBeenCalledWith(
+  expect(loadAlisioPluginsMock).toHaveBeenCalledWith(
     expect.objectContaining({
       ...(params?.config ? { config: params.config } : {}),
       ...(params?.env ? { env: params.env } : {}),
@@ -165,8 +165,8 @@ function expectBundledProviderLoad(params?: { config?: unknown; env?: NodeJS.Pro
 describe("resolvePluginProviders", () => {
   beforeEach(async () => {
     vi.resetModules();
-    loadOpenClawPluginsMock.mockReset();
-    loadOpenClawPluginsMock.mockReturnValue({
+    loadAlisioPluginsMock.mockReset();
+    loadAlisioPluginsMock.mockReturnValue({
       providers: [{ pluginId: "google", provider: { id: "demo-provider" } }],
     });
     loadPluginManifestRegistryMock.mockReset();
@@ -192,7 +192,7 @@ describe("resolvePluginProviders", () => {
   });
 
   it("forwards an explicit env to plugin loading", () => {
-    const env = { OPENCLAW_HOME: "/srv/openclaw-home" } as NodeJS.ProcessEnv;
+    const env = { ALISIO_HOME: "/srv/alisio-home" } as NodeJS.ProcessEnv;
 
     const providers = resolvePluginProviders({
       workspaceDir: "/workspace/explicit",
@@ -200,7 +200,7 @@ describe("resolvePluginProviders", () => {
     });
 
     expectResolvedProviders(providers, [{ id: "demo-provider", pluginId: "google" }]);
-    expect(loadOpenClawPluginsMock).toHaveBeenCalledWith(
+    expect(loadAlisioPluginsMock).toHaveBeenCalledWith(
       expect.objectContaining({
         workspaceDir: "/workspace/explicit",
         env,
@@ -319,7 +319,7 @@ describe("resolvePluginProviders", () => {
         bundledProviderVitestCompat: true,
       });
 
-      expect(loadOpenClawPluginsMock).toHaveBeenCalledWith(
+      expect(loadAlisioPluginsMock).toHaveBeenCalledWith(
         expect.objectContaining({
           config: undefined,
           env: {},

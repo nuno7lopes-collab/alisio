@@ -351,9 +351,12 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).toContain("## Documentation");
     expect(prompt).toContain("Alisio docs: /tmp/openclaw/docs");
+    expect(prompt).toContain("Source: https://github.com/alisio/alisio");
+    expect(prompt).toContain("Legacy docs mirror (temporary): https://docs.openclaw.ai");
     expect(prompt).toContain(
       "For Alisio behavior, commands, config, or architecture: consult local docs first.",
     );
+    expect(prompt).toContain("run `alisio status` yourself");
   });
 
   it("includes workspace notes when provided", () => {

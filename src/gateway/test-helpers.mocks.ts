@@ -313,6 +313,7 @@ const testConfigRoot = resolveGlobalSingleton(GATEWAY_TEST_CONFIG_ROOT_KEY, () =
 
 export const setTestConfigRoot = (root: string) => {
   testConfigRoot.value = root;
+  process.env.ALISIO_CONFIG_PATH = path.join(root, "openclaw.json");
   process.env.OPENCLAW_CONFIG_PATH = path.join(root, "openclaw.json");
 };
 

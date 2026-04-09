@@ -139,9 +139,18 @@ function memoryText() {
     searchSyncOn: t("alisio.memory.searchSyncOn"),
     searchSyncOff: t("alisio.memory.searchSyncOff"),
     store: t("alisio.memory.store"),
+    canonicalStore: t("alisio.memory.canonicalStore"),
+    canonicalProfile: t("alisio.memory.canonicalProfile"),
+    canonicalGraph: t("alisio.memory.canonicalGraph"),
     vector: t("alisio.memory.vector"),
     fts: t("alisio.memory.fts"),
     obsidianVault: t("alisio.memory.obsidianVault"),
+    localFirst: t("alisio.memory.localFirst"),
+    localOnly: t("alisio.memory.localOnly"),
+    cloudSyncPending: t("alisio.memory.cloudSyncPending"),
+    entitiesUnit: t("alisio.memory.entitiesUnit"),
+    relationsUnit: t("alisio.memory.relationsUnit"),
+    projectionsUnit: t("alisio.memory.projectionsUnit"),
     filesUnit: t("alisio.memory.filesUnit"),
     skippedLarge: t("alisio.memory.skippedLarge"),
     builtin: t("alisio.memory.builtin"),
@@ -452,6 +461,15 @@ function renderRuntimeCard(params: {
         ),
       )
     : undefined;
+  const canonicalStoreDetail = runtime?.canonicalStore
+    ? sanitizeLegacyStatePath(runtime.canonicalStore.path)
+    : undefined;
+  const canonicalProfileDetail = runtime?.canonicalStore
+    ? `${runtime.canonicalStore.syncMode === "local-first" ? text.localFirst : text.localOnly} · ${text.cloudSyncPending}`
+    : undefined;
+  const canonicalGraphDetail = runtime?.canonicalStore
+    ? `${runtime.canonicalStore.relations} ${text.relationsUnit} · ${runtime.canonicalStore.projections} ${text.projectionsUnit}`
+    : undefined;
   const embeddingDetail =
     guidance || !embeddingError ? undefined : sanitizeLegacyStatePath(embeddingError);
   const backendDetail =
@@ -571,6 +589,27 @@ function renderRuntimeCard(params: {
                   config ? `${config.store.driver} · ${config.store.ftsTokenizer}` : text.na,
                   storeDetail === text.na ? undefined : storeDetail,
                 )}
+                ${runtime?.canonicalStore
+                  ? renderRuntimeMetaItem(
+                      text.canonicalStore,
+                      runtime.canonicalStore.state === "ready" ? text.ready : text.unavailable,
+                      canonicalStoreDetail === text.na ? undefined : canonicalStoreDetail,
+                    )
+                  : nothing}
+                ${runtime?.canonicalStore
+                  ? renderRuntimeMetaItem(
+                      text.canonicalProfile,
+                      runtime.canonicalStore.profileId,
+                      canonicalProfileDetail,
+                    )
+                  : nothing}
+                ${runtime?.canonicalStore
+                  ? renderRuntimeMetaItem(
+                      text.canonicalGraph,
+                      `${runtime.canonicalStore.entities} ${text.entitiesUnit}`,
+                      canonicalGraphDetail,
+                    )
+                  : nothing}
                 ${renderRuntimeMetaItem(
                   text.vector,
                   resolveSubsystemState({

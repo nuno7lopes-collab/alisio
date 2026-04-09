@@ -18,3 +18,16 @@ export function loadPatternListFromEnv(
   }
   return loadPatternListFile(filePath, envKey);
 }
+
+export function loadPatternListFromEnvKeys(
+  envKeys: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): string[] | null {
+  for (const envKey of envKeys) {
+    const patterns = loadPatternListFromEnv(envKey, env);
+    if (patterns) {
+      return patterns;
+    }
+  }
+  return null;
+}

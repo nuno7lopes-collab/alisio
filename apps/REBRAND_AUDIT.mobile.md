@@ -1,6 +1,7 @@
 # Mobile Rebrand Audit
 
 Data: 2026-04-08
+Revalidado nesta tarefa: 2026-04-09
 Agente: AGENTE-C
 Âmbito principal: `apps/android/**`, `apps/ios/**`, `apps/shared/**`
 Âmbito extra justificado: `apps/shared/OpenClawKit/**`, `apps/shared/AlisioKit/**`, `src/canvas-host/**`, `src/gateway/canvas-capability.ts`, `src/gateway/protocol/client-info.ts`, `scripts/ios-beta-prepare.sh`
@@ -8,12 +9,14 @@ Agente: AGENTE-C
 ## Resumo
 
 - Estado final móvel: `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|OpenClawKit" apps/android apps/ios` devolve zero hits.
+- Estado de código/rebrand: validado para `apps/android/**`, `apps/ios/**` e `apps/shared/**`, mas isto não substitui smoke live real.
 - iOS ficou alinhado com bundle identifiers `ai.alisio.ios*` em signing defaults, fastlane e documentação local.
 - Android já estava alinhado em `applicationId`, `namespace`, manifests, deep links e migração temporária de prefs; nesta ronda não foi preciso mexer no código Android de produto.
 - `apps/shared/AlisioKit/**` mantém-se como superfície canónica.
 - `apps/shared/OpenClawKit/**` mantém-se como shim temporário, mas passou a expor identifiers/runtime canónicos Alisio com fallback explícito para paths, suites, keychain services, deep links e markers legados.
 - O contrato operacional gateway <-> mobile ficou alinhado em `alisio-*` / `__alisio__/*`, mantendo aceitação explícita de aliases legados no gateway/canvas host para suportar a janela de transição.
 - Foram limpos artefactos SPM locais (`.build`, `.swiftpm`, `Package.resolved`) nos shared kits no fim da validação.
+- Validação live real continua pendente: Supabase live + inbox real + links reais, smoke multi-dispositivo e auditoria final com dispositivos físicos.
 
 ## Android
 
@@ -66,7 +69,7 @@ Agente: AGENTE-C
   - `ai.openclaw.shared` / `group.ai.openclaw.shared` continuam legíveis, com promoção para `ai.alisio.shared` / `group.ai.alisio.shared` quando possível.
   - `ai.openclaw.tls-pinning` continua legível, com promoção para `ai.alisio.tls-pinning`.
 
-## Validação
+## Validação Da Ronda De Rebrand
 
 - `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|OpenClawKit" apps/android apps/ios`: OK, zero hits.
 - `rg -n --hidden -S "openclaw|OpenClaw|ai\\.openclaw|OpenClawKit" apps/android apps/ios`: continua OK depois do fecho operacional.
@@ -80,10 +83,41 @@ Agente: AGENTE-C
 - `pnpm test -- src/gateway/server-methods/nodes.canvas-capability-refresh.test.ts src/gateway/canvas-capability.test.ts src/gateway/server.ios-client-id.test.ts src/gateway/device-auth.test.ts`: OK.
 - `pnpm test -- src/gateway/server.canvas-auth.test.ts`: bloqueado; a suite fica pendurada no runner gateway mesmo isolada, sem produzir falha útil nesta máquina.
 - `cd apps/android && ./gradlew :app:assembleDebug`: bloqueado pelo ambiente local; falta Java Runtime antes do Gradle arrancar.
-- `cd apps/ios && xcodebuild -project Alisio.xcodeproj -scheme Alisio -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`: bloqueado pelo ambiente local; a platform iOS 26.2 não está instalada no Xcode deste host.
+- `cd apps/ios && xcodebuild -project Alisio.xcodeproj -scheme Alisio -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`: registo histórico desta ronda; a revalidação actual desta tarefa está documentada abaixo com o erro exacto observado hoje.
+
+## Estado Runtime Deste Host
+
+- `xcodebuild -version`: verificado. Host com Xcode 26.3.
+- `xcodebuild -showsdks`: verificado. O host lista `iphoneos26.2`, mas isso não foi suficiente para satisfazer o `xcodebuild` real desta tarefa.
+- `java -version`: bloqueado. O host não tem Java Runtime disponível no PATH.
+- `adb devices -l`: bloqueado. `adb` não existe no PATH deste host.
+- `printenv | rg '^ALISIO_(SUPABASE|PUSH|APNS|MAIL|EMAIL)|^SUPABASE'`: sem variáveis live visíveis no ambiente desta sessão.
+- `~/.profile`: sem `ALISIO_SUPABASE_*`, `ALISIO_PUSH_RELAY_BASE_URL`, `ANDROID_HOME` ou `ANDROID_SDK_ROOT` exportados de forma visível.
+
+## Revalidação Desta Tarefa
+
+- `bash -lc './scripts/ios-configure-signing.sh && ./scripts/ios-write-version-xcconfig.sh && cd apps/ios && xcodegen generate && xcodebuild -project Alisio.xcodeproj -scheme Alisio -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build'`: falhou com código 70. O Xcode gerou o projecto, mas o build terminou em `Unable to find a destination matching the provided destination specifier ... error:iOS 26.2 is not installed`.
+- `swift test --package-path apps/shared/AlisioKit`: OK. Build concluído e 3 testes passaram (`AlisioKitBridgeTests`).
+- `swift test --package-path apps/shared/OpenClawKit`: inconclusivo neste host. O comando compilou durante vários minutos e deixou de produzir output útil antes de um fecho observável nesta sessão.
+- `pnpm test -- src/agents/live-test-helpers.test.ts test/test-env.test.ts src/infra/alisio-account-cloud.test.ts`: bloqueado por infra do runner Vitest (`Worker forks emitted error` / timeout de workers), sem falha de assertion observável do diff.
+- `pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts ...`: bloqueado pela mesma classe de timeout do runner nas suites live já pesadas; o novo smoke `src/infra/alisio-account-cloud.live.test.ts` arrancou sob `ALISIO_LIVE_TEST`, mas não houve execução live factual porque faltam envs/cloud/inbox reais neste host.
+
+## Validação Live Pendente
+
+- Conta/auth cloud:
+  - falta correr `pnpm test:live:account` com `ALISIO_SUPABASE_URL`, `ALISIO_SUPABASE_ANON_KEY`, `ALISIO_LIVE_ACCOUNT_EMAIL` e links reais capturados do inbox (`ALISIO_LIVE_ACCOUNT_SIGNIN_LINK_URL`, `ALISIO_LIVE_ACCOUNT_RECOVERY_LINK_URL`).
+  - a cobertura opcional de mudança real de email também ficou preparada, mas exige activar `ALISIO_LIVE_ACCOUNT_ENABLE_EMAIL_CHANGE=1` e fornecer `ALISIO_LIVE_ACCOUNT_CHANGE_EMAIL` + `ALISIO_LIVE_ACCOUNT_EMAIL_CHANGE_LINK_URL`.
+- Android:
+  - falta host com Java + `adb` + dispositivo Android físico para correr `pnpm android:assemble`, `pnpm android:test` e `pnpm android:test:integration`.
+- iOS:
+  - falta dispositivo iPhone físico e smoke manual/live de pairing, auth, reconnect, inbox e comandos foreground.
+- Shared:
+  - falta validação live dos consumidores iOS/Android sobre o shim `OpenClawKit` em ambiente real, não apenas `swift build`/`swift test`.
+- Multi-dispositivo:
+  - falta smoke real entre pelo menos duas contas/dispositivos físicos para validar continuidade explícita por canal, inbox real e links reais.
 
 ## Riscos / Follow-up
 
 - O shim `OpenClawKit` continua a conter símbolos Swift `OpenClaw*` por compatibilidade binária/API; o objetivo desta ronda foi evitar que esses nomes continuassem a aparecer no runtime mobile, UI/resources ou identifiers persistidos.
 - A suite `src/gateway/server.canvas-auth.test.ts` precisa de follow-up próprio: nesta máquina o runner gateway fica preso sem output útil mesmo com execução isolada, pelo que a cobertura factual desta ronda ficou assegurada por testes mais pequenos e específicos do contrato alterado.
-- O rollout continua dependente de validar em hosts com Java e platform iOS 26.2 instalados para fechar os builds nativos end-to-end.
+- O rollout continua dependente de validar em host com Java/adb e com dispositivos físicos disponíveis; no lado iOS, este host continua inconsistente (`xcodebuild -showsdks` lista `iphoneos26.2`, mas o build genérico continua a falhar a dizer que iOS 26.2 não está instalado), além de continuar sem execução live real.

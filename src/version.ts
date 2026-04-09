@@ -93,6 +93,14 @@ export type RuntimeVersionEnv = {
 export const RUNTIME_SERVICE_VERSION_FALLBACK = "unknown";
 type RuntimeVersionPreference = "env-first" | "runtime-first";
 
+function readRuntimeVersionEnv(
+  env: RuntimeVersionEnv,
+  canonicalKey: string,
+  legacyKey: string,
+): string | undefined {
+  return firstNonEmpty(env[canonicalKey], env[legacyKey]);
+}
+
 export function resolveUsableRuntimeVersion(version: string | undefined): string | undefined {
   const trimmed = version?.trim();
   // "0.0.0" is the resolver's hard fallback when module metadata cannot be read.
@@ -109,16 +117,19 @@ function resolveVersionFromRuntimeSources(params: {
   fallback: string;
   preference: RuntimeVersionPreference;
 }): string {
+  const envVersion = readRuntimeVersionEnv(params.env, "ALISIO_VERSION", "OPENCLAW_VERSION");
+  const envServiceVersion = readRuntimeVersionEnv(
+    params.env,
+    "ALISIO_SERVICE_VERSION",
+    "OPENCLAW_SERVICE_VERSION",
+  );
   const preferredCandidates =
     params.preference === "env-first"
-      ? [params.env["OPENCLAW_VERSION"], params.runtimeVersion]
-      : [params.runtimeVersion, params.env["OPENCLAW_VERSION"]];
+      ? [envVersion, params.runtimeVersion]
+      : [params.runtimeVersion, envVersion];
   return (
-    firstNonEmpty(
-      ...preferredCandidates,
-      params.env["OPENCLAW_SERVICE_VERSION"],
-      params.env["npm_package_version"],
-    ) ?? params.fallback
+    firstNonEmpty(...preferredCandidates, envServiceVersion, params.env["npm_package_version"]) ??
+    params.fallback
   );
 }
 
@@ -146,11 +157,14 @@ export function resolveCompatibilityHostVersion(
   });
 }
 
-// Single source of truth for the current OpenClaw version.
+// Single source of truth for the current Alisio version.
 // - Embedded/bundled builds: injected define or env var.
 // - Dev/npm builds: package.json.
 export const VERSION = resolveBinaryVersion({
   moduleUrl: import.meta.url,
   injectedVersion: typeof __OPENCLAW_VERSION__ === "string" ? __OPENCLAW_VERSION__ : undefined,
-  bundledVersion: process.env.OPENCLAW_BUNDLED_VERSION,
+  bundledVersion: firstNonEmpty(
+    process.env.ALISIO_BUNDLED_VERSION,
+    process.env.OPENCLAW_BUNDLED_VERSION,
+  ),
 });

@@ -26,8 +26,11 @@ import {
 } from "alisio/plugin-sdk/reply-history";
 import { finalizeInboundContext } from "alisio/plugin-sdk/reply-runtime";
 import type { FinalizedMsgContext } from "alisio/plugin-sdk/reply-runtime";
-import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
-import { resolveThreadSessionKeys } from "alisio/plugin-sdk/routing";
+import {
+  resolveAgentRoute,
+  resolveInboundLastRouteSessionKey,
+  resolveThreadSessionKeys,
+} from "alisio/plugin-sdk/routing";
 import { logVerbose, shouldLogVerbose } from "alisio/plugin-sdk/runtime-env";
 import { resolvePinnedMainDmOwnerFromAllowlist } from "alisio/plugin-sdk/security-runtime";
 import { resolveSlackReplyToMode, type ResolvedSlackAccount } from "../../accounts.js";
@@ -743,6 +746,10 @@ export async function prepareSlackMessage(params: {
         normalizeEntry: normalizeSlackAllowOwnerEntry,
       })
     : null;
+  const updateLastRouteSessionKey = resolveInboundLastRouteSessionKey({
+    route,
+    sessionKey,
+  });
 
   await recordInboundSession({
     storePath,
@@ -750,13 +757,13 @@ export async function prepareSlackMessage(params: {
     ctx: ctxPayload,
     updateLastRoute: isDirectMessage
       ? {
-          sessionKey: route.mainSessionKey,
+          sessionKey: updateLastRouteSessionKey,
           channel: "slack",
           to: `user:${message.user}`,
           accountId: route.accountId,
           threadId: threadContext.messageThreadId,
           mainDmOwnerPin:
-            pinnedMainDmOwner && message.user
+            updateLastRouteSessionKey === route.mainSessionKey && pinnedMainDmOwner && message.user
               ? {
                   ownerRecipient: pinnedMainDmOwner,
                   senderRecipient: message.user.toLowerCase(),

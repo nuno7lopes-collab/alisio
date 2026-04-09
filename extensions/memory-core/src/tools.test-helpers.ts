@@ -1,6 +1,6 @@
 import { expect } from "vitest";
 import type { OpenClawConfig } from "../api.js";
-import { createMemoryGetTool, createMemorySearchTool } from "./tools.js";
+import { createMemoryGetTool, createMemoryGraphTool, createMemorySearchTool } from "./tools.js";
 
 export function asOpenClawConfig(config: Partial<OpenClawConfig>): OpenClawConfig {
   return config as OpenClawConfig;
@@ -28,6 +28,16 @@ export function createMemoryGetToolOrThrow(
   config: OpenClawConfig = createDefaultMemoryToolConfig(),
 ) {
   const tool = createMemoryGetTool({ config });
+  if (!tool) {
+    throw new Error("tool missing");
+  }
+  return tool;
+}
+
+export function createMemoryGraphToolOrThrow(
+  config: OpenClawConfig = createDefaultMemoryToolConfig(),
+) {
+  const tool = createMemoryGraphTool({ config });
   if (!tool) {
     throw new Error("tool missing");
   }

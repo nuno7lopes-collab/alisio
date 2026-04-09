@@ -1,7 +1,7 @@
 export const GATEWAY_CLIENT_IDS = {
   WEBCHAT_UI: "webchat-ui",
-  CONTROL_UI: "openclaw-control-ui",
-  TUI: "openclaw-tui",
+  CONTROL_UI: "alisio-control-ui",
+  TUI: "alisio-tui",
   WEBCHAT: "webchat",
   CLI: "cli",
   GATEWAY_CLIENT: "gateway-client",
@@ -11,11 +11,14 @@ export const GATEWAY_CLIENT_IDS = {
   NODE_HOST: "node-host",
   TEST: "test",
   FINGERPRINT: "fingerprint",
-  PROBE: "openclaw-probe",
+  PROBE: "alisio-probe",
 } as const;
 
 export type GatewayClientId = (typeof GATEWAY_CLIENT_IDS)[keyof typeof GATEWAY_CLIENT_IDS];
 export const LEGACY_GATEWAY_CLIENT_ID_ALIASES = {
+  "openclaw-control-ui": GATEWAY_CLIENT_IDS.CONTROL_UI,
+  "openclaw-tui": GATEWAY_CLIENT_IDS.TUI,
+  "openclaw-probe": GATEWAY_CLIENT_IDS.PROBE,
   "openclaw-macos": GATEWAY_CLIENT_IDS.MACOS_APP,
   "openclaw-ios": GATEWAY_CLIENT_IDS.IOS_APP,
   "openclaw-android": GATEWAY_CLIENT_IDS.ANDROID_APP,

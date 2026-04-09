@@ -1,6 +1,7 @@
 import type { AlisioConfig } from "../config/config.js";
 import { containsEnvVarReference } from "../config/env-substitution.js";
 import { hasConfiguredSecretInput, resolveSecretInputRef } from "../config/types.secrets.js";
+import { legacyEnvKey, readEnv } from "../infra/env.js";
 
 export type GatewayCredentialInputPath =
   | "gateway.auth.token"
@@ -66,11 +67,23 @@ export function trimCredentialToUndefined(value: unknown): string | undefined {
 }
 
 export function readGatewayTokenEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return trimToUndefined(env.OPENCLAW_GATEWAY_TOKEN);
+  return trimToUndefined(
+    readEnv("ALISIO_GATEWAY_TOKEN", {
+      env,
+      fallback: legacyEnvKey("GATEWAY_TOKEN"),
+      redact: true,
+    }),
+  );
 }
 
 export function readGatewayPasswordEnv(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return trimToUndefined(env.OPENCLAW_GATEWAY_PASSWORD);
+  return trimToUndefined(
+    readEnv("ALISIO_GATEWAY_PASSWORD", {
+      env,
+      fallback: legacyEnvKey("GATEWAY_PASSWORD"),
+      redact: true,
+    }),
+  );
 }
 
 export function hasGatewayTokenEnvCandidate(env: NodeJS.ProcessEnv = process.env): boolean {

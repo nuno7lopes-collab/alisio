@@ -37,6 +37,7 @@ import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
 import { getBearerToken, getHeader } from "./http-request-helpers.js";
 import {
+  normalizeGatewayModelAlias,
   resolveAgentIdForRequest,
   resolveGatewayRequestContext,
   resolveOpenAiCompatModelOverride,
@@ -116,7 +117,9 @@ function createResponseSessionScope(params: {
   return normalizeResponseSessionScope({
     authSubject: resolveResponseSessionAuthSubject({ req: params.req, auth: params.auth }),
     agentId: params.agentId,
-    requestedSessionKey: getHeader(params.req, "x-openclaw-session-key"),
+    requestedSessionKey:
+      getHeader(params.req, "x-alisio-session-key") ??
+      getHeader(params.req, "x-openclaw-session-key"),
   });
 }
 
@@ -488,7 +491,7 @@ export async function handleOpenResponsesHttpRequest(
 
   const payload: CreateResponseBody = parseResult.data;
   const stream = Boolean(payload.stream);
-  const model = payload.model;
+  const model = normalizeGatewayModelAlias(payload.model) ?? payload.model;
   const user = payload.user;
   const agentId = resolveAgentIdForRequest({ req, model });
   const { modelOverride, errorMessage: modelError } = await resolveOpenAiCompatModelOverride({

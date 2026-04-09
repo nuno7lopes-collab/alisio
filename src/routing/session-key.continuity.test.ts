@@ -8,19 +8,19 @@ describe("Discord Session Key Continuity", () => {
 
   function buildDiscordSessionKey(params: {
     peer: { kind: "direct" | "channel"; id: string };
-    dmScope?: "main" | "per-peer";
+    dmScope?: "main" | "per-peer" | "per-channel-peer";
   }) {
     return buildAgentSessionKey({
       agentId,
       channel,
       accountId,
-      dmScope: params.dmScope ?? "main",
+      dmScope: params.dmScope,
       peer: params.peer,
     });
   }
 
   function expectDistinctDmAndChannelKeys(params: {
-    dmScope: "main" | "per-peer";
+    dmScope?: "main" | "per-peer" | "per-channel-peer";
     expectedDmKey: string;
   }) {
     const dmKey = buildDiscordSessionKey({
@@ -48,6 +48,11 @@ describe("Discord Session Key Continuity", () => {
 
   it.each([
     {
+      name: "defaults DMs to per-channel-peer isolation",
+      dmScope: undefined,
+      expectedDmKey: "agent:main:discord:direct:user123",
+    },
+    {
       name: "keeps main-scoped DMs distinct from channel sessions",
       dmScope: "main" as const,
       expectedDmKey: "agent:main:main",
@@ -56,6 +61,11 @@ describe("Discord Session Key Continuity", () => {
       name: "keeps per-peer DMs distinct from channel sessions",
       dmScope: "per-peer" as const,
       expectedDmKey: "agent:main:direct:user123",
+    },
+    {
+      name: "keeps per-channel-peer DMs distinct from channel sessions",
+      dmScope: "per-channel-peer" as const,
+      expectedDmKey: "agent:main:discord:direct:user123",
     },
   ])("$name", ({ dmScope, expectedDmKey }) => {
     expectDistinctDmAndChannelKeys({ dmScope, expectedDmKey });

@@ -14494,7 +14494,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "session.dmScope": {
       label: "DM Session Scope",
-      help: 'DM session scoping: "main" keeps continuity, while "per-peer", "per-channel-peer", and "per-account-channel-peer" increase isolation. Use isolated modes for shared inboxes or multi-account deployments.',
+      help: 'DM session scoping defaults to "per-channel-peer" so each channel+sender pair keeps separate short-term context. Use "main" only when you intentionally want one shared DM session, or choose the other isolated modes for cross-channel or multi-account deployments.',
       tags: ["storage"],
     },
     "session.identityLinks": {

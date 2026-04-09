@@ -108,7 +108,7 @@ export function alisioConnectorUpgradeMessage(plan: AlisioPlan): string {
 }
 
 export function alisioOrganizationsUpgradeMessage(): string {
-  return "Organizations are available on Plus. Open Settings -> Billing to upgrade before creating or joining a shared workspace.";
+  return "Organizations currently require Plus and remain rollout-sensitive. Open Settings -> Billing before creating or joining a shared workspace.";
 }
 
 export function alisioRemoteModelServersUpgradeMessage(): string {

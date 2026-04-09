@@ -16,7 +16,8 @@ import { sendJson } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
 import { getHeader } from "./http-request-helpers.js";
 import {
-  OPENCLAW_MODEL_ID,
+  ALISIO_MODEL_ID,
+  normalizeGatewayModelAlias,
   resolveAgentIdForRequest,
   resolveAgentIdFromModel,
 } from "./http-utils.js";
@@ -223,7 +224,10 @@ export async function handleOpenAiEmbeddingsHttpRequest(
   }
 
   const payload = coerceRequest(handled.body);
-  const requestModel = typeof payload.model === "string" ? payload.model.trim() : "";
+  const requestModel =
+    typeof payload.model === "string"
+      ? (normalizeGatewayModelAlias(payload.model)?.trim() ?? "")
+      : "";
   if (!requestModel) {
     sendJson(res, 400, {
       error: { message: "Missing `model`.", type: "invalid_request_error" },
@@ -232,10 +236,10 @@ export async function handleOpenAiEmbeddingsHttpRequest(
   }
 
   const cfg = loadConfig();
-  if (requestModel !== OPENCLAW_MODEL_ID && !resolveAgentIdFromModel(requestModel, cfg)) {
+  if (requestModel !== ALISIO_MODEL_ID && !resolveAgentIdFromModel(requestModel, cfg)) {
     sendJson(res, 400, {
       error: {
-        message: "Invalid `model`. Use `openclaw` or `openclaw/<agentId>`.",
+        message: "Invalid `model`. Use `alisio` or `alisio/<agentId>`.",
         type: "invalid_request_error",
       },
     });
@@ -264,7 +268,11 @@ export async function handleOpenAiEmbeddingsHttpRequest(
   const agentDir = resolveAgentDir(cfg, agentId);
   const memorySearch = resolveMemorySearchConfig(cfg, agentId);
   const configuredProvider = memorySearch?.provider ?? "openai";
-  const overrideModel = getHeader(req, "x-openclaw-model")?.trim() || memorySearch?.model || "";
+  const overrideModel =
+    normalizeGatewayModelAlias(getHeader(req, "x-alisio-model"))?.trim() ||
+    normalizeGatewayModelAlias(getHeader(req, "x-openclaw-model"))?.trim() ||
+    memorySearch?.model ||
+    "";
   const target = resolveEmbeddingsTarget({ requestModel: overrideModel, configuredProvider });
   if ("errorMessage" in target) {
     sendJson(res, 400, {

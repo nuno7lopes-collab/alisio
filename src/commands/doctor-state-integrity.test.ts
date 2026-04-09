@@ -12,6 +12,9 @@ vi.mock("../terminal/note.js", () => ({
 }));
 
 type EnvSnapshot = {
+  ALISIO_HOME?: string;
+  ALISIO_STATE_DIR?: string;
+  ALISIO_OAUTH_DIR?: string;
   HOME?: string;
   OPENCLAW_HOME?: string;
   OPENCLAW_STATE_DIR?: string;
@@ -20,6 +23,9 @@ type EnvSnapshot = {
 
 function captureEnv(): EnvSnapshot {
   return {
+    ALISIO_HOME: process.env.ALISIO_HOME,
+    ALISIO_STATE_DIR: process.env.ALISIO_STATE_DIR,
+    ALISIO_OAUTH_DIR: process.env.ALISIO_OAUTH_DIR,
     HOME: process.env.HOME,
     OPENCLAW_HOME: process.env.OPENCLAW_HOME,
     OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
@@ -87,10 +93,13 @@ describe("doctor state integrity oauth dir checks", () => {
     envSnapshot = captureEnv();
     tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-doctor-state-integrity-"));
     process.env.HOME = tempHome;
+    process.env.ALISIO_HOME = tempHome;
+    process.env.ALISIO_STATE_DIR = path.join(tempHome, ".alisio");
     process.env.OPENCLAW_HOME = tempHome;
-    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
+    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".alisio");
+    delete process.env.ALISIO_OAUTH_DIR;
     delete process.env.OPENCLAW_OAUTH_DIR;
-    fs.mkdirSync(process.env.OPENCLAW_STATE_DIR, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(process.env.ALISIO_STATE_DIR, { recursive: true, mode: 0o700 });
     vi.mocked(note).mockClear();
   });
 
@@ -171,10 +180,10 @@ describe("doctor state integrity oauth dir checks", () => {
     });
     const text = await runStateIntegrityText(cfg);
     expect(text).toContain("recent sessions are missing transcripts");
-    expect(text).toMatch(/openclaw sessions --store ".*sessions\.json"/);
-    expect(text).toMatch(/openclaw sessions cleanup --store ".*sessions\.json" --dry-run/);
+    expect(text).toMatch(/alisio sessions --store ".*sessions\.json"/);
+    expect(text).toMatch(/alisio sessions cleanup --store ".*sessions\.json" --dry-run/);
     expect(text).toMatch(
-      /openclaw sessions cleanup --store ".*sessions\.json" --enforce --fix-missing/,
+      /alisio sessions cleanup --store ".*sessions\.json" --enforce --fix-missing/,
     );
     expect(text).not.toContain("--active");
     expect(text).not.toContain(" ls ");

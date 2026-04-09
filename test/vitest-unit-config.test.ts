@@ -6,7 +6,7 @@ import {
 } from "../vitest.unit.config.ts";
 import { createPatternFileHelper } from "./helpers/pattern-file.js";
 
-const patternFiles = createPatternFileHelper("openclaw-vitest-unit-config-");
+const patternFiles = createPatternFileHelper("alisio-vitest-unit-config-");
 
 afterEach(() => {
   patternFiles.cleanup();
@@ -27,7 +27,7 @@ describe("loadIncludePatternsFromEnv", () => {
 
     expect(
       loadIncludePatternsFromEnv({
-        OPENCLAW_VITEST_INCLUDE_FILE: filePath,
+        ALISIO_VITEST_INCLUDE_FILE: filePath,
       }),
     ).toEqual(["src/infra/update-runner.test.ts", "ui/src/ui/views/chat.test.ts"]);
   });
@@ -48,7 +48,7 @@ describe("loadExtraExcludePatternsFromEnv", () => {
 
     expect(
       loadExtraExcludePatternsFromEnv({
-        OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE: filePath,
+        ALISIO_VITEST_EXTRA_EXCLUDE_FILE: filePath,
       }),
     ).toEqual(["src/infra/update-runner.test.ts", "ui/src/ui/views/chat.test.ts"]);
   });
@@ -60,9 +60,21 @@ describe("loadExtraExcludePatternsFromEnv", () => {
 
     expect(() =>
       loadExtraExcludePatternsFromEnv({
-        OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE: filePath,
+        ALISIO_VITEST_EXTRA_EXCLUDE_FILE: filePath,
       }),
     ).toThrow(/JSON array/u);
+  });
+
+  it("accepts legacy OpenClaw env names as a fallback", () => {
+    const filePath = patternFiles.writePatternFile("legacy-extra-exclude.json", [
+      "src/infra/update-runner.test.ts",
+    ]);
+
+    expect(
+      loadExtraExcludePatternsFromEnv({
+        OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE: filePath,
+      }),
+    ).toEqual(["src/infra/update-runner.test.ts"]);
   });
 });
 

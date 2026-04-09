@@ -524,6 +524,7 @@ export function renderSecurity(props: SecurityProps) {
         <div class="alisio-connections-hero__head">
           <div>
             <div class="card-title">${t("alisio.security.title")}</div>
+            <div class="card-sub">${t("alisio.security.subtitle")}</div>
           </div>
           <button
             class="btn"

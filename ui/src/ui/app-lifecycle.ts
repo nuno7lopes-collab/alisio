@@ -114,7 +114,11 @@ export function handleDisconnected(host: LifecycleHost) {
 
 export function handleUpdated(host: LifecycleHost, changed: Map<PropertyKey, unknown>) {
   if (changed.has("alisioAccount") || changed.has("alisioBootstrap")) {
-    void syncAccountPreferences(host as unknown as Parameters<typeof syncAccountPreferences>[0]);
+    // Defer reactive preference sync out of Lit's updated() lifecycle so it
+    // does not schedule a second update from inside the current one.
+    queueMicrotask(() => {
+      void syncAccountPreferences(host as unknown as Parameters<typeof syncAccountPreferences>[0]);
+    });
   }
   if (changed.has("alisioAccount")) {
     void loadAssistantIdentity(host as unknown as Parameters<typeof loadAssistantIdentity>[0]);

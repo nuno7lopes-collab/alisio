@@ -91,6 +91,8 @@ function modelsText() {
     linkedComputersShort: t("alisio.settings.models.linkedComputersShort"),
     activeComputer: t("alisio.settings.models.activeComputer"),
     connected: t("alisio.settings.models.connected"),
+    sharedTarget: t("alisio.settings.models.sharedTarget"),
+    readOnlyTarget: t("alisio.settings.models.readOnlyTarget"),
     modelSourceReady: t("alisio.settings.models.modelSourceReady"),
     modelSourcePending: t("alisio.settings.models.modelSourcePending"),
     noTargets: t("alisio.settings.models.noTargets"),
@@ -118,9 +120,11 @@ function modelsText() {
     openAiRuntimeHint: t("alisio.settings.models.openAiRuntimeHint"),
     runtimeErrorHint: t("alisio.settings.models.runtimeErrorHint"),
     hardware: t("alisio.settings.models.hardware"),
+    ownedBy: t("alisio.settings.models.ownedBy"),
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
     disk: t("alisio.settings.models.disk"),
+    startServer: t("alisio.settings.models.startServer"),
     addServer: t("alisio.settings.models.addServer"),
     editServer: t("alisio.settings.models.editServer"),
     activateServer: t("alisio.settings.models.activateServer"),
@@ -1034,6 +1038,7 @@ function renderTargetCard(props: {
   onInstallModel?: (targetId: string, modelId: string) => void;
   onUpdateModel?: (targetId: string, modelId: string) => void;
   onUninstallModel?: (targetId: string, modelId: string) => void;
+  onStartRuntimeServer?: (targetId: string) => void;
   onSelectChatModel?: (value: string) => void;
 }) {
   const text = modelsText();
@@ -1067,6 +1072,12 @@ function renderTargetCard(props: {
     props.target.runtimeMessage && !isGenericRuntimeMessage(props.target.runtimeMessage)
       ? props.target.runtimeMessage
       : "";
+  const canStartRuntimeServer =
+    Boolean(props.onStartRuntimeServer) &&
+    props.target.connected &&
+    props.target.runtimeKind === "lmstudio" &&
+    props.target.capabilities.startServer &&
+    props.target.runtimeStatus !== "ready";
   return html`
     <div
       class="alisio-models__target ${props.target.current ? "is-current" : ""} ${!props.target
@@ -1093,6 +1104,12 @@ function renderTargetCard(props: {
         <div class="alisio-settings-ai__profile-badges">
           <span class="pill">${resolveTargetRuntimeLabel(props.target)}</span>
           ${props.target.current ? html`<span class="pill">${text.activeComputer}</span>` : nothing}
+          ${props.target.access === "shared"
+            ? html`<span class="pill">${text.readOnlyTarget}</span>`
+            : nothing}
+          ${!props.target.current && props.target.ownerLabel
+            ? html`<span class="pill">${text.sharedTarget}</span>`
+            : nothing}
           ${props.target.connected ? html`<span class="pill">${text.connected}</span>` : nothing}
         </div>
       </div>
@@ -1104,6 +1121,11 @@ function renderTargetCard(props: {
         >
           ${statusLabel}
         </span>
+        ${!props.target.current && props.target.ownerLabel
+          ? html`<span class="alisio-models__status"
+              >${text.ownedBy.replace("{owner}", props.target.ownerLabel)}</span
+            >`
+          : nothing}
         ${formatHardwareSummary(props.target)
           ? html`<span class="alisio-models__status">${formatHardwareSummary(props.target)}</span>`
           : nothing}
@@ -1112,6 +1134,19 @@ function renderTargetCard(props: {
       ${runtimeMessage ? html`<div class="list-sub">${runtimeMessage}</div>` : nothing}
       ${resolveTargetRecommendationLabel(props.target)
         ? html`<div class="list-sub">${resolveTargetRecommendationLabel(props.target)}</div>`
+        : nothing}
+      ${canStartRuntimeServer
+        ? html`
+            <div class="alisio-settings-ai__profile-actions">
+              <button
+                class="btn"
+                ?disabled=${props.busy ?? false}
+                @click=${() => props.onStartRuntimeServer?.(props.target.targetId)}
+              >
+                ${text.startServer}
+              </button>
+            </div>
+          `
         : nothing}
       ${targetProviderId && props.onSelectChatModel
         ? renderScopedModelChooser({
@@ -1354,18 +1389,18 @@ function renderProviderPicker(props: {
       secondary: props.openAiSecondary,
     },
     {
-      id: "server",
-      badge: "S",
-      title: props.serverTitle,
-      primary: props.serverPrimary,
-      secondary: props.serverSecondary,
-    },
-    {
       id: "local",
       badge: "L",
       title: props.localTitle,
       primary: props.localPrimary,
       secondary: props.localSecondary,
+    },
+    {
+      id: "server",
+      badge: "S",
+      title: props.serverTitle,
+      primary: props.serverPrimary,
+      secondary: props.serverSecondary,
     },
   ];
 
@@ -1706,6 +1741,7 @@ function renderLocalModelsSection(props: {
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
+  onStartRuntimeServer?: (targetId: string) => void;
   onSelectModel: (value: string) => void;
 }) {
   const text = modelsText();
@@ -1761,6 +1797,7 @@ function renderLocalModelsSection(props: {
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
+              onStartRuntimeServer: props.onStartRuntimeServer,
               onSelectChatModel: props.onSelectModel,
             }),
           )}
@@ -1788,6 +1825,7 @@ function renderServersSection(props: {
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
+  onStartRuntimeServer?: (targetId: string) => void;
   onSelectModel: (value: string) => void;
   onStartCreateServer: () => void;
   onStartEditServer: (server: RemoteModelServer) => void;
@@ -1861,6 +1899,7 @@ function renderServersSection(props: {
                     onInstallModel: props.onInstallModel,
                     onUpdateModel: props.onUpdateModel,
                     onUninstallModel: props.onUninstallModel,
+                    onStartRuntimeServer: props.onStartRuntimeServer,
                     onSelectChatModel: props.onSelectModel,
                   }),
                 )}
@@ -2021,6 +2060,7 @@ export function renderModelsHub(props: {
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
+  onStartRuntimeServer: (targetId: string) => void;
   onStartCreateServer: () => void;
   onStartEditServer: (server: RemoteModelServer) => void;
   onChangeServerDraft: (field: "label" | "kind" | "baseUrl" | "apiKey", value: string) => void;
@@ -2206,6 +2246,7 @@ export function renderModelsHub(props: {
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
+              onStartRuntimeServer: props.onStartRuntimeServer,
               onSelectModel: props.onSelectChatModel,
             })
           : nothing}
@@ -2223,6 +2264,7 @@ export function renderModelsHub(props: {
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
+              onStartRuntimeServer: props.onStartRuntimeServer,
               onStartCreateServer: props.onStartCreateServer,
               onStartEditServer: props.onStartEditServer,
               onChangeServerDraft: props.onChangeServerDraft,

@@ -71,6 +71,7 @@ import {
 import { CHAT_SEND_SESSION_KEY_MAX_LENGTH } from "../protocol/schema/primitives.js";
 import { getMaxChatHistoryMessagesBytes } from "../server-constants.js";
 import {
+  attachAlisioTranscriptMeta,
   capArrayByJsonBytes,
   loadSessionEntry,
   readSessionMessages,
@@ -986,12 +987,14 @@ function buildOversizedHistoryPlaceholder(message?: unknown): Record<string, unk
     typeof (message as { timestamp?: unknown }).timestamp === "number"
       ? (message as { timestamp: number }).timestamp
       : Date.now();
-  return {
-    role,
-    timestamp,
-    content: [{ type: "text", text: CHAT_HISTORY_OVERSIZED_PLACEHOLDER }],
-    __openclaw: { truncated: true, reason: "oversized" },
-  };
+  return attachAlisioTranscriptMeta(
+    {
+      role,
+      timestamp,
+      content: [{ type: "text", text: CHAT_HISTORY_OVERSIZED_PLACEHOLDER }],
+    },
+    { truncated: true, reason: "oversized" },
+  ) as Record<string, unknown>;
 }
 
 function replaceOversizedChatHistoryMessages(params: {

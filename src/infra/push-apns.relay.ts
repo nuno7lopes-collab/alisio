@@ -48,7 +48,6 @@ const GATEWAY_SIGNED_AT_HEADER = "x-alisio-gateway-signed-at-ms";
 const LEGACY_GATEWAY_DEVICE_ID_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-device-id`;
 const LEGACY_GATEWAY_SIGNATURE_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signature`;
 const LEGACY_GATEWAY_SIGNED_AT_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signed-at-ms`;
-const LEGACY_RELAY_SIGNATURE_VERSION = `${LEGACY_RUNTIME_NAMESPACE}-relay-send-v1`;
 const CURRENT_RELAY_SIGNATURE_VERSION = "alisio-relay-send-v1";
 
 function normalizeNonEmptyString(value: string | undefined): string | null {
@@ -263,11 +262,7 @@ export async function sendApnsRelayPush(params: {
     signedAtMs,
     bodyJson,
   });
-  const legacySignaturePayload = signaturePayload.replace(
-    CURRENT_RELAY_SIGNATURE_VERSION,
-    LEGACY_RELAY_SIGNATURE_VERSION,
-  );
-  const signature = signDevicePayload(gatewayIdentity.privateKeyPem, legacySignaturePayload);
+  const signature = signDevicePayload(gatewayIdentity.privateKeyPem, signaturePayload);
   return await sender({
     relayConfig: params.relayConfig,
     sendGrant: params.sendGrant,

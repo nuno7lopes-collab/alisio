@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -146,6 +147,7 @@ describe("scripts/committer", () => {
       /forbidden provided paths detected from \.gitignore markers/u,
     );
 
-    expect(git(repo, "status", "--short")).toContain("?? dist/bundle.js");
+    expect(fs.existsSync(path.join(repo, "dist", "bundle.js"))).toBe(true);
+    expect(git(repo, "status", "--short")).toBe("");
   });
 });

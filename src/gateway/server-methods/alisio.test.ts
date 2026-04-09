@@ -18,10 +18,22 @@ const { scheduleGatewaySigusr1RestartMock } = vi.hoisted(() => ({
   })),
 }));
 
-const { requestAlisioAccountRecoveryEmailMock } = vi.hoisted(() => ({
+const {
+  changeAlisioAccountEmailMock,
+  requestAlisioAccountRecoveryEmailMock,
+  updateAlisioAccountPasswordMock,
+} = vi.hoisted(() => ({
+  changeAlisioAccountEmailMock: vi.fn(async () => ({
+    ok: true as const,
+    message: "Check your new email inbox to confirm the change.",
+  })),
   requestAlisioAccountRecoveryEmailMock: vi.fn(async () => ({
     ok: true as const,
     message: "A recovery email is on its way.",
+  })),
+  updateAlisioAccountPasswordMock: vi.fn(async () => ({
+    ok: true as const,
+    message: "Your Alisio password was updated.",
   })),
 }));
 
@@ -192,6 +204,14 @@ const {
   })),
 }));
 
+const { startLmStudioLocalServerMock } = vi.hoisted(() => ({
+  startLmStudioLocalServerMock: vi.fn(async () => ({
+    baseUrl: "http://127.0.0.1:1234",
+    port: 1234,
+    alreadyRunning: false,
+  })),
+}));
+
 vi.mock("../../infra/restart.js", () => ({
   scheduleGatewaySigusr1Restart: scheduleGatewaySigusr1RestartMock,
 }));
@@ -200,6 +220,7 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../infra/alisio-store.js")>();
   return {
     ...actual,
+    changeAlisioAccountEmail: changeAlisioAccountEmailMock,
     requestAlisioAccountRecoveryEmail: requestAlisioAccountRecoveryEmailMock,
     requestAlisioSharingAccess: requestAlisioSharingAccessMock,
     approveAlisioSharingRequest: approveAlisioSharingRequestMock,
@@ -211,6 +232,7 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
     removeAlisioRemoteModelServer: removeAlisioRemoteModelServerMock,
     selectAlisioRemoteModelServer: selectAlisioRemoteModelServerMock,
     setAlisioSharingPolicy: setAlisioSharingPolicyMock,
+    updateAlisioAccountPassword: updateAlisioAccountPasswordMock,
   };
 });
 
@@ -235,12 +257,17 @@ vi.mock("../../infra/alisio-local-model-runtime.js", async (importOriginal) => {
   };
 });
 
+vi.mock("../../infra/alisio-lmstudio.js", () => ({
+  startLmStudioLocalServer: startLmStudioLocalServerMock,
+}));
+
 import { NodeRegistry } from "../node-registry.js";
 import { alisioHandlers } from "./alisio.js";
 import type { GatewayRequestContext } from "./types.js";
 
 function makeContext(params?: {
   loadGatewayModelCatalog?: GatewayRequestContext["loadGatewayModelCatalog"];
+  nodeRegistry?: GatewayRequestContext["nodeRegistry"];
 }): GatewayRequestContext {
   return {
     getHealthCache: () => ({ ok: true }) as never,
@@ -248,7 +275,7 @@ function makeContext(params?: {
     loadGatewayModelCatalog: params?.loadGatewayModelCatalog ?? vi.fn(async () => []),
     findRunningWizard: () => null,
     broadcast: vi.fn(),
-    nodeRegistry: new NodeRegistry(),
+    nodeRegistry: params?.nodeRegistry ?? new NodeRegistry(),
   } as unknown as GatewayRequestContext;
 }
 
@@ -258,6 +285,53 @@ function makeRespond() {
     calls.push({ ok, payload, error });
   };
   return { calls, respond };
+}
+
+function createNodeSession(
+  nodeId: string,
+  capabilityIds: string[],
+): {
+  nodeId: string;
+  displayName: string;
+  platform: string;
+  connected: true;
+  capabilities: Array<{ id: string }>;
+} {
+  return {
+    nodeId,
+    displayName: nodeId,
+    platform: "darwin",
+    connected: true,
+    capabilities: capabilityIds.map((id) => ({ id })),
+  };
+}
+
+function createNodeRegistryStub(params: {
+  nodes: Array<ReturnType<typeof createNodeSession>>;
+  tasks: Record<string, (input: unknown) => unknown>;
+}): GatewayRequestContext["nodeRegistry"] {
+  const nodesById = new Map(params.nodes.map((node) => [node.nodeId, node]));
+  return {
+    listConnected: () => params.nodes as never,
+    get: (nodeId: string) => nodesById.get(nodeId) as never,
+    startTask: vi.fn(({ capabilityId, input }: { capabilityId: string; input?: unknown }) => {
+      const handler = params.tasks[capabilityId];
+      if (!handler) {
+        return {
+          ok: false as const,
+          error: { code: "UNAVAILABLE", message: `unexpected capability: ${capabilityId}` },
+        };
+      }
+      return {
+        ok: true as const,
+        taskId: `task-${capabilityId}`,
+        result: Promise.resolve({
+          ok: true as const,
+          payload: handler(input),
+        }),
+      };
+    }),
+  } as unknown as GatewayRequestContext["nodeRegistry"];
 }
 
 describe("alisio gateway methods", () => {
@@ -571,6 +645,147 @@ describe("alisio gateway methods", () => {
     });
   });
 
+  it("installs an Ollama model on a linked device via the dedicated remote runtime capability", async () => {
+    const nodeRegistry = createNodeRegistryStub({
+      nodes: [
+        createNodeSession("remote-ollama", [
+          "model.catalog.ollama.v1",
+          "model.manage.ollama.v1",
+          "model.chat.ollama.v1",
+        ]),
+      ],
+      tasks: {
+        "model.catalog.ollama.v1": () => ({
+          runtimeKind: "ollama",
+          runtimeLabel: "Ollama",
+          status: "ready",
+          models: [],
+          availableModels: [{ id: "qwen3:8b", name: "Qwen3 8B", runtimeKind: "ollama" }],
+          capabilities: {
+            install: true,
+            update: true,
+            uninstall: true,
+            consentRequired: true,
+            startServer: false,
+          },
+          supportsInstall: true,
+          supportsUpdate: true,
+          supportsUninstall: true,
+          consentRequired: true,
+        }),
+        "model.manage.ollama.v1": () => ({
+          ok: true,
+          action: "install",
+        }),
+      },
+    });
+    const context = makeContext({ nodeRegistry });
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.models.install"]({
+      params: {
+        targetId: "remote-ollama::ollama",
+        modelId: "qwen3:8b",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.models.install", params: {}, id: 72 } as never,
+    });
+
+    const startTaskCalls = (
+      nodeRegistry.startTask as unknown as { mock: { calls: Array<[Record<string, unknown>]> } }
+    ).mock.calls;
+    expect(startTaskCalls).toEqual(
+      expect.arrayContaining([
+        [
+          expect.objectContaining({
+            capabilityId: "model.manage.ollama.v1",
+            input: expect.objectContaining({ action: "install", modelId: "qwen3:8b" }),
+          }),
+        ],
+      ]),
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      targetId: "remote-ollama::ollama",
+      modelId: "qwen3:8b",
+    });
+  });
+
+  it("starts the LM Studio server on a linked device through the explicit runtime method", async () => {
+    const nodeRegistry = createNodeRegistryStub({
+      nodes: [
+        createNodeSession("remote-lmstudio", [
+          "model.catalog.lmstudio.v1",
+          "model.chat.lmstudio.v1",
+          "model.server.start.lmstudio.v1",
+        ]),
+      ],
+      tasks: {
+        "model.catalog.lmstudio.v1": () => ({
+          runtimeKind: "lmstudio",
+          runtimeLabel: "LM Studio",
+          status: "not_configured",
+          message: "Start the LM Studio local server on this device to expose models here.",
+          models: [],
+          availableModels: [],
+          capabilities: {
+            install: false,
+            update: false,
+            uninstall: false,
+            consentRequired: false,
+            startServer: true,
+          },
+          supportsInstall: false,
+          supportsUpdate: false,
+          supportsUninstall: false,
+          consentRequired: false,
+        }),
+        "model.server.start.lmstudio.v1": () => ({
+          ok: true,
+          runtimeKind: "lmstudio",
+          baseUrl: "http://127.0.0.1:1234",
+          alreadyRunning: false,
+        }),
+      },
+    });
+    const context = makeContext({ nodeRegistry });
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.models.runtime.start"]({
+      params: {
+        targetId: "remote-lmstudio::lmstudio",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.models.runtime.start", params: {}, id: 73 } as never,
+    });
+
+    const startTaskCalls = (
+      nodeRegistry.startTask as unknown as { mock: { calls: Array<[Record<string, unknown>]> } }
+    ).mock.calls;
+    expect(startTaskCalls).toEqual(
+      expect.arrayContaining([
+        [
+          expect.objectContaining({
+            capabilityId: "model.server.start.lmstudio.v1",
+          }),
+        ],
+      ]),
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      targetId: "remote-lmstudio::lmstudio",
+      runtimeKind: "lmstudio",
+      baseUrl: "http://127.0.0.1:1234",
+      alreadyRunning: false,
+    });
+  });
+
   it("saves a remote model server", async () => {
     const context = makeContext();
     const { calls, respond } = makeRespond();
@@ -771,6 +986,66 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: true,
       message: expect.stringContaining("recovery email"),
+    });
+  });
+
+  it("starts account email change with a product-facing success result", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.changeEmail"]({
+      params: {
+        email: "next@example.com",
+        callbackUrl: "http://localhost:18789/logout/settings",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.changeEmail", params: {}, id: 15 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(changeAlisioAccountEmailMock).toHaveBeenCalledWith(
+      {
+        email: "next@example.com",
+        callbackUrl: "http://localhost:18789/logout/settings",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("confirm the change"),
+    });
+  });
+
+  it("updates the account password with a product-facing success result", async () => {
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.updatePassword"]({
+      params: {
+        password: "password123",
+      },
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.updatePassword", params: {}, id: 16 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(updateAlisioAccountPasswordMock).toHaveBeenCalledWith(
+      {
+        password: "password123",
+      },
+      process.env,
+    );
+    expect(calls[0]?.ok).toBe(true);
+    expect(calls[0]?.payload).toMatchObject({
+      ok: true,
+      message: expect.stringContaining("password"),
     });
   });
 

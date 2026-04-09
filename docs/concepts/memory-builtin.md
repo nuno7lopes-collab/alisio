@@ -9,7 +9,8 @@ read_when:
 # Builtin Memory Engine
 
 The builtin engine is the default memory backend. It stores your memory index in
-a per-agent SQLite database and needs no extra dependencies to get started.
+a per-agent SQLite database and keeps a separate profile-scoped canonical memory
+store for structured note data. It needs no extra dependencies to get started.
 
 ## What it provides
 
@@ -18,6 +19,8 @@ a per-agent SQLite database and needs no extra dependencies to get started.
 - **Hybrid search** that combines both for best results.
 - **CJK support** via trigram tokenization for Chinese, Japanese, and Korean.
 - **sqlite-vec acceleration** for in-database vector queries (optional).
+- **Structured canonical memory store** for note entities, explicit relations,
+  regenerable Markdown projections, and local replica metadata.
 
 ## Getting started
 
@@ -54,16 +57,49 @@ Without an embedding provider, only keyword search is available.
 Auto-detection picks the first provider whose API key can be resolved, in the
 order shown. Set `memorySearch.provider` to override.
 
-## How indexing works
+## How storage works
+
+Alisio currently maintains two local SQLite layers:
+
+- **Search index:** `~/.alisio/memory/<agentId>.sqlite`
+- **Canonical memory store:** `~/.alisio/memory/profiles/<profileId>/canonical.sqlite`
+
+The search index powers retrieval. The canonical memory store keeps the
+structured representation of owned memory notes for the active Alisio profile.
+
+Today, the builtin engine supports both:
+
+- importing operator-edited Markdown/Obsidian memory projections into the
+  structured store
+- keeping store-authored structured entities plus regenerable Markdown
+  projections in that same canonical store
+
+Operational surfaces now split cleanly:
+
+- `alisio memory search` still searches Markdown/Obsidian projections and
+  optional session transcripts.
+- `alisio memory graph` inspects the structured canonical store for explicit
+  note-to-note relations under that human-facing projection.
 
 Alisio indexes `MEMORY.md` and `memory/*.md` into chunks (~400 tokens with
-80-token overlap) and stores them in a per-agent SQLite database.
+80-token overlap) for search.
 
-- **Index location:** `~/.alisio/memory/<agentId>.sqlite`
 - **File watching:** changes to memory files trigger a debounced reindex (1.5s).
 - **Auto-reindex:** when the embedding provider, model, or chunking config
   changes, the entire index is rebuilt automatically.
 - **Reindex on demand:** `alisio memory index --force`
+
+<Info>
+Current limitation: the canonical memory store is local-first and per-device,
+but cloud sync for that store remains roadmap work rather than shipped product
+behavior. Each device keeps its own local replica today.
+</Info>
+
+<Info>
+Store-authored Markdown projections are now regenerable from the canonical
+store, but round-trip editing of those generated projections back into the
+structured store is still not a shipped contract.
+</Info>
 
 <Info>
 You can also index Markdown files outside the workspace with

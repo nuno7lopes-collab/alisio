@@ -156,10 +156,10 @@ describe("nodes devices pending rendering", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Devices");
-    expect(text).toContain("Computers and execution");
+    expect(text).toContain("Devices and execution");
     expect(text).toContain("Execution");
-    expect(text).toContain("Computers");
-    expect(text).toContain("Computer requests");
+    expect(text).toContain("Runtime devices");
+    expect(text).toContain("Runtime device requests");
   });
 
   it("lets the operator remove a linked device from the paired list", () => {
@@ -338,10 +338,184 @@ describe("nodes devices pending rendering", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Computer requests");
+    expect(text).toContain("Runtime device requests");
     expect(text).toContain("Runner");
     expect(text).toContain("1 commands");
     expect(text).toContain("Approve");
     expect(text).toContain("Reject");
+  });
+
+  it("renders sharing controls with scope-aware request actions", () => {
+    const onSharingRequest = vi.fn();
+    const onSharingApprove = vi.fn();
+    const onSharingRevoke = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              allowExternalUse: false,
+              editable: false,
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "remote-2",
+                  label: "Render Box",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:3",
+                  ownerScope: "user",
+                  ownerLabel: "Office",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "blocked",
+                  grantId: "grant-1",
+                  grantScopes: ["model-use"],
+                },
+              ],
+              available: [
+                {
+                  targetId: "remote-1",
+                  label: "Studio Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:2",
+                  ownerScope: "user",
+                  ownerLabel: "Work laptop",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "requestable",
+                  modelAccess: "requestable",
+                  execAccess: "requestable",
+                },
+              ],
+            },
+            incomingRequests: [
+              {
+                requestId: "req-1",
+                targetId: "remote-3",
+                targetLabel: "Travel Mini",
+                targetSourceKind: "node",
+                requester: {
+                  ownerKey: "user:4",
+                  ownerScope: "user",
+                  label: "Teammate",
+                },
+                owner: {
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  label: "Nuno",
+                },
+                scopes: ["exec"],
+                status: "pending",
+                createdAt: new Date(0).toISOString(),
+              },
+            ],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+          onSharingRequest,
+          onSharingApprove,
+          onSharingRevoke,
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Sharing");
+    expect(text).toContain("Request models");
+    expect(text).toContain("Request models and execution");
+    expect(text).toContain("Current scopes");
+    expect(text).toContain("Models");
+    expect(text).toContain("Execution");
+
+    const requestButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Request models and execution"),
+    );
+    requestButton?.click();
+    expect(onSharingRequest).toHaveBeenCalledWith("remote-1", ["read-only", "model-use", "exec"]);
+
+    const approveButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Approve Execution"),
+    );
+    approveButton?.click();
+    expect(onSharingApprove).toHaveBeenCalledWith("req-1", ["read-only", "model-use", "exec"]);
+
+    const revokeButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Revoke"),
+    );
+    revokeButton?.click();
+    expect(onSharingRevoke).toHaveBeenCalledWith("grant-1");
+  });
+
+  it("labels linked sharing targets from the same account explicitly", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              allowExternalUse: false,
+              editable: false,
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "linked-1",
+                  label: "Office Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  ownerLabel: "Nuno",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "requestable",
+                  grantScopes: ["read-only", "model-use"],
+                },
+              ],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Same account");
   });
 });

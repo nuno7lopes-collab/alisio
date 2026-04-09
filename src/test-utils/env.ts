@@ -34,10 +34,28 @@ const PATH_RESOLUTION_ENV_KEYS = [
   "USERPROFILE",
   "HOMEDRIVE",
   "HOMEPATH",
+  "ALISIO_HOME",
+  "ALISIO_STATE_DIR",
   "OPENCLAW_HOME",
   "OPENCLAW_STATE_DIR",
   "OPENCLAW_BUNDLED_PLUGINS_DIR",
 ] as const;
+
+function applyLegacyEnvAliases(
+  env: Record<string, string | undefined>,
+): Record<string, string | undefined> {
+  const resolved = { ...env };
+  if (!Object.hasOwn(resolved, "ALISIO_HOME") && Object.hasOwn(resolved, "OPENCLAW_HOME")) {
+    resolved.ALISIO_HOME = resolved.OPENCLAW_HOME;
+  }
+  if (
+    !Object.hasOwn(resolved, "ALISIO_STATE_DIR") &&
+    Object.hasOwn(resolved, "OPENCLAW_STATE_DIR")
+  ) {
+    resolved.ALISIO_STATE_DIR = resolved.OPENCLAW_STATE_DIR;
+  }
+  return resolved;
+}
 
 function resolveWindowsHomeParts(homeDir: string): { homeDrive?: string; homePath?: string } {
   if (process.platform !== "win32") {
@@ -62,6 +80,8 @@ export function createPathResolutionEnv(
     ...process.env,
     HOME: resolvedHome,
     USERPROFILE: resolvedHome,
+    ALISIO_HOME: undefined,
+    ALISIO_STATE_DIR: undefined,
     OPENCLAW_HOME: undefined,
     OPENCLAW_STATE_DIR: undefined,
     OPENCLAW_BUNDLED_PLUGINS_DIR: undefined,
@@ -113,9 +133,10 @@ export function captureFullEnv() {
 }
 
 export function withEnv<T>(env: Record<string, string | undefined>, fn: () => T): T {
-  const snapshot = captureEnv(Object.keys(env));
+  const resolvedEnv = applyLegacyEnvAliases(env);
+  const snapshot = captureEnv(Object.keys(resolvedEnv));
   try {
-    applyEnvValues(env);
+    applyEnvValues(resolvedEnv);
     return fn();
   } finally {
     snapshot.restore();
@@ -126,9 +147,10 @@ export async function withEnvAsync<T>(
   env: Record<string, string | undefined>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const snapshot = captureEnv(Object.keys(env));
+  const resolvedEnv = applyLegacyEnvAliases(env);
+  const snapshot = captureEnv(Object.keys(resolvedEnv));
   try {
-    applyEnvValues(env);
+    applyEnvValues(resolvedEnv);
     return await fn();
   } finally {
     snapshot.restore();

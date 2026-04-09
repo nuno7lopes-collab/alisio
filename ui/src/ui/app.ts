@@ -169,6 +169,7 @@ export class AlisioApp extends LitElement {
   @state() alisioAuthPendingEmail = "";
   @state() alisioAuthCode = "";
   @state() alisioAuthStage: "entry" | "email-code" = "entry";
+  @state() alisioPasswordResetRequired = false;
   @state() alisioTermsAccepted = false;
   @state() alisioMarketingOptIn = false;
   @state() alisioBirthdate = "";
@@ -183,6 +184,9 @@ export class AlisioApp extends LitElement {
   @state() alisioSharingLoading = false;
   @state() alisioSharingError: string | null = null;
   @state() alisioSharing: import("./types.ts").AlisioSharingState | null = null;
+  @state() alisioProvidersLoading = false;
+  @state() alisioProvidersError: string | null = null;
+  @state() alisioProviders: import("./types.ts").AlisioProvidersState | null = null;
   @state() alisioConnectorsLoading = false;
   @state() alisioConnectorsError: string | null = null;
   @state() alisioConnectorCatalog: import("./types.ts").AlisioConnectorDefinition[] = [];
@@ -612,6 +616,9 @@ export class AlisioApp extends LitElement {
           void refreshVisibleToolsEffectiveForCurrentSessionInternal(this);
           break;
         }
+        case "open-security":
+          this.setTab("security");
+          break;
       }
     };
     document.addEventListener("keydown", this.globalKeydownHandler);

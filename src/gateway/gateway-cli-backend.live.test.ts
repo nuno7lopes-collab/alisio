@@ -3,10 +3,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { isLiveTestEnabled } from "../agents/live-test-helpers.js";
+import { isLiveEnvEnabled, isLiveTestEnabled, readLiveEnv } from "../agents/live-test-helpers.js";
 import { parseModelRef } from "../agents/model-selection.js";
 import { clearRuntimeConfigSnapshot, loadConfig } from "../config/config.js";
-import { isTruthyEnvValue } from "../infra/env.js";
 import { getFreePortBlockWithPermissionFallback } from "../test-utils/ports.js";
 import { GATEWAY_CLIENT_NAMES } from "../utils/message-channel.js";
 import { GatewayClient } from "./client.js";
@@ -15,9 +14,15 @@ import { startGatewayServer } from "./server.js";
 import { extractPayloadText } from "./test-helpers.agent-results.js";
 
 const LIVE = isLiveTestEnabled();
-const CLI_LIVE = isTruthyEnvValue(process.env.OPENCLAW_LIVE_CLI_BACKEND);
-const CLI_IMAGE = isTruthyEnvValue(process.env.OPENCLAW_LIVE_CLI_BACKEND_IMAGE_PROBE);
-const CLI_RESUME = isTruthyEnvValue(process.env.OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE);
+const CLI_LIVE = isLiveEnvEnabled(["ALISIO_LIVE_CLI_BACKEND", "OPENCLAW_LIVE_CLI_BACKEND"]);
+const CLI_IMAGE = isLiveEnvEnabled([
+  "ALISIO_LIVE_CLI_BACKEND_IMAGE_PROBE",
+  "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_PROBE",
+]);
+const CLI_RESUME = isLiveEnvEnabled([
+  "ALISIO_LIVE_CLI_BACKEND_RESUME_PROBE",
+  "OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE",
+]);
 const describeLive = LIVE && CLI_LIVE ? describe : describe.skip;
 
 const DEFAULT_MODEL = "claude-cli/claude-sonnet-4-6";
@@ -105,7 +110,7 @@ function parseImageMode(raw?: string): "list" | "repeat" | undefined {
   if (trimmed === "list" || trimmed === "repeat") {
     return trimmed;
   }
-  throw new Error("OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE must be 'list' or 'repeat'.");
+  throw new Error("ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE must be 'list' or 'repeat'.");
 }
 
 function withMcpConfigOverrides(args: string[], mcpConfigPath: string): string[] {
@@ -169,8 +174,11 @@ describeLive("gateway live (cli backend)", () => {
   it("runs the agent pipeline against the local CLI backend", async () => {
     const preservedEnv = new Set(
       parseJsonStringArray(
-        "OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV",
-        process.env.OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV,
+        "ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV",
+        readLiveEnv([
+          "ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV",
+          "OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV",
+        ]),
       ) ?? [],
     );
 
@@ -200,11 +208,13 @@ describeLive("gateway live (cli backend)", () => {
     const token = `test-${randomUUID()}`;
     process.env.OPENCLAW_GATEWAY_TOKEN = token;
 
-    const rawModel = process.env.OPENCLAW_LIVE_CLI_BACKEND_MODEL ?? DEFAULT_MODEL;
+    const rawModel =
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_MODEL", "OPENCLAW_LIVE_CLI_BACKEND_MODEL"]) ??
+      DEFAULT_MODEL;
     const parsed = parseModelRef(rawModel, "claude-cli");
     if (!parsed) {
       throw new Error(
-        `OPENCLAW_LIVE_CLI_BACKEND_MODEL must resolve to a CLI backend model. Got: ${rawModel}`,
+        `ALISIO_LIVE_CLI_BACKEND_MODEL must resolve to a CLI backend model. Got: ${rawModel}`,
       );
     }
     const providerId = parsed.provider;
@@ -217,37 +227,45 @@ describeLive("gateway live (cli backend)", () => {
           ? { command: "codex", args: DEFAULT_CODEX_ARGS }
           : null;
 
-    const cliCommand = process.env.OPENCLAW_LIVE_CLI_BACKEND_COMMAND ?? providerDefaults?.command;
+    const cliCommand =
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_COMMAND", "OPENCLAW_LIVE_CLI_BACKEND_COMMAND"]) ??
+      providerDefaults?.command;
     if (!cliCommand) {
-      throw new Error(
-        `OPENCLAW_LIVE_CLI_BACKEND_COMMAND is required for provider "${providerId}".`,
-      );
+      throw new Error(`ALISIO_LIVE_CLI_BACKEND_COMMAND is required for provider "${providerId}".`);
     }
     const baseCliArgs =
       parseJsonStringArray(
-        "OPENCLAW_LIVE_CLI_BACKEND_ARGS",
-        process.env.OPENCLAW_LIVE_CLI_BACKEND_ARGS,
+        "ALISIO_LIVE_CLI_BACKEND_ARGS",
+        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_ARGS", "OPENCLAW_LIVE_CLI_BACKEND_ARGS"]),
       ) ?? providerDefaults?.args;
     if (!baseCliArgs || baseCliArgs.length === 0) {
-      throw new Error(`OPENCLAW_LIVE_CLI_BACKEND_ARGS is required for provider "${providerId}".`);
+      throw new Error(`ALISIO_LIVE_CLI_BACKEND_ARGS is required for provider "${providerId}".`);
     }
     const cliClearEnv =
       parseJsonStringArray(
-        "OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV",
-        process.env.OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV,
+        "ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV",
+        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV", "OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV"]),
       ) ?? (providerId === "claude-cli" ? DEFAULT_CLEAR_ENV : []);
     const filteredCliClearEnv = cliClearEnv.filter((name) => !preservedEnv.has(name));
-    const cliImageArg = process.env.OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG?.trim() || undefined;
-    const cliImageMode = parseImageMode(process.env.OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE);
+    const cliImageArg =
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG", "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG"]) ||
+      undefined;
+    const cliImageMode = parseImageMode(
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE", "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE"]),
+    );
 
     if (cliImageMode && !cliImageArg) {
       throw new Error(
-        "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE requires OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG.",
+        "ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE requires ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG.",
       );
     }
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-live-cli-"));
-    const disableMcpConfig = process.env.OPENCLAW_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG !== "0";
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-live-cli-"));
+    const disableMcpConfig =
+      readLiveEnv([
+        "ALISIO_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG",
+        "OPENCLAW_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG",
+      ]) !== "0";
     let cliArgs = baseCliArgs;
     if (providerId === "claude-cli" && disableMcpConfig) {
       const mcpConfigPath = path.join(tempDir, "claude-mcp.json");

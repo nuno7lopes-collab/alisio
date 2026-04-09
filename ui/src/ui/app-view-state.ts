@@ -86,6 +86,7 @@ export type AppViewState = {
   alisioAuthPendingEmail: string;
   alisioAuthCode: string;
   alisioAuthStage: "entry" | "email-code";
+  alisioPasswordResetRequired: boolean;
   alisioTermsAccepted: boolean;
   alisioMarketingOptIn: boolean;
   alisioBirthdate: string;
@@ -100,6 +101,9 @@ export type AppViewState = {
   alisioSharingLoading: boolean;
   alisioSharingError: string | null;
   alisioSharing: import("./types.ts").AlisioSharingState | null;
+  alisioProvidersLoading: boolean;
+  alisioProvidersError: string | null;
+  alisioProviders: import("./types.ts").AlisioProvidersState | null;
   alisioConnectorsLoading: boolean;
   alisioConnectorsError: string | null;
   alisioConnectorCatalog: AlisioConnectorDefinition[];

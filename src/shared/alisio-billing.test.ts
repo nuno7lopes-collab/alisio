@@ -7,6 +7,7 @@ import {
   alisioConnectorUpgradeMessage,
   alisioOrganizationsUpgradeMessage,
   alisioRemoteModelServersUpgradeMessage,
+  alisioSupportsSharing,
   alisioSupportsOrganizations,
   alisioSupportsRemoteModelServers,
   getAlisioPlanEntitlements,
@@ -45,11 +46,13 @@ describe("alisio-billing", () => {
       connectors: { maxConnected: 1 },
       organizations: false,
       remoteModelServers: false,
+      sharing: false,
     });
     expect(getAlisioPlanEntitlements("plus")).toEqual({
       connectors: { maxConnected: null },
       organizations: true,
       remoteModelServers: true,
+      sharing: true,
     });
   });
 
@@ -60,6 +63,8 @@ describe("alisio-billing", () => {
     expect(alisioSupportsOrganizations("plus")).toBe(true);
     expect(alisioSupportsRemoteModelServers("free")).toBe(false);
     expect(alisioSupportsRemoteModelServers("plus")).toBe(true);
+    expect(alisioSupportsSharing("free")).toBe(false);
+    expect(alisioSupportsSharing("plus")).toBe(true);
     expect(alisioConnectorUpgradeMessage("free")).toContain("1 connected app");
     expect(alisioOrganizationsUpgradeMessage()).toContain("Plus");
     expect(alisioRemoteModelServersUpgradeMessage()).toContain("Plus");

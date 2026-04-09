@@ -30,6 +30,15 @@ export const MemoryGetSchema = Type.Object({
   lines: Type.Optional(Type.Number()),
 });
 
+export const MemoryGraphSchema = Type.Object({
+  query: Type.String(),
+  direction: Type.Optional(
+    Type.Union([Type.Literal("incoming"), Type.Literal("outgoing"), Type.Literal("both")]),
+  ),
+  matchLimit: Type.Optional(Type.Number()),
+  relationLimit: Type.Optional(Type.Number()),
+});
+
 export function resolveMemoryToolContext(options: {
   config?: OpenClawConfig;
   agentSessionKey?: string;
@@ -91,7 +100,7 @@ export function createMemoryTool(params: {
   label: string;
   name: string;
   description: string;
-  parameters: typeof MemorySearchSchema | typeof MemoryGetSchema;
+  parameters: typeof MemorySearchSchema | typeof MemoryGetSchema | typeof MemoryGraphSchema;
   execute: (ctx: { cfg: OpenClawConfig; agentId: string }) => AnyAgentTool["execute"];
 }): AnyAgentTool | null {
   const ctx = resolveMemoryToolContext(params.options);
@@ -123,5 +132,19 @@ export function buildMemorySearchUnavailableResult(error: string | undefined) {
     error: reason,
     warning,
     action,
+  };
+}
+
+export function buildMemoryGraphUnavailableResult(params: {
+  query: string;
+  error: string | undefined;
+}) {
+  const reason = (params.error ?? "canonical memory graph unavailable").trim();
+  return {
+    query: params.query,
+    matches: [],
+    disabled: true,
+    unavailable: true,
+    error: reason || "canonical memory graph unavailable",
   };
 }

@@ -9,6 +9,7 @@ import {
   revokeAlisioSharingGrant,
   setAlisioSharingPolicy,
 } from "../../infra/alisio-store.js";
+import { warnLegacyCompatibilityOnce } from "../../infra/compat-warning.js";
 import {
   approveDevicePairing,
   getPairedDevice,
@@ -48,6 +49,17 @@ import {
 import type { GatewayRequestHandlers } from "./types.js";
 
 const DEVICE_TOKEN_ROTATION_DENIED_MESSAGE = "device token rotation denied";
+
+function warnOnLegacySharingGrantAliasInput(approvalId: string | undefined): void {
+  if (!approvalId?.trim()) {
+    return;
+  }
+  warnLegacyCompatibilityOnce({
+    key: "devices.share.revoke:approvalId",
+    message: 'devices.share.revoke accepts deprecated "approvalId" input.',
+    replacement: '"grantId"',
+  });
+}
 
 function redactPairedDevice(
   device: { tokens?: Record<string, DeviceAuthToken> } & Record<string, unknown>,
@@ -258,6 +270,7 @@ export const deviceHandlers: GatewayRequestHandlers = {
     }
     const requestParams = params as {
       requestId: string;
+      scopes?: string[];
       decision?: "approved" | "denied";
       idempotencyKey: string;
     };
@@ -279,6 +292,7 @@ export const deviceHandlers: GatewayRequestHandlers = {
             })()
           : approveAlisioSharingRequest({
               requestId: requestParams.requestId,
+              scopes: requestParams.scopes as never,
             }).then((approved) => ({
               ok: true as const,
               requestId: approved.requestId,
@@ -326,13 +340,23 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const requestParams = params as { approvalId: string; idempotencyKey: string };
+    const requestParams = params as {
+      grantId?: string;
+      approvalId?: string;
+      idempotencyKey: string;
+    };
+    warnOnLegacySharingGrantAliasInput(requestParams.approvalId);
+    const grantId = requestParams.grantId?.trim() || requestParams.approvalId?.trim() || "";
+    if (!grantId) {
+      respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "grantId is required"));
+      return;
+    }
     const dedupeKey = `devices.share.revoke:${requestParams.idempotencyKey}`;
     if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
       return;
     }
     try {
-      const revoked = await revokeAlisioSharingGrant({ grantId: requestParams.approvalId });
+      const revoked = await revokeAlisioSharingGrant({ grantId });
       const result = {
         ok: true as const,
         approvalId: revoked.grantId,

@@ -72,6 +72,8 @@ function createProps(
     onOpenSetup: vi.fn(),
     onSignOutAccount: vi.fn(),
     onRequestRecoveryEmail: vi.fn(),
+    onChangeEmail: vi.fn(),
+    onUpdatePassword: vi.fn(),
     onReconnectRuntime: vi.fn(),
     ...overrides,
   };
@@ -197,6 +199,8 @@ describe("renderSettingsHub", () => {
 
     expect(container.textContent).toContain("Agent name");
     expect(container.textContent).toContain("Muse");
+    expect(container.textContent).toContain("Change email");
+    expect(container.textContent).toContain("Update password");
   });
 
   it("hides the recovery action for Google accounts", () => {

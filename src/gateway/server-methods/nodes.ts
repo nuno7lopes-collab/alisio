@@ -506,6 +506,27 @@ function findNodeCapability(
   );
 }
 
+function isSharedNodeMutatingCommand(command: string): boolean {
+  const normalized = command.trim().toLowerCase();
+  return (
+    normalized.startsWith("model.manage.") ||
+    normalized.startsWith("model.install.") ||
+    normalized.startsWith("model.uninstall.") ||
+    normalized.startsWith("model.update.") ||
+    normalized.startsWith("model.server.start.") ||
+    normalized.startsWith("runtime.server.start.")
+  );
+}
+
+function isSharedNodeMutatingCapability(capabilityId: string): boolean {
+  const normalized = capabilityId.trim().toLowerCase();
+  return (
+    normalized.startsWith("model.manage.") ||
+    normalized.startsWith("model.server.start.") ||
+    normalized.startsWith("runtime.server.start.")
+  );
+}
+
 function prepareNodeTaskInput(params: {
   nodeId: string;
   capabilityId: string;
@@ -538,6 +559,37 @@ function prepareNodeTaskInput(params: {
   return {
     ok: true as const,
     input: params.rawInput,
+  };
+}
+
+async function resolveKnownNodeSharingAccess(params: {
+  nodeId: string;
+  context: Pick<Parameters<GatewayRequestHandlers[string]>[0]["context"], "nodeRegistry">;
+}) {
+  const list = await listDevicePairing();
+  const catalog = createKnownNodeCatalog({
+    pairedDevices: list.paired,
+    connectedNodes: params.context.nodeRegistry.listConnected(),
+  });
+  const node = getKnownNode(catalog, params.nodeId);
+  if (!node) {
+    return null;
+  }
+  const accessIndex = await getAlisioSharingTargetAccessIndex({
+    targets: [
+      {
+        targetId: node.nodeId,
+        label: node.displayName ?? node.nodeId,
+        platform: node.platform,
+        sourceKind: "node",
+        connected: node.connected === true,
+        current: false,
+      },
+    ],
+  });
+  return {
+    node,
+    access: accessIndex[node.nodeId] ?? null,
   };
 }
 
@@ -736,7 +788,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
       });
       const visibleNodes = nodes.filter((node) => {
         const access = accessIndex[node.nodeId];
-        return access?.deviceAccess === "owner" || access?.deviceAccess === "shared";
+        return access?.execAccess === "owner" || access?.execAccess === "shared";
       });
       respond(true, { ts: Date.now(), nodes: visibleNodes }, undefined);
     });
@@ -780,7 +832,7 @@ export const nodeHandlers: GatewayRequestHandlers = {
         ],
       });
       const access = accessIndex[node.nodeId];
-      if (!access || (access.deviceAccess !== "owner" && access.deviceAccess !== "shared")) {
+      if (!access || (access.execAccess !== "owner" && access.execAccess !== "shared")) {
         respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
         return;
       }
@@ -932,6 +984,25 @@ export const nodeHandlers: GatewayRequestHandlers = {
     }
 
     await respondUnavailableOnThrow(respond, async () => {
+      const sharedAccess = await resolveKnownNodeSharingAccess({ nodeId, context });
+      if (
+        !sharedAccess ||
+        !sharedAccess.access ||
+        (sharedAccess.access.execAccess !== "owner" && sharedAccess.access.execAccess !== "shared")
+      ) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
+        return;
+      }
+      if (sharedAccess.access.execAccess === "shared" && isSharedNodeMutatingCommand(command)) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "shared devices are read-only", {
+            details: { command, nodeId },
+          }),
+        );
+        return;
+      }
       let nodeSession = context.nodeRegistry.get(nodeId);
       if (!nodeSession) {
         const wakeReqId = req.id;
@@ -1150,6 +1221,28 @@ export const nodeHandlers: GatewayRequestHandlers = {
     }
 
     await respondUnavailableOnThrow(respond, async () => {
+      const sharedAccess = await resolveKnownNodeSharingAccess({ nodeId, context });
+      if (
+        !sharedAccess ||
+        !sharedAccess.access ||
+        (sharedAccess.access.execAccess !== "owner" && sharedAccess.access.execAccess !== "shared")
+      ) {
+        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, "unknown nodeId"));
+        return;
+      }
+      if (
+        sharedAccess.access.execAccess === "shared" &&
+        isSharedNodeMutatingCapability(capabilityId)
+      ) {
+        respond(
+          false,
+          undefined,
+          errorShape(ErrorCodes.INVALID_REQUEST, "shared devices are read-only", {
+            details: { capabilityId, nodeId },
+          }),
+        );
+        return;
+      }
       let nodeSession = context.nodeRegistry.get(nodeId);
       if (!nodeSession) {
         const wake = await maybeWakeNodeWithApns(nodeId, { wakeReason: "node.task" });

@@ -24,7 +24,7 @@ export function formatBonjourInstanceName(displayName: string) {
 
 export function resolveBonjourCliPath(opts: ResolveBonjourCliPathOptions = {}): string | undefined {
   const env = opts.env ?? process.env;
-  const envPath = env.OPENCLAW_CLI_PATH?.trim();
+  const envPath = env.ALISIO_CLI_PATH?.trim() || env.OPENCLAW_CLI_PATH?.trim();
   if (envPath) {
     return envPath;
   }
@@ -40,6 +40,10 @@ export function resolveBonjourCliPath(opts: ResolveBonjourCliPathOptions = {}): 
 
   const execPath = opts.execPath ?? process.execPath;
   const execDir = path.dirname(execPath);
+  const canonicalSiblingCli = path.join(execDir, "alisio");
+  if (isFile(canonicalSiblingCli)) {
+    return canonicalSiblingCli;
+  }
   const siblingCli = path.join(execDir, "openclaw");
   if (isFile(siblingCli)) {
     return siblingCli;
@@ -56,6 +60,10 @@ export function resolveBonjourCliPath(opts: ResolveBonjourCliPathOptions = {}): 
   if (isFile(distCli)) {
     return distCli;
   }
+  const canonicalBinCli = path.join(cwd, "bin", "alisio");
+  if (isFile(canonicalBinCli)) {
+    return canonicalBinCli;
+  }
   const binCli = path.join(cwd, "bin", "openclaw");
   if (isFile(binCli)) {
     return binCli;
@@ -70,7 +78,7 @@ export async function resolveTailnetDnsHint(opts?: {
   enabled?: boolean;
 }): Promise<string | undefined> {
   const env = opts?.env ?? process.env;
-  const envRaw = env.OPENCLAW_TAILNET_DNS?.trim();
+  const envRaw = env.ALISIO_TAILNET_DNS?.trim() || env.OPENCLAW_TAILNET_DNS?.trim();
   const envValue = envRaw && envRaw.length > 0 ? envRaw.replace(/\.$/, "") : "";
   if (envValue) {
     return envValue;

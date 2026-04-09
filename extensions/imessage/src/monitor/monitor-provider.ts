@@ -34,6 +34,7 @@ import {
 import { resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
 import { dispatchInboundMessage } from "alisio/plugin-sdk/reply-runtime";
 import { createReplyDispatcher } from "alisio/plugin-sdk/reply-runtime";
+import { resolveInboundLastRouteSessionKey } from "alisio/plugin-sdk/routing";
 import { danger, logVerbose, shouldLogVerbose, warn } from "alisio/plugin-sdk/runtime-env";
 import { resolvePinnedMainDmOwnerFromAllowlist } from "alisio/plugin-sdk/security-runtime";
 import { truncateUtf16Safe } from "alisio/plugin-sdk/text-runtime";
@@ -355,6 +356,10 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       allowFrom,
       normalizeEntry: normalizeIMessageHandle,
     });
+    const updateLastRouteSessionKey = resolveInboundLastRouteSessionKey({
+      route: decision.route,
+      sessionKey: decision.route.sessionKey,
+    });
     await recordInboundSession({
       storePath,
       sessionKey: ctxPayload.SessionKey ?? decision.route.sessionKey,
@@ -362,12 +367,14 @@ export async function monitorIMessageProvider(opts: MonitorIMessageOpts = {}): P
       updateLastRoute:
         !decision.isGroup && updateTarget
           ? {
-              sessionKey: decision.route.mainSessionKey,
+              sessionKey: updateLastRouteSessionKey,
               channel: "imessage",
               to: updateTarget,
               accountId: decision.route.accountId,
               mainDmOwnerPin:
-                pinnedMainDmOwner && decision.senderNormalized
+                updateLastRouteSessionKey === decision.route.mainSessionKey &&
+                pinnedMainDmOwner &&
+                decision.senderNormalized
                   ? {
                       ownerRecipient: pinnedMainDmOwner,
                       senderRecipient: decision.senderNormalized,

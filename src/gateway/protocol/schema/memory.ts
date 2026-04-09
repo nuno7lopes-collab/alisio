@@ -4,6 +4,19 @@ import { NonEmptyString } from "./primitives.js";
 const MemorySourceSchema = Type.Union([Type.Literal("memory"), Type.Literal("sessions")]);
 const FtsTokenizerSchema = Type.Union([Type.Literal("unicode61"), Type.Literal("trigram")]);
 const MemoryFileKindSchema = Type.Union([Type.Literal("root"), Type.Literal("note")]);
+const MemoryCanonicalStoreStateSchema = Type.Union([
+  Type.Literal("pending-sync"),
+  Type.Literal("ready"),
+]);
+const MemoryCanonicalProfileSourceSchema = Type.Union([
+  Type.Literal("cloud-user"),
+  Type.Literal("local-profile"),
+  Type.Literal("state-dir"),
+]);
+const MemoryCanonicalProjectionSourceSchema = Type.Union([
+  Type.Literal("workspace-memory"),
+  Type.Literal("obsidian-memory"),
+]);
 
 export const MemoryStatusParamsSchema = Type.Object(
   {
@@ -125,6 +138,38 @@ export const MemoryStatusObsidianReadOnlySchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const MemoryCanonicalStoreReplicaSchema = Type.Object(
+  {
+    deviceId: NonEmptyString,
+    stateDir: Type.String(),
+  },
+  { additionalProperties: false },
+);
+
+export const MemoryCanonicalStoreRuntimeSchema = Type.Object(
+  {
+    state: MemoryCanonicalStoreStateSchema,
+    path: Type.String(),
+    profileId: NonEmptyString,
+    profileSource: MemoryCanonicalProfileSourceSchema,
+    displayName: Type.Optional(Type.String()),
+    workspaceScope: NonEmptyString,
+    workspaceDir: Type.String(),
+    backend: Type.Union([Type.Literal("builtin"), Type.Literal("qmd")]),
+    entities: Type.Integer({ minimum: 0 }),
+    relations: Type.Integer({ minimum: 0 }),
+    projections: Type.Integer({ minimum: 0 }),
+    projectionInterface: Type.Literal("markdown-vault"),
+    syncMode: Type.Literal("local-first"),
+    cloudSync: Type.Literal("not_implemented"),
+    projectionSources: Type.Array(MemoryCanonicalProjectionSourceSchema),
+    lastSyncedAt: Type.Optional(Type.String()),
+    lastError: Type.Optional(Type.String()),
+    replica: Type.Optional(MemoryCanonicalStoreReplicaSchema),
+  },
+  { additionalProperties: false },
+);
+
 export const MemoryStatusRuntimeSchema = Type.Object(
   {
     backend: Type.Union([Type.Literal("builtin"), Type.Literal("qmd")]),
@@ -142,6 +187,7 @@ export const MemoryStatusRuntimeSchema = Type.Object(
     vector: Type.Optional(MemoryStatusVectorSchema),
     batch: Type.Optional(MemoryStatusBatchSchema),
     obsidianReadOnly: Type.Optional(MemoryStatusObsidianReadOnlySchema),
+    canonicalStore: Type.Optional(MemoryCanonicalStoreRuntimeSchema),
   },
   { additionalProperties: false },
 );
