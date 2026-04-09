@@ -13,14 +13,68 @@ private enum LumeWorkspaceLayout {
     static let anchorPadding: CGFloat = 8
 }
 
+private enum LumeWorkspaceBootstrap {
+    static let readyEventName = "alisio-ui-ready"
+    static let messageHandlerName = "alisioWorkspaceBootstrap"
+    static let timeoutNanoseconds: UInt64 = 12_000_000_000
+
+    static let script = #"""
+    (() => {
+      if (globalThis.__alisioWorkspaceBootstrapInstalled) return;
+      globalThis.__alisioWorkspaceBootstrapInstalled = true;
+      const handler = globalThis.webkit?.messageHandlers?.alisioWorkspaceBootstrap;
+      if (!handler?.postMessage) return;
+
+      const post = (payload) => {
+        try {
+          handler.postMessage(payload);
+        } catch {}
+      };
+
+      globalThis.addEventListener("error", (event) => {
+        post({
+          type: "error",
+          message: event?.message || "Unknown workspace bootstrap error",
+          source: event?.filename || "",
+          line: event?.lineno || 0,
+          column: event?.colno || 0,
+        });
+      });
+
+      globalThis.addEventListener("unhandledrejection", (event) => {
+        const reason = event?.reason;
+        const message =
+          typeof reason === "string"
+            ? reason
+            : typeof reason?.message === "string"
+              ? reason.message
+              : "Unhandled workspace promise rejection";
+        post({ type: "error", message });
+      });
+
+      globalThis.addEventListener("alisio-ui-ready", () => {
+        post({ type: "ready" });
+      }, { once: true });
+    })();
+    """#
+}
+
 @MainActor
-final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
+final class LumeWorkspaceWindowController:
+    NSWindowController,
+    WKNavigationDelegate,
+    WKUIDelegate,
+    WKScriptMessageHandler,
+    NSWindowDelegate
+{
     private let presentation: LumeWorkspacePresentation
     let webView: WKWebView
     private let hostBridge = LumeHostBridge()
     private var dismissMonitor: Any?
     private var lastResolvedURL: URL?
     private var navigationTask: Task<Void, Never>?
+    private var bootstrapTimeoutTask: Task<Void, Never>?
+    private var awaitingWorkspaceReady = false
 
     var onClosed: (() -> Void)?
     var onVisibilityChanged: ((Bool) -> Void)?
@@ -32,6 +86,10 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
         let userContentController = WKUserContentController()
         config.userContentController = userContentController
         config.defaultWebpagePreferences.allowsContentJavaScript = true
+        userContentController.addUserScript(WKUserScript(
+            source: LumeWorkspaceBootstrap.script,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true))
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = true
@@ -43,6 +101,7 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
         let window = Self.makeWindow(for: presentation, contentViewController: contentController)
         super.init(window: window)
 
+        userContentController.add(self, name: LumeWorkspaceBootstrap.messageHandlerName)
         self.webView.navigationDelegate = self
         self.webView.uiDelegate = self
         self.window?.delegate = self
@@ -107,9 +166,13 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
                     return
                 }
                 self.lastResolvedURL = url
+                self.awaitingWorkspaceReady = true
+                self.cancelBootstrapTimeout()
                 self.webView.load(URLRequest(url: url))
             } catch {
                 self.lastResolvedURL = nil
+                self.awaitingWorkspaceReady = false
+                self.cancelBootstrapTimeout()
                 self.loadBridgeErrorPage(message: error.localizedDescription)
             }
         }
@@ -162,6 +225,41 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
         </html>
         """
         self.webView.loadHTMLString(html, baseURL: nil)
+    }
+
+    private func scheduleBootstrapTimeout() {
+        self.cancelBootstrapTimeout()
+        self.bootstrapTimeoutTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: LumeWorkspaceBootstrap.timeoutNanoseconds)
+            guard let self,
+                  !Task.isCancelled,
+                  self.awaitingWorkspaceReady
+            else { return }
+            let currentURL = self.webView.url?.absoluteString ?? self.lastResolvedURL?.absoluteString ?? "unknown"
+            lumeWorkspaceLogger.error("Workspace bootstrap timed out for \(currentURL, privacy: .public)")
+            self.awaitingWorkspaceReady = false
+            self.loadBridgeErrorPage(
+                message:
+                    "The workspace UI did not finish loading. Check the local gateway logs and reload the app.\nURL: \(currentURL)"
+            )
+        }
+    }
+
+    private func cancelBootstrapTimeout() {
+        self.bootstrapTimeoutTask?.cancel()
+        self.bootstrapTimeoutTask = nil
+    }
+
+    private func loadNavigationFailurePage(context: String, error: Error) {
+        self.awaitingWorkspaceReady = false
+        self.cancelBootstrapTimeout()
+        let currentURL = self.webView.url?.absoluteString ?? self.lastResolvedURL?.absoluteString ?? "unknown"
+        lumeWorkspaceLogger.error(
+            "\(context, privacy: .public) failed for \(currentURL, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        self.loadBridgeErrorPage(
+            message:
+                "\(context) failed while loading the workspace.\nURL: \(currentURL)\n\(error.localizedDescription)"
+        )
     }
 
     private func installDismissMonitor() {
@@ -359,6 +457,59 @@ final class LumeWorkspaceWindowController: NSWindowController, WKNavigationDeleg
             }
         }
         return nil
+    }
+
+    func webView(_: WKWebView, didStartProvisionalNavigation _: WKNavigation?) {
+        if self.lastResolvedURL != nil {
+            self.awaitingWorkspaceReady = true
+            self.scheduleBootstrapTimeout()
+        }
+    }
+
+    func webView(_: WKWebView, didFinish _: WKNavigation?) {
+        let currentURL = self.webView.url?.absoluteString ?? self.lastResolvedURL?.absoluteString ?? "unknown"
+        lumeWorkspaceLogger.debug("Workspace navigation finished for \(currentURL, privacy: .public)")
+    }
+
+    func webView(_: WKWebView, didFail navigation: WKNavigation?, withError error: Error) {
+        guard navigation != nil else { return }
+        self.loadNavigationFailurePage(context: "Navigation", error: error)
+    }
+
+    func webView(_: WKWebView, didFailProvisionalNavigation navigation: WKNavigation?, withError error: Error) {
+        guard navigation != nil else { return }
+        self.loadNavigationFailurePage(context: "Provisional navigation", error: error)
+    }
+
+    nonisolated func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        Task { @MainActor [weak self] in
+            self?.handleBootstrapMessage(message)
+        }
+    }
+
+    private func handleBootstrapMessage(_ message: WKScriptMessage) {
+        guard message.name == LumeWorkspaceBootstrap.messageHandlerName,
+              let payload = message.body as? [String: Any],
+              let type = payload["type"] as? String
+        else { return }
+        switch type {
+        case "ready":
+            self.awaitingWorkspaceReady = false
+            self.cancelBootstrapTimeout()
+        case "error":
+            guard self.awaitingWorkspaceReady else { return }
+            let source = (payload["source"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let line = payload["line"] as? Int ?? 0
+            let column = payload["column"] as? Int ?? 0
+            let rawMessage = (payload["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let messageText = rawMessage?.isEmpty == false ? rawMessage! : "Unknown workspace bootstrap error"
+            let location = source?.isEmpty == false ? "\nSource: \(source!)\(line > 0 ? ":\(line)" : "")\(column > 0 ? ":\(column)" : "")" : ""
+            self.awaitingWorkspaceReady = false
+            self.cancelBootstrapTimeout()
+            self.loadBridgeErrorPage(message: "The workspace UI crashed while loading.\n\(messageText)\(location)")
+        default:
+            return
+        }
     }
 
     func windowShouldClose(_: NSWindow) -> Bool {

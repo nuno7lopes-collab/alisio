@@ -252,9 +252,6 @@ final class AppState {
     init(preview: Bool = false) {
         let isPreview = preview || ProcessInfo.processInfo.isRunningTests
         self.isPreview = isPreview
-        if !isPreview {
-            migrateLegacyDefaults()
-        }
         let onboardingSeen = UserDefaults.standard.bool(forKey: onboardingSeenKey)
         self.isPaused = UserDefaults.standard.bool(forKey: pauseDefaultsKey)
         self.launchAtLogin = false

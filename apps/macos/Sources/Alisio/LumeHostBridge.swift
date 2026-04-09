@@ -7,7 +7,6 @@ import AlisioSupport
 @MainActor
 final class LumeHostBridge: NSObject {
     static let messageHandlerName = "alisioHost"
-    static let legacyMessageHandlerName = "lumeHost"
 
     private weak var webView: WKWebView?
     private weak var userContentController: WKUserContentController?
@@ -20,23 +19,22 @@ final class LumeHostBridge: NSObject {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true))
         userContentController.add(self, name: Self.messageHandlerName)
-        userContentController.add(self, name: Self.legacyMessageHandlerName)
     }
 
     private static let bootstrapScript = #"""
     (() => {
-      if (globalThis.alisioHost?.request || globalThis.lumeHost?.request) return;
+      if (globalThis.alisioHost?.request) return;
       let nextId = 1;
       const pending = new Map();
 
-      globalThis.__lumeHostResolve = (id, payload) => {
+      globalThis.__alisioHostResolve = (id, payload) => {
         const entry = pending.get(id);
         if (!entry) return;
         pending.delete(id);
         entry.resolve(payload);
       };
 
-      globalThis.__lumeHostReject = (id, message) => {
+      globalThis.__alisioHostReject = (id, message) => {
         const entry = pending.get(id);
         if (!entry) return;
         pending.delete(id);
@@ -48,9 +46,7 @@ final class LumeHostBridge: NSObject {
           return new Promise((resolve, reject) => {
             const id = nextId++;
             pending.set(id, { resolve, reject });
-            const handler =
-              globalThis.webkit?.messageHandlers?.alisioHost
-              || globalThis.webkit?.messageHandlers?.lumeHost;
+            const handler = globalThis.webkit?.messageHandlers?.alisioHost;
             if (!handler?.postMessage) {
               pending.delete(id);
               reject(new Error("Native Alisio host bridge unavailable"));
@@ -61,7 +57,6 @@ final class LumeHostBridge: NSObject {
         },
       };
       globalThis.alisioHost = hostBridge;
-      globalThis.lumeHost = globalThis.lumeHost || hostBridge;
     })();
     """#
 }
@@ -74,7 +69,7 @@ extension LumeHostBridge: WKScriptMessageHandler {
     }
 
     private func handle(_ message: WKScriptMessage) async {
-        guard message.name == Self.messageHandlerName || message.name == Self.legacyMessageHandlerName else { return }
+        guard message.name == Self.messageHandlerName else { return }
         guard let body = message.body as? [String: Any] else { return }
         let id = (body["id"] as? NSNumber)?.intValue ?? -1
         guard id >= 0, let method = body["method"] as? String else { return }
@@ -196,7 +191,7 @@ extension LumeHostBridge: WKScriptMessageHandler {
     }
 
     private func resolve(id: Int, payload: Any) {
-        guard let script = self.responseScript(function: "__lumeHostResolve", id: id, payload: payload) else {
+        guard let script = self.responseScript(function: "__alisioHostResolve", id: id, payload: payload) else {
             self.reject(id: id, message: "Failed to encode native host response")
             return
         }
@@ -205,7 +200,7 @@ extension LumeHostBridge: WKScriptMessageHandler {
 
     private func reject(id: Int, message: String) {
         guard let json = self.jsonString(["message": message]) else { return }
-        let script = "window.__lumeHostReject(\(id), \(json).message);"
+        let script = "window.__alisioHostReject(\(id), \(json).message);"
         self.webView?.evaluateJavaScript(script, completionHandler: nil)
     }
 

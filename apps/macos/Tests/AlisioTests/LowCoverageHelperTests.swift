@@ -177,7 +177,7 @@ struct LowCoverageHelperTests {
         #expect(PortGuardian._testIsExpected(
             command: "openclaw-gateway",
             fullCommand: "openclaw-gateway",
-            port: 40705, mode: .local) == true)
+            port: 40705, mode: .local) == false)
 
         #expect(PortGuardian._testIsExpected(
             command: "node",

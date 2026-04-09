@@ -16,7 +16,7 @@ struct BonjourTests {
         #expect(AlisioBonjour.gatewayServiceDomains == ["local.", "alisio.internal."])
     }
 
-    @Test func `wide area domain falls back to legacy env`() {
+    @Test func `wide area domain ignores legacy env`() {
         let key = "ALISIO_WIDE_AREA_DOMAIN"
         let legacyKey = ["OPEN", "CLAW", "WIDE", "AREA", "DOMAIN"].joined(separator: "_")
         let previous = ProcessInfo.processInfo.environment[key]
@@ -29,7 +29,7 @@ struct BonjourTests {
         unsetenv(key)
         setenv(legacyKey, "legacy.internal", 1)
 
-        #expect(AlisioBonjour.wideAreaGatewayServiceDomain == "legacy.internal.")
+        #expect(AlisioBonjour.wideAreaGatewayServiceDomain == nil)
     }
 
     @Test func `normalize service domain preserves local default`() {

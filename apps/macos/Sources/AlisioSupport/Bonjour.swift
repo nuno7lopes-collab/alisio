@@ -6,10 +6,7 @@ public enum AlisioBonjour {
 
     public static var wideAreaGatewayServiceDomain: String? {
         let env = ProcessInfo.processInfo.environment
-        if let domain = resolveWideAreaDomain(env["ALISIO_WIDE_AREA_DOMAIN"]) {
-            return domain
-        }
-        return resolveWideAreaDomain(env[self.legacyWideAreaDomainKey])
+        return resolveWideAreaDomain(env["ALISIO_WIDE_AREA_DOMAIN"])
     }
 
     public static var gatewayServiceDomains: [String] {
@@ -33,11 +30,6 @@ public enum AlisioBonjour {
 
         return lower.hasSuffix(".") ? lower : (lower + ".")
     }
-
-    private static var legacyWideAreaDomainKey: String {
-        ["OPEN", "CLAW", "WIDE", "AREA", "DOMAIN"].joined(separator: "_")
-    }
-
     private static func resolveWideAreaDomain(_ raw: String?) -> String? {
         let normalized = normalizeServiceDomain(raw)
         return normalized == gatewayServiceDomain ? nil : normalized

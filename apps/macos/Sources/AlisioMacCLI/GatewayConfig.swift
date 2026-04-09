@@ -21,11 +21,8 @@ struct GatewayEndpoint {
 
 func loadGatewayConfig() -> GatewayConfig {
     let home = FileManager().homeDirectoryForCurrentUser
-    let candidates = [
-        home.appendingPathComponent("\(AlisioBrand.stateDirectoryName)/\(AlisioBrand.configFileName)"),
-        home.appendingPathComponent("\(LegacyBrand.stateDirectoryName)/\(LegacyBrand.configFileName)"),
-    ]
-    let url = candidates.first { FileManager().isReadableFile(atPath: $0.path) } ?? candidates[0]
+    let url = home.appendingPathComponent(
+        "\(AlisioBrand.stateDirectoryName)/\(AlisioBrand.configFileName)")
     guard let data = try? Data(contentsOf: url) else { return GatewayConfig() }
     guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
         return GatewayConfig()

@@ -378,7 +378,6 @@ actor PortGuardian {
     private static func isExpectedLocalGatewayProcess(command: String, fullCommand: String) -> Bool {
         let gatewayBinaryNames = [
             "alisio-gateway",
-            "\(LegacyBrand.commandName)-gateway",
             "gateway-daemon",
         ]
         if gatewayBinaryNames.contains(where: { fullCommand.contains($0) || command.contains($0) }) {
@@ -388,21 +387,21 @@ actor PortGuardian {
         let tokens = self.commandTokens(from: fullCommand)
         let containsGatewaySubcommand = tokens.contains("gateway")
 
-        if (command == AlisioBrand.commandName || command == LegacyBrand.commandName)
+        if command == AlisioBrand.commandName
             && (containsGatewaySubcommand || fullCommand == command)
         {
             return true
         }
 
         guard containsGatewaySubcommand else {
-            return (command.contains(AlisioBrand.commandName) || command.contains(LegacyBrand.commandName))
+            return command.contains(AlisioBrand.commandName)
                 && fullCommand == command
         }
 
         let launcherCommands: Set<String> = ["node", "bun", "tsx", "pnpm", "npm", "npx", "pnpx"]
         guard launcherCommands.contains(command) else { return false }
 
-        if tokens.contains(AlisioBrand.commandName) || tokens.contains(LegacyBrand.commandName) {
+        if tokens.contains(AlisioBrand.commandName) {
             return true
         }
 
@@ -410,9 +409,7 @@ actor PortGuardian {
             "dist/index.js",
             "dist/entry.js",
             "\(AlisioBrand.commandName).mjs",
-            "\(LegacyBrand.commandName).mjs",
             "bin/\(AlisioBrand.commandName).js",
-            "bin/\(LegacyBrand.commandName).js",
             "scripts/run-node.mjs",
             "src/entry.ts",
             "src/index.ts",

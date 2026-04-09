@@ -241,14 +241,6 @@ enum ExecApprovalsStore {
         let socketPath = file.socket?.path?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let token = file.socket?.token?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var agents = file.agents ?? [:]
-        if let legacyDefault = agents["default"] {
-            if let main = agents[self.defaultAgentId] {
-                agents[self.defaultAgentId] = self.mergeAgents(current: main, legacy: legacyDefault)
-            } else {
-                agents[self.defaultAgentId] = legacyDefault
-            }
-            agents.removeValue(forKey: "default")
-        }
         if !agents.isEmpty {
             var normalizedAgents: [String: ExecApprovalsAgent] = [:]
             normalizedAgents.reserveCapacity(agents.count)
@@ -688,36 +680,6 @@ enum ExecApprovalsStore {
         }
 
         return (normalized, rejected)
-    }
-
-    private static func mergeAgents(
-        current: ExecApprovalsAgent,
-        legacy: ExecApprovalsAgent) -> ExecApprovalsAgent
-    {
-        let currentAllowlist = self.normalizeAllowlistEntries(current.allowlist ?? [], dropInvalid: false).entries
-        let legacyAllowlist = self.normalizeAllowlistEntries(legacy.allowlist ?? [], dropInvalid: false).entries
-        var seen = Set<String>()
-        var allowlist: [ExecAllowlistEntry] = []
-        func append(_ entry: ExecAllowlistEntry) {
-            guard let key = self.normalizedPattern(entry.pattern), !seen.contains(key) else {
-                return
-            }
-            seen.insert(key)
-            allowlist.append(entry)
-        }
-        for entry in currentAllowlist {
-            append(entry)
-        }
-        for entry in legacyAllowlist {
-            append(entry)
-        }
-
-        return ExecApprovalsAgent(
-            security: current.security ?? legacy.security,
-            ask: current.ask ?? legacy.ask,
-            askFallback: current.askFallback ?? legacy.askFallback,
-            autoAllowSkills: current.autoAllowSkills ?? legacy.autoAllowSkills,
-            allowlist: allowlist.isEmpty ? nil : allowlist)
     }
 }
 

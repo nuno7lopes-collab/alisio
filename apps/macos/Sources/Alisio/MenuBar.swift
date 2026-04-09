@@ -287,8 +287,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             CLIInstallPrompter.shared.checkAndPromptIfNeeded(reason: "launch")
         }
 
-        // Developer/testing helper: auto-open chat when launched with --chat (or legacy --webchat).
-        if CommandLine.arguments.contains("--chat") || CommandLine.arguments.contains("--webchat") {
+        // Developer/testing helper: auto-open chat when launched with --chat.
+        if CommandLine.arguments.contains("--chat") {
             self.webChatAutoLogger.debug("Auto-opening chat via CLI flag")
             LumeWindowManager.shared.showPreferredChat()
         }

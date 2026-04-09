@@ -119,20 +119,7 @@ struct NodeMenuEntryFormatter {
     private static func resolveVersions(_ entry: NodeInfo) -> (core: String?, ui: String?) {
         let core = entry.coreVersion?.nonEmpty
         let ui = entry.uiVersion?.nonEmpty
-        if core != nil || ui != nil {
-            return (core, ui)
-        }
-        guard let legacy = entry.version?.nonEmpty else { return (nil, nil) }
-        if self.isHeadlessPlatform(entry) {
-            return (legacy, nil)
-        }
-        return (nil, legacy)
-    }
-
-    private static func isHeadlessPlatform(_ entry: NodeInfo) -> Bool {
-        let raw = entry.platform?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        if raw == "darwin" || raw == "linux" || raw == "win32" || raw == "windows" { return true }
-        return false
+        return (core, ui)
     }
 
     static func leadingSymbol(_ entry: NodeInfo) -> String {

@@ -37,7 +37,7 @@ struct CLIInstallerTests {
         let command = CLIInstaller._testInstallScriptCommand(version: "2026.3.30", prefix: "/tmp/alisio")
         let rendered = command.joined(separator: " ")
         #expect(rendered.contains(AlisioBrand.installCLIURL))
-        #expect(!rendered.contains(LegacyBrand.installHost))
+        #expect(!rendered.contains("openclaw"))
     }
 
     @Test func `installed location ignores legacy openclaw executable`() throws {
