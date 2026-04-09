@@ -52,12 +52,12 @@ describe("registerProviderStreamForModel", () => {
     expect(resolveAlisioProviderStream).toHaveBeenCalledWith(model, {}, {});
   });
 
-  it("does not treat the legacy alisio-remote provider as a dynamic stream provider", () => {
+  it("does not treat non-Alisio providers as dynamic stream providers", () => {
     const model: Model<string> = {
       id: "gpt-oss-20b",
       name: "gpt-oss-20b",
       api: "openai-responses",
-      provider: "alisio-remote",
+      provider: "openai",
       baseUrl: "http://192.168.1.50:1234/v1",
       reasoning: false,
       input: ["text"],

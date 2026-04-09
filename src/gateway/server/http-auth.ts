@@ -1,12 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  A2UI_PATH,
-  CANVAS_HOST_PATH,
-  CANVAS_WS_PATH,
-  LEGACY_A2UI_PATH,
-  LEGACY_CANVAS_HOST_PATH,
-  LEGACY_CANVAS_WS_PATH,
-} from "../../canvas-host/a2ui.js";
+import { A2UI_PATH, CANVAS_HOST_PATH, CANVAS_WS_PATH } from "../../canvas-host/a2ui.js";
 import { safeEqualSecret } from "../../security/secret-equal.js";
 import type { AuthRateLimiter } from "../auth-rate-limit.js";
 import {
@@ -24,14 +17,9 @@ export function isCanvasPath(pathname: string): boolean {
   return (
     pathname === A2UI_PATH ||
     pathname.startsWith(`${A2UI_PATH}/`) ||
-    pathname === LEGACY_A2UI_PATH ||
-    pathname.startsWith(`${LEGACY_A2UI_PATH}/`) ||
     pathname === CANVAS_HOST_PATH ||
     pathname.startsWith(`${CANVAS_HOST_PATH}/`) ||
-    pathname === LEGACY_CANVAS_HOST_PATH ||
-    pathname.startsWith(`${LEGACY_CANVAS_HOST_PATH}/`) ||
-    pathname === CANVAS_WS_PATH ||
-    pathname === LEGACY_CANVAS_WS_PATH
+    pathname === CANVAS_WS_PATH
   );
 }
 

@@ -593,19 +593,12 @@ describe("plugin-sdk subpath exports", () => {
         "discoverOpenAICompatibleSelfHostedProvider",
       ],
       omits: [
-        "buildOllamaProvider",
-        "configureOllamaNonInteractive",
-        "ensureOllamaModelPulled",
-        "promptAndConfigureOllama",
         "promptAndConfigureVllm",
         "buildVllmProvider",
         "buildSglangProvider",
-        "OLLAMA_DEFAULT_BASE_URL",
-        "OLLAMA_DEFAULT_MODEL",
         "VLLM_DEFAULT_BASE_URL",
       ],
     });
-    expectSourceOmitsSnippet("provider-setup", "./ollama-surface.js");
     expectSourceOmitsImportPattern("provider-setup", "./vllm.js");
     expectSourceOmitsImportPattern("provider-setup", "./sglang.js");
     expectSourceMentions("provider-auth", [

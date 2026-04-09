@@ -35,7 +35,6 @@ import {
   listAlisioConnectorAuthorizations,
   listAlisioConnectorDefinitions,
   loadAlisioBootstrapState,
-  removeAlisioRemoteModelServer,
   rejectAlisioSharingRequest,
   refreshAlisioAiLimits,
   renameAlisioAiProfile,
@@ -43,9 +42,7 @@ import {
   requestAlisioSharingAccess,
   revokeAlisioConnectorAuthorization,
   revokeAlisioSharingGrant,
-  saveAlisioRemoteModelServer,
   selectAlisioAiProfile,
-  selectAlisioRemoteModelServer,
   setAlisioOrganizationState,
   setAlisioSharingPolicy,
   signInAlisioAccount,
@@ -106,12 +103,6 @@ import {
   validateAlisioModelsRuntimeStartResult,
   validateAlisioModelsUninstallParams,
   validateAlisioModelsUninstallResult,
-  validateAlisioModelsServerRemoveParams,
-  validateAlisioModelsServerRemoveResult,
-  validateAlisioModelsServerSaveParams,
-  validateAlisioModelsServerSaveResult,
-  validateAlisioModelsServerSelectParams,
-  validateAlisioModelsServerSelectResult,
   type AlisioModelsRuntimeStartResult,
   type AlisioModelsResult,
   type AlisioProvidersResult,
@@ -1759,7 +1750,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
           undefined,
           errorShape(
             ErrorCodes.UNAVAILABLE,
-            "target device does not support starting a model server",
+            "target device does not support starting this local runtime",
           ),
         );
         return;
@@ -1863,144 +1854,11 @@ export const alisioHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to start model server: ${formatError(error)}`),
-      );
-    }
-  },
-  "alisio.models.server.save": async ({ params, respond }) => {
-    if (!validateAlisioModelsServerSaveParams(params)) {
-      respond(
-        false,
-        undefined,
         errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid alisio.models.server.save params: ${formatValidationErrors(
-            validateAlisioModelsServerSaveParams.errors,
-          )}`,
+          ErrorCodes.UNAVAILABLE,
+          `failed to start the local runtime: ${formatError(error)}`,
         ),
       );
-      return;
-    }
-    try {
-      const result = await saveAlisioRemoteModelServer(
-        {
-          serverId: params.serverId?.trim() || undefined,
-          label: params.label,
-          kind: params.kind,
-          baseUrl: params.baseUrl,
-          apiKey: params.apiKey,
-          clearApiKey: params.clearApiKey,
-        },
-        process.env,
-      );
-      const payload = { ok: true as const, serverId: result.serverId };
-      if (!validateAlisioModelsServerSaveResult(payload)) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            `invalid alisio.models.server.save result: ${formatValidationErrors(
-              validateAlisioModelsServerSaveResult.errors,
-            )}`,
-          ),
-        );
-        return;
-      }
-      clearAlisioModelProviderSnapshotCache();
-      respond(true, payload, undefined);
-    } catch (err) {
-      if (err instanceof AlisioAccountValidationError) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
-        return;
-      }
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
-    }
-  },
-  "alisio.models.server.remove": async ({ params, respond }) => {
-    if (!validateAlisioModelsServerRemoveParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid alisio.models.server.remove params: ${formatValidationErrors(
-            validateAlisioModelsServerRemoveParams.errors,
-          )}`,
-        ),
-      );
-      return;
-    }
-    try {
-      const removed = await removeAlisioRemoteModelServer(
-        { serverId: params.serverId },
-        process.env,
-      );
-      const payload = { ok: true as const, serverId: removed.serverId };
-      if (!validateAlisioModelsServerRemoveResult(payload)) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            `invalid alisio.models.server.remove result: ${formatValidationErrors(
-              validateAlisioModelsServerRemoveResult.errors,
-            )}`,
-          ),
-        );
-        return;
-      }
-      clearAlisioModelProviderSnapshotCache();
-      respond(true, payload, undefined);
-    } catch (err) {
-      respond(
-        false,
-        undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to remove remote server: ${formatError(err)}`),
-      );
-    }
-  },
-  "alisio.models.server.select": async ({ params, respond }) => {
-    if (!validateAlisioModelsServerSelectParams(params)) {
-      respond(
-        false,
-        undefined,
-        errorShape(
-          ErrorCodes.INVALID_REQUEST,
-          `invalid alisio.models.server.select params: ${formatValidationErrors(
-            validateAlisioModelsServerSelectParams.errors,
-          )}`,
-        ),
-      );
-      return;
-    }
-    try {
-      const selected = await selectAlisioRemoteModelServer(
-        { serverId: params.serverId },
-        process.env,
-      );
-      const payload = { ok: true as const, serverId: selected.serverId };
-      if (!validateAlisioModelsServerSelectResult(payload)) {
-        respond(
-          false,
-          undefined,
-          errorShape(
-            ErrorCodes.INVALID_REQUEST,
-            `invalid alisio.models.server.select result: ${formatValidationErrors(
-              validateAlisioModelsServerSelectResult.errors,
-            )}`,
-          ),
-        );
-        return;
-      }
-      clearAlisioModelProviderSnapshotCache();
-      respond(true, payload, undefined);
-    } catch (err) {
-      if (err instanceof AlisioAccountValidationError) {
-        respond(false, undefined, errorShape(ErrorCodes.INVALID_REQUEST, err.message));
-        return;
-      }
-      respond(false, undefined, errorShape(ErrorCodes.UNAVAILABLE, formatError(err)));
     }
   },
   "alisio.doctor.summary": async ({ params, respond, context }) => {

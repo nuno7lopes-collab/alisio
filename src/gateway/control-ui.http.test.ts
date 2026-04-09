@@ -266,10 +266,10 @@ describe("handleControlUiHttpRequest", () => {
       fn: async (tmp) => {
         const { res, end } = makeMockHttpResponse();
         const handled = handleControlUiHttpRequest(
-          { url: `/openclaw${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`, method: "GET" } as IncomingMessage,
+          { url: `/alisio${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`, method: "GET" } as IncomingMessage,
           res,
           {
-            basePath: "/openclaw",
+            basePath: "/alisio",
             root: { kind: "resolved", path: tmp },
             config: {
               agents: { defaults: { workspace: tmp } },
@@ -279,9 +279,9 @@ describe("handleControlUiHttpRequest", () => {
         );
         expect(handled).toBe(true);
         const parsed = parseBootstrapPayload(end);
-        expect(parsed.basePath).toBe("/openclaw");
+        expect(parsed.basePath).toBe("/alisio");
         expect(parsed.assistantName).toBe("Ops");
-        expect(parsed.assistantAvatar).toBe("/openclaw/avatar/main");
+        expect(parsed.assistantAvatar).toBe("/alisio/avatar/main");
         expect(parsed.assistantAgentId).toBe("main");
       },
     });
@@ -325,7 +325,7 @@ describe("handleControlUiHttpRequest", () => {
       expect(parsed.basePath).toBe("");
       expect(parsed.controlUrl).toBe("ws://127.0.0.1:40705/");
       expect(parsed.connectionRequired).toBe(false);
-      expect(parsed.startupState).toBe("needs_profile");
+      expect(parsed.startupState).toBe("signed_out");
       expect(parsed.providerReady).toBe(false);
       expect(parsed.accountReady).toBe(false);
       expect(parsed.nextStep).toBe("account");
@@ -359,7 +359,7 @@ describe("handleControlUiHttpRequest", () => {
     }
   });
 
-  it("treats local-only runtime bootstrap as ready before the websocket connects", async () => {
+  it("does not promote legacy local-only bootstrap state when cloud account config is missing", async () => {
     const stateDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-alisio-bootstrap-"));
     const previousStateDir = process.env.OPENCLAW_STATE_DIR;
     process.env.OPENCLAW_STATE_DIR = stateDir;
@@ -391,10 +391,10 @@ describe("handleControlUiHttpRequest", () => {
       expect(handled).toBe(true);
       expect(res.statusCode).toBe(200);
       const parsed = parseAlisioBootstrapPayload(end);
-      expect(parsed.startupState).toBe("ready");
+      expect(parsed.startupState).toBe("signed_out");
       expect(parsed.providerReady).toBe(true);
-      expect(parsed.accountReady).toBe(true);
-      expect(parsed.nextStep).toBe("organization");
+      expect(parsed.accountReady).toBe(false);
+      expect(parsed.nextStep).toBe("account");
     } finally {
       if (previousStateDir === undefined) {
         delete process.env.OPENCLAW_STATE_DIR;

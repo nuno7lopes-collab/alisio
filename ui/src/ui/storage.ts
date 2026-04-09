@@ -1,20 +1,10 @@
-import { legacyDotKey } from "../brand-compat.ts";
-
 const SETTINGS_KEY_PREFIX = "alisio.control.settings.v2:";
-const LEGACY_SETTINGS_KEY_PREFIX = `${legacyDotKey("control", "settings", "v1")}:`;
 const DEFAULT_SETTINGS_KEY = "alisio.control.settings.v2";
-const LEGACY_SETTINGS_KEY = legacyDotKey("control", "settings", "v1");
 const TOKEN_SESSION_KEY_PREFIX = "alisio.control.token.v2:";
-const LEGACY_TOKEN_SESSION_KEY_PREFIX = `${legacyDotKey("control", "token", "v1")}:`;
-const LEGACY_TOKEN_SESSION_KEY = legacyDotKey("control", "token", "v1");
 const MAX_SCOPED_SESSION_ENTRIES = 10;
 
 function settingsKeyForGateway(gatewayUrl: string): string {
   return `${SETTINGS_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
-}
-
-function legacySettingsKeyForGateway(gatewayUrl: string): string {
-  return `${LEGACY_SETTINGS_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
 }
 
 type ScopedSessionSelection = {
@@ -69,8 +59,8 @@ function deriveDefaultGatewayUrl(): { pageUrl: string; effectiveUrl: string } {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const configured =
     typeof window !== "undefined" &&
-    typeof window.__OPENCLAW_CONTROL_UI_BASE_PATH__ === "string" &&
-    window.__OPENCLAW_CONTROL_UI_BASE_PATH__.trim();
+    typeof window.__ALISIO_CONTROL_UI_BASE_PATH__ === "string" &&
+    window.__ALISIO_CONTROL_UI_BASE_PATH__.trim();
   const basePath = configured
     ? normalizeBasePath(configured)
     : inferBasePathFromPathname(location.pathname);
@@ -109,10 +99,6 @@ function tokenSessionKeyForGateway(gatewayUrl: string): string {
   return `${TOKEN_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
 }
 
-function legacyTokenSessionKeyForGateway(gatewayUrl: string): string {
-  return `${LEGACY_TOKEN_SESSION_KEY_PREFIX}${normalizeGatewayTokenScope(gatewayUrl)}`;
-}
-
 function resolveScopedSessionSelection(
   gatewayUrl: string,
   parsed: PersistedUiSettings,
@@ -133,18 +119,9 @@ function resolveScopedSessionSelection(
     };
   }
 
-  const legacySessionKey =
-    typeof parsed.sessionKey === "string" && parsed.sessionKey.trim()
-      ? parsed.sessionKey.trim()
-      : defaults.sessionKey;
-  const legacyLastActiveSessionKey =
-    typeof parsed.lastActiveSessionKey === "string" && parsed.lastActiveSessionKey.trim()
-      ? parsed.lastActiveSessionKey.trim()
-      : legacySessionKey || defaults.lastActiveSessionKey;
-
   return {
-    sessionKey: legacySessionKey,
-    lastActiveSessionKey: legacyLastActiveSessionKey,
+    sessionKey: defaults.sessionKey,
+    lastActiveSessionKey: defaults.lastActiveSessionKey,
   };
 }
 
@@ -155,17 +132,7 @@ function loadSessionToken(gatewayUrl: string): string {
       return "";
     }
     const scopedKey = tokenSessionKeyForGateway(gatewayUrl);
-    const legacyScopedKey = legacyTokenSessionKeyForGateway(gatewayUrl);
-    const token =
-      storage.getItem(scopedKey) ??
-      storage.getItem(legacyScopedKey) ??
-      storage.getItem(LEGACY_TOKEN_SESSION_KEY) ??
-      "";
-    storage.removeItem(LEGACY_TOKEN_SESSION_KEY);
-    if (token) {
-      storage.setItem(scopedKey, token.trim());
-      storage.removeItem(legacyScopedKey);
-    }
+    const token = storage.getItem(scopedKey) ?? "";
     return token.trim();
   } catch {
     return "";
@@ -178,17 +145,13 @@ function persistSessionToken(gatewayUrl: string, token: string) {
     if (!storage) {
       return;
     }
-    storage.removeItem(LEGACY_TOKEN_SESSION_KEY);
     const key = tokenSessionKeyForGateway(gatewayUrl);
-    const legacyKey = legacyTokenSessionKeyForGateway(gatewayUrl);
     const normalized = token.trim();
     if (normalized) {
       storage.setItem(key, normalized);
-      storage.removeItem(legacyKey);
       return;
     }
     storage.removeItem(key);
-    storage.removeItem(legacyKey);
   } catch {
     // best-effort
   }
@@ -215,15 +178,8 @@ export function loadSettings(): UiSettings {
   };
 
   try {
-    // First check for legacy key (no scope), then check for scoped key
     const scopedKey = settingsKeyForGateway(defaults.gatewayUrl);
-    const legacyScopedKey = legacySettingsKeyForGateway(defaults.gatewayUrl);
-    const raw =
-      storage?.getItem(scopedKey) ??
-      storage?.getItem(DEFAULT_SETTINGS_KEY) ??
-      storage?.getItem(legacyScopedKey) ??
-      storage?.getItem(LEGACY_SETTINGS_KEY_PREFIX + "default") ??
-      storage?.getItem(LEGACY_SETTINGS_KEY);
+    const raw = storage?.getItem(scopedKey) ?? storage?.getItem(DEFAULT_SETTINGS_KEY);
     if (!raw) {
       return {
         ...defaults,
@@ -250,10 +206,6 @@ export function loadSettings(): UiSettings {
         : 0;
     const shouldMigrateChatPresentation = chatPresentationModeVersion < 2;
     const shouldMigrateLocale = !isSupportedLocale(parsed.locale) && locale !== undefined;
-    const shouldMigrateLegacyBorderRadius = Object.prototype.hasOwnProperty.call(
-      parsed,
-      "borderRadius",
-    );
     const settings = {
       gatewayUrl,
       // Gateway auth is intentionally in-memory only; scrub any legacy persisted token on load.
@@ -291,12 +243,7 @@ export function loadSettings(): UiSettings {
           : defaults.navGroupsCollapsed,
       locale,
     };
-    if (
-      "token" in parsed ||
-      shouldMigrateChatPresentation ||
-      shouldMigrateLocale ||
-      shouldMigrateLegacyBorderRadius
-    ) {
+    if ("token" in parsed || shouldMigrateChatPresentation || shouldMigrateLocale) {
       persistSettings(settings);
     }
     return settings;
@@ -314,16 +261,9 @@ function persistSettings(next: UiSettings) {
   const storage = getSafeLocalStorage();
   const scope = normalizeGatewayTokenScope(next.gatewayUrl);
   const scopedKey = settingsKeyForGateway(next.gatewayUrl);
-  const legacyScopedKey = legacySettingsKeyForGateway(next.gatewayUrl);
   let existingSessionsByGateway: Record<string, ScopedSessionSelection> = {};
   try {
-    // Try to migrate from legacy key or other scopes
-    const raw =
-      storage?.getItem(scopedKey) ??
-      storage?.getItem(DEFAULT_SETTINGS_KEY) ??
-      storage?.getItem(legacyScopedKey) ??
-      storage?.getItem(LEGACY_SETTINGS_KEY_PREFIX + "default") ??
-      storage?.getItem(LEGACY_SETTINGS_KEY);
+    const raw = storage?.getItem(scopedKey) ?? storage?.getItem(DEFAULT_SETTINGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as PersistedUiSettings;
       if (parsed.sessionsByGateway && typeof parsed.sessionsByGateway === "object") {
@@ -364,8 +304,6 @@ function persistSettings(next: UiSettings) {
   try {
     storage?.setItem(scopedKey, serialized);
     storage?.setItem(DEFAULT_SETTINGS_KEY, serialized);
-    storage?.removeItem(legacyScopedKey);
-    storage?.removeItem(LEGACY_SETTINGS_KEY);
   } catch {
     // best-effort — quota exceeded or security restrictions should not
     // prevent in-memory settings and visual updates from being applied

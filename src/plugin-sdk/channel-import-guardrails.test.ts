@@ -200,7 +200,6 @@ const LOCAL_EXTENSION_API_BARREL_GUARDS = [
   "msteams",
   "nextcloud-talk",
   "nostr",
-  "ollama",
   "open-prose",
   "phone-control",
   "copilot-proxy",

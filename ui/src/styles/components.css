@@ -1206,6 +1206,19 @@
   background: var(--secondary);
 }
 
+.ui-icon,
+svg[data-ui-icon] {
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .btn svg {
   width: 16px;
   height: 16px;
@@ -6157,6 +6170,71 @@ td.data-table-key-col {
   align-items: center;
   color: var(--muted);
   transition: transform var(--duration-fast) ease;
+}
+
+.alisio-models__profile-subtitle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.alisio-models__profile-subtitle-text {
+  min-width: 0;
+}
+
+.alisio-models__profile-rename-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--muted) 82%, var(--text) 18%);
+  cursor: pointer;
+  opacity: 0.82;
+  transition:
+    color var(--duration-fast) ease,
+    opacity var(--duration-fast) ease,
+    transform var(--duration-fast) ease;
+}
+
+.alisio-models__profile-rename-trigger:hover:not(:disabled),
+.alisio-models__profile-rename-trigger:focus-visible {
+  color: var(--accent);
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.alisio-models__profile-rename-trigger:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.alisio-models__profile-rename-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.alisio-models__profile-rename-input {
+  width: min(240px, 100%);
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border) 66%);
+  background: color-mix(in srgb, var(--bg) 84%, var(--bg-elevated) 16%);
+  color: var(--text-strong);
+  font: inherit;
+  line-height: 1.2;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.alisio-models__profile-rename-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .alisio-models__profile.is-expanded .alisio-models__profile-chevron {

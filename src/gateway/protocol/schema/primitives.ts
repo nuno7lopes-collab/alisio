@@ -7,11 +7,7 @@ import {
 } from "../../../secrets/ref-contract.js";
 import { INPUT_PROVENANCE_KIND_VALUES } from "../../../sessions/input-provenance.js";
 import { SESSION_LABEL_MAX_LENGTH } from "../../../sessions/session-label.js";
-import {
-  GATEWAY_CLIENT_IDS,
-  GATEWAY_CLIENT_MODES,
-  LEGACY_GATEWAY_CLIENT_ID_ALIASES,
-} from "../client-info.js";
+import { GATEWAY_CLIENT_IDS, GATEWAY_CLIENT_MODES } from "../client-info.js";
 
 export const NonEmptyString = Type.String({ minLength: 1 });
 export const CHAT_SEND_SESSION_KEY_MAX_LENGTH = 512;
@@ -35,12 +31,7 @@ export const InputProvenanceSchema = Type.Object(
 );
 
 export const GatewayClientIdSchema = Type.Union(
-  [
-    ...Object.values(GATEWAY_CLIENT_IDS),
-    ...(Object.keys(LEGACY_GATEWAY_CLIENT_ID_ALIASES) as Array<
-      keyof typeof LEGACY_GATEWAY_CLIENT_ID_ALIASES
-    >),
-  ].map((value) => Type.Literal(value)),
+  Object.values(GATEWAY_CLIENT_IDS).map((value) => Type.Literal(value)),
 );
 
 export const GatewayClientModeSchema = Type.Union(

@@ -47,29 +47,28 @@ describe("TAB_GROUPS", () => {
     expect(navigation.tabFromPath("/security")).toBe("security");
   });
 
-  it("keeps legacy routes on public destinations", () => {
-    expect(navigation.tabFromPath("/home")).toBe("chat");
-    expect(navigation.tabFromPath("/sessions")).toBe("chat");
-    expect(navigation.tabFromPath("/cron")).toBe("chat");
-    expect(navigation.tabFromPath("/automations")).toBe("chat");
-    expect(navigation.tabFromPath("/agents")).toBe("chat");
-    expect(navigation.tabFromPath("/skills")).toBe("capabilities");
-    expect(navigation.tabFromPath("/channels")).toBe("channels");
+  it("rejects retired route aliases", () => {
+    expect(navigation.tabFromPath("/home")).toBeNull();
+    expect(navigation.tabFromPath("/sessions")).toBeNull();
+    expect(navigation.tabFromPath("/cron")).toBeNull();
+    expect(navigation.tabFromPath("/automations")).toBeNull();
+    expect(navigation.tabFromPath("/agents")).toBeNull();
+    expect(navigation.tabFromPath("/skills")).toBeNull();
   });
 
-  it("routes every published settings slice", () => {
-    expect(navigation.tabFromPath("/communications")).toBe("settings");
-    expect(navigation.tabFromPath("/appearance")).toBe("settings");
-    expect(navigation.tabFromPath("/automation")).toBe("settings");
-    expect(navigation.tabFromPath("/infrastructure")).toBe("settings");
-    expect(navigation.tabFromPath("/ai-agents")).toBe("models");
-    expect(navigation.tabFromPath("/config")).toBe("settings");
-    expect(navigation.settingsSectionFromPath("/communications")).toBe("support");
-    expect(navigation.settingsSectionFromPath("/appearance")).toBe("general");
-    expect(navigation.settingsSectionFromPath("/automation")).toBe("account");
-    expect(navigation.settingsSectionFromPath("/infrastructure")).toBe("mac");
+  it("keeps settings section fallback query-driven only", () => {
+    expect(navigation.tabFromPath("/communications")).toBeNull();
+    expect(navigation.tabFromPath("/appearance")).toBeNull();
+    expect(navigation.tabFromPath("/automation")).toBeNull();
+    expect(navigation.tabFromPath("/infrastructure")).toBeNull();
+    expect(navigation.tabFromPath("/ai-agents")).toBeNull();
+    expect(navigation.tabFromPath("/config")).toBeNull();
+    expect(navigation.settingsSectionFromPath("/communications")).toBeNull();
+    expect(navigation.settingsSectionFromPath("/appearance")).toBeNull();
+    expect(navigation.settingsSectionFromPath("/automation")).toBeNull();
+    expect(navigation.settingsSectionFromPath("/infrastructure")).toBeNull();
     expect(navigation.settingsSectionFromPath("/ai-agents")).toBeNull();
-    expect(navigation.settingsSectionFromPath("/config")).toBe("account");
+    expect(navigation.settingsSectionFromPath("/config")).toBeNull();
     expect(navigation.normalizeSettingsSection("billing")).toBe("billing");
     expect(navigation.normalizeSettingsSection("ai")).toBe("general");
   });

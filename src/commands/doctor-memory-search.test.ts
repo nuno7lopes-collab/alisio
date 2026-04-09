@@ -304,17 +304,17 @@ describe("noteMemorySearchHealth", () => {
     expect(message).toContain("alisio configure --section model");
   });
 
-  it("still warns in auto mode when only ollama credentials exist", async () => {
+  it("still warns in auto mode when only vllm credentials exist", async () => {
     resolveMemorySearchConfig.mockReturnValue({
       provider: "auto",
       local: {},
       remote: {},
     });
     resolveApiKeyForProvider.mockImplementation(async ({ provider }: { provider: string }) => {
-      if (provider === "ollama") {
+      if (provider === "vllm") {
         return {
-          apiKey: "ollama-local", // pragma: allowlist secret
-          source: "env: OLLAMA_API_KEY",
+          apiKey: "custom-local", // pragma: allowlist secret
+          source: "env: VLLM_API_KEY",
           mode: "api-key",
         };
       }

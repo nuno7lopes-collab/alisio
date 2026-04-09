@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_OLLAMA_EMBEDDING_MODEL } from "./embeddings.js";
 import type {
   EmbeddingProvider,
   EmbeddingProviderRuntime,
@@ -52,7 +51,7 @@ function buildConfig(params: {
   workspaceDir: string;
   indexPath: string;
   provider: "openai" | "mistral";
-  fallback?: "none" | "mistral" | "ollama";
+  fallback?: "none" | "mistral";
 }): OpenClawConfig {
   return {
     agents: {
@@ -167,51 +166,5 @@ describe("memory manager mistral provider wiring", () => {
     const activated = await internal.activateFallbackProvider("forced test");
     expect(activated).toBe(true);
     expect(internal.providerRuntime).toBe(mistralRuntime);
-  });
-
-  it("uses default ollama model when activating ollama fallback", async () => {
-    const openAiRuntime: EmbeddingProviderRuntime = {
-      id: "openai",
-      cacheKeyData: { provider: "openai", model: "text-embedding-3-small" },
-    };
-    const ollamaRuntime: EmbeddingProviderRuntime = {
-      id: "ollama",
-      cacheKeyData: { provider: "ollama", model: DEFAULT_OLLAMA_EMBEDDING_MODEL },
-    };
-    createEmbeddingProviderMock.mockResolvedValueOnce({
-      requestedProvider: "openai",
-      provider: createProvider("openai"),
-      runtime: openAiRuntime,
-    } as EmbeddingProviderResult);
-    createEmbeddingProviderMock.mockResolvedValueOnce({
-      requestedProvider: "ollama",
-      provider: createProvider("ollama"),
-      runtime: ollamaRuntime,
-    } as EmbeddingProviderResult);
-
-    const cfg = buildConfig({ workspaceDir, indexPath, provider: "openai", fallback: "ollama" });
-    const result = await getMemorySearchManager({ cfg, agentId: "main" });
-    if (!result.manager) {
-      throw new Error(`manager missing: ${result.error ?? "no error provided"}`);
-    }
-    manager = result.manager as unknown as MemoryIndexManager;
-    await ensureProviderInitialized(manager);
-    const internal = manager as unknown as {
-      ensureProviderInitialized: () => Promise<void>;
-      activateFallbackProvider: (reason: string) => Promise<boolean>;
-      providerRuntime?: EmbeddingProviderRuntime;
-    };
-
-    await internal.ensureProviderInitialized();
-    expect(internal.providerRuntime?.id).toBe("openai");
-    const activated = await internal.activateFallbackProvider("forced ollama fallback");
-    expect(activated).toBe(true);
-    expect(internal.providerRuntime).toBe(ollamaRuntime);
-
-    const fallbackCall = createEmbeddingProviderMock.mock.calls[1]?.[0] as
-      | { provider?: string; model?: string }
-      | undefined;
-    expect(fallbackCall?.provider).toBe("ollama");
-    expect(fallbackCall?.model).toBe(DEFAULT_OLLAMA_EMBEDDING_MODEL);
   });
 });

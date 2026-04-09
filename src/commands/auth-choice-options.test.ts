@@ -177,13 +177,6 @@ describe("buildAuthChoiceOptions", () => {
     ]);
     resolveProviderWizardOptions.mockReturnValue([
       {
-        value: "ollama",
-        label: "Ollama",
-        hint: "Cloud and local open models",
-        groupId: "ollama",
-        groupLabel: "Ollama",
-      },
-      {
         value: "vllm",
         label: "vLLM",
         hint: "Local/self-hosted OpenAI-compatible server",
@@ -215,7 +208,6 @@ describe("buildAuthChoiceOptions", () => {
       "byteplus-api-key",
       "vllm",
       "opencode-go",
-      "ollama",
       "sglang",
     ]) {
       expect(options.some((opt) => opt.value === value)).toBe(true);
@@ -248,11 +240,11 @@ describe("buildAuthChoiceOptions", () => {
     ]);
     resolveProviderWizardOptions.mockReturnValue([
       {
-        value: "ollama",
-        label: "Ollama",
-        hint: "Cloud and local open models",
-        groupId: "ollama",
-        groupLabel: "Ollama",
+        value: "vllm",
+        label: "vLLM",
+        hint: "Local/self-hosted OpenAI-compatible server",
+        groupId: "vllm",
+        groupLabel: "vLLM",
       },
     ]);
     const options = getOptions(true);
@@ -266,8 +258,8 @@ describe("buildAuthChoiceOptions", () => {
     expect(cliChoices).toContain("litellm-api-key");
     expect(cliChoices).toContain("custom-api-key");
     expect(cliChoices).toContain("skip");
-    expect(options.some((option) => option.value === "ollama")).toBe(true);
-    expect(cliChoices).not.toContain("ollama");
+    expect(options.some((option) => option.value === "vllm")).toBe(true);
+    expect(cliChoices).not.toContain("vllm");
   });
 
   it("can include legacy aliases in cli help choices", () => {
@@ -313,11 +305,11 @@ describe("buildAuthChoiceOptions", () => {
     ]);
     resolveProviderWizardOptions.mockReturnValue([
       {
-        value: "ollama",
-        label: "Ollama",
-        hint: "Cloud and local open models",
-        groupId: "ollama",
-        groupLabel: "Ollama",
+        value: "vllm",
+        label: "vLLM",
+        hint: "Local/self-hosted OpenAI-compatible server",
+        groupId: "vllm",
+        groupLabel: "vLLM",
       },
     ]);
 
@@ -326,7 +318,7 @@ describe("buildAuthChoiceOptions", () => {
       includeSkip: true,
     }).split("|");
 
-    expect(cliChoices).not.toContain("ollama");
+    expect(cliChoices).not.toContain("vllm");
     expect(cliChoices).not.toContain("openai-api-key");
     expect(cliChoices).not.toContain("chutes");
     expect(cliChoices).not.toContain("litellm-api-key");
@@ -410,25 +402,25 @@ describe("buildAuthChoiceOptions", () => {
     expect(openCodeGroup?.options.some((opt) => opt.value === "opencode-go")).toBe(true);
   });
 
-  it("shows Ollama in grouped provider selection", () => {
+  it("shows vLLM in grouped provider selection", () => {
     resolveManifestProviderAuthChoices.mockReturnValue([]);
     resolveProviderWizardOptions.mockReturnValue([
       {
-        value: "ollama",
-        label: "Ollama",
-        hint: "Cloud and local open models",
-        groupId: "ollama",
-        groupLabel: "Ollama",
+        value: "vllm",
+        label: "vLLM",
+        hint: "Local/self-hosted OpenAI-compatible server",
+        groupId: "vllm",
+        groupLabel: "vLLM",
       },
     ]);
     const { groups } = buildAuthChoiceGroups({
       store: EMPTY_STORE,
       includeSkip: false,
     });
-    const ollamaGroup = groups.find((group) => group.value === "ollama");
+    const vllmGroup = groups.find((group) => group.value === "vllm");
 
-    expect(ollamaGroup).toBeDefined();
-    expect(ollamaGroup?.options.some((opt) => opt.value === "ollama")).toBe(true);
+    expect(vllmGroup).toBeDefined();
+    expect(vllmGroup?.options.some((opt) => opt.value === "vllm")).toBe(true);
   });
 
   it("hides image-generation-only providers from the interactive auth picker", () => {
@@ -462,17 +454,17 @@ describe("buildAuthChoiceOptions", () => {
         onboardingScopes: ["image-generation"],
       },
       {
-        value: "ollama",
-        label: "Ollama",
-        groupId: "ollama",
-        groupLabel: "Ollama",
+        value: "vllm",
+        label: "vLLM",
+        groupId: "vllm",
+        groupLabel: "vLLM",
       },
     ]);
 
     const options = getOptions();
 
     expect(options.some((option) => option.value === "openai-api-key")).toBe(true);
-    expect(options.some((option) => option.value === "ollama")).toBe(true);
+    expect(options.some((option) => option.value === "vllm")).toBe(true);
     expect(options.some((option) => option.value === "fal-api-key")).toBe(false);
     expect(options.some((option) => option.value === "local-image-runtime")).toBe(false);
   });

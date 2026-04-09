@@ -16,15 +16,15 @@ function setControlUiBasePath(value: string | undefined) {
       "window",
       value == null
         ? ({} as Window & typeof globalThis)
-        : ({ __OPENCLAW_CONTROL_UI_BASE_PATH__: value } as Window & typeof globalThis),
+        : ({ __ALISIO_CONTROL_UI_BASE_PATH__: value } as Window & typeof globalThis),
     );
     return;
   }
   if (value == null) {
-    delete window.__OPENCLAW_CONTROL_UI_BASE_PATH__;
+    delete window.__ALISIO_CONTROL_UI_BASE_PATH__;
     return;
   }
-  Object.defineProperty(window, "__OPENCLAW_CONTROL_UI_BASE_PATH__", {
+  Object.defineProperty(window, "__ALISIO_CONTROL_UI_BASE_PATH__", {
     value,
     writable: true,
     configurable: true,
@@ -59,21 +59,21 @@ describe("loadSettings default gateway URL derivation", () => {
       host: "gateway.example:8443",
       pathname: "/ignored/path",
     });
-    setControlUiBasePath(" /\u006fpen\u0063law/ ");
+    setControlUiBasePath(" /alisio/ ");
 
     const { loadSettings } = await import("./storage.ts");
-    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/\u006fpen\u0063law"));
+    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/alisio"));
   });
 
   it("infers base path from nested pathname when configured base path is not set", async () => {
     setTestLocation({
       protocol: "http:",
       host: "gateway.example:40705",
-      pathname: "/apps/\u006fpen\u0063law/chat",
+      pathname: "/apps/alisio/chat",
     });
 
     const { loadSettings } = await import("./storage.ts");
-    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/\u006fpen\u0063law"));
+    expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/alisio"));
   });
 
   it("skips node sessionStorage accessors that warn without a storage file", async () => {
@@ -100,56 +100,6 @@ describe("loadSettings default gateway URL derivation", () => {
       expect.anything(),
       expect.anything(),
     );
-  });
-
-  it("ignores and scrubs legacy persisted tokens", async () => {
-    setTestLocation({
-      protocol: "https:",
-      host: "gateway.example:8443",
-      pathname: "/",
-    });
-    sessionStorage.setItem("\u006fpen\u0063law.control.token.v1", "legacy-session-token");
-    localStorage.setItem(
-      "\u006fpen\u0063law.control.settings.v1",
-      JSON.stringify({
-        gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
-        token: "persisted-token",
-        sessionKey: "agent",
-      }),
-    );
-
-    const { loadSettings } = await import("./storage.ts");
-    expect(loadSettings()).toMatchObject({
-      gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
-      token: "legacy-session-token",
-      sessionKey: "agent",
-    });
-    const scopedKey = "alisio.control.settings.v2:wss://gateway.example:8443/\u006fpen\u0063law";
-    expect(JSON.parse(localStorage.getItem(scopedKey) ?? "{}")).toEqual({
-      gatewayUrl: "wss://gateway.example:8443/\u006fpen\u0063law",
-      theme: "claw",
-      themeMode: "system",
-      chatFocusMode: false,
-      chatShowThinking: true,
-      chatShowToolCalls: true,
-      chatPresentationModeVersion: 2,
-      splitRatio: 0.6,
-      navCollapsed: false,
-      navWidth: 220,
-      navGroupsCollapsed: {},
-      sessionsByGateway: {
-        "wss://gateway.example:8443/\u006fpen\u0063law": {
-          sessionKey: "agent",
-          lastActiveSessionKey: "agent",
-        },
-      },
-    });
-    expect(sessionStorage.getItem("\u006fpen\u0063law.control.token.v1")).toBeNull();
-    expect(
-      sessionStorage.getItem(
-        "alisio.control.token.v2:wss://gateway.example:8443/\u006fpen\u0063law",
-      ),
-    ).toBe("legacy-session-token");
   });
 
   it("loads the current-tab token from sessionStorage", async () => {

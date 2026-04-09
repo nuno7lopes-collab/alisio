@@ -2,7 +2,6 @@ import {
   getLongTermMemoryFilePriority,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
-  LEGACY_MEMORY_FILE_NAME,
   normalizeMemoryFileName,
   PRIMARY_MEMORY_FILE_NAME,
   resolveManualMemoryNoteRoot,
@@ -12,7 +11,6 @@ export {
   getLongTermMemoryFilePriority,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
-  LEGACY_MEMORY_FILE_NAME,
   normalizeMemoryFileName,
   PRIMARY_MEMORY_FILE_NAME,
 };

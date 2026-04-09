@@ -45,13 +45,13 @@ describe("parseBooleanValue", () => {
 describe("isReasoningTagProvider", () => {
   it.each([
     {
-      name: "returns false for ollama - native reasoning field, no tags needed (#2279)",
-      value: "ollama",
+      name: "returns false for openai - native reasoning field, no tags needed (#2279)",
+      value: "openai",
       expected: false,
     },
     {
-      name: "returns false for case-insensitive ollama",
-      value: "Ollama",
+      name: "returns false for case-insensitive openai",
+      value: "OpenAI",
       expected: false,
     },
     {

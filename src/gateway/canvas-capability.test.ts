@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildCanvasScopedHostUrl,
   CANVAS_CAPABILITY_PATH_PREFIX,
-  LEGACY_CANVAS_CAPABILITY_PATH_PREFIX,
   normalizeCanvasScopedUrl,
 } from "./canvas-capability.js";
 
@@ -27,16 +26,16 @@ describe("canvas capability urls", () => {
     });
   });
 
-  it("accepts legacy scoped prefixes during the rollout window", () => {
+  it("rejects legacy scoped prefixes", () => {
     expect(
       normalizeCanvasScopedUrl(
-        `http://127.0.0.1:40705${LEGACY_CANVAS_CAPABILITY_PATH_PREFIX}/tok-1/__openclaw__/a2ui/?platform=ios`,
+        "http://127.0.0.1:40705/__openclaw__/cap/tok-1/__openclaw__/a2ui/?platform=ios",
       ),
     ).toEqual({
-      pathname: "/__openclaw__/a2ui/",
-      capability: "tok-1",
-      rewrittenUrl: "/__openclaw__/a2ui/?platform=ios&oc_cap=tok-1",
-      scopedPath: true,
+      pathname: "/__openclaw__/cap/tok-1/__openclaw__/a2ui/",
+      capability: undefined,
+      rewrittenUrl: undefined,
+      scopedPath: false,
       malformedScopedPath: false,
     });
   });

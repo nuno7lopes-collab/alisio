@@ -85,20 +85,20 @@ describe("before_agent_start hook merger", () => {
     ],
     [
       "returns providerOverride from a single plugin",
-      { providerOverride: "ollama" },
+      { providerOverride: "vllm" },
       {
-        providerOverride: "ollama",
+        providerOverride: "vllm",
       },
     ],
     [
       "returns both modelOverride and providerOverride together",
       {
         modelOverride: "llama3.3:8b",
-        providerOverride: "ollama",
+        providerOverride: "vllm",
       },
       {
         modelOverride: "llama3.3:8b",
-        providerOverride: "ollama",
+        providerOverride: "vllm",
       },
     ],
     [
@@ -106,12 +106,12 @@ describe("before_agent_start hook merger", () => {
       {
         systemPrompt: "You are a helpful assistant",
         modelOverride: "llama3.3:8b",
-        providerOverride: "ollama",
+        providerOverride: "vllm",
       },
       {
         systemPrompt: "You are a helpful assistant",
         modelOverride: "llama3.3:8b",
-        providerOverride: "ollama",
+        providerOverride: "vllm",
       },
     ],
   ] as const)("%s", async (_name, hookResult, expected) => {
@@ -133,7 +133,7 @@ describe("before_agent_start hook merger", () => {
     const result = await runWithHooks([
       {
         pluginId: "high-priority",
-        result: { modelOverride: "llama3.3:8b", providerOverride: "ollama" },
+        result: { modelOverride: "llama3.3:8b", providerOverride: "vllm" },
         priority: 10,
       },
       {
@@ -146,7 +146,7 @@ describe("before_agent_start hook merger", () => {
     // High-priority ran first (priority 10), low-priority ran second (priority 1).
     // Low-priority didn't return modelOverride, so ?? falls back to acc's value.
     expect(result?.modelOverride).toBe("llama3.3:8b");
-    expect(result?.providerOverride).toBe("ollama");
+    expect(result?.providerOverride).toBe("vllm");
     expect(result?.prependContext).toBe("some context");
   });
 

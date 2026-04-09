@@ -9,7 +9,6 @@ vi.mock("alisio/plugin-sdk/memory-core-host-engine-embeddings", () => ({
   DEFAULT_GEMINI_EMBEDDING_MODEL: "gemini-default",
   DEFAULT_LOCAL_MODEL: "local-default",
   DEFAULT_MISTRAL_EMBEDDING_MODEL: "mistral-default",
-  DEFAULT_OLLAMA_EMBEDDING_MODEL: "ollama-default",
   DEFAULT_OPENAI_EMBEDDING_MODEL: "openai-default",
   DEFAULT_VOYAGE_EMBEDDING_MODEL: "voyage-default",
   getMemoryEmbeddingProvider,

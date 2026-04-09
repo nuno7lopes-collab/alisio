@@ -442,8 +442,8 @@ describe("provider wizard boundaries", () => {
     const otherHook = vi.fn(async () => {});
     setResolvedProviders(
       makeProvider({
-        id: "ollama",
-        label: "Ollama",
+        id: "sglang",
+        label: "SGLang",
         onModelSelected: otherHook,
       }),
       makeProvider({

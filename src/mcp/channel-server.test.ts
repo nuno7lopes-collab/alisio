@@ -194,7 +194,7 @@ describe("openclaw channel mcp server", () => {
         content: [{ type: "text", text: "hello from transcript" }],
       });
       expect(read.structuredContent?.messages?.[1]).toMatchObject({
-        __openclaw: {
+        __alisio: {
           id: "msg-attachment",
         },
       });

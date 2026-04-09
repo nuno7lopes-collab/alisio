@@ -1898,7 +1898,7 @@ export type PluginHookBeforeModelResolveEvent = {
 export type PluginHookBeforeModelResolveResult = {
   /** Override the model for this agent run. E.g. "llama3.3:8b" */
   modelOverride?: string;
-  /** Override the provider for this agent run. E.g. "ollama" */
+  /** Override the provider for this agent run. E.g. "openai" */
   providerOverride?: string;
 };
 

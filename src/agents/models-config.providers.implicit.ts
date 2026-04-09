@@ -25,15 +25,6 @@ import { findNormalizedProviderValue } from "./provider-id.js";
 
 const log = createSubsystemLogger("agents/model-providers");
 
-const PROVIDER_IMPLICIT_MERGERS: Partial<
-  Record<
-    string,
-    (params: { existing: ProviderConfig | undefined; implicit: ProviderConfig }) => ProviderConfig
-  >
-> = {
-  ollama: ({ implicit }) => implicit,
-};
-
 const PLUGIN_DISCOVERY_ORDERS = ["simple", "profile", "paired", "late"] as const;
 
 type ImplicitProviderParams = {
@@ -94,17 +85,12 @@ function mergeImplicitProviderSet(
 }
 
 function mergeImplicitProviderConfig(params: {
-  providerId: string;
   existing: ProviderConfig | undefined;
   implicit: ProviderConfig;
 }): ProviderConfig {
-  const { providerId, existing, implicit } = params;
+  const { existing, implicit } = params;
   if (!existing) {
     return implicit;
-  }
-  const merge = PROVIDER_IMPLICIT_MERGERS[providerId];
-  if (merge) {
-    return merge({ existing, implicit });
   }
   return {
     ...implicit,
@@ -221,7 +207,6 @@ async function resolvePluginImplicitProviders(
     });
     for (const [providerId, implicitProvider] of Object.entries(normalizedResult)) {
       discovered[providerId] = mergeImplicitProviderConfig({
-        providerId,
         existing:
           discovered[providerId] ??
           resolveExistingImplicitProviderFromContext({

@@ -6,20 +6,17 @@ import { detectMime } from "../media/mime.js";
 import { resolveFileWithinRoot } from "./file-resolver.js";
 
 export const A2UI_PATH = "/__alisio__/a2ui";
-export const LEGACY_A2UI_PATH = "/__openclaw__/a2ui";
 
 export const CANVAS_HOST_PATH = "/__alisio__/canvas";
-export const LEGACY_CANVAS_HOST_PATH = "/__openclaw__/canvas";
 
 export const CANVAS_WS_PATH = "/__alisio__/ws";
-export const LEGACY_CANVAS_WS_PATH = "/__openclaw__/ws";
 
 function matchesBasePath(pathname: string, basePath: string): boolean {
   return pathname === basePath || pathname.startsWith(`${basePath}/`);
 }
 
 function resolveA2uiBasePath(pathname: string): string | undefined {
-  return [A2UI_PATH, LEGACY_A2UI_PATH].find((basePath) => matchesBasePath(pathname, basePath));
+  return matchesBasePath(pathname, A2UI_PATH) ? A2UI_PATH : undefined;
 }
 
 let cachedA2uiRootReal: string | null | undefined;
@@ -90,7 +87,7 @@ async function resolveA2uiRootReal(): Promise<string | null> {
 }
 
 export function injectCanvasLiveReload(html: string): string {
-  const handlerNames = JSON.stringify(["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"]);
+  const handlerNames = JSON.stringify(["alisioCanvasA2UIAction"]);
   const snippet = `
 <script>
 (() => {
@@ -128,13 +125,8 @@ export function injectCanvasLiveReload(html: string): string {
   globalThis.Alisio = globalThis.Alisio ?? {};
   globalThis.Alisio.postMessage = postToNode;
   globalThis.Alisio.sendUserAction = sendUserAction;
-  globalThis.OpenClaw = globalThis.OpenClaw ?? {};
-  globalThis.OpenClaw.postMessage = postToNode;
-  globalThis.OpenClaw.sendUserAction = sendUserAction;
   globalThis.alisioPostMessage = postToNode;
   globalThis.alisioSendUserAction = sendUserAction;
-  globalThis.openclawPostMessage = postToNode;
-  globalThis.openclawSendUserAction = sendUserAction;
 
   try {
     const cap = new URLSearchParams(location.search).get("oc_cap");

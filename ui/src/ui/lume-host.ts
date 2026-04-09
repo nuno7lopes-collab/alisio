@@ -10,9 +10,6 @@ declare global {
     alisioHost?: {
       request: AlisioHostRequest;
     };
-    lumeHost?: {
-      request: AlisioHostRequest;
-    };
   }
 }
 
@@ -23,11 +20,7 @@ type NativeShellStateHost = {
 };
 
 export function hasLumeHostBridge(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    (typeof window.alisioHost?.request === "function" ||
-      typeof window.lumeHost?.request === "function")
-  );
+  return typeof window !== "undefined" && typeof window.alisioHost?.request === "function";
 }
 
 export async function requestLumeHost<T = unknown>(
@@ -37,8 +30,7 @@ export async function requestLumeHost<T = unknown>(
   if (!hasLumeHostBridge()) {
     throw new Error("Native shell bridge unavailable");
   }
-  const host = window.alisioHost ?? window.lumeHost;
-  return host!.request<T>(method, params);
+  return window.alisioHost!.request<T>(method, params);
 }
 
 export async function loadNativeShellState(state: NativeShellStateHost) {

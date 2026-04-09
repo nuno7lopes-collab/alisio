@@ -48,10 +48,16 @@ vi.mock("./gateway.ts", () => ({
   resolveGatewayErrorDetailCode: () => null,
 }));
 
-const { handleGatewayEvent } = await import("./app-gateway.ts");
-const { addExecApproval } = await vi.importActual<typeof import("./controllers/exec-approval.ts")>(
-  "./controllers/exec-approval.ts",
-);
+let handleGatewayEvent!: typeof import("./app-gateway.ts").handleGatewayEvent;
+let addExecApproval!: typeof import("./controllers/exec-approval.ts").addExecApproval;
+
+async function loadSubject() {
+  vi.resetModules();
+  ({ handleGatewayEvent } = await import("./app-gateway.ts"));
+  ({ addExecApproval } = await vi.importActual<typeof import("./controllers/exec-approval.ts")>(
+    "./controllers/exec-approval.ts",
+  ));
+}
 
 function createHost() {
   return {
@@ -79,7 +85,7 @@ function createHost() {
     lastErrorCode: null,
     eventLogBuffer: [],
     eventLog: [],
-    tab: "home",
+    tab: "chat",
     presenceEntries: [],
     presenceError: null,
     presenceStatus: null,
@@ -107,7 +113,8 @@ function createHost() {
 }
 
 describe("handleGatewayEvent sessions.changed", () => {
-  it("reloads sessions when the gateway pushes a sessions.changed event", () => {
+  it("reloads sessions when the gateway pushes a sessions.changed event", async () => {
+    await loadSubject();
     loadSessionsMock.mockReset();
     const host = createHost();
 
@@ -124,7 +131,8 @@ describe("handleGatewayEvent sessions.changed", () => {
 });
 
 describe("addExecApproval", () => {
-  it("keeps the newest approval at the front of the queue", () => {
+  it("keeps the newest approval at the front of the queue", async () => {
+    await loadSubject();
     const queue = addExecApproval(
       [
         {
@@ -147,7 +155,8 @@ describe("addExecApproval", () => {
     expect(queue.map((entry) => entry.id)).toEqual(["approval-new", "approval-old"]);
   });
 
-  it("prioritizes the approval that expires first", () => {
+  it("prioritizes the approval that expires first", async () => {
+    await loadSubject();
     const queue = addExecApproval(
       [
         {

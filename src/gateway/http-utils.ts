@@ -6,32 +6,11 @@ import { getHeader, normalizeGatewayRequestMessageChannel } from "./http-request
 
 export const ALISIO_MODEL_ID = "alisio";
 export const ALISIO_DEFAULT_MODEL_ID = "alisio/default";
-const LEGACY_MODEL_ID = "openclaw";
-const LEGACY_DEFAULT_MODEL_ID = "openclaw/default";
-
-function getCompatHeader(
-  req: IncomingMessage,
-  canonicalName: string,
-  legacyName: string,
-): string | undefined {
-  return getHeader(req, canonicalName) ?? getHeader(req, legacyName);
-}
 
 export function normalizeGatewayModelAlias(model: string | undefined): string | undefined {
   const raw = model?.trim();
   if (!raw) {
     return undefined;
-  }
-  const lowered = raw.toLowerCase();
-  if (lowered === LEGACY_MODEL_ID) {
-    return ALISIO_MODEL_ID;
-  }
-  if (lowered === LEGACY_DEFAULT_MODEL_ID) {
-    return ALISIO_DEFAULT_MODEL_ID;
-  }
-  const legacyMatch = raw.match(/^openclaw[:/](?<agentId>[a-z0-9][a-z0-9_-]{0,63})$/i);
-  if (legacyMatch?.groups?.agentId) {
-    return `${ALISIO_MODEL_ID}/${legacyMatch.groups.agentId}`;
   }
   return raw;
 }
@@ -46,9 +25,7 @@ function resolveDefaultAgentIdFromConfig(cfg = loadConfig()): string {
 
 export function resolveAgentIdFromHeader(req: IncomingMessage): string | undefined {
   const raw =
-    getCompatHeader(req, "x-alisio-agent-id", "x-openclaw-agent-id")?.trim() ||
-    getCompatHeader(req, "x-alisio-agent", "x-openclaw-agent")?.trim() ||
-    "";
+    getHeader(req, "x-alisio-agent-id")?.trim() || getHeader(req, "x-alisio-agent")?.trim() || "";
   if (!raw) {
     return undefined;
   }
@@ -93,9 +70,7 @@ export async function resolveOpenAiCompatModelOverride(params: {
     };
   }
 
-  const raw = normalizeGatewayModelAlias(
-    getCompatHeader(params.req, "x-alisio-model", "x-openclaw-model"),
-  )?.trim();
+  const raw = normalizeGatewayModelAlias(getHeader(params.req, "x-alisio-model"))?.trim();
   if (!raw) {
     return {};
   }
@@ -145,11 +120,7 @@ export function resolveSessionKey(params: {
   user?: string | undefined;
   prefix: string;
 }): string {
-  const explicit = getCompatHeader(
-    params.req,
-    "x-alisio-session-key",
-    "x-openclaw-session-key",
-  )?.trim();
+  const explicit = getHeader(params.req, "x-alisio-session-key")?.trim();
   if (explicit) {
     return explicit;
   }
@@ -176,9 +147,8 @@ export function resolveGatewayRequestContext(params: {
   });
 
   const messageChannel = params.useMessageChannelHeader
-    ? (normalizeGatewayRequestMessageChannel(
-        getCompatHeader(params.req, "x-alisio-message-channel", "x-openclaw-message-channel"),
-      ) ?? params.defaultMessageChannel)
+    ? (normalizeGatewayRequestMessageChannel(getHeader(params.req, "x-alisio-message-channel")) ??
+      params.defaultMessageChannel)
     : params.defaultMessageChannel;
 
   return { agentId, sessionKey, messageChannel };

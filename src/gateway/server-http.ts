@@ -9,11 +9,7 @@ import { createServer as createHttpsServer } from "node:https";
 import type { TlsOptions } from "node:tls";
 import type { WebSocketServer } from "ws";
 import { resolveAgentAvatar } from "../agents/identity-avatar.js";
-import {
-  CANVAS_WS_PATH,
-  handleA2uiHttpRequest,
-  LEGACY_CANVAS_WS_PATH,
-} from "../canvas-host/a2ui.js";
+import { CANVAS_WS_PATH, handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { loadConfig } from "../config/config.js";
 import { loadAlisioModelProviderSnapshot } from "../infra/alisio-model-snapshot.js";
@@ -1179,7 +1175,7 @@ export function attachGatewayUpgradeHandler(opts: {
       }
       if (canvasHost) {
         const url = new URL(req.url ?? "/", "http://localhost");
-        if (url.pathname === CANVAS_WS_PATH || url.pathname === LEGACY_CANVAS_WS_PATH) {
+        if (url.pathname === CANVAS_WS_PATH) {
           const ok = await authorizeCanvasRequest({
             req,
             auth: resolvedAuth,
@@ -1240,17 +1236,17 @@ export function attachGatewayUpgradeHandler(opts: {
         wss.handleUpgrade(req, socket, head, (ws) => {
           (
             ws as unknown as import("ws").WebSocket & {
-              __openclawPreauthBudgetClaimed?: boolean;
-              __openclawPreauthBudgetKey?: string;
+              __alisioPreauthBudgetClaimed?: boolean;
+              __alisioPreauthBudgetKey?: string;
             }
-          ).__openclawPreauthBudgetKey = preauthBudgetKey;
+          ).__alisioPreauthBudgetKey = preauthBudgetKey;
           wss.emit("connection", ws, req);
           const budgetClaimed = Boolean(
             (
               ws as unknown as import("ws").WebSocket & {
-                __openclawPreauthBudgetClaimed?: boolean;
+                __alisioPreauthBudgetClaimed?: boolean;
               }
-            ).__openclawPreauthBudgetClaimed,
+            ).__alisioPreauthBudgetClaimed,
           );
           if (budgetClaimed) {
             budgetTransferred = true;

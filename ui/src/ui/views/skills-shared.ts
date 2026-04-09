@@ -1,6 +1,6 @@
 import { html, nothing } from "lit";
 import { ref } from "lit/directives/ref.js";
-import { canonicalSkillSources, normalizeSkillSource } from "../../brand-compat.ts";
+import { canonicalSkillSources } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   skillEnvEditKey,
@@ -93,7 +93,7 @@ export function skillStatusLabel(skill: SkillStatusEntry) {
 }
 
 export function humanizeSkillSource(source: string) {
-  switch (normalizeSkillSource(source)) {
+  switch (source) {
     case canonicalSkillSources.bundled:
       return t("alisio.capabilities.sources.builtIn");
     case canonicalSkillSources.managed:
@@ -305,9 +305,7 @@ export function renderSkillDetailDialog(skill: SkillStatusEntry, props: SkillDet
     (skill.missing.bins.length > 0 ||
       skill.missing.anyBins.length > 0 ||
       (skill.missing.env.length > 0 && installHelpsEnvSetup));
-  const showBundledBadge = Boolean(
-    skill.bundled && normalizeSkillSource(skill.source) !== canonicalSkillSources.bundled,
-  );
+  const showBundledBadge = Boolean(skill.bundled && skill.source !== canonicalSkillSources.bundled);
   const missing = computeSkillMissing(skill);
   const reasons = computeSkillReasons(skill);
   const setupActions = resolveSetupActions(skill, props);

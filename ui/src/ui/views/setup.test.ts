@@ -600,6 +600,42 @@ describe("setup view", () => {
     expect(onBeginEmailAuth).toHaveBeenCalledTimes(1);
   });
 
+  it("bloqueia o setup quando o backend cloud nao esta configurado", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSetup(
+        createSetupProps({
+          connected: true,
+          startupBootstrap: {
+            basePath: "/",
+            controlUrl: "ws://127.0.0.1:40705/",
+            startupState: "signed_out",
+            account: {
+              username: "nuno",
+              displayName: "Nuno",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              plan: "free",
+            },
+            accountCloud: {
+              backend: "supabase",
+              available: false,
+              missingEnvVars: ["ALISIO_SUPABASE_URL", "ALISIO_SUPABASE_ANON_KEY"],
+            },
+            ai: null,
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("The Alisio cloud backend is not configured");
+    expect(container.textContent).toContain("ALISIO_SUPABASE_URL");
+    expect(container.textContent).toContain("ALISIO_SUPABASE_ANON_KEY");
+    expect(container.textContent).not.toContain("We verify the email first and finish the rest");
+  });
+
   it("desactiva os campos da conta enquanto um pedido está em curso", () => {
     const container = document.createElement("div");
 

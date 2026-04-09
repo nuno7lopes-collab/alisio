@@ -208,7 +208,7 @@ function createHost(): GatewayTestHost {
     lastErrorCode: null,
     eventLogBuffer: [],
     eventLog: [],
-    tab: "home",
+    tab: "chat",
     presenceEntries: [],
     presenceError: null,
     presenceStatus: null,

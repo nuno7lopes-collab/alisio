@@ -52,7 +52,7 @@ describe("tool cards", () => {
         },
       ],
       timestamp: Date.now(),
-      __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+      __alisio: { kind: "tool-stream", phase: "result", isError: false },
     };
 
     const cards = extractToolCards(message);
@@ -89,7 +89,7 @@ describe("tool cards", () => {
         },
       ],
       timestamp: Date.now(),
-      __openclaw: { kind: "tool-stream", phase: "result", isError: true },
+      __alisio: { kind: "tool-stream", phase: "result", isError: true },
     };
 
     const cards = extractToolCards(message);
@@ -206,7 +206,7 @@ describe("tool cards", () => {
         },
       ],
       timestamp: Date.now(),
-      __openclaw: { kind: "tool-stream", phase: "result", isError: false },
+      __alisio: { kind: "tool-stream", phase: "result", isError: false },
     };
 
     const cards = extractToolCards(message);

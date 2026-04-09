@@ -175,9 +175,7 @@ describe("channels view", () => {
     findButton(container, "View setup guide")?.dispatchEvent(
       new MouseEvent("click", { bubbles: true }),
     );
-    expect(onOpenSupportUrl).toHaveBeenCalledWith(
-      "https://docs.\u006fpen\u0063law.ai/channels/telegram",
-    );
+    expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.alisio.pt/channels/telegram");
   });
 
   it("marks Telegram as waiting for the first DM instead of fully configured", () => {
@@ -917,9 +915,7 @@ describe("channels view", () => {
     findButton(container, "View setup guide")?.dispatchEvent(
       new MouseEvent("click", { bubbles: true }),
     );
-    expect(onOpenSupportUrl).toHaveBeenCalledWith(
-      "https://docs.\u006fpen\u0063law.ai/channels/telegram",
-    );
+    expect(onOpenSupportUrl).toHaveBeenCalledWith("https://docs.alisio.pt/channels/telegram");
   });
 
   it("evita duplicar os passos compactos quando o setup do canal já está aberto", () => {

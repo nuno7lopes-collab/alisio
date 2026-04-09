@@ -71,7 +71,6 @@ export {
   archiveFileOnDisk,
   archiveSessionTranscripts,
   attachAlisioTranscriptMeta,
-  attachOpenClawTranscriptMeta,
   capArrayByJsonBytes,
   readFirstUserMessageFromTranscript,
   readLastMessagePreviewFromTranscript,

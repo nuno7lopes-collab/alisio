@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import { legacyControlUiConfigPath } from "./src/brand-compat.ts";
+import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "../src/gateway/control-ui-contract.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -61,7 +61,7 @@ function isAlisioFeatureModule(id: string): boolean {
 }
 
 export default defineConfig(() => {
-  const envBase = process.env.OPENCLAW_CONTROL_UI_BASE_PATH?.trim();
+  const envBase = process.env.ALISIO_CONTROL_UI_BASE_PATH?.trim();
   const base = envBase ? normalizeBase(envBase) : "./";
   return {
     base,
@@ -108,7 +108,7 @@ export default defineConfig(() => {
           target: "http://127.0.0.1:40705",
           changeOrigin: true,
         },
-        [legacyControlUiConfigPath]: {
+        [CONTROL_UI_BOOTSTRAP_CONFIG_PATH]: {
           target: "http://127.0.0.1:40705",
           changeOrigin: true,
         },

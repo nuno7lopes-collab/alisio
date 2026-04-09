@@ -139,17 +139,17 @@ describe("normalizePluginDiscoveryResult", () => {
   it.each([
     {
       name: "maps a single provider result to the plugin id",
-      provider: makeProvider({ id: "Ollama" }),
+      provider: makeProvider({ id: "VLLM" }),
       result: {
         provider: makeModelProviderConfig({
-          baseUrl: "http://127.0.0.1:11434",
-          api: "ollama",
+          baseUrl: "http://127.0.0.1:8000/v1",
+          api: "openai-completions",
         }),
       },
       expected: {
-        ollama: {
-          baseUrl: "http://127.0.0.1:11434",
-          api: "ollama",
+        vllm: {
+          baseUrl: "http://127.0.0.1:8000/v1",
+          api: "openai-completions",
           models: [],
         },
       },

@@ -90,7 +90,7 @@ async function postEmbeddings(body: unknown, headers?: Record<string, string>) {
 describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
   it("embeds string and array inputs", async () => {
     const single = await postEmbeddings({
-      model: "openclaw/default",
+      model: "alisio/default",
       input: "hello",
     });
     expect(single.status).toBe(200);
@@ -103,7 +103,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
     expect(singleJson.data?.[0]?.embedding).toEqual([0.1, 0.2]);
 
     const batch = await postEmbeddings({
-      model: "openclaw/default",
+      model: "alisio/default",
       input: ["a", "b"],
     });
     expect(batch.status).toBe(200);
@@ -117,10 +117,10 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
 
     const qualified = await postEmbeddings(
       {
-        model: "openclaw/default",
+        model: "alisio/default",
         input: "hello again",
       },
-      { "x-openclaw-model": "openai/text-embedding-3-small" },
+      { "x-alisio-model": "openai/text-embedding-3-small" },
     );
     expect(qualified.status).toBe(200);
     const qualifiedJson = (await qualified.json()) as { model?: string };
@@ -137,11 +137,11 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
   it("supports base64 encoding and agent-scoped auth/config resolution", async () => {
     const res = await postEmbeddings(
       {
-        model: "openclaw/beta",
+        model: "alisio/beta",
         input: "hello",
         encoding_format: "base64",
       },
-      { "x-openclaw-agent-id": "beta" },
+      { "x-alisio-agent-id": "beta" },
     );
     expect(res.status).toBe(200);
     const json = (await res.json()) as { data?: Array<{ embedding?: string }> };
@@ -156,7 +156,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
 
   it("rejects invalid input shapes", async () => {
     const res = await postEmbeddings({
-      model: "openclaw/default",
+      model: "alisio/default",
       input: [{ nope: true }],
     });
     expect(res.status).toBe(400);
@@ -177,13 +177,13 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
     });
   });
 
-  it("rejects disallowed x-openclaw-model provider overrides", async () => {
+  it("rejects disallowed x-alisio-model provider overrides", async () => {
     const res = await postEmbeddings(
       {
-        model: "openclaw/default",
+        model: "alisio/default",
         input: "hello",
       },
-      { "x-openclaw-model": "ollama/nomic-embed-text" },
+      { "x-alisio-model": "ollama/nomic-embed-text" },
     );
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error?: { type?: string; message?: string } };
@@ -195,7 +195,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
 
   it("rejects oversized batches", async () => {
     const res = await postEmbeddings({
-      model: "openclaw/default",
+      model: "alisio/default",
       input: Array.from({ length: 129 }, () => "x"),
     });
     expect(res.status).toBe(400);
@@ -209,7 +209,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
   it("sanitizes provider failures", async () => {
     createEmbeddingProviderMock.mockRejectedValueOnce(new Error("secret upstream failure"));
     const res = await postEmbeddings({
-      model: "openclaw/default",
+      model: "alisio/default",
       input: "hello",
     });
     expect(res.status).toBe(500);

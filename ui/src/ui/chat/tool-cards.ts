@@ -5,7 +5,7 @@ import {
   resolveToolBlockArgs,
   resolveToolUseId,
 } from "../../../../src/chat/tool-content.js";
-import { legacyToolStreamMarkerKey } from "../../brand-compat.ts";
+import { canonicalToolStreamMarkerKey } from "../../brand-compat.ts";
 import { truncateText } from "../format.ts";
 import { icons } from "../icons.ts";
 import { formatToolDetail, resolveToolDisplay } from "../tool-display.ts";
@@ -61,10 +61,10 @@ function extractToolMessageMeta(message: unknown): {
       ? m.toolPhase
       : undefined;
   const meta = typeof m.toolMeta === "string" && m.toolMeta.trim() ? m.toolMeta.trim() : undefined;
-  const legacyMarker = m[legacyToolStreamMarkerKey];
+  const preferredMarker = m[canonicalToolStreamMarkerKey];
   const marker =
-    legacyMarker && typeof legacyMarker === "object"
-      ? (legacyMarker as Record<string, unknown>)
+    preferredMarker && typeof preferredMarker === "object"
+      ? (preferredMarker as Record<string, unknown>)
       : undefined;
   const markerPhase =
     marker?.phase === "start" || marker?.phase === "update" || marker?.phase === "result"

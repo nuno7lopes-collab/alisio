@@ -151,19 +151,8 @@ describe("session history HTTP endpoints", () => {
         (
           body.messages?.[0] as {
             __alisio?: { id?: string; seq?: number };
-            __openclaw?: { id?: string; seq?: number };
           }
         )?.__alisio,
-      ).toMatchObject({
-        seq: 1,
-      });
-      expect(
-        (
-          body.messages?.[0] as {
-            __alisio?: { id?: string; seq?: number };
-            __openclaw?: { id?: string; seq?: number };
-          }
-        )?.__openclaw,
       ).toMatchObject({
         seq: 1,
       });
@@ -262,12 +251,10 @@ describe("session history HTTP endpoints", () => {
         items?: Array<{
           content?: Array<{ text?: string }>;
           __alisio?: { seq?: number };
-          __openclaw?: { seq?: number };
         }>;
         messages?: Array<{
           content?: Array<{ text?: string }>;
           __alisio?: { seq?: number };
-          __openclaw?: { seq?: number };
         }>;
         nextCursor?: string;
         hasMore?: boolean;
@@ -278,7 +265,6 @@ describe("session history HTTP endpoints", () => {
         "third message",
       ]);
       expect(firstBody.messages?.map((message) => message.__alisio?.seq)).toEqual([2, 3]);
-      expect(firstBody.messages?.map((message) => message.__openclaw?.seq)).toEqual([2, 3]);
       expect(firstBody.hasMore).toBe(true);
       expect(firstBody.nextCursor).toBe("2");
 
@@ -290,9 +276,8 @@ describe("session history HTTP endpoints", () => {
         items?: Array<{
           content?: Array<{ text?: string }>;
           __alisio?: { seq?: number };
-          __openclaw?: { seq?: number };
         }>;
-        messages?: Array<{ __alisio?: { seq?: number }; __openclaw?: { seq?: number } }>;
+        messages?: Array<{ __alisio?: { seq?: number } }>;
         nextCursor?: string;
         hasMore?: boolean;
       };
@@ -300,7 +285,6 @@ describe("session history HTTP endpoints", () => {
         "first message",
       ]);
       expect(secondBody.messages?.map((message) => message.__alisio?.seq)).toEqual([1]);
-      expect(secondBody.messages?.map((message) => message.__openclaw?.seq)).toEqual([1]);
       expect(secondBody.hasMore).toBe(false);
       expect(secondBody.nextCursor).toBeUndefined();
     });
@@ -400,23 +384,9 @@ describe("session history HTTP endpoints", () => {
           messageEvent.data as {
             message?: {
               __alisio?: { id?: string; seq?: number };
-              __openclaw?: { id?: string; seq?: number };
             };
           }
         ).message?.__alisio,
-      ).toMatchObject({
-        id: appended.ok ? appended.messageId : undefined,
-        seq: 2,
-      });
-      expect(
-        (
-          messageEvent.data as {
-            message?: {
-              __alisio?: { id?: string; seq?: number };
-              __openclaw?: { id?: string; seq?: number };
-            };
-          }
-        ).message?.__openclaw,
       ).toMatchObject({
         id: appended.ok ? appended.messageId : undefined,
         seq: 2,

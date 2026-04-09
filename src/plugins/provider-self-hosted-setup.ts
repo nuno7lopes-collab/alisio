@@ -8,8 +8,8 @@ import {
 import type { AlisioConfig } from "../config/config.js";
 import type { ModelDefinitionConfig } from "../config/types.models.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { isReasoningModelHeuristic } from "../plugin-sdk/provider-reasoning.js";
 import { normalizeOptionalSecretInput } from "../utils/normalize-secret-input.js";
+import { isReasoningModelHeuristic } from "../utils/reasoning-model-heuristic.js";
 import type { WizardPrompter } from "../wizard/prompts.js";
 import { applyAuthProfileConfig } from "./provider-auth-helpers.js";
 import type {

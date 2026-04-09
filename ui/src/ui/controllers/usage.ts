@@ -1,5 +1,3 @@
-import { legacyDotKey } from "../../brand-compat.ts";
-import { getSafeLocalStorage } from "../../local-storage.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { SessionsUsageResult, CostUsageSummary, SessionUsageTimeSeries } from "../types.ts";
 import type { SessionLogEntry } from "../views/usage.ts";
@@ -35,102 +33,6 @@ type UsageDateInterpretationParams = {
   mode: DateInterpretationMode;
   utcOffset?: string;
 };
-
-const LEGACY_USAGE_DATE_PARAMS_STORAGE_KEY = legacyDotKey("control", "usage", "date-params", "v1");
-const LEGACY_USAGE_DATE_PARAMS_DEFAULT_GATEWAY_KEY = "__default__";
-const LEGACY_USAGE_DATE_PARAMS_MODE_RE = /unexpected property ['"]mode['"]/i;
-const LEGACY_USAGE_DATE_PARAMS_OFFSET_RE = /unexpected property ['"]utcoffset['"]/i;
-const LEGACY_USAGE_DATE_PARAMS_INVALID_RE = /invalid sessions\.usage params/i;
-
-let legacyUsageDateParamsCache: Set<string> | null = null;
-
-function getLocalStorage(): Storage | null {
-  return getSafeLocalStorage();
-}
-
-function loadLegacyUsageDateParamsCache(): Set<string> {
-  const storage = getLocalStorage();
-  if (!storage) {
-    return new Set<string>();
-  }
-  try {
-    const raw = storage.getItem(LEGACY_USAGE_DATE_PARAMS_STORAGE_KEY);
-    if (!raw) {
-      return new Set<string>();
-    }
-    const parsed = JSON.parse(raw) as { unsupportedGatewayKeys?: unknown } | null;
-    if (!parsed || !Array.isArray(parsed.unsupportedGatewayKeys)) {
-      return new Set<string>();
-    }
-    return new Set(
-      parsed.unsupportedGatewayKeys
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.trim())
-        .filter(Boolean),
-    );
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function persistLegacyUsageDateParamsCache(cache: Set<string>) {
-  const storage = getLocalStorage();
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.setItem(
-      LEGACY_USAGE_DATE_PARAMS_STORAGE_KEY,
-      JSON.stringify({ unsupportedGatewayKeys: Array.from(cache) }),
-    );
-  } catch {
-    // ignore quota/private-mode failures
-  }
-}
-
-function getLegacyUsageDateParamsCache(): Set<string> {
-  if (!legacyUsageDateParamsCache) {
-    legacyUsageDateParamsCache = loadLegacyUsageDateParamsCache();
-  }
-  return legacyUsageDateParamsCache;
-}
-
-function normalizeGatewayCompatibilityKey(gatewayUrl?: string): string {
-  const trimmed = gatewayUrl?.trim();
-  if (!trimmed) {
-    return LEGACY_USAGE_DATE_PARAMS_DEFAULT_GATEWAY_KEY;
-  }
-  try {
-    const parsed = new URL(trimmed);
-    const pathname = parsed.pathname === "/" ? "" : parsed.pathname;
-    return `${parsed.protocol}//${parsed.host}${pathname}`.toLowerCase();
-  } catch {
-    return trimmed.toLowerCase();
-  }
-}
-
-function resolveGatewayCompatibilityKey(state: UsageState): string {
-  return normalizeGatewayCompatibilityKey(state.settings?.gatewayUrl);
-}
-
-function shouldSendLegacyDateInterpretation(state: UsageState): boolean {
-  return !getLegacyUsageDateParamsCache().has(resolveGatewayCompatibilityKey(state));
-}
-
-function rememberLegacyDateInterpretation(state: UsageState) {
-  const cache = getLegacyUsageDateParamsCache();
-  cache.add(resolveGatewayCompatibilityKey(state));
-  persistLegacyUsageDateParamsCache(cache);
-}
-
-function isLegacyDateInterpretationUnsupportedError(err: unknown): boolean {
-  const message = toErrorMessage(err);
-  return (
-    LEGACY_USAGE_DATE_PARAMS_INVALID_RE.test(message) &&
-    (LEGACY_USAGE_DATE_PARAMS_MODE_RE.test(message) ||
-      LEGACY_USAGE_DATE_PARAMS_OFFSET_RE.test(message))
-  );
-}
 
 const formatUtcOffset = (timezoneOffsetMinutes: number): string => {
   // `Date#getTimezoneOffset()` is minutes to add to local time to reach UTC.
@@ -231,21 +133,8 @@ export async function loadUsage(
       }
     };
 
-    const includeDateInterpretation = shouldSendLegacyDateInterpretation(state);
-    try {
-      const [sessionsRes, costRes] = await runUsageRequests(includeDateInterpretation);
-      applyUsageResults(sessionsRes, costRes);
-    } catch (err) {
-      if (includeDateInterpretation && isLegacyDateInterpretationUnsupportedError(err)) {
-        // Older gateways reject `mode`/`utcOffset` in `sessions.usage`.
-        // Remember this per gateway and retry once without those fields.
-        rememberLegacyDateInterpretation(state);
-        const [sessionsRes, costRes] = await runUsageRequests(false);
-        applyUsageResults(sessionsRes, costRes);
-      } else {
-        throw err;
-      }
-    }
+    const [sessionsRes, costRes] = await runUsageRequests(true);
+    applyUsageResults(sessionsRes, costRes);
   } catch (err) {
     if (isMissingOperatorReadScopeError(err)) {
       state.usageResult = null;
@@ -263,13 +152,6 @@ export const __test = {
   formatUtcOffset,
   buildDateInterpretationParams,
   toErrorMessage,
-  isLegacyDateInterpretationUnsupportedError,
-  normalizeGatewayCompatibilityKey,
-  shouldSendLegacyDateInterpretation,
-  rememberLegacyDateInterpretation,
-  resetLegacyUsageDateParamsCache: () => {
-    legacyUsageDateParamsCache = null;
-  },
 };
 
 export async function loadSessionTimeSeries(state: UsageState, sessionKey: string) {

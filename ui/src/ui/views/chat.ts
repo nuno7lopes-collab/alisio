@@ -1,7 +1,7 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { ref } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
-import { legacyToolStreamMarkerKey } from "../../brand-compat.ts";
+import { canonicalToolStreamMarkerKey } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   CHAT_ATTACHMENT_ACCEPT,
@@ -1602,13 +1602,9 @@ function resolveToolPhase(message: unknown): "start" | "update" | "result" | nul
 }
 
 function resolveChatMarker(record: Record<string, unknown>): Record<string, unknown> | null {
-  const preferred = record.__alisio;
+  const preferred = record[canonicalToolStreamMarkerKey];
   if (preferred && typeof preferred === "object") {
     return preferred as Record<string, unknown>;
-  }
-  const legacy = record[legacyToolStreamMarkerKey];
-  if (legacy && typeof legacy === "object") {
-    return legacy as Record<string, unknown>;
   }
   return null;
 }

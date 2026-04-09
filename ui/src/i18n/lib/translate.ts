@@ -1,4 +1,3 @@
-import { legacyDotKey } from "../../brand-compat.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import { en } from "../locales/en.ts";
 import {
@@ -15,7 +14,6 @@ type Subscriber = (locale: Locale) => void;
 export { SUPPORTED_LOCALES, isSupportedLocale };
 
 const LOCALE_STORAGE_KEY = "alisio.i18n.locale";
-const LEGACY_LOCALE_STORAGE_KEY = legacyDotKey("i18n", "locale");
 
 function readStoredLocaleValue(): string | null {
   const storage = getSafeLocalStorage();
@@ -23,7 +21,7 @@ function readStoredLocaleValue(): string | null {
     return null;
   }
   try {
-    return storage.getItem(LOCALE_STORAGE_KEY) ?? storage.getItem(LEGACY_LOCALE_STORAGE_KEY);
+    return storage.getItem(LOCALE_STORAGE_KEY);
   } catch {
     return null;
   }
@@ -54,7 +52,6 @@ class I18nManager {
     }
     try {
       storage.setItem(LOCALE_STORAGE_KEY, locale);
-      storage.removeItem(LEGACY_LOCALE_STORAGE_KEY);
     } catch {
       // Ignore storage write failures in private/blocked contexts.
     }

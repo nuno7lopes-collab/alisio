@@ -1,5 +1,4 @@
 import { getPublicKeyAsync, signAsync, utils } from "@noble/ed25519";
-import { legacyDashKey } from "../brand-compat.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
 type StoredIdentity = {
@@ -17,7 +16,6 @@ export type DeviceIdentity = {
 };
 
 const STORAGE_KEY = "alisio-device-identity-v2";
-const LEGACY_STORAGE_KEY = legacyDashKey("device", "identity", "v1");
 
 function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
@@ -63,7 +61,7 @@ async function generateIdentity(): Promise<DeviceIdentity> {
 export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
   const storage = getSafeLocalStorage();
   try {
-    const raw = storage?.getItem(STORAGE_KEY) ?? storage?.getItem(LEGACY_STORAGE_KEY);
+    const raw = storage?.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as StoredIdentity;
       if (
@@ -79,15 +77,12 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
             deviceId: derivedId,
           };
           storage?.setItem(STORAGE_KEY, JSON.stringify(updated));
-          storage?.removeItem(LEGACY_STORAGE_KEY);
           return {
             deviceId: derivedId,
             publicKey: parsed.publicKey,
             privateKey: parsed.privateKey,
           };
         }
-        storage?.setItem(STORAGE_KEY, JSON.stringify(parsed));
-        storage?.removeItem(LEGACY_STORAGE_KEY);
         return {
           deviceId: parsed.deviceId,
           publicKey: parsed.publicKey,
@@ -108,7 +103,6 @@ export async function loadOrCreateDeviceIdentity(): Promise<DeviceIdentity> {
     createdAtMs: Date.now(),
   };
   storage?.setItem(STORAGE_KEY, JSON.stringify(stored));
-  storage?.removeItem(LEGACY_STORAGE_KEY);
   return identity;
 }
 

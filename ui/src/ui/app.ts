@@ -81,7 +81,7 @@ import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import { todayMemoryDate } from "./memory-files.ts";
-import type { ModelsOperationMap, ModelsServerDraft } from "./models-view-types.ts";
+import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
 import type { ResolvedTheme, ThemeMode, ThemeName } from "./theme.ts";
@@ -113,11 +113,12 @@ import { generateUUID } from "./uuid.ts";
 
 declare global {
   interface Window {
-    __OPENCLAW_CONTROL_UI_BASE_PATH__?: string;
+    __ALISIO_CONTROL_UI_BASE_PATH__?: string;
   }
 }
 
 const bootAssistantIdentity = normalizeAssistantIdentity({});
+const NATIVE_WORKSPACE_READY_EVENT = "alisio-ui-ready";
 
 export class AlisioApp extends LitElement {
   private i18nController = new I18nController(this);
@@ -237,8 +238,7 @@ export class AlisioApp extends LitElement {
   @state() chatManualRefreshInFlight = false;
   @state() navDrawerOpen = false;
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
-  @state() modelsSelectedProviderId: "openai" | "server" | "local" | null | undefined = undefined;
-  @state() modelsServerDraft: ModelsServerDraft | null | undefined = undefined;
+  @state() modelsSelectedProviderId: "openai" | "nodes" | "local" | null | undefined = undefined;
   @state() alisioModelOperations: ModelsOperationMap = {};
 
   onSlashAction?: (action: string) => void;
@@ -596,6 +596,9 @@ export class AlisioApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(NATIVE_WORKSPACE_READY_EVENT));
+    }
     if (typeof window !== "undefined") {
       const pendingAccountEmailLinkAuth = readAlisioAccountEmailLinkAuthResultFromUrl(
         window.location.href,

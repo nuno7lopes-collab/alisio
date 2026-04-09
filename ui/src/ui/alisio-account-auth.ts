@@ -1,8 +1,6 @@
 import {
   ALISIO_ACCOUNT_AUTH_CHANNEL,
   ALISIO_ACCOUNT_AUTH_STORAGE_KEY,
-  LEGACY_ALISIO_ACCOUNT_AUTH_CHANNEL,
-  LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY,
   buildAlisioAccountAuthSignal,
   isAlisioAccountAuthSignal,
   type AlisioAccountAuthSignal,
@@ -196,9 +194,7 @@ export function emitAlisioAccountAuthSignal(
   const serialized = JSON.stringify(signal);
   try {
     window.localStorage.setItem(ALISIO_ACCOUNT_AUTH_STORAGE_KEY, serialized);
-    window.localStorage.setItem(LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY, serialized);
     window.localStorage.removeItem(ALISIO_ACCOUNT_AUTH_STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY);
   } catch {
     // Ignore storage failures; BroadcastChannel still covers modern clients.
   }
@@ -208,9 +204,6 @@ export function emitAlisioAccountAuthSignal(
       const channel = new BroadcastChannel(ALISIO_ACCOUNT_AUTH_CHANNEL);
       channel.postMessage(signal);
       channel.close();
-      const legacyChannel = new BroadcastChannel(LEGACY_ALISIO_ACCOUNT_AUTH_CHANNEL);
-      legacyChannel.postMessage(signal);
-      legacyChannel.close();
     }
   } catch {
     // Ignore broadcast failures; storage events cover same-origin tabs.
@@ -235,10 +228,7 @@ export function subscribeAlisioAccountAuthSignals(onSignal: AccountAuthSignalHan
   };
 
   const handleStorage = (event: StorageEvent) => {
-    if (
-      event.key !== ALISIO_ACCOUNT_AUTH_STORAGE_KEY &&
-      event.key !== LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY
-    ) {
+    if (event.key !== ALISIO_ACCOUNT_AUTH_STORAGE_KEY) {
       return;
     }
     if (!event.newValue) {
@@ -251,20 +241,14 @@ export function subscribeAlisioAccountAuthSignals(onSignal: AccountAuthSignalHan
     typeof window.BroadcastChannel === "function"
       ? new BroadcastChannel(ALISIO_ACCOUNT_AUTH_CHANNEL)
       : null;
-  const legacyChannel =
-    typeof window.BroadcastChannel === "function"
-      ? new BroadcastChannel(LEGACY_ALISIO_ACCOUNT_AUTH_CHANNEL)
-      : null;
   const handleMessage = (event: MessageEvent<unknown>) => {
     handleSignal(event.data);
   };
 
   window.addEventListener("storage", handleStorage);
   channel?.addEventListener("message", handleMessage as EventListener);
-  legacyChannel?.addEventListener("message", handleMessage as EventListener);
   try {
     handleSignal(window.localStorage.getItem(ALISIO_ACCOUNT_AUTH_STORAGE_KEY));
-    handleSignal(window.localStorage.getItem(LEGACY_ALISIO_ACCOUNT_AUTH_STORAGE_KEY));
   } catch {
     // Ignore storage access failures.
   }
@@ -272,9 +256,7 @@ export function subscribeAlisioAccountAuthSignals(onSignal: AccountAuthSignalHan
   return () => {
     window.removeEventListener("storage", handleStorage);
     channel?.removeEventListener("message", handleMessage as EventListener);
-    legacyChannel?.removeEventListener("message", handleMessage as EventListener);
     channel?.close();
-    legacyChannel?.close();
   };
 }
 

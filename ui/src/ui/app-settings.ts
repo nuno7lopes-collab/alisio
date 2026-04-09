@@ -1,5 +1,5 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
-import { legacyDocsUrl } from "../brand-compat.ts";
+import { docsUrl } from "../brand-compat.ts";
 import { i18n, isSupportedLocale } from "../i18n/index.ts";
 import {
   alisioBootstrapBlocksChatAccess,
@@ -16,10 +16,7 @@ import {
 import { scheduleChatScroll, scheduleLogsScroll } from "./app-scroll.ts";
 import type { AlisioApp } from "./app.ts";
 import { normalizeBasePath } from "./base-path.ts";
-import { loadAgentFiles } from "./controllers/agent-files.ts";
-import { loadAgentIdentities, loadAgentIdentity } from "./controllers/agent-identity.ts";
 import { loadAgentMemoryFiles, resolvePreferredMemoryAgentId } from "./controllers/agent-memory.ts";
-import { loadAgentSkills } from "./controllers/agent-skills.ts";
 import { loadAgents } from "./controllers/agents.ts";
 import {
   loadAlisioBootstrap,
@@ -58,7 +55,6 @@ import {
   normalizeSettingsSection,
   pathForTab,
   publicTabFor,
-  settingsSectionFromPath,
   tabFromPath,
   type SettingsSection,
   type Tab,
@@ -366,38 +362,6 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       }
     }
   }
-  if (host.tab === "agents") {
-    await Promise.allSettled([
-      loadAgents(host as unknown as AlisioApp),
-      loadConfig(host as unknown as AlisioApp),
-    ]);
-    const agentIds = host.agentsList?.agents.map((entry) => entry.id) ?? [];
-    if (agentIds.length > 0) {
-      void loadAgentIdentities(host as unknown as AlisioApp, agentIds);
-    }
-    const agentId =
-      host.agentsSelectedId ?? host.agentsList?.defaultId ?? host.agentsList?.agents?.[0]?.id;
-    if (agentId) {
-      host.agentsSelectedId = agentId;
-      void loadAgentIdentity(host as unknown as AlisioApp, agentId);
-      switch (host.agentsPanel) {
-        case "files":
-          await loadAgentFiles(host as unknown as AlisioApp, agentId);
-          break;
-        case "skills":
-          await loadAgentSkills(host as unknown as AlisioApp, agentId);
-          break;
-        case "channels":
-          await loadChannels(host as unknown as AlisioApp, false);
-          break;
-        case "cron":
-          await loadCron(host);
-          break;
-        default:
-          break;
-      }
-    }
-  }
   if (host.tab === "memory") {
     await Promise.allSettled([
       loadAgents(host as unknown as AlisioApp),
@@ -506,7 +470,7 @@ export function inferBasePath() {
   if (typeof window === "undefined") {
     return "";
   }
-  const configured = window.__OPENCLAW_CONTROL_UI_BASE_PATH__;
+  const configured = window.__ALISIO_CONTROL_UI_BASE_PATH__;
   if (typeof configured === "string" && configured.trim()) {
     return normalizeBasePath(configured);
   }
@@ -769,11 +733,6 @@ function resolveSettingsSectionFromLocation(host: SettingsHost, pathname: string
   const querySection = url.searchParams.get("section");
   if (querySection) {
     host.settingsSection = normalizeSettingsSection(querySection);
-    return;
-  }
-  const legacySection = settingsSectionFromPath(pathname, host.basePath);
-  if (legacySection) {
-    host.settingsSection = legacySection;
   }
 }
 
@@ -853,7 +812,7 @@ function buildAttentionItems(host: AlisioApp) {
       title: "Missing operator.read scope",
       description:
         "This connection does not have the operator.read scope. Some features may be unavailable.",
-      href: legacyDocsUrl("/web/dashboard"),
+      href: docsUrl("/web/dashboard"),
       external: true,
     });
   }

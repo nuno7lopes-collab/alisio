@@ -11,7 +11,6 @@ import type { MsgContext } from "../../auto-reply/templating.js";
 import { isSilentReplyText, SILENT_REPLY_TOKEN } from "../../auto-reply/tokens.js";
 import type { ReplyPayload } from "../../auto-reply/types.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
-import { augmentConfigWithAlisioRemoteProvider } from "../../infra/alisio-remote-model-provider.js";
 import { readLocalFileSafely } from "../../infra/fs-safe.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
 import { isWithinDir } from "../../infra/path-safety.js";
@@ -24,10 +23,7 @@ import { normalizeInputProvenance, type InputProvenance } from "../../sessions/i
 import { resolveSendPolicy } from "../../sessions/send-policy.js";
 import { parseAgentSessionKey } from "../../sessions/session-key-utils.js";
 import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js";
-import {
-  ALISIO_REMOTE_PROVIDER_ID,
-  isAlisioDynamicProvider,
-} from "../../shared/alisio-remote-model-provider.js";
+import { isAlisioDynamicProvider } from "../../shared/alisio-dynamic-provider.js";
 import {
   stripInlineDirectiveTagsForDisplay,
   stripInlineDirectiveTagsFromMessageForDisplay,
@@ -1713,13 +1709,7 @@ export const chatHandlers: GatewayRequestHandlers = {
       config: cfg,
     });
     const resolvedSessionModel = resolveSessionModelRef(cfg, entry, resolvedEntryAgentId);
-    if (resolvedSessionModel.provider === ALISIO_REMOTE_PROVIDER_ID) {
-      cfg = await augmentConfigWithAlisioRemoteProvider({
-        config: cfg,
-        requiredModelIds: [resolvedSessionModel.model],
-        inspect: false,
-      });
-    } else if (isAlisioDynamicProvider(resolvedSessionModel.provider)) {
+    if (isAlisioDynamicProvider(resolvedSessionModel.provider)) {
       await publishAlisioDynamicModelProvidersForContext(context);
     }
     const timeoutMs = resolveAgentTimeoutMs({

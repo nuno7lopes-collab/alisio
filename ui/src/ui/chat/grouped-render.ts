@@ -1,6 +1,5 @@
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { legacyColonKey } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import { getSafeLocalStorage } from "../../local-storage.ts";
 import type { AssistantIdentity } from "../assistant-identity.ts";
@@ -359,7 +358,6 @@ function extractGroupText(group: MessageGroup): string {
 }
 
 const SKIP_DELETE_CONFIRM_KEY = "alisio:skipDeleteConfirm";
-const LEGACY_SKIP_DELETE_CONFIRM_KEYS = [legacyColonKey("skipDeleteConfirm")];
 
 type DeleteConfirmSide = "left" | "right";
 
@@ -372,7 +370,7 @@ function shouldSkipDeleteConfirm(): boolean {
     if (storage.getItem(SKIP_DELETE_CONFIRM_KEY) === "1") {
       return true;
     }
-    return LEGACY_SKIP_DELETE_CONFIRM_KEYS.some((key) => storage.getItem(key) === "1");
+    return false;
   } catch {
     return false;
   }
@@ -566,9 +564,8 @@ function renderAvatar(
     />`;
   }
 
-  /* Assistant with no custom avatar: use logo when basePath available */
-  if (normalized === "assistant" && basePath) {
-    const logoUrl = agentLogoUrl(basePath);
+  if (normalized === "assistant") {
+    const logoUrl = agentLogoUrl(basePath ?? "");
     return html`<img
       class="chat-avatar ${className} chat-avatar--logo"
       src="${logoUrl}"

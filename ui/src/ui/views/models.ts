@@ -1,16 +1,7 @@
 import { html, nothing } from "lit";
-import {
-  alisioRemoteModelServersUpgradeMessage,
-  alisioSupportsRemoteModelServers,
-  normalizeAlisioPlan,
-} from "../../../../src/shared/alisio-billing.js";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
-import {
-  makeModelsOperationKey,
-  type ModelsOperationMap,
-  type ModelsServerDraft,
-} from "../models-view-types.ts";
+import { makeModelsOperationKey, type ModelsOperationMap } from "../models-view-types.ts";
 import type { AlisioAiState, AlisioBootstrapState, AlisioModelsState } from "../types.ts";
 import {
   renderSkeletonButton,
@@ -21,8 +12,7 @@ import {
 
 type AiProfile = NonNullable<AlisioAiState["profiles"]>[number];
 type LocalModelTarget = NonNullable<AlisioModelsState["targets"]>[number];
-type RemoteModelServer = NonNullable<AlisioModelsState["servers"]>[number];
-type ModelProviderId = "openai" | "server" | "local";
+type ModelProviderId = "openai" | "nodes" | "local";
 type ChatModelOption = {
   value: string;
   label: string;
@@ -83,12 +73,12 @@ function modelsText() {
     chatgptSubtitle: t("alisio.settings.models.chatgptSubtitle"),
     localTitle: t("alisio.settings.models.localTitle"),
     localSubtitle: t("alisio.settings.models.localSubtitle"),
-    serversTitle: t("alisio.settings.models.serversTitle"),
-    serversSubtitle: t("alisio.settings.models.serversSubtitle"),
+    nodesTitle: t("alisio.settings.models.serversTitle"),
+    nodesSubtitle: t("alisio.settings.models.serversSubtitle"),
     currentComputer: t("alisio.settings.models.currentComputer"),
-    linkedComputer: t("alisio.settings.models.linkedComputer"),
-    linkedComputerShort: t("alisio.settings.models.linkedComputerShort"),
-    linkedComputersShort: t("alisio.settings.models.linkedComputersShort"),
+    node: t("alisio.settings.models.linkedComputer"),
+    nodeShort: t("alisio.settings.models.linkedComputerShort"),
+    nodesShort: t("alisio.settings.models.linkedComputersShort"),
     activeComputer: t("alisio.settings.models.activeComputer"),
     connected: t("alisio.settings.models.connected"),
     sharedTarget: t("alisio.settings.models.sharedTarget"),
@@ -124,34 +114,9 @@ function modelsText() {
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
     disk: t("alisio.settings.models.disk"),
-    startServer: t("alisio.settings.models.startServer"),
-    addServer: t("alisio.settings.models.addServer"),
-    editServer: t("alisio.settings.models.editServer"),
-    activateServer: t("alisio.settings.models.activateServer"),
-    removeServer: t("alisio.settings.models.removeServer"),
-    serverDraftAddTitle: t("alisio.settings.models.serverDraftAddTitle"),
-    serverDraftEditTitle: t("alisio.settings.models.serverDraftEditTitle"),
-    serverNameLabel: t("alisio.settings.models.serverNameLabel"),
-    serverTypeLabel: t("alisio.settings.models.serverTypeLabel"),
-    serverUrlLabel: t("alisio.settings.models.serverUrlLabel"),
-    serverApiKeyLabel: t("alisio.settings.models.serverApiKeyLabel"),
-    saveServer: t("alisio.settings.models.saveServer"),
-    cancelServerEdit: t("alisio.settings.models.cancelServerEdit"),
-    serverNamePrompt: t("alisio.settings.models.serverNamePrompt"),
-    serverKindPrompt: t("alisio.settings.models.serverKindPrompt"),
-    serverUrlPrompt: t("alisio.settings.models.serverUrlPrompt"),
-    serverKeyPrompt: t("alisio.settings.models.serverKeyPrompt"),
-    serverActive: t("alisio.settings.models.serverActive"),
-    serverApiKeySaved: t("alisio.settings.models.serverApiKeySaved"),
-    serverReady: t("alisio.settings.models.serverReady"),
-    serverError: t("alisio.settings.models.serverError"),
-    linkedComputersTitle: t("alisio.settings.models.linkedComputersTitle"),
-    linkedComputersSubtitle: t("alisio.settings.models.linkedComputersSubtitle"),
-    endpointsTitle: t("alisio.settings.models.endpointsTitle"),
-    endpointsSubtitle: t("alisio.settings.models.endpointsSubtitle"),
-    openAiCompatible: t("alisio.settings.models.openAiCompatible"),
-    ollama: t("alisio.settings.models.ollama"),
-    noServerModels: t("alisio.settings.models.noServerModels"),
+    nodesGroupTitle: t("alisio.settings.models.linkedComputersTitle"),
+    nodesGroupSubtitle: t("alisio.settings.models.linkedComputersSubtitle"),
+    noNodes: t("alisio.settings.models.emptyServers"),
     defaultModel: t("alisio.settings.models.defaultModel"),
     activeModel: t("alisio.settings.models.activeModel"),
     currentChat: t("alisio.settings.models.currentChat"),
@@ -161,10 +126,6 @@ function modelsText() {
     modelsAvailable: t("alisio.settings.models.modelsAvailable"),
     suggestion: t("alisio.settings.models.suggestion"),
     suggestions: t("alisio.settings.models.suggestions"),
-    server: t("alisio.settings.models.server"),
-    servers: t("alisio.settings.models.servers"),
-    endpoint: t("alisio.settings.models.endpoint"),
-    endpoints: t("alisio.settings.models.endpoints"),
     recommendedToInstall: t("alisio.settings.models.recommendedToInstall"),
     confirmInstall: t("alisio.settings.models.confirmInstall"),
     confirmUpdate: t("alisio.settings.models.confirmUpdate"),
@@ -381,95 +342,6 @@ function resolveModelRecommendation(
   return target.recommendations.find((entry) => entry.modelId === modelId) ?? null;
 }
 
-function resolveServerKindLabel(kind: RemoteModelServer["kind"]) {
-  const text = modelsText();
-  return kind === "ollama" ? text.ollama : text.openAiCompatible;
-}
-
-function renderServerDraftForm(props: {
-  draft: ModelsServerDraft;
-  busy: boolean;
-  onChange: (field: "label" | "kind" | "baseUrl" | "apiKey", value: string) => void;
-  onCancel: () => void;
-  onSubmit: () => void;
-}) {
-  const text = modelsText();
-  const saveDisabled = props.busy || !props.draft.label.trim() || !props.draft.baseUrl.trim();
-
-  return html`
-    <form
-      class="alisio-models__server-form"
-      @submit=${(event: Event) => {
-        event.preventDefault();
-        if (!saveDisabled) {
-          props.onSubmit();
-        }
-      }}
-    >
-      <div class="alisio-models__server-form-head">
-        <div class="list-title">
-          ${props.draft.mode === "edit" ? text.serverDraftEditTitle : text.serverDraftAddTitle}
-        </div>
-        <div class="list-sub">${text.serverUrlPrompt}</div>
-      </div>
-      <div class="alisio-models__server-form-grid">
-        <label class="field">
-          <span>${text.serverNameLabel}</span>
-          <input
-            .value=${props.draft.label}
-            placeholder=${text.serverNamePrompt}
-            @input=${(event: InputEvent) =>
-              props.onChange("label", (event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field">
-          <span>${text.serverTypeLabel}</span>
-          <select
-            .value=${props.draft.kind}
-            @change=${(event: Event) =>
-              props.onChange(
-                "kind",
-                (event.target as HTMLSelectElement).value as ModelsServerDraft["kind"],
-              )}
-          >
-            <option value="openai-compatible">${text.openAiCompatible}</option>
-            <option value="ollama">${text.ollama}</option>
-          </select>
-        </label>
-        <label class="field full">
-          <span>${text.serverUrlLabel}</span>
-          <input
-            .value=${props.draft.baseUrl}
-            type="url"
-            placeholder=${text.serverUrlPrompt}
-            @input=${(event: InputEvent) =>
-              props.onChange("baseUrl", (event.target as HTMLInputElement).value)}
-          />
-        </label>
-        <label class="field full">
-          <span>${text.serverApiKeyLabel}</span>
-          <input
-            .value=${props.draft.apiKey}
-            type="password"
-            placeholder=${text.serverKeyPrompt}
-            autocomplete="off"
-            @input=${(event: InputEvent) =>
-              props.onChange("apiKey", (event.target as HTMLInputElement).value)}
-          />
-        </label>
-      </div>
-      <div class="alisio-models__server-form-actions">
-        <button class="btn primary" ?disabled=${saveDisabled} type="submit">
-          ${text.saveServer}
-        </button>
-        <button class="btn" ?disabled=${props.busy} type="button" @click=${props.onCancel}>
-          ${text.cancelServerEdit}
-        </button>
-      </div>
-    </form>
-  `;
-}
-
 function isOpenAiModelValue(value: string) {
   const normalized = value.trim().toLowerCase();
   return normalized.startsWith("openai-codex/") || normalized.startsWith("openai/");
@@ -562,9 +434,9 @@ function resolveTargetDisplayModels(
       name: model.name,
     }));
   }
-  return target.runtimeKind === "openai-compatible"
-    ? resolveProviderFallbackModels(options, providerId)
-    : target.installedModels;
+  return target.supportsInstall
+    ? target.installedModels
+    : resolveProviderFallbackModels(options, providerId);
 }
 
 function resolveScopedModelChipLabel(label: string) {
@@ -620,34 +492,23 @@ function splitTargets(targets: readonly LocalModelTarget[]) {
 }
 
 function resolveTargetRuntimeLabel(target: LocalModelTarget) {
-  const text = modelsText();
+  if (target.backend?.trim()) {
+    return target.backend.trim();
+  }
   if (target.runtimeLabel?.trim()) {
     return target.runtimeLabel.trim();
   }
-  if (target.runtimeKind === "openai-compatible") {
-    return text.openAiCompatible;
-  }
-  if (target.runtimeKind === "ollama") {
-    return text.ollama;
-  }
-  if (target.runtimeKind === "lmstudio") {
-    return "LM Studio";
-  }
-  return target.backend;
+  return "llama.cpp";
 }
 
 function resolveTargetModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio"
-    ? text.availableModels
-    : text.installedModels;
+  return target.supportsInstall ? text.installedModels : text.availableModels;
 }
 
 function resolveTargetEmptyModelsLabel(target: LocalModelTarget) {
   const text = modelsText();
-  return target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio"
-    ? text.noModelChoices
-    : text.noInstalledModels;
+  return target.supportsInstall ? text.noInstalledModels : text.noModelChoices;
 }
 
 function isGenericRuntimeMessage(message: string | null | undefined) {
@@ -668,9 +529,6 @@ function resolveTargetStatusDetail(target: LocalModelTarget) {
     return target.current ? text.currentComputerOffline : text.linkedComputerOffline;
   }
   if (target.runtimeStatus === "not_configured") {
-    if (target.runtimeKind === "openai-compatible") {
-      return text.openAiRuntimeHint;
-    }
     return target.current ? text.localRuntimeHint : text.linkedRuntimeHint;
   }
   if (target.runtimeStatus === "error") {
@@ -1038,15 +896,10 @@ function renderTargetCard(props: {
   onInstallModel?: (targetId: string, modelId: string) => void;
   onUpdateModel?: (targetId: string, modelId: string) => void;
   onUninstallModel?: (targetId: string, modelId: string) => void;
-  onStartRuntimeServer?: (targetId: string) => void;
   onSelectChatModel?: (value: string) => void;
 }) {
   const text = modelsText();
-  const canManageInstalledModels = Boolean(
-    props.onUninstallModel &&
-    props.target.supportsInstall &&
-    props.target.runtimeKind !== "openai-compatible",
-  );
+  const canManageInstalledModels = Boolean(props.onUninstallModel && props.target.supportsInstall);
   const targetProviderId = props.target.chatProviderId?.trim() || "";
   const targetDisplayModels = resolveTargetDisplayModels(
     props.target,
@@ -1072,12 +925,13 @@ function renderTargetCard(props: {
     props.target.runtimeMessage && !isGenericRuntimeMessage(props.target.runtimeMessage)
       ? props.target.runtimeMessage
       : "";
-  const canStartRuntimeServer =
-    Boolean(props.onStartRuntimeServer) &&
-    props.target.connected &&
-    props.target.runtimeKind === "lmstudio" &&
-    props.target.capabilities.startServer &&
-    props.target.runtimeStatus !== "ready";
+  const title = props.target.current ? text.currentComputer : props.target.label;
+  const subtitle = [
+    props.target.current ? resolveTargetRuntimeLabel(props.target) : text.node,
+    formatPlatformLabel(props.target.platform),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   return html`
     <div
       class="alisio-models__target ${props.target.current ? "is-current" : ""} ${!props.target
@@ -1089,17 +943,8 @@ function renderTargetCard(props: {
     >
       <div class="alisio-models__target-head">
         <div>
-          <div class="list-title">
-            ${props.target.current ? resolveTargetRuntimeLabel(props.target) : props.target.label}
-          </div>
-          <div class="list-sub">
-            ${[
-              props.target.current ? props.target.label : text.linkedComputer,
-              formatPlatformLabel(props.target.platform),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </div>
+          <div class="list-title">${title}</div>
+          <div class="list-sub">${subtitle}</div>
         </div>
         <div class="alisio-settings-ai__profile-badges">
           <span class="pill">${resolveTargetRuntimeLabel(props.target)}</span>
@@ -1134,19 +979,6 @@ function renderTargetCard(props: {
       ${runtimeMessage ? html`<div class="list-sub">${runtimeMessage}</div>` : nothing}
       ${resolveTargetRecommendationLabel(props.target)
         ? html`<div class="list-sub">${resolveTargetRecommendationLabel(props.target)}</div>`
-        : nothing}
-      ${canStartRuntimeServer
-        ? html`
-            <div class="alisio-settings-ai__profile-actions">
-              <button
-                class="btn"
-                ?disabled=${props.busy ?? false}
-                @click=${() => props.onStartRuntimeServer?.(props.target.targetId)}
-              >
-                ${text.startServer}
-              </button>
-            </div>
-          `
         : nothing}
       ${targetProviderId && props.onSelectChatModel
         ? renderScopedModelChooser({
@@ -1366,9 +1198,9 @@ function renderProviderPicker(props: {
   openAiTitle: string;
   openAiPrimary: string;
   openAiSecondary: string;
-  serverTitle: string;
-  serverPrimary: string;
-  serverSecondary: string;
+  nodesTitle: string;
+  nodesPrimary: string;
+  nodesSecondary: string;
   localTitle: string;
   localPrimary: string;
   localSecondary: string;
@@ -1396,11 +1228,11 @@ function renderProviderPicker(props: {
       secondary: props.localSecondary,
     },
     {
-      id: "server",
-      badge: "S",
-      title: props.serverTitle,
-      primary: props.serverPrimary,
-      secondary: props.serverSecondary,
+      id: "nodes",
+      badge: "N",
+      title: props.nodesTitle,
+      primary: props.nodesPrimary,
+      secondary: props.nodesSecondary,
     },
   ];
 
@@ -1434,18 +1266,144 @@ function renderProviderPicker(props: {
   `;
 }
 
-function requestRename(
-  profile: AiProfile,
-  onRenameProfile: (profileId: string, label: string) => void,
-) {
-  if (typeof window === "undefined") {
+const profileRenameDrafts = new Map<string, string>();
+const profileRenameEditingIds = new Set<string>();
+
+function requestModelsViewUpdate(eventTarget: EventTarget | null) {
+  const root = eventTarget instanceof Node ? eventTarget.getRootNode() : null;
+  if (!root || !("host" in root)) {
     return;
   }
-  const nextLabel = window.prompt(aiText().renamePrompt, resolveProfileDisplayName(profile));
-  if (nextLabel === null) {
+  const host = root.host;
+  if (host && typeof (host as { requestUpdate?: () => void }).requestUpdate === "function") {
+    (host as { requestUpdate: () => void }).requestUpdate();
+  }
+}
+
+function focusInlineRenameInput(profileId: string, eventTarget: EventTarget | null) {
+  const root = eventTarget instanceof Node ? eventTarget.getRootNode() : null;
+  const canQuery = root instanceof ShadowRoot || root instanceof Document;
+  if (!canQuery) {
+    return;
+  }
+  requestAnimationFrame(() => {
+    const input = root.querySelector<HTMLInputElement>(
+      `[data-profile-rename-input="${profileId}"]`,
+    );
+    input?.focus();
+    input?.select();
+  });
+}
+
+function beginInlineRename(profile: AiProfile, eventTarget: EventTarget | null) {
+  profileRenameEditingIds.add(profile.profileId);
+  profileRenameDrafts.set(profile.profileId, resolveProfileDisplayName(profile));
+  requestModelsViewUpdate(eventTarget);
+  focusInlineRenameInput(profile.profileId, eventTarget);
+}
+
+function cancelInlineRename(profileId: string, eventTarget?: EventTarget | null) {
+  profileRenameEditingIds.delete(profileId);
+  profileRenameDrafts.delete(profileId);
+  requestModelsViewUpdate(eventTarget ?? null);
+}
+
+function commitInlineRename(
+  profile: AiProfile,
+  onRenameProfile: (profileId: string, label: string) => void,
+  eventTarget?: EventTarget | null,
+) {
+  const nextLabel = profileRenameDrafts.get(profile.profileId)?.trim() ?? "";
+  cancelInlineRename(profile.profileId, eventTarget);
+  if (!nextLabel || nextLabel === resolveProfileDisplayName(profile)) {
     return;
   }
   onRenameProfile(profile.profileId, nextLabel);
+}
+
+function handleInlineRenameInteraction(
+  event: Event | KeyboardEvent,
+  action: () => void,
+  disabled: boolean,
+) {
+  if (disabled) {
+    return;
+  }
+  if ("key" in event && event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+  action();
+}
+
+function renderProfileSubtitle(
+  profile: AiProfile,
+  props: {
+    loading: boolean;
+    onRenameProfile: (profileId: string, label: string) => void;
+  },
+) {
+  const subtitle = resolveProfileDisplayName(profile);
+  if (!profileSupportsRename(profile)) {
+    return subtitle;
+  }
+  const isEditing = profileRenameEditingIds.has(profile.profileId);
+  const draftValue = profileRenameDrafts.get(profile.profileId) ?? subtitle;
+  if (isEditing) {
+    return html`
+      <input
+        class="alisio-models__profile-rename-input"
+        data-profile-rename-input=${profile.profileId}
+        .value=${draftValue}
+        ?disabled=${props.loading}
+        placeholder=${aiText().renamePrompt}
+        @click=${(event: Event) => event.stopPropagation()}
+        @input=${(event: InputEvent) => {
+          profileRenameDrafts.set(profile.profileId, (event.target as HTMLInputElement).value);
+          requestModelsViewUpdate(event.currentTarget);
+        }}
+        @blur=${(event: FocusEvent) =>
+          commitInlineRename(profile, props.onRenameProfile, event.currentTarget)}
+        @keydown=${(event: KeyboardEvent) => {
+          event.stopPropagation();
+          if (event.key === "Enter") {
+            commitInlineRename(profile, props.onRenameProfile, event.currentTarget);
+            return;
+          }
+          if (event.key === "Escape") {
+            cancelInlineRename(profile.profileId, event.currentTarget);
+          }
+        }}
+      />
+    `;
+  }
+  return html`
+    <span class="alisio-models__profile-subtitle-wrap">
+      <span class="alisio-models__profile-subtitle-text">${subtitle}</span>
+      <button
+        type="button"
+        class="alisio-models__profile-rename-trigger"
+        ?disabled=${props.loading}
+        aria-label=${`${aiText().rename} ${subtitle}`}
+        title=${aiText().rename}
+        @click=${(event: Event) =>
+          handleInlineRenameInteraction(
+            event,
+            () => beginInlineRename(profile, event.currentTarget),
+            props.loading,
+          )}
+        @keydown=${(event: KeyboardEvent) =>
+          handleInlineRenameInteraction(
+            event,
+            () => beginInlineRename(profile, event.currentTarget),
+            props.loading,
+          )}
+      >
+        ${icons.edit}
+      </button>
+    </span>
+  `;
 }
 
 function resolveProfiles(ai: AlisioAiState | null | undefined) {
@@ -1494,7 +1452,7 @@ function renderAiProfileCard(
     onSelect: () => void;
     onRefresh: () => void;
     onDisconnect: () => void;
-    onRename: () => void;
+    onRenameProfile: (profileId: string, label: string) => void;
   },
 ) {
   const text = aiText();
@@ -1512,7 +1470,6 @@ function renderAiProfileCard(
     allowActiveFallback: props.active,
   });
   const planLabel = resolveProfilePlanLabel(profile);
-  const canRename = profileSupportsRename(profile);
   const showEmptyRefreshHint =
     props.active &&
     usageWindows.length === 0 &&
@@ -1534,7 +1491,10 @@ function renderAiProfileCard(
           <div>
             <div class="alisio-settings-ai__profile-title">${resolveProfileTitle(profile)}</div>
             <div class="alisio-settings-ai__profile-subtitle">
-              ${resolveProfileDisplayName(profile)}
+              ${renderProfileSubtitle(profile, {
+                loading: props.loading,
+                onRenameProfile: props.onRenameProfile,
+              })}
             </div>
           </div>
           <div class="alisio-settings-ai__profile-badges">
@@ -1595,13 +1555,6 @@ function renderAiProfileCard(
                 <button class="btn" ?disabled=${props.loading} @click=${props.onRefresh}>
                   ${text.refresh}
                 </button>
-                ${canRename
-                  ? html`
-                      <button class="btn" ?disabled=${props.loading} @click=${props.onRename}>
-                        ${text.rename}
-                      </button>
-                    `
-                  : nothing}
                 <button class="btn danger" ?disabled=${props.loading} @click=${props.onDisconnect}>
                   ${text.remove}
                 </button>
@@ -1722,7 +1675,7 @@ function renderChatGptSection(props: {
                     onSelect: () => props.onSelectProfile(profile.profileId),
                     onRefresh: () => props.onRefreshProfile(profile.profileId),
                     onDisconnect: () => props.onDisconnectProfile(profile.profileId),
-                    onRename: () => requestRename(profile, props.onRenameProfile),
+                    onRenameProfile: props.onRenameProfile,
                   }),
                 )}
               </div>
@@ -1741,7 +1694,6 @@ function renderLocalModelsSection(props: {
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
-  onStartRuntimeServer?: (targetId: string) => void;
   onSelectModel: (value: string) => void;
 }) {
   const text = modelsText();
@@ -1797,7 +1749,6 @@ function renderLocalModelsSection(props: {
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
-              onStartRuntimeServer: props.onStartRuntimeServer,
               onSelectChatModel: props.onSelectModel,
             }),
           )}
@@ -1813,69 +1764,38 @@ function renderLocalModelsSection(props: {
   `;
 }
 
-function renderServersSection(props: {
+function renderNodesSection(props: {
   models: AlisioModelsState | null;
-  planValue?: string | null | undefined;
   modelsLoading: boolean;
   modelsError: string | null;
   chatModelOptions: readonly ChatModelOption[];
   modelOperations?: ModelsOperationMap;
   effectiveChatModelValue: string;
-  serverDraft: ModelsServerDraft | null | undefined;
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
-  onStartRuntimeServer?: (targetId: string) => void;
   onSelectModel: (value: string) => void;
-  onStartCreateServer: () => void;
-  onStartEditServer: (server: RemoteModelServer) => void;
-  onChangeServerDraft: (field: "label" | "kind" | "baseUrl" | "apiKey", value: string) => void;
-  onCancelServerDraft: () => void;
-  onSubmitServerDraft: () => void;
-  onRemoveServer: (serverId: string) => void;
-  onSelectServer: (serverId: string) => void;
 }) {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
-  const remoteServersSupported = alisioSupportsRemoteModelServers(
-    normalizeAlisioPlan(props.planValue),
-  );
-  const remoteServerUpgradeMessage = remoteServersSupported
-    ? null
-    : alisioRemoteModelServersUpgradeMessage();
-  const servers = props.models?.servers ?? [];
   const catalog = props.models?.catalog ?? [];
   const { linkedTargets } = splitTargets(props.models?.targets ?? []);
   return html`
     <article class="card alisio-settings-card alisio-models-section">
       <div class="alisio-models-section__header">
         <div>
-          <div class="card-title">${text.serversTitle}</div>
-          <div class="card-sub">${text.serversSubtitle}</div>
+          <div class="card-title">${text.nodesTitle}</div>
+          <div class="card-sub">${text.nodesSubtitle}</div>
         </div>
-        ${showInitialLoading
-          ? renderSkeletonButton()
-          : html`
-              <button
-                class="btn"
-                ?disabled=${props.modelsLoading || !remoteServersSupported}
-                title=${!remoteServersSupported ? (remoteServerUpgradeMessage ?? "") : ""}
-                @click=${props.onStartCreateServer}
-              >
-                ${text.addServer}
-              </button>
-            `}
+        ${showInitialLoading ? renderSkeletonPill() : nothing}
       </div>
       ${props.modelsError ? html`<div class="callout danger">${props.modelsError}</div>` : nothing}
-      ${remoteServerUpgradeMessage
-        ? html`<div class="callout info">${remoteServerUpgradeMessage}</div>`
-        : nothing}
       ${showInitialLoading
         ? html`
-            <div role="status" aria-label=${text.serversSubtitle}>
+            <div role="status" aria-label=${text.nodesSubtitle}>
               <div class="loading-state__list">
-                ${renderSkeletonListItem({ lines: ["medium", "long", "short"], aside: "button" })}
-                ${renderSkeletonListItem({ lines: ["short", "medium", "short"], aside: "button" })}
+                ${renderSkeletonListItem({ lines: ["medium", "long", "short"] })}
+                ${renderSkeletonListItem({ lines: ["short", "medium", "short"] })}
               </div>
             </div>
           `
@@ -1884,8 +1804,8 @@ function renderServersSection(props: {
         ? html`
             <div class="alisio-models__group">
               <div class="alisio-models__group-head">
-                <div class="list-title">${text.linkedComputersTitle}</div>
-                <div class="list-sub">${text.linkedComputersSubtitle}</div>
+                <div class="list-title">${text.nodesGroupTitle}</div>
+                <div class="list-sub">${text.nodesGroupSubtitle}</div>
               </div>
               <div class="alisio-models__targets">
                 ${linkedTargets.map((target) =>
@@ -1899,7 +1819,6 @@ function renderServersSection(props: {
                     onInstallModel: props.onInstallModel,
                     onUpdateModel: props.onUpdateModel,
                     onUninstallModel: props.onUninstallModel,
-                    onStartRuntimeServer: props.onStartRuntimeServer,
                     onSelectChatModel: props.onSelectModel,
                   }),
                 )}
@@ -1907,122 +1826,8 @@ function renderServersSection(props: {
             </div>
           `
         : nothing}
-      ${props.serverDraft || !showInitialLoading
-        ? html`
-            <div class="alisio-models__group">
-              <div class="alisio-models__group-head">
-                <div class="list-title">${text.endpointsTitle}</div>
-                <div class="list-sub">${text.endpointsSubtitle}</div>
-              </div>
-              ${props.serverDraft && remoteServersSupported
-                ? renderServerDraftForm({
-                    draft: props.serverDraft,
-                    busy: props.modelsLoading,
-                    onChange: props.onChangeServerDraft,
-                    onCancel: props.onCancelServerDraft,
-                    onSubmit: props.onSubmitServerDraft,
-                  })
-                : nothing}
-              ${servers.length === 0
-                ? html`<div class="alisio-settings-ai__empty">${text.emptyServers}</div>`
-                : html`
-                    <div class="alisio-models__targets">
-                      ${servers.map(
-                        (server) => html`
-                          <div class="alisio-models__target">
-                            <div class="alisio-models__target-head">
-                              <div>
-                                <div class="list-title">${server.label}</div>
-                                <div class="list-sub">${server.baseUrl}</div>
-                              </div>
-                              <div class="alisio-settings-ai__profile-badges">
-                                <span class="pill">${resolveServerKindLabel(server.kind)}</span>
-                                ${server.active
-                                  ? html`<span class="pill">${text.serverActive}</span>`
-                                  : nothing}
-                                <span class="pill ${server.status === "error" ? "danger" : ""}">
-                                  ${server.status === "ready"
-                                    ? text.serverReady
-                                    : server.status === "not_configured"
-                                      ? text.runtimeNotConfigured
-                                      : text.serverError}
-                                </span>
-                              </div>
-                            </div>
-                            <div class="alisio-models__target-meta">
-                              ${server.hasApiKey
-                                ? html`<span class="alisio-models__status"
-                                    >${text.serverApiKeySaved}</span
-                                  >`
-                                : nothing}
-                            </div>
-                            ${server.message
-                              ? html`<div class="list-sub">${server.message}</div>`
-                              : nothing}
-                            ${server.chatProviderId
-                              ? renderScopedModelChooser({
-                                  providerId: server.chatProviderId,
-                                  models: server.models,
-                                  effectiveChatModelValue: props.effectiveChatModelValue,
-                                  busy: props.modelsLoading,
-                                  onSelectModel: props.onSelectModel,
-                                  emptyLabel: text.noServerModels,
-                                })
-                              : nothing}
-                            <div class="alisio-models__installed">
-                              <div class="alisio-models__installed-title">
-                                ${text.availableModels}
-                              </div>
-                              ${server.models.length > 0
-                                ? html`
-                                    <div class="alisio-models__installed-list">
-                                      ${server.models.map(
-                                        (model) => html`<span class="pill">${model.name}</span>`,
-                                      )}
-                                    </div>
-                                  `
-                                : html`<div class="list-sub">${text.noServerModels}</div>`}
-                            </div>
-                            <div class="alisio-settings-ai__profile-actions">
-                              ${!server.active
-                                ? html`
-                                    <button
-                                      class="btn"
-                                      ?disabled=${props.modelsLoading || !remoteServersSupported}
-                                      title=${!remoteServersSupported
-                                        ? (remoteServerUpgradeMessage ?? "")
-                                        : ""}
-                                      @click=${() => props.onSelectServer(server.serverId)}
-                                    >
-                                      ${text.activateServer}
-                                    </button>
-                                  `
-                                : nothing}
-                              <button
-                                class="btn"
-                                ?disabled=${props.modelsLoading || !remoteServersSupported}
-                                title=${!remoteServersSupported
-                                  ? (remoteServerUpgradeMessage ?? "")
-                                  : ""}
-                                @click=${() => props.onStartEditServer(server)}
-                              >
-                                ${text.editServer}
-                              </button>
-                              <button
-                                class="btn danger"
-                                ?disabled=${props.modelsLoading}
-                                @click=${() => props.onRemoveServer(server.serverId)}
-                              >
-                                ${text.removeServer}
-                              </button>
-                            </div>
-                          </div>
-                        `,
-                      )}
-                    </div>
-                  `}
-            </div>
-          `
+      ${!showInitialLoading && linkedTargets.length === 0
+        ? html`<div class="alisio-settings-ai__empty">${text.noNodes}</div>`
         : nothing}
     </article>
   `;
@@ -2046,7 +1851,6 @@ export function renderModelsHub(props: {
   effectiveChatModelValue: string;
   effectiveChatModelLabel: string;
   modelPickerBusy: boolean;
-  serverDraft: ModelsServerDraft | null | undefined;
   onToggleProfile: (profileId: string) => void;
   onSelectProvider: (providerId: ModelProviderId) => void;
   onConnectAi: () => void;
@@ -2060,20 +1864,10 @@ export function renderModelsHub(props: {
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
-  onStartRuntimeServer: (targetId: string) => void;
-  onStartCreateServer: () => void;
-  onStartEditServer: (server: RemoteModelServer) => void;
-  onChangeServerDraft: (field: "label" | "kind" | "baseUrl" | "apiKey", value: string) => void;
-  onCancelServerDraft: () => void;
-  onSubmitServerDraft: () => void;
-  onRemoveServer: (serverId: string) => void;
-  onSelectServer: (serverId: string) => void;
 }) {
   const text = modelsText();
   const aiTextValues = aiText();
   const profiles = resolveProfiles(props.bootstrap?.ai);
-  const servers = props.models?.servers ?? [];
-  const activeServer = servers.find((server) => server.active) ?? servers[0] ?? null;
   const localTargets = props.models?.targets ?? [];
   const { currentTargets, linkedTargets } = splitTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
@@ -2117,58 +1911,46 @@ export function renderModelsHub(props: {
       : currentTargets.some((target) => !target.connected)
         ? text.targetNotConnected
         : localDisplayModelCount > 0 || uniqueInstalledModels > 0
-          ? currentTargets.every(
-              (target) =>
-                target.runtimeKind === "openai-compatible" || target.runtimeKind === "lmstudio",
-            )
+          ? currentTargets.every((target) => !target.supportsInstall)
             ? text.availableModels
             : text.installedModels
           : localSuggestionsCount > 0
             ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
             : text.noLocalModels;
-  const selectedServerTarget =
+  const linkedDisplayModelCount = linkedTargets.reduce(
+    (total, target) =>
+      total +
+      resolveTargetDisplayModels(target, props.chatModelOptions, target.chatProviderId ?? null)
+        .length,
+    0,
+  );
+  const selectedNodeTarget =
     linkedTargets.find((target) =>
       isProviderModelValue(props.effectiveChatModelValue, target.chatProviderId),
     ) ?? null;
-  const selectedServerEndpoint =
-    servers.find((server) =>
-      isProviderModelValue(props.effectiveChatModelValue, server.chatProviderId),
-    ) ?? null;
-  const selectedRemoteModelLabel = selectedServerTarget?.chatProviderId
+  const selectedNodeModelLabel = selectedNodeTarget?.chatProviderId
     ? resolveProviderModelLabel({
         models: resolveTargetDisplayModels(
-          selectedServerTarget,
+          selectedNodeTarget,
           props.chatModelOptions,
-          selectedServerTarget.chatProviderId ?? null,
+          selectedNodeTarget.chatProviderId ?? null,
         ),
-        providerId: selectedServerTarget.chatProviderId,
+        providerId: selectedNodeTarget.chatProviderId,
         value: props.effectiveChatModelValue,
       })
-    : selectedServerEndpoint?.chatProviderId
-      ? resolveProviderModelLabel({
-          models: selectedServerEndpoint.models,
-          providerId: selectedServerEndpoint.chatProviderId,
-          value: props.effectiveChatModelValue,
-        })
-      : "";
-  const serverPrimary = selectedRemoteModelLabel
-    ? selectedRemoteModelLabel
-    : (linkedTargets[0]?.label ?? activeServer?.label ?? text.addServer);
-  const serverSecondary = selectedServerTarget
-    ? selectedServerTarget.label
-    : selectedServerEndpoint
-      ? selectedServerEndpoint.label
-      : [
-          linkedTargets.length > 0
-            ? formatCount(linkedTargets.length, text.linkedComputerShort, text.linkedComputersShort)
-            : "",
-          servers.length > 0 ? formatCount(servers.length, text.endpoint, text.endpoints) : "",
-        ]
-          .filter(Boolean)
-          .join(" · ") ||
-        (activeServer
-          ? `${activeServer.models.length} ${text.modelsAvailable}`
-          : `${servers.length} ${servers.length === 1 ? text.server : text.servers}`);
+    : "";
+  const nodesPrimary = selectedNodeModelLabel || linkedTargets[0]?.label || text.nodesTitle;
+  const nodesSecondary = selectedNodeTarget
+    ? selectedNodeTarget.label
+    : linkedTargets.some((target) => !target.connected)
+      ? text.targetNotConnected
+      : linkedDisplayModelCount > 0
+        ? linkedTargets.every((target) => !target.supportsInstall)
+          ? text.availableModels
+          : text.installedModels
+        : linkedTargets.length > 0
+          ? formatCount(linkedTargets.length, text.nodeShort, text.nodesShort)
+          : text.noNodes;
   const primaryOpenAiProfile = profiles[0] ?? null;
   const openAiPrimary =
     primaryOpenAiProfile && isOpenAiModelValue(props.effectiveChatModelValue)
@@ -2183,15 +1965,15 @@ export function renderModelsHub(props: {
       ? "openai"
       : selectedLocalModelLabel
         ? "local"
-        : selectedRemoteModelLabel
-          ? "server"
+        : selectedNodeModelLabel
+          ? "nodes"
           : providerPickerLoading
             ? "openai"
             : profiles.length > 0
               ? "openai"
-              : localCatalog.length > 0
+              : currentTargets.length > 0 || localCatalog.length > 0
                 ? "local"
-                : "server");
+                : "nodes");
 
   return html`
     <section class="alisio-page alisio-models-page">
@@ -2202,9 +1984,9 @@ export function renderModelsHub(props: {
           openAiTitle: text.chatgptTitle,
           openAiPrimary,
           openAiSecondary,
-          serverTitle: text.serversTitle,
-          serverPrimary,
-          serverSecondary,
+          nodesTitle: text.nodesTitle,
+          nodesPrimary,
+          nodesSecondary,
           localTitle: text.localTitle,
           localPrimary,
           localSecondary,
@@ -2246,32 +2028,21 @@ export function renderModelsHub(props: {
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
-              onStartRuntimeServer: props.onStartRuntimeServer,
               onSelectModel: props.onSelectChatModel,
             })
           : nothing}
-        ${selectedProviderId === "server"
-          ? renderServersSection({
+        ${selectedProviderId === "nodes"
+          ? renderNodesSection({
               models: props.models,
-              planValue: props.bootstrap?.account?.profile.plan,
               modelsLoading: props.modelsLoading,
               modelsError: props.modelsError,
               chatModelOptions: props.chatModelOptions,
               modelOperations: props.modelOperations,
               effectiveChatModelValue: props.effectiveChatModelValue,
-              serverDraft: props.serverDraft,
               onSelectModel: props.onSelectChatModel,
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
-              onStartRuntimeServer: props.onStartRuntimeServer,
-              onStartCreateServer: props.onStartCreateServer,
-              onStartEditServer: props.onStartEditServer,
-              onChangeServerDraft: props.onChangeServerDraft,
-              onCancelServerDraft: props.onCancelServerDraft,
-              onSubmitServerDraft: props.onSubmitServerDraft,
-              onRemoveServer: props.onRemoveServer,
-              onSelectServer: props.onSelectServer,
             })
           : nothing}
       </div>

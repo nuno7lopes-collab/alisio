@@ -40,7 +40,7 @@ function makeEntry(params: {
       description: `desc:${params.name}`,
       filePath,
       baseDir,
-      source: params.source ?? "openclaw-workspace",
+      source: params.source ?? "alisio-workspace",
     }),
     frontmatter: {},
     metadata: {
@@ -118,7 +118,7 @@ describe("buildWorkspaceSkillStatus", () => {
   it("marks bundled skills blocked by allowlist", async () => {
     const entry = makeEntry({
       name: "peekaboo",
-      source: "openclaw-bundled",
+      source: "alisio-bundled",
     });
 
     const report = buildWorkspaceSkillStatus("/tmp/ws", {
@@ -147,7 +147,7 @@ describe("buildWorkspaceSkillStatus", () => {
         entries: [
           makeEntry({
             name: "peekaboo",
-            source: "openclaw-workspace",
+            source: "alisio-workspace",
           }),
         ],
         config: { skills: { allowBundled: ["other-skill"] } },

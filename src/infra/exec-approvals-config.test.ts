@@ -136,8 +136,8 @@ describe("exec approvals node host allowlist check", () => {
   });
 });
 
-describe("exec approvals default agent migration", () => {
-  it("migrates legacy default agent entries to main", () => {
+describe("exec approvals agent normalization", () => {
+  it("keeps non-canonical agent ids untouched", () => {
     const file: ExecApprovalsFile = {
       version: 1,
       agents: {
@@ -145,12 +145,12 @@ describe("exec approvals default agent migration", () => {
       },
     };
     const resolved = resolveExecApprovalsFromFile({ file });
-    expect(resolved.allowlist.map((entry) => entry.pattern)).toEqual(["/bin/legacy"]);
-    expect(resolved.file.agents?.default).toBeUndefined();
-    expect(resolved.file.agents?.main?.allowlist?.[0]?.pattern).toBe("/bin/legacy");
+    expect(resolved.allowlist).toEqual([]);
+    expect(resolved.file.agents?.default?.allowlist?.[0]?.pattern).toBe("/bin/legacy");
+    expect(resolved.file.agents?.main).toBeUndefined();
   });
 
-  it("prefers main agent settings when both main and default exist", () => {
+  it("resolves main without merging retired default aliases", () => {
     const file: ExecApprovalsFile = {
       version: 1,
       agents: {
@@ -160,8 +160,8 @@ describe("exec approvals default agent migration", () => {
     };
     const resolved = resolveExecApprovalsFromFile({ file });
     expect(resolved.agent.ask).toBe("always");
-    expect(resolved.allowlist.map((entry) => entry.pattern)).toEqual(["/bin/main", "/bin/legacy"]);
-    expect(resolved.file.agents?.default).toBeUndefined();
+    expect(resolved.allowlist.map((entry) => entry.pattern)).toEqual(["/bin/main"]);
+    expect(resolved.file.agents?.default?.allowlist?.[0]?.pattern).toBe("/bin/legacy");
   });
 });
 

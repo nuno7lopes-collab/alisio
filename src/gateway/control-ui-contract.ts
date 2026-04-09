@@ -1,4 +1,4 @@
-export const CONTROL_UI_BOOTSTRAP_CONFIG_PATH = "/__openclaw/control-ui-config.json";
+export const CONTROL_UI_BOOTSTRAP_CONFIG_PATH = "/__alisio/control-ui-config.json";
 export const ALISIO_BOOTSTRAP_HTTP_PATH = "/__alisio/bootstrap";
 
 export type ControlUiBootstrapConfig = {

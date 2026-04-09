@@ -21,8 +21,6 @@ import {
   CANVAS_WS_PATH,
   handleA2uiHttpRequest,
   injectCanvasLiveReload,
-  LEGACY_CANVAS_HOST_PATH,
-  LEGACY_CANVAS_WS_PATH,
 } from "./a2ui.js";
 import { normalizeUrlPath, resolveFileWithinRoot } from "./file-resolver.js";
 
@@ -111,8 +109,8 @@ function defaultIndexHTML() {
   const statusEl = document.getElementById("status");
   const log = (msg) => { logEl.textContent = String(msg); };
 
-  const bridgeNames = ["alisioCanvasA2UIAction", "openclawCanvasA2UIAction"];
-  const helperNames = ["alisioSendUserAction", "openclawSendUserAction"];
+  const bridgeNames = ["alisioCanvasA2UIAction"];
+  const helperNames = ["alisioSendUserAction"];
   const hasIOS = () =>
     bridgeNames.some(
       (name) =>
@@ -134,7 +132,7 @@ function defaultIndexHTML() {
     const d = ev && ev.detail || {};
     log("Action status: id=" + (d.id || "?") + " ok=" + String(!!d.ok) + (d.error ? (" error=" + d.error) : ""));
   };
-  for (const eventName of ["alisio:a2ui-action-status", "openclaw:a2ui-action-status"]) {
+  for (const eventName of ["alisio:a2ui-action-status"]) {
     window.addEventListener(eventName, onStatus);
   }
 
@@ -164,10 +162,7 @@ function defaultIndexHTML() {
 }
 
 function isDisabledByEnv() {
-  if (isTruthyEnvValue(process.env.OPENCLAW_SKIP_CANVAS_HOST)) {
-    return true;
-  }
-  if (isTruthyEnvValue(process.env.OPENCLAW_SKIP_CANVAS_HOST)) {
+  if (isTruthyEnvValue(process.env.ALISIO_SKIP_CANVAS_HOST)) {
     return true;
   }
   if (process.env.NODE_ENV === "test") {
@@ -196,17 +191,11 @@ function resolveMountedBasePath(pathname: string, basePath: string): string | un
   if (basePath === "/") {
     return "/";
   }
-  if (matchesMountedPath(pathname, basePath)) {
-    return basePath;
-  }
-  if (basePath === CANVAS_HOST_PATH && matchesMountedPath(pathname, LEGACY_CANVAS_HOST_PATH)) {
-    return LEGACY_CANVAS_HOST_PATH;
-  }
-  return undefined;
+  return matchesMountedPath(pathname, basePath) ? basePath : undefined;
 }
 
 function isCanvasWsPath(pathname: string): boolean {
-  return pathname === CANVAS_WS_PATH || pathname === LEGACY_CANVAS_WS_PATH;
+  return pathname === CANVAS_WS_PATH;
 }
 
 async function prepareCanvasRoot(rootDir: string) {

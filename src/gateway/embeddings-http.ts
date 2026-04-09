@@ -270,7 +270,6 @@ export async function handleOpenAiEmbeddingsHttpRequest(
   const configuredProvider = memorySearch?.provider ?? "openai";
   const overrideModel =
     normalizeGatewayModelAlias(getHeader(req, "x-alisio-model"))?.trim() ||
-    normalizeGatewayModelAlias(getHeader(req, "x-openclaw-model"))?.trim() ||
     memorySearch?.model ||
     "";
   const target = resolveEmbeddingsTarget({ requestModel: overrideModel, configuredProvider });

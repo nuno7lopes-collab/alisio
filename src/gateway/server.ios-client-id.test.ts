@@ -35,16 +35,16 @@ describe("connect params client id validation", () => {
   );
 
   test.each([
-    ["openclaw-ios", GATEWAY_CLIENT_IDS.IOS_APP],
-    ["openclaw-android", GATEWAY_CLIENT_IDS.ANDROID_APP],
-  ])("accepts legacy %s during the rollout window", (legacyClientId, canonicalClientId) => {
-    const ok = validateConnectParams(makeConnectParams(legacyClientId));
+    [GATEWAY_CLIENT_IDS.IOS_APP, GATEWAY_CLIENT_IDS.IOS_APP],
+    [GATEWAY_CLIENT_IDS.ANDROID_APP, GATEWAY_CLIENT_IDS.ANDROID_APP],
+  ])("normalizes canonical %s unchanged", (clientId, canonicalClientId) => {
+    const ok = validateConnectParams(makeConnectParams(clientId));
     expect(ok).toBe(true);
-    expect(normalizeGatewayClientId(legacyClientId)).toBe(canonicalClientId);
+    expect(normalizeGatewayClientId(clientId)).toBe(canonicalClientId);
   });
 
   test("rejects unknown client ids", () => {
-    const ok = validateConnectParams(makeConnectParams("openclaw-mobile"));
+    const ok = validateConnectParams(makeConnectParams("alisio-mobile"));
     expect(ok).toBe(false);
   });
 });

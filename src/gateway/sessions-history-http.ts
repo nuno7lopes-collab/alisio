@@ -87,14 +87,11 @@ function resolveMessageSeq(message: unknown): number | undefined {
   if (!message || typeof message !== "object" || Array.isArray(message)) {
     return undefined;
   }
-  const record = message as { __alisio?: unknown; __openclaw?: unknown };
+  const record = message as { __alisio?: unknown };
   const meta =
-    (record.__alisio && typeof record.__alisio === "object" && !Array.isArray(record.__alisio)
+    record.__alisio && typeof record.__alisio === "object" && !Array.isArray(record.__alisio)
       ? record.__alisio
-      : undefined) ??
-    (record.__openclaw && typeof record.__openclaw === "object" && !Array.isArray(record.__openclaw)
-      ? record.__openclaw
-      : undefined);
+      : undefined;
   if (!meta || typeof meta !== "object" || Array.isArray(meta)) {
     return undefined;
   }

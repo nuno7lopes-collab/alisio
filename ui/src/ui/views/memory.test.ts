@@ -460,7 +460,7 @@ describe("renderMemoryHub", () => {
     expect(onUseLocalEmbeddings).toHaveBeenCalledTimes(1);
   });
 
-  it("shows .alisio instead of legacy .openclaw paths in runtime details", () => {
+  it("preserva paths reais do runtime nas details de memória", () => {
     const container = document.createElement("div");
     const props = createProps();
     const baseStatus = props.memoryStatus!;
@@ -500,7 +500,6 @@ describe("renderMemoryHub", () => {
 
     render(renderMemoryHub(props), container);
 
-    expect(container.textContent).not.toContain(".openclaw");
-    expect(container.textContent).toContain(".alisio");
+    expect(container.textContent).toContain(".openclaw");
   });
 });

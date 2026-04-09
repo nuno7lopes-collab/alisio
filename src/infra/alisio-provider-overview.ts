@@ -14,7 +14,7 @@ import {
   resolveAlisioConnectorUiStatus,
   type AlisioConnectorUiStatus,
 } from "../shared/alisio-connector-status.js";
-import { isAlisioManagedProvider } from "../shared/alisio-remote-model-provider.js";
+import { isAlisioManagedProvider } from "../shared/alisio-dynamic-provider.js";
 import type { AlisioAiState } from "./alisio-ai-state.js";
 import {
   loadAlisioModelProviderSnapshot,
@@ -467,7 +467,7 @@ function upsertProviderAggregate(
   },
 ): ProviderAggregate | null {
   const id = params.id.trim();
-  if (!id || isAlisioManagedProvider(id) || id === "alisio-remote") {
+  if (!id || isAlisioManagedProvider(id)) {
     return null;
   }
   let existing = map.get(id);

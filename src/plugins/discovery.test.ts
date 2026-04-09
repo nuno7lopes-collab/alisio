@@ -446,17 +446,17 @@ describe("discoverOpenClawPlugins", () => {
     {
       name: "strips provider suffixes from package-derived ids",
       setup: (stateDir: string) => {
-        const packageDir = path.join(stateDir, "extensions", "ollama-provider-pack");
+        const packageDir = path.join(stateDir, "extensions", "vllm-provider-pack");
         createPackagePluginWithEntry({
           packageDir,
-          packageName: "@openclaw/ollama-provider",
-          pluginId: "ollama",
+          packageName: "@openclaw/vllm-provider",
+          pluginId: "vllm",
           entryPath: "src/index.ts",
         });
         return {};
       },
-      includes: ["ollama"],
-      excludes: ["ollama-provider"],
+      includes: ["vllm"],
+      excludes: ["vllm-provider"],
     },
     {
       name: "normalizes bundled speech package ids to canonical plugin ids",

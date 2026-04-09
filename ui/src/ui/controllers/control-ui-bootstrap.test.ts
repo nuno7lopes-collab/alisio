@@ -15,7 +15,7 @@ describe("loadControlUiBootstrapConfig", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          basePath: "/\u006fpen\u0063law",
+          basePath: "/alisio",
           assistantName: "Ops",
           assistantAvatar: "O",
           assistantAgentId: "main",
@@ -26,8 +26,8 @@ describe("loadControlUiBootstrapConfig", () => {
         ok: true,
         text: async () =>
           JSON.stringify({
-            basePath: "/\u006fpen\u0063law",
-            controlUrl: "ws://127.0.0.1:40705/\u006fpen\u0063law/",
+            basePath: "/alisio",
+            controlUrl: "ws://127.0.0.1:40705/alisio/",
             startupState: "needs_profile",
             account: {
               username: "nuno",
@@ -46,7 +46,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/\u006fpen\u0063law",
+      basePath: "/alisio",
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
@@ -61,14 +61,14 @@ describe("loadControlUiBootstrapConfig", () => {
     await loadControlUiBootstrapConfig(state);
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      `/\u006fpen\u0063law${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
-      `/\u006fpen\u0063law${ALISIO_BOOTSTRAP_HTTP_PATH}`,
+      `/alisio${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
+      `/alisio${ALISIO_BOOTSTRAP_HTTP_PATH}`,
     ]);
     expect(state.assistantName).toBe("Ops");
     expect(state.assistantAvatar).toBe("O");
     expect(state.assistantAgentId).toBe("main");
     expect(state.serverVersion).toBe("2026.3.7");
-    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:40705/\u006fpen\u0063law/");
+    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:40705/alisio/");
     expect(state.gatewayBootstrapToken).toBe("bootstrap-123");
     expect(state.alisioStartupBootstrap?.startupState).toBe("needs_profile");
 
@@ -157,7 +157,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/\u006fpen\u0063law/",
+      basePath: "/alisio/",
       assistantName: "Assistant",
       assistantAvatar: null,
       assistantAgentId: null,
@@ -172,8 +172,8 @@ describe("loadControlUiBootstrapConfig", () => {
     await loadControlUiBootstrapConfig(state);
 
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      `/\u006fpen\u0063law${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
-      `/\u006fpen\u0063law${ALISIO_BOOTSTRAP_HTTP_PATH}`,
+      `/alisio${CONTROL_UI_BOOTSTRAP_CONFIG_PATH}`,
+      `/alisio${ALISIO_BOOTSTRAP_HTTP_PATH}`,
     ]);
 
     vi.unstubAllGlobals();
@@ -185,7 +185,7 @@ describe("loadControlUiBootstrapConfig", () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          basePath: "/\u006fpen\u0063law",
+          basePath: "/alisio",
           assistantName: "Assistant",
           assistantAvatar: "A",
           assistantAgentId: "main",
@@ -196,8 +196,8 @@ describe("loadControlUiBootstrapConfig", () => {
         ok: true,
         text: async () =>
           JSON.stringify({
-            basePath: "/\u006fpen\u0063law",
-            controlUrl: "ws://127.0.0.1:40705/\u006fpen\u0063law/",
+            basePath: "/alisio",
+            controlUrl: "ws://127.0.0.1:40705/alisio/",
             startupState: "ready",
             account: {
               username: "nuno",
@@ -217,7 +217,7 @@ describe("loadControlUiBootstrapConfig", () => {
     vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
 
     const state: ControlUiBootstrapState = {
-      basePath: "/\u006fpen\u0063law",
+      basePath: "/alisio",
       assistantName: "Assistant",
       assistantAvatar: "A",
       assistantAgentId: null,

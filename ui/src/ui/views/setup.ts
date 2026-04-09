@@ -188,11 +188,8 @@ function currentAiStatus(props: SetupProps) {
   return props.bootstrap?.ai.status ?? props.startupBootstrap?.ai?.status ?? "disconnected";
 }
 
-function hasLocalOnlyAccountMode(props: SetupProps) {
-  return (
-    props.account?.cloud?.available === false ||
-    props.startupBootstrap?.accountCloud?.available === false
-  );
+function currentAccountCloudState(props: SetupProps) {
+  return props.account?.cloud ?? props.startupBootstrap?.accountCloud ?? null;
 }
 
 function currentSetupProfile(props: SetupProps) {
@@ -290,9 +287,6 @@ function renderAccountStep(props: SetupProps) {
   if (props.account?.session.state === "signed_in" && !props.account.session.profileCompleted) {
     return renderProfileStep(props);
   }
-  if (hasLocalOnlyAccountMode(props) && !props.account?.session.profileCompleted) {
-    return renderProfileStep(props);
-  }
   const authEmail = props.authEmail;
   const authPendingEmail = props.authPendingEmail.trim() || authEmail;
   const authCode = props.authCode;
@@ -306,6 +300,8 @@ function renderAccountStep(props: SetupProps) {
     props.accountError ??
     props.accountNotice ??
     (!props.connected ? t("alisio.setup.account.waitForConnection") : null);
+  const cloudState = currentAccountCloudState(props);
+  const cloudUnavailable = cloudState?.available === false;
   const handleEntrySubmit = (event: Event) => {
     event.preventDefault();
     if (props.accountLoading || !canBeginEmail) {
@@ -338,6 +334,34 @@ function renderAccountStep(props: SetupProps) {
     }
     props.onVerifyEmailAuth();
   };
+  if (cloudUnavailable && props.account?.session.state !== "signed_in") {
+    return html`
+      <section class="card alisio-setup-card">
+        <div class="card-title">${t("alisio.setup.account.title")}</div>
+        <div class="card-sub">${t("alisio.settings.account.localModeNotice")}</div>
+        <div class="callout danger">${t("alisio.setup.profile.localModeNotice")}</div>
+        ${cloudState?.missingEnvVars?.length
+          ? html`
+              <div class="agent-kv" style="margin-top: 16px;">
+                <div class="label">Required cloud env vars</div>
+                <div class="mono">${cloudState.missingEnvVars.join("\n")}</div>
+              </div>
+            `
+          : nothing}
+        ${!props.connected
+          ? html`
+              <div class="row" style="margin-top: 16px;">
+                <button class="btn" ?disabled=${props.startupLoading} @click=${props.onConnect}>
+                  ${props.startupLoading
+                    ? t("alisio.setup.account.connecting")
+                    : t("alisio.setup.gateway.reconnect")}
+                </button>
+              </div>
+            `
+          : nothing}
+      </section>
+    `;
+  }
   return html`
     <section class="card alisio-setup-card">
       <div class="card-title">${t("alisio.setup.account.title")}</div>
@@ -557,25 +581,18 @@ function renderProfileStep(props: SetupProps) {
   const profile = currentSetupProfile(props);
   const validation = accountValidationMessage(props);
   const missingTerms = !props.termsAccepted;
-  const localOnlyAccountMode = hasLocalOnlyAccountMode(props);
-  const emailManagedByCloud =
-    props.account?.session.backend === "supabase" && !localOnlyAccountMode;
-  const authMethodLabel = localOnlyAccountMode
-    ? t("alisio.setup.profile.authMethodLocal")
-    : props.account?.session.authMethod === "google"
+  const emailManagedByCloud = props.account?.session.backend === "supabase";
+  const authMethodLabel =
+    props.account?.session.authMethod === "google"
       ? t("alisio.setup.profile.authMethodGoogle")
       : t("alisio.setup.profile.authMethodEmail");
   const profileMessage =
     props.accountError ??
     validation ??
     (missingTerms ? t("alisio.setup.profile.acceptTermsRequired") : null);
-  const profileSubtitle = localOnlyAccountMode
-    ? t("alisio.setup.profile.localSubtitle")
-    : t("alisio.setup.profile.subtitle");
+  const profileSubtitle = t("alisio.setup.profile.subtitle");
   const emailFallback = profile?.email ?? props.authEmail;
-  const identityChip =
-    profile?.email ??
-    (props.authPendingEmail || emailFallback || t("alisio.setup.profile.localProfile"));
+  const identityChip = profile?.email ?? (props.authPendingEmail || emailFallback || "");
   const handleSubmit = (event: Event) => {
     event.preventDefault();
     if (props.accountLoading || validation || missingTerms) {
@@ -588,12 +605,9 @@ function renderProfileStep(props: SetupProps) {
       <div class="card-title">${t("alisio.setup.profile.title")}</div>
       <div class="card-sub">${profileSubtitle}</div>
       <div class="chip-row" style="margin-top: 16px;">
-        <span class="chip">${identityChip}</span>
+        ${identityChip ? html`<span class="chip">${identityChip}</span>` : nothing}
         <span class="chip">${authMethodLabel}</span>
       </div>
-      ${localOnlyAccountMode
-        ? renderCallout("info", t("alisio.setup.profile.localModeNotice"))
-        : nothing}
       ${renderCallout("danger", profileMessage)}
       <form class="alisio-setup-account" @submit=${handleSubmit}>
         <fieldset

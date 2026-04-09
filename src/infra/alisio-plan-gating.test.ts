@@ -3,7 +3,6 @@ import {
   countAlisioLimitedConnectorSlots,
   gateAlisioConnectorConnection,
   gateAlisioOrganizationMembership,
-  gateAlisioRemoteModelServers,
 } from "./alisio-plan-gating.js";
 
 describe("alisio-plan-gating", () => {
@@ -67,13 +66,5 @@ describe("alisio-plan-gating", () => {
         mode: "member",
       }),
     ).toEqual({ ok: true });
-  });
-
-  it("keeps remote model servers behind Plus", () => {
-    expect(gateAlisioRemoteModelServers({ plan: "free" })).toMatchObject({
-      ok: false,
-      code: "remote_model_servers_plus_required",
-    });
-    expect(gateAlisioRemoteModelServers({ plan: "plus" })).toEqual({ ok: true });
   });
 });

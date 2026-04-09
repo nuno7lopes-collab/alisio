@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { resolveCliEntrypointPath } from "../infra/cli-entrypoint.js";
 import { isBunRuntime, isNodeRuntime } from "./runtime-binary.js";
 
 type GatewayProgramArgs = {
@@ -29,12 +30,12 @@ async function resolveCliEntrypointPathForService(): Promise<string> {
     if (normalizedLooksLikeDist && normalized !== resolvedPath) {
       try {
         await fs.access(normalized);
-        return normalized;
+        return await preferWrapperEntrypointIfAvailable(normalized);
       } catch {
         // Fall through to return resolvedPath
       }
     }
-    return resolvedPath;
+    return await preferWrapperEntrypointIfAvailable(resolvedPath);
   }
 
   const distCandidates = buildDistCandidates(resolvedPath, normalized);
@@ -42,7 +43,7 @@ async function resolveCliEntrypointPathForService(): Promise<string> {
   for (const candidate of distCandidates) {
     try {
       await fs.access(candidate);
-      return candidate;
+      return await preferWrapperEntrypointIfAvailable(candidate);
     } catch {
       // keep going
     }
@@ -59,6 +60,18 @@ async function resolveRealpathSafe(inputPath: string): Promise<string> {
   } catch {
     return inputPath;
   }
+}
+
+async function preferWrapperEntrypointIfAvailable(cliEntrypointPath: string): Promise<string> {
+  const normalized = path.resolve(cliEntrypointPath);
+  const distDir = path.dirname(normalized);
+  if (path.basename(distDir) !== "dist") {
+    return cliEntrypointPath;
+  }
+
+  const packageRoot = path.dirname(distDir);
+  const wrapperEntrypoint = await resolveCliEntrypointPath(packageRoot);
+  return wrapperEntrypoint ?? cliEntrypointPath;
 }
 
 function buildDistCandidates(...inputs: string[]): string[] {

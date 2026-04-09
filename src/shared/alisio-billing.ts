@@ -1,18 +1,13 @@
 export const ALISIO_PLAN_VALUES = ["free", "plus"] as const;
 
 export type AlisioPlan = (typeof ALISIO_PLAN_VALUES)[number];
-export type AlisioPlanFeatureId =
-  | "connectors"
-  | "organizations"
-  | "remote_model_servers"
-  | "sharing";
+export type AlisioPlanFeatureId = "connectors" | "organizations" | "sharing";
 
 export type AlisioPlanEntitlements = {
   connectors: {
     maxConnected: number | null;
   };
   organizations: boolean;
-  remoteModelServers: boolean;
   sharing: boolean;
 };
 
@@ -22,7 +17,6 @@ const ALISIO_PLAN_ENTITLEMENTS: Record<AlisioPlan, AlisioPlanEntitlements> = {
       maxConnected: 1,
     },
     organizations: false,
-    remoteModelServers: false,
     sharing: false,
   },
   plus: {
@@ -30,7 +24,6 @@ const ALISIO_PLAN_ENTITLEMENTS: Record<AlisioPlan, AlisioPlanEntitlements> = {
       maxConnected: null,
     },
     organizations: true,
-    remoteModelServers: true,
     sharing: true,
   },
 };
@@ -72,10 +65,6 @@ export function alisioSupportsOrganizations(plan: AlisioPlan): boolean {
   return getAlisioPlanEntitlements(plan).organizations;
 }
 
-export function alisioSupportsRemoteModelServers(plan: AlisioPlan): boolean {
-  return getAlisioPlanEntitlements(plan).remoteModelServers;
-}
-
 export function alisioSupportsSharing(plan: AlisioPlan): boolean {
   return getAlisioPlanEntitlements(plan).sharing;
 }
@@ -109,10 +98,6 @@ export function alisioConnectorUpgradeMessage(plan: AlisioPlan): string {
 
 export function alisioOrganizationsUpgradeMessage(): string {
   return "Organizations currently require Plus and remain rollout-sensitive. Open Settings -> Billing before creating or joining a shared workspace.";
-}
-
-export function alisioRemoteModelServersUpgradeMessage(): string {
-  return "Custom remote model servers are available on Plus. Open Settings -> Billing to upgrade before using remote endpoints.";
 }
 
 export function alisioSharingUpgradeMessage(): string {

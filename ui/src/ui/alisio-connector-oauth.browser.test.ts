@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY,
   ALISIO_CONNECTOR_OAUTH_STORAGE_KEY,
-  LEGACY_ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY,
   buildAlisioConnectorOAuthSignal,
 } from "../../../src/shared/alisio-connector-oauth.js";
 import {
@@ -87,9 +86,6 @@ describe("connector OAuth helpers", () => {
     const expectedUrl = new URL("/authentications?source=chat", window.location.href).toString();
 
     expect(window.localStorage.getItem(ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY)).toBe(
-      expectedUrl,
-    );
-    expect(window.localStorage.getItem(LEGACY_ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY)).toBe(
       expectedUrl,
     );
   });

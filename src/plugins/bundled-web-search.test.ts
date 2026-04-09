@@ -59,7 +59,7 @@ describe("hasBundledWebSearchCredential", () => {
   });
 
   const baseCfg = {
-    agents: { defaults: { model: { primary: "ollama/mistral-8b" } } },
+    agents: { defaults: { model: { primary: "vllm/mistral-8b" } } },
     browser: { enabled: false },
     tools: { web: { fetch: { enabled: false } } },
   } satisfies AlisioConfig;

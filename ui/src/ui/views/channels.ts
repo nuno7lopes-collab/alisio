@@ -1,5 +1,5 @@
 import { html, nothing } from "lit";
-import { legacyCommandPrefixPattern, legacyDocsUrl } from "../../brand-compat.ts";
+import { commandPrefixPattern, docsUrl } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import {
   isChannelBusyKey,
@@ -119,7 +119,7 @@ function buildChannelDocsUrl(docsPath?: string): string | null {
   if (/^https?:\/\//i.test(raw)) {
     return raw;
   }
-  return legacyDocsUrl(raw);
+  return docsUrl(raw);
 }
 
 function resolveLocalizedChannelDescription(row: ResolvedChannelRow): string | null {
@@ -447,7 +447,7 @@ function resolveSetupContinueLabel(
 }
 
 function isSetupCommandLine(line: string) {
-  return legacyCommandPrefixPattern.test(line.trim());
+  return commandPrefixPattern.test(line.trim());
 }
 
 function readSetupDocsUrl(line: string) {

@@ -8,7 +8,7 @@ import {
   promptCustomApiConfig,
 } from "./onboard-custom.js";
 
-const OLLAMA_DEFAULT_BASE_URL_FOR_TEST = "http://127.0.0.1:11434";
+const LOCAL_DEFAULT_BASE_URL_FOR_TEST = "http://127.0.0.1:11434";
 
 // Mock dependencies
 vi.mock("./model-picker.js", () => ({
@@ -151,7 +151,7 @@ describe("promptCustomApiConfig", () => {
     expect(result.config.agents?.defaults?.models?.["custom/llama3"]?.alias).toBe("local");
   });
 
-  it("defaults custom setup to the native Ollama base URL", async () => {
+  it("defaults custom setup to the native local base URL", async () => {
     const prompter = createTestPrompter({
       text: ["http://localhost:11434", "", "llama3", "custom", ""],
       select: ["plaintext", "openai"],
@@ -163,7 +163,7 @@ describe("promptCustomApiConfig", () => {
     expect(prompter.text).toHaveBeenCalledWith(
       expect.objectContaining({
         message: "API Base URL",
-        initialValue: OLLAMA_DEFAULT_BASE_URL_FOR_TEST,
+        initialValue: LOCAL_DEFAULT_BASE_URL_FOR_TEST,
       }),
     );
   });

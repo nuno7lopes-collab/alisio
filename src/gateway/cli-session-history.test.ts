@@ -129,7 +129,7 @@ describe("cli session history", () => {
       expect(messages[0]).toMatchObject({
         role: "user",
         content: expect.stringContaining("[Thu 2026-03-26 16:29 GMT] hi"),
-        __openclaw: {
+        __alisio: {
           importedFrom: "claude-cli",
           externalId: "user-1",
           cliSessionId: sessionId,
@@ -145,7 +145,7 @@ describe("cli session history", () => {
           output: 7,
           cacheRead: 22,
         },
-        __openclaw: {
+        __alisio: {
           importedFrom: "claude-cli",
           externalId: "assistant-1",
           cliSessionId: sessionId,
@@ -192,7 +192,7 @@ describe("cli session history", () => {
         content:
           'Sender (untrusted metadata):\n```json\n{"label":"openclaw-control-ui"}\n```\n\n[Thu 2026-03-26 16:29 GMT] hi',
         timestamp: Date.parse("2026-03-26T16:29:54.800Z"),
-        __openclaw: {
+        __alisio: {
           importedFrom: "claude-cli",
           externalId: "user-1",
           cliSessionId: "session-1",
@@ -202,7 +202,7 @@ describe("cli session history", () => {
         role: "assistant",
         content: [{ type: "text", text: "hello from Claude" }],
         timestamp: Date.parse("2026-03-26T16:29:55.500Z"),
-        __openclaw: {
+        __alisio: {
           importedFrom: "claude-cli",
           externalId: "assistant-1",
           cliSessionId: "session-1",
@@ -212,7 +212,7 @@ describe("cli session history", () => {
         role: "user",
         content: "[Thu 2026-03-26 16:31 GMT] follow-up",
         timestamp: Date.parse("2026-03-26T16:31:00.000Z"),
-        __openclaw: {
+        __alisio: {
           importedFrom: "claude-cli",
           externalId: "user-2",
           cliSessionId: "session-1",
@@ -224,7 +224,7 @@ describe("cli session history", () => {
     expect(merged).toHaveLength(3);
     expect(merged[2]).toMatchObject({
       role: "user",
-      __openclaw: {
+      __alisio: {
         importedFrom: "claude-cli",
         externalId: "user-2",
       },
@@ -250,7 +250,7 @@ describe("cli session history", () => {
       expect(messages).toHaveLength(3);
       expect(messages[0]).toMatchObject({
         role: "user",
-        __openclaw: { cliSessionId: sessionId },
+        __alisio: { cliSessionId: sessionId },
       });
     });
   });
@@ -272,7 +272,7 @@ describe("cli session history", () => {
       expect(messages).toHaveLength(3);
       expect(messages[1]).toMatchObject({
         role: "assistant",
-        __openclaw: { cliSessionId: sessionId },
+        __alisio: { cliSessionId: sessionId },
       });
     });
   });
@@ -292,7 +292,7 @@ describe("cli session history", () => {
       expect(messages).toHaveLength(3);
       expect(messages[0]).toMatchObject({
         role: "user",
-        __openclaw: { cliSessionId: sessionId },
+        __alisio: { cliSessionId: sessionId },
       });
     });
   });

@@ -103,7 +103,7 @@ function createHost(agentsPanel: AgentsPanel): Parameters<typeof refreshActiveTa
     eventLog: [],
     eventLogBuffer: [],
     basePath: "",
-  } as Parameters<typeof refreshActiveTab>[0];
+  } as unknown as Parameters<typeof refreshActiveTab>[0];
 }
 
 describe("refreshActiveTab (agents/files)", () => {

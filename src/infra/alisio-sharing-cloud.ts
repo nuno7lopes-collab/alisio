@@ -556,6 +556,46 @@ function toAuditRow(entry: AlisioSharingCloudAuditRecord) {
   };
 }
 
+function mergeSharingRuntimeTarget(
+  current: AlisioSharingCloudRuntimeTarget,
+  incoming: AlisioSharingCloudRuntimeTarget,
+): AlisioSharingCloudRuntimeTarget {
+  return {
+    targetId: current.targetId,
+    label: current.label || incoming.label,
+    platform: current.platform ?? incoming.platform,
+    sourceKind:
+      current.sourceKind === "current" || incoming.sourceKind !== "current"
+        ? current.sourceKind
+        : incoming.sourceKind,
+    connected: current.connected || incoming.connected,
+    current: current.current || incoming.current,
+  };
+}
+
+function dedupeSharingRuntimeTargets(
+  targets: readonly AlisioSharingCloudRuntimeTarget[],
+): AlisioSharingCloudRuntimeTarget[] {
+  const byId = new Map<string, AlisioSharingCloudRuntimeTarget>();
+  for (const target of targets) {
+    const targetId = target.targetId.trim();
+    if (!targetId) {
+      continue;
+    }
+    const normalized: AlisioSharingCloudRuntimeTarget = {
+      targetId,
+      label: target.label.trim() || targetId,
+      ...(target.platform?.trim() ? { platform: target.platform.trim() } : {}),
+      sourceKind: target.sourceKind,
+      connected: target.connected,
+      current: target.current,
+    };
+    const existing = byId.get(targetId);
+    byId.set(targetId, existing ? mergeSharingRuntimeTarget(existing, normalized) : normalized);
+  }
+  return [...byId.values()];
+}
+
 export function canUseAlisioSharingCloud(params: {
   env?: NodeJS.ProcessEnv;
   cloudSession?: {
@@ -587,6 +627,7 @@ export async function loadAlisioSharingCloudState(params: {
   }
   const fetchImpl = params.fetchImpl ?? fetch;
   if (params.targets) {
+    const targets = dedupeSharingRuntimeTargets(params.targets);
     const existingTargetRows = await getTableRows(
       config,
       config.targetsTable,
@@ -602,7 +643,7 @@ export async function loadAlisioSharingCloudState(params: {
       }
     }
     const now = new Date().toISOString();
-    const nextTargets = params.targets.map((target) => {
+    const nextTargets = targets.map((target) => {
       const existing = existingById.get(target.targetId);
       return {
         targetId: target.targetId,
@@ -620,7 +661,7 @@ export async function loadAlisioSharingCloudState(params: {
       } satisfies AlisioSharingCloudTargetRecord;
     });
     const staleTargets = [...existingById.values()]
-      .filter((entry) => !params.targets?.some((target) => target.targetId === entry.targetId))
+      .filter((entry) => !targets.some((target) => target.targetId === entry.targetId))
       .map(
         (entry) =>
           ({

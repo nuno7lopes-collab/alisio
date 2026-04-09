@@ -1,9 +1,5 @@
 import fs from "node:fs";
 import { deriveSessionTotalTokens, hasNonzeroUsage, normalizeUsage } from "../agents/usage.js";
-import {
-  ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
-  warnLegacyCompatibilityOnce,
-} from "../infra/compat-warning.js";
 import { jsonUtf8Bytes } from "../infra/json-utf8-bytes.js";
 import { hasInterSessionUserProvenance } from "../sessions/input-provenance.js";
 import { stripInlineDirectiveTagsForDisplay } from "../utils/directive-tags.js";
@@ -30,7 +26,6 @@ type SessionTitleFieldsCacheEntry = SessionTitleFields & {
 const sessionTitleFieldsCache = new Map<string, SessionTitleFieldsCacheEntry>();
 const MAX_SESSION_TITLE_FIELDS_CACHE_ENTRIES = 5000;
 const ALISIO_TRANSCRIPT_META_KEY = "__alisio";
-const LEGACY_OPENCLAW_TRANSCRIPT_META_KEY = "__openclaw";
 
 function asTranscriptMetaRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -39,12 +34,8 @@ function asTranscriptMetaRecord(value: unknown): Record<string, unknown> | null 
 }
 
 function resolveTranscriptMetaRecord(record: Record<string, unknown>): Record<string, unknown> {
-  const legacy = asTranscriptMetaRecord(record[LEGACY_OPENCLAW_TRANSCRIPT_META_KEY]) ?? {};
   const canonical = asTranscriptMetaRecord(record[ALISIO_TRANSCRIPT_META_KEY]) ?? {};
-  return {
-    ...legacy,
-    ...canonical,
-  };
+  return canonical;
 }
 
 function readSessionTitleFieldsCacheKey(
@@ -102,27 +93,8 @@ export function attachAlisioTranscriptMeta(
   };
   return {
     ...record,
-    // Keep dual-write until transcript/history consumers and stored session data no longer
-    // depend on the legacy OpenClaw meta key.
     [ALISIO_TRANSCRIPT_META_KEY]: nextMeta,
-    [LEGACY_OPENCLAW_TRANSCRIPT_META_KEY]: nextMeta,
   };
-}
-
-/**
- * @deprecated Use attachAlisioTranscriptMeta instead. Sunset target: 2026-06-30.
- */
-export function attachOpenClawTranscriptMeta(
-  message: unknown,
-  meta: Record<string, unknown>,
-): unknown {
-  warnLegacyCompatibilityOnce({
-    key: "attachOpenClawTranscriptMeta",
-    message: "attachOpenClawTranscriptMeta() is deprecated.",
-    replacement: "attachAlisioTranscriptMeta()",
-    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
-  });
-  return attachAlisioTranscriptMeta(message, meta);
 }
 
 export function readSessionMessages(

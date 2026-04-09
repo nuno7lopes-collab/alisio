@@ -23,13 +23,13 @@ async function runOpenAiMessageChannelRequest(params?: { messageChannelHeader?: 
         "x-openclaw-scopes": "operator.write",
       };
       if (params?.messageChannelHeader) {
-        headers["x-openclaw-message-channel"] = params.messageChannelHeader;
+        headers["x-alisio-message-channel"] = params.messageChannelHeader;
       }
       const res = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          model: "openclaw",
+          model: "alisio",
           messages: [{ role: "user", content: "hi" }],
         }),
       });
@@ -46,7 +46,7 @@ async function runOpenAiMessageChannelRequest(params?: { messageChannelHeader?: 
 }
 
 describe("OpenAI HTTP message channel", () => {
-  it("passes x-openclaw-message-channel through to agentCommand", async () => {
+  it("passes x-alisio-message-channel through to agentCommand", async () => {
     const firstCall = await runOpenAiMessageChannelRequest({
       messageChannelHeader: "custom-client-channel",
     });

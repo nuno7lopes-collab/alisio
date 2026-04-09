@@ -5,8 +5,6 @@ import {
   ALISIO_OPENAI_OAUTH_CHANNEL,
   ALISIO_OPENAI_OAUTH_SIGNAL_TYPE,
   ALISIO_OPENAI_OAUTH_STORAGE_KEY,
-  LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL,
-  LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY,
   type AlisioOpenAiOAuthSignal,
 } from "../../../src/shared/alisio-openai-oauth.js";
 import { emitAlisioOpenAiOAuthSignal, refreshAfterAlisioOpenAiOAuth } from "./alisio-oauth.ts";
@@ -36,7 +34,7 @@ describe("refreshAfterAlisioOpenAiOAuth", () => {
     vi.restoreAllMocks();
   });
 
-  it("emite storage e BroadcastChannel canónicos e legacy", () => {
+  it("emite storage e BroadcastChannel canónicos", () => {
     const posted: Array<{ name: string; message: unknown }> = [];
 
     class BroadcastChannelMock {
@@ -63,16 +61,8 @@ describe("refreshAfterAlisioOpenAiOAuth", () => {
       ALISIO_OPENAI_OAUTH_STORAGE_KEY,
       JSON.stringify(signal),
     );
-    expect(setItemSpy).toHaveBeenCalledWith(
-      LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY,
-      JSON.stringify(signal),
-    );
     expect(removeItemSpy).toHaveBeenCalledWith(ALISIO_OPENAI_OAUTH_STORAGE_KEY);
-    expect(removeItemSpy).toHaveBeenCalledWith(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY);
-    expect(posted).toEqual([
-      { name: ALISIO_OPENAI_OAUTH_CHANNEL, message: signal },
-      { name: LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL, message: signal },
-    ]);
+    expect(posted).toEqual([{ name: ALISIO_OPENAI_OAUTH_CHANNEL, message: signal }]);
   });
 
   it("reloads the bootstrap and reconnects the gateway", async () => {

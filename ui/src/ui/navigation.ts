@@ -17,7 +17,6 @@ const PUBLIC_TABS = [
   "organization",
   "settings",
 ] as const;
-const LEGACY_TABS = ["home", "sessions", "automations", "agents"] as const;
 
 export const TAB_GROUPS = [
   {
@@ -58,32 +57,12 @@ export type SettingsSection =
   | (typeof LEGACY_SETTINGS_SECTIONS)[number];
 
 type PublicTab = (typeof PUBLIC_TABS)[number];
-type LegacyTab = (typeof LEGACY_TABS)[number];
 type PublicSettingsSection = (typeof PUBLIC_SETTINGS_SECTIONS)[number];
 
-export type Tab = PublicTab | LegacyTab;
+export type Tab = PublicTab;
 
 export function normalizePublicTab(tab: Tab): PublicTab {
-  switch (tab) {
-    case "setup":
-    case "authentications":
-    case "memory":
-    case "channels":
-    case "models":
-    case "capabilities":
-    case "connections":
-    case "security":
-    case "organization":
-    case "settings":
-    case "chat":
-      return tab;
-    case "home":
-    case "sessions":
-    case "automations":
-    case "agents":
-    default:
-      return "chat";
-  }
+  return tab;
 }
 
 export function publicTabFor(tab: Tab): PublicTab {
@@ -104,54 +83,9 @@ const PUBLIC_TAB_PATHS: Record<PublicTab, string> = {
   settings: "/settings",
 };
 
-const LEGACY_TAB_PATHS: Record<LegacyTab, string> = {
-  home: "/home",
-  sessions: "/sessions",
-  automations: "/automations",
-  agents: "/agents",
-};
-
-const TAB_PATHS: Record<Tab, string> = {
-  ...PUBLIC_TAB_PATHS,
-  ...LEGACY_TAB_PATHS,
-};
-
 const PATH_TO_PUBLIC_TAB = new Map(
   Object.entries(PUBLIC_TAB_PATHS).map(([tab, path]) => [path, tab as PublicTab]),
 );
-const LEGACY_PATH_ALIASES = new Map<string, PublicTab>([
-  ["/overview", "chat"],
-  ["/home", "chat"],
-  ["/sessions", "chat"],
-  ["/cron", "chat"],
-  ["/automations", "chat"],
-  ["/agents", "chat"],
-  ["/skills", "capabilities"],
-  ["/connections", "connections"],
-  ["/security", "security"],
-  ["/channels", "channels"],
-  ["/instances", "organization"],
-  ["/usage", "organization"],
-  ["/nodes", "connections"],
-  ["/config", "settings"],
-  ["/communications", "settings"],
-  ["/appearance", "settings"],
-  ["/automation", "settings"],
-  ["/infrastructure", "settings"],
-  ["/ai-agents", "models"],
-  ["/debug", "settings"],
-  ["/logs", "settings"],
-]);
-const LEGACY_SETTINGS_PATHS = new Map<string, SettingsSection>([
-  ["/config", "account"],
-  ["/communications", "support"],
-  ["/appearance", "general"],
-  ["/automation", "account"],
-  ["/infrastructure", "mac"],
-  ["/debug", "account"],
-  ["/logs", "account"],
-  ["/nodes", "mac"],
-]);
 
 export function normalizePath(path: string): string {
   if (!path) {
@@ -169,7 +103,7 @@ export function normalizePath(path: string): string {
 
 export function pathForTab(tab: Tab, basePath = ""): string {
   const base = normalizeBasePath(basePath);
-  const path = TAB_PATHS[normalizePublicTab(tab)];
+  const path = PUBLIC_TAB_PATHS[normalizePublicTab(tab)];
   return base ? `${base}${path}` : path;
 }
 
@@ -190,7 +124,7 @@ export function tabFromPath(pathname: string, basePath = ""): Tab | null {
   if (normalized === "/") {
     return "setup";
   }
-  return PATH_TO_PUBLIC_TAB.get(normalized) ?? LEGACY_PATH_ALIASES.get(normalized) ?? null;
+  return PATH_TO_PUBLIC_TAB.get(normalized) ?? null;
 }
 
 export function normalizeSettingsSection(value: string | null | undefined): SettingsSection {
@@ -238,7 +172,7 @@ export function settingsSectionFromPath(pathname: string, basePath = ""): Settin
   if (normalized === "/settings") {
     return "general";
   }
-  return LEGACY_SETTINGS_PATHS.get(normalized) ?? null;
+  return null;
 }
 
 export function inferBasePathFromPathname(pathname: string): string {
@@ -255,7 +189,7 @@ export function inferBasePathFromPathname(pathname: string): string {
   }
   for (let i = 0; i < segments.length; i++) {
     const candidate = `/${segments.slice(i).join("/")}`.toLowerCase();
-    if (PATH_TO_PUBLIC_TAB.has(candidate) || LEGACY_PATH_ALIASES.has(candidate)) {
+    if (PATH_TO_PUBLIC_TAB.has(candidate)) {
       const prefix = segments.slice(0, i);
       return prefix.length ? `/${prefix.join("/")}` : "";
     }

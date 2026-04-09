@@ -488,12 +488,12 @@ describe("runSetupWizard", () => {
     }
   });
 
-  it("prompts for a model during explicit interactive Ollama setup", async () => {
+  it("prompts for a model during explicit interactive vLLM setup", async () => {
     promptDefaultModel.mockClear();
     resolveProviderPluginChoice.mockReturnValue({
       provider: {
-        id: "ollama",
-        label: "Ollama",
+        id: "vllm",
+        label: "vLLM",
         auth: [],
         wizard: {
           setup: {
@@ -506,7 +506,7 @@ describe("runSetupWizard", () => {
       },
       method: {
         id: "local",
-        label: "Ollama",
+        label: "vLLM",
         kind: "custom",
         run: vi.fn(async () => ({ profiles: [] })),
       },
@@ -524,7 +524,7 @@ describe("runSetupWizard", () => {
       {
         acceptRisk: true,
         flow: "quickstart",
-        authChoice: "ollama",
+        authChoice: "vllm",
         installDaemon: false,
         skipSkills: true,
         skipSearch: true,

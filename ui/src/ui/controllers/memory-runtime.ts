@@ -16,15 +16,6 @@ export type MemoryRuntimeState = {
   memoryGraph: MemoryGraphState | null;
 };
 
-type DoctorMemoryStatusPayload = {
-  agentId: string;
-  provider?: string;
-  embedding: {
-    ok: boolean;
-    error?: string;
-  };
-};
-
 type TrackedRequest = {
   client: GatewayBrowserClient;
   token: symbol;
@@ -84,49 +75,6 @@ function isUnknownMethodError(err: unknown, method: string) {
   return err instanceof GatewayRequestError && err.message.includes(`unknown method: ${method}`);
 }
 
-async function loadLegacyMemoryStatus(
-  request: TrackedRequest,
-  state: MemoryRuntimeState,
-  agentId: string,
-): Promise<boolean> {
-  try {
-    const legacy = await request.client.request<DoctorMemoryStatusPayload | null>(
-      "doctor.memory.status",
-      {},
-    );
-    if (
-      !isTrackedRequestCurrent(state, statusRequests, request) ||
-      !isSelectedMemoryAgent(state, agentId)
-    ) {
-      return true;
-    }
-    if (!legacy || legacy.agentId !== agentId) {
-      state.memoryStatus = null;
-      state.memoryStatusError =
-        "Este Alisio ainda não expõe o estado detalhado da memória para este agente.";
-      state.memorySyncAvailable = false;
-      return true;
-    }
-    state.memoryStatus = {
-      agentId,
-      enabled: Boolean(legacy.provider) || legacy.embedding.ok,
-      embedding: legacy.embedding,
-    };
-    state.memoryStatusError =
-      "Este Alisio ainda não expõe o estado detalhado da memória. Mostro um estado básico até actualizares ou reiniciares o Alisio.";
-    state.memorySyncAvailable = false;
-    return true;
-  } catch {
-    if (isTrackedRequestCurrent(state, statusRequests, request)) {
-      state.memoryStatus = null;
-      state.memoryStatusError =
-        "Este Alisio ainda não expõe o estado detalhado da memória nesta versão.";
-      state.memorySyncAvailable = false;
-    }
-    return true;
-  }
-}
-
 export async function loadMemoryStatus(
   state: MemoryRuntimeState,
   agentId: string,
@@ -160,7 +108,12 @@ export async function loadMemoryStatus(
     state.memorySyncAvailable = true;
   } catch (err) {
     if (isUnknownMethodError(err, "memory.status")) {
-      await loadLegacyMemoryStatus(request, state, resolvedAgentId);
+      if (isTrackedRequestCurrent(state, statusRequests, request)) {
+        state.memoryStatus = null;
+        state.memoryStatusError =
+          "Este Alisio ainda não expõe o estado detalhado da memória nesta versão.";
+        state.memorySyncAvailable = false;
+      }
       return;
     }
     if (isTrackedRequestCurrent(state, statusRequests, request)) {

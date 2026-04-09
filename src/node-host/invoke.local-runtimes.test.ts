@@ -1,88 +1,67 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
-  inspectLocalModelRuntimesMock,
-  installOllamaLocalModelMock,
-  uninstallOllamaLocalModelMock,
-  resolveCurrentRuntimeBaseUrlForKindMock,
-  startLmStudioLocalServerMock,
+  inspectManagedLocalModelRuntimeMock,
+  installAlisioLocalModelMock,
+  uninstallAlisioLocalModelMock,
 } = vi.hoisted(() => ({
-  inspectLocalModelRuntimesMock: vi.fn(async (): Promise<Array<Record<string, unknown>>> => []),
-  installOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
-    id: modelId,
-    name: modelId,
-    ownedBy: "ollama",
-  })),
-  uninstallOllamaLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
-    id: modelId,
-    name: modelId,
-    ownedBy: "ollama",
-  })),
-  resolveCurrentRuntimeBaseUrlForKindMock: vi.fn(
-    ({ runtimeKind }: { runtimeKind: "ollama" | "lmstudio" | "openai-compatible" }) =>
-      runtimeKind === "ollama"
-        ? "http://127.0.0.1:11434"
-        : runtimeKind === "lmstudio"
-          ? "http://127.0.0.1:1234"
-          : "http://127.0.0.1:8080",
+  inspectManagedLocalModelRuntimeMock: vi.fn(
+    async (): Promise<Record<string, unknown>> => ({
+      runtimeKind: "llama.cpp",
+      runtimeLabel: "Local GGUF",
+      status: "ready",
+      models: [{ id: "qwen3-8b-instruct-q4", name: "Qwen3 8B Instruct", ownedBy: "llama.cpp" }],
+      availableModels: [],
+      capabilities: {
+        install: true,
+        update: true,
+        uninstall: true,
+        consentRequired: true,
+        startServer: false,
+      },
+      supportsInstall: true,
+      supportsUpdate: true,
+      supportsUninstall: true,
+      consentRequired: true,
+    }),
   ),
-  startLmStudioLocalServerMock: vi.fn(async () => ({
-    baseUrl: "http://127.0.0.1:1234",
-    port: 1234,
-    alreadyRunning: false,
+  installAlisioLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
+    id: modelId,
+    name: modelId,
+    ownedBy: "llama.cpp",
+  })),
+  uninstallAlisioLocalModelMock: vi.fn(async ({ modelId }: { modelId: string }) => ({
+    id: modelId,
+    name: modelId,
+    ownedBy: "llama.cpp",
   })),
 }));
 
-vi.mock("../infra/alisio-local-model-runtime.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../infra/alisio-local-model-runtime.js")>();
+vi.mock("../infra/alisio-local-llama-runtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../infra/alisio-local-llama-runtime.js")>();
   return {
     ...actual,
-    inspectLocalModelRuntimes: inspectLocalModelRuntimesMock,
-    installOllamaLocalModel: installOllamaLocalModelMock,
-    uninstallOllamaLocalModel: uninstallOllamaLocalModelMock,
-    resolveCurrentRuntimeBaseUrlForKind: resolveCurrentRuntimeBaseUrlForKindMock,
+    inspectManagedLocalModelRuntime: inspectManagedLocalModelRuntimeMock,
+    installAlisioLocalModel: installAlisioLocalModelMock,
+    uninstallAlisioLocalModel: uninstallAlisioLocalModelMock,
   };
 });
 
-vi.mock("../infra/alisio-lmstudio.js", () => ({
-  startLmStudioLocalServer: startLmStudioLocalServerMock,
-}));
-
 import { handleTask } from "./invoke.js";
 
-describe("handleTask runtimes remotos", () => {
+describe("handleTask llama.cpp", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("devolve o catálogo do Ollama como runtime separado", async () => {
-    inspectLocalModelRuntimesMock.mockResolvedValueOnce([
-      {
-        runtimeKind: "ollama",
-        runtimeLabel: "Ollama",
-        status: "ready",
-        models: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
-        availableModels: [{ id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" }],
-        capabilities: {
-          install: true,
-          update: true,
-          uninstall: true,
-          consentRequired: true,
-          startServer: false,
-        },
-        supportsInstall: true,
-        supportsUpdate: true,
-        supportsUninstall: true,
-        consentRequired: true,
-      },
-    ]);
+  it("devolve o catálogo llama.cpp do nó", async () => {
     const request = vi.fn(async () => ({}));
 
     await handleTask(
       {
-        taskId: "task-ollama-catalog",
+        taskId: "task-catalog",
         nodeId: "node-1",
-        capabilityId: "model.catalog.ollama.v1",
+        capabilityId: "model.catalog.llamacpp.v1",
         inputJSON: "{}",
       },
       { request } as never,
@@ -93,52 +72,46 @@ describe("handleTask runtimes remotos", () => {
     const resultCall = requestCalls.find(([method]) => method === "node.task.result");
     const resultParams = resultCall?.[1] as { payloadJSON?: string } | undefined;
     expect(JSON.parse(String(resultParams?.payloadJSON))).toMatchObject({
-      runtimeKind: "ollama",
+      runtimeKind: "llama.cpp",
       supportsInstall: true,
     });
   });
 
-  it("executa instalações do Ollama através da capability dedicada", async () => {
+  it("executa instalações llama.cpp através da capability dedicada", async () => {
     const request = vi.fn(async () => ({}));
 
     await handleTask(
       {
-        taskId: "task-ollama-install",
+        taskId: "task-install",
         nodeId: "node-1",
-        capabilityId: "model.manage.ollama.v1",
-        inputJSON: JSON.stringify({ action: "install", modelId: "qwen3:8b" }),
+        capabilityId: "model.manage.llamacpp.v1",
+        inputJSON: JSON.stringify({ action: "install", modelId: "qwen3-8b-instruct-q4" }),
       },
       { request } as never,
       (() => Promise.resolve([])) as never,
     );
 
-    expect(installOllamaLocalModelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ modelId: "qwen3:8b" }),
+    expect(installAlisioLocalModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: "qwen3-8b-instruct-q4" }),
     );
   });
 
-  it("arranca o servidor do LM Studio através da capability dedicada", async () => {
+  it("executa desinstalações llama.cpp através da capability dedicada", async () => {
     const request = vi.fn(async () => ({}));
 
     await handleTask(
       {
-        taskId: "task-lmstudio-start",
+        taskId: "task-uninstall",
         nodeId: "node-1",
-        capabilityId: "model.server.start.lmstudio.v1",
-        inputJSON: "{}",
+        capabilityId: "model.manage.llamacpp.v1",
+        inputJSON: JSON.stringify({ action: "uninstall", modelId: "qwen3-8b-instruct-q4" }),
       },
       { request } as never,
       (() => Promise.resolve([])) as never,
     );
 
-    expect(startLmStudioLocalServerMock).toHaveBeenCalled();
-    const requestCalls = request.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
-    const resultCall = requestCalls.find(([method]) => method === "node.task.result");
-    const resultParams = resultCall?.[1] as { payloadJSON?: string } | undefined;
-    expect(JSON.parse(String(resultParams?.payloadJSON))).toMatchObject({
-      runtimeKind: "lmstudio",
-      baseUrl: "http://127.0.0.1:1234",
-      alreadyRunning: false,
-    });
+    expect(uninstallAlisioLocalModelMock).toHaveBeenCalledWith(
+      expect.objectContaining({ modelId: "qwen3-8b-instruct-q4" }),
+    );
   });
 });

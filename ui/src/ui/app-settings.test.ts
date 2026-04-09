@@ -229,7 +229,7 @@ describe("resolveEffectiveAlisioAiState", () => {
         alisioBootstrap: null,
         alisioStartupBootstrap: {
           basePath: "/",
-          controlUrl: "wss://gateway.example/openclaw/",
+          controlUrl: "wss://gateway.example/alisio/",
           startupState: "needs_ai",
           account: null,
           accountCloud: {
@@ -263,7 +263,7 @@ describe("resolveEffectiveAlisioAiState", () => {
         }),
         alisioStartupBootstrap: {
           basePath: "/",
-          controlUrl: "wss://gateway.example/openclaw/",
+          controlUrl: "wss://gateway.example/alisio/",
           startupState: "needs_ai",
           account: null,
           accountCloud: {
@@ -718,7 +718,7 @@ describe("applySettingsFromUrl", () => {
     expect(host.sessionKey).toBe("agent:test_old:main");
     expect(host.settings.sessionKey).toBe("agent:test_old:main");
     expect(host.settings.lastActiveSessionKey).toBe("agent:test_old:main");
-    expect(host.pendingGatewayUrl).toBe("ws://gateway-b.example:40705");
+    expect(host.pendingGatewayUrl).toBe("ws://gateway-b.example:18789");
     expect(host.pendingGatewayToken).toBe("test-token");
   });
 });

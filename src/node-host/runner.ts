@@ -198,7 +198,7 @@ export async function runNodeHost(opts: NodeHostRunOptions): Promise<void> {
     caps: [
       "system",
       ...(browserProxyEnabled ? ["browser"] : []),
-      ...(capabilities.some((capability) => capability.id === "model.chat.openai.v1")
+      ...(capabilities.some((capability) => capability.id === "model.chat.llamacpp.v1")
         ? ["models"]
         : []),
     ],

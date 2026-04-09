@@ -242,15 +242,6 @@ describe("resolveModel forward-compat errors and overrides", () => {
     });
   });
 
-  it("includes auth hint for unknown ollama models (#17328)", () => {
-    const result = resolveModelForTest("ollama", "gemma3:4b", "/tmp/agent");
-
-    expect(result.model).toBeUndefined();
-    expect(result.error).toContain("Unknown model: ollama/gemma3:4b");
-    expect(result.error).toContain("OLLAMA_API_KEY");
-    expect(result.error).toContain("docs.openclaw.ai/providers/ollama");
-  });
-
   it("includes auth hint for unknown vllm models", () => {
     const result = resolveModelForTest("vllm", "llama-3-70b", "/tmp/agent");
 

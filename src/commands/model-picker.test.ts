@@ -173,12 +173,12 @@ describe("promptDefaultModel", () => {
     providerModelPickerContributionRuntime.enabled = true;
     providerModelPickerContributionRuntime.resolve.mockReturnValue([
       {
-        id: "provider:model-picker:ollama",
+        id: "provider:model-picker:vllm",
         kind: "provider",
         surface: "model-picker",
         option: {
-          value: "ollama",
-          label: "Ollama",
+          value: "vllm",
+          label: "vLLM",
           hint: "Local/self-hosted setup",
         },
       },
@@ -192,8 +192,8 @@ describe("promptDefaultModel", () => {
     ] as never);
 
     const select = vi.fn(async (params) => {
-      const ollama = params.options.find((opt: { value: string }) => opt.value === "ollama");
-      return (ollama?.value ?? "") as never;
+      const vllm = params.options.find((opt: { value: string }) => opt.value === "vllm");
+      return (vllm?.value ?? "") as never;
     });
     const prompter = makePrompter({ select });
 
@@ -210,7 +210,7 @@ describe("promptDefaultModel", () => {
 
     expect(providerModelPickerContributionRuntime.resolve).toHaveBeenCalledOnce();
     expect(select.mock.calls[0]?.[0]?.options).toEqual(
-      expect.arrayContaining([expect.objectContaining({ value: "ollama", label: "Ollama" })]),
+      expect.arrayContaining([expect.objectContaining({ value: "vllm", label: "vLLM" })]),
     );
     expect(select.mock.calls[0]?.[0]?.options).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ value: "legacy-entry" })]),

@@ -62,25 +62,25 @@ vi.mock("../plugins/provider-oauth-flow.js", () => ({
 
 function buildProvider(): ProviderPlugin {
   return {
-    id: "ollama",
-    label: "Ollama",
+    id: "vllm",
+    label: "vLLM",
     auth: [
       {
         id: "local",
-        label: "Ollama",
+        label: "vLLM",
         kind: "custom",
         run: async () => ({
           profiles: [
             {
-              profileId: "ollama:default",
+              profileId: "vllm:default",
               credential: {
                 type: "api_key",
-                provider: "ollama",
-                key: "ollama-local",
+                provider: "vllm",
+                key: "custom-local",
               },
             },
           ],
-          defaultModel: "ollama/qwen3:4b",
+          defaultModel: "vllm/qwen3:4b",
         }),
       },
     ],
@@ -89,7 +89,7 @@ function buildProvider(): ProviderPlugin {
 
 function buildParams(overrides: Partial<ApplyAuthChoiceParams> = {}): ApplyAuthChoiceParams {
   return {
-    authChoice: "ollama",
+    authChoice: "vllm",
     config: {},
     prompter: {
       note: vi.fn(async () => {}),
@@ -122,7 +122,7 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
 
     expect(result).toEqual({
       config: {},
-      agentModelOverride: "ollama/qwen3:4b",
+      agentModelOverride: "vllm/qwen3:4b",
     });
     expect(runProviderModelSelectedHook).not.toHaveBeenCalled();
   });
@@ -138,20 +138,20 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
     const result = await applyAuthChoiceLoadedPluginProvider(buildParams());
 
     expect(result?.config.agents?.defaults?.model).toEqual({
-      primary: "ollama/qwen3:4b",
+      primary: "vllm/qwen3:4b",
     });
     expect(upsertAuthProfile).toHaveBeenCalledWith({
-      profileId: "ollama:default",
+      profileId: "vllm:default",
       credential: {
         type: "api_key",
-        provider: "ollama",
-        key: "ollama-local",
+        provider: "vllm",
+        key: "custom-local",
       },
       agentDir: "/tmp/agent",
     });
     expect(runProviderModelSelectedHook).toHaveBeenCalledWith({
       config: result?.config,
-      model: "ollama/qwen3:4b",
+      model: "vllm/qwen3:4b",
       prompter: expect.objectContaining({ note: expect.any(Function) }),
       agentDir: undefined,
       workspaceDir: "/tmp/workspace",
@@ -187,27 +187,27 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
       run: async () => ({
         profiles: [
           {
-            profileId: "ollama:default",
+            profileId: "vllm:default",
             credential: {
               type: "api_key",
-              provider: "ollama",
-              key: "ollama-local",
+              provider: "vllm",
+              key: "custom-local",
             },
           },
         ],
         configPatch: {
           models: {
             providers: {
-              ollama: {
-                api: "ollama",
-                baseUrl: "http://127.0.0.1:11434",
+              vllm: {
+                api: "openai-completions",
+                baseUrl: "http://127.0.0.1:8000/v1",
                 models: [],
               },
             },
           },
         },
-        defaultModel: "ollama/qwen3:4b",
-        notes: ["Detected local Ollama runtime.", "Pulled model metadata."],
+        defaultModel: "vllm/qwen3:4b",
+        notes: ["Detected local vLLM runtime.", "Pulled model metadata."],
       }),
     };
 
@@ -226,18 +226,18 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
       method,
     });
 
-    expect(result.defaultModel).toBe("ollama/qwen3:4b");
-    expect(result.config.models?.providers?.ollama).toEqual({
-      api: "ollama",
-      baseUrl: "http://127.0.0.1:11434",
+    expect(result.defaultModel).toBe("vllm/qwen3:4b");
+    expect(result.config.models?.providers?.vllm).toEqual({
+      api: "openai-completions",
+      baseUrl: "http://127.0.0.1:8000/v1",
       models: [],
     });
-    expect(result.config.auth?.profiles?.["ollama:default"]).toEqual({
-      provider: "ollama",
+    expect(result.config.auth?.profiles?.["vllm:default"]).toEqual({
+      provider: "vllm",
       mode: "api_key",
     });
     expect(note).toHaveBeenCalledWith(
-      "Detected local Ollama runtime.\nPulled model metadata.",
+      "Detected local vLLM runtime.\nPulled model metadata.",
       "Provider notes",
     );
   });
@@ -249,7 +249,7 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
     const note = vi.fn(async () => {});
     const result = await applyAuthChoicePluginProvider(
       buildParams({
-        authChoice: "provider-plugin:ollama:local",
+        authChoice: "provider-plugin:vllm:local",
         agentId: "worker",
         setDefaultModel: false,
         prompter: {
@@ -257,25 +257,25 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
         } as unknown as ApplyAuthChoiceParams["prompter"],
       }),
       {
-        authChoice: "provider-plugin:ollama:local",
-        pluginId: "ollama",
-        providerId: "ollama",
+        authChoice: "provider-plugin:vllm:local",
+        pluginId: "vllm",
+        providerId: "vllm",
         methodId: "local",
-        label: "Ollama",
+        label: "vLLM",
       },
     );
 
-    expect(result?.agentModelOverride).toBe("ollama/qwen3:4b");
+    expect(result?.agentModelOverride).toBe("vllm/qwen3:4b");
     expect(result?.config.plugins).toEqual({
       entries: {
-        ollama: {
+        vllm: {
           enabled: true,
         },
       },
     });
     expect(runProviderModelSelectedHook).not.toHaveBeenCalled();
     expect(note).toHaveBeenCalledWith(
-      'Default model set to ollama/qwen3:4b for agent "worker".',
+      'Default model set to vllm/qwen3:4b for agent "worker".',
       "Model configured",
     );
   });
@@ -295,10 +295,10 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
         } as unknown as ApplyAuthChoiceParams["prompter"],
       }),
       {
-        authChoice: "ollama",
-        pluginId: "ollama",
-        providerId: "ollama",
-        label: "Ollama",
+        authChoice: "vllm",
+        pluginId: "vllm",
+        providerId: "vllm",
+        label: "vLLM",
       },
     );
 
@@ -310,6 +310,6 @@ describe("applyAuthChoiceLoadedPluginProvider", () => {
       },
     });
     expect(resolvePluginProviders).not.toHaveBeenCalled();
-    expect(note).toHaveBeenCalledWith("Ollama plugin is disabled (plugins disabled).", "Ollama");
+    expect(note).toHaveBeenCalledWith("vLLM plugin is disabled (plugins disabled).", "vLLM");
   });
 });

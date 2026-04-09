@@ -73,7 +73,6 @@ function createModelsState(): AlisioModelsState {
         summary: "Balanced local model.",
         diskGb: 5.1,
         memoryGb: 12,
-        vramGb: 8,
         releaseStage: "published",
       },
     ],
@@ -81,7 +80,7 @@ function createModelsState(): AlisioModelsState {
       {
         targetId: "current",
         deviceId: "current",
-        label: "This Mac",
+        label: "Workstation",
         runtimeLabel: "Local GGUF",
         platform: "darwin",
         current: true,
@@ -105,16 +104,10 @@ function createModelsState(): AlisioModelsState {
         installedModels: [{ id: "qwen3-4b-q4-k-m", name: "Qwen3 4B", ownedBy: "llama.cpp" }],
         recommendations: [
           {
-            modelId: "qwen3-4b-q4-k-m",
-            grade: "works",
-            label: "Works",
-            reason: "Already installed",
-          },
-          {
             modelId: "qwen3-8b-q4-k-m",
             grade: "recommended",
             label: "Recommended",
-            reason: "Best fit for this Mac",
+            reason: "Best fit for this computer",
           },
         ],
         bestModelId: "qwen3-8b-q4-k-m",
@@ -127,8 +120,8 @@ function createModelsState(): AlisioModelsState {
         },
       },
       {
-        targetId: "remote-1",
-        deviceId: "remote-1",
+        targetId: "node-1",
+        deviceId: "node-1",
         label: "Studio Mac",
         runtimeLabel: "Local GGUF",
         platform: "darwin",
@@ -137,7 +130,7 @@ function createModelsState(): AlisioModelsState {
         location: "server",
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
-        chatProviderId: "alisio-target-remote-1-llama",
+        chatProviderId: "alisio-target-node-1-llama",
         runtimeStatus: "ready",
         capabilities: {
           install: true,
@@ -156,32 +149,12 @@ function createModelsState(): AlisioModelsState {
             modelId: "qwen3-8b-q4-k-m",
             grade: "recommended",
             label: "Recommended",
-            reason: "Good fit",
+            reason: "Good fit for this node",
           },
         ],
-        bestModelId: "qwen3-8b-q4-k-m",
-        bestModelName: "Qwen3 8B",
-        hardware: {
-          platform: "darwin",
-          architecture: "arm64",
-          totalMemoryGb: 24,
-          cpuCores: 8,
-        },
       },
     ],
-    servers: [
-      {
-        serverId: "server-1",
-        label: "Home Lab",
-        chatProviderId: "alisio-server-server-1",
-        kind: "openai-compatible",
-        baseUrl: "http://127.0.0.1:8080/v1",
-        active: true,
-        hasApiKey: false,
-        status: "ready",
-        models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", ownedBy: "openai-compatible" }],
-      },
-    ],
+    servers: [],
   };
 }
 
@@ -199,18 +172,13 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     chatModelOptions: [
       { value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" },
       { value: "openai-codex/gpt-5.3-codex", label: "gpt-5.3-codex · openai-codex" },
-      { value: "anthropic/claude-sonnet-4-5", label: "claude-sonnet-4-5 · anthropic" },
       {
         value: "alisio-local-current/qwen3-4b-q4-k-m",
-        label: "Qwen3 4B · This Mac",
+        label: "Qwen3 4B · This computer",
       },
       {
-        value: "alisio-target-remote-1-llama/qwen3-8b-q4-k-m",
+        value: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
         label: "Qwen3 8B · Studio Mac",
-      },
-      {
-        value: "alisio-server-server-1/gpt-oss-20b",
-        label: "gpt-oss-20b · Home Lab",
       },
     ],
     currentChatModelOverrideValue: "",
@@ -220,7 +188,6 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     effectiveChatModelValue: "openai-codex/gpt-5.4",
     effectiveChatModelLabel: "gpt-5.4 · openai-codex",
     modelPickerBusy: false,
-    serverDraft: null,
     onToggleProfile: vi.fn(),
     onSelectProvider: vi.fn(),
     onConnectAi: vi.fn(),
@@ -234,38 +201,28 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     onInstallModel: vi.fn(),
     onUpdateModel: vi.fn(),
     onUninstallModel: vi.fn(),
-    onStartRuntimeServer: vi.fn(),
-    onStartCreateServer: vi.fn(),
-    onStartEditServer: vi.fn(),
-    onChangeServerDraft: vi.fn(),
-    onCancelServerDraft: vi.fn(),
-    onSubmitServerDraft: vi.fn(),
-    onRemoveServer: vi.fn(),
-    onSelectServer: vi.fn(),
     ...overrides,
   } satisfies Parameters<typeof renderModelsHub>[0];
 }
 
 describe("renderModelsHub", () => {
-  it("renders provider cards and wires OpenAI default and session model selection", () => {
+  it("renders only the three supported source cards and wires OpenAI selection", () => {
     const props = createProps();
     const container = document.createElement("div");
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).toContain("OpenAI");
-    expect(container.textContent).toContain("Server");
-    expect(container.textContent).toContain("Local");
     const providerTitles = Array.from(
       container.querySelectorAll<HTMLElement>(".alisio-models__provider-title"),
     ).map((element) => element.textContent?.trim() ?? "");
-    expect(providerTitles).toEqual(["OpenAI", "Local", "Server"]);
 
-    const localCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Local"),
+    expect(providerTitles).toEqual(["OpenAI", "This computer", "Alisio nodes"]);
+
+    const nodesCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Alisio nodes"),
     );
-    localCard?.click();
-    expect(props.onSelectProvider).toHaveBeenCalledWith("local");
+    nodesCard?.click();
+    expect(props.onSelectProvider).toHaveBeenCalledWith("nodes");
 
     const allModelButtons = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
@@ -277,157 +234,7 @@ describe("renderModelsHub", () => {
     expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
   });
 
-  it("keeps the Auto action available when an OpenAI chat override exists without a global OpenAI default", () => {
-    const props = createProps({
-      currentChatModelOverrideValue: "openai-codex/gpt-5.3-codex",
-      defaultChatModelValue: "",
-      defaultChatModelDisplay: "",
-      defaultChatModelLabel: "Default model",
-      effectiveChatModelValue: "openai-codex/gpt-5.3-codex",
-      effectiveChatModelLabel: "gpt-5.3-codex · openai-codex",
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const autoButton = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.trim() === "Auto");
-
-    expect(autoButton).toBeDefined();
-
-    autoButton?.click();
-
-    expect(props.onSelectChatModel).toHaveBeenCalledWith("");
-    expect(container.textContent).not.toContain("Default (gpt-5.4 · openai-codex)");
-  });
-
-  it("hides the rename action for personal OpenAI profiles", () => {
-    const props = createProps();
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).not.toContain("Rename");
-  });
-
-  it("keeps the rename action visible for team OpenAI profiles", () => {
-    const props = createProps({
-      bootstrap: {
-        ...createBootstrap(),
-        ai: {
-          ...createBootstrap().ai,
-          profiles: [
-            {
-              profileId: "profile-1",
-              label: "Workspace Alpha",
-              provider: "openai",
-              scope: "organization",
-              ownerKey: "organization:1",
-              canonicalIdentityKey: "organization:1",
-              identity: {
-                email: "workspace@example.com",
-              },
-              status: "connected",
-              email: "workspace@example.com",
-              connectedAt: "2026-04-04T12:00:00.000Z",
-              planLabel: "Team",
-            },
-          ],
-        },
-      } as AlisioBootstrapState,
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Rename");
-  });
-
-  it("renders only the selected local provider surface", () => {
-    const props = createProps({ selectedProviderId: "local" });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const targetTitles = Array.from(
-      container.querySelectorAll<HTMLElement>(".alisio-models__target .list-title"),
-    ).map((element) => element.textContent?.trim() ?? "");
-
-    expect(container.textContent).toContain("This Mac");
-    expect(container.textContent).toContain("macOS");
-    expect(container.textContent).toContain("Local GGUF");
-    expect(container.textContent).toContain("Qwen3 8B");
-    expect(container.textContent).toContain("Install");
-    expect(container.textContent).toContain("Uninstall");
-    expect(container.textContent).not.toContain("alice@example.com");
-    expect(targetTitles).toContain("Local GGUF");
-    expect(targetTitles).not.toContain("Studio Mac");
-
-    const localChip = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.includes("Qwen3 4B"));
-    localChip?.click();
-
-    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-local-current/qwen3-4b-q4-k-m");
-  });
-
-  it("shows only runtimes installed on this device in the local surface", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "local",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            targetId: "current::ollama",
-            deviceId: "current",
-            label: "This Mac",
-            runtimeLabel: "Ollama",
-            platform: "darwin",
-            current: true,
-            connected: true,
-            location: "local",
-            backend: "llama.cpp",
-            runtimeKind: "ollama",
-            chatProviderId: "alisio-local-current-ollama",
-            runtimeStatus: "ready",
-            capabilities: {
-              install: true,
-              update: true,
-              uninstall: true,
-              consentRequired: true,
-              startServer: false,
-            },
-            supportsInstall: true,
-            supportsUpdate: true,
-            supportsUninstall: true,
-            consentRequired: true,
-            installedModels: [{ id: "qwen3:8b", name: "qwen3:8b", ownedBy: "ollama" }],
-            availableModels: [{ id: "qwen3:4b", name: "Qwen3 4B", runtimeKind: "ollama" }],
-            recommendations: [],
-          },
-          {
-            ...baseModels.targets[1],
-            installedModels: [{ id: "remote-only", name: "Remote Only", ownedBy: "llama.cpp" }],
-          },
-        ],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-    const localSection = container.querySelector<HTMLElement>(".alisio-models-section");
-
-    expect(container.textContent).toContain("Local GGUF");
-    expect(container.textContent).toContain("Ollama");
-    expect(container.textContent).toContain("qwen3:8b");
-    expect(localSection?.textContent ?? "").not.toContain("Remote Only");
-    expect(localSection?.textContent ?? "").not.toContain("Studio Mac");
-  });
-
-  it("shows install progress and wires uninstall for local models", () => {
+  it("renders the local surface with install, update, uninstall and model selection actions", () => {
     const props = createProps({
       selectedProviderId: "local",
       modelOperations: {
@@ -437,8 +244,6 @@ describe("renderModelsHub", () => {
           action: "install",
           phase: "running",
           percent: 42,
-          downloadedSize: 2_100_000_000,
-          totalSize: 5_100_000_000,
           updatedAt: Date.now(),
         },
       },
@@ -447,90 +252,64 @@ describe("renderModelsHub", () => {
 
     render(renderModelsHub(props), container);
 
-    expect(container.textContent).toContain("Installing");
-    expect(container.textContent).toContain("42%");
+    const section = container.querySelector<HTMLElement>(".alisio-models-section");
+
+    expect(section?.textContent).toContain("This computer");
+    expect(section?.textContent).toContain("Qwen3 4B");
+    expect(section?.textContent).toContain("Installing");
+    expect(section?.textContent ?? "").not.toContain("Studio Mac");
+
+    const updateButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Update"),
+    );
+    updateButton?.click();
+    expect(props.onUpdateModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
 
     const uninstallButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>("button"),
     ).find((button) => button.textContent?.includes("Uninstall"));
     uninstallButton?.click();
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
+
+    const localChip = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
+    ).find((button) => button.textContent?.includes("Qwen3 4B"));
+    localChip?.click();
+    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-local-current/qwen3-4b-q4-k-m");
   });
 
-  it("shows update for managed local models and reuses the install action", () => {
+  it("renders the nodes surface with paired-node models only", () => {
     const props = createProps({
-      selectedProviderId: "local",
+      selectedProviderId: "nodes",
+      currentChatModelOverrideValue: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
+      effectiveChatModelValue: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
+      effectiveChatModelLabel: "Qwen3 8B · Studio Mac",
     });
     const container = document.createElement("div");
 
     render(renderModelsHub(props), container);
 
-    const updateButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Update"),
-    );
-    updateButton?.click();
+    const section = container.querySelector<HTMLElement>(".alisio-models-section");
 
-    expect(props.onUpdateModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
+    expect(section?.textContent).toContain("Alisio nodes");
+    expect(section?.textContent).toContain("Studio Mac");
+    expect(section?.textContent).toContain("Qwen3 8B");
+    expect(section?.textContent ?? "").not.toContain("alice@example.com");
+
+    const nodeChip = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
+    ).find((button) => button.textContent?.includes("Qwen3 8B"));
+    nodeChip?.click();
+
+    expect(props.onSelectChatModel).toHaveBeenCalledWith(
+      "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
+    );
   });
 
-  it("shows the LM Studio start action for a linked runtime that is not ready", () => {
+  it("shows read-only metadata for shared nodes", () => {
     const baseModels = createModelsState();
     const props = createProps({
-      selectedProviderId: "server",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            targetId: "remote-lmstudio",
-            deviceId: "remote-lmstudio",
-            label: "Studio Mac",
-            runtimeLabel: "LM Studio",
-            platform: "darwin",
-            current: false,
-            connected: true,
-            location: "server",
-            backend: "llama.cpp",
-            runtimeKind: "lmstudio",
-            chatProviderId: "alisio-target-remote-lmstudio-lmstudio",
-            runtimeStatus: "not_configured",
-            runtimeMessage:
-              "Start the LM Studio local server on this device to expose models here.",
-            capabilities: {
-              install: false,
-              update: false,
-              uninstall: false,
-              consentRequired: false,
-              startServer: true,
-            },
-            supportsInstall: false,
-            supportsUpdate: false,
-            supportsUninstall: false,
-            consentRequired: false,
-            access: "owner",
-            installedModels: [],
-            recommendations: [],
-          },
-        ],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const startButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Start server"),
-    );
-
-    expect(startButton).toBeDefined();
-    startButton?.click();
-    expect(props.onStartRuntimeServer).toHaveBeenCalledWith("remote-lmstudio");
-  });
-
-  it("marks shared linked targets as read-only and shows the owner", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "server",
+      selectedProviderId: "nodes",
       models: {
         ...baseModels,
         targets: [
@@ -554,357 +333,70 @@ describe("renderModelsHub", () => {
     expect(container.textContent).toContain("Owned by Alice");
   });
 
-  it("renders linked computers and remote endpoints in the server surface", () => {
-    const props = createProps({ selectedProviderId: "server" });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Studio Mac");
-    expect(container.textContent).toContain("Home Lab");
-    expect(container.textContent).toContain("gpt-oss-20b");
-  });
-
-  it("keeps saved servers visible but disables server management on Free", () => {
-    const props = createProps({
-      selectedProviderId: "server",
-      bootstrap: {
-        ...createBootstrap(),
-        account: {
-          ...createBootstrap().account,
-          profile: {
-            ...createBootstrap().account.profile,
-            plan: "free",
-          },
-        },
-      },
-      models: {
-        ...createModelsState(),
-        servers: [
-          {
-            ...createModelsState().servers[0],
-            status: "not_configured",
-            message:
-              "Custom remote model servers are available on Plus. Open Settings -> Billing to upgrade before using remote endpoints.",
-            models: [],
-          },
-        ],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Custom remote model servers are available on Plus.");
-    expect(container.textContent).toContain("Home Lab");
-    const addServerButton = Array.from(
-      container.querySelectorAll<HTMLButtonElement>("button"),
-    ).find((button) => button.textContent?.includes("Add server"));
-    expect(addServerButton?.disabled).toBe(true);
-    const editButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Edit"),
-    );
-    expect(editButton?.disabled).toBe(true);
-  });
-
-  it("summarizes linked devices and endpoints together in the server picker card", () => {
-    const props = createProps();
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const serverCard = Array.from(
-      container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
-    ).find((card) => card.textContent?.includes("Server"));
-
-    expect(serverCard?.textContent).toContain("1 linked device");
-    expect(serverCard?.textContent).toContain("1 endpoint");
-  });
-
-  it("permite escolher um modelo do endpoint activo na superfície de servidor", () => {
-    const props = createProps({
-      selectedProviderId: "server",
-      currentChatModelOverrideValue: "alisio-server-server-1/gpt-oss-20b",
-      effectiveChatModelValue: "alisio-server-server-1/gpt-oss-20b",
-      effectiveChatModelLabel: "gpt-oss-20b · Home Lab",
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const remoteChip = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.includes("gpt-oss-20b"));
-    remoteChip?.click();
-
-    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-server-server-1/gpt-oss-20b");
-    expect(container.textContent).toContain("Choose model");
-  });
-
-  it("uses a generic empty-state copy for linked OpenAI-compatible targets", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "server",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            targetId: "remote-openai",
-            deviceId: "remote-openai",
-            label: "Edge Box",
-            runtimeLabel: "OpenAI-compatible",
-            platform: "linux",
-            current: false,
-            connected: true,
-            location: "server",
-            backend: "llama.cpp",
-            runtimeKind: "openai-compatible",
-            runtimeStatus: "ready",
-            capabilities: {
-              install: false,
-              update: false,
-              uninstall: false,
-              consentRequired: false,
-              startServer: false,
-            },
-            supportsInstall: false,
-            supportsUpdate: false,
-            supportsUninstall: false,
-            consentRequired: false,
-            installedModels: [],
-            recommendations: [],
-          },
-        ],
-        servers: [],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("No models are available here yet.");
-    expect(container.textContent).not.toContain(
-      "There are no installed models on this computer yet.",
-    );
-  });
-
-  it("uses provider catalog labels for OpenAI-compatible targets even before the snapshot carries models", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "local",
-      currentChatModelOverrideValue: "alisio-local-current/gpt-oss-20b",
-      effectiveChatModelValue: "alisio-local-current/gpt-oss-20b",
-      effectiveChatModelLabel: "gpt-oss-20b · This Mac",
-      models: {
-        ...baseModels,
-        targets: [
-          {
-            ...baseModels.targets[0],
-            runtimeKind: "openai-compatible",
-            installedModels: [],
-            chatProviderId: "alisio-local-current",
-          },
-        ],
-      },
-      chatModelOptions: [
-        ...createProps().chatModelOptions,
-        {
-          value: "alisio-local-current/gpt-oss-20b",
-          label: "gpt-oss-20b · This Mac",
-        },
-      ],
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("gpt-oss-20b");
-    expect(container.textContent).not.toContain("No models are available here yet.");
-  });
-
-  it("treats OpenAI-compatible models as available even when managed installation is also supported", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "server",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            targetId: "remote-openai",
-            deviceId: "remote-openai",
-            label: "Edge Box",
-            runtimeLabel: "OpenAI-compatible",
-            platform: "linux",
-            current: false,
-            connected: true,
-            location: "server",
-            backend: "llama.cpp",
-            runtimeKind: "openai-compatible",
-            chatProviderId: "alisio-target-remote-openai-openai",
-            runtimeStatus: "ready",
-            capabilities: {
-              install: true,
-              update: false,
-              uninstall: false,
-              consentRequired: false,
-              startServer: false,
-            },
-            supportsInstall: true,
-            supportsUpdate: false,
-            supportsUninstall: false,
-            consentRequired: false,
-            installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
-            recommendations: [
-              {
-                modelId: "qwen3-8b-q4-k-m",
-                grade: "recommended",
-                label: "Recommended",
-                reason: "Good fit",
-              },
-            ],
-          },
-        ],
-        servers: [],
-      },
-      chatModelOptions: [
-        ...createProps().chatModelOptions,
-        {
-          value: "alisio-target-remote-openai-openai/gpt-oss-20b",
-          label: "gpt-oss-20b · Edge Box",
-        },
-      ],
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Available models");
-    expect(container.textContent).toContain("Recommended to install");
-    expect(container.textContent).toContain("gpt-oss-20b");
-    expect(container.textContent).not.toContain("Uninstall");
-  });
-
-  it("shows a disconnected target state instead of a ready runtime badge", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "server",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            ...baseModels.targets[1],
-            connected: false,
-          },
-        ],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Not connected");
-    expect(container.textContent).toContain("This linked device is offline right now.");
-  });
-
-  it("keeps the local provider summary aligned with the current OpenAI-compatible runtime", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "local",
-      models: {
-        ...baseModels,
-        targets: [
-          {
-            ...baseModels.targets[0],
-            runtimeKind: "openai-compatible",
-            chatProviderId: "alisio-local-current",
-            installedModels: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
-          },
-        ],
-      },
-      chatModelOptions: [
-        ...createProps().chatModelOptions,
-        {
-          value: "alisio-local-current/gpt-oss-20b",
-          label: "gpt-oss-20b · This Mac",
-        },
-      ],
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const localCard = Array.from(
-      container.querySelectorAll<HTMLElement>(".alisio-models__provider-card"),
-    ).find((card) => card.textContent?.includes("Local"));
-
-    expect(localCard?.textContent).toContain("gpt-oss-20b");
-    expect(localCard?.textContent).toContain("Available models");
-    expect(container.textContent).not.toContain("Uninstall");
-  });
-
-  it("renders the inline server form and wires edits", () => {
-    const props = createProps({
-      selectedProviderId: "server",
-      serverDraft: {
-        mode: "create",
-        label: "",
-        kind: "openai-compatible",
-        baseUrl: "",
-        apiKey: "",
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const inputs = container.querySelectorAll<HTMLInputElement>("input");
-    const nameInput = inputs[0];
-    nameInput.value = "Edge Box";
-    nameInput.dispatchEvent(new Event("input", { bubbles: true }));
-    expect(props.onChangeServerDraft).toHaveBeenCalledWith("label", "Edge Box");
-
-    const saveButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Save"),
-    );
-    expect(saveButton).toBeDefined();
-    expect(saveButton?.disabled).toBe(true);
-  });
-
-  it("keeps the endpoints group visible even when only linked devices exist", () => {
-    const props = createProps({
-      selectedProviderId: "server",
-      models: {
-        ...createModelsState(),
-        servers: [],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Linked devices");
-    expect(container.textContent).toContain("Endpoints");
-    expect(container.textContent).toContain("Studio Mac");
-    expect(container.textContent).toContain(
-      "You have not added any remote endpoints yet. You can also use a linked device shown above.",
-    );
-  });
-
-  it("shows local loading skeletons before the models catalog arrives", () => {
-    const props = createProps({
+  it("renders loading, empty and error states for the local surface", () => {
+    const loadingProps = createProps({
       selectedProviderId: "local",
       modelsLoading: true,
       models: null,
     });
-    const container = document.createElement("div");
+    const loadingContainer = document.createElement("div");
+    render(renderModelsHub(loadingProps), loadingContainer);
+    expect(loadingContainer.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(
+      1,
+    );
 
-    render(renderModelsHub(props), container);
+    const emptyProps = createProps({
+      selectedProviderId: "local",
+      models: {
+        ...createModelsState(),
+        targets: [],
+      },
+    });
+    const emptyContainer = document.createElement("div");
+    render(renderModelsHub(emptyProps), emptyContainer);
+    expect(emptyContainer.textContent).toContain(
+      "This computer has not reported any local model state yet.",
+    );
 
-    expect(container.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(1);
-    expect(container.textContent).not.toContain("No local models");
+    const errorProps = createProps({
+      selectedProviderId: "local",
+      modelsError: "Local fetch failed",
+    });
+    const errorContainer = document.createElement("div");
+    render(renderModelsHub(errorProps), errorContainer);
+    expect(errorContainer.textContent).toContain("Local fetch failed");
+  });
+
+  it("renders loading, empty and error states for the nodes surface", () => {
+    const loadingProps = createProps({
+      selectedProviderId: "nodes",
+      modelsLoading: true,
+      models: null,
+    });
+    const loadingContainer = document.createElement("div");
+    render(renderModelsHub(loadingProps), loadingContainer);
+    expect(loadingContainer.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(
+      1,
+    );
+
+    const emptyProps = createProps({
+      selectedProviderId: "nodes",
+      models: {
+        ...createModelsState(),
+        targets: [createModelsState().targets[0]],
+      },
+    });
+    const emptyContainer = document.createElement("div");
+    render(renderModelsHub(emptyProps), emptyContainer);
+    expect(emptyContainer.textContent).toContain("No Alisio nodes are available yet.");
+
+    const errorProps = createProps({
+      selectedProviderId: "nodes",
+      modelsError: "Node list failed",
+    });
+    const errorContainer = document.createElement("div");
+    render(renderModelsHub(errorProps), errorContainer);
+    expect(errorContainer.textContent).toContain("Node list failed");
   });
 
   it("hides OpenAI model controls until an account is actually connected", () => {
@@ -950,86 +442,5 @@ describe("renderModelsHub", () => {
     render(renderModelsHub(props), container);
 
     expect(container.textContent).toContain("Connected (limits unavailable)");
-  });
-
-  it("shows a refresh hint when the active profile has no real telemetry yet", () => {
-    const props = createProps({
-      bootstrap: {
-        ...createBootstrap(),
-        ai: {
-          ...createBootstrap().ai,
-          profiles: [
-            {
-              ...createBootstrap().ai.profiles![0],
-              status: "connected",
-            },
-          ],
-        },
-      } as AlisioBootstrapState,
-      expandedProfileId: "profile-1",
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain(
-      "Refresh the active account to load the latest real telemetry.",
-    );
-  });
-
-  it("does not reuse the active profile limits inside another profile card", () => {
-    const props = createProps({
-      bootstrap: {
-        ...createBootstrap(),
-        ai: {
-          ...createBootstrap().ai,
-          limits: {
-            windows: [
-              {
-                label: "Week",
-                usedPercent: 40,
-                resetAt: Date.now() + 3 * 24 * 60 * 60 * 1000,
-              },
-            ],
-            lastRefreshedAt: "2026-04-04T12:00:00.000Z",
-          },
-          profiles: [
-            {
-              ...createBootstrap().ai.profiles![0],
-            },
-            {
-              profileId: "profile-2",
-              label: "Personal",
-              provider: "openai",
-              scope: "user",
-              ownerKey: "user:2",
-              canonicalIdentityKey: "user:2",
-              identity: {
-                email: "bob@example.com",
-              },
-              status: "connected",
-              email: "bob@example.com",
-              connectedAt: "2026-04-04T12:00:00.000Z",
-            },
-          ],
-        },
-      } as AlisioBootstrapState,
-      expandedProfileId: "profile-2",
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const profileArticles = Array.from(
-      container.querySelectorAll<HTMLElement>(".alisio-models__profile"),
-    );
-    const secondProfile = profileArticles[1];
-
-    expect(secondProfile).toBeDefined();
-    expect(secondProfile?.querySelectorAll(".alisio-settings-ai__window")).toHaveLength(0);
-    expect(secondProfile?.textContent).not.toContain(
-      "Refresh the active account to load the latest real telemetry.",
-    );
-    expect(container.querySelectorAll(".alisio-models__usage-pill")).toHaveLength(1);
   });
 });

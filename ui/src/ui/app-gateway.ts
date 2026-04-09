@@ -637,7 +637,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     { ts: Date.now(), event: evt.event, payload: evt.payload },
     ...host.eventLogBuffer,
   ].slice(0, 250);
-  if (host.tab === "home" || (host.tab === "settings" && host.settingsSection === "debug")) {
+  if (host.tab === "settings" && host.settingsSection === "debug") {
     host.eventLog = host.eventLogBuffer;
   }
 
@@ -703,7 +703,7 @@ function handleGatewayEventUnsafe(host: GatewayHost, evt: GatewayEventFrame) {
     return;
   }
 
-  if (evt.event === "cron" && host.tab === "automations") {
+  if (evt.event === "cron") {
     void loadCron(host as unknown as Parameters<typeof loadCron>[0]);
   }
 

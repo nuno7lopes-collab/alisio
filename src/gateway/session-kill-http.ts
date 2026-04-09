@@ -13,7 +13,6 @@ import { sendJson, sendMethodNotAllowed } from "./http-common.js";
 import { loadSessionEntry } from "./session-utils.js";
 
 const REQUESTER_SESSION_KEY_HEADER = "x-alisio-requester-session-key";
-const LEGACY_REQUESTER_SESSION_KEY_HEADER = "x-openclaw-requester-session-key";
 
 function resolveSessionKeyFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/sessions\/([^/]+)\/kill$/);
@@ -76,9 +75,7 @@ export async function handleSessionKillHttpRequest(
 
   const trustedProxies = opts.trustedProxies ?? cfg.gateway?.trustedProxies;
   const allowRealIpFallback = opts.allowRealIpFallback ?? cfg.gateway?.allowRealIpFallback;
-  const requesterSessionKey =
-    req.headers[REQUESTER_SESSION_KEY_HEADER]?.toString().trim() ||
-    req.headers[LEGACY_REQUESTER_SESSION_KEY_HEADER]?.toString().trim();
+  const requesterSessionKey = req.headers[REQUESTER_SESSION_KEY_HEADER]?.toString().trim();
   const allowLocalAdminKill = isLocalDirectRequest(req, trustedProxies, allowRealIpFallback);
 
   if (!requesterSessionKey && !allowLocalAdminKill) {

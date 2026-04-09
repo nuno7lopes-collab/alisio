@@ -2,20 +2,12 @@ import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { GatewayClient } from "../gateway/client.js";
-import { startLmStudioLocalServer } from "../infra/alisio-lmstudio.js";
 import {
   chatWithInstalledAlisioLocalModel,
   inspectManagedLocalModelRuntime,
   installAlisioLocalModel,
   uninstallAlisioLocalModel,
 } from "../infra/alisio-local-llama-runtime.js";
-import {
-  installOllamaLocalModel,
-  inspectLocalModelRuntimes,
-  resolveCurrentRuntimeBaseUrlForKind,
-  resolveLocalModelRuntimeConfig,
-  uninstallOllamaLocalModel,
-} from "../infra/alisio-local-model-runtime.js";
 import {
   ensureExecApprovals,
   mergeExecApprovalsSocketDefaults,
@@ -34,7 +26,6 @@ import {
 } from "../infra/exec-host.js";
 import { sanitizeHostExecEnv } from "../infra/host-env-security.js";
 import { runBrowserProxyCommand } from "../plugin-sdk/browser-runtime.js";
-import { fetchOpenAiCompatibleEndpoint } from "../shared/openai-compatible-endpoints.js";
 import { buildSystemRunApprovalPlan, handleSystemRunInvoke } from "./invoke-system-run.js";
 import type {
   ExecEventPayload,
@@ -108,8 +99,6 @@ type LocalLlamaManageTaskInput = {
   action?: string;
   modelId?: string;
 };
-
-type EndpointRuntimeKind = "ollama" | "lmstudio" | "openai-compatible";
 
 export type { SkillBinsProvider } from "./invoke-types.js";
 
@@ -528,209 +517,6 @@ async function sendInvalidTaskRequestResult(
   await sendTaskErrorResult(client, frame, "INVALID_REQUEST", String(err));
 }
 
-function normalizeBaseUrlForComparison(value: string): string {
-  return value.trim().replace(/\/+$/, "");
-}
-
-function resolveRuntimeAuthHeader(
-  runtimeKind: EndpointRuntimeKind,
-  env: NodeJS.ProcessEnv = process.env,
-): string | null {
-  const runtimeConfig = resolveLocalModelRuntimeConfig(env);
-  const baseUrl = resolveCurrentRuntimeBaseUrlForKind({ runtimeKind, env });
-  if (
-    !runtimeConfig.baseUrl ||
-    !baseUrl ||
-    normalizeBaseUrlForComparison(runtimeConfig.baseUrl) !== normalizeBaseUrlForComparison(baseUrl)
-  ) {
-    return null;
-  }
-  return runtimeConfig.authHeader;
-}
-
-async function handleEndpointModelTask(
-  client: GatewayClient,
-  frame: NodeTaskRequestPayload,
-  runtimeKind: EndpointRuntimeKind,
-) {
-  const baseUrl = resolveCurrentRuntimeBaseUrlForKind({ runtimeKind, env: process.env });
-  if (!baseUrl) {
-    await sendTaskErrorResult(
-      client,
-      frame,
-      "UNAVAILABLE",
-      "local model host not configured on this computer",
-    );
-    return;
-  }
-  const authHeader = resolveRuntimeAuthHeader(runtimeKind, process.env);
-  let input: LocalModelTaskInput;
-  try {
-    input = decodeParams<LocalModelTaskInput>(frame.inputJSON);
-  } catch (err) {
-    await sendInvalidTaskRequestResult(client, frame, err);
-    return;
-  }
-  if (!Array.isArray(input.messages) || input.messages.length === 0) {
-    await sendTaskErrorResult(client, frame, "INVALID_REQUEST", "messages required");
-    return;
-  }
-
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  if (authHeader) {
-    headers.authorization = authHeader;
-  }
-
-  const timeoutMs =
-    typeof frame.timeoutMs === "number" && frame.timeoutMs > 0 ? frame.timeoutMs : 120_000;
-  const signal = AbortSignal.timeout(timeoutMs);
-  const requestBody = {
-    ...input,
-    stream: true,
-  };
-
-  let response: Response;
-  try {
-    response = await fetchOpenAiCompatibleEndpoint({
-      baseUrl,
-      endpoint: "chat/completions",
-      init: {
-        method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
-        signal,
-      },
-    });
-  } catch (err) {
-    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
-    return;
-  }
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    await sendTaskErrorResult(
-      client,
-      frame,
-      "UNAVAILABLE",
-      `local model host request failed (${response.status}): ${errorText || response.statusText}`,
-    );
-    return;
-  }
-
-  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  if (!contentType.includes("text/event-stream")) {
-    try {
-      const payload = (await response.json()) as unknown;
-      await sendTaskEvent(client, frame, { kind: "completed", seq: 1, payload });
-      await sendJsonTaskResult(client, frame, payload);
-    } catch (err) {
-      await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
-    }
-    return;
-  }
-
-  const body = response.body;
-  if (!body) {
-    await sendTaskErrorResult(client, frame, "UNAVAILABLE", "local model host returned no body");
-    return;
-  }
-
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let seq = 0;
-  let text = "";
-  let finalChunk: unknown = null;
-
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
-      const normalized = buffer.replace(/\r\n/g, "\n");
-      const events = normalized.split("\n\n");
-      buffer = events.pop() ?? "";
-      for (const rawEvent of events) {
-        const data = rawEvent
-          .split("\n")
-          .filter((line) => line.startsWith("data:"))
-          .map((line) => line.slice(5).trim())
-          .join("\n");
-        if (!data) {
-          continue;
-        }
-        if (data === "[DONE]") {
-          continue;
-        }
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(data) as unknown;
-        } catch {
-          parsed = { raw: data };
-        }
-        const deltaText =
-          typeof parsed === "object" &&
-          parsed !== null &&
-          Array.isArray((parsed as { choices?: unknown[] }).choices)
-            ? ((parsed as { choices?: Array<{ delta?: { content?: unknown } }> }).choices ?? [])
-                .map((choice) =>
-                  typeof choice?.delta?.content === "string" ? choice.delta.content : "",
-                )
-                .join("")
-            : "";
-        if (deltaText) {
-          text += deltaText;
-        }
-        finalChunk = parsed;
-        seq += 1;
-        await sendTaskEvent(client, frame, {
-          kind: "delta",
-          seq,
-          payload: parsed,
-        });
-      }
-      if (done) {
-        break;
-      }
-    }
-  } catch (err) {
-    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(err));
-    return;
-  }
-
-  const payload = {
-    text,
-    response: finalChunk,
-  };
-  await sendTaskEvent(client, frame, {
-    kind: "completed",
-    seq: seq + 1,
-    payload,
-  });
-  await sendJsonTaskResult(client, frame, payload);
-}
-
-async function handleNamedRuntimeCatalogTask(
-  client: GatewayClient,
-  frame: NodeTaskRequestPayload,
-  runtimeKind: EndpointRuntimeKind,
-) {
-  const inspection = (await inspectLocalModelRuntimes({ env: process.env })).find(
-    (entry) => entry.runtimeKind === runtimeKind,
-  );
-  if (!inspection) {
-    await sendTaskErrorResult(client, frame, "UNAVAILABLE", "local model runtime not configured");
-    return;
-  }
-  await sendTaskEvent(client, frame, {
-    kind: "completed",
-    seq: 1,
-    payload: inspection,
-  });
-  await sendJsonTaskResult(client, frame, inspection);
-}
-
 async function handleLlamaCppCatalogTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
   const inspection = await inspectManagedLocalModelRuntime(process.env);
   await sendTaskEvent(client, frame, {
@@ -741,11 +527,7 @@ async function handleLlamaCppCatalogTask(client: GatewayClient, frame: NodeTaskR
   await sendJsonTaskResult(client, frame, inspection);
 }
 
-async function handleManagedLocalModelTask(
-  client: GatewayClient,
-  frame: NodeTaskRequestPayload,
-  runtimeKind: "llama.cpp" | "ollama",
-) {
+async function handleManagedLocalModelTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
   let input: LocalLlamaManageTaskInput;
   try {
     input = decodeParams<LocalLlamaManageTaskInput>(frame.inputJSON);
@@ -788,58 +570,31 @@ async function handleManagedLocalModelTask(
 
     const model =
       input.action === "install"
-        ? runtimeKind === "ollama"
-          ? await installOllamaLocalModel({
-              modelId,
-              env: process.env,
-              onProgress: ({ downloadedSize, totalSize }) => {
-                const percent =
-                  totalSize > 0
-                    ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
-                    : undefined;
-                void sendTaskEvent(client, frame, {
-                  kind: "progress",
-                  payload: {
-                    action: "install",
-                    modelId,
-                    phase: "running",
-                    downloadedSize,
-                    totalSize,
-                    percent,
-                  },
-                });
-              },
-            })
-          : await installAlisioLocalModel({
-              modelId,
-              env: process.env,
-              onProgress: ({ downloadedSize, totalSize }) => {
-                const percent =
-                  totalSize > 0
-                    ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
-                    : undefined;
-                void sendTaskEvent(client, frame, {
-                  kind: "progress",
-                  payload: {
-                    action: "install",
-                    modelId,
-                    phase: "running",
-                    downloadedSize,
-                    totalSize,
-                    percent,
-                  },
-                });
-              },
-            })
-        : runtimeKind === "ollama"
-          ? await uninstallOllamaLocalModel({
-              modelId,
-              env: process.env,
-            })
-          : await uninstallAlisioLocalModel({
-              modelId,
-              env: process.env,
-            });
+        ? await installAlisioLocalModel({
+            modelId,
+            env: process.env,
+            onProgress: ({ downloadedSize, totalSize }) => {
+              const percent =
+                totalSize > 0
+                  ? Math.max(0, Math.min(100, Math.round((downloadedSize / totalSize) * 100)))
+                  : undefined;
+              void sendTaskEvent(client, frame, {
+                kind: "progress",
+                payload: {
+                  action: "install",
+                  modelId,
+                  phase: "running",
+                  downloadedSize,
+                  totalSize,
+                  percent,
+                },
+              });
+            },
+          })
+        : await uninstallAlisioLocalModel({
+            modelId,
+            env: process.env,
+          });
 
     await sendTaskEvent(client, frame, {
       kind: "completed",
@@ -870,51 +625,7 @@ async function handleManagedLocalModelTask(
 }
 
 async function handleLlamaCppManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  await handleManagedLocalModelTask(client, frame, "llama.cpp");
-}
-
-async function handleOllamaManageTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  await handleManagedLocalModelTask(client, frame, "ollama");
-}
-
-async function handleLmStudioStartServerTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
-  await sendTaskEvent(client, frame, {
-    kind: "status",
-    seq: 1,
-    payload: {
-      action: "start-server",
-      runtimeKind: "lmstudio",
-      phase: "started",
-    },
-  });
-  try {
-    const result = await startLmStudioLocalServer({ env: process.env });
-    await sendTaskEvent(client, frame, {
-      kind: "completed",
-      seq: 2,
-      payload: {
-        ok: true,
-        runtimeKind: "lmstudio",
-        ...result,
-      },
-    });
-    await sendJsonTaskResult(client, frame, {
-      ok: true,
-      runtimeKind: "lmstudio",
-      ...result,
-    });
-  } catch (error) {
-    await sendTaskEvent(client, frame, {
-      kind: "failed",
-      payload: {
-        action: "start-server",
-        runtimeKind: "lmstudio",
-        phase: "failed",
-        message: String(error),
-      },
-    });
-    await sendTaskErrorResult(client, frame, "UNAVAILABLE", String(error));
-  }
+  await handleManagedLocalModelTask(client, frame);
 }
 
 async function handleLlamaCppChatTask(client: GatewayClient, frame: NodeTaskRequestPayload) {
@@ -955,7 +666,7 @@ async function handleLlamaCppChatTask(client: GatewayClient, frame: NodeTaskRequ
         await sendTaskEvent(client, frame, {
           kind: "delta",
           seq,
-          payload: { text: chunk },
+          payload: { modelId, text: chunk },
         });
         seq += 1;
       },
@@ -1123,63 +834,15 @@ export async function handleTask(
     return;
   }
 
-  if (frame.capabilityId === "model.catalog.ollama.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleNamedRuntimeCatalogTask(client, frame, "ollama");
-    return;
-  }
-
-  if (frame.capabilityId === "model.catalog.lmstudio.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleNamedRuntimeCatalogTask(client, frame, "lmstudio");
-    return;
-  }
-
-  if (frame.capabilityId === "model.catalog.openai.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleNamedRuntimeCatalogTask(client, frame, "openai-compatible");
-    return;
-  }
-
   if (frame.capabilityId === "model.manage.llamacpp.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
     await handleLlamaCppManageTask(client, frame);
     return;
   }
 
-  if (frame.capabilityId === "model.manage.ollama.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleOllamaManageTask(client, frame);
-    return;
-  }
-
   if (frame.capabilityId === "model.chat.llamacpp.v1") {
     await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
     await handleLlamaCppChatTask(client, frame);
-    return;
-  }
-
-  if (frame.capabilityId === "model.chat.ollama.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleEndpointModelTask(client, frame, "ollama");
-    return;
-  }
-
-  if (frame.capabilityId === "model.chat.lmstudio.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleEndpointModelTask(client, frame, "lmstudio");
-    return;
-  }
-
-  if (frame.capabilityId === "model.chat.openai.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleEndpointModelTask(client, frame, "openai-compatible");
-    return;
-  }
-
-  if (frame.capabilityId === "model.server.start.lmstudio.v1") {
-    await sendTaskEvent(client, frame, { kind: "started", seq: 0 });
-    await handleLmStudioStartServerTask(client, frame);
     return;
   }
 

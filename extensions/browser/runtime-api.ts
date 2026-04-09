@@ -6,7 +6,13 @@ export { handleBrowserGatewayRequest } from "./src/gateway/browser-request.js";
 export { browserHandlers } from "./src/gateway/browser-request.js";
 export {
   definePluginEntry,
-  type OpenClawPluginApi,
-  type OpenClawPluginToolContext,
-  type OpenClawPluginToolFactory,
+  type OpenClawPluginApi as AlisioPluginApi,
+  type OpenClawPluginToolContext as AlisioPluginToolContext,
+  type OpenClawPluginToolFactory as AlisioPluginToolFactory,
+} from "alisio/plugin-sdk/plugin-entry";
+
+export type {
+  OpenClawPluginApi,
+  OpenClawPluginToolContext,
+  OpenClawPluginToolFactory,
 } from "alisio/plugin-sdk/plugin-entry";

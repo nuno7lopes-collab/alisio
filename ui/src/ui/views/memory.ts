@@ -9,7 +9,6 @@ import {
   humanizeMemoryNoteTitle,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
-  LEGACY_MEMORY_FILE_NAME,
   parseMemoryNoteFileName,
   PRIMARY_MEMORY_FILE_NAME,
 } from "../memory-files.ts";
@@ -94,7 +93,6 @@ function memoryText() {
     updatedNever: t("alisio.memory.updatedNever"),
     searchPlaceholder: t("alisio.memory.searchPlaceholder"),
     mainMemory: t("alisio.memory.mainMemory"),
-    legacyMemory: t("alisio.memory.legacyMemory"),
     note: t("alisio.memory.note"),
     missing: t("alisio.memory.missing"),
     unsaved: t("alisio.memory.unsaved"),
@@ -188,9 +186,6 @@ function memoryText() {
 function resolveEntryTitle(entry: AgentFileEntry, text: ReturnType<typeof memoryText>) {
   if (entry.name === PRIMARY_MEMORY_FILE_NAME) {
     return text.mainMemory;
-  }
-  if (entry.name === LEGACY_MEMORY_FILE_NAME) {
-    return text.legacyMemory;
   }
   if (isLongTermMemoryFileName(entry.name)) {
     return text.longTerm;
@@ -350,11 +345,11 @@ function resolveEmbeddingLabel(
   return embedding.ok ? text.ready : text.unavailable;
 }
 
-function sanitizeLegacyStatePath(value: string | null | undefined): string {
+function formatStatePath(value: string | null | undefined): string {
   if (!value) {
     return "";
   }
-  return value.replace(/(^|[\\/])\.(openclaw|clawdbot)(?=([\\/]|$))/g, "$1.alisio");
+  return value;
 }
 
 function resolveCloudSyncLabel(
@@ -390,12 +385,13 @@ function formatProviderName(provider: string | null | undefined): string {
       return "Voyage";
     case "mistral":
       return "Mistral";
-    case "ollama":
-      return "Ollama";
     case "local":
+    case "builtin":
       return "Local embeddings";
     default:
-      return provider?.trim() || "embeddings";
+      return normalized.includes("llama") || normalized.includes("gguf")
+        ? "Local embeddings"
+        : "Embeddings provider";
   }
 }
 
@@ -416,7 +412,7 @@ function buildEmbeddingGuidance(params: {
     return null;
   }
 
-  const rawError = sanitizeLegacyStatePath(status.embedding.error ?? "");
+  const rawError = formatStatePath(status.embedding.error ?? "");
   if (!rawError) {
     return null;
   }
@@ -504,7 +500,7 @@ function renderRuntimeCard(params: {
   const embeddingError = !status?.embedding.ok ? (status?.embedding.error ?? null) : null;
   const runtimeErrorRaw =
     params.error ?? status?.configError ?? status?.managerError ?? embeddingError;
-  const runtimeError = sanitizeLegacyStatePath(runtimeErrorRaw);
+  const runtimeError = formatStatePath(runtimeErrorRaw);
   const guidance =
     runtimeErrorRaw && runtimeErrorRaw === embeddingError
       ? buildEmbeddingGuidance({
@@ -539,13 +535,13 @@ function renderRuntimeCard(params: {
   );
   const sourceDetail = config?.extraPaths.length
     ? `${text.extraPaths}: ${joinValues(
-        config.extraPaths.map((entry) => sanitizeLegacyStatePath(entry)),
+        config.extraPaths.map((entry) => formatStatePath(entry)),
         text.none,
       )}`
     : undefined;
-  const storeDetail = sanitizeLegacyStatePath(runtime?.dbPath ?? config?.store.path ?? text.na);
+  const storeDetail = formatStatePath(runtime?.dbPath ?? config?.store.path ?? text.na);
   const obsidianVaultDetail = runtime?.obsidianReadOnly
-    ? sanitizeLegacyStatePath(
+    ? formatStatePath(
         joinValues(
           [
             runtime.obsidianReadOnly.vaultPath,
@@ -560,7 +556,7 @@ function renderRuntimeCard(params: {
       )
     : undefined;
   const canonicalStoreDetail = runtime?.canonicalStore
-    ? sanitizeLegacyStatePath(runtime.canonicalStore.path)
+    ? formatStatePath(runtime.canonicalStore.path)
     : undefined;
   const canonicalProfileDetail = runtime?.canonicalStore
     ? `${runtime.canonicalStore.syncMode === "local-first" ? text.localFirst : text.localOnly} · ${resolveCloudSyncLabel(runtime.canonicalStore.cloudSync, text)}`
@@ -568,11 +564,10 @@ function renderRuntimeCard(params: {
   const canonicalGraphDetail = runtime?.canonicalStore
     ? `${runtime.canonicalStore.relations} ${text.relationsUnit} · ${runtime.canonicalStore.projections} ${text.projectionsUnit}`
     : undefined;
-  const embeddingDetail =
-    guidance || !embeddingError ? undefined : sanitizeLegacyStatePath(embeddingError);
+  const embeddingDetail = guidance || !embeddingError ? undefined : formatStatePath(embeddingError);
   const backendDetail =
     status?.backend?.backend === "qmd"
-      ? sanitizeLegacyStatePath(status.backend.command ?? undefined)
+      ? formatStatePath(status.backend.command ?? undefined)
       : undefined;
   const providerValue = runtime?.provider ?? config?.provider ?? text.na;
   const providerLabel = providerValue === text.na ? text.na : formatProviderName(providerValue);
@@ -685,7 +680,7 @@ function renderRuntimeCard(params: {
         : !status
           ? html`
               <div class="alisio-memory-runtime__empty">
-                ${sanitizeLegacyStatePath(params.error) || text.runtimeUnavailable}
+                ${formatStatePath(params.error) || text.runtimeUnavailable}
               </div>
             `
           : html`
@@ -1028,7 +1023,7 @@ export function renderMemoryHub(props: MemoryHubProps) {
                         </div>
                         <h2>${resolveEntryTitle(displayedEntry, text)}</h2>
                         <p>
-                          <span>${sanitizeLegacyStatePath(displayedEntry.name)}</span>
+                          <span>${formatStatePath(displayedEntry.name)}</span>
                           <span>
                             ${displayedEntry.updatedAtMs
                               ? formatRelativeTimestamp(displayedEntry.updatedAtMs)

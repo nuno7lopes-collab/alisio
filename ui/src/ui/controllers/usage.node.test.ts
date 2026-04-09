@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { __test, loadUsage, type UsageState } from "./usage.ts";
 
 type RequestFn = (method: string, params?: unknown) => Promise<unknown>;
@@ -44,10 +44,6 @@ function expectSpecificTimezoneCalls(request: ReturnType<typeof vi.fn>, startCal
 }
 
 describe("usage controller date interpretation params", () => {
-  beforeEach(() => {
-    __test.resetLegacyUsageDateParamsCache();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -102,80 +98,4 @@ describe("usage controller date interpretation params", () => {
   it("serializes non-Error objects without object-to-string coercion", () => {
     expect(__test.toErrorMessage({ reason: "nope" })).toBe('{"reason":"nope"}');
   });
-
-  it("falls back and remembers compatibility when sessions.usage rejects mode/utcOffset", async () => {
-    const storage = createStorageMock();
-    vi.stubGlobal("localStorage", storage as unknown as Storage);
-    vi.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-330);
-
-    const request = vi.fn(async (method: string, params?: unknown) => {
-      if (method === "sessions.usage") {
-        const record = (params ?? {}) as Record<string, unknown>;
-        if ("mode" in record || "utcOffset" in record) {
-          throw new Error(
-            "invalid sessions.usage params: at root: unexpected property 'mode'; at root: unexpected property 'utcOffset'",
-          );
-        }
-        return { sessions: [] };
-      }
-      return {};
-    });
-
-    const state = createState(request, {
-      usageTimeZone: "local",
-      settings: { gatewayUrl: "ws://127.0.0.1:40705" },
-    });
-
-    await loadUsage(state);
-
-    expectSpecificTimezoneCalls(request, 1);
-    expect(request).toHaveBeenNthCalledWith(3, "sessions.usage", {
-      startDate: "2026-02-16",
-      endDate: "2026-02-16",
-      limit: 1000,
-      includeContextWeight: true,
-    });
-    expect(request).toHaveBeenNthCalledWith(4, "usage.cost", {
-      startDate: "2026-02-16",
-      endDate: "2026-02-16",
-    });
-
-    // Subsequent loads for the same gateway should skip mode/utcOffset immediately.
-    await loadUsage(state);
-
-    expect(request).toHaveBeenNthCalledWith(5, "sessions.usage", {
-      startDate: "2026-02-16",
-      endDate: "2026-02-16",
-      limit: 1000,
-      includeContextWeight: true,
-    });
-    expect(request).toHaveBeenNthCalledWith(6, "usage.cost", {
-      startDate: "2026-02-16",
-      endDate: "2026-02-16",
-    });
-
-    // Persisted flag should survive cache resets (simulating app reload).
-    __test.resetLegacyUsageDateParamsCache();
-    expect(__test.shouldSendLegacyDateInterpretation(state)).toBe(false);
-
-    vi.unstubAllGlobals();
-  });
 });
-
-function createStorageMock() {
-  const store = new Map<string, string>();
-  return {
-    getItem(key: string) {
-      return store.get(key) ?? null;
-    },
-    setItem(key: string, value: string) {
-      store.set(key, String(value));
-    },
-    removeItem(key: string) {
-      store.delete(key);
-    },
-    clear() {
-      store.clear();
-    },
-  };
-}

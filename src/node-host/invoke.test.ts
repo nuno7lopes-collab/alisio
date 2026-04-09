@@ -1,39 +1,42 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { chatWithInstalledAlisioLocalModelMock } = vi.hoisted(() => ({
+  chatWithInstalledAlisioLocalModelMock: vi.fn(),
+}));
+
+vi.mock("../infra/alisio-local-llama-runtime.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../infra/alisio-local-llama-runtime.js")>();
+  return {
+    ...actual,
+    chatWithInstalledAlisioLocalModel: chatWithInstalledAlisioLocalModelMock,
+  };
+});
+
 import { handleTask } from "./invoke.js";
 
 describe("handleTask", () => {
-  const originalBaseUrl = process.env.ALISIO_NODE_MODEL_BASE_URL;
-  const originalApiKey = process.env.ALISIO_NODE_MODEL_API_KEY;
-
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
-    if (originalBaseUrl === undefined) {
-      delete process.env.ALISIO_NODE_MODEL_BASE_URL;
-    } else {
-      process.env.ALISIO_NODE_MODEL_BASE_URL = originalBaseUrl;
-    }
-    if (originalApiKey === undefined) {
-      delete process.env.ALISIO_NODE_MODEL_API_KEY;
-    } else {
-      process.env.ALISIO_NODE_MODEL_API_KEY = originalApiKey;
-    }
   });
 
-  it("falls back to the bare chat completions path for OpenAI-compatible node tasks", async () => {
-    process.env.ALISIO_NODE_MODEL_BASE_URL = "http://127.0.0.1:31337";
-    delete process.env.ALISIO_NODE_MODEL_API_KEY;
-
-    const fetchMock = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response("missing", { status: 404 }))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ text: "Hello from node host" }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
+  it("emite streaming consistente para chat llama.cpp", async () => {
+    chatWithInstalledAlisioLocalModelMock.mockImplementationOnce(
+      async ({
+        modelId,
+        onTextChunk,
+      }: {
+        modelId: string;
+        onTextChunk?: (chunk: string) => void | Promise<void>;
+      }) => {
+        await onTextChunk?.("Ola");
+        await onTextChunk?.(" mundo");
+        return {
+          modelId,
+          text: "Ola mundo",
+        };
+      },
+    );
 
     const request = vi.fn(async (_method: string, _params: unknown) => ({}));
 
@@ -41,10 +44,10 @@ describe("handleTask", () => {
       {
         taskId: "task-1",
         nodeId: "node-1",
-        capabilityId: "model.chat.openai.v1",
+        capabilityId: "model.chat.llamacpp.v1",
         timeoutMs: 50,
         inputJSON: JSON.stringify({
-          model: "gpt-oss-20b",
+          model: "qwen3-8b-instruct-q4",
           messages: [{ role: "user", content: "Say hello." }],
         }),
       },
@@ -52,12 +55,34 @@ describe("handleTask", () => {
       (() => Promise.resolve([])) as never,
     );
 
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "http://127.0.0.1:31337/v1/chat/completions",
-      "http://127.0.0.1:31337/chat/completions",
+    const requestCalls = request.mock.calls as Array<[string, Record<string, unknown>]>;
+    const eventCalls = requestCalls.filter(([method]) => method === "node.task.event");
+    expect(eventCalls).toHaveLength(4);
+    expect(
+      eventCalls.map(([, params]) => ({
+        kind: params.kind,
+        seq: params.seq,
+        payload: typeof params.payloadJSON === "string" ? JSON.parse(params.payloadJSON) : null,
+      })),
+    ).toEqual([
+      { kind: "started", seq: 0, payload: null },
+      {
+        kind: "delta",
+        seq: 1,
+        payload: { modelId: "qwen3-8b-instruct-q4", text: "Ola" },
+      },
+      {
+        kind: "delta",
+        seq: 2,
+        payload: { modelId: "qwen3-8b-instruct-q4", text: " mundo" },
+      },
+      {
+        kind: "completed",
+        seq: 3,
+        payload: { modelId: "qwen3-8b-instruct-q4", text: "Ola mundo" },
+      },
     ]);
 
-    const requestCalls = request.mock.calls as Array<[string, Record<string, unknown>]>;
     const resultCall = requestCalls.find(([method]) => method === "node.task.result");
     const resultParams = resultCall?.[1] as
       | {
@@ -75,7 +100,8 @@ describe("handleTask", () => {
       ok: true,
     });
     expect(JSON.parse(String(resultParams?.payloadJSON))).toEqual({
-      text: "Hello from node host",
+      modelId: "qwen3-8b-instruct-q4",
+      text: "Ola mundo",
     });
   });
 });

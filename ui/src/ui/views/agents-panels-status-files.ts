@@ -3,7 +3,7 @@ import DOMPurify from "dompurify";
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { marked } from "marked";
-import { legacyDocsUrl } from "../../brand-compat.ts";
+import { docsUrl } from "../../brand-compat.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
 import {
@@ -218,7 +218,7 @@ export function renderAgentChannels(params: {
                           ? html`
                               <div>
                                 <a
-                                  href=${legacyDocsUrl("/channels")}
+                                  href=${docsUrl("/channels")}
                                   target="_blank"
                                   rel="noopener"
                                   style="color: var(--accent); font-size: 12px"

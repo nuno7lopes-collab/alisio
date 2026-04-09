@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthProfileStore } from "../../agents/auth-profiles.js";
-import { OLLAMA_LOCAL_AUTH_MARKER } from "../../agents/model-auth-markers.js";
+import { CUSTOM_LOCAL_AUTH_MARKER } from "../../agents/model-auth-markers.js";
 import type { ModelCatalogEntry } from "../../agents/model-catalog.js";
 import type { AlisioConfig } from "../../config/config.js";
 
@@ -217,7 +217,7 @@ describe("buildProbeTargets reason codes", () => {
       order: {},
     };
     await withClearedAnthropicEnv(async () => {
-      const plan = await buildAnthropicPlanFromModelsJsonApiKey(OLLAMA_LOCAL_AUTH_MARKER);
+      const plan = await buildAnthropicPlanFromModelsJsonApiKey(CUSTOM_LOCAL_AUTH_MARKER);
       expect(plan.targets).toEqual([]);
       expect(plan.results).toEqual([]);
     });

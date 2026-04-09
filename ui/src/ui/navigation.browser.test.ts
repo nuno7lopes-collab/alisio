@@ -133,13 +133,13 @@ describe("control UI routing", () => {
   });
 
   it("honors explicit base path overrides", async () => {
-    window.__OPENCLAW_CONTROL_UI_BASE_PATH__ = "/\u006fpen\u0063law";
-    const app = mountApp("/\u006fpen\u0063law/sessions");
+    window.__ALISIO_CONTROL_UI_BASE_PATH__ = "/alisio";
+    const app = mountApp("/alisio/sessions");
     await app.updateComplete;
 
-    expect(app.basePath).toBe("/\u006fpen\u0063law");
+    expect(app.basePath).toBe("/alisio");
     expect(app.tab).toBe("chat");
-    expect(window.location.pathname).toBe("/\u006fpen\u0063law/chat");
+    expect(window.location.pathname).toBe("/alisio/chat");
   });
 
   it("updates the URL when clicking nav items", async () => {

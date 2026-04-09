@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthProfileStore } from "../../agents/auth-profiles/types.js";
-import type { ModelDefinitionConfig } from "../../config/types.models.js";
 import { registerProviders, requireProvider } from "./testkit.js";
 
 const resolveCopilotApiTokenMock = vi.hoisted(() => vi.fn());
-const buildOllamaProviderMock = vi.hoisted(() => vi.fn());
 const buildVllmProviderMock = vi.hoisted(() => vi.fn());
 const buildSglangProviderMock = vi.hoisted(() => vi.fn());
 const ensureAuthProfileStoreMock = vi.hoisted(() => vi.fn());
@@ -12,30 +10,12 @@ const listProfilesForProviderMock = vi.hoisted(() => vi.fn());
 
 let runProviderCatalog: typeof import("../provider-discovery.js").runProviderCatalog;
 let githubCopilotProvider: Awaited<ReturnType<typeof requireProvider>>;
-let ollamaProvider: Awaited<ReturnType<typeof requireProvider>>;
 let vllmProvider: Awaited<ReturnType<typeof requireProvider>>;
 let sglangProvider: Awaited<ReturnType<typeof requireProvider>>;
 let minimaxProvider: Awaited<ReturnType<typeof requireProvider>>;
 let minimaxPortalProvider: Awaited<ReturnType<typeof requireProvider>>;
 let modelStudioProvider: Awaited<ReturnType<typeof requireProvider>>;
 let cloudflareAiGatewayProvider: Awaited<ReturnType<typeof requireProvider>>;
-
-function createModelConfig(id: string, name = id): ModelDefinitionConfig {
-  return {
-    id,
-    name,
-    reasoning: false,
-    input: ["text"],
-    cost: {
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    contextWindow: 128_000,
-    maxTokens: 8_192,
-  };
-}
 
 function setRuntimeAuthStore(store?: AuthProfileStore) {
   const resolvedStore = store ?? {
@@ -141,7 +121,6 @@ function buildBundledPluginModuleId(pluginId: string, artifactBasename: string):
 describe("provider discovery contract", () => {
   beforeEach(async () => {
     const githubCopilotTokenModuleId = buildBundledPluginModuleId("github-copilot", "token.js");
-    const ollamaApiModuleId = buildBundledPluginModuleId("ollama", "api.js");
     const vllmApiModuleId = buildBundledPluginModuleId("vllm", "api.js");
     const sglangApiModuleId = buildBundledPluginModuleId("sglang", "api.js");
     vi.resetModules();
@@ -170,13 +149,6 @@ describe("provider discovery contract", () => {
         resolveCopilotApiToken: resolveCopilotApiTokenMock,
       };
     });
-    vi.doMock(ollamaApiModuleId, async () => {
-      const actual = await vi.importActual<object>(ollamaApiModuleId);
-      return {
-        ...actual,
-        buildOllamaProvider: (...args: unknown[]) => buildOllamaProviderMock(...args),
-      };
-    });
     vi.doMock(vllmApiModuleId, async () => {
       const actual = await vi.importActual<object>(vllmApiModuleId);
       return {
@@ -194,7 +166,6 @@ describe("provider discovery contract", () => {
     ({ runProviderCatalog } = await import("../provider-discovery.js"));
     const [
       { default: githubCopilotPlugin },
-      { default: ollamaPlugin },
       { default: vllmPlugin },
       { default: sglangPlugin },
       { default: minimaxPlugin },
@@ -202,9 +173,6 @@ describe("provider discovery contract", () => {
       { default: cloudflareAiGatewayPlugin },
     ] = await Promise.all([
       import(buildBundledPluginModuleId("github-copilot", "index.js")) as Promise<{
-        default: Parameters<typeof registerProviders>[0];
-      }>,
-      import(buildBundledPluginModuleId("ollama", "index.js")) as Promise<{
         default: Parameters<typeof registerProviders>[0];
       }>,
       import(buildBundledPluginModuleId("vllm", "index.js")) as Promise<{
@@ -227,7 +195,6 @@ describe("provider discovery contract", () => {
       registerProviders(githubCopilotPlugin),
       "github-copilot",
     );
-    ollamaProvider = requireProvider(registerProviders(ollamaPlugin), "ollama");
     vllmProvider = requireProvider(registerProviders(vllmPlugin), "vllm");
     sglangProvider = requireProvider(registerProviders(sglangPlugin), "sglang");
     minimaxProvider = requireProvider(registerProviders(minimaxPlugin), "minimax");
@@ -243,7 +210,6 @@ describe("provider discovery contract", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     resolveCopilotApiTokenMock.mockReset();
-    buildOllamaProviderMock.mockReset();
     buildVllmProviderMock.mockReset();
     buildSglangProviderMock.mockReset();
     ensureAuthProfileStoreMock.mockReset();
@@ -296,44 +262,6 @@ describe("provider discovery contract", () => {
         GITHUB_TOKEN: "github-env-token",
       }),
     });
-  });
-
-  it("keeps Ollama explicit catalog normalization provider-owned", async () => {
-    await expect(
-      runProviderCatalog({
-        ...createNoAuthCatalogParams(ollamaProvider, {
-          config: {
-            models: {
-              providers: {
-                ollama: {
-                  baseUrl: "http://ollama-host:11434/v1/",
-                  models: [createModelConfig("llama3.2")],
-                },
-              },
-            },
-          },
-        }),
-      }),
-    ).resolves.toMatchObject({
-      provider: {
-        baseUrl: "http://ollama-host:11434",
-        api: "ollama",
-        apiKey: "ollama-local",
-        models: [createModelConfig("llama3.2")],
-      },
-    });
-    expect(buildOllamaProviderMock).not.toHaveBeenCalled();
-  });
-
-  it("keeps Ollama empty autodiscovery disabled without keys or explicit config", async () => {
-    buildOllamaProviderMock.mockResolvedValueOnce({
-      baseUrl: "http://127.0.0.1:11434",
-      api: "ollama",
-      models: [],
-    });
-
-    await expect(runProviderCatalog(createNoAuthCatalogParams(ollamaProvider))).resolves.toBeNull();
-    expect(buildOllamaProviderMock).toHaveBeenCalledWith(undefined, { quiet: true });
   });
 
   it.each([

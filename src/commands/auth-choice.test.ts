@@ -397,12 +397,12 @@ function createDefaultProviderPlugins() {
       defaultModel: "moonshot/moonshot-v1-128k",
     }),
     createFixedChoiceProvider({
-      providerId: "ollama",
-      label: "Ollama",
-      choiceId: "ollama",
+      providerId: "vllm",
+      label: "vLLM",
+      choiceId: "vllm",
       method: {
         id: "local",
-        label: "Ollama",
+        label: "vLLM",
         kind: "custom",
         run: async () => ({ profiles: [] }),
       },
@@ -1991,7 +1991,7 @@ describe("resolvePreferredProviderForAuthChoice", () => {
     const scenarios = [
       { authChoice: "github-copilot" as const, expectedProvider: "github-copilot" },
       { authChoice: "mistral-api-key" as const, expectedProvider: "mistral" },
-      { authChoice: "ollama" as const, expectedProvider: "ollama" },
+      { authChoice: "vllm" as const, expectedProvider: "vllm" },
       { authChoice: "unknown" as AuthChoice, expectedProvider: undefined },
     ] as const;
     for (const scenario of scenarios) {

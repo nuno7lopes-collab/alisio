@@ -103,7 +103,7 @@ describe("memory-runtime controller", () => {
     expect(state.memorySyncing).toBe(false);
   });
 
-  it("falls back to doctor.memory.status when the detailed method is unavailable", async () => {
+  it("mostra um erro amigável quando o estado detalhado da memória não está disponível", async () => {
     const { state, request } = createState();
 
     request.mockImplementation((method: string, params: { agentId?: string }) => {
@@ -115,23 +115,12 @@ describe("memory-runtime controller", () => {
           }),
         );
       }
-      if (method === "doctor.memory.status") {
-        return Promise.resolve({
-          agentId: "main",
-          provider: "openai",
-          embedding: { ok: true },
-        });
-      }
       throw new Error(`unexpected request: ${method}`);
     });
 
     await loadMemoryStatus(state, "main");
 
-    expect(state.memoryStatus).toEqual({
-      agentId: "main",
-      enabled: true,
-      embedding: { ok: true },
-    });
+    expect(state.memoryStatus).toBeNull();
     expect(state.memoryStatusError).toContain("estado detalhado");
     expect(state.memorySyncAvailable).toBe(false);
   });

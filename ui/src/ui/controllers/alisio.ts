@@ -1,8 +1,4 @@
 import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
-import {
-  ALISIO_LOCAL_MODEL_BACKEND,
-  listPublishedAlisioLocalModels,
-} from "../../../../src/shared/alisio-local-models.js";
 import { isAlisioManagedProvider } from "../../../../src/shared/alisio-remote-model-provider.js";
 import { resolveAlisioAccountEmailRedirectUrl } from "../alisio-account-auth.ts";
 import {
@@ -25,9 +21,6 @@ import type {
   AlisioModelsInstallResult,
   AlisioModelsRuntimeStartResult,
   AlisioModelsUninstallResult,
-  AlisioModelsServerRemoveResult,
-  AlisioModelsServerSaveResult,
-  AlisioModelsServerSelectResult,
   AlisioModelsState,
   AlisioConnectorsBeginResult,
   AlisioDoctorSummaryState,
@@ -79,8 +72,7 @@ export type AlisioState = {
   chatModelCatalog?: ModelCatalogEntry[];
   chatModelsLoading?: boolean;
   modelsExpandedProfileId?: string | null;
-  modelsSelectedProviderId?: "openai" | "server" | "local" | null;
-  modelsServerDraft?: import("../models-view-types.ts").ModelsServerDraft | null;
+  modelsSelectedProviderId?: "openai" | "nodes" | "local" | null;
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
   alisioAccountNotice: string | null;
@@ -147,48 +139,6 @@ const BOOTSTRAP_CACHE_TTL_MS = 5_000;
 const DOCTOR_CACHE_TTL_MS = 5_000;
 const PROVIDERS_CACHE_TTL_MS = 10_000;
 const CONNECTORS_CACHE_TTL_MS = 15_000;
-
-function buildLegacyModelsState(state: AlisioState): AlisioModelsState {
-  const devices = state.alisioBootstrap?.account.devices ?? state.alisioAccount?.devices ?? [];
-  const catalog = listPublishedAlisioLocalModels().map(
-    ({ sourceUri: _sourceUri, ...entry }) => entry,
-  );
-  const capabilities = {
-    install: false,
-    update: false,
-    uninstall: false,
-    consentRequired: false,
-    startServer: false,
-  } as const;
-  return {
-    backend: ALISIO_LOCAL_MODEL_BACKEND,
-    catalog,
-    targets: devices.map((device) => ({
-      targetId: device.id,
-      deviceId: device.id,
-      label: device.label,
-      runtimeLabel: "Local GGUF",
-      platform: device.platform,
-      current: device.current,
-      connected: true,
-      location: device.current ? "local" : "server",
-      backend: ALISIO_LOCAL_MODEL_BACKEND,
-      runtimeKind: ALISIO_LOCAL_MODEL_BACKEND,
-      runtimeStatus: "not_configured",
-      runtimeMessage:
-        "Actualiza o Alisio para a versão mais recente para activar instalações e sincronização de modelos.",
-      capabilities,
-      supportsInstall: false,
-      supportsUpdate: false,
-      supportsUninstall: false,
-      consentRequired: false,
-      installedModels: [],
-      availableModels: [],
-      recommendations: [],
-    })),
-    servers: [],
-  };
-}
 
 function isUnknownMethodError(error: unknown, method: string) {
   return String(error).includes(`unknown method: ${method}`);
@@ -475,12 +425,13 @@ function applyAccountSnapshot(state: AlisioState, account: AlisioAccountState) {
   syncDoctorBootstrap(state);
 }
 
-function isAlisioLocalOnlyAccountMode(
+function resolveAlisioCloudBackendMissingEnvVars(
   state: Pick<AlisioState, "alisioAccount" | "alisioStartupBootstrap">,
 ) {
   return (
-    state.alisioAccount?.cloud?.available === false ||
-    state.alisioStartupBootstrap?.accountCloud?.available === false
+    state.alisioAccount?.cloud?.missingEnvVars ??
+    state.alisioStartupBootstrap?.accountCloud?.missingEnvVars ??
+    []
   );
 }
 
@@ -488,10 +439,13 @@ function isAlisioCloudBackendUnavailableError(error: unknown) {
   return String(error).includes("cloud account backend is not configured");
 }
 
-function showAlisioLocalOnlyAccountNotice(state: AlisioState) {
-  state.alisioAccountError = null;
-  state.alisioAccountNotice =
-    "Alisio is running in local account mode on this device. Continue by completing the local profile.";
+function showAlisioCloudBackendUnavailableError(state: AlisioState) {
+  const missingEnvVars = resolveAlisioCloudBackendMissingEnvVars(state);
+  state.alisioAccountNotice = null;
+  state.alisioAccountError =
+    missingEnvVars.length > 0
+      ? `The Alisio cloud account backend is unavailable in this environment. Configure: ${missingEnvVars.join(", ")}.`
+      : "The Alisio cloud account backend is unavailable in this environment.";
   state.alisioAuthStage = "entry";
   state.setupStep = "account";
   state.setTab?.("setup");
@@ -586,7 +540,6 @@ function resetSignedOutAccountState(state: AlisioState) {
   state.alisioProvidersError = null;
   state.modelsExpandedProfileId = undefined;
   state.modelsSelectedProviderId = undefined;
-  state.modelsServerDraft = null;
   if (Array.isArray(state.chatModelCatalog)) {
     state.chatModelCatalog = state.chatModelCatalog.filter(
       (entry) => !isAlisioManagedProvider(entry.provider),
@@ -776,10 +729,8 @@ export async function loadAlisioModels(state: AlisioState) {
       return;
     }
     if (isUnknownMethodError(error, "alisio.models.get")) {
-      state.alisioModels = buildLegacyModelsState(state);
-      syncModelOperationsWithSnapshot(state, state.alisioModels);
-      state.alisioModelsError = null;
-      await refreshChatModelCatalog(state);
+      state.alisioModels = null;
+      state.alisioModelsError = "Este Alisio ainda não expõe a gestão de modelos nesta versão.";
       return;
     }
     state.alisioModelsError = String(error);
@@ -903,71 +854,6 @@ export async function startAlisioModelsRuntimeServer(
   }
 }
 
-export async function saveAlisioModelsServer(
-  state: AlisioState,
-  params: {
-    serverId?: string;
-    label: string;
-    kind: "openai-compatible" | "ollama";
-    baseUrl: string;
-    apiKey?: string;
-    clearApiKey?: boolean;
-  },
-) {
-  if (!state.client || !state.connected || state.alisioModelsLoading) {
-    return;
-  }
-  state.alisioModelsLoading = true;
-  state.alisioModelsError = null;
-  try {
-    await state.client.request<AlisioModelsServerSaveResult>("alisio.models.server.save", params);
-    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
-    await refreshChatModelCatalog(state);
-  } catch (error) {
-    state.alisioModelsError = String(error);
-  } finally {
-    state.alisioModelsLoading = false;
-  }
-}
-
-export async function removeAlisioModelsServer(state: AlisioState, serverId: string) {
-  if (!state.client || !state.connected || state.alisioModelsLoading) {
-    return;
-  }
-  state.alisioModelsLoading = true;
-  state.alisioModelsError = null;
-  try {
-    await state.client.request<AlisioModelsServerRemoveResult>("alisio.models.server.remove", {
-      serverId,
-    });
-    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
-    await refreshChatModelCatalog(state);
-  } catch (error) {
-    state.alisioModelsError = String(error);
-  } finally {
-    state.alisioModelsLoading = false;
-  }
-}
-
-export async function selectAlisioModelsServer(state: AlisioState, serverId: string) {
-  if (!state.client || !state.connected || state.alisioModelsLoading) {
-    return;
-  }
-  state.alisioModelsLoading = true;
-  state.alisioModelsError = null;
-  try {
-    await state.client.request<AlisioModelsServerSelectResult>("alisio.models.server.select", {
-      serverId,
-    });
-    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
-    await refreshChatModelCatalog(state);
-  } catch (error) {
-    state.alisioModelsError = String(error);
-  } finally {
-    state.alisioModelsLoading = false;
-  }
-}
-
 export async function loadAlisioAccount(state: AlisioState) {
   const request = beginTrackedRequest(state, accountRequests, state.alisioAccountLoading);
   if (!request) {
@@ -1003,8 +889,8 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (isAlisioLocalOnlyAccountMode(state)) {
-    showAlisioLocalOnlyAccountNotice(state);
+  if (state.alisioAccount?.cloud?.available === false) {
+    showAlisioCloudBackendUnavailableError(state);
     return;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
@@ -1042,8 +928,11 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
         .catch(() => null);
       if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
         applyAccountSnapshot(state, account);
-        if (isAlisioLocalOnlyAccountMode(state)) {
-          showAlisioLocalOnlyAccountNotice(state);
+        const cloudAvailable = state.alisioAccount
+          ? Boolean(state.alisioAccount.cloud.available)
+          : undefined;
+        if (cloudAvailable === false) {
+          showAlisioCloudBackendUnavailableError(state);
           return;
         }
       }
@@ -1163,8 +1052,8 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (isAlisioLocalOnlyAccountMode(state)) {
-    showAlisioLocalOnlyAccountNotice(state);
+  if (state.alisioAccount?.cloud?.available === false) {
+    showAlisioCloudBackendUnavailableError(state);
     return null;
   }
   const request = beginTrackedRequest(state, accountRequests, false);
@@ -1188,8 +1077,11 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
         .catch(() => null);
       if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
         applyAccountSnapshot(state, account);
-        if (isAlisioLocalOnlyAccountMode(state)) {
-          showAlisioLocalOnlyAccountNotice(state);
+        const cloudAvailable = state.alisioAccount
+          ? Boolean(state.alisioAccount.cloud.available)
+          : undefined;
+        if (cloudAvailable === false) {
+          showAlisioCloudBackendUnavailableError(state);
           return null;
         }
       }
@@ -1317,8 +1209,8 @@ async function authenticateAlisioAccountWithPassword(
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (isAlisioLocalOnlyAccountMode(state)) {
-    showAlisioLocalOnlyAccountNotice(state);
+  if (state.alisioAccount?.cloud?.available === false) {
+    showAlisioCloudBackendUnavailableError(state);
     return;
   }
   const request = beginTrackedRequest(state, accountRequests, false);

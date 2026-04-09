@@ -1,4 +1,4 @@
-import { legacyToolStreamMarkerKey } from "../brand-compat.ts";
+import { canonicalToolStreamMarkerKey } from "../brand-compat.ts";
 import { truncateText } from "./format.ts";
 
 const TOOL_STREAM_LIMIT = 50;
@@ -210,7 +210,7 @@ function buildToolStreamMessage(entry: ToolStreamEntry): Record<string, unknown>
     ...(entry.details !== undefined ? { toolResultDetails: entry.details } : {}),
     content,
     timestamp: entry.startedAt,
-    [legacyToolStreamMarkerKey]: {
+    [canonicalToolStreamMarkerKey]: {
       kind: "tool-stream",
       toolCallId: entry.toolCallId,
       phase: entry.phase,

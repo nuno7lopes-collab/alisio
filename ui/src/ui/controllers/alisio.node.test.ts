@@ -16,7 +16,6 @@ import {
   requestAlisioRecoveryEmail,
   saveAlisioAccount,
   saveAlisioOrganization,
-  selectAlisioModelsServer,
   signOutAlisioAccount,
   type AlisioState,
 } from "./alisio.ts";
@@ -59,7 +58,6 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     chatModelCatalog: [],
     modelsExpandedProfileId: undefined,
     modelsSelectedProviderId: undefined,
-    modelsServerDraft: null,
     alisioAccountLoading: false,
     alisioAccountError: null,
     alisioAccountNotice: null,
@@ -535,18 +533,7 @@ describe("alisio controller reconnect safety", () => {
         backend: "llama.cpp",
         catalog: [],
         targets: [],
-        servers: [
-          {
-            serverId: "server-1",
-            label: "Home Lab",
-            kind: "openai-compatible",
-            baseUrl: "http://192.168.1.50:1234",
-            active: true,
-            hasApiKey: false,
-            status: "ready",
-            models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
-          },
-        ],
+        servers: [],
       } as unknown as AlisioState["alisioModels"],
       alisioModelOperations: {
         "current::qwen3-8b": {
@@ -562,14 +549,7 @@ describe("alisio controller reconnect safety", () => {
         { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
       ],
       modelsExpandedProfileId: "profile-1",
-      modelsSelectedProviderId: "server",
-      modelsServerDraft: {
-        mode: "create",
-        label: "Draft",
-        kind: "openai-compatible",
-        baseUrl: "http://192.168.1.50:1234",
-        apiKey: "",
-      },
+      modelsSelectedProviderId: "nodes",
       setupWizardSessionId: "wizard-1",
       setupWizardStatus: "running",
       setupWizardStep: {
@@ -607,7 +587,6 @@ describe("alisio controller reconnect safety", () => {
     ]);
     expect(state.modelsExpandedProfileId).toBeUndefined();
     expect(state.modelsSelectedProviderId).toBeUndefined();
-    expect(state.modelsServerDraft).toBeNull();
     expect(state.setupWizardSessionId).toBeNull();
     expect(state.setupWizardStep).toBeNull();
     expect(state.setupWizardStatus).toBeNull();
@@ -619,50 +598,6 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioBirthdate).toBe("");
     expect(state.setupStep).toBe("account");
     expect(state.setTab).toHaveBeenCalledWith("setup");
-  });
-
-  it("actualiza o catálogo do picker de chat quando muda o endpoint activo", async () => {
-    const request = vi.fn(async (method: string) => {
-      if (method === "alisio.models.server.select") {
-        return { ok: true, serverId: "server-2" };
-      }
-      if (method === "alisio.models.get") {
-        return {
-          backend: "llama.cpp",
-          catalog: [],
-          targets: [],
-          servers: [
-            {
-              serverId: "server-2",
-              label: "Studio",
-              kind: "openai-compatible",
-              baseUrl: "http://192.168.1.60:1234",
-              active: true,
-              hasApiKey: false,
-              status: "ready",
-              models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b" }],
-            },
-          ],
-        };
-      }
-      if (method === "models.list") {
-        return {
-          models: [{ id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" }],
-        };
-      }
-      throw new Error(`unexpected method: ${method}`);
-    });
-    const state = createState({
-      client: createClient(request),
-      chatModelCatalog: [{ id: "gpt-5.4", name: "gpt-5.4", provider: "openai" }],
-    });
-
-    await selectAlisioModelsServer(state, "server-2");
-
-    expect(state.alisioModels?.servers[0]?.serverId).toBe("server-2");
-    expect(state.chatModelCatalog).toEqual([
-      { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
-    ]);
   });
 
   it("ignora um save antigo da conta quando chega um pedido mais recente", async () => {
@@ -1076,7 +1011,7 @@ describe("alisio controller reconnect safety", () => {
     expect(state.alisioAccountNotice).toBe("Check your email.");
   });
 
-  it("recupera para o perfil local quando o login cloud nao esta disponivel", async () => {
+  it("mostra erro quando o backend cloud nao esta configurado para login por email", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "alisio.account.get") {
         return {
@@ -1116,13 +1051,13 @@ describe("alisio controller reconnect safety", () => {
 
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith("alisio.account.get", {});
-    expect(state.alisioAccountError).toBeNull();
-    expect(state.alisioAccountNotice).toContain("local account mode");
+    expect(state.alisioAccountNotice).toBeNull();
+    expect(state.alisioAccountError).toContain("cloud account backend is unavailable");
     expect(state.alisioAuthStage).toBe("entry");
     expect(state.setupStep).toBe("account");
   });
 
-  it("evita iniciar o login Google quando a conta esta em modo local", async () => {
+  it("mostra erro quando o backend cloud nao esta configurado para login Google", async () => {
     const request = vi.fn(async (method: string) => {
       if (method === "alisio.account.get") {
         return {
@@ -1162,8 +1097,8 @@ describe("alisio controller reconnect safety", () => {
     expect(result).toBeNull();
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith("alisio.account.get", {});
-    expect(state.alisioAccountError).toBeNull();
-    expect(state.alisioAccountNotice).toContain("local account mode");
+    expect(state.alisioAccountNotice).toBeNull();
+    expect(state.alisioAccountError).toContain("cloud account backend is unavailable");
   });
 
   it("conclui a sessão a partir do magic link e limpa o estado local", async () => {

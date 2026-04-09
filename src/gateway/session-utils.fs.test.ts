@@ -492,15 +492,12 @@ describe("readSessionMessages", () => {
       role: string;
       content?: Array<{ text?: string }>;
       __alisio?: { kind?: string; id?: string };
-      __openclaw?: { kind?: string; id?: string };
       timestamp?: number;
     };
     expect(marker.role).toBe("system");
     expect(marker.content?.[0]?.text).toBe("Compaction");
     expect(marker.__alisio?.kind).toBe("compaction");
     expect(marker.__alisio?.id).toBe("comp-1");
-    expect(marker.__openclaw?.kind).toBe("compaction");
-    expect(marker.__openclaw?.id).toBe("comp-1");
     expect(typeof marker.timestamp).toBe("number");
   });
 
@@ -536,7 +533,6 @@ describe("readSessionMessages", () => {
       expect(out).toHaveLength(1);
       expect(out[0]).toMatchObject(message);
       expect((out[0] as { __alisio?: { seq?: number } }).__alisio?.seq).toBe(1);
-      expect((out[0] as { __openclaw?: { seq?: number } }).__openclaw?.seq).toBe(1);
     },
   );
 });

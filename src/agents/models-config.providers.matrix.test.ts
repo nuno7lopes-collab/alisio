@@ -4,11 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import {
-  MINIMAX_OAUTH_MARKER,
-  NON_ENV_SECRETREF_MARKER,
-  OLLAMA_LOCAL_AUTH_MARKER,
-} from "./model-auth-markers.js";
+import { MINIMAX_OAUTH_MARKER, NON_ENV_SECRETREF_MARKER } from "./model-auth-markers.js";
 import { resolveImplicitProvidersForTest } from "./models-config.e2e-harness.js";
 
 type ProvidersMap = Awaited<ReturnType<typeof resolveImplicitProvidersForTest>>;
@@ -126,32 +122,6 @@ const MATRIX_CASES: MatrixCase[] = [
     },
     assertProviders(providers) {
       expect(providers?.vllm).toBeUndefined();
-    },
-  },
-  {
-    name: "explicit ollama models still normalize the returned provider",
-    env: {},
-    explicitProviders: {
-      ollama: {
-        baseUrl: "http://remote-ollama:11434/v1",
-        models: [
-          {
-            id: "gpt-oss:20b",
-            name: "GPT-OSS 20B",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 8192,
-            maxTokens: 81920,
-          },
-        ],
-      },
-    },
-    assertProviders(providers) {
-      expect(providers?.ollama?.baseUrl).toBe("http://remote-ollama:11434");
-      expect(providers?.ollama?.api).toBe("ollama");
-      expect(providers?.ollama?.apiKey).toBe(OLLAMA_LOCAL_AUTH_MARKER);
-      expect(providers?.ollama?.models).toHaveLength(1);
     },
   },
 ];

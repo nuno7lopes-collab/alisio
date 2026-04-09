@@ -4,13 +4,18 @@ import { collectProviderApiKeys } from "../agents/live-auth-keys.js";
 import { normalizeProviderId } from "../agents/provider-id.js";
 import type { NodeRegistry } from "../gateway/node-registry.js";
 import { loadGatewayModelCatalog } from "../gateway/server-model-catalog.js";
-import { isAlisioDynamicProvider } from "../shared/alisio-remote-model-provider.js";
-import type { AlisioModelProviderSnapshot } from "./alisio-model-snapshot.js";
+import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 
 export type AlisioRuntimeProviderSignals = {
   authenticatedProviderReady: boolean;
   localTargetReady: boolean;
   activeServerReady: boolean;
+};
+
+type RuntimeSetupSnapshot = {
+  targets: Array<{ chatProviderId?: string }>;
+  servers: Array<{ active?: boolean; chatProviderId?: string }>;
+  dynamicCatalogEntries: Array<{ provider: string; id: string; name: string }>;
 };
 
 export type AlisioRuntimeSetupState = {
@@ -47,7 +52,7 @@ function hasPublishedChatProvider(providerId: string | undefined): boolean {
 }
 
 export function resolveAlisioRuntimeSignalsFromSnapshot(
-  snapshot: Pick<AlisioModelProviderSnapshot, "targets" | "servers">,
+  snapshot: Pick<RuntimeSetupSnapshot, "targets" | "servers">,
 ): Omit<AlisioRuntimeProviderSignals, "authenticatedProviderReady"> {
   return {
     localTargetReady: snapshot.targets.some((target) =>
@@ -79,9 +84,7 @@ export function resolveAlisioRuntimeProviderReady(
 
 export async function loadAlisioRuntimeSetupState(params?: {
   loadGatewayModelCatalog?: typeof loadGatewayModelCatalog;
-  loadAlisioModelProviderSnapshot?: () => Promise<
-    Pick<AlisioModelProviderSnapshot, "targets" | "servers" | "dynamicCatalogEntries">
-  >;
+  loadAlisioModelProviderSnapshot?: () => Promise<RuntimeSetupSnapshot>;
   nodeRegistry?: NodeRegistry;
   env?: NodeJS.ProcessEnv;
   fetchImpl?: typeof fetch;

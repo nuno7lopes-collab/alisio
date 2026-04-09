@@ -3,10 +3,8 @@ import {
   countAlisioConnectorPlanSlots,
   alisioConnectorUpgradeMessage,
   alisioOrganizationsUpgradeMessage,
-  alisioRemoteModelServersUpgradeMessage,
   alisioSharingUpgradeMessage,
   alisioSupportsOrganizations,
-  alisioSupportsRemoteModelServers,
   alisioSupportsSharing,
   type AlisioPlan,
 } from "../shared/alisio-billing.js";
@@ -17,11 +15,7 @@ export type AlisioPlanGateResult =
     }
   | {
       ok: false;
-      code:
-        | "connector_limit_reached"
-        | "organizations_plus_required"
-        | "remote_model_servers_plus_required"
-        | "sharing_plus_required";
+      code: "connector_limit_reached" | "organizations_plus_required" | "sharing_plus_required";
       message: string;
     };
 
@@ -60,17 +54,6 @@ export function gateAlisioOrganizationMembership(params: {
     ok: false,
     code: "organizations_plus_required",
     message: alisioOrganizationsUpgradeMessage(),
-  };
-}
-
-export function gateAlisioRemoteModelServers(params: { plan: AlisioPlan }): AlisioPlanGateResult {
-  if (alisioSupportsRemoteModelServers(params.plan)) {
-    return { ok: true };
-  }
-  return {
-    ok: false,
-    code: "remote_model_servers_plus_required",
-    message: alisioRemoteModelServersUpgradeMessage(),
   };
 }
 

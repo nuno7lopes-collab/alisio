@@ -1143,7 +1143,6 @@ describe("chat view", () => {
   it("opens delete confirm on the left for user messages", () => {
     try {
       getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
-      getSafeLocalStorage()?.removeItem("\u006fpen\u0063law:skipDeleteConfirm");
     } catch {
       /* noop */
     }
@@ -1177,7 +1176,6 @@ describe("chat view", () => {
   it("opens delete confirm on the right for assistant messages", () => {
     try {
       getSafeLocalStorage()?.removeItem("alisio:skipDeleteConfirm");
-      getSafeLocalStorage()?.removeItem("\u006fpen\u0063law:skipDeleteConfirm");
     } catch {
       /* noop */
     }

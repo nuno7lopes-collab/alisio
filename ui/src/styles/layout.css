@@ -539,8 +539,8 @@
 
 .sidebar-brand__logo img,
 .sidebar-context__icon img {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   object-fit: contain;
 }
 
@@ -1278,8 +1278,8 @@
 }
 
 .setup-frame__brand-mark img {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 

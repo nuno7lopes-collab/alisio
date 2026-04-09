@@ -13,7 +13,7 @@ import type {
 } from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { ModelsOperationMap, ModelsServerDraft } from "./models-view-types.ts";
+import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -149,8 +149,7 @@ export type AppViewState = {
   chatModelsLoading: boolean;
   chatModelCatalog: ModelCatalogEntry[];
   modelsExpandedProfileId?: string | null;
-  modelsSelectedProviderId?: "openai" | "server" | "local" | null;
-  modelsServerDraft?: ModelsServerDraft | null;
+  modelsSelectedProviderId?: "openai" | "nodes" | "local" | null;
   alisioModelOperations: ModelsOperationMap;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;

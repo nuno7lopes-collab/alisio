@@ -4,7 +4,6 @@ import { buildModelAliasIndex, modelKey } from "../agents/model-selection.js";
 import type { AlisioConfig } from "../config/config.js";
 import type { ModelProviderConfig } from "../config/types.models.js";
 import { isSecretRef, type SecretInput } from "../config/types.secrets.js";
-import { OLLAMA_DEFAULT_BASE_URL } from "../plugin-sdk/ollama-surface.js";
 import type { RuntimeEnv } from "../runtime.js";
 import { fetchWithTimeout } from "../utils/fetch-timeout.js";
 import {
@@ -19,6 +18,7 @@ import type { SecretInputMode } from "./onboard-types.js";
 
 const DEFAULT_CONTEXT_WINDOW = CONTEXT_WINDOW_HARD_MIN_TOKENS;
 const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_SELF_HOSTED_BASE_URL = "http://127.0.0.1:11434";
 // Azure OpenAI uses the Responses API which supports larger defaults
 const AZURE_DEFAULT_CONTEXT_WINDOW = 400_000;
 const AZURE_DEFAULT_MAX_TOKENS = 16_384;
@@ -435,7 +435,7 @@ async function promptBaseUrlAndKey(params: {
 }): Promise<{ baseUrl: string; apiKey?: SecretInput; resolvedApiKey: string }> {
   const baseUrlInput = await params.prompter.text({
     message: "API Base URL",
-    initialValue: params.initialBaseUrl ?? OLLAMA_DEFAULT_BASE_URL,
+    initialValue: params.initialBaseUrl ?? DEFAULT_SELF_HOSTED_BASE_URL,
     placeholder: "https://api.example.com/v1",
     validate: (val) => {
       try {
@@ -885,7 +885,7 @@ export async function promptCustomApiConfig(params: {
   });
   const aliasInput = await prompter.text({
     message: "Model alias (optional)",
-    placeholder: "e.g. local, ollama",
+    placeholder: "e.g. local, self-hosted",
     initialValue: "",
     validate: (value) => {
       const requestedId = normalizeEndpointId(providerIdInput) || "custom";

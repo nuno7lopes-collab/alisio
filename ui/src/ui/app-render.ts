@@ -7,7 +7,6 @@ import {
   alisioPlanTranslationKey,
   normalizeAlisioPlan,
 } from "../../../src/shared/alisio-billing.js";
-import { legacyColonKey } from "../brand-compat.ts";
 import { i18n, t } from "../i18n/index.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 import {
@@ -54,7 +53,6 @@ import {
   loadAlisioConnectors,
   loadAlisioProviderOverview,
   loadAlisioSharing,
-  removeAlisioModelsServer,
   renameAlisioAiProfile,
   refreshAlisioAi,
   refreshAlisioAiProfile,
@@ -64,11 +62,8 @@ import {
   revokeAlisioConnector,
   revokeAlisioSharedDeviceGrant,
   saveAlisioAccount,
-  saveAlisioModelsServer,
   selectAlisioAiProfile,
-  selectAlisioModelsServer,
   saveAlisioSharingPolicy,
-  startAlisioModelsRuntimeServer,
   signInAlisioAccountWithPassword,
   signOutAlisioAccount,
   signUpAlisioAccountWithPassword,
@@ -162,7 +157,6 @@ import {
   isMemoryNoteFileName,
   PRIMARY_MEMORY_FILE_NAME,
 } from "./memory-files.ts";
-import type { ModelsServerDraft } from "./models-view-types.ts";
 import { TAB_GROUPS, pathForTab, publicTabFor } from "./navigation.ts";
 import {
   closeReservedExternalPopup,
@@ -187,9 +181,6 @@ import { renderSettingsHub } from "./views/settings.ts";
 import { renderSetup } from "./views/setup.ts";
 
 const UPDATE_BANNER_DISMISS_KEY = "alisio:workspace:update-banner-dismissed:v1";
-const LEGACY_UPDATE_BANNER_DISMISS_KEYS = [
-  legacyColonKey("control-ui", "update-banner-dismissed", "v1"),
-];
 
 type DismissedUpdateBanner = {
   latestVersion: string;
@@ -203,22 +194,19 @@ function loadDismissedUpdateBanner(): DismissedUpdateBanner | null {
     return null;
   }
   try {
-    for (const key of [UPDATE_BANNER_DISMISS_KEY, ...LEGACY_UPDATE_BANNER_DISMISS_KEYS]) {
-      const raw = storage.getItem(key);
-      if (!raw) {
-        continue;
-      }
-      const parsed = JSON.parse(raw) as Partial<DismissedUpdateBanner>;
-      if (!parsed || typeof parsed.latestVersion !== "string") {
-        continue;
-      }
-      return {
-        latestVersion: parsed.latestVersion,
-        channel: typeof parsed.channel === "string" ? parsed.channel : null,
-        dismissedAtMs: typeof parsed.dismissedAtMs === "number" ? parsed.dismissedAtMs : Date.now(),
-      };
+    const raw = storage.getItem(UPDATE_BANNER_DISMISS_KEY);
+    if (!raw) {
+      return null;
     }
-    return null;
+    const parsed = JSON.parse(raw) as Partial<DismissedUpdateBanner>;
+    if (!parsed || typeof parsed.latestVersion !== "string") {
+      return null;
+    }
+    return {
+      latestVersion: parsed.latestVersion,
+      channel: typeof parsed.channel === "string" ? parsed.channel : null,
+      dismissedAtMs: typeof parsed.dismissedAtMs === "number" ? parsed.dismissedAtMs : Date.now(),
+    };
   } catch {
     return null;
   }
@@ -254,19 +242,6 @@ function dismissUpdateBanner(updateAvailable: unknown) {
   } catch {
     // ignore
   }
-}
-
-function createModelsServerDraft(
-  server?: NonNullable<NonNullable<AppViewState["alisioModels"]>["servers"]>[number] | null,
-): ModelsServerDraft {
-  return {
-    mode: server ? "edit" : "create",
-    serverId: server?.serverId,
-    label: server?.label ?? "",
-    kind: server?.kind ?? "openai-compatible",
-    baseUrl: server?.baseUrl ?? "",
-    apiKey: "",
-  };
 }
 
 function confirmLocalModelAction(message: string) {
@@ -2112,7 +2087,6 @@ export function renderApp(state: AppViewState) {
               effectiveChatModelValue,
               effectiveChatModelLabel,
               modelPickerBusy: state.chatModelsLoading || state.sessionsLoading,
-              serverDraft: state.modelsServerDraft,
               onSelectDefaultChatModel: (modelValue) => {
                 void setDefaultChatModel(state, modelValue);
               },
@@ -2175,54 +2149,6 @@ export function renderApp(state: AppViewState) {
                   return;
                 }
                 void uninstallAlisioModel(state, { targetId, modelId });
-              },
-              onStartRuntimeServer: (targetId) => {
-                void startAlisioModelsRuntimeServer(state, { targetId });
-              },
-              onStartCreateServer: () => {
-                state.modelsServerDraft = createModelsServerDraft();
-              },
-              onStartEditServer: (server) => {
-                state.modelsServerDraft = createModelsServerDraft(server);
-              },
-              onChangeServerDraft: (field, value) => {
-                const currentDraft = state.modelsServerDraft ?? createModelsServerDraft();
-                state.modelsServerDraft = { ...currentDraft, [field]: value };
-              },
-              onCancelServerDraft: () => {
-                state.modelsServerDraft = null;
-              },
-              onSubmitServerDraft: () => {
-                const draft = state.modelsServerDraft;
-                if (!draft) {
-                  return;
-                }
-                const label = draft.label.trim();
-                const baseUrl = draft.baseUrl.trim();
-                if (!label || !baseUrl) {
-                  return;
-                }
-                void (async () => {
-                  await saveAlisioModelsServer(state, {
-                    serverId: draft.serverId,
-                    label,
-                    kind: draft.kind,
-                    baseUrl,
-                    apiKey: draft.apiKey.trim() || undefined,
-                  });
-                  if (!state.alisioModelsError) {
-                    state.modelsServerDraft = null;
-                  }
-                })();
-              },
-              onRemoveServer: (serverId) => {
-                if (state.modelsServerDraft?.serverId === serverId) {
-                  state.modelsServerDraft = null;
-                }
-                void removeAlisioModelsServer(state, serverId);
-              },
-              onSelectServer: (serverId) => {
-                void selectAlisioModelsServer(state, serverId);
               },
             })
           : nothing}

@@ -5,16 +5,14 @@ import {
   storeDeviceAuthTokenInStore,
 } from "../../../src/shared/device-auth-store.js";
 import type { DeviceAuthStore } from "../../../src/shared/device-auth.js";
-import { legacyDotKey } from "../brand-compat.ts";
 import { getSafeLocalStorage } from "../local-storage.ts";
 
 const STORAGE_KEY = "alisio.device.auth.v2";
-const LEGACY_STORAGE_KEY = legacyDotKey("device", "auth", "v1");
 
 function readStore(): DeviceAuthStore | null {
   try {
     const storage = getSafeLocalStorage();
-    const raw = storage?.getItem(STORAGE_KEY) ?? storage?.getItem(LEGACY_STORAGE_KEY);
+    const raw = storage?.getItem(STORAGE_KEY);
     if (!raw) {
       return null;
     }
@@ -28,8 +26,6 @@ function readStore(): DeviceAuthStore | null {
     if (!parsed.tokens || typeof parsed.tokens !== "object") {
       return null;
     }
-    storage?.setItem(STORAGE_KEY, raw);
-    storage?.removeItem(LEGACY_STORAGE_KEY);
     return parsed;
   } catch {
     return null;
@@ -40,7 +36,6 @@ function writeStore(store: DeviceAuthStore) {
   try {
     const storage = getSafeLocalStorage();
     storage?.setItem(STORAGE_KEY, JSON.stringify(store));
-    storage?.removeItem(LEGACY_STORAGE_KEY);
   } catch {
     // best-effort
   }

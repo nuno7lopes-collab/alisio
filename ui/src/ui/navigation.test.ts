@@ -177,21 +177,20 @@ describe("tabFromPath", () => {
 
   it("is case-insensitive", () => {
     expect(tabFromPath("/CHAT")).toBe("chat");
-    expect(tabFromPath("/Overview")).toBe("chat");
+    expect(tabFromPath("/SETTINGS")).toBe("settings");
   });
 
-  it("maps legacy paths onto canonical tabs", () => {
-    expect(tabFromPath("/overview")).toBe("chat");
-    expect(tabFromPath("/home")).toBe("chat");
-    expect(tabFromPath("/sessions")).toBe("chat");
-    expect(tabFromPath("/cron")).toBe("chat");
-    expect(tabFromPath("/automations")).toBe("chat");
-    expect(tabFromPath("/agents")).toBe("chat");
-    expect(tabFromPath("/skills")).toBe("capabilities");
-    expect(tabFromPath("/channels")).toBe("channels");
-    expect(tabFromPath("/instances")).toBe("organization");
-    expect(tabFromPath("/usage")).toBe("organization");
-    expect(tabFromPath("/config")).toBe("settings");
+  it("rejects retired legacy routes", () => {
+    expect(tabFromPath("/overview")).toBeNull();
+    expect(tabFromPath("/home")).toBeNull();
+    expect(tabFromPath("/sessions")).toBeNull();
+    expect(tabFromPath("/cron")).toBeNull();
+    expect(tabFromPath("/automations")).toBeNull();
+    expect(tabFromPath("/agents")).toBeNull();
+    expect(tabFromPath("/skills")).toBeNull();
+    expect(tabFromPath("/instances")).toBeNull();
+    expect(tabFromPath("/usage")).toBeNull();
+    expect(tabFromPath("/config")).toBeNull();
   });
 });
 
@@ -205,12 +204,12 @@ describe("inferBasePathFromPathname", () => {
     expect(inferBasePathFromPathname("/chat")).toBe("");
     expect(inferBasePathFromPathname("/models")).toBe("");
     expect(inferBasePathFromPathname("/authentications")).toBe("");
-    expect(inferBasePathFromPathname("/overview")).toBe("");
+    expect(inferBasePathFromPathname("/settings")).toBe("");
   });
 
   it("infers base path from nested paths", () => {
     expect(inferBasePathFromPathname("/ui/chat")).toBe("/ui");
-    expect(inferBasePathFromPathname("/apps/alisio/agents")).toBe("/apps/alisio");
+    expect(inferBasePathFromPathname("/apps/alisio/settings")).toBe("/apps/alisio");
   });
 
   it("handles index.html suffix", () => {

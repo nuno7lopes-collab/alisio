@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { AlisioLocalModelRuntimeInspection } from "../../infra/alisio-local-model-runtime.js";
 import {
   buildAlisioCurrentProviderId,
-  buildAlisioServerProviderId,
-} from "../../shared/alisio-remote-model-provider.js";
+  buildAlisioTargetProviderId,
+} from "../../shared/alisio-dynamic-provider.js";
 
 const { scheduleGatewaySigusr1RestartMock } = vi.hoisted(() => ({
   scheduleGatewaySigusr1RestartMock: vi.fn(() => ({
@@ -73,13 +73,9 @@ const {
   approveAlisioSharingRequestMock,
   getAlisioSharingTargetAccessIndexMock,
   getAlisioSharingStateMock,
-  listAlisioRemoteModelServersMock,
-  saveAlisioRemoteModelServerMock,
   rejectAlisioSharingRequestMock,
-  removeAlisioRemoteModelServerMock,
   requestAlisioSharingAccessMock,
   revokeAlisioSharingGrantMock,
-  selectAlisioRemoteModelServerMock,
   setAlisioSharingPolicyMock,
 } = vi.hoisted(() => ({
   approveAlisioSharingRequestMock: vi.fn(async ({ requestId }: { requestId: string }) => ({
@@ -145,34 +141,9 @@ const {
     audit: [],
     suggestions: [],
   })),
-  listAlisioRemoteModelServersMock: vi.fn(async () => []),
   rejectAlisioSharingRequestMock: vi.fn(async ({ requestId }: { requestId: string }) => ({
     ok: true as const,
     requestId,
-  })),
-  saveAlisioRemoteModelServerMock: vi.fn(
-    async ({
-      serverId,
-      label,
-      kind,
-      baseUrl,
-    }: {
-      serverId?: string;
-      label: string;
-      kind: string;
-      baseUrl: string;
-    }) => ({
-      serverId: serverId ?? "server-1",
-      label,
-      kind,
-      baseUrl,
-      active: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }),
-  ),
-  removeAlisioRemoteModelServerMock: vi.fn(async ({ serverId }: { serverId: string }) => ({
-    serverId,
   })),
   requestAlisioSharingAccessMock: vi.fn(async () => ({
     ok: true as const,
@@ -182,9 +153,6 @@ const {
     ok: true as const,
     grantId,
     targetId: "remote-1",
-  })),
-  selectAlisioRemoteModelServerMock: vi.fn(async ({ serverId }: { serverId: string }) => ({
-    serverId,
   })),
   setAlisioSharingPolicyMock: vi.fn(
     async ({
@@ -316,10 +284,6 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
     signOutAlisioAccount: signOutAlisioAccountMock,
     getAlisioSharingTargetAccessIndex: getAlisioSharingTargetAccessIndexMock,
     getAlisioSharingState: getAlisioSharingStateMock,
-    listAlisioRemoteModelServers: listAlisioRemoteModelServersMock,
-    saveAlisioRemoteModelServer: saveAlisioRemoteModelServerMock,
-    removeAlisioRemoteModelServer: removeAlisioRemoteModelServerMock,
-    selectAlisioRemoteModelServer: selectAlisioRemoteModelServerMock,
     setAlisioSharingPolicy: setAlisioSharingPolicyMock,
     updateAlisioAccountPassword: updateAlisioAccountPasswordMock,
   };
@@ -517,7 +481,7 @@ describe("alisio gateway methods", () => {
       wizardRunning: false,
       providerReady: false,
       accountReady: false,
-      startupState: "needs_profile",
+      startupState: "signed_out",
       nextStep: "account",
     });
   });
@@ -581,11 +545,11 @@ describe("alisio gateway methods", () => {
     });
   });
 
-  it("skips the OpenAI-only runtime error when a server provider is ready", async () => {
+  it("skips the runtime error when a node llama provider is ready", async () => {
     const context = makeContext({
       loadGatewayModelCatalog: vi.fn(async () => [
         {
-          provider: buildAlisioServerProviderId("server-1"),
+          provider: buildAlisioTargetProviderId({ targetId: "node-1" }),
           id: "llama3.2",
           name: "Llama 3.2",
         },
@@ -947,37 +911,6 @@ describe("alisio gateway methods", () => {
     });
   });
 
-  it("saves a remote model server", async () => {
-    const context = makeContext();
-    const { calls, respond } = makeRespond();
-
-    await alisioHandlers["alisio.models.server.save"]({
-      params: {
-        label: "GPU Box",
-        kind: "openai-compatible",
-        baseUrl: "https://models.example.com/v1",
-      },
-      client: null,
-      context,
-      isWebchatConnect: () => false,
-      respond,
-      req: { method: "alisio.models.server.save", params: {}, id: 8 } as never,
-    });
-
-    expect(saveAlisioRemoteModelServerMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        label: "GPU Box",
-        kind: "openai-compatible",
-      }),
-      process.env,
-    );
-    expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      ok: true,
-      serverId: "server-1",
-    });
-  });
-
   it("surfaces organization plan gating as a validation error", async () => {
     await withReadyLocalAccountEnv(async () => {
       const context = makeContext();
@@ -1109,7 +1042,7 @@ describe("alisio gateway methods", () => {
     );
   });
 
-  it("allows connector setup to continue from local account mode", async () => {
+  it("allows connector setup to continue when the cloud account backend is configured", async () => {
     await withReadyLocalAccountEnv(async () => {
       const context = makeContext();
       const { calls, respond } = makeRespond();

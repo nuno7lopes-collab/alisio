@@ -2,9 +2,6 @@ import {
   ALISIO_CONNECTOR_OAUTH_CHANNEL,
   ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY,
   ALISIO_CONNECTOR_OAUTH_STORAGE_KEY,
-  LEGACY_ALISIO_CONNECTOR_OAUTH_CHANNEL,
-  LEGACY_ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY,
-  LEGACY_ALISIO_CONNECTOR_OAUTH_STORAGE_KEY,
   isAlisioConnectorOAuthSignal,
   type AlisioConnectorOAuthSignal,
 } from "../../../src/shared/alisio-connector-oauth.js";
@@ -40,7 +37,6 @@ function buildAttachmentId(index: number) {
 function clearPersistedConnectorOAuthSignal(): void {
   try {
     window.localStorage.removeItem(ALISIO_CONNECTOR_OAUTH_STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_ALISIO_CONNECTOR_OAUTH_STORAGE_KEY);
   } catch {
     // Ignore storage access failures.
   }
@@ -197,10 +193,7 @@ export function subscribeAlisioConnectorOAuthSignals(
   };
 
   const handleStorage = (event: StorageEvent) => {
-    if (
-      event.key !== ALISIO_CONNECTOR_OAUTH_STORAGE_KEY &&
-      event.key !== LEGACY_ALISIO_CONNECTOR_OAUTH_STORAGE_KEY
-    ) {
+    if (event.key !== ALISIO_CONNECTOR_OAUTH_STORAGE_KEY) {
       return;
     }
     if (!event.newValue) {
@@ -213,20 +206,14 @@ export function subscribeAlisioConnectorOAuthSignals(
     typeof window.BroadcastChannel === "function"
       ? new BroadcastChannel(ALISIO_CONNECTOR_OAUTH_CHANNEL)
       : null;
-  const legacyChannel =
-    typeof window.BroadcastChannel === "function"
-      ? new BroadcastChannel(LEGACY_ALISIO_CONNECTOR_OAUTH_CHANNEL)
-      : null;
   const handleMessage = (event: MessageEvent<unknown>) => {
     handleSignal(event.data);
   };
 
   window.addEventListener("storage", handleStorage);
   channel?.addEventListener("message", handleMessage as EventListener);
-  legacyChannel?.addEventListener("message", handleMessage as EventListener);
   try {
     handleSignal(window.localStorage.getItem(ALISIO_CONNECTOR_OAUTH_STORAGE_KEY));
-    handleSignal(window.localStorage.getItem(LEGACY_ALISIO_CONNECTOR_OAUTH_STORAGE_KEY));
   } catch {
     // Ignore storage access failures.
   }
@@ -234,9 +221,7 @@ export function subscribeAlisioConnectorOAuthSignals(
   return () => {
     window.removeEventListener("storage", handleStorage);
     channel?.removeEventListener("message", handleMessage as EventListener);
-    legacyChannel?.removeEventListener("message", handleMessage as EventListener);
     channel?.close();
-    legacyChannel?.close();
   };
 }
 
@@ -255,7 +240,6 @@ export function rememberAlisioConnectorOAuthReturnTo(url: string): void {
     }
     const normalized = parsed.toString();
     window.localStorage.setItem(ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY, normalized);
-    window.localStorage.setItem(LEGACY_ALISIO_CONNECTOR_OAUTH_RETURN_TO_STORAGE_KEY, normalized);
   } catch {
     // Ignore storage failures and invalid return targets.
   }
