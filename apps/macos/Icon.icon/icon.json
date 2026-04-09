@@ -9,10 +9,10 @@
           "image-name" : "alisio-mac.png",
           "name" : "alisio-mac",
           "position" : {
-            "scale" : 1.07,
+            "scale" : 0.86,
             "translation-in-points" : [
-              -2,
-              0
+              0,
+              36
             ]
           }
         }
