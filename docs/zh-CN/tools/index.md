@@ -293,7 +293,7 @@ OpenClaw 为 browser、canvas、nodes 和 cron 暴露**一流的智能体工具*
 - 所有操作接受可选的 `profile` 参数以支持多实例。
 - 当省略 `profile` 时，使用 `browser.defaultProfile`（默认为"chrome"）。
 - 配置文件名称：仅小写字母数字 + 连字符（最多 64 字符）。
-- 端口范围：18800-18899（最多约 100 个配置文件）。
+- 端口范围：40716-40815（最多约 100 个配置文件）。
 - 远程配置文件仅支持附加（无 start/stop/reset）。
 - 如果连接了支持浏览器的节点，工具可能会自动路由到它（除非你固定了 `target`）。
 - 安装 Playwright 时 `snapshot` 默认为 `ai`；使用 `aria` 获取无障碍树。
@@ -439,7 +439,7 @@ OpenClaw 为 browser、canvas、nodes 和 cron 暴露**一流的智能体工具*
 - `sessions_list`：`kinds?`、`limit?`、`activeMinutes?`、`messageLimit?`（0 = 无）
 - `sessions_history`：`sessionKey`（或 `sessionId`）、`limit?`、`includeTools?`
 - `sessions_send`：`sessionKey`（或 `sessionId`）、`message`、`timeoutSeconds?`（0 = fire-and-forget）
-- `sessions_spawn`：`task`、`label?`、`agentId?`、`model?`、`runTimeoutSeconds?`、`cleanup?`
+- `sessions_spawn`：`task`、`label?`、`agentId?`（仅 ACP）、`model?`、`runTimeoutSeconds?`、`cleanup?`
 - `session_status`：`sessionKey?`（默认当前；接受 `sessionId`）、`model?`（`default` 清除覆盖）
 
 注意：
@@ -455,18 +455,18 @@ OpenClaw 为 browser、canvas、nodes 和 cron 暴露**一流的智能体工具*
 
 ### `agents_list`
 
-列出当前会话可以用 `sessions_spawn` 定位的智能体 id。
+显示当前会话的 Alisio 智能体上下文。
 
 注意：
 
-- 结果受每智能体允许列表限制（`agents.list[].subagents.allowAgents`）。
-- 当配置为 `["*"]` 时，工具包含所有已配置的智能体并标记 `allowAny: true`。
+- 内部子智能体始终运行在当前智能体之下。
+- ACP harness 的 `agentId` 单独配置，不通过这个工具发现。
 
 ## 参数（通用）
 
 Gateway 网关支持的工具（`canvas`、`nodes`、`cron`）：
 
-- `gatewayUrl`（默认 `ws://127.0.0.1:18789`）
+- `gatewayUrl`（默认 `ws://127.0.0.1:40705`）
 - `gatewayToken`（如果启用了认证）
 - `timeoutMs`
 

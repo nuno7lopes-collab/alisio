@@ -23,7 +23,7 @@ Interactive onboarding for local or remote Gateway setup.
 alisio onboard
 alisio onboard --flow quickstart
 alisio onboard --flow manual
-alisio onboard --mode remote --remote-url wss://gateway-host:18789
+alisio onboard --mode remote --remote-url wss://gateway-host:40705
 ```
 
 For plaintext private-network `ws://` targets (trusted networks only), set
@@ -104,7 +104,7 @@ alisio onboard --non-interactive \
 ```bash
 alisio onboard --non-interactive \
   --mode remote \
-  --remote-url ws://127.0.0.1:18789 \
+  --remote-url ws://127.0.0.1:40705 \
   --remote-password "$ALISIO_GATEWAY_PASSWORD" \
   --accept-risk
 ```

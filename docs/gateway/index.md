@@ -30,9 +30,9 @@ Use this page for day-1 startup and day-2 operations of the Gateway service.
   <Step title="Start the Gateway">
 
 ```bash
-alisio gateway --port 18789
+alisio gateway --port 40705
 # debug/trace mirrored to stdio
-alisio gateway --port 18789 --verbose
+alisio gateway --port 40705 --verbose
 # force-kill listener on selected port, then start
 alisio gateway --force
 ```
@@ -104,7 +104,7 @@ All of these run on the main Gateway port and use the same trusted operator auth
 
 | Setting      | Resolution order                                            |
 | ------------ | ----------------------------------------------------------- |
-| Gateway port | `--port` → `ALISIO_GATEWAY_PORT` → `gateway.port` → `18789` |
+| Gateway port | `--port` → `ALISIO_GATEWAY_PORT` → `gateway.port` → `40705` |
 | Bind mode    | CLI/override → `gateway.bind` → `loopback`                  |
 
 ### Hot reload modes
@@ -136,10 +136,10 @@ Preferred: Tailscale/VPN.
 Fallback: SSH tunnel.
 
 ```bash
-ssh -N -L 18789:127.0.0.1:18789 user@host
+ssh -N -L 40705:127.0.0.1:40705 user@host
 ```
 
-Then connect clients to `ws://127.0.0.1:18789` locally.
+Then connect clients to `ws://127.0.0.1:40705` locally.
 
 <Warning>
 If gateway auth is configured, clients still must send auth (`token`/`password`) even over SSH tunnels.

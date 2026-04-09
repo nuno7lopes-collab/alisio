@@ -27,7 +27,7 @@ Profiles auto-scope `ALISIO_STATE_DIR` + `ALISIO_CONFIG_PATH` and suffix service
 ```bash
 # main
 alisio --profile main setup
-alisio --profile main gateway --port 18789
+alisio --profile main gateway --port 40705
 
 # rescue
 alisio --profile rescue setup
@@ -58,7 +58,7 @@ Port spacing: leave at least 20 ports between base ports so the derived browser/
 
 ```bash
 # Main bot (existing or fresh, without --profile param)
-# Runs on port 18789 + Chrome CDC/Canvas/... Ports
+# Runs on port 40705 + Chrome CDC/Canvas/... Ports
 alisio onboard
 alisio gateway install
 
@@ -66,7 +66,7 @@ alisio gateway install
 alisio --profile rescue onboard
 # Notes:
 # - workspace name will be postfixed with -rescue per default
-# - Port should be at least 18789 + 20 Ports,
+# - Port should be at least 40705 + 20 Ports,
 #   better choose completely different base port, like 19789,
 # - rest of the onboarding is the same as normal
 
@@ -96,7 +96,7 @@ If you override any of these in config or env, you must keep them unique per ins
 ```bash
 ALISIO_CONFIG_PATH=~/.alisio/main.json \
 ALISIO_STATE_DIR=~/.alisio-main \
-alisio gateway --port 18789
+alisio gateway --port 40705
 
 ALISIO_CONFIG_PATH=~/.alisio/rescue.json \
 ALISIO_STATE_DIR=~/.alisio-rescue \

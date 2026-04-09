@@ -1,5 +1,9 @@
 import { Type } from "@sinclair/typebox";
-import { AlisioSharingStateSchema } from "./alisio.js";
+import {
+  AlisioSharingResourcePoliciesPatchSchema,
+  AlisioSharingResourcePoliciesSchema,
+  AlisioSharingStateSchema,
+} from "./alisio.js";
 import { NonEmptyString } from "./primitives.js";
 
 export const DevicePairListParamsSchema = Type.Object({}, { additionalProperties: false });
@@ -110,7 +114,8 @@ export const DevicesShareRevokeResultSchema = Type.Object(
 
 export const DevicesPolicySetParamsSchema = Type.Object(
   {
-    allowExternalUse: Type.Boolean(),
+    allowExternalUse: Type.Optional(Type.Boolean()),
+    resourcePolicies: Type.Optional(AlisioSharingResourcePoliciesPatchSchema),
     idempotencyKey: NonEmptyString,
   },
   { additionalProperties: false },
@@ -120,6 +125,7 @@ export const DevicesPolicySetResultSchema = Type.Object(
   {
     ok: Type.Literal(true),
     allowExternalUse: Type.Boolean(),
+    resourcePolicies: Type.Optional(AlisioSharingResourcePoliciesSchema),
   },
   { additionalProperties: false },
 );

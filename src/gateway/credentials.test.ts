@@ -164,9 +164,9 @@ describe("resolveGatewayCredentialsFromConfig", () => {
         },
       }),
       env: {
+        ALISIO_SERVICE_KIND: "gateway",
         OPENCLAW_GATEWAY_TOKEN: "env-token",
         OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
-        OPENCLAW_SERVICE_KIND: "gateway",
       } as NodeJS.ProcessEnv,
     });
     expect(resolved).toEqual({

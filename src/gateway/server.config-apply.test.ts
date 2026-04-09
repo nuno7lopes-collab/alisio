@@ -5,6 +5,7 @@ import {
   getFreePort,
   installGatewayTestHooks,
   onceMessage,
+  rpcReq,
   startGatewayServer,
   trackConnectChallengeNonce,
 } from "./test-helpers.js";
@@ -31,16 +32,22 @@ const openClient = async () => {
   return ws;
 };
 
-const sendConfigApply = async (ws: WebSocket, id: string, raw: unknown) => {
+const sendConfigApply = async (ws: WebSocket, id: string, raw: unknown, baseHash?: string) => {
   ws.send(
     JSON.stringify({
       type: "req",
       id,
       method: "config.apply",
-      params: { raw },
+      params: { raw, ...(baseHash ? { baseHash } : {}) },
     }),
   );
-  return onceMessage<{ ok: boolean; error?: { message?: string } }>(ws, (o) => {
+  return onceMessage<{
+    type?: string;
+    id?: string;
+    ok?: boolean;
+    error?: { message?: string };
+    payload?: Record<string, unknown> | null;
+  }>(ws, (o) => {
     const msg = o as { type?: string; id?: string };
     return msg.type === "res" && msg.id === id;
   });
@@ -66,6 +73,50 @@ describe("gateway config.apply", () => {
       const res = await sendConfigApply(ws, id, { gateway: { mode: "local" } });
       expect(res.ok).toBe(false);
       expect(res.error?.message ?? "").toContain("raw");
+    } finally {
+      ws.close();
+    }
+  });
+
+  it("does not schedule restart for dynamic tools.exec config changes", async () => {
+    const ws = await openClient();
+    try {
+      const current = await rpcReq<{
+        hash?: string;
+        config?: {
+          tools?: {
+            exec?: {
+              ask?: string;
+            };
+          };
+        };
+      }>(ws, "config.get", {});
+      expect(current.ok).toBe(true);
+      expect(typeof current.payload?.hash).toBe("string");
+
+      const previousAsk = current.payload?.config?.tools?.exec?.ask ?? "on-miss";
+      const nextAsk = previousAsk === "off" ? "on-miss" : "off";
+      const nextConfig = {
+        ...current.payload?.config,
+        tools: {
+          ...current.payload?.config?.tools,
+          exec: {
+            ...current.payload?.config?.tools?.exec,
+            ask: nextAsk,
+          },
+        },
+      };
+
+      const res = await sendConfigApply(
+        ws,
+        "req-dynamic-apply",
+        JSON.stringify(nextConfig),
+        current.payload?.hash,
+      );
+
+      expect(res.ok).toBe(true);
+      expect((res.payload as { restart?: unknown } | undefined)?.restart).toBeNull();
+      expect((res.payload as { sentinel?: unknown } | undefined)?.sentinel).toBeNull();
     } finally {
       ws.close();
     }

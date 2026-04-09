@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_NAME="alisio-gateway-network-e2e"
 
-PORT="18789"
+PORT="40705"
 TOKEN="e2e-$(date +%s)-$$"
 NET_NAME="alisio-net-e2e-$$"
 GW_NAME="alisio-gateway-e2e-$$"

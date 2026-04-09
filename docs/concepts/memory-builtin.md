@@ -90,15 +90,23 @@ Alisio indexes `MEMORY.md` and `memory/*.md` into chunks (~400 tokens with
 - **Reindex on demand:** `alisio memory index --force`
 
 <Info>
-Current limitation: the canonical memory store is local-first and per-device,
-but cloud sync for that store remains roadmap work rather than shipped product
-behavior. Each device keeps its own local replica today.
+The canonical memory store remains local-first and per-device, but signed-in
+profiles can now sync that store through the Alisio cloud backend. Sync is
+currently snapshot-based, coordinated through Supabase tables, and appends
+remote backups for each uploaded snapshot.
 </Info>
 
 <Info>
-Store-authored Markdown projections are now regenerable from the canonical
-store, but round-trip editing of those generated projections back into the
-structured store is still not a shipped contract.
+Store-authored Markdown projections are regenerable from the canonical store,
+and operator edits to those generated projections now round-trip back into the
+structured store on the next canonical sync.
+</Info>
+
+<Info>
+Current limitation: cloud reconciliation is still coarse-grained. The canonical
+store syncs whole-scope snapshots rather than CRDT-style field merges, so
+conflicting edits across non-empty devices still resolve conservatively instead
+of merging at a finer semantic level.
 </Info>
 
 <Info>

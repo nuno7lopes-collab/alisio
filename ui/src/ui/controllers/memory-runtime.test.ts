@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { GatewayRequestError } from "../gateway.ts";
-import { loadMemoryStatus, syncMemoryNow, type MemoryRuntimeState } from "./memory-runtime.ts";
+import {
+  loadMemoryGraph,
+  loadMemoryStatus,
+  syncMemoryNow,
+  type MemoryRuntimeState,
+} from "./memory-runtime.ts";
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
@@ -21,6 +26,9 @@ function createState(): { state: MemoryRuntimeState; request: ReturnType<typeof 
     memoryStatus: null,
     memorySyncing: false,
     memorySyncAvailable: false,
+    memoryGraphLoading: false,
+    memoryGraphError: null,
+    memoryGraph: null,
   };
   return { state, request };
 }
@@ -148,5 +156,38 @@ describe("memory-runtime controller", () => {
 
     expect(state.memoryStatusError).toContain("sincronização manual");
     expect(state.memorySyncAvailable).toBe(false);
+  });
+
+  it("loads the canonical memory graph for the selected agent", async () => {
+    const { state, request } = createState();
+
+    request.mockImplementation((method: string, params: { agentId: string; query?: string }) => {
+      if (method === "memory.graph" && params.agentId === "main") {
+        return Promise.resolve({
+          query: params.query,
+          profileId: "local-main",
+          workspaceScope: "scope-main",
+          storePath: "/tmp/canonical.sqlite",
+          backend: "builtin",
+          state: "ready",
+          projectionInterface: "markdown-vault",
+          syncMode: "local-first",
+          cloudSync: "unavailable",
+          matches: [],
+        });
+      }
+      throw new Error(`unexpected request: ${method} ${params.agentId}`);
+    });
+
+    await loadMemoryGraph(state, { agentId: "main", query: "Project Atlas" });
+
+    expect(state.memoryGraph).toEqual(
+      expect.objectContaining({
+        query: "Project Atlas",
+        profileId: "local-main",
+      }),
+    );
+    expect(state.memoryGraphError).toBeNull();
+    expect(state.memoryGraphLoading).toBe(false);
   });
 });

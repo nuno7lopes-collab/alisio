@@ -45,11 +45,10 @@ import {
   resolveMainSessionAlias,
 } from "./tools/sessions-helpers.js";
 
-export const SUBAGENT_SPAWN_MODES = ["run", "session"] as const;
+export const SUBAGENT_SPAWN_MODES = ["run"] as const;
 export type SpawnSubagentMode = (typeof SUBAGENT_SPAWN_MODES)[number];
 export const SUBAGENT_SPAWN_SANDBOX_MODES = ["inherit", "require"] as const;
 export type SpawnSubagentSandboxMode = (typeof SUBAGENT_SPAWN_SANDBOX_MODES)[number];
-const LEGACY_SUBAGENT_SESSION_MODE_SUNSET = "2026-06-30";
 const ALISIO_MODELS_GET_TIMEOUT_MS = 1_500;
 
 export { decodeStrictBase64 };
@@ -252,11 +251,7 @@ async function cleanupFailedSpawnBeforeAgentStart(params: {
   });
 }
 
-function resolveSpawnMode(params: { requestedMode?: SpawnSubagentMode }): SpawnSubagentMode {
-  if (params.requestedMode === "run") {
-    return params.requestedMode;
-  }
-  // Subagents are always ephemeral workers, even when a temporary task thread is used.
+function resolveSpawnMode(_params: { requestedMode?: SpawnSubagentMode }): SpawnSubagentMode {
   return "run";
 }
 
@@ -470,21 +465,16 @@ export async function spawnSubagentDirect(
   if (requestedAgentId && !isValidAgentId(requestedAgentId)) {
     return {
       status: "error",
-      error: `Invalid agentId "${requestedAgentId}". Agent IDs must match [a-z0-9][a-z0-9_-]{0,63}. Use agents_list to discover valid targets.`,
+      error: `Invalid agentId "${requestedAgentId}". Agent IDs must match [a-z0-9][a-z0-9_-]{0,63}.`,
     };
   }
   const modelOverride = params.model;
   const thinkingOverrideRaw = params.thinking;
   const requestThreadBinding = params.thread === true;
   const sandboxMode = params.sandbox === "require" ? "require" : "inherit";
-  const requestedLegacySessionMode = params.mode === "session";
   const spawnMode = resolveSpawnMode({ requestedMode: params.mode });
   const cleanup =
-    spawnMode === "session"
-      ? "keep"
-      : params.cleanup === "keep" || params.cleanup === "delete"
-        ? params.cleanup
-        : "keep";
+    params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
   const expectsCompletionMessage = params.expectsCompletionMessage !== false;
   const requesterOrigin = normalizeDeliveryContext({
     channel: ctx.agentChannel,
@@ -547,6 +537,13 @@ export async function spawnSubagentDirect(
     ctx.requesterAgentIdOverride ?? parseAgentSessionKey(requesterInternalKey)?.agentId,
   );
   const targetAgentId = requestedAgentId ? normalizeAgentId(requestedAgentId) : requesterAgentId;
+  if (targetAgentId !== requesterAgentId) {
+    return {
+      status: "forbidden",
+      error:
+        'runtime="subagent" cannot target another agentId. Internal subagents always run under the requester agent. Use runtime="acp" or explicit gateway routing for persistent agent identities.',
+    };
+  }
   const personGuard = evaluatePersonSubagentGuard({
     person: resolveAgentConfig(cfg, requesterAgentId)?.person,
     requesterAgentId,
@@ -557,23 +554,6 @@ export async function spawnSubagentDirect(
       status: "forbidden",
       error: personGuard.reason,
     };
-  }
-  if (targetAgentId !== requesterAgentId) {
-    const allowAgents = resolveAgentConfig(cfg, requesterAgentId)?.subagents?.allowAgents ?? [];
-    const allowAny = allowAgents.some((value) => value.trim() === "*");
-    const normalizedTargetId = targetAgentId.toLowerCase();
-    const allowSet = new Set(
-      allowAgents
-        .filter((value) => value.trim() && value.trim() !== "*")
-        .map((value) => normalizeAgentId(value).toLowerCase()),
-    );
-    if (!allowAny && !allowSet.has(normalizedTargetId)) {
-      const allowedText = allowSet.size > 0 ? Array.from(allowSet).join(", ") : "none";
-      return {
-        status: "forbidden",
-        error: `agentId is not allowed for sessions_spawn (allowed: ${allowedText})`,
-      };
-    }
   }
   const childSessionKey = `agent:${targetAgentId}:subagent:${crypto.randomUUID()}`;
   const requesterRuntime = resolveSandboxRuntimeStatus({
@@ -922,7 +902,6 @@ export async function spawnSubagentDirect(
       workspaceDir: spawnedMetadata.workspaceDir,
       runTimeoutSeconds,
       expectsCompletionMessage,
-      spawnMode,
       attachmentsDir: attachmentAbsDir,
       attachmentsRootDir: attachmentRootDir,
       retainAttachmentsOnKeep: retainOnSessionKeep,
@@ -996,13 +975,7 @@ export async function spawnSubagentDirect(
   // because cron sessions end immediately after the agent produces a response,
   // so the agent needs to wait for subagent results to keep the turn alive.
   const isCronSession = isCronSessionKey(ctx.agentSessionKey);
-  const noteParts = [
-    isCronSession ? undefined : SUBAGENT_SPAWN_ACCEPTED_NOTE,
-    requestedLegacySessionMode
-      ? `Legacy compatibility: runtime=subagent no longer supports persistent session mode. mode="session" was normalized to mode="run". Sunset for this compatibility shim: ${LEGACY_SUBAGENT_SESSION_MODE_SUNSET}.`
-      : undefined,
-  ].filter((line): line is string => Boolean(line));
-  const note = noteParts.length > 0 ? noteParts.join(" ") : undefined;
+  const note = isCronSession ? undefined : SUBAGENT_SPAWN_ACCEPTED_NOTE;
 
   return {
     status: "accepted",

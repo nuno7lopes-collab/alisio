@@ -10,9 +10,13 @@ const disableDefaultMemorySlot = () => false;
 const noPluginToolMeta = () => undefined;
 const noWarnLog = () => {};
 
-vi.mock("../config/config.js", () => ({
-  loadConfig: () => cfg,
-}));
+vi.mock("../config/config.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../config/config.js")>();
+  return {
+    ...actual,
+    loadConfig: () => cfg,
+  };
+});
 
 vi.mock("../config/sessions.js", () => ({
   resolveMainSessionKey: () => "agent:main:main",

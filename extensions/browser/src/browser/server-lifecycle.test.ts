@@ -82,7 +82,7 @@ describe("stopKnownBrowserProfiles", () => {
       },
       running: {
         pid: 42,
-        cdpPort: 18888,
+        cdpPort: 40804,
       },
     };
     const launchedBrowser = localRuntime.running;

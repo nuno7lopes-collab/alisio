@@ -674,6 +674,52 @@ export const AlisioSharingPrincipalSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const SharingResourceSchema = Type.Union([
+  Type.Literal("compute"),
+  Type.Literal("models"),
+  Type.Literal("jobs"),
+  Type.Literal("artifacts"),
+  Type.Literal("cache"),
+  Type.Literal("memory"),
+  Type.Literal("vault"),
+  Type.Literal("files"),
+  Type.Literal("context"),
+]);
+
+export const SharingResourcePolicyModeSchema = Type.Union([
+  Type.Literal("paired-device"),
+  Type.Literal("light-approval"),
+  Type.Literal("explicit-consent"),
+]);
+
+export const AlisioSharingResourcePoliciesSchema = Type.Object(
+  {
+    compute: SharingResourcePolicyModeSchema,
+    models: SharingResourcePolicyModeSchema,
+    jobs: SharingResourcePolicyModeSchema,
+    artifacts: SharingResourcePolicyModeSchema,
+    cache: SharingResourcePolicyModeSchema,
+    memory: SharingResourcePolicyModeSchema,
+    vault: SharingResourcePolicyModeSchema,
+    files: SharingResourcePolicyModeSchema,
+    context: SharingResourcePolicyModeSchema,
+  },
+  { additionalProperties: false },
+);
+
+export const AlisioSharingResourcePoliciesPatchSchema = Type.Partial(
+  AlisioSharingResourcePoliciesSchema,
+);
+
+export const SharingSuggestionKindSchema = Type.Union([
+  Type.Literal("model-reuse"),
+  Type.Literal("exec-upgrade"),
+  Type.Literal("distributed-jobs"),
+  Type.Literal("artifact-cache"),
+  Type.Literal("cache-reuse"),
+  Type.Literal("sensitive-consent"),
+]);
+
 export const AlisioSharingTargetSchema = Type.Object(
   {
     targetId: NonEmptyString,
@@ -757,6 +803,19 @@ export const AlisioSharingAuditEntrySchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const AlisioSharingSuggestionSchema = Type.Object(
+  {
+    suggestionId: NonEmptyString,
+    kind: SharingSuggestionKindSchema,
+    resource: SharingResourceSchema,
+    targetId: Type.Optional(Type.String()),
+    targetLabel: Type.Optional(Type.String()),
+    sameAccount: Type.Optional(Type.Boolean()),
+    scopes: Type.Optional(Type.Array(SharingScopeSchema)),
+  },
+  { additionalProperties: false },
+);
+
 export const AlisioSharingStateSchema = Type.Object(
   {
     viewer: AlisioSharingPrincipalSchema,
@@ -764,9 +823,12 @@ export const AlisioSharingStateSchema = Type.Object(
     policy: Type.Object(
       {
         ownerKey: Type.Optional(Type.String()),
+        ownerScope: Type.Optional(SharingOwnerScopeSchema),
         ownerLabel: Type.Optional(Type.String()),
         allowExternalUse: Type.Boolean(),
         editable: Type.Boolean(),
+        resourcesEditable: Type.Optional(Type.Boolean()),
+        resourcePolicies: Type.Optional(AlisioSharingResourcePoliciesSchema),
         upgradeMessage: Type.Optional(Type.String()),
       },
       { additionalProperties: false },
@@ -784,6 +846,7 @@ export const AlisioSharingStateSchema = Type.Object(
     approvals: Type.Array(AlisioSharingGrantSchema),
     grants: Type.Array(AlisioSharingGrantSchema),
     audit: Type.Array(AlisioSharingAuditEntrySchema),
+    suggestions: Type.Optional(Type.Array(AlisioSharingSuggestionSchema)),
   },
   { additionalProperties: false },
 );
@@ -846,7 +909,8 @@ export const AlisioSharingRevokeResultSchema = Type.Object(
 );
 export const AlisioSharingPolicySetParamsSchema = Type.Object(
   {
-    allowExternalUse: Type.Boolean(),
+    allowExternalUse: Type.Optional(Type.Boolean()),
+    resourcePolicies: Type.Optional(AlisioSharingResourcePoliciesPatchSchema),
   },
   { additionalProperties: false },
 );
@@ -854,6 +918,7 @@ export const AlisioSharingPolicySetResultSchema = Type.Object(
   {
     ok: Type.Literal(true),
     allowExternalUse: Type.Boolean(),
+    resourcePolicies: Type.Optional(AlisioSharingResourcePoliciesSchema),
   },
   { additionalProperties: false },
 );
@@ -1232,6 +1297,8 @@ export const AlisioProvidersResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
+// Temporary legacy connector gateway surface kept for compatibility until the 2026-06-30 sunset.
+// Do not expand this surface; prefer canonical Alisio bootstrap/AI/provider flows for new clients.
 export const AlisioConnectorsCatalogParamsSchema = Type.Object({}, { additionalProperties: false });
 export const AlisioConnectorsCatalogResultSchema = Type.Object(
   {

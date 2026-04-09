@@ -588,7 +588,7 @@ if command -v ${APP_SLUG} >/dev/null 2>&1; then
   if ${APP_SLUG} gateway install --force >/dev/null 2>&1; then
     ${APP_SLUG} gateway restart >/dev/null 2>&1 || true
   else
-    nohup ${APP_SLUG} gateway run --bind loopback --port "\${ALISIO_GATEWAY_PORT:-18789}" --force >"\$ALISIO_STATE_DIR/logs/gateway.log" 2>&1 &
+    nohup ${APP_SLUG} gateway run --bind loopback --port "\${ALISIO_GATEWAY_PORT:-40705}" --force >"\$ALISIO_STATE_DIR/logs/gateway.log" 2>&1 &
   fi
   exec ${APP_SLUG} dashboard
 fi
@@ -765,7 +765,7 @@ run_post_install_setup() {
     if "$CLI_BIN" gateway install --force >/dev/null 2>&1; then
       "$CLI_BIN" gateway restart >/dev/null 2>&1 || true
     else
-      nohup "$CLI_BIN" gateway run --bind loopback --port "${ALISIO_GATEWAY_PORT:-18789}" --force >"$ALISIO_STATE_DIR/logs/gateway.log" 2>&1 &
+      nohup "$CLI_BIN" gateway run --bind loopback --port "${ALISIO_GATEWAY_PORT:-40705}" --force >"$ALISIO_STATE_DIR/logs/gateway.log" 2>&1 &
     fi
     if [[ "$NO_ONBOARD" != "1" ]]; then
       "$HOME/.local/bin/${APP_SLUG}-desktop" >/dev/null 2>&1 || true

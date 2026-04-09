@@ -45,6 +45,10 @@ import {
 } from "./native-shell-permissions.ts";
 import { renderOrganization } from "./organization.ts";
 
+type SharingResourcePolicyMap = NonNullable<
+  NonNullable<AlisioSharingState["policy"]["resourcePolicies"]>
+>;
+
 type SetupProps = {
   connected: boolean;
   lastError: string | null;
@@ -131,6 +135,10 @@ type SetupProps = {
   onRejectRequest: (requestId: string) => void;
   onRevokeGrant: (grantId: string) => void;
   onSetPolicy: (allowExternalUse: boolean) => void;
+  onSetResourcePolicy: (
+    resource: keyof SharingResourcePolicyMap,
+    mode: SharingResourcePolicyMap[keyof SharingResourcePolicyMap],
+  ) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onStartWizard: (mode?: "local" | "remote") => void;
@@ -1034,6 +1042,7 @@ function renderOrganizationStep(props: SetupProps) {
     onRejectRequest: props.onRejectRequest,
     onRevokeGrant: props.onRevokeGrant,
     onSetPolicy: props.onSetPolicy,
+    onSetResourcePolicy: props.onSetResourcePolicy,
   });
 }
 

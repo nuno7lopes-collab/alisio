@@ -17,7 +17,7 @@ type CanonicalStorePayload = {
   projections: number;
   projectionInterface: "markdown-vault";
   syncMode: "local-first";
-  cloudSync: "not_implemented";
+  cloudSync: "unavailable" | "enabled" | "error";
   projectionSources: Array<"workspace-memory" | "obsidian-memory">;
   lastSyncedAt?: string;
   lastError?: string;
@@ -42,7 +42,7 @@ let canonicalStoreStatus: CanonicalStorePayload | null = {
   projections: 1,
   projectionInterface: "markdown-vault",
   syncMode: "local-first",
-  cloudSync: "not_implemented",
+  cloudSync: "unavailable",
   projectionSources: ["workspace-memory"],
   lastSyncedAt: "2026-04-08T10:00:00.000Z",
 };
@@ -140,7 +140,7 @@ export function resetMemoryToolMockState(overrides?: {
       projections: 1,
       projectionInterface: "markdown-vault",
       syncMode: "local-first",
-      cloudSync: "not_implemented",
+      cloudSync: "unavailable",
       projectionSources: ["workspace-memory"],
       lastSyncedAt: "2026-04-08T10:00:00.000Z",
     } satisfies CanonicalStorePayload);

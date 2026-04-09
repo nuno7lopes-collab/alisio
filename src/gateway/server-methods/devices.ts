@@ -400,14 +400,23 @@ export const deviceHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const requestParams = params as { allowExternalUse: boolean; idempotencyKey: string };
+    const requestParams = params as {
+      allowExternalUse?: boolean;
+      resourcePolicies?: Record<string, string>;
+      idempotencyKey: string;
+    };
     const dedupeKey = `devices.policy.set:${requestParams.idempotencyKey}`;
     if (respondFromIdempotencyCache({ context, key: dedupeKey, respond })) {
       return;
     }
     try {
       const result = await setAlisioSharingPolicy({
-        allowExternalUse: requestParams.allowExternalUse,
+        ...(requestParams.allowExternalUse !== undefined
+          ? { allowExternalUse: requestParams.allowExternalUse }
+          : {}),
+        ...(requestParams.resourcePolicies
+          ? { resourcePolicies: requestParams.resourcePolicies }
+          : {}),
       });
       if (!validateDevicesPolicySetResult(result)) {
         const error = errorShape(

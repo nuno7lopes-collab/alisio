@@ -1,6 +1,6 @@
 import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
-import type { MemoryStatusState, MemorySyncResult } from "../types.ts";
+import type { MemoryGraphState, MemoryStatusState, MemorySyncResult } from "../types.ts";
 
 export type MemoryRuntimeState = {
   client: GatewayBrowserClient | null;
@@ -11,6 +11,9 @@ export type MemoryRuntimeState = {
   memoryStatus: MemoryStatusState | null;
   memorySyncing: boolean;
   memorySyncAvailable: boolean;
+  memoryGraphLoading: boolean;
+  memoryGraphError: string | null;
+  memoryGraph: MemoryGraphState | null;
 };
 
 type DoctorMemoryStatusPayload = {
@@ -29,6 +32,7 @@ type TrackedRequest = {
 
 const statusRequests = new WeakMap<MemoryRuntimeState, TrackedRequest>();
 const syncRequests = new WeakMap<MemoryRuntimeState, TrackedRequest>();
+const graphRequests = new WeakMap<MemoryRuntimeState, TrackedRequest>();
 
 function beginTrackedRequest(
   state: MemoryRuntimeState,
@@ -72,6 +76,8 @@ function clearMemoryRuntimeState(state: MemoryRuntimeState) {
   state.memoryStatus = null;
   state.memoryStatusError = null;
   state.memorySyncAvailable = false;
+  state.memoryGraph = null;
+  state.memoryGraphError = null;
 }
 
 function isUnknownMethodError(err: unknown, method: string) {
@@ -204,6 +210,61 @@ export async function syncMemoryNow(state: MemoryRuntimeState, agentId: string) 
     finishTrackedRequest(state, syncRequests, request);
     if (!syncRequests.has(state)) {
       state.memorySyncing = false;
+    }
+  }
+}
+
+export async function loadMemoryGraph(
+  state: MemoryRuntimeState,
+  params: {
+    agentId: string;
+    query?: string | null;
+  },
+) {
+  const agentId = params.agentId.trim();
+  const query = params.query?.trim() ?? "";
+  if (!agentId) {
+    return;
+  }
+  if (!query) {
+    state.memoryGraph = null;
+    state.memoryGraphError = null;
+    state.memoryGraphLoading = false;
+    return;
+  }
+  const request = beginTrackedRequest(state, graphRequests);
+  if (!request) {
+    return;
+  }
+  state.memoryGraphLoading = true;
+  state.memoryGraphError = null;
+  try {
+    const res = await request.client.request<MemoryGraphState | null>("memory.graph", {
+      agentId,
+      query,
+      direction: "both",
+      matchLimit: 4,
+      relationLimit: 8,
+    });
+    if (
+      !res ||
+      !isTrackedRequestCurrent(state, graphRequests, request) ||
+      !isSelectedMemoryAgent(state, agentId)
+    ) {
+      return;
+    }
+    state.memoryGraph = res;
+  } catch (err) {
+    if (isTrackedRequestCurrent(state, graphRequests, request)) {
+      state.memoryGraph = null;
+      state.memoryGraphError = isUnknownMethodError(err, "memory.graph")
+        ? "Este Alisio ainda não expõe o grafo canónico da memória nesta versão."
+        : String(err);
+    }
+  } finally {
+    finishTrackedRequest(state, graphRequests, request);
+    if (!graphRequests.has(state)) {
+      state.memoryGraphLoading = false;
     }
   }
 }

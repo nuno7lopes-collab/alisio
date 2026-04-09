@@ -1,6 +1,7 @@
 export * from "./schema/agent.js";
 export * from "./schema/approval-audit.js";
 export * from "./schema/alisio.js";
+export * from "./schema/alisio-security.js";
 export * from "./schema/agents-models-skills.js";
 export * from "./schema/channels.js";
 export * from "./schema/config.js";

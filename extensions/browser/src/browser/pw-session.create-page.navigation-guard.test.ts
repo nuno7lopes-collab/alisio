@@ -68,7 +68,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
 
     await expect(
       createPageViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         url: "file:///etc/passwd",
       }),
     ).rejects.toBeInstanceOf(InvalidBrowserNavigationUrlError);
@@ -80,7 +80,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
     const { pageGoto } = installBrowserMocks();
 
     const created = await createPageViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       url: "about:blank",
     });
 
@@ -105,7 +105,7 @@ describe("pw-session createPageViaPlaywright navigation guard", () => {
 
     await expect(
       createPageViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         url: "https://93.184.216.34/start",
       }),
     ).rejects.toBeInstanceOf(SsrFBlockedError);

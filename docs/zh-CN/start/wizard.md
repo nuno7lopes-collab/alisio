@@ -56,7 +56,7 @@ CLI 新手引导包含一个 web search 步骤，你可以选择一个提供商
   <Tab title="快速开始（默认值）">
     - 本地网关（loopback）
     - 默认工作区（或现有工作区）
-    - Gateway 网关端口 **18789**
+    - Gateway 网关端口 **40705**
     - Gateway 网关认证 **Token**（即使在 loopback 上也会自动生成）
     - 新本地设置的默认工具策略：`tools.profile: "coding"`（会保留现有显式配置文件）
     - 私信隔离默认值：本地新手引导会在未设置时写入 `session.dmScope: "per-channel-peer"`。详情见：[CLI 设置参考](/start/wizard-cli-reference#outputs-and-internals)

@@ -100,12 +100,12 @@ describe("getUsedPorts", () => {
 
   it("extracts ports from profile configs", () => {
     const profiles = {
-      openclaw: { cdpPort: 18792 },
-      work: { cdpPort: 18793 },
-      personal: { cdpPort: 18795 },
+      openclaw: { cdpPort: 40708 },
+      work: { cdpPort: 40709 },
+      personal: { cdpPort: 40711 },
     };
     const used = getUsedPorts(profiles);
-    expect(used).toEqual(new Set([18792, 18793, 18795]));
+    expect(used).toEqual(new Set([40708, 40709, 40711]));
   });
 
   it("extracts ports from cdpUrl when cdpPort is missing", () => {
@@ -137,7 +137,7 @@ describe("port collision prevention", () => {
     // Raw config shows empty - no ports used
     expect(usedFromRaw.size).toBe(0);
 
-    // But resolved config has implicit openclaw at 18800
+    // But resolved config has implicit openclaw at 40716
     const resolved = resolveBrowserConfig({});
     const usedFromResolved = getUsedPorts(resolved.profiles);
     expect(usedFromResolved.has(CDP_PORT_RANGE_START)).toBe(true);
@@ -153,17 +153,17 @@ describe("port collision prevention", () => {
     const buggyUsedPorts = getUsedPorts(rawConfig.browser?.profiles);
     const buggyAllocatedPort = allocateCdpPort(buggyUsedPorts);
 
-    // Raw config: first allocation gets 18800
+    // Raw config: first allocation gets 40716
     expect(buggyAllocatedPort).toBe(CDP_PORT_RANGE_START);
 
-    // Resolved config: includes implicit openclaw at 18800
+    // Resolved config: includes implicit openclaw at 40716
     const resolved = resolveBrowserConfig(
       rawConfig.browser as Parameters<typeof resolveBrowserConfig>[0],
     );
     const fixedUsedPorts = getUsedPorts(resolved.profiles);
     const fixedAllocatedPort = allocateCdpPort(fixedUsedPorts);
 
-    // Resolved: first NEW profile gets 18801, avoiding collision
+    // Resolved: first NEW profile gets 40717, avoiding collision
     expect(fixedAllocatedPort).toBe(CDP_PORT_RANGE_START + 1);
   });
 });

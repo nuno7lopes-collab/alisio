@@ -37,7 +37,7 @@ x-i18n:
 1. 启动 Gateway 网关：
 
 ```bash
-openclaw gateway --port 18789
+openclaw gateway --port 40705
 ```
 
 2. 在 iOS 应用中，打开设置并选择一个已发现的 Gateway 网关（或启用手动主机并输入主机/端口）。
@@ -69,14 +69,14 @@ Gateway 网关在 `local.` 上广播 `_openclaw-gw._tcp`。iOS 应用会自动�
 
 ### 手动主机/端口
 
-在设置中，启用**手动主机**并输入 Gateway 网关主机 + 端口（默认 `18789`）。
+在设置中，启用**手动主机**并输入 Gateway 网关主机 + 端口（默认 `40705`）。
 
 ## Canvas + A2UI
 
 iOS 节点渲染一个 WKWebView canvas。使用 `node.invoke` 来驱动它：
 
 ```bash
-openclaw nodes invoke --node "iOS Node" --command canvas.navigate --params '{"url":"http://<gateway-host>:18793/__openclaw__/canvas/"}'
+openclaw nodes invoke --node "iOS Node" --command canvas.navigate --params '{"url":"http://<gateway-host>:40709/__openclaw__/canvas/"}'
 ```
 
 注意事项：

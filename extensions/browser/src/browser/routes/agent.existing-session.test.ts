@@ -88,7 +88,7 @@ vi.mock("./agent.shared.js", () => ({
   withRouteTabContext: vi.fn(async ({ run }: { run: (args: unknown) => Promise<void> }) => {
     await run({
       profileCtx: routeState.profileCtx,
-      cdpUrl: "http://127.0.0.1:18800",
+      cdpUrl: "http://127.0.0.1:40716",
       tab: routeState.tab,
     });
   }),

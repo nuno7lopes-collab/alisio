@@ -70,7 +70,7 @@ describe("setInputFilesViaPlaywright", () => {
     const { setInputFiles } = seedSingleLocatorPage();
 
     await setInputFilesViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       inputRef: "e7",
       paths: ["/tmp/openclaw/uploads/ok.txt"],
@@ -95,7 +95,7 @@ describe("setInputFilesViaPlaywright", () => {
 
     await expect(
       setInputFilesViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         targetId: "T1",
         element: "input[type=file]",
         paths: ["/tmp/openclaw/uploads/missing.txt"],

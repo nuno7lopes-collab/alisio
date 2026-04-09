@@ -173,8 +173,10 @@ export function renderRuntimeHints(
     hints.push(
       ...buildPlatformRuntimeLogHints({
         env,
-        systemdServiceName: resolveGatewaySystemdServiceName(env.OPENCLAW_PROFILE),
-        windowsTaskName: resolveGatewayWindowsTaskName(env.OPENCLAW_PROFILE),
+        systemdServiceName: resolveGatewaySystemdServiceName(
+          env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE,
+        ),
+        windowsTaskName: resolveGatewayWindowsTaskName(env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE),
       }),
     );
   }
@@ -182,7 +184,7 @@ export function renderRuntimeHints(
 }
 
 export function renderGatewayServiceStartHints(env: NodeJS.ProcessEnv = process.env): string[] {
-  const profile = env.OPENCLAW_PROFILE;
+  const profile = env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE;
   const container = resolveDaemonContainerContext(env);
   const hints = buildPlatformServiceStartHints({
     installCommand: formatCliCommand("openclaw gateway install", env),

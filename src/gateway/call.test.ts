@@ -150,12 +150,12 @@ function resetGatewayCallMocks() {
   deviceIdentityState.throwOnLoad = false;
 }
 
-function setGatewayNetworkDefaults(port = 18789) {
+function setGatewayNetworkDefaults(port = 40705) {
   resolveGatewayPort.mockReturnValue(port);
   pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 }
 
-function setLocalLoopbackGatewayConfig(port = 18789) {
+function setLocalLoopbackGatewayConfig(port = 40705) {
   loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
   setGatewayNetworkDefaults(port);
 }
@@ -164,7 +164,7 @@ function makeRemotePasswordGatewayConfig(remotePassword: string, localPassword =
   return {
     gateway: {
       mode: "remote",
-      remote: { url: "wss://remote.example:18789", password: remotePassword },
+      remote: { url: "wss://remote.example:40705", password: remotePassword },
       auth: { password: localPassword },
     },
   };
@@ -207,12 +207,12 @@ describe("callGateway url resolution", () => {
     },
   ])("local auto-bind: $label", async ({ tailnetIp }) => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "auto" } });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     pickPrimaryTailnetIPv4.mockReturnValue(tailnetIp);
 
     await callGateway({ method: "health" });
 
-    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18800");
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:40716");
   });
 
   it.each([
@@ -221,39 +221,39 @@ describe("callGateway url resolution", () => {
       gateway: { mode: "local", bind: "tailnet", tls: { enabled: true } },
       tailnetIp: "100.64.0.1",
       lanIp: undefined,
-      expectedUrl: "wss://127.0.0.1:18800",
+      expectedUrl: "wss://127.0.0.1:40716",
     },
     {
       label: "tailnet without TLS",
       gateway: { mode: "local", bind: "tailnet" },
       tailnetIp: "100.64.0.1",
       lanIp: undefined,
-      expectedUrl: "ws://127.0.0.1:18800",
+      expectedUrl: "ws://127.0.0.1:40716",
     },
     {
       label: "lan with TLS",
       gateway: { mode: "local", bind: "lan", tls: { enabled: true } },
       tailnetIp: undefined,
       lanIp: "192.168.1.42",
-      expectedUrl: "wss://127.0.0.1:18800",
+      expectedUrl: "wss://127.0.0.1:40716",
     },
     {
       label: "lan without TLS",
       gateway: { mode: "local", bind: "lan" },
       tailnetIp: undefined,
       lanIp: "192.168.1.42",
-      expectedUrl: "ws://127.0.0.1:18800",
+      expectedUrl: "ws://127.0.0.1:40716",
     },
     {
       label: "lan without discovered LAN IP",
       gateway: { mode: "local", bind: "lan" },
       tailnetIp: undefined,
       lanIp: undefined,
-      expectedUrl: "ws://127.0.0.1:18800",
+      expectedUrl: "ws://127.0.0.1:40716",
     },
   ])("uses loopback for $label", async ({ gateway, tailnetIp, lanIp, expectedUrl }) => {
     loadConfig.mockReturnValue({ gateway });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     pickPrimaryTailnetIPv4.mockReturnValue(tailnetIp);
     pickPrimaryLanIPv4.mockReturnValue(lanIp);
 
@@ -266,7 +266,7 @@ describe("callGateway url resolution", () => {
     loadConfig.mockReturnValue({
       gateway: { mode: "remote", bind: "loopback", remote: {} },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     await callGateway({
@@ -287,7 +287,7 @@ describe("callGateway url resolution", () => {
       token: "explicit-token",
     });
 
-    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18789");
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:40705");
     expect(lastClientOptions?.token).toBe("explicit-token");
     expect(lastClientOptions?.deviceIdentity).toEqual(deviceIdentityState.value);
   });
@@ -301,7 +301,7 @@ describe("callGateway url resolution", () => {
       token: "explicit-token",
     });
 
-    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:18789");
+    expect(lastClientOptions?.url).toBe("ws://127.0.0.1:40705");
     expect(lastClientOptions?.token).toBe("explicit-token");
     expect(lastClientOptions?.deviceIdentity).toBeNull();
     expect(lastRequestOptions?.method).toBe("health");
@@ -311,7 +311,7 @@ describe("callGateway url resolution", () => {
     loadConfig.mockReturnValue({
       gateway: { mode: "remote", bind: "loopback", remote: {} },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
     process.env.OPENCLAW_GATEWAY_URL = "wss://gateway-in-container.internal:9443/ws";
     process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
@@ -340,7 +340,7 @@ describe("callGateway url resolution", () => {
         },
       },
     } as unknown as AlisioConfig);
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
     process.env.OPENCLAW_GATEWAY_URL = "wss://gateway-in-container.internal:9443/ws";
     process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
@@ -364,7 +364,7 @@ describe("callGateway url resolution", () => {
         },
       },
     });
-    setGatewayNetworkDefaults(18789);
+    setGatewayNetworkDefaults(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
     process.env.OPENCLAW_GATEWAY_URL = "wss://gateway-in-container.internal:9443/ws";
     process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
@@ -386,7 +386,7 @@ describe("callGateway url resolution", () => {
         },
       },
     });
-    setGatewayNetworkDefaults(18789);
+    setGatewayNetworkDefaults(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     await callGateway({
@@ -438,7 +438,7 @@ describe("buildGatewayConnectionDetails", () => {
   });
 
   it("uses explicit url overrides and omits bind details", () => {
-    setLocalLoopbackGatewayConfig(18800);
+    setLocalLoopbackGatewayConfig(40716);
     pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.1");
 
     const details = buildGatewayConnectionDetails({
@@ -457,34 +457,34 @@ describe("buildGatewayConnectionDetails", () => {
     loadConfig.mockReturnValue({
       gateway: { mode: "remote", bind: "loopback", remote: {} },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://127.0.0.1:18789");
+    expect(details.url).toBe("ws://127.0.0.1:40705");
     expect(details.urlSource).toBe("missing gateway.remote.url (fallback local)");
     expect(details.bindDetail).toBe("Bind: loopback");
     expect(details.remoteFallbackNote).toContain(
       "gateway.mode=remote but gateway.remote.url is missing",
     );
-    expect(details.message).toContain("Gateway target: ws://127.0.0.1:18789");
+    expect(details.message).toContain("Gateway target: ws://127.0.0.1:40705");
   });
 
   it.each([
     {
       label: "with TLS",
       gateway: { mode: "local", bind: "lan", tls: { enabled: true } },
-      expectedUrl: "wss://127.0.0.1:18800",
+      expectedUrl: "wss://127.0.0.1:40716",
     },
     {
       label: "without TLS",
       gateway: { mode: "local", bind: "lan" },
-      expectedUrl: "ws://127.0.0.1:18800",
+      expectedUrl: "ws://127.0.0.1:40716",
     },
   ])("uses loopback URL for bind=lan $label", ({ gateway, expectedUrl }) => {
     loadConfig.mockReturnValue({ gateway });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
     pickPrimaryLanIPv4.mockReturnValue("10.0.0.5");
 
@@ -503,7 +503,7 @@ describe("buildGatewayConnectionDetails", () => {
         remote: { url: "wss://remote.example.com/ws" },
       },
     });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     pickPrimaryTailnetIPv4.mockReturnValue("100.64.0.9");
 
     const details = buildGatewayConnectionDetails();
@@ -516,7 +516,7 @@ describe("buildGatewayConnectionDetails", () => {
 
   it("uses env OPENCLAW_GATEWAY_URL when set", () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
     const prevUrl = process.env.OPENCLAW_GATEWAY_URL;
     try {
@@ -538,14 +538,14 @@ describe("buildGatewayConnectionDetails", () => {
 
   it("falls back to the default config loader when test deps drift", () => {
     loadConfig.mockReturnValue({ gateway: { mode: "local", bind: "loopback" } });
-    resolveGatewayPort.mockReturnValue(18800);
+    resolveGatewayPort.mockReturnValue(40716);
     __testing.setDepsForTests({
       loadConfig: {} as never,
     });
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://127.0.0.1:18800");
+    expect(details.url).toBe("ws://127.0.0.1:40716");
     expect(details.urlSource).toBe("local loopback");
   });
 
@@ -554,10 +554,10 @@ describe("buildGatewayConnectionDetails", () => {
       gateway: {
         mode: "remote",
         bind: "loopback",
-        remote: { url: "ws://remote.example.com:18789" },
+        remote: { url: "ws://remote.example.com:40705" },
       },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     pickPrimaryTailnetIPv4.mockReturnValue(undefined);
 
     let thrown: unknown;
@@ -580,14 +580,14 @@ describe("buildGatewayConnectionDetails", () => {
       gateway: {
         mode: "remote",
         bind: "loopback",
-        remote: { url: "ws://10.0.0.8:18789" },
+        remote: { url: "ws://10.0.0.8:40705" },
       },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://10.0.0.8:18789");
+    expect(details.url).toBe("ws://10.0.0.8:40705");
     expect(details.urlSource).toBe("config gateway.remote.url");
   });
 
@@ -597,14 +597,14 @@ describe("buildGatewayConnectionDetails", () => {
       gateway: {
         mode: "remote",
         bind: "loopback",
-        remote: { url: "ws://openclaw-gateway.ai:18789" },
+        remote: { url: "ws://openclaw-gateway.ai:40705" },
       },
     });
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://openclaw-gateway.ai:18789");
+    expect(details.url).toBe("ws://openclaw-gateway.ai:40705");
     expect(details.urlSource).toBe("config gateway.remote.url");
   });
 
@@ -613,7 +613,7 @@ describe("buildGatewayConnectionDetails", () => {
 
     const details = buildGatewayConnectionDetails();
 
-    expect(details.url).toBe("ws://127.0.0.1:18789");
+    expect(details.url).toBe("ws://127.0.0.1:40705");
   });
 });
 
@@ -640,7 +640,7 @@ describe("callGateway error details", () => {
     }
 
     expect(err?.message).toContain("gateway closed (1006");
-    expect(err?.message).toContain("Gateway target: ws://127.0.0.1:18789");
+    expect(err?.message).toContain("Gateway target: ws://127.0.0.1:40705");
     expect(err?.message).toContain("Source: local loopback");
     expect(err?.message).toContain("Bind: loopback");
   });
@@ -659,7 +659,7 @@ describe("callGateway error details", () => {
     await promise;
 
     expect(errMessage).toContain("gateway timeout after 5ms");
-    expect(errMessage).toContain("Gateway target: ws://127.0.0.1:18789");
+    expect(errMessage).toContain("Gateway target: ws://127.0.0.1:40705");
     expect(errMessage).toContain("Source: local loopback");
     expect(errMessage).toContain("Bind: loopback");
   });
@@ -745,7 +745,7 @@ describe("callGateway url override auth requirements", () => {
     delete process.env.OPENCLAW_GATEWAY_TOKEN;
     delete process.env.OPENCLAW_GATEWAY_PASSWORD;
     delete process.env.OPENCLAW_GATEWAY_URL;
-    setGatewayNetworkDefaults(18789);
+    setGatewayNetworkDefaults(40705);
   });
 
   afterEach(() => {
@@ -821,7 +821,7 @@ describe("callGateway password resolution", () => {
     delete process.env.LOCAL_REF_PASSWORD;
     delete process.env.REMOTE_REF_TOKEN;
     delete process.env.REMOTE_REF_PASSWORD;
-    setGatewayNetworkDefaults(18789);
+    setGatewayNetworkDefaults(40705);
   });
 
   afterEach(() => {
@@ -1029,7 +1029,7 @@ describe("callGateway password resolution", () => {
           password: { source: "env", provider: "default", id: "MISSING_LOCAL_REF_PASSWORD" },
         },
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           password: "remote-secret",
         },
       },
@@ -1053,7 +1053,7 @@ describe("callGateway password resolution", () => {
         bind: "loopback",
         auth: {},
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           token: { source: "env", provider: "default", id: "REMOTE_REF_TOKEN" },
         },
       },
@@ -1077,7 +1077,7 @@ describe("callGateway password resolution", () => {
         bind: "loopback",
         auth: {},
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           password: { source: "env", provider: "default", id: "REMOTE_REF_PASSWORD" },
         },
       },
@@ -1100,7 +1100,7 @@ describe("callGateway password resolution", () => {
         bind: "loopback",
         auth: {},
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           token: { source: "env", provider: "default", id: "MISSING_REMOTE_TOKEN" },
           password: "remote-password", // pragma: allowlist secret
         },
@@ -1126,7 +1126,7 @@ describe("callGateway password resolution", () => {
         bind: "loopback",
         auth: {},
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           token: { source: "env", provider: "default", id: "REMOTE_REF_TOKEN" },
           password: { source: "env", provider: "default", id: "MISSING_REMOTE_PASSWORD" },
         },
@@ -1151,7 +1151,7 @@ describe("callGateway password resolution", () => {
         bind: "loopback",
         auth: {},
         remote: {
-          url: "wss://remote.example:18789",
+          url: "wss://remote.example:40705",
           token: "remote-token",
           password: { source: "env", provider: "default", id: "MISSING_REMOTE_PASSWORD" },
         },
@@ -1203,7 +1203,7 @@ describe("callGateway password resolution", () => {
           bind: "loopback",
           auth: { mode },
           remote: {
-            url: "wss://remote.example:18789",
+            url: "wss://remote.example:40705",
             token: { source: "env", provider: "default", id: "MISSING_REMOTE_TOKEN" },
             password: { source: "env", provider: "default", id: "MISSING_REMOTE_PASSWORD" },
           },

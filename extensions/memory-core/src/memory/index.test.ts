@@ -1483,7 +1483,7 @@ describe("memory index", () => {
     expect(canonicalStore?.relations).toBeGreaterThanOrEqual(1);
     expect(canonicalStore?.projectionInterface).toBe("markdown-vault");
     expect(canonicalStore?.syncMode).toBe("local-first");
-    expect(canonicalStore?.cloudSync).toBe("not_implemented");
+    expect(canonicalStore?.cloudSync).toBe("unavailable");
     expect(canonicalStore?.path).toContain(path.join("memory", "profiles", "local-nuno"));
   });
 });

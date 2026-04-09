@@ -361,7 +361,7 @@ describe("launchd install", () => {
   it("restarts LaunchAgent with kickstart and no bootout", async () => {
     const env = {
       ...createDefaultLaunchdEnv(),
-      OPENCLAW_GATEWAY_PORT: "18789",
+      OPENCLAW_GATEWAY_PORT: "40705",
     };
     const result = await restartLaunchAgent({
       env,
@@ -372,7 +372,7 @@ describe("launchd install", () => {
     const label = "ai.alisio.gateway";
     const serviceId = `${domain}/${label}`;
     expect(result).toEqual({ outcome: "completed" });
-    expect(cleanStaleGatewayProcessesSync).toHaveBeenCalledWith(18789);
+    expect(cleanStaleGatewayProcessesSync).toHaveBeenCalledWith(40705);
     expect(state.launchctlCalls).toContainEqual(["kickstart", "-k", serviceId]);
     expect(state.launchctlCalls.some((call) => call[0] === "bootout")).toBe(false);
     expect(state.launchctlCalls.some((call) => call[0] === "bootstrap")).toBe(false);

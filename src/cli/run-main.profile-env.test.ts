@@ -203,7 +203,7 @@ describe("runCli profile env bootstrap", () => {
 
   it.each([
     ["ALISIO_GATEWAY_PORT", "19001"],
-    ["ALISIO_GATEWAY_URL", "ws://127.0.0.1:18789"],
+    ["ALISIO_GATEWAY_URL", "ws://127.0.0.1:40705"],
     ["ALISIO_GATEWAY_TOKEN", "demo-token"],
     ["ALISIO_GATEWAY_PASSWORD", "demo-password"],
   ])("allows container mode when %s is set in env", async (key, value) => {

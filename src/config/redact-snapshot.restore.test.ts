@@ -57,7 +57,7 @@ describe("restoreRedactedValues", () => {
     };
     const original = {
       ui: { seamColor: "#0088cc" },
-      gateway: { port: 18789, auth: { token: "real-secret" } },
+      gateway: { port: 40705, auth: { token: "real-secret" } },
     };
     const result = restoreRedactedValues(incoming, original) as typeof incoming;
     expect(result.ui.seamColor).toBe("#ff0000");
@@ -137,7 +137,7 @@ describe("restoreRedactedValues", () => {
 
   it("round-trips config through redact → restore", () => {
     const originalConfig = {
-      gateway: { auth: { token: "gateway-auth-secret-token-value" }, port: 18789 },
+      gateway: { auth: { token: "gateway-auth-secret-token-value" }, port: 40705 },
       channels: {
         slack: { botToken: "fake-slack-token-placeholder-value" },
         telegram: {

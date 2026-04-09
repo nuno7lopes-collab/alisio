@@ -151,7 +151,7 @@ Browser settings live in `~/.alisio/alisio.json`.
       // hostnameAllowlist: ["*.example.com", "example.com"],
       // allowedHostnames: ["localhost"],
     },
-    // cdpUrl: "http://127.0.0.1:18792", // legacy single-profile override
+    // cdpUrl: "http://127.0.0.1:40708", // legacy single-profile override
     remoteCdpTimeoutMs: 1500, // remote CDP HTTP timeout (ms)
     remoteCdpHandshakeTimeoutMs: 3000, // remote CDP WebSocket handshake timeout (ms)
     defaultProfile: "alisio",
@@ -161,8 +161,8 @@ Browser settings live in `~/.alisio/alisio.json`.
     attachOnly: false,
     executablePath: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
     profiles: {
-      alisio: { cdpPort: 18800, color: "#FF4500" },
-      work: { cdpPort: 18801, color: "#0066CC" },
+      alisio: { cdpPort: 40716, color: "#FF4500" },
+      work: { cdpPort: 40717, color: "#0066CC" },
       user: {
         driver: "existing-session",
         attachOnly: true,
@@ -183,7 +183,7 @@ Browser settings live in `~/.alisio/alisio.json`.
 Notes:
 
 - The browser control service binds to loopback on a port derived from `gateway.port`
-  (default: `18791`, which is gateway + 2).
+  (default: `40707`, which is gateway + 2).
 - If you override the Gateway port (`gateway.port` or `ALISIO_GATEWAY_PORT`),
   the derived browser ports shift to stay in the same “family”.
 - `cdpUrl` defaults to the managed local CDP port when unset.
@@ -379,7 +379,7 @@ Defaults:
 - The `alisio` profile is auto-created if missing.
 - The `user` profile is built-in for Chrome MCP existing-session attach.
 - Existing-session profiles are opt-in beyond `user`; create them with `--driver existing-session`.
-- Local CDP ports allocate from **18800–18899** by default.
+- Local CDP ports allocate from **40716–40815** by default.
 - Deleting a profile moves its local data directory to Trash.
 
 All control endpoints accept `?profile=<name>`; the CLI uses `--browser-profile`.

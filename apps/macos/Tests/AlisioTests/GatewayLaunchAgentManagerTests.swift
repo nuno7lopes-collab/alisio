@@ -8,7 +8,7 @@ struct GatewayLaunchAgentManagerTests {
         let url = FileManager().temporaryDirectory
             .appendingPathComponent("alisio-launchd-\(UUID().uuidString).plist")
         let plist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "18789", "--bind", "loopback"],
+            "ProgramArguments": ["alisio", "gateway", "--port", "40705", "--bind", "loopback"],
             "EnvironmentVariables": [
                 "ALISIO_GATEWAY_TOKEN": " secret ",
                 "ALISIO_GATEWAY_PASSWORD": "pw",
@@ -19,7 +19,7 @@ struct GatewayLaunchAgentManagerTests {
         defer { try? FileManager().removeItem(at: url) }
 
         let snapshot = try #require(LaunchAgentPlist.snapshot(url: url))
-        #expect(snapshot.port == 18789)
+        #expect(snapshot.port == 40705)
         #expect(snapshot.bind == "loopback")
         #expect(snapshot.token == "secret")
         #expect(snapshot.password == "pw")
@@ -29,14 +29,14 @@ struct GatewayLaunchAgentManagerTests {
         let url = FileManager().temporaryDirectory
             .appendingPathComponent("alisio-launchd-\(UUID().uuidString).plist")
         let plist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "18789"],
+            "ProgramArguments": ["alisio", "gateway", "--port", "40705"],
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: url, options: [.atomic])
         defer { try? FileManager().removeItem(at: url) }
 
         let snapshot = try #require(LaunchAgentPlist.snapshot(url: url))
-        #expect(snapshot.port == 18789)
+        #expect(snapshot.port == 40705)
         #expect(snapshot.bind == nil)
     }
 
@@ -49,7 +49,7 @@ struct GatewayLaunchAgentManagerTests {
         let current = root.appendingPathComponent("ai.alisio.mac.gateway.plist")
         let legacy = root.appendingPathComponent("ai.openclaw.gateway.plist")
         let plist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "18789"],
+            "ProgramArguments": ["alisio", "gateway", "--port", "40705"],
             "EnvironmentVariables": [
                 "ALISIO_GATEWAY_TOKEN": "legacy-token",
             ],
@@ -58,7 +58,7 @@ struct GatewayLaunchAgentManagerTests {
         try data.write(to: legacy, options: [.atomic])
 
         let snapshot = try #require(LaunchAgentPlist.snapshot(urls: [current, legacy]))
-        #expect(snapshot.port == 18789)
+        #expect(snapshot.port == 40705)
         #expect(snapshot.token == "legacy-token")
     }
 
@@ -71,11 +71,11 @@ struct GatewayLaunchAgentManagerTests {
         let current = root.appendingPathComponent("ai.alisio.mac.gateway.plist")
         let legacy = root.appendingPathComponent("ai.openclaw.gateway.plist")
         let currentPlist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "18790"],
+            "ProgramArguments": ["alisio", "gateway", "--port", "40706"],
             "EnvironmentVariables": ["ALISIO_GATEWAY_TOKEN": "current-token"],
         ]
         let legacyPlist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "18789"],
+            "ProgramArguments": ["alisio", "gateway", "--port", "40705"],
             "EnvironmentVariables": ["ALISIO_GATEWAY_TOKEN": "legacy-token"],
         ]
         let currentData = try PropertyListSerialization.data(
@@ -90,7 +90,7 @@ struct GatewayLaunchAgentManagerTests {
         try legacyData.write(to: legacy, options: [.atomic])
 
         let snapshot = try #require(LaunchAgentPlist.snapshot(urls: [current, legacy]))
-        #expect(snapshot.port == 18790)
+        #expect(snapshot.port == 40706)
         #expect(snapshot.token == "current-token")
     }
 }

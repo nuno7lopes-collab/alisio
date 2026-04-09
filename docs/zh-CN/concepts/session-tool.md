@@ -155,22 +155,21 @@ x-i18n:
 
 - `task`（必填）
 - `label?`（可选；用于日志/UI）
-- `agentId?`（可选；如果允许，在另一个智能体 id 下生成）
+- `agentId?`（仅 ACP；内部 `runtime: "subagent"` 始终运行在请求者智能体下）
 - `model?`（可选；覆盖子智能体模型；无效值会报错）
 - `runTimeoutSeconds?`（默认 0；设置时，在 N 秒后中止子智能体运行）
 - `cleanup?`（`delete|keep`，默认 `keep`）
 
-允许列表：
+定位：
 
-- `agents.list[].subagents.allowAgents`：通过 `agentId` 允许的智能体 id 列表（`["*"]` 允许任意）。默认：仅请求者智能体。
-
-发现：
-
-- 使用 `agents_list` 发现哪些智能体 id 允许用于 `sessions_spawn`。
+- 内部 `runtime: "subagent"` worker 始终运行在当前智能体标识下。
+- 持久或跨智能体标识应使用 `runtime: "acp"` 和 `acp.allowedAgents`。
+- `agents_list` 只显示当前 Alisio 智能体上下文，不是跨智能体子智能体目标选择器。
 
 行为：
 
 - 使用 `deliver: false` 启动新的 `agent:<agentId>:subagent:<uuid>` 会话。
+- `runtime: "subagent"` 仅支持 `mode: "run"`；`mode: "session"` 会被拒绝。
 - 子智能体默认使用完整工具集**减去会话工具**（可通过 `tools.subagents.tools` 配置）。
 - 子智能体不允许调用 `sessions_spawn`（无子智能体 → 子智能体生成）。
 - 始终非阻塞：立即返回 `{ status: "accepted", runId, childSessionKey }`。

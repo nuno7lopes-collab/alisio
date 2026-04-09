@@ -117,7 +117,7 @@ describe("pw-tools-core", () => {
     const saveAs = vi.fn(async () => {});
 
     const p = mod.waitForDownloadViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       timeoutMs: 1000,
     });
@@ -187,7 +187,7 @@ describe("pw-tools-core", () => {
       };
 
       const p = mod.waitForDownloadViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         targetId: "T1",
         path: targetPath,
         timeoutMs: 1000,
@@ -220,7 +220,7 @@ describe("pw-tools-core", () => {
 
       const targetPath = path.join(tempDir, "report.pdf");
       const p = mod.downloadViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         targetId: "T1",
         ref: "e12",
         path: targetPath,
@@ -253,7 +253,7 @@ describe("pw-tools-core", () => {
           await fs.writeFile(outPath, "download-content", "utf8");
         });
         const p = mod.waitForDownloadViaPlaywright({
-          cdpUrl: "http://127.0.0.1:18792",
+          cdpUrl: "http://127.0.0.1:40708",
           targetId: "T1",
           path: linkedPath,
           timeoutMs: 1000,
@@ -324,7 +324,7 @@ describe("pw-tools-core", () => {
     };
 
     const p = mod.responseBodyViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       url: "**/api/data",
       timeoutMs: 1000,

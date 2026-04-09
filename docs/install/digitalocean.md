@@ -86,10 +86,10 @@ Run a persistent Alisio Gateway on a DigitalOcean Droplet.
 
     ```bash
     # From your local machine
-    ssh -L 18789:localhost:18789 root@YOUR_DROPLET_IP
+    ssh -L 40705:localhost:40705 root@YOUR_DROPLET_IP
     ```
 
-    Then open `http://localhost:18789`.
+    Then open `http://localhost:40705`.
 
     **Option B: Tailscale Serve**
 
@@ -109,7 +109,7 @@ Run a persistent Alisio Gateway on a DigitalOcean Droplet.
     alisio gateway restart
     ```
 
-    Then open `http://<tailscale-ip>:18789` (token required).
+    Then open `http://<tailscale-ip>:40705` (token required).
 
   </Step>
 </Steps>
@@ -118,7 +118,7 @@ Run a persistent Alisio Gateway on a DigitalOcean Droplet.
 
 **Gateway will not start** -- Run `alisio doctor --non-interactive` and check logs with `journalctl --user -u alisio-gateway.service -n 50`.
 
-**Port already in use** -- Run `lsof -i :18789` to find the process, then stop it.
+**Port already in use** -- Run `lsof -i :40705` to find the process, then stop it.
 
 **Out of memory** -- Verify swap is active with `free -h`. If still hitting OOM, use API-based models (Claude, GPT) rather than local models, or upgrade to a 2 GB Droplet.
 

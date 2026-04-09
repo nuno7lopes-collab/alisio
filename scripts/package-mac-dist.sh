@@ -28,8 +28,18 @@ fi
 
 bash "$ROOT_DIR/scripts/package-mac-app.sh"
 
-APP="$ROOT_DIR/dist/${APP_NAME}.app"
-[[ -d "$APP" ]] || { echo "Error: missing app bundle at $APP" >&2; exit 1; }
+APP_SOURCE="$ROOT_DIR/dist/${APP_NAME}.app"
+[[ -d "$APP_SOURCE" ]] || { echo "Error: missing app bundle at $APP_SOURCE" >&2; exit 1; }
+
+ARTIFACT_STAGE_ROOT="$(mktemp -d -t ${APP_NAME}-mac-dist.XXXXXX)"
+cleanup_stage() {
+  rm -rf "$ARTIFACT_STAGE_ROOT"
+}
+trap cleanup_stage EXIT
+
+APP="$ARTIFACT_STAGE_ROOT/${APP_NAME}.app"
+rm -rf "$APP"
+ditto "$APP_SOURCE" "$APP"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist" 2>/dev/null || echo "0.0.0")
 BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist" 2>/dev/null || echo "")
@@ -37,8 +47,11 @@ ACTUAL_BUNDLE_ID=$(/usr/libexec/PlistBuddy -c "Print CFBundleIdentifier" "$APP/C
 ACTUAL_FEED_URL=$(/usr/libexec/PlistBuddy -c "Print SUFeedURL" "$APP/Contents/Info.plist" 2>/dev/null || echo "")
 ZIP="$ROOT_DIR/dist/${APP_NAME}-${VERSION}.zip"
 DMG="$ROOT_DIR/dist/${APP_NAME}-${VERSION}.dmg"
-NOTARY_ZIP="$ROOT_DIR/dist/${APP_NAME}-${VERSION}.notary.zip"
+NOTARY_ZIP="$ARTIFACT_STAGE_ROOT/${APP_NAME}-${VERSION}.notary.zip"
+ZIP_STAGE="$ARTIFACT_STAGE_ROOT/${APP_NAME}-${VERSION}.zip"
+DMG_STAGE="$ARTIFACT_STAGE_ROOT/${APP_NAME}-${VERSION}.dmg"
 DSYM_ZIP="$ROOT_DIR/dist/${APP_NAME}-${VERSION}.dSYM.zip"
+FINAL_APP="$ROOT_DIR/dist/${APP_NAME}.app"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 SKIP_DSYM="${SKIP_DSYM:-0}"
 SKIP_DMG="${SKIP_DMG:-0}"
@@ -74,18 +87,27 @@ if [[ "$SKIP_NOTARIZE" != "1" ]]; then
 fi
 
 echo "📦 Zip: $ZIP"
-rm -f "$ZIP"
-ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+rm -f "$ZIP" "$ZIP_STAGE"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP_STAGE"
 
 if [[ "$SKIP_DMG" != "1" ]]; then
   echo "💿 DMG: $DMG"
-  bash "$ROOT_DIR/scripts/create-dmg.sh" "$APP" "$DMG"
+  rm -f "$DMG" "$DMG_STAGE"
+  bash "$ROOT_DIR/scripts/create-dmg.sh" "$APP" "$DMG_STAGE"
   if [[ "$SKIP_NOTARIZE" != "1" ]]; then
     if [[ -n "${SIGN_IDENTITY:-}" ]]; then
-      /usr/bin/codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
+      /usr/bin/codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_STAGE"
     fi
-    bash "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$DMG"
+    bash "$ROOT_DIR/scripts/notarize-mac-artifact.sh" "$DMG_STAGE"
   fi
+fi
+
+echo "📦 Persisting app bundle: $FINAL_APP"
+rm -rf "$FINAL_APP"
+ditto "$APP" "$FINAL_APP"
+mv "$ZIP_STAGE" "$ZIP"
+if [[ -f "$DMG_STAGE" ]]; then
+  mv "$DMG_STAGE" "$DMG"
 fi
 
 if [[ "$SKIP_DSYM" != "1" ]]; then

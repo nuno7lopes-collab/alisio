@@ -293,4 +293,82 @@ describe("node.task handlers", () => {
       }),
     );
   });
+
+  it("hides linked devices from node.list until exec is explicitly shared", async () => {
+    const respond = vi.fn();
+    const sharedNode = {
+      nodeId: "node-1",
+      displayName: "Node One",
+      connected: true,
+      platform: "macOS",
+      commands: ["system.run"],
+    };
+    getAlisioSharingTargetAccessIndexMock.mockResolvedValue({
+      "node-1": createSharingAccess("node-1", {
+        deviceAccess: "shared",
+        modelAccess: "shared",
+        execAccess: "requestable",
+      }),
+    });
+
+    await nodeHandlers["node.list"]({
+      params: {},
+      respond: respond as never,
+      context: {
+        nodeRegistry: {
+          listConnected: vi.fn(() => [sharedNode]),
+        },
+      } as never,
+      client: null,
+      req: { type: "req", id: "req-list-needs-grant", method: "node.list" },
+      isWebchatConnect: () => false,
+    });
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        nodes: [],
+      }),
+      undefined,
+    );
+  });
+
+  it("hides node.describe until exec is explicitly shared", async () => {
+    const respond = vi.fn();
+    const sharedNode = {
+      nodeId: "node-1",
+      displayName: "Node One",
+      connected: true,
+      platform: "macOS",
+      commands: ["system.run"],
+    };
+    getAlisioSharingTargetAccessIndexMock.mockResolvedValue({
+      "node-1": createSharingAccess("node-1", {
+        deviceAccess: "shared",
+        modelAccess: "shared",
+        execAccess: "requestable",
+      }),
+    });
+
+    await nodeHandlers["node.describe"]({
+      params: { nodeId: "node-1" },
+      respond: respond as never,
+      context: {
+        nodeRegistry: {
+          listConnected: vi.fn(() => [sharedNode]),
+        },
+      } as never,
+      client: null,
+      req: { type: "req", id: "req-describe-needs-grant", method: "node.describe" },
+      isWebchatConnect: () => false,
+    });
+
+    expect(respond).toHaveBeenCalledWith(
+      false,
+      undefined,
+      expect.objectContaining({
+        message: "unknown nodeId",
+      }),
+    );
+  });
 });

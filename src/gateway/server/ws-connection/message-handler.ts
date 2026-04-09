@@ -598,7 +598,10 @@ export function attachGatewayWsMessageHandler(params: {
             (decision.kind !== "allow" ||
               (!controlUiAuthPolicy.allowBypass &&
                 !preserveInsecureLocalControlUiScopes &&
-                (authMethod === "token" || authMethod === "password" || trustedProxyAuthOk)))
+                (authMethod === "token" ||
+                  authMethod === "password" ||
+                  authMethod === "tailscale" ||
+                  trustedProxyAuthOk)))
           ) {
             clearUnboundScopes();
           }
@@ -829,7 +832,7 @@ export function attachGatewayWsMessageHandler(params: {
               deviceId: device.id,
               publicKey: devicePublicKey,
               ...clientPairingMetadata,
-              silent: reason === "scope-upgrade" ? false : allowSilentLocalPairing,
+              silent: allowSilentLocalPairing,
             });
             const context = buildRequestContext();
             let approved: Awaited<ReturnType<typeof approveDevicePairing>> | undefined;

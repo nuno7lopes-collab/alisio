@@ -265,8 +265,8 @@ describe("legacy config detection", () => {
     expect(res.changes).not.toContain("Migrated gateway.bind from 'tailnet' to 'auto'.");
     expect(res.config?.gateway?.bind).toBe("tailnet");
     expect(res.config?.gateway?.controlUi?.allowedOrigins).toEqual([
-      "http://localhost:18789",
-      "http://127.0.0.1:18789",
+      "http://localhost:40705",
+      "http://127.0.0.1:40705",
     ]);
 
     const validated = validateConfigObject({ gateway: { bind: "tailnet" as const } });

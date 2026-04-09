@@ -25,11 +25,21 @@ describe("resolveDefaultAgentWorkspaceDir", () => {
       HOME: "/home/other",
     } as NodeJS.ProcessEnv);
 
-    expect(dir).toBe(path.join(path.resolve("/srv/openclaw-home"), ".openclaw", "workspace"));
+    expect(dir).toBe(path.join(path.resolve("/srv/openclaw-home"), ".alisio", "workspace"));
+  });
+
+  it("uses ALISIO_STATE_DIR for default workspace resolution", () => {
+    const dir = resolveDefaultAgentWorkspaceDir({
+      ALISIO_STATE_DIR: "/srv/alisio-state",
+      HOME: "/home/other",
+    } as NodeJS.ProcessEnv);
+
+    expect(dir).toBe(path.join(path.resolve("/srv/alisio-state"), "workspace"));
   });
 });
 
-const WORKSPACE_STATE_PATH_SEGMENTS = [".openclaw", "workspace-state.json"] as const;
+const WORKSPACE_STATE_PATH_SEGMENTS = [".alisio", "workspace-state.json"] as const;
+const LEGACY_WORKSPACE_STATE_PATH_SEGMENTS = [".openclaw", "workspace-state.json"] as const;
 
 async function readWorkspaceState(dir: string): Promise<{
   version: number;
@@ -155,7 +165,7 @@ describe("ensureAgentWorkspace", () => {
     const tempDir = await makeTempWorkspace("openclaw-workspace-");
     await fs.mkdir(path.join(tempDir, ".openclaw"), { recursive: true });
     await fs.writeFile(
-      path.join(tempDir, ...WORKSPACE_STATE_PATH_SEGMENTS),
+      path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS),
       JSON.stringify({
         version: 1,
         onboardingCompletedAt: "2026-03-15T02:30:00.000Z",
@@ -171,6 +181,14 @@ describe("ensureAgentWorkspace", () => {
       "utf-8",
     );
     expect(persisted).toContain('"setupCompletedAt": "2026-03-15T02:30:00.000Z"');
+    await expect(
+      fs.access(path.join(tempDir, ...LEGACY_WORKSPACE_STATE_PATH_SEGMENTS)),
+    ).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(fs.access(path.join(tempDir, ".openclaw"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });
 

@@ -16,7 +16,12 @@ import {
 import {
   expandSharingScopeSelection,
   resolveSharingApprovalOptions,
+  SHARING_POLICY_MODE_ORDER,
+  SHARING_RESOURCE_ORDER,
   resolveSharingRequestOptions,
+  type SharingResourceKey,
+  type SharingResourcePolicyMap,
+  type SharingSuggestion,
 } from "./sharing-shared.ts";
 
 export function renderOrganization(props: {
@@ -44,6 +49,10 @@ export function renderOrganization(props: {
   onRejectRequest: (requestId: string) => void;
   onRevokeGrant: (grantId: string) => void;
   onSetPolicy: (allowExternalUse: boolean) => void;
+  onSetResourcePolicy: (
+    resource: SharingResourceKey,
+    mode: SharingResourcePolicyMap[SharingResourceKey],
+  ) => void;
 }) {
   const membership = props.organization?.mode ?? "none";
   const hasOrganization = membership !== "none";
@@ -135,6 +144,45 @@ export function renderOrganization(props: {
     const normalized = status === "denied" ? "rejected" : status;
     return normalized ? t(`alisio.organization.sharing.requestStatus.${normalized}`) : "";
   };
+  const resourceLabel = (resource: SharingResourceKey) =>
+    t(`alisio.connections.sharing.resource.${resource}`);
+  const policyModeLabel = (mode: string) => t(`alisio.connections.sharing.policyMode.${mode}`);
+  const policyModeHint = (mode: string) => t(`alisio.connections.sharing.policyModeHint.${mode}`);
+  const resourcePolicies = sharing?.policy.resourcePolicies ?? {
+    compute: "light-approval",
+    models: "paired-device",
+    jobs: "light-approval",
+    artifacts: "paired-device",
+    cache: "paired-device",
+    memory: "explicit-consent",
+    vault: "explicit-consent",
+    files: "explicit-consent",
+    context: "explicit-consent",
+  };
+  const resolveExecutionPolicyMode = (state: AlisioSharingState) => {
+    const policies = state.policy.resourcePolicies ?? resourcePolicies;
+    if (
+      policies.models === "paired-device" &&
+      policies.compute === "paired-device" &&
+      policies.jobs === "paired-device"
+    ) {
+      return "paired-device";
+    }
+    if (
+      policies.models === "explicit-consent" ||
+      policies.compute === "explicit-consent" ||
+      policies.jobs === "explicit-consent"
+    ) {
+      return "explicit-consent";
+    }
+    return "light-approval";
+  };
+  const sensitiveResourcesLabel = [
+    t("alisio.connections.sharing.resource.memory"),
+    t("alisio.connections.sharing.resource.vault"),
+    t("alisio.connections.sharing.resource.files"),
+    t("alisio.connections.sharing.resource.context"),
+  ].join(", ");
   const formatScopes = (scopes: readonly string[] | null | undefined) =>
     Array.isArray(scopes) && scopes.length > 0 ? scopes.join(" · ") : null;
   const scopeLabel = (scope: string) =>
@@ -143,6 +191,98 @@ export function renderOrganization(props: {
       : scope === "model-use"
         ? text.sharingModelUse
         : text.sharingReadOnly;
+  const isSensitiveResource = (resource: SharingResourceKey) =>
+    resource === "memory" || resource === "vault" || resource === "files" || resource === "context";
+  const isPassiveSuggestion = (suggestion: SharingSuggestion) =>
+    suggestion.kind === "sensitive-consent";
+  const suggestionCopy = (suggestion: SharingSuggestion) => {
+    switch (suggestion.kind) {
+      case "model-reuse":
+        return {
+          title: t("alisio.connections.sharing.suggestion.modelReuse.title", {
+            target: suggestion.targetLabel ?? suggestion.targetId ?? "",
+          }),
+          body: t("alisio.connections.sharing.suggestion.modelReuse.body"),
+        };
+      case "artifact-cache":
+        return {
+          title: t("alisio.connections.sharing.suggestion.artifactCache.title", {
+            target: suggestion.targetLabel ?? suggestion.targetId ?? "",
+          }),
+          body: t("alisio.connections.sharing.suggestion.artifactCache.body"),
+        };
+      case "cache-reuse":
+        return {
+          title: t("alisio.connections.sharing.suggestion.cacheReuse.title", {
+            target: suggestion.targetLabel ?? suggestion.targetId ?? "",
+          }),
+          body: t("alisio.connections.sharing.suggestion.cacheReuse.body"),
+        };
+      case "exec-upgrade":
+        return {
+          title: t("alisio.connections.sharing.suggestion.execUpgrade.title", {
+            target: suggestion.targetLabel ?? suggestion.targetId ?? "",
+          }),
+          body: t("alisio.connections.sharing.suggestion.execUpgrade.body"),
+        };
+      case "distributed-jobs":
+        return {
+          title: t("alisio.connections.sharing.suggestion.distributedJobs.title", {
+            target: suggestion.targetLabel ?? suggestion.targetId ?? "",
+          }),
+          body: t("alisio.connections.sharing.suggestion.distributedJobs.body"),
+        };
+      case "sensitive-consent":
+        return {
+          title: t("alisio.connections.sharing.suggestion.sensitiveConsent.title"),
+          body: t("alisio.connections.sharing.suggestion.sensitiveConsent.body"),
+        };
+    }
+  };
+  const renderRequestAccessButtons = (target: AlisioSharingState["devices"]["available"][number]) =>
+    resolveSharingRequestOptions(target).map((scope) => {
+      const scopes = expandSharingScopeSelection(scope);
+      return html`
+        <button
+          class="btn"
+          ?disabled=${sharingDisabled || target.requestStatus === "pending"}
+          @click=${() => props.onRequestAccess(target.targetId, scopes)}
+        >
+          ${target.requestStatus === "pending"
+            ? requestStatusLabel(target.requestStatus)
+            : `${text.sharingRequestAccess} ${scopeLabel(scope)}`}
+        </button>
+      `;
+    });
+  const renderSuggestionAction = (suggestion: SharingSuggestion) =>
+    suggestion.targetId && suggestion.scopes
+      ? html`
+          <div class="row">
+            <button
+              class="btn"
+              ?disabled=${sharingDisabled}
+              @click=${() => props.onRequestAccess(suggestion.targetId!, suggestion.scopes)}
+            >
+              ${t("alisio.connections.sharing.requestExec")}
+            </button>
+          </div>
+        `
+      : nothing;
+  const visibleSuggestions = (sharing?.suggestions ?? []).filter(
+    (suggestion) => !isPassiveSuggestion(suggestion),
+  );
+  const automaticResources = SHARING_RESOURCE_ORDER.filter(
+    (resource) => !isSensitiveResource(resource),
+  );
+  const visibleSharingCards = [
+    (sharing?.devices.owned ?? []).length,
+    (sharing?.devices.available ?? []).length,
+    (sharing?.devices.sharedWithMe ?? []).length,
+    (sharing?.incomingRequests ?? []).length,
+    (sharing?.outgoingRequests ?? []).length,
+    (sharing?.approvals ?? sharing?.grants ?? []).length,
+    (sharing?.audit ?? []).length,
+  ].some((count) => count > 0);
 
   return html`
     <section class="alisio-page">
@@ -324,79 +464,171 @@ export function renderOrganization(props: {
                   ${sharingUpgradeMessage
                     ? html`<div class="callout info">${sharingUpgradeMessage}</div>`
                     : nothing}
-                  <div class="agent-kv">
-                    <div class="label">${text.sharingPolicyTitle}</div>
-                    <div>${text.sharingPolicyBody}</div>
-                  </div>
-                  <label class="field">
-                    <span>${text.sharingAllowExternalUse}</span>
-                    <input
-                      type="checkbox"
-                      .checked=${sharing?.policy.allowExternalUse === true}
-                      ?disabled=${sharingDisabled ||
-                      !sharing?.policy.editable ||
-                      !sharing?.planSupported}
-                      @change=${(event: Event) =>
-                        props.onSetPolicy((event.target as HTMLInputElement).checked)}
-                    />
-                  </label>
+                  ${sharing
+                    ? html`
+                        <div
+                          class="alisio-connections-summary"
+                          aria-label=${t("alisio.connections.sharing.summaryTitle")}
+                        >
+                          <span class="pill"
+                            >${t("alisio.connections.sharing.summary.discovery")}</span
+                          >
+                          <span class="pill"
+                            >${t("alisio.connections.sharing.models")} ·
+                            ${policyModeLabel(resourcePolicies.models)}</span
+                          >
+                          <span class="pill"
+                            >${t("alisio.connections.sharing.exec")} ·
+                            ${policyModeLabel(resolveExecutionPolicyMode(sharing))}</span
+                          >
+                          <span class="pill"
+                            >${t("alisio.connections.sharing.summary.sensitive")} ·
+                            ${policyModeLabel("explicit-consent")}</span
+                          >
+                        </div>
+                      `
+                    : nothing}
+                  ${sharing?.policy.ownerScope === "organization"
+                    ? html`
+                        <label class="field">
+                          <span>${text.sharingAllowExternalUse}</span>
+                          <input
+                            type="checkbox"
+                            .checked=${sharing?.policy.allowExternalUse ?? false}
+                            ?disabled=${sharingDisabled ||
+                            !sharing?.policy.editable ||
+                            !sharing?.planSupported}
+                            @change=${(event: Event) =>
+                              props.onSetPolicy((event.target as HTMLInputElement).checked)}
+                          />
+                        </label>
+                      `
+                    : nothing}
+                  ${sharing
+                    ? html`
+                        <div class="agent-kv" style="margin-top: 4px;">
+                          <div class="label">${t("alisio.connections.sharing.policyTitle")}</div>
+                        </div>
+                        <div
+                          class="loading-state__list alisio-sharing-policy-grid"
+                          style="margin-top: 12px;"
+                        >
+                          ${automaticResources.map((resource) => {
+                            const mode = resourcePolicies[resource];
+                            return html`
+                              <div
+                                class="list-item alisio-connections-entry alisio-connections-entry--policy"
+                              >
+                                <div class="alisio-connections-entry__stack">
+                                  <div>${resourceLabel(resource)}</div>
+                                  <div class="list-sub">${policyModeHint(mode)}</div>
+                                </div>
+                                <label class="alisio-connections-policy-select">
+                                  <span class="sr-only"
+                                    >${resourceLabel(resource)}
+                                    ${t("alisio.connections.sharing.policyModeLabel")}</span
+                                  >
+                                  <select
+                                    aria-label=${`${resourceLabel(resource)} ${t("alisio.connections.sharing.policyModeLabel")}`}
+                                    .value=${mode}
+                                    ?disabled=${sharingDisabled ||
+                                    !sharing.policy.resourcesEditable}
+                                    @change=${(event: Event) =>
+                                      props.onSetResourcePolicy(
+                                        resource,
+                                        (event.target as HTMLSelectElement)
+                                          .value as SharingResourcePolicyMap[SharingResourceKey],
+                                      )}
+                                  >
+                                    ${SHARING_POLICY_MODE_ORDER.map(
+                                      (candidate) =>
+                                        html`<option value=${candidate}>
+                                          ${policyModeLabel(candidate)}
+                                        </option>`,
+                                    )}
+                                  </select>
+                                </label>
+                              </div>
+                            `;
+                          })}
+                          <div
+                            class="list-item alisio-connections-entry alisio-connections-entry--policy alisio-sharing-policy-grid__full"
+                          >
+                            <div class="alisio-connections-entry__stack">
+                              <div>${t("alisio.connections.sharing.sensitiveGroup")}</div>
+                              <div class="list-sub">${sensitiveResourcesLabel}</div>
+                            </div>
+                            <span class="pill">${policyModeLabel("explicit-consent")}</span>
+                          </div>
+                        </div>
+                      `
+                    : nothing}
                 </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingOwnedTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.devices.owned ?? []).length > 0
-                      ? (sharing?.devices.owned ?? []).map(
+                ${visibleSuggestions.length > 0
+                  ? html`
+                      <div class="card alisio-organization-panel">
+                        <div class="card-title">
+                          ${t("alisio.connections.sharing.suggestionsTitle")}
+                        </div>
+                        <div class="loading-state__list">
+                          ${visibleSuggestions.map((suggestion) => {
+                            const copy = suggestionCopy(suggestion);
+                            return html`
+                              <div
+                                class="list-item alisio-connections-entry alisio-connections-entry--compact"
+                              >
+                                <div>${copy.title}</div>
+                                ${suggestion.targetLabel
+                                  ? html`<div class="list-sub">${suggestion.targetLabel}</div>`
+                                  : nothing}
+                                <div class="list-sub">${resourceLabel(suggestion.resource)}</div>
+                                ${renderSuggestionAction(suggestion)}
+                              </div>
+                            `;
+                          })}
+                        </div>
+                      </div>
+                    `
+                  : nothing}
+                ${(sharing?.devices.owned ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingOwnedTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.devices.owned ?? []).map(
                           (target) => html`
                             <div class="list-item">
                               <div>${target.label}</div>
                               <div class="list-sub">${target.platform ?? target.targetId}</div>
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingOwnedEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingAvailableTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.devices.available ?? []).length > 0
-                      ? (sharing?.devices.available ?? []).map(
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.devices.available ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingAvailableTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.devices.available ?? []).map(
                           (target) => html`
                             <div class="list-item">
                               <div>${target.label}</div>
                               <div class="list-sub">${target.ownerLabel}</div>
-                              <div class="row">
-                                ${resolveSharingRequestOptions(target).map(
-                                  (scope) => html`
-                                    <button
-                                      class="btn"
-                                      ?disabled=${sharingDisabled ||
-                                      target.requestStatus === "pending"}
-                                      @click=${() =>
-                                        props.onRequestAccess(
-                                          target.targetId,
-                                          expandSharingScopeSelection(scope),
-                                        )}
-                                    >
-                                      ${target.requestStatus === "pending"
-                                        ? requestStatusLabel(target.requestStatus)
-                                        : `${text.sharingRequestAccess} ${scopeLabel(scope)}`}
-                                    </button>
-                                  `,
-                                )}
-                              </div>
+                              <div class="row">${renderRequestAccessButtons(target)}</div>
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingAvailableEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingSharedTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.devices.sharedWithMe ?? []).length > 0
-                      ? (sharing?.devices.sharedWithMe ?? []).map(
-                          (target) => html`
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.devices.sharedWithMe ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingSharedTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.devices.sharedWithMe ?? []).map((target) => {
+                          const requestButtons = renderRequestAccessButtons(target);
+                          const grantId = target.approvalId ?? target.grantId;
+                          return html`
                             <div class="list-item">
                               <div>${target.label}</div>
                               <div class="list-sub">${target.ownerLabel}</div>
@@ -407,29 +639,35 @@ export function renderOrganization(props: {
                                     </div>
                                   `
                                 : nothing}
-                              <div class="row">
-                                <button
-                                  class="btn"
-                                  ?disabled=${sharingDisabled ||
-                                  !(target.approvalId ?? target.grantId)}
-                                  @click=${() =>
-                                    (target.approvalId ?? target.grantId) &&
-                                    props.onRevokeGrant(target.approvalId ?? target.grantId!)}
-                                >
-                                  ${text.sharingRevoke}
-                                </button>
-                              </div>
+                              ${requestButtons.length > 0 || grantId
+                                ? html`
+                                    <div class="row">
+                                      ${requestButtons}
+                                      ${grantId
+                                        ? html`
+                                            <button
+                                              class="btn"
+                                              ?disabled=${sharingDisabled}
+                                              @click=${() => props.onRevokeGrant(grantId)}
+                                            >
+                                              ${text.sharingRevoke}
+                                            </button>
+                                          `
+                                        : nothing}
+                                    </div>
+                                  `
+                                : nothing}
                             </div>
-                          `,
-                        )
-                      : html`<div class="muted">${text.sharingSharedEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingIncomingTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.incomingRequests ?? []).length > 0
-                      ? (sharing?.incomingRequests ?? []).map(
+                          `;
+                        })}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.incomingRequests ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingIncomingTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.incomingRequests ?? []).map(
                           (request) => html`
                             <div class="list-item">
                               <div>${request.targetLabel}</div>
@@ -463,15 +701,15 @@ export function renderOrganization(props: {
                               </div>
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingIncomingEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingOutgoingTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.outgoingRequests ?? []).length > 0
-                      ? (sharing?.outgoingRequests ?? []).map(
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.outgoingRequests ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingOutgoingTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.outgoingRequests ?? []).map(
                           (request) => html`
                             <div class="list-item">
                               <div>${request.targetLabel}</div>
@@ -481,15 +719,15 @@ export function renderOrganization(props: {
                                 : nothing}
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingOutgoingEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingGrantsTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.approvals ?? sharing?.grants ?? []).length > 0
-                      ? (sharing?.approvals ?? sharing?.grants ?? []).map(
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.approvals ?? sharing?.grants ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingGrantsTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.approvals ?? sharing?.grants ?? []).map(
                           (grant) => html`
                             <div class="list-item">
                               <div>${grant.targetLabel}</div>
@@ -511,25 +749,32 @@ export function renderOrganization(props: {
                               </div>
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingGrantsEmpty}</div>`}
-                  </div>
-                </div>
-                <div class="card alisio-organization-panel">
-                  <div class="card-title">${text.sharingAuditTitle}</div>
-                  <div class="loading-state__list">
-                    ${(sharing?.audit ?? []).length > 0
-                      ? (sharing?.audit ?? []).slice(0, 10).map(
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${(sharing?.audit ?? []).length > 0
+                  ? html`<div class="card alisio-organization-panel">
+                      <div class="card-title">${text.sharingAuditTitle}</div>
+                      <div class="loading-state__list">
+                        ${(sharing?.audit ?? []).slice(0, 10).map(
                           (entry) => html`
                             <div class="list-item">
                               <div>${entry.summary}</div>
                               <div class="list-sub">${entry.createdAt}</div>
                             </div>
                           `,
-                        )
-                      : html`<div class="muted">${text.sharingAuditEmpty}</div>`}
-                  </div>
-                </div>
+                        )}
+                      </div>
+                    </div>`
+                  : nothing}
+                ${!visibleSharingCards
+                  ? html`
+                      <div class="card alisio-organization-panel">
+                        <div class="muted">${t("alisio.connections.sharing.emptyState")}</div>
+                      </div>
+                    `
+                  : nothing}
               </div>
             `
           : nothing}

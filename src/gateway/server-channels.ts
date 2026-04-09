@@ -572,6 +572,9 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
         const next = { ...current, accountId: id };
         next.enabled = enabled;
         applyDescribedAccountFields(next, described);
+        if (next.configured === undefined && !plugin.config.isConfigured) {
+          next.configured = true;
+        }
         const configured = described?.configured;
         if (!next.running) {
           if (!enabled) {

@@ -112,7 +112,7 @@ TRASH
   }
 
 	  start_gateway() {
-	    node "$ALISIO_ENTRY" gateway --port 18789 --bind loopback --allow-unconfigured > /tmp/gateway-e2e.log 2>&1 &
+	    node "$ALISIO_ENTRY" gateway --port 40705 --bind loopback --allow-unconfigured > /tmp/gateway-e2e.log 2>&1 &
 	    GATEWAY_PID="$!"
 	  }
 
@@ -120,7 +120,7 @@ TRASH
     for _ in $(seq 1 20); do
       if node --input-type=module -e "
         import net from 'node:net';
-        const socket = net.createConnection({ host: '127.0.0.1', port: 18789 });
+        const socket = net.createConnection({ host: '127.0.0.1', port: 40705 });
         const timeout = setTimeout(() => {
           socket.destroy();
           process.exit(1);
@@ -137,7 +137,7 @@ TRASH
       " >/dev/null 2>&1; then
         return 0
       fi
-      if [ -f /tmp/gateway-e2e.log ] && grep -E -q "listening on ws://[^ ]+:18789" /tmp/gateway-e2e.log; then
+      if [ -f /tmp/gateway-e2e.log ] && grep -E -q "listening on ws://[^ ]+:40705" /tmp/gateway-e2e.log; then
         if [ -n "${GATEWAY_PID:-}" ] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
           return 0
         fi
@@ -379,7 +379,7 @@ NODE
 	    # Smoke test non-interactive remote config write.
 	    node "$ALISIO_ENTRY" onboard --non-interactive --accept-risk \
 	      --mode remote \
-	      --remote-url ws://gateway.local:18789 \
+	      --remote-url ws://gateway.local:40705 \
       --remote-token remote-token \
       --skip-skills \
       --skip-health
@@ -397,7 +397,7 @@ const errors = [];
 if (cfg?.gateway?.mode !== "remote") {
   errors.push(`gateway.mode mismatch (got ${cfg?.gateway?.mode ?? "unset"})`);
 }
-if (cfg?.gateway?.remote?.url !== "ws://gateway.local:18789") {
+if (cfg?.gateway?.remote?.url !== "ws://gateway.local:40705") {
   errors.push(`gateway.remote.url mismatch (got ${cfg?.gateway?.remote?.url ?? "unset"})`);
 }
 if (cfg?.gateway?.remote?.token !== "remote-token") {
@@ -425,7 +425,7 @@ NODE
   "agents": { "defaults": { "workspace": "/root/old" } },
   "gateway": {
     "mode": "remote",
-    "remote": { "url": "ws://old.example:18789", "token": "old-token" }
+    "remote": { "url": "ws://old.example:40705", "token": "old-token" }
   }
 }
 JSON

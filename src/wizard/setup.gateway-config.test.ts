@@ -53,7 +53,7 @@ describe("configureGatewayForSetup", () => {
   function createQuickstartGateway(authMode: "token" | "password") {
     return {
       hasExisting: false,
-      port: 18789,
+      port: 40705,
       bind: "loopback" as const,
       authMode,
       tailscaleMode: "off" as const,
@@ -75,14 +75,14 @@ describe("configureGatewayForSetup", () => {
     const authChoice = params?.authChoice ?? "token";
     const prompter = createPrompter({
       selectQueue: [params?.bindChoice ?? "loopback", authChoice, params?.tailscaleChoice ?? "off"],
-      textQueue: params?.textQueue ?? ["18789", undefined],
+      textQueue: params?.textQueue ?? ["40705", undefined],
     });
     const runtime = createRuntime();
     return configureGatewayForSetup({
       flow: params?.flow ?? "advanced",
       baseConfig: {},
       nextConfig: params?.nextConfig ?? {},
-      localPort: 18789,
+      localPort: 40705,
       quickstartGateway: createQuickstartGateway(authChoice),
       prompter,
       runtime,
@@ -161,11 +161,11 @@ describe("configureGatewayForSetup", () => {
       baseConfig: {},
       nextConfig: {
         gateway: {
-          port: 18789,
+          port: 40705,
           bind: "loopback",
         },
       },
-      localPort: 18789,
+      localPort: 40705,
       quickstartGateway: {
         ...createQuickstartGateway("token"),
         hasExisting: true,
@@ -196,8 +196,8 @@ describe("configureGatewayForSetup", () => {
     });
 
     expect(result.nextConfig.gateway?.controlUi?.allowedOrigins).toEqual([
-      "http://localhost:18789",
-      "http://127.0.0.1:18789",
+      "http://localhost:40705",
+      "http://127.0.0.1:40705",
     ]);
   });
 
@@ -207,7 +207,7 @@ describe("configureGatewayForSetup", () => {
     try {
       const prompter = createPrompter({
         selectQueue: ["loopback", "password", "off", "env"],
-        textQueue: ["18789", "OPENCLAW_GATEWAY_PASSWORD"],
+        textQueue: ["40705", "OPENCLAW_GATEWAY_PASSWORD"],
       });
       const runtime = createRuntime();
 
@@ -215,7 +215,7 @@ describe("configureGatewayForSetup", () => {
         flow: "advanced",
         baseConfig: {},
         nextConfig: {},
-        localPort: 18789,
+        localPort: 40705,
         quickstartGateway: createQuickstartGateway("password"),
         secretInputMode: "ref", // pragma: allowlist secret
         prompter,
@@ -243,7 +243,7 @@ describe("configureGatewayForSetup", () => {
     try {
       const prompter = createPrompter({
         selectQueue: ["loopback", "token", "off", "env"],
-        textQueue: ["18789", "OPENCLAW_GATEWAY_TOKEN"],
+        textQueue: ["40705", "OPENCLAW_GATEWAY_TOKEN"],
       });
       const runtime = createRuntime();
 
@@ -251,7 +251,7 @@ describe("configureGatewayForSetup", () => {
         flow: "advanced",
         baseConfig: {},
         nextConfig: {},
-        localPort: 18789,
+        localPort: 40705,
         quickstartGateway: createQuickstartGateway("token"),
         secretInputMode: "ref", // pragma: allowlist secret
         prompter,
@@ -308,7 +308,7 @@ describe("configureGatewayForSetup", () => {
           },
         },
       },
-      localPort: 18789,
+      localPort: 40705,
       quickstartGateway,
       prompter,
       runtime,

@@ -6,7 +6,7 @@ const { defaultRuntime: runtime, resetRuntimeCapture } = createCliRuntimeCapture
 runtime.exit.mockImplementation(() => {});
 const callGateway = vi.fn();
 const buildGatewayConnectionDetails = vi.fn(() => ({
-  url: "ws://127.0.0.1:18789",
+  url: "ws://127.0.0.1:40705",
   urlSource: "local loopback",
   message: "",
 }));
@@ -291,7 +291,7 @@ describe("devices cli local fallback", () => {
     callGateway.mockRejectedValueOnce(new Error("gateway closed (1008): pairing required"));
 
     await expect(
-      runDevicesCommand(["list", "--json", "--url", "ws://127.0.0.1:18789"]),
+      runDevicesCommand(["list", "--json", "--url", "ws://127.0.0.1:40705"]),
     ).rejects.toThrow("pairing required");
     expect(listDevicePairing).not.toHaveBeenCalled();
   });
@@ -326,7 +326,7 @@ afterEach(() => {
   callGateway.mockClear();
   buildGatewayConnectionDetails.mockClear();
   buildGatewayConnectionDetails.mockReturnValue({
-    url: "ws://127.0.0.1:18789",
+    url: "ws://127.0.0.1:40705",
     urlSource: "local loopback",
     message: "",
   });

@@ -188,9 +188,9 @@ private func withLastGatewaySnapshot(_ body: () -> Void) {
         withLastGatewaySnapshot {
             GatewaySettingsStore.saveLastGatewayConnectionManual(
                 host: "10.0.0.99",
-                port: 18789,
+                port: 40705,
                 useTLS: true,
-                stableID: "manual|10.0.0.99|18789")
+                stableID: "manual|10.0.0.99|40705")
 
             GatewaySettingsStore.saveLastGatewayConnectionDiscovered(stableID: "gw|abc", useTLS: true)
 
@@ -205,13 +205,13 @@ private func withLastGatewaySnapshot(_ body: () -> Void) {
             applyDefaults([
                 "gateway.last.kind": nil,
                 "gateway.last.host": "example.org",
-                "gateway.last.port": 18789,
+                "gateway.last.port": 40705,
                 "gateway.last.tls": false,
-                "gateway.last.stableID": "manual|example.org|18789",
+                "gateway.last.stableID": "manual|example.org|40705",
             ])
 
             let loaded = GatewaySettingsStore.loadLastGatewayConnection()
-            #expect(loaded == .manual(host: "example.org", port: 18789, useTLS: false, stableID: "manual|example.org|18789"))
+            #expect(loaded == .manual(host: "example.org", port: 40705, useTLS: false, stableID: "manual|example.org|40705"))
 
             // Legacy keys should be cleaned up after migration.
             let defaults = UserDefaults.standard

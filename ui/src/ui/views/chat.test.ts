@@ -200,7 +200,7 @@ afterEach(() => {
 });
 
 describe("chat view", () => {
-  it("renders quick access controls in the composer and wires their actions", () => {
+  it("renders a compact access menu in the composer and wires its actions", () => {
     const container = document.createElement("div");
     const onApplyAccessMode = vi.fn();
     render(
@@ -214,7 +214,7 @@ describe("chat view", () => {
     );
 
     const buttons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-menu-option"),
     );
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.textContent).toContain("Safe");
@@ -227,7 +227,7 @@ describe("chat view", () => {
     expect(onApplyAccessMode).toHaveBeenNthCalledWith(2, "full-access");
   });
 
-  it("renders the chat security console with advanced details and approval actions", () => {
+  it("renders the chat security console as a compact control strip with approval actions", () => {
     const container = document.createElement("div");
     const onResolveApproval = vi.fn();
     const onOpenAdvancedSecurity = vi.fn();
@@ -237,6 +237,7 @@ describe("chat view", () => {
           accessMode: "custom",
           securityDiagnostics: {
             mode: "custom",
+            effectivePromptAsk: "on-miss",
             configDefaults: { security: "allowlist", ask: "on-miss" },
             approvalDefaults: {
               security: "allowlist",
@@ -313,15 +314,16 @@ describe("chat view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Security in chat");
-    expect(container.textContent).toContain("Policy plane");
-    expect(container.textContent).toContain("Computer access");
-    expect(container.textContent).toContain("Approval center");
-    expect(container.textContent).toContain("Recent decisions");
-    expect(container.textContent).toContain("6/8 system permissions ready");
+    expect(container.textContent).toContain("Custom");
+    expect(container.textContent).toContain("6/8 system");
+    expect(container.textContent).toContain("1 pending");
+    expect(container.textContent).not.toContain("Security in chat");
+    expect(container.textContent).not.toContain("Policy plane");
+    expect(container.textContent).not.toContain("Approval center");
+    expect(container.textContent).not.toContain("Recent decisions");
 
     const advancedButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Policy details"),
+      (button) => button.textContent?.includes("Details"),
     );
     expect(advancedButton).not.toBeUndefined();
     advancedButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -352,7 +354,7 @@ describe("chat view", () => {
     );
 
     const buttons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-menu-option"),
     );
     expect(buttons[0]?.disabled).toBe(true);
     expect(buttons[1]?.disabled).toBe(false);
@@ -371,7 +373,7 @@ describe("chat view", () => {
     );
 
     const buttons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-pill"),
+      container.querySelectorAll<HTMLButtonElement>(".alisio-chat__access-menu-option"),
     );
     expect(buttons.map((button) => button.textContent?.trim())).toEqual(["Safe", "Full"]);
   });

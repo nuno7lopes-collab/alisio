@@ -123,7 +123,7 @@ describe("browser server-context tab selection state", () => {
     expect(opened.targetId).toBe("CREATED");
     expect(state.profiles.get("openclaw")?.lastTargetId).toBe("CREATED");
     expect(createTargetViaCdp).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:18800",
+      cdpUrl: "http://127.0.0.1:40716",
       url: "http://127.0.0.1:8080",
       ssrfPolicy: { allowPrivateNetwork: true },
     });

@@ -23,7 +23,7 @@ Notes:
 
 ```bash
 alisio tui
-alisio tui --url ws://127.0.0.1:18789 --token <token>
+alisio tui --url ws://127.0.0.1:40705 --token <token>
 alisio tui --session main --deliver
 # when run inside an agent workspace, infers that agent automatically
 alisio tui --session bugfix

@@ -7,7 +7,10 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
-import type { SecurityAccessMode } from "./controllers/security-access.ts";
+import type {
+  SecurityAccessDiagnostics,
+  SecurityAccessMode,
+} from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { ModelsOperationMap, ModelsServerDraft } from "./models-view-types.ts";
@@ -182,6 +185,7 @@ export type AppViewState = {
   gatewayAccessModeLoading: boolean;
   gatewayAccessModeBusy: boolean;
   gatewayAccessMode: SecurityAccessMode | null;
+  securityAccessDiagnostics: SecurityAccessDiagnostics | null;
   gatewayBootstrapUrl: string | null;
   gatewayBootstrapToken: string | null;
   pendingGatewayUrl: string | null;
@@ -268,6 +272,9 @@ export type AppViewState = {
   memoryStatus: import("./types.ts").MemoryStatusState | null;
   memorySyncing: boolean;
   memorySyncAvailable: boolean;
+  memoryGraphLoading: boolean;
+  memoryGraphError: string | null;
+  memoryGraph: import("./types.ts").MemoryGraphState | null;
   memorySearchQuery: string;
   memoryComposerOpen: boolean;
   memoryComposerDate: string;

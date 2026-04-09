@@ -14,7 +14,7 @@ describe("config mutate helpers", () => {
     await withTempHome("alisio-config-mutate-source-", async (home) => {
       const configPath = path.join(home, ".alisio", "alisio.json");
       await fs.mkdir(path.dirname(configPath), { recursive: true });
-      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 18789 } }, null, 2)}\n`);
+      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 40705 } }, null, 2)}\n`);
 
       const snapshot = await readSourceConfigSnapshot();
       await mutateConfigFile({
@@ -32,7 +32,7 @@ describe("config mutate helpers", () => {
         gateway?: { port?: number; auth?: unknown };
       };
       expect(persisted.gateway).toEqual({
-        port: 18789,
+        port: 40705,
         auth: { mode: "token" },
       });
     });
@@ -42,7 +42,7 @@ describe("config mutate helpers", () => {
     await withTempHome("alisio-config-replace-conflict-", async (home) => {
       const configPath = path.join(home, ".alisio", "alisio.json");
       await fs.mkdir(path.dirname(configPath), { recursive: true });
-      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 18789 } }, null, 2)}\n`);
+      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 40705 } }, null, 2)}\n`);
 
       const snapshot = await readSourceConfigSnapshot();
       await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 19001 } }, null, 2)}\n`);

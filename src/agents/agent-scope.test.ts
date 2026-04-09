@@ -123,13 +123,7 @@ describe("resolveAgentConfig", () => {
       experimental: { sessionMemory: true },
     });
     expect(result?.memorySearch?.sources).toEqual(expect.arrayContaining(["memory", "sessions"]));
-    expect(result?.subagents?.allowAgents).toEqual(
-      expect.arrayContaining([
-        "research-specialist",
-        "writing-specialist",
-        "browser-errand-specialist",
-      ]),
-    );
+    expect(result?.subagents).toBeUndefined();
   });
 
   it("resolves explicit and effective model primary separately", () => {
@@ -483,7 +477,7 @@ describe("resolveAgentConfig", () => {
     vi.stubEnv("OPENCLAW_HOME", home);
 
     const workspace = resolveAgentWorkspaceDir({} as AlisioConfig, "main");
-    expect(workspace).toBe(path.join(path.resolve(home), ".openclaw", "workspace"));
+    expect(workspace).toBe(path.join(path.resolve(home), ".alisio", "workspace"));
   });
 
   it("uses OPENCLAW_HOME for default agentDir", () => {
@@ -493,7 +487,7 @@ describe("resolveAgentConfig", () => {
     vi.stubEnv("OPENCLAW_STATE_DIR", "");
 
     const agentDir = resolveAgentDir({} as AlisioConfig, "main");
-    expect(agentDir).toBe(path.join(path.resolve(home), ".openclaw", "agents", "main", "agent"));
+    expect(agentDir).toBe(path.join(path.resolve(home), ".alisio", "agents", "main", "agent"));
   });
 });
 

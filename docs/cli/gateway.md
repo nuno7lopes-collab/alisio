@@ -42,7 +42,7 @@ Notes:
 
 ### Options
 
-- `--port <port>`: WebSocket port (default comes from config/env; usually `18789`).
+- `--port <port>`: WebSocket port (default comes from config/env; usually `40705`).
 - `--bind <loopback|lan|tailnet|auto|custom>`: listener bind mode.
 - `--auth <token|password>`: auth mode override.
 - `--token <token>`: token override (also sets `ALISIO_GATEWAY_TOKEN` for the process).
@@ -86,7 +86,7 @@ Pass `--token` or `--password` explicitly. Missing explicit credentials is an er
 ### `gateway health`
 
 ```bash
-alisio gateway health --url ws://127.0.0.1:18789
+alisio gateway health --url ws://127.0.0.1:40705
 ```
 
 ### `gateway status`
@@ -211,7 +211,7 @@ Wide-Area discovery records include (TXT):
 
 - `role` (gateway role hint)
 - `transport` (transport hint, e.g. `gateway`)
-- `gatewayPort` (WebSocket port, usually `18789`)
+- `gatewayPort` (WebSocket port, usually `40705`)
 - `sshPort` (SSH port; defaults to `22` if not present)
 - `tailnetDns` (MagicDNS hostname, when available)
 - `gatewayTls` / `gatewayTlsSha256` (TLS enabled + cert fingerprint)

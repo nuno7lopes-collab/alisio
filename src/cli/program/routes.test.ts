@@ -105,7 +105,7 @@ describe("program routes", () => {
         "gateway",
         "status",
         "--url",
-        "ws://127.0.0.1:18789",
+        "ws://127.0.0.1:40705",
         "--token",
         "abc",
         "--password",
@@ -119,7 +119,7 @@ describe("program routes", () => {
     ).resolves.toBe(true);
     expect(runDaemonStatusMock).toHaveBeenCalledWith({
       rpc: {
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
         token: "abc",
         password: "def",
         timeout: "5000",

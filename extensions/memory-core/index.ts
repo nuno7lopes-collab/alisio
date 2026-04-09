@@ -6,6 +6,7 @@ import {
   DEFAULT_MEMORY_FLUSH_PROMPT,
   DEFAULT_MEMORY_FLUSH_SOFT_TOKENS,
 } from "./src/flush-plan.js";
+import { handleMemoryGraphGatewayRequest } from "./src/gateway.js";
 import { registerBuiltInMemoryEmbeddingProviders } from "./src/memory/provider-adapters.js";
 import { buildPromptSection } from "./src/prompt-section.js";
 import { memoryRuntime } from "./src/runtime-provider.js";
@@ -28,6 +29,9 @@ export default definePluginEntry({
     api.registerMemoryPromptSection(buildPromptSection);
     api.registerMemoryFlushPlan(buildMemoryFlushPlan);
     api.registerMemoryRuntime(memoryRuntime);
+    api.registerGatewayMethod("memory.graph", handleMemoryGraphGatewayRequest, {
+      scope: "operator.read",
+    });
 
     api.registerTool(
       (ctx) =>

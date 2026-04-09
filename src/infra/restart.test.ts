@@ -57,7 +57,7 @@ beforeEach(async () => {
 
   currentTimeMs = 0;
   resolveLsofCommandSyncMock.mockReturnValue("/usr/sbin/lsof");
-  resolveGatewayPortMock.mockReturnValue(18789);
+  resolveGatewayPortMock.mockReturnValue(40705);
   __testing.setSleepSyncOverride((ms) => {
     currentTimeMs += ms;
   });
@@ -90,12 +90,12 @@ describe.runIf(process.platform !== "win32")("findGatewayPidsOnPortSync", () => 
       ].join("\n"),
     });
 
-    const pids = findGatewayPidsOnPortSync(18789);
+    const pids = findGatewayPidsOnPortSync(40705);
 
     expect(pids).toEqual([gatewayPidA, gatewayPidB]);
     expect(spawnSyncMock).toHaveBeenCalledWith(
       "/usr/sbin/lsof",
-      ["-nP", "-iTCP:18789", "-sTCP:LISTEN", "-Fpc"],
+      ["-nP", "-iTCP:40705", "-sTCP:LISTEN", "-Fpc"],
       expect.objectContaining({ encoding: "utf8", timeout: 2000 }),
     );
   });
@@ -108,7 +108,7 @@ describe.runIf(process.platform !== "win32")("findGatewayPidsOnPortSync", () => 
       stderr: "lsof failed",
     });
 
-    expect(findGatewayPidsOnPortSync(18789)).toEqual([]);
+    expect(findGatewayPidsOnPortSync(40705)).toEqual([]);
   });
 });
 

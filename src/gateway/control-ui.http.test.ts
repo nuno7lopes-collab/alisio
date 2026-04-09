@@ -301,7 +301,7 @@ describe("handleControlUiHttpRequest", () => {
         {
           url: ALISIO_BOOTSTRAP_HTTP_PATH,
           method: "GET",
-          headers: { host: "127.0.0.1:18789" },
+          headers: { host: "127.0.0.1:40705" },
           socket: { remoteAddress: "127.0.0.1" },
         } as IncomingMessage,
         res,
@@ -323,15 +323,13 @@ describe("handleControlUiHttpRequest", () => {
       expect(res.statusCode).toBe(200);
       const parsed = parseAlisioBootstrapPayload(end);
       expect(parsed.basePath).toBe("");
-      expect(parsed.controlUrl).toBe("ws://127.0.0.1:18789/");
+      expect(parsed.controlUrl).toBe("ws://127.0.0.1:40705/");
       expect(parsed.connectionRequired).toBe(false);
-      expect(parsed.startupState).toBe("needs_ai");
+      expect(parsed.startupState).toBe("needs_profile");
       expect(parsed.providerReady).toBe(false);
-      expect(parsed.accountReady).toBe(true);
-      expect(parsed.nextStep).toBe("runtime");
-      expect(parsed.account).toMatchObject({
-        plan: "free",
-      });
+      expect(parsed.accountReady).toBe(false);
+      expect(parsed.nextStep).toBe("account");
+      expect(parsed.account).toBeNull();
       expect(parsed.accountCloud).toEqual({
         backend: "supabase",
         available: false,
@@ -372,7 +370,7 @@ describe("handleControlUiHttpRequest", () => {
         {
           url: ALISIO_BOOTSTRAP_HTTP_PATH,
           method: "GET",
-          headers: { host: "127.0.0.1:18789" },
+          headers: { host: "127.0.0.1:40705" },
           socket: { remoteAddress: "127.0.0.1" },
         } as IncomingMessage,
         res,

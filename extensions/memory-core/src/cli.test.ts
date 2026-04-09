@@ -114,7 +114,7 @@ describe("memory cli", () => {
       files: 0,
       chunks: 0,
       dirty: false,
-      workspaceDir: "/tmp/openclaw",
+      workspaceDir: "/tmp/alisio",
       dbPath: "/tmp/memory.sqlite",
       provider: "openai",
       model: "text-embedding-3-small",
@@ -254,7 +254,7 @@ describe("memory cli", () => {
       state: "ready",
       projectionInterface: "markdown-vault",
       syncMode: "local-first",
-      cloudSync: "not_implemented",
+      cloudSync: "unavailable",
       matches: [
         {
           entityId: "note-1",
@@ -302,7 +302,7 @@ describe("memory cli", () => {
               projections: 1,
               projectionInterface: "markdown-vault",
               syncMode: "local-first",
-              cloudSync: "not_implemented",
+              cloudSync: "unavailable",
               projectionSources: ["workspace-memory"],
             },
           },

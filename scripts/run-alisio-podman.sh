@@ -60,7 +60,7 @@ resolve_env_file_path() {
 refresh_runtime_config() {
   CONFIG_DIR="$(alisio_read_prefixed_env CONFIG_DIR "$HOME/${STATE_DIR_NAME}")"
   WORKSPACE_DIR="$(alisio_read_prefixed_env WORKSPACE_DIR "$CONFIG_DIR/workspace")"
-  HOST_GATEWAY_PORT="$(alisio_read_prefixed_env PODMAN_GATEWAY_HOST_PORT "$(alisio_read_prefixed_env GATEWAY_PORT 18789)")"
+  HOST_GATEWAY_PORT="$(alisio_read_prefixed_env PODMAN_GATEWAY_HOST_PORT "$(alisio_read_prefixed_env GATEWAY_PORT 40705)")"
   GATEWAY_BIND="$(alisio_read_prefixed_env GATEWAY_BIND loopback)"
   CONTAINER_NAME="$(alisio_read_prefixed_env PODMAN_CONTAINER "$APP_SLUG")"
   IMAGE_NAME="$(alisio_read_prefixed_env PODMAN_IMAGE "${APP_SLUG}:local")"
@@ -141,7 +141,7 @@ run_container() {
   podman run -d \
     --name "$CONTAINER_NAME" \
     --replace \
-    -p "${HOST_GATEWAY_PORT}:18789" \
+    -p "${HOST_GATEWAY_PORT}:40705" \
     -e "ALISIO_STATE_DIR=${CONTAINER_STATE_DIR}" \
     -e "$(legacy_env_name STATE_DIR)=${CONTAINER_STATE_DIR}" \
     -e "ALISIO_CONFIG_PATH=${CONTAINER_CONFIG_PATH}" \
@@ -150,7 +150,7 @@ run_container() {
     -v "${CONFIG_DIR}:${CONTAINER_STATE_DIR}:Z" \
     -v "${WORKSPACE_DIR}:${CONTAINER_STATE_DIR}/workspace:Z" \
     "$IMAGE_NAME" \
-    "$cli" gateway run --bind "$GATEWAY_BIND" --port 18789 --force
+    "$cli" gateway run --bind "$GATEWAY_BIND" --port 40705 --force
 }
 
 launch() {

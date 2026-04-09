@@ -164,13 +164,13 @@ ssh user@gateway-host 'alisio dashboard --no-open'
 ```
 
 The command prints `Dashboard URL:`. Depending on how `gateway.auth.token`
-is configured, the URL may be a plain `http://127.0.0.1:18789/` link or one
+is configured, the URL may be a plain `http://127.0.0.1:40705/` link or one
 that includes `#token=...`.
 
 In another terminal on your computer, create the SSH tunnel:
 
 ```bash
-ssh -N -L 18789:127.0.0.1:18789 user@gateway-host
+ssh -N -L 40705:127.0.0.1:40705 user@gateway-host
 ```
 
 Then open the printed Dashboard URL in your local browser.

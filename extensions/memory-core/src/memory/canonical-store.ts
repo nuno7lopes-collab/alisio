@@ -3,10 +3,12 @@ import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
   createSubsystemLogger,
+  getAlisioActiveCloudAccessSession,
   loadOrCreateDeviceIdentity,
   resolveAlisioCanonicalMemoryStorePath,
   resolveAlisioMemoryOwnerProfile,
   resolveStateDir,
+  type AlisioCloudAccessSession,
   type AlisioMemoryOwnerProfile,
   type OpenClawConfig,
 } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
@@ -29,13 +31,24 @@ type CanonicalRelationType = string;
 type CanonicalRelationDirection = "incoming" | "outgoing";
 type CanonicalStoreStatusState = "pending-sync" | "ready";
 type CanonicalStoreSyncMode = "local-first";
-type CanonicalCloudSyncState = "not_implemented";
+type CanonicalCloudSyncState = "unavailable" | "enabled" | "error";
 type CanonicalRecordOrigin = "markdown-import" | "structured-store";
 
 const CANONICAL_STORE_SYNC_MODE: CanonicalStoreSyncMode = "local-first";
-const CANONICAL_STORE_CLOUD_SYNC: CanonicalCloudSyncState = "not_implemented";
+const CANONICAL_STORE_CLOUD_SYNC: CanonicalCloudSyncState = "unavailable";
 const MARKDOWN_IMPORT_ORIGIN: CanonicalRecordOrigin = "markdown-import";
 const STRUCTURED_STORE_ORIGIN: CanonicalRecordOrigin = "structured-store";
+const CANONICAL_CLOUD_SNAPSHOT_SCHEMA_VERSION = 1;
+const CANONICAL_FRONTMATTER_KEYS = new Set([
+  "alisio-memory",
+  "alisio-profile-id",
+  "alisio-entity-id",
+  "alisio-projection-id",
+  "alisio-source-of-truth",
+  "alisio-kind",
+]);
+const CANONICAL_RELATIONS_START = "<!-- alisio-relations:start -->";
+const CANONICAL_RELATIONS_END = "<!-- alisio-relations:end -->";
 
 type ParsedFrontmatter = {
   raw?: string;
@@ -43,8 +56,10 @@ type ParsedFrontmatter = {
   aliases: string[];
   tags: string[];
   title?: string;
+  kind?: string;
   sourceOfTruth?: string;
   entityId?: string;
+  projectionId?: string;
 };
 
 type ParsedMemoryReference = {
@@ -71,6 +86,92 @@ type ParsedCanonicalProjection = {
   aliasKeys: string[];
   references: ParsedMemoryReference[];
   metadataJson: string;
+};
+
+type StructuredRoundTripProjectionEdit = {
+  entityId?: string;
+  projectionId?: string;
+  title: string;
+  kind?: string;
+  frontmatterPresent: boolean;
+  displayPath: string;
+  absolutePath: string;
+  source: CanonicalProjectionSource;
+  frontmatterJson: string;
+  markdownBody: string;
+  relations: CanonicalMemoryStructuredRelationInput[];
+  aliases: string[];
+  tags: string[];
+};
+
+type CollectedOwnedMemoryProjections = {
+  markdownImports: ParsedCanonicalProjection[];
+  structuredEdits: StructuredRoundTripProjectionEdit[];
+};
+
+type CanonicalCloudEntitySnapshotRow = {
+  entityId: string;
+  kind: string;
+  slug: string;
+  title: string;
+  sourcePath: string;
+  sourceKind: CanonicalProjectionSource;
+  contentHash: string;
+  updatedAt: number;
+  metadataJson: string;
+  origin: CanonicalRecordOrigin;
+};
+
+type CanonicalCloudAliasSnapshotRow = {
+  aliasKey: string;
+  entityId: string;
+  updatedAt: number;
+  origin: CanonicalRecordOrigin;
+};
+
+type CanonicalCloudRelationSnapshotRow = {
+  relationId: string;
+  fromEntityId: string;
+  relationType: string;
+  toEntityId: string | null;
+  targetLocator: string | null;
+  ordinal: number;
+  updatedAt: number;
+  metadataJson: string;
+  origin: CanonicalRecordOrigin;
+};
+
+type CanonicalCloudProjectionSnapshotRow = {
+  projectionId: string;
+  entityId: string;
+  projectionKind: string;
+  relativePath: string;
+  editable: boolean;
+  sourceKind: CanonicalProjectionSource;
+  contentHash: string;
+  frontmatterJson: string;
+  markdownBody: string;
+  updatedAt: number;
+  metadataJson: string;
+  origin: CanonicalRecordOrigin;
+};
+
+type CanonicalCloudScopeSnapshot = {
+  schemaVersion: typeof CANONICAL_CLOUD_SNAPSHOT_SCHEMA_VERSION;
+  profileId: string;
+  workspaceScope: string;
+  backend: CanonicalStoreBackend;
+  projectionInterface: "markdown-vault";
+  syncMode: CanonicalStoreSyncMode;
+  exportedAt: string;
+  exportedBy: {
+    deviceId: string;
+    stateDir: string;
+  };
+  entities: CanonicalCloudEntitySnapshotRow[];
+  aliases: CanonicalCloudAliasSnapshotRow[];
+  relations: CanonicalCloudRelationSnapshotRow[];
+  projections: CanonicalCloudProjectionSnapshotRow[];
 };
 
 type StructuredRelationTarget = {
@@ -273,8 +374,10 @@ function extractFrontmatter(markdown: string): ParsedFrontmatter {
     aliases: extractYamlList(raw, "aliases"),
     tags: extractYamlList(raw, "tags"),
     title: extractYamlScalar(raw, "title"),
+    kind: extractYamlScalar(raw, "alisio-kind"),
     sourceOfTruth: extractYamlScalar(raw, "alisio-source-of-truth"),
     entityId: extractYamlScalar(raw, "alisio-entity-id"),
+    projectionId: extractYamlScalar(raw, "alisio-projection-id"),
   };
 }
 
@@ -321,6 +424,80 @@ function extractYamlList(frontmatter: string, key: string): string[] {
       }
     }
     break;
+  }
+  return out;
+}
+
+function parseYamlInlineValue(value: string): unknown {
+  const trimmed = value.trim().replace(/^['"]|['"]$/g, "");
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed === "true") {
+    return true;
+  }
+  if (trimmed === "false") {
+    return false;
+  }
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) {
+    const asNumber = Number(trimmed);
+    if (Number.isFinite(asNumber)) {
+      return asNumber;
+    }
+  }
+  return trimmed;
+}
+
+function parseEditableFrontmatterObject(raw?: string): Record<string, unknown> {
+  if (!raw?.trim()) {
+    return {};
+  }
+  const out: Record<string, unknown> = {};
+  const lines = raw.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    if (!line.trim() || /^\s/.test(line)) {
+      continue;
+    }
+    const match = line.match(/^([A-Za-z0-9._-]+):\s*(.*)$/);
+    if (!match) {
+      continue;
+    }
+    const [, key, inlineValue] = match;
+    if (inlineValue.startsWith("[") && inlineValue.endsWith("]")) {
+      out[key] = inlineValue
+        .slice(1, -1)
+        .split(",")
+        .map((entry) => parseYamlInlineValue(entry))
+        .filter((entry) => entry !== "");
+      continue;
+    }
+    if (inlineValue) {
+      out[key] = parseYamlInlineValue(inlineValue);
+      continue;
+    }
+    const listValues: unknown[] = [];
+    let consumedList = false;
+    for (let j = i + 1; j < lines.length; j += 1) {
+      const candidate = lines[j] ?? "";
+      if (/^\s*-\s+/.test(candidate)) {
+        listValues.push(parseYamlInlineValue(candidate.replace(/^\s*-\s+/, "")));
+        consumedList = true;
+        i = j;
+        continue;
+      }
+      if (!candidate.trim()) {
+        i = j;
+        continue;
+      }
+      break;
+    }
+    if (consumedList) {
+      out[key] = listValues;
+    }
+  }
+  for (const key of CANONICAL_FRONTMATTER_KEYS) {
+    delete out[key];
   }
   return out;
 }
@@ -457,6 +634,15 @@ function createWorkspaceScope(agentId: string, workspaceDir: string): string {
   ).slice(0, 16);
 }
 
+function createCloudWorkspaceScope(agentId: string): string {
+  return hashText(
+    JSON.stringify({
+      scope: "canonical-cloud-v1",
+      agentId: agentId.trim() || "main",
+    }),
+  ).slice(0, 16);
+}
+
 function stringifyCanonicalJson(value: unknown): string {
   return JSON.stringify(value ?? {});
 }
@@ -526,6 +712,7 @@ function buildProjectionFrontmatterObject(params: {
     "alisio-memory": "canonical-projection",
     "alisio-profile-id": params.profileId,
     "alisio-entity-id": params.entity.entityId,
+    "alisio-projection-id": params.projection.projectionId,
     "alisio-source-of-truth": "canonical-store",
     "alisio-kind": params.entity.kind,
     title: params.entity.title,
@@ -533,6 +720,109 @@ function buildProjectionFrontmatterObject(params: {
     ...(tags.length > 0 ? { tags } : {}),
     ...projectionFrontmatter,
   };
+}
+
+function stripManagedRelationsSection(markdownBody: string): {
+  markdownBody: string;
+  relationSection: string;
+} {
+  const explicitStart = markdownBody.indexOf(CANONICAL_RELATIONS_START);
+  const explicitEnd = markdownBody.indexOf(CANONICAL_RELATIONS_END);
+  if (explicitStart >= 0 && explicitEnd > explicitStart) {
+    const before = markdownBody.slice(0, explicitStart).trimEnd();
+    const relationSection = markdownBody
+      .slice(explicitStart + CANONICAL_RELATIONS_START.length, explicitEnd)
+      .trim();
+    return {
+      markdownBody: before ? `${before}\n` : "",
+      relationSection,
+    };
+  }
+
+  const fallbackStart = markdownBody.lastIndexOf("\n## Relations\n");
+  if (fallbackStart < 0) {
+    return {
+      markdownBody,
+      relationSection: "",
+    };
+  }
+  const before = markdownBody.slice(0, fallbackStart).trimEnd();
+  const relationSection = markdownBody.slice(fallbackStart).trim();
+  if (!relationSection.match(/^##\s+Relations\b/m)) {
+    return {
+      markdownBody,
+      relationSection: "",
+    };
+  }
+  return {
+    markdownBody: before ? `${before}\n` : "",
+    relationSection,
+  };
+}
+
+function parseRoundTripRelationTarget(
+  rawTarget: string,
+  currentReferencePath: string,
+): Pick<CanonicalMemoryStructuredRelationInput, "targetAlias" | "targetLocator"> {
+  const trimmed = rawTarget.trim();
+  const wikiMatch = trimmed.match(/^\[\[([^\]]+)\]\]$/);
+  if (wikiMatch?.[1]) {
+    return { targetAlias: normalizeReferenceKey(wikiMatch[1]) };
+  }
+  const codeMatch = trimmed.match(/^`([^`]+)`$/);
+  if (codeMatch?.[1]) {
+    return { targetLocator: normalizeReferenceKey(codeMatch[1]) || codeMatch[1].trim() };
+  }
+  const markdownMatch = trimmed.match(/^\[[^\]]*]\(([^)]+)\)$/);
+  if (markdownMatch?.[1]) {
+    const { target } = stripAnchor(markdownMatch[1].replace(/^<|>$/g, ""));
+    if (target && path.extname(target).toLowerCase() === ".md") {
+      return {
+        targetAlias: normalizeReferenceKey(
+          path.posix.normalize(path.posix.join(path.posix.dirname(currentReferencePath), target)),
+        ),
+      };
+    }
+  }
+  return { targetLocator: normalizeReferenceKey(trimmed) || trimmed };
+}
+
+function parseStructuredRoundTripRelations(params: {
+  relationSection: string;
+  markdownBody: string;
+  currentReferencePath: string;
+}): CanonicalMemoryStructuredRelationInput[] {
+  const explicitLines = params.relationSection
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("## "));
+  const explicitRelations = explicitLines.flatMap((line, index) => {
+    const match = line.match(/^-\s*([^:]+):\s+(.+)$/);
+    if (!match?.[1] || !match[2]) {
+      return [];
+    }
+    const relationType = match[1].trim() || "references";
+    return [
+      {
+        relationType,
+        ordinal: index,
+        ...parseRoundTripRelationTarget(match[2], params.currentReferencePath),
+      } satisfies CanonicalMemoryStructuredRelationInput,
+    ];
+  });
+  const referenceRelations = [
+    ...parseWikiReferences(params.markdownBody),
+    ...parseMarkdownReferences(params.markdownBody, params.currentReferencePath),
+  ].map(
+    (reference, index) =>
+      ({
+        relationType: reference.relationType,
+        ordinal: explicitRelations.length + index,
+        targetAlias: reference.targetKey,
+        metadata: reference.metadata,
+      }) satisfies CanonicalMemoryStructuredRelationInput,
+  );
+  return [...explicitRelations, ...referenceRelations];
 }
 
 function renderStructuredRelationLines(params: {
@@ -551,7 +841,9 @@ function renderStructuredRelationLines(params: {
           ? `[[${toWikiTarget(relation.targetLocator)}]]`
           : `\`${relation.targetLocator}\``
         : relation.targetAliasKey
-          ? `\`${relation.targetAliasKey}\``
+          ? relation.targetAliasKey.endsWith(".md") || relation.targetAliasKey.includes("/")
+            ? `[[${toWikiTarget(relation.targetAliasKey)}]]`
+            : `\`${relation.targetAliasKey}\``
           : relation.targetEntityId
             ? `\`${relation.targetEntityId}\``
             : null;
@@ -586,7 +878,14 @@ export function buildCanonicalMarkdownProjection(params: {
     projectionPathByEntityId: params.projectionPathByEntityId ?? new Map<string, string>(),
   });
   if (relationLines.length > 0) {
-    bodyLines.push("", "## Relations", "", ...relationLines);
+    bodyLines.push(
+      "",
+      CANONICAL_RELATIONS_START,
+      "## Relations",
+      "",
+      ...relationLines,
+      CANONICAL_RELATIONS_END,
+    );
   }
   return [...frontmatterLines, ...bodyLines].join("\n").trimEnd().concat("\n");
 }
@@ -772,10 +1071,161 @@ function createStatusBase(params: {
   };
 }
 
+function normalizeCanonicalCloudSyncState(value: unknown): CanonicalCloudSyncState {
+  switch (value) {
+    case "enabled":
+    case "error":
+    case "unavailable":
+      return value;
+    case "not_implemented":
+    default:
+      return "unavailable";
+  }
+}
+
+type CanonicalMemoryCloudConfig = {
+  url: string;
+  anonKey: string;
+  snapshotsTable: string;
+  backupsTable: string;
+};
+
+type CanonicalMemoryCloudSnapshotRecord = {
+  ownerUserId: string;
+  profileId: string;
+  workspaceScope: string;
+  contentHash: string;
+  updatedAt: string;
+  snapshot: CanonicalCloudScopeSnapshot;
+};
+
+function resolveSupabaseClientKey(env: NodeJS.ProcessEnv) {
+  return env.ALISIO_SUPABASE_ANON_KEY?.trim() || env.ALISIO_SUPABASE_PUBLISHABLE_KEY?.trim() || "";
+}
+
+function resolveCanonicalMemoryCloudConfig(
+  env: NodeJS.ProcessEnv,
+): CanonicalMemoryCloudConfig | null {
+  const url = env.ALISIO_SUPABASE_URL?.trim() || "";
+  const anonKey = resolveSupabaseClientKey(env);
+  if (!url || !anonKey) {
+    return null;
+  }
+  return {
+    url: url.replace(/\/+$/, ""),
+    anonKey,
+    snapshotsTable: env.ALISIO_SUPABASE_MEMORY_SNAPSHOTS_TABLE?.trim() || "alisio_memory_snapshots",
+    backupsTable:
+      env.ALISIO_SUPABASE_MEMORY_BACKUPS_TABLE?.trim() || "alisio_memory_snapshot_backups",
+  };
+}
+
+function supabaseCloudHeaders(
+  config: CanonicalMemoryCloudConfig,
+  session: AlisioCloudAccessSession,
+) {
+  return {
+    apikey: config.anonKey,
+    Authorization: `Bearer ${session.accessToken}`,
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+}
+
+async function fetchCloudJson(
+  input: string,
+  init: RequestInit,
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const response = await fetch(input, init);
+  const body = await response.json().catch(() => null);
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+  };
+}
+
+function readCloudErrorMessage(body: unknown) {
+  if (!body || typeof body !== "object") {
+    return "";
+  }
+  const record = body as Record<string, unknown>;
+  for (const key of ["message", "hint", "details", "error_description", "msg"]) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function createCloudRestUrl(
+  config: CanonicalMemoryCloudConfig,
+  table: string,
+  params?: Record<string, string>,
+) {
+  const url = new URL(`/rest/v1/${table}`, config.url);
+  for (const [key, value] of Object.entries(params ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  return url;
+}
+
+function parseCloudScopeSnapshot(value: unknown): CanonicalCloudScopeSnapshot | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Partial<CanonicalCloudScopeSnapshot>;
+  if (
+    record.schemaVersion !== CANONICAL_CLOUD_SNAPSHOT_SCHEMA_VERSION ||
+    !record.profileId ||
+    !record.workspaceScope ||
+    !record.backend ||
+    !record.projectionInterface ||
+    !record.syncMode ||
+    !record.exportedAt ||
+    !record.exportedBy?.deviceId ||
+    !record.exportedBy?.stateDir ||
+    !Array.isArray(record.entities) ||
+    !Array.isArray(record.aliases) ||
+    !Array.isArray(record.relations) ||
+    !Array.isArray(record.projections)
+  ) {
+    return null;
+  }
+  return record as CanonicalCloudScopeSnapshot;
+}
+
+function parseCloudSnapshotRecord(value: unknown): CanonicalMemoryCloudSnapshotRecord | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const ownerUserId = typeof record.owner_user_id === "string" ? record.owner_user_id.trim() : "";
+  const profileId = typeof record.profile_id === "string" ? record.profile_id.trim() : "";
+  const workspaceScope =
+    typeof record.workspace_scope === "string" ? record.workspace_scope.trim() : "";
+  const contentHash = typeof record.content_hash === "string" ? record.content_hash.trim() : "";
+  const updatedAt = typeof record.updated_at === "string" ? record.updated_at.trim() : "";
+  const snapshot = parseCloudScopeSnapshot(record.snapshot);
+  if (!ownerUserId || !profileId || !workspaceScope || !contentHash || !updatedAt || !snapshot) {
+    return null;
+  }
+  return {
+    ownerUserId,
+    profileId,
+    workspaceScope,
+    contentHash,
+    updatedAt,
+    snapshot,
+  };
+}
+
 async function collectOwnedMemoryProjections(params: {
   cfg: OpenClawConfig;
   workspaceDir: string;
-}): Promise<ParsedCanonicalProjection[]> {
+  structuredProjectionPaths?: ReadonlySet<string>;
+}): Promise<CollectedOwnedMemoryProjections> {
   const obsidianLayout = resolveObsidianMemoryLayout({
     cfg: params.cfg,
     workspaceDir: params.workspaceDir,
@@ -800,9 +1250,6 @@ async function collectOwnedMemoryProjections(params: {
     entries.map(async (entry) => {
       const markdown = await fs.readFile(entry.absPath, "utf8");
       const parsedFrontmatter = extractFrontmatter(markdown);
-      if (parsedFrontmatter.sourceOfTruth === "canonical-store") {
-        return null;
-      }
       const title = extractTitle({
         parsedFrontmatter,
         markdownBody: parsedFrontmatter.body,
@@ -845,40 +1292,82 @@ async function collectOwnedMemoryProjections(params: {
       ];
       const entityId = hashText(`entity:${entry.absPath}`);
       const projectionId = hashText(`projection:${entry.absPath}`);
+      const claimedByStructuredStore = params.structuredProjectionPaths?.has(entry.path) ?? false;
+      if (parsedFrontmatter.sourceOfTruth === "canonical-store" || claimedByStructuredStore) {
+        const editableFrontmatter = parseEditableFrontmatterObject(parsedFrontmatter.raw);
+        const { markdownBody, relationSection } = stripManagedRelationsSection(
+          parsedFrontmatter.body,
+        );
+        return {
+          kind: "structured-edit" as const,
+          edit: {
+            ...(parsedFrontmatter.entityId?.trim()
+              ? { entityId: parsedFrontmatter.entityId.trim() }
+              : {}),
+            ...(parsedFrontmatter.projectionId?.trim()
+              ? { projectionId: parsedFrontmatter.projectionId.trim() }
+              : {}),
+            title,
+            ...(parsedFrontmatter.kind?.trim() ? { kind: parsedFrontmatter.kind.trim() } : {}),
+            frontmatterPresent: Boolean(parsedFrontmatter.raw?.trim()),
+            displayPath: entry.path,
+            absolutePath: entry.absPath,
+            source: projectionSource,
+            frontmatterJson: stringifyCanonicalJson(editableFrontmatter),
+            markdownBody: markdownBody.trim() ? markdownBody.trimEnd().concat("\n") : "",
+            relations: parseStructuredRoundTripRelations({
+              relationSection,
+              markdownBody,
+              currentReferencePath: vaultRelativePath,
+            }),
+            aliases: parsedFrontmatter.aliases,
+            tags: parsedFrontmatter.tags,
+          } satisfies StructuredRoundTripProjectionEdit,
+        };
+      }
       return {
-        entityId,
-        projectionId,
-        title,
-        slug,
-        displayPath: entry.path,
-        absolutePath: entry.absPath,
-        workspaceReferencePath: vaultRelativePath,
-        source: projectionSource,
-        contentHash: entry.hash,
-        ...(parsedFrontmatter.raw ? { frontmatterRaw: parsedFrontmatter.raw } : {}),
-        frontmatterJson: JSON.stringify({
-          aliases: parsedFrontmatter.aliases,
-          tags: parsedFrontmatter.tags,
-          ...(parsedFrontmatter.title ? { title: parsedFrontmatter.title } : {}),
-        }),
-        markdownBody: parsedFrontmatter.body,
-        aliasKeys,
-        references,
-        metadataJson: JSON.stringify({
+        kind: "markdown-import" as const,
+        projection: {
+          entityId,
+          projectionId,
           title,
-          aliases: parsedFrontmatter.aliases,
-          tags: parsedFrontmatter.tags,
-          workspaceRelativePath,
-          vaultRelativePath,
-          ...(memoryRelativePath ? { memoryRelativePath } : {}),
-        }),
-      } satisfies ParsedCanonicalProjection;
+          slug,
+          displayPath: entry.path,
+          absolutePath: entry.absPath,
+          workspaceReferencePath: vaultRelativePath,
+          source: projectionSource,
+          contentHash: entry.hash,
+          ...(parsedFrontmatter.raw ? { frontmatterRaw: parsedFrontmatter.raw } : {}),
+          frontmatterJson: JSON.stringify({
+            aliases: parsedFrontmatter.aliases,
+            tags: parsedFrontmatter.tags,
+            ...(parsedFrontmatter.title ? { title: parsedFrontmatter.title } : {}),
+          }),
+          markdownBody: parsedFrontmatter.body,
+          aliasKeys,
+          references,
+          metadataJson: JSON.stringify({
+            title,
+            aliases: parsedFrontmatter.aliases,
+            tags: parsedFrontmatter.tags,
+            workspaceRelativePath,
+            vaultRelativePath,
+            ...(memoryRelativePath ? { memoryRelativePath } : {}),
+          }),
+        } satisfies ParsedCanonicalProjection,
+      };
     }),
   );
-
-  return parsed
-    .filter((entry): entry is ParsedCanonicalProjection => entry !== null)
+  const markdownImports = parsed
+    .flatMap((entry) => (entry?.kind === "markdown-import" ? [entry.projection] : []))
     .toSorted((left, right) => left.displayPath.localeCompare(right.displayPath));
+  const structuredEdits = parsed
+    .flatMap((entry) => (entry?.kind === "structured-edit" ? [entry.edit] : []))
+    .toSorted((left, right) => left.displayPath.localeCompare(right.displayPath));
+  return {
+    markdownImports,
+    structuredEdits,
+  };
 }
 
 function ensureCanonicalStoreSchema(db: DatabaseSync): void {
@@ -1052,9 +1541,12 @@ function readScopeCounts(db: DatabaseSync, params: { profileId: string; workspac
         (SELECT COUNT(*) FROM entities WHERE profile_id = ? AND workspace_scope = ?) AS entities,
         (SELECT COUNT(*) FROM relations WHERE profile_id = ? AND workspace_scope = ?) AS relations,
         (SELECT COUNT(*) FROM projections WHERE profile_id = ? AND workspace_scope = ?) AS projections,
-        (SELECT last_synced_at FROM sync_state WHERE profile_id = ? AND workspace_scope = ?) AS last_synced_at`,
+        (SELECT last_synced_at FROM sync_state WHERE profile_id = ? AND workspace_scope = ?) AS last_synced_at,
+        (SELECT cloud_state FROM sync_state WHERE profile_id = ? AND workspace_scope = ?) AS cloud_state`,
     )
     .get(
+      params.profileId,
+      params.workspaceScope,
       params.profileId,
       params.workspaceScope,
       params.profileId,
@@ -1069,12 +1561,14 @@ function readScopeCounts(db: DatabaseSync, params: { profileId: string; workspac
         relations: number;
         projections: number;
         last_synced_at?: number;
+        cloud_state?: string;
       }
     | undefined;
   return {
     entities: row?.entities ?? 0,
     relations: row?.relations ?? 0,
     projections: row?.projections ?? 0,
+    cloudSync: normalizeCanonicalCloudSyncState(row?.cloud_state),
     lastSyncedAt:
       typeof row?.last_synced_at === "number"
         ? new Date(row.last_synced_at).toISOString()
@@ -1146,6 +1640,203 @@ function readOriginScopedProjectionPaths(
     relative_path: string;
   }>;
   return new Set(rows.map((row) => row.relative_path).filter(Boolean));
+}
+
+function readStructuredProjectionEntityIdsByPath(
+  db: DatabaseSync,
+  params: {
+    profileId: string;
+    workspaceScope: string;
+  },
+): Map<string, string> {
+  const rows = db
+    .prepare(
+      `SELECT relative_path, entity_id
+       FROM projections
+       WHERE profile_id = ? AND workspace_scope = ? AND origin = ?`,
+    )
+    .all(params.profileId, params.workspaceScope, STRUCTURED_STORE_ORIGIN) as Array<{
+    relative_path: string;
+    entity_id: string;
+  }>;
+  return new Map(
+    rows
+      .filter((row) => row.relative_path && row.entity_id)
+      .map((row) => [row.relative_path, row.entity_id]),
+  );
+}
+
+function readStructuredEntityInputs(
+  db: DatabaseSync,
+  params: {
+    profileId: string;
+    workspaceScope: string;
+    entityIds: readonly string[];
+  },
+): CanonicalMemoryStructuredEntityInput[] {
+  if (params.entityIds.length === 0) {
+    return [];
+  }
+  return params.entityIds.flatMap((entityId) => {
+    const entityRow = db
+      .prepare(
+        `SELECT entity_id, kind, slug, title, metadata
+         FROM entities
+         WHERE profile_id = ? AND workspace_scope = ? AND origin = ? AND entity_id = ?`,
+      )
+      .get(params.profileId, params.workspaceScope, STRUCTURED_STORE_ORIGIN, entityId) as
+      | {
+          entity_id: string;
+          kind: string;
+          slug: string;
+          title: string;
+          metadata: string;
+        }
+      | undefined;
+    if (!entityRow) {
+      return [];
+    }
+    const metadata = parseJsonRecord(entityRow.metadata);
+    const projectionRows = db
+      .prepare(
+        `SELECT projection_id, relative_path, source_kind, editable, frontmatter_json, markdown_body, metadata
+         FROM projections
+         WHERE profile_id = ? AND workspace_scope = ? AND origin = ? AND entity_id = ?
+         ORDER BY relative_path ASC`,
+      )
+      .all(params.profileId, params.workspaceScope, STRUCTURED_STORE_ORIGIN, entityId) as Array<{
+      projection_id: string;
+      relative_path: string;
+      source_kind: CanonicalProjectionSource;
+      editable: number;
+      frontmatter_json: string;
+      markdown_body: string;
+      metadata: string;
+    }>;
+    const relationRows = db
+      .prepare(
+        `SELECT relation_type, to_entity_id, target_locator, ordinal, metadata
+         FROM relations
+         WHERE profile_id = ? AND workspace_scope = ? AND origin = ? AND from_entity_id = ?
+         ORDER BY ordinal ASC, relation_type ASC`,
+      )
+      .all(params.profileId, params.workspaceScope, STRUCTURED_STORE_ORIGIN, entityId) as Array<{
+      relation_type: string;
+      to_entity_id: string | null;
+      target_locator: string | null;
+      ordinal: number;
+      metadata: string;
+    }>;
+    const aliases =
+      Array.isArray(metadata.aliases) &&
+      metadata.aliases.every((entry): entry is string => typeof entry === "string")
+        ? metadata.aliases
+        : listEntityAliases(db, {
+            profileId: params.profileId,
+            workspaceScope: params.workspaceScope,
+            entityId,
+          });
+    const tags =
+      Array.isArray(metadata.tags) &&
+      metadata.tags.every((entry): entry is string => typeof entry === "string")
+        ? metadata.tags
+        : [];
+    return [
+      {
+        entityId: entityRow.entity_id,
+        kind: entityRow.kind,
+        slug: entityRow.slug,
+        title: entityRow.title,
+        aliases,
+        tags,
+        metadata,
+        projections: projectionRows.map((row) => ({
+          projectionId: row.projection_id,
+          relativePath: row.relative_path,
+          sourceKind: row.source_kind,
+          editable: row.editable === 1,
+          frontmatter: parseJsonRecord(row.frontmatter_json),
+          markdownBody: row.markdown_body,
+          metadata: parseJsonRecord(row.metadata),
+        })),
+        relations: relationRows.map((row) => ({
+          relationType: row.relation_type,
+          ...(row.to_entity_id ? { targetEntityId: row.to_entity_id } : {}),
+          ...(row.target_locator ? { targetLocator: row.target_locator } : {}),
+          ordinal: row.ordinal,
+          metadata: parseJsonRecord(row.metadata),
+        })),
+      } satisfies CanonicalMemoryStructuredEntityInput,
+    ];
+  });
+}
+
+function mergeStructuredRoundTripEdits(params: {
+  entities: CanonicalMemoryStructuredEntityInput[];
+  edits: StructuredRoundTripProjectionEdit[];
+}): CanonicalMemoryStructuredEntityInput[] {
+  const editsByEntityId = new Map<string, StructuredRoundTripProjectionEdit[]>();
+  for (const edit of params.edits) {
+    const entityId = edit.entityId?.trim();
+    if (!entityId) {
+      continue;
+    }
+    const entry = editsByEntityId.get(entityId) ?? [];
+    entry.push(edit);
+    editsByEntityId.set(entityId, entry);
+  }
+
+  return params.entities.map((entity) => {
+    const edits = editsByEntityId.get(entity.entityId ?? "");
+    if (!edits?.length) {
+      return entity;
+    }
+    const projections = entity.projections.map((projection) => ({ ...projection }));
+    let nextTitle = entity.title;
+    let nextKind = entity.kind;
+    let nextAliases = [...(entity.aliases ?? [])];
+    let nextTags = [...(entity.tags ?? [])];
+    let nextRelations = entity.relations ? [...entity.relations] : [];
+
+    for (const edit of edits) {
+      const projectionIndex = projections.findIndex(
+        (projection) => projection.relativePath === edit.displayPath,
+      );
+      if (projectionIndex < 0) {
+        continue;
+      }
+      const currentProjection = projections[projectionIndex]!;
+      projections[projectionIndex] = {
+        ...currentProjection,
+        ...(edit.projectionId ? { projectionId: edit.projectionId } : {}),
+        sourceKind: edit.source,
+        frontmatter: parseJsonRecord(edit.frontmatterJson),
+        markdownBody: edit.markdownBody,
+      };
+      const isPrimaryProjection =
+        projectionIndex === 0 || currentProjection.relativePath === projections[0]?.relativePath;
+      if (!isPrimaryProjection) {
+        continue;
+      }
+      nextTitle = edit.title;
+      if (edit.frontmatterPresent) {
+        nextKind = edit.kind ?? nextKind;
+        nextAliases = [...edit.aliases];
+        nextTags = [...edit.tags];
+      }
+      nextRelations = [...edit.relations];
+    }
+
+    return {
+      ...entity,
+      title: nextTitle,
+      ...(nextKind ? { kind: nextKind } : {}),
+      aliases: nextAliases,
+      tags: nextTags,
+      projections,
+      relations: nextRelations,
+    } satisfies CanonicalMemoryStructuredEntityInput;
+  });
 }
 
 type CanonicalEntityRow = {
@@ -1408,6 +2099,7 @@ function upsertCanonicalSyncState(params: {
   workspaceScope: string;
   backend: CanonicalStoreBackend;
   now: number;
+  cloudState?: CanonicalCloudSyncState;
 }): void {
   params.db
     .prepare(
@@ -1424,7 +2116,7 @@ function upsertCanonicalSyncState(params: {
       params.workspaceScope,
       params.backend,
       CANONICAL_STORE_SYNC_MODE,
-      CANONICAL_STORE_CLOUD_SYNC,
+      params.cloudState ?? CANONICAL_STORE_CLOUD_SYNC,
       params.now,
     );
 }
@@ -1447,6 +2139,7 @@ function buildReadyCanonicalStoreStatus(params: {
     entities: counts.entities,
     relations: counts.relations,
     projections: counts.projections,
+    cloudSync: counts.cloudSync,
     projectionSources: readScopeProjectionSources(params.db, {
       profileId: params.profileId,
       workspaceScope: params.workspaceScope,
@@ -1457,6 +2150,278 @@ function buildReadyCanonicalStoreStatus(params: {
       stateDir: params.stateDir,
     },
   };
+}
+
+async function loadRemoteCanonicalSnapshot(params: {
+  env: NodeJS.ProcessEnv;
+  session: AlisioCloudAccessSession;
+  status: CanonicalMemoryStoreStatus;
+  cloudWorkspaceScope: string;
+}): Promise<CanonicalMemoryCloudSnapshotRecord | null> {
+  const config = resolveCanonicalMemoryCloudConfig(params.env);
+  if (!config) {
+    return null;
+  }
+  const lookupScopes = uniqueStrings([params.cloudWorkspaceScope, params.status.workspaceScope]);
+  for (const workspaceScope of lookupScopes) {
+    const result = await fetchCloudJson(
+      createCloudRestUrl(config, config.snapshotsTable, {
+        select: "*",
+        owner_user_id: `eq.${params.session.userId}`,
+        profile_id: `eq.${params.status.profileId}`,
+        workspace_scope: `eq.${workspaceScope}`,
+        limit: "1",
+      }).toString(),
+      {
+        method: "GET",
+        headers: supabaseCloudHeaders(config, params.session),
+      },
+    );
+    if (!result.ok) {
+      throw new Error(
+        readCloudErrorMessage(result.body) ||
+          `canonical cloud snapshot read failed (${result.status})`,
+      );
+    }
+    const snapshot = (Array.isArray(result.body) ? result.body : [])
+      .map((row) => parseCloudSnapshotRecord(row))
+      .find((row): row is CanonicalMemoryCloudSnapshotRecord => Boolean(row && row.snapshot));
+    if (snapshot) {
+      return snapshot;
+    }
+  }
+  return null;
+}
+
+async function upsertRemoteCanonicalSnapshot(params: {
+  env: NodeJS.ProcessEnv;
+  session: AlisioCloudAccessSession;
+  status: CanonicalMemoryStoreStatus;
+  cloudWorkspaceScope: string;
+  snapshot: CanonicalCloudScopeSnapshot;
+  contentHash: string;
+}): Promise<string> {
+  const config = resolveCanonicalMemoryCloudConfig(params.env);
+  if (!config) {
+    return params.snapshot.exportedAt;
+  }
+  const result = await fetchCloudJson(
+    createCloudRestUrl(config, config.snapshotsTable, {
+      on_conflict: "owner_user_id,profile_id,workspace_scope",
+      select: "*",
+    }).toString(),
+    {
+      method: "POST",
+      headers: {
+        ...supabaseCloudHeaders(config, params.session),
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify([
+        {
+          owner_user_id: params.session.userId,
+          profile_id: params.status.profileId,
+          workspace_scope: params.cloudWorkspaceScope,
+          backend: params.status.backend,
+          projection_interface: params.status.projectionInterface,
+          sync_mode: params.status.syncMode,
+          last_writer_device_id: params.snapshot.exportedBy.deviceId,
+          last_writer_state_dir: params.snapshot.exportedBy.stateDir,
+          content_hash: params.contentHash,
+          snapshot: params.snapshot,
+          updated_at: params.snapshot.exportedAt,
+        },
+      ]),
+    },
+  );
+  if (!result.ok) {
+    throw new Error(
+      readCloudErrorMessage(result.body) ||
+        `canonical cloud snapshot write failed (${result.status})`,
+    );
+  }
+  const persisted = (Array.isArray(result.body) ? result.body : [])
+    .map((row) => parseCloudSnapshotRecord(row))
+    .find((row): row is CanonicalMemoryCloudSnapshotRecord => Boolean(row));
+  return persisted?.updatedAt ?? params.snapshot.exportedAt;
+}
+
+async function appendRemoteCanonicalBackup(params: {
+  env: NodeJS.ProcessEnv;
+  session: AlisioCloudAccessSession;
+  status: CanonicalMemoryStoreStatus;
+  cloudWorkspaceScope: string;
+  snapshot: CanonicalCloudScopeSnapshot;
+  contentHash: string;
+}) {
+  const config = resolveCanonicalMemoryCloudConfig(params.env);
+  if (!config) {
+    return;
+  }
+  const result = await fetchCloudJson(createCloudRestUrl(config, config.backupsTable).toString(), {
+    method: "POST",
+    headers: {
+      ...supabaseCloudHeaders(config, params.session),
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify([
+      {
+        owner_user_id: params.session.userId,
+        profile_id: params.status.profileId,
+        workspace_scope: params.cloudWorkspaceScope,
+        writer_device_id: params.snapshot.exportedBy.deviceId,
+        writer_state_dir: params.snapshot.exportedBy.stateDir,
+        content_hash: params.contentHash,
+        snapshot: params.snapshot,
+        created_at: params.snapshot.exportedAt,
+      },
+    ]),
+  });
+  if (!result.ok) {
+    throw new Error(
+      readCloudErrorMessage(result.body) ||
+        `canonical cloud backup write failed (${result.status})`,
+    );
+  }
+}
+
+async function finalizeCanonicalCloudSync(params: {
+  db: DatabaseSync;
+  cfg: OpenClawConfig;
+  agentId: string;
+  workspaceDir: string;
+  env: NodeJS.ProcessEnv;
+  status: CanonicalMemoryStoreStatus;
+  ownerProfile: AlisioMemoryOwnerProfile;
+  deviceId: string;
+  stateDir: string;
+}): Promise<CanonicalMemoryStoreStatus> {
+  const baseReady = () =>
+    buildReadyCanonicalStoreStatus({
+      baseStatus: params.status,
+      db: params.db,
+      profileId: params.status.profileId,
+      workspaceScope: params.status.workspaceScope,
+      deviceId: params.deviceId,
+      stateDir: params.stateDir,
+    });
+
+  const session = await getAlisioActiveCloudAccessSession(params.env);
+  if (!session || params.status.profileSource !== "cloud-user") {
+    return baseReady();
+  }
+
+  try {
+    const cloudWorkspaceScope = createCloudWorkspaceScope(params.agentId);
+    const localSnapshot = exportCanonicalCloudScopeSnapshot({
+      db: params.db,
+      status: params.status,
+      workspaceScope: cloudWorkspaceScope,
+      exportedAt: params.status.lastSyncedAt ?? new Date().toISOString(),
+      deviceId: params.deviceId,
+      stateDir: params.stateDir,
+    });
+    const localHash = hashCanonicalCloudScopeSnapshot(localSnapshot);
+    const localSyncedAtMs = Date.parse(localSnapshot.exportedAt) || Date.now();
+    const remote = await loadRemoteCanonicalSnapshot({
+      env: params.env,
+      session,
+      status: params.status,
+      cloudWorkspaceScope,
+    });
+    const remoteUpdatedAtMs = remote ? Date.parse(remote.updatedAt) || 0 : 0;
+    const canBootstrapFromRemote =
+      params.status.cloudSync !== "enabled" &&
+      params.status.entities === 0 &&
+      params.status.relations === 0 &&
+      params.status.projections === 0;
+
+    if (
+      remote &&
+      remote.contentHash !== localHash &&
+      (canBootstrapFromRemote ||
+        (params.status.cloudSync === "enabled" && remoteUpdatedAtMs > localSyncedAtMs))
+    ) {
+      const previousAbsolutePaths = applyCanonicalCloudScopeSnapshot({
+        db: params.db,
+        cfg: params.cfg,
+        workspaceDir: params.workspaceDir,
+        profileId: params.status.profileId,
+        workspaceScope: params.status.workspaceScope,
+        ownerProfile: params.ownerProfile,
+        backend: params.status.backend,
+        deviceId: params.deviceId,
+        stateDir: params.stateDir,
+        snapshot: remote.snapshot,
+        syncedAtMs: remoteUpdatedAtMs,
+      });
+      await materializeCanonicalScopeProjections({
+        db: params.db,
+        cfg: params.cfg,
+        workspaceDir: params.workspaceDir,
+        profileId: params.status.profileId,
+        workspaceScope: params.status.workspaceScope,
+        previousAbsolutePaths,
+      });
+      return baseReady();
+    }
+
+    if (!remote || remote.contentHash !== localHash) {
+      const persistedUpdatedAt = await upsertRemoteCanonicalSnapshot({
+        env: params.env,
+        session,
+        status: params.status,
+        cloudWorkspaceScope,
+        snapshot: localSnapshot,
+        contentHash: localHash,
+      });
+      await appendRemoteCanonicalBackup({
+        env: params.env,
+        session,
+        status: params.status,
+        cloudWorkspaceScope,
+        snapshot: {
+          ...localSnapshot,
+          exportedAt: persistedUpdatedAt,
+        },
+        contentHash: localHash,
+      });
+      upsertCanonicalSyncState({
+        db: params.db,
+        profileId: params.status.profileId,
+        workspaceScope: params.status.workspaceScope,
+        backend: params.status.backend,
+        now: Date.parse(persistedUpdatedAt) || localSyncedAtMs,
+        cloudState: "enabled",
+      });
+      return baseReady();
+    }
+
+    upsertCanonicalSyncState({
+      db: params.db,
+      profileId: params.status.profileId,
+      workspaceScope: params.status.workspaceScope,
+      backend: params.status.backend,
+      now: localSyncedAtMs,
+      cloudState: "enabled",
+    });
+    return baseReady();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.warn(`failed to sync canonical memory cloud replica: ${message}`);
+    upsertCanonicalSyncState({
+      db: params.db,
+      profileId: params.status.profileId,
+      workspaceScope: params.status.workspaceScope,
+      backend: params.status.backend,
+      now: Date.now(),
+      cloudState: "error",
+    });
+    return {
+      ...baseReady(),
+      cloudSync: "error",
+      lastError: message,
+    };
+  }
 }
 
 function deleteOriginScopedRows(params: {
@@ -1659,6 +2624,460 @@ async function materializeStructuredProjections(params: {
       await fs.mkdir(path.dirname(projection.absolutePath), { recursive: true });
       await fs.writeFile(projection.absolutePath, markdown, "utf8");
     }
+  }
+}
+
+type CanonicalProjectionMaterializationRow = {
+  entityId: string;
+  origin: CanonicalRecordOrigin;
+  relativePath: string;
+  absolutePath: string;
+  sourceKind: CanonicalProjectionSource;
+  editable: boolean;
+  frontmatterJson: string;
+  markdownBody: string;
+};
+
+function readScopeProjectionMaterializationRows(
+  db: DatabaseSync,
+  params: {
+    profileId: string;
+    workspaceScope: string;
+  },
+): CanonicalProjectionMaterializationRow[] {
+  const rows = db
+    .prepare(
+      `SELECT
+         entity_id AS entityId,
+         origin,
+         relative_path AS relativePath,
+         absolute_path AS absolutePath,
+         source_kind AS sourceKind,
+         editable,
+         frontmatter_json AS frontmatterJson,
+         markdown_body AS markdownBody
+       FROM projections
+       WHERE profile_id = ? AND workspace_scope = ?
+       ORDER BY relative_path ASC`,
+    )
+    .all(params.profileId, params.workspaceScope) as Array<{
+    entityId: string;
+    origin: CanonicalRecordOrigin;
+    relativePath: string;
+    absolutePath: string;
+    sourceKind: CanonicalProjectionSource;
+    editable: number;
+    frontmatterJson: string;
+    markdownBody: string;
+  }>;
+  return rows.map((row) => ({
+    entityId: row.entityId,
+    origin: row.origin,
+    relativePath: row.relativePath,
+    absolutePath: row.absolutePath,
+    sourceKind: row.sourceKind,
+    editable: row.editable === 1,
+    frontmatterJson: row.frontmatterJson,
+    markdownBody: row.markdownBody,
+  }));
+}
+
+function renderStoredProjectionMarkdown(params: {
+  frontmatterJson: string;
+  markdownBody: string;
+}): string {
+  const frontmatter = parseJsonRecord(params.frontmatterJson);
+  const body = params.markdownBody.trim();
+  if (Object.keys(frontmatter).length === 0) {
+    return body ? `${body}\n` : "";
+  }
+  const frontmatterLines = ["---"];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    appendYamlField(frontmatterLines, key, value);
+  }
+  frontmatterLines.push("---", "");
+  return [...frontmatterLines, ...(body ? [body] : [])].join("\n").trimEnd().concat("\n");
+}
+
+async function materializeCanonicalScopeProjections(params: {
+  db: DatabaseSync;
+  cfg: OpenClawConfig;
+  workspaceDir: string;
+  profileId: string;
+  workspaceScope: string;
+  previousAbsolutePaths?: Iterable<string>;
+}): Promise<void> {
+  const projectionRows = readScopeProjectionMaterializationRows(params.db, {
+    profileId: params.profileId,
+    workspaceScope: params.workspaceScope,
+  });
+  const nextAbsolutePaths = new Set(projectionRows.map((row) => row.absolutePath).filter(Boolean));
+
+  const structuredEntityIds = uniqueStrings(
+    projectionRows
+      .filter((row) => row.origin === STRUCTURED_STORE_ORIGIN)
+      .map((row) => row.entityId)
+      .filter(Boolean),
+  );
+  if (structuredEntityIds.length > 0) {
+    const normalizedEntities = readStructuredEntityInputs(params.db, {
+      profileId: params.profileId,
+      workspaceScope: params.workspaceScope,
+      entityIds: structuredEntityIds,
+    }).map((entity) =>
+      normalizeStructuredEntityInput({
+        cfg: params.cfg,
+        workspaceDir: params.workspaceDir,
+        entity,
+      }),
+    );
+    await materializeStructuredProjections({
+      profileId: params.profileId,
+      entities: normalizedEntities,
+    });
+  }
+
+  for (const projection of projectionRows) {
+    if (projection.origin !== MARKDOWN_IMPORT_ORIGIN) {
+      continue;
+    }
+    await fs.mkdir(path.dirname(projection.absolutePath), { recursive: true });
+    await fs.writeFile(
+      projection.absolutePath,
+      renderStoredProjectionMarkdown({
+        frontmatterJson: projection.frontmatterJson,
+        markdownBody: projection.markdownBody,
+      }),
+      "utf8",
+    );
+  }
+
+  for (const absolutePath of params.previousAbsolutePaths ?? []) {
+    if (!absolutePath || nextAbsolutePaths.has(absolutePath)) {
+      continue;
+    }
+    await fs.rm(absolutePath, { force: true }).catch(() => {});
+  }
+}
+
+function deleteScopeRows(params: {
+  db: DatabaseSync;
+  profileId: string;
+  workspaceScope: string;
+}): void {
+  params.db
+    .prepare(
+      `DELETE FROM relations
+       WHERE profile_id = ? AND workspace_scope = ?`,
+    )
+    .run(params.profileId, params.workspaceScope);
+  params.db
+    .prepare(
+      `DELETE FROM entity_aliases
+       WHERE profile_id = ? AND workspace_scope = ?`,
+    )
+    .run(params.profileId, params.workspaceScope);
+  params.db
+    .prepare(
+      `DELETE FROM projections
+       WHERE profile_id = ? AND workspace_scope = ?`,
+    )
+    .run(params.profileId, params.workspaceScope);
+  params.db
+    .prepare(
+      `DELETE FROM entities
+       WHERE profile_id = ? AND workspace_scope = ?`,
+    )
+    .run(params.profileId, params.workspaceScope);
+}
+
+function exportCanonicalCloudScopeSnapshot(params: {
+  db: DatabaseSync;
+  status: CanonicalMemoryStoreStatus;
+  workspaceScope: string;
+  exportedAt: string;
+  deviceId: string;
+  stateDir: string;
+}): CanonicalCloudScopeSnapshot {
+  const entities = params.db
+    .prepare(
+      `SELECT entity_id, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata, origin
+       FROM entities
+       WHERE profile_id = ? AND workspace_scope = ?
+       ORDER BY source_path ASC, entity_id ASC`,
+    )
+    .all(params.status.profileId, params.status.workspaceScope) as Array<{
+    entity_id: string;
+    kind: string;
+    slug: string;
+    title: string;
+    source_path: string;
+    source_kind: CanonicalProjectionSource;
+    content_hash: string;
+    updated_at: number;
+    metadata: string;
+    origin: CanonicalRecordOrigin;
+  }>;
+  const aliases = params.db
+    .prepare(
+      `SELECT alias_key, entity_id, updated_at, origin
+       FROM entity_aliases
+       WHERE profile_id = ? AND workspace_scope = ?
+       ORDER BY alias_key ASC, entity_id ASC`,
+    )
+    .all(params.status.profileId, params.status.workspaceScope) as Array<{
+    alias_key: string;
+    entity_id: string;
+    updated_at: number;
+    origin: CanonicalRecordOrigin;
+  }>;
+  const relations = params.db
+    .prepare(
+      `SELECT relation_id, from_entity_id, relation_type, to_entity_id, target_locator, ordinal, updated_at, metadata, origin
+       FROM relations
+       WHERE profile_id = ? AND workspace_scope = ?
+       ORDER BY from_entity_id ASC, ordinal ASC, relation_id ASC`,
+    )
+    .all(params.status.profileId, params.status.workspaceScope) as Array<{
+    relation_id: string;
+    from_entity_id: string;
+    relation_type: string;
+    to_entity_id: string | null;
+    target_locator: string | null;
+    ordinal: number;
+    updated_at: number;
+    metadata: string;
+    origin: CanonicalRecordOrigin;
+  }>;
+  const projections = params.db
+    .prepare(
+      `SELECT projection_id, entity_id, projection_kind, relative_path, editable, source_kind, content_hash, frontmatter_json, markdown_body, updated_at, metadata, origin
+       FROM projections
+       WHERE profile_id = ? AND workspace_scope = ?
+       ORDER BY relative_path ASC, projection_id ASC`,
+    )
+    .all(params.status.profileId, params.status.workspaceScope) as Array<{
+    projection_id: string;
+    entity_id: string;
+    projection_kind: string;
+    relative_path: string;
+    editable: number;
+    source_kind: CanonicalProjectionSource;
+    content_hash: string;
+    frontmatter_json: string;
+    markdown_body: string;
+    updated_at: number;
+    metadata: string;
+    origin: CanonicalRecordOrigin;
+  }>;
+
+  return {
+    schemaVersion: CANONICAL_CLOUD_SNAPSHOT_SCHEMA_VERSION,
+    profileId: params.status.profileId,
+    workspaceScope: params.workspaceScope,
+    backend: params.status.backend,
+    projectionInterface: "markdown-vault",
+    syncMode: CANONICAL_STORE_SYNC_MODE,
+    exportedAt: params.exportedAt,
+    exportedBy: {
+      deviceId: params.deviceId,
+      stateDir: params.stateDir,
+    },
+    entities: entities.map((row) => ({
+      entityId: row.entity_id,
+      kind: row.kind,
+      slug: row.slug,
+      title: row.title,
+      sourcePath: row.source_path,
+      sourceKind: row.source_kind,
+      contentHash: row.content_hash,
+      updatedAt: row.updated_at,
+      metadataJson: row.metadata,
+      origin: row.origin,
+    })),
+    aliases: aliases.map((row) => ({
+      aliasKey: row.alias_key,
+      entityId: row.entity_id,
+      updatedAt: row.updated_at,
+      origin: row.origin,
+    })),
+    relations: relations.map((row) => ({
+      relationId: row.relation_id,
+      fromEntityId: row.from_entity_id,
+      relationType: row.relation_type,
+      toEntityId: row.to_entity_id,
+      targetLocator: row.target_locator,
+      ordinal: row.ordinal,
+      updatedAt: row.updated_at,
+      metadataJson: row.metadata,
+      origin: row.origin,
+    })),
+    projections: projections.map((row) => ({
+      projectionId: row.projection_id,
+      entityId: row.entity_id,
+      projectionKind: row.projection_kind,
+      relativePath: row.relative_path,
+      editable: row.editable === 1,
+      sourceKind: row.source_kind,
+      contentHash: row.content_hash,
+      frontmatterJson: row.frontmatter_json,
+      markdownBody: row.markdown_body,
+      updatedAt: row.updated_at,
+      metadataJson: row.metadata,
+      origin: row.origin,
+    })),
+  };
+}
+
+function hashCanonicalCloudScopeSnapshot(snapshot: CanonicalCloudScopeSnapshot) {
+  return hashText(stringifyCanonicalJson(snapshot));
+}
+
+function applyCanonicalCloudScopeSnapshot(params: {
+  db: DatabaseSync;
+  cfg: OpenClawConfig;
+  workspaceDir: string;
+  profileId: string;
+  workspaceScope: string;
+  ownerProfile: AlisioMemoryOwnerProfile;
+  backend: CanonicalStoreBackend;
+  deviceId: string;
+  stateDir: string;
+  snapshot: CanonicalCloudScopeSnapshot;
+  syncedAtMs: number;
+}): string[] {
+  const previousAbsolutePaths = readScopeProjectionMaterializationRows(params.db, {
+    profileId: params.profileId,
+    workspaceScope: params.workspaceScope,
+  }).map((row) => row.absolutePath);
+
+  const insertEntity = params.db.prepare(
+    `INSERT INTO entities (
+       entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind,
+       content_hash, updated_at, metadata, origin
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const insertAlias = params.db.prepare(
+    `INSERT INTO entity_aliases (
+       profile_id, workspace_scope, alias_key, entity_id, updated_at, origin
+     ) VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+  const insertRelation = params.db.prepare(
+    `INSERT INTO relations (
+       relation_id, profile_id, workspace_scope, from_entity_id, relation_type, to_entity_id,
+       target_locator, ordinal, updated_at, metadata, origin
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const insertProjection = params.db.prepare(
+    `INSERT INTO projections (
+       projection_id, profile_id, workspace_scope, entity_id, projection_kind, relative_path,
+       absolute_path, editable, source_kind, content_hash, frontmatter_json, markdown_body,
+       updated_at, metadata, origin
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+
+  params.db.exec("BEGIN");
+  try {
+    upsertCanonicalOwnerProfile({
+      db: params.db,
+      ownerProfile: params.ownerProfile,
+      now: params.syncedAtMs,
+    });
+    upsertCanonicalReplica({
+      db: params.db,
+      ownerProfile: params.ownerProfile,
+      workspaceScope: params.workspaceScope,
+      deviceId: params.deviceId,
+      stateDir: params.stateDir,
+      now: params.syncedAtMs,
+    });
+    deleteScopeRows({
+      db: params.db,
+      profileId: params.profileId,
+      workspaceScope: params.workspaceScope,
+    });
+
+    for (const entity of params.snapshot.entities) {
+      insertEntity.run(
+        entity.entityId,
+        params.profileId,
+        params.workspaceScope,
+        entity.kind,
+        entity.slug,
+        entity.title,
+        entity.sourcePath,
+        entity.sourceKind,
+        entity.contentHash,
+        entity.updatedAt,
+        entity.metadataJson,
+        entity.origin,
+      );
+    }
+    for (const alias of params.snapshot.aliases) {
+      insertAlias.run(
+        params.profileId,
+        params.workspaceScope,
+        alias.aliasKey,
+        alias.entityId,
+        alias.updatedAt,
+        alias.origin,
+      );
+    }
+    for (const relation of params.snapshot.relations) {
+      insertRelation.run(
+        relation.relationId,
+        params.profileId,
+        params.workspaceScope,
+        relation.fromEntityId,
+        relation.relationType,
+        relation.toEntityId,
+        relation.targetLocator,
+        relation.ordinal,
+        relation.updatedAt,
+        relation.metadataJson,
+        relation.origin,
+      );
+    }
+    for (const projection of params.snapshot.projections) {
+      const absolutePath = resolveCanonicalProjectionAbsolutePath({
+        cfg: params.cfg,
+        workspaceDir: params.workspaceDir,
+        relativePath: projection.relativePath,
+        sourceKind: projection.sourceKind,
+      });
+      insertProjection.run(
+        projection.projectionId,
+        params.profileId,
+        params.workspaceScope,
+        projection.entityId,
+        projection.projectionKind,
+        projection.relativePath,
+        absolutePath,
+        projection.editable ? 1 : 0,
+        projection.sourceKind,
+        projection.contentHash,
+        projection.frontmatterJson,
+        projection.markdownBody,
+        projection.updatedAt,
+        projection.metadataJson,
+        projection.origin,
+      );
+    }
+    upsertCanonicalSyncState({
+      db: params.db,
+      profileId: params.profileId,
+      workspaceScope: params.workspaceScope,
+      backend: params.backend,
+      now: params.syncedAtMs,
+      cloudState: "enabled",
+    });
+    params.db.exec("COMMIT");
+    return previousAbsolutePaths;
+  } catch (err) {
+    try {
+      params.db.exec("ROLLBACK");
+    } catch {}
+    throw err;
   }
 }
 
@@ -1924,12 +3343,21 @@ export async function upsertCanonicalMemoryStructuredEntities(params: {
         entities,
       });
     }
-
-    return buildReadyCanonicalStoreStatus({
-      baseStatus,
+    return await finalizeCanonicalCloudSync({
       db,
-      profileId: ownerProfile.profileId,
-      workspaceScope: baseStatus.workspaceScope,
+      cfg: params.cfg,
+      agentId: params.agentId,
+      workspaceDir: params.workspaceDir,
+      env,
+      status: buildReadyCanonicalStoreStatus({
+        baseStatus,
+        db,
+        profileId: ownerProfile.profileId,
+        workspaceScope: baseStatus.workspaceScope,
+        deviceId: deviceIdentity.deviceId,
+        stateDir,
+      }),
+      ownerProfile,
       deviceId: deviceIdentity.deviceId,
       stateDir,
     });
@@ -2191,6 +3619,7 @@ export async function syncCanonicalMemoryStore(params: {
   const deviceIdentity = loadOrCreateDeviceIdentity();
   const stateDir = resolveStateDir(env);
   const db = openCanonicalStore(baseStatus.path);
+  let closed = false;
 
   try {
     const structuredProjectionPaths = readOriginScopedProjectionPaths(db, {
@@ -2198,12 +3627,16 @@ export async function syncCanonicalMemoryStore(params: {
       workspaceScope: baseStatus.workspaceScope,
       origin: STRUCTURED_STORE_ORIGIN,
     });
-    const projections = (
-      await collectOwnedMemoryProjections({
-        cfg: params.cfg,
-        workspaceDir: params.workspaceDir,
-      })
-    ).filter((projection) => !structuredProjectionPaths.has(projection.displayPath));
+    const structuredProjectionEntityIdsByPath = readStructuredProjectionEntityIdsByPath(db, {
+      profileId: ownerProfile.profileId,
+      workspaceScope: baseStatus.workspaceScope,
+    });
+    const collected = await collectOwnedMemoryProjections({
+      cfg: params.cfg,
+      workspaceDir: params.workspaceDir,
+      structuredProjectionPaths,
+    });
+    const projections = collected.markdownImports;
     const insertEntity = db.prepare(
       `INSERT INTO entities (
          entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind,
@@ -2331,11 +3764,53 @@ export async function syncCanonicalMemoryStore(params: {
     });
     db.exec("COMMIT");
 
-    return buildReadyCanonicalStoreStatus({
-      baseStatus,
+    const structuredRoundTripEntityIds = uniqueStrings(
+      collected.structuredEdits
+        .map(
+          (edit) =>
+            edit.entityId ?? structuredProjectionEntityIdsByPath.get(edit.displayPath) ?? "",
+        )
+        .filter(Boolean),
+    );
+    if (structuredRoundTripEntityIds.length > 0) {
+      const mergedEntities = mergeStructuredRoundTripEdits({
+        entities: readStructuredEntityInputs(db, {
+          profileId: ownerProfile.profileId,
+          workspaceScope: baseStatus.workspaceScope,
+          entityIds: structuredRoundTripEntityIds,
+        }),
+        edits: collected.structuredEdits.map((edit) => ({
+          ...edit,
+          entityId: edit.entityId ?? structuredProjectionEntityIdsByPath.get(edit.displayPath),
+        })),
+      });
+      db.close();
+      closed = true;
+      return await upsertCanonicalMemoryStructuredEntities({
+        cfg: params.cfg,
+        agentId: params.agentId,
+        workspaceDir: params.workspaceDir,
+        backend: params.backend,
+        env,
+        entities: mergedEntities,
+      });
+    }
+
+    return await finalizeCanonicalCloudSync({
       db,
-      profileId: ownerProfile.profileId,
-      workspaceScope: baseStatus.workspaceScope,
+      cfg: params.cfg,
+      agentId: params.agentId,
+      workspaceDir: params.workspaceDir,
+      env,
+      status: buildReadyCanonicalStoreStatus({
+        baseStatus,
+        db,
+        profileId: ownerProfile.profileId,
+        workspaceScope: baseStatus.workspaceScope,
+        deviceId: deviceIdentity.deviceId,
+        stateDir,
+      }),
+      ownerProfile,
       deviceId: deviceIdentity.deviceId,
       stateDir,
     });
@@ -2347,6 +3822,8 @@ export async function syncCanonicalMemoryStore(params: {
     log.warn(`failed to sync canonical memory store: ${message}`);
     throw err;
   } finally {
-    db.close();
+    if (!closed) {
+      db.close();
+    }
   }
 }

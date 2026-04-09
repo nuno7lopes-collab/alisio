@@ -31,9 +31,9 @@ class GatewayConfigResolverTest {
     assertEquals(
       GatewayEndpointConfig(
         host = "gateway.example",
-        port = 18789,
+        port = 40705,
         tls = false,
-        displayUrl = "http://gateway.example:18789",
+        displayUrl = "http://gateway.example:40705",
       ),
       parsed,
     )
@@ -87,7 +87,7 @@ class GatewayConfigResolverTest {
   @Test
   fun resolveScannedSetupCodeAcceptsRawSetupCode() {
     val setupCode =
-      encodeSetupCode("""{"url":"wss://gateway.example:18789","bootstrapToken":"bootstrap-1"}""")
+      encodeSetupCode("""{"url":"wss://gateway.example:40705","bootstrapToken":"bootstrap-1"}""")
 
     val resolved = resolveScannedSetupCode(setupCode)
 
@@ -97,12 +97,12 @@ class GatewayConfigResolverTest {
   @Test
   fun resolveScannedSetupCodeAcceptsQrJsonPayload() {
     val setupCode =
-      encodeSetupCode("""{"url":"wss://gateway.example:18789","bootstrapToken":"bootstrap-1"}""")
+      encodeSetupCode("""{"url":"wss://gateway.example:40705","bootstrapToken":"bootstrap-1"}""")
     val qrJson =
       """
       {
         "setupCode": "$setupCode",
-        "gatewayUrl": "wss://gateway.example:18789",
+        "gatewayUrl": "wss://gateway.example:40705",
         "auth": "password",
         "urlSource": "gateway.remote.url"
       }
@@ -136,11 +136,11 @@ class GatewayConfigResolverTest {
   @Test
   fun decodeGatewaySetupCodeParsesBootstrapToken() {
     val setupCode =
-      encodeSetupCode("""{"url":"wss://gateway.example:18789","bootstrapToken":"bootstrap-1"}""")
+      encodeSetupCode("""{"url":"wss://gateway.example:40705","bootstrapToken":"bootstrap-1"}""")
 
     val decoded = decodeGatewaySetupCode(setupCode)
 
-    assertEquals("wss://gateway.example:18789", decoded?.url)
+    assertEquals("wss://gateway.example:40705", decoded?.url)
     assertEquals("bootstrap-1", decoded?.bootstrapToken)
     assertNull(decoded?.token)
     assertNull(decoded?.password)
@@ -149,7 +149,7 @@ class GatewayConfigResolverTest {
   @Test
   fun resolveGatewayConnectConfigPrefersBootstrapTokenFromSetupCode() {
     val setupCode =
-      encodeSetupCode("""{"url":"wss://gateway.example:18789","bootstrapToken":"bootstrap-1"}""")
+      encodeSetupCode("""{"url":"wss://gateway.example:40705","bootstrapToken":"bootstrap-1"}""")
 
     val resolved =
       resolveGatewayConnectConfig(
@@ -163,7 +163,7 @@ class GatewayConfigResolverTest {
       )
 
     assertEquals("gateway.example", resolved?.host)
-    assertEquals(18789, resolved?.port)
+    assertEquals(40705, resolved?.port)
     assertEquals(true, resolved?.tls)
     assertEquals("bootstrap-1", resolved?.bootstrapToken)
     assertNull(resolved?.token?.takeIf { it.isNotEmpty() })

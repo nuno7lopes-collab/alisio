@@ -1,3 +1,4 @@
+import { DEFAULT_GATEWAY_PORT } from "../../config/paths.js";
 import type { GatewayBonjourBeacon } from "../../infra/bonjour-discovery.js";
 import { buildGatewayDiscoveryTarget } from "../../infra/gateway-discovery-targets.js";
 import { colorize, theme } from "../../terminal/theme.js";
@@ -77,7 +78,7 @@ export function renderBeaconLines(beacon: GatewayBonjourBeacon, rich: boolean): 
     lines.push(`  ${colorize(rich, theme.muted, "tls")}: ${fingerprint}`);
   }
   if (target.endpoint && target.sshPort) {
-    const ssh = `ssh -N -L 18789:127.0.0.1:18789 <user>@${target.endpoint.host} -p ${target.sshPort}`;
+    const ssh = `ssh -N -L ${DEFAULT_GATEWAY_PORT}:127.0.0.1:${DEFAULT_GATEWAY_PORT} <user>@${target.endpoint.host} -p ${target.sshPort}`;
     lines.push(`  ${colorize(rich, theme.muted, "ssh")}: ${colorize(rich, theme.command, ssh)}`);
   }
   return lines;

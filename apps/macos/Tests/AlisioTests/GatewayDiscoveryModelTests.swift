@@ -87,13 +87,13 @@ struct GatewayDiscoveryModelTests {
             "lanHost": "  studio.local  ",
             "tailnetDns": "  peters-mac-studio-1.ts.net  ",
             "sshPort": " 2222 ",
-            "gatewayPort": " 18799 ",
+            "gatewayPort": " 40715 ",
             "cliPath": " /opt/alisio ",
         ])
         #expect(parsed.lanHost == "studio.local")
         #expect(parsed.tailnetDns == "peters-mac-studio-1.ts.net")
         #expect(parsed.sshPort == 2222)
-        #expect(parsed.gatewayPort == 18799)
+        #expect(parsed.gatewayPort == 40715)
         #expect(parsed.cliPath == "/opt/alisio")
     }
 
@@ -126,11 +126,11 @@ struct GatewayDiscoveryModelTests {
         let dnsSdGateway = GatewayDiscoveryModel.DiscoveredGateway(
             displayName: "Nearby Gateway",
             serviceHost: "nearby-gateway.local",
-            servicePort: 18789,
+            servicePort: 40705,
             lanHost: "nearby-gateway.local",
             tailnetDns: nil,
             sshPort: 22,
-            gatewayPort: 18789,
+            gatewayPort: 40705,
             cliPath: nil,
             stableID: "bonjour|nearby-gateway",
             debugID: "bonjour",
@@ -145,11 +145,11 @@ struct GatewayDiscoveryModelTests {
         let dnsSdGateway = GatewayDiscoveryModel.DiscoveredGateway(
             displayName: "Nearby Gateway",
             serviceHost: "nearby-gateway.local",
-            servicePort: 18789,
+            servicePort: 40705,
             lanHost: "nearby-gateway.local",
             tailnetDns: nil,
             sshPort: 22,
-            gatewayPort: 18789,
+            gatewayPort: 40705,
             cliPath: nil,
             stableID: "bonjour|nearby-gateway",
             debugID: "bonjour",

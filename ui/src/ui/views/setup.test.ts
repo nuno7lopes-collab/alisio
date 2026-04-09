@@ -114,7 +114,7 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     startupError: null,
     startupBootstrap: {
       basePath: "/",
-      controlUrl: "ws://127.0.0.1:18789/",
+      controlUrl: "ws://127.0.0.1:40705/",
       startupState: "signed_out",
       account: null,
       accountCloud: {
@@ -201,6 +201,7 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onRejectRequest: vi.fn(),
     onRevokeGrant: vi.fn(),
     onSetPolicy: vi.fn(),
+    onSetResourcePolicy: vi.fn(),
     onBeginConnector: vi.fn(),
     onRevokeConnector: vi.fn(),
     onStartWizard: vi.fn(),
@@ -254,6 +255,7 @@ function createOrganizationProps(
     onRejectRequest: vi.fn(),
     onRevokeGrant: vi.fn(),
     onSetPolicy: vi.fn(),
+    onSetResourcePolicy: vi.fn(),
     ...overrides,
   };
 }
@@ -363,6 +365,162 @@ describe("setup view", () => {
     expect(action?.disabled).toBe(true);
   });
 
+  it("keeps execution upgrade requests on already shared devices in organization sharing", () => {
+    const onRequestAccess = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization(
+        createOrganizationProps({
+          organization: {
+            mode: "owner",
+            organizationName: "Team Orbit",
+            inviteEmail: "team@example.com",
+          },
+          onRequestAccess,
+          sharing: {
+            viewer: {
+              ownerKey: "organization:team-orbit",
+              ownerScope: "organization",
+              label: "Team Orbit",
+            },
+            planSupported: true,
+            policy: {
+              ownerKey: "organization:team-orbit",
+              ownerLabel: "Team Orbit",
+              allowExternalUse: true,
+              editable: true,
+            },
+            devices: {
+              owned: [],
+              available: [],
+              sharedWithMe: [
+                {
+                  targetId: "remote-1",
+                  label: "Render Node",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "organization:partner",
+                  ownerScope: "organization",
+                  ownerLabel: "Partner Org",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "requestable",
+                  grantScopes: ["read-only", "model-use"],
+                },
+              ],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const requestButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Request access exec"),
+    );
+    expect(requestButton).toBeDefined();
+
+    requestButton?.click();
+
+    expect(onRequestAccess).toHaveBeenCalledWith("remote-1", ["read-only", "model-use", "exec"]);
+    expect(
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((button) =>
+        button.textContent?.includes("Revoke"),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("renders organization sharing suggestions and per-resource policy controls", () => {
+    const onSetResourcePolicy = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderOrganization(
+        createOrganizationProps({
+          organization: {
+            mode: "owner",
+            organizationName: "Team Orbit",
+            inviteEmail: "team@example.com",
+          },
+          onSetResourcePolicy,
+          sharing: {
+            viewer: {
+              ownerKey: "organization:team-orbit",
+              ownerScope: "organization",
+              label: "Team Orbit",
+            },
+            planSupported: true,
+            policy: {
+              ownerKey: "organization:team-orbit",
+              ownerScope: "organization",
+              ownerLabel: "Team Orbit",
+              allowExternalUse: true,
+              editable: true,
+              resourcesEditable: true,
+              resourcePolicies: {
+                compute: "light-approval",
+                models: "paired-device",
+                jobs: "light-approval",
+                artifacts: "paired-device",
+                cache: "paired-device",
+                memory: "explicit-consent",
+                vault: "explicit-consent",
+                files: "explicit-consent",
+                context: "explicit-consent",
+              },
+            },
+            devices: {
+              owned: [],
+              available: [],
+              sharedWithMe: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+            suggestions: [
+              {
+                suggestionId: "distributed-jobs:remote-1",
+                kind: "distributed-jobs",
+                resource: "jobs",
+                targetId: "remote-1",
+                targetLabel: "Render Node",
+                sameAccount: false,
+              },
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Suggested sharing");
+    expect(text).toContain("Send distributed jobs to Render Node");
+    expect(text).toContain("Sharing policy");
+    expect(text).toContain("Compute");
+
+    const computeSelect = Array.from(container.querySelectorAll<HTMLSelectElement>("select")).find(
+      (select) => select.closest(".list-item")?.textContent?.includes("Compute"),
+    );
+    expect(computeSelect).toBeDefined();
+
+    computeSelect!.value = "paired-device";
+    computeSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(onSetResourcePolicy).toHaveBeenCalledWith("compute", "paired-device");
+  });
+
   it("renders the web-first setup flow and key steps", () => {
     const container = document.createElement("div");
     render(
@@ -372,7 +530,7 @@ describe("setup view", () => {
           lastError: "Runtime unavailable",
           startupBootstrap: {
             basePath: "/",
-            controlUrl: "ws://127.0.0.1:18789/",
+            controlUrl: "ws://127.0.0.1:40705/",
             startupState: "signed_out",
             account: {
               username: "nuno",

@@ -6,12 +6,12 @@ describe("browser chrome launch args", () => {
     const args = buildOpenClawChromeLaunchArgs({
       resolved: {
         enabled: true,
-        controlPort: 18791,
+        controlPort: 40707,
         cdpProtocol: "http",
         cdpHost: "127.0.0.1",
         cdpIsLoopback: true,
-        cdpPortRangeStart: 18800,
-        cdpPortRangeEnd: 18810,
+        cdpPortRangeStart: 40716,
+        cdpPortRangeEnd: 40726,
         evaluateEnabled: false,
         remoteCdpTimeoutMs: 1500,
         remoteCdpHandshakeTimeoutMs: 3000,
@@ -23,13 +23,13 @@ describe("browser chrome launch args", () => {
         ssrfPolicy: { allowPrivateNetwork: true },
         defaultProfile: "openclaw",
         profiles: {
-          openclaw: { cdpPort: 18800, color: "#FF4500" },
+          openclaw: { cdpPort: 40716, color: "#FF4500" },
         },
       },
       profile: {
         name: "openclaw",
-        cdpUrl: "http://127.0.0.1:18800",
-        cdpPort: 18800,
+        cdpUrl: "http://127.0.0.1:40716",
+        cdpPort: 40716,
         cdpHost: "127.0.0.1",
         cdpIsLoopback: true,
         color: "#FF4500",
@@ -40,7 +40,7 @@ describe("browser chrome launch args", () => {
     });
 
     expect(args).not.toContain("about:blank");
-    expect(args).toContain("--remote-debugging-port=18800");
+    expect(args).toContain("--remote-debugging-port=40716");
     expect(args).toContain("--user-data-dir=/tmp/openclaw-test-user-data");
   });
 });

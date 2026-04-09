@@ -77,7 +77,7 @@ async function withExecDryRunConfigHarness(
       configPath,
       `${JSON.stringify(
         {
-          gateway: { port: 18789 },
+          gateway: { port: 40705 },
         },
         null,
         2,
@@ -124,7 +124,7 @@ describe("config cli integration", () => {
         configPath,
         `${JSON.stringify(
           {
-            gateway: { port: 18789 },
+            gateway: { port: 40705 },
           },
           null,
           2,
@@ -212,7 +212,7 @@ describe("config cli integration", () => {
         configPath,
         `${JSON.stringify(
           {
-            gateway: { port: 18789 },
+            gateway: { port: 40705 },
             secrets: {
               providers: {
                 default: { source: "env" },

@@ -1,7 +1,8 @@
 import type { DeliveryContext } from "../utils/delivery-context.js";
 import type { SubagentRunOutcome } from "./subagent-announce.js";
 import type { SubagentLifecycleEndedReason } from "./subagent-lifecycle-events.js";
-import type { SpawnSubagentMode } from "./subagent-spawn.js";
+
+export type TrackedSubagentSpawnMode = "run" | "session";
 
 export type SubagentRunRecord = {
   runId: string;
@@ -16,7 +17,7 @@ export type SubagentRunRecord = {
   model?: string;
   workspaceDir?: string;
   runTimeoutSeconds?: number;
-  spawnMode?: SpawnSubagentMode;
+  spawnMode?: TrackedSubagentSpawnMode;
   createdAt: number;
   /** Start time of the current run attempt. */
   startedAt?: number;

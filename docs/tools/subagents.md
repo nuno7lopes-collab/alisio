@@ -3,7 +3,7 @@ summary: "Sub-agents: spawning isolated agent runs that announce results back to
 read_when:
   - You want background/parallel work via the agent
   - You are changing sessions_spawn or sub-agent tool policy
-  - You are implementing or troubleshooting thread-bound subagent sessions
+  - You are implementing or troubleshooting thread-bound subagent task runs
 title: "Sub-Agents"
 ---
 
@@ -21,7 +21,7 @@ Use `/subagents` to inspect or control sub-agent runs for the **current session*
 - `/subagents info <id|#>`
 - `/subagents send <id|#> <message>`
 - `/subagents steer <id|#> <message>`
-- `/subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]`
+- `/subagents spawn <task> [--model <model>] [--thinking <level>]`
 
 Thread binding controls:
 
@@ -86,17 +86,17 @@ Tool params:
 
 - `task` (required)
 - `label?` (optional)
-- `agentId?` (optional; spawn under another agent id if allowed)
+- `agentId?` (ACP-only; internal `runtime: "subagent"` workers always run under the requester agent)
 - `model?` (optional; overrides the sub-agent model; invalid values are skipped and the sub-agent runs on the default model with a warning in the tool result)
 - `thinking?` (optional; overrides thinking level for the sub-agent run)
 - `runTimeoutSeconds?` (defaults to `agents.defaults.subagents.runTimeoutSeconds` when set, otherwise `0`; when set, the sub-agent run is aborted after N seconds)
 - `thread?` (default `false`; when `true`, requests channel thread binding for this sub-agent session)
 - `mode?` (`run|session`)
-  - for `runtime: "subagent"`, effective mode is always `run`
-  - legacy `mode: "session"` requests are normalized to `run` for compatibility and are scheduled for final removal after 2026-06-30
+  - for `runtime: "subagent"`, only `run` is supported
+  - `mode: "session"` is rejected for `runtime: "subagent"`
   - `mode: "session"` remains valid for `runtime: "acp"`
 - `cleanup?` (`delete|keep`, default `keep`)
-- `sandbox?` (`inherit|require`, default `inherit`; `require` rejects spawn unless target child runtime is sandboxed)
+- `sandbox?` (`inherit|require`, default `inherit`; `require` rejects spawn unless the child runtime is sandboxed)
 - `sessions_spawn` does **not** accept channel-delivery params (`target`, `channel`, `to`, `threadId`, `replyTo`, `transport`). For delivery, use `message`/`sessions_send` from the spawned run.
 
 ## Thread-bound sessions
@@ -105,7 +105,8 @@ When thread bindings are enabled for a channel, a sub-agent can temporarily bind
 
 ### Thread supporting channels
 
-- Discord (currently the only supported channel): supports temporary thread-bound subagent task runs (`sessions_spawn` with `thread: true`), manual thread controls (`/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`), and adapter keys `channels.discord.threadBindings.enabled`, `channels.discord.threadBindings.idleHours`, `channels.discord.threadBindings.maxAgeHours`, and `channels.discord.threadBindings.spawnSubagentSessions`.
+- Discord: supports temporary thread-bound subagent task runs (`sessions_spawn` with `thread: true`), manual thread controls (`/focus`, `/unfocus`, `/agents`, `/session idle`, `/session max-age`), and adapter keys `channels.discord.threadBindings.enabled`, `channels.discord.threadBindings.idleHours`, `channels.discord.threadBindings.maxAgeHours`, and `channels.discord.threadBindings.spawnSubagentSessions`.
+- Matrix: supports the same temporary thread-bound task pattern with `channels.matrix.threadBindings.*` and `channels.matrix.threadBindings.spawnSubagentSessions`.
 
 Quick flow:
 
@@ -133,14 +134,15 @@ Compatibility note:
 
 See [Configuration Reference](/gateway/configuration-reference) and [Slash commands](/tools/slash-commands) for current adapter details.
 
-Allowlist:
+Targeting:
 
-- `agents.list[].subagents.allowAgents`: list of agent ids that can be targeted via `agentId` (`["*"]` to allow any). Default: only the requester agent.
-- Sandbox inheritance guard: if the requester session is sandboxed, `sessions_spawn` rejects targets that would run unsandboxed.
+- Internal `runtime: "subagent"` workers always stay on the requester agent and reject cross-agent `agentId` targeting.
+- Use `runtime: "acp"` plus `acp.allowedAgents` when you need a persistent or cross-agent agent identity.
+- Sandbox inheritance guard: if the requester session is sandboxed, `sessions_spawn` rejects child runtimes that would run unsandboxed.
 
 Discovery:
 
-- Use `agents_list` to see which agent ids are currently allowed for `sessions_spawn`.
+- `agents_list` now shows the current Alisio agent context used for internal subagents. It is not a picker for cross-agent subagent targets.
 
 Auto-archive:
 

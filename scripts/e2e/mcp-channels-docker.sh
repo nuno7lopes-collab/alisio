@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 IMAGE_NAME="${ALISIO_IMAGE:-alisio-mcp-channels-e2e}"
-PORT="18789"
+PORT="40705"
 TOKEN="mcp-e2e-$(date +%s)-$$"
 CONTAINER_NAME="alisio-mcp-e2e-$$"
 CLIENT_LOG="$(mktemp -t alisio-mcp-client-log.XXXXXX)"

@@ -20,7 +20,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/node /home/alisio/.npm-global/lib/node_modules/alisio/dist/entry.js gateway --port 18789
+ExecStart=/usr/bin/node /home/alisio/.npm-global/lib/node_modules/alisio/dist/entry.js gateway --port 40705
 Restart=always
 Environment=ALISIO_SERVICE_MARKER=alisio
 Environment=ALISIO_SERVICE_KIND=gateway
@@ -36,7 +36,7 @@ Description=OpenClaw Gateway
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/node /home/openclaw/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 18789
+ExecStart=/usr/bin/node /home/openclaw/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 40705
 Environment=OPENCLAW_SERVICE_MARKER=openclaw
 Environment=OPENCLAW_SERVICE_KIND=gateway
 
@@ -63,7 +63,7 @@ const CLAWDBOT_GATEWAY_CONTENTS = `\
 [Unit]
 Description=Clawdbot Gateway
 [Service]
-ExecStart=/usr/bin/node /opt/clawdbot/dist/entry.js gateway --port 18789
+ExecStart=/usr/bin/node /opt/clawdbot/dist/entry.js gateway --port 40705
 Environment=HOME=/home/clawdbot
 `;
 
@@ -81,7 +81,7 @@ describe("detectMarkerLineWithGateway", () => {
   });
 
   it("handles line continuations — marker and gateway split across physical lines", () => {
-    const contents = `[Service]\nExecStart=/usr/bin/node /opt/alisio/dist/entry.js \\\n  gateway --port 18789\n`;
+    const contents = `[Service]\nExecStart=/usr/bin/node /opt/alisio/dist/entry.js \\\n  gateway --port 40705\n`;
     expect(detectMarkerLineWithGateway(contents)).toBe("alisio");
   });
 });

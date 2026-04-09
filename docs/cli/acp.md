@@ -66,10 +66,10 @@ conversations instead of hosting an ACP harness session, use
 alisio acp
 
 # Remote Gateway
-alisio acp --url wss://gateway-host:18789 --token <token>
+alisio acp --url wss://gateway-host:40705 --token <token>
 
 # Remote Gateway (token from file)
-alisio acp --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
+alisio acp --url wss://gateway-host:40705 --token-file ~/.alisio/gateway.token
 
 # Attach to an existing session key
 alisio acp --session agent:main:main
@@ -90,7 +90,7 @@ It spawns the ACP bridge and lets you type prompts interactively.
 alisio acp client
 
 # Point the spawned bridge at a remote Gateway
-alisio acp client --server-args --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
+alisio acp client --server-args --url wss://gateway-host:40705 --token-file ~/.alisio/gateway.token
 
 # Override the server command (default: alisio)
 alisio acp client --server "node" --server-args alisio.mjs acp --url ws://127.0.0.1:19001
@@ -115,16 +115,16 @@ it to drive an Alisio Gateway session.
 Example config (persisted):
 
 ```bash
-alisio config set gateway.remote.url wss://gateway-host:18789
+alisio config set gateway.remote.url wss://gateway-host:40705
 alisio config set gateway.remote.token <token>
 ```
 
 Example direct run (no config write):
 
 ```bash
-alisio acp --url wss://gateway-host:18789 --token <token>
+alisio acp --url wss://gateway-host:40705 --token <token>
 # preferred for local process safety
-alisio acp --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
+alisio acp --url wss://gateway-host:40705 --token-file ~/.alisio/gateway.token
 ```
 
 ## Selecting agents
@@ -181,7 +181,7 @@ time, override the `alisio` agent command in `~/.acpx/config.json`:
 {
   "agents": {
     "alisio": {
-      "command": "env ALISIO_HIDE_BANNER=1 ALISIO_SUPPRESS_NOTES=1 alisio acp --url ws://127.0.0.1:18789 --token-file ~/.alisio/gateway.token --session agent:main:main"
+      "command": "env ALISIO_HIDE_BANNER=1 ALISIO_SUPPRESS_NOTES=1 alisio acp --url ws://127.0.0.1:40705 --token-file ~/.alisio/gateway.token --session agent:main:main"
     }
   }
 }
@@ -225,7 +225,7 @@ To target a specific Gateway or agent:
       "args": [
         "acp",
         "--url",
-        "wss://gateway-host:18789",
+        "wss://gateway-host:40705",
         "--token",
         "<token>",
         "--session",

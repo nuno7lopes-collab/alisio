@@ -44,12 +44,12 @@ describe("browser client", () => {
 
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(fetchFailed));
 
-    await expect(browserStatus("http://127.0.0.1:18791")).rejects.toThrow(/sandboxed session/i);
+    await expect(browserStatus("http://127.0.0.1:40707")).rejects.toThrow(/sandboxed session/i);
   });
 
   it("adds useful timeout messaging for abort-like failures", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("aborted")));
-    await expect(browserStatus("http://127.0.0.1:18791")).rejects.toThrow(/timed out/i);
+    await expect(browserStatus("http://127.0.0.1:40707")).rejects.toThrow(/timed out/i);
   });
 
   it("surfaces non-2xx responses with body text", async () => {
@@ -63,7 +63,7 @@ describe("browser client", () => {
     );
 
     await expect(
-      browserSnapshot("http://127.0.0.1:18791", { format: "aria", limit: 1 }),
+      browserSnapshot("http://127.0.0.1:40707", { format: "aria", limit: 1 }),
     ).rejects.toThrow(/conflict/i);
   });
 
@@ -72,7 +72,7 @@ describe("browser client", () => {
     stubSnapshotFetch(calls);
 
     await expect(
-      browserSnapshot("http://127.0.0.1:18791", {
+      browserSnapshot("http://127.0.0.1:40707", {
         format: "ai",
         labels: true,
         mode: "efficient",
@@ -90,7 +90,7 @@ describe("browser client", () => {
     const calls: string[] = [];
     stubSnapshotFetch(calls);
 
-    await browserSnapshot("http://127.0.0.1:18791", {
+    await browserSnapshot("http://127.0.0.1:40707", {
       format: "ai",
       refs: "aria",
     });
@@ -105,7 +105,7 @@ describe("browser client", () => {
     const calls: string[] = [];
     stubSnapshotFetch(calls);
 
-    await browserSnapshot("http://127.0.0.1:18791", {
+    await browserSnapshot("http://127.0.0.1:40707", {
       profile: "chrome",
     });
 
@@ -226,8 +226,8 @@ describe("browser client", () => {
             enabled: true,
             running: true,
             pid: 1,
-            cdpPort: 18792,
-            cdpUrl: "http://127.0.0.1:18792",
+            cdpPort: 40708,
+            cdpUrl: "http://127.0.0.1:40708",
             chosenBrowser: "chrome",
             userDataDir: "/tmp",
             color: "#FF4500",
@@ -240,43 +240,43 @@ describe("browser client", () => {
       }),
     );
 
-    await expect(browserStatus("http://127.0.0.1:18791")).resolves.toMatchObject({
+    await expect(browserStatus("http://127.0.0.1:40707")).resolves.toMatchObject({
       running: true,
-      cdpPort: 18792,
+      cdpPort: 40708,
     });
 
-    await expect(browserTabs("http://127.0.0.1:18791")).resolves.toHaveLength(1);
+    await expect(browserTabs("http://127.0.0.1:40707")).resolves.toHaveLength(1);
     await expect(
-      browserOpenTab("http://127.0.0.1:18791", "https://example.com"),
+      browserOpenTab("http://127.0.0.1:40707", "https://example.com"),
     ).resolves.toMatchObject({ targetId: "t2" });
 
     await expect(
-      browserSnapshot("http://127.0.0.1:18791", { format: "aria", limit: 1 }),
+      browserSnapshot("http://127.0.0.1:40707", { format: "aria", limit: 1 }),
     ).resolves.toMatchObject({ ok: true, format: "aria" });
 
     await expect(
-      browserNavigate("http://127.0.0.1:18791", { url: "https://example.com" }),
+      browserNavigate("http://127.0.0.1:40707", { url: "https://example.com" }),
     ).resolves.toMatchObject({ ok: true, targetId: "t1" });
     await expect(
-      browserAct("http://127.0.0.1:18791", { kind: "click", ref: "1" }),
+      browserAct("http://127.0.0.1:40707", { kind: "click", ref: "1" }),
     ).resolves.toMatchObject({ ok: true, targetId: "t1", results: [{ ok: true }] });
     await expect(
-      browserArmFileChooser("http://127.0.0.1:18791", {
+      browserArmFileChooser("http://127.0.0.1:40707", {
         paths: ["/tmp/a.txt"],
       }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
-      browserArmDialog("http://127.0.0.1:18791", { accept: true }),
+      browserArmDialog("http://127.0.0.1:40707", { accept: true }),
     ).resolves.toMatchObject({ ok: true });
     await expect(
-      browserConsoleMessages("http://127.0.0.1:18791", { level: "error" }),
+      browserConsoleMessages("http://127.0.0.1:40707", { level: "error" }),
     ).resolves.toMatchObject({ ok: true, targetId: "t1" });
-    await expect(browserPdfSave("http://127.0.0.1:18791")).resolves.toMatchObject({
+    await expect(browserPdfSave("http://127.0.0.1:40707")).resolves.toMatchObject({
       ok: true,
       path: "/tmp/a.pdf",
     });
     await expect(
-      browserScreenshotAction("http://127.0.0.1:18791", { fullPage: true }),
+      browserScreenshotAction("http://127.0.0.1:40707", { fullPage: true }),
     ).resolves.toMatchObject({ ok: true, path: "/tmp/a.png" });
 
     expect(calls.some((c) => c.url.endsWith("/tabs"))).toBe(true);

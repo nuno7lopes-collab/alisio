@@ -36,6 +36,7 @@ const NODE_ROLE_METHODS = new Set([
 const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
   [APPROVALS_SCOPE]: [
     "approval.audit.get",
+    "approval.pending.get",
     "exec.approval.request",
     "exec.approval.waitDecision",
     "exec.approval.resolve",
@@ -67,6 +68,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.doctor.summary",
     "alisio.providers.get",
     "alisio.organization.get",
+    // Legacy compatibility gateway surface. Keep minimal and do not extend.
     "alisio.sharing.get",
     "alisio.connectors.catalog",
     "alisio.connectors.list",
@@ -138,6 +140,7 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "alisio.ai.renameProfile",
     "alisio.ai.selectProfile",
     "alisio.organization.set",
+    // Legacy compatibility gateway surface. Keep minimal and do not extend.
     "alisio.sharing.request",
     "alisio.sharing.approve",
     "alisio.sharing.reject",
@@ -147,11 +150,13 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "devices.share.approve",
     "devices.share.revoke",
     "devices.policy.set",
+    // Legacy compatibility gateway surface. Keep minimal and do not extend.
     "alisio.connectors.begin",
     "alisio.connectors.complete",
     "alisio.connectors.revoke",
     "alisio.models.install",
     "alisio.models.uninstall",
+    "alisio.models.runtime.start",
     "alisio.models.server.save",
     "alisio.models.server.remove",
     "alisio.models.server.select",
@@ -177,6 +182,8 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
   ],
   [ADMIN_SCOPE]: [
     "alisio.runtime.restart",
+    "alisio.security.policy.get",
+    "alisio.security.policy.applyProfile",
     "channels.logout",
     "agents.create",
     "agents.update",

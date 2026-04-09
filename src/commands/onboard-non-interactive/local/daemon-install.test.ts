@@ -72,7 +72,7 @@ describe("installGatewayDaemonNonInteractive", () => {
       } as AlisioConfig,
       opts: { installDaemon: true },
       runtime,
-      port: 18789,
+      port: 40705,
     });
 
     expect(resolveGatewayInstallToken).toHaveBeenCalledTimes(1);
@@ -94,7 +94,7 @@ describe("installGatewayDaemonNonInteractive", () => {
       nextConfig: {} as AlisioConfig,
       opts: { installDaemon: true },
       runtime,
-      port: 18789,
+      port: 40705,
     });
 
     expect(runtime.error).toHaveBeenCalledWith(expect.stringContaining("Gateway install blocked"));
@@ -118,7 +118,7 @@ describe("installGatewayDaemonNonInteractive", () => {
         nextConfig: {} as AlisioConfig,
         opts: { installDaemon: true },
         runtime,
-        port: 18789,
+        port: 40705,
       });
 
       expect(result).toEqual({

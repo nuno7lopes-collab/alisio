@@ -26,9 +26,9 @@ class GatewaySessionInvokeTimeoutTest {
   @Test
   fun replaceCanvasCapabilityInScopedHostUrl_rewritesTerminalCapabilitySegment() {
     assertEquals(
-      "http://127.0.0.1:18789/__alisio__/cap/new-token",
+      "http://127.0.0.1:40705/__alisio__/cap/new-token",
       replaceCanvasCapabilityInScopedHostUrl(
-        "http://127.0.0.1:18789/__alisio__/cap/old-token",
+        "http://127.0.0.1:40705/__alisio__/cap/old-token",
         "new-token",
       ),
     )
@@ -37,9 +37,9 @@ class GatewaySessionInvokeTimeoutTest {
   @Test
   fun replaceCanvasCapabilityInScopedHostUrl_rewritesWhenQueryAndFragmentPresent() {
     assertEquals(
-      "http://127.0.0.1:18789/__alisio__/cap/new-token?a=1#frag",
+      "http://127.0.0.1:40705/__alisio__/cap/new-token?a=1#frag",
       replaceCanvasCapabilityInScopedHostUrl(
-        "http://127.0.0.1:18789/__alisio__/cap/old-token?a=1#frag",
+        "http://127.0.0.1:40705/__alisio__/cap/old-token?a=1#frag",
         "new-token",
       ),
     )

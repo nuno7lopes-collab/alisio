@@ -109,7 +109,6 @@ import {
   revokeDeviceToken,
   rotateDeviceToken,
 } from "./controllers/devices.ts";
-import { loadApprovalAuditTrail } from "./controllers/exec-approval.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -118,7 +117,7 @@ import {
   saveExecApprovals,
   updateExecApprovalsFormValue,
 } from "./controllers/exec-approvals.ts";
-import { loadMemoryStatus, syncMemoryNow } from "./controllers/memory-runtime.ts";
+import { loadMemoryGraph, loadMemoryStatus, syncMemoryNow } from "./controllers/memory-runtime.ts";
 import {
   approveNodePairing,
   loadNodePairings,
@@ -157,10 +156,14 @@ import {
   setVoiceWake,
 } from "./lume-host.ts";
 import "./components/dashboard-header.ts";
-import { PRIMARY_MEMORY_FILE_NAME } from "./memory-files.ts";
-import { buildMemoryNoteName } from "./memory-files.ts";
+import {
+  buildMemoryNoteName,
+  humanizeMemoryNoteTitle,
+  isMemoryNoteFileName,
+  PRIMARY_MEMORY_FILE_NAME,
+} from "./memory-files.ts";
 import type { ModelsServerDraft } from "./models-view-types.ts";
-import { TAB_GROUPS, pathForTab, publicTabFor, subtitleForTab, titleForTab } from "./navigation.ts";
+import { TAB_GROUPS, pathForTab, publicTabFor } from "./navigation.ts";
 import {
   closeReservedExternalPopup,
   navigateReservedExternalPopup,
@@ -323,6 +326,25 @@ function scheduleOpenAiRefresh(state: AppViewState) {
   };
 
   tick();
+}
+
+function resolveMemoryGraphQuery(name: string | null | undefined): string | null {
+  if (!name || !isMemoryNoteFileName(name)) {
+    return null;
+  }
+  const title = humanizeMemoryNoteTitle(name).trim();
+  return title || null;
+}
+
+async function reloadMemoryGraphForSelection(
+  state: AppViewState,
+  agentId: string,
+  activeName: string | null | undefined,
+) {
+  await loadMemoryGraph(state, {
+    agentId,
+    query: resolveMemoryGraphQuery(activeName),
+  });
 }
 
 function scheduleAccountRefresh(state: AppViewState) {
@@ -713,6 +735,13 @@ export function renderApp(state: AppViewState) {
     onSetPolicy: (allowExternalUse) => {
       void saveAlisioSharingPolicy(state, allowExternalUse);
     },
+    onSetResourcePolicy: (resource, mode) => {
+      void saveAlisioSharingPolicy(state, {
+        resourcePolicies: {
+          [resource]: mode,
+        },
+      });
+    },
     onBeginConnector: (connectorId) => {
       beginConnectorFlow(state, connectorId);
     },
@@ -840,10 +869,12 @@ export function renderApp(state: AppViewState) {
 
   const chatDisabledReason = state.connected ? null : t("chat.disconnected");
   const activeTab = publicTabFor(state.tab);
-  const chatSecurityDiagnostics = resolveSecurityAccessDiagnostics({
-    configForm: state.configForm ?? state.configSnapshot?.config ?? null,
-    execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
-  });
+  const chatSecurityDiagnostics =
+    state.securityAccessDiagnostics ??
+    resolveSecurityAccessDiagnostics({
+      configForm: state.configForm ?? state.configSnapshot?.config ?? null,
+      execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
+    });
   const chatModelSelectState = resolveChatModelSelectState(state);
   const effectiveChatModelValue =
     chatModelSelectState.currentOverride || chatModelSelectState.defaultModel;
@@ -851,14 +882,6 @@ export function renderApp(state: AppViewState) {
     chatModelSelectState.options.find((entry) => entry.value === effectiveChatModelValue)?.label ??
     chatModelSelectState.defaultDisplay;
   const isChat = activeTab === "chat";
-  const showContentHeader = ![
-    "authentications",
-    "capabilities",
-    "channels",
-    "connections",
-    "organization",
-    "security",
-  ].includes(activeTab);
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
   const navCollapsed = Boolean(state.settings.navCollapsed && !navDrawerOpen);
@@ -894,6 +917,7 @@ export function renderApp(state: AppViewState) {
         },
       );
       state.execApprovalQueue = state.execApprovalQueue.filter((item) => item.id !== entry.id);
+      await loadGatewayAccessMode(state);
     } catch (err) {
       state.execApprovalError = `Approval failed: ${String(err)}`;
     } finally {
@@ -918,6 +942,7 @@ export function renderApp(state: AppViewState) {
     sessionKey: state.sessionKey,
     assistantAgentId: state.assistantAgentId,
   });
+  const memoryGraphQuery = resolveMemoryGraphQuery(state.memoryActive);
   const refreshMemory = () => {
     void (async () => {
       await loadAgents(state);
@@ -937,6 +962,7 @@ export function renderApp(state: AppViewState) {
         }),
         loadMemoryStatus(state, agentId, { reset: true }),
       ]);
+      await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
     })();
   };
   if (shouldShowSetup) {
@@ -1198,29 +1224,7 @@ export function renderApp(state: AppViewState) {
               </button>
             </div>`
           : nothing}
-        ${showContentHeader
-          ? html`
-              <section
-                class=${activeTab === "settings"
-                  ? "content-header content-header--settings"
-                  : "content-header"}
-              >
-                <div>
-                  <div class="page-title">${titleForTab(activeTab)}</div>
-                  ${activeTab === "settings"
-                    ? nothing
-                    : html`<div class="page-sub">${subtitleForTab(activeTab)}</div>`}
-                </div>
-                <div class="page-meta">
-                  ${state.lastError
-                    ? html`<div class="pill danger">${state.lastError}</div>`
-                    : nothing}
-                </div>
-              </section>
-            `
-          : state.lastError
-            ? html`<div class="callout danger">${state.lastError}</div>`
-            : nothing}
+        ${state.lastError ? html`<div class="callout danger">${state.lastError}</div>` : nothing}
         ${activeTab === "authentications"
           ? renderAuthentications({
               loading: state.alisioProvidersLoading,
@@ -1480,6 +1484,13 @@ export function renderApp(state: AppViewState) {
               onSharingSetPolicy: (allowExternalUse) => {
                 void saveAlisioSharingPolicy(state, allowExternalUse);
               },
+              onSharingSetResourcePolicy: (resource, mode) => {
+                void saveAlisioSharingPolicy(state, {
+                  resourcePolicies: {
+                    [resource]: mode,
+                  },
+                });
+              },
               onNodeApprove: (requestId) => {
                 void Promise.allSettled([approveNodePairing(state, requestId), loadNodes(state)]);
               },
@@ -1587,12 +1598,12 @@ export function renderApp(state: AppViewState) {
               gatewayAccessModeLoading: state.gatewayAccessModeLoading,
               gatewayAccessModeBusy: state.gatewayAccessModeBusy,
               gatewayAccessMode: state.gatewayAccessMode,
+              securityDiagnostics: state.securityAccessDiagnostics,
               onRefresh: () => {
                 void Promise.allSettled([
                   loadNodes(state),
                   loadConfig(state),
                   loadSelectedExecApprovals(state),
-                  loadApprovalAuditTrail(state),
                   loadGatewayAccessMode(state),
                 ]);
               },
@@ -1684,6 +1695,13 @@ export function renderApp(state: AppViewState) {
               onSetPolicy: (allowExternalUse) => {
                 void saveAlisioSharingPolicy(state, allowExternalUse);
               },
+              onSetResourcePolicy: (resource, mode) => {
+                void saveAlisioSharingPolicy(state, {
+                  resourcePolicies: {
+                    [resource]: mode,
+                  },
+                });
+              },
             })
           : nothing}
         ${activeTab === "chat"
@@ -1742,7 +1760,6 @@ export function renderApp(state: AppViewState) {
                   }),
                   refreshChatAvatar(state),
                   loadGatewayAccessMode(state),
-                  loadApprovalAuditTrail(state),
                   loadNativeShellState(state),
                 ]);
               },
@@ -1870,6 +1887,10 @@ export function renderApp(state: AppViewState) {
               memoryStatus: state.memoryStatus,
               memorySyncing: state.memorySyncing,
               memorySyncAvailable: state.memorySyncAvailable,
+              memoryGraphLoading: state.memoryGraphLoading,
+              memoryGraphError: state.memoryGraphError,
+              memoryGraph: state.memoryGraph,
+              memoryGraphQuery,
               configLoading: state.configLoading || state.configSchemaLoading,
               configSaving: state.configSaving,
               configDirty: state.configFormDirty,
@@ -1890,6 +1911,7 @@ export function renderApp(state: AppViewState) {
                   }),
                   loadMemoryStatus(state, agentId, { reset: true }),
                 ]);
+                void reloadMemoryGraphForSelection(state, agentId, PRIMARY_MEMORY_FILE_NAME);
               },
               onRefresh: refreshMemory,
               onSearchChange: (value) => {
@@ -1901,9 +1923,14 @@ export function renderApp(state: AppViewState) {
                   return;
                 }
                 state.memoryActive = name;
-                void loadAgentMemoryFileContent(state, agentId, name, {
-                  preserveDraft: true,
-                });
+                void (async () => {
+                  await Promise.allSettled([
+                    loadAgentMemoryFileContent(state, agentId, name, {
+                      preserveDraft: true,
+                    }),
+                    reloadMemoryGraphForSelection(state, agentId, name),
+                  ]);
+                })();
               },
               onDraftChange: (name, content) => {
                 state.memoryDrafts = { ...state.memoryDrafts, [name]: content };
@@ -1922,6 +1949,7 @@ export function renderApp(state: AppViewState) {
                 void (async () => {
                   await saveAgentMemoryFile(state, agentId, name, state.memoryDrafts[name] ?? "");
                   await loadMemoryStatus(state, agentId);
+                  await reloadMemoryGraphForSelection(state, agentId, name);
                 })();
               },
               onDeleteFile: (name) => {
@@ -1937,6 +1965,7 @@ export function renderApp(state: AppViewState) {
                     }),
                     loadMemoryStatus(state, agentId, { reset: true }),
                   ]);
+                  await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
                 })();
               },
               onComposerOpenChange: (open) => {
@@ -1974,6 +2003,7 @@ export function renderApp(state: AppViewState) {
                     }),
                     loadMemoryStatus(state, agentId, { reset: true }),
                   ]);
+                  await reloadMemoryGraphForSelection(state, agentId, noteName);
                 })();
               },
               onSync: () => {
@@ -1983,9 +2013,11 @@ export function renderApp(state: AppViewState) {
                 }
                 void (async () => {
                   await syncMemoryNow(state, agentId);
+                  const preferredName = state.memoryActive ?? PRIMARY_MEMORY_FILE_NAME;
                   await loadAgentMemoryFiles(state, agentId, {
-                    preferredName: state.memoryActive ?? PRIMARY_MEMORY_FILE_NAME,
+                    preferredName,
                   });
+                  await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
                 })();
               },
               onUseLocalEmbeddings: () => {
@@ -1999,6 +2031,7 @@ export function renderApp(state: AppViewState) {
                   await saveConfig(state);
                   if (agentId) {
                     await loadMemoryStatus(state, agentId, { reset: true });
+                    await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
                   }
                 })();
               },
@@ -2027,6 +2060,7 @@ export function renderApp(state: AppViewState) {
                   await saveConfig(state);
                   if (agentId) {
                     await loadMemoryStatus(state, agentId, { reset: true });
+                    await reloadMemoryGraphForSelection(state, agentId, state.memoryActive);
                   }
                 })();
               },

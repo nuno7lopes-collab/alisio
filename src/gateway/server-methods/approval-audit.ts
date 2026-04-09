@@ -1,7 +1,10 @@
 import type { ExecApprovalDecision } from "../../infra/exec-approvals.js";
 import type { PluginApprovalRequestPayload } from "../../infra/plugin-approvals.js";
-import { validateApprovalAuditGetParams } from "../protocol/index.js";
-import type { GatewayRequestHandlers } from "./types.js";
+import {
+  validateApprovalAuditGetParams,
+  validateApprovalPendingGetParams,
+} from "../protocol/index.js";
+import type { GatewayRequestContext, GatewayRequestHandlers } from "./types.js";
 import { assertValidParams } from "./validation.js";
 
 type GatewayLogger = {
@@ -9,7 +12,7 @@ type GatewayLogger = {
 };
 
 type ExecApprovalAuditRequest = {
-  command?: string | null;
+  command: string;
   commandPreview?: string | null;
   envKeys?: string[] | null;
   host?: string | null;
@@ -44,6 +47,26 @@ export type ApprovalAuditTrailSnapshot = {
   items: ApprovalAuditTrailEntry[];
 };
 
+export type ApprovalPendingEntry =
+  | {
+      kind: "exec";
+      id: string;
+      createdAtMs: number;
+      expiresAtMs: number;
+      request: ExecApprovalAuditRequest;
+    }
+  | {
+      kind: "plugin";
+      id: string;
+      createdAtMs: number;
+      expiresAtMs: number;
+      request: PluginApprovalRequestPayload;
+    };
+
+export type ApprovalPendingSnapshot = {
+  items: ApprovalPendingEntry[];
+};
+
 const APPROVAL_AUDIT_TRAIL_LIMIT = 20;
 const approvalAuditTrail: ApprovalAuditTrailEntry[] = [];
 
@@ -68,6 +91,28 @@ export function listApprovalAuditTrail(): ApprovalAuditTrailEntry[] {
   return approvalAuditTrail.map((entry) => cloneAuditValue(entry));
 }
 
+export function listPendingApprovalSnapshot(
+  context: Pick<GatewayRequestContext, "execApprovalManager" | "pluginApprovalManager">,
+): ApprovalPendingSnapshot {
+  const execItems =
+    context.execApprovalManager?.listPendingSnapshots().map((record) => ({
+      kind: "exec" as const,
+      id: record.id,
+      createdAtMs: record.createdAtMs,
+      expiresAtMs: record.expiresAtMs,
+      request: normalizeExecApprovalAuditRequest(record.request),
+    })) ?? [];
+  const pluginItems =
+    context.pluginApprovalManager?.listPendingSnapshots().map((record) => ({
+      kind: "plugin" as const,
+      id: record.id,
+      createdAtMs: record.createdAtMs,
+      expiresAtMs: record.expiresAtMs,
+      request: cloneAuditValue(record.request),
+    })) ?? [];
+  return { items: [...execItems, ...pluginItems] };
+}
+
 export function __resetApprovalAuditTrailForTest() {
   approvalAuditTrail.length = 0;
 }
@@ -78,6 +123,27 @@ function appendPart(parts: string[], key: string, value: string | null | undefin
     return;
   }
   parts.push(`${key}=${JSON.stringify(normalized)}`);
+}
+
+function normalizeExecApprovalAuditRequest(
+  request: Partial<ExecApprovalAuditRequest> | null | undefined,
+): ExecApprovalAuditRequest {
+  return {
+    command:
+      typeof request?.command === "string" && request.command.trim()
+        ? request.command.trim()
+        : "[unknown]",
+    commandPreview: typeof request?.commandPreview === "string" ? request.commandPreview : null,
+    envKeys: Array.isArray(request?.envKeys) ? request.envKeys : null,
+    host: typeof request?.host === "string" ? request.host : null,
+    nodeId: typeof request?.nodeId === "string" ? request.nodeId : null,
+    security: typeof request?.security === "string" ? request.security : null,
+    ask: typeof request?.ask === "string" ? request.ask : null,
+    agentId: typeof request?.agentId === "string" ? request.agentId : null,
+    sessionKey: typeof request?.sessionKey === "string" ? request.sessionKey : null,
+    cwd: typeof request?.cwd === "string" ? request.cwd : null,
+    resolvedPath: typeof request?.resolvedPath === "string" ? request.resolvedPath : null,
+  };
 }
 
 function buildExecApprovalAuditParts(request: ExecApprovalAuditRequest): string[] {
@@ -102,7 +168,7 @@ export function logExecApprovalRequested(
   logGateway: GatewayLogger | null | undefined,
   params: { id: string; request: ExecApprovalAuditRequest },
 ) {
-  const parts = buildExecApprovalAuditParts(params.request);
+  const parts = buildExecApprovalAuditParts(normalizeExecApprovalAuditRequest(params.request));
   logGateway?.info?.(`approval audit kind=exec phase=requested id=${params.id} ${parts.join(" ")}`);
 }
 
@@ -115,7 +181,7 @@ export function logExecApprovalResolved(
     resolvedBy?: string | null;
   },
 ) {
-  const parts = buildExecApprovalAuditParts(params.request ?? {});
+  const parts = buildExecApprovalAuditParts(normalizeExecApprovalAuditRequest(params.request));
   appendPart(parts, "resolvedBy", params.resolvedBy);
   logGateway?.info?.(
     `approval audit kind=exec phase=resolved id=${params.id} decision=${params.decision} ${parts.join(" ")}`,
@@ -135,7 +201,7 @@ export function rememberExecApprovalResolved(params: {
     decision: params.decision,
     resolvedBy: params.resolvedBy ?? null,
     ts: params.ts,
-    request: cloneAuditValue(params.request ?? {}),
+    request: normalizeExecApprovalAuditRequest(params.request),
   });
 }
 
@@ -201,5 +267,13 @@ export const approvalAuditHandlers: GatewayRequestHandlers = {
       return;
     }
     respond(true, { items: listApprovalAuditTrail() }, undefined);
+  },
+  "approval.pending.get": ({ params, respond, context }) => {
+    if (
+      !assertValidParams(params, validateApprovalPendingGetParams, "approval.pending.get", respond)
+    ) {
+      return;
+    }
+    respond(true, listPendingApprovalSnapshot(context), undefined);
   },
 };

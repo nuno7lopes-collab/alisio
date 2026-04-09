@@ -40,7 +40,7 @@ describe("browser server-context remote profile tab operations", () => {
     const state = makeState("openclaw");
     state.resolved.attachOnly = false;
     state.resolved.profiles.openclaw = {
-      cdpPort: 18800,
+      cdpPort: 40716,
       attachOnly: true,
       color: "#FF4500",
     };
@@ -60,7 +60,7 @@ describe("browser server-context remote profile tab operations", () => {
     const state = makeState("openclaw");
     state.resolved.attachOnly = false;
     state.resolved.profiles.openclaw = {
-      cdpPort: 18800,
+      cdpPort: 40716,
       attachOnly: true,
       color: "#FF4500",
     };

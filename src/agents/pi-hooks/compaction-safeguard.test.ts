@@ -862,7 +862,7 @@ describe("compaction-safeguard recent-turn preservation", () => {
 
   it("extracts opaque identifiers and audits summary quality", () => {
     const identifiers = extractOpaqueIdentifiers(
-      "Track id a1b2c3d4e5f6 plus A1B2C3D4E5F6 and URL https://example.com/a and /tmp/x.log plus port host.local:18789",
+      "Track id a1b2c3d4e5f6 plus A1B2C3D4E5F6 and URL https://example.com/a and /tmp/x.log plus port host.local:40705",
     );
     expect(identifiers.length).toBeGreaterThan(0);
     expect(identifiers).toContain("A1B2C3D4E5F6"); // pragma: allowlist secret
@@ -911,12 +911,12 @@ describe("compaction-safeguard recent-turn preservation", () => {
 
   it("filters ordinary short numbers and trims wrapped punctuation", () => {
     const identifiers = extractOpaqueIdentifiers(
-      "Year 2026 count 42 port 18789 ticket 123456 URL https://example.com/a, path /tmp/x.log, and tiny /a with prose on/off.",
+      "Year 2026 count 42 port 40705 ticket 123456 URL https://example.com/a, path /tmp/x.log, and tiny /a with prose on/off.",
     );
 
     expect(identifiers).not.toContain("2026");
     expect(identifiers).not.toContain("42");
-    expect(identifiers).not.toContain("18789");
+    expect(identifiers).not.toContain("40705");
     expect(identifiers).not.toContain("/a");
     expect(identifiers).not.toContain("/off");
     expect(identifiers).toContain("123456");

@@ -19,7 +19,7 @@ vi.mock("../../terminal/theme.js", async (importOriginal) => {
 });
 
 vi.mock("../../commands/onboard-helpers.js", () => ({
-  resolveControlUiLinks: () => ({ httpUrl: "http://127.0.0.1:18789" }),
+  resolveControlUiLinks: () => ({ httpUrl: "http://127.0.0.1:40705" }),
 }));
 
 vi.mock("../../daemon/inspect.js", () => ({
@@ -66,7 +66,7 @@ vi.mock("./shared.js", () => ({
 
 vi.mock("./status.gather.js", () => ({
   renderPortDiagnosticsForCli: () => [],
-  resolvePortListeningAddresses: () => ["127.0.0.1:18789"],
+  resolvePortListeningAddresses: () => ["127.0.0.1:40705"],
 }));
 
 const { printDaemonStatus } = await import("./status.print.js");
@@ -90,20 +90,20 @@ describe("printDaemonStatus", () => {
         gateway: {
           bindMode: "loopback",
           bindHost: "127.0.0.1",
-          port: 18789,
+          port: 40705,
           portSource: "env/config",
-          probeUrl: "ws://127.0.0.1:18789",
+          probeUrl: "ws://127.0.0.1:40705",
         },
         port: {
-          port: 18789,
+          port: 40705,
           status: "busy",
-          listeners: [{ pid: 9000, ppid: 8999, address: "127.0.0.1:18789" }],
+          listeners: [{ pid: 9000, ppid: 8999, address: "127.0.0.1:40705" }],
           hints: [],
         },
         rpc: {
           ok: false,
           error: "gateway closed (1006 abnormal closure (no close frame))",
-          url: "ws://127.0.0.1:18789",
+          url: "ws://127.0.0.1:40705",
         },
         health: {
           healthy: false,

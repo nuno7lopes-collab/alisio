@@ -54,8 +54,8 @@ describe("ports helpers", () => {
     };
 
     await handlePortError(
-      new PortInUseError(18789, "node dist/index.js alisio gateway"),
-      18789,
+      new PortInUseError(40705, "node dist/index.js alisio gateway"),
+      40705,
       "gateway start",
       runtime,
     ).catch(() => {});
@@ -111,7 +111,7 @@ describeUnix("inspectPortUsage", () => {
       if (command === "ps") {
         if (argv.includes("command=")) {
           return {
-            stdout: "node /tmp/alisio/dist/index.js gateway --port 18789\n",
+            stdout: "node /tmp/alisio/dist/index.js gateway --port 40705\n",
             stderr: "",
             code: 0,
           };

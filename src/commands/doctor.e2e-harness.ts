@@ -106,7 +106,7 @@ export const auditGatewayServiceConfig = vi
   .mockResolvedValue({ ok: true, issues: [] }) as unknown as MockFn;
 export const buildGatewayInstallPlan = vi.mocked(
   vi.fn().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "18789"],
+    programArguments: ["node", "cli", "gateway", "--port", "40705"],
     workingDirectory: "/tmp",
     environment: {},
   }),
@@ -115,7 +115,7 @@ export const resolveGatewayAuthTokenForService = vi
   .fn()
   .mockResolvedValue({ token: undefined }) as unknown as MockFn;
 export const resolveGatewayProgramArguments = vi.fn().mockResolvedValue({
-  programArguments: ["node", "cli", "gateway", "--port", "18789"],
+  programArguments: ["node", "cli", "gateway", "--port", "40705"],
 }) as unknown as MockFn;
 export const serviceInstall = vi.fn().mockResolvedValue(undefined) as unknown as MockFn;
 export const serviceIsLoaded = vi.fn().mockResolvedValue(false) as unknown as MockFn;
@@ -430,13 +430,13 @@ beforeEach(() => {
   renderGatewayServiceCleanupHints.mockReset().mockReturnValue(["cleanup"]);
   auditGatewayServiceConfig.mockReset().mockResolvedValue({ ok: true, issues: [] });
   buildGatewayInstallPlan.mockReset().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "18789"],
+    programArguments: ["node", "cli", "gateway", "--port", "40705"],
     workingDirectory: "/tmp",
     environment: {},
   });
   resolveGatewayAuthTokenForService.mockReset().mockResolvedValue({ token: undefined });
   resolveGatewayProgramArguments.mockReset().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "18789"],
+    programArguments: ["node", "cli", "gateway", "--port", "40705"],
   });
   serviceInstall.mockReset().mockResolvedValue(undefined);
   serviceIsLoaded.mockReset().mockResolvedValue(false);

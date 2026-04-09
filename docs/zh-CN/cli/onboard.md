@@ -30,7 +30,7 @@ x-i18n:
 openclaw onboard
 openclaw onboard --flow quickstart
 openclaw onboard --flow manual
-openclaw onboard --mode remote --remote-url wss://gateway-host:18789
+openclaw onboard --mode remote --remote-url wss://gateway-host:40705
 ```
 
 对于明文私有网络 `ws://` 目标（仅限受信任网络），请在新手引导进程环境中设置

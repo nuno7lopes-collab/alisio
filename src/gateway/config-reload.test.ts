@@ -405,7 +405,7 @@ describe("startGatewayConfigReloader", () => {
       .mockResolvedValueOnce(
         makeSnapshot({
           config: {
-            gateway: { reload: { debounceMs: 0 }, port: 18790 },
+            gateway: { reload: { debounceMs: 0 }, port: 40706 },
           },
           hash: "restart-1",
         }),
@@ -413,7 +413,7 @@ describe("startGatewayConfigReloader", () => {
       .mockResolvedValueOnce(
         makeSnapshot({
           config: {
-            gateway: { reload: { debounceMs: 0 }, port: 18791 },
+            gateway: { reload: { debounceMs: 0 }, port: 40707 },
           },
           hash: "restart-2",
         }),

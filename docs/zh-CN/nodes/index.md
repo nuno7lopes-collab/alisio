@@ -65,7 +65,7 @@ openclaw nodes describe --node <idOrNameOrIp>
 在节点机器上：
 
 ```bash
-openclaw node run --host <gateway-host> --port 18789 --display-name "Build Node"
+openclaw node run --host <gateway-host> --port 40705 --display-name "Build Node"
 ```
 
 ### 通过 SSH 隧道访问远程 Gateway 网关（loopback 绑定）
@@ -77,12 +77,12 @@ openclaw node run --host <gateway-host> --port 18789 --display-name "Build Node"
 示例（节点主机 -> Gateway 网关主机）：
 
 ```bash
-# 终端 A（保持运行）：转发本地 18790 -> Gateway 网关 127.0.0.1:18789
-ssh -N -L 18790:127.0.0.1:18789 user@gateway-host
+# 终端 A（保持运行）：转发本地 40706 -> Gateway 网关 127.0.0.1:40705
+ssh -N -L 40706:127.0.0.1:40705 user@gateway-host
 
 # 终端 B：导出 Gateway 网关令牌并通过隧道连接
 export OPENCLAW_GATEWAY_TOKEN="<gateway-token>"
-openclaw node run --host 127.0.0.1 --port 18790 --display-name "Build Node"
+openclaw node run --host 127.0.0.1 --port 40706 --display-name "Build Node"
 ```
 
 注意事项：
@@ -93,7 +93,7 @@ openclaw node run --host 127.0.0.1 --port 18790 --display-name "Build Node"
 ### 启动节点主机（服务）
 
 ```bash
-openclaw node install --host <gateway-host> --port 18789 --display-name "Build Node"
+openclaw node install --host <gateway-host> --port 40705 --display-name "Build Node"
 openclaw node restart
 ```
 
@@ -330,7 +330,7 @@ WebSocket 并暴露 `system.run` / `system.which`。这在 Linux/Windows
 启动它：
 
 ```bash
-openclaw node run --host <gateway-host> --port 18789
+openclaw node run --host <gateway-host> --port 40705
 ```
 
 注意事项：

@@ -35,10 +35,9 @@ import { loadConfig, loadConfigSchema } from "./controllers/config.ts";
 import { loadCronJobs, loadCronRuns, loadCronStatus } from "./controllers/cron.ts";
 import { loadDebug } from "./controllers/debug.ts";
 import { loadDevices } from "./controllers/devices.ts";
-import { loadApprovalAuditTrail } from "./controllers/exec-approval.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
-import { loadMemoryStatus } from "./controllers/memory-runtime.ts";
+import { loadMemoryGraph, loadMemoryStatus } from "./controllers/memory-runtime.ts";
 import { loadModels as loadChatModels } from "./controllers/models.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
@@ -48,7 +47,11 @@ import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
 import { loadNativeShellState } from "./lume-host.ts";
-import { PRIMARY_MEMORY_FILE_NAME } from "./memory-files.ts";
+import {
+  humanizeMemoryNoteTitle,
+  isMemoryNoteFileName,
+  PRIMARY_MEMORY_FILE_NAME,
+} from "./memory-files.ts";
 import {
   inferBasePathFromPathname,
   normalizePath,
@@ -134,6 +137,14 @@ function normalizeSetupStep(
     default:
       return null;
   }
+}
+
+function resolveMemoryGraphQuery(name: string | null | undefined): string | null {
+  if (!name || !isMemoryNoteFileName(name)) {
+    return null;
+  }
+  const title = humanizeMemoryNoteTitle(name).trim();
+  return title || null;
 }
 
 function resolveSetupStep(host: SettingsHost): import("./types.ts").AlisioBootstrapStep | null {
@@ -407,6 +418,10 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
         }),
         loadMemoryStatus(host as unknown as AlisioApp, agentId, { reset: true }),
       ]);
+      await loadMemoryGraph(host as unknown as AlisioApp, {
+        agentId,
+        query: resolveMemoryGraphQuery(host.memoryActive ?? null),
+      });
     }
   }
   if (host.tab === "capabilities") {
@@ -430,7 +445,6 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       loadNodes(host as unknown as AlisioApp),
       loadConfig(host as unknown as AlisioApp),
       loadSelectedExecApprovals(host as unknown as AlisioApp),
-      loadApprovalAuditTrail(host as unknown as AlisioApp),
       loadGatewayAccessMode(host as unknown as AlisioApp),
     ]);
   }
@@ -459,7 +473,6 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       }),
       loadAlisioAccount(host as unknown as AlisioApp),
       loadGatewayAccessMode(host as unknown as AlisioApp),
-      loadApprovalAuditTrail(host as unknown as AlisioApp),
       loadNativeShellState(host),
     ]);
     scheduleChatScroll(

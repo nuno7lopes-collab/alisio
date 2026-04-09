@@ -188,7 +188,7 @@ describe("maybeRunCliInContainer", () => {
         OPENCLAW_CONTAINER: "demo",
         OPENCLAW_PROFILE: "work",
         OPENCLAW_GATEWAY_PORT: "19001",
-        OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:18789",
+        OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:40705",
         OPENCLAW_GATEWAY_TOKEN: "token",
         OPENCLAW_GATEWAY_PASSWORD: "password",
       } as NodeJS.ProcessEnv,

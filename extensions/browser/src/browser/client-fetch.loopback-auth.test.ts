@@ -118,7 +118,7 @@ describe("fetchBrowserJson loopback auth", () => {
   it("adds bearer auth for loopback absolute HTTP URLs", async () => {
     const fetchMock = stubJsonFetchOk();
 
-    const res = await fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:18888/");
+    const res = await fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:40804/");
     expect(res.ok).toBe(true);
 
     const init = fetchMock.mock.calls[0]?.[1];
@@ -139,7 +139,7 @@ describe("fetchBrowserJson loopback auth", () => {
   it("keeps caller-supplied auth header", async () => {
     const fetchMock = stubJsonFetchOk();
 
-    await fetchBrowserJson<{ ok: boolean }>("http://localhost:18888/", {
+    await fetchBrowserJson<{ ok: boolean }>("http://localhost:40804/", {
       headers: {
         Authorization: "Bearer caller-token",
       },
@@ -153,7 +153,7 @@ describe("fetchBrowserJson loopback auth", () => {
   it("injects auth for IPv6 loopback absolute URLs", async () => {
     const fetchMock = stubJsonFetchOk();
 
-    await fetchBrowserJson<{ ok: boolean }>("http://[::1]:18888/");
+    await fetchBrowserJson<{ ok: boolean }>("http://[::1]:40804/");
 
     const init = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(init?.headers);
@@ -163,7 +163,7 @@ describe("fetchBrowserJson loopback auth", () => {
   it("injects auth for IPv4-mapped IPv6 loopback URLs", async () => {
     const fetchMock = stubJsonFetchOk();
 
-    await fetchBrowserJson<{ ok: boolean }>("http://[::ffff:127.0.0.1]:18888/");
+    await fetchBrowserJson<{ ok: boolean }>("http://[::ffff:127.0.0.1]:40804/");
 
     const init = fetchMock.mock.calls[0]?.[1];
     const headers = new Headers(init?.headers);
@@ -189,7 +189,7 @@ describe("fetchBrowserJson loopback auth", () => {
     );
 
     await expectThrownBrowserFetchError(
-      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:18888/"),
+      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:40804/"),
       {
         contains: ["Browser service rate limit reached", "Do NOT retry the browser tool"],
         omits: ["max concurrent sessions exceeded"],
@@ -206,7 +206,7 @@ describe("fetchBrowserJson loopback auth", () => {
     );
 
     await expectThrownBrowserFetchError(
-      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:18888/"),
+      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:40804/"),
       {
         contains: ["rate limit reached", "Do NOT retry the browser tool"],
       },
@@ -235,7 +235,7 @@ describe("fetchBrowserJson loopback auth", () => {
     );
 
     await expectThrownBrowserFetchError(
-      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:18888/"),
+      () => fetchBrowserJson<{ ok: boolean }>("http://127.0.0.1:40804/"),
       {
         contains: ["internal error"],
         omits: ["rate limit"],

@@ -125,13 +125,13 @@ export function computeInteractionCallbackUrl(
   if (callbackBaseUrl) {
     return `${normalizeCallbackBaseUrl(callbackBaseUrl)}${path}`;
   }
-  const port = typeof cfg?.gateway?.port === "number" ? cfg.gateway.port : 18789;
+  const port = typeof cfg?.gateway?.port === "number" ? cfg.gateway.port : 40705;
   let host =
     cfg?.gateway?.customBindHost && !isWildcardBindHost(cfg.gateway.customBindHost)
       ? cfg.gateway.customBindHost.trim()
       : "localhost";
 
-  // Bracket IPv6 literals so the URL is valid: http://[::1]:18789/...
+  // Bracket IPv6 literals so the URL is valid: http://[::1]:40705/...
   if (host.includes(":") && !(host.startsWith("[") && host.endsWith("]"))) {
     host = `[${host}]`;
   }

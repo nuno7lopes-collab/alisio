@@ -8,12 +8,12 @@ struct MacNodeBrowserProxyTests {
         let proxy = MacNodeBrowserProxy(
             endpointProvider: {
                 MacNodeBrowserProxy.Endpoint(
-                    baseURL: URL(string: "http://127.0.0.1:18791")!,
+                    baseURL: URL(string: "http://127.0.0.1:40707")!,
                     token: "test-token",
                     password: nil)
             },
             performRequest: { request in
-                #expect(request.url?.absoluteString == "http://127.0.0.1:18791/tabs?profile=work")
+                #expect(request.url?.absoluteString == "http://127.0.0.1:40707/tabs?profile=work")
                 #expect(request.httpMethod == "GET")
                 #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-token")
 
@@ -58,7 +58,7 @@ struct MacNodeBrowserProxyTests {
         let proxy = MacNodeBrowserProxy(
             endpointProvider: {
                 MacNodeBrowserProxy.Endpoint(
-                    baseURL: URL(string: "http://127.0.0.1:18791")!,
+                    baseURL: URL(string: "http://127.0.0.1:40707")!,
                     token: nil,
                     password: nil)
             },

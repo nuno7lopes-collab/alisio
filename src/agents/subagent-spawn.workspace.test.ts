@@ -8,9 +8,6 @@ import {
 type TestAgentConfig = {
   id?: string;
   workspace?: string;
-  subagents?: {
-    allowAgents?: string[];
-  };
 };
 
 type TestConfig = {
@@ -112,16 +109,13 @@ describe("spawnSubagentDirect workspace inheritance", () => {
     setupAcceptedSubagentGatewayMock(hoisted.callGatewayMock);
   });
 
-  it("uses the target agent workspace for cross-agent spawns", async () => {
+  it("rejects cross-agent subagent spawns before workspace resolution", async () => {
     hoisted.configOverride = createConfigOverride({
       agents: {
         list: [
           {
             id: "main",
             workspace: "/tmp/workspace-main",
-            subagents: {
-              allowAgents: ["ops"],
-            },
           },
           {
             id: "ops",
@@ -131,10 +125,25 @@ describe("spawnSubagentDirect workspace inheritance", () => {
       },
     });
 
-    await expectAcceptedWorkspace({
-      agentId: "ops",
-      expectedWorkspaceDir: "/tmp/workspace-ops",
+    const result = await spawnSubagentDirect(
+      {
+        task: "inspect workspace",
+        agentId: "ops",
+      },
+      {
+        agentSessionKey: "agent:main:main",
+        agentChannel: "telegram",
+        agentAccountId: "123",
+        agentTo: "456",
+        workspaceDir: "/tmp/requester-workspace",
+      },
+    );
+
+    expect(result).toMatchObject({
+      status: "forbidden",
+      error: expect.stringContaining('runtime="subagent" cannot target another agentId'),
     });
+    expect(hoisted.registerSubagentRunMock).not.toHaveBeenCalled();
   });
 
   it("preserves the inherited workspace for same-agent spawns", async () => {
@@ -233,7 +242,7 @@ describe("spawnSubagentDirect workspace inheritance", () => {
       {
         task: "fail after register with thread binding",
         thread: true,
-        mode: "session",
+        mode: "run",
       },
       {
         agentSessionKey: "agent:main:main",

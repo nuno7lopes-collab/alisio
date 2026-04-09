@@ -323,17 +323,17 @@ describe("cdp", () => {
   it("rewrites 0.0.0.0 wildcard bind address to remote CDP host", () => {
     const normalized = normalizeCdpWsUrl(
       "ws://0.0.0.0:3000/devtools/browser/ABC",
-      "http://192.168.1.202:18850?token=secret",
+      "http://192.168.1.202:40766?token=secret",
     );
-    expect(normalized).toBe("ws://192.168.1.202:18850/devtools/browser/ABC?token=secret");
+    expect(normalized).toBe("ws://192.168.1.202:40766/devtools/browser/ABC?token=secret");
   });
 
   it("rewrites :: wildcard bind address to remote CDP host", () => {
     const normalized = normalizeCdpWsUrl(
       "ws://[::]:3000/devtools/browser/ABC",
-      "http://192.168.1.202:18850",
+      "http://192.168.1.202:40766",
     );
-    expect(normalized).toBe("ws://192.168.1.202:18850/devtools/browser/ABC");
+    expect(normalized).toBe("ws://192.168.1.202:40766/devtools/browser/ABC");
   });
 
   it("keeps existing websocket query params when appending remote CDP query params", () => {

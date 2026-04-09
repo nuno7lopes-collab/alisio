@@ -76,10 +76,10 @@ describe("mattermost monitor slash", () => {
   });
 
   it("registers deduped default and native skill commands across teams", async () => {
-    vi.stubEnv("OPENCLAW_GATEWAY_PORT", "18888");
+    vi.stubEnv("OPENCLAW_GATEWAY_PORT", "40804");
     resolveSlashCommandConfig.mockReturnValue({ enabled: true, nativeSkills: true });
     isSlashCommandsEnabled.mockReturnValue(true);
-    parseStrictPositiveInteger.mockReturnValue(18888);
+    parseStrictPositiveInteger.mockReturnValue(40804);
     fetchMattermostUserTeams.mockResolvedValue([{ id: "team-1" }, { id: "team-2" }]);
     resolveCallbackUrl.mockReturnValue("https://openclaw.test/slash");
     listSkillCommandsForAgents.mockReturnValue([
@@ -99,7 +99,7 @@ describe("mattermost monitor slash", () => {
 
     await registerMattermostMonitorSlashCommands({
       client: {} as never,
-      cfg: { gateway: { port: 18789 } } as never,
+      cfg: { gateway: { port: 40705 } } as never,
       runtime: runtime as never,
       account: { config: { commands: {} }, accountId: "default" } as never,
       baseUrl: "https://chat.example.com",
@@ -148,7 +148,7 @@ describe("mattermost monitor slash", () => {
     isSlashCommandsEnabled.mockReturnValue(true);
     parseStrictPositiveInteger.mockReturnValue(undefined);
     fetchMattermostUserTeams.mockResolvedValue([{ id: "team-1" }, { id: "team-2" }]);
-    resolveCallbackUrl.mockReturnValue("http://127.0.0.1:18789/slash");
+    resolveCallbackUrl.mockReturnValue("http://127.0.0.1:40705/slash");
     registerSlashCommands
       .mockResolvedValueOnce([{ token: "token-1", trigger: "ping" }])
       .mockRejectedValueOnce(new Error("boom"));
@@ -170,7 +170,7 @@ describe("mattermost monitor slash", () => {
 
     expect(runtime.error).toHaveBeenCalledWith(
       expect.stringContaining(
-        "slash commands callbackUrl resolved to http://127.0.0.1:18789/slash",
+        "slash commands callbackUrl resolved to http://127.0.0.1:40705/slash",
       ),
     );
     expect(runtime.error).toHaveBeenCalledWith(

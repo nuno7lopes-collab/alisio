@@ -106,7 +106,7 @@ describe("legacy state dir auto-migration", () => {
     fs.mkdirSync(path.join(legacyDir, "logs"), { recursive: true });
     fs.writeFileSync(
       path.join(legacyDir, LEGACY_CONFIG_FILENAME),
-      '{"gateway":{"port":18789}}',
+      '{"gateway":{"port":40705}}',
       "utf-8",
     );
     fs.writeFileSync(path.join(legacyDir, "logs", "marker.txt"), "ok", "utf-8");

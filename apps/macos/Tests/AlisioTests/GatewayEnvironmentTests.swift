@@ -48,7 +48,7 @@ struct GatewayEnvironmentTests {
             defaults: ["gatewayPort": nil])
         {
             let defaultPort = GatewayEnvironment.gatewayPort()
-            #expect(defaultPort == 18789)
+            #expect(defaultPort == 40705)
 
             UserDefaults.standard.set(19999, forKey: "gatewayPort")
             defer { UserDefaults.standard.removeObject(forKey: "gatewayPort") }

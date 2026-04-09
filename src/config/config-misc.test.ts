@@ -33,7 +33,7 @@ describe("$schema key in config (#14998)", () => {
   it("accepts $schema during full config validation", () => {
     const result = validateConfigObject({
       $schema: "./schema.json",
-      gateway: { port: 18789 },
+      gateway: { port: 40705 },
     });
     expect(result.ok).toBe(true);
   });

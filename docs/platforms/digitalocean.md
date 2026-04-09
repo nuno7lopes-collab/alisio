@@ -111,9 +111,9 @@ The gateway binds to loopback by default. To access the Control UI:
 
 ```bash
 # From your local machine
-ssh -L 18789:localhost:18789 root@YOUR_DROPLET_IP
+ssh -L 40705:localhost:40705 root@YOUR_DROPLET_IP
 
-# Then open: http://localhost:18789
+# Then open: http://localhost:40705
 ```
 
 **Option B: Tailscale Serve (HTTPS, loopback-only)**
@@ -142,7 +142,7 @@ alisio config set gateway.bind tailnet
 alisio gateway restart
 ```
 
-Open: `http://<tailscale-ip>:18789` (token required).
+Open: `http://<tailscale-ip>:40705` (token required).
 
 ## 7) Connect Your Channels
 
@@ -242,7 +242,7 @@ journalctl -u alisio --no-pager -n 50
 ### Port already in use
 
 ```bash
-lsof -i :18789
+lsof -i :40705
 kill <PID>
 ```
 

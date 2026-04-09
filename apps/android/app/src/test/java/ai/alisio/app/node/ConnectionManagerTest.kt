@@ -28,7 +28,7 @@ class ConnectionManagerTest {
         stableId = "_alisio-gw._tcp.|local.|Test",
         name = "Test",
         host = "10.0.0.2",
-        port = 18789,
+        port = 40705,
         tlsEnabled = true,
         tlsFingerprintSha256 = "attacker",
       )
@@ -51,7 +51,7 @@ class ConnectionManagerTest {
         stableId = "_alisio-gw._tcp.|local.|Test",
         name = "Test",
         host = "10.0.0.2",
-        port = 18789,
+        port = 40705,
         tlsEnabled = true,
         tlsFingerprintSha256 = "attacker",
       )

@@ -179,7 +179,7 @@ function buildRuntimeStatus(
     projections?: number;
     projectionInterface?: "markdown-vault";
     syncMode?: "local-first";
-    cloudSync?: "not_implemented";
+    cloudSync?: "unavailable" | "enabled" | "error";
     projectionSources?: Array<"workspace-memory" | "obsidian-memory">;
     lastSyncedAt?: string;
     lastError?: string;

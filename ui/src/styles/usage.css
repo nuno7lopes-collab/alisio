@@ -35,10 +35,7 @@
 }
 
 .usage-page-subtitle {
-  max-width: 720px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
+  display: none;
 }
 
 .usage-section-title {

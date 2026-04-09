@@ -53,10 +53,10 @@ function mockSnapshot(params?: {
     issues: [],
     legacyIssues: [],
   });
-  mocks.resolveGatewayPort.mockReturnValue(18789);
+  mocks.resolveGatewayPort.mockReturnValue(40705);
   mocks.resolveControlUiLinks.mockReturnValue({
-    httpUrl: "http://127.0.0.1:18789/",
-    wsUrl: "ws://127.0.0.1:18789",
+    httpUrl: "http://127.0.0.1:40705/",
+    wsUrl: "ws://127.0.0.1:40705",
   });
   mocks.copyToClipboard.mockResolvedValue(true);
 }
@@ -83,7 +83,7 @@ describe("dashboardCommand bind selection", () => {
     await dashboardCommand(runtime, { noOpen: true });
 
     expect(mocks.resolveControlUiLinks).toHaveBeenCalledWith({
-      port: 18789,
+      port: 40705,
       bind: "loopback",
       customBindHost: undefined,
       basePath: undefined,
@@ -96,7 +96,7 @@ describe("dashboardCommand bind selection", () => {
     await dashboardCommand(runtime, { noOpen: true });
 
     expect(mocks.resolveControlUiLinks).toHaveBeenCalledWith({
-      port: 18789,
+      port: 40705,
       bind: "custom",
       customBindHost: "10.0.0.5",
       basePath: undefined,
@@ -109,7 +109,7 @@ describe("dashboardCommand bind selection", () => {
     await dashboardCommand(runtime, { noOpen: true });
 
     expect(mocks.resolveControlUiLinks).toHaveBeenCalledWith({
-      port: 18789,
+      port: 40705,
       bind: "tailnet",
       customBindHost: undefined,
       basePath: undefined,

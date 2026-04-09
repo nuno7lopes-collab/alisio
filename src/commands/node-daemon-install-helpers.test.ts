@@ -47,7 +47,7 @@ describe("buildNodeInstallPlan", () => {
     const plan = await buildNodeInstallPlan({
       env: {},
       host: "127.0.0.1",
-      port: 18789,
+      port: 40705,
       runtime: "node",
       nodePath: "/custom/node/bin/node",
     });
@@ -80,7 +80,7 @@ describe("buildNodeInstallPlan", () => {
     await buildNodeInstallPlan({
       env: {},
       host: "127.0.0.1",
-      port: 18789,
+      port: 40705,
       runtime: "node",
       nodePath: "node",
     });

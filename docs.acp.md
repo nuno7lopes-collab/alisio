@@ -76,14 +76,14 @@ Quick steps:
 Example config:
 
 ```bash
-openclaw config set gateway.remote.url wss://gateway-host:18789
+openclaw config set gateway.remote.url wss://gateway-host:40705
 openclaw config set gateway.remote.token <token>
 ```
 
 Example run:
 
 ```bash
-openclaw acp --url wss://gateway-host:18789 --token <token>
+openclaw acp --url wss://gateway-host:40705 --token <token>
 ```
 
 ## Selecting agents
@@ -130,7 +130,7 @@ To target a specific Gateway or agent:
       "args": [
         "acp",
         "--url",
-        "wss://gateway-host:18789",
+        "wss://gateway-host:40705",
         "--token",
         "<token>",
         "--session",

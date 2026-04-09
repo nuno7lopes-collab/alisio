@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PluginApprovalRequestPayload } from "../../infra/plugin-approvals.js";
+import { ExecApprovalManager } from "../exec-approval-manager.js";
 import {
   __resetApprovalAuditTrailForTest,
   approvalAuditHandlers,
@@ -168,6 +170,62 @@ describe("approval audit logging", () => {
         items: expect.arrayContaining([
           expect.objectContaining({ id: "plugin-1", kind: "plugin" }),
           expect.objectContaining({ id: "approval-1", kind: "exec" }),
+        ]),
+      }),
+      undefined,
+    );
+  });
+
+  it("exposes currently pending approvals through the gateway handler", () => {
+    const execApprovalManager = new ExecApprovalManager();
+    const pluginApprovalManager = new ExecApprovalManager<PluginApprovalRequestPayload>();
+    void execApprovalManager.register(
+      execApprovalManager.create(
+        {
+          command: "bun test",
+          host: "sandbox",
+          security: "allowlist",
+          ask: "on-miss",
+        },
+        60_000,
+        "approval-1",
+      ),
+      60_000,
+    );
+    void pluginApprovalManager.register(
+      pluginApprovalManager.create(
+        {
+          title: "Publish release",
+          description: "Pushes release metadata to the host",
+          severity: "critical",
+          pluginId: "publisher",
+          toolName: "release.publish",
+        },
+        60_000,
+        "plugin-1",
+      ),
+      60_000,
+    );
+    const respond = vi.fn();
+
+    void approvalAuditHandlers["approval.pending.get"]({
+      req: { id: "req-2", type: "req", method: "approval.pending.get" },
+      params: {},
+      client: null,
+      isWebchatConnect: () => false,
+      respond,
+      context: {
+        execApprovalManager,
+        pluginApprovalManager,
+      } as never,
+    });
+
+    expect(respond).toHaveBeenCalledWith(
+      true,
+      expect.objectContaining({
+        items: expect.arrayContaining([
+          expect.objectContaining({ id: "approval-1", kind: "exec" }),
+          expect.objectContaining({ id: "plugin-1", kind: "plugin" }),
         ]),
       }),
       undefined,

@@ -42,7 +42,7 @@ public struct GatewayConnectDeepLink: Codable, Sendable, Equatable {
         if !tls, !LoopbackHost.isLoopbackHost(hostname) {
             return nil
         }
-        let port = parsed.port ?? (tls ? 443 : 18789)
+        let port = parsed.port ?? (tls ? 443 : 40705)
         let bootstrapToken = json["bootstrapToken"] as? String
         let token = json["token"] as? String
         let password = json["password"] as? String
@@ -139,7 +139,7 @@ public enum DeepLinkParser {
             else {
                 return nil
             }
-            let port = query["port"].flatMap { Int($0) } ?? 18789
+            let port = query["port"].flatMap { Int($0) } ?? 40705
             let tls = (query["tls"] as NSString?)?.boolValue ?? false
             if !tls, !LoopbackHost.isLoopbackHost(hostParam) {
                 return nil

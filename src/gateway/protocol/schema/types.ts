@@ -255,6 +255,22 @@ export type MemorySyncResult = SchemaType<"MemorySyncResult">;
 export type ApprovalAuditGetParams = SchemaType<"ApprovalAuditGetParams">;
 export type ApprovalAuditEntry = SchemaType<"ApprovalAuditEntry">;
 export type ApprovalAuditSnapshot = SchemaType<"ApprovalAuditSnapshot">;
+export type ApprovalPendingGetParams = SchemaType<"ApprovalPendingGetParams">;
+export type ApprovalPendingEntry = SchemaType<"ApprovalPendingEntry">;
+export type ApprovalPendingSnapshot = SchemaType<"ApprovalPendingSnapshot">;
+export type AlisioSecurityAccessMode = SchemaType<"AlisioSecurityAccessMode">;
+export type AlisioSecurityAccessProfile = SchemaType<"AlisioSecurityAccessProfile">;
+export type AlisioSecurityConfigDefaults = SchemaType<"AlisioSecurityConfigDefaults">;
+export type AlisioSecurityApprovalDefaults = SchemaType<"AlisioSecurityApprovalDefaults">;
+export type AlisioSecurityPolicyDiagnostics = SchemaType<"AlisioSecurityPolicyDiagnostics">;
+export type AlisioSecurityPolicyConfigSource = SchemaType<"AlisioSecurityPolicyConfigSource">;
+export type AlisioSecurityPolicyApprovalsSource = SchemaType<"AlisioSecurityPolicyApprovalsSource">;
+export type AlisioSecurityPolicyGetParams = SchemaType<"AlisioSecurityPolicyGetParams">;
+export type AlisioSecurityPolicySnapshot = SchemaType<"AlisioSecurityPolicySnapshot">;
+export type AlisioSecurityPolicyApplyProfileParams =
+  SchemaType<"AlisioSecurityPolicyApplyProfileParams">;
+export type AlisioSecurityPolicyApplyProfileResult =
+  SchemaType<"AlisioSecurityPolicyApplyProfileResult">;
 export type ExecApprovalsGetParams = SchemaType<"ExecApprovalsGetParams">;
 export type ExecApprovalsSetParams = SchemaType<"ExecApprovalsSetParams">;
 export type ExecApprovalsNodeGetParams = SchemaType<"ExecApprovalsNodeGetParams">;

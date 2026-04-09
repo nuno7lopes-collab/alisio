@@ -56,6 +56,7 @@ function baseProps(overrides: Partial<NodesProps> = {}): NodesProps {
     onExecApprovalsPatch: () => undefined,
     onExecApprovalsRemove: () => undefined,
     onSaveExecApprovals: () => undefined,
+    onSharingSetResourcePolicy: () => undefined,
   };
   return { ...base, ...overrides };
 }
@@ -465,6 +466,163 @@ describe("nodes devices pending rendering", () => {
     expect(onSharingRevoke).toHaveBeenCalledWith("grant-1");
   });
 
+  it("renders sharing suggestions and per-resource policy controls", () => {
+    const onSharingSetResourcePolicy = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          onSharingSetResourcePolicy,
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              allowExternalUse: false,
+              editable: false,
+              resourcesEditable: true,
+              resourcePolicies: {
+                compute: "light-approval",
+                models: "paired-device",
+                jobs: "light-approval",
+                artifacts: "paired-device",
+                cache: "paired-device",
+                memory: "explicit-consent",
+                vault: "explicit-consent",
+                files: "explicit-consent",
+                context: "explicit-consent",
+              },
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "linked-1",
+                  label: "Office Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  ownerLabel: "Nuno",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "requestable",
+                  grantScopes: ["read-only", "model-use"],
+                },
+              ],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+            suggestions: [
+              {
+                suggestionId: "cache-reuse:linked-1",
+                kind: "cache-reuse",
+                resource: "cache",
+                targetId: "linked-1",
+                targetLabel: "Office Mac",
+                sameAccount: true,
+              },
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Suggested sharing");
+    expect(text).toContain("Reuse cache from Office Mac");
+    expect(text).toContain("Sharing policy");
+    expect(text).toContain("Cache");
+
+    const cacheSelect = Array.from(container.querySelectorAll<HTMLSelectElement>("select")).find(
+      (select) => select.closest(".list-item")?.textContent?.includes("Cache"),
+    );
+    expect(cacheSelect).toBeDefined();
+
+    cacheSelect!.value = "light-approval";
+    cacheSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+
+    expect(onSharingSetResourcePolicy).toHaveBeenCalledWith("cache", "light-approval");
+  });
+
+  it("collapses passive sharing states into one compact empty block", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              ownerLabel: "Nuno",
+              allowExternalUse: false,
+              editable: false,
+              resourcesEditable: true,
+              resourcePolicies: {
+                compute: "light-approval",
+                models: "paired-device",
+                jobs: "light-approval",
+                artifacts: "paired-device",
+                cache: "paired-device",
+                memory: "explicit-consent",
+                vault: "explicit-consent",
+                files: "explicit-consent",
+                context: "explicit-consent",
+              },
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+            suggestions: [
+              {
+                suggestionId: "sensitive-consent",
+                kind: "sensitive-consent",
+                resource: "context",
+              },
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("No shared devices, requests, or approvals right now.");
+    expect(text).not.toContain("Available to request");
+    expect(text).not.toContain("Shared with you");
+    expect(text).not.toContain("Incoming requests");
+    expect(text).not.toContain("Suggested sharing");
+  });
+
   it("labels linked sharing targets from the same account explicitly", () => {
     const container = document.createElement("div");
 
@@ -517,5 +675,72 @@ describe("nodes devices pending rendering", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Same account");
+  });
+
+  it("allows requesting execution upgrades from the shared devices list", () => {
+    const onSharingRequest = vi.fn();
+    const container = document.createElement("div");
+
+    render(
+      renderConnections(
+        baseProps({
+          onSharingRequest,
+          sharing: {
+            viewer: {
+              ownerKey: "user:1",
+              ownerScope: "user",
+              label: "Nuno",
+            },
+            planSupported: true,
+            policy: {
+              allowExternalUse: false,
+              editable: false,
+            },
+            devices: {
+              owned: [],
+              sharedWithMe: [
+                {
+                  targetId: "linked-1",
+                  label: "Office Mac",
+                  sourceKind: "node",
+                  connected: true,
+                  current: false,
+                  ownerKey: "user:1",
+                  ownerScope: "user",
+                  ownerLabel: "Nuno",
+                  registeredAt: new Date(0).toISOString(),
+                  updatedAt: new Date(0).toISOString(),
+                  deviceAccess: "shared",
+                  modelAccess: "shared",
+                  execAccess: "requestable",
+                  grantScopes: ["read-only", "model-use"],
+                },
+              ],
+              available: [],
+            },
+            incomingRequests: [],
+            outgoingRequests: [],
+            approvals: [],
+            grants: [],
+            audit: [],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const requestButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("Request execution"),
+    );
+    expect(requestButton).toBeDefined();
+
+    requestButton?.click();
+
+    expect(onSharingRequest).toHaveBeenCalledWith("linked-1", ["read-only", "model-use", "exec"]);
+    expect(
+      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((button) =>
+        button.textContent?.includes("Revoke"),
+      ),
+    ).toHaveLength(0);
   });
 });

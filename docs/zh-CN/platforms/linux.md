@@ -25,8 +25,8 @@ Gateway 网关在 Linux 上得到完全支持。**Node 是推荐的运行时**�
 1. 安装 Node 24（推荐；Node 22 LTS，目前 `22.16+`，为了兼容性仍然可用）
 2. `npm i -g openclaw@latest`
 3. `openclaw onboard --install-daemon`
-4. 在你的笔记本电脑上运行：`ssh -N -L 18789:127.0.0.1:18789 <user>@<host>`
-5. 打开 `http://127.0.0.1:18789/` 并粘贴你的令牌
+4. 在你的笔记本电脑上运行：`ssh -N -L 40705:127.0.0.1:40705 <user>@<host>`
+5. 打开 `http://127.0.0.1:40705/` 并粘贴你的令牌
 
 分步 VPS 指南：[exe.dev](/install/exe-dev)
 
@@ -85,7 +85,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/openclaw gateway --port 18789
+ExecStart=/usr/local/bin/openclaw gateway --port 40705
 Restart=always
 RestartSec=5
 

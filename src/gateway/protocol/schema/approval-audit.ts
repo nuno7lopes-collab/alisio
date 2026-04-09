@@ -10,6 +10,7 @@ export const ApprovalAuditDecisionSchema = Type.String({
 });
 
 export const ApprovalAuditGetParamsSchema = Type.Object({}, { additionalProperties: false });
+export const ApprovalPendingGetParamsSchema = Type.Object({}, { additionalProperties: false });
 
 export const ApprovalAuditExecRequestSchema = Type.Object(
   {
@@ -80,6 +81,40 @@ export const ApprovalAuditEntrySchema = Type.Union([
 export const ApprovalAuditSnapshotSchema = Type.Object(
   {
     items: Type.Array(ApprovalAuditEntrySchema),
+  },
+  { additionalProperties: false },
+);
+
+export const ApprovalPendingExecEntrySchema = Type.Object(
+  {
+    kind: Type.Literal("exec"),
+    id: NonEmptyString,
+    createdAtMs: Type.Integer({ minimum: 1 }),
+    expiresAtMs: Type.Integer({ minimum: 1 }),
+    request: ApprovalAuditExecRequestSchema,
+  },
+  { additionalProperties: false },
+);
+
+export const ApprovalPendingPluginEntrySchema = Type.Object(
+  {
+    kind: Type.Literal("plugin"),
+    id: NonEmptyString,
+    createdAtMs: Type.Integer({ minimum: 1 }),
+    expiresAtMs: Type.Integer({ minimum: 1 }),
+    request: ApprovalAuditPluginRequestSchema,
+  },
+  { additionalProperties: false },
+);
+
+export const ApprovalPendingEntrySchema = Type.Union([
+  ApprovalPendingExecEntrySchema,
+  ApprovalPendingPluginEntrySchema,
+]);
+
+export const ApprovalPendingSnapshotSchema = Type.Object(
+  {
+    items: Type.Array(ApprovalPendingEntrySchema),
   },
   { additionalProperties: false },
 );

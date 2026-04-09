@@ -57,7 +57,7 @@ describe("pw-session getPageForTargetId", () => {
     const [page] = pages;
 
     const resolved = await getPageForTargetId({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "NOT_A_TAB",
     });
     expect(resolved).toBe(page);
@@ -81,12 +81,12 @@ describe("pw-session getPageForTargetId", () => {
 
     try {
       const resolved = await getPageForTargetId({
-        cdpUrl: "ws://127.0.0.1:18792/devtools/browser/SESSION?token=abc",
+        cdpUrl: "ws://127.0.0.1:40708/devtools/browser/SESSION?token=abc",
         targetId: "TARGET_B",
       });
       expect(resolved).toBe(pageB);
       expect(fetchSpy).toHaveBeenCalledWith(
-        "http://127.0.0.1:18792/json/list?token=abc",
+        "http://127.0.0.1:40708/json/list?token=abc",
         expect.any(Object),
       );
     } finally {

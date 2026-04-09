@@ -103,8 +103,8 @@ describe("Windows startup fallback", () => {
       const result = await installScheduledTask({
         env,
         stdout,
-        programArguments: ["node", "gateway.js", "--port", "18789"],
-        environment: { OPENCLAW_GATEWAY_PORT: "18789" },
+        programArguments: ["node", "gateway.js", "--port", "40705"],
+        environment: { OPENCLAW_GATEWAY_PORT: "40705" },
       });
 
       const startupEntryPath = resolveStartupEntryPath(env);
@@ -133,8 +133,8 @@ describe("Windows startup fallback", () => {
       await installScheduledTask({
         env,
         stdout,
-        programArguments: ["node", "gateway.js", "--port", "18789"],
-        environment: { OPENCLAW_GATEWAY_PORT: "18789" },
+        programArguments: ["node", "gateway.js", "--port", "40705"],
+        environment: { OPENCLAW_GATEWAY_PORT: "40705" },
       });
 
       await expect(fs.access(resolveStartupEntryPath(env))).resolves.toBeUndefined();
@@ -156,7 +156,7 @@ describe("Windows startup fallback", () => {
       addStartupFallbackMissingResponses();
       await writeStartupFallbackEntry(env);
       inspectPortUsage.mockResolvedValue({
-        port: 18789,
+        port: 40705,
         status: "busy",
         listeners: [{ pid: 4242, command: "node.exe" }],
         hints: [],
@@ -177,7 +177,7 @@ describe("Windows startup fallback", () => {
       ]);
       await writeStartupFallbackEntry(env);
       inspectPortUsage.mockResolvedValue({
-        port: 18789,
+        port: 40705,
         status: "busy",
         listeners: [{ pid: 5151, command: "node.exe" }],
         hints: [],
@@ -199,19 +199,19 @@ describe("Windows startup fallback", () => {
       await writeStartupFallbackEntry(env);
       inspectPortUsage
         .mockResolvedValueOnce({
-          port: 18789,
+          port: 40705,
           status: "busy",
           listeners: [{ pid: 5151, command: "node.exe" }],
           hints: [],
         })
         .mockResolvedValueOnce({
-          port: 18789,
+          port: 40705,
           status: "busy",
           listeners: [{ pid: 5151, command: "node.exe" }],
           hints: [],
         })
         .mockResolvedValueOnce({
-          port: 18789,
+          port: 40705,
           status: "free",
           listeners: [],
           hints: [],

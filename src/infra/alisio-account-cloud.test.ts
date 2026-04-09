@@ -130,7 +130,7 @@ describe("alisio-account-cloud", () => {
       const requestUrl =
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       expect(requestUrl).toContain(
-        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+        "redirect_to=http%3A%2F%2Flocalhost%3A40705%2Flogout%2Fsetup%3Fstep%3Daccount",
       );
       return new Response(
         JSON.stringify({
@@ -147,7 +147,7 @@ describe("alisio-account-cloud", () => {
     const result = await signUpAlisioCloudAccount({
       email: "owner@example.com",
       password: "password123",
-      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      callbackUrl: "http://localhost:40705/logout/setup?step=account",
       env: SUPABASE_ENV,
       fetchImpl: fetchMock,
     });
@@ -170,10 +170,10 @@ describe("alisio-account-cloud", () => {
       const requestUrl =
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       expect(new Headers(init?.headers).get("redirect_to")).toBe(
-        "http://localhost:18789/logout/setup?step=account",
+        "http://localhost:40705/logout/setup?step=account",
       );
       expect(requestUrl).toContain(
-        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+        "redirect_to=http%3A%2F%2Flocalhost%3A40705%2Flogout%2Fsetup%3Fstep%3Daccount",
       );
       expect(parseJsonBody(init?.body)).toEqual({
         email: "owner@example.com",
@@ -184,7 +184,7 @@ describe("alisio-account-cloud", () => {
 
     const result = await beginAlisioCloudAccountEmailAuth({
       email: "owner@example.com",
-      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      callbackUrl: "http://localhost:40705/logout/setup?step=account",
       env: SUPABASE_ENV,
       fetchImpl: fetchMock,
     });
@@ -196,12 +196,39 @@ describe("alisio-account-cloud", () => {
     });
   });
 
+  it("surfaces the upstream Supabase failure when email auth dispatch is rejected", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      return new Response(
+        JSON.stringify({
+          msg: "Email logins are disabled",
+        }),
+        {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+
+    await expect(
+      beginAlisioCloudAccountEmailAuth({
+        email: "owner@example.com",
+        env: SUPABASE_ENV,
+        fetchImpl: fetchMock,
+      }),
+    ).rejects.toMatchObject({
+      name: "AlisioAccountCloudError",
+      code: "email_auth_failed",
+      message:
+        "Alisio could not send the verification email right now. Supabase replied with HTTP 429: Email logins are disabled",
+    });
+  });
+
   it("passes redirect_to on recovery emails so Alisio can finish the reset locally", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const requestUrl =
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       expect(requestUrl).toContain(
-        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsetup%3Fstep%3Daccount",
+        "redirect_to=http%3A%2F%2Flocalhost%3A40705%2Flogout%2Fsetup%3Fstep%3Daccount",
       );
       expect(parseJsonBody(init?.body)).toEqual({
         email: "owner@example.com",
@@ -211,7 +238,7 @@ describe("alisio-account-cloud", () => {
 
     const result = await requestAlisioCloudPasswordReset({
       email: "owner@example.com",
-      callbackUrl: "http://localhost:18789/logout/setup?step=account",
+      callbackUrl: "http://localhost:40705/logout/setup?step=account",
       env: SUPABASE_ENV,
       fetchImpl: fetchMock,
     });
@@ -219,6 +246,33 @@ describe("alisio-account-cloud", () => {
     expect(result).toEqual({
       ok: true,
       message: "If this Alisio account exists, a recovery email is on its way.",
+    });
+  });
+
+  it("surfaces the upstream Supabase failure when account recovery is rejected", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      return new Response(
+        JSON.stringify({
+          error_description: "Rate limit exceeded",
+        }),
+        {
+          status: 400,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+
+    await expect(
+      requestAlisioCloudPasswordReset({
+        email: "owner@example.com",
+        env: SUPABASE_ENV,
+        fetchImpl: fetchMock,
+      }),
+    ).rejects.toMatchObject({
+      name: "AlisioAccountCloudError",
+      code: "password_reset_failed",
+      message:
+        "Alisio could not start account recovery right now. Supabase replied with HTTP 400: Rate limit exceeded",
     });
   });
 
@@ -273,6 +327,178 @@ describe("alisio-account-cloud", () => {
     });
   });
 
+  it("retries profile fetch when the live Supabase table is missing optional columns", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const requestUrl =
+        typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (requestUrl.includes("/auth/v1/user")) {
+        return new Response(
+          JSON.stringify({
+            id: "user-1",
+            email: "owner@example.com",
+            created_at: "2026-04-04T15:30:00.000Z",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (requestUrl.includes("agent_name")) {
+        return new Response(
+          JSON.stringify({
+            code: "42703",
+            message: "column alisio_profiles.agent_name does not exist",
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        );
+      }
+      if (requestUrl.includes("terms_accepted_at")) {
+        return new Response(
+          JSON.stringify({
+            code: "42703",
+            message: "column alisio_profiles.terms_accepted_at does not exist",
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        );
+      }
+      expect(requestUrl).not.toContain("agent_name");
+      expect(requestUrl).not.toContain("terms_accepted_at");
+      return new Response(
+        JSON.stringify([
+          {
+            user_id: "user-1",
+            email: "owner@example.com",
+            display_name: "Owner",
+            username: "owner",
+          },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    });
+
+    const result = await completeAlisioCloudAccountEmailLinkAuth({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresIn: 3600,
+      tokenType: "bearer",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result.profile).toMatchObject({
+      userId: "user-1",
+      email: "owner@example.com",
+      displayName: "Owner",
+      username: "owner",
+      backend: "supabase",
+    });
+  });
+
+  it("refreshes an expired email link session when the fragment includes a refresh token", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            message: "JWT expired",
+          }),
+          {
+            status: 403,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+      )
+      .mockImplementationOnce(async (_input, init) => {
+        expect(parseJsonBody(init?.body)).toEqual({
+          refresh_token: "refresh-token",
+        });
+        return new Response(
+          JSON.stringify({
+            access_token: "refreshed-access-token",
+            refresh_token: "refreshed-refresh-token",
+            token_type: "bearer",
+            expires_in: 7200,
+            user: {
+              id: "user-1",
+              email: "owner@example.com",
+              created_at: "2026-04-04T15:30:00.000Z",
+            },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      })
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            id: "user-1",
+            email: "owner@example.com",
+            created_at: "2026-04-04T15:30:00.000Z",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => {
+        const payload = parseJsonBody(init?.body);
+        expect(payload.user_id).toBe("user-1");
+        expect(payload.email).toBe("owner@example.com");
+        return new Response(JSON.stringify([payload]), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+    const result = await completeAlisioCloudAccountEmailLinkAuth({
+      accessToken: "expired-access-token",
+      refreshToken: "refresh-token",
+      expiresIn: 3600,
+      tokenType: "bearer",
+      env: SUPABASE_ENV,
+      fetchImpl: fetchMock,
+    });
+
+    expect(result.session).toMatchObject({
+      accessToken: "refreshed-access-token",
+      refreshToken: "refreshed-refresh-token",
+      tokenType: "bearer",
+      userId: "user-1",
+      email: "owner@example.com",
+    });
+    expect(result.profile).toMatchObject({
+      userId: "user-1",
+      email: "owner@example.com",
+      backend: "supabase",
+    });
+  });
+
+  it("surfaces the upstream Supabase failure when the email link token no longer resolves a user", async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => {
+      return new Response(
+        JSON.stringify({
+          message: "JWT expired",
+        }),
+        {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    });
+
+    await expect(
+      completeAlisioCloudAccountEmailLinkAuth({
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresIn: 3600,
+        tokenType: "bearer",
+        env: SUPABASE_ENV,
+        fetchImpl: fetchMock,
+      }),
+    ).rejects.toMatchObject({
+      name: "AlisioAccountCloudError",
+      code: "session_refresh_failed",
+      message:
+        "The Alisio account session is no longer valid. Sign in again. Supabase replied with HTTP 401: JWT expired",
+    });
+  });
+
   it("keeps the Supabase auth email authoritative when saving the cloud profile", async () => {
     const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
       const payload = parseJsonBody(init?.body);
@@ -306,7 +532,7 @@ describe("alisio-account-cloud", () => {
       const requestUrl =
         typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       expect(requestUrl).toContain(
-        "redirect_to=http%3A%2F%2Flocalhost%3A18789%2Flogout%2Fsettings",
+        "redirect_to=http%3A%2F%2Flocalhost%3A40705%2Flogout%2Fsettings",
       );
       expect(parseJsonBody(init?.body)).toEqual({
         email: "next@example.com",
@@ -320,7 +546,7 @@ describe("alisio-account-cloud", () => {
     const result = await requestAlisioCloudAccountEmailChange({
       session: createSupabaseSession(),
       email: "next@example.com",
-      callbackUrl: "http://localhost:18789/logout/settings",
+      callbackUrl: "http://localhost:40705/logout/settings",
       env: SUPABASE_ENV,
       fetchImpl: fetchMock,
     });

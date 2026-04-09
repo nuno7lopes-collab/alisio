@@ -99,7 +99,7 @@ vi.mock("alisio/plugin-sdk/gateway-runtime", async (importOriginal) => {
     ) => {
       mockCreateOperatorApprovalsGatewayClient(params);
       const envUrl = process.env.OPENCLAW_GATEWAY_URL?.trim();
-      const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:18789";
+      const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:40705";
       const urlOverrideSource = params.gatewayUrl?.trim() ? "cli" : envUrl ? "env" : undefined;
       const auth = await mockResolveGatewayConnectionAuth({
         config: params.config,
@@ -140,7 +140,7 @@ vi.mock("../../../../src/gateway/operator-approvals-client.js", () => ({
   }) => {
     mockCreateOperatorApprovalsGatewayClient(params);
     const envUrl = process.env.OPENCLAW_GATEWAY_URL?.trim();
-    const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:18789";
+    const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:40705";
     const urlOverrideSource = params.gatewayUrl?.trim() ? "cli" : envUrl ? "env" : undefined;
     const auth = await mockResolveGatewayConnectionAuth({
       config: params.config,
@@ -255,7 +255,7 @@ function createTestingDeps() {
     }) => {
       mockCreateOperatorApprovalsGatewayClient(params);
       const envUrl = process.env.OPENCLAW_GATEWAY_URL?.trim();
-      const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:18789";
+      const gatewayUrl = params.gatewayUrl?.trim() || envUrl || "ws://127.0.0.1:40705";
       const urlOverrideSource = params.gatewayUrl?.trim() ? "cli" : envUrl ? "env" : undefined;
       const auth = await mockResolveGatewayConnectionAuth({
         config: params.config,
@@ -1108,7 +1108,7 @@ describe("DiscordExecApprovalHandler gateway auth", () => {
 
     expect(gatewayClientStarts).toHaveBeenCalledTimes(1);
     expect(gatewayClientParams[0]).toMatchObject({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "shared-gateway-token",
       password: undefined,
       scopes: ["operator.approvals"],

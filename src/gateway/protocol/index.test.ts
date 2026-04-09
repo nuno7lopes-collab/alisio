@@ -2,7 +2,10 @@ import type { ErrorObject } from "ajv";
 import { describe, expect, it } from "vitest";
 import {
   formatValidationErrors,
+  validateAlisioSecurityPolicyApplyProfileResult,
+  validateAlisioSecurityPolicySnapshot,
   validateApprovalAuditSnapshot,
+  validateApprovalPendingSnapshot,
   validateChannelsStatusResult,
   validateTalkConfigResult,
 } from "./index.js";
@@ -221,5 +224,138 @@ describe("validateApprovalAuditSnapshot", () => {
         ],
       }),
     ).toBe(false);
+  });
+});
+
+describe("validateApprovalPendingSnapshot", () => {
+  it("accepts exec and plugin pending approval entries", () => {
+    expect(
+      validateApprovalPendingSnapshot({
+        items: [
+          {
+            kind: "exec",
+            id: "approval-1",
+            createdAtMs: Date.now() - 1000,
+            expiresAtMs: Date.now() + 60_000,
+            request: {
+              command: "bun test",
+              host: "sandbox",
+              security: "allowlist",
+              ask: "on-miss",
+            },
+          },
+          {
+            kind: "plugin",
+            id: "plugin-1",
+            createdAtMs: Date.now() - 500,
+            expiresAtMs: Date.now() + 60_000,
+            request: {
+              title: "Publish release",
+              description: "Pushes release metadata to the host",
+              severity: "critical",
+              pluginId: "publisher",
+              toolName: "release.publish",
+            },
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects malformed pending approval entries", () => {
+    expect(
+      validateApprovalPendingSnapshot({
+        items: [
+          {
+            kind: "exec",
+            id: "approval-1",
+            createdAtMs: Date.now() - 1000,
+            expiresAtMs: Date.now() + 60_000,
+            request: {
+              host: "sandbox",
+            },
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("validateAlisioSecurityPolicySnapshot", () => {
+  it("accepts the canonical security policy payload", () => {
+    expect(
+      validateAlisioSecurityPolicySnapshot({
+        target: "gateway",
+        diagnostics: {
+          mode: "recommended",
+          effectivePromptAsk: "on-miss",
+          configDefaults: {
+            security: "allowlist",
+            ask: "on-miss",
+          },
+          approvalDefaults: {
+            security: "allowlist",
+            ask: "on-miss",
+            askFallback: "deny",
+            autoAllowSkills: false,
+          },
+          configOverrideAgentCount: 0,
+          approvalOverrideAgentCount: 0,
+        },
+        configSource: {
+          path: "/tmp/alisio.config.json5",
+          exists: true,
+          hash: "config-hash",
+        },
+        approvalsSource: {
+          path: "/tmp/exec-approvals.json",
+          exists: true,
+          hash: "approvals-hash",
+        },
+        pending: { items: [] },
+        audit: { items: [] },
+      }),
+    ).toBe(true);
+  });
+});
+
+describe("validateAlisioSecurityPolicyApplyProfileResult", () => {
+  it("accepts an apply-profile result", () => {
+    expect(
+      validateAlisioSecurityPolicyApplyProfileResult({
+        changed: true,
+        snapshot: {
+          target: "gateway",
+          diagnostics: {
+            mode: "full-access",
+            effectivePromptAsk: "off",
+            configDefaults: {
+              security: "full",
+              ask: "off",
+            },
+            approvalDefaults: {
+              security: "full",
+              ask: "off",
+              askFallback: "full",
+              autoAllowSkills: false,
+            },
+            configOverrideAgentCount: 0,
+            approvalOverrideAgentCount: 0,
+          },
+          configSource: {
+            path: "/tmp/alisio.config.json5",
+            exists: true,
+            hash: "config-hash",
+          },
+          approvalsSource: {
+            path: "/tmp/exec-approvals.json",
+            exists: true,
+            hash: "approvals-hash",
+          },
+          pending: { items: [] },
+          audit: { items: [] },
+        },
+      }),
+    ).toBe(true);
   });
 });

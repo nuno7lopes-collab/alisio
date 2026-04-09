@@ -10,7 +10,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
   return {
     ...actual,
     loadConfig: () => configOverride,
-    resolveGatewayPort: () => 18789,
+    resolveGatewayPort: () => 40705,
   };
 });
 
@@ -59,20 +59,17 @@ describe("agents_list", () => {
     const result = await tool.execute("call1", {});
     expect(result.details).toMatchObject({
       requester: "main",
-      allowAny: false,
+      subagentMode: "same_agent_only",
     });
     const agents = readAgentList(result);
     expect(agents?.map((agent) => agent.id)).toEqual(["main"]);
   });
 
-  it("includes allowlisted targets plus requester", async () => {
+  it("keeps only the requester agent even when other agents are configured", async () => {
     setConfigWithAgentList([
       {
         id: "main",
         name: "Main",
-        subagents: {
-          allowAgents: ["research"],
-        },
       },
       {
         id: "research",
@@ -83,16 +80,13 @@ describe("agents_list", () => {
     const tool = requireAgentsListTool();
     const result = await tool.execute("call2", {});
     const agents = readAgentList(result);
-    expect(agents?.map((agent) => agent.id)).toEqual(["main", "research"]);
+    expect(agents?.map((agent) => agent.id)).toEqual(["main"]);
   });
 
-  it("returns configured agents when allowlist is *", async () => {
+  it("keeps only the requester agent even when multiple sibling agents exist", async () => {
     setConfigWithAgentList([
       {
         id: "main",
-        subagents: {
-          allowAgents: ["*"],
-        },
       },
       {
         id: "research",
@@ -106,28 +100,21 @@ describe("agents_list", () => {
 
     const tool = requireAgentsListTool();
     const result = await tool.execute("call3", {});
-    expect(result.details).toMatchObject({
-      allowAny: true,
-    });
     const agents = readAgentList(result);
-    expect(agents?.map((agent) => agent.id)).toEqual(["main", "coder", "research"]);
+    expect(agents?.map((agent) => agent.id)).toEqual(["main"]);
   });
 
-  it("marks allowlisted-but-unconfigured agents", async () => {
+  it("still marks the requester as unconfigured when it is not explicitly listed", async () => {
     setConfigWithAgentList([
       {
-        id: "main",
-        subagents: {
-          allowAgents: ["research"],
-        },
+        id: "research",
       },
     ]);
 
     const tool = requireAgentsListTool();
     const result = await tool.execute("call4", {});
     const agents = readAgentList(result);
-    expect(agents?.map((agent) => agent.id)).toEqual(["main", "research"]);
-    const research = agents?.find((agent) => agent.id === "research");
-    expect(research?.configured).toBe(false);
+    expect(agents?.map((agent) => agent.id)).toEqual(["main"]);
+    expect(agents?.[0]?.configured).toBe(false);
   });
 });

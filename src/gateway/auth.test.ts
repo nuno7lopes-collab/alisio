@@ -692,7 +692,7 @@ describe("trusted-proxy auth", () => {
       expect(res.reason).toBe("token_missing_config");
     });
 
-    it("rejects trusted-proxy identity headers from loopback sources", async () => {
+    it("accepts same-host trusted-proxy identity headers from trusted loopback proxies", async () => {
       const res = await authorizeGatewayConnect({
         auth: {
           mode: "trusted-proxy",
@@ -710,11 +710,11 @@ describe("trusted-proxy auth", () => {
           },
         } as never,
       });
-      expect(res.ok).toBe(false);
-      expect(res.reason).toBe("trusted_proxy_loopback_source");
+      expect(res.ok).toBe(true);
+      expect(res.method).toBe("trusted-proxy");
     });
 
-    it("fails closed when forwarded headers are present but the client chain resolves to loopback", async () => {
+    it("fails closed when forwarded headers are present but the proxy identity header is missing", async () => {
       const res = await authorizeGatewayConnect({
         auth: {
           mode: "trusted-proxy",
@@ -735,10 +735,10 @@ describe("trusted-proxy auth", () => {
       });
 
       expect(res.ok).toBe(false);
-      expect(res.reason).toBe("trusted_proxy_loopback_source");
+      expect(res.reason).toBe("trusted_proxy_user_missing");
     });
 
-    it("uses token fallback for direct loopback even when Host is not localish", async () => {
+    it("does not use token fallback for direct loopback when Host is not localish", async () => {
       const res = await authorizeGatewayConnect({
         auth: {
           mode: "trusted-proxy",
@@ -756,8 +756,8 @@ describe("trusted-proxy auth", () => {
         } as never,
       });
 
-      expect(res.ok).toBe(true);
-      expect(res.method).toBe("token");
+      expect(res.ok).toBe(false);
+      expect(res.reason).toBe("trusted_proxy_missing_header_x-forwarded-proto");
     });
 
     it("rejects same-host proxy request with missing required header", async () => {
@@ -779,7 +779,7 @@ describe("trusted-proxy auth", () => {
         } as never,
       });
       expect(res.ok).toBe(false);
-      expect(res.reason).toBe("trusted_proxy_loopback_source");
+      expect(res.reason).toBe("trusted_proxy_missing_header_x-forwarded-proto");
     });
 
     it("still fails closed when trusted-proxy config is missing", async () => {

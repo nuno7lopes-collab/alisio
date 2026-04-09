@@ -217,6 +217,13 @@ assert_signed() {
   fi
 }
 
+for_each_native_candidate() {
+  local search_root="$1"
+  find "$search_root" -type f \
+    \( -perm -111 -o -name "*.dylib" -o -name "*.so" -o -name "*.node" \) \
+    -print0
+}
+
 team_id_for() {
   codesign -dv --verbose=4 "$1" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}'
 }
@@ -239,8 +246,10 @@ verify_team_ids() {
     return 0
   fi
 
+  local candidate_count=0
   local mismatches=()
   while IFS= read -r -d '' f; do
+    candidate_count=$((candidate_count + 1))
     if /usr/bin/file "$f" | /usr/bin/grep -q "Mach-O"; then
       local team
       team="$(team_id_for "$f" || true)"
@@ -255,7 +264,14 @@ verify_team_ids() {
         mismatches+=("$f (TeamIdentifier=$team)")
       fi
     fi
-  done < <(find "$APP_BUNDLE" -type f -print0)
+  done < <(
+    # The packaged app can contain tens of thousands of non-binary files. Limit
+    # the audit to executable files and native library artifacts, then confirm
+    # each candidate is Mach-O before reading its TeamIdentifier.
+    for_each_native_candidate "$APP_BUNDLE"
+  )
+
+  echo "Audited Team ID across $candidate_count candidate binaries."
 
   if [[ "${#mismatches[@]}" -gt 0 ]]; then
     echo "ERROR: Team ID mismatch detected (expected: $expected)"
@@ -297,6 +313,16 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
   find "$APP_BUNDLE/Contents/Frameworks" \( -name "*.framework" -o -name "*.dylib" \) ! -path "*Sparkle.framework*" -print0 | while IFS= read -r -d '' f; do
     echo "Signing framework: $f"; sign_plain_item "$f"
   done
+fi
+
+RESOURCE_ROOT="$APP_BUNDLE/Contents/Resources"
+if [[ -d "$RESOURCE_ROOT" ]]; then
+  echo "Signing embedded native resources"
+  while IFS= read -r -d '' f; do
+    if /usr/bin/file "$f" | /usr/bin/grep -q "Mach-O"; then
+      sign_plain_item "$f"
+    fi
+  done < <(for_each_native_candidate "$RESOURCE_ROOT")
 fi
 
 # Finally sign the bundle

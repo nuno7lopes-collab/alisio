@@ -19,6 +19,47 @@ function normalizeBase(input: string): string {
   return `${trimmed}/`;
 }
 
+function normalizeModuleId(id: string): string {
+  return id.replaceAll("\\", "/");
+}
+
+function isProviderCatalogModule(id: string): boolean {
+  const normalized = normalizeModuleId(id);
+  return (
+    normalized.includes("/node_modules/@mariozechner/pi-ai/dist/models.generated.js") ||
+    normalized.includes("/node_modules/@mariozechner/pi-ai/dist/models.js") ||
+    normalized.includes("/node_modules/@mariozechner/pi-ai/dist/utils/event-stream.js")
+  );
+}
+
+function isMarkdownModule(id: string): boolean {
+  const normalized = normalizeModuleId(id);
+  return (
+    normalized.includes("/node_modules/marked/") ||
+    normalized.includes("/node_modules/dompurify/") ||
+    normalized.endsWith("/ui/src/ui/markdown.ts") ||
+    normalized.endsWith("/ui/src/ui/views/markdown-sidebar.ts") ||
+    normalized.endsWith("/ui/src/ui/views/agents-panels-status-files.ts")
+  );
+}
+
+function isAlisioFeatureModule(id: string): boolean {
+  const normalized = normalizeModuleId(id);
+  return (
+    normalized.endsWith("/ui/src/ui/controllers/alisio.ts") ||
+    normalized.endsWith("/ui/src/ui/views/account-profile-fields.ts") ||
+    normalized.endsWith("/ui/src/ui/views/authentications.ts") ||
+    normalized.endsWith("/ui/src/ui/views/capabilities.ts") ||
+    normalized.endsWith("/ui/src/ui/views/connections.ts") ||
+    normalized.endsWith("/ui/src/ui/views/connector-branding.ts") ||
+    normalized.endsWith("/ui/src/ui/views/connector-state.ts") ||
+    normalized.endsWith("/ui/src/ui/views/models.ts") ||
+    normalized.endsWith("/ui/src/ui/views/organization.ts") ||
+    normalized.endsWith("/ui/src/ui/views/setup.ts") ||
+    normalized.endsWith("/ui/src/ui/views/sharing-shared.ts")
+  );
+}
+
 export default defineConfig(() => {
   const envBase = process.env.OPENCLAW_CONTROL_UI_BASE_PATH?.trim();
   const base = envBase ? normalizeBase(envBase) : "./";
@@ -32,8 +73,31 @@ export default defineConfig(() => {
       outDir: path.resolve(here, "../dist/control-ui"),
       emptyOutDir: true,
       sourcemap: true,
-      // Keep CI/onboard logs clean; current control UI chunking is intentionally above 500 kB.
+      // Keep CI/onboard logs clean; provider SDK chunks can still be sizeable.
       chunkSizeWarningLimit: 1024,
+      rolldownOptions: {
+        output: {
+          codeSplitting: {
+            groups: [
+              {
+                name: "event-stream",
+                test: isProviderCatalogModule,
+                priority: 30,
+              },
+              {
+                name: "ui-markdown",
+                test: isMarkdownModule,
+                priority: 20,
+              },
+              {
+                name: "ui-alisio",
+                test: isAlisioFeatureModule,
+                priority: 10,
+              },
+            ],
+          },
+        },
+      },
     },
     server: {
       host: true,
@@ -41,11 +105,11 @@ export default defineConfig(() => {
       strictPort: true,
       proxy: {
         "/__alisio/bootstrap": {
-          target: "http://127.0.0.1:18789",
+          target: "http://127.0.0.1:40705",
           changeOrigin: true,
         },
         [legacyControlUiConfigPath]: {
-          target: "http://127.0.0.1:18789",
+          target: "http://127.0.0.1:40705",
           changeOrigin: true,
         },
       },

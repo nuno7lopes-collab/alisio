@@ -15,9 +15,9 @@ import {
 
 describe("resolveHostName", () => {
   it.each([
-    { input: "localhost:18789", expected: "localhost" },
-    { input: "127.0.0.1:18789", expected: "127.0.0.1" },
-    { input: "[::1]:18789", expected: "::1" },
+    { input: "localhost:40705", expected: "localhost" },
+    { input: "127.0.0.1:40705", expected: "127.0.0.1" },
+    { input: "[::1]:40705", expected: "::1" },
     { input: "::1", expected: "::1" },
   ] as const)("normalizes host form for $input", ({ input, expected }) => {
     expect(resolveHostName(input), input).toBe(expected);
@@ -28,9 +28,9 @@ describe("isLocalishHost", () => {
   it("accepts loopback and tailscale serve/funnel host headers", () => {
     const accepted = [
       "localhost",
-      "127.0.0.1:18789",
-      "[::1]:18789",
-      "[::ffff:127.0.0.1]:18789",
+      "127.0.0.1:40705",
+      "[::1]:40705",
+      "[::ffff:127.0.0.1]:40705",
       "gateway.tailnet.ts.net",
     ];
     for (const host of accepted) {
@@ -39,7 +39,7 @@ describe("isLocalishHost", () => {
   });
 
   it("rejects non-local hosts", () => {
-    const rejected = ["example.com", "192.168.1.10", "203.0.113.5:18789"];
+    const rejected = ["example.com", "192.168.1.10", "203.0.113.5:40705"];
     for (const host of rejected) {
       expect(isLocalishHost(host), host).toBe(false);
     }
@@ -449,55 +449,55 @@ describe("isPrivateOrLoopbackHost", () => {
 describe("isSecureWebSocketUrl", () => {
   it.each([
     // wss:// always accepted
-    { input: "wss://127.0.0.1:18789", expected: true },
-    { input: "wss://localhost:18789", expected: true },
-    { input: "wss://remote.example.com:18789", expected: true },
-    { input: "wss://192.168.1.100:18789", expected: true },
+    { input: "wss://127.0.0.1:40705", expected: true },
+    { input: "wss://localhost:40705", expected: true },
+    { input: "wss://remote.example.com:40705", expected: true },
+    { input: "wss://192.168.1.100:40705", expected: true },
     // ws:// loopback accepted
-    { input: "ws://127.0.0.1:18789", expected: true },
-    { input: "ws://localhost:18789", expected: true },
-    { input: "ws://[::1]:18789", expected: true },
-    { input: "ws://127.0.0.42:18789", expected: true },
+    { input: "ws://127.0.0.1:40705", expected: true },
+    { input: "ws://localhost:40705", expected: true },
+    { input: "ws://[::1]:40705", expected: true },
+    { input: "ws://127.0.0.42:40705", expected: true },
     // ws:// private/public remote addresses rejected by default
-    { input: "ws://10.0.0.5:18789", expected: false },
-    { input: "ws://10.42.1.100:18789", expected: false },
-    { input: "ws://172.16.0.1:18789", expected: false },
-    { input: "ws://172.31.255.254:18789", expected: false },
-    { input: "ws://192.168.1.100:18789", expected: false },
-    { input: "ws://169.254.10.20:18789", expected: false },
-    { input: "ws://100.64.0.1:18789", expected: false },
-    { input: "ws://[fc00::1]:18789", expected: false },
-    { input: "ws://[fd12:3456:789a::1]:18789", expected: false },
-    { input: "ws://[fe80::1]:18789", expected: false },
-    { input: "ws://[::]:18789", expected: false },
-    { input: "ws://[ff02::1]:18789", expected: false },
+    { input: "ws://10.0.0.5:40705", expected: false },
+    { input: "ws://10.42.1.100:40705", expected: false },
+    { input: "ws://172.16.0.1:40705", expected: false },
+    { input: "ws://172.31.255.254:40705", expected: false },
+    { input: "ws://192.168.1.100:40705", expected: false },
+    { input: "ws://169.254.10.20:40705", expected: false },
+    { input: "ws://100.64.0.1:40705", expected: false },
+    { input: "ws://[fc00::1]:40705", expected: false },
+    { input: "ws://[fd12:3456:789a::1]:40705", expected: false },
+    { input: "ws://[fe80::1]:40705", expected: false },
+    { input: "ws://[::]:40705", expected: false },
+    { input: "ws://[ff02::1]:40705", expected: false },
     // ws:// public addresses rejected
-    { input: "ws://remote.example.com:18789", expected: false },
-    { input: "ws://1.1.1.1:18789", expected: false },
-    { input: "ws://8.8.8.8:18789", expected: false },
-    { input: "ws://203.0.113.10:18789", expected: false },
+    { input: "ws://remote.example.com:40705", expected: false },
+    { input: "ws://1.1.1.1:40705", expected: false },
+    { input: "ws://8.8.8.8:40705", expected: false },
+    { input: "ws://203.0.113.10:40705", expected: false },
     // invalid URLs
     { input: "not-a-url", expected: false },
     { input: "", expected: false },
-    { input: "http://127.0.0.1:18789", expected: true },
-    { input: "https://127.0.0.1:18789", expected: true },
-    { input: "https://remote.example.com:18789", expected: true },
-    { input: "http://remote.example.com:18789", expected: false },
+    { input: "http://127.0.0.1:40705", expected: true },
+    { input: "https://127.0.0.1:40705", expected: true },
+    { input: "https://remote.example.com:40705", expected: true },
+    { input: "http://remote.example.com:40705", expected: false },
   ] as const)("defaults secure websocket behavior for $input", ({ input, expected }) => {
     expect(isSecureWebSocketUrl(input), input).toBe(expected);
   });
 
   it("allows private ws:// only when opt-in is enabled", () => {
     const allowedWhenOptedIn = [
-      "ws://10.0.0.5:18789",
-      "http://10.0.0.5:18789",
-      "ws://172.16.0.1:18789",
-      "ws://192.168.1.100:18789",
-      "ws://100.64.0.1:18789",
-      "ws://169.254.10.20:18789",
-      "ws://[fc00::1]:18789",
-      "ws://[fe80::1]:18789",
-      "ws://gateway.private.example:18789",
+      "ws://10.0.0.5:40705",
+      "http://10.0.0.5:40705",
+      "ws://172.16.0.1:40705",
+      "ws://192.168.1.100:40705",
+      "ws://100.64.0.1:40705",
+      "ws://169.254.10.20:40705",
+      "ws://[fc00::1]:40705",
+      "ws://[fe80::1]:40705",
+      "ws://gateway.private.example:40705",
     ];
 
     for (const input of allowedWhenOptedIn) {
@@ -506,7 +506,7 @@ describe("isSecureWebSocketUrl", () => {
   });
 
   it("still rejects ws:// public IP literals when opt-in is enabled", () => {
-    const publicIpWsUrls = ["ws://1.1.1.1:18789", "ws://8.8.8.8:18789", "ws://203.0.113.10:18789"];
+    const publicIpWsUrls = ["ws://1.1.1.1:40705", "ws://8.8.8.8:40705", "ws://203.0.113.10:40705"];
 
     for (const input of publicIpWsUrls) {
       expect(isSecureWebSocketUrl(input, { allowPrivateWs: true }), input).toBe(false);
@@ -515,9 +515,9 @@ describe("isSecureWebSocketUrl", () => {
 
   it("still rejects non-unicast IPv6 ws:// even when opt-in is enabled", () => {
     const disallowedWhenOptedIn = [
-      "ws://[::]:18789",
-      "ws://[0:0::0]:18789",
-      "ws://[ff02::1]:18789",
+      "ws://[::]:40705",
+      "ws://[0:0::0]:40705",
+      "ws://[ff02::1]:40705",
     ];
 
     for (const input of disallowedWhenOptedIn) {

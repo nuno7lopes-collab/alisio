@@ -141,7 +141,7 @@ alisio onboard --non-interactive \
   --mode local \
   --auth-choice apiKey \
   --anthropic-api-key "$ANTHROPIC_API_KEY" \
-  --gateway-port 18789 \
+  --gateway-port 40705 \
   --gateway-bind loopback \
   --install-daemon \
   --daemon-runtime node \

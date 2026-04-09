@@ -58,7 +58,6 @@ describe("handleAlisioOAuthHttpRequest", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body()).toContain("Alisio is connected to OpenAI");
     expect(res.body()).toContain("alisio:alisio-openai-oauth:v1");
-    expect(res.body()).toContain("openclaw:alisio-openai-oauth:v1");
     expect(res.body()).toContain("BroadcastChannel");
     expect(res.body()).toContain("setTimeout(function(){window.close();},120)");
   });
@@ -89,7 +88,6 @@ describe("handleAlisioOAuthHttpRequest", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body()).toContain("Alisio connection completed");
     expect(res.body()).toContain("alisio:alisio-connector-oauth:v1");
-    expect(res.body()).toContain("openclaw:alisio-connector-oauth:v1");
     expect(res.body()).toContain("alisio:alisio-connector-oauth:return-to:v1");
     expect(res.body()).toContain('"connectorId":"google-calendar"');
     expect(res.body()).toContain("window.location.replace(returnToUrl)");

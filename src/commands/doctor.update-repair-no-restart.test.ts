@@ -61,7 +61,7 @@ describe("doctor command update-mode repairs", () => {
 
     serviceIsLoaded.mockResolvedValueOnce(false);
     serviceReadCommand.mockResolvedValueOnce({
-      programArguments: ["node", "cli", "gateway", "--port", "18789"],
+      programArguments: ["node", "cli", "gateway", "--port", "40705"],
       environment: {
         OPENCLAW_GATEWAY_TOKEN: "stale-token",
       },
@@ -77,7 +77,7 @@ describe("doctor command update-mode repairs", () => {
       ],
     });
     buildGatewayInstallPlan.mockResolvedValue({
-      programArguments: ["node", "cli", "gateway", "--port", "18789"],
+      programArguments: ["node", "cli", "gateway", "--port", "40705"],
       workingDirectory: "/tmp",
       environment: {},
     });

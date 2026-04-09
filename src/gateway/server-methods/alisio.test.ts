@@ -1,3 +1,6 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { AlisioLocalModelRuntimeInspection } from "../../infra/alisio-local-model-runtime.js";
 import {
@@ -21,6 +24,7 @@ const { scheduleGatewaySigusr1RestartMock } = vi.hoisted(() => ({
 const {
   changeAlisioAccountEmailMock,
   requestAlisioAccountRecoveryEmailMock,
+  signOutAlisioAccountMock,
   updateAlisioAccountPasswordMock,
 } = vi.hoisted(() => ({
   changeAlisioAccountEmailMock: vi.fn(async () => ({
@@ -31,6 +35,34 @@ const {
     ok: true as const,
     message: "A recovery email is on its way.",
   })),
+  signOutAlisioAccountMock: vi.fn(async () => ({
+    profile: {
+      userId: "user-1",
+      username: "nuno",
+      displayName: "Nuno Lopes",
+      email: "nuno@example.com",
+      avatarLabel: "N",
+      joinedAt: "2026-04-04T15:00:00.000Z",
+      plan: "free",
+      backend: "supabase",
+    },
+    preferences: {
+      language: "pt-PT",
+      theme: "dark",
+    },
+    session: {
+      state: "signed_out" as const,
+      profileCompleted: true,
+      signedOutAt: "2026-04-04T15:05:00.000Z",
+      backend: "supabase" as const,
+    },
+    devices: [],
+    cloud: {
+      backend: "supabase" as const,
+      available: true,
+      missingEnvVars: [],
+    },
+  })),
   updateAlisioAccountPasswordMock: vi.fn(async () => ({
     ok: true as const,
     message: "Your Alisio password was updated.",
@@ -39,6 +71,7 @@ const {
 
 const {
   approveAlisioSharingRequestMock,
+  getAlisioSharingTargetAccessIndexMock,
   getAlisioSharingStateMock,
   listAlisioRemoteModelServersMock,
   saveAlisioRemoteModelServerMock,
@@ -54,6 +87,28 @@ const {
     requestId,
     grantId: "grant-1",
   })),
+  getAlisioSharingTargetAccessIndexMock: vi.fn(
+    async (input?: { targets?: Array<{ targetId: string }> }) =>
+      Object.fromEntries(
+        (input?.targets ?? []).map((target) => [
+          target.targetId,
+          {
+            targetId: target.targetId,
+            label: target.targetId,
+            sourceKind: target.targetId.startsWith("local:") ? "current" : "node",
+            connected: true,
+            current: target.targetId.startsWith("local:"),
+            ownerKey: "user:user-1",
+            ownerScope: "user",
+            ownerLabel: "Nuno Lopes",
+            registeredAt: "2026-04-08T10:00:00.000Z",
+            updatedAt: "2026-04-08T10:00:00.000Z",
+            deviceAccess: "owner",
+            modelAccess: "owner",
+          },
+        ]),
+      ),
+  ),
   getAlisioSharingStateMock: vi.fn(async () => ({
     viewer: {
       ownerKey: "user:user-1",
@@ -65,6 +120,18 @@ const {
     policy: {
       allowExternalUse: false,
       editable: false,
+      resourcesEditable: true,
+      resourcePolicies: {
+        compute: "light-approval" as const,
+        models: "paired-device" as const,
+        jobs: "light-approval" as const,
+        artifacts: "paired-device" as const,
+        cache: "paired-device" as const,
+        memory: "explicit-consent" as const,
+        vault: "explicit-consent" as const,
+        files: "explicit-consent" as const,
+        context: "explicit-consent" as const,
+      },
     },
     devices: {
       owned: [],
@@ -76,6 +143,7 @@ const {
     approvals: [],
     grants: [],
     audit: [],
+    suggestions: [],
   })),
   listAlisioRemoteModelServersMock: vi.fn(async () => []),
   rejectAlisioSharingRequestMock: vi.fn(async ({ requestId }: { requestId: string }) => ({
@@ -119,9 +187,16 @@ const {
     serverId,
   })),
   setAlisioSharingPolicyMock: vi.fn(
-    async ({ allowExternalUse }: { allowExternalUse: boolean }) => ({
-      ok: true as const,
+    async ({
       allowExternalUse,
+      resourcePolicies,
+    }: {
+      allowExternalUse?: boolean;
+      resourcePolicies?: Record<string, string>;
+    }) => ({
+      ok: true as const,
+      allowExternalUse: allowExternalUse ?? false,
+      ...(resourcePolicies ? { resourcePolicies } : {}),
     }),
   ),
 }));
@@ -212,9 +287,21 @@ const { startLmStudioLocalServerMock } = vi.hoisted(() => ({
   })),
 }));
 
+const { warnLegacyCompatibilityOnceMock } = vi.hoisted(() => ({
+  warnLegacyCompatibilityOnceMock: vi.fn(),
+}));
+
 vi.mock("../../infra/restart.js", () => ({
   scheduleGatewaySigusr1Restart: scheduleGatewaySigusr1RestartMock,
 }));
+
+vi.mock("../../infra/compat-warning.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../infra/compat-warning.js")>();
+  return {
+    ...actual,
+    warnLegacyCompatibilityOnce: warnLegacyCompatibilityOnceMock,
+  };
+});
 
 vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../infra/alisio-store.js")>();
@@ -226,6 +313,8 @@ vi.mock("../../infra/alisio-store.js", async (importOriginal) => {
     approveAlisioSharingRequest: approveAlisioSharingRequestMock,
     rejectAlisioSharingRequest: rejectAlisioSharingRequestMock,
     revokeAlisioSharingGrant: revokeAlisioSharingGrantMock,
+    signOutAlisioAccount: signOutAlisioAccountMock,
+    getAlisioSharingTargetAccessIndex: getAlisioSharingTargetAccessIndexMock,
     getAlisioSharingState: getAlisioSharingStateMock,
     listAlisioRemoteModelServers: listAlisioRemoteModelServersMock,
     saveAlisioRemoteModelServer: saveAlisioRemoteModelServerMock,
@@ -285,6 +374,78 @@ function makeRespond() {
     calls.push({ ok, payload, error });
   };
   return { calls, respond };
+}
+
+async function withReadyLocalAccountEnv<T>(run: () => Promise<T>): Promise<T> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gateway-account-"));
+  const previousStateDir = process.env.ALISIO_STATE_DIR;
+  const previousSupabaseUrl = process.env.ALISIO_SUPABASE_URL;
+  const previousSupabaseAnonKey = process.env.ALISIO_SUPABASE_ANON_KEY;
+  process.env.ALISIO_STATE_DIR = root;
+  process.env.ALISIO_SUPABASE_URL = "https://example.supabase.co";
+  process.env.ALISIO_SUPABASE_ANON_KEY = "anon-key";
+  try {
+    const statePath = path.join(root, "alisio", "state.json");
+    await fs.mkdir(path.dirname(statePath), { recursive: true });
+    await fs.writeFile(
+      statePath,
+      JSON.stringify(
+        {
+          version: 1,
+          account: {
+            profile: {
+              userId: "user-1",
+              username: "nuno",
+              displayName: "Nuno Lopes",
+              email: "nuno@example.com",
+              avatarLabel: "N",
+              joinedAt: "2026-04-04T15:00:00.000Z",
+              plan: "free",
+              backend: "supabase",
+            },
+            preferences: {
+              language: "pt-PT",
+              theme: "dark",
+            },
+            session: {
+              state: "signed_in",
+              profileCompleted: true,
+              signedInAt: "2026-04-04T15:00:00.000Z",
+              backend: "supabase",
+            },
+          },
+          organization: {
+            mode: "none",
+          },
+          ai: {},
+          authorizations: {},
+          oauthCredentials: {},
+          pendingAuthorizations: {},
+          pendingAccountAuths: {},
+        },
+        null,
+        2,
+      ),
+    );
+    return await run();
+  } finally {
+    if (previousStateDir === undefined) {
+      delete process.env.ALISIO_STATE_DIR;
+    } else {
+      process.env.ALISIO_STATE_DIR = previousStateDir;
+    }
+    if (previousSupabaseUrl === undefined) {
+      delete process.env.ALISIO_SUPABASE_URL;
+    } else {
+      process.env.ALISIO_SUPABASE_URL = previousSupabaseUrl;
+    }
+    if (previousSupabaseAnonKey === undefined) {
+      delete process.env.ALISIO_SUPABASE_ANON_KEY;
+    } else {
+      process.env.ALISIO_SUPABASE_ANON_KEY = previousSupabaseAnonKey;
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  }
 }
 
 function createNodeSession(
@@ -352,12 +513,12 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(true);
     expect(calls[0]?.payload).toMatchObject({
       connectionRequired: false,
-      wizardRequired: true,
+      wizardRequired: false,
       wizardRunning: false,
       providerReady: false,
-      accountReady: true,
-      startupState: "needs_ai",
-      nextStep: "runtime",
+      accountReady: false,
+      startupState: "needs_profile",
+      nextStep: "account",
     });
   });
 
@@ -379,12 +540,12 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: false,
       bootstrap: {
-        nextStep: "runtime",
+        nextStep: "account",
       },
     });
     const payload = calls[0]?.payload as { issues?: Array<{ code: string }> };
     expect(payload.issues?.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["runtime_not_ready"]),
+      expect.arrayContaining(["account_not_ready", "runtime_not_ready"]),
     );
   });
 
@@ -818,26 +979,28 @@ describe("alisio gateway methods", () => {
   });
 
   it("surfaces organization plan gating as a validation error", async () => {
-    const context = makeContext();
-    const { calls, respond } = makeRespond();
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
 
-    await alisioHandlers["alisio.organization.set"]({
-      params: {
-        mode: "owner",
-        organizationName: "OpenClaw",
-      },
-      client: null,
-      context,
-      isWebchatConnect: () => false,
-      respond,
-      req: { method: "alisio.organization.set", params: {}, id: 9 } as never,
-    });
+      await alisioHandlers["alisio.organization.set"]({
+        params: {
+          mode: "owner",
+          organizationName: "Alisio",
+        },
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "alisio.organization.set", params: {}, id: 9 } as never,
+      });
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(false);
-    expect(calls[0]?.error).toMatchObject({
-      code: "INVALID_REQUEST",
-      message: expect.stringContaining("available on Plus"),
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(false);
+      expect(calls[0]?.error).toMatchObject({
+        code: "INVALID_REQUEST",
+        message: expect.stringContaining("require Plus"),
+      });
     });
   });
 
@@ -923,25 +1086,50 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.ok).toBe(true);
   });
 
-  it("allows connector setup to continue from local account mode", async () => {
+  it("warns when legacy connector methods are used", async () => {
     const context = makeContext();
-    const { calls, respond } = makeRespond();
+    const { respond } = makeRespond();
+    warnLegacyCompatibilityOnceMock.mockClear();
 
     await alisioHandlers["alisio.connectors.begin"]({
-      params: {
-        connectorId: "google-calendar",
-      },
+      params: {},
       client: null,
       context,
       isWebchatConnect: () => false,
       respond,
-      req: { method: "alisio.connectors.begin", params: {}, id: 10 } as never,
+      req: { method: "alisio.connectors.begin", params: {}, id: 14 } as never,
     });
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.ok).toBe(true);
-    expect(calls[0]?.payload).toMatchObject({
-      connectorId: "google-calendar",
+    expect(warnLegacyCompatibilityOnceMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "gateway-method:alisio.connectors.begin",
+        message:
+          'Gateway method "alisio.connectors.begin" is deprecated legacy connector compatibility.',
+      }),
+    );
+  });
+
+  it("allows connector setup to continue from local account mode", async () => {
+    await withReadyLocalAccountEnv(async () => {
+      const context = makeContext();
+      const { calls, respond } = makeRespond();
+
+      await alisioHandlers["alisio.connectors.begin"]({
+        params: {
+          connectorId: "google-calendar",
+        },
+        client: null,
+        context,
+        isWebchatConnect: () => false,
+        respond,
+        req: { method: "alisio.connectors.begin", params: {}, id: 10 } as never,
+      });
+
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.ok).toBe(true);
+      expect(calls[0]?.payload).toMatchObject({
+        connectorId: "google-calendar",
+      });
     });
   });
 
@@ -996,7 +1184,7 @@ describe("alisio gateway methods", () => {
     await alisioHandlers["alisio.account.changeEmail"]({
       params: {
         email: "next@example.com",
-        callbackUrl: "http://localhost:18789/logout/settings",
+        callbackUrl: "http://localhost:40705/logout/settings",
       },
       client: null,
       context,
@@ -1009,7 +1197,7 @@ describe("alisio gateway methods", () => {
     expect(changeAlisioAccountEmailMock).toHaveBeenCalledWith(
       {
         email: "next@example.com",
-        callbackUrl: "http://localhost:18789/logout/settings",
+        callbackUrl: "http://localhost:40705/logout/settings",
       },
       process.env,
     );
@@ -1046,6 +1234,28 @@ describe("alisio gateway methods", () => {
     expect(calls[0]?.payload).toMatchObject({
       ok: true,
       message: expect.stringContaining("password"),
+    });
+  });
+
+  it("surfaces a controlled gateway error when logout fails", async () => {
+    signOutAlisioAccountMock.mockRejectedValueOnce(new Error("disk unavailable"));
+    const context = makeContext();
+    const { calls, respond } = makeRespond();
+
+    await alisioHandlers["alisio.account.signOut"]({
+      params: {},
+      client: null,
+      context,
+      isWebchatConnect: () => false,
+      respond,
+      req: { method: "alisio.account.signOut", params: {}, id: 17 } as never,
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.ok).toBe(false);
+    expect(calls[0]?.error).toMatchObject({
+      code: "UNAVAILABLE",
+      message: "failed to sign out of Alisio: disk unavailable",
     });
   });
 

@@ -241,14 +241,14 @@ export function buildAgentSystemPrompt(params: {
     message: "Send messages and channel actions",
     gateway: "Restart, apply config, or run updates on the running Alisio process",
     agents_list: acpSpawnRuntimeEnabled
-      ? 'List Alisio agent ids allowed for sessions_spawn when runtime="subagent" (not ACP harness ids)'
-      : "List Alisio agent ids allowed for sessions_spawn",
+      ? "Show the current Alisio agent context for internal subagents (ACP harness ids are configured separately)"
+      : "Show the current Alisio agent context for internal subagents",
     sessions_list: "List other sessions (incl. sub-agents) with filters/last",
     sessions_history: "Fetch history for another session/sub-agent",
     sessions_send: "Send a message to another session/sub-agent",
     sessions_spawn: acpSpawnRuntimeEnabled
-      ? 'Spawn an isolated sub-agent or ACP coding session (runtime="acp" requires `agentId` unless `acp.defaultAgent` is configured; ACP harness ids follow acp.allowedAgents, not agents_list)'
-      : "Spawn an isolated sub-agent session",
+      ? 'Spawn an isolated sub-agent or ACP coding session (runtime="subagent" stays on the current Alisio agent; runtime="acp" requires `agentId` unless `acp.defaultAgent` is configured)'
+      : "Spawn an isolated sub-agent session under the current Alisio agent",
     subagents: "List, steer, or kill sub-agent runs for this requester session",
     session_status:
       "Show a /status-equivalent status card (usage + time + Reasoning/Verbose/Elevated); use for model-use questions (📊 session_status); optional per-session model override",

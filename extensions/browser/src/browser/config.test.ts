@@ -8,7 +8,7 @@ describe("browser config", () => {
   it("defaults to enabled with loopback defaults and lobster-orange color", () => {
     const resolved = resolveBrowserConfig(undefined);
     expect(resolved.enabled).toBe(true);
-    expect(resolved.controlPort).toBe(18791);
+    expect(resolved.controlPort).toBe(40707);
     expect(resolved.color).toBe("#FF4500");
     expect(shouldStartLocalBrowserServer(resolved)).toBe(true);
     expect(resolved.cdpHost).toBe("127.0.0.1");
@@ -16,13 +16,13 @@ describe("browser config", () => {
     const profile = resolveProfile(resolved, resolved.defaultProfile);
     expect(profile?.name).toBe("openclaw");
     expect(profile?.driver).toBe("openclaw");
-    expect(profile?.cdpPort).toBe(18800);
-    expect(profile?.cdpUrl).toBe("http://127.0.0.1:18800");
+    expect(profile?.cdpPort).toBe(40716);
+    expect(profile?.cdpUrl).toBe("http://127.0.0.1:40716");
 
     const openclaw = resolveProfile(resolved, "openclaw");
     expect(openclaw?.driver).toBe("openclaw");
-    expect(openclaw?.cdpPort).toBe(18800);
-    expect(openclaw?.cdpUrl).toBe("http://127.0.0.1:18800");
+    expect(openclaw?.cdpPort).toBe(40716);
+    expect(openclaw?.cdpUrl).toBe("http://127.0.0.1:40716");
     const user = resolveProfile(resolved, "user");
     expect(user?.driver).toBe("existing-session");
     expect(user?.cdpPort).toBe(0);
@@ -156,12 +156,12 @@ describe("browser config", () => {
     const resolved = resolveBrowserConfig({
       cdpUrl: "https://example.com:9443",
       profiles: {
-        work: { cdpPort: 18801, color: "#0066CC" },
+        work: { cdpPort: 40717, color: "#0066CC" },
       },
     });
 
     const work = resolveProfile(resolved, "work");
-    expect(work?.cdpUrl).toBe("https://example.com:18801");
+    expect(work?.cdpUrl).toBe("https://example.com:40717");
   });
 
   it("preserves wss:// cdpUrl with query params for the default profile", () => {
@@ -191,7 +191,7 @@ describe("browser config", () => {
   });
 
   it("rejects unsupported protocols", () => {
-    expect(() => resolveBrowserConfig({ cdpUrl: "ftp://127.0.0.1:18791" })).toThrow(
+    expect(() => resolveBrowserConfig({ cdpUrl: "ftp://127.0.0.1:40707" })).toThrow(
       "must be http(s) or ws(s)",
     );
   });
@@ -304,7 +304,7 @@ describe("browser config", () => {
     const resolved = resolveBrowserConfig({
       profiles: {
         "chrome-live": { driver: "existing-session", attachOnly: true, color: "#00AA00" },
-        work: { cdpPort: 18801, color: "#0066CC" },
+        work: { cdpPort: 40717, color: "#0066CC" },
       },
     });
 

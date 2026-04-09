@@ -103,7 +103,7 @@ Gatewayは、セッション、ルーティング、チャネル接続の信頼�
   <Step title="WhatsAppをペアリングしてGatewayを起動">
     ```bash
     alisio channels login
-    alisio gateway --port 18789
+    alisio gateway --port 40705
     ```
   </Step>
 </Steps>
@@ -114,7 +114,7 @@ Gatewayは、セッション、ルーティング、チャネル接続の信頼�
 
 Gatewayの起動後、ブラウザでControl UIを開きます。
 
-- ローカルデフォルト: [http://127.0.0.1:18789/](http://127.0.0.1:18789/)
+- ローカルデフォルト: [http://127.0.0.1:40705/](http://127.0.0.1:40705/)
 - リモートアクセス: [Webサーフェス](/web)および[Tailscale](/gateway/tailscale)
 
 <p align="center">

@@ -51,7 +51,7 @@ If you don’t have a global install yet, run it via `pnpm alisio setup`.
 After `pnpm build`, you can run the packaged CLI directly:
 
 ```bash
-node alisio.mjs gateway --port 18789 --verbose
+node alisio.mjs gateway --port 40705 --verbose
 ```
 
 ## Stable workflow (macOS app first)
@@ -115,7 +115,7 @@ alisio health
 
 ### Common footguns
 
-- **Wrong port:** Gateway WS defaults to `ws://127.0.0.1:18789`; keep app + CLI on the same port.
+- **Wrong port:** Gateway WS defaults to `ws://127.0.0.1:40705`; keep app + CLI on the same port.
 - **Where state lives:**
   - Credentials: `~/.alisio/credentials/`
   - Sessions: `~/.alisio/agents/<agentId>/sessions/`

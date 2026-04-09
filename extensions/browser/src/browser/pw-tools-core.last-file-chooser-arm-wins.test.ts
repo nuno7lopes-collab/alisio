@@ -55,11 +55,11 @@ describe("pw-tools-core", () => {
 
     try {
       await mod.armFileUploadViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         paths: [firstPath],
       });
       await mod.armFileUploadViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         paths: [secondPath],
       });
 
@@ -88,7 +88,7 @@ describe("pw-tools-core", () => {
     });
 
     await mod.armDialogViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       accept: true,
       promptText: "x",
     });
@@ -103,7 +103,7 @@ describe("pw-tools-core", () => {
     waitForEvent.mockClear();
 
     await mod.armDialogViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       accept: false,
     });
     await Promise.resolve();
@@ -132,7 +132,7 @@ describe("pw-tools-core", () => {
     setPwToolsCoreCurrentPage(page);
 
     await mod.waitForViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       selector: "#main",
       url: "**/dash",
       loadState: "networkidle",

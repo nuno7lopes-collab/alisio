@@ -157,7 +157,7 @@ export const pt_BR: TranslationMap = {
         title: "Segurança no chat",
         subtitle:
           "Opera o acesso aqui. O runtime continua a manter por baixo a policy real, as permissões e o trilho de auditoria.",
-        openAdvanced: "Detalhes da policy",
+        openAdvanced: "Detalhes",
         policyTitle: "Plano de policy",
         policyRuntime: "Padrão do runtime: {value}",
         policyApprovals: "Padrão de approval: {value}",
@@ -166,7 +166,9 @@ export const pt_BR: TranslationMap = {
         computerTitle: "Acesso ao computador",
         computerLoading: "Carregando o acesso ao computador…",
         computerUnavailable: "O acesso nativo ao computador não está disponível nesta superfície.",
+        computerUnavailableShort: "Sem acesso local",
         computerGranted: "{granted}/{total} permissões do sistema prontas",
+        computerGrantedShort: "{granted}/{total} sistema",
         computerAllGranted: "Nenhuma permissão do sistema bloqueada foi detectada.",
         computerNeedsReview: "Precisa de revisão: {value}",
         openComputerSettings: "Ajustes do sistema",

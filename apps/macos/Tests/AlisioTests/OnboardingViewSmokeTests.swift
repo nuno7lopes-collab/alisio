@@ -49,7 +49,7 @@ struct OnboardingViewSmokeTests {
                 lanHost: "txt-host.local",
                 tailnetDns: "txt-host.ts.net",
                 sshPort: 22,
-                gatewayPort: 18789,
+                gatewayPort: 40705,
                 cliPath: "/tmp/alisio",
                 stableID: UUID().uuidString,
                 debugID: UUID().uuidString,

@@ -156,9 +156,9 @@ function createEnabledWebSearchConfig(provider: string, pluginEntry: Record<stri
 
 function setupBaseWizardState() {
   mocks.readConfigFileSnapshot.mockResolvedValue(EMPTY_CONFIG_SNAPSHOT);
-  mocks.resolveGatewayPort.mockReturnValue(18789);
+  mocks.resolveGatewayPort.mockReturnValue(40705);
   mocks.probeGatewayReachable.mockResolvedValue({ ok: false });
-  mocks.resolveControlUiLinks.mockReturnValue({ wsUrl: "ws://127.0.0.1:18789" });
+  mocks.resolveControlUiLinks.mockReturnValue({ wsUrl: "ws://127.0.0.1:40705" });
   mocks.summarizeExistingConfig.mockReturnValue("");
   mocks.createClackPrompter.mockReturnValue({
     intro: vi.fn(async () => {}),

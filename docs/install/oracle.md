@@ -115,7 +115,7 @@ Run a persistent Alisio Gateway on Oracle Cloud's **Always Free** ARM tier (up t
     alisio --version
     systemctl --user status alisio-gateway
     tailscale serve status
-    curl http://localhost:18789
+    curl http://localhost:40705
     ```
 
     Access the Control UI from any device on your tailnet:
@@ -134,10 +134,10 @@ Run a persistent Alisio Gateway on Oracle Cloud's **Always Free** ARM tier (up t
 If Tailscale Serve is not working, use an SSH tunnel from your local machine:
 
 ```bash
-ssh -L 18789:127.0.0.1:18789 ubuntu@alisio
+ssh -L 40705:127.0.0.1:40705 ubuntu@alisio
 ```
 
-Then open `http://localhost:18789`.
+Then open `http://localhost:40705`.
 
 ## Troubleshooting
 

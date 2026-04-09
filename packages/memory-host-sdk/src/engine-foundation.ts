@@ -18,6 +18,7 @@ export {
   resolveAlisioCanonicalMemoryStorePath,
   resolveAlisioMemoryOwnerProfile,
 } from "../../../src/infra/alisio-memory-profile.js";
+export { getAlisioActiveCloudAccessSession } from "../../../src/infra/alisio-store.js";
 export { loadOrCreateDeviceIdentity } from "../../../src/infra/device-identity.js";
 export {
   hasConfiguredSecretInput,
@@ -40,6 +41,7 @@ export type { OpenClawConfig } from "../../../src/config/config.js";
 export type { SessionSendPolicyConfig } from "../../../src/config/types.base.js";
 export type { SecretInput } from "../../../src/config/types.secrets.js";
 export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";
+export type { AlisioCloudAccessSession } from "../../../src/infra/alisio-store.js";
 export type { DeviceIdentity } from "../../../src/infra/device-identity.js";
 export type {
   MemoryBackend,

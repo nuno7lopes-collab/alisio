@@ -47,6 +47,19 @@ import {
   ToolsEffectiveResultSchema,
 } from "./agents-models-skills.js";
 import {
+  AlisioSecurityAccessModeSchema,
+  AlisioSecurityAccessProfileSchema,
+  AlisioSecurityApprovalDefaultsSchema,
+  AlisioSecurityConfigDefaultsSchema,
+  AlisioSecurityPolicyApplyProfileParamsSchema,
+  AlisioSecurityPolicyApplyProfileResultSchema,
+  AlisioSecurityPolicyApprovalsSourceSchema,
+  AlisioSecurityPolicyConfigSourceSchema,
+  AlisioSecurityPolicyDiagnosticsSchema,
+  AlisioSecurityPolicyGetParamsSchema,
+  AlisioSecurityPolicySnapshotSchema,
+} from "./alisio-security.js";
+import {
   AlisioAiBeginConnectParamsSchema,
   AlisioAiBeginConnectResultSchema,
   AlisioAiCompleteConnectParamsSchema,
@@ -150,6 +163,9 @@ import {
 import {
   ApprovalAuditEntrySchema,
   ApprovalAuditGetParamsSchema,
+  ApprovalPendingEntrySchema,
+  ApprovalPendingGetParamsSchema,
+  ApprovalPendingSnapshotSchema,
   ApprovalAuditSnapshotSchema,
 } from "./approval-audit.js";
 import {
@@ -583,6 +599,20 @@ export const ProtocolSchemas = {
   ApprovalAuditGetParams: ApprovalAuditGetParamsSchema,
   ApprovalAuditEntry: ApprovalAuditEntrySchema,
   ApprovalAuditSnapshot: ApprovalAuditSnapshotSchema,
+  ApprovalPendingGetParams: ApprovalPendingGetParamsSchema,
+  ApprovalPendingEntry: ApprovalPendingEntrySchema,
+  ApprovalPendingSnapshot: ApprovalPendingSnapshotSchema,
+  AlisioSecurityAccessMode: AlisioSecurityAccessModeSchema,
+  AlisioSecurityAccessProfile: AlisioSecurityAccessProfileSchema,
+  AlisioSecurityConfigDefaults: AlisioSecurityConfigDefaultsSchema,
+  AlisioSecurityApprovalDefaults: AlisioSecurityApprovalDefaultsSchema,
+  AlisioSecurityPolicyDiagnostics: AlisioSecurityPolicyDiagnosticsSchema,
+  AlisioSecurityPolicyConfigSource: AlisioSecurityPolicyConfigSourceSchema,
+  AlisioSecurityPolicyApprovalsSource: AlisioSecurityPolicyApprovalsSourceSchema,
+  AlisioSecurityPolicyGetParams: AlisioSecurityPolicyGetParamsSchema,
+  AlisioSecurityPolicySnapshot: AlisioSecurityPolicySnapshotSchema,
+  AlisioSecurityPolicyApplyProfileParams: AlisioSecurityPolicyApplyProfileParamsSchema,
+  AlisioSecurityPolicyApplyProfileResult: AlisioSecurityPolicyApplyProfileResultSchema,
   ExecApprovalsGetParams: ExecApprovalsGetParamsSchema,
   ExecApprovalsSetParams: ExecApprovalsSetParamsSchema,
   ExecApprovalsNodeGetParams: ExecApprovalsNodeGetParamsSchema,

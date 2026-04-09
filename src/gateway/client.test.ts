@@ -138,7 +138,7 @@ function createClientWithIdentity(
     publicKeyPem: "public-key",
   };
   return new GatewayClient({
-    url: "ws://127.0.0.1:18789",
+    url: "ws://127.0.0.1:40705",
     deviceIdentity: identity,
     onClose,
   });
@@ -186,7 +186,7 @@ describe("GatewayClient security checks", () => {
   it("blocks ws:// to non-loopback addresses (CWE-319)", () => {
     const onConnectError = vi.fn();
     const client = new GatewayClient({
-      url: "ws://remote.example.com:18789",
+      url: "ws://remote.example.com:40705",
       onConnectError,
     });
 
@@ -215,7 +215,7 @@ describe("GatewayClient security checks", () => {
   it("allows ws:// to loopback addresses", () => {
     const onConnectError = vi.fn();
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       onConnectError,
     });
 
@@ -229,7 +229,7 @@ describe("GatewayClient security checks", () => {
   it("allows wss:// to any address", () => {
     const onConnectError = vi.fn();
     const client = new GatewayClient({
-      url: "wss://remote.example.com:18789",
+      url: "wss://remote.example.com:40705",
       onConnectError,
     });
 
@@ -244,7 +244,7 @@ describe("GatewayClient security checks", () => {
     process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS = "1";
     const onConnectError = vi.fn();
     const client = new GatewayClient({
-      url: "ws://192.168.1.100:18789",
+      url: "ws://192.168.1.100:40705",
       onConnectError,
     });
 
@@ -259,7 +259,7 @@ describe("GatewayClient security checks", () => {
     process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS = "1";
     const onConnectError = vi.fn();
     const client = new GatewayClient({
-      url: "ws://openclaw-gateway.ai:18789",
+      url: "ws://openclaw-gateway.ai:40705",
       onConnectError,
     });
 
@@ -333,7 +333,7 @@ describe("GatewayClient close handling", () => {
     vi.useFakeTimers();
     try {
       const client = new GatewayClient({
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       });
 
       client.start();
@@ -356,7 +356,7 @@ describe("GatewayClient close handling", () => {
     vi.useFakeTimers();
     try {
       const client = new GatewayClient({
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       });
 
       client.start();
@@ -393,7 +393,7 @@ describe("GatewayClient close handling", () => {
       publicKeyPem: "public-key",
     };
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       deviceIdentity: identity,
       token: "shared-token",
       onClose,
@@ -517,7 +517,7 @@ describe("GatewayClient connect auth payload", () => {
   it("uses explicit shared token and does not inject stored device token", () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "shared-token",
     });
 
@@ -536,7 +536,7 @@ describe("GatewayClient connect auth payload", () => {
   it("uses explicit shared password and does not inject stored device token", () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       password: "shared-password", // pragma: allowlist secret
     });
 
@@ -556,7 +556,7 @@ describe("GatewayClient connect auth payload", () => {
   it("uses stored device token when shared token is not provided", () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
     });
 
     client.start();
@@ -574,7 +574,7 @@ describe("GatewayClient connect auth payload", () => {
   it("uses bootstrap token when no shared or device token is available", () => {
     loadDeviceAuthTokenMock.mockReturnValue(undefined);
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       bootstrapToken: "bootstrap-token",
     });
 
@@ -594,7 +594,7 @@ describe("GatewayClient connect auth payload", () => {
   it("prefers explicit deviceToken over stored device token", () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       deviceToken: "explicit-device-token",
     });
 
@@ -613,7 +613,7 @@ describe("GatewayClient connect auth payload", () => {
   it("retries with stored device token after shared-token mismatch on trusted endpoints", async () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "shared-token",
     });
 
@@ -636,7 +636,7 @@ describe("GatewayClient connect auth payload", () => {
   it("retries with stored device token when server recommends retry_with_device_token", async () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "shared-token",
     });
 
@@ -655,7 +655,7 @@ describe("GatewayClient connect auth payload", () => {
 
   it("does not auto-reconnect on AUTH_TOKEN_MISSING connect failures", async () => {
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "shared-token",
     });
 
@@ -671,7 +671,7 @@ describe("GatewayClient connect auth payload", () => {
   it("does not auto-reconnect on token mismatch when retry is not trusted", async () => {
     loadDeviceAuthTokenMock.mockReturnValue({ token: "stored-device-token" });
     const client = new GatewayClient({
-      url: "wss://gateway.example.com:18789",
+      url: "wss://gateway.example.com:40705",
       token: "shared-token",
     });
 
@@ -688,7 +688,7 @@ describe("GatewayClient connect auth payload", () => {
     vi.useFakeTimers();
     const onGap = vi.fn();
     const client = new GatewayClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       onGap,
     });
 

@@ -179,6 +179,22 @@ type EmailAuthResult = {
   message: string;
 };
 
+const SUPABASE_PROFILE_SELECT_COLUMNS = [
+  "user_id",
+  "email",
+  "display_name",
+  "username",
+  "agent_name",
+  "avatar_url",
+  "avatar_label",
+  "terms_accepted_at",
+  "marketing_opt_in",
+  "birthdate",
+  "joined_at",
+  "plan",
+  "profile_completed",
+] as const;
+
 function buildCodeChallenge(verifier: string) {
   return createHash("sha256").update(verifier).digest("base64url");
 }
@@ -316,14 +332,45 @@ function mapSupabaseProfile(
   };
 }
 
-function readSupabaseErrorText(body: Record<string, unknown> | null | undefined): string {
-  const candidates = [body?.msg, body?.error_description, body?.message, body?.hint];
+function readSupabaseErrorDetail(body: Record<string, unknown> | null | undefined): string {
+  const candidates = [body?.msg, body?.error_description, body?.message, body?.error, body?.hint];
   for (const candidate of candidates) {
     if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim().toLowerCase();
+      return candidate.trim();
     }
   }
   return "";
+}
+
+function readSupabaseErrorText(body: Record<string, unknown> | null | undefined): string {
+  return readSupabaseErrorDetail(body).toLowerCase();
+}
+
+function buildSupabaseRequestFailureMessage(params: {
+  status: number;
+  body: Record<string, unknown> | null | undefined;
+  fallbackMessage: string;
+}) {
+  const detail = readSupabaseErrorDetail(params.body);
+  if (!detail) {
+    return `${params.fallbackMessage} Supabase replied with HTTP ${params.status}.`;
+  }
+  return `${params.fallbackMessage} Supabase replied with HTTP ${params.status}: ${detail}`;
+}
+
+function readSupabaseMissingColumn(
+  body: Record<string, unknown> | null | undefined,
+  tableName: string,
+): string | null {
+  const detail = readSupabaseErrorDetail(body);
+  if (!detail) {
+    return null;
+  }
+  const escapedTableName = tableName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = detail.match(
+    new RegExp(`column\\s+${escapedTableName}\\.([a-z0-9_]+)\\s+does\\s+not\\s+exist`, "i"),
+  );
+  return match?.[1]?.toLowerCase() ?? null;
 }
 
 function resolveSignedOutCloudSession(
@@ -397,45 +444,51 @@ async function fetchSupabaseProfile(params: {
 }) {
   const url = new URL(`/rest/v1/${params.config.profilesTable}`, params.config.url);
   url.searchParams.set("user_id", `eq.${params.userId}`);
-  url.searchParams.set(
-    "select",
-    [
-      "user_id",
-      "email",
-      "display_name",
-      "username",
-      "agent_name",
-      "avatar_url",
-      "avatar_label",
-      "terms_accepted_at",
-      "marketing_opt_in",
-      "birthdate",
-      "joined_at",
-      "plan",
-      "profile_completed",
-    ].join(","),
-  );
-  const result = await fetchJson(
-    url.toString(),
-    {
-      method: "GET",
-      headers: supabaseHeaders(params.config, params.accessToken),
-    },
-    params.fetchImpl,
-  );
-  if (!result.ok) {
+  const selectColumns = [...SUPABASE_PROFILE_SELECT_COLUMNS];
+  while (selectColumns.length > 0) {
+    url.searchParams.set("select", selectColumns.join(","));
+    const result = await fetchJson(
+      url.toString(),
+      {
+        method: "GET",
+        headers: supabaseHeaders(params.config, params.accessToken),
+      },
+      params.fetchImpl,
+    );
+    if (result.ok) {
+      const body = Array.isArray(result.body) ? result.body[0] : null;
+      return mapSupabaseProfile(body, {
+        userId: params.userId,
+        email: params.fallbackEmail,
+        joinedAt: params.fallbackJoinedAt,
+        backend: "supabase",
+      });
+    }
+    const body = result.body as Record<string, unknown> | null;
+    const missingColumn = readSupabaseMissingColumn(body, params.config.profilesTable);
+    if (
+      missingColumn &&
+      selectColumns.includes(missingColumn as (typeof SUPABASE_PROFILE_SELECT_COLUMNS)[number])
+    ) {
+      selectColumns.splice(
+        selectColumns.indexOf(missingColumn as (typeof SUPABASE_PROFILE_SELECT_COLUMNS)[number]),
+        1,
+      );
+      continue;
+    }
     throw new AlisioAccountCloudError(
       "profile_write_failed",
-      "Alisio could not load the account profile from the cloud.",
+      buildSupabaseRequestFailureMessage({
+        status: result.status,
+        body,
+        fallbackMessage: "Alisio could not load the account profile from the cloud.",
+      }),
     );
   }
-  const body = Array.isArray(result.body) ? result.body[0] : null;
-  return mapSupabaseProfile(body, {
-    userId: params.userId,
-    email: params.fallbackEmail,
-    joinedAt: params.fallbackJoinedAt,
-    backend: "supabase",
-  });
+  throw new AlisioAccountCloudError(
+    "profile_write_failed",
+    "Alisio could not load the account profile from the cloud.",
+  );
 }
 
 async function writeSupabaseProfile(params: {
@@ -685,7 +738,11 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
   if (!result.ok) {
     throw new AlisioAccountCloudError(
       "email_auth_failed",
-      "Alisio could not send the verification email right now.",
+      buildSupabaseRequestFailureMessage({
+        status: result.status,
+        body: result.body as Record<string, unknown> | null,
+        fallbackMessage: "Alisio could not send the verification email right now.",
+      }),
     );
   }
 
@@ -713,10 +770,66 @@ async function fetchSupabaseUser(params: {
   if (!userResult.ok) {
     throw new AlisioAccountCloudError(
       "session_refresh_failed",
-      "The Alisio account session is no longer valid. Sign in again.",
+      buildSupabaseRequestFailureMessage({
+        status: userResult.status,
+        body: userResult.body as Record<string, unknown> | null,
+        fallbackMessage: "The Alisio account session is no longer valid. Sign in again.",
+      }),
     );
   }
   return userResult.body as SupabaseUserResponse;
+}
+
+async function refreshSupabaseLinkSession(params: {
+  config: SupabaseConfig;
+  refreshToken: string;
+  tokenType?: string;
+  fetchImpl: typeof fetch;
+}) {
+  const refreshToken = params.refreshToken.trim();
+  if (!refreshToken) {
+    throw new AlisioAccountCloudError(
+      "session_refresh_failed",
+      "The Alisio account session is no longer valid. Sign in again.",
+    );
+  }
+
+  const refreshUrl = new URL("/auth/v1/token?grant_type=refresh_token", params.config.url);
+  const refreshResult = await fetchJson(
+    refreshUrl.toString(),
+    {
+      method: "POST",
+      headers: supabaseHeaders(params.config),
+      body: JSON.stringify({
+        refresh_token: refreshToken,
+      }),
+    },
+    params.fetchImpl,
+  );
+  if (!refreshResult.ok) {
+    throw new AlisioAccountCloudError(
+      "session_refresh_failed",
+      buildSupabaseRequestFailureMessage({
+        status: refreshResult.status,
+        body: refreshResult.body as Record<string, unknown> | null,
+        fallbackMessage: "The Alisio account session is no longer valid. Sign in again.",
+      }),
+    );
+  }
+
+  const resolvedSession = resolveSupabaseSession({
+    body: refreshResult.body as SupabaseSessionResponse,
+    fallbackEmail: "",
+    authMethod: "email",
+    errorCode: "session_refresh_failed",
+    errorMessage: "The Alisio account session is no longer valid. Sign in again.",
+  });
+  return {
+    accessToken: resolvedSession.accessToken,
+    refreshToken: resolvedSession.refreshToken ?? refreshToken,
+    tokenType: resolvedSession.tokenType ?? params.tokenType,
+    expiresAt: resolvedSession.expiresAt,
+  };
 }
 
 export async function verifyAlisioCloudAccountEmailAuth(params: {
@@ -757,7 +870,12 @@ export async function verifyAlisioCloudAccountEmailAuth(params: {
   if (!result.ok) {
     throw new AlisioAccountCloudError(
       "email_verification_failed",
-      "The verification code is invalid or has expired. Request a new email and try again.",
+      buildSupabaseRequestFailureMessage({
+        status: result.status,
+        body: result.body as Record<string, unknown> | null,
+        fallbackMessage:
+          "The verification code is invalid or has expired. Request a new email and try again.",
+      }),
     );
   }
 
@@ -1153,11 +1271,45 @@ export async function completeAlisioCloudAccountEmailLinkAuth(params: {
     );
   }
 
-  const user = await fetchSupabaseUser({
-    config,
-    accessToken,
-    fetchImpl,
-  });
+  let sessionAccessToken = accessToken;
+  let sessionRefreshToken = params.refreshToken?.trim() || undefined;
+  let sessionTokenType = params.tokenType?.trim() || undefined;
+  let sessionExpiresAt =
+    typeof params.expiresIn === "number" && Number.isFinite(params.expiresIn)
+      ? new Date(Date.now() + params.expiresIn * 1000).toISOString()
+      : undefined;
+
+  let user: SupabaseUserResponse;
+  try {
+    user = await fetchSupabaseUser({
+      config,
+      accessToken: sessionAccessToken,
+      fetchImpl,
+    });
+  } catch (error) {
+    if (!(error instanceof AlisioAccountCloudError) || error.code !== "session_refresh_failed") {
+      throw error;
+    }
+    if (!sessionRefreshToken) {
+      throw error;
+    }
+    const refreshedSession = await refreshSupabaseLinkSession({
+      config,
+      refreshToken: sessionRefreshToken,
+      tokenType: sessionTokenType,
+      fetchImpl,
+    });
+    sessionAccessToken = refreshedSession.accessToken;
+    sessionRefreshToken = refreshedSession.refreshToken;
+    sessionTokenType = refreshedSession.tokenType;
+    sessionExpiresAt = refreshedSession.expiresAt;
+    user = await fetchSupabaseUser({
+      config,
+      accessToken: sessionAccessToken,
+      fetchImpl,
+    });
+  }
+
   const userId = user.id?.trim() || "";
   const email = user.email?.trim().toLowerCase() || "";
   if (!userId || !email) {
@@ -1170,7 +1322,7 @@ export async function completeAlisioCloudAccountEmailLinkAuth(params: {
   const joinedAt = user.created_at?.trim() || new Date().toISOString();
   const profile = await ensureSupabaseProfile({
     config,
-    accessToken,
+    accessToken: sessionAccessToken,
     userId,
     email,
     joinedAt,
@@ -1179,13 +1331,10 @@ export async function completeAlisioCloudAccountEmailLinkAuth(params: {
 
   return {
     session: buildStoredSupabaseSession({
-      accessToken,
-      refreshToken: params.refreshToken?.trim() || undefined,
-      expiresAt:
-        typeof params.expiresIn === "number" && Number.isFinite(params.expiresIn)
-          ? new Date(Date.now() + params.expiresIn * 1000).toISOString()
-          : undefined,
-      tokenType: params.tokenType?.trim() || undefined,
+      accessToken: sessionAccessToken,
+      refreshToken: sessionRefreshToken,
+      expiresAt: sessionExpiresAt,
+      tokenType: sessionTokenType,
       authMethod: "email",
       userId,
       email,
@@ -1308,7 +1457,11 @@ export async function requestAlisioCloudPasswordReset(params: {
   if (!result.ok) {
     throw new AlisioAccountCloudError(
       "password_reset_failed",
-      "Alisio could not start account recovery right now.",
+      buildSupabaseRequestFailureMessage({
+        status: result.status,
+        body: result.body as Record<string, unknown> | null,
+        fallbackMessage: "Alisio could not start account recovery right now.",
+      }),
     );
   }
   return {
@@ -1367,7 +1520,11 @@ export async function requestAlisioCloudAccountEmailChange(params: {
     }
     throw new AlisioAccountCloudError(
       "email_change_failed",
-      "Alisio could not start the email change right now.",
+      buildSupabaseRequestFailureMessage({
+        status: result.status,
+        body: result.body as Record<string, unknown> | null,
+        fallbackMessage: "Alisio could not start the email change right now.",
+      }),
     );
   }
 

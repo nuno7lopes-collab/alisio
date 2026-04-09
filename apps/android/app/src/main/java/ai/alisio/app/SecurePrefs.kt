@@ -92,7 +92,7 @@ class SecurePrefs(
   val manualHost: StateFlow<String> = _manualHost
 
   private val _manualPort =
-    MutableStateFlow(plainPrefs.getInt("gateway.manual.port", 18789))
+    MutableStateFlow(plainPrefs.getInt("gateway.manual.port", 40705))
   val manualPort: StateFlow<Int> = _manualPort
 
   private val _manualTls =

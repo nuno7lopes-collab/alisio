@@ -49,7 +49,7 @@ describe("noteSecurityWarnings gateway exposure", () => {
     expect(message).toContain("CRITICAL");
     expect(message).toContain("without authentication");
     expect(message).toContain("Safer remote access");
-    expect(message).toContain("ssh -N -L 18789:127.0.0.1:18789");
+    expect(message).toContain("ssh -N -L 40705:127.0.0.1:40705");
   });
 
   it("uses env token to avoid critical warning", async () => {

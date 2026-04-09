@@ -6,12 +6,12 @@ title: "Browser Troubleshooting"
 
 # Browser Troubleshooting (Linux)
 
-## Problem: "Failed to start Chrome CDP on port 18800"
+## Problem: "Failed to start Chrome CDP on port 40716"
 
 Alisio's browser control server fails to launch Chrome/Brave/Edge/Chromium with the error:
 
 ```
-{"error":"Error: Failed to start Chrome CDP on port 18800 for profile \"alisio\"."}
+{"error":"Error: Failed to start Chrome CDP on port 40716 for profile \"alisio\"."}
 ```
 
 ### Root Cause
@@ -71,7 +71,7 @@ If you must use snap Chromium, configure Alisio to attach to a manually-started 
 
 ```bash
 chromium-browser --headless --no-sandbox --disable-gpu \
-  --remote-debugging-port=18800 \
+  --remote-debugging-port=40716 \
   --user-data-dir=$HOME/.alisio/browser/alisio/user-data \
   about:blank &
 ```
@@ -85,7 +85,7 @@ Description=Alisio Browser (Chrome CDP)
 After=network.target
 
 [Service]
-ExecStart=/snap/bin/chromium --headless --no-sandbox --disable-gpu --remote-debugging-port=18800 --user-data-dir=%h/.alisio/browser/alisio/user-data about:blank
+ExecStart=/snap/bin/chromium --headless --no-sandbox --disable-gpu --remote-debugging-port=40716 --user-data-dir=%h/.alisio/browser/alisio/user-data about:blank
 Restart=on-failure
 RestartSec=5
 
@@ -100,14 +100,14 @@ Enable with: `systemctl --user enable --now alisio-browser.service`
 Check status:
 
 ```bash
-curl -s http://127.0.0.1:18791/ | jq '{running, pid, chosenBrowser}'
+curl -s http://127.0.0.1:40707/ | jq '{running, pid, chosenBrowser}'
 ```
 
 Test browsing:
 
 ```bash
-curl -s -X POST http://127.0.0.1:18791/start
-curl -s http://127.0.0.1:18791/tabs
+curl -s -X POST http://127.0.0.1:40707/start
+curl -s http://127.0.0.1:40707/tabs
 ```
 
 ### Config Reference
@@ -119,7 +119,7 @@ curl -s http://127.0.0.1:18791/tabs
 | `browser.headless`       | Run without GUI                                                      | `false`                                                     |
 | `browser.noSandbox`      | Add `--no-sandbox` flag (needed for some Linux setups)               | `false`                                                     |
 | `browser.attachOnly`     | Don't launch browser, only attach to existing                        | `false`                                                     |
-| `browser.cdpPort`        | Chrome DevTools Protocol port                                        | `18800`                                                     |
+| `browser.cdpPort`        | Chrome DevTools Protocol port                                        | `40716`                                                     |
 
 ### Problem: "No Chrome tabs found for profile=\"user\""
 

@@ -6,12 +6,11 @@ export async function handleSubagentsSpawnAction(
   ctx: SubagentsCommandContext,
 ): Promise<CommandHandlerResult> {
   const { params, requesterKey, restTokens } = ctx;
-  const agentId = restTokens[0];
 
   const taskParts: string[] = [];
   let model: string | undefined;
   let thinking: string | undefined;
-  for (let i = 1; i < restTokens.length; i++) {
+  for (let i = 0; i < restTokens.length; i++) {
     if (restTokens[i] === "--model" && i + 1 < restTokens.length) {
       i += 1;
       model = restTokens[i];
@@ -23,10 +22,8 @@ export async function handleSubagentsSpawnAction(
     }
   }
   const task = taskParts.join(" ").trim();
-  if (!agentId || !task) {
-    return stopWithText(
-      "Usage: /subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]",
-    );
+  if (!task) {
+    return stopWithText("Usage: /subagents spawn <task> [--model <model>] [--thinking <level>]");
   }
 
   const commandTo = typeof params.command.to === "string" ? params.command.to.trim() : "";
@@ -38,7 +35,6 @@ export async function handleSubagentsSpawnAction(
   const result = await spawnSubagentDirect(
     {
       task,
-      agentId,
       model,
       thinking,
       mode: "run",
@@ -58,7 +54,7 @@ export async function handleSubagentsSpawnAction(
   );
   if (result.status === "accepted") {
     return stopWithText(
-      `Spawned subagent ${agentId} (session ${result.childSessionKey}, run ${result.runId?.slice(0, 8)}).`,
+      `Spawned subagent (session ${result.childSessionKey}, run ${result.runId?.slice(0, 8)}).`,
     );
   }
   return stopWithText(`Spawn failed: ${result.error ?? result.status}`);

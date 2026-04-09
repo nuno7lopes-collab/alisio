@@ -276,21 +276,13 @@ export function buildServiceEnvironment(params: {
   return {
     ...buildCommonServiceEnvironment(env, sharedEnv),
     ALISIO_PROFILE: profile,
-    OPENCLAW_PROFILE: profile,
     ALISIO_GATEWAY_PORT: String(port),
-    OPENCLAW_GATEWAY_PORT: String(port),
     ALISIO_LAUNCHD_LABEL: resolvedLaunchdLabel,
-    OPENCLAW_LAUNCHD_LABEL: resolvedLaunchdLabel,
     ALISIO_SYSTEMD_UNIT: systemdUnit,
-    OPENCLAW_SYSTEMD_UNIT: systemdUnit,
     ALISIO_WINDOWS_TASK_NAME: resolveGatewayWindowsTaskName(profile),
-    OPENCLAW_WINDOWS_TASK_NAME: resolveGatewayWindowsTaskName(profile),
     ALISIO_SERVICE_MARKER: GATEWAY_SERVICE_MARKER,
-    OPENCLAW_SERVICE_MARKER: GATEWAY_SERVICE_MARKER,
     ALISIO_SERVICE_KIND: GATEWAY_SERVICE_KIND,
-    OPENCLAW_SERVICE_KIND: GATEWAY_SERVICE_KIND,
     ALISIO_SERVICE_VERSION: VERSION,
-    OPENCLAW_SERVICE_VERSION: VERSION,
   };
 }
 
@@ -316,23 +308,14 @@ export function buildNodeServiceEnvironment(params: {
   return {
     ...buildCommonServiceEnvironment(env, sharedEnv),
     ALISIO_GATEWAY_TOKEN: gatewayToken,
-    OPENCLAW_GATEWAY_TOKEN: gatewayToken,
     ALISIO_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
-    OPENCLAW_LAUNCHD_LABEL: resolveNodeLaunchAgentLabel(),
     ALISIO_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
-    OPENCLAW_SYSTEMD_UNIT: resolveNodeSystemdServiceName(),
     ALISIO_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
-    OPENCLAW_WINDOWS_TASK_NAME: resolveNodeWindowsTaskName(),
     ALISIO_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
-    OPENCLAW_TASK_SCRIPT_NAME: NODE_WINDOWS_TASK_SCRIPT_NAME,
     ALISIO_LOG_PREFIX: "node",
-    OPENCLAW_LOG_PREFIX: "node",
     ALISIO_SERVICE_MARKER: NODE_SERVICE_MARKER,
-    OPENCLAW_SERVICE_MARKER: NODE_SERVICE_MARKER,
     ALISIO_SERVICE_KIND: NODE_SERVICE_KIND,
-    OPENCLAW_SERVICE_KIND: NODE_SERVICE_KIND,
     ALISIO_SERVICE_VERSION: VERSION,
-    OPENCLAW_SERVICE_VERSION: VERSION,
   };
 }
 
@@ -347,9 +330,7 @@ function buildCommonServiceEnvironment(
     NODE_EXTRA_CA_CERTS: sharedEnv.nodeCaCerts,
     NODE_USE_SYSTEM_CA: sharedEnv.nodeUseSystemCa,
     ALISIO_STATE_DIR: sharedEnv.stateDir,
-    OPENCLAW_STATE_DIR: sharedEnv.stateDir,
     ALISIO_CONFIG_PATH: sharedEnv.configPath,
-    OPENCLAW_CONFIG_PATH: sharedEnv.configPath,
   };
   if (sharedEnv.minimalPath) {
     serviceEnv.PATH = sharedEnv.minimalPath;

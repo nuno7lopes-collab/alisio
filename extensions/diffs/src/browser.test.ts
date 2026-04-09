@@ -247,7 +247,7 @@ describe("diffs plugin registration", () => {
       source: "test",
       config: {
         gateway: {
-          port: 18789,
+          port: 40705,
           bind: "loopback",
         },
       },

@@ -4,7 +4,7 @@ import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
 import type { AppViewState } from "../app-view-state.ts";
 import type { ConfigState } from "../controllers/config.ts";
-import { loadApprovalAuditTrail } from "../controllers/exec-approval.ts";
+import { loadApprovalAuditTrail, loadApprovalQueue } from "../controllers/exec-approval.ts";
 import {
   changeExecApprovalsTarget,
   loadSelectedExecApprovals,
@@ -304,6 +304,55 @@ describe("loadApprovalAuditTrail", () => {
       kind: "exec",
       request: { commandPreview: null, envKeys: null },
     });
+  });
+});
+
+describe("loadApprovalQueue", () => {
+  it("loads pending approvals from the gateway snapshot", async () => {
+    const state = {
+      client: {
+        request: vi.fn(async () => ({
+          items: [
+            {
+              kind: "exec",
+              id: "approval-1",
+              createdAtMs: 1000,
+              expiresAtMs: Date.now() + 60_000,
+              request: {
+                command: "bun test",
+                host: "sandbox",
+                security: "allowlist",
+                ask: "on-miss",
+              },
+            },
+            {
+              kind: "plugin",
+              id: "plugin-1",
+              createdAtMs: 2000,
+              expiresAtMs: Date.now() + 60_000,
+              request: {
+                title: "Publish release",
+                description: "Pushes release metadata to the host",
+                severity: "critical",
+                pluginId: "publisher",
+              },
+            },
+          ],
+        })),
+      },
+      connected: true,
+      execApprovalQueue: [],
+      lastError: null,
+    };
+
+    await loadApprovalQueue(state as never);
+
+    expect(state.execApprovalQueue).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "approval-1", kind: "exec" }),
+        expect.objectContaining({ id: "plugin-1", kind: "plugin" }),
+      ]),
+    );
   });
 });
 
@@ -754,6 +803,8 @@ describe("applyGatewayAccessMode", () => {
       configValid: null,
       connected: true,
       execApprovalsDirty: false,
+      execApprovalAuditTrail: [],
+      execApprovalQueue: [],
       execApprovalsForm: null,
       execApprovalsLoading: false,
       execApprovalsSaving: false,
@@ -764,36 +815,46 @@ describe("applyGatewayAccessMode", () => {
       gatewayAccessModeBusy: false,
       gatewayAccessModeLoading: false,
       lastError: null,
+      securityAccessDiagnostics: null,
       updateRunning: false,
     };
   }
 
   it("skips config and approval writes when the selected mode is already applied", async () => {
     const request = vi.fn().mockImplementation(async (method: string) => {
-      if (method === "config.get") {
+      if (method === "alisio.security.policy.applyProfile") {
         return {
-          hash: "hash-config",
-          config: {
-            tools: {
-              exec: {
+          changed: false,
+          snapshot: {
+            target: "gateway",
+            diagnostics: {
+              mode: "recommended",
+              effectivePromptAsk: "on-miss",
+              configDefaults: {
                 security: "allowlist",
                 ask: "on-miss",
               },
+              approvalDefaults: {
+                security: "allowlist",
+                ask: "on-miss",
+                askFallback: "deny",
+                autoAllowSkills: false,
+              },
+              configOverrideAgentCount: 0,
+              approvalOverrideAgentCount: 0,
             },
-          },
-        };
-      }
-      if (method === "exec.approvals.get") {
-        return {
-          hash: "hash-approvals",
-          file: {
-            version: 1,
-            defaults: {
-              security: "allowlist",
-              ask: "on-miss",
-              askFallback: "deny",
-              autoAllowSkills: false,
+            configSource: {
+              path: "/tmp/alisio.config.json5",
+              exists: true,
+              hash: "hash-config",
             },
+            approvalsSource: {
+              path: "/tmp/exec-approvals.json",
+              exists: true,
+              hash: "hash-approvals",
+            },
+            pending: { items: [] },
+            audit: { items: [] },
           },
         };
       }
@@ -805,11 +866,10 @@ describe("applyGatewayAccessMode", () => {
 
     await applyGatewayAccessMode(state, "recommended");
 
-    expect(request).toHaveBeenCalledTimes(2);
-    expect(request).toHaveBeenCalledWith("config.get", {});
-    expect(request).toHaveBeenCalledWith("exec.approvals.get", {});
-    expect(request).not.toHaveBeenCalledWith("config.patch", expect.anything());
-    expect(request).not.toHaveBeenCalledWith("exec.approvals.set", expect.anything());
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledWith("alisio.security.policy.applyProfile", {
+      profile: "recommended",
+    });
     expect(state.gatewayAccessMode).toBe("recommended");
     expect(state.lastError).toBeNull();
   });
@@ -846,21 +906,6 @@ describe("applyGatewayAccessMode", () => {
         list: [{ id: "main" }],
       },
     };
-    const initialApprovals = {
-      version: 1,
-      defaults: {
-        security: "allowlist",
-        ask: "on-miss",
-        askFallback: "deny",
-        autoAllowSkills: false,
-      },
-      agents: {
-        main: {
-          ask: "always",
-          allowlist: [{ pattern: "/usr/bin/uname" }],
-        },
-      },
-    };
     const cleanedApprovals = {
       version: 1,
       defaults: {
@@ -876,50 +921,57 @@ describe("applyGatewayAccessMode", () => {
       },
     };
 
-    let configGetCount = 0;
-    let approvalsGetCount = 0;
     const request = vi
       .fn()
       .mockImplementation(async (method: string, params?: Record<string, unknown>) => {
-        if (method === "config.get") {
-          configGetCount += 1;
+        if (method === "alisio.security.policy.applyProfile") {
+          expect(params).toEqual({ profile: "recommended" });
           return {
-            hash: `hash-config-${configGetCount}`,
-            config: configGetCount === 1 ? initialConfig : cleanedConfig,
+            changed: true,
+            snapshot: {
+              target: "gateway",
+              diagnostics: {
+                mode: "recommended",
+                effectivePromptAsk: "on-miss",
+                configDefaults: {
+                  security: "allowlist",
+                  ask: "on-miss",
+                },
+                approvalDefaults: {
+                  security: "allowlist",
+                  ask: "on-miss",
+                  askFallback: "deny",
+                  autoAllowSkills: false,
+                },
+                configOverrideAgentCount: 0,
+                approvalOverrideAgentCount: 0,
+              },
+              configSource: {
+                path: "/tmp/alisio.config.json5",
+                exists: true,
+                hash: "hash-config-1",
+              },
+              approvalsSource: {
+                path: "/tmp/exec-approvals.json",
+                exists: true,
+                hash: "hash-approvals-1",
+              },
+              pending: { items: [] },
+              audit: { items: [] },
+            },
+          };
+        }
+        if (method === "config.get") {
+          return {
+            hash: "hash-config-2",
+            config: cleanedConfig,
           };
         }
         if (method === "exec.approvals.get") {
-          approvalsGetCount += 1;
           return {
-            hash: `hash-approvals-${approvalsGetCount}`,
-            file: approvalsGetCount <= 2 ? initialApprovals : cleanedApprovals,
-          };
-        }
-        if (method === "config.patch") {
-          expect(JSON.parse(String(params?.raw))).toEqual({
-            tools: {
-              exec: {
-                security: "allowlist",
-                ask: "on-miss",
-              },
-            },
-            agents: {
-              list: [
-                {
-                  id: "main",
-                  tools: null,
-                },
-              ],
-            },
-          });
-          return {};
-        }
-        if (method === "exec.approvals.set") {
-          expect(params).toEqual({
+            hash: "hash-approvals-2",
             file: cleanedApprovals,
-            baseHash: "hash-approvals-2",
-          });
-          return {};
+          };
         }
         throw new Error(`unexpected request: ${method}`);
       });
@@ -931,8 +983,11 @@ describe("applyGatewayAccessMode", () => {
 
     await applyGatewayAccessMode(state, "recommended");
 
-    expect(request).toHaveBeenCalledWith("config.patch", expect.anything());
-    expect(request).toHaveBeenCalledWith("exec.approvals.set", expect.anything());
+    expect(request).toHaveBeenCalledWith("alisio.security.policy.applyProfile", {
+      profile: "recommended",
+    });
+    expect(request).toHaveBeenCalledWith("config.get", {});
+    expect(request).toHaveBeenCalledWith("exec.approvals.get", {});
     expect(state.configForm).toEqual(cleanedConfig);
     expect(state.gatewayAccessMode).toBe("recommended");
     expect(state.lastError).toBeNull();

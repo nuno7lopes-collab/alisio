@@ -78,7 +78,7 @@ vi.mock("../daemon/service.js", () => ({
 
 vi.mock("../daemon/program-args.js", () => ({
   resolveGatewayProgramArguments: async () => ({
-    programArguments: ["/bin/node", "cli", "gateway", "--port", "18789"],
+    programArguments: ["/bin/node", "cli", "gateway", "--port", "40705"],
   }),
 }));
 
@@ -149,10 +149,10 @@ describe("gateway-cli coverage", () => {
         displayName: "Studio",
         domain: "openclaw.internal.",
         host: "studio.openclaw.internal",
-        port: 18789,
+        port: 40705,
         lanHost: "studio.local",
         tailnetDns: "studio.tailnet.ts.net",
-        gatewayPort: 18789,
+        gatewayPort: 40705,
         sshPort: 22,
       },
     ]);
@@ -196,7 +196,7 @@ describe("gateway-cli coverage", () => {
     await expectGatewayExit([
       "gateway",
       "--port",
-      "18789",
+      "40705",
       "--token",
       "test-token",
       "--force",
@@ -210,7 +210,7 @@ describe("gateway-cli coverage", () => {
     await expectGatewayExit([
       "gateway",
       "--port",
-      "18789",
+      "40705",
       "--token",
       "test-token",
       "--allow-unconfigured",
@@ -263,7 +263,7 @@ describe("gateway-cli coverage", () => {
     resetRuntimeCapture();
     serviceIsLoaded.mockResolvedValue(true);
     startGatewayServer.mockRejectedValueOnce(
-      new GatewayLockError("failed to bind gateway socket on ws://127.0.0.1:18789: Error: boom"),
+      new GatewayLockError("failed to bind gateway socket on ws://127.0.0.1:40705: Error: boom"),
     );
 
     await expectGatewayExit(["gateway", "--token", "test-token", "--allow-unconfigured"]);

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const hoisted = vi.hoisted(() => {
   const spawnSubagentDirectMock = vi.fn();
@@ -8,17 +8,6 @@ const hoisted = vi.hoisted(() => {
     spawnAcpDirectMock,
   };
 });
-
-vi.mock("../subagent-spawn.js", () => ({
-  SUBAGENT_SPAWN_MODES: ["run", "session"],
-  spawnSubagentDirect: (...args: unknown[]) => hoisted.spawnSubagentDirectMock(...args),
-}));
-
-vi.mock("../acp-spawn.js", () => ({
-  ACP_SPAWN_MODES: ["run", "session"],
-  ACP_SPAWN_STREAM_TARGETS: ["parent"],
-  spawnAcpDirect: (...args: unknown[]) => hoisted.spawnAcpDirectMock(...args),
-}));
 
 let createSessionsSpawnTool: typeof import("./sessions-spawn-tool.js").createSessionsSpawnTool;
 
@@ -37,6 +26,12 @@ async function loadFreshSessionsSpawnToolModuleForTest() {
 }
 
 describe("sessions_spawn tool", () => {
+  afterEach(() => {
+    vi.doUnmock("../subagent-spawn.js");
+    vi.doUnmock("../acp-spawn.js");
+    vi.resetModules();
+  });
+
   beforeEach(async () => {
     hoisted.spawnSubagentDirectMock.mockReset().mockResolvedValue({
       status: "accepted",
@@ -67,7 +62,7 @@ describe("sessions_spawn tool", () => {
       thinking: "medium",
       runTimeoutSeconds: 5,
       thread: true,
-      mode: "session",
+      mode: "run",
       cleanup: "keep",
     });
 
@@ -84,13 +79,30 @@ describe("sessions_spawn tool", () => {
         thinking: "medium",
         runTimeoutSeconds: 5,
         thread: true,
-        mode: "session",
+        mode: "run",
         cleanup: "keep",
       }),
       expect.objectContaining({
         agentSessionKey: "agent:main:main",
       }),
     );
+    expect(hoisted.spawnAcpDirectMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects mode="session" for runtime=subagent', async () => {
+    const tool = createSessionsSpawnTool({
+      agentSessionKey: "agent:main:main",
+    });
+
+    const result = await tool.execute("call-1b", {
+      task: "build feature",
+      mode: "session",
+    });
+
+    expect((result.details as { error?: string }).error).toContain(
+      'runtime="subagent" does not support mode="session"',
+    );
+    expect(hoisted.spawnSubagentDirectMock).not.toHaveBeenCalled();
     expect(hoisted.spawnAcpDirectMock).not.toHaveBeenCalled();
   });
 

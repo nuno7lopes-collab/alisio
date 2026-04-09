@@ -188,6 +188,21 @@ function warnOnLegacySharingMethodUse(
   });
 }
 
+const LEGACY_CONNECTOR_METHODS = [
+  "alisio.connectors.catalog",
+  "alisio.connectors.list",
+  "alisio.connectors.begin",
+  "alisio.connectors.complete",
+  "alisio.connectors.revoke",
+] as const;
+
+function warnOnLegacyConnectorMethodUse(method: (typeof LEGACY_CONNECTOR_METHODS)[number]): void {
+  warnLegacyCompatibilityOnce({
+    key: `gateway-method:${method}`,
+    message: `Gateway method "${method}" is deprecated legacy connector compatibility.`,
+  });
+}
+
 export async function publishAlisioDynamicModelProvidersForContext(
   context: Pick<GatewayRequestContext, "nodeRegistry">,
   opts?: { force?: boolean },
@@ -802,23 +817,31 @@ export const alisioHandlers: GatewayRequestHandlers = {
       );
       return;
     }
-    const deviceId = client?.connect?.device?.id?.trim() || undefined;
-    const result = await signOutAlisioAccount();
-    if (deviceId) {
-      await Promise.allSettled([
-        revokeDeviceToken({ deviceId, role: client?.connect?.role ?? "operator" }),
-        clearDeviceBootstrapTokens(),
-      ]);
-    } else {
-      await clearDeviceBootstrapTokens();
-    }
-    respond(true, result, undefined);
-    if (deviceId) {
-      setTimeout(() => {
-        context.disconnectClientsForDevice?.(deviceId, {
-          role: client?.connect?.role ?? "operator",
-        });
-      }, 0);
+    try {
+      const deviceId = client?.connect?.device?.id?.trim() || undefined;
+      const result = await signOutAlisioAccount();
+      if (deviceId) {
+        await Promise.allSettled([
+          revokeDeviceToken({ deviceId, role: client?.connect?.role ?? "operator" }),
+          clearDeviceBootstrapTokens(),
+        ]);
+      } else {
+        await clearDeviceBootstrapTokens();
+      }
+      respond(true, result, undefined);
+      if (deviceId) {
+        setTimeout(() => {
+          context.disconnectClientsForDevice?.(deviceId, {
+            role: client?.connect?.role ?? "operator",
+          });
+        }, 0);
+      }
+    } catch (err) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.UNAVAILABLE, `failed to sign out of Alisio: ${formatError(err)}`),
+      );
     }
   },
   "alisio.account.update": async ({ params, respond }) => {
@@ -2411,7 +2434,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
     try {
       const result = await setAlisioSharingPolicy({
-        allowExternalUse: params.allowExternalUse,
+        ...(params.allowExternalUse !== undefined
+          ? { allowExternalUse: params.allowExternalUse }
+          : {}),
+        ...(params.resourcePolicies ? { resourcePolicies: params.resourcePolicies } : {}),
       });
       if (!validateAlisioSharingPolicySetResult(result)) {
         respond(
@@ -2437,6 +2463,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
   },
   "alisio.connectors.catalog": async ({ params, respond }) => {
+    warnOnLegacyConnectorMethodUse("alisio.connectors.catalog");
     if (!validateAlisioConnectorsCatalogParams(params)) {
       respond(
         false,
@@ -2453,6 +2480,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
     respond(true, { connectors: listAlisioConnectorDefinitions() }, undefined);
   },
   "alisio.connectors.list": async ({ params, respond }) => {
+    warnOnLegacyConnectorMethodUse("alisio.connectors.list");
     if (!validateAlisioConnectorsListParams(params)) {
       respond(
         false,
@@ -2469,6 +2497,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
     respond(true, { authorizations: await listAlisioConnectorAuthorizations() }, undefined);
   },
   "alisio.connectors.begin": async ({ params, respond }) => {
+    warnOnLegacyConnectorMethodUse("alisio.connectors.begin");
     if (!validateAlisioConnectorsBeginParams(params)) {
       respond(
         false,
@@ -2507,6 +2536,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
   },
   "alisio.connectors.complete": async ({ params, respond }) => {
+    warnOnLegacyConnectorMethodUse("alisio.connectors.complete");
     if (!validateAlisioConnectorsCompleteParams(params)) {
       respond(
         false,
@@ -2550,6 +2580,7 @@ export const alisioHandlers: GatewayRequestHandlers = {
     }
   },
   "alisio.connectors.revoke": async ({ params, respond }) => {
+    warnOnLegacyConnectorMethodUse("alisio.connectors.revoke");
     if (!validateAlisioConnectorsRevokeParams(params)) {
       respond(
         false,

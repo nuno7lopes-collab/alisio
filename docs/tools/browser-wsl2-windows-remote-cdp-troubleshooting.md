@@ -47,8 +47,8 @@ For WSL2 Gateway + Windows Chrome, prefer raw remote CDP. Chrome MCP is host-loc
 
 Reference shape:
 
-- WSL2 runs the Gateway on `127.0.0.1:18789`
-- Windows opens the Control UI in a normal browser at `http://127.0.0.1:18789/`
+- WSL2 runs the Gateway on `127.0.0.1:40705`
+- Windows opens the Control UI in a normal browser at `http://127.0.0.1:40705/`
 - Windows Chrome exposes a CDP endpoint on port `9222`
 - WSL2 can reach that Windows CDP endpoint
 - Alisio points a browser profile at the address that is reachable from WSL2
@@ -71,7 +71,7 @@ When the UI is opened from Windows, use Windows localhost unless you have a deli
 
 Use:
 
-`http://127.0.0.1:18789/`
+`http://127.0.0.1:40705/`
 
 Do not default to a LAN IP for the Control UI. Plain HTTP on a LAN or tailnet address can trigger insecure-origin/device-auth behavior that is unrelated to CDP itself. See [Control UI](/web/control-ui).
 
@@ -148,7 +148,7 @@ Notes:
 
 Open the UI from Windows:
 
-`http://127.0.0.1:18789/`
+`http://127.0.0.1:40705/`
 
 Then verify:
 
@@ -197,7 +197,7 @@ Treat each message as a layer-specific clue:
 1. Windows: does `curl http://127.0.0.1:9222/json/version` work?
 2. WSL2: does `curl http://WINDOWS_HOST_OR_IP:9222/json/version` work?
 3. Alisio config: does `browser.profiles.<name>.cdpUrl` use that exact WSL2-reachable address?
-4. Control UI: are you opening `http://127.0.0.1:18789/` instead of a LAN IP?
+4. Control UI: are you opening `http://127.0.0.1:40705/` instead of a LAN IP?
 5. Are you trying to use `existing-session` across WSL2 and Windows instead of raw remote CDP?
 
 ## Practical takeaway

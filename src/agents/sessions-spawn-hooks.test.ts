@@ -303,7 +303,7 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
     expectThreadBindFailureCleanup(details, /unable to create or bind a thread/i);
   });
 
-  it("normalizes legacy mode=session to an ephemeral thread-bound run", async () => {
+  it('rejects mode="session" for runtime=subagent even when thread binding is requested', async () => {
     const tool = await getSessionsSpawnTool({
       agentSessionKey: "main",
       agentChannel: "discord",
@@ -317,19 +317,13 @@ describe("sessions_spawn subagent lifecycle hooks", () => {
     });
 
     expect(result.details).toMatchObject({
-      status: "accepted",
-      runId: "run-1",
-      mode: "run",
+      status: "error",
     });
-    expect(String((result.details as { note?: string }).note ?? "")).toContain(
-      'mode="session" was normalized to mode="run"',
+    expect(String((result.details as { error?: string }).error ?? "")).toContain(
+      'runtime="subagent" does not support mode="session"',
     );
-    expect(hookRunnerMocks.runSubagentSpawning).toHaveBeenCalledTimes(1);
-    const event = getSpawnedEventCall();
-    expect(event).toMatchObject({
-      mode: "run",
-      threadRequested: true,
-    });
+    expect(hookRunnerMocks.runSubagentSpawning).not.toHaveBeenCalled();
+    expect(hookRunnerMocks.runSubagentSpawned).not.toHaveBeenCalled();
   });
 
   it("rejects thread=true on channels without thread support", async () => {

@@ -27,7 +27,7 @@ describe("loadControlUiBootstrapConfig", () => {
         text: async () =>
           JSON.stringify({
             basePath: "/\u006fpen\u0063law",
-            controlUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
+            controlUrl: "ws://127.0.0.1:40705/\u006fpen\u0063law/",
             startupState: "needs_profile",
             account: {
               username: "nuno",
@@ -68,7 +68,7 @@ describe("loadControlUiBootstrapConfig", () => {
     expect(state.assistantAvatar).toBe("O");
     expect(state.assistantAgentId).toBe("main");
     expect(state.serverVersion).toBe("2026.3.7");
-    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:18789/\u006fpen\u0063law/");
+    expect(state.gatewayBootstrapUrl).toBe("ws://127.0.0.1:40705/\u006fpen\u0063law/");
     expect(state.gatewayBootstrapToken).toBe("bootstrap-123");
     expect(state.alisioStartupBootstrap?.startupState).toBe("needs_profile");
 
@@ -197,7 +197,7 @@ describe("loadControlUiBootstrapConfig", () => {
         text: async () =>
           JSON.stringify({
             basePath: "/\u006fpen\u0063law",
-            controlUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
+            controlUrl: "ws://127.0.0.1:40705/\u006fpen\u0063law/",
             startupState: "ready",
             account: {
               username: "nuno",

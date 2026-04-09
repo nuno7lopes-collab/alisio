@@ -183,7 +183,7 @@ describe("memoryHandlers", () => {
               projections: 3,
               projectionInterface: "markdown-vault",
               syncMode: "local-first",
-              cloudSync: "not_implemented",
+              cloudSync: "unavailable",
               projectionSources: ["workspace-memory"],
               lastSyncedAt: "2026-04-08T10:00:00.000Z",
               replica: {

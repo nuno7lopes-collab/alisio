@@ -32,7 +32,7 @@ const waitForGatewayHealthyRestart = vi.fn();
 const terminateStaleGatewayPids = vi.fn();
 const renderGatewayPortHealthDiagnostics = vi.fn(() => ["diag: unhealthy port"]);
 const renderRestartDiagnostics = vi.fn(() => ["diag: unhealthy runtime"]);
-const resolveGatewayPort = vi.fn(() => 18789);
+const resolveGatewayPort = vi.fn(() => 40705);
 const findVerifiedGatewayListenerPidsOnPortSync = vi.fn<(port: number) => number[]>(() => []);
 const signalVerifiedGatewayPidSync = vi.fn<(pid: number, signal: "SIGTERM" | "SIGUSR1") => void>();
 const formatGatewayPidList = vi.fn<(pids: number[]) => string>((pids) => pids.join(", "));
@@ -149,7 +149,7 @@ describe("runDaemonRestart health checks", () => {
     loadConfig.mockReset();
 
     service.readCommand.mockResolvedValue({
-      programArguments: ["openclaw", "gateway", "--port", "18789"],
+      programArguments: ["openclaw", "gateway", "--port", "40705"],
       environment: {},
     });
     service.restart.mockResolvedValue({ outcome: "completed" });
@@ -171,7 +171,7 @@ describe("runDaemonRestart health checks", () => {
     runServiceStop.mockResolvedValue(undefined);
     waitForGatewayHealthyListener.mockResolvedValue({
       healthy: true,
-      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+      portUsage: { port: 40705, status: "busy", listeners: [], hints: [] },
     });
     probeGateway.mockResolvedValue({
       ok: true,
@@ -192,13 +192,13 @@ describe("runDaemonRestart health checks", () => {
       healthy: false,
       staleGatewayPids: [1993],
       runtime: { status: "stopped" },
-      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+      portUsage: { port: 40705, status: "busy", listeners: [], hints: [] },
     };
     const healthy: RestartHealthSnapshot = {
       healthy: true,
       staleGatewayPids: [],
       runtime: { status: "running" },
-      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+      portUsage: { port: 40705, status: "busy", listeners: [], hints: [] },
     };
     waitForGatewayHealthyRestart.mockResolvedValueOnce(unhealthy).mockResolvedValueOnce(healthy);
     terminateStaleGatewayPids.mockResolvedValue([1993]);
@@ -216,7 +216,7 @@ describe("runDaemonRestart health checks", () => {
       healthy: false,
       staleGatewayPids: [1993],
       runtime: { status: "stopped" },
-      portUsage: { port: 18789, status: "busy", listeners: [], hints: [] },
+      portUsage: { port: 40705, status: "busy", listeners: [], hints: [] },
     };
     waitForGatewayHealthyRestart.mockResolvedValueOnce(unhealthy);
     terminateStaleGatewayPids.mockResolvedValue([1993]);
@@ -236,7 +236,7 @@ describe("runDaemonRestart health checks", () => {
       healthy: false,
       staleGatewayPids: [],
       runtime: { status: "stopped" },
-      portUsage: { port: 18789, status: "free", listeners: [], hints: [] },
+      portUsage: { port: 40705, status: "free", listeners: [], hints: [] },
     };
     waitForGatewayHealthyRestart.mockResolvedValue(unhealthy);
 
@@ -259,7 +259,7 @@ describe("runDaemonRestart health checks", () => {
 
     await runDaemonStop({ json: true });
 
-    expect(findVerifiedGatewayListenerPidsOnPortSync).toHaveBeenCalledWith(18789);
+    expect(findVerifiedGatewayListenerPidsOnPortSync).toHaveBeenCalledWith(40705);
     expect(signalVerifiedGatewayPidSync).toHaveBeenCalledWith(4200, "SIGTERM");
     expect(signalVerifiedGatewayPidSync).toHaveBeenCalledWith(4300, "SIGTERM");
   });
@@ -270,7 +270,7 @@ describe("runDaemonRestart health checks", () => {
 
     await runDaemonRestart({ json: true });
 
-    expect(findVerifiedGatewayListenerPidsOnPortSync).toHaveBeenCalledWith(18789);
+    expect(findVerifiedGatewayListenerPidsOnPortSync).toHaveBeenCalledWith(40705);
     expect(signalVerifiedGatewayPidSync).toHaveBeenCalledWith(4200, "SIGUSR1");
     expect(probeGateway).toHaveBeenCalledTimes(1);
     expect(waitForGatewayHealthyListener).toHaveBeenCalledTimes(1);
@@ -284,7 +284,7 @@ describe("runDaemonRestart health checks", () => {
     mockUnmanagedRestart();
 
     await expect(runDaemonRestart({ json: true })).rejects.toThrow(
-      "multiple gateway processes are listening on port 18789",
+      "multiple gateway processes are listening on port 40705",
     );
   });
 

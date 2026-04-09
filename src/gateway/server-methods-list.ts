@@ -33,19 +33,17 @@ const BASE_METHODS = [
   "alisio.models.server.select",
   "alisio.doctor.summary",
   "alisio.runtime.restart",
+  "alisio.security.policy.get",
+  "alisio.security.policy.applyProfile",
   "alisio.organization.get",
   "alisio.organization.set",
+  // Legacy compatibility gateway surface. Keep minimal and do not extend.
   "alisio.sharing.get",
   "alisio.sharing.request",
   "alisio.sharing.approve",
   "alisio.sharing.reject",
   "alisio.sharing.revoke",
   "alisio.sharing.policy.set",
-  "alisio.connectors.catalog",
-  "alisio.connectors.list",
-  "alisio.connectors.begin",
-  "alisio.connectors.complete",
-  "alisio.connectors.revoke",
   "doctor.memory.status",
   "memory.status",
   "memory.sync",
@@ -70,6 +68,7 @@ const BASE_METHODS = [
   "config.schema",
   "config.schema.lookup",
   "approval.audit.get",
+  "approval.pending.get",
   "exec.approvals.get",
   "exec.approvals.set",
   "exec.approvals.node.get",
@@ -177,6 +176,8 @@ const BASE_METHODS = [
 ];
 
 export function listGatewayMethods(): string[] {
+  // Keep legacy runtime-compatible handlers such as alisio.connectors.* out of the
+  // public method list so new clients do not discover or depend on them.
   const channelMethods = listChannelPlugins().flatMap((plugin) => plugin.gatewayMethods ?? []);
   return Array.from(new Set([...BASE_METHODS, ...channelMethods]));
 }

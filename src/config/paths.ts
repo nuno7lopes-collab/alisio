@@ -227,7 +227,7 @@ export function resolveDefaultConfigCandidates(
   return candidates;
 }
 
-export const DEFAULT_GATEWAY_PORT = 18789;
+export const DEFAULT_GATEWAY_PORT = 40705;
 
 /**
  * Gateway lock directory (ephemeral).
@@ -278,7 +278,7 @@ function parseGatewayPortEnvValue(raw: string | undefined): number | null {
   }
 
   // Docker Compose publish strings can leak into host CLI env loading via repo `.env`,
-  // for example `127.0.0.1:18789` or `[::1]:18789`. Accept only explicit host:port forms.
+  // for example `127.0.0.1:40705` or `[::1]:40705`. Accept only explicit host:port forms.
   const bracketedIpv6Match = trimmed.match(/^\[[^\]]+\]:(\d+)$/);
   if (bracketedIpv6Match?.[1]) {
     const parsed = Number.parseInt(bracketedIpv6Match[1], 10);

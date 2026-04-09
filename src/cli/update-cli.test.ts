@@ -50,7 +50,7 @@ vi.mock("../infra/alisio-root.js", () => ({
 vi.mock("../config/config.js", () => ({
   readConfigFileSnapshot: vi.fn(),
   replaceConfigFile: vi.fn(),
-  resolveGatewayPort: vi.fn(() => 18789),
+  resolveGatewayPort: vi.fn(() => 40705),
 }));
 
 vi.mock("../infra/update-check.js", async (importOriginal) => {
@@ -377,13 +377,13 @@ describe("update-cli", () => {
     prepareRestartScript.mockResolvedValue("/tmp/openclaw-restart-test.sh");
     runRestartScript.mockResolvedValue(undefined);
     inspectPortUsage.mockResolvedValue({
-      port: 18789,
+      port: 40705,
       status: "busy",
       listeners: [{ pid: 4242, command: "openclaw-gateway" }],
       hints: [],
     });
     classifyPortListener.mockReturnValue("gateway");
-    formatPortDiagnostics.mockReturnValue(["Port 18789 is already in use."]);
+    formatPortDiagnostics.mockReturnValue(["Port 40705 is already in use."]);
     pathExists.mockResolvedValue(false);
     syncPluginsForUpdateChannel.mockResolvedValue({
       changed: false,

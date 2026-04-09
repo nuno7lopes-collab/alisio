@@ -31,11 +31,11 @@ describe("resolveAlisioOpenAiCallbackUrl", () => {
     expect(
       resolveAlisioOpenAiCallbackUrl(
         callbackState({
-          gatewayBootstrapUrl: "ws://127.0.0.1:18789/\u006fpen\u0063law/",
+          gatewayBootstrapUrl: "ws://127.0.0.1:40705/\u006fpen\u0063law/",
         }),
         "http://localhost:5173/setup",
       ),
-    ).toBe("http://127.0.0.1:18789/__alisio/auth/openai/callback");
+    ).toBe("http://127.0.0.1:40705/__alisio/auth/openai/callback");
   });
 
   it("falls back to the startup control url when no live gateway bootstrap exists", () => {

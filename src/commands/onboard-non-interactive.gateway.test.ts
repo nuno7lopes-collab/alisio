@@ -458,7 +458,7 @@ describe("onboard (non-interactive): gateway and remote auth", () => {
           {
             nonInteractive: true,
             mode: "remote",
-            remoteUrl: "ws://127.0.0.1:18789",
+            remoteUrl: "ws://127.0.0.1:40705",
             remoteToken: "tok_remote_123",
             remotePassword: "pw_remote_123",
             authChoice: "skip",

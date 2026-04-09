@@ -19,6 +19,10 @@
 - `supabase/migrations/20260407150500_alisio_account_onboarding_fields.sql`
   - Adds onboarding profile columns and extends the same invariants trigger.
   - Safe to rerun because it uses `if not exists`, `alter ... if needed`, and `create or replace function`.
+- `supabase/migrations/20260409123000_alisio_memory_canonical_sync.sql`
+  - Adds `alisio_memory_snapshots` and `alisio_memory_snapshot_backups` for profile-scoped canonical memory sync plus cloud backup history.
+  - Applies RLS to both tables and limits authenticated clients to their own profile rows.
+  - Safe to rerun because it uses `if not exists`, policy recreation, and additive constraints.
 
 ## Plan matrix
 
@@ -58,9 +62,10 @@
   - `apps/ios/Tests/Info.plist`
   - `apps/macos/Sources/Alisio/Resources/Info.plist`
   - `docs/install/updating.md`
-- Apply and verify both account Supabase migrations:
+- Apply and verify the current Supabase migrations:
   - `20260404193000_alisio_account_saas.sql`
   - `20260407150500_alisio_account_onboarding_fields.sql`
+  - `20260409123000_alisio_memory_canonical_sync.sql`
 - Run the minimum release validation bar:
   - `pnpm check`
   - `pnpm build`

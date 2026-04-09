@@ -151,7 +151,7 @@ export async function registerMattermostMonitorSlashCommands(params: {
   try {
     const teams = await fetchMattermostUserTeams(params.client, params.botUserId);
     const envPort = parseStrictPositiveInteger(process.env.OPENCLAW_GATEWAY_PORT?.trim());
-    const slashGatewayPort = envPort ?? params.cfg.gateway?.port ?? 18789;
+    const slashGatewayPort = envPort ?? params.cfg.gateway?.port ?? 40705;
     const slashCallbackUrl = resolveCallbackUrl({
       config: slashConfig,
       gatewayPort: slashGatewayPort,

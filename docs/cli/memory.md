@@ -76,5 +76,6 @@ Notes:
 - `memory index --verbose` prints per-phase details (provider, model, sources, batch activity).
 - `memory status` includes any extra paths configured via `memorySearch.extraPaths`.
 - `memory graph` reads the profile-scoped structured canonical store under the Markdown/Obsidian projection, so it can return explicit note-to-note relations instead of only text matches.
+- When the active profile is signed into Alisio cloud, the canonical store keeps a local-first replica on disk and may report snapshot-based cloud sync status for that profile store.
 - If effectively active memory remote API key fields are configured as SecretRefs, the command resolves those values from the active gateway snapshot. If gateway is unavailable, the command fails fast.
 - Gateway version skew note: this command path requires a gateway that supports `secrets.resolve`; older gateways return an unknown-method error.

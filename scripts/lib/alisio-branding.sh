@@ -4,7 +4,8 @@ if [[ -n "${ALISIO_BRANDING_SH_LOADED:-}" ]]; then
   return 0 2>/dev/null || exit 0
 fi
 ALISIO_BRANDING_SH_LOADED=1
-export ALISIO_BRANDING_SH_LOADED
+# Keep the load sentinel shell-local.
+# Child shells still need the function definitions when they source this file.
 
 alisio_app_name() {
   printf '%s\n' "Alisio"

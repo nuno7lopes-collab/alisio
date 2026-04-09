@@ -6,15 +6,11 @@ import type {
   SecurityAccessDiagnostics,
   SecurityAccessMode,
 } from "../controllers/security-access.ts";
-import { formatRelativeTimestamp } from "../format.ts";
+import { icons } from "../icons.ts";
 import type { NativeShellState } from "../types.ts";
 import {
   resolveApprovalAccessLabel,
-  resolveApprovalAuditEffectText,
-  resolveApprovalAskLabel,
-  resolveApprovalAuditRows,
   resolveApprovalCommandText,
-  resolveApprovalDecisionLabel,
   resolveApprovalEffectText,
   resolveApprovalSummaryRows,
 } from "./approval-summary.ts";
@@ -56,25 +52,11 @@ function accessModeLabel(mode: SecurityAccessMode) {
   return t("alisio.security.access.custom.label");
 }
 
-function accessModeDescription(mode: SecurityAccessMode) {
-  if (mode === "recommended") {
-    return t("alisio.security.access.recommended.description");
-  }
-  if (mode === "full-access") {
-    return t("alisio.security.access.fullAccess.description");
-  }
-  return t("alisio.security.access.customBody");
-}
-
 function resolveGuardrailLabel(security?: string | null) {
   return resolveApprovalAccessLabel({
     command: "policy",
     security,
   });
-}
-
-function renderMetaItem(label: string, value: string | number) {
-  return html`<span class="pill alisio-security-meta-item">${label}: ${value}</span>`;
 }
 
 function renderApprovalMeta(
@@ -116,33 +98,6 @@ function formatMissingPermissions(labels: string[]) {
     return visible.join(", ");
   }
   return `${visible.join(", ")} +${labels.length - visible.length}`;
-}
-
-function renderSummaryCard(params: {
-  title: string;
-  value: string;
-  detail: string[];
-  actionLabel?: string;
-  onAction?: () => void;
-}) {
-  return html`
-    <article class="alisio-chat__security-summary-card">
-      <div class="alisio-chat__security-summary-card__head">
-        <span class="alisio-chat__security-summary-card__title">${params.title}</span>
-        ${params.actionLabel && params.onAction
-          ? html`
-              <button class="btn btn--sm" type="button" @click=${params.onAction}>
-                ${params.actionLabel}
-              </button>
-            `
-          : nothing}
-      </div>
-      <strong class="alisio-chat__security-summary-card__value">${params.value}</strong>
-      <div class="alisio-chat__security-summary-card__detail">
-        ${params.detail.map((line) => html`<span>${line}</span>`)}
-      </div>
-    </article>
-  `;
 }
 
 function renderPendingApproval(
@@ -233,35 +188,6 @@ ${entry.pluginDescription}</pre
   `;
 }
 
-function renderAuditEntry(entry: ExecApprovalAuditEntry, props: ChatSecurityConsoleProps) {
-  const rows = resolveApprovalAuditRows(entry, {
-    assistantName: props.assistantName,
-    assistantAgentId: props.assistantAgentId,
-  });
-  return html`
-    <article class="exec-approval-card alisio-security-queue-item alisio-chat__security-queue-item">
-      <div class="exec-approval-header">
-        <div>
-          <div class="exec-approval-title">${entry.title}</div>
-          <div class="exec-approval-sub">${resolveApprovalAuditEffectText(entry)}</div>
-        </div>
-        <span class="pill">${resolveApprovalDecisionLabel(entry.decision)}</span>
-      </div>
-      <div class="exec-approval-meta">
-        ${rows.map((row) => renderApprovalMeta(row.label, row.value, { tone: row.tone }))}
-        ${renderApprovalMeta(
-          t("alisio.security.audit.labels.when"),
-          formatRelativeTimestamp(entry.ts, { dateFallback: true }),
-        )}
-        ${renderApprovalMeta(
-          t("alisio.security.audit.labels.resolvedBy"),
-          entry.resolvedBy ?? t("alisio.security.audit.systemActor"),
-        )}
-      </div>
-    </article>
-  `;
-}
-
 export function renderChatSecurityConsole(
   props: ChatSecurityConsoleProps,
 ): TemplateResult | typeof nothing {
@@ -276,168 +202,171 @@ export function renderChatSecurityConsole(
   }
 
   const queue = sortExecApprovalQueue(props.approvalQueue);
-  const recentAudit = props.approvalAuditTrail.slice(0, 3);
   const currentMode = props.accessMode ?? props.securityDiagnostics?.mode ?? null;
-  const modeDescription = currentMode ? accessModeDescription(currentMode) : null;
-  const configOverrideCount = props.securityDiagnostics?.configOverrideAgentCount ?? 0;
-  const approvalOverrideCount = props.securityDiagnostics?.approvalOverrideAgentCount ?? 0;
-  const showCustomNote =
-    currentMode === "custom" && (configOverrideCount > 0 || approvalOverrideCount > 0);
   const nativeShellSummary = summarizeNativeShellAccess(props.nativeShellState);
   const busy = Boolean(props.accessModeBusy || props.accessModeLoading);
   const disabled = !props.connected || busy;
   const nowMs = Date.now();
-  const policyDetails = props.securityDiagnostics
+  const currentModeLabel = currentMode
+    ? accessModeLabel(currentMode)
+    : t("alisio.chat.access.loading");
+  const currentModeTitle = props.securityDiagnostics
     ? [
         t("alisio.chat.access.policyRuntime", {
-          value: `${resolveGuardrailLabel(props.securityDiagnostics.configDefaults.security)} · ${resolveApprovalAskLabel(
-            props.securityDiagnostics.configDefaults.ask,
-          )}`,
+          value: resolveGuardrailLabel(props.securityDiagnostics.configDefaults.security),
         }),
         t("alisio.chat.access.policyApprovals", {
-          value: `${resolveGuardrailLabel(props.securityDiagnostics.approvalDefaults.security)} · ${resolveApprovalAskLabel(
-            props.securityDiagnostics.approvalDefaults.ask,
-          )}`,
+          value: resolveGuardrailLabel(props.securityDiagnostics.approvalDefaults.security),
         }),
-        t("alisio.chat.access.policyFallback", {
-          value: resolveGuardrailLabel(props.securityDiagnostics.approvalDefaults.askFallback),
-        }),
-        showCustomNote
-          ? t("alisio.security.access.customFooter", {
-              config: String(configOverrideCount),
-              approvals: String(approvalOverrideCount),
-            })
-          : t("alisio.chat.access.policyOverridesAligned"),
-      ]
-    : [t("alisio.chat.access.loading")];
-  const computerDetails =
+      ].join("\n")
+    : undefined;
+  const computerStatus =
     props.nativeShellLoading && !nativeShellSummary
       ? {
-          value: t("alisio.chat.access.computerLoading"),
-          detail: [t("alisio.chat.access.computerLoading")],
+          label: t("alisio.chat.access.loading"),
+          title: t("alisio.chat.access.computerLoading"),
+          tone: "muted" as const,
         }
       : props.nativeShellError
         ? {
-            value: t("common.unavailable"),
-            detail: [props.nativeShellError],
+            label: t("alisio.chat.access.computerUnavailableShort"),
+            title: props.nativeShellError,
+            tone: "warn" as const,
           }
         : nativeShellSummary
           ? {
-              value: t("alisio.chat.access.computerGranted", {
+              label: t("alisio.chat.access.computerGrantedShort", {
                 granted: String(nativeShellSummary.granted),
                 total: String(nativeShellSummary.total),
               }),
-              detail: [
+              title:
                 nativeShellSummary.missingLabels.length > 0
                   ? t("alisio.chat.access.computerNeedsReview", {
                       value: formatMissingPermissions(nativeShellSummary.missingLabels),
                     })
                   : t("alisio.chat.access.computerAllGranted"),
-              ],
+              tone:
+                nativeShellSummary.missingLabels.length > 0
+                  ? ("warn" as const)
+                  : ("ready" as const),
             }
           : {
-              value: t("common.unavailable"),
-              detail: [t("alisio.chat.access.computerUnavailable")],
+              label: t("alisio.chat.access.computerUnavailableShort"),
+              title: t("alisio.chat.access.computerUnavailable"),
+              tone: "muted" as const,
             };
+  const selectAccessMode = (event: Event, mode: Exclude<SecurityAccessMode, "custom">) => {
+    (event.currentTarget as HTMLElement | null)?.closest("details")?.removeAttribute("open");
+    props.onApplyAccessMode?.(mode);
+  };
 
   return html`
     <section class="alisio-chat__security-console" aria-label=${t("alisio.chat.access.aria")}>
-      <div class="alisio-chat__security-head">
-        <div class="alisio-chat__security-copy">
-          <span class="pill">${t("alisio.security.eyebrow")}</span>
-          <strong>${t("alisio.chat.access.title")}</strong>
-          <span>${t("alisio.chat.access.subtitle")}</span>
-        </div>
-      </div>
-
-      <div class="alisio-chat__security-meta">
-        ${renderMetaItem(
-          t("alisio.security.stats.mode"),
-          currentMode ? accessModeLabel(currentMode) : t("alisio.chat.access.loading"),
-        )}
-        ${renderMetaItem(t("alisio.security.stats.pending"), queue.length)}
-      </div>
-
-      <div class="alisio-chat__security-summary-grid">
-        ${renderSummaryCard({
-          title: t("alisio.chat.access.policyTitle"),
-          value: currentMode ? accessModeLabel(currentMode) : t("alisio.chat.access.loading"),
-          detail: policyDetails,
-          actionLabel: props.onOpenAdvancedSecurity
-            ? t("alisio.chat.access.openAdvanced")
-            : undefined,
-          onAction: props.onOpenAdvancedSecurity,
-        })}
-        ${renderSummaryCard({
-          title: t("alisio.chat.access.computerTitle"),
-          value: computerDetails.value,
-          detail: computerDetails.detail,
-          actionLabel:
-            props.onOpenNativeSettings && nativeShellSummary
-              ? t("alisio.chat.access.openComputerSettings")
-              : undefined,
-          onAction: props.onOpenNativeSettings,
-        })}
-      </div>
-
       <div
         class="alisio-chat__access-strip"
         role="group"
         aria-label=${t("alisio.chat.access.aria")}
       >
-        <button
-          type="button"
-          class="alisio-chat__access-pill ${currentMode === "recommended" ? "is-active" : ""}"
-          ?disabled=${disabled || currentMode === "recommended"}
-          @click=${() => props.onApplyAccessMode?.("recommended")}
-        >
-          <span>${t("alisio.security.access.recommended.label")}</span>
-        </button>
-        <button
-          type="button"
-          class="alisio-chat__access-pill ${currentMode === "full-access" ? "is-active" : ""}"
-          ?disabled=${disabled || currentMode === "full-access"}
-          @click=${() => props.onApplyAccessMode?.("full-access")}
-        >
-          <span>${t("alisio.security.access.fullAccess.label")}</span>
-        </button>
-      </div>
-
-      ${modeDescription
-        ? html`<div class="alisio-chat__security-note">${modeDescription}</div>`
-        : nothing}
-
-      <div class="alisio-chat__security-section">
-        <div class="alisio-chat__security-section-title">
-          ${t("alisio.security.queue.title")}
-          ${queue.length
-            ? html`<span class="pill">
-                ${t("alisio.security.queue.pendingCount", { count: String(queue.length) })}
-              </span>`
-            : nothing}
-        </div>
-        ${queue.length
+        ${props.onApplyAccessMode
           ? html`
-              <div class="alisio-security-approval-list">
-                ${queue.slice(0, 2).map((entry) => renderPendingApproval(entry, props, nowMs))}
-              </div>
+              <details class="alisio-chat__access-menu">
+                <summary
+                  class="alisio-chat__access-pill ${currentMode === "custom" ? "is-active" : ""}"
+                  aria-label=${t("alisio.chat.access.aria")}
+                  title=${currentModeTitle ?? ""}
+                >
+                  <span class="alisio-chat__access-pill-icon">${icons.shield}</span>
+                  <span>${currentModeLabel}</span>
+                </summary>
+                <div class="alisio-chat__access-menu-panel" role="menu">
+                  <button
+                    type="button"
+                    class="alisio-chat__access-menu-option"
+                    role="menuitemradio"
+                    aria-checked=${String(currentMode === "recommended")}
+                    ?disabled=${disabled || currentMode === "recommended"}
+                    @click=${(event: Event) => selectAccessMode(event, "recommended")}
+                  >
+                    <span class="alisio-chat__access-menu-option__main">
+                      <span class="alisio-chat__access-pill-icon">${icons.shield}</span>
+                      <span>${t("alisio.security.access.recommended.label")}</span>
+                    </span>
+                    ${currentMode === "recommended"
+                      ? html`
+                          <span class="alisio-chat__access-menu-option__check">
+                            ${icons.check}
+                          </span>
+                        `
+                      : nothing}
+                  </button>
+                  <button
+                    type="button"
+                    class="alisio-chat__access-menu-option"
+                    role="menuitemradio"
+                    aria-checked=${String(currentMode === "full-access")}
+                    ?disabled=${disabled || currentMode === "full-access"}
+                    @click=${(event: Event) => selectAccessMode(event, "full-access")}
+                  >
+                    <span class="alisio-chat__access-menu-option__main">
+                      <span class="alisio-chat__access-pill-icon">${icons.shield}</span>
+                      <span>${t("alisio.security.access.fullAccess.label")}</span>
+                    </span>
+                    ${currentMode === "full-access"
+                      ? html`
+                          <span class="alisio-chat__access-menu-option__check">
+                            ${icons.check}
+                          </span>
+                        `
+                      : nothing}
+                  </button>
+                </div>
+              </details>
             `
           : html`
-              <div class="alisio-security-empty">
-                <strong>${t("alisio.security.queue.emptyTitle")}</strong>
-                <span>${t("alisio.security.queue.emptyBody")}</span>
-              </div>
+              <span class="alisio-chat__access-pill is-active" title=${currentModeTitle ?? ""}>
+                <span class="alisio-chat__access-pill-icon">${icons.shield}</span>
+                <span>${currentModeLabel}</span>
+              </span>
             `}
+
+        <button
+          type="button"
+          class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--${computerStatus.tone}"
+          title=${computerStatus.title}
+          ?disabled=${!props.onOpenNativeSettings || !nativeShellSummary}
+          @click=${() => props.onOpenNativeSettings?.()}
+        >
+          <span class="alisio-chat__access-pill-icon">${icons.monitor}</span>
+          <span>${computerStatus.label}</span>
+        </button>
+
+        ${queue.length
+          ? html`
+              <span
+                class="alisio-chat__access-pill alisio-chat__access-pill--status alisio-chat__access-pill--warn"
+              >
+                ${t("alisio.chat.access.pendingShort", { count: String(queue.length) })}
+              </span>
+            `
+          : nothing}
+        ${props.onOpenAdvancedSecurity
+          ? html`
+              <button
+                type="button"
+                class="alisio-chat__access-pill alisio-chat__access-pill--ghost"
+                @click=${props.onOpenAdvancedSecurity}
+              >
+                ${t("alisio.chat.access.openAdvanced")}
+              </button>
+            `
+          : nothing}
       </div>
 
-      ${recentAudit.length
+      ${queue.length
         ? html`
             <div class="alisio-chat__security-section">
-              <div class="alisio-chat__security-section-title">
-                ${t("alisio.security.audit.title")}
-              </div>
               <div class="alisio-security-approval-list">
-                ${recentAudit.map((entry) => renderAuditEntry(entry, props))}
+                ${queue.slice(0, 2).map((entry) => renderPendingApproval(entry, props, nowMs))}
               </div>
             </div>
           `

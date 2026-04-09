@@ -374,7 +374,7 @@ describe("runGatewayLoop", () => {
       void runGatewayLoop({
         start: start as unknown as Parameters<typeof runGatewayLoop>[0]["start"],
         runtime: runtime as unknown as Parameters<typeof runGatewayLoop>[0]["runtime"],
-        lockPort: 18789,
+        lockPort: 40705,
       });
       await new Promise<void>((resolve) => setImmediate(resolve));
       const sigusr1 = captureSignal("SIGUSR1");
@@ -385,9 +385,9 @@ describe("runGatewayLoop", () => {
       sigusr1();
 
       await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(acquireGatewayLock).toHaveBeenNthCalledWith(1, { port: 18789 });
-      expect(acquireGatewayLock).toHaveBeenNthCalledWith(2, { port: 18789 });
-      expect(acquireGatewayLock).toHaveBeenNthCalledWith(3, { port: 18789 });
+      expect(acquireGatewayLock).toHaveBeenNthCalledWith(1, { port: 40705 });
+      expect(acquireGatewayLock).toHaveBeenNthCalledWith(2, { port: 40705 });
+      expect(acquireGatewayLock).toHaveBeenNthCalledWith(3, { port: 40705 });
 
       sigterm();
       await expect(exited).resolves.toBe(0);
@@ -428,7 +428,7 @@ describe("gateway discover routing helpers", () => {
     const beacon: GatewayBonjourBeacon = {
       instanceName: "Test",
       host: "10.0.0.2",
-      port: 18789,
+      port: 40705,
       lanHost: "evil.example.com",
       tailnetDns: "evil.example.com",
     };
@@ -439,17 +439,17 @@ describe("gateway discover routing helpers", () => {
     const beacon: GatewayBonjourBeacon = {
       instanceName: "Test",
       host: "10.0.0.2",
-      port: 18789,
+      port: 40705,
       gatewayPort: 12345,
     };
-    expect(pickGatewayPort(beacon)).toBe(18789);
+    expect(pickGatewayPort(beacon)).toBe(40705);
   });
 
   it("fails closed when resolve data is missing", () => {
     const beacon: GatewayBonjourBeacon = {
       instanceName: "Test",
       lanHost: "test-host.local",
-      gatewayPort: 18789,
+      gatewayPort: 40705,
     };
     expect(pickBeaconHost(beacon)).toBeNull();
     expect(pickGatewayPort(beacon)).toBeNull();

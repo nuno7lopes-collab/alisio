@@ -402,7 +402,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 label = "Android Emulator",
                 onClick = {
                   manualHostInput = "10.0.2.2"
-                  manualPortInput = "18789"
+                  manualPortInput = "40705"
                   manualTlsInput = false
                   validationText = null
                 },
@@ -411,7 +411,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 label = "Localhost",
                 onClick = {
                   manualHostInput = "127.0.0.1"
-                  manualPortInput = "18789"
+                  manualPortInput = "40705"
                   manualTlsInput = false
                   validationText = null
                 },
@@ -441,7 +441,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 manualPortInput = it
                 validationText = null
               },
-              placeholder = { Text("18789", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text("40705", style = mobileBody, color = mobileTextTertiary) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

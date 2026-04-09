@@ -14,11 +14,21 @@ export function resolveDefaultAgentWorkspaceDir(
   homedir: () => string = os.homedir,
 ): string {
   const home = resolveRequiredHomeDir(env, homedir);
-  const profile = env.OPENCLAW_PROFILE?.trim();
-  if (profile && profile.toLowerCase() !== "default") {
-    return path.join(home, ".openclaw", `workspace-${profile}`);
+  const explicitStateDir = (env.ALISIO_STATE_DIR ?? env.OPENCLAW_STATE_DIR)?.trim();
+  if (explicitStateDir) {
+    const expandedStateDir =
+      explicitStateDir === "~"
+        ? home
+        : explicitStateDir.startsWith("~/") || explicitStateDir.startsWith("~\\")
+          ? path.join(home, explicitStateDir.slice(2))
+          : explicitStateDir;
+    return path.join(path.resolve(expandedStateDir), "workspace");
   }
-  return path.join(home, ".openclaw", "workspace");
+  const profile = (env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE)?.trim();
+  if (profile && profile.toLowerCase() !== "default") {
+    return path.join(home, `.alisio-${profile}`, "workspace");
+  }
+  return path.join(home, ".alisio", "workspace");
 }
 
 export const DEFAULT_AGENT_WORKSPACE_DIR = resolveDefaultAgentWorkspaceDir();
@@ -31,7 +41,8 @@ export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
 export const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
 export const DEFAULT_MEMORY_ALT_FILENAME = "memory.md";
-const WORKSPACE_STATE_DIRNAME = ".openclaw";
+const WORKSPACE_STATE_DIRNAME = ".alisio";
+const LEGACY_WORKSPACE_STATE_DIRNAME = ".openclaw";
 const WORKSPACE_STATE_FILENAME = "workspace-state.json";
 const WORKSPACE_STATE_VERSION = 1;
 
@@ -207,6 +218,47 @@ function resolveWorkspaceStatePath(dir: string): string {
   return path.join(dir, WORKSPACE_STATE_DIRNAME, WORKSPACE_STATE_FILENAME);
 }
 
+function resolveLegacyWorkspaceStatePath(dir: string): string {
+  return path.join(dir, LEGACY_WORKSPACE_STATE_DIRNAME, WORKSPACE_STATE_FILENAME);
+}
+
+async function cleanupLegacyWorkspaceStateDir(dir: string): Promise<void> {
+  const legacyDir = path.join(dir, LEGACY_WORKSPACE_STATE_DIRNAME);
+  try {
+    const entries = await fs.readdir(legacyDir);
+    if (entries.length === 0) {
+      await fs.rmdir(legacyDir);
+    }
+  } catch {
+    // ignore missing or non-empty legacy workspace state directories
+  }
+}
+
+async function ensureCanonicalWorkspaceStatePath(dir: string): Promise<string> {
+  const canonicalPath = resolveWorkspaceStatePath(dir);
+  const legacyPath = resolveLegacyWorkspaceStatePath(dir);
+  const [canonicalExists, legacyExists] = await Promise.all([
+    fileExists(canonicalPath),
+    fileExists(legacyPath),
+  ]);
+
+  if (!legacyExists) {
+    await cleanupLegacyWorkspaceStateDir(dir);
+    return canonicalPath;
+  }
+
+  if (canonicalExists) {
+    await fs.unlink(legacyPath).catch(() => {});
+    await cleanupLegacyWorkspaceStateDir(dir);
+    return canonicalPath;
+  }
+
+  await fs.mkdir(path.dirname(canonicalPath), { recursive: true });
+  await fs.rename(legacyPath, canonicalPath);
+  await cleanupLegacyWorkspaceStateDir(dir);
+  return canonicalPath;
+}
+
 function parseWorkspaceSetupState(raw: string): WorkspaceSetupState | null {
   try {
     const parsed = JSON.parse(raw) as {
@@ -256,7 +308,7 @@ async function readWorkspaceSetupState(statePath: string): Promise<WorkspaceSetu
 }
 
 async function readWorkspaceSetupStateForDir(dir: string): Promise<WorkspaceSetupState> {
-  const statePath = resolveWorkspaceStatePath(resolveUserPath(dir));
+  const statePath = await ensureCanonicalWorkspaceStatePath(resolveUserPath(dir));
   return await readWorkspaceSetupState(statePath);
 }
 
@@ -352,7 +404,7 @@ export async function ensureAgentWorkspace(params?: {
   const userPath = path.join(dir, DEFAULT_USER_FILENAME);
   const heartbeatPath = path.join(dir, DEFAULT_HEARTBEAT_FILENAME);
   const bootstrapPath = path.join(dir, DEFAULT_BOOTSTRAP_FILENAME);
-  const statePath = resolveWorkspaceStatePath(dir);
+  const statePath = await ensureCanonicalWorkspaceStatePath(dir);
 
   const isBrandNewWorkspace = await (async () => {
     const templatePaths = [agentsPath, soulPath, toolsPath, identityPath, userPath, heartbeatPath];

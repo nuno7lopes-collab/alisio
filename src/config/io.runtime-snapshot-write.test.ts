@@ -263,7 +263,7 @@ describe("runtime config snapshot writes", () => {
     await withTempHome("alisio-config-runtime-write-listener-", async (home) => {
       const configPath = path.join(home, ".alisio", "alisio.json");
       await fs.mkdir(path.dirname(configPath), { recursive: true });
-      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 18789 } }, null, 2)}\n`);
+      await fs.writeFile(configPath, `${JSON.stringify({ gateway: { port: 40705 } }, null, 2)}\n`);
 
       const seen: Array<{ configPath: string; runtimeConfig: AlisioConfig }> = [];
       const unsubscribe = registerConfigWriteListener((event) => {
@@ -274,7 +274,7 @@ describe("runtime config snapshot writes", () => {
       });
 
       try {
-        expect(loadConfig().gateway?.port).toBe(18789);
+        expect(loadConfig().gateway?.port).toBe(40705);
         await writeConfigFile({
           ...loadConfig(),
           gateway: { port: 19003 },

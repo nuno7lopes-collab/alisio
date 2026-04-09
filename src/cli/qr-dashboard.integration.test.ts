@@ -4,7 +4,7 @@ import { captureEnv } from "../test-utils/env.js";
 
 const loadConfigMock = vi.hoisted(() => vi.fn());
 const readConfigFileSnapshotMock = vi.hoisted(() => vi.fn());
-const resolveGatewayPortMock = vi.hoisted(() => vi.fn(() => 18789));
+const resolveGatewayPortMock = vi.hoisted(() => vi.fn(() => 40705));
 const copyToClipboardMock = vi.hoisted(() => vi.fn(async () => false));
 
 const runtimeLogs: string[] = [];
@@ -51,7 +51,7 @@ function createGatewayTokenRefFixture() {
     gateway: {
       bind: "custom",
       customBindHost: "gateway.local",
-      port: 18789,
+      port: 40705,
       auth: {
         mode: "token",
         token: {
@@ -157,7 +157,7 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     const setupCode = runtimeLogs.at(-1);
     expect(setupCode).toBeTruthy();
     const payload = decodeSetupCode(setupCode ?? "");
-    expect(payload.url).toBe("ws://gateway.local:18789");
+    expect(payload.url).toBe("ws://gateway.local:40705");
     expect(payload.bootstrapToken).toBeTruthy();
     expect(runtimeErrors).toEqual([]);
 
@@ -165,7 +165,7 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     runtimeErrors.length = 0;
     await runCli(["dashboard", "--no-open"]);
     const joined = runtimeLogs.join("\n");
-    expect(joined).toContain("Dashboard URL: http://127.0.0.1:18789/");
+    expect(joined).toContain("Dashboard URL: http://127.0.0.1:40705/");
     expect(joined).not.toContain("#token=");
     expect(joined).toContain(
       "Token auto-auth is disabled for SecretRef-managed gateway.auth.token",
@@ -193,7 +193,7 @@ describe("cli integration: qr + dashboard token SecretRef", () => {
     runtimeErrors.length = 0;
     await runCli(["dashboard", "--no-open"]);
     const joined = runtimeLogs.join("\n");
-    expect(joined).toContain("Dashboard URL: http://127.0.0.1:18789/");
+    expect(joined).toContain("Dashboard URL: http://127.0.0.1:40705/");
     expect(joined).not.toContain("#token=");
     expect(joined).toContain("Token auto-auth unavailable");
     expect(joined).toContain("Set ALISIO_GATEWAY_TOKEN");

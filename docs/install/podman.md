@@ -35,7 +35,7 @@ The intended model is:
   </Step>
 
   <Step title="Run onboarding inside the container">
-    Run `./scripts/run-alisio-podman.sh launch setup`, then open `http://127.0.0.1:18789/`.
+    Run `./scripts/run-alisio-podman.sh launch setup`, then open `http://127.0.0.1:40705/`.
   </Step>
 
   <Step title="Manage the running container from the host CLI">
@@ -80,7 +80,7 @@ Onboarding:
 ./scripts/run-alisio-podman.sh launch setup
 ```
 
-Then open `http://127.0.0.1:18789/` and use the token from `~/.alisio/.env`.
+Then open `http://127.0.0.1:40705/` and use the token from `~/.alisio/.env`.
 
 Host CLI default:
 
@@ -112,7 +112,7 @@ For local browser access, use an SSH tunnel into the Podman VM and open the tunn
 Recommended local tunnel port:
 
 - `28889` on the Mac host
-- forwarded to `127.0.0.1:18789` inside the Podman VM
+- forwarded to `127.0.0.1:40705` inside the Podman VM
 
 Start the tunnel in a separate terminal:
 
@@ -120,7 +120,7 @@ Start the tunnel in a separate terminal:
 ssh -N \
   -i ~/.local/share/containers/podman/machine/machine \
   -p <podman-vm-ssh-port> \
-  -L 28889:127.0.0.1:18789 \
+  -L 28889:127.0.0.1:40705 \
   core@127.0.0.1
 ```
 
@@ -134,7 +134,7 @@ Allow the tunneled browser origin once. This is required the first time you use 
 
 ```bash
 ALISIO_CONTAINER=alisio alisio config set gateway.controlUi.allowedOrigins \
-  '["http://127.0.0.1:18789","http://localhost:18789","http://127.0.0.1:28889","http://localhost:28889"]' \
+  '["http://127.0.0.1:40705","http://localhost:40705","http://127.0.0.1:28889","http://localhost:28889"]' \
   --strict-json
 podman restart alisio
 ```
@@ -149,7 +149,7 @@ http://127.0.0.1:28889/
 
 Notes:
 
-- `18789` is usually already occupied on the Mac host by the Podman-published gateway port, so the tunnel uses `28889` as the local browser port.
+- `40705` is usually already occupied on the Mac host by the Podman-published gateway port, so the tunnel uses `28889` as the local browser port.
 - If the UI asks for pairing approval, prefer explicit container-targeted or explicit-URL commands so the host CLI does not fall back to local pairing files:
 
 ```bash
@@ -229,8 +229,8 @@ Useful env vars for the manual launcher:
 
 - `ALISIO_PODMAN_CONTAINER` -- container name (`alisio` by default)
 - `ALISIO_PODMAN_IMAGE` / `ALISIO_IMAGE` -- image to run
-- `ALISIO_PODMAN_GATEWAY_HOST_PORT` -- host port mapped to container `18789`
-- `ALISIO_PODMAN_BRIDGE_HOST_PORT` -- host port mapped to container `18790`
+- `ALISIO_PODMAN_GATEWAY_HOST_PORT` -- host port mapped to container `40705`
+- `ALISIO_PODMAN_BRIDGE_HOST_PORT` -- host port mapped to container `40706`
 - `ALISIO_PODMAN_PUBLISH_HOST` -- host interface for published ports; default is `127.0.0.1`
 - `ALISIO_GATEWAY_BIND` -- gateway bind mode inside the container; default is `lan`
 - `ALISIO_PODMAN_USERNS` -- `keep-id` (default), `auto`, or `host`

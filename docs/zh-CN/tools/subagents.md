@@ -27,7 +27,7 @@ x-i18n:
 - `/subagents info <id|#>`
 - `/subagents send <id|#> <message>`
 - `/subagents steer <id|#> <message>`
-- `/subagents spawn <agentId> <task> [--model <model>] [--thinking <level>]`
+- `/subagents spawn <task> [--model <model>] [--thinking <level>]`
 
 `/subagents info` 显示运行元数据（状态、时间戳、会话 id、转录路径、清理）。
 
@@ -62,19 +62,26 @@ x-i18n:
 
 - `task`（必需）
 - `label?`（可选）
-- `agentId?`（可选；如果允许，在另一个智能体 id 下生成）
+- `agentId?`（仅 ACP；内部 `runtime: "subagent"` 始终运行在请求者智能体下）
 - `model?`（可选；覆盖子智能体模型；无效值会被跳过，子智能体将使用默认模型运行并在工具结果中显示警告）
 - `thinking?`（可选；覆盖子智能体运行的思考级别）
 - `runTimeoutSeconds?`（默认 `0`；设置后，子智能体运行在 N 秒后中止）
+- `thread?`（默认 `false`；为活动中的任务请求线程绑定）
+- `mode?`（`run|session`）
+  - 对 `runtime: "subagent"`，只支持 `run`
+  - `runtime: "subagent"` 会拒绝 `mode: "session"`
+  - `mode: "session"` 仍可用于 `runtime: "acp"`
 - `cleanup?`（`delete|keep`，默认 `keep`）
+- `sandbox?`（`inherit|require`，默认 `inherit`；`require` 要求子运行时也在沙箱中）
 
-允许列表：
+定位：
 
-- `agents.list[].subagents.allowAgents`：可以通过 `agentId` 指定的智能体 id 列表（`["*"]` 允许任意）。默认：仅限请求者智能体。
+- 内部 `runtime: "subagent"` worker 始终运行在请求者智能体下，并拒绝跨智能体 `agentId`。
+- 如需持久或跨智能体标识，请使用 `runtime: "acp"` 和 `acp.allowedAgents`。
 
 发现：
 
-- 使用 `agents_list` 查看当前允许用于 `sessions_spawn` 的智能体 id。
+- `agents_list` 只显示当前 Alisio 智能体上下文；它不是跨智能体子智能体目标选择器。
 
 自动归档：
 

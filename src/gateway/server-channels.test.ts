@@ -188,13 +188,14 @@ describe("server-channels auto restart", () => {
     expect(startAccount).toHaveBeenCalledTimes(1);
   });
 
-  it("marks enabled/configured when account descriptors omit them", () => {
+  it("marks enabled/configured when account descriptors omit them", async () => {
     installTestRegistry(
       createTestPlugin({
         includeDescribeAccount: false,
       }),
     );
     const manager = createManager();
+    await manager.startChannels();
     const snapshot = manager.getRuntimeSnapshot();
     const account = snapshot.channelAccounts.discord?.[DEFAULT_ACCOUNT_ID];
     expect(account?.enabled).toBe(true);

@@ -30,7 +30,7 @@ describe("extractConfigSummary", () => {
             password: { source: "env", provider: "default", id: "OPENCLAW_GATEWAY_PASSWORD" },
           },
           remote: {
-            url: "wss://remote.example:18789",
+            url: "wss://remote.example:40705",
             token: { source: "env", provider: "default", id: "REMOTE_GATEWAY_TOKEN" },
             password: { source: "env", provider: "default", id: "REMOTE_GATEWAY_PASSWORD" },
           },
@@ -78,7 +78,7 @@ describe("resolveAuthForTarget", () => {
     return {
       id: "configRemote",
       kind: "configRemote" as const,
-      url: "wss://remote.example:18789",
+      url: "wss://remote.example:40705",
       active: true,
     };
   }
@@ -129,7 +129,7 @@ describe("resolveAuthForTarget", () => {
           {
             id: "localLoopback",
             kind: "localLoopback",
-            url: "ws://127.0.0.1:18789",
+            url: "ws://127.0.0.1:40705",
             active: true,
           },
           {},
@@ -190,7 +190,7 @@ describe("resolveAuthForTarget", () => {
       {
         id: "configRemote",
         kind: "configRemote",
-        url: "wss://remote.example:18789",
+        url: "wss://remote.example:40705",
         active: true,
       },
       {},
@@ -222,7 +222,7 @@ describe("resolveAuthForTarget", () => {
           {
             id: "localLoopback",
             kind: "localLoopback",
-            url: "ws://127.0.0.1:18789",
+            url: "ws://127.0.0.1:40705",
             active: true,
           },
           {},
@@ -241,7 +241,7 @@ describe("probe reachability classification", () => {
   it("treats missing-scope RPC failures as scope-limited and reachable", () => {
     const probe = {
       ok: false,
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       connectLatencyMs: 51,
       error: "missing scope: operator.read",
       close: null,
@@ -259,7 +259,7 @@ describe("probe reachability classification", () => {
   it("keeps non-scope RPC failures as unreachable", () => {
     const probe = {
       ok: false,
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       connectLatencyMs: 43,
       error: "unknown method: status",
       close: null,
@@ -280,14 +280,14 @@ describe("resolveProbeBudgetMs", () => {
       resolveProbeBudgetMs(15_000, {
         kind: "localLoopback",
         active: true,
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       }),
     ).toBe(15_000);
     expect(
       resolveProbeBudgetMs(3_000, {
         kind: "localLoopback",
         active: true,
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       }),
     ).toBe(3_000);
   });
@@ -297,14 +297,14 @@ describe("resolveProbeBudgetMs", () => {
       resolveProbeBudgetMs(15_000, {
         kind: "localLoopback",
         active: false,
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       }),
     ).toBe(800);
     expect(
       resolveProbeBudgetMs(500, {
         kind: "localLoopback",
         active: false,
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       }),
     ).toBe(500);
   });
@@ -314,14 +314,14 @@ describe("resolveProbeBudgetMs", () => {
       resolveProbeBudgetMs(15_000, {
         kind: "explicit",
         active: true,
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
       }),
     ).toBe(15_000);
     expect(
       resolveProbeBudgetMs(2_500, {
         kind: "explicit",
         active: true,
-        url: "wss://localhost:18789/ws",
+        url: "wss://localhost:40705/ws",
       }),
     ).toBe(2_500);
   });

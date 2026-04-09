@@ -17,7 +17,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
 
     const fetchMock = vi.fn(async (url: unknown) => {
       const u = String(url);
-      expect(u).toBe("http://127.0.0.1:18800/json/list?token=abc");
+      expect(u).toBe("http://127.0.0.1:40716/json/list?token=abc");
       return {
         ok: true,
         json: async () => [
@@ -35,7 +35,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     global.fetch = withFetchPreconnect(fetchMock);
     const state = makeState("openclaw");
     state.resolved.profiles.openclaw = {
-      cdpUrl: "ws://127.0.0.1:18800/devtools/browser/SESSION?token=abc",
+      cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -44,7 +44,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     const opened = await openclaw.openTab("http://127.0.0.1:8080");
     expect(opened.targetId).toBe("CREATED");
     expect(createTargetViaCdp).toHaveBeenCalledWith({
-      cdpUrl: "ws://127.0.0.1:18800/devtools/browser/SESSION?token=abc",
+      cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       url: "http://127.0.0.1:8080",
       ssrfPolicy: { allowPrivateNetwork: true },
     });
@@ -53,7 +53,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
   it("uses an HTTP /json base for focus and close", async () => {
     const fetchMock = vi.fn(async (url: unknown) => {
       const u = String(url);
-      if (u === "http://127.0.0.1:18800/json/list?token=abc") {
+      if (u === "http://127.0.0.1:40716/json/list?token=abc") {
         return {
           ok: true,
           json: async () => [
@@ -67,10 +67,10 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
           ],
         } as unknown as Response;
       }
-      if (u === "http://127.0.0.1:18800/json/activate/T1?token=abc") {
+      if (u === "http://127.0.0.1:40716/json/activate/T1?token=abc") {
         return { ok: true, json: async () => ({}) } as unknown as Response;
       }
-      if (u === "http://127.0.0.1:18800/json/close/T1?token=abc") {
+      if (u === "http://127.0.0.1:40716/json/close/T1?token=abc") {
         return { ok: true, json: async () => ({}) } as unknown as Response;
       }
       throw new Error(`unexpected fetch: ${u}`);
@@ -79,7 +79,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     global.fetch = withFetchPreconnect(fetchMock);
     const state = makeState("openclaw");
     state.resolved.profiles.openclaw = {
-      cdpUrl: "ws://127.0.0.1:18800/devtools/browser/SESSION?token=abc",
+      cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });
@@ -89,11 +89,11 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     await openclaw.closeTab("T1");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:18800/json/activate/T1?token=abc",
+      "http://127.0.0.1:40716/json/activate/T1?token=abc",
       expect.any(Object),
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:18800/json/close/T1?token=abc",
+      "http://127.0.0.1:40716/json/close/T1?token=abc",
       expect.any(Object),
     );
   });
@@ -101,7 +101,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
   it("uses an HTTPS /json base for secure direct WebSocket profiles with a /cdp suffix", async () => {
     const fetchMock = vi.fn(async (url: unknown) => {
       const u = String(url);
-      if (u === "https://127.0.0.1:18800/json/list?token=abc") {
+      if (u === "https://127.0.0.1:40716/json/list?token=abc") {
         return {
           ok: true,
           json: async () => [
@@ -115,10 +115,10 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
           ],
         } as unknown as Response;
       }
-      if (u === "https://127.0.0.1:18800/json/activate/T2?token=abc") {
+      if (u === "https://127.0.0.1:40716/json/activate/T2?token=abc") {
         return { ok: true, json: async () => ({}) } as unknown as Response;
       }
-      if (u === "https://127.0.0.1:18800/json/close/T2?token=abc") {
+      if (u === "https://127.0.0.1:40716/json/close/T2?token=abc") {
         return { ok: true, json: async () => ({}) } as unknown as Response;
       }
       throw new Error(`unexpected fetch: ${u}`);
@@ -127,7 +127,7 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     global.fetch = withFetchPreconnect(fetchMock);
     const state = makeState("openclaw");
     state.resolved.profiles.openclaw = {
-      cdpUrl: "wss://127.0.0.1:18800/cdp?token=abc",
+      cdpUrl: "wss://127.0.0.1:40716/cdp?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });

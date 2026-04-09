@@ -52,7 +52,7 @@ const resolveGatewayBindHost = vi.fn(
   async (_bindMode?: string, _customBindHost?: string) => "0.0.0.0",
 );
 const pickPrimaryTailnetIPv4 = vi.fn(() => "100.64.0.9");
-const resolveGatewayPort = vi.fn((_cfg?: unknown, _env?: unknown) => 18789);
+const resolveGatewayPort = vi.fn((_cfg?: unknown, _env?: unknown) => 40705);
 const resolveStateDir = vi.fn(
   (env: NodeJS.ProcessEnv) => env.ALISIO_STATE_DIR ?? env.OPENCLAW_STATE_DIR ?? "/tmp/openclaw-cli",
 );
@@ -225,7 +225,7 @@ describe("gatherDaemonStatus", () => {
 
   it("does not force local TLS fingerprint when probe URL is explicitly overridden", async () => {
     const status = await gatherDaemonStatus({
-      rpc: { url: "wss://override.example:18790" },
+      rpc: { url: "wss://override.example:40706" },
       probe: true,
       deep: false,
     });
@@ -233,12 +233,12 @@ describe("gatherDaemonStatus", () => {
     expect(loadGatewayTlsRuntime).not.toHaveBeenCalled();
     expect(callGatewayStatusProbe).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "wss://override.example:18790",
+        url: "wss://override.example:40706",
         tlsFingerprint: undefined,
       }),
     );
-    expect(status.gateway?.probeUrl).toBe("wss://override.example:18790");
-    expect(status.rpc?.url).toBe("wss://override.example:18790");
+    expect(status.gateway?.probeUrl).toBe("wss://override.example:40706");
+    expect(status.rpc?.url).toBe("wss://override.example:40706");
   });
 
   it("uses fallback network details when interface discovery throws during status inspection", async () => {

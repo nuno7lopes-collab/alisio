@@ -301,15 +301,9 @@ export function mergePersonAgentMemoryDefaults(
 
 export function mergePersonAgentSubagentDefaults(
   subagents: AgentConfig["subagents"] | undefined,
-  person: ResolvedPersonAgentConfig | undefined,
+  _person: ResolvedPersonAgentConfig | undefined,
 ): AgentConfig["subagents"] | undefined {
-  if (!person) {
-    return subagents;
-  }
-  return {
-    ...subagents,
-    allowAgents: unique([...(subagents?.allowAgents ?? []), ...person.specialists]),
-  };
+  return subagents;
 }
 
 function resolveBrowserGuardReason(toolParams: unknown): string | undefined {

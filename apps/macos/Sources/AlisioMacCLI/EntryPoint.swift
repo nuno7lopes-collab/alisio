@@ -49,7 +49,7 @@ private func printUsage() {
 
     Examples:
       alisio-mac connect
-      alisio-mac connect --url ws://127.0.0.1:18789 --json
+      alisio-mac connect --url ws://127.0.0.1:40705 --json
       alisio-mac discover --timeout 3000 --json
       alisio-mac wizard --mode local
     """)

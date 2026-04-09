@@ -20,6 +20,8 @@ type TestCase = {
 };
 
 const gatewayEnv = {
+  ALISIO_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
+  ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
   OPENCLAW_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
   OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
 } as NodeJS.ProcessEnv;
@@ -39,6 +41,8 @@ function makeRemoteGatewayConfig(remote: { token?: string; password?: string }):
 
 function withGatewayAuthEnv<T>(env: NodeJS.ProcessEnv, fn: () => T): T {
   const keys = [
+    "ALISIO_GATEWAY_TOKEN",
+    "ALISIO_GATEWAY_PASSWORD",
     "OPENCLAW_GATEWAY_TOKEN",
     "OPENCLAW_GATEWAY_PASSWORD",
     "OPENCLAW_SERVICE_KIND",
@@ -81,6 +85,8 @@ describe("gateway credential precedence coverage", () => {
         },
       } as AlisioConfig,
       env: {
+        ALISIO_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
+        ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
         OPENCLAW_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
         OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
       } as NodeJS.ProcessEnv,
@@ -130,6 +136,8 @@ describe("gateway credential precedence coverage", () => {
         },
       } as AlisioConfig,
       env: {
+        ALISIO_GATEWAY_TOKEN: "env-token",
+        ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
         OPENCLAW_GATEWAY_TOKEN: "env-token",
         OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
         OPENCLAW_SERVICE_KIND: "gateway",

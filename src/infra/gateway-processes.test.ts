@@ -140,7 +140,7 @@ describe("gateway-processes", () => {
       .mockReturnValueOnce(["python", "-m", "http.server"]);
     isGatewayArgvMock.mockReturnValueOnce(true).mockReturnValueOnce(false);
 
-    expect(findVerifiedGatewayListenerPidsOnPortSync(18789)).toEqual([200]);
+    expect(findVerifiedGatewayListenerPidsOnPortSync(40705)).toEqual([200]);
     setPlatform("win32");
     spawnSyncMock
       .mockReturnValueOnce({
@@ -156,7 +156,7 @@ describe("gateway-processes", () => {
     parseCmdScriptCommandLineMock.mockReturnValue(["node.exe", "gateway", "run"]);
     isGatewayArgvMock.mockReturnValue(true);
 
-    expect(findVerifiedGatewayListenerPidsOnPortSync(18789)).toEqual([200]);
+    expect(findVerifiedGatewayListenerPidsOnPortSync(40705)).toEqual([200]);
   });
 
   it("formats pid lists as comma-separated output", () => {

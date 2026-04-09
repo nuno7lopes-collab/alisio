@@ -9,6 +9,34 @@ import {
   ApprovalAuditGetParamsSchema,
   type ApprovalAuditSnapshot,
   ApprovalAuditSnapshotSchema,
+  type ApprovalPendingEntry,
+  ApprovalPendingEntrySchema,
+  type ApprovalPendingGetParams,
+  ApprovalPendingGetParamsSchema,
+  type ApprovalPendingSnapshot,
+  ApprovalPendingSnapshotSchema,
+  type AlisioSecurityAccessMode,
+  AlisioSecurityAccessModeSchema,
+  type AlisioSecurityAccessProfile,
+  AlisioSecurityAccessProfileSchema,
+  type AlisioSecurityApprovalDefaults,
+  AlisioSecurityApprovalDefaultsSchema,
+  type AlisioSecurityConfigDefaults,
+  AlisioSecurityConfigDefaultsSchema,
+  type AlisioSecurityPolicyApplyProfileParams,
+  AlisioSecurityPolicyApplyProfileParamsSchema,
+  type AlisioSecurityPolicyApplyProfileResult,
+  AlisioSecurityPolicyApplyProfileResultSchema,
+  type AlisioSecurityPolicyApprovalsSource,
+  AlisioSecurityPolicyApprovalsSourceSchema,
+  type AlisioSecurityPolicyConfigSource,
+  AlisioSecurityPolicyConfigSourceSchema,
+  type AlisioSecurityPolicyDiagnostics,
+  AlisioSecurityPolicyDiagnosticsSchema,
+  type AlisioSecurityPolicyGetParams,
+  AlisioSecurityPolicyGetParamsSchema,
+  type AlisioSecurityPolicySnapshot,
+  AlisioSecurityPolicySnapshotSchema,
   type AlisioAiBeginConnectParams,
   AlisioAiBeginConnectParamsSchema,
   type AlisioAiBeginConnectResult,
@@ -967,6 +995,44 @@ export const validateApprovalAuditEntry = ajv.compile<ApprovalAuditEntry>(Approv
 export const validateApprovalAuditSnapshot = ajv.compile<ApprovalAuditSnapshot>(
   ApprovalAuditSnapshotSchema,
 );
+export const validateApprovalPendingGetParams = ajv.compile<ApprovalPendingGetParams>(
+  ApprovalPendingGetParamsSchema,
+);
+export const validateApprovalPendingEntry = ajv.compile<ApprovalPendingEntry>(
+  ApprovalPendingEntrySchema,
+);
+export const validateApprovalPendingSnapshot = ajv.compile<ApprovalPendingSnapshot>(
+  ApprovalPendingSnapshotSchema,
+);
+export const validateAlisioSecurityAccessMode = ajv.compile<AlisioSecurityAccessMode>(
+  AlisioSecurityAccessModeSchema,
+);
+export const validateAlisioSecurityAccessProfile = ajv.compile<AlisioSecurityAccessProfile>(
+  AlisioSecurityAccessProfileSchema,
+);
+export const validateAlisioSecurityConfigDefaults = ajv.compile<AlisioSecurityConfigDefaults>(
+  AlisioSecurityConfigDefaultsSchema,
+);
+export const validateAlisioSecurityApprovalDefaults = ajv.compile<AlisioSecurityApprovalDefaults>(
+  AlisioSecurityApprovalDefaultsSchema,
+);
+export const validateAlisioSecurityPolicyDiagnostics = ajv.compile<AlisioSecurityPolicyDiagnostics>(
+  AlisioSecurityPolicyDiagnosticsSchema,
+);
+export const validateAlisioSecurityPolicyConfigSource =
+  ajv.compile<AlisioSecurityPolicyConfigSource>(AlisioSecurityPolicyConfigSourceSchema);
+export const validateAlisioSecurityPolicyApprovalsSource =
+  ajv.compile<AlisioSecurityPolicyApprovalsSource>(AlisioSecurityPolicyApprovalsSourceSchema);
+export const validateAlisioSecurityPolicyGetParams = ajv.compile<AlisioSecurityPolicyGetParams>(
+  AlisioSecurityPolicyGetParamsSchema,
+);
+export const validateAlisioSecurityPolicySnapshot = ajv.compile<AlisioSecurityPolicySnapshot>(
+  AlisioSecurityPolicySnapshotSchema,
+);
+export const validateAlisioSecurityPolicyApplyProfileParams =
+  ajv.compile<AlisioSecurityPolicyApplyProfileParams>(AlisioSecurityPolicyApplyProfileParamsSchema);
+export const validateAlisioSecurityPolicyApplyProfileResult =
+  ajv.compile<AlisioSecurityPolicyApplyProfileResult>(AlisioSecurityPolicyApplyProfileResultSchema);
 export const validateExecApprovalsGetParams = ajv.compile<ExecApprovalsGetParams>(
   ExecApprovalsGetParamsSchema,
 );
@@ -1260,6 +1326,20 @@ export {
   ApprovalAuditGetParamsSchema,
   ApprovalAuditEntrySchema,
   ApprovalAuditSnapshotSchema,
+  ApprovalPendingGetParamsSchema,
+  ApprovalPendingEntrySchema,
+  ApprovalPendingSnapshotSchema,
+  AlisioSecurityAccessModeSchema,
+  AlisioSecurityAccessProfileSchema,
+  AlisioSecurityConfigDefaultsSchema,
+  AlisioSecurityApprovalDefaultsSchema,
+  AlisioSecurityPolicyDiagnosticsSchema,
+  AlisioSecurityPolicyConfigSourceSchema,
+  AlisioSecurityPolicyApprovalsSourceSchema,
+  AlisioSecurityPolicyGetParamsSchema,
+  AlisioSecurityPolicySnapshotSchema,
+  AlisioSecurityPolicyApplyProfileParamsSchema,
+  AlisioSecurityPolicyApplyProfileResultSchema,
   ChatHistoryParamsSchema,
   ChatSendParamsSchema,
   ChatInjectParamsSchema,
@@ -1518,6 +1598,20 @@ export type {
   ApprovalAuditGetParams,
   ApprovalAuditEntry,
   ApprovalAuditSnapshot,
+  ApprovalPendingGetParams,
+  ApprovalPendingEntry,
+  ApprovalPendingSnapshot,
+  AlisioSecurityAccessMode,
+  AlisioSecurityAccessProfile,
+  AlisioSecurityConfigDefaults,
+  AlisioSecurityApprovalDefaults,
+  AlisioSecurityPolicyDiagnostics,
+  AlisioSecurityPolicyConfigSource,
+  AlisioSecurityPolicyApprovalsSource,
+  AlisioSecurityPolicyGetParams,
+  AlisioSecurityPolicySnapshot,
+  AlisioSecurityPolicyApplyProfileParams,
+  AlisioSecurityPolicyApplyProfileResult,
   PollParams,
   UpdateRunParams,
   ChatInjectParams,

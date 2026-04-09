@@ -26,15 +26,15 @@ async function writeConfig(home: string, config: AlisioConfig): Promise<string> 
 describe("loadConfig runtime snapshot pinning", () => {
   it("pins the first successful load in memory until the snapshot is cleared", async () => {
     await withTempHome("alisio-config-runtime-load-pin-", async (home) => {
-      await writeConfig(home, { gateway: { port: 18789 } });
+      await writeConfig(home, { gateway: { port: 40705 } });
 
       try {
-        expect(loadConfig().gateway?.port).toBe(18789);
+        expect(loadConfig().gateway?.port).toBe(40705);
         expect(getRuntimeConfigSourceSnapshot()).toBeNull();
 
         await writeConfig(home, { gateway: { port: 19001 } });
 
-        expect(loadConfig().gateway?.port).toBe(18789);
+        expect(loadConfig().gateway?.port).toBe(40705);
 
         resetRuntimeConfigState();
         expect(loadConfig().gateway?.port).toBe(19001);
@@ -46,10 +46,10 @@ describe("loadConfig runtime snapshot pinning", () => {
 
   it("refreshes a plain runtime snapshot after writes without falling back to disk reads", async () => {
     await withTempHome("alisio-config-runtime-load-write-", async (home) => {
-      await writeConfig(home, { gateway: { port: 18789 } });
+      await writeConfig(home, { gateway: { port: 40705 } });
 
       try {
-        expect(loadConfig().gateway?.port).toBe(18789);
+        expect(loadConfig().gateway?.port).toBe(40705);
 
         await writeConfigFile({
           ...loadConfig(),

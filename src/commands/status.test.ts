@@ -129,7 +129,7 @@ function mockProbeGatewayResult(overrides: Partial<ProbeGatewayResult>) {
 function createDefaultProbeGatewayResult(): ProbeGatewayResult {
   return {
     ok: false,
-    url: "ws://127.0.0.1:18789",
+    url: "ws://127.0.0.1:40705",
     connectLatencyMs: null,
     error: "timeout",
     close: null,
@@ -813,7 +813,7 @@ describe("statusCommand", () => {
 
     const joined = await runStatusAndGetJoinedLogs();
     expect(joined).toContain("node → gateway.example.com:19000 · no local gateway");
-    expect(joined).not.toContain("Gateway: local · ws://127.0.0.1:18789");
+    expect(joined).not.toContain("Gateway: local · ws://127.0.0.1:40705");
     expect(joined).toContain("alisio --profile isolated node status");
     expect(joined).not.toContain("Fix reachability first");
   });

@@ -12,7 +12,7 @@ The Gateway dashboard is the browser Control UI served at `/` by default
 
 Quick open (local Gateway):
 
-- [http://127.0.0.1:18789/](http://127.0.0.1:18789/) (or [http://localhost:18789/](http://localhost:18789/))
+- [http://127.0.0.1:40705/](http://127.0.0.1:40705/) (or [http://localhost:40705/](http://localhost:40705/))
 
 Key references:
 
@@ -36,7 +36,7 @@ Prefer localhost, Tailscale Serve, or an SSH tunnel.
 
 ## Token basics (local vs remote)
 
-- **Localhost**: open `http://127.0.0.1:18789/`.
+- **Localhost**: open `http://127.0.0.1:40705/`.
 - **Token source**: `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`); `alisio dashboard` can pass it via URL fragment for one-time bootstrap, and the Control UI keeps it in sessionStorage for the current browser tab session and selected gateway URL instead of localStorage.
 - If `gateway.auth.token` is SecretRef-managed, `alisio dashboard` prints/copies/opens a non-tokenized URL by design. This avoids exposing externally managed tokens in shell logs, clipboard history, or browser-launch arguments.
 - If `gateway.auth.token` is configured as a SecretRef and is unresolved in your current shell, `alisio dashboard` still prints a non-tokenized URL plus actionable auth setup guidance.
@@ -46,7 +46,7 @@ Prefer localhost, Tailscale Serve, or an SSH tunnel.
 
 ## If you see "unauthorized" / 1008
 
-- Ensure the gateway is reachable (local: `alisio status`; remote: SSH tunnel `ssh -N -L 18789:127.0.0.1:18789 user@host` then open `http://127.0.0.1:18789/`).
+- Ensure the gateway is reachable (local: `alisio status`; remote: SSH tunnel `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/`).
 - For `AUTH_TOKEN_MISMATCH`, clients may do one trusted retry with a cached device token when the gateway returns retry hints. If auth still fails after that retry, resolve token drift manually.
 - For token drift repair steps, follow [Token drift recovery checklist](/cli/devices#token-drift-recovery-checklist).
 - Retrieve or supply the token from the gateway host:

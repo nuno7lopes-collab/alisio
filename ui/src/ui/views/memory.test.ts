@@ -122,7 +122,7 @@ function createProps(
           projections: 2,
           projectionInterface: "markdown-vault",
           syncMode: "local-first",
-          cloudSync: "not_implemented",
+          cloudSync: "unavailable",
           projectionSources: ["workspace-memory"],
         },
       },
@@ -132,6 +132,55 @@ function createProps(
     },
     memorySyncing: false,
     memorySyncAvailable: true,
+    memoryGraphLoading: false,
+    memoryGraphError: null,
+    memoryGraph: {
+      query: "Trip Planning",
+      profileId: "local-main",
+      workspaceScope: "scope-main",
+      storePath: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
+      backend: "builtin",
+      state: "ready",
+      projectionInterface: "markdown-vault",
+      syncMode: "local-first",
+      cloudSync: "unavailable",
+      matches: [
+        {
+          entityId: "entity-trip-planning",
+          title: "Trip Planning",
+          slug: "trip-planning",
+          sourcePath: "memory/2026-04-06-trip-planning.md",
+          sourceKind: "workspace-memory",
+          aliases: ["planning"],
+          tags: ["travel"],
+          score: 1,
+          projections: [
+            {
+              projectionId: "projection-trip-planning",
+              path: "memory/2026-04-06-trip-planning.md",
+              sourceKind: "workspace-memory",
+              editable: true,
+            },
+          ],
+          relations: [
+            {
+              direction: "outgoing",
+              relationType: "depends-on",
+              ordinal: 0,
+              metadata: {},
+              relatedEntity: {
+                entityId: "entity-roadmap",
+                title: "Roadmap",
+                slug: "roadmap",
+                sourcePath: "memory/2026-04-01-roadmap.md",
+                sourceKind: "workspace-memory",
+              },
+            },
+          ],
+        },
+      ],
+    },
+    memoryGraphQuery: "Trip Planning",
     configLoading: false,
     configSaving: false,
     configDirty: false,
@@ -250,7 +299,32 @@ describe("renderMemoryHub", () => {
     expect(container.textContent).toContain("/vaults/research");
     expect(container.textContent).toContain("Canonical store");
     expect(container.textContent).toContain("local-main");
+    expect(container.textContent).toContain("Graph preview");
+    expect(container.textContent).toContain("Trip Planning");
+    expect(container.textContent).toContain("depends-on");
     expect(container.textContent).not.toContain("Delete");
+  });
+
+  it("navigates from graph nodes to the linked memory file", () => {
+    const container = document.createElement("div");
+    const onSelectFile = vi.fn();
+
+    render(
+      renderMemoryHub(
+        createProps({
+          onSelectFile,
+        }),
+      ),
+      container,
+    );
+
+    const roadmapButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Roadmap"),
+    );
+
+    roadmapButton?.click();
+
+    expect(onSelectFile).toHaveBeenCalledWith("memory/2026-04-01-roadmap.md");
   });
 
   it("shows the note composer preview path and note delete action in note mode", () => {
@@ -273,6 +347,23 @@ describe("renderMemoryHub", () => {
         button.textContent?.includes("Delete"),
       ),
     ).toBe(true);
+  });
+
+  it("falls back to the main memory file when no file is selected", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderMemoryHub(
+        createProps({
+          memoryActive: null,
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Main memory");
+    expect(container.textContent).not.toContain("No notes yet.");
+    expect(container.querySelector("textarea")?.value).toContain("# Main memory");
   });
 
   it("wires sync and settings save actions from the memory surface", () => {

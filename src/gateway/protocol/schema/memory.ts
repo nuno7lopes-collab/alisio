@@ -17,6 +17,11 @@ const MemoryCanonicalProjectionSourceSchema = Type.Union([
   Type.Literal("workspace-memory"),
   Type.Literal("obsidian-memory"),
 ]);
+const MemoryCanonicalCloudSyncSchema = Type.Union([
+  Type.Literal("unavailable"),
+  Type.Literal("enabled"),
+  Type.Literal("error"),
+]);
 
 export const MemoryStatusParamsSchema = Type.Object(
   {
@@ -161,7 +166,7 @@ export const MemoryCanonicalStoreRuntimeSchema = Type.Object(
     projections: Type.Integer({ minimum: 0 }),
     projectionInterface: Type.Literal("markdown-vault"),
     syncMode: Type.Literal("local-first"),
-    cloudSync: Type.Literal("not_implemented"),
+    cloudSync: MemoryCanonicalCloudSyncSchema,
     projectionSources: Type.Array(MemoryCanonicalProjectionSourceSchema),
     lastSyncedAt: Type.Optional(Type.String()),
     lastError: Type.Optional(Type.String()),

@@ -12,8 +12,8 @@ Environment={{LEGACY_CONFIG_ENV}}=/home/node/.alisio/alisio.json
 Environment=NPM_CONFIG_CACHE=/home/node/.alisio/.npm
 Volume={{CONFIG_DIR}}:/home/node/.alisio:Z
 Volume={{WORKSPACE_DIR}}:/home/node/.alisio/workspace:Z
-PublishPort={{HOST_GATEWAY_PORT}}:18789
-Exec=alisio gateway run --bind {{GATEWAY_BIND}} --port 18789 --force
+PublishPort={{HOST_GATEWAY_PORT}}:40705
+Exec=alisio gateway run --bind {{GATEWAY_BIND}} --port 40705 --force
 
 [Service]
 Restart=on-failure

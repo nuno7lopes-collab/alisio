@@ -110,7 +110,7 @@ docker compose logs -f alisio-gateway
 Expected output:
 
 ```
-[gateway] listening on ws://0.0.0.0:18789
+[gateway] listening on ws://0.0.0.0:40705
 ```
 
 ## What persists where

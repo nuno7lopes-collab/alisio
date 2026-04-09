@@ -16,6 +16,7 @@ afterEach(() => {
 describe("method scope resolution", () => {
   it.each([
     ["approval.audit.get", ["operator.approvals"]],
+    ["approval.pending.get", ["operator.approvals"]],
     ["sessions.resolve", ["operator.read"]],
     ["config.schema.lookup", ["operator.read"]],
     ["sessions.create", ["operator.write"]],
@@ -33,7 +34,10 @@ describe("method scope resolution", () => {
     ["alisio.account.signIn", ["operator.write"]],
     ["alisio.sharing.request", ["operator.write"]],
     ["alisio.models.server.save", ["operator.write"]],
+    ["alisio.models.runtime.start", ["operator.write"]],
     ["alisio.models.uninstall", ["operator.write"]],
+    ["alisio.security.policy.get", ["operator.admin"]],
+    ["alisio.security.policy.applyProfile", ["operator.admin"]],
     ["alisio.runtime.restart", ["operator.admin"]],
     ["config.patch", ["operator.admin"]],
     ["wizard.start", ["operator.admin"]],
@@ -75,6 +79,7 @@ describe("operator scope authorization", () => {
     ["config.schema.lookup", ["operator.read"], { allowed: true }],
     ["alisio.models.install", ["operator.write"], { allowed: true }],
     ["alisio.models.uninstall", ["operator.write"], { allowed: true }],
+    ["alisio.models.runtime.start", ["operator.write"], { allowed: true }],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"], { allowed: true }],
     ["alisio.account.changeEmail", ["operator.write"], { allowed: true }],
     ["alisio.account.signUp", ["operator.write"], { allowed: true }],
@@ -83,6 +88,8 @@ describe("operator scope authorization", () => {
     ["alisio.models.server.save", ["operator.write"], { allowed: true }],
     ["alisio.models.server.remove", ["operator.write"], { allowed: true }],
     ["alisio.models.server.select", ["operator.write"], { allowed: true }],
+    ["alisio.security.policy.get", ["operator.admin"], { allowed: true }],
+    ["alisio.security.policy.applyProfile", ["operator.admin"], { allowed: true }],
     ["alisio.sharing.approve", ["operator.write"], { allowed: true }],
     ["alisio.sharing.reject", ["operator.write"], { allowed: true }],
     ["alisio.sharing.revoke", ["operator.write"], { allowed: true }],
@@ -105,6 +112,10 @@ describe("operator scope authorization", () => {
 
   it("requires approvals scope for approval methods", () => {
     expect(authorizeOperatorScopesForMethod("approval.audit.get", ["operator.write"])).toEqual({
+      allowed: false,
+      missingScope: "operator.approvals",
+    });
+    expect(authorizeOperatorScopesForMethod("approval.pending.get", ["operator.write"])).toEqual({
       allowed: false,
       missingScope: "operator.approvals",
     });
@@ -139,6 +150,9 @@ describe("plugin approval method registration", () => {
   it("lists all plugin approval methods", () => {
     const methods = listGatewayMethods();
     expect(methods).toContain("approval.audit.get");
+    expect(methods).toContain("approval.pending.get");
+    expect(methods).toContain("alisio.security.policy.get");
+    expect(methods).toContain("alisio.security.policy.applyProfile");
     expect(methods).toContain("plugin.approval.request");
     expect(methods).toContain("plugin.approval.waitDecision");
     expect(methods).toContain("plugin.approval.resolve");
@@ -167,6 +181,7 @@ describe("plugin approval method registration", () => {
 
   it("classifies plugin approval methods", () => {
     expect(isGatewayMethodClassified("approval.audit.get")).toBe(true);
+    expect(isGatewayMethodClassified("approval.pending.get")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.request")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.waitDecision")).toBe(true);
     expect(isGatewayMethodClassified("plugin.approval.resolve")).toBe(true);

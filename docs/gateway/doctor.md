@@ -77,7 +77,7 @@ cat ~/.alisio/alisio.json
 - Channel status warnings (probed from the running gateway).
 - Supervisor config audit (launchd/systemd/schtasks) with optional repair.
 - Gateway runtime best-practice checks (Node vs Bun, version-manager paths).
-- Gateway port collision diagnostics (default `18789`).
+- Gateway port collision diagnostics (default `40705`).
 - Security warnings for open DM policies.
 - Gateway auth checks for local token mode (offers token generation when no token source exists; does not overwrite token SecretRef configs).
 - systemd linger check on Linux.
@@ -337,7 +337,7 @@ Notes:
 
 Doctor inspects the service runtime (PID, last exit status) and warns when the
 service is installed but not actually running. It also checks for port collisions
-on the gateway port (default `18789`) and reports likely causes (gateway already
+on the gateway port (default `40705`) and reports likely causes (gateway already
 running, SSH tunnel).
 
 ### 17) Gateway runtime best practices

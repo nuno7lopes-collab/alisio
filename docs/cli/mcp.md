@@ -103,10 +103,10 @@ This gives MCP clients one place to:
 alisio mcp serve
 
 # Remote Gateway
-alisio mcp serve --url wss://gateway-host:18789 --token-file ~/.alisio/gateway.token
+alisio mcp serve --url wss://gateway-host:40705 --token-file ~/.alisio/gateway.token
 
 # Remote Gateway with password auth
-alisio mcp serve --url wss://gateway-host:18789 --password-file ~/.alisio/gateway.password
+alisio mcp serve --url wss://gateway-host:40705 --password-file ~/.alisio/gateway.password
 
 # Enable verbose bridge logs
 alisio mcp serve --verbose
@@ -255,7 +255,7 @@ Example stdio client config:
         "mcp",
         "serve",
         "--url",
-        "wss://gateway-host:18789",
+        "wss://gateway-host:40705",
         "--token-file",
         "/path/to/gateway.token"
       ]

@@ -171,12 +171,12 @@ ssh user@gateway-host 'openclaw dashboard --no-open'
 ```
 
 该命令会打印 `Dashboard URL:`。根据 `gateway.auth.token`
-的配置方式，URL 可能是普通的 `http://127.0.0.1:18789/` 链接，也可能是包含 `#token=...` 的链接。
+的配置方式，URL 可能是普通的 `http://127.0.0.1:40705/` 链接，也可能是包含 `#token=...` 的链接。
 
 在你电脑上的另一个终端中，创建 SSH 隧道：
 
 ```bash
-ssh -N -L 18789:127.0.0.1:18789 user@gateway-host
+ssh -N -L 40705:127.0.0.1:40705 user@gateway-host
 ```
 
 然后在本地浏览器中打开打印出的 Dashboard URL。

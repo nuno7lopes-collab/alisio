@@ -45,6 +45,8 @@ That is especially important in a desktop-first product where the operator expec
 - Explicit note links are stored as relations in that structured store instead of existing only as raw text links in Markdown.
 - The structured store is **local-first** and **per-device** today.
 - The structured store can also preserve store-authored entities and regenerate Markdown projections for them, so Markdown is no longer the only transactional representation the runtime can persist.
+- Signed-in profiles can sync that canonical store through the Alisio cloud backend using snapshot-based replication plus remote backups.
+- Generated canonical Markdown projections now round-trip back into the structured store on the next sync, so operator edits are no longer one-way for store-owned memory notes.
 
 ## Compatibility And Legacy
 
@@ -77,16 +79,12 @@ Treat the workspace and vault as the human-editable projection of durable produc
 
 ## Current Limitations and Roadmap
 
-- Cloud sync and remote coordination for the canonical memory store are not
-  shipped today. Treat them as roadmap work, not as part of the current memory
-  contract.
 - The main end-user write path still enters through Markdown and Obsidian memory
   surfaces (including memory flush), even though the store can now preserve
   store-authored entities and regenerate their Markdown projections locally.
-- Round-trip editing from generated Markdown projections back into the
-  structured store is not shipped yet; treat regeneration as one-way for now.
-- Cross-device replication through Alisio cloud services is not part of the
-  current release.
+- Cross-device replication is currently coarse-grained. The cloud layer syncs
+  whole canonical snapshots, not CRDT-style per-field merges, so concurrent
+  edits across non-empty devices still resolve conservatively.
 - Visual graph navigation remains roadmap direction, not a finished end-user
   surface.
 

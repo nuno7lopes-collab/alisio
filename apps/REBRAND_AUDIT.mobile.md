@@ -16,7 +16,8 @@ Agente: AGENTE-C
 - `apps/shared/OpenClawKit/**` mantém-se como shim temporário, mas passou a expor identifiers/runtime canónicos Alisio com fallback explícito para paths, suites, keychain services, deep links e markers legados.
 - O contrato operacional gateway <-> mobile ficou alinhado em `alisio-*` / `__alisio__/*`, mantendo aceitação explícita de aliases legados no gateway/canvas host para suportar a janela de transição.
 - Foram limpos artefactos SPM locais (`.build`, `.swiftpm`, `Package.resolved`) nos shared kits no fim da validação.
-- Validação live real continua pendente: Supabase live + inbox real + links reais, smoke multi-dispositivo e auditoria final com dispositivos físicos.
+- A validação live real de conta/auth ficou fechada nesta tarefa: Supabase live + inbox real + links reais já foram exercitados.
+- Continuam pendentes apenas smoke multi-dispositivo e auditoria final com dispositivos físicos.
 
 ## Android
 
@@ -91,6 +92,8 @@ Agente: AGENTE-C
 - `xcodebuild -showsdks`: verificado. O host lista `iphoneos26.2`, mas isso não foi suficiente para satisfazer o `xcodebuild` real desta tarefa.
 - `java -version`: bloqueado. O host não tem Java Runtime disponível no PATH.
 - `adb devices -l`: bloqueado. `adb` não existe no PATH deste host.
+- `xcrun devicectl list devices`: verificado. `No devices found.`
+- `xcrun xctrace list devices`: verificado. Só o host local aparece (`Nuno’s MacBook Air`); não há iPhone físico visível nesta sessão.
 - `printenv | rg '^ALISIO_(SUPABASE|PUSH|APNS|MAIL|EMAIL)|^SUPABASE'`: sem variáveis live visíveis no ambiente desta sessão.
 - `~/.profile`: sem `ALISIO_SUPABASE_*`, `ALISIO_PUSH_RELAY_BASE_URL`, `ANDROID_HOME` ou `ANDROID_SDK_ROOT` exportados de forma visível.
 
@@ -100,12 +103,22 @@ Agente: AGENTE-C
 - `swift test --package-path apps/shared/AlisioKit`: OK. Build concluído e 3 testes passaram (`AlisioKitBridgeTests`).
 - `swift test --package-path apps/shared/OpenClawKit`: inconclusivo neste host. O comando compilou durante vários minutos e deixou de produzir output útil antes de um fecho observável nesta sessão.
 - `pnpm test -- src/agents/live-test-helpers.test.ts test/test-env.test.ts src/infra/alisio-account-cloud.test.ts`: bloqueado por infra do runner Vitest (`Worker forks emitted error` / timeout de workers), sem falha de assertion observável do diff.
-- `pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts ...`: bloqueado pela mesma classe de timeout do runner nas suites live já pesadas; o novo smoke `src/infra/alisio-account-cloud.live.test.ts` arrancou sob `ALISIO_LIVE_TEST`, mas não houve execução live factual porque faltam envs/cloud/inbox reais neste host.
+- `OPENCLAW_TEST_PROFILE=serial OPENCLAW_TEST_SERIAL_GATEWAY=1 pnpm test -- src/infra/alisio-account-cloud.test.ts`: OK. 17 testes passaram, incluindo as novas assertions que preservam o detalhe upstream do Supabase nos erros de live auth e o novo caso em que `completeAlisioCloudAccountEmailLinkAuth()` recicla o `refresh_token` do próprio link quando o `access_token` já expirou.
+- `env ALISIO_SUPABASE_URL='https://jgchbqmlffheaimosyjz.supabase.co' ALISIO_SUPABASE_ANON_KEY='<publishable-key>' ALISIO_LIVE_ACCOUNT_EMAIL='suporte@alisio.pt' pnpm test:live:account -- --pool=forks --maxWorkers=1 --reporter=verbose`: execução live factual contra Supabase real. A suite arrancou, chegou ao backend real e falhou em 2 passos com resposta explícita do Supabase: `HTTP 400: Email address "suporte@alisio.pt" is invalid` tanto em sign-in email como em recovery email. Os 4 testes de links reais ficaram `skipped` porque não havia URLs reais de email nesta sessão. A `sb_secret_*` não foi usada nesta validação.
+- `env ALISIO_LIVE_TEST=1 ALISIO_LIVE_ACCOUNT=1 ALISIO_SUPABASE_URL='https://jgchbqmlffheaimosyjz.supabase.co' ALISIO_SUPABASE_ANON_KEY='<publishable-key>' ALISIO_LIVE_ACCOUNT_EMAIL='nuno7lopes@gmail.com' pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts -t 'dispatches a real Supabase sign-in email' --pool=forks --maxWorkers=1 --reporter=verbose`: OK. O Supabase aceitou o inbox real e enviou o magic link.
+- `env ALISIO_LIVE_TEST=1 ALISIO_LIVE_ACCOUNT=1 ALISIO_SUPABASE_URL='https://jgchbqmlffheaimosyjz.supabase.co' ALISIO_SUPABASE_ANON_KEY='<publishable-key>' ALISIO_LIVE_ACCOUNT_EMAIL='nuno7lopes@gmail.com' pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts -t 'dispatches a real recovery email' --pool=forks --maxWorkers=1 --reporter=verbose`: OK. O Supabase aceitou o inbox real e enviou o recovery email.
+- Foi confirmada a presença do email `Your Magic Link` no Gmail aberto no browser local e o link antigo dessa thread foi extraído do HTML renderizado. Esse link já estava expirado (`otp_expired`).
+- `env ALISIO_LIVE_TEST=1 ALISIO_LIVE_ACCOUNT=1 ALISIO_SUPABASE_URL='https://jgchbqmlffheaimosyjz.supabase.co' ALISIO_SUPABASE_ANON_KEY='<publishable-key>' ALISIO_LIVE_ACCOUNT_EMAIL='nuno7lopes@gmail.com' ALISIO_LIVE_ACCOUNT_SIGNIN_LINK_URL='<localhost-link-fragment>' pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts -t 'completes a real sign-in link from a real email' --pool=forks --maxWorkers=1 --reporter=verbose`: OK. O fluxo live de sign-in ficou fechado ponta-a-ponta.
+- Durante esta validação live foi detectado que a tabela real `alisio_profiles` não expunha colunas opcionais mais recentes como `agent_name` e `terms_accepted_at`. O código desta superfície foi corrigido para tolerar essas ausências durante o fetch do perfil sem bloquear o sign-in live.
+- `env ALISIO_LIVE_TEST=1 ALISIO_LIVE_ACCOUNT=1 ALISIO_SUPABASE_URL='https://jgchbqmlffheaimosyjz.supabase.co' ALISIO_SUPABASE_ANON_KEY='<publishable-key>' ALISIO_LIVE_ACCOUNT_EMAIL='nuno7lopes@gmail.com' ALISIO_LIVE_ACCOUNT_RECOVERY_LINK_URL='<localhost-link-fragment capturado do Gmail real>' pnpm exec vitest run --config vitest.live.config.ts src/infra/alisio-account-cloud.live.test.ts -t 'completes a real recovery link from a real email' --pool=forks --maxWorkers=1 --reporter=verbose`: OK. O fluxo live de recovery ficou fechado ponta-a-ponta. O `localhost` capturado do email real já trazia `refresh_token`; o código desta superfície foi corrigido para o reaproveitar quando o `access_token` do fragmento já expirou.
+- `curl -I -s 'http://localhost:40705/logout/setup?step=account'` e `curl -s 'http://localhost:40705/logout/setup?step=account' | head -40`: OK. O host responde `HTTP/1.1 200 OK` e serve HTML real do Alisio; o erro anterior de `Control UI assets not found` já não era o estado actual desta sessão.
 
 ## Validação Live Pendente
 
 - Conta/auth cloud:
-  - falta correr `pnpm test:live:account` com `ALISIO_SUPABASE_URL`, `ALISIO_SUPABASE_ANON_KEY`, `ALISIO_LIVE_ACCOUNT_EMAIL` e links reais capturados do inbox (`ALISIO_LIVE_ACCOUNT_SIGNIN_LINK_URL`, `ALISIO_LIVE_ACCOUNT_RECOVERY_LINK_URL`).
+  - o smoke live já foi executado contra o projecto Supabase real com um inbox aceite (`nuno7lopes@gmail.com`).
+  - o fluxo de sign-in live ficou fechado ponta-a-ponta: envio real + link real + conclusão real.
+  - o fluxo de recovery live ficou fechado ponta-a-ponta: envio real + link real + conclusão real.
   - a cobertura opcional de mudança real de email também ficou preparada, mas exige activar `ALISIO_LIVE_ACCOUNT_ENABLE_EMAIL_CHANGE=1` e fornecer `ALISIO_LIVE_ACCOUNT_CHANGE_EMAIL` + `ALISIO_LIVE_ACCOUNT_EMAIL_CHANGE_LINK_URL`.
 - Android:
   - falta host com Java + `adb` + dispositivo Android físico para correr `pnpm android:assemble`, `pnpm android:test` e `pnpm android:test:integration`.

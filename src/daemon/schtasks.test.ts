@@ -224,7 +224,7 @@ describe("readScheduledTaskCommand", () => {
           "rem Alisio Gateway",
           "cd /d C:\\Projects\\alisio",
           "set NODE_ENV=production",
-          "set ALISIO_GATEWAY_PORT=18789",
+          "set ALISIO_GATEWAY_PORT=40705",
           "node gateway.js --verbose",
         ],
       },
@@ -235,7 +235,7 @@ describe("readScheduledTaskCommand", () => {
           workingDirectory: "C:\\Projects\\alisio",
           environment: {
             NODE_ENV: "production",
-            ALISIO_GATEWAY_PORT: "18789",
+            ALISIO_GATEWAY_PORT: "40705",
           },
           sourcePath: resolveTaskScriptPath(env),
         });
@@ -248,7 +248,7 @@ describe("readScheduledTaskCommand", () => {
       {
         scriptLines: [
           "@echo off",
-          '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js gateway --port 18789',
+          '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js gateway --port 40705',
         ],
       },
       async (env) => {
@@ -259,7 +259,7 @@ describe("readScheduledTaskCommand", () => {
             "C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js",
             "gateway",
             "--port",
-            "18789",
+            "40705",
           ],
           sourcePath: resolveTaskScriptPath(env),
         });
@@ -272,7 +272,7 @@ describe("readScheduledTaskCommand", () => {
       {
         scriptLines: [
           "@echo off",
-          '"\\\\fileserver\\Alisio Share\\node.exe" "\\\\fileserver\\Alisio Share\\dist\\index.js" gateway --port 18789',
+          '"\\\\fileserver\\Alisio Share\\node.exe" "\\\\fileserver\\Alisio Share\\dist\\index.js" gateway --port 40705',
         ],
       },
       async (env) => {
@@ -283,7 +283,7 @@ describe("readScheduledTaskCommand", () => {
             "\\\\fileserver\\Alisio Share\\dist\\index.js",
             "gateway",
             "--port",
-            "18789",
+            "40705",
           ],
           sourcePath: resolveTaskScriptPath(env),
         });

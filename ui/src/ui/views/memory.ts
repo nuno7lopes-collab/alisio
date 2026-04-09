@@ -19,6 +19,7 @@ import type {
   AgentsFilesListResult,
   AgentsListResult,
   ConfigUiHints,
+  MemoryGraphState,
   MemoryStatusState,
 } from "../types.ts";
 import { normalizeAgentLabel } from "./agents-utils.ts";
@@ -48,6 +49,10 @@ type MemoryHubProps = {
   memoryStatus: MemoryStatusState | null;
   memorySyncing: boolean;
   memorySyncAvailable: boolean;
+  memoryGraphLoading: boolean;
+  memoryGraphError: string | null;
+  memoryGraph: MemoryGraphState | null;
+  memoryGraphQuery: string | null;
   configLoading: boolean;
   configSaving: boolean;
   configDirty: boolean;
@@ -142,12 +147,21 @@ function memoryText() {
     canonicalStore: t("alisio.memory.canonicalStore"),
     canonicalProfile: t("alisio.memory.canonicalProfile"),
     canonicalGraph: t("alisio.memory.canonicalGraph"),
+    graphTitle: t("alisio.memory.graphTitle"),
+    graphLoading: t("alisio.memory.graphLoading"),
+    graphUnavailable: t("alisio.memory.graphUnavailable"),
+    graphEmpty: t("alisio.memory.graphEmpty"),
+    graphAliases: t("alisio.memory.graphAliases"),
+    graphTags: t("alisio.memory.graphTags"),
+    graphRelations: t("alisio.memory.graphRelations"),
     vector: t("alisio.memory.vector"),
     fts: t("alisio.memory.fts"),
     obsidianVault: t("alisio.memory.obsidianVault"),
     localFirst: t("alisio.memory.localFirst"),
     localOnly: t("alisio.memory.localOnly"),
-    cloudSyncPending: t("alisio.memory.cloudSyncPending"),
+    cloudSyncEnabled: t("alisio.memory.cloudSyncEnabled"),
+    cloudSyncUnavailable: t("alisio.memory.cloudSyncUnavailable"),
+    cloudSyncError: t("alisio.memory.cloudSyncError"),
     entitiesUnit: t("alisio.memory.entitiesUnit"),
     relationsUnit: t("alisio.memory.relationsUnit"),
     projectionsUnit: t("alisio.memory.projectionsUnit"),
@@ -215,6 +229,108 @@ function renderRuntimeMetaItem(label: string, value: string, detail?: string) {
   `;
 }
 
+function renderGraphPreview(params: {
+  query: string | null;
+  graph: MemoryGraphState | null;
+  loading: boolean;
+  error: string | null;
+  text: ReturnType<typeof memoryText>;
+  onSelectFile: (name: string) => void;
+}) {
+  if (!params.query && !params.loading && !params.error && !params.graph) {
+    return nothing;
+  }
+  return html`
+    <section class="alisio-memory-runtime">
+      <div class="alisio-memory-runtime__header">
+        <div class="alisio-memory-runtime__copy"><h3>${params.text.graphTitle}</h3></div>
+        ${params.query
+          ? html`
+              <div class="alisio-memory-runtime__actions">
+                <span class="alisio-memory-badge">${params.query}</span>
+              </div>
+            `
+          : nothing}
+      </div>
+      ${params.loading
+        ? html`
+            <div class="alisio-memory-runtime__empty">
+              ${renderSkeletonLines(["short", "medium"], { compact: true })}
+              <span>${params.text.graphLoading}</span>
+            </div>
+          `
+        : params.error
+          ? html`<div class="alisio-memory-runtime__empty">${params.error}</div>`
+          : !params.graph || params.graph.matches.length === 0
+            ? html`<div class="alisio-memory-runtime__empty">${params.text.graphEmpty}</div>`
+            : html`
+                <div class="alisio-memory-runtime__stats">
+                  ${params.graph.matches.map(
+                    (match) => html`
+                      <div class="alisio-memory-stat">
+                        <span class="alisio-memory-stat__label">${match.sourcePath}</span>
+                        <button
+                          type="button"
+                          class="alisio-memory-graph-node alisio-memory-graph-node--active"
+                          @click=${() => params.onSelectFile(match.sourcePath)}
+                        >
+                          ${match.title}
+                        </button>
+                        <span class="alisio-memory-stat__detail">
+                          ${params.text.graphAliases}:
+                          ${joinValues(match.aliases, params.text.none)}
+                        </span>
+                        <span class="alisio-memory-stat__detail">
+                          ${params.text.graphTags}: ${joinValues(match.tags, params.text.none)}
+                        </span>
+                        <div class="alisio-memory-graph">
+                          <span class="alisio-memory-stat__detail">
+                            ${params.text.graphRelations}:
+                          </span>
+                          ${match.relations.length === 0
+                            ? html`
+                                <span class="alisio-memory-stat__detail">${params.text.none}</span>
+                              `
+                            : match.relations.map(
+                                (relation) => html`
+                                  <div class="alisio-memory-graph__edge">
+                                    <span class="alisio-memory-graph__direction">
+                                      ${relation.direction === "outgoing" ? "→" : "←"}
+                                    </span>
+                                    <span class="alisio-memory-graph__relation">
+                                      ${relation.relationType}
+                                    </span>
+                                    ${relation.relatedEntity?.sourcePath
+                                      ? html`
+                                          <button
+                                            type="button"
+                                            class="alisio-memory-graph-node"
+                                            @click=${() =>
+                                              params.onSelectFile(
+                                                relation.relatedEntity!.sourcePath,
+                                              )}
+                                          >
+                                            ${relation.relatedEntity.title}
+                                          </button>
+                                        `
+                                      : html`
+                                          <span class="alisio-memory-graph__locator">
+                                            ${relation.targetLocator ?? params.text.na}
+                                          </span>
+                                        `}
+                                  </div>
+                                `,
+                              )}
+                        </div>
+                      </div>
+                    `,
+                  )}
+                </div>
+              `}
+    </section>
+  `;
+}
+
 function joinValues(values: readonly string[], fallback: string) {
   const filtered = values.map((value) => value.trim()).filter(Boolean);
   return filtered.length > 0 ? filtered.join(", ") : fallback;
@@ -239,6 +355,21 @@ function sanitizeLegacyStatePath(value: string | null | undefined): string {
     return "";
   }
   return value.replace(/(^|[\\/])\.(openclaw|clawdbot)(?=([\\/]|$))/g, "$1.alisio");
+}
+
+function resolveCloudSyncLabel(
+  cloudSync: "enabled" | "error" | "unavailable" | null | undefined,
+  text: ReturnType<typeof memoryText>,
+) {
+  switch (cloudSync) {
+    case "enabled":
+      return text.cloudSyncEnabled;
+    case "error":
+      return text.cloudSyncError;
+    case "unavailable":
+    default:
+      return text.cloudSyncUnavailable;
+  }
 }
 
 function isCodexOAuthActive(aiState: AlisioAiState | null | undefined): boolean {
@@ -342,28 +473,11 @@ function buildEmbeddingGuidance(params: {
   return null;
 }
 
-function resolveSubsystemState(params: {
-  enabled?: boolean;
-  available?: boolean;
-  text: ReturnType<typeof memoryText>;
-}) {
-  if (params.enabled === false) {
-    return params.text.disabled;
-  }
-  if (params.available === true) {
-    return params.text.ready;
-  }
-  if (params.available === false) {
-    return params.text.unavailable;
-  }
-  if (params.enabled === true) {
-    return params.text.enabled;
-  }
-  return params.text.na;
-}
-
-function resolveBackendLabel(status: MemoryStatusState, text: ReturnType<typeof memoryText>) {
-  const backend = status.backend?.backend ?? status.runtime?.backend ?? null;
+function resolveBackendLabel(
+  status: MemoryStatusState | null | undefined,
+  text: ReturnType<typeof memoryText>,
+) {
+  const backend = status?.backend?.backend ?? status?.runtime?.backend ?? null;
   if (backend === "builtin") {
     return text.builtin;
   }
@@ -429,23 +543,7 @@ function renderRuntimeCard(params: {
         text.none,
       )}`
     : undefined;
-  const providerDetail = joinValues(
-    [runtime?.model ?? config?.model ?? "", config?.fallback ?? ""],
-    text.na,
-  );
   const storeDetail = sanitizeLegacyStatePath(runtime?.dbPath ?? config?.store.path ?? text.na);
-  const vectorDetail = sanitizeLegacyStatePath(
-    joinValues(
-      [
-        typeof runtime?.vector?.dims === "number" ? `${runtime.vector.dims} dims` : "",
-        runtime?.vector?.loadError ?? "",
-      ],
-      text.na,
-    ),
-  );
-  const ftsDetail = sanitizeLegacyStatePath(
-    runtime?.fts?.error ?? config?.store.ftsTokenizer ?? text.na,
-  );
   const obsidianVaultDetail = runtime?.obsidianReadOnly
     ? sanitizeLegacyStatePath(
         joinValues(
@@ -465,7 +563,7 @@ function renderRuntimeCard(params: {
     ? sanitizeLegacyStatePath(runtime.canonicalStore.path)
     : undefined;
   const canonicalProfileDetail = runtime?.canonicalStore
-    ? `${runtime.canonicalStore.syncMode === "local-first" ? text.localFirst : text.localOnly} · ${text.cloudSyncPending}`
+    ? `${runtime.canonicalStore.syncMode === "local-first" ? text.localFirst : text.localOnly} · ${resolveCloudSyncLabel(runtime.canonicalStore.cloudSync, text)}`
     : undefined;
   const canonicalGraphDetail = runtime?.canonicalStore
     ? `${runtime.canonicalStore.relations} ${text.relationsUnit} · ${runtime.canonicalStore.projections} ${text.projectionsUnit}`
@@ -478,14 +576,80 @@ function renderRuntimeCard(params: {
       : undefined;
   const providerValue = runtime?.provider ?? config?.provider ?? text.na;
   const providerLabel = providerValue === text.na ? text.na : formatProviderName(providerValue);
+  const runtimeSummaryItems = [
+    {
+      label: text.backend,
+      value: resolveBackendLabel(status, text),
+      detail:
+        providerLabel === text.na
+          ? backendDetail
+          : joinValues(
+              [providerLabel, runtime?.model ?? config?.model ?? "", config?.fallback ?? ""],
+              "",
+            ) || backendDetail,
+    },
+    {
+      label: text.indexed,
+      value: indexedValue,
+      detail: indexedDetail === text.na ? undefined : indexedDetail,
+    },
+    {
+      label: text.embedding,
+      value: resolveEmbeddingLabel(status?.embedding, text),
+      detail: guidance
+        ? guidance.title
+        : (embeddingDetail ?? (providerLabel === text.na ? undefined : providerLabel)),
+    },
+    ...(runtime?.canonicalStore
+      ? [
+          {
+            label: text.canonicalProfile,
+            value: runtime.canonicalStore.profileId,
+            detail: canonicalProfileDetail,
+          },
+          {
+            label: text.canonicalGraph,
+            value: `${runtime.canonicalStore.entities} ${text.entitiesUnit}`,
+            detail: canonicalGraphDetail,
+          },
+        ]
+      : []),
+  ];
+  const runtimeMetaItems = [
+    {
+      label: text.sourcesLabel,
+      value: joinValues(sourceValues, text.none),
+      detail: sourceDetail,
+    },
+    {
+      label: text.store,
+      value: config ? `${config.store.driver} · ${config.store.ftsTokenizer}` : text.na,
+      detail: storeDetail === text.na ? undefined : storeDetail,
+    },
+    ...(runtime?.canonicalStore
+      ? [
+          {
+            label: text.canonicalStore,
+            value: runtime.canonicalStore.state === "ready" ? text.ready : text.unavailable,
+            detail: canonicalStoreDetail === text.na ? undefined : canonicalStoreDetail,
+          },
+        ]
+      : []),
+    ...(runtime?.obsidianReadOnly
+      ? [
+          {
+            label: text.obsidianVault,
+            value: runtime.obsidianReadOnly.active ? text.ready : text.unavailable,
+            detail: obsidianVaultDetail === text.na ? undefined : obsidianVaultDetail,
+          },
+        ]
+      : []),
+  ];
 
   return html`
     <section class="alisio-memory-runtime">
       <div class="alisio-memory-runtime__header">
-        <div class="alisio-memory-runtime__copy">
-          <h3>${text.runtimeTitle}</h3>
-          <p>${text.runtimeSubtitle}</p>
-        </div>
+        <div class="alisio-memory-runtime__copy"><h3>${text.runtimeTitle}</h3></div>
         <div class="alisio-memory-runtime__actions">
           ${status
             ? html`
@@ -526,26 +690,8 @@ function renderRuntimeCard(params: {
             `
           : html`
               <div class="alisio-memory-runtime__stats">
-                ${renderStatsCard(text.backend, resolveBackendLabel(status, text), backendDetail)}
-                ${renderStatsCard(
-                  text.provider,
-                  providerLabel,
-                  providerDetail === text.na ? undefined : providerDetail,
-                )}
-                ${renderStatsCard(
-                  text.indexed,
-                  indexedValue,
-                  indexedDetail === text.na ? undefined : indexedDetail,
-                )}
-                ${renderStatsCard(
-                  text.embedding,
-                  resolveEmbeddingLabel(status.embedding, text),
-                  embeddingDetail,
-                )}
-                ${renderStatsCard(
-                  text.sourcesLabel,
-                  joinValues(sourceValues, text.none),
-                  sourceDetail,
+                ${runtimeSummaryItems.map((item) =>
+                  renderStatsCard(item.label, item.value, item.detail),
                 )}
               </div>
 
@@ -570,71 +716,9 @@ function renderRuntimeCard(params: {
                   : nothing}
 
               <div class="alisio-memory-runtime__meta">
-                ${renderRuntimeMetaItem(
-                  text.watch,
-                  config ? (config.sync.watch ? text.watchOn : text.watchOff) : text.na,
-                  config ? `${config.sync.watchDebounceMs} ms` : undefined,
+                ${runtimeMetaItems.map((item) =>
+                  renderRuntimeMetaItem(item.label, item.value, item.detail),
                 )}
-                ${renderRuntimeMetaItem(
-                  text.searchSync,
-                  config
-                    ? config.sync.onSearch
-                      ? text.searchSyncOn
-                      : text.searchSyncOff
-                    : text.na,
-                  config ? `${config.sync.intervalMinutes} min` : undefined,
-                )}
-                ${renderRuntimeMetaItem(
-                  text.store,
-                  config ? `${config.store.driver} · ${config.store.ftsTokenizer}` : text.na,
-                  storeDetail === text.na ? undefined : storeDetail,
-                )}
-                ${runtime?.canonicalStore
-                  ? renderRuntimeMetaItem(
-                      text.canonicalStore,
-                      runtime.canonicalStore.state === "ready" ? text.ready : text.unavailable,
-                      canonicalStoreDetail === text.na ? undefined : canonicalStoreDetail,
-                    )
-                  : nothing}
-                ${runtime?.canonicalStore
-                  ? renderRuntimeMetaItem(
-                      text.canonicalProfile,
-                      runtime.canonicalStore.profileId,
-                      canonicalProfileDetail,
-                    )
-                  : nothing}
-                ${runtime?.canonicalStore
-                  ? renderRuntimeMetaItem(
-                      text.canonicalGraph,
-                      `${runtime.canonicalStore.entities} ${text.entitiesUnit}`,
-                      canonicalGraphDetail,
-                    )
-                  : nothing}
-                ${renderRuntimeMetaItem(
-                  text.vector,
-                  resolveSubsystemState({
-                    enabled: runtime?.vector?.enabled ?? config?.store.vectorEnabled,
-                    available: runtime?.vector?.available,
-                    text,
-                  }),
-                  vectorDetail === text.na ? undefined : vectorDetail,
-                )}
-                ${renderRuntimeMetaItem(
-                  text.fts,
-                  resolveSubsystemState({
-                    enabled: runtime?.fts?.enabled,
-                    available: runtime?.fts?.available,
-                    text,
-                  }),
-                  ftsDetail === text.na ? undefined : ftsDetail,
-                )}
-                ${runtime?.obsidianReadOnly
-                  ? renderRuntimeMetaItem(
-                      text.obsidianVault,
-                      runtime.obsidianReadOnly.active ? text.ready : text.unavailable,
-                      obsidianVaultDetail === text.na ? undefined : obsidianVaultDetail,
-                    )
-                  : nothing}
               </div>
             `}
     </section>
@@ -701,14 +785,21 @@ export function renderMemoryHub(props: MemoryHubProps) {
   const selectedAgentLabel = selectedAgent ? normalizeAgentLabel(selectedAgent) : null;
   const list = props.memoryList?.agentId === selectedAgentId ? props.memoryList : null;
   const status = props.memoryStatus?.agentId === selectedAgentId ? props.memoryStatus : null;
-  const activeName = props.memoryActive;
   const files = list?.files ?? [];
-  const activeEntry = activeName ? (files.find((file) => file.name === activeName) ?? null) : null;
-  const baseContent = activeName ? (props.memoryContents[activeName] ?? "") : "";
-  const draft = activeName ? (props.memoryDrafts[activeName] ?? baseContent) : "";
-  const isDirty = activeName ? draft !== baseContent : false;
   const longTermFiles = files.filter((entry) => isLongTermMemoryFileName(entry.name));
   const noteFiles = files.filter((entry) => isMemoryNoteFileName(entry.name));
+  const activeName = props.memoryActive;
+  const activeEntry = activeName ? (files.find((file) => file.name === activeName) ?? null) : null;
+  const displayedEntry =
+    activeEntry ??
+    longTermFiles.find((entry) => !entry.missing) ??
+    noteFiles.find((entry) => !entry.missing) ??
+    files[0] ??
+    null;
+  const displayedName = displayedEntry?.name ?? null;
+  const baseContent = displayedName ? (props.memoryContents[displayedName] ?? "") : "";
+  const draft = displayedName ? (props.memoryDrafts[displayedName] ?? baseContent) : "";
+  const isDirty = displayedName ? draft !== baseContent : false;
   const availableNoteCount = noteFiles.filter((entry) => !entry.missing).length;
   const filteredNoteFiles = props.searchQuery.trim()
     ? noteFiles.filter((entry) => {
@@ -756,22 +847,32 @@ export function renderMemoryHub(props: MemoryHubProps) {
       <div class="alisio-memory-shell">
         <aside class="alisio-memory-sidebar">
           <div class="alisio-memory-sidebar__top">
-            <label class="field">
-              <span>${text.agent}</span>
-              <select
-                .value=${selectedAgentId ?? ""}
-                ?disabled=${agents.length === 0}
-                @change=${(event: Event) =>
-                  props.onSelectAgent((event.target as HTMLSelectElement).value)}
+            <div class="alisio-memory-sidebar__agent-row">
+              <label class="field">
+                <span>${text.agent}</span>
+                <select
+                  .value=${selectedAgentId ?? ""}
+                  ?disabled=${agents.length === 0}
+                  @change=${(event: Event) =>
+                    props.onSelectAgent((event.target as HTMLSelectElement).value)}
+                >
+                  ${agents.length === 0
+                    ? html`<option value="">${text.emptyAgents}</option>`
+                    : agents.map(
+                        (agent) =>
+                          html`<option value=${agent.id}>${normalizeAgentLabel(agent)}</option>`,
+                      )}
+                </select>
+              </label>
+              <button
+                class="btn btn--icon btn--ghost alisio-memory-refresh"
+                title=${text.refresh}
+                aria-label=${text.refresh}
+                @click=${props.onRefresh}
               >
-                ${agents.length === 0
-                  ? html`<option value="">${text.emptyAgents}</option>`
-                  : agents.map(
-                      (agent) =>
-                        html`<option value=${agent.id}>${normalizeAgentLabel(agent)}</option>`,
-                    )}
-              </select>
-            </label>
+                ${icons.refresh}
+              </button>
+            </div>
             <div class="alisio-memory-toolbar">
               <label class="field field--with-icon alisio-memory-search">
                 <span class="sr-only">${t("common.search")}</span>
@@ -783,7 +884,6 @@ export function renderMemoryHub(props: MemoryHubProps) {
                     props.onSearchChange((event.target as HTMLInputElement).value)}
                 />
               </label>
-              <button class="btn btn--sm" @click=${props.onRefresh}>${text.refresh}</button>
               <button
                 class="btn btn--sm primary"
                 ?disabled=${!selectedAgentId}
@@ -855,7 +955,7 @@ export function renderMemoryHub(props: MemoryHubProps) {
           ${renderFileList({
             title: text.longTerm,
             files: longTermFiles,
-            activeName,
+            activeName: displayedName,
             text,
             emptyLabel: text.missing,
             onSelectFile: props.onSelectFile,
@@ -863,7 +963,7 @@ export function renderMemoryHub(props: MemoryHubProps) {
           ${renderFileList({
             title: text.notes,
             files: filteredNoteFiles,
-            activeName,
+            activeName: displayedName,
             text,
             emptyLabel: props.searchQuery.trim() ? text.noMatches : text.noNotes,
             onSelectFile: props.onSelectFile,
@@ -884,6 +984,16 @@ export function renderMemoryHub(props: MemoryHubProps) {
                 onUseLocalEmbeddings: props.onUseLocalEmbeddings,
               })
             : nothing}
+          ${selectedAgentId
+            ? renderGraphPreview({
+                query: props.memoryGraphQuery,
+                graph: props.memoryGraph,
+                loading: props.memoryGraphLoading,
+                error: props.memoryGraphError,
+                text,
+                onSelectFile: props.onSelectFile,
+              })
+            : nothing}
           ${!selectedAgentId
             ? html`
                 <div class="alisio-memory-panel alisio-memory-panel--empty">
@@ -896,42 +1006,45 @@ export function renderMemoryHub(props: MemoryHubProps) {
                     <div class="card-title">${text.loading}</div>
                   </div>
                 `
-              : !activeEntry
+              : !displayedEntry
                 ? html`
                     <div class="alisio-memory-panel alisio-memory-panel--empty">
-                      <div class="card-title">${text.longTerm}</div>
-                      <div class="card-sub">${text.noNotes}</div>
+                      <div class="card-title">${text.noNotes}</div>
                     </div>
                   `
                 : html`
                     <header class="alisio-memory-header">
                       <div class="alisio-memory-header__copy">
                         <div class="alisio-memory-header__eyebrow">
-                          ${isLongTermMemoryFileName(activeEntry.name) ? text.longTerm : text.note}
+                          ${isLongTermMemoryFileName(displayedEntry.name)
+                            ? text.longTerm
+                            : text.note}
+                          ${displayedEntry.missing
+                            ? html`<span class="alisio-memory-badge">${text.missing}</span>`
+                            : nothing}
                           ${isDirty
                             ? html`<span class="alisio-memory-badge">${text.unsaved}</span>`
                             : nothing}
                         </div>
-                        <h2>${resolveEntryTitle(activeEntry, text)}</h2>
+                        <h2>${resolveEntryTitle(displayedEntry, text)}</h2>
                         <p>
-                          <span>${text.workspace}: ${list?.workspace ?? "—"}</span>
-                          <span>${activeEntry.name}</span>
+                          <span>${sanitizeLegacyStatePath(displayedEntry.name)}</span>
                           <span>
-                            ${activeEntry.updatedAtMs
-                              ? formatRelativeTimestamp(activeEntry.updatedAtMs)
+                            ${displayedEntry.updatedAtMs
+                              ? formatRelativeTimestamp(displayedEntry.updatedAtMs)
                               : text.updatedNever}
                           </span>
                         </p>
                       </div>
                       <div class="alisio-memory-header__actions">
-                        ${isMemoryNoteFileName(activeEntry.name)
+                        ${isMemoryNoteFileName(displayedEntry.name)
                           ? html`
                               <button
                                 class="btn btn--sm danger"
                                 ?disabled=${props.memoryDeleting}
                                 @click=${() => {
                                   if (window.confirm(text.deleteConfirm)) {
-                                    props.onDeleteFile(activeEntry.name);
+                                    props.onDeleteFile(displayedEntry.name);
                                   }
                                 }}
                               >
@@ -942,21 +1055,21 @@ export function renderMemoryHub(props: MemoryHubProps) {
                         <button
                           class="btn btn--sm"
                           ?disabled=${!isDirty}
-                          @click=${() => props.onResetFile(activeEntry.name)}
+                          @click=${() => props.onResetFile(displayedEntry.name)}
                         >
                           ${text.reset}
                         </button>
                         <button
                           class="btn btn--sm primary"
                           ?disabled=${props.memorySaving || !isDirty}
-                          @click=${() => props.onSaveFile(activeEntry.name)}
+                          @click=${() => props.onSaveFile(displayedEntry.name)}
                         >
                           ${props.memorySaving ? text.saving : text.save}
                         </button>
                       </div>
                     </header>
 
-                    ${activeEntry.missing
+                    ${displayedEntry.missing
                       ? html`<div class="callout info">${text.missingHint}</div>`
                       : nothing}
 
@@ -968,7 +1081,7 @@ export function renderMemoryHub(props: MemoryHubProps) {
                           .value=${draft}
                           @input=${(event: Event) =>
                             props.onDraftChange(
-                              activeEntry.name,
+                              displayedEntry.name,
                               (event.target as HTMLTextAreaElement).value,
                             )}
                         ></textarea>

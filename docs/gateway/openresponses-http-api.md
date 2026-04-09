@@ -284,7 +284,7 @@ Common cases:
 Non-streaming:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/responses \
+curl -sS http://127.0.0.1:40705/v1/responses \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'x-alisio-agent-id: main' \
@@ -297,7 +297,7 @@ curl -sS http://127.0.0.1:18789/v1/responses \
 Streaming:
 
 ```bash
-curl -N http://127.0.0.1:18789/v1/responses \
+curl -N http://127.0.0.1:40705/v1/responses \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'x-alisio-agent-id: main' \

@@ -10,6 +10,6 @@ spec:
     app: alisio
   ports:
     - name: gateway
-      port: 18789
-      targetPort: 18789
+      port: 40705
+      targetPort: 40705
       protocol: TCP

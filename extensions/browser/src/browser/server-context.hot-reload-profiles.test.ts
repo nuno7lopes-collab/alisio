@@ -76,7 +76,7 @@ describe("server-context hot-reload profiles", () => {
       await import("./resolved-config-refresh.js"));
     vi.clearAllMocks();
     mockState.cfgProfiles = {
-      openclaw: { cdpPort: 18800, color: "#FF4500" },
+      openclaw: { cdpPort: 40716, color: "#FF4500" },
     };
     mockState.cachedConfig = null; // Clear simulated cache
   });
@@ -91,7 +91,7 @@ describe("server-context hot-reload profiles", () => {
     expect(cfg.browser?.profiles?.desktop).toBeUndefined();
     const state = {
       server: null,
-      port: 18791,
+      port: 40707,
       resolved,
       profiles: new Map(),
     };
@@ -136,7 +136,7 @@ describe("server-context hot-reload profiles", () => {
     const resolved = resolveBrowserConfig(cfg.browser, cfg);
     const state = {
       server: null,
-      port: 18791,
+      port: 40707,
       resolved,
       profiles: new Map(),
     };
@@ -156,7 +156,7 @@ describe("server-context hot-reload profiles", () => {
     const resolved = resolveBrowserConfig(cfg.browser, cfg);
     const state = {
       server: null,
-      port: 18791,
+      port: 40707,
       resolved,
       profiles: new Map(),
     };
@@ -178,7 +178,7 @@ describe("server-context hot-reload profiles", () => {
     const resolved = resolveBrowserConfig(cfg.browser, cfg);
     const state = {
       server: null,
-      port: 18791,
+      port: 40707,
       resolved,
       profiles: new Map(),
     };
@@ -201,7 +201,7 @@ describe("server-context hot-reload profiles", () => {
     expect(openclawProfile).toBeTruthy();
     const state: BrowserServerState = {
       server: null,
-      port: 18791,
+      port: 40707,
       resolved,
       profiles: new Map([
         [

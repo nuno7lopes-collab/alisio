@@ -73,7 +73,10 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalAuditEntry, ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { RuntimeNodePairingList } from "./controllers/node-pairing.ts";
-import type { SecurityAccessMode } from "./controllers/security-access.ts";
+import type {
+  SecurityAccessDiagnostics,
+  SecurityAccessMode,
+} from "./controllers/security-access.ts";
 import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
@@ -270,6 +273,7 @@ export class AlisioApp extends LitElement {
   @state() gatewayAccessModeLoading = false;
   @state() gatewayAccessModeBusy = false;
   @state() gatewayAccessMode: SecurityAccessMode | null = null;
+  @state() securityAccessDiagnostics: SecurityAccessDiagnostics | null = null;
   @state() gatewayBootstrapUrl: string | null = null;
   @state() gatewayBootstrapToken: string | null = null;
   @state() pendingGatewayUrl: string | null = null;
@@ -361,6 +365,9 @@ export class AlisioApp extends LitElement {
   @state() memoryStatus: import("./types.ts").MemoryStatusState | null = null;
   @state() memorySyncing = false;
   @state() memorySyncAvailable = false;
+  @state() memoryGraphLoading = false;
+  @state() memoryGraphError: string | null = null;
+  @state() memoryGraph: import("./types.ts").MemoryGraphState | null = null;
   @state() memorySearchQuery = "";
   @state() memoryComposerOpen = false;
   @state() memoryComposerDate = todayMemoryDate();

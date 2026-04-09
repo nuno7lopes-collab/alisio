@@ -27,10 +27,10 @@ struct WideAreaGatewayDiscoveryTests {
                     return ""
                 }
                 if recordType == "SRV" {
-                    return "0 0 18789 steipetacstudio.alisio.internal."
+                    return "0 0 40705 steipetacstudio.alisio.internal."
                 }
                 if recordType == "TXT" {
-                    return "\"displayName=Peter\\226\\128\\153s Mac Studio (Alisio)\" \"gatewayPort=18789\" \"tailnetDns=peters-mac-studio-1.sheep-coho.ts.net\" \"cliPath=/Users/steipete/alisio/src/entry.ts\""
+                    return "\"displayName=Peter\\226\\128\\153s Mac Studio (Alisio)\" \"gatewayPort=40705\" \"tailnetDns=peters-mac-studio-1.sheep-coho.ts.net\" \"cliPath=/Users/steipete/alisio/src/entry.ts\""
                 }
                 return ""
             })
@@ -43,8 +43,8 @@ struct WideAreaGatewayDiscoveryTests {
         let beacon = beacons[0]
         let expectedDisplay = "Peter\u{2019}s Mac Studio (Alisio)"
         #expect(beacon.displayName == expectedDisplay)
-        #expect(beacon.port == 18789)
-        #expect(beacon.gatewayPort == 18789)
+        #expect(beacon.port == 40705)
+        #expect(beacon.gatewayPort == 40705)
         #expect(beacon.tailnetDns == "peters-mac-studio-1.sheep-coho.ts.net")
         #expect(beacon.cliPath == "/Users/steipete/alisio/src/entry.ts")
     }

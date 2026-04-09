@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { AlisioConfig } from "../config/config.js";
+import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
 import {
   resolveAlisioRuntimeProviderReady,
   type AlisioRuntimeSetupState,
@@ -143,7 +144,8 @@ function sendJson(res: ServerResponse, status: number, body: unknown) {
 }
 
 function resolveHttpOrigin(req: IncomingMessage): string {
-  const host = String(req.headers.host ?? "127.0.0.1:18789").trim() || "127.0.0.1:18789";
+  const defaultHost = `127.0.0.1:${DEFAULT_GATEWAY_PORT}`;
+  const host = String(req.headers.host ?? defaultHost).trim() || defaultHost;
   const socket = req.socket as { encrypted?: boolean } | undefined;
   const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "")
     .split(",")[0]

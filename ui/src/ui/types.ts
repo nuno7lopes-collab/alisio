@@ -43,6 +43,49 @@ export type AlisioSharingPolicySetResult =
   import("../../../src/gateway/protocol/index.js").AlisioSharingPolicySetResult;
 export type MemoryStatusState = import("../../../src/gateway/protocol/index.js").MemoryStatusResult;
 export type MemorySyncResult = import("../../../src/gateway/protocol/index.js").MemorySyncResult;
+export type MemoryGraphState = {
+  query: string;
+  profileId: string;
+  workspaceScope: string;
+  storePath: string;
+  backend: "builtin" | "qmd";
+  state: "pending-sync" | "ready";
+  projectionInterface: "markdown-vault";
+  syncMode: "local-first";
+  cloudSync: "unavailable" | "enabled" | "error";
+  lastSyncedAt?: string;
+  lastError?: string;
+  matches: Array<{
+    entityId: string;
+    title: string;
+    slug: string;
+    sourcePath: string;
+    sourceKind: "workspace-memory" | "obsidian-memory";
+    aliases: string[];
+    tags: string[];
+    score: number;
+    projections: Array<{
+      projectionId: string;
+      path: string;
+      sourceKind: "workspace-memory" | "obsidian-memory";
+      editable: boolean;
+    }>;
+    relations: Array<{
+      direction: "incoming" | "outgoing";
+      relationType: string;
+      ordinal: number;
+      metadata: Record<string, unknown>;
+      relatedEntity?: {
+        entityId: string;
+        title: string;
+        slug: string;
+        sourcePath: string;
+        sourceKind: "workspace-memory" | "obsidian-memory";
+      };
+      targetLocator?: string;
+    }>;
+  }>;
+};
 export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;
 export type AlisioConnectedAccount =
   import("../../../src/infra/alisio-store.js").AlisioConnectedAccount;

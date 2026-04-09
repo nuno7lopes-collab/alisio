@@ -51,13 +51,13 @@ export type CronServiceDeps = {
   /**
    * Delay in ms between missed job executions on startup.
    * Prevents overwhelming the gateway when many jobs are overdue.
-   * See: https://github.com/openclaw/openclaw/issues/18892
+   * See: https://github.com/openclaw/openclaw/issues/40808
    */
   missedJobStaggerMs?: number;
   /**
    * Maximum number of missed jobs to run immediately on startup.
    * Additional missed jobs will be rescheduled to fire gradually.
-   * See: https://github.com/openclaw/openclaw/issues/18892
+   * See: https://github.com/openclaw/openclaw/issues/40808
    */
   maxMissedJobsPerRestart?: number;
   enqueueSystemEvent: (

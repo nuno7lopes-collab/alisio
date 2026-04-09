@@ -33,7 +33,7 @@ import {
   waitForSubagentRunOutcome,
 } from "./subagent-announce-output.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
-import type { SpawnSubagentMode } from "./subagent-spawn.js";
+import type { TrackedSubagentSpawnMode } from "./subagent-registry.types.js";
 import { isAnnounceSkip } from "./tools/sessions-send-helpers.js";
 
 type SubagentAnnounceDeps = {
@@ -134,7 +134,7 @@ export function buildSubagentSystemPrompt(params: {
       ...(acpEnabled
         ? [
             'For ACP harness sessions (codex/claudecode/gemini), use `sessions_spawn` with `runtime: "acp"` (set `agentId` unless `acp.defaultAgent` is configured).',
-            '`agents_list` and `subagents` apply to Alisio sub-agents (`runtime: "subagent"`); ACP harness ids are controlled by `acp.allowedAgents`.',
+            'Internal sub-agents always run under your current Alisio agent identity; `agentId` selection is only for `runtime: "acp"`.',
             "Do not ask users to run slash commands or CLI when `sessions_spawn` can do it directly.",
             "Do not use `exec` (`openclaw ...`, `acpx ...`) to spawn ACP sessions.",
             'Use `subagents` only for Alisio subagents (`runtime: "subagent"`).',
@@ -319,7 +319,7 @@ export async function runSubagentAnnounceFlow(params: {
   outcome?: SubagentRunOutcome;
   announceType?: SubagentAnnounceType;
   expectsCompletionMessage?: boolean;
-  spawnMode?: SpawnSubagentMode;
+  spawnMode?: TrackedSubagentSpawnMode;
   wakeOnDescendantSettle?: boolean;
   signal?: AbortSignal;
   bestEffortDeliver?: boolean;

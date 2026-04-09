@@ -95,7 +95,7 @@ describe("resolveGatewayConnection", () => {
     resolveGatewayPort.mockReset();
     resolveStateDir.mockReset();
     resolveConfigPath.mockReset();
-    resolveGatewayPort.mockReturnValue(18789);
+    resolveGatewayPort.mockReturnValue(40705);
     resolveStateDir.mockImplementation(
       (env: NodeJS.ProcessEnv) => env.OPENCLAW_STATE_DIR ?? "/tmp/openclaw",
     );
@@ -395,7 +395,7 @@ describe("resolveGatewayConnection", () => {
     });
 
     const result = await resolveGatewayConnection({
-      url: "ws://127.0.0.1:18791",
+      url: "ws://127.0.0.1:40707",
       token: "override-token",
     });
     expect(result.allowInsecureLocalOperatorUi).toBe(true);
@@ -406,7 +406,7 @@ describe("resolveGatewayConnection", () => {
 describe("GatewayChatClient", () => {
   it("identifies the TUI as a tui client and skips device identity on insecure local ui paths", () => {
     const client = new GatewayChatClient({
-      url: "ws://127.0.0.1:18789",
+      url: "ws://127.0.0.1:40705",
       token: "test-token",
       allowInsecureLocalOperatorUi: true,
     });

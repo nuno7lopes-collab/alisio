@@ -10,26 +10,7 @@ import { resetSubagentRegistryForTests } from "./subagent-registry.js";
 
 const callGatewayMock = getCallGatewayMock();
 
-describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
-  function setAllowAgents(allowAgents: string[]) {
-    setSessionsSpawnConfigOverride({
-      session: {
-        mainKey: "main",
-        scope: "per-sender",
-      },
-      agents: {
-        list: [
-          {
-            id: "main",
-            subagents: {
-              allowAgents,
-            },
-          },
-        ],
-      },
-    });
-  }
-
+describe("openclaw-tools: subagents (sessions_spawn same-agent targeting)", () => {
   function mockAcceptedSpawn(acceptedAt: number) {
     let childSessionKey: string | undefined;
     callGatewayMock.mockImplementation(async (opts: unknown) => {
@@ -74,9 +55,6 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
         list: [
           {
             id: "main",
-            subagents: {
-              allowAgents: ["research"],
-            },
           },
           {
             id: "research",
@@ -89,29 +67,23 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
     });
   }
 
-  async function expectAllowedSpawn(params: {
-    allowAgents: string[];
+  async function expectForbiddenCrossAgentSpawn(params: {
     agentId: string;
     callId: string;
-    acceptedAt: number;
+    sandbox?: "inherit" | "require";
   }) {
-    setAllowAgents(params.allowAgents);
-    const getChildSessionKey = mockAcceptedSpawn(params.acceptedAt);
-
-    const result = await executeSpawn(params.callId, params.agentId);
-
-    expect(result.details).toMatchObject({
-      status: "accepted",
-      runId: "run-1",
-    });
-    expect(getChildSessionKey()?.startsWith(`agent:${params.agentId}:subagent:`)).toBe(true);
+    const result = await executeSpawn(params.callId, params.agentId, params.sandbox);
+    const details = result.details as { status?: string; error?: string };
+    expect(details.status).toBe("forbidden");
+    expect(details.error).toContain('runtime="subagent" cannot target another agentId');
+    expect(callGatewayMock).not.toHaveBeenCalled();
   }
 
   async function expectInvalidAgentId(callId: string, agentId: string) {
     setSessionsSpawnConfigOverride({
       session: { mainKey: "main", scope: "per-sender" },
       agents: {
-        list: [{ id: "main", subagents: { allowAgents: ["*"] } }],
+        list: [{ id: "main" }],
       },
     });
     const tool = await getSessionsSpawnTool({
@@ -131,102 +103,76 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
     callGatewayMock.mockClear();
   });
 
+  it("sessions_spawn accepts explicit same-agent spawns", async () => {
+    mockAcceptedSpawn(4_900);
+    const result = await executeSpawn("call-same-agent", "main");
+    expect(result.details).toMatchObject({
+      status: "accepted",
+      runId: "run-1",
+    });
+  });
+
   it("sessions_spawn only allows same-agent by default", async () => {
-    const tool = await getSessionsSpawnTool({
-      agentSessionKey: "main",
-      agentChannel: "whatsapp",
-    });
-
-    const result = await tool.execute("call6", {
-      task: "do thing",
+    await expectForbiddenCrossAgentSpawn({
       agentId: "beta",
+      callId: "call6",
     });
-    expect(result.details).toMatchObject({
-      status: "forbidden",
-    });
-    expect(callGatewayMock).not.toHaveBeenCalled();
   });
 
-  it("sessions_spawn forbids cross-agent spawning when not allowed", async () => {
+  it("sessions_spawn still rejects cross-agent spawns when the target agent exists", async () => {
     setSessionsSpawnConfigOverride({
-      session: {
-        mainKey: "main",
-        scope: "per-sender",
-      },
+      session: { mainKey: "main", scope: "per-sender" },
       agents: {
-        list: [
-          {
-            id: "main",
-            subagents: {
-              allowAgents: ["alpha"],
-            },
-          },
-        ],
+        list: [{ id: "main" }, { id: "beta" }],
       },
     });
-
-    const tool = await getSessionsSpawnTool({
-      agentSessionKey: "main",
-      agentChannel: "whatsapp",
-    });
-
-    const result = await tool.execute("call9", {
-      task: "do thing",
-      agentId: "beta",
-    });
-    expect(result.details).toMatchObject({
-      status: "forbidden",
-    });
-    expect(callGatewayMock).not.toHaveBeenCalled();
-  });
-
-  it("sessions_spawn allows cross-agent spawning when configured", async () => {
-    await expectAllowedSpawn({
-      allowAgents: ["beta"],
+    await expectForbiddenCrossAgentSpawn({
       agentId: "beta",
       callId: "call7",
-      acceptedAt: 5000,
     });
   });
 
-  it("sessions_spawn allows any agent when allowlist is *", async () => {
-    await expectAllowedSpawn({
-      allowAgents: ["*"],
+  it("sessions_spawn rejects cross-agent spawns with multiple configured siblings", async () => {
+    setSessionsSpawnConfigOverride({
+      session: { mainKey: "main", scope: "per-sender" },
+      agents: {
+        list: [{ id: "main" }, { id: "beta" }, { id: "gamma" }],
+      },
+    });
+    await expectForbiddenCrossAgentSpawn({
       agentId: "beta",
       callId: "call8",
-      acceptedAt: 5100,
     });
   });
 
-  it("sessions_spawn normalizes allowlisted agent ids", async () => {
-    await expectAllowedSpawn({
-      allowAgents: ["Research"],
+  it("sessions_spawn still normalizes cross-agent ids before rejecting them", async () => {
+    setSessionsSpawnConfigOverride({
+      session: { mainKey: "main", scope: "per-sender" },
+      agents: {
+        list: [{ id: "main" }, { id: "research" }],
+      },
+    });
+    await expectForbiddenCrossAgentSpawn({
       agentId: "research",
       callId: "call10",
-      acceptedAt: 5200,
     });
   });
 
-  it("forbids sandboxed cross-agent spawns that would unsandbox the child", async () => {
+  it("rejects cross-agent spawns before sandbox inheritance checks", async () => {
     setResearchUnsandboxedConfig({ includeSandboxedDefault: true });
-
-    const result = await executeSpawn("call11", "research");
-    const details = result.details as { status?: string; error?: string };
-
-    expect(details.status).toBe("forbidden");
-    expect(details.error).toContain("Sandboxed sessions cannot spawn unsandboxed subagents.");
-    expect(callGatewayMock).not.toHaveBeenCalled();
+    await expectForbiddenCrossAgentSpawn({
+      agentId: "research",
+      callId: "call11",
+    });
   });
 
-  it('forbids sandbox="require" when target runtime is unsandboxed', async () => {
+  it('rejects cross-agent spawns before sandbox="require" checks', async () => {
     setResearchUnsandboxedConfig();
-
-    const result = await executeSpawn("call12", "research", "require");
-    const details = result.details as { status?: string; error?: string };
-
-    expect(details.status).toBe("forbidden");
-    expect(details.error).toContain('sandbox="require"');
-    expect(callGatewayMock).not.toHaveBeenCalled();
+    await expectForbiddenCrossAgentSpawn({
+      agentId: "research",
+      callId: "call12",
+      sandbox: "require",
+    });
   });
   // ---------------------------------------------------------------------------
   // agentId format validation (#31311)
@@ -236,7 +182,7 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
     setSessionsSpawnConfigOverride({
       session: { mainKey: "main", scope: "per-sender" },
       agents: {
-        list: [{ id: "main", subagents: { allowAgents: ["*"] } }, { id: "research" }],
+        list: [{ id: "main" }, { id: "research" }],
       },
     });
     const tool = await getSessionsSpawnTool({
@@ -250,7 +196,6 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
     const details = result.details as { status?: string; error?: string };
     expect(details.status).toBe("error");
     expect(details.error).toContain("Invalid agentId");
-    expect(details.error).toContain("agents_list");
     expect(callGatewayMock).not.toHaveBeenCalled();
   });
 
@@ -262,33 +207,29 @@ describe("openclaw-tools: subagents (sessions_spawn allowlist)", () => {
     await expectInvalidAgentId("call-long", "a".repeat(65));
   });
 
-  it("accepts well-formed agentId with hyphens and underscores (#31311)", async () => {
+  it("rejects well-formed cross-agent ids with hyphens and underscores when targeting another agent", async () => {
     setSessionsSpawnConfigOverride({
       session: { mainKey: "main", scope: "per-sender" },
       agents: {
-        list: [{ id: "main", subagents: { allowAgents: ["*"] } }, { id: "my-research_agent01" }],
+        list: [{ id: "main" }, { id: "my-research_agent01" }],
       },
     });
-    mockAcceptedSpawn(1000);
     const result = await executeSpawn("call-valid", "my-research_agent01");
-    const details = result.details as { status?: string };
-    expect(details.status).toBe("accepted");
+    const details = result.details as { status?: string; error?: string };
+    expect(details.status).toBe("forbidden");
+    expect(details.error).toContain('runtime="subagent" cannot target another agentId');
   });
 
-  it("allows allowlisted-but-unconfigured agentId (#31311)", async () => {
+  it("rejects unconfigured cross-agent ids", async () => {
     setSessionsSpawnConfigOverride({
       session: { mainKey: "main", scope: "per-sender" },
       agents: {
-        list: [
-          { id: "main", subagents: { allowAgents: ["research"] } },
-          // "research" is NOT in agents.list — only in allowAgents
-        ],
+        list: [{ id: "main" }],
       },
     });
-    mockAcceptedSpawn(1000);
     const result = await executeSpawn("call-unconfigured", "research");
-    const details = result.details as { status?: string };
-    // Must pass: "research" is in allowAgents even though not in agents.list
-    expect(details.status).toBe("accepted");
+    const details = result.details as { status?: string; error?: string };
+    expect(details.status).toBe("forbidden");
+    expect(details.error).toContain('runtime="subagent" cannot target another agentId');
   });
 });

@@ -68,6 +68,9 @@ export type ChatHost = {
   gatewayAccessMode?: SecurityAccessMode | null;
   gatewayAccessModeLoading?: boolean;
   gatewayAccessModeBusy?: boolean;
+  securityAccessDiagnostics?:
+    | import("./controllers/security-access.ts").SecurityAccessDiagnostics
+    | null;
   nativeShellLoading?: boolean;
   nativeShellError?: string | null;
   nativeShellState?: NativeShellState | null;
@@ -255,6 +258,9 @@ export function clearPendingQueueItemsForRun(host: ChatHost, runId: string | und
 }
 
 function resolveChatSecurityDiagnostics(host: ChatHost) {
+  if (host.securityAccessDiagnostics) {
+    return host.securityAccessDiagnostics;
+  }
   return resolveSecurityAccessDiagnostics({
     configForm:
       host.configForm ?? (host.configSnapshot?.config as Record<string, unknown> | null) ?? null,
@@ -301,69 +307,49 @@ function buildSecuritySummaryMessage(host: ChatHost): string {
   const recentAudit = (host.execApprovalAuditTrail ?? []).slice(0, 3);
   const mode = host.gatewayAccessMode ?? diagnostics.mode;
   const nativeShellSummary = summarizeNativeShellAccess(host.nativeShellState);
+  const policySummary = diagnostics
+    ? `${resolveGuardrailLabel(diagnostics.configDefaults.security)} · ${resolveApprovalAskLabel(
+        diagnostics.configDefaults.ask,
+      )} / ${resolveGuardrailLabel(diagnostics.approvalDefaults.security)} · ${resolveApprovalAskLabel(
+        diagnostics.approvalDefaults.ask,
+      )} / ${resolveGuardrailLabel(diagnostics.approvalDefaults.askFallback)}`
+    : t("alisio.chat.access.loading");
 
   const lines = [
     `**${t("alisio.chat.access.title")}**`,
-    t("alisio.chat.access.subtitle"),
-    "",
     `- ${t("alisio.security.stats.mode")}: ${mode ? accessModeLabel(mode) : t("alisio.chat.access.loading")}`,
     `- ${t("alisio.security.stats.pending")}: ${String(queue.length)}`,
+    `- ${t("alisio.chat.access.policyTitle")}: ${policySummary}`,
   ];
 
-  lines.push(
-    "",
-    `**${t("alisio.chat.access.policyTitle")}**`,
-    `- ${t("alisio.chat.access.policyRuntime", {
-      value: `${resolveGuardrailLabel(diagnostics.configDefaults.security)} · ${resolveApprovalAskLabel(
-        diagnostics.configDefaults.ask,
-      )}`,
-    })}`,
-    `- ${t("alisio.chat.access.policyApprovals", {
-      value: `${resolveGuardrailLabel(
-        diagnostics.approvalDefaults.security,
-      )} · ${resolveApprovalAskLabel(diagnostics.approvalDefaults.ask)}`,
-    })}`,
-    `- ${t("alisio.chat.access.policyFallback", {
-      value: resolveGuardrailLabel(diagnostics.approvalDefaults.askFallback),
-    })}`,
-    `- ${
-      diagnostics.mode === "custom"
-        ? t("alisio.security.access.customFooter", {
-            config: String(diagnostics.configOverrideAgentCount),
-            approvals: String(diagnostics.approvalOverrideAgentCount),
-          })
-        : t("alisio.chat.access.policyOverridesAligned")
-    }`,
-    "",
-    `**${t("alisio.chat.access.computerTitle")}**`,
-  );
-
   if (host.nativeShellLoading && !nativeShellSummary) {
-    lines.push(`- ${t("alisio.chat.access.computerLoading")}`);
+    lines.push(
+      `- ${t("alisio.chat.access.computerTitle")}: ${t("alisio.chat.access.computerLoading")}`,
+    );
   } else if (host.nativeShellError) {
-    lines.push(`- ${host.nativeShellError}`);
+    lines.push(`- ${t("alisio.chat.access.computerTitle")}: ${host.nativeShellError}`);
   } else if (nativeShellSummary) {
     lines.push(
-      `- ${t("alisio.chat.access.computerGranted", {
+      `- ${t("alisio.chat.access.computerTitle")}: ${t("alisio.chat.access.computerGranted", {
         granted: String(nativeShellSummary.granted),
         total: String(nativeShellSummary.total),
       })}`,
     );
-    lines.push(
-      `- ${
-        nativeShellSummary.missingLabels.length > 0
-          ? t("alisio.chat.access.computerNeedsReview", {
-              value: formatMissingPermissions(nativeShellSummary.missingLabels),
-            })
-          : t("alisio.chat.access.computerAllGranted")
-      }`,
-    );
+    if (nativeShellSummary.missingLabels.length > 0) {
+      lines.push(
+        `- ${t("alisio.chat.access.computerNeedsReview", {
+          value: formatMissingPermissions(nativeShellSummary.missingLabels),
+        })}`,
+      );
+    }
   } else {
-    lines.push(`- ${t("alisio.chat.access.computerUnavailable")}`);
+    lines.push(
+      `- ${t("alisio.chat.access.computerTitle")}: ${t("alisio.chat.access.computerUnavailable")}`,
+    );
   }
 
   if (queue.length > 0) {
-    lines.push("", `**${t("alisio.security.queue.title")}**`);
+    lines.push("", `**${t("alisio.security.stats.pending")}**`);
     for (const entry of queue.slice(0, 5)) {
       lines.push(
         `- \`${entry.id}\` — ${resolveApprovalEffectText(entry)} (${formatApprovalRemaining(

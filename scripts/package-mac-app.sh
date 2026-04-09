@@ -7,12 +7,10 @@ source "$ROOT_DIR/scripts/lib/alisio-branding.sh"
 
 APP_NAME="$(alisio_app_name)"
 APP_SLUG="$(alisio_app_slug)"
-LEGACY_TITLE="$(alisio_legacy_title)"
 LEGACY_SLUG="$(alisio_legacy_slug)"
 LEGACY_ENTRYPOINT="$(alisio_legacy_entrypoint)"
 PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
 
-APP_ROOT="$ROOT_DIR/dist/${APP_NAME}.app"
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 BUNDLE_ID="${BUNDLE_ID:-$(alisio_macos_debug_bundle_id)}"
@@ -44,7 +42,10 @@ fi
 IFS=' ' read -r -a BUILD_ARCHS <<< "$BUILD_ARCHS_VALUE"
 PRIMARY_ARCH="${BUILD_ARCHS[0]}"
 DISTRO_ID="$(alisio_read_prefixed_env DISTRIBUTION "$APP_SLUG")"
-SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-AGCY8w5vHirVfGGDGc8Szc5iuOqupZSh9pMj/Qs67XI=}"
+FINAL_APP_ROOT="$ROOT_DIR/dist/${APP_NAME}.app"
+APP_STAGE_ROOT_PARENT="$(mktemp -d -t ${APP_SLUG}-mac-app.XXXXXX)"
+APP_ROOT="$APP_STAGE_ROOT_PARENT/${APP_NAME}.app"
+SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-V+Cfq+Lc/udi4dxjxzHpObm3EHZdnphCPx1VNh3r0RU=}"
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-$(alisio_macos_sparkle_feed_url "$DISTRO_ID")}"
 AUTO_CHECKS=true
 if [[ "$BUNDLE_ID" == *.debug || -z "$SPARKLE_FEED_URL" ]]; then
@@ -92,6 +93,12 @@ if [[ "$BUNDLE_ID" != "$(alisio_bundle_domain)."* ]]; then
   echo "ERROR: BUNDLE_ID must use the $(alisio_bundle_domain).* namespace: $BUNDLE_ID" >&2
   exit 1
 fi
+
+cleanup_app_stage() {
+  rm -rf "$APP_STAGE_ROOT_PARENT"
+}
+
+trap cleanup_app_stage EXIT
 
 sparkle_canonical_build_from_version() {
   node --import tsx "$ROOT_DIR/scripts/sparkle-build.ts" canonical-build "$1"
@@ -207,6 +214,26 @@ find_resource_dir() {
     return 0
   fi
   find "$ROOT_DIR/apps/macos/Sources" -path "*/Resources" -type d -print -quit
+}
+
+find_shared_kit_bundle() {
+  local build_dir="$1"
+  local candidate
+
+  for candidate in \
+    "$build_dir/AlisioKit_AlisioKit.bundle" \
+    "$build_dir/OpenClawKit_OpenClawKit.bundle"
+  do
+    if [[ -d "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  find "$BUILD_ROOT" -type d \( \
+    -name "AlisioKit_AlisioKit.bundle" -o \
+    -name "OpenClawKit_OpenClawKit.bundle" \
+  \) -print -quit
 }
 
 plist_get() {
@@ -500,8 +527,11 @@ prune_broken_symlinks "$BUNDLED_PACKAGE_STAGE"
 mv "$BUNDLED_PACKAGE_STAGE" "$BUNDLED_PACKAGE_DEST"
 rm -rf "$BUNDLED_PACKAGE_STAGE_ROOT"
 
-KIT_BUNDLE_CANDIDATE="$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG/${LEGACY_TITLE}Kit_${LEGACY_TITLE}Kit.bundle"
-if [[ -d "$KIT_BUNDLE_CANDIDATE" ]]; then
+KIT_BUNDLE_CANDIDATE="$(find_shared_kit_bundle "$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG" || true)"
+if [[ -n "$KIT_BUNDLE_CANDIDATE" && -d "$KIT_BUNDLE_CANDIDATE" ]]; then
+  if [[ "$(basename "$KIT_BUNDLE_CANDIDATE")" == "OpenClawKit_OpenClawKit.bundle" ]]; then
+    echo "WARN: using legacy shared kit resource bundle $(basename "$KIT_BUNDLE_CANDIDATE")." >&2
+  fi
   rm -rf "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
   cp -R "$KIT_BUNDLE_CANDIDATE" "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
 fi
@@ -546,6 +576,14 @@ if [[ ! -x "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME" ]]; then
   echo "ERROR: bundle final sem executável em $APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME." >&2
   exit 1
 fi
+mkdir -p "$ROOT_DIR/dist"
+rm -rf "$FINAL_APP_ROOT"
+mv "$APP_ROOT" "$FINAL_APP_ROOT"
+if [[ ! -d "$FINAL_APP_ROOT" ]]; then
+  echo "ERROR: bundle final não foi persistido em $FINAL_APP_ROOT." >&2
+  exit 1
+fi
+APP_ROOT="$FINAL_APP_ROOT"
 if [[ "$PACKAGE_MODE" == "release-placeholder" ]]; then
   echo "ℹ️ Release placeholder ready. Use scripts/package-mac-dist.sh for zip/dmg + notarized distribution."
 fi

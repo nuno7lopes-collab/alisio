@@ -1,4 +1,7 @@
-import type { ApprovalAuditSnapshot } from "../../../../src/gateway/protocol/index.ts";
+import type {
+  ApprovalAuditSnapshot,
+  ApprovalPendingSnapshot,
+} from "../../../../src/gateway/protocol/index.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 
 export type ExecApprovalRequestPayload = {
@@ -54,6 +57,13 @@ export type ApprovalAuditTrailState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
   execApprovalAuditTrail: ExecApprovalAuditEntry[];
+  lastError: string | null;
+};
+
+export type ApprovalQueueState = {
+  client: GatewayBrowserClient | null;
+  connected: boolean;
+  execApprovalQueue: ExecApprovalRequest[];
   lastError: string | null;
 };
 
@@ -312,6 +322,38 @@ export async function loadApprovalAuditTrail(state: ApprovalAuditTrailState) {
       next = addExecApprovalAuditEntry(next, parsed, 20);
     }
     state.execApprovalAuditTrail = next;
+  } catch (err) {
+    state.lastError = String(err);
+  }
+}
+
+export async function loadApprovalQueue(state: ApprovalQueueState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  try {
+    const snapshot = await state.client.request<ApprovalPendingSnapshot>(
+      "approval.pending.get",
+      {},
+    );
+    const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
+    let next: ExecApprovalRequest[] = [];
+    for (const item of items) {
+      if (!isRecord(item)) {
+        continue;
+      }
+      const parsed =
+        item.kind === "plugin"
+          ? parsePluginApprovalRequested(item)
+          : item.kind === "exec"
+            ? parseExecApprovalRequested(item)
+            : null;
+      if (!parsed) {
+        continue;
+      }
+      next = addExecApproval(next, parsed);
+    }
+    state.execApprovalQueue = next;
   } catch (err) {
     state.lastError = String(err);
   }

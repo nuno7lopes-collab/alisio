@@ -20,7 +20,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
 
     await expect(
       mod.navigateViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         url: "file:///etc/passwd",
       }),
     ).rejects.toBeInstanceOf(InvalidBrowserNavigationUrlError);
@@ -37,7 +37,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
     });
 
     const result = await mod.navigateViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       url: "https://example.com",
       timeoutMs: 10,
       ssrfPolicy: { allowPrivateNetwork: true },
@@ -58,7 +58,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
     });
 
     const result = await mod.navigateViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "tab-1",
       url: "https://example.com/recovered",
       ssrfPolicy: { allowPrivateNetwork: true },
@@ -69,7 +69,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
       1,
     );
     expect(getPwToolsCoreSessionMocks().forceDisconnectPlaywrightForTarget).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "tab-1",
       reason: "retry navigate after detached frame",
     });
@@ -97,7 +97,7 @@ describe("pw-tools-core.snapshot navigate guard", () => {
 
     await expect(
       mod.navigateViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         url: "https://93.184.216.34/start",
       }),
     ).rejects.toBeInstanceOf(SsrFBlockedError);

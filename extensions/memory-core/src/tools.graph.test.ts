@@ -32,7 +32,7 @@ describe("memory_graph tool", () => {
       state: "ready",
       projectionInterface: "markdown-vault",
       syncMode: "local-first",
-      cloudSync: "not_implemented",
+      cloudSync: "unavailable",
       matches: [
         {
           entityId: "note-1",

@@ -30,7 +30,7 @@ Availability: internal preview. The iOS app is not publicly distributed yet.
 1. Start the Gateway:
 
 ```bash
-alisio gateway --port 18789
+alisio gateway --port 40705
 ```
 
 2. In the iOS app, open Settings and pick a discovered gateway (or enable Manual Host and enter host/port).
@@ -174,20 +174,20 @@ See [Bonjour](/gateway/bonjour) for the CoreDNS example.
 
 ### Manual host/port
 
-In Settings, enable **Manual Host** and enter the gateway host + port (default `18789`).
+In Settings, enable **Manual Host** and enter the gateway host + port (default `40705`).
 
 ## Canvas + A2UI
 
 The iOS node renders a WKWebView canvas. Use `node.invoke` to drive it:
 
 ```bash
-alisio nodes invoke --node "iOS Node" --command canvas.navigate --params '{"url":"http://<gateway-host>:18789/__alisio__/canvas/"}'
+alisio nodes invoke --node "iOS Node" --command canvas.navigate --params '{"url":"http://<gateway-host>:40705/__alisio__/canvas/"}'
 ```
 
 Notes:
 
 - The Gateway canvas host serves `/__alisio__/canvas/` and `/__alisio__/a2ui/`.
-- It is served from the Gateway HTTP server (same port as `gateway.port`, default `18789`).
+- It is served from the Gateway HTTP server (same port as `gateway.port`, default `40705`).
 - The iOS node auto-navigates to A2UI on connect when a canvas host URL is advertised.
 - Return to the built-in scaffold with `canvas.navigate` and `{"url":""}`.
 

@@ -57,7 +57,7 @@ OpenClaw 会从 `~/.openclaw/openclaw.json` 读取可选的 <Tooltip tip="JSON5 
     ```
   </Tab>
   <Tab title="Control UI">
-    打开 [http://127.0.0.1:18789](http://127.0.0.1:18789) 并使用 **Config** 标签页。
+    打开 [http://127.0.0.1:40705](http://127.0.0.1:40705) 并使用 **Config** 标签页。
     Control UI 会根据配置 schema 渲染表单，并提供 **Raw JSON** 编辑器作为后备方式。
   </Tab>
   <Tab title="Direct edit">
@@ -422,7 +422,7 @@ OpenClaw 只接受完全符合 schema 的配置。未知键、类型格式错误
     ```json5
     // ~/.openclaw/openclaw.json
     {
-      gateway: { port: 18789 },
+      gateway: { port: 40705 },
       agents: { $include: "./agents.json5" },
       broadcast: {
         $include: ["./clients/a.json5", "./clients/b.json5"],

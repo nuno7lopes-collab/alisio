@@ -37,7 +37,7 @@ import {
 } from "./subagent-announce-dispatch.js";
 import { type AnnounceQueueItem, enqueueAnnounce } from "./subagent-announce-queue.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
-import type { SpawnSubagentMode } from "./subagent-spawn.js";
+import type { TrackedSubagentSpawnMode } from "./subagent-registry.types.js";
 
 const DEFAULT_SUBAGENT_ANNOUNCE_TIMEOUT_MS = 90_000;
 const MAX_TIMER_SAFE_TIMEOUT_MS = 2_147_000_000;
@@ -212,7 +212,7 @@ export async function resolveSubagentCompletionOrigin(params: {
   requesterSessionKey: string;
   requesterOrigin?: DeliveryContext;
   childRunId?: string;
-  spawnMode?: SpawnSubagentMode;
+  spawnMode?: TrackedSubagentSpawnMode;
   expectsCompletionMessage: boolean;
 }): Promise<DeliveryContext | undefined> {
   const requesterOrigin = normalizeDeliveryContext(params.requesterOrigin);

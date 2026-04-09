@@ -25,7 +25,7 @@ OpenClaw Chrome 扩展让智能体控制你**现有的 Chrome 标签页**（你�
 有三个部分：
 
 - **浏览器控制服务**（Gateway 网关或节点）：智能体/工具调用的 API（通过 Gateway 网关）
-- **本地中继服务器**（loopback CDP）：在控制服务器和扩展之间桥接（默认 `http://127.0.0.1:18792`）
+- **本地中继服务器**（loopback CDP）：在控制服务器和扩展之间桥接（默认 `http://127.0.0.1:40708`）
 - **Chrome MV3 扩展**：使用 `chrome.debugger` 附加到活动标签页，并将 CDP 消息传送到中继
 
 然后 OpenClaw 通过正常的 `browser` 工具界面控制附加的标签页（选择正确的配置文件）。
@@ -75,7 +75,7 @@ OpenClaw 附带一个名为 `chrome` 的内置浏览器配置文件，它指向�
 openclaw browser create-profile \
   --name my-chrome \
   --driver extension \
-  --cdp-url http://127.0.0.1:18792 \
+  --cdp-url http://127.0.0.1:40708 \
   --color "#00AA00"
 ```
 

@@ -5,8 +5,8 @@
 .shell {
   --shell-pad: 14px;
   --shell-gap: 14px;
-  --shell-nav-width: 224px;
-  --shell-nav-rail-width: 68px;
+  --shell-nav-width: 208px;
+  --shell-nav-rail-width: 64px;
   --shell-topbar-height: 40px;
   --shell-focus-duration: 200ms;
   --shell-focus-ease: var(--ease-out);
@@ -85,7 +85,7 @@
   z-index: 40;
   display: flex;
   align-items: center;
-  padding: 0 14px 0 10px;
+  padding: 0 12px 0 8px;
   min-height: 40px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
   background: color-mix(in srgb, var(--panel) 99%, transparent);
@@ -206,7 +206,7 @@
     border-color var(--duration-fast) ease,
     background var(--duration-fast) ease,
     color var(--duration-fast) ease;
-  min-width: 112px;
+  min-width: 96px;
 }
 
 .topbar-search:hover {
@@ -1138,7 +1138,7 @@
 
 .content {
   grid-area: content;
-  padding: 14px 20px 24px;
+  padding: 12px 18px 20px;
   display: block;
   min-height: 0;
   overflow-y: auto;
@@ -1146,7 +1146,7 @@
 }
 
 .content > * + * {
-  margin-top: 20px;
+  margin-top: 16px;
 }
 
 :root[data-theme-mode="light"] .content {
@@ -1239,7 +1239,7 @@
 
 .alisio-page {
   display: grid;
-  gap: 18px;
+  gap: 16px;
 }
 
 .setup-frame {

@@ -13,6 +13,7 @@ import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "../controllers/ex
 import {
   resolveConfiguredExecDefaults,
   resolveSecurityAccessDiagnostics,
+  type SecurityAccessDiagnostics,
   type SecurityAccessMode,
 } from "../controllers/security-access.ts";
 import { formatRelativeTimestamp } from "../format.ts";
@@ -57,6 +58,7 @@ export type SecurityProps = {
   gatewayAccessModeLoading: boolean;
   gatewayAccessModeBusy: boolean;
   gatewayAccessMode: SecurityAccessMode | null;
+  securityDiagnostics?: SecurityAccessDiagnostics | null;
   onRefresh: () => void;
   onLoadExecApprovals: () => void;
   onExecApprovalsTargetChange: (kind: "gateway" | "node", nodeId: string | null) => void;
@@ -419,10 +421,12 @@ function renderAccessModePanel(props: SecurityProps) {
   const blockedMessage = resolveAccessModeBlockMessage(props);
   const busy = props.gatewayAccessModeBusy || props.gatewayAccessModeLoading;
   const disabled = busy || Boolean(blockedMessage);
-  const appliedDiagnostics = resolveSecurityAccessDiagnostics({
-    configForm: props.configSnapshot?.config ?? null,
-    execApprovalsForm: props.execApprovalsSnapshot?.file ?? null,
-  });
+  const appliedDiagnostics =
+    props.securityDiagnostics ??
+    resolveSecurityAccessDiagnostics({
+      configForm: props.configSnapshot?.config ?? null,
+      execApprovalsForm: props.execApprovalsSnapshot?.file ?? null,
+    });
 
   return html`
     <div class="alisio-security-access">
@@ -509,13 +513,21 @@ export function renderSecurity(props: SecurityProps) {
   const mode = supportsRuntimeAccessModeTarget(props.execApprovalsTarget)
     ? props.gatewayAccessMode
     : null;
+  const diagnostics =
+    props.securityDiagnostics ??
+    resolveSecurityAccessDiagnostics({
+      configForm: props.configSnapshot?.config ?? null,
+      execApprovalsForm: props.execApprovalsSnapshot?.file ?? null,
+    });
   const gatewayDefaults = resolveConfiguredExecDefaults(props.configSnapshot?.config ?? null);
-  const promptAsk = resolveSecurityPromptAsk(
-    props,
-    props.execApprovalsSnapshot,
-    props.execApprovalsForm,
-    gatewayDefaults.ask,
-  );
+  const promptAsk = supportsRuntimeAccessModeTarget(props.execApprovalsTarget)
+    ? diagnostics.effectivePromptAsk
+    : resolveSecurityPromptAsk(
+        props,
+        props.execApprovalsSnapshot,
+        props.execApprovalsForm,
+        gatewayDefaults.ask,
+      );
   const nowMs = Date.now();
 
   return html`

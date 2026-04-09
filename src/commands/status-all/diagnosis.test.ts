@@ -35,14 +35,14 @@ function createBaseParams(
     ok: (text: string) => text,
     warn: (text: string) => text,
     fail: (text: string) => text,
-    connectionDetailsForReport: "ws://127.0.0.1:18789",
+    connectionDetailsForReport: "ws://127.0.0.1:40705",
     snap: null,
     remoteUrlMissing: false,
     secretDiagnostics: [],
     sentinel: null,
     lastErr: null,
-    port: 18789,
-    portUsage: { port: 18789, status: "busy", listeners, hints: [] },
+    port: 40705,
+    portUsage: { port: 40705, status: "busy", listeners, hints: [] },
     tailscaleMode: "off",
     tailscale: {
       backendState: null,
@@ -64,29 +64,29 @@ function createBaseParams(
 describe("status-all diagnosis port checks", () => {
   it("treats same-process dual-stack loopback listeners as healthy", async () => {
     const params = createBaseParams([
-      { pid: 5001, commandLine: "openclaw-gateway", address: "127.0.0.1:18789" },
-      { pid: 5001, commandLine: "openclaw-gateway", address: "[::1]:18789" },
+      { pid: 5001, commandLine: "openclaw-gateway", address: "127.0.0.1:40705" },
+      { pid: 5001, commandLine: "openclaw-gateway", address: "[::1]:40705" },
     ]);
 
     await appendStatusAllDiagnosis(params);
 
     const output = params.lines.join("\n");
-    expect(output).toContain("✓ Port 18789");
+    expect(output).toContain("✓ Port 40705");
     expect(output).toContain("Detected dual-stack loopback listeners");
-    expect(output).not.toContain("Port 18789 is already in use.");
+    expect(output).not.toContain("Port 40705 is already in use.");
   });
 
   it("keeps warning for multi-process listener conflicts", async () => {
     const params = createBaseParams([
-      { pid: 5001, commandLine: "openclaw-gateway", address: "127.0.0.1:18789" },
-      { pid: 5002, commandLine: "openclaw-gateway", address: "[::1]:18789" },
+      { pid: 5001, commandLine: "openclaw-gateway", address: "127.0.0.1:40705" },
+      { pid: 5002, commandLine: "openclaw-gateway", address: "[::1]:40705" },
     ]);
 
     await appendStatusAllDiagnosis(params);
 
     const output = params.lines.join("\n");
-    expect(output).toContain("! Port 18789");
-    expect(output).toContain("Port 18789 is already in use.");
+    expect(output).toContain("! Port 40705");
+    expect(output).toContain("Port 40705 is already in use.");
   });
 
   it("avoids unreachable gateway diagnosis in node-only mode", async () => {

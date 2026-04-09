@@ -36,7 +36,7 @@ Short guide to verify channel connectivity without guessing.
 ## When something fails
 
 - `logged out` or status 409–515 → relink with `alisio channels logout` then `alisio channels login`.
-- Gateway unreachable → start it: `alisio gateway --port 18789` (use `--force` if the port is busy).
+- Gateway unreachable → start it: `alisio gateway --port 40705` (use `--force` if the port is busy).
 - No inbound messages → confirm linked phone is online and the sender is allowed (`channels.whatsapp.allowFrom`); for group chats, ensure allowlist + mention rules match (`channels.whatsapp.groups`, `agents.list[].groupChat.mentionPatterns`).
 
 ## Dedicated "health" command

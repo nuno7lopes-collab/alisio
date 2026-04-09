@@ -6,6 +6,7 @@ import { ErrorCodes, errorShape } from "./protocol/index.js";
 import { isRoleAuthorizedForMethod, parseGatewayRole } from "./role-policy.js";
 import { agentHandlers } from "./server-methods/agent.js";
 import { agentsHandlers } from "./server-methods/agents.js";
+import { alisioSecurityPolicyHandlers } from "./server-methods/alisio-security.js";
 import { alisioHandlers } from "./server-methods/alisio.js";
 import { approvalAuditHandlers } from "./server-methods/approval-audit.js";
 import { channelsHandlers } from "./server-methods/channels.js";
@@ -40,6 +41,7 @@ import { wizardHandlers } from "./server-methods/wizard.js";
 
 const CONTROL_PLANE_WRITE_METHODS = new Set([
   "alisio.runtime.restart",
+  "alisio.security.policy.applyProfile",
   "config.apply",
   "config.patch",
   "memory.sync",
@@ -81,6 +83,7 @@ export const coreGatewayHandlers: GatewayRequestHandlers = {
   ...voicewakeHandlers,
   ...healthHandlers,
   ...alisioHandlers,
+  ...alisioSecurityPolicyHandlers,
   ...channelsHandlers,
   ...chatHandlers,
   ...cronHandlers,

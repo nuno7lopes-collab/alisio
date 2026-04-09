@@ -13,7 +13,7 @@ import {
 
 const baseZoneOpts: WideAreaGatewayZoneOpts = {
   domain: "alisio.internal.",
-  gatewayPort: 18789,
+  gatewayPort: 40705,
   displayName: "Mac Studio (Alisio)",
   tailnetIPv4: "100.123.224.76",
   hostLabel: "studio-london",
@@ -103,9 +103,9 @@ describe("wide-area DNS-SD zone rendering", () => {
       `studio-london IN A 100.123.224.76`,
       `studio-london IN AAAA fd7a:115c:a1e0::8801:e04c`,
       `_alisio-gw._tcp IN PTR studio-london._alisio-gw._tcp`,
-      `studio-london._alisio-gw._tcp IN SRV 0 0 18789 studio-london`,
+      `studio-london._alisio-gw._tcp IN SRV 0 0 40705 studio-london`,
       `displayName=Mac Studio (Alisio)`,
-      `gatewayPort=18789`,
+      `gatewayPort=40705`,
       `sshPort=22`,
       `cliPath=/opt/homebrew/bin/alisio`,
     ]);

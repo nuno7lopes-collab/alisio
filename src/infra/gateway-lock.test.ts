@@ -254,7 +254,7 @@ describe("gateway lock", () => {
       pollIntervalMs: 5,
       staleMs: 10_000,
       platform: "darwin",
-      port: 18789,
+      port: 40705,
     });
     expect(lock).not.toBeNull();
     await lock?.release();
@@ -272,7 +272,7 @@ describe("gateway lock", () => {
         pollIntervalMs: 2,
         staleMs: 10_000,
         platform: "darwin",
-        port: 18789,
+        port: 40705,
       });
       await expect(pending).rejects.toBeInstanceOf(GatewayLockError);
     } finally {

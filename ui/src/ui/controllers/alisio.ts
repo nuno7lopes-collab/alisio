@@ -1826,15 +1826,34 @@ export async function revokeAlisioSharedDeviceGrant(state: AlisioState, grantId:
   }
 }
 
-export async function saveAlisioSharingPolicy(state: AlisioState, allowExternalUse: boolean) {
+export async function saveAlisioSharingPolicy(
+  state: AlisioState,
+  input:
+    | boolean
+    | {
+        allowExternalUse?: boolean;
+        resourcePolicies?: Partial<
+          NonNullable<NonNullable<AlisioSharingState["policy"]["resourcePolicies"]>>
+        >;
+      },
+) {
   if (!state.client || !state.connected) {
     return;
   }
   state.alisioSharingLoading = true;
   state.alisioSharingError = null;
   try {
+    const payload =
+      typeof input === "boolean"
+        ? { allowExternalUse: input }
+        : {
+            ...(input.allowExternalUse !== undefined
+              ? { allowExternalUse: input.allowExternalUse }
+              : {}),
+            ...(input.resourcePolicies ? { resourcePolicies: input.resourcePolicies } : {}),
+          };
     await state.client.request<AlisioSharingPolicySetResult>("devices.policy.set", {
-      allowExternalUse,
+      ...payload,
       idempotencyKey: generateUUID(),
     });
     await loadAlisioSharing(state);

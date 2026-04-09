@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
   auditGatewayServiceConfig: vi.fn(),
   buildGatewayInstallPlan: vi.fn(),
   resolveGatewayAuthTokenForService: vi.fn(),
-  resolveGatewayPort: vi.fn(() => 18789),
+  resolveGatewayPort: vi.fn(() => 40705),
   resolveIsNixMode: vi.fn(() => false),
   findExtraGatewayServices: vi.fn().mockResolvedValue([]),
   renderGatewayServiceCleanupHints: vi.fn().mockReturnValue([]),
@@ -159,12 +159,12 @@ const gatewayProgramArguments = [
   "/usr/local/bin/openclaw",
   "gateway",
   "--port",
-  "18789",
+  "40705",
 ];
 
 function createGatewayCommand(entrypoint: string) {
   return {
-    programArguments: ["/usr/bin/node", entrypoint, "gateway", "--port", "18789"],
+    programArguments: ["/usr/bin/node", entrypoint, "gateway", "--port", "40705"],
     environment: {},
   };
 }

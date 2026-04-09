@@ -1334,7 +1334,10 @@
 
 .alisio-auth-page__copy .card-sub,
 .alisio-connections-hero .card-sub,
+.alisio-organization-hero__topbar .card-sub,
 .capabilities-hero .card-sub,
+.capabilities-advanced-header .card-sub,
+.alisio-models-section__header .card-sub,
 .channel-hero .card-sub {
   display: none;
 }
@@ -2843,7 +2846,7 @@
 }
 
 .channel-session-card__description {
-  margin-top: 10px;
+  display: none;
 }
 
 .channel-session-card__grid {
@@ -4613,119 +4616,20 @@ td.data-table-key-col {
 
 .alisio-chat__security-console {
   display: grid;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding: 16px 18px;
-  border: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-elevated) 82%, transparent), transparent),
-    color-mix(in srgb, var(--card) 86%, transparent);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
-}
-
-.alisio-chat__security-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.alisio-chat__security-copy {
-  display: grid;
-  gap: 4px;
-}
-
-.alisio-chat__security-copy strong {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-strong);
-}
-
-.alisio-chat__security-copy > span:last-child {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.alisio-chat__security-meta {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.alisio-chat__security-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.alisio-chat__security-summary-card {
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
-}
-
-.alisio-chat__security-summary-card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.alisio-chat__security-summary-card__title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.alisio-chat__security-summary-card__value {
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--text-strong);
-}
-
-.alisio-chat__security-summary-card__detail {
-  display: grid;
-  gap: 3px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.5;
+  margin-bottom: 8px;
 }
 
 .alisio-chat__access-strip {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.alisio-chat__security-note {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
 }
 
 .alisio-chat__security-section {
-  display: grid;
-  gap: 10px;
-}
-
-.alisio-chat__security-section-title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-strong);
+  display: grid;
 }
 
 .alisio-chat__security-queue-item {
@@ -4736,8 +4640,8 @@ td.data-table-key-col {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 30px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 13px;
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--bg-elevated) 84%, transparent);
@@ -4757,40 +4661,136 @@ td.data-table-key-col {
   transform: translateY(-1px);
 }
 
+.alisio-chat__access-menu {
+  position: relative;
+}
+
+.alisio-chat__access-menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.alisio-chat__access-menu > summary::after {
+  content: "▾";
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 140ms ease;
+}
+
+.alisio-chat__access-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.alisio-chat__access-menu[open] > summary {
+  border-color: color-mix(in srgb, var(--accent) 54%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-elevated) 88%);
+}
+
+.alisio-chat__access-menu[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.alisio-chat__access-menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
+  display: grid;
+  gap: 4px;
+}
+
+.alisio-chat__access-menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.alisio-chat__access-menu-option:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-hover) 88%, transparent);
+}
+
+.alisio-chat__access-menu-option:disabled {
+  opacity: 1;
+}
+
+.alisio-chat__access-menu-option__main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alisio-chat__access-menu-option__check {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-strong);
+}
+
 .alisio-chat__access-pill.is-active {
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
   background: color-mix(in srgb, var(--accent) 14%, var(--bg-elevated) 86%);
   color: var(--text-strong);
 }
 
+.alisio-chat__access-pill:disabled {
+  opacity: 1;
+}
+
+.alisio-chat__access-pill--status {
+  cursor: default;
+}
+
+.alisio-chat__access-pill--status:disabled {
+  color: inherit;
+}
+
+.alisio-chat__access-pill--ready {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+.alisio-chat__access-pill--warn {
+  border-color: color-mix(in srgb, var(--warning) 44%, transparent);
+  color: color-mix(in srgb, var(--warning) 82%, var(--text) 18%);
+}
+
+.alisio-chat__access-pill--muted {
+  color: var(--muted);
+}
+
 .alisio-chat__access-pill--ghost {
   margin-left: auto;
 }
 
-.alisio-chat__access-badge {
+.alisio-chat__access-pill-icon {
   display: inline-flex;
   align-items: center;
-  min-height: 18px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--text-strong);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  justify-content: center;
+}
+
+.alisio-chat__access-pill-icon svg,
+.alisio-chat__access-menu-option__check svg {
+  width: 14px;
+  height: 14px;
 }
 
 @media (max-width: 640px) {
-  .alisio-chat__security-console {
-    padding: 14px;
-  }
-
-  .alisio-chat__security-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .alisio-chat__security-head {
-    flex-direction: column;
+  .alisio-chat__access-menu-panel {
+    min-width: min(220px, calc(100vw - 48px));
   }
 }
 
@@ -5028,6 +5028,12 @@ td.data-table-key-col {
   gap: 10px;
 }
 
+.alisio-connections-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .alisio-binding-list,
 .alisio-token-list {
   container-type: inline-size;
@@ -5132,6 +5138,19 @@ td.data-table-key-col {
   padding: 10px 12px;
 }
 
+.alisio-connections-entry--compact {
+  gap: 8px;
+  padding: 10px 12px;
+}
+
+.alisio-connections-entry--policy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
 .alisio-connections-entry--pending {
   border-color: color-mix(in srgb, var(--warn) 24%, var(--border) 76%);
   background: linear-gradient(
@@ -5147,6 +5166,12 @@ td.data-table-key-col {
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.alisio-connections-entry__stack {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
 .alisio-connections-entry__pills {
@@ -5186,6 +5211,25 @@ td.data-table-key-col {
 .alisio-connections-entry__actions {
   align-content: start;
   min-width: 0;
+}
+
+.alisio-connections-policy-select {
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.alisio-connections-policy-select select {
+  min-width: 220px;
+}
+
+.alisio-sharing-policy-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.alisio-sharing-policy-grid__full {
+  grid-column: 1 / -1;
 }
 
 .alisio-connections-action-row {

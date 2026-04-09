@@ -1,5 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
-import { refreshAfterAlisioOpenAiOAuth } from "./alisio-oauth.ts";
+/* @vitest-environment jsdom */
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  ALISIO_OPENAI_OAUTH_CHANNEL,
+  ALISIO_OPENAI_OAUTH_SIGNAL_TYPE,
+  ALISIO_OPENAI_OAUTH_STORAGE_KEY,
+  LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL,
+  LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY,
+  type AlisioOpenAiOAuthSignal,
+} from "../../../src/shared/alisio-openai-oauth.js";
+import { emitAlisioOpenAiOAuthSignal, refreshAfterAlisioOpenAiOAuth } from "./alisio-oauth.ts";
 
 const loadControlUiBootstrapConfigMock = vi.hoisted(() => vi.fn(async () => undefined));
 const connectGatewayMock = vi.hoisted(() => vi.fn());
@@ -21,6 +31,50 @@ vi.mock("./app-gateway.ts", async (importOriginal) => {
 });
 
 describe("refreshAfterAlisioOpenAiOAuth", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("emite storage e BroadcastChannel canónicos e legacy", () => {
+    const posted: Array<{ name: string; message: unknown }> = [];
+
+    class BroadcastChannelMock {
+      constructor(private readonly name: string) {}
+
+      postMessage(message: unknown) {
+        posted.push({ name: this.name, message });
+      }
+
+      close() {}
+    }
+
+    vi.stubGlobal("BroadcastChannel", BroadcastChannelMock);
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const removeItemSpy = vi.spyOn(Storage.prototype, "removeItem");
+    const signal: AlisioOpenAiOAuthSignal = {
+      type: ALISIO_OPENAI_OAUTH_SIGNAL_TYPE,
+      signalId: "signal-1",
+      createdAtMs: 123,
+    };
+
+    expect(emitAlisioOpenAiOAuthSignal(signal)).toEqual(signal);
+    expect(setItemSpy).toHaveBeenCalledWith(
+      ALISIO_OPENAI_OAUTH_STORAGE_KEY,
+      JSON.stringify(signal),
+    );
+    expect(setItemSpy).toHaveBeenCalledWith(
+      LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY,
+      JSON.stringify(signal),
+    );
+    expect(removeItemSpy).toHaveBeenCalledWith(ALISIO_OPENAI_OAUTH_STORAGE_KEY);
+    expect(removeItemSpy).toHaveBeenCalledWith(LEGACY_ALISIO_OPENAI_OAUTH_STORAGE_KEY);
+    expect(posted).toEqual([
+      { name: ALISIO_OPENAI_OAUTH_CHANNEL, message: signal },
+      { name: LEGACY_ALISIO_OPENAI_OAUTH_CHANNEL, message: signal },
+    ]);
+  });
+
   it("reloads the bootstrap and reconnects the gateway", async () => {
     const host = {
       basePath: "",
@@ -31,7 +85,7 @@ describe("refreshAfterAlisioOpenAiOAuth", () => {
       alisioStartupLoading: false,
       alisioStartupError: null,
       alisioStartupBootstrap: null,
-      gatewayBootstrapUrl: "ws://127.0.0.1:18789",
+      gatewayBootstrapUrl: "ws://127.0.0.1:40705",
       gatewayBootstrapToken: "fresh-token",
       clientInstanceId: "instance-1",
       client: null,

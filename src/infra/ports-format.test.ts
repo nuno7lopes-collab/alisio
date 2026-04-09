@@ -9,12 +9,12 @@ import {
 
 describe("ports-format", () => {
   it.each([
-    [{ commandLine: "ssh -N -L 18789:127.0.0.1:18789 user@host" }, "ssh"],
+    [{ commandLine: "ssh -N -L 40705:127.0.0.1:40705 user@host" }, "ssh"],
     [{ command: "ssh" }, "ssh"],
     [{ commandLine: "node /Users/me/Projects/alisio/dist/entry.js gateway" }, "gateway"],
-    [{ commandLine: "python -m http.server 18789" }, "unknown"],
+    [{ commandLine: "python -m http.server 40705" }, "unknown"],
   ] as const)("classifies port listener %j", (listener, expected) => {
-    expect(classifyPortListener(listener, 18789)).toBe(expected);
+    expect(classifyPortListener(listener, 40705)).toBe(expected);
   });
 
   it("builds ordered hints for mixed listener kinds and multiplicity", () => {
@@ -22,10 +22,10 @@ describe("ports-format", () => {
       buildPortHints(
         [
           { commandLine: "node dist/index.js alisio gateway" },
-          { commandLine: "ssh -N -L 18789:127.0.0.1:18789" },
-          { commandLine: "python -m http.server 18789" },
+          { commandLine: "ssh -N -L 40705:127.0.0.1:40705" },
+          { commandLine: "python -m http.server 40705" },
         ],
-        18789,
+        40705,
       ),
     ).toEqual([
       expect.stringContaining("Gateway already running locally."),
@@ -33,16 +33,16 @@ describe("ports-format", () => {
       "Another process is listening on this port.",
       expect.stringContaining("Multiple listeners detected"),
     ]);
-    expect(buildPortHints([], 18789)).toEqual([]);
+    expect(buildPortHints([], 40705)).toEqual([]);
   });
 
   it("treats single-process loopback dual-stack gateway listeners as benign", () => {
     const listeners = [
-      { pid: 4242, commandLine: "alisio-gateway", address: "127.0.0.1:18789" },
-      { pid: 4242, commandLine: "alisio-gateway", address: "[::1]:18789" },
+      { pid: 4242, commandLine: "alisio-gateway", address: "127.0.0.1:40705" },
+      { pid: 4242, commandLine: "alisio-gateway", address: "[::1]:40705" },
     ];
-    expect(isDualStackLoopbackGatewayListeners(listeners, 18789)).toBe(true);
-    expect(buildPortHints(listeners, 18789)).toEqual([
+    expect(isDualStackLoopbackGatewayListeners(listeners, 40705)).toBe(true);
+    expect(buildPortHints(listeners, 40705)).toEqual([
       expect.stringContaining("Gateway already running locally."),
     ]);
   });
@@ -52,7 +52,7 @@ describe("ports-format", () => {
       { pid: 123, user: "alice", commandLine: "ssh -N", address: "::1" },
       "pid 123 alice: ssh -N (::1)",
     ],
-    [{ command: "ssh", address: "127.0.0.1:18789" }, "pid ?: ssh (127.0.0.1:18789)"],
+    [{ command: "ssh", address: "127.0.0.1:40705" }, "pid ?: ssh (127.0.0.1:40705)"],
     [{}, "pid ?: unknown"],
   ] as const)("formats port listener %j", (listener, expected) => {
     expect(formatPortListener(listener)).toBe(expected);
@@ -61,21 +61,21 @@ describe("ports-format", () => {
   it("formats free and busy port diagnostics", () => {
     expect(
       formatPortDiagnostics({
-        port: 18789,
+        port: 40705,
         status: "free",
         listeners: [],
         hints: [],
       }),
-    ).toEqual(["Port 18789 is free."]);
+    ).toEqual(["Port 40705 is free."]);
 
     const lines = formatPortDiagnostics({
-      port: 18789,
+      port: 40705,
       status: "busy",
-      listeners: [{ pid: 123, user: "alice", commandLine: "ssh -N -L 18789:127.0.0.1:18789" }],
-      hints: buildPortHints([{ pid: 123, commandLine: "ssh -N -L 18789:127.0.0.1:18789" }], 18789),
+      listeners: [{ pid: 123, user: "alice", commandLine: "ssh -N -L 40705:127.0.0.1:40705" }],
+      hints: buildPortHints([{ pid: 123, commandLine: "ssh -N -L 40705:127.0.0.1:40705" }], 40705),
     });
-    expect(lines[0]).toContain("Port 18789 is already in use");
-    expect(lines).toContain("- pid 123 alice: ssh -N -L 18789:127.0.0.1:18789");
+    expect(lines[0]).toContain("Port 40705 is already in use");
+    expect(lines).toContain("- pid 123 alice: ssh -N -L 40705:127.0.0.1:40705");
     expect(lines.some((line) => line.includes("SSH tunnel"))).toBe(true);
   });
 });

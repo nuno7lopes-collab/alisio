@@ -376,7 +376,7 @@ describe("pairing setup code", () => {
       } satisfies ResolveSetupOptions,
       expected: {
         authLabel: "token",
-        url: "ws://gateway.local:18789",
+        url: "ws://gateway.local:40705",
         urlSource: "gateway.bind=custom",
       },
     },

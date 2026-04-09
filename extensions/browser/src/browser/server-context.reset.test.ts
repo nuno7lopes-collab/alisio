@@ -28,10 +28,10 @@ beforeEach(async () => {
 function localOpenClawProfile(): Parameters<typeof createProfileResetOps>[0]["profile"] {
   return {
     name: "openclaw",
-    cdpUrl: "http://127.0.0.1:18800",
+    cdpUrl: "http://127.0.0.1:40716",
     cdpHost: "127.0.0.1",
     cdpIsLoopback: true,
-    cdpPort: 18800,
+    cdpPort: 40716,
     color: "#f60",
     driver: "openclaw",
     attachOnly: false,
@@ -97,7 +97,7 @@ describe("createProfileResetOps", () => {
     expect(isHttpReachable).toHaveBeenCalledWith(300);
     expect(stopRunningBrowser).toHaveBeenCalledTimes(1);
     expect(pwAiMocks.closePlaywrightBrowserConnection).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:18800",
+      cdpUrl: "http://127.0.0.1:40716",
     });
     expect(trashMocks.movePathToTrash).toHaveBeenCalledWith(profileDir);
   });
@@ -119,10 +119,10 @@ describe("createProfileResetOps", () => {
     expect(stopRunningBrowser).not.toHaveBeenCalled();
     expect(pwAiMocks.closePlaywrightBrowserConnection).toHaveBeenCalledTimes(2);
     expect(pwAiMocks.closePlaywrightBrowserConnection).toHaveBeenNthCalledWith(1, {
-      cdpUrl: "http://127.0.0.1:18800",
+      cdpUrl: "http://127.0.0.1:40716",
     });
     expect(pwAiMocks.closePlaywrightBrowserConnection).toHaveBeenNthCalledWith(2, {
-      cdpUrl: "http://127.0.0.1:18800",
+      cdpUrl: "http://127.0.0.1:40716",
     });
   });
 });

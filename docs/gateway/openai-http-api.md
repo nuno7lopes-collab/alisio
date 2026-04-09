@@ -169,8 +169,8 @@ Set `stream: true` to receive Server-Sent Events (SSE):
 
 For a basic Open WebUI connection:
 
-- Base URL: `http://127.0.0.1:18789/v1`
-- Docker on macOS base URL: `http://host.docker.internal:18789/v1`
+- Base URL: `http://127.0.0.1:40705/v1`
+- Docker on macOS base URL: `http://host.docker.internal:40705/v1`
 - API key: your Gateway bearer token
 - Model: `alisio/default`
 
@@ -183,7 +183,7 @@ Expected behavior:
 Quick smoke:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/models \
+curl -sS http://127.0.0.1:40705/v1/models \
   -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
@@ -194,7 +194,7 @@ If that returns `alisio/default`, most Open WebUI setups can connect with the sa
 Non-streaming:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/chat/completions \
+curl -sS http://127.0.0.1:40705/v1/chat/completions \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -d '{
@@ -206,7 +206,7 @@ curl -sS http://127.0.0.1:18789/v1/chat/completions \
 Streaming:
 
 ```bash
-curl -N http://127.0.0.1:18789/v1/chat/completions \
+curl -N http://127.0.0.1:40705/v1/chat/completions \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'x-alisio-model: openai/gpt-5.4' \
@@ -220,21 +220,21 @@ curl -N http://127.0.0.1:18789/v1/chat/completions \
 List models:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/models \
+curl -sS http://127.0.0.1:40705/v1/models \
   -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
 Fetch one model:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/models/alisio%2Fdefault \
+curl -sS http://127.0.0.1:40705/v1/models/alisio%2Fdefault \
   -H 'Authorization: Bearer YOUR_TOKEN'
 ```
 
 Create embeddings:
 
 ```bash
-curl -sS http://127.0.0.1:18789/v1/embeddings \
+curl -sS http://127.0.0.1:40705/v1/embeddings \
   -H 'Authorization: Bearer YOUR_TOKEN' \
   -H 'Content-Type: application/json' \
   -H 'x-alisio-model: openai/text-embedding-3-small' \

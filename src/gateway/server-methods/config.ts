@@ -26,7 +26,7 @@ import {
   writeRestartSentinel,
 } from "../../infra/restart-sentinel.js";
 import { scheduleGatewaySigusr1Restart } from "../../infra/restart.js";
-import { diffConfigPaths } from "../config-reload.js";
+import { buildGatewayReloadPlan, diffConfigPaths } from "../config-reload.js";
 import {
   formatControlPlaneActor,
   resolveControlPlaneActor,
@@ -265,6 +265,20 @@ function normalizeComparableConfig(config: AlisioConfig): AlisioConfig {
   return validated.ok ? validated.config : migrated;
 }
 
+function summarizeConfigWriteOutcome(params: {
+  method: "config.patch" | "config.apply";
+  restartGateway: boolean;
+  hotReasons: string[];
+}) {
+  if (params.restartGateway) {
+    return `restartReason=${params.method}`;
+  }
+  if (params.hotReasons.length > 0) {
+    return `reloadReason=${params.method}:hot`;
+  }
+  return `reloadReason=${params.method}:dynamic`;
+}
+
 export const configHandlers: GatewayRequestHandlers = {
   "config.get": async ({ params, respond }) => {
     if (!assertValidParams(params, validateConfigGetParams, "config.get", respond)) {
@@ -430,10 +444,32 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const reloadPlan = buildGatewayReloadPlan(changedPaths);
     context?.logGateway?.info(
-      `config.patch write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.patch`,
+      `config.patch write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} ${summarizeConfigWriteOutcome(
+        {
+          method: "config.patch",
+          restartGateway: reloadPlan.restartGateway,
+          hotReasons: reloadPlan.hotReasons,
+        },
+      )}`,
     );
     await writeConfigFile(validated.config, writeOptions);
+
+    if (!reloadPlan.restartGateway) {
+      respond(
+        true,
+        {
+          ok: true,
+          path: createConfigIO().configPath,
+          config: redactConfigObject(validated.config, schemaPatch.uiHints),
+          restart: null,
+          sentinel: null,
+        },
+        undefined,
+      );
+      return;
+    }
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
       resolveConfigRestartRequest(params);
@@ -505,10 +541,32 @@ export const configHandlers: GatewayRequestHandlers = {
       );
       return;
     }
+    const reloadPlan = buildGatewayReloadPlan(changedPaths);
     context?.logGateway?.info(
-      `config.apply write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} restartReason=config.apply`,
+      `config.apply write ${formatControlPlaneActor(actor)} changedPaths=${summarizeChangedPaths(changedPaths)} ${summarizeConfigWriteOutcome(
+        {
+          method: "config.apply",
+          restartGateway: reloadPlan.restartGateway,
+          hotReasons: reloadPlan.hotReasons,
+        },
+      )}`,
     );
     await writeConfigFile(parsed.config, writeOptions);
+
+    if (!reloadPlan.restartGateway) {
+      respond(
+        true,
+        {
+          ok: true,
+          path: createConfigIO().configPath,
+          config: redactConfigObject(parsed.config, parsed.schema.uiHints),
+          restart: null,
+          sentinel: null,
+        },
+        undefined,
+      );
+      return;
+    }
 
     const { sessionKey, note, restartDelayMs, deliveryContext, threadId } =
       resolveConfigRestartRequest(params);

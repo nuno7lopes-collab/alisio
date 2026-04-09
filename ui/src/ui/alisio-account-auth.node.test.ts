@@ -9,7 +9,7 @@ describe("alisio account email link auth url helpers", () => {
   it("lê tokens de sessão a partir do fragmento Supabase", () => {
     expect(
       readAlisioAccountEmailLinkAuthResultFromUrl(
-        "http://localhost:18789/logout/setup?step=account#access_token=at_123&refresh_token=rt_456&expires_in=3600&token_type=bearer&type=magiclink",
+        "http://localhost:40705/logout/setup?step=account#access_token=at_123&refresh_token=rt_456&expires_in=3600&token_type=bearer&type=magiclink",
       ),
     ).toEqual({
       kind: "success",
@@ -24,7 +24,7 @@ describe("alisio account email link auth url helpers", () => {
   it("preserva o tipo de callback para recovery e email_change", () => {
     expect(
       readAlisioAccountEmailLinkAuthResultFromUrl(
-        "http://localhost:18789/logout/setup#access_token=at_123&type=recovery",
+        "http://localhost:40705/logout/setup#access_token=at_123&type=recovery",
       ),
     ).toEqual({
       kind: "success",
@@ -33,7 +33,7 @@ describe("alisio account email link auth url helpers", () => {
     });
     expect(
       readAlisioAccountEmailLinkAuthResultFromUrl(
-        "http://localhost:18789/logout/settings#access_token=at_123&type=email_change",
+        "http://localhost:40705/logout/settings#access_token=at_123&type=email_change",
       ),
     ).toEqual({
       kind: "success",
@@ -45,7 +45,7 @@ describe("alisio account email link auth url helpers", () => {
   it("normaliza erros comuns de links expirados", () => {
     expect(
       readAlisioAccountEmailLinkAuthResultFromUrl(
-        "http://localhost:18789/logout/setup#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
+        "http://localhost:40705/logout/setup#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired",
       ),
     ).toEqual({
       kind: "error",
@@ -56,32 +56,32 @@ describe("alisio account email link auth url helpers", () => {
   it("limpa tokens e erros do URL antes de o reutilizar como redirect", () => {
     expect(
       clearAlisioAccountEmailLinkAuthFromUrl(
-        "http://localhost:18789/logout/setup?step=account&error_description=stale#access_token=at_123&refresh_token=rt_456&sb=",
+        "http://localhost:40705/logout/setup?step=account&error_description=stale#access_token=at_123&refresh_token=rt_456&sb=",
       ),
-    ).toBe("http://localhost:18789/logout/setup?step=account");
+    ).toBe("http://localhost:40705/logout/setup?step=account");
   });
 
   it("preserva params genéricos sem sinal de callback de auth", () => {
     expect(
       clearAlisioAccountEmailLinkAuthFromUrl(
-        "http://localhost:18789/logout/setup?step=account&error=other&type=custom",
+        "http://localhost:40705/logout/setup?step=account&error=other&type=custom",
       ),
-    ).toBe("http://localhost:18789/logout/setup?step=account&error=other&type=custom");
+    ).toBe("http://localhost:40705/logout/setup?step=account&error=other&type=custom");
   });
 
   it("preserva um type conhecido quando aparece sozinho sem tokens nem erros", () => {
     expect(
       clearAlisioAccountEmailLinkAuthFromUrl(
-        "http://localhost:18789/logout/setup?step=account&type=magiclink",
+        "http://localhost:40705/logout/setup?step=account&type=magiclink",
       ),
-    ).toBe("http://localhost:18789/logout/setup?step=account&type=magiclink");
+    ).toBe("http://localhost:40705/logout/setup?step=account&type=magiclink");
   });
 
   it("gera um redirect reutilizável a partir da página actual", () => {
     expect(
       resolveAlisioAccountEmailRedirectUrl(
-        "http://localhost:18789/logout/setup?step=gateway#access_token=stale",
+        "http://localhost:40705/logout/setup?step=gateway#access_token=stale",
       ),
-    ).toBe("http://localhost:18789/logout/setup?step=gateway");
+    ).toBe("http://localhost:40705/logout/setup?step=gateway");
   });
 });

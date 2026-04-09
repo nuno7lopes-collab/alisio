@@ -2,6 +2,17 @@ type SharingOwnerScope = "user" | "organization";
 type SharingTargetSourceKind = "current" | "node";
 type SharingScope = "read-only" | "model-use" | "exec" | "device.use" | "model.use";
 type SharingRequestStatus = "pending" | "approved" | "denied" | "revoked" | "rejected";
+type SharingResource =
+  | "compute"
+  | "models"
+  | "jobs"
+  | "artifacts"
+  | "cache"
+  | "memory"
+  | "vault"
+  | "files"
+  | "context";
+type SharingResourcePolicyMode = "paired-device" | "light-approval" | "explicit-consent";
 type SharingAuditAction =
   | "policy.updated"
   | "request.created"
@@ -79,6 +90,7 @@ export type AlisioSharingCloudAuditRecord = {
 export type AlisioSharingCloudPolicyRecord = {
   ownerKey: string;
   allowExternalUse: boolean;
+  resourcePolicies?: Partial<Record<SharingResource, SharingResourcePolicyMode>>;
   updatedAt: string;
   updatedBy: AlisioSharingCloudPrincipal;
 };
@@ -250,6 +262,44 @@ function asStringArray(value: unknown): string[] {
   );
 }
 
+function normalizeResourcePolicyMode(value: unknown): SharingResourcePolicyMode | null {
+  switch (value) {
+    case "paired-device":
+    case "light-approval":
+    case "explicit-consent":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function asResourcePolicies(
+  value: unknown,
+): Partial<Record<SharingResource, SharingResourcePolicyMode>> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const record = value as Record<string, unknown>;
+  const result: Partial<Record<SharingResource, SharingResourcePolicyMode>> = {};
+  for (const resource of [
+    "compute",
+    "models",
+    "jobs",
+    "artifacts",
+    "cache",
+    "memory",
+    "vault",
+    "files",
+    "context",
+  ] as const satisfies SharingResource[]) {
+    const mode = normalizeResourcePolicyMode(record[resource]);
+    if (mode) {
+      result[resource] = mode;
+    }
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 function toPrincipal(
   prefix: string,
   row: Record<string, unknown>,
@@ -406,6 +456,9 @@ function policyRowToRecord(row: Record<string, unknown>): AlisioSharingCloudPoli
   return {
     ownerKey,
     allowExternalUse: asBoolean(row.allow_external_use),
+    ...(asResourcePolicies(row.resource_policies)
+      ? { resourcePolicies: asResourcePolicies(row.resource_policies) }
+      : {}),
     updatedAt,
     updatedBy,
   };
@@ -477,6 +530,7 @@ function toPolicyRow(policy: AlisioSharingCloudPolicyRecord) {
   return {
     owner_key: policy.ownerKey,
     allow_external_use: policy.allowExternalUse,
+    resource_policies: policy.resourcePolicies ?? null,
     updated_at: policy.updatedAt,
     updated_by_key: policy.updatedBy.ownerKey,
     updated_by_scope: policy.updatedBy.ownerScope,
@@ -678,14 +732,34 @@ export async function upsertAlisioSharingCloudPolicy(params: {
   if (!config) {
     throw new Error("The Alisio sharing cloud backend is not configured.");
   }
-  await upsertRows(
-    config,
-    config.policiesTable,
-    params.accessToken,
-    [toPolicyRow(params.policy)],
-    "owner_key",
-    params.fetchImpl ?? fetch,
-  );
+  const fetchImpl = params.fetchImpl ?? fetch;
+  const rows = [toPolicyRow(params.policy)];
+  try {
+    await upsertRows(
+      config,
+      config.policiesTable,
+      params.accessToken,
+      rows,
+      "owner_key",
+      fetchImpl,
+    );
+  } catch (error) {
+    const message = String(error);
+    // Temporary compatibility: older Supabase tables may not yet expose the
+    // resource_policies JSON column. Retry without it so sharing policy writes
+    // keep working while the hosted schema catches up.
+    if (!message.includes("resource_policies")) {
+      throw error;
+    }
+    await upsertRows(
+      config,
+      config.policiesTable,
+      params.accessToken,
+      rows.map(({ resource_policies: _resourcePolicies, ...row }) => row),
+      "owner_key",
+      fetchImpl,
+    );
+  }
 }
 
 export async function appendAlisioSharingCloudAuditEntry(params: {

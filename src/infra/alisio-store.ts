@@ -264,6 +264,27 @@ export type AlisioSharingOwnerScope = "user" | "organization";
 export type AlisioSharingRequestStatus = "pending" | "approved" | "denied" | "revoked";
 export type AlisioSharingTargetSourceKind = "current" | "node";
 export type AlisioSharingTargetAccess = "owner" | "shared" | "requestable" | "blocked";
+export type AlisioSharingResource =
+  | "compute"
+  | "models"
+  | "jobs"
+  | "artifacts"
+  | "cache"
+  | "memory"
+  | "vault"
+  | "files"
+  | "context";
+export type AlisioSharingResourcePolicyMode =
+  | "paired-device"
+  | "light-approval"
+  | "explicit-consent";
+export type AlisioSharingSuggestionKind =
+  | "model-reuse"
+  | "exec-upgrade"
+  | "distributed-jobs"
+  | "artifact-cache"
+  | "cache-reuse"
+  | "sensitive-consent";
 type AlisioLegacySharingScope = "device.use" | "model.use";
 type AlisioStoredSharingScope = AlisioSharingScope | AlisioLegacySharingScope;
 type AlisioLegacySharingRequestStatus = "rejected";
@@ -359,9 +380,25 @@ export type AlisioSharingAuditEntry = {
   createdAt: string;
 };
 
+export type AlisioSharingResourcePolicies = Record<
+  AlisioSharingResource,
+  AlisioSharingResourcePolicyMode
+>;
+
+export type AlisioSharingSuggestion = {
+  suggestionId: string;
+  kind: AlisioSharingSuggestionKind;
+  resource: AlisioSharingResource;
+  targetId?: string;
+  targetLabel?: string;
+  sameAccount?: boolean;
+  scopes?: AlisioSharingScope[];
+};
+
 export type AlisioSharingPolicyState = {
   ownerKey: string;
   allowExternalUse: boolean;
+  resourcePolicies?: Partial<AlisioSharingResourcePolicies>;
   updatedAt: string;
   updatedBy: AlisioSharingPrincipal;
 };
@@ -371,9 +408,12 @@ export type AlisioSharingState = {
   planSupported: boolean;
   policy: {
     ownerKey?: string;
+    ownerScope?: AlisioSharingOwnerScope;
     ownerLabel?: string;
     allowExternalUse: boolean;
     editable: boolean;
+    resourcesEditable: boolean;
+    resourcePolicies: AlisioSharingResourcePolicies;
     upgradeMessage?: string;
   };
   devices: {
@@ -386,6 +426,7 @@ export type AlisioSharingState = {
   approvals: AlisioSharingGrantState[];
   grants: AlisioSharingGrantState[];
   audit: AlisioSharingAuditEntry[];
+  suggestions: AlisioSharingSuggestion[];
 };
 
 type AlisioStoredSharingTarget = {
@@ -452,6 +493,13 @@ export type AlisioAccountState = {
   session: AlisioAccountSession;
   devices: AlisioLocalDeviceSession[];
   cloud: AlisioAccountCloudState;
+};
+
+export type AlisioCloudAccessSession = {
+  backend: AlisioAccountBackend;
+  userId: string;
+  accessToken: string;
+  email?: string;
 };
 
 export type AlisioBootstrapSnapshot = {
@@ -3094,6 +3142,28 @@ const ALISIO_SHARING_SCOPE_ORDER: readonly AlisioSharingScope[] = [
   "model-use",
   "exec",
 ];
+const ALISIO_SHARING_RESOURCE_ORDER: readonly AlisioSharingResource[] = [
+  "compute",
+  "models",
+  "jobs",
+  "artifacts",
+  "cache",
+  "memory",
+  "vault",
+  "files",
+  "context",
+];
+const ALISIO_DEFAULT_SHARING_RESOURCE_POLICIES: AlisioSharingResourcePolicies = {
+  compute: "light-approval",
+  models: "paired-device",
+  jobs: "light-approval",
+  artifacts: "paired-device",
+  cache: "paired-device",
+  memory: "explicit-consent",
+  vault: "explicit-consent",
+  files: "explicit-consent",
+  context: "explicit-consent",
+};
 const ALISIO_LEGACY_SHARING_SCOPE_REPLACEMENTS: Record<
   AlisioLegacySharingScope,
   AlisioSharingScope
@@ -3110,7 +3180,7 @@ function warnOnLegacySharingScopeInput(
       const replacement = ALISIO_LEGACY_SHARING_SCOPE_REPLACEMENTS[scope];
       warnLegacyCompatibilityOnce({
         key: `sharing-scope:${scope}`,
-        message: `Legacy sharing scope alias "${scope}" is deprecated.`,
+        message: `Legacy sharing scope alias "${scope}" is deprecated and scheduled for removal after 2026-06-30.`,
         replacement: `"${replacement}"`,
       });
     }
@@ -3160,6 +3230,78 @@ function normalizeAlisioSharingScopes(
   );
 }
 
+function normalizeAlisioSharingResourcePolicyMode(
+  value: string | null | undefined,
+): AlisioSharingResourcePolicyMode | null {
+  switch (value) {
+    case "paired-device":
+    case "light-approval":
+    case "explicit-consent":
+      return value;
+    default:
+      return null;
+  }
+}
+
+function normalizeAlisioSharingResourcePolicies(
+  policies: Partial<Record<string, string>> | undefined,
+): AlisioSharingResourcePolicies {
+  const resolved = {
+    ...ALISIO_DEFAULT_SHARING_RESOURCE_POLICIES,
+  } satisfies AlisioSharingResourcePolicies;
+  for (const resource of ALISIO_SHARING_RESOURCE_ORDER) {
+    const normalized = normalizeAlisioSharingResourcePolicyMode(policies?.[resource]);
+    if (normalized) {
+      resolved[resource] = normalized;
+    }
+  }
+  return resolved;
+}
+
+function describeSharingResourcePolicyMode(
+  mode: AlisioSharingResourcePolicyMode,
+): "paired device" | "light approval" | "explicit consent" {
+  switch (mode) {
+    case "paired-device":
+      return "paired device";
+    case "light-approval":
+      return "light approval";
+    case "explicit-consent":
+      return "explicit consent";
+  }
+}
+
+function normalizeAlisioSharingResourcePolicyPatch(
+  policies: Partial<Record<string, string>> | undefined,
+): Partial<AlisioSharingResourcePolicies> {
+  const patch: Partial<AlisioSharingResourcePolicies> = {};
+  for (const resource of ALISIO_SHARING_RESOURCE_ORDER) {
+    const normalized = normalizeAlisioSharingResourcePolicyMode(policies?.[resource]);
+    if (normalized) {
+      patch[resource] = normalized;
+    }
+  }
+  return patch;
+}
+
+function assertSupportedAlisioSharingResourcePolicyPatch(
+  patch: Partial<AlisioSharingResourcePolicies>,
+) {
+  for (const resource of [
+    "memory",
+    "vault",
+    "files",
+    "context",
+  ] satisfies AlisioSharingResource[]) {
+    const mode = patch[resource];
+    if (mode && mode !== "explicit-consent") {
+      throw new AlisioAccountValidationError(
+        `${resource} sharing must remain behind explicit consent.`,
+      );
+    }
+  }
+}
+
 function canApproveAlisioSharingScopes(params: {
   requested: readonly AlisioStoredSharingScope[] | undefined;
   approved: readonly AlisioStoredSharingScope[] | undefined;
@@ -3174,15 +3316,20 @@ function resolveActiveAlisioSharingCloudAccessToken(
   env?: NodeJS.ProcessEnv,
 ) {
   const runtimeEnv = env ?? process.env;
+  const accessToken = readStoredAccessToken(state.account.cloudSession, runtimeEnv)?.trim() || "";
   if (
     !canUseAlisioSharingCloud({
       env: runtimeEnv,
-      cloudSession: state.account.cloudSession,
+      cloudSession: {
+        backend: state.account.cloudSession?.backend,
+        state: state.account.cloudSession?.state,
+        accessToken,
+      },
     })
   ) {
     return null;
   }
-  return state.account.cloudSession?.accessToken?.trim() || null;
+  return accessToken || null;
 }
 
 function toAlisioSharingCloudPrincipal(
@@ -3209,6 +3356,29 @@ function toAlisioSharingCloudRuntimeTarget(
   };
 }
 
+function mergeRemoteAndLocalSharingPolicies(
+  remotePolicies: Record<string, AlisioSharingPolicyState> | undefined,
+  localPolicies: Record<string, AlisioSharingPolicyState> | undefined,
+) {
+  const merged: Record<string, AlisioSharingPolicyState> = {
+    ...remotePolicies,
+  };
+  for (const [ownerKey, localPolicy] of Object.entries(localPolicies ?? {})) {
+    const remotePolicy = merged[ownerKey];
+    if (!remotePolicy) {
+      merged[ownerKey] = localPolicy;
+      continue;
+    }
+    if (!remotePolicy.resourcePolicies && localPolicy.resourcePolicies) {
+      merged[ownerKey] = {
+        ...remotePolicy,
+        resourcePolicies: localPolicy.resourcePolicies,
+      };
+    }
+  }
+  return merged;
+}
+
 async function loadAlisioSharingStateFromCloud(
   state: AlisioStoredState,
   input?: { targets?: readonly AlisioSharingRuntimeTarget[] },
@@ -3219,7 +3389,7 @@ async function loadAlisioSharingStateFromCloud(
     return null;
   }
   const viewer = buildCurrentSharingPrincipal(state);
-  return await loadAlisioSharingCloudState({
+  const remote = await loadAlisioSharingCloudState({
     env,
     accessToken,
     viewer: toAlisioSharingCloudPrincipal(viewer),
@@ -3227,6 +3397,10 @@ async function loadAlisioSharingStateFromCloud(
       ? { targets: input.targets.map((target) => toAlisioSharingCloudRuntimeTarget(target)) }
       : {}),
   });
+  return {
+    ...remote,
+    policies: mergeRemoteAndLocalSharingPolicies(remote.policies, state.sharing?.policies),
+  };
 }
 
 function normalizeAlisioSharingRequestStatus(
@@ -3341,6 +3515,15 @@ function resolveAlisioSharingPolicyForOwner(
   return policy ?? null;
 }
 
+function resolveAlisioSharingResourcePoliciesForOwner(
+  state: AlisioStoredState,
+  ownerKey: string,
+): AlisioSharingResourcePolicies {
+  return normalizeAlisioSharingResourcePolicies(
+    resolveAlisioSharingPolicyForOwner(state, ownerKey)?.resourcePolicies,
+  );
+}
+
 function resolveLatestSharingRequest(params: {
   requests: Record<string, AlisioStoredSharingRequest> | undefined;
   targetId: string;
@@ -3396,6 +3579,7 @@ function isLinkedSameAccountSharingTarget(params: {
 }
 
 function resolveLinkedSameAccountDefaultScopes(params: {
+  state: AlisioStoredState;
   target: AlisioStoredSharingTarget;
   viewer: AlisioSharingPrincipal;
   planSupported: boolean;
@@ -3409,8 +3593,24 @@ function resolveLinkedSameAccountDefaultScopes(params: {
   ) {
     return [] as AlisioSharingScope[];
   }
-  // After initial device pairing, same-account devices auto-share model access.
-  return [...ALISIO_DEFAULT_SHARING_SCOPES];
+  const resourcePolicies = resolveAlisioSharingResourcePoliciesForOwner(
+    params.state,
+    params.viewer.ownerKey,
+  );
+  const scopes: AlisioSharingScope[] = ["read-only"];
+  // Same-account defaults are policy-driven: models can auto-share after pairing,
+  // while execution only auto-shares when both compute and job routing are relaxed.
+  if (resourcePolicies.models === "paired-device") {
+    scopes.push("model-use");
+  }
+  if (
+    resourcePolicies.models === "paired-device" &&
+    resourcePolicies.compute === "paired-device" &&
+    resourcePolicies.jobs === "paired-device"
+  ) {
+    scopes.push("exec");
+  }
+  return normalizeAlisioSharingScopes(scopes);
 }
 
 function buildAlisioSharingTargetState(params: {
@@ -3496,6 +3696,103 @@ function buildAlisioSharingTargetState(params: {
   };
 }
 
+function hasSharedAlisioTargetAccess(
+  target: Pick<AlisioSharingTargetState, "deviceAccess" | "modelAccess" | "execAccess">,
+) {
+  return (
+    target.deviceAccess === "shared" ||
+    target.modelAccess === "shared" ||
+    target.execAccess === "shared"
+  );
+}
+
+function hasRequestableAlisioTargetAccess(
+  target: Pick<AlisioSharingTargetState, "deviceAccess" | "modelAccess" | "execAccess">,
+) {
+  return (
+    target.deviceAccess === "requestable" ||
+    target.modelAccess === "requestable" ||
+    target.execAccess === "requestable"
+  );
+}
+
+function buildAlisioSharingSuggestions(params: {
+  viewer: AlisioSharingPrincipal;
+  resourcePolicies: AlisioSharingResourcePolicies;
+  sharedWithMe: readonly AlisioSharingTargetState[];
+}): AlisioSharingSuggestion[] {
+  const suggestions: AlisioSharingSuggestion[] = [];
+  const firstSharedModelTarget = params.sharedWithMe.find(
+    (target) => target.connected && target.modelAccess === "shared",
+  );
+  const firstExecUpgradeTarget = params.sharedWithMe.find(
+    (target) =>
+      target.connected && target.modelAccess === "shared" && target.execAccess === "requestable",
+  );
+  const firstExecReadyTarget = params.sharedWithMe.find(
+    (target) => target.connected && target.execAccess === "shared",
+  );
+
+  if (firstSharedModelTarget) {
+    suggestions.push({
+      suggestionId: `model-reuse:${firstSharedModelTarget.targetId}`,
+      kind: "model-reuse",
+      resource: "models",
+      targetId: firstSharedModelTarget.targetId,
+      targetLabel: firstSharedModelTarget.label,
+      sameAccount: firstSharedModelTarget.ownerKey === params.viewer.ownerKey,
+    });
+    if (params.resourcePolicies.artifacts !== "explicit-consent") {
+      suggestions.push({
+        suggestionId: `artifact-cache:${firstSharedModelTarget.targetId}`,
+        kind: "artifact-cache",
+        resource: "artifacts",
+        targetId: firstSharedModelTarget.targetId,
+        targetLabel: firstSharedModelTarget.label,
+        sameAccount: firstSharedModelTarget.ownerKey === params.viewer.ownerKey,
+      });
+    }
+    if (params.resourcePolicies.cache !== "explicit-consent") {
+      suggestions.push({
+        suggestionId: `cache-reuse:${firstSharedModelTarget.targetId}`,
+        kind: "cache-reuse",
+        resource: "cache",
+        targetId: firstSharedModelTarget.targetId,
+        targetLabel: firstSharedModelTarget.label,
+        sameAccount: firstSharedModelTarget.ownerKey === params.viewer.ownerKey,
+      });
+    }
+  }
+  if (firstExecUpgradeTarget) {
+    suggestions.push({
+      suggestionId: `exec-upgrade:${firstExecUpgradeTarget.targetId}`,
+      kind: "exec-upgrade",
+      resource: "compute",
+      targetId: firstExecUpgradeTarget.targetId,
+      targetLabel: firstExecUpgradeTarget.label,
+      sameAccount: firstExecUpgradeTarget.ownerKey === params.viewer.ownerKey,
+      scopes: ["read-only", "model-use", "exec"],
+    });
+  } else if (firstExecReadyTarget) {
+    suggestions.push({
+      suggestionId: `distributed-jobs:${firstExecReadyTarget.targetId}`,
+      kind: "distributed-jobs",
+      resource: "jobs",
+      targetId: firstExecReadyTarget.targetId,
+      targetLabel: firstExecReadyTarget.label,
+      sameAccount: firstExecReadyTarget.ownerKey === params.viewer.ownerKey,
+    });
+  }
+
+  suggestions.push({
+    suggestionId: "sensitive-consent",
+    kind: "sensitive-consent",
+    resource: "context",
+  });
+
+  return suggestions;
+}
+
 function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): AlisioSharingState {
   const viewer = buildCurrentSharingPrincipal(state);
   const sharingGate = gateAlisioSharing({
@@ -3506,10 +3803,15 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
     plan: resolveStoredAlisioPlan(state),
     organization: state.organization,
   });
-  const currentPolicyOwnerKey = viewer.ownerScope === "organization" ? viewer.ownerKey : undefined;
+  const currentPolicyOwnerKey = viewer.ownerKey;
   const currentPolicy = currentPolicyOwnerKey
     ? resolveAlisioSharingPolicyForOwner(state, currentPolicyOwnerKey)
     : null;
+  const resourcePolicies = resolveAlisioSharingResourcePoliciesForOwner(state, viewer.ownerKey);
+  const resourcesEditable =
+    sharingGate.ok &&
+    (viewer.ownerScope === "user" ||
+      (effectiveOrganization.mode === "owner" && viewer.ownerScope === "organization"));
   const targets = Object.values(state.sharing?.targets ?? {}).map((target) =>
     buildAlisioSharingTargetState({
       state,
@@ -3532,15 +3834,21 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
     )
     .map(toAlisioSharingGrantState);
   const approvals = grants;
-  return {
+  const result = {
     viewer,
     planSupported,
     policy: {
       ...(currentPolicyOwnerKey
-        ? { ownerKey: currentPolicyOwnerKey, ownerLabel: viewer.label }
+        ? {
+            ownerKey: currentPolicyOwnerKey,
+            ownerScope: viewer.ownerScope,
+            ownerLabel: viewer.label,
+          }
         : {}),
       allowExternalUse: currentPolicy?.allowExternalUse === true,
       editable: effectiveOrganization.mode === "owner" && viewer.ownerScope === "organization",
+      resourcesEditable,
+      resourcePolicies,
       ...(!sharingGate.ok ? { upgradeMessage: sharingGate.message } : {}),
     },
     devices: {
@@ -3551,18 +3859,15 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
         targets.filter(
           (target) =>
             (target.ownerKey !== viewer.ownerKey || !target.current) &&
-            (target.deviceAccess === "shared" ||
-              target.modelAccess === "shared" ||
-              target.execAccess === "shared"),
+            hasSharedAlisioTargetAccess(target),
         ),
       ),
       available: sortAlisioSharingTargets(
         targets.filter(
           (target) =>
             (target.ownerKey !== viewer.ownerKey || !target.current) &&
-            (target.deviceAccess === "requestable" ||
-              target.modelAccess === "requestable" ||
-              target.execAccess === "requestable"),
+            !hasSharedAlisioTargetAccess(target) &&
+            hasRequestableAlisioTargetAccess(target),
         ),
       ),
     },
@@ -3571,7 +3876,14 @@ function buildAlisioSharingStateFromStoredState(state: AlisioStoredState): Alisi
     approvals: sortAlisioSharingGrants(approvals),
     grants: sortAlisioSharingGrants(grants),
     audit: sortAlisioSharingAudit((state.sharing?.audit ?? []).map(toAlisioSharingAuditEntry)),
-  };
+    suggestions: [] as AlisioSharingSuggestion[],
+  } satisfies AlisioSharingState;
+  result.suggestions = buildAlisioSharingSuggestions({
+    viewer,
+    resourcePolicies,
+    sharedWithMe: result.devices.sharedWithMe,
+  });
+  return result;
 }
 
 function collectStoredAiAuthProfileIds(state: AlisioStoredState): string[] {
@@ -3929,6 +4241,25 @@ export async function getAlisioAccountState(env?: NodeJS.ProcessEnv): Promise<Al
     session: state.account.session,
     devices: [currentDevice()],
     cloud: getAlisioAccountCloudState(runtimeEnv),
+  };
+}
+
+export async function getAlisioActiveCloudAccessSession(
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioCloudAccessSession | null> {
+  const runtimeEnv = env ?? process.env;
+  const state = await loadStoredState(runtimeEnv);
+  const session = state.account.cloudSession;
+  const accessToken = resolveActiveAlisioSharingCloudAccessToken(state, runtimeEnv);
+  const userId = session?.userId?.trim();
+  if (!accessToken || !userId || session?.state !== "signed_in" || !session.backend) {
+    return null;
+  }
+  return {
+    backend: session.backend,
+    userId,
+    accessToken,
+    ...(session.email?.trim() ? { email: session.email.trim().toLowerCase() } : {}),
   };
 }
 
@@ -5131,7 +5462,11 @@ type AlisioSharingRevokeMutation = {
 };
 
 type AlisioSharingPolicyMutation = {
-  result: { ok: true; allowExternalUse: boolean };
+  result: {
+    ok: true;
+    allowExternalUse: boolean;
+    resourcePolicies: AlisioSharingResourcePolicies;
+  };
   policy: AlisioSharingPolicyState;
   auditEntry: AlisioSharingAuditEntry;
 };
@@ -5174,6 +5509,7 @@ function requestAlisioSharingAccessOnState(
       ? normalizeAlisioSharingScopes(existingGrant.scopes)
       : [];
     const defaultScopes = resolveLinkedSameAccountDefaultScopes({
+      state,
       target,
       viewer,
       planSupported: true,
@@ -5532,7 +5868,10 @@ function revokeAlisioSharingGrantOnState(
 
 function setAlisioSharingPolicyOnState(
   state: AlisioStoredState,
-  input: { allowExternalUse: boolean },
+  input: {
+    allowExternalUse?: boolean;
+    resourcePolicies?: Partial<Record<AlisioSharingResource, AlisioSharingResourcePolicyMode>>;
+  },
   env?: NodeJS.ProcessEnv,
 ): AlisioSharingPolicyMutation {
   assertAlisioAccountSetupAccess(state, "organization", env ?? process.env);
@@ -5544,15 +5883,39 @@ function setAlisioSharingPolicyOnState(
     plan: resolveStoredAlisioPlan(state),
     organization: state.organization,
   });
-  if (effectiveOrganization.mode !== "owner") {
+  const viewer = buildCurrentSharingPrincipal(state);
+  const canEditExternalUse =
+    effectiveOrganization.mode === "owner" && viewer.ownerScope === "organization";
+  const canEditResourcePolicies =
+    viewer.ownerScope === "user" || effectiveOrganization.mode === "owner";
+  if (input.allowExternalUse === undefined && !input.resourcePolicies) {
+    throw new AlisioAccountValidationError("A sharing policy change is required.");
+  }
+  if (input.allowExternalUse !== undefined && !canEditExternalUse) {
     throw new AlisioAccountValidationError(
       "Only organization owners can change external sharing policy.",
     );
   }
-  const viewer = buildCurrentSharingPrincipal(state);
+  if (input.resourcePolicies && !canEditResourcePolicies) {
+    throw new AlisioAccountValidationError(
+      "Only the active owner context can change sharing policy.",
+    );
+  }
+  const currentPolicy = resolveAlisioSharingPolicyForOwner(state, viewer.ownerKey);
+  const currentResourcePolicies = resolveAlisioSharingResourcePoliciesForOwner(
+    state,
+    viewer.ownerKey,
+  );
+  const resourcePolicyPatch = normalizeAlisioSharingResourcePolicyPatch(input.resourcePolicies);
+  assertSupportedAlisioSharingResourcePolicyPatch(resourcePolicyPatch);
+  const nextResourcePolicies = {
+    ...currentResourcePolicies,
+    ...resourcePolicyPatch,
+  } satisfies AlisioSharingResourcePolicies;
   const nextPolicy = {
     ownerKey: viewer.ownerKey,
-    allowExternalUse: input.allowExternalUse,
+    allowExternalUse: input.allowExternalUse ?? currentPolicy?.allowExternalUse ?? false,
+    resourcePolicies: nextResourcePolicies,
     updatedAt: new Date().toISOString(),
     updatedBy: viewer,
   } satisfies AlisioSharingPolicyState;
@@ -5560,13 +5923,39 @@ function setAlisioSharingPolicyOnState(
     ...state.sharing?.policies,
     [viewer.ownerKey]: nextPolicy,
   };
+  const summaryParts: string[] = [];
+  if (input.allowExternalUse !== undefined) {
+    summaryParts.push(`${input.allowExternalUse ? "enabled" : "disabled"} external device sharing`);
+  }
+  const changedResources = ALISIO_SHARING_RESOURCE_ORDER.filter(
+    (resource) =>
+      resourcePolicyPatch[resource] &&
+      currentResourcePolicies[resource] !== nextResourcePolicies[resource],
+  );
+  if (changedResources.length > 0) {
+    summaryParts.push(
+      `updated ${changedResources
+        .map(
+          (resource) =>
+            `${resource}=${describeSharingResourcePolicyMode(nextResourcePolicies[resource])}`,
+        )
+        .join(", ")}`,
+    );
+  }
   const auditEntry = appendAlisioSharingAuditEntry(state, {
     action: "policy.updated",
     actor: viewer,
-    summary: `${viewer.label} ${input.allowExternalUse ? "enabled" : "disabled"} external device sharing.`,
+    summary:
+      summaryParts.length > 0
+        ? `${viewer.label} ${summaryParts.join("; ")}.`
+        : `${viewer.label} updated sharing policy.`,
   });
   return {
-    result: { ok: true, allowExternalUse: input.allowExternalUse },
+    result: {
+      ok: true,
+      allowExternalUse: nextPolicy.allowExternalUse,
+      resourcePolicies: nextResourcePolicies,
+    },
     policy: nextPolicy,
     auditEntry,
   };
@@ -5777,9 +6166,16 @@ export async function revokeAlisioSharingGrant(
 }
 
 export async function setAlisioSharingPolicy(
-  input: { allowExternalUse: boolean },
+  input: {
+    allowExternalUse?: boolean;
+    resourcePolicies?: Partial<Record<AlisioSharingResource, AlisioSharingResourcePolicyMode>>;
+  },
   env?: NodeJS.ProcessEnv,
-): Promise<{ ok: true; allowExternalUse: boolean }> {
+): Promise<{
+  ok: true;
+  allowExternalUse: boolean;
+  resourcePolicies: AlisioSharingResourcePolicies;
+}> {
   return withLock(async () => {
     const state = await loadStoredState(env);
     const remoteSharing = await loadAlisioSharingStateFromCloud(state, undefined, env);
@@ -5803,6 +6199,11 @@ export async function setAlisioSharingPolicy(
         accessToken,
         entry: mutation.auditEntry,
       });
+      ensureStoredSharingState(state).policies = {
+        ...state.sharing?.policies,
+        [mutation.policy.ownerKey]: mutation.policy,
+      };
+      await persistState(state, env);
       return mutation.result;
     }
     const mutation = setAlisioSharingPolicyOnState(state, input, env);

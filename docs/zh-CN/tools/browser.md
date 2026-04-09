@@ -61,7 +61,7 @@ openclaw browser --browser-profile openclaw snapshot
 {
   browser: {
     enabled: true, // default: true
-    // cdpUrl: "http://127.0.0.1:18792", // legacy single-profile override
+    // cdpUrl: "http://127.0.0.1:40708", // legacy single-profile override
     remoteCdpTimeoutMs: 1500, // remote CDP HTTP timeout (ms)
     remoteCdpHandshakeTimeoutMs: 3000, // remote CDP WebSocket handshake timeout (ms)
     defaultProfile: "chrome",
@@ -71,8 +71,8 @@ openclaw browser --browser-profile openclaw snapshot
     attachOnly: false,
     executablePath: "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
     profiles: {
-      openclaw: { cdpPort: 18800, color: "#FF4500" },
-      work: { cdpPort: 18801, color: "#0066CC" },
+      openclaw: { cdpPort: 40716, color: "#FF4500" },
+      work: { cdpPort: 40717, color: "#0066CC" },
       remote: { cdpUrl: "http://10.0.0.42:9222", color: "#00AA00" },
     },
   },
@@ -81,7 +81,7 @@ openclaw browser --browser-profile openclaw snapshot
 
 注意事项：
 
-- 浏览器控制服务绑定到 loopback 上的端口，该端口从 `gateway.port` 派生（默认：`18791`，即 gateway + 2）。中继使用下一个端口（`18792`）。
+- 浏览器控制服务绑定到 loopback 上的端口，该端口从 `gateway.port` 派生（默认：`40707`，即 gateway + 2）。中继使用下一个端口（`40708`）。
 - 如果你覆盖了 Gateway 网关端口（`gateway.port` 或 `OPENCLAW_GATEWAY_PORT`），派生的浏览器端口会相应调整以保持在同一"系列"中。
 - 未设置时，`cdpUrl` 默认为中继端口。
 - `remoteCdpTimeoutMs` 适用于远程（非 loopback）CDP 可达性检查。
@@ -202,8 +202,8 @@ OpenClaw 支持多个命名配置文件（路由配置）。配置文件可以�
 默认值：
 
 - 如果缺少 `openclaw` 配置文件，会自动创建。
-- `chrome` 配置文件是内置的，用于 Chrome 扩展中继（默认指向 `http://127.0.0.1:18792`）。
-- 本地 CDP 端口默认从 **18800–18899** 分配。
+- `chrome` 配置文件是内置的，用于 Chrome 扩展中继（默认指向 `http://127.0.0.1:40708`）。
+- 本地 CDP 端口默认从 **40716–40815** 分配。
 - 删除配置文件会将其本地数据目录移至回收站。
 
 所有控制端点接受 `?profile=<name>`；CLI 使用 `--browser-profile`。
@@ -217,7 +217,7 @@ OpenClaw 还可以通过本地 CDP 中继 + Chrome 扩展驱动**你现有的 Ch
 流程：
 
 - Gateway 网关在本地运行（同一台机器）或节点主机在浏览器所在机器上运行。
-- 本地**中继服务器**在 loopback 的 `cdpUrl` 上监听（默认：`http://127.0.0.1:18792`）。
+- 本地**中继服务器**在 loopback 的 `cdpUrl` 上监听（默认：`http://127.0.0.1:40708`）。
 - 你点击标签页上的 **OpenClaw Browser Relay** 扩展图标来附加（它不会自动附加）。
 - 智能体通过选择正确的配置文件，使用普通的 `browser` 工具控制该标签页。
 
@@ -254,7 +254,7 @@ openclaw browser extension install
 openclaw browser create-profile \
   --name my-chrome \
   --driver extension \
-  --cdp-url http://127.0.0.1:18792 \
+  --cdp-url http://127.0.0.1:40708 \
   --color "#00AA00"
 ```
 

@@ -57,10 +57,10 @@ Key options:
 - `thread: true` to bind the spawn to a chat thread while the task is active.
 - `sandbox: "require"` to enforce sandboxing on the child.
 
-For `runtime: "subagent"`, the child is always an ephemeral worker. Legacy
-`mode: "session"` requests are normalized to `run` for compatibility and are
-scheduled for removal after 2026-06-30. Persistent thread-bound conversations
-are handled by `runtime: "acp"`, not by internal sub-agents.
+For `runtime: "subagent"`, the child is always an ephemeral worker under the
+current agent identity. `mode: "session"` is rejected for internal sub-agents.
+Persistent thread-bound conversations and cross-agent identities are handled by
+`runtime: "acp"`, not by internal sub-agents.
 
 Sub-agents get the full tool set minus session tools (no recursive spawning).
 After completion, an announce step posts the result to the requester's channel.

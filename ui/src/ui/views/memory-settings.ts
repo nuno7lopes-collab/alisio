@@ -115,12 +115,10 @@ function buildMemorySettingsModel(
   const uiHints: ConfigUiHints = {
     memory: {
       label: t("alisio.memory.settings.backendTitle"),
-      help: t("alisio.memory.settings.backendHelp"),
       order: 10,
     },
     defaults: {
       label: t("alisio.memory.settings.defaultsTitle"),
-      help: t("alisio.memory.settings.defaultsHelp"),
       order: 20,
     },
   };
@@ -129,7 +127,6 @@ function buildMemorySettingsModel(
     properties.memory = {
       ...memorySchema,
       title: t("alisio.memory.settings.backendTitle"),
-      description: t("alisio.memory.settings.backendHelp"),
     };
     Object.assign(
       uiHints,
@@ -146,7 +143,6 @@ function buildMemorySettingsModel(
     properties.defaults = {
       ...defaultsSchema,
       title: t("alisio.memory.settings.defaultsTitle"),
-      description: t("alisio.memory.settings.defaultsHelp"),
     };
     Object.assign(
       uiHints,
@@ -163,19 +159,9 @@ function buildMemorySettingsModel(
     properties.agent = {
       ...entrySchema,
       title: t("alisio.memory.settings.agentTitle"),
-      description: props.selectedAgentLabel
-        ? t("alisio.memory.settings.agentHelpNamed", {
-            agent: props.selectedAgentLabel,
-          })
-        : t("alisio.memory.settings.agentHelp"),
     };
     uiHints.agent = {
       label: t("alisio.memory.settings.agentTitle"),
-      help: props.selectedAgentLabel
-        ? t("alisio.memory.settings.agentHelpNamed", {
-            agent: props.selectedAgentLabel,
-          })
-        : t("alisio.memory.settings.agentHelp"),
       order: 30,
     };
     Object.assign(
@@ -253,7 +239,6 @@ function mapMemorySettingsPath(
 export function renderMemorySettings(props: MemorySettingsProps) {
   const model = buildMemorySettingsModel(props);
   const title = t("alisio.memory.settings.title");
-  const subtitle = t("alisio.memory.settings.subtitle");
   const unavailable = t("alisio.memory.settings.unavailable");
   const save = t("alisio.memory.settings.save");
   const saving = t("alisio.memory.settings.saving");
@@ -262,10 +247,7 @@ export function renderMemorySettings(props: MemorySettingsProps) {
   return html`
     <section class="alisio-memory-settings">
       <div class="alisio-memory-settings__header">
-        <div class="alisio-memory-settings__copy">
-          <h3>${title}</h3>
-          <p>${subtitle}</p>
-        </div>
+        <div class="alisio-memory-settings__copy"><h3>${title}</h3></div>
         <div class="alisio-memory-settings__actions">
           ${props.dirty ? html`<span class="alisio-memory-badge">${unsaved}</span>` : nothing}
           <button

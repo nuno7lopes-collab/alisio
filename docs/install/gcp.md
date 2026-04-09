@@ -212,7 +212,7 @@ For the generic Docker flow, see [Docker](/install/docker).
     ALISIO_IMAGE=alisio:latest
     ALISIO_GATEWAY_TOKEN=change-me-now
     ALISIO_GATEWAY_BIND=lan
-    ALISIO_GATEWAY_PORT=18789
+    ALISIO_GATEWAY_PORT=40705
 
     ALISIO_CONFIG_DIR=/home/$USER/.alisio
     ALISIO_WORKSPACE_DIR=/home/$USER/.alisio/workspace
@@ -258,7 +258,7 @@ For the generic Docker flow, see [Docker](/install/docker).
         ports:
           # Recommended: keep the Gateway loopback-only on the VM; access via SSH tunnel.
           # To expose it publicly, remove the `127.0.0.1:` prefix and firewall accordingly.
-          - "127.0.0.1:${ALISIO_GATEWAY_PORT}:18789"
+          - "127.0.0.1:${ALISIO_GATEWAY_PORT}:40705"
         command:
           [
             "node",
@@ -292,10 +292,10 @@ For the generic Docker flow, see [Docker](/install/docker).
     When binding to LAN (`ALISIO_GATEWAY_BIND=lan`), configure a trusted browser origin before continuing:
 
     ```bash
-    docker compose run --rm alisio-cli config set gateway.controlUi.allowedOrigins '["http://127.0.0.1:18789"]' --strict-json
+    docker compose run --rm alisio-cli config set gateway.controlUi.allowedOrigins '["http://127.0.0.1:40705"]' --strict-json
     ```
 
-    If you changed the gateway port, replace `18789` with your configured port.
+    If you changed the gateway port, replace `40705` with your configured port.
 
   </Step>
 
@@ -303,12 +303,12 @@ For the generic Docker flow, see [Docker](/install/docker).
     Create an SSH tunnel to forward the Gateway port:
 
     ```bash
-    gcloud compute ssh alisio-gateway --zone=us-central1-a -- -L 18789:127.0.0.1:18789
+    gcloud compute ssh alisio-gateway --zone=us-central1-a -- -L 40705:127.0.0.1:40705
     ```
 
     Open in your browser:
 
-    `http://127.0.0.1:18789/`
+    `http://127.0.0.1:40705/`
 
     Fetch a fresh tokenized dashboard link:
 

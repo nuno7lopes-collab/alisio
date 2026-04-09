@@ -219,8 +219,8 @@ echo "Waiting for rollout..."
 kubectl rollout status deployment/alisio -n "$NS" --timeout=300s
 echo ""
 echo "Done. Access the gateway:"
-echo "  kubectl port-forward svc/alisio 18789:18789 -n $NS"
-echo "  open http://localhost:18789"
+echo "  kubectl port-forward svc/alisio 40705:40705 -n $NS"
+echo "  open http://localhost:40705"
 echo ""
 if $SHOW_TOKEN; then
   echo "Gateway token (paste into Control UI):"

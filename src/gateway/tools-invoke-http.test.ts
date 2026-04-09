@@ -243,7 +243,7 @@ beforeEach(() => {
 const resolveGatewayToken = (): string => TEST_GATEWAY_TOKEN;
 const gatewayAuthHeaders = () => ({ authorization: `Bearer ${resolveGatewayToken()}` });
 
-const allowAgentsListForMain = () => {
+const enableAgentsListToolForMain = () => {
   cfg = {
     ...cfg,
     agents: {
@@ -360,7 +360,7 @@ const setMainAllowedTools = (params: {
 
 describe("POST /tools/invoke", () => {
   it("invokes a tool and returns {ok:true,result}", async () => {
-    allowAgentsListForMain();
+    enableAgentsListToolForMain();
     const res = await invokeAgentsListAuthed({ sessionKey: "main" });
 
     expect(res.status).toBe(200);
@@ -381,7 +381,7 @@ describe("POST /tools/invoke", () => {
   });
 
   it("opts direct gateway tool invocation into gateway subagent binding", async () => {
-    allowAgentsListForMain();
+    enableAgentsListToolForMain();
     const res = await invokeAgentsListAuthed({ sessionKey: "main" });
 
     expect(res.status).toBe(200);
@@ -458,7 +458,7 @@ describe("POST /tools/invoke", () => {
       res.end("plugin");
       return true;
     });
-    allowAgentsListForMain();
+    enableAgentsListToolForMain();
     pluginHttpHandlers = [async (req, res) => pluginHandler(req, res)];
 
     const res = await invokeAgentsListAuthed({ sessionKey: "main" });
@@ -485,7 +485,7 @@ describe("POST /tools/invoke", () => {
     const denyRes = await invokeAgentsListAuthed({ sessionKey: "main" });
     expect(denyRes.status).toBe(404);
 
-    allowAgentsListForMain();
+    enableAgentsListToolForMain();
     cfg = {
       ...cfg,
       tools: { profile: "minimal" },

@@ -277,7 +277,7 @@ describe("buildServiceEnvironment", () => {
   it("sets minimal PATH and gateway vars", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
-      port: 18789,
+      port: 40705,
     });
     expect(env.HOME).toBe("/home/user");
     if (process.platform === "win32") {
@@ -285,29 +285,22 @@ describe("buildServiceEnvironment", () => {
     } else {
       expect(env.PATH).toContain("/usr/bin");
     }
-    expect(env.ALISIO_GATEWAY_PORT).toBe("18789");
-    expect(env.OPENCLAW_GATEWAY_PORT).toBe("18789");
-    expect(env.OPENCLAW_GATEWAY_TOKEN).toBeUndefined();
+    expect(env.ALISIO_GATEWAY_PORT).toBe("40705");
     expect(env.ALISIO_SERVICE_MARKER).toBe("alisio");
-    expect(env.OPENCLAW_SERVICE_MARKER).toBe("alisio");
     expect(env.ALISIO_SERVICE_KIND).toBe("gateway");
-    expect(env.OPENCLAW_SERVICE_KIND).toBe("gateway");
     expect(typeof env.ALISIO_SERVICE_VERSION).toBe("string");
-    expect(typeof env.OPENCLAW_SERVICE_VERSION).toBe("string");
     expect(env.ALISIO_SYSTEMD_UNIT).toBe("alisio-gateway.service");
-    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("alisio-gateway.service");
     expect(env.ALISIO_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
-    expect(env.OPENCLAW_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
     if (process.platform === "darwin") {
       expect(env.ALISIO_LAUNCHD_LABEL).toBe("ai.alisio.gateway");
-      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.alisio.gateway");
     }
+    expect(Object.keys(env).some((key) => key.startsWith("OPENCLAW_"))).toBe(false);
   });
 
   it("forwards TMPDIR from the host environment", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user", TMPDIR: "/var/folders/xw/abc123/T/" },
-      port: 18789,
+      port: 40705,
     });
     expect(env.TMPDIR).toBe("/var/folders/xw/abc123/T/");
   });
@@ -315,7 +308,7 @@ describe("buildServiceEnvironment", () => {
   it("falls back to os.tmpdir when TMPDIR is not set", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
-      port: 18789,
+      port: 40705,
     });
     expect(env.TMPDIR).toBe(os.tmpdir());
   });
@@ -323,15 +316,12 @@ describe("buildServiceEnvironment", () => {
   it("uses profile-specific unit and label", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user", OPENCLAW_PROFILE: "work" },
-      port: 18789,
+      port: 40705,
     });
     expect(env.ALISIO_SYSTEMD_UNIT).toBe("alisio-gateway-work.service");
-    expect(env.OPENCLAW_SYSTEMD_UNIT).toBe("alisio-gateway-work.service");
     expect(env.ALISIO_WINDOWS_TASK_NAME).toBe("Alisio Gateway (work)");
-    expect(env.OPENCLAW_WINDOWS_TASK_NAME).toBe("Alisio Gateway (work)");
     if (process.platform === "darwin") {
       expect(env.ALISIO_LAUNCHD_LABEL).toBe("ai.alisio.work");
-      expect(env.OPENCLAW_LAUNCHD_LABEL).toBe("ai.alisio.work");
     }
   });
 
@@ -345,7 +335,7 @@ describe("buildServiceEnvironment", () => {
         http_proxy: "http://proxy.local:7890",
         all_proxy: "socks5://proxy.local:1080",
       },
-      port: 18789,
+      port: 40705,
     });
 
     expect(env.HTTP_PROXY).toBe("http://proxy.local:7890");
@@ -361,18 +351,18 @@ describe("buildServiceEnvironment", () => {
         HOME: "C:\\Users\\alice",
         PATH: "C:\\Windows\\System32;C:\\Tools\\rg",
       },
-      port: 18789,
+      port: 40705,
       platform: "win32",
     });
 
     expect(env).not.toHaveProperty("PATH");
-    expect(env.OPENCLAW_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
+    expect(env.ALISIO_WINDOWS_TASK_NAME).toBe("Alisio Gateway");
   });
 
   it("prepends extra runtime directories to the gateway service PATH", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
-      port: 18789,
+      port: 40705,
       platform: "linux",
       extraPathDirs: ["/home/user/.nvm/versions/node/v22.22.0/bin"],
     });
@@ -396,7 +386,6 @@ describe("buildNodeServiceEnvironment", () => {
       env: { HOME: "/home/user", ALISIO_GATEWAY_TOKEN: " node-token " },
     });
     expect(env.ALISIO_GATEWAY_TOKEN).toBe("node-token");
-    expect(env.OPENCLAW_GATEWAY_TOKEN).toBe("node-token");
   });
 
   it("accepts legacy OPENCLAW_GATEWAY_TOKEN for node services", () => {
@@ -404,7 +393,6 @@ describe("buildNodeServiceEnvironment", () => {
       env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: " legacy-token " },
     });
     expect(env.ALISIO_GATEWAY_TOKEN).toBe("legacy-token");
-    expect(env.OPENCLAW_GATEWAY_TOKEN).toBe("legacy-token");
   });
 
   it("omits ALISIO_GATEWAY_TOKEN when the env var is empty", () => {
@@ -415,7 +403,13 @@ describe("buildNodeServiceEnvironment", () => {
       },
     });
     expect(env.ALISIO_GATEWAY_TOKEN).toBeUndefined();
-    expect(env.OPENCLAW_GATEWAY_TOKEN).toBeUndefined();
+  });
+
+  it("does not inject legacy OPENCLAW_* vars into node service environments", () => {
+    const env = buildNodeServiceEnvironment({
+      env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: "legacy-token" },
+    });
+    expect(Object.keys(env).some((key) => key.startsWith("OPENCLAW_"))).toBe(false);
   });
 
   it("forwards proxy environment variables for node services", () => {
@@ -463,7 +457,7 @@ describe("shared Node TLS env defaults", () => {
     {
       name: "gateway service env",
       build: (env: Record<string, string | undefined>, platform?: NodeJS.Platform) =>
-        buildServiceEnvironment({ env, port: 18789, platform }),
+        buildServiceEnvironment({ env, port: 40705, platform }),
     },
     {
       name: "node service env",
@@ -564,7 +558,7 @@ describe("shared Node TLS env defaults", () => {
   it("sets macOS TLS defaults for gateway services", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/Users/test" },
-      port: 18789,
+      port: 40705,
       platform: "darwin",
     });
     expect(env.NODE_EXTRA_CA_CERTS).toBe("/etc/ssl/cert.pem");
@@ -584,7 +578,7 @@ describe("shared Node TLS env defaults", () => {
     const expected = resolveLinuxSystemCaBundle();
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user", NVM_DIR: "/home/user/.nvm" },
-      port: 18789,
+      port: 40705,
       platform: "linux",
       execPath: "/usr/bin/node",
     });
@@ -604,7 +598,7 @@ describe("shared Node TLS env defaults", () => {
   it("does not default NODE_EXTRA_CA_CERTS on Linux without nvm", () => {
     const env = buildServiceEnvironment({
       env: { HOME: "/home/user" },
-      port: 18789,
+      port: 40705,
       platform: "linux",
       execPath: "/usr/bin/node",
     });

@@ -84,7 +84,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
   return {
     ...actual,
     loadConfig: () => configOverride,
-    resolveGatewayPort: () => 18789,
+    resolveGatewayPort: () => 40705,
   };
 });
 vi.mock("../config/sessions.js", async (importOriginal) => {

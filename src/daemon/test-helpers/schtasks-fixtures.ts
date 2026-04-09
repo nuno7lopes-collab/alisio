@@ -22,7 +22,7 @@ export async function withWindowsEnv(
     USERPROFILE: tmpDir,
     APPDATA: path.join(tmpDir, "AppData", "Roaming"),
     ALISIO_PROFILE: "default",
-    ALISIO_GATEWAY_PORT: "18789",
+    ALISIO_GATEWAY_PORT: "40705",
   };
   try {
     await run({ tmpDir, env });
@@ -40,7 +40,7 @@ export function resetSchtasksBaseMocks() {
 
 export async function writeGatewayScript(
   env: Record<string, string>,
-  port = Number(env.ALISIO_GATEWAY_PORT || env.OPENCLAW_GATEWAY_PORT || "18789"),
+  port = Number(env.ALISIO_GATEWAY_PORT || env.OPENCLAW_GATEWAY_PORT || "40705"),
 ) {
   const scriptPath = resolveTaskScriptPath(env);
   await fs.mkdir(path.dirname(scriptPath), { recursive: true });

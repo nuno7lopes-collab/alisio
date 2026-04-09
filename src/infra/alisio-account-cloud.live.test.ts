@@ -25,7 +25,7 @@ type ParsedEmailLink =
 const describeLive = isLiveTestEnabled(["ALISIO_LIVE_ACCOUNT"]) ? describe : describe.skip;
 const CALLBACK_URL =
   readLiveEnv(["ALISIO_LIVE_ACCOUNT_CALLBACK_URL"]) ??
-  "http://localhost:18789/logout/setup?step=account";
+  "http://localhost:40705/logout/setup?step=account";
 const SIGNIN_LINK_URL = readLiveEnv(["ALISIO_LIVE_ACCOUNT_SIGNIN_LINK_URL"]) ?? "";
 const RECOVERY_LINK_URL = readLiveEnv(["ALISIO_LIVE_ACCOUNT_RECOVERY_LINK_URL"]) ?? "";
 const EMAIL_CHANGE_ENABLED = readLiveEnv(["ALISIO_LIVE_ACCOUNT_ENABLE_EMAIL_CHANGE"]) === "1";

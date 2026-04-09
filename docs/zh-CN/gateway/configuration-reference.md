@@ -1389,7 +1389,6 @@ scripts/sandbox-browser-setup.sh   # 可选的浏览器镜像
             cwd: "/workspace/openclaw",
           },
         },
-        subagents: { allowAgents: ["*"] },
         tools: {
           profile: "coding",
           allow: ["browser"],
@@ -1409,7 +1408,8 @@ scripts/sandbox-browser-setup.sh   # 可选的浏览器镜像
 - `runtime`：可选的按智能体运行时描述符。当智能体应默认使用 ACP harness 会话时，可使用 `type: "acp"`，并在 `runtime.acp` 中设置默认值（`agent`、`backend`、`mode`、`cwd`）。
 - `identity.avatar`：工作区相对路径、`http(s)` URL 或 `data:` URI。
 - `identity` 会派生默认值：从 `emoji` 派生 `ackReaction`，从 `name`/`emoji` 派生 `mentionPatterns`。
-- `subagents.allowAgents`：`sessions_spawn` 的智能体 ID allowlist（`["*"]` = 任意；默认：仅同一智能体）。
+- 内部 `runtime: "subagent"` worker 始终运行在请求者智能体下，并拒绝跨智能体 `agentId` 目标。
+- 如需持久或跨智能体标识，请使用 `runtime: "acp"` 和 `acp.allowedAgents`。
 - 沙箱继承保护：若请求方会话处于沙箱中，`sessions_spawn` 会拒绝那些将以非沙箱方式运行的目标。
 
 ---
@@ -2447,8 +2447,8 @@ Base URL 不应包含 `/v1`（Anthropic 客户端会追加它）。快捷方式�
       // allowedHostnames: ["localhost"],
     },
     profiles: {
-      openclaw: { cdpPort: 18800, color: "#FF4500" },
-      work: { cdpPort: 18801, color: "#0066CC" },
+      openclaw: { cdpPort: 40716, color: "#FF4500" },
+      work: { cdpPort: 40717, color: "#0066CC" },
       remote: { cdpUrl: "http://10.0.0.42:9222", color: "#00AA00" },
     },
     color: "#FF4500",
@@ -2470,7 +2470,7 @@ Base URL 不应包含 `/v1`（Anthropic 客户端会追加它）。快捷方式�
 - 在严格模式下，可使用 `ssrfPolicy.hostnameAllowlist` 和 `ssrfPolicy.allowedHostnames` 显式放行例外。
 - 远程配置文件为仅附加模式（禁止启动/停止/重置）。
 - 自动检测顺序：默认浏览器如果是基于 Chromium → Chrome → Brave → Edge → Chromium → Chrome Canary。
-- 控制服务：仅 loopback（端口由 `gateway.port` 派生，默认 `18791`）。
+- 控制服务：仅 loopback（端口由 `gateway.port` 派生，默认 `40707`）。
 - `extraArgs` 会向本地 Chromium 启动追加额外标志（例如
   `--disable-gpu`、窗口大小设置或调试标志）。
 - `relayBindHost` 更改 Chrome 扩展 relay 的监听地址。若只需 loopback 访问请保持未设置；仅当 relay 必须跨命名空间边界可达（例如 WSL2）且主机网络已受信任时，才显式设置为非 loopback 地址，例如 `0.0.0.0`。
@@ -2502,7 +2502,7 @@ Base URL 不应包含 `/v1`（Anthropic 客户端会追加它）。快捷方式�
 {
   gateway: {
     mode: "local", // local | remote
-    port: 18789,
+    port: 40705,
     bind: "loopback",
     auth: {
       mode: "token", // none | token | password | trusted-proxy
@@ -2531,7 +2531,7 @@ Base URL 不应包含 `/v1`（Anthropic 客户端会追加它）。快捷方式�
       // dangerouslyDisableDeviceAuth: false,
     },
     remote: {
-      url: "ws://gateway.tailnet:18789",
+      url: "ws://gateway.tailnet:40705",
       transport: "ssh", // ssh | direct
       token: "your-token",
       // password: "your-password",
@@ -2560,10 +2560,10 @@ Base URL 不应包含 `/v1`（Anthropic 客户端会追加它）。快捷方式�
 <Accordion title="Gateway 网关字段详情">
 
 - `mode`：`local`（运行网关）或 `remote`（连接远程网关）。除非为 `local`，否则 Gateway 网关拒绝启动。
-- `port`：用于 WS + HTTP 的单一复用端口。优先级：`--port` > `OPENCLAW_GATEWAY_PORT` > `gateway.port` > `18789`。
+- `port`：用于 WS + HTTP 的单一复用端口。优先级：`--port` > `OPENCLAW_GATEWAY_PORT` > `gateway.port` > `40705`。
 - `bind`：`auto`、`loopback`（默认）、`lan`（`0.0.0.0`）、`tailnet`（仅 Tailscale IP）或 `custom`。
 - **旧版 bind 别名**：请在 `gateway.bind` 中使用 bind 模式值（`auto`、`loopback`、`lan`、`tailnet`、`custom`），不要使用主机别名（`0.0.0.0`、`127.0.0.1`、`localhost`、`::`、`::1`）。
-- **Docker 说明**：默认的 `loopback` bind 在容器内监听 `127.0.0.1`。在 Docker bridge 网络（`-p 18789:18789`）下，流量从 `eth0` 进入，因此网关不可达。请使用 `--network host`，或设置 `bind: "lan"`（或 `bind: "custom"` 并配合 `customBindHost: "0.0.0.0"`）以监听所有接口。
+- **Docker 说明**：默认的 `loopback` bind 在容器内监听 `127.0.0.1`。在 Docker bridge 网络（`-p 40705:40705`）下，流量从 `eth0` 进入，因此网关不可达。请使用 `--network host`，或设置 `bind: "lan"`（或 `bind: "custom"` 并配合 `customBindHost: "0.0.0.0"`）以监听所有接口。
 - **认证**：默认要求认证。非 loopback bind 需要共享 token/password。新手引导默认会生成一个 token。
 - 如果同时配置了 `gateway.auth.token` 和 `gateway.auth.password`（包括 SecretRef），请显式设置 `gateway.auth.mode` 为 `token` 或 `password`。如果两者都已配置但 mode 未设置，启动和服务安装/修复流程都会失败。
 - `gateway.auth.mode: "none"`：显式无认证模式。仅用于受信任的本地 local loopback 设置；新手引导提示中故意不提供此选项。
@@ -2693,7 +2693,7 @@ openclaw gateway --port 19001
       topic: "projects/<project-id>/topics/gog-gmail-watch",
       subscription: "gog-gmail-watch-push",
       pushToken: "shared-push-token",
-      hookUrl: "http://127.0.0.1:18789/hooks/gmail",
+      hookUrl: "http://127.0.0.1:40705/hooks/gmail",
       includeBody: true,
       maxBytes: 20000,
       renewEveryMinutes: 720,
@@ -3003,7 +3003,7 @@ Secret refs 是增量能力：明文值仍然可用。
 {
   "bridge": {
     "enabled": true,
-    "port": 18790,
+    "port": 40706,
     "bind": "tailnet",
     "tls": {
       "enabled": true,
@@ -3081,7 +3081,7 @@ Secret refs 是增量能力：明文值仍然可用。
 ```json5
 // ~/.openclaw/openclaw.json
 {
-  gateway: { port: 18789 },
+  gateway: { port: 40705 },
   agents: { $include: "./agents.json5" },
   broadcast: {
     $include: ["./clients/mueller.json5", "./clients/schmidt.json5"],

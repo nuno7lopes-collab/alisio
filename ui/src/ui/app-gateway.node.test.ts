@@ -14,7 +14,7 @@ const loadControlUiBootstrapConfigMock = vi.hoisted(() =>
       gatewayBootstrapUrl?: string | null;
     }) => {
       state.gatewayBootstrapToken = "refreshed-bootstrap-token";
-      state.gatewayBootstrapUrl = "ws://127.0.0.1:18789";
+      state.gatewayBootstrapUrl = "ws://127.0.0.1:40705";
     },
   ),
 );
@@ -183,7 +183,7 @@ type GatewayTestHost = Parameters<typeof connectGateway>[0] & {
 function createHost(): GatewayTestHost {
   return {
     settings: {
-      gatewayUrl: "ws://127.0.0.1:18789",
+      gatewayUrl: "ws://127.0.0.1:40705",
       token: "",
       sessionKey: "main",
       lastActiveSessionKey: "main",
@@ -730,13 +730,13 @@ describe("connectGateway", () => {
       reason: "connect failed",
       error: {
         code: "INVALID_REQUEST",
-        message: "Failed to fetch gateway metadata from ws://127.0.0.1:18789",
+        message: "Failed to fetch gateway metadata from ws://127.0.0.1:40705",
         details: { code: ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH },
       },
     });
 
     expect(host.lastErrorCode).toBe(ConnectErrorDetailCodes.AUTH_TOKEN_MISMATCH);
-    expect(host.lastError).toBe("Failed to fetch Alisio metadata from ws://127.0.0.1:18789");
+    expect(host.lastError).toBe("Failed to fetch Alisio metadata from ws://127.0.0.1:40705");
   });
 
   it("prefers structured connect errors over close reason", () => {

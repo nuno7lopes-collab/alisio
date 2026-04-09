@@ -23,12 +23,12 @@ function makeBrowserState(): BrowserServerState {
     port: 0,
     resolved: {
       enabled: true,
-      controlPort: 18791,
+      controlPort: 40707,
       cdpProtocol: "http",
       cdpHost: "127.0.0.1",
       cdpIsLoopback: true,
-      cdpPortRangeStart: 18800,
-      cdpPortRangeEnd: 18810,
+      cdpPortRangeStart: 40716,
+      cdpPortRangeEnd: 40726,
       evaluateEnabled: false,
       remoteCdpTimeoutMs: 1500,
       remoteCdpHandshakeTimeoutMs: 3000,
@@ -40,7 +40,7 @@ function makeBrowserState(): BrowserServerState {
       ssrfPolicy: { allowPrivateNetwork: true },
       defaultProfile: "openclaw",
       profiles: {
-        openclaw: { cdpPort: 18800, color: "#FF4500" },
+        openclaw: { cdpPort: 40716, color: "#FF4500" },
       },
     },
     profiles: new Map(),
@@ -56,7 +56,7 @@ function mockLaunchedChrome(
     pid,
     exe: { kind: "chromium", path: "/usr/bin/chromium" },
     userDataDir: "/tmp/openclaw-test",
-    cdpPort: 18800,
+    cdpPort: 40716,
     startedAt: Date.now(),
     proc,
   });
@@ -127,7 +127,7 @@ describe("browser server-context ensureBrowserAvailable", () => {
 
     expect(isChromeReachable).toHaveBeenNthCalledWith(
       1,
-      "http://127.0.0.1:18800",
+      "http://127.0.0.1:40716",
       PROFILE_HTTP_REACHABILITY_TIMEOUT_MS,
       {
         allowPrivateNetwork: true,
@@ -135,7 +135,7 @@ describe("browser server-context ensureBrowserAvailable", () => {
     );
     expect(isChromeReachable).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:18800",
+      "http://127.0.0.1:40716",
       PROFILE_ATTACH_RETRY_TIMEOUT_MS,
       {
         allowPrivateNetwork: true,

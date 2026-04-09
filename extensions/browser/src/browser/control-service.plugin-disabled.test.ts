@@ -28,8 +28,8 @@ vi.mock("../config/config.js", async (importOriginal) => {
 vi.mock("./config.js", () => ({
   resolveBrowserConfig: vi.fn(() => ({
     enabled: true,
-    controlPort: 18791,
-    profiles: { openclaw: { cdpPort: 18800 } },
+    controlPort: 40707,
+    profiles: { openclaw: { cdpPort: 40716 } },
   })),
 }));
 

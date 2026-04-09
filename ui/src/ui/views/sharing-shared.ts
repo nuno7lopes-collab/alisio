@@ -1,8 +1,32 @@
 import type { AlisioSharingState } from "../types.ts";
 
 export type SharingRequestScope = "read-only" | "model-use" | "exec";
+export type SharingResourcePolicyMap = NonNullable<
+  NonNullable<AlisioSharingState["policy"]["resourcePolicies"]>
+>;
+export type SharingResourceKey = keyof SharingResourcePolicyMap;
+export type SharingResourcePolicyMode = SharingResourcePolicyMap[SharingResourceKey];
+export type SharingSuggestion = NonNullable<AlisioSharingState["suggestions"]>[number];
 
 export type SharingTargetState = AlisioSharingState["devices"]["available"][number];
+
+export const SHARING_RESOURCE_ORDER: SharingResourceKey[] = [
+  "compute",
+  "models",
+  "jobs",
+  "artifacts",
+  "cache",
+  "memory",
+  "vault",
+  "files",
+  "context",
+];
+
+export const SHARING_POLICY_MODE_ORDER: SharingResourcePolicyMode[] = [
+  "paired-device",
+  "light-approval",
+  "explicit-consent",
+];
 
 export function expandSharingScopeSelection(scope: SharingRequestScope): SharingRequestScope[] {
   if (scope === "exec") {
@@ -49,7 +73,7 @@ export function resolveSharingApprovalOptions(
   scopes: readonly string[] | null | undefined,
 ): SharingRequestScope[] {
   // Temporary compatibility for legacy scope aliases still accepted by the protocol.
-  // Remove after first-party clients emit only canonical sharing scopes.
+  // Sunset: remove after 2026-06-30, or earlier once first-party clients emit only canonical scopes.
   const normalized = new Set<SharingRequestScope>();
   for (const scope of scopes ?? []) {
     if (scope === "exec") {

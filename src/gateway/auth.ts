@@ -15,6 +15,7 @@ import {
 import { resolveGatewayCredentialsFromValues } from "./credentials.js";
 import {
   isLoopbackAddress,
+  isLocalishHost,
   resolveRequestClientIp,
   isTrustedProxyAddress,
   resolveClientIp,
@@ -130,7 +131,9 @@ export function isLocalDirectRequest(
   );
 
   if (!hasForwarded) {
-    return isLoopbackAddress(req.socket?.remoteAddress);
+    return (
+      isLoopbackAddress(req.socket?.remoteAddress) && isLocalishHost(headerValue(req.headers?.host))
+    );
   }
   return false;
 }
@@ -335,9 +338,6 @@ function authorizeTrustedProxy(params: {
   const remoteAddr = req.socket?.remoteAddress;
   if (!remoteAddr || !isTrustedProxyAddress(remoteAddr, trustedProxies)) {
     return { reason: "trusted_proxy_untrusted_source" };
-  }
-  if (isLoopbackAddress(remoteAddr)) {
-    return { reason: "trusted_proxy_loopback_source" };
   }
 
   const requiredHeaders = trustedProxyConfig.requiredHeaders ?? [];

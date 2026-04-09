@@ -284,7 +284,7 @@ describe("handleSendChat", () => {
     expect(content).toContain("Policy plane");
     expect(content).toContain("Computer access");
     expect(content).toContain("6/8 system permissions ready");
-    expect(content).toContain("Live approvals");
+    expect(content).toContain("pending approvals");
   });
 
   it("applies chat security profiles locally for /permissions safe", async () => {

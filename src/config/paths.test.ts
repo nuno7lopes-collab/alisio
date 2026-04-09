@@ -59,9 +59,9 @@ describe("gateway port resolution", () => {
     expect(
       resolveGatewayPort(
         { gateway: { port: 19002 } },
-        envWith({ ALISIO_GATEWAY_PORT: "127.0.0.1:18789" }),
+        envWith({ ALISIO_GATEWAY_PORT: "127.0.0.1:40705" }),
       ),
-    ).toBe(18789);
+    ).toBe(40705);
   });
 
   it("accepts Compose-style IPv6 host publish values from env", () => {
@@ -76,8 +76,8 @@ describe("gateway port resolution", () => {
   it("ignores the legacy env name and falls back to config", () => {
     const compatKey = legacyEnvKey("GATEWAY_PORT");
     expect(
-      resolveGatewayPort({ gateway: { port: 19002 } }, envWith({ [compatKey]: "127.0.0.1:18789" })),
-    ).toBe(18789);
+      resolveGatewayPort({ gateway: { port: 19002 } }, envWith({ [compatKey]: "127.0.0.1:40705" })),
+    ).toBe(40705);
   });
 
   it("falls back to config when the Compose-style suffix is invalid", () => {

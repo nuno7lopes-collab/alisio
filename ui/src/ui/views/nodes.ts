@@ -24,6 +24,10 @@ import {
   resolveNodeTargets,
   type NodeTargetOption,
 } from "./nodes-shared.ts";
+
+type SharingResourcePolicyMap = NonNullable<
+  NonNullable<AlisioSharingState["policy"]["resourcePolicies"]>
+>;
 export type NodesProps = {
   assistantName: string;
   assistantAgentId: string | null;
@@ -64,6 +68,10 @@ export type NodesProps = {
   onSharingReject?: (requestId: string) => void;
   onSharingRevoke?: (grantId: string) => void;
   onSharingSetPolicy?: (allowExternalUse: boolean) => void;
+  onSharingSetResourcePolicy?: (
+    resource: keyof SharingResourcePolicyMap,
+    mode: SharingResourcePolicyMap[keyof SharingResourcePolicyMap],
+  ) => void;
   onNodeApprove: (requestId: string) => void;
   onNodeReject: (requestId: string) => void;
   onDeviceRotate: (deviceId: string, role: string, scopes?: string[]) => void;

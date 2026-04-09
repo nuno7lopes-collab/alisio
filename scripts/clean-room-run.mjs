@@ -12,6 +12,8 @@ function usage() {
 Options:
   --include <path>   Overlay a repo-relative path from the current worktree.
                      Repeatable. Missing paths are treated as deletions.
+  --link <path>      Symlink a repo-relative path from the current worktree
+                     into the clean snapshot. Repeatable.
   --mode <mode>      Snapshot materialization mode: archive (default) or clone
   --ref <git-ref>    Git ref to materialize in the clean snapshot (default: HEAD)
   --repo <path>      Repository root to snapshot (default: detected from cwd)
@@ -123,6 +125,23 @@ async function overlayPath(repoRoot, snapshotRoot, relativePath) {
     dereference: false,
     verbatimSymlinks: true,
   });
+}
+
+async function linkPath(repoRoot, snapshotRoot, relativePath) {
+  const source = normalizeOverlayPath(repoRoot, relativePath);
+  const destination = normalizeOverlayPath(snapshotRoot, relativePath);
+  const stat = await fs.lstat(source.absolutePath).catch(() => null);
+  if (!stat) {
+    fail(`link path does not exist: ${relativePath}`);
+  }
+
+  await fs.rm(destination.absolutePath, { recursive: true, force: true });
+  await fs.mkdir(path.dirname(destination.absolutePath), { recursive: true });
+  await fs.symlink(
+    source.absolutePath,
+    destination.absolutePath,
+    stat.isDirectory() ? "dir" : "file",
+  );
 }
 
 function formatCommand(argv) {
@@ -250,6 +269,7 @@ async function materializeCloneSnapshot(repoRoot, resolvedCommit, snapshotRoot) 
 async function main() {
   const args = process.argv.slice(2);
   const includePaths = [];
+  const linkPaths = [];
   let mode = "archive";
   let ref = "HEAD";
   let repoRoot = null;
@@ -273,6 +293,15 @@ async function main() {
         fail("--include requires a path");
       }
       includePaths.push(next);
+      index += 1;
+      continue;
+    }
+    if (arg === "--link") {
+      const next = args[index + 1];
+      if (!next) {
+        fail("--link requires a path");
+      }
+      linkPaths.push(next);
       index += 1;
       continue;
     }
@@ -327,6 +356,9 @@ async function main() {
   const normalizedIncludePaths = includePaths.map(
     (entry) => normalizeOverlayPath(resolvedRepoRoot, entry).normalized,
   );
+  const normalizedLinkPaths = linkPaths.map(
+    (entry) => normalizeOverlayPath(resolvedRepoRoot, entry).normalized,
+  );
 
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-clean-room-"));
   const snapshotRoot = path.join(tempRoot, "repo");
@@ -351,6 +383,14 @@ async function main() {
     for (const overlay of normalizedIncludePaths) {
       await overlayPath(resolvedRepoRoot, snapshotRoot, overlay);
     }
+    if (normalizedLinkPaths.length > 0) {
+      console.log(
+        `[clean-room] linking ${normalizedLinkPaths.length} path(s) from the current worktree`,
+      );
+    }
+    for (const linkedPath of normalizedLinkPaths) {
+      await linkPath(resolvedRepoRoot, snapshotRoot, linkedPath);
+    }
 
     console.log(`[clean-room] repo: ${resolvedRepoRoot}`);
     console.log(`[clean-room] base ref: ${ref}`);
@@ -364,6 +404,14 @@ async function main() {
       }
     } else {
       console.log("[clean-room] overlays: none");
+    }
+    if (normalizedLinkPaths.length > 0) {
+      console.log("[clean-room] linked paths:");
+      for (const linkedPath of normalizedLinkPaths) {
+        console.log(`  - ${linkedPath}`);
+      }
+    } else {
+      console.log("[clean-room] linked paths: none");
     }
     if (proof) {
       if (mode === "clone") {

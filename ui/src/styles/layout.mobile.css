@@ -205,7 +205,8 @@
   }
 
   .alisio-auth-hero,
-  .alisio-organization-grid {
+  .alisio-organization-grid,
+  .alisio-sharing-policy-grid {
     grid-template-columns: 1fr;
   }
 

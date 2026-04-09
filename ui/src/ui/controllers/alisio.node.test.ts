@@ -867,7 +867,7 @@ describe("alisio controller reconnect safety", () => {
       if (method === "alisio.account.requestRecoveryEmail") {
         expect(params).toEqual({
           email: "owner@example.com",
-          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+          callbackUrl: "http://localhost:40705/logout/setup?step=account",
         });
         return {
           ok: true,
@@ -878,7 +878,7 @@ describe("alisio controller reconnect safety", () => {
     });
     vi.stubGlobal("window", {
       location: {
-        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+        href: "http://localhost:40705/logout/setup?step=account#access_token=stale",
       },
     } as unknown as Window & typeof globalThis);
     const state = createState({
@@ -1048,14 +1048,14 @@ describe("alisio controller reconnect safety", () => {
   it("envia o callbackUrl actual quando pede o email de entrada", async () => {
     vi.stubGlobal("window", {
       location: {
-        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+        href: "http://localhost:40705/logout/setup?step=account#access_token=stale",
       },
     } as unknown as Window & typeof globalThis);
     const request = vi.fn(async (method: string, params: unknown) => {
       if (method === "alisio.account.beginEmailAuth") {
         expect(params).toEqual({
           email: "owner@example.com",
-          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+          callbackUrl: "http://localhost:40705/logout/setup?step=account",
         });
         return {
           ok: true,
@@ -1157,7 +1157,7 @@ describe("alisio controller reconnect safety", () => {
       client: createClient(request),
     });
 
-    const result = await beginAlisioAccountGoogleAuth(state, "http://localhost:18789/logout/setup");
+    const result = await beginAlisioAccountGoogleAuth(state, "http://localhost:40705/logout/setup");
 
     expect(result).toBeNull();
     expect(request).toHaveBeenCalledTimes(1);
@@ -1355,7 +1355,7 @@ describe("alisio controller reconnect safety", () => {
         expect(params).toEqual({
           email: "owner@example.com",
           password: "password123",
-          callbackUrl: "http://localhost:18789/logout/setup?step=account",
+          callbackUrl: "http://localhost:40705/logout/setup?step=account",
         });
         return {
           profile: {
@@ -1398,7 +1398,7 @@ describe("alisio controller reconnect safety", () => {
     });
     vi.stubGlobal("window", {
       location: {
-        href: "http://localhost:18789/logout/setup?step=account#access_token=stale",
+        href: "http://localhost:40705/logout/setup?step=account#access_token=stale",
       },
     } as unknown as Window & typeof globalThis);
     const state = createState({
@@ -1417,14 +1417,14 @@ describe("alisio controller reconnect safety", () => {
   it("pede a mudança de email com callbackUrl actual", async () => {
     vi.stubGlobal("window", {
       location: {
-        href: "http://localhost:18789/logout/settings#access_token=stale",
+        href: "http://localhost:40705/logout/settings#access_token=stale",
       },
     } as unknown as Window & typeof globalThis);
     const request = vi.fn(async (method: string, params: unknown) => {
       if (method === "alisio.account.changeEmail") {
         expect(params).toEqual({
           email: "next@example.com",
-          callbackUrl: "http://localhost:18789/logout/settings",
+          callbackUrl: "http://localhost:40705/logout/settings",
         });
         return {
           ok: true,

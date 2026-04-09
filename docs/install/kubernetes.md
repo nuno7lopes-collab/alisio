@@ -27,8 +27,8 @@ Alisio is a single container with some config files. The interesting customizati
 export <PROVIDER>_API_KEY="..."
 ./scripts/k8s/deploy.sh
 
-kubectl port-forward svc/alisio 18789:18789 -n alisio
-open http://localhost:18789
+kubectl port-forward svc/alisio 40705:40705 -n alisio
+open http://localhost:40705
 ```
 
 Retrieve the gateway token and paste it into the Control UI:
@@ -77,8 +77,8 @@ Use `--show-token` with either command if you want the token printed to stdout f
 ### 2) Access the gateway
 
 ```bash
-kubectl port-forward svc/alisio 18789:18789 -n alisio
-open http://localhost:18789
+kubectl port-forward svc/alisio 40705:40705 -n alisio
+open http://localhost:40705
 ```
 
 ## What gets deployed
@@ -86,7 +86,7 @@ open http://localhost:18789
 ```
 Namespace: alisio (configurable via ALISIO_NAMESPACE)
 ├── Deployment/alisio        # Single pod, init container + gateway
-├── Service/alisio           # ClusterIP on port 18789
+├── Service/alisio           # ClusterIP on port 40705
 ├── PersistentVolumeClaim      # 10Gi for agent state and config
 ├── ConfigMap/alisio-config  # alisio.json + AGENTS.md
 └── Secret/alisio-secrets    # Gateway token + API keys
@@ -172,7 +172,7 @@ This deletes the namespace and all resources in it, including the PVC.
 - The gateway binds to loopback inside the pod by default, so the included setup is for `kubectl port-forward`
 - No cluster-scoped resources — everything lives in a single namespace
 - Security: `readOnlyRootFilesystem`, `drop: ALL` capabilities, non-root user (UID 1000)
-- The default config keeps the Control UI on the safer local-access path: loopback bind plus `kubectl port-forward` to `http://127.0.0.1:18789`
+- The default config keeps the Control UI on the safer local-access path: loopback bind plus `kubectl port-forward` to `http://127.0.0.1:40705`
 - If you move beyond localhost access, use the supported remote model: HTTPS/Tailscale plus the appropriate gateway bind and Control UI origin settings
 - Secrets are generated in a temp directory and applied directly to the cluster — no secret material is written to the repo checkout
 
@@ -187,5 +187,5 @@ scripts/k8s/
     ├── configmap.yaml          # alisio.json + AGENTS.md
     ├── deployment.yaml         # Pod spec with security hardening
     ├── pvc.yaml                # 10Gi persistent storage
-    └── service.yaml            # ClusterIP on 18789
+    └── service.yaml            # ClusterIP on 40705
 ```

@@ -6,7 +6,7 @@ const configState = vi.hoisted(() => ({
 }));
 vi.mock("../../config/config.js", () => ({
   loadConfig: () => configState.value,
-  resolveGatewayPort: () => 18789,
+  resolveGatewayPort: () => 40705,
 }));
 vi.mock("../../gateway/call.js", () => ({
   callGateway: (...args: unknown[]) => callGatewayMock(...args),
@@ -19,7 +19,7 @@ async function loadFreshGatewayToolModuleForTest() {
   vi.resetModules();
   vi.doMock("../../config/config.js", () => ({
     loadConfig: () => configState.value,
-    resolveGatewayPort: () => 18789,
+    resolveGatewayPort: () => 40705,
   }));
   vi.doMock("../../gateway/call.js", () => ({
     callGateway: (...args: unknown[]) => callGatewayMock(...args),
@@ -56,12 +56,12 @@ describe("gateway tool defaults", () => {
     callGatewayMock.mockResolvedValueOnce({ ok: true });
     await callGatewayTool(
       "health",
-      { gatewayUrl: "ws://127.0.0.1:18789", gatewayToken: "t", timeoutMs: 5000 },
+      { gatewayUrl: "ws://127.0.0.1:40705", gatewayToken: "t", timeoutMs: 5000 },
       {},
     );
     expect(callGatewayMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
         token: "t",
         timeoutMs: 5000,
         scopes: ["operator.read"],
@@ -71,8 +71,8 @@ describe("gateway tool defaults", () => {
 
   it("uses OPENCLAW_GATEWAY_TOKEN for allowlisted local overrides", () => {
     process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
-    const opts = resolveGatewayOptions({ gatewayUrl: "ws://127.0.0.1:18789" });
-    expect(opts.url).toBe("ws://127.0.0.1:18789");
+    const opts = resolveGatewayOptions({ gatewayUrl: "ws://127.0.0.1:40705" });
+    expect(opts.url).toBe("ws://127.0.0.1:40705");
     expect(opts.token).toBe("env-token");
   });
 
@@ -82,7 +82,7 @@ describe("gateway tool defaults", () => {
         auth: { token: "config-token" },
       },
     };
-    const opts = resolveGatewayOptions({ gatewayUrl: "ws://127.0.0.1:18789" });
+    const opts = resolveGatewayOptions({ gatewayUrl: "ws://127.0.0.1:40705" });
     expect(opts.token).toBe("config-token");
   });
 

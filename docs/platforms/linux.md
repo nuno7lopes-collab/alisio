@@ -18,8 +18,8 @@ Native Linux companion apps are planned. Contributions are welcome if you want t
 1. Install Node 24 (recommended; Node 22 LTS, currently `22.14+`, still works for compatibility)
 2. `npm i -g alisio@npm:alisio@latest`
 3. `alisio onboard --install-daemon`
-4. From your laptop: `ssh -N -L 18789:127.0.0.1:18789 <user>@<host>`
-5. Open `http://127.0.0.1:18789/` and paste your token
+4. From your laptop: `ssh -N -L 40705:127.0.0.1:40705 <user>@<host>`
+5. Open `http://127.0.0.1:40705/` and paste your token
 
 Full Linux server guide: [Linux Server](/vps). Step-by-step VPS example: [exe.dev](/install/exe-dev)
 
@@ -79,7 +79,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/alisio gateway --port 18789
+ExecStart=/usr/local/bin/alisio gateway --port 40705
 Restart=always
 RestartSec=5
 

@@ -567,7 +567,7 @@ run_ref_onboard() {
     --mode local \
     --auth-choice "$AUTH_CHOICE" \
     --secret-input-mode ref \
-    --gateway-port 18789 \
+    --gateway-port 40705 \
     --gateway-bind loopback \
     --skip-skills \
     --skip-health \

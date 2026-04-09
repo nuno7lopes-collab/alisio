@@ -1438,7 +1438,6 @@ scripts/sandbox-browser-setup.sh   # optional browser image
             cwd: "/workspace/alisio",
           },
         },
-        subagents: { allowAgents: ["*"] },
         tools: {
           profile: "coding",
           allow: ["browser"],
@@ -1461,8 +1460,8 @@ scripts/sandbox-browser-setup.sh   # optional browser image
 - `runtime`: optional per-agent runtime descriptor. Use `type: "acp"` with `runtime.acp` defaults (`agent`, `backend`, `mode`, `cwd`) when the agent should default to ACP harness sessions.
 - `identity.avatar`: workspace-relative path, `http(s)` URL, or `data:` URI.
 - `identity` derives defaults: `ackReaction` from `emoji`, `mentionPatterns` from `name`/`emoji`.
-- `subagents.allowAgents`: allowlist of agent ids for `sessions_spawn` (`["*"]` = any; default: same agent only).
-- Sandbox inheritance guard: if the requester session is sandboxed, `sessions_spawn` rejects targets that would run unsandboxed.
+- Use `runtime: "acp"` with `acp.allowedAgents` when you need a persistent or cross-agent agent identity.
+- Sandbox inheritance guard: if the requester session is sandboxed, `sessions_spawn` rejects child runtimes that would run unsandboxed.
 
 ---
 
@@ -2506,8 +2505,8 @@ See [Plugins](/tools/plugin).
       // allowedHostnames: ["localhost"],
     },
     profiles: {
-      alisio: { cdpPort: 18800, color: "#FF4500" },
-      work: { cdpPort: 18801, color: "#0066CC" },
+      alisio: { cdpPort: 40716, color: "#FF4500" },
+      work: { cdpPort: 40717, color: "#0066CC" },
       user: { driver: "existing-session", attachOnly: true, color: "#00AA00" },
       brave: {
         driver: "existing-session",
@@ -2538,7 +2537,7 @@ See [Plugins](/tools/plugin).
 - `existing-session` profiles can set `userDataDir` to target a specific
   Chromium-based browser profile such as Brave or Edge.
 - Auto-detect order: default browser if Chromium-based → Chrome → Brave → Edge → Chromium → Chrome Canary.
-- Control service: loopback only (port derived from `gateway.port`, default `18791`).
+- Control service: loopback only (port derived from `gateway.port`, default `40707`).
 - `extraArgs` appends extra launch flags to local Chromium startup (for example
   `--disable-gpu`, window sizing, or debug flags).
 
@@ -2569,7 +2568,7 @@ See [Plugins](/tools/plugin).
 {
   gateway: {
     mode: "local", // local | remote
-    port: 18789,
+    port: 40705,
     bind: "loopback",
     auth: {
       mode: "token", // none | token | password | trusted-proxy
@@ -2598,7 +2597,7 @@ See [Plugins](/tools/plugin).
       // dangerouslyDisableDeviceAuth: false,
     },
     remote: {
-      url: "ws://gateway.tailnet:18789",
+      url: "ws://gateway.tailnet:40705",
       transport: "ssh", // ssh | direct
       token: "your-token",
       // password: "your-password",
@@ -2627,10 +2626,10 @@ See [Plugins](/tools/plugin).
 <Accordion title="Gateway field details">
 
 - `mode`: `local` (run gateway) or `remote` (connect to remote gateway). Gateway refuses to start unless `local`.
-- `port`: single multiplexed port for WS + HTTP. Precedence: `--port` > `ALISIO_GATEWAY_PORT` > `gateway.port` > `18789`.
+- `port`: single multiplexed port for WS + HTTP. Precedence: `--port` > `ALISIO_GATEWAY_PORT` > `gateway.port` > `40705`.
 - `bind`: `auto`, `loopback` (default), `lan` (`0.0.0.0`), `tailnet` (Tailscale IP only), or `custom`.
 - **Legacy bind aliases**: use bind mode values in `gateway.bind` (`auto`, `loopback`, `lan`, `tailnet`, `custom`), not host aliases (`0.0.0.0`, `127.0.0.1`, `localhost`, `::`, `::1`).
-- **Docker note**: the default `loopback` bind listens on `127.0.0.1` inside the container. With Docker bridge networking (`-p 18789:18789`), traffic arrives on `eth0`, so the gateway is unreachable. Use `--network host`, or set `bind: "lan"` (or `bind: "custom"` with `customBindHost: "0.0.0.0"`) to listen on all interfaces.
+- **Docker note**: the default `loopback` bind listens on `127.0.0.1` inside the container. With Docker bridge networking (`-p 40705:40705`), traffic arrives on `eth0`, so the gateway is unreachable. Use `--network host`, or set `bind: "lan"` (or `bind: "custom"` with `customBindHost: "0.0.0.0"`) to listen on all interfaces.
 - **Auth**: required by default. Non-loopback binds require a shared token/password. Onboarding wizard generates a token by default.
 - If both `gateway.auth.token` and `gateway.auth.password` are configured (including SecretRefs), set `gateway.auth.mode` explicitly to `token` or `password`. Startup and service install/repair flows fail when both are configured and mode is unset.
 - `gateway.auth.mode: "none"`: explicit no-auth mode. Use only for trusted local loopback setups; this is intentionally not offered by onboarding prompts.
@@ -2806,7 +2805,7 @@ Auth: `Authorization: Bearer <token>` or `x-alisio-token: <token>`.
       topic: "projects/<project-id>/topics/gog-gmail-watch",
       subscription: "gog-gmail-watch-push",
       pushToken: "shared-push-token",
-      hookUrl: "http://127.0.0.1:18789/hooks/gmail",
+      hookUrl: "http://127.0.0.1:40705/hooks/gmail",
       includeBody: true,
       maxBytes: 20000,
       renewEveryMinutes: 720,
@@ -3236,7 +3235,7 @@ Current builds no longer include the TCP bridge. Nodes connect over the Gateway 
 {
   "bridge": {
     "enabled": true,
-    "port": 18790,
+    "port": 40706,
     "bind": "tailnet",
     "tls": {
       "enabled": true,
@@ -3356,7 +3355,7 @@ Split config into multiple files:
 ```json5
 // ~/.alisio/alisio.json
 {
-  gateway: { port: 18789 },
+  gateway: { port: 40705 },
   agents: { $include: "./agents.json5" },
   broadcast: {
     $include: ["./clients/mueller.json5", "./clients/schmidt.json5"],

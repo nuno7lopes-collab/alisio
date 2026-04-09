@@ -54,8 +54,8 @@ struct OnboardingWizardView: View {
     @State private var step: OnboardingStep
     @State private var selectedMode: OnboardingConnectionMode?
     @State private var manualHost: String = ""
-    @State private var manualPort: Int = 18789
-    @State private var manualPortText: String = "18789"
+    @State private var manualPort: Int = 40705
+    @State private var manualPortText: String = "40705"
     @State private var manualTLS: Bool = true
     @State private var gatewayToken: String = ""
     @State private var gatewayPassword: String = ""
@@ -867,12 +867,12 @@ struct OnboardingWizardView: View {
                     self.manualTLS = useTLS
                 case .discovered:
                     self.manualHost = "alisio.local"
-                    self.manualPort = 18789
+                    self.manualPort = 40705
                     self.manualTLS = true
                 }
             } else {
                 self.manualHost = "alisio.local"
-                self.manualPort = 18789
+                self.manualPort = 40705
                 self.manualTLS = true
             }
         }
@@ -946,15 +946,15 @@ struct OnboardingWizardView: View {
         case .homeNetwork:
             if hostIsDefaultLike { self.manualHost = "alisio.local" }
             self.manualTLS = true
-            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 18789 }
+            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 40705 }
         case .remoteDomain:
             if host == "alisio.local" || host == "localhost" { self.manualHost = "" }
             self.manualTLS = true
-            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 18789 }
+            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 40705 }
         case .developerLocal:
             if hostIsDefaultLike { self.manualHost = "localhost" }
             self.manualTLS = false
-            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 18789 }
+            if self.manualPort <= 0 || self.manualPort > 65535 { self.manualPort = 40705 }
         }
     }
 

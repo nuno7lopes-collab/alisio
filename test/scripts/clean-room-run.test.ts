@@ -127,4 +127,31 @@ describe("scripts/clean-room-run.mjs", () => {
     expect(output).toContain("M tracked.txt");
     expect(output).not.toContain("ignored.txt");
   });
+
+  it("links repo paths into the clean snapshot without copying them", () => {
+    const repo = createRepo();
+    writeRepoFile(repo, "tracked.txt", "base\n");
+    commitAll(repo, "seed");
+    writeRepoFile(repo, "node_modules/fake-dep/value.txt", "linked\n");
+
+    const output = runHelper(repo, [
+      "--link",
+      "node_modules",
+      "--",
+      process.execPath,
+      "-e",
+      [
+        'const fs = require("node:fs");',
+        'const path = require("node:path");',
+        'const target = path.join("node_modules", "fake-dep", "value.txt");',
+        'const kind = fs.lstatSync("node_modules").isSymbolicLink() ? "symlink" : "copy";',
+        'const value = fs.readFileSync(target, "utf8").trim();',
+        "process.stdout.write(`${kind}|${value}`);",
+      ].join(" "),
+    ]);
+
+    expect(output).toContain("[clean-room] linked paths:");
+    expect(output).toContain("node_modules");
+    expect(output).toContain("symlink|linked");
+  });
 });

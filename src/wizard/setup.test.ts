@@ -32,7 +32,7 @@ const configureGatewayForSetup = vi.hoisted(() =>
   vi.fn(async (args) => ({
     nextConfig: args.nextConfig,
     settings: {
-      port: args.localPort ?? 18789,
+      port: args.localPort ?? 40705,
       bind: "loopback",
       authMode: "token",
       gatewayToken: "test-token",
@@ -84,7 +84,7 @@ const resolveGatewayPort = vi.hoisted(() =>
   vi.fn((_cfg?: unknown, env?: NodeJS.ProcessEnv) => {
     const raw = env?.OPENCLAW_GATEWAY_PORT ?? process.env.OPENCLAW_GATEWAY_PORT;
     const port = raw ? Number.parseInt(String(raw), 10) : Number.NaN;
-    return Number.isFinite(port) && port > 0 ? port : 18789;
+    return Number.isFinite(port) && port > 0 ? port : 40705;
   }),
 );
 const readConfigFileSnapshot = vi.hoisted(() =>
@@ -163,7 +163,7 @@ vi.mock("../commands/onboard-hooks.js", () => ({
 }));
 
 vi.mock("../config/config.js", () => ({
-  DEFAULT_GATEWAY_PORT: 18789,
+  DEFAULT_GATEWAY_PORT: 40705,
   resolveGatewayPort,
   readConfigFileSnapshot,
   writeConfigFile,
@@ -189,8 +189,8 @@ vi.mock("../commands/onboard-helpers.js", () => ({
   waitForGatewayReachable: vi.fn(async () => {}),
   formatControlUiSshHint: vi.fn(() => "ssh hint"),
   resolveControlUiLinks: vi.fn(() => ({
-    httpUrl: "http://127.0.0.1:18789",
-    wsUrl: "ws://127.0.0.1:18789",
+    httpUrl: "http://127.0.0.1:40705",
+    wsUrl: "ws://127.0.0.1:40705",
   })),
 }));
 
@@ -666,7 +666,7 @@ describe("runSetupWizard", () => {
 
     expect(probeGatewayReachable).toHaveBeenCalledWith(
       expect.objectContaining({
-        url: "ws://127.0.0.1:18789",
+        url: "ws://127.0.0.1:40705",
         password: "gateway-ref-password", // pragma: allowlist secret
       }),
     );
@@ -704,7 +704,7 @@ describe("runSetupWizard", () => {
 
   it("shows the resolved gateway port in quickstart for fresh envs", async () => {
     const previousPort = process.env.OPENCLAW_GATEWAY_PORT;
-    process.env.OPENCLAW_GATEWAY_PORT = "18791";
+    process.env.OPENCLAW_GATEWAY_PORT = "40707";
     const note: WizardPrompter["note"] = vi.fn(async () => {});
     const prompter = buildWizardPrompter({ note });
     const runtime = createRuntime();
@@ -739,7 +739,7 @@ describe("runSetupWizard", () => {
         (call) =>
           call?.[1] === "QuickStart" &&
           typeof call?.[0] === "string" &&
-          call[0].includes("Gateway port: 18791"),
+          call[0].includes("Gateway port: 40707"),
       ),
     ).toBe(true);
   });

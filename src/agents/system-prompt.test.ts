@@ -260,9 +260,8 @@ describe("buildAgentSystemPrompt", () => {
 
     expect(prompt).toContain("sessions_spawn");
     expect(prompt).toContain(
-      'runtime="acp" requires `agentId` unless `acp.defaultAgent` is configured',
+      'runtime="subagent" stays on the current Alisio agent; runtime="acp" requires `agentId` unless `acp.defaultAgent` is configured',
     );
-    expect(prompt).toContain("not agents_list");
   });
 
   it("guides harness requests to ACP thread-bound spawns", () => {
@@ -297,8 +296,12 @@ describe("buildAgentSystemPrompt", () => {
     );
     expect(prompt).not.toContain('runtime="acp" requires `agentId`');
     expect(prompt).not.toContain("not ACP harness ids");
-    expect(prompt).toContain("- sessions_spawn: Spawn an isolated sub-agent session");
-    expect(prompt).toContain("- agents_list: List Alisio agent ids allowed for sessions_spawn");
+    expect(prompt).toContain(
+      "- sessions_spawn: Spawn an isolated sub-agent session under the current Alisio agent",
+    );
+    expect(prompt).toContain(
+      "- agents_list: Show the current Alisio agent context for internal subagents",
+    );
   });
 
   it("omits ACP harness spawn guidance for sandboxed sessions and shows ACP block note", () => {

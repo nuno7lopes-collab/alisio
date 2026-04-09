@@ -135,7 +135,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     alisio onboard --install-daemon
     ```
 
-    The wizard can also build UI assets automatically. After onboarding, you typically run the Gateway on port **18789**.
+    The wizard can also build UI assets automatically. After onboarding, you typically run the Gateway on port **40705**.
 
     From source (contributors/dev):
 
@@ -159,15 +159,15 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   <Accordion title="How do I authenticate the dashboard (token) on localhost vs remote?">
     **Localhost (same machine):**
 
-    - Open `http://127.0.0.1:18789/`.
+    - Open `http://127.0.0.1:40705/`.
     - If it asks for auth, paste the token from `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) into Control UI settings.
     - Retrieve it from the gateway host: `alisio config get gateway.auth.token` (or generate one: `alisio doctor --generate-gateway-token`).
 
     **Not on localhost:**
 
     - **Tailscale Serve** (recommended): keep bind loopback, run `alisio gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy Control UI/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
-    - **Tailnet bind**: run `alisio gateway --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:18789/`, paste token in dashboard settings.
-    - **SSH tunnel**: `ssh -N -L 18789:127.0.0.1:18789 user@host` then open `http://127.0.0.1:18789/` and paste the token in Control UI settings.
+    - **Tailnet bind**: run `alisio gateway --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste token in dashboard settings.
+    - **SSH tunnel**: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/` and paste the token in Control UI settings.
 
     See [Dashboard](/web/dashboard) and [Web surfaces](/web) for bind modes and auth details.
 
@@ -986,7 +986,7 @@ for usage/billing and raise limits as needed.
     Important:
 
     - `runtime: "subagent"` is always one-shot and ephemeral.
-    - Legacy `mode: "session"` requests are normalized to `run` and are scheduled for final removal after 2026-06-30.
+    - `mode: "session"` is not supported for `runtime: "subagent"`.
     - Persistent thread-bound follow-up conversations are for ACP sessions, not internal sub-agents.
 
     Required config:
@@ -1688,7 +1688,7 @@ for usage/billing and raise limits as needed.
        - In the Tailscale admin console, enable MagicDNS so the VPS has a stable name.
     4. **Use the tailnet hostname**
        - SSH: `ssh user@your-vps.tailnet-xxxx.ts.net`
-       - Gateway WS: `ws://your-vps.tailnet-xxxx.ts.net:18789`
+       - Gateway WS: `ws://your-vps.tailnet-xxxx.ts.net:40705`
 
     If you want the Control UI without SSH, use Tailscale Serve on the VPS:
 
@@ -2472,7 +2472,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     Precedence:
 
     ```
-    --port > ALISIO_GATEWAY_PORT > gateway.port > default 18789
+    --port > ALISIO_GATEWAY_PORT > gateway.port > default 40705
     ```
 
   </Accordion>
@@ -2502,7 +2502,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   </Accordion>
 
   <Accordion title='What does "another gateway instance is already listening" mean?'>
-    Alisio enforces a runtime lock by binding the WebSocket listener immediately on startup (default `ws://127.0.0.1:18789`). If the bind fails with `EADDRINUSE`, it throws `GatewayLockError` indicating another instance is already listening.
+    Alisio enforces a runtime lock by binding the WebSocket listener immediately on startup (default `ws://127.0.0.1:40705`). If the bind fails with `EADDRINUSE`, it throws `GatewayLockError` indicating another instance is already listening.
 
     Fix: stop the other instance, free the port, or run with `alisio gateway --port <port>`.
 
@@ -2516,7 +2516,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
       gateway: {
         mode: "remote",
         remote: {
-          url: "ws://gateway.tailnet:18789",
+          url: "ws://gateway.tailnet:40705",
           token: "your-token",
           password: "your-password",
         },
@@ -2543,7 +2543,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     - Fastest: `alisio dashboard` (prints + copies the dashboard URL, tries to open; shows SSH hint if headless).
     - If you don't have a token yet: `alisio doctor --generate-gateway-token`.
-    - If remote, tunnel first: `ssh -N -L 18789:127.0.0.1:18789 user@host` then open `http://127.0.0.1:18789/`.
+    - If remote, tunnel first: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/`.
     - Set `gateway.auth.token` (or `ALISIO_GATEWAY_TOKEN`) on the gateway host.
     - In the Control UI settings, paste the same token.
     - If mismatch persists after the one retry, rotate/re-approve the paired device token:
@@ -2599,14 +2599,14 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
 
     Quick fixes:
 
-    1. Use the WS URL: `ws://<host>:18789` (or `wss://...` if HTTPS).
+    1. Use the WS URL: `ws://<host>:40705` (or `wss://...` if HTTPS).
     2. Don't open the WS port in a normal browser tab.
     3. If auth is on, include the token/password in the `connect` frame.
 
     If you're using the CLI or TUI, the URL should look like:
 
     ```
-    alisio tui --url ws://<host>:18789 --token <token>
+    alisio tui --url ws://<host>:40705 --token <token>
     ```
 
     Protocol details: [Gateway protocol](/gateway/protocol).

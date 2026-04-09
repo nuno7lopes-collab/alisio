@@ -21,8 +21,8 @@ const browserClientMocks = vi.hoisted(() => ({
     ok: true,
     running: true,
     pid: 1,
-    cdpPort: 18792,
-    cdpUrl: "http://127.0.0.1:18792",
+    cdpPort: 40708,
+    cdpUrl: "http://127.0.0.1:40708",
   })),
   browserStop: vi.fn(async (..._args: unknown[]) => ({})),
   browserTabs: vi.fn(async (..._args: unknown[]): Promise<Array<Record<string, unknown>>> => []),
@@ -53,7 +53,7 @@ vi.mock("./browser/client-actions.js", () => browserActionsMocks);
 const browserConfigMocks = vi.hoisted(() => ({
   resolveBrowserConfig: vi.fn(() => ({
     enabled: true,
-    controlPort: 18791,
+    controlPort: 40707,
     profiles: {},
     defaultProfile: "openclaw",
   })),
@@ -80,8 +80,8 @@ const browserConfigMocks = vi.hoisted(() => ({
     return {
       name,
       driver,
-      cdpPort: typeof profile.cdpPort === "number" ? profile.cdpPort : 18792,
-      cdpUrl: typeof profile.cdpUrl === "string" ? profile.cdpUrl : "http://127.0.0.1:18792",
+      cdpPort: typeof profile.cdpPort === "number" ? profile.cdpPort : 40708,
+      cdpUrl: typeof profile.cdpUrl === "string" ? profile.cdpUrl : "http://127.0.0.1:40708",
       cdpHost: "127.0.0.1",
       cdpIsLoopback: true,
       color: typeof profile.color === "string" ? profile.color : "#FF4500",
@@ -163,7 +163,7 @@ function resetBrowserToolMocks() {
   configMocks.loadConfig.mockReturnValue({ browser: {} });
   browserConfigMocks.resolveBrowserConfig.mockReturnValue({
     enabled: true,
-    controlPort: 18791,
+    controlPort: 40707,
     profiles: {},
     defaultProfile: "openclaw",
   });
@@ -205,7 +205,7 @@ function setResolvedBrowserProfiles(
 ) {
   browserConfigMocks.resolveBrowserConfig.mockReturnValue({
     enabled: true,
-    controlPort: 18791,
+    controlPort: 40707,
     profiles,
     defaultProfile,
   });

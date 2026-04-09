@@ -21,7 +21,7 @@ x-i18n:
 最快的聊天方式：打开 Control UI（无需设置渠道）。运行 `openclaw dashboard`
 并在浏览器中聊天，或在
 <Tooltip headline="Gateway host" tip="运行 OpenClaw Gateway 网关服务的机器。">网关主机</Tooltip>
-上打开 `http://127.0.0.1:18789/`。
+上打开 `http://127.0.0.1:40705/`。
 文档：[Dashboard](/web/dashboard) 和 [Control UI](/web/control-ui)。
 </Info>
 
@@ -95,7 +95,7 @@ x-i18n:
     适合快速测试或故障排除。
 
     ```bash
-    openclaw gateway --port 18789
+    openclaw gateway --port 40705
     ```
 
   </Accordion>

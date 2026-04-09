@@ -29,9 +29,9 @@ function makeState(): BrowserServerState {
     resolved: {
       enabled: true,
       evaluateEnabled: true,
-      controlPort: 18791,
-      cdpPortRangeStart: 18800,
-      cdpPortRangeEnd: 18899,
+      controlPort: 40707,
+      cdpPortRangeStart: 40716,
+      cdpPortRangeEnd: 40815,
       cdpProtocol: "http",
       cdpHost: "127.0.0.1",
       cdpIsLoopback: true,
@@ -44,7 +44,7 @@ function makeState(): BrowserServerState {
       defaultProfile: "chrome-live",
       profiles: {
         "chrome-live": {
-          cdpPort: 18801,
+          cdpPort: 40717,
           color: "#0066CC",
           driver: "existing-session",
           attachOnly: true,

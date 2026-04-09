@@ -81,7 +81,7 @@ describe("pw-ai", () => {
     (chromiumMock.connectOverCDP as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(browser);
 
     const res = await snapshotAiViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T2",
     });
 
@@ -98,7 +98,7 @@ describe("pw-ai", () => {
     (chromiumMock.connectOverCDP as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(browser);
 
     const res = await snapshotAiViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
     });
 
@@ -108,7 +108,7 @@ describe("pw-ai", () => {
     });
 
     await clickViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       ref: "e1",
     });
@@ -125,7 +125,7 @@ describe("pw-ai", () => {
     (chromiumMock.connectOverCDP as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(browser);
 
     const res = await snapshotAiViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       maxChars: 10,
     });
@@ -141,7 +141,7 @@ describe("pw-ai", () => {
     (chromiumMock.connectOverCDP as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(browser);
 
     await clickViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       ref: "76",
     });
@@ -157,7 +157,7 @@ describe("pw-ai", () => {
 
     await expect(
       snapshotAiViaPlaywright({
-        cdpUrl: "http://127.0.0.1:18792",
+        cdpUrl: "http://127.0.0.1:40708",
         targetId: "T1",
       }),
     ).rejects.toThrow(/_snapshotForAI/i);
@@ -170,11 +170,11 @@ describe("pw-ai", () => {
     connect.mockResolvedValue(browser);
 
     await snapshotAiViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
     });
     await clickViaPlaywright({
-      cdpUrl: "http://127.0.0.1:18792",
+      cdpUrl: "http://127.0.0.1:40708",
       targetId: "T1",
       ref: "1",
     });

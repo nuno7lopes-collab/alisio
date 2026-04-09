@@ -229,8 +229,8 @@ describe("legacy migrate controlUi.allowedOrigins seed (issue #29385)", () => {
       },
     });
     expect(res.config?.gateway?.controlUi?.allowedOrigins).toEqual([
-      "http://localhost:18789",
-      "http://127.0.0.1:18789",
+      "http://localhost:40705",
+      "http://127.0.0.1:40705",
     ]);
     expect(res.changes.some((c) => c.includes("gateway.controlUi.allowedOrigins"))).toBe(true);
     expect(res.changes.some((c) => c.includes("bind=lan"))).toBe(true);
@@ -258,8 +258,8 @@ describe("legacy migrate controlUi.allowedOrigins seed (issue #29385)", () => {
         auth: { mode: "token", token: "tok" },
       },
     });
-    expect(res.config?.gateway?.controlUi?.allowedOrigins).toContain("http://192.168.1.100:18789");
-    expect(res.config?.gateway?.controlUi?.allowedOrigins).toContain("http://localhost:18789");
+    expect(res.config?.gateway?.controlUi?.allowedOrigins).toContain("http://192.168.1.100:40705");
+    expect(res.config?.gateway?.controlUi?.allowedOrigins).toContain("http://localhost:40705");
   });
 
   it("does not overwrite existing allowedOrigins — returns null (no migration needed)", () => {
@@ -297,8 +297,8 @@ describe("legacy migrate controlUi.allowedOrigins seed (issue #29385)", () => {
       },
     });
     expect(res.config?.gateway?.controlUi?.allowedOrigins).toEqual([
-      "http://localhost:18789",
-      "http://127.0.0.1:18789",
+      "http://localhost:40705",
+      "http://127.0.0.1:40705",
     ]);
     expect(res.changes.some((c) => c.includes("gateway.controlUi.allowedOrigins"))).toBe(true);
   });
@@ -324,8 +324,8 @@ describe("legacy migrate controlUi.allowedOrigins seed (issue #29385)", () => {
     });
     expect(res.config?.gateway?.controlUi?.basePath).toBe("/app");
     expect(res.config?.gateway?.controlUi?.allowedOrigins).toEqual([
-      "http://localhost:18789",
-      "http://127.0.0.1:18789",
+      "http://localhost:40705",
+      "http://127.0.0.1:40705",
     ]);
   });
 });

@@ -133,7 +133,7 @@ For the generic Docker flow, see [Docker](/install/docker).
     ALISIO_IMAGE=alisio:latest
     ALISIO_GATEWAY_TOKEN=change-me-now
     ALISIO_GATEWAY_BIND=lan
-    ALISIO_GATEWAY_PORT=18789
+    ALISIO_GATEWAY_PORT=40705
 
     ALISIO_CONFIG_DIR=/root/.alisio
     ALISIO_WORKSPACE_DIR=/root/.alisio/workspace
@@ -179,7 +179,7 @@ For the generic Docker flow, see [Docker](/install/docker).
         ports:
           # Recommended: keep the Gateway loopback-only on the VPS; access via SSH tunnel.
           # To expose it publicly, remove the `127.0.0.1:` prefix and firewall accordingly.
-          - "127.0.0.1:${ALISIO_GATEWAY_PORT}:18789"
+          - "127.0.0.1:${ALISIO_GATEWAY_PORT}:40705"
         command:
           [
             "node",
@@ -211,12 +211,12 @@ For the generic Docker flow, see [Docker](/install/docker).
     After the shared build and launch steps, tunnel from your laptop:
 
     ```bash
-    ssh -N -L 18789:127.0.0.1:18789 root@YOUR_VPS_IP
+    ssh -N -L 40705:127.0.0.1:40705 root@YOUR_VPS_IP
     ```
 
     Open:
 
-    `http://127.0.0.1:18789/`
+    `http://127.0.0.1:40705/`
 
     Paste your gateway token.
 

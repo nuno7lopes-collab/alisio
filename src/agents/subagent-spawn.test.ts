@@ -135,7 +135,6 @@ describe("spawnSubagentDirect seam flow", () => {
         model: "openai-codex/gpt-5.4",
         workspaceDir: "/tmp/requester-workspace",
         expectsCompletionMessage: true,
-        spawnMode: "run",
       }),
     );
     expect(hoisted.emitSessionLifecycleEventMock).toHaveBeenCalledWith({

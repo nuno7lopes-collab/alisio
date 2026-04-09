@@ -492,12 +492,7 @@ describe("Alisio sharing state", () => {
           grantScopes: ["read-only", "model-use"],
         }),
       ]);
-      expect(initialState.devices.available).toEqual([
-        expect.objectContaining({
-          targetId: "linked-device",
-          execAccess: "requestable",
-        }),
-      ]);
+      expect(initialState.devices.available).toEqual([]);
 
       const request = await requestAlisioSharingAccess(
         {
@@ -550,12 +545,94 @@ describe("Alisio sharing state", () => {
           grantScopes: ["read-only", "model-use"],
         }),
       ]);
-      expect(revokedState.devices.available).toEqual([
+      expect(revokedState.devices.available).toEqual([]);
+    });
+  });
+
+  it("persists per-resource sharing policy and keeps sensitive classes behind explicit consent", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      await setStoredAlisioPlan(root, "plus");
+
+      await switchStoredAlisioUser(root, {
+        userId: "user-owner",
+        username: "owner",
+        displayName: "Owner User",
+        email: "owner@example.com",
+        plan: "plus",
+      });
+      await getAlisioSharingState(
+        {
+          targets: [
+            createSharingTarget("owner-device", "Owner Device"),
+            {
+              targetId: "linked-device",
+              label: "Linked Device",
+              platform: "macOS",
+              sourceKind: "node",
+              connected: true,
+              current: false,
+            },
+          ],
+        },
+        env,
+      );
+
+      const initialState = await getAlisioSharingState(undefined, env);
+      expect(initialState.policy.resourcePolicies).toEqual({
+        compute: "light-approval",
+        models: "paired-device",
+        jobs: "light-approval",
+        artifacts: "paired-device",
+        cache: "paired-device",
+        memory: "explicit-consent",
+        vault: "explicit-consent",
+        files: "explicit-consent",
+        context: "explicit-consent",
+      });
+      expect(initialState.suggestions.map((suggestion) => suggestion.kind)).toEqual([
+        "model-reuse",
+        "artifact-cache",
+        "cache-reuse",
+        "exec-upgrade",
+        "sensitive-consent",
+      ]);
+
+      const updated = await setAlisioSharingPolicy(
+        {
+          resourcePolicies: {
+            models: "light-approval",
+          },
+        },
+        env,
+      );
+      expect(updated.resourcePolicies.models).toBe("light-approval");
+
+      const restrictedState = await getAlisioSharingState(undefined, env);
+      expect(restrictedState.policy.resourcePolicies.models).toBe("light-approval");
+      expect(restrictedState.devices.sharedWithMe).toEqual([
         expect.objectContaining({
           targetId: "linked-device",
+          deviceAccess: "shared",
+          modelAccess: "requestable",
           execAccess: "requestable",
+          grantScopes: ["read-only"],
         }),
       ]);
+      expect(restrictedState.suggestions.map((suggestion) => suggestion.kind)).toEqual([
+        "sensitive-consent",
+      ]);
+
+      await expect(
+        setAlisioSharingPolicy(
+          {
+            resourcePolicies: {
+              memory: "paired-device",
+            },
+          },
+          env,
+        ),
+      ).rejects.toThrow("memory sharing must remain behind explicit consent.");
     });
   });
 
@@ -2406,7 +2483,7 @@ describe("beginAlisioConnectorSetup", () => {
         const url = resolveRequestUrl(input);
         expect(url.pathname).toBe("/auth/v1/recover");
         expect(url.searchParams.get("redirect_to")).toBe(
-          "http://localhost:18789/logout/setup?step=account",
+          "http://localhost:40705/logout/setup?step=account",
         );
         expect(parseJsonBody(init?.body)).toEqual({
           email: "nuno@example.com",
@@ -2422,7 +2499,7 @@ describe("beginAlisioConnectorSetup", () => {
         const result = await requestAlisioAccountRecoveryEmail(
           {
             email: "Nuno@example.com",
-            callbackUrl: "http://localhost:18789/logout/setup?step=account",
+            callbackUrl: "http://localhost:40705/logout/setup?step=account",
           },
           env,
         );
@@ -2457,7 +2534,7 @@ describe("beginAlisioConnectorSetup", () => {
       const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
         const url = resolveRequestUrl(input);
         expect(url.pathname).toBe("/auth/v1/user");
-        expect(url.searchParams.get("redirect_to")).toBe("http://localhost:18789/logout/settings");
+        expect(url.searchParams.get("redirect_to")).toBe("http://localhost:40705/logout/settings");
         expect(new Headers(init?.headers).get("authorization")).toBe("Bearer supabase-access");
         expect(parseJsonBody(init?.body)).toEqual({
           email: "next@example.com",
@@ -2473,7 +2550,7 @@ describe("beginAlisioConnectorSetup", () => {
         const result = await changeAlisioAccountEmail(
           {
             email: "Next@example.com",
-            callbackUrl: "http://localhost:18789/logout/settings",
+            callbackUrl: "http://localhost:40705/logout/settings",
           },
           env,
         );

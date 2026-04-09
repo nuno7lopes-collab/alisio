@@ -192,10 +192,10 @@ describe("diffs viewer URL helpers", () => {
   it("defaults to loopback for lan/tailnet bind modes", () => {
     expect(
       buildViewerUrl({
-        config: { gateway: { bind: "lan", port: 18789 } },
+        config: { gateway: { bind: "lan", port: 40705 } },
         viewerPath: "/plugins/diffs/view/id/token",
       }),
-    ).toBe("http://127.0.0.1:18789/plugins/diffs/view/id/token");
+    ).toBe("http://127.0.0.1:40705/plugins/diffs/view/id/token");
 
     expect(
       buildViewerUrl({

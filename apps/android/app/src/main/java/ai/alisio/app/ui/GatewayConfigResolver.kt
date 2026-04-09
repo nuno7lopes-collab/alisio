@@ -100,7 +100,7 @@ internal fun parseGatewayEndpoint(rawInput: String): GatewayEndpointConfig? {
   val defaultPort =
     when (scheme) {
       "wss", "https" -> 443
-      "ws", "http" -> 18789
+      "ws", "http" -> 40705
       else -> 443
     }
   val displayPort =

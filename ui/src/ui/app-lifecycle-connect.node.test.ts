@@ -138,7 +138,7 @@ describe("handleConnected", () => {
       async (host: ReturnType<typeof createHost> & { alisioStartupBootstrap: unknown }) => {
         host.alisioStartupBootstrap = {
           basePath: "/",
-          controlUrl: "ws://localhost:18789/",
+          controlUrl: "ws://localhost:40705/",
           startupState: "signed_out",
           account: {
             username: "nuno",

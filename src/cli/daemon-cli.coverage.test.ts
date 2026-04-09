@@ -5,7 +5,7 @@ import { createCliRuntimeCapture } from "./test-runtime-capture.js";
 
 const probeGatewayStatus = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
 const resolveGatewayProgramArguments = vi.fn(async (_opts?: unknown) => ({
-  programArguments: ["/bin/node", "cli", "gateway", "--port", "18789"],
+  programArguments: ["/bin/node", "cli", "gateway", "--port", "40705"],
 }));
 const serviceInstall = vi.fn().mockResolvedValue(undefined);
 const serviceStage = vi.fn().mockResolvedValue(undefined);
@@ -80,7 +80,7 @@ vi.mock("../daemon/inspect.js", () => ({
 
 vi.mock("../infra/ports.js", () => ({
   inspectPortUsage: (port: number) => inspectPortUsage(port),
-  formatPortDiagnostics: () => ["Port 18789 is already in use."],
+  formatPortDiagnostics: () => ["Port 40705 is already in use."],
 }));
 
 vi.mock("../runtime.js", async (importOriginal) => ({
@@ -152,7 +152,7 @@ describe("daemon-cli coverage", () => {
 
     expect(probeGatewayStatus).toHaveBeenCalledTimes(1);
     expect(probeGatewayStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ url: "ws://127.0.0.1:18789" }),
+      expect.objectContaining({ url: "ws://127.0.0.1:40705" }),
     );
     expect(findExtraGatewayServices).toHaveBeenCalled();
     expect(inspectPortUsage).toHaveBeenCalled();
@@ -216,7 +216,7 @@ describe("daemon-cli coverage", () => {
       "daemon",
       "install",
       "--port",
-      "18789",
+      "40705",
       "--token",
       "test-token",
       "--json",

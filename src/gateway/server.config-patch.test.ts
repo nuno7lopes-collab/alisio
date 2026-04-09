@@ -197,6 +197,36 @@ describe("gateway config methods", () => {
     expect(res.payload?.restart).toBeNull();
     expect(res.payload?.sentinel).toBeNull();
   });
+
+  it("does not schedule restart for dynamic tools.exec config changes", async () => {
+    const current = await rpcReq<{
+      hash?: string;
+      config?: {
+        tools?: {
+          exec?: {
+            ask?: string;
+          };
+        };
+      };
+    }>(requireWs(), "config.get", {});
+    expect(current.ok).toBe(true);
+    expect(typeof current.payload?.hash).toBe("string");
+
+    const previousAsk = current.payload?.config?.tools?.exec?.ask ?? "on-miss";
+    const nextAsk = previousAsk === "off" ? "on-miss" : "off";
+
+    const res = await rpcReq<{
+      restart?: unknown;
+      sentinel?: unknown;
+    }>(requireWs(), "config.patch", {
+      raw: JSON.stringify({ tools: { exec: { ask: nextAsk } } }),
+      baseHash: current.payload?.hash,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.payload?.restart).toBeNull();
+    expect(res.payload?.sentinel).toBeNull();
+  });
 });
 
 describe("gateway server sessions", () => {

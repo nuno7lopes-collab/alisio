@@ -28,7 +28,7 @@ vi.mock("../config/config.js", async (importOriginal) => {
         agentToAgent: { enabled: true },
       },
     }),
-    resolveGatewayPort: () => 18789,
+    resolveGatewayPort: () => 40705,
   };
 });
 

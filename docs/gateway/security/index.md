@@ -620,7 +620,7 @@ Keep config + state private on the gateway host:
 
 The Gateway multiplexes **WebSocket + HTTP** on a single port:
 
-- Default: `18789`
+- Default: `40705`
 - Config/flags/env: `gateway.port`, `--port`, `ALISIO_GATEWAY_PORT`
 
 This HTTP surface includes the Control UI and the canvas host:
@@ -936,7 +936,7 @@ One “safe default” config that keeps the Gateway private, requires DM pairin
   gateway: {
     mode: "local",
     bind: "loopback",
-    port: 18789,
+    port: 40705,
     auth: { mode: "token", token: "your-long-random-token" },
   },
   channels: {
@@ -978,7 +978,8 @@ Important: `tools.elevated` is the global baseline escape hatch that runs exec o
 If you allow session tools, treat delegated sub-agent runs as another boundary decision:
 
 - Deny `sessions_spawn` unless the agent truly needs delegation.
-- Keep `agents.list[].subagents.allowAgents` restricted to known-safe target agents.
+- Internal `runtime: "subagent"` workers are same-agent-only; do not treat them as cross-agent identities.
+- If you need persistent or cross-agent delegation, use ACP policy (`acp.allowedAgents`) explicitly instead of internal subagents.
 - For any workflow that must remain sandboxed, call `sessions_spawn` with `sandbox: "require"` (default is `inherit`).
 - `sandbox: "require"` fails fast when the target child runtime is not sandboxed.
 

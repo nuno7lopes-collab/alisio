@@ -11,7 +11,7 @@ describe("restart-helper", () => {
   const originalPlatform = process.platform;
   const originalGetUid = process.getuid;
 
-  async function prepareAndReadScript(env: Record<string, string>, gatewayPort = 18789) {
+  async function prepareAndReadScript(env: Record<string, string>, gatewayPort = 40705) {
     const scriptPath = await prepareRestartScript(env, gatewayPort);
     expect(scriptPath).toBeTruthy();
     const content = await fs.readFile(scriptPath!, "utf-8");
@@ -22,7 +22,7 @@ describe("restart-helper", () => {
     await fs.unlink(scriptPath);
   }
 
-  function expectWindowsRestartWaitOrdering(content: string, port = 18789) {
+  function expectWindowsRestartWaitOrdering(content: string, port = 40705) {
     const endCommand = 'schtasks /End /TN "';
     const pollAttemptsInit = "set /a attempts=0";
     const pollLabel = ":wait_for_port_release";
