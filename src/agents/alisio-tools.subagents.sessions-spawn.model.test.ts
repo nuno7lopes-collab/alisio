@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
+import "./test-helpers/fast-core-tools.js";
 import {
   getCallGatewayMock,
   getSessionsSpawnTool,
   resetSessionsSpawnConfigOverride,
   setSessionsSpawnConfigOverride,
 } from "./alisio-tools.subagents.sessions-spawn.test-harness.js";
-import "./test-helpers/fast-core-tools.js";
-import { DEFAULT_MODEL, DEFAULT_PROVIDER } from "./defaults.js";
 import { resetSubagentRegistryForTests } from "./subagent-registry.js";
 import { SUBAGENT_SPAWN_ACCEPTED_NOTE } from "./subagent-spawn.js";
 

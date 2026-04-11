@@ -364,8 +364,7 @@ async function inspectNodeRuntimeCandidate(params: {
         uninstall:
           payload?.supportsUninstall === true || params.fallbackCapabilities?.uninstall === true,
         consentRequired:
-          payload?.consentRequired === true ||
-          params.fallbackCapabilities?.consentRequired === true,
+          payload?.consentRequired === true || params.fallbackCapabilities?.consentRequired === true,
       }),
     supportsInstall:
       payload?.supportsInstall === true || params.fallbackCapabilities?.install === true,
@@ -666,14 +665,15 @@ async function loadSnapshot(params: {
           supportsInstall: readOnlySharedAccess ? false : entry.target.supportsInstall,
           supportsUpdate: readOnlySharedAccess ? false : entry.target.supportsUpdate,
           supportsUninstall: readOnlySharedAccess ? false : entry.target.supportsUninstall,
-          capabilities: readOnlySharedAccess
-            ? {
-                ...entry.target.capabilities,
-                install: false,
-                update: false,
-                uninstall: false,
-              }
-            : entry.target.capabilities,
+          capabilities:
+            readOnlySharedAccess
+              ? {
+                  ...entry.target.capabilities,
+                  install: false,
+                  update: false,
+                  uninstall: false,
+                }
+              : entry.target.capabilities,
           access: access.modelAccess,
           ownerLabel: access.ownerLabel,
           ownerScope: access.ownerScope,
@@ -696,14 +696,15 @@ async function loadSnapshot(params: {
           supportsInstall: readOnlySharedAccess ? false : entry.target.supportsInstall,
           supportsUpdate: readOnlySharedAccess ? false : entry.target.supportsUpdate,
           supportsUninstall: readOnlySharedAccess ? false : entry.target.supportsUninstall,
-          capabilities: readOnlySharedAccess
-            ? {
-                ...entry.target.capabilities,
-                install: false,
-                update: false,
-                uninstall: false,
-              }
-            : entry.target.capabilities,
+          capabilities:
+            readOnlySharedAccess
+              ? {
+                  ...entry.target.capabilities,
+                  install: false,
+                  update: false,
+                  uninstall: false,
+                }
+              : entry.target.capabilities,
           access: access.modelAccess,
           ownerLabel: access.ownerLabel,
           ownerScope: access.ownerScope,

@@ -82,7 +82,9 @@ export function buildGatewayRuntimeHints(
       ...buildPlatformRuntimeLogHints({
         platform,
         env,
-        systemdServiceName: resolveGatewaySystemdServiceName(env.ALISIO_PROFILE),
+        systemdServiceName: resolveGatewaySystemdServiceName(
+          env.ALISIO_PROFILE,
+        ),
         windowsTaskName: resolveGatewayWindowsTaskName(env.ALISIO_PROFILE),
       }),
     );

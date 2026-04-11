@@ -562,7 +562,10 @@ import {
   type WizardStep,
   WizardStepSchema,
 } from "./schema.js";
-import type { AlisioModelHardware, AlisioModelRecommendation } from "./schema/types.js";
+import type {
+  AlisioModelHardware,
+  AlisioModelRecommendation,
+} from "./schema/types.js";
 
 const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
   allErrors: true,

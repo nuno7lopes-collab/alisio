@@ -20,7 +20,9 @@ export function summarizeMatrixDeviceHealth(
   devices: MatrixManagedDeviceInfo[],
 ): MatrixDeviceHealthSummary {
   const currentDeviceId = devices.find((device) => device.current)?.deviceId ?? null;
-  const alisioDevices = devices.filter((device) => isAlisioManagedMatrixDevice(device.displayName));
+  const alisioDevices = devices.filter((device) =>
+    isAlisioManagedMatrixDevice(device.displayName),
+  );
   return {
     currentDeviceId,
     staleAlisioDevices: alisioDevices.filter((device) => !device.current),

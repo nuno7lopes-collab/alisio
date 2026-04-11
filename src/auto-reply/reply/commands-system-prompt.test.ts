@@ -103,7 +103,9 @@ describe("resolveCommandsSystemPromptBundle", () => {
     createAlisioCodingToolsMock.mockClear();
     createAlisioCodingToolsMock.mockReturnValue([]);
     const piTools = await import("../../agents/pi-tools.js");
-    vi.spyOn(piTools, "createAlisioCodingTools").mockImplementation(createAlisioCodingToolsMock);
+    vi.spyOn(piTools, "createAlisioCodingTools").mockImplementation(
+      createAlisioCodingToolsMock,
+    );
     const ttsRuntime = await import("../../tts/tts.js");
     vi.spyOn(ttsRuntime, "buildTtsSystemPromptHint").mockReturnValue(undefined);
   });

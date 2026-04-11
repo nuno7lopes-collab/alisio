@@ -9,7 +9,11 @@ export {
   looksLikeSlackTargetId,
   normalizeSlackMessagingTarget,
 } from "alisio/plugin-sdk/slack-targets";
-export type { ChannelPlugin, AlisioConfig, SlackAccountConfig } from "alisio/plugin-sdk/slack";
+export type {
+  ChannelPlugin,
+  AlisioConfig,
+  SlackAccountConfig,
+} from "alisio/plugin-sdk/slack";
 export {
   buildChannelConfigSchema,
   getChatChannelMeta,

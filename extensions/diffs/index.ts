@@ -1,5 +1,9 @@
 import path from "node:path";
-import { definePluginEntry, resolvePreferredAlisioTmpDir, type AlisioPluginApi } from "./api.js";
+import {
+  definePluginEntry,
+  resolvePreferredAlisioTmpDir,
+  type AlisioPluginApi,
+} from "./api.js";
 import {
   diffsPluginConfigSchema,
   resolveDiffsPluginDefaults,

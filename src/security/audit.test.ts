@@ -1133,7 +1133,9 @@ description: test skill
             execDockerRawFn: (async (args: string[]) => {
               if (args[0] === "ps") {
                 return {
-                  stdout: Buffer.from("alisio-sbx-browser-old\nalisio-sbx-browser-missing-hash\n"),
+                  stdout: Buffer.from(
+                    "alisio-sbx-browser-old\nalisio-sbx-browser-missing-hash\n",
+                  ),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };

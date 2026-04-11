@@ -252,7 +252,9 @@ export async function maybeRepairGatewayDaemon(params: {
   }
 
   if (process.platform === "darwin") {
-    const label = resolveGatewayLaunchAgentLabel(process.env.ALISIO_PROFILE);
+    const label = resolveGatewayLaunchAgentLabel(
+      process.env.ALISIO_PROFILE,
+    );
     note(
       `LaunchAgent loaded; stopping requires "${formatCliCommand("alisio gateway stop")}" or launchctl bootout gui/$UID/${label}.`,
       "Gateway",

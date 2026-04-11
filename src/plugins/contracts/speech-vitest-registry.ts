@@ -32,12 +32,8 @@ export type ImageGenerationProviderContractEntry = {
 };
 
 function buildVitestCapabilityAliasMap(modulePath: string): Record<string, string> {
-  const { ["alisio/plugin-sdk"]: _ignoredRootAlias, ...scopedAliasMap } = buildPluginLoaderAliasMap(
-    modulePath,
-    process.argv[1],
-    import.meta.url,
-    "dist",
-  );
+  const { ["alisio/plugin-sdk"]: _ignoredRootAlias, ...scopedAliasMap } =
+    buildPluginLoaderAliasMap(modulePath, process.argv[1], import.meta.url, "dist");
   return {
     ...scopedAliasMap,
     "alisio/plugin-sdk/llm-task": fileURLToPath(

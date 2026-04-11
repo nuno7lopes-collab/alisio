@@ -242,8 +242,9 @@ describe("maybeRepairGatewayServiceConfig", () => {
       const envToken = env.ALISIO_GATEWAY_TOKEN?.trim() || undefined;
       return { token: configToken || envToken };
     });
-    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } =
-      await import("./doctor-gateway-services.js"));
+    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } = await import(
+      "./doctor-gateway-services.js"
+    ));
   });
 
   afterEach(() => {
@@ -631,8 +632,9 @@ describe("maybeScanExtraGatewayServices", () => {
     mocks.findExtraGatewayServices.mockResolvedValue([]);
     mocks.renderGatewayServiceCleanupHints.mockReturnValue([]);
     mocks.uninstallLegacySystemdUnits.mockResolvedValue([]);
-    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } =
-      await import("./doctor-gateway-services.js"));
+    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } = await import(
+      "./doctor-gateway-services.js"
+    ));
   });
 
   it("removes legacy Linux user systemd services", async () => {

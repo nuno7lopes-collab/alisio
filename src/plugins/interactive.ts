@@ -44,10 +44,13 @@ const PLUGIN_INTERACTIVE_STATE_KEY = Symbol.for("alisio.pluginInteractiveState")
 const getState = () =>
   resolveGlobalSingleton<InteractiveState>(PLUGIN_INTERACTIVE_STATE_KEY, () => ({
     interactiveHandlers: new Map<string, RegisteredInteractiveHandler>(),
-    callbackDedupe: resolveGlobalDedupeCache(Symbol.for("alisio.pluginInteractiveCallbackDedupe"), {
-      ttlMs: 5 * 60_000,
-      maxSize: 4096,
-    }),
+    callbackDedupe: resolveGlobalDedupeCache(
+      Symbol.for("alisio.pluginInteractiveCallbackDedupe"),
+      {
+        ttlMs: 5 * 60_000,
+        maxSize: 4096,
+      },
+    ),
   }));
 
 const getInteractiveHandlers = () => getState().interactiveHandlers;

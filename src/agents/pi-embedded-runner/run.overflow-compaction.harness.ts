@@ -344,7 +344,8 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
   }));
 
   vi.doMock("../../plugins/provider-runtime.js", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("../../plugins/provider-runtime.js")>();
+    const actual =
+      await importOriginal<typeof import("../../plugins/provider-runtime.js")>();
     return {
       ...actual,
       prepareProviderRuntimeAuth: mockedPrepareProviderRuntimeAuth,

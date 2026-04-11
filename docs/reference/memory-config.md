@@ -25,12 +25,12 @@ All memory search settings live under `agents.defaults.memorySearch` in
 
 ## Provider selection
 
-| Key        | Type      | Default          | Description                                                            |
-| ---------- | --------- | ---------------- | ---------------------------------------------------------------------- |
+| Key        | Type      | Default          | Description                                                                      |
+| ---------- | --------- | ---------------- | -------------------------------------------------------------------------------- |
 | `provider` | `string`  | auto-detected    | Embedding adapter ID: `openai`, `gemini`, `voyage`, `mistral`, `local` |
-| `model`    | `string`  | provider default | Embedding model name                                                   |
-| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                             |
-| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                        |
+| `model`    | `string`  | provider default | Embedding model name                                                             |
+| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                                       |
+| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                                  |
 
 ### Auto-detection order
 
@@ -51,12 +51,12 @@ sign-in does not trigger remote embedding credential warnings by default.
 Remote embeddings require an API key. Alisio resolves from:
 auth profiles, `models.providers.*.apiKey`, or environment variables.
 
-| Provider | Env var           | Config key                        |
-| -------- | ----------------- | --------------------------------- |
-| OpenAI   | `OPENAI_API_KEY`  | `models.providers.openai.apiKey`  |
-| Gemini   | `GEMINI_API_KEY`  | `models.providers.google.apiKey`  |
-| Voyage   | `VOYAGE_API_KEY`  | `models.providers.voyage.apiKey`  |
-| Mistral  | `MISTRAL_API_KEY` | `models.providers.mistral.apiKey` |
+| Provider | Env var                        | Config key                        |
+| -------- | ------------------------------ | --------------------------------- |
+| OpenAI   | `OPENAI_API_KEY`               | `models.providers.openai.apiKey`  |
+| Gemini   | `GEMINI_API_KEY`               | `models.providers.google.apiKey`  |
+| Voyage   | `VOYAGE_API_KEY`               | `models.providers.voyage.apiKey`  |
+| Mistral  | `MISTRAL_API_KEY`              | `models.providers.mistral.apiKey` |
 
 Codex OAuth covers chat/completions only and does not satisfy embedding
 requests. Remote memory embeddings still need their own API key.

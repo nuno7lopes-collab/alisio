@@ -74,7 +74,9 @@ describe("update global helpers", () => {
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "latest" })).toBe(
       "alisio@latest",
     );
-    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe("alisio@beta");
+    expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "beta" })).toBe(
+      "alisio@beta",
+    );
     expect(resolveGlobalInstallSpec({ packageName: "alisio", tag: "main" })).toBe(
       ALISIO_MAIN_PACKAGE_SPEC,
     );

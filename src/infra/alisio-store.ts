@@ -3,11 +3,7 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import os from "node:os";
 import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
-import {
-  resolveAlternativeStateDirs,
-  resolveNewStateDir,
-  resolveStateDir,
-} from "../config/paths.js";
+import { resolveAlternativeStateDirs, resolveNewStateDir, resolveStateDir } from "../config/paths.js";
 import {
   type AlisioAccountAuthMethod,
   deriveAlisioAvatarLabel,

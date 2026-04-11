@@ -29,8 +29,12 @@ export function parseThemeSelection(
   const theme = typeof themeRaw === "string" ? themeRaw : "";
   const mode = typeof modeRaw === "string" ? modeRaw : "";
 
-  const normalizedTheme = VALID_THEME_NAMES.has(theme as ThemeName) ? (theme as ThemeName) : "claw";
-  const normalizedMode = VALID_THEME_MODES.has(mode as ThemeMode) ? (mode as ThemeMode) : "system";
+  const normalizedTheme = VALID_THEME_NAMES.has(theme as ThemeName)
+    ? (theme as ThemeName)
+    : "claw";
+  const normalizedMode = VALID_THEME_MODES.has(mode as ThemeMode)
+    ? (mode as ThemeMode)
+    : "system";
 
   return { theme: normalizedTheme, mode: normalizedMode };
 }

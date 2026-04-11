@@ -64,7 +64,8 @@ function hasTrustedProjectRootIndicator(params: {
   const hasKnownCliBin =
     (typeof bin === "string" && /alisio/.test(bin.toLowerCase())) ||
     (typeof bin === "object" && bin !== null && typeof bin.alisio === "string");
-  const hasKnownCliEntrypoint = fs.existsSync(path.join(params.packageRoot, "alisio.mjs"));
+  const hasKnownCliEntrypoint =
+    fs.existsSync(path.join(params.packageRoot, "alisio.mjs"));
   return hasCliEntryExport || hasKnownCliBin || hasKnownCliEntrypoint;
 }
 

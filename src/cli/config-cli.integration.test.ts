@@ -114,7 +114,11 @@ describe("config cli integration", () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-config-cli-int-"));
     const configPath = path.join(tempDir, "alisio.json");
     const batchPath = path.join(tempDir, "batch.json");
-    const envSnapshot = captureEnv(["ALISIO_CONFIG_PATH", "ALISIO_TEST_FAST", "DISCORD_BOT_TOKEN"]);
+    const envSnapshot = captureEnv([
+      "ALISIO_CONFIG_PATH",
+      "ALISIO_TEST_FAST",
+      "DISCORD_BOT_TOKEN",
+    ]);
     try {
       fs.writeFileSync(
         configPath,

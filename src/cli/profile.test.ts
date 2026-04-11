@@ -17,7 +17,14 @@ describe("parseCliProfileArgs", () => {
       throw new Error(res.error);
     }
     expect(res.profile).toBeNull();
-    expect(res.argv).toEqual(["node", "alisio", "gateway", "run", "--dev", "--allow-unconfigured"]);
+    expect(res.argv).toEqual([
+      "node",
+      "alisio",
+      "gateway",
+      "run",
+      "--dev",
+      "--allow-unconfigured",
+    ]);
   });
 
   it("leaves gateway run --dev for subcommands after leading root options", () => {
@@ -207,7 +214,9 @@ describe("formatCliCommand", () => {
   });
 
   it("handles command with no args after alisio", () => {
-    expect(formatCliCommand("alisio", { ALISIO_PROFILE: "test" })).toBe("alisio --profile test");
+    expect(formatCliCommand("alisio", { ALISIO_PROFILE: "test" })).toBe(
+      "alisio --profile test",
+    );
   });
 
   it("handles pnpm wrapper", () => {

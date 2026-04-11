@@ -217,7 +217,9 @@ export function maybeRunCliInContainer(
     stdoutIsTTY: deps?.stdoutIsTTY ?? Boolean(process.stdout.isTTY),
   };
 
-  if (resolvedDeps.env.ALISIO_CLI_CONTAINER_BYPASS === "1") {
+  if (
+    resolvedDeps.env.ALISIO_CLI_CONTAINER_BYPASS === "1"
+  ) {
     return { handled: false, argv };
   }
 

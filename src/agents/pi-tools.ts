@@ -8,7 +8,6 @@ import { getPluginToolMeta } from "../plugins/tools.js";
 import { isSubagentSessionKey } from "../routing/session-key.js";
 import { resolveGatewayMessageChannel } from "../utils/message-channel.js";
 import { resolveAgentConfig } from "./agent-scope.js";
-import { createAlisioTools } from "./alisio-tools.js";
 import { createApplyPatchTool } from "./apply-patch.js";
 import {
   createExecTool,
@@ -19,6 +18,7 @@ import {
 import { listChannelAgentTools } from "./channel-tools.js";
 import { resolveImageSanitizationLimits } from "./image-sanitization.js";
 import type { ModelAuthMode } from "./model-auth.js";
+import { createAlisioTools } from "./alisio-tools.js";
 import { wrapToolWithAbortSignal } from "./pi-tools.abort.js";
 import { wrapToolWithBeforeToolCallHook } from "./pi-tools.before-tool-call.js";
 import {

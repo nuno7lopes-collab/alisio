@@ -39,8 +39,7 @@ describe("runEmbeddedPiAgent transcript rewind before retry", () => {
           assistantTexts: [],
           lastAssistant: {
             stopReason: "error",
-            errorMessage:
-              "You have hit your ChatGPT usage limit (team plan). Try again in ~174 min.",
+            errorMessage: "You have hit your ChatGPT usage limit (team plan). Try again in ~174 min.",
             provider: "openai-codex",
             model: "gpt-5.3-codex",
           } as EmbeddedRunAttemptResult["lastAssistant"],

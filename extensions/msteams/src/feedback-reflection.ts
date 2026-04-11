@@ -10,7 +10,10 @@
  * 6. Optionally sends a proactive follow-up to the user
  */
 
-import { dispatchReplyFromConfigWithSettledDispatcher, type AlisioConfig } from "../runtime-api.js";
+import {
+  dispatchReplyFromConfigWithSettledDispatcher,
+  type AlisioConfig,
+} from "../runtime-api.js";
 import type { StoredConversationReference } from "./conversation-store.js";
 import { buildReflectionPrompt, parseReflectionResponse } from "./feedback-reflection-prompt.js";
 import {

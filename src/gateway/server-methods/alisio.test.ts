@@ -138,8 +138,8 @@ vi.mock("../../infra/alisio-local-llama-runtime.js", async (importOriginal) => {
   };
 });
 
-import { setAlisioSharingPolicy } from "../../infra/alisio-store.js";
 import { NodeRegistry } from "../node-registry.js";
+import { setAlisioSharingPolicy } from "../../infra/alisio-store.js";
 import { alisioHandlers } from "./alisio.js";
 import type { GatewayRequestContext } from "./types.js";
 

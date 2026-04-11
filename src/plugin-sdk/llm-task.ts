@@ -2,7 +2,9 @@
 // Keep this list additive and scoped to the bundled LLM task surface.
 
 export { definePluginEntry } from "./plugin-entry.js";
-export { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
+export {
+  resolvePreferredAlisioTmpDir,
+} from "../infra/tmp-alisio-dir.js";
 export {
   formatThinkingLevels,
   formatXHighModelHint,

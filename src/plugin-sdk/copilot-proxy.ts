@@ -2,4 +2,8 @@
 // Keep this list additive and scoped to the bundled Copilot proxy surface.
 
 export { definePluginEntry } from "./plugin-entry.js";
-export type { AlisioPluginApi, ProviderAuthContext, ProviderAuthResult } from "../plugins/types.js";
+export type {
+  AlisioPluginApi,
+  ProviderAuthContext,
+  ProviderAuthResult,
+} from "../plugins/types.js";

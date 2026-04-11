@@ -15,7 +15,9 @@ import {
   resolveXaiCodeExecutionModel,
 } from "./src/code-execution-shared.js";
 
-type XaiPluginConfig = NonNullable<NonNullable<AlisioConfig["plugins"]>["entries"]>["xai"] extends {
+type XaiPluginConfig = NonNullable<
+  NonNullable<AlisioConfig["plugins"]>["entries"]
+>["xai"] extends {
   config?: infer Config;
 }
   ? Config

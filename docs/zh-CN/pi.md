@@ -44,7 +44,7 @@ Alisio 使用 pi SDK 将 AI 编码智能体嵌入到其消息 Gateway 网关架�
 | `pi-ai`           | 核心 LLM 抽象：`Model`、`streamSimple`、消息类型、提供商 API                               |
 | `pi-agent-core`   | 智能体循环、工具执行、`AgentMessage` 类型                                                  |
 | `pi-coding-agent` | 高层 SDK：`createAgentSession`、`SessionManager`、`AuthStorage`、`ModelRegistry`、内置工具 |
-| `pi-tui`          | 终端 UI 组件（用于 Alisio 的本地 TUI 模式）                                                |
+| `pi-tui`          | 终端 UI 组件（用于 Alisio 的本地 TUI 模式）                                              |
 
 ## 文件结构
 
@@ -528,15 +528,15 @@ import { ... } from "@mariozechner/pi-tui";
 
 ## 与 Pi CLI 的关键差异
 
-| 方面       | Pi CLI                  | Alisio 内嵌版                                                                               |
-| ---------- | ----------------------- | ------------------------------------------------------------------------------------------- |
-| 调用方式   | `pi` 命令 / RPC         | 通过 `createAgentSession()` 使用 SDK                                                        |
-| 工具       | 默认编码工具            | 自定义 Alisio 工具套件                                                                      |
-| 系统提示词 | AGENTS.md + prompts     | 按渠道 / 上下文动态生成                                                                     |
+| 方面       | Pi CLI                  | Alisio 内嵌版                                                                                 |
+| ---------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
+| 调用方式   | `pi` 命令 / RPC         | 通过 `createAgentSession()` 使用 SDK                                                            |
+| 工具       | 默认编码工具            | 自定义 Alisio 工具套件                                                                        |
+| 系统提示词 | AGENTS.md + prompts     | 按渠道 / 上下文动态生成                                                                         |
 | 会话存储   | `~/.pi/agent/sessions/` | `~/.alisio/agents/<agentId>/sessions/`（或 `$ALISIO_STATE_DIR/agents/<agentId>/sessions/`） |
-| 身份验证   | 单一凭证                | 支持轮换的多配置                                                                            |
-| 扩展       | 从磁盘加载              | 通过编程方式 + 磁盘路径                                                                     |
-| 事件处理   | TUI 渲染                | 基于回调（`onBlockReply` 等）                                                               |
+| 身份验证   | 单一凭证                | 支持轮换的多配置                                                                                |
+| 扩展       | 从磁盘加载              | 通过编程方式 + 磁盘路径                                                                         |
+| 事件处理   | TUI 渲染                | 基于回调（`onBlockReply` 等）                                                                   |
 
 ## 未来考虑
 

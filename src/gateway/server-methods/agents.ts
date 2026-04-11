@@ -465,7 +465,9 @@ async function listAgentMemoryFiles(workspaceDir: string) {
       resolveObsidianDisplayPath(absPath, obsidianLayout ?? null) ??
       path.relative(workspaceDir, absPath).replace(/\\/g, "/");
     if (
-      obsidianLayout ? name === obsidianLayout.longTermToolPath : name === DEFAULT_MEMORY_FILENAME
+      obsidianLayout
+        ? name === obsidianLayout.longTermToolPath
+        : name === DEFAULT_MEMORY_FILENAME
     ) {
       hasPreferredLongTerm = true;
     }

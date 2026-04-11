@@ -38,7 +38,11 @@ function makeRemoteGatewayConfig(remote: { token?: string; password?: string }):
 }
 
 function withGatewayAuthEnv<T>(env: NodeJS.ProcessEnv, fn: () => T): T {
-  const keys = ["ALISIO_GATEWAY_TOKEN", "ALISIO_GATEWAY_PASSWORD", "ALISIO_SERVICE_KIND"] as const;
+  const keys = [
+    "ALISIO_GATEWAY_TOKEN",
+    "ALISIO_GATEWAY_PASSWORD",
+    "ALISIO_SERVICE_KIND",
+  ] as const;
   const previous = new Map<string, string | undefined>();
   for (const key of keys) {
     previous.set(key, process.env[key]);

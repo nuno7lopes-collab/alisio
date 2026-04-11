@@ -127,14 +127,14 @@ export async function promptRemoteGatewayConfig(
           discoveryTlsFingerprint = fingerprint;
           trustedDiscoveryUrl = suggestedUrl;
           await prompter.note(
-            [
-              "Direct remote access defaults to TLS.",
-              `Using: ${suggestedUrl}`,
-              ...(fingerprint ? [`TLS pin: ${fingerprint}`] : []),
-              `If your gateway is loopback-only, choose SSH tunnel and keep ${buildDefaultGatewayUrl(cfg)}.`,
-            ].join("\n"),
-            "Direct remote",
-          );
+              [
+                "Direct remote access defaults to TLS.",
+                `Using: ${suggestedUrl}`,
+                ...(fingerprint ? [`TLS pin: ${fingerprint}`] : []),
+                `If your gateway is loopback-only, choose SSH tunnel and keep ${buildDefaultGatewayUrl(cfg)}.`,
+              ].join("\n"),
+              "Direct remote",
+            );
         }
       } else {
         const localPort = resolveGatewayPort(cfg, process.env);

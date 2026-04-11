@@ -152,11 +152,11 @@ describe("Scheduled Task stop/restart cleanup", () => {
     await withPreparedGatewayTask(async ({ env, stdout }) => {
       pushSuccessfulSchtasksResponses(3);
       findVerifiedGatewayListenerPidsOnPortSync.mockReturnValue([]);
-      inspectPortUsage
-        .mockResolvedValueOnce(
-          busyPortUsage(6262, {
-            commandLine:
-              '"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\steipete\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js" gateway run --port 40705',
+        inspectPortUsage
+          .mockResolvedValueOnce(
+            busyPortUsage(6262, {
+              commandLine:
+                '"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\steipete\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js" gateway run --port 40705',
           }),
         )
         .mockResolvedValueOnce(freePortUsage());

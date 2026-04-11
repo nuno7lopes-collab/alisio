@@ -196,7 +196,8 @@ describe("trigger handling", () => {
   for (const testCase of [
     {
       error: "sandbox is not defined.",
-      expected: "⚠️ Agent failed before reply: sandbox is not defined.\nLogs: alisio logs --follow",
+      expected:
+        "⚠️ Agent failed before reply: sandbox is not defined.\nLogs: alisio logs --follow",
     },
     {
       error: "Context window exceeded",

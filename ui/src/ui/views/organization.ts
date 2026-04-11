@@ -634,7 +634,9 @@ export function renderOrganization(props: {
                               <div class="list-sub">${target.ownerLabel}</div>
                               ${formatScopes(target.grantScopes)
                                 ? html`
-                                    <div class="list-sub">${formatScopes(target.grantScopes)}</div>
+                                    <div class="list-sub">
+                                      ${formatScopes(target.grantScopes)}
+                                    </div>
                                   `
                                 : nothing}
                               ${requestButtons.length > 0 || grantId

@@ -36,7 +36,10 @@ import {
   isProfileDecorated,
 } from "./chrome.profile-decoration.js";
 import type { ResolvedBrowserConfig, ResolvedBrowserProfile } from "./config.js";
-import { DEFAULT_ALISIO_BROWSER_COLOR, DEFAULT_ALISIO_BROWSER_PROFILE_NAME } from "./constants.js";
+import {
+  DEFAULT_ALISIO_BROWSER_COLOR,
+  DEFAULT_ALISIO_BROWSER_PROFILE_NAME,
+} from "./constants.js";
 
 const log = createSubsystemLogger("browser").child("chrome");
 
@@ -441,7 +444,10 @@ export async function launchAlisioChrome(
   };
 }
 
-export async function stopAlisioChrome(running: RunningChrome, timeoutMs = CHROME_STOP_TIMEOUT_MS) {
+export async function stopAlisioChrome(
+  running: RunningChrome,
+  timeoutMs = CHROME_STOP_TIMEOUT_MS,
+) {
   const proc = running.proc;
   if (proc.killed) {
     return;

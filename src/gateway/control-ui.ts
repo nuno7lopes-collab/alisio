@@ -3,7 +3,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { AlisioConfig } from "../config/config.js";
 import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
-import { type AlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
+import {
+  type AlisioRuntimeSetupState,
+} from "../infra/alisio-runtime.js";
 import {
   hasRestorableAlisioAccount,
   loadStoredAlisioBootstrapState,

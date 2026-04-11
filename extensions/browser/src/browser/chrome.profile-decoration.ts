@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
-import { DEFAULT_ALISIO_BROWSER_COLOR, DEFAULT_ALISIO_BROWSER_PROFILE_NAME } from "./constants.js";
+import {
+  DEFAULT_ALISIO_BROWSER_COLOR,
+  DEFAULT_ALISIO_BROWSER_PROFILE_NAME,
+} from "./constants.js";
 
 function decoratedMarkerPath(userDataDir: string) {
   return path.join(userDataDir, ".alisio-profile-decorated");

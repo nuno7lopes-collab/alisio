@@ -1,6 +1,9 @@
 import type { App } from "@slack/bolt";
 import { formatAllowlistMatchMeta } from "alisio/plugin-sdk/allow-from";
-import type { AlisioConfig, SlackReactionNotificationMode } from "alisio/plugin-sdk/config-runtime";
+import type {
+  AlisioConfig,
+  SlackReactionNotificationMode,
+} from "alisio/plugin-sdk/config-runtime";
 import { resolveSessionKey, type SessionScope } from "alisio/plugin-sdk/config-runtime";
 import type { DmPolicy, GroupPolicy } from "alisio/plugin-sdk/config-runtime";
 import { createDedupeCache } from "alisio/plugin-sdk/core";

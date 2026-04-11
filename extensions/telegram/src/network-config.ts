@@ -2,7 +2,8 @@ import process from "node:process";
 import type { TelegramNetworkConfig } from "alisio/plugin-sdk/config-runtime";
 import { isTruthyEnvValue, isWSL2Sync } from "alisio/plugin-sdk/runtime-env";
 
-export const TELEGRAM_DISABLE_AUTO_SELECT_FAMILY_ENV = "ALISIO_TELEGRAM_DISABLE_AUTO_SELECT_FAMILY";
+export const TELEGRAM_DISABLE_AUTO_SELECT_FAMILY_ENV =
+  "ALISIO_TELEGRAM_DISABLE_AUTO_SELECT_FAMILY";
 export const TELEGRAM_ENABLE_AUTO_SELECT_FAMILY_ENV = "ALISIO_TELEGRAM_ENABLE_AUTO_SELECT_FAMILY";
 export const TELEGRAM_DNS_RESULT_ORDER_ENV = "ALISIO_TELEGRAM_DNS_RESULT_ORDER";
 

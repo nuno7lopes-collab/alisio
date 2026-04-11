@@ -329,7 +329,9 @@ export async function installPluginFromClawHub(params: {
       clawhub: {
         source: "clawhub",
         clawhubUrl:
-          params.baseUrl?.trim() || process.env.ALISIO_CLAWHUB_URL?.trim() || "https://clawhub.ai",
+          params.baseUrl?.trim() ||
+          process.env.ALISIO_CLAWHUB_URL?.trim() ||
+          "https://clawhub.ai",
         clawhubPackage: parsed.name,
         clawhubFamily,
         clawhubChannel: pkg.channel,

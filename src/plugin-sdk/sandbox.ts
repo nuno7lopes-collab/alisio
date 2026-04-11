@@ -46,4 +46,6 @@ export {
   type PluginCommandRunOptions,
   type PluginCommandRunResult,
 } from "./run-command.js";
-export { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
+export {
+  resolvePreferredAlisioTmpDir,
+} from "../infra/tmp-alisio-dir.js";

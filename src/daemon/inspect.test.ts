@@ -150,31 +150,28 @@ describe("findExtraGatewayServices (linux / scanSystemdDir) — real filesystem"
     },
   );
 
-  it.skipIf(!isLinux)(
-    "reports a custom alisio gateway service as an extra gateway service",
-    async () => {
-      const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-test-"));
-      const systemdDir = path.join(tmpHome, ".config", "systemd", "user");
-      const unitPath = path.join(systemdDir, "custom-alisio-gateway.service");
-      try {
-        await fs.mkdir(systemdDir, { recursive: true });
-        await fs.writeFile(unitPath, CUSTOM_ALISIO_GATEWAY_CONTENTS);
-        const result = await findExtraGatewayServices({ HOME: tmpHome });
-        expect(result).toEqual([
-          {
-            platform: "linux",
-            label: "custom-alisio-gateway.service",
-            detail: `unit: ${unitPath}`,
-            scope: "user",
-            marker: "alisio",
-            legacy: false,
-          },
-        ]);
-      } finally {
-        await fs.rm(tmpHome, { recursive: true, force: true });
-      }
-    },
-  );
+  it.skipIf(!isLinux)("reports a custom alisio gateway service as an extra gateway service", async () => {
+    const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-test-"));
+    const systemdDir = path.join(tmpHome, ".config", "systemd", "user");
+    const unitPath = path.join(systemdDir, "custom-alisio-gateway.service");
+    try {
+      await fs.mkdir(systemdDir, { recursive: true });
+      await fs.writeFile(unitPath, CUSTOM_ALISIO_GATEWAY_CONTENTS);
+      const result = await findExtraGatewayServices({ HOME: tmpHome });
+      expect(result).toEqual([
+        {
+          platform: "linux",
+          label: "custom-alisio-gateway.service",
+          detail: `unit: ${unitPath}`,
+          scope: "user",
+          marker: "alisio",
+          legacy: false,
+        },
+      ]);
+    } finally {
+      await fs.rm(tmpHome, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("findExtraGatewayServices (win32)", () => {
@@ -234,8 +231,7 @@ describe("findExtraGatewayServices (win32)", () => {
       {
         platform: "win32",
         label: "Custom Alisio Gateway",
-        detail:
-          "task: Custom Alisio Gateway, run: C:\\Program Files\\Alisio\\alisio.exe gateway run --profile work",
+        detail: "task: Custom Alisio Gateway, run: C:\\Program Files\\Alisio\\alisio.exe gateway run --profile work",
         scope: "system",
         marker: "alisio",
         legacy: false,

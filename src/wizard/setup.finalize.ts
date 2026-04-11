@@ -462,9 +462,10 @@ export async function finalizeSetupWizard(
   }
 
   await prompter.note(
-    ["Back up your agent workspace.", "Docs: https://docs.alisio.ai/concepts/agent-workspace"].join(
-      "\n",
-    ),
+    [
+      "Back up your agent workspace.",
+      "Docs: https://docs.alisio.ai/concepts/agent-workspace",
+    ].join("\n"),
     "Workspace backup",
   );
 

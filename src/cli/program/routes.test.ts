@@ -65,7 +65,10 @@ describe("program routes", () => {
 
   it("returns false for gateway status route when option values are missing", async () => {
     await expectRunFalse(["gateway", "status"], ["node", "alisio", "gateway", "status", "--url"]);
-    await expectRunFalse(["gateway", "status"], ["node", "alisio", "gateway", "status", "--token"]);
+    await expectRunFalse(
+      ["gateway", "status"],
+      ["node", "alisio", "gateway", "status", "--token"],
+    );
     await expectRunFalse(
       ["gateway", "status"],
       ["node", "alisio", "gateway", "status", "--password"],
@@ -155,7 +158,16 @@ describe("program routes", () => {
   it("routes status --json through the lean JSON command", async () => {
     const route = expectRoute(["status"]);
     await expect(
-      route?.run(["node", "alisio", "status", "--json", "--deep", "--usage", "--timeout", "5000"]),
+      route?.run([
+        "node",
+        "alisio",
+        "status",
+        "--json",
+        "--deep",
+        "--usage",
+        "--timeout",
+        "5000",
+      ]),
     ).resolves.toBe(true);
     expect(statusJsonCommandMock).toHaveBeenCalledWith(
       { deep: true, all: false, usage: true, timeoutMs: 5000 },

@@ -797,7 +797,9 @@ describe("web_search kimi provider", () => {
                 },
               },
             ],
-            search_results: [{ title: "Alisio", url: "https://alisio.ai/docs", content: "docs" }],
+            search_results: [
+              { title: "Alisio", url: "https://alisio.ai/docs", content: "docs" },
+            ],
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );

@@ -384,7 +384,9 @@ describe("runCliAgent spawn path", () => {
 
   it("falls back to per-agent workspace when workspaceDir is missing", async () => {
     const runCliAgent = await setupCliRunnerTestModule();
-    const tempDir = await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "alisio-cli-runner-"));
+    const tempDir = await fs.mkdtemp(
+      path.join(process.env.TMPDIR ?? "/tmp", "alisio-cli-runner-"),
+    );
     const fallbackWorkspace = path.join(tempDir, "workspace-main");
     await fs.mkdir(fallbackWorkspace, { recursive: true });
     const cfg = {

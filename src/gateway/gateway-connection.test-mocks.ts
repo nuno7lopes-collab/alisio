@@ -8,7 +8,8 @@ export const resolveStateDirMock: TestMock = vi.fn(
   (env: NodeJS.ProcessEnv) => env.ALISIO_STATE_DIR ?? "/tmp/alisio",
 );
 export const resolveConfigPathMock: TestMock = vi.fn(
-  (env: NodeJS.ProcessEnv, stateDir: string) => env.ALISIO_CONFIG_PATH ?? `${stateDir}/alisio.json`,
+  (env: NodeJS.ProcessEnv, stateDir: string) =>
+    env.ALISIO_CONFIG_PATH ?? `${stateDir}/alisio.json`,
 );
 export const pickPrimaryTailnetIPv4Mock: TestMock = vi.fn();
 export const pickPrimaryLanIPv4Mock: TestMock = vi.fn();

@@ -44,7 +44,10 @@ vi.mock("alisio/plugin-sdk/conversation-runtime", async (importOriginal) => {
   );
 });
 
-const STORE_PATH = path.join(os.tmpdir(), `alisio-discord-think-autocomplete-${process.pid}.json`);
+const STORE_PATH = path.join(
+  os.tmpdir(),
+  `alisio-discord-think-autocomplete-${process.pid}.json`,
+);
 const SESSION_KEY = "agent:main:main";
 let resolveDiscordNativeChoiceContext: typeof import("./native-command-ui.js").resolveDiscordNativeChoiceContext;
 

@@ -1,6 +1,10 @@
 import { describeWebhookAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
 import type { ChannelPlugin } from "../api.js";
-import { resolveLineAccount, type AlisioConfig, type ResolvedLineAccount } from "../runtime-api.js";
+import {
+  resolveLineAccount,
+  type AlisioConfig,
+  type ResolvedLineAccount,
+} from "../runtime-api.js";
 import { hasLineCredentials, parseLineAllowFromId } from "./account-helpers.js";
 import { lineConfigAdapter } from "./config-adapter.js";
 import { LineChannelConfigSchema } from "./config-schema.js";

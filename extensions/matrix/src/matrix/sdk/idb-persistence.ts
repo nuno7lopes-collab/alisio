@@ -189,7 +189,8 @@ async function restoreIndexedDatabases(snapshot: IdbDatabaseSnapshot[]): Promise
 }
 
 function resolveDefaultIdbSnapshotPath(): string {
-  const stateDir = process.env.ALISIO_STATE_DIR || path.join(process.env.HOME || "/tmp", ".alisio");
+  const stateDir =
+    process.env.ALISIO_STATE_DIR || path.join(process.env.HOME || "/tmp", ".alisio");
   return path.join(stateDir, "matrix", "crypto-idb-snapshot.json");
 }
 

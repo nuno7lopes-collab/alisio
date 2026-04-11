@@ -37,7 +37,10 @@ import {
 
 const channel = "telegram" as const;
 
-function ensureTelegramDefaultGroupMentionGate(cfg: AlisioConfig, accountId: string): AlisioConfig {
+function ensureTelegramDefaultGroupMentionGate(
+  cfg: AlisioConfig,
+  accountId: string,
+): AlisioConfig {
   const resolved = resolveTelegramAccount({ cfg, accountId });
   const wildcardGroup = resolved.config.groups?.["*"];
   if (wildcardGroup?.requireMention !== undefined) {

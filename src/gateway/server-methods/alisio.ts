@@ -1,6 +1,5 @@
 import { AlisioAccountCloudError } from "../../infra/alisio-account-cloud.js";
 import { AlisioAiError } from "../../infra/alisio-ai.js";
-import { startAlisioDeveloperRebuild } from "../../infra/alisio-dev-rebuild.js";
 import {
   installAlisioLocalModel,
   uninstallAlisioLocalModel,
@@ -10,7 +9,10 @@ import {
   loadAlisioModelProviderSnapshot,
 } from "../../infra/alisio-model-snapshot.js";
 import { loadAlisioProviderOverview } from "../../infra/alisio-provider-overview.js";
-import { loadAlisioRuntimeSetupStateWithTimeout } from "../../infra/alisio-runtime.js";
+import {
+  loadAlisioRuntimeSetupStateWithTimeout,
+} from "../../infra/alisio-runtime.js";
+import { startAlisioDeveloperRebuild } from "../../infra/alisio-dev-rebuild.js";
 import {
   beginAlisioAccountEmailAuth,
   completeAlisioAccountEmailLinkAuth,
@@ -1788,7 +1790,10 @@ export const alisioHandlers: GatewayRequestHandlers = {
       respond(
         false,
         undefined,
-        errorShape(ErrorCodes.UNAVAILABLE, `failed to start app rebuild: ${formatError(err)}`),
+        errorShape(
+          ErrorCodes.UNAVAILABLE,
+          `failed to start app rebuild: ${formatError(err)}`,
+        ),
       );
     }
   },

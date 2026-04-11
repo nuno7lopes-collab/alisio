@@ -384,7 +384,10 @@ describeLive("live models (profile keys)", () => {
         "[live-models] load config",
       );
       logProgress("[live-models] preparing models.json");
-      await withLiveStageTimeout(ensureAlisioModelsJson(cfg), "[live-models] prepare models.json");
+      await withLiveStageTimeout(
+        ensureAlisioModelsJson(cfg),
+        "[live-models] prepare models.json",
+      );
       if (!DIRECT_ENABLED) {
         logProgress(
           "[live-models] skipping (set ALISIO_LIVE_MODELS=modern|all|<list>; all=modern)",
@@ -417,7 +420,10 @@ describeLive("live models (profile keys)", () => {
         readLiveEnv(["ALISIO_LIVE_MODEL_TIMEOUT_MS", "ALISIO_LIVE_MODEL_TIMEOUT_MS"]),
         30_000,
       );
-      const maxModels = toInt(readLiveEnv(["ALISIO_LIVE_MAX_MODELS", "ALISIO_LIVE_MAX_MODELS"]), 0);
+      const maxModels = toInt(
+        readLiveEnv(["ALISIO_LIVE_MAX_MODELS", "ALISIO_LIVE_MAX_MODELS"]),
+        0,
+      );
 
       const failures: Array<{ model: string; error: string }> = [];
       const skipped: Array<{ model: string; reason: string }> = [];

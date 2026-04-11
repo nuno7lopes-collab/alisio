@@ -18,7 +18,10 @@ const LEGACY_LOCAL_RUNTIME = ["lm", "studio"].join("");
 export const BLOCKED_LEGACY_PROVIDER_ADAPTER_PATTERNS = [
   {
     label: LEGACY_LOCAL_PROVIDER,
-    pattern: new RegExp(String.raw`(?<!server-)\b` + LEGACY_LOCAL_PROVIDER + String.raw`\b`, "iu"),
+    pattern: new RegExp(
+      String.raw`(?<!server-)\b` + LEGACY_LOCAL_PROVIDER + String.raw`\b`,
+      "iu",
+    ),
   },
   {
     label: LEGACY_LOCAL_RUNTIME,

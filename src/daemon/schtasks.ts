@@ -48,7 +48,8 @@ export function resolveTaskScriptPath(env: GatewayServiceEnv): string {
   if (override) {
     return override;
   }
-  const scriptName = env.ALISIO_TASK_SCRIPT_NAME?.trim() || "gateway.cmd";
+  const scriptName =
+    env.ALISIO_TASK_SCRIPT_NAME?.trim() || "gateway.cmd";
   const stateDir = resolveGatewayStateDir(env);
   return path.join(stateDir, scriptName);
 }

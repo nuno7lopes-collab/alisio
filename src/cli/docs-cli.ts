@@ -12,7 +12,8 @@ export function registerDocsCli(program: Command) {
     .argument("[query...]", "Search query")
     .addHelpText(
       "after",
-      () => `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/docs", "docs.alisio.ai/cli/docs")}\n`,
+      () =>
+        `\n${theme.muted("Docs:")} ${formatDocsLink("/cli/docs", "docs.alisio.ai/cli/docs")}\n`,
     )
     .action(async (queryParts: string[]) => {
       await runCommandWithRuntime(defaultRuntime, async () => {

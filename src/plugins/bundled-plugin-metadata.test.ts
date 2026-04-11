@@ -305,13 +305,7 @@ describe("bundled plugin metadata", () => {
 
   it("resolves built capability runtime surfaces from dist artifacts", () => {
     const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-capability-surface-");
-    const builtArtifact = path.join(
-      tempRoot,
-      "dist",
-      "extensions",
-      "speech-core",
-      "runtime-api.js",
-    );
+    const builtArtifact = path.join(tempRoot, "dist", "extensions", "speech-core", "runtime-api.js");
 
     fs.mkdirSync(path.dirname(builtArtifact), { recursive: true });
     fs.writeFileSync(builtArtifact, "export {};\n", "utf8");

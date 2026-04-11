@@ -57,7 +57,9 @@ beforeAll(async () => {
   ({ LocalMediaAccessError, loadWebMedia, loadWebMediaRaw, optimizeImageToJpeg } =
     await import("./media.js"));
   ({ sendVoiceMessageDiscord } = await import("../../discord/src/send.js"));
-  fixtureRoot = await fs.mkdtemp(path.join(resolvePreferredAlisioTmpDir(), "alisio-media-test-"));
+  fixtureRoot = await fs.mkdtemp(
+    path.join(resolvePreferredAlisioTmpDir(), "alisio-media-test-"),
+  );
   largeJpegBuffer = await sharp({
     create: {
       width: 400,

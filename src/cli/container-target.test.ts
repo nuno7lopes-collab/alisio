@@ -93,9 +93,9 @@ describe("parseCliContainerArgs", () => {
 
 describe("resolveCliContainerTarget", () => {
   it("uses argv first and falls back to ALISIO_CONTAINER", () => {
-    expect(resolveCliContainerTarget(["node", "alisio", "--container", "demo", "status"], {})).toBe(
-      "demo",
-    );
+    expect(
+      resolveCliContainerTarget(["node", "alisio", "--container", "demo", "status"], {}),
+    ).toBe("demo");
     expect(resolveCliContainerTarget(["node", "alisio", "status"], {})).toBeNull();
     expect(
       resolveCliContainerTarget(["node", "alisio", "status"], {

@@ -31,7 +31,9 @@ export async function maybeOfferUpdateBeforeDoctor(params: {
   confirm: (p: { message: string; initialValue: boolean }) => Promise<boolean>;
   outro: (message: string) => void;
 }) {
-  const updateInProgress = isTruthyEnvValue(process.env.ALISIO_UPDATE_IN_PROGRESS);
+  const updateInProgress = isTruthyEnvValue(
+    process.env.ALISIO_UPDATE_IN_PROGRESS,
+  );
   const canOfferUpdate =
     !updateInProgress &&
     params.options.nonInteractive !== true &&

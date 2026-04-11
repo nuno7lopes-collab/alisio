@@ -24,7 +24,10 @@ const ROOT_COMMANDS_HINT =
 
 const EXAMPLES = [
   ["alisio models --help", "Show detailed help for the models command."],
-  ["alisio channels login --verbose", "Link personal WhatsApp Web and show QR + connection logs."],
+  [
+    "alisio channels login --verbose",
+    "Link personal WhatsApp Web and show QR + connection logs.",
+  ],
   [
     'alisio message send --target +15555550123 --message "Hi" --json',
     "Send via your web session and print JSON result.",

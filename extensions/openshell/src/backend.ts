@@ -400,7 +400,9 @@ class OpenShellSandboxBackendImpl {
   }
 
   private async syncWorkspaceFromRemote(): Promise<void> {
-    const tmpDir = await fs.mkdtemp(path.join(resolveOpenShellTmpRoot(), "alisio-openshell-sync-"));
+    const tmpDir = await fs.mkdtemp(
+      path.join(resolveOpenShellTmpRoot(), "alisio-openshell-sync-"),
+    );
     try {
       const result = await runOpenShellCli({
         context: this.params.execContext,

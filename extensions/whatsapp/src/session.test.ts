@@ -309,7 +309,13 @@ describe("web session", () => {
 
   it("rotates creds backup when creds.json is valid JSON", async () => {
     const creds = mockCredsJsonSpies("{}");
-    const backupSuffix = path.join("/tmp", "alisio-oauth", "whatsapp", "default", "creds.json.bak");
+    const backupSuffix = path.join(
+      "/tmp",
+      "alisio-oauth",
+      "whatsapp",
+      "default",
+      "creds.json.bak",
+    );
 
     await createWaSocket(false, false);
     const saveCreds = await emitCredsUpdateAndReadSaveCreds();

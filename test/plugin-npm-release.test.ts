@@ -19,10 +19,9 @@ describe("parsePluginReleaseSelection", () => {
   });
 
   it("dedupes and sorts comma or whitespace separated package names", () => {
-    expect(parsePluginReleaseSelection(" @alisio/zalo, @alisio/feishu  @alisio/zalo ")).toEqual([
-      "@alisio/feishu",
-      "@alisio/zalo",
-    ]);
+    expect(
+      parsePluginReleaseSelection(" @alisio/zalo, @alisio/feishu  @alisio/zalo "),
+    ).toEqual(["@alisio/feishu", "@alisio/zalo"]);
   });
 });
 
@@ -54,7 +53,12 @@ describe("parsePluginReleaseArgs", () => {
 
   it("rejects plugin names when all-publishable mode is selected", () => {
     expect(() =>
-      parsePluginReleaseArgs(["--selection-mode", "all-publishable", "--plugins", "@alisio/zalo"]),
+      parsePluginReleaseArgs([
+        "--selection-mode",
+        "all-publishable",
+        "--plugins",
+        "@alisio/zalo",
+      ]),
     ).toThrowError("`--selection-mode all-publishable` must not be combined with `--plugins`.");
   });
 

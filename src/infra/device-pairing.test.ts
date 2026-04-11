@@ -588,9 +588,7 @@ describe("device pairing tokens", () => {
       throw new Error("expected paired node device");
     }
     expect(paired.roles).toContain("node");
-    expect(paired.approvedScopes).toEqual(
-      expect.arrayContaining(["operator.read", "operator.write"]),
-    );
+    expect(paired.approvedScopes).toEqual(expect.arrayContaining(["operator.read", "operator.write"]));
     expect(listEffectivePairedDeviceRoles(paired)).toEqual(["operator", "node"]);
     expect(hasEffectivePairedDeviceRole(paired, "node")).toBe(true);
 

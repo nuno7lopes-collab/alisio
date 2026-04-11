@@ -307,7 +307,9 @@ describe("promptRemoteGatewayConfig", () => {
 
     expect(next.gateway?.remote?.url).toBe("ws://127.0.0.1:19001");
     expect(prompter.note).toHaveBeenCalledWith(
-      expect.stringContaining("ssh -N -L 19001:127.0.0.1:19000 <user>@gateway.example -p 2222"),
+      expect.stringContaining(
+        "ssh -N -L 19001:127.0.0.1:19000 <user>@gateway.example -p 2222",
+      ),
       "SSH tunnel",
     );
   });

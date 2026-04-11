@@ -37,10 +37,7 @@ const EMPTY_PLUGIN_MANIFEST_REGISTRY: PluginManifestRegistry = {
 
 const CANONICAL_PLUGIN_MANIFEST_KEY = "alisio";
 const LEGACY_PLUGIN_MANIFEST_KEY = CANONICAL_PLUGIN_MANIFEST_KEY;
-const ENV_CATALOG_PATHS = [
-  runtimeEnvKey("PLUGIN_CATALOG_PATHS"),
-  runtimeEnvKey("MPM_CATALOG_PATHS"),
-];
+const ENV_CATALOG_PATHS = [runtimeEnvKey("PLUGIN_CATALOG_PATHS"), runtimeEnvKey("MPM_CATALOG_PATHS")];
 
 function resolveAutoEnableProviderPluginIds(
   registry: PluginManifestRegistry,

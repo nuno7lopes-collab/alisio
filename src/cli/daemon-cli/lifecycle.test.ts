@@ -242,7 +242,10 @@ describe("runDaemonRestart health checks", () => {
 
     await expect(runDaemonRestart({ json: true })).rejects.toMatchObject({
       message: "Gateway restart timed out after 60s waiting for health checks.",
-      hints: [formatCliCommand("alisio gateway status --deep"), formatCliCommand("alisio doctor")],
+      hints: [
+        formatCliCommand("alisio gateway status --deep"),
+        formatCliCommand("alisio doctor"),
+      ],
     });
     expect(terminateStaleGatewayPids).not.toHaveBeenCalled();
     expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);

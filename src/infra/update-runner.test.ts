@@ -259,7 +259,8 @@ describe("runGatewayUpdate", () => {
     onBaseInstall?: () => Promise<CommandResult>;
     onOmitOptionalInstall?: () => Promise<CommandResult>;
   }) {
-    const baseInstallKey = "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
+    const baseInstallKey =
+      "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
     const omitOptionalInstallKey =
       "npm i -g alisio@latest --omit=optional --no-fund --no-audit --loglevel=error";
 
@@ -542,16 +543,19 @@ describe("runGatewayUpdate", () => {
   it.each([
     {
       title: "updates global npm installs when detected",
-      expectedInstallCommand: "npm i -g alisio@latest --no-fund --no-audit --loglevel=error",
+      expectedInstallCommand:
+        "npm i -g alisio@latest --no-fund --no-audit --loglevel=error",
     },
     {
       title: "uses update channel for global npm installs when tag is omitted",
-      expectedInstallCommand: "npm i -g alisio@beta --no-fund --no-audit --loglevel=error",
+      expectedInstallCommand:
+        "npm i -g alisio@beta --no-fund --no-audit --loglevel=error",
       channel: "beta" as const,
     },
     {
       title: "updates global npm installs with tag override",
-      expectedInstallCommand: "npm i -g alisio@beta --no-fund --no-audit --loglevel=error",
+      expectedInstallCommand:
+        "npm i -g alisio@beta --no-fund --no-audit --loglevel=error",
       tag: "beta",
     },
   ])("$title", async ({ expectedInstallCommand, channel, tag }) => {
@@ -596,7 +600,9 @@ describe("runGatewayUpdate", () => {
 
     expect(result.status).toBe("ok");
     expect(result.mode).toBe("npm");
-    expect(calls).toContain("npm i -g alisio@latest --no-fund --no-audit --loglevel=error");
+    expect(calls).toContain(
+      "npm i -g alisio@latest --no-fund --no-audit --loglevel=error",
+    );
   });
 
   it("cleans stale npm rename dirs before global update", async () => {
@@ -655,7 +661,8 @@ describe("runGatewayUpdate", () => {
 
   it("fails global npm update when the installed version misses the requested correction", async () => {
     const { calls, result } = await runNpmGlobalUpdateCase({
-      expectedInstallCommand: "npm i -g alisio@2026.3.23-2 --no-fund --no-audit --loglevel=error",
+      expectedInstallCommand:
+        "npm i -g alisio@2026.3.23-2 --no-fund --no-audit --loglevel=error",
       tag: "2026.3.23-2",
     });
 
@@ -665,12 +672,15 @@ describe("runGatewayUpdate", () => {
     expect(result.steps.at(-1)?.stderrTail).toContain(
       "expected installed version 2026.3.23-2, found 2.0.0",
     );
-    expect(calls).toContain("npm i -g alisio@2026.3.23-2 --no-fund --no-audit --loglevel=error");
+    expect(calls).toContain(
+      "npm i -g alisio@2026.3.23-2 --no-fund --no-audit --loglevel=error",
+    );
   });
 
   it("fails global npm update when bundled runtime sidecars are missing after install", async () => {
     const { nodeModules, pkgRoot } = await createGlobalPackageFixture(tempDir);
-    const expectedInstallCommand = "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
+    const expectedInstallCommand =
+      "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
     const { runCommand } = createGlobalInstallHarness({
       pkgRoot,
       npmRootOutput: nodeModules,
@@ -786,7 +796,8 @@ describe("runGatewayUpdate", () => {
 
   it("updates global npm alias installs via the public package name", async () => {
     const { nodeModules, pkgRoot } = await createGlobalPackageFixture(tempDir, "alisio");
-    const expectedInstallCommand = "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
+    const expectedInstallCommand =
+      "npm i -g alisio@latest --no-fund --no-audit --loglevel=error";
     const { calls, runCommand } = createGlobalInstallHarness({
       pkgRoot,
       npmRootOutput: nodeModules,

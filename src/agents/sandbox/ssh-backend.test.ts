@@ -97,7 +97,10 @@ function createBackendSandboxConfig(params?: { binds?: string[]; target?: string
       ...(params?.binds ? { binds: params.binds } : {}),
     },
     ssh: {
-      ...createSandboxSshConfig("/remote/alisio", params?.target ? { target: params.target } : {}),
+      ...createSandboxSshConfig(
+        "/remote/alisio",
+        params?.target ? { target: params.target } : {},
+      ),
     },
     browser: createSandboxBrowserConfig({
       image: "img",

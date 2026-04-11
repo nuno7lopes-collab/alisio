@@ -8,7 +8,10 @@ import {
   resolveDiscordEffectiveRoute,
 } from "./route-resolution.js";
 
-function buildWorkerBindingConfig(peer: { kind: "channel" | "direct"; id: string }): AlisioConfig {
+function buildWorkerBindingConfig(peer: {
+  kind: "channel" | "direct";
+  id: string;
+}): AlisioConfig {
   return {
     agents: {
       list: [{ id: "worker" }],

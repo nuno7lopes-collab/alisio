@@ -242,13 +242,19 @@ describe("diagnostics-otel service", () => {
     });
 
     expect(telemetryState.counters.get("alisio.webhook.received")?.add).toHaveBeenCalled();
-    expect(telemetryState.histograms.get("alisio.webhook.duration_ms")?.record).toHaveBeenCalled();
+    expect(
+      telemetryState.histograms.get("alisio.webhook.duration_ms")?.record,
+    ).toHaveBeenCalled();
     expect(telemetryState.counters.get("alisio.message.queued")?.add).toHaveBeenCalled();
     expect(telemetryState.counters.get("alisio.message.processed")?.add).toHaveBeenCalled();
-    expect(telemetryState.histograms.get("alisio.message.duration_ms")?.record).toHaveBeenCalled();
+    expect(
+      telemetryState.histograms.get("alisio.message.duration_ms")?.record,
+    ).toHaveBeenCalled();
     expect(telemetryState.histograms.get("alisio.queue.wait_ms")?.record).toHaveBeenCalled();
     expect(telemetryState.counters.get("alisio.session.stuck")?.add).toHaveBeenCalled();
-    expect(telemetryState.histograms.get("alisio.session.stuck_age_ms")?.record).toHaveBeenCalled();
+    expect(
+      telemetryState.histograms.get("alisio.session.stuck_age_ms")?.record,
+    ).toHaveBeenCalled();
     expect(telemetryState.counters.get("alisio.run.attempt")?.add).toHaveBeenCalled();
 
     const spanNames = telemetryState.tracer.startSpan.mock.calls.map((call) => call[0]);

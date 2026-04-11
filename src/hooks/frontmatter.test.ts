@@ -199,10 +199,7 @@ describe("resolveAlisioHookMetadata", () => {
       metadata: JSON.stringify({
         alisio: {
           events: ["command"],
-          install: [
-            { id: "bundled", kind: "bundled", label: "Bundled with Alisio" },
-            { id: "npm", kind: "npm", package: "@alisio/hook" },
-          ],
+          install: [{ id: "bundled", kind: "bundled", label: "Bundled with Alisio" }, { id: "npm", kind: "npm", package: "@alisio/hook" }],
         },
       }),
     };

@@ -164,7 +164,9 @@ export function resolveConfigPath(
     return path.join(stateDir, CONFIG_FILENAME);
   }
   const stateOverride = readEnv("ALISIO_STATE_DIR", { env, fallback: runtimeEnvKey("STATE_DIR") });
-  const candidates = [path.join(stateDir, CONFIG_FILENAME)];
+  const candidates = [
+    path.join(stateDir, CONFIG_FILENAME),
+  ];
   const existing = candidates.find((candidate) => {
     try {
       return fs.existsSync(candidate);

@@ -43,7 +43,11 @@ function resolveDefaultLiveStateDir(homeDir: string): string {
 }
 
 function resolveLiveStateDir(env: NodeJS.ProcessEnv, homeDir: string): string {
-  const configuredStateDir = readEnvWithLegacyFallback(env, "ALISIO_STATE_DIR", "ALISIO_STATE_DIR");
+  const configuredStateDir = readEnvWithLegacyFallback(
+    env,
+    "ALISIO_STATE_DIR",
+    "ALISIO_STATE_DIR",
+  );
   if (configuredStateDir) {
     return resolveHomeRelativePath(configuredStateDir, homeDir);
   }

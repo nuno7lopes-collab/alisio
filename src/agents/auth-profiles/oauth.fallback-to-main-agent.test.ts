@@ -45,7 +45,11 @@ async function loadFreshOAuthModuleForTest() {
 }
 
 describe("resolveApiKeyForProfile fallback to main agent", () => {
-  const envSnapshot = captureEnv(["ALISIO_STATE_DIR", "ALISIO_AGENT_DIR", "PI_CODING_AGENT_DIR"]);
+  const envSnapshot = captureEnv([
+    "ALISIO_STATE_DIR",
+    "ALISIO_AGENT_DIR",
+    "PI_CODING_AGENT_DIR",
+  ]);
   let tmpDir: string;
   let mainAgentDir: string;
   let secondaryAgentDir: string;

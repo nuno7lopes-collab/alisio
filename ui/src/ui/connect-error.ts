@@ -59,7 +59,10 @@ function formatErrorFromMessageAndDetails(error: ErrorWithMessageAndDetails): st
   ) {
     return "secure device session expired";
   }
-  if (normalized.includes("invalid connect params") && normalized.includes("/client/id")) {
+  if (
+    normalized.includes("invalid connect params") &&
+    normalized.includes("/client/id")
+  ) {
     return "The local Alisio app and this page are out of sync. Reload the page or reopen Alisio, then try again.";
   }
   return message;

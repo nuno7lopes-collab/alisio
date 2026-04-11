@@ -197,7 +197,9 @@ describe("resolvePluginTools optional tools", () => {
     vi.resetModules();
     loadAlisioPluginsMock.mockClear();
     resolveRuntimePluginRegistryMock.mockReset();
-    resolveRuntimePluginRegistryMock.mockImplementation((params) => loadAlisioPluginsMock(params));
+    resolveRuntimePluginRegistryMock.mockImplementation((params) =>
+      loadAlisioPluginsMock(params),
+    );
     applyPluginAutoEnableMock.mockReset();
     applyPluginAutoEnableMock.mockImplementation(({ config }: { config: unknown }) => ({
       config,

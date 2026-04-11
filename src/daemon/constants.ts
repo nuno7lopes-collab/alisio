@@ -82,7 +82,8 @@ export function resolveGatewayServiceDescription(params: {
 }): string {
   const profile = params.env.ALISIO_PROFILE;
   const environmentVersion =
-    params.environment?.ALISIO_SERVICE_VERSION ?? params.env.ALISIO_SERVICE_VERSION;
+    params.environment?.ALISIO_SERVICE_VERSION ??
+    params.env.ALISIO_SERVICE_VERSION;
   return (
     params.description ??
     formatGatewayServiceDescription({

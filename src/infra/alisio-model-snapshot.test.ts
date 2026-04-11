@@ -17,35 +17,36 @@ type SharingTargetAccessMock = {
   grantId?: string;
 };
 
-const { inspectManagedLocalModelRuntimeMock, getAlisioSharingTargetAccessIndexMock } = vi.hoisted(
-  () => ({
-    inspectManagedLocalModelRuntimeMock: vi.fn(),
-    getAlisioSharingTargetAccessIndexMock: vi.fn(
-      async (input?: {
-        targets?: Array<{ targetId: string }>;
-      }): Promise<Record<string, SharingTargetAccessMock>> =>
-        Object.fromEntries(
-          (input?.targets ?? []).map((target) => [
-            target.targetId,
-            {
-              targetId: target.targetId,
-              label: target.targetId,
-              sourceKind: target.targetId === "current" ? "current" : "node",
-              connected: true,
-              current: target.targetId === "current",
-              ownerKey: "user:user-1",
-              ownerScope: "user",
-              ownerLabel: "Owner",
-              registeredAt: "2026-04-08T10:00:00.000Z",
-              updatedAt: "2026-04-08T10:00:00.000Z",
-              deviceAccess: "owner",
-              modelAccess: "owner",
-            },
-          ]),
-        ),
-    ),
-  }),
-);
+const {
+  inspectManagedLocalModelRuntimeMock,
+  getAlisioSharingTargetAccessIndexMock,
+} = vi.hoisted(() => ({
+  inspectManagedLocalModelRuntimeMock: vi.fn(),
+  getAlisioSharingTargetAccessIndexMock: vi.fn(
+    async (
+      input?: { targets?: Array<{ targetId: string }> },
+    ): Promise<Record<string, SharingTargetAccessMock>> =>
+      Object.fromEntries(
+        (input?.targets ?? []).map((target) => [
+          target.targetId,
+          {
+            targetId: target.targetId,
+            label: target.targetId,
+            sourceKind: target.targetId === "current" ? "current" : "node",
+            connected: true,
+            current: target.targetId === "current",
+            ownerKey: "user:user-1",
+            ownerScope: "user",
+            ownerLabel: "Owner",
+            registeredAt: "2026-04-08T10:00:00.000Z",
+            updatedAt: "2026-04-08T10:00:00.000Z",
+            deviceAccess: "owner",
+            modelAccess: "owner",
+          },
+        ]),
+      ),
+  ),
+}));
 
 vi.mock("./alisio-local-llama-runtime.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./alisio-local-llama-runtime.js")>();

@@ -32,7 +32,9 @@ type RuntimeSnapshot = {
   dynamicCatalogEntries: Array<{ provider: string; id: string; name: string }>;
 };
 
-function createRuntimeSnapshot(params?: { targetProviderIds?: string[] }) {
+function createRuntimeSnapshot(params?: {
+  targetProviderIds?: string[];
+}) {
   const dynamicCatalogEntries = [];
   for (const providerId of params?.targetProviderIds ?? []) {
     dynamicCatalogEntries.push({

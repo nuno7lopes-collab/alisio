@@ -156,16 +156,22 @@ describe("irc setup", () => {
     const cfg: CoreConfig = { channels: { irc: {} } };
 
     expect(
-      setIrcGroupAccess(cfg, "default", "allowlist", ["alisio", "#ops", "alisio", "*"], (raw) => {
-        const trimmed = raw.trim();
-        if (!trimmed) {
-          return null;
-        }
-        if (trimmed === "*") {
-          return "*";
-        }
-        return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
-      }),
+      setIrcGroupAccess(
+        cfg,
+        "default",
+        "allowlist",
+        ["alisio", "#ops", "alisio", "*"],
+        (raw) => {
+          const trimmed = raw.trim();
+          if (!trimmed) {
+            return null;
+          }
+          if (trimmed === "*") {
+            return "*";
+          }
+          return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+        },
+      ),
     ).toMatchObject({
       channels: {
         irc: {

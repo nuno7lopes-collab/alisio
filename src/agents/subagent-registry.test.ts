@@ -436,7 +436,9 @@ describe("subagent registry seam flow", () => {
   });
 
   it("removes attachments for killed delete-mode runs", async () => {
-    const attachmentsRootDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-kill-attachments-"));
+    const attachmentsRootDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), "alisio-kill-attachments-"),
+    );
     const attachmentsDir = path.join(attachmentsRootDir, "child");
     await fs.mkdir(attachmentsDir, { recursive: true });
     await fs.writeFile(path.join(attachmentsDir, "artifact.txt"), "artifact");

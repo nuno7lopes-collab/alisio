@@ -439,7 +439,11 @@ export const AlisioSchema = z
                 cdpUrl: z.string().optional(),
                 userDataDir: z.string().optional(),
                 driver: z
-                  .union([z.literal("alisio"), z.literal("clawd"), z.literal("existing-session")])
+                  .union([
+                    z.literal("alisio"),
+                    z.literal("clawd"),
+                    z.literal("existing-session"),
+                  ])
                   .optional(),
                 attachOnly: z.boolean().optional(),
                 color: HexColorSchema,

@@ -173,7 +173,9 @@ export function renderRuntimeHints(
     hints.push(
       ...buildPlatformRuntimeLogHints({
         env,
-        systemdServiceName: resolveGatewaySystemdServiceName(env.ALISIO_PROFILE),
+        systemdServiceName: resolveGatewaySystemdServiceName(
+          env.ALISIO_PROFILE,
+        ),
         windowsTaskName: resolveGatewayWindowsTaskName(env.ALISIO_PROFILE),
       }),
     );

@@ -3,8 +3,8 @@ import { DEFAULT_PROVIDER } from "../agents/defaults.js";
 import { collectProviderApiKeys } from "../agents/live-auth-keys.js";
 import { normalizeProviderId } from "../agents/provider-id.js";
 import type { NodeRegistry } from "../gateway/node-registry.js";
-import { loadGatewayModelCatalog } from "../gateway/server-model-catalog.js";
 import { withTimeout } from "../node-host/with-timeout.js";
+import { loadGatewayModelCatalog } from "../gateway/server-model-catalog.js";
 import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 
 export type AlisioRuntimeProviderSignals = {

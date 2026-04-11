@@ -338,7 +338,9 @@ describe("doctor config flow", () => {
           String(call[0]).includes("Matrix plugin upgraded in place."),
       );
       expect(warning?.[0]).toContain("Legacy sync store:");
-      expect(warning?.[0]).toContain('Run "alisio doctor --fix" to migrate this Matrix state now.');
+      expect(warning?.[0]).toContain(
+        'Run "alisio doctor --fix" to migrate this Matrix state now.',
+      );
     } finally {
       noteSpy.mockRestore();
     }

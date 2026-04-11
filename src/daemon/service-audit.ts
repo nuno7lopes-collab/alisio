@@ -258,7 +258,9 @@ export function readEmbeddedGatewayToken(command: GatewayServiceCommand): string
   if (!command) {
     return undefined;
   }
-  if (command.environmentValueSources?.ALISIO_GATEWAY_TOKEN === "file") {
+  if (
+    command.environmentValueSources?.ALISIO_GATEWAY_TOKEN === "file"
+  ) {
     return undefined;
   }
   return command.environment?.ALISIO_GATEWAY_TOKEN?.trim() || undefined;
