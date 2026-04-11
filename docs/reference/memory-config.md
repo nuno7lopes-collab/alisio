@@ -10,8 +10,10 @@ read_when:
 
 # Memory configuration reference
 
-This page lists every configuration knob for Alisio memory search. For
-conceptual overviews, see:
+This page lists every configuration knob for Alisio memory search. Native
+memory writes flow through the ledger-backed memory APIs; search configuration
+here controls how Alisio indexes **derived projections** and any extra
+read-only paths. For conceptual overviews, see:
 
 - [Memory Overview](/concepts/memory) -- how memory works
 - [Builtin Engine](/concepts/memory-builtin) -- default SQLite backend
@@ -21,16 +23,24 @@ conceptual overviews, see:
 All memory search settings live under `agents.defaults.memorySearch` in
 `alisio.json` unless noted otherwise.
 
+Canonical memory ownership does **not** come from the search index:
+
+- The append-only memory ledger is canonical.
+- CRDT page state, files metadata, backlinks, and graph state are derived from
+  that ledger.
+- Search indexes projections and `memorySearch.extraPaths`.
+- Sync remains local-first and end-to-end encrypted by default.
+
 ---
 
 ## Provider selection
 
-| Key        | Type      | Default          | Description                                                                      |
-| ---------- | --------- | ---------------- | -------------------------------------------------------------------------------- |
+| Key        | Type      | Default          | Description                                                            |
+| ---------- | --------- | ---------------- | ---------------------------------------------------------------------- |
 | `provider` | `string`  | auto-detected    | Embedding adapter ID: `openai`, `gemini`, `voyage`, `mistral`, `local` |
-| `model`    | `string`  | provider default | Embedding model name                                                             |
-| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                                       |
-| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                                  |
+| `model`    | `string`  | provider default | Embedding model name                                                   |
+| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                             |
+| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                        |
 
 ### Auto-detection order
 
@@ -51,12 +61,12 @@ sign-in does not trigger remote embedding credential warnings by default.
 Remote embeddings require an API key. Alisio resolves from:
 auth profiles, `models.providers.*.apiKey`, or environment variables.
 
-| Provider | Env var                        | Config key                        |
-| -------- | ------------------------------ | --------------------------------- |
-| OpenAI   | `OPENAI_API_KEY`               | `models.providers.openai.apiKey`  |
-| Gemini   | `GEMINI_API_KEY`               | `models.providers.google.apiKey`  |
-| Voyage   | `VOYAGE_API_KEY`               | `models.providers.voyage.apiKey`  |
-| Mistral  | `MISTRAL_API_KEY`              | `models.providers.mistral.apiKey` |
+| Provider | Env var           | Config key                        |
+| -------- | ----------------- | --------------------------------- |
+| OpenAI   | `OPENAI_API_KEY`  | `models.providers.openai.apiKey`  |
+| Gemini   | `GEMINI_API_KEY`  | `models.providers.google.apiKey`  |
+| Voyage   | `VOYAGE_API_KEY`  | `models.providers.voyage.apiKey`  |
+| Mistral  | `MISTRAL_API_KEY` | `models.providers.mistral.apiKey` |
 
 Codex OAuth covers chat/completions only and does not satisfy embedding
 requests. Remote memory embeddings still need their own API key.
@@ -195,50 +205,13 @@ under local state for entities, explicit relations, projections, and replica
 metadata. `memorySearch.extraPaths` stays a search surface, not canonical
 profile-owned memory.
 
----
+Use `extraPaths` for:
 
-## Obsidian read-only vault connector
+- team notes or shared docs you want indexed
+- exported Markdown projections
+- external read-only reference material
 
-Use `memory.obsidianReadOnly` when you want memory search to index an entire
-Obsidian vault without reusing the legacy writable `memory.vaultPath` /
-`memory.memoryPath` flow.
-
-| Key                                 | Type      | Default | Description                               |
-| ----------------------------------- | --------- | ------- | ----------------------------------------- |
-| `memory.obsidianReadOnly.enabled`   | `boolean` | `false` | Explicit opt-in for whole-vault indexing  |
-| `memory.obsidianReadOnly.vaultPath` | `string`  | --      | Absolute vault root (`/path` or `~/path`) |
-
-```json5
-{
-  memory: {
-    obsidianReadOnly: {
-      enabled: true,
-      vaultPath: "~/Obsidian/Research",
-    },
-  },
-}
-```
-
-Behavior:
-
-- Indexes every Markdown file under the selected vault root.
-- Never writes notes, rollups, or metadata back into the vault.
-- Uses stable memory paths under `obsidian-vault/...` for search/readback.
-- Skips `.obsidian`, hidden directories, symlinks, and files above the built-in
-  size limit.
-- Applies a built-in Markdown file-count limit to avoid overloading the gateway.
-- Reindexes automatically when watched vault files change.
-
-If the vault is missing, unreadable, or exceeds limits, Alisio degrades
-cleanly: the connector stays configured, the gateway keeps running, and the
-runtime reports the reason instead of indexing partial unsafe state.
-
-This connector is read-only in this release. Writable Obsidian vault sync still
-uses the legacy `memory.vaultPath` / `memory.memoryPath` flow.
-
-The read-only connector also stays outside the canonical profile-owned memory
-store. It is indexed for search, but it does not become writable canonical
-memory owned by the profile on this device.
+Do not treat `extraPaths` as the canonical write surface for owned memory.
 
 ---
 

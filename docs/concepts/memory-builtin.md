@@ -68,14 +68,14 @@ structured representation of owned memory notes for the active Alisio profile.
 
 Today, the builtin engine supports both:
 
-- importing operator-edited Markdown/Obsidian memory projections into the
+- importing operator-edited Markdown and derived memory projections into the
   structured store
 - keeping store-authored structured entities plus regenerable Markdown
   projections in that same canonical store
 
 Operational surfaces now split cleanly:
 
-- `alisio memory search` still searches Markdown/Obsidian projections and
+- `alisio memory search` still searches Markdown projections and
   optional session transcripts.
 - `alisio memory graph` inspects the structured canonical store for explicit
   note-to-note relations under that human-facing projection.
@@ -89,10 +89,10 @@ Alisio indexes `MEMORY.md` and `memory/*.md` into chunks (~400 tokens with
 - **Reindex on demand:** `alisio memory index --force`
 
 <Info>
-The canonical memory store remains local-first and per-device, but signed-in
-profiles can now sync that store through the Alisio cloud backend. Sync is
-currently snapshot-based, coordinated through Supabase tables, and appends
-remote backups for each uploaded snapshot.
+The canonical memory store remains local-first, but signed-in profiles sync
+encrypted ledger-backed state by default. Lamport ordering and derived-state
+replay keep the local store and projections aligned without treating search
+artifacts as the source of truth.
 </Info>
 
 <Info>
@@ -103,9 +103,8 @@ structured store on the next canonical sync.
 
 <Info>
 Current limitation: cloud reconciliation is still coarse-grained. The canonical
-store syncs whole-scope snapshots rather than CRDT-style field merges, so
-conflicting edits across non-empty devices still resolve conservatively instead
-of merging at a finer semantic level.
+store still has areas that replay conservatively, but page edits now rely on
+CRDT state instead of merge-by-projection alone.
 </Info>
 
 <Info>

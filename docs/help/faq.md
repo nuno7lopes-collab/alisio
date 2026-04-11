@@ -1167,15 +1167,15 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="How does memory work?">
-    Alisio memory is edited through Markdown files in the agent workspace or
-    configured Obsidian memory vault, but the active memory plugin now also keeps
-    a profile-scoped structured store underneath that surface.
+    Alisio memory is edited through the native Wiki, Files, and Graph views, and
+    the active memory plugin keeps a profile-scoped canonical ledger underneath
+    those surfaces.
 
-    - Daily notes in `memory/YYYY-MM-DD.md`
-    - Curated long-term notes in `MEMORY.md` (main/private sessions only)
+    - Ledger-backed page edits and attachment metadata are canonical
+    - CRDT page state, graph relations, and search projections are derived
 
-    Today, that structured store is local-only on each device. Cloud sync for it
-    remains roadmap work, not current shipped behavior.
+    Sync is local-first and end-to-end encrypted by default. Alisio replays the
+    encrypted ledger into local derived state on each device.
 
     Alisio also runs a **silent pre-compaction memory flush** to remind the model
     to write durable notes before auto-compaction. This only runs when the workspace

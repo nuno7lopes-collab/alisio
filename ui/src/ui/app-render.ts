@@ -1839,6 +1839,8 @@ export function renderApp(state: AppViewState) {
           : nothing}
         ${activeTab === "memory"
           ? renderMemoryHub({
+              client: state.client,
+              connected: state.connected,
               aiState: resolveEffectiveAlisioAiState(state),
               agentsLoading: state.agentsLoading,
               agentsError: state.agentsError,

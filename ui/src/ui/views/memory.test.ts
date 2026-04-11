@@ -3,12 +3,212 @@
 import { render } from "lit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { i18n } from "../../i18n/index.ts";
+import { GatewayRequestError } from "../gateway.ts";
 import { renderMemoryHub } from "./memory.ts";
+
+async function flushMemoryHub() {
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+async function mountNativeHub(
+  props: Parameters<typeof renderMemoryHub>[0],
+  container = document.createElement("div"),
+) {
+  const hub = document.createElement("alisio-memory-native-hub") as HTMLElement & {
+    props: Parameters<typeof renderMemoryHub>[0];
+  };
+  hub.props = props;
+  document.body.appendChild(container);
+  container.appendChild(hub);
+  await flushMemoryHub();
+  return { container, hub };
+}
+
+function makeRequestMock() {
+  return vi.fn((method: string, params?: Record<string, unknown>) => {
+    const pageId = typeof params?.pageId === "string" ? params.pageId : "";
+    const traceId = typeof params?.traceId === "string" ? params.traceId : "";
+    const format = typeof params?.format === "string" ? params.format : "json";
+    if (method === "memory.wiki.list") {
+      return Promise.resolve({
+        agentId: "main",
+        sync: {
+          lastSyncedLamport: "42",
+          e2eeRequired: true,
+        },
+        exportFormats: ["zip", "json", "markdown"],
+        pages: [
+          {
+            id: "atlas",
+            title: "Project Atlas",
+            path: "memory/project-atlas.md",
+            excerpt: "Launch blockers and delivery plan.",
+            backlinks: 1,
+            claims: 1,
+            evidence: 1,
+            traceId: "trace-atlas",
+            reasonTags: [{ code: "recent", label: "Recent change" }],
+          },
+          {
+            id: "roadmap",
+            title: "Roadmap",
+            path: "memory/roadmap.md",
+            excerpt: "Release roadmap",
+            backlinks: 1,
+            claims: 0,
+            evidence: 0,
+          },
+        ],
+      });
+    }
+    if (method === "memory.wiki.get" && params?.pageId === "atlas") {
+      return Promise.resolve({
+        agentId: "main",
+        page: {
+          id: "atlas",
+          title: "Project Atlas",
+          path: "memory/project-atlas.md",
+          content: "# Project Atlas\n\n- Launch blocker review",
+          backlinks: [
+            {
+              id: "roadmap",
+              title: "Roadmap",
+              path: "memory/roadmap.md",
+              excerpt: "Depends on Atlas milestones.",
+            },
+          ],
+          claims: [
+            {
+              id: "claim-atlas",
+              claim: "Atlas depends on roadmap sign-off.",
+              confidence: 0.84,
+              evidence: [
+                {
+                  id: "evidence-roadmap",
+                  title: "Roadmap",
+                  excerpt: "Milestone approval still pending.",
+                },
+              ],
+            },
+          ],
+          provenance: [{ label: "Ledger", value: "evt-1" }],
+          reasonTags: [{ code: "recent", label: "Recent change" }],
+          traceId: "trace-atlas",
+          contextPreview: {
+            summary: "Surfaced because recent edits mention the launch blockers.",
+            reasonTags: [{ code: "linked", label: "Linked context" }],
+            traceId: "trace-atlas",
+          },
+          revision: {
+            eventId: "evt-1",
+            lamport: "42",
+            updatedAt: "2026-04-11T10:00:00Z",
+            author: "atlas",
+            summary: "Updated page",
+          },
+        },
+      });
+    }
+    if (method === "memory.wiki.get" && params?.pageId === "roadmap") {
+      return Promise.resolve({
+        agentId: "main",
+        page: {
+          id: "roadmap",
+          title: "Roadmap",
+          path: "memory/roadmap.md",
+          content: "# Roadmap\n\nMilestone approval pending.",
+          backlinks: [],
+          claims: [],
+          provenance: [{ label: "Ledger", value: "evt-2" }],
+        },
+      });
+    }
+    if (method === "memory.wiki.history") {
+      return Promise.resolve({
+        agentId: "main",
+        pageId,
+        history: [
+          {
+            eventId: "evt-1",
+            lamport: "42",
+            summary: "Updated page",
+            at: "2026-04-11T10:00:00Z",
+            author: "atlas",
+            diffSummary: "Claims and evidence refreshed.",
+          },
+        ],
+      });
+    }
+    if (method === "memory.files.list") {
+      return Promise.resolve({
+        agentId: "main",
+        sync: {
+          lastSyncedLamport: "42",
+          e2eeRequired: true,
+        },
+        files: [
+          {
+            id: "brief",
+            name: "product-brief.pdf",
+            mediaType: "application/pdf",
+            size: 1024,
+            provenanceSummary: "Imported from product brief",
+            traceId: "trace-file",
+            reasonTags: [{ code: "attachment", label: "Attachment" }],
+          },
+        ],
+      });
+    }
+    if (method === "memory.files.get") {
+      return Promise.resolve({
+        agentId: "main",
+        file: {
+          id: "brief",
+          name: "product-brief.pdf",
+          mediaType: "application/pdf",
+          size: 1024,
+          updatedAt: "2026-04-11T10:10:00Z",
+          provenanceSummary: "Imported from product brief",
+          provenance: [{ label: "Source", value: "product-brief.md" }],
+          relatedPages: [{ id: "atlas", title: "Project Atlas", path: "memory/project-atlas.md" }],
+          traceId: "trace-file",
+          reasonTags: [{ code: "attachment", label: "Attachment" }],
+        },
+      });
+    }
+    if (method === "memory.trace.get") {
+      return Promise.resolve({
+        traceId,
+        summary: ["Query: launch blockers", "Reasons: recent, linked"],
+        reasonTags: [{ code: "linked", label: "Linked context" }],
+        raw: {
+          query: "launch blockers",
+          reasons: ["recent", "linked"],
+          hits: [{ pageId: "atlas" }],
+        },
+      });
+    }
+    if (method === "memory.export") {
+      return Promise.resolve({
+        format,
+        fileName: "memory.json",
+        mediaType: "application/json",
+        content: '{"ok":true}',
+      });
+    }
+    throw new Error(`unexpected request: ${method}`);
+  });
+}
 
 function createProps(
   overrides: Partial<Parameters<typeof renderMemoryHub>[0]> = {},
 ): Parameters<typeof renderMemoryHub>[0] {
+  const request = makeRequestMock();
   return {
+    client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
+    connected: true,
     aiState: null,
     agentsLoading: false,
     agentsError: null,
@@ -32,23 +232,14 @@ function createProps(
           size: 12,
           updatedAtMs: 10,
         },
-        {
-          name: "memory/2026-04-06-trip-planning.md",
-          path: "/workspace/main/memory/2026-04-06-trip-planning.md",
-          missing: false,
-          size: 8,
-          updatedAtMs: 20,
-        },
       ],
     },
     memoryActive: "MEMORY.md",
     memoryContents: {
       "MEMORY.md": "# Main memory",
-      "memory/2026-04-06-trip-planning.md": "# Trip planning",
     },
     memoryDrafts: {
       "MEMORY.md": "# Main memory",
-      "memory/2026-04-06-trip-planning.md": "# Trip planning",
     },
     memorySaving: false,
     memoryDeleting: false,
@@ -58,10 +249,10 @@ function createProps(
       agentId: "main",
       enabled: true,
       config: {
-        provider: "openai",
-        fallback: "text-embedding-3-small",
-        sources: ["memory", "sessions"],
-        extraPaths: ["docs/memory"],
+        provider: "local",
+        fallback: "none",
+        sources: ["memory"],
+        extraPaths: [],
         sync: {
           onSessionStart: true,
           onSearch: true,
@@ -81,16 +272,13 @@ function createProps(
       },
       runtime: {
         backend: "builtin",
-        provider: "openai",
-        model: "text-embedding-3-small",
+        provider: "local",
+        model: "embeddinggemma-300m-qat-Q8_0.gguf",
         files: 2,
         chunks: 10,
         dirty: false,
         dbPath: "/workspace/main/.memory/memory.db",
-        sourceCounts: [
-          { source: "memory", files: 1, chunks: 4 },
-          { source: "sessions", files: 1, chunks: 6 },
-        ],
+        sourceCounts: [{ source: "memory", files: 2, chunks: 10 }],
         fts: {
           enabled: true,
           available: true,
@@ -98,20 +286,11 @@ function createProps(
         vector: {
           enabled: true,
           available: true,
-          dims: 1536,
-        },
-        obsidianReadOnly: {
-          enabled: true,
-          active: true,
-          vaultPath: "/vaults/research",
-          indexedFiles: 24,
-          skippedLargeFiles: 2,
-          maxFiles: 2000,
-          maxFileBytes: 1048576,
+          dims: 768,
         },
         canonicalStore: {
           state: "ready",
-          path: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
+          path: "/Users/test/.alisio/memory/profiles/local-main/canonical.sqlite",
           profileId: "local-main",
           profileSource: "local-profile",
           workspaceScope: "scope-main",
@@ -122,7 +301,7 @@ function createProps(
           projections: 2,
           projectionInterface: "markdown-vault",
           syncMode: "local-first",
-          cloudSync: "unavailable",
+          cloudSync: "enabled",
           projectionSources: ["workspace-memory"],
         },
       },
@@ -135,29 +314,29 @@ function createProps(
     memoryGraphLoading: false,
     memoryGraphError: null,
     memoryGraph: {
-      query: "Trip Planning",
+      query: "Project Atlas",
       profileId: "local-main",
       workspaceScope: "scope-main",
-      storePath: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
+      storePath: "/tmp/canonical.sqlite",
       backend: "builtin",
       state: "ready",
       projectionInterface: "markdown-vault",
       syncMode: "local-first",
-      cloudSync: "unavailable",
+      cloudSync: "enabled",
       matches: [
         {
-          entityId: "entity-trip-planning",
-          title: "Trip Planning",
-          slug: "trip-planning",
-          sourcePath: "memory/2026-04-06-trip-planning.md",
+          entityId: "atlas",
+          title: "Project Atlas",
+          slug: "project-atlas",
+          sourcePath: "memory/project-atlas.md",
           sourceKind: "workspace-memory",
-          aliases: ["planning"],
-          tags: ["travel"],
+          aliases: ["Atlas"],
+          tags: ["launch"],
           score: 1,
           projections: [
             {
-              projectionId: "projection-trip-planning",
-              path: "memory/2026-04-06-trip-planning.md",
+              projectionId: "projection-atlas",
+              path: "memory/project-atlas.md",
               sourceKind: "workspace-memory",
               editable: true,
             },
@@ -169,10 +348,10 @@ function createProps(
               ordinal: 0,
               metadata: {},
               relatedEntity: {
-                entityId: "entity-roadmap",
+                entityId: "roadmap",
                 title: "Roadmap",
                 slug: "roadmap",
-                sourcePath: "memory/2026-04-01-roadmap.md",
+                sourcePath: "memory/roadmap.md",
                 sourceKind: "workspace-memory",
               },
             },
@@ -180,76 +359,24 @@ function createProps(
         },
       ],
     },
-    memoryGraphQuery: "Trip Planning",
+    memoryGraphQuery: "Project Atlas",
     configLoading: false,
     configSaving: false,
     configDirty: false,
-    configSchema: {
-      type: "object",
-      properties: {
-        memory: {
-          type: "object",
-          properties: {
-            backend: { type: "string" },
-          },
-          additionalProperties: false,
-        },
-        agents: {
-          type: "object",
-          properties: {
-            defaults: {
-              type: "object",
-              properties: {
-                memorySearch: {
-                  type: "object",
-                  properties: {
-                    provider: { type: "string" },
-                  },
-                  additionalProperties: false,
-                },
-              },
-              additionalProperties: false,
-            },
-            list: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  id: { type: "string" },
-                  memorySearch: {
-                    type: "object",
-                    properties: {
-                      provider: { type: "string" },
-                    },
-                    additionalProperties: false,
-                  },
-                },
-                additionalProperties: false,
-              },
-            },
-          },
-          additionalProperties: false,
-        },
-      },
-      additionalProperties: false,
-    },
+    configSchema: { type: "object", properties: {} },
     configUiHints: {},
     configForm: {
-      memory: {
-        backend: "builtin",
-      },
-      agents: {
-        defaults: {
-          memorySearch: {
-            provider: "openai",
-          },
+      ui: {
+        memory: {
+          newViews: { enabled: true },
+          traces: { enabled: true },
+          legacyEditor: { enabled: false },
         },
-        list: [{ id: "main", memorySearch: { provider: "openai" } }],
       },
     },
     searchQuery: "",
     composerOpen: false,
-    composerDate: "2026-04-06",
+    composerDate: "2026-04-11",
     composerTitle: "",
     onSelectAgent: vi.fn(),
     onRefresh: vi.fn(),
@@ -271,235 +398,105 @@ function createProps(
   };
 }
 
+function clickButton(container: HTMLElement, label: string) {
+  const button = Array.from(container.querySelectorAll("button")).find((entry) =>
+    entry.textContent?.includes(label),
+  );
+  expect(button).toBeTruthy();
+  button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+}
+
 describe("renderMemoryHub", () => {
   beforeEach(async () => {
     await i18n.setLocale("en");
-    vi.stubGlobal(
-      "confirm",
-      vi.fn(() => true),
-    );
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
     document.body.innerHTML = "";
+    vi.restoreAllMocks();
   });
 
-  it("renders a dedicated long-term memory workspace without note delete actions", () => {
-    const container = document.createElement("div");
+  it("renders the native memory shell with wiki, files, and graph views", async () => {
+    const { container } = await mountNativeHub(createProps());
 
-    render(renderMemoryHub(createProps()), container);
-
-    expect(container.textContent).toContain("Long-term memory");
-    expect(container.textContent).toContain("Memory runtime");
-    expect(container.textContent).toContain("Memory settings");
-    expect(container.textContent).toContain("Main memory");
-    expect(container.textContent).toContain("Trip Planning");
-    expect(container.textContent).toContain("Obsidian vault");
-    expect(container.textContent).toContain("/vaults/research");
-    expect(container.textContent).toContain("Canonical store");
-    expect(container.textContent).toContain("local-main");
-    expect(container.textContent).toContain("Graph preview");
-    expect(container.textContent).toContain("Trip Planning");
-    expect(container.textContent).toContain("depends-on");
-    expect(container.textContent).not.toContain("Delete");
+    expect(container.textContent).toContain("Wiki");
+    expect(container.textContent).toContain("Files");
+    expect(container.textContent).toContain("Graph");
+    expect(container.textContent).toContain("Project Atlas");
+    expect(container.textContent).toContain("Backlinks");
+    expect(container.textContent).toContain("Claims");
+    expect(container.textContent).toContain("History");
+    expect(container.textContent).toContain("Last synced lamport");
+    expect(container.textContent).toContain("E2EE");
+    expect(container.textContent).toContain("Required");
   });
 
-  it("navigates from graph nodes to the linked memory file", () => {
-    const container = document.createElement("div");
+  it("opens traces from the wiki context preview", async () => {
+    const { container } = await mountNativeHub(createProps());
+
+    clickButton(container, "View trace");
+    await flushMemoryHub();
+
+    expect(container.textContent).toContain("Retrieval trace");
+    expect(container.textContent).toContain("Query: launch blockers");
+    expect(container.textContent).toContain("Linked context");
+  });
+
+  it("navigates through files and graph views and opens linked pages from the graph", async () => {
     const onSelectFile = vi.fn();
-
-    render(
-      renderMemoryHub(
-        createProps({
-          onSelectFile,
-        }),
-      ),
-      container,
+    const { container } = await mountNativeHub(
+      createProps({
+        onSelectFile,
+      }),
     );
 
-    const roadmapButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Roadmap"),
-    );
+    clickButton(container, "Files");
+    await flushMemoryHub();
+    expect(container.textContent).toContain("product-brief.pdf");
+    expect(container.textContent).toContain("Imported from product brief");
+    expect(container.textContent).toContain("Source");
 
-    roadmapButton?.click();
+    clickButton(container, "Graph");
+    await flushMemoryHub();
+    expect(container.textContent).toContain("depends-on");
 
-    expect(onSelectFile).toHaveBeenCalledWith("memory/2026-04-01-roadmap.md");
+    clickButton(container, "depends-on");
+    await flushMemoryHub();
+
+    expect(container.textContent).toContain("Roadmap");
+    expect(onSelectFile).toHaveBeenCalledWith("memory/roadmap.md");
   });
 
-  it("shows the note composer preview path and note delete action in note mode", () => {
-    const container = document.createElement("div");
-
-    render(
-      renderMemoryHub(
-        createProps({
-          memoryActive: "memory/2026-04-06-trip-planning.md",
-          composerOpen: true,
-          composerTitle: "Daily standup",
-        }),
-      ),
-      container,
-    );
-
-    expect(container.textContent).toContain("memory/2026-04-06-daily-standup.md");
-    expect(
-      Array.from(container.querySelectorAll("button")).some((button) =>
-        button.textContent?.includes("Delete"),
-      ),
-    ).toBe(true);
-  });
-
-  it("falls back to the main memory file when no file is selected", () => {
-    const container = document.createElement("div");
-
-    render(
-      renderMemoryHub(
-        createProps({
-          memoryActive: null,
-        }),
-      ),
-      container,
-    );
-
-    expect(container.textContent).toContain("Main memory");
-    expect(container.textContent).not.toContain("No notes yet.");
-    expect(container.querySelector("textarea")?.value).toContain("# Main memory");
-  });
-
-  it("wires sync and settings save actions from the memory surface", () => {
-    const container = document.createElement("div");
-    const onSync = vi.fn();
-    const onSaveSettings = vi.fn();
-
-    render(
-      renderMemoryHub(
-        createProps({
-          configDirty: true,
-          onSync,
-          onSaveSettings,
-        }),
-      ),
-      container,
-    );
-
-    const syncButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Sync now"),
-    );
-    const saveSettingsButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Save settings"),
-    );
-
-    syncButton?.click();
-    saveSettingsButton?.click();
-
-    expect(onSync).toHaveBeenCalledTimes(1);
-    expect(onSaveSettings).toHaveBeenCalledTimes(1);
-  });
-
-  it("suggests local embeddings when Codex OAuth is active and auto selection has no usable provider", () => {
-    const container = document.createElement("div");
-    const onUseLocalEmbeddings = vi.fn();
-    const props = createProps({
-      aiState: {
-        provider: "openai",
-        status: "connected",
-      },
-      onUseLocalEmbeddings,
+  it("shows a friendly message when the native wiki endpoint is unavailable", async () => {
+    const request = vi.fn((method: string) => {
+      if (method === "memory.wiki.list") {
+        return Promise.reject(
+          new GatewayRequestError({
+            code: "INVALID_REQUEST",
+            message: "unknown method: memory.wiki.list",
+          }),
+        );
+      }
+      if (method === "memory.files.list") {
+        return Promise.resolve({ agentId: "main", files: [] });
+      }
+      throw new Error(`unexpected request: ${method}`);
     });
-    const baseStatus = props.memoryStatus!;
-    const baseConfig = baseStatus.config!;
-    const baseRuntime = baseStatus.runtime!;
 
-    props.memoryStatus = {
-      ...baseStatus,
-      config: {
-        provider: "auto",
-        fallback: baseConfig.fallback,
-        sources: [...baseConfig.sources],
-        extraPaths: [...baseConfig.extraPaths],
-        sync: { ...baseConfig.sync },
-        store: { ...baseConfig.store },
-      },
-      runtime: {
-        backend: baseRuntime.backend,
-        provider: "auto",
-        model: baseRuntime.model,
-        files: baseRuntime.files,
-        chunks: baseRuntime.chunks,
-        dirty: baseRuntime.dirty,
-        dbPath: baseRuntime.dbPath,
-        sourceCounts: baseRuntime.sourceCounts,
-        fts: baseRuntime.fts,
-        vector: baseRuntime.vector,
-        requestedProvider: "auto",
-      },
-      embedding: {
-        ok: false,
-        error: [
-          'No API key found for provider "openai".',
-          'No API key found for provider "voyage".',
-          'No API key found for provider "mistral".',
-        ].join("\n\n"),
-      },
-    };
-
-    render(renderMemoryHub(props), container);
-
-    expect(container.textContent).toContain("Memory still needs embeddings");
-    expect(container.textContent).toContain("Codex/OpenAI sign-in covers chat");
-    expect(container.textContent).not.toContain("No API key found");
-    expect(container.textContent).not.toContain("Voyage");
-    expect(container.textContent).not.toContain("Mistral");
-
-    const localButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("Use local embeddings"),
+    const { container } = await mountNativeHub(
+      createProps({
+        client: { request } as unknown as Parameters<typeof renderMemoryHub>[0]["client"],
+      }),
     );
 
-    localButton?.click();
-
-    expect(onUseLocalEmbeddings).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain(
+      "This version of Alisio does not expose the native memory wiki yet.",
+    );
   });
 
-  it("preserva paths reais do runtime nas details de memória", () => {
+  it("wraps the native hub when the new views flag is enabled", () => {
     const container = document.createElement("div");
-    const props = createProps();
-    const baseStatus = props.memoryStatus!;
-    const baseConfig = baseStatus.config!;
-    const baseRuntime = baseStatus.runtime!;
-
-    props.memoryStatus = {
-      ...baseStatus,
-      config: {
-        provider: baseConfig.provider,
-        fallback: baseConfig.fallback,
-        sources: [...baseConfig.sources],
-        extraPaths: [...baseConfig.extraPaths],
-        sync: { ...baseConfig.sync },
-        store: {
-          ...baseConfig.store,
-          path: "/Users/nuno/.alisio/memory/main.sqlite",
-        },
-      },
-      runtime: {
-        backend: baseRuntime.backend,
-        provider: baseRuntime.provider,
-        model: baseRuntime.model,
-        files: baseRuntime.files,
-        chunks: baseRuntime.chunks,
-        dirty: baseRuntime.dirty,
-        dbPath: "/Users/nuno/.alisio/memory/main.sqlite",
-        sourceCounts: baseRuntime.sourceCounts,
-        fts: baseRuntime.fts,
-        vector: baseRuntime.vector,
-        canonicalStore: {
-          ...baseRuntime.canonicalStore!,
-          path: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
-        },
-      },
-    };
-
-    render(renderMemoryHub(props), container);
-
-    expect(container.textContent).toContain(".alisio");
+    render(renderMemoryHub(createProps()), container);
+    expect(container.querySelector("alisio-memory-native-hub")).toBeTruthy();
   });
 });

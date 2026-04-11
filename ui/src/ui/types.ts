@@ -52,14 +52,14 @@ export type MemoryGraphState = {
     title: string;
     slug: string;
     sourcePath: string;
-    sourceKind: "workspace-memory" | "obsidian-memory";
+    sourceKind: string;
     aliases: string[];
     tags: string[];
     score: number;
     projections: Array<{
       projectionId: string;
       path: string;
-      sourceKind: "workspace-memory" | "obsidian-memory";
+      sourceKind: string;
       editable: boolean;
     }>;
     relations: Array<{
@@ -72,7 +72,7 @@ export type MemoryGraphState = {
         title: string;
         slug: string;
         sourcePath: string;
-        sourceKind: "workspace-memory" | "obsidian-memory";
+        sourceKind: string;
       };
       targetLocator?: string;
     }>;

@@ -3,6 +3,8 @@ import { GatewayRequestError } from "../gateway.ts";
 import {
   loadMemoryGraph,
   loadMemoryStatus,
+  requestMemoryExport,
+  requestMemoryWikiList,
   syncMemoryNow,
   type MemoryRuntimeState,
 } from "./memory-runtime.ts";
@@ -178,5 +180,58 @@ describe("memory-runtime controller", () => {
     );
     expect(state.memoryGraphError).toBeNull();
     expect(state.memoryGraphLoading).toBe(false);
+  });
+
+  it("surfaces a friendly native-wiki message when memory.wiki.list is unavailable", async () => {
+    const { request } = createState();
+
+    request.mockImplementation((method: string) => {
+      if (method === "memory.wiki.list") {
+        return Promise.reject(
+          new GatewayRequestError({
+            code: "INVALID_REQUEST",
+            message: "unknown method: memory.wiki.list",
+          }),
+        );
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    await expect(
+      requestMemoryWikiList({ request } as unknown as Parameters<typeof requestMemoryWikiList>[0], {
+        agentId: "main",
+      }),
+    ).rejects.toThrow("native memory wiki");
+  });
+
+  it("requests memory export with the selected format", async () => {
+    const { request } = createState();
+
+    request.mockImplementation((method: string, params: { agentId: string; format: string }) => {
+      if (method === "memory.export") {
+        return Promise.resolve({
+          format: params.format,
+          fileName: "memory.json",
+          content: '{"ok":true}',
+        });
+      }
+      throw new Error(`unexpected request: ${method}`);
+    });
+
+    const result = await requestMemoryExport(
+      { request } as unknown as Parameters<typeof requestMemoryExport>[0],
+      { agentId: "main", format: "json" },
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        format: "json",
+        fileName: "memory.json",
+      }),
+    );
+    expect(request).toHaveBeenCalledWith("memory.export", {
+      agentId: "main",
+      format: "json",
+    });
   });
 });

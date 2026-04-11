@@ -2,6 +2,186 @@ import { GatewayRequestError } from "../gateway.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import type { MemoryGraphState, MemoryStatusState, MemorySyncResult } from "../types.ts";
 
+export type MemoryReasonTag = {
+  code: string;
+  label?: string;
+  detail?: string;
+};
+
+export type MemorySyncSurface = {
+  lastSyncedLamport?: string | number | null;
+  e2eeRequired?: boolean | null;
+  state?: string | null;
+  detail?: string | null;
+};
+
+export type MemoryWikiListPage = {
+  id: string;
+  title: string;
+  slug?: string | null;
+  path?: string | null;
+  excerpt?: string | null;
+  updatedAt?: string | null;
+  reasonTags?: MemoryReasonTag[] | null;
+  traceId?: string | null;
+  trace?: unknown;
+  traceSummary?: string[] | null;
+  backlinks?: number | null;
+  claims?: number | null;
+  evidence?: number | null;
+};
+
+export type MemoryWikiListResult = {
+  agentId: string;
+  pages: MemoryWikiListPage[];
+  sync?: MemorySyncSurface | null;
+  exportFormats?: string[] | null;
+};
+
+export type MemoryWikiBacklink = {
+  id?: string | null;
+  title: string;
+  path?: string | null;
+  excerpt?: string | null;
+};
+
+export type MemoryEvidenceItem = {
+  id?: string | null;
+  title?: string | null;
+  excerpt?: string | null;
+  source?: string | null;
+  provenance?: Array<{ label: string; value: string }> | null;
+};
+
+export type MemoryClaimItem = {
+  id?: string | null;
+  claim: string;
+  confidence?: number | string | null;
+  evidence?: MemoryEvidenceItem[] | null;
+};
+
+export type MemoryWikiPage = {
+  id: string;
+  title: string;
+  slug?: string | null;
+  path?: string | null;
+  content: string;
+  backlinks?: MemoryWikiBacklink[] | null;
+  claims?: MemoryClaimItem[] | null;
+  evidence?: MemoryEvidenceItem[] | null;
+  provenance?: Array<{ label: string; value: string }> | null;
+  reasonTags?: MemoryReasonTag[] | null;
+  traceId?: string | null;
+  trace?: unknown;
+  traceSummary?: string[] | null;
+  contextPreview?: {
+    summary?: string | null;
+    reasonTags?: MemoryReasonTag[] | null;
+    traceId?: string | null;
+    trace?: unknown;
+    traceSummary?: string[] | null;
+  } | null;
+  revision?: {
+    eventId?: string | null;
+    lamport?: string | number | null;
+    updatedAt?: string | null;
+    author?: string | null;
+    summary?: string | null;
+  } | null;
+};
+
+export type MemoryWikiGetResult = {
+  agentId: string;
+  page: MemoryWikiPage;
+  sync?: MemorySyncSurface | null;
+};
+
+export type MemoryWikiHistoryEntry = {
+  eventId: string;
+  lamport?: string | number | null;
+  at?: string | null;
+  author?: string | null;
+  operation?: string | null;
+  summary?: string | null;
+  diffSummary?: string | null;
+};
+
+export type MemoryWikiHistoryResult = {
+  agentId: string;
+  pageId: string;
+  history: MemoryWikiHistoryEntry[];
+};
+
+export type MemoryWikiUpdateResult = {
+  ok: boolean;
+  agentId: string;
+  page?: MemoryWikiPage | null;
+  revision?: MemoryWikiPage["revision"] | null;
+  sync?: MemorySyncSurface | null;
+};
+
+export type MemoryFileListEntry = {
+  id: string;
+  name: string;
+  mediaType?: string | null;
+  size?: number | null;
+  updatedAt?: string | null;
+  pageId?: string | null;
+  provenanceSummary?: string | null;
+  provenance?: Array<{ label: string; value: string }> | null;
+  reasonTags?: MemoryReasonTag[] | null;
+  traceId?: string | null;
+  trace?: unknown;
+  traceSummary?: string[] | null;
+};
+
+export type MemoryFilesListResult = {
+  agentId: string;
+  files: MemoryFileListEntry[];
+  sync?: MemorySyncSurface | null;
+};
+
+export type MemoryFileDetail = MemoryFileListEntry & {
+  downloadUrl?: string | null;
+  relatedPages?: Array<{ id?: string | null; title: string; path?: string | null }> | null;
+};
+
+export type MemoryFilesGetResult = {
+  agentId: string;
+  file: MemoryFileDetail;
+  sync?: MemorySyncSurface | null;
+};
+
+export type MemoryTraceResult = {
+  traceId?: string | null;
+  summary?: string[] | null;
+  reasonTags?: MemoryReasonTag[] | null;
+  raw: unknown;
+};
+
+export type MemoryExportFormat = "zip" | "json" | "markdown";
+
+export type MemoryExportResult = {
+  format: string;
+  fileName?: string | null;
+  mediaType?: string | null;
+  content?: string | null;
+  bytesBase64?: string | null;
+  downloadUrl?: string | null;
+  savedPath?: string | null;
+  message?: string | null;
+};
+
+export class MemoryEndpointUnavailableError extends Error {
+  readonly method: string;
+
+  constructor(method: string, message: string) {
+    super(message);
+    this.name = "MemoryEndpointUnavailableError";
+    this.method = method;
+  }
+}
+
 export type MemoryRuntimeState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -73,6 +253,129 @@ function clearMemoryRuntimeState(state: MemoryRuntimeState) {
 
 function isUnknownMethodError(err: unknown, method: string) {
   return err instanceof GatewayRequestError && err.message.includes(`unknown method: ${method}`);
+}
+
+async function requestMemoryEndpoint<T>(
+  client: GatewayBrowserClient,
+  method: string,
+  params: unknown,
+  unavailableMessage: string,
+): Promise<T> {
+  try {
+    return await client.request<T>(method, params);
+  } catch (err) {
+    if (isUnknownMethodError(err, method)) {
+      throw new MemoryEndpointUnavailableError(method, unavailableMessage);
+    }
+    throw err;
+  }
+}
+
+export function isMemoryEndpointUnavailableError(
+  err: unknown,
+): err is MemoryEndpointUnavailableError {
+  return err instanceof MemoryEndpointUnavailableError;
+}
+
+export async function requestMemoryWikiList(
+  client: GatewayBrowserClient,
+  params: { agentId: string; query?: string },
+) {
+  return requestMemoryEndpoint<MemoryWikiListResult>(
+    client,
+    "memory.wiki.list",
+    params,
+    "This version of Alisio does not expose the native memory wiki yet.",
+  );
+}
+
+export async function requestMemoryWikiPage(
+  client: GatewayBrowserClient,
+  params: { agentId: string; pageId: string },
+) {
+  return requestMemoryEndpoint<MemoryWikiGetResult>(
+    client,
+    "memory.wiki.get",
+    params,
+    "This version of Alisio does not expose native memory page loading yet.",
+  );
+}
+
+export async function requestMemoryWikiUpdate(
+  client: GatewayBrowserClient,
+  params: {
+    agentId: string;
+    pageId?: string;
+    title: string;
+    content: string;
+  },
+) {
+  return requestMemoryEndpoint<MemoryWikiUpdateResult>(
+    client,
+    "memory.wiki.update",
+    params,
+    "This version of Alisio does not expose native memory editing yet.",
+  );
+}
+
+export async function requestMemoryWikiHistory(
+  client: GatewayBrowserClient,
+  params: { agentId: string; pageId: string },
+) {
+  return requestMemoryEndpoint<MemoryWikiHistoryResult>(
+    client,
+    "memory.wiki.history",
+    params,
+    "This version of Alisio does not expose ledger-backed memory history yet.",
+  );
+}
+
+export async function requestMemoryFilesList(
+  client: GatewayBrowserClient,
+  params: { agentId: string; query?: string },
+) {
+  return requestMemoryEndpoint<MemoryFilesListResult>(
+    client,
+    "memory.files.list",
+    params,
+    "This version of Alisio does not expose native memory files yet.",
+  );
+}
+
+export async function requestMemoryFile(
+  client: GatewayBrowserClient,
+  params: { agentId: string; fileId: string },
+) {
+  return requestMemoryEndpoint<MemoryFilesGetResult>(
+    client,
+    "memory.files.get",
+    params,
+    "This version of Alisio does not expose native memory file details yet.",
+  );
+}
+
+export async function requestMemoryTrace(
+  client: GatewayBrowserClient,
+  params: { agentId: string; traceId: string },
+) {
+  return requestMemoryEndpoint<MemoryTraceResult>(
+    client,
+    "memory.trace.get",
+    params,
+    "This version of Alisio does not expose retrieval traces yet.",
+  );
+}
+
+export async function requestMemoryExport(
+  client: GatewayBrowserClient,
+  params: { agentId: string; format: MemoryExportFormat },
+) {
+  return requestMemoryEndpoint<MemoryExportResult>(
+    client,
+    "memory.export",
+    params,
+    "This version of Alisio does not expose native memory export yet.",
+  );
 }
 
 export async function loadMemoryStatus(
