@@ -320,6 +320,10 @@ describe("plugin-sdk subpath exports", () => {
       "memory-core-host-runtime-files",
       'export * from "../../packages/memory-host-sdk/src/runtime-files.js";',
     );
+    expectSourceContains(
+      "memory-core-state",
+      'export * from "../../packages/memory-state/src/index.js";',
+    );
   });
 
   it("exports channel runtime helpers from the dedicated subpath", () => {

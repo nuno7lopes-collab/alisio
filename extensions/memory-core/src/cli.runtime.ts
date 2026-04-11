@@ -940,7 +940,7 @@ export async function runMemoryGraph(
             const arrow = relation.direction === "incoming" ? "<-" : "->";
             const target = relation.relatedEntity
               ? `${relation.relatedEntity.title} (${shortenHomePath(relation.relatedEntity.sourcePath)})`
-              : (relation.targetLocator ?? "unresolved");
+              : "unresolved";
             lines.push(
               colorize(
                 rich,

@@ -180,7 +180,11 @@ function buildRuntimeStatus(
     projectionInterface?: "markdown-vault";
     syncMode?: "local-first";
     cloudSync?: "unavailable" | "enabled" | "error";
-    projectionSources?: Array<"workspace-memory" | "obsidian-memory">;
+    projectionSources?: Array<"workspace-memory">;
+    ledgerEventsCount?: number;
+    lastSyncedLamport?: number;
+    checkpointsCount?: number;
+    e2eeRequired?: true;
     lastSyncedAt?: string;
     lastError?: string;
     replica?: {
@@ -202,7 +206,11 @@ function buildRuntimeStatus(
     canonicalStore.projectionInterface &&
     canonicalStore.syncMode &&
     canonicalStore.cloudSync &&
-    Array.isArray(canonicalStore.projectionSources)
+    Array.isArray(canonicalStore.projectionSources) &&
+    typeof canonicalStore.ledgerEventsCount === "number" &&
+    typeof canonicalStore.lastSyncedLamport === "number" &&
+    typeof canonicalStore.checkpointsCount === "number" &&
+    canonicalStore.e2eeRequired === true
   ) {
     runtime.canonicalStore = {
       state: canonicalStore.state,
@@ -220,6 +228,10 @@ function buildRuntimeStatus(
       syncMode: canonicalStore.syncMode,
       cloudSync: canonicalStore.cloudSync,
       projectionSources: canonicalStore.projectionSources,
+      ledgerEventsCount: canonicalStore.ledgerEventsCount,
+      lastSyncedLamport: canonicalStore.lastSyncedLamport,
+      checkpointsCount: canonicalStore.checkpointsCount,
+      e2eeRequired: canonicalStore.e2eeRequired,
       ...(canonicalStore.lastSyncedAt ? { lastSyncedAt: canonicalStore.lastSyncedAt } : {}),
       ...(canonicalStore.lastError ? { lastError: canonicalStore.lastError } : {}),
       ...(canonicalStore.replica?.deviceId && canonicalStore.replica.stateDir

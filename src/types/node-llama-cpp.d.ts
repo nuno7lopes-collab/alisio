@@ -44,6 +44,7 @@ declare module "node-llama-cpp" {
   export class LlamaChatSession {
     constructor(params: {
       contextSequence: unknown;
+      chatWrapper?: unknown;
       systemPrompt?: string;
       autoDisposeSequence?: boolean;
     });
@@ -61,6 +62,9 @@ declare module "node-llama-cpp" {
   }
 
   export function getLlama(params: { logLevel: LlamaLogLevel }): Promise<Llama>;
+  export class QwenChatWrapper {
+    constructor(options?: { thoughts?: "auto" | "discourage"; keepOnlyLastThought?: boolean });
+  }
   export function resolveModelFile(
     modelPath: string,
     options?:

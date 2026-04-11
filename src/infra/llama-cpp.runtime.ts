@@ -2,6 +2,7 @@ export {
   getLlama,
   LlamaChatSession,
   LlamaLogLevel,
+  QwenChatWrapper,
   resolveModelFile,
   type ChatHistoryItem,
   type Llama,

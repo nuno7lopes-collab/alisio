@@ -629,6 +629,10 @@
       "types": "./dist/plugin-sdk/memory-core-host-runtime-files.d.ts",
       "default": "./dist/plugin-sdk/memory-core-host-runtime-files.js"
     },
+    "./plugin-sdk/memory-core-state": {
+      "types": "./dist/plugin-sdk/memory-core-state.d.ts",
+      "default": "./dist/plugin-sdk/memory-core-state.js"
+    },
     "./plugin-sdk/memory-lancedb": {
       "types": "./dist/plugin-sdk/memory-lancedb.d.ts",
       "default": "./dist/plugin-sdk/memory-lancedb.js"
@@ -1185,6 +1189,7 @@
     "uuid": "^13.0.0",
     "ws": "^8.20.0",
     "yaml": "^2.8.3",
+    "yjs": "^13.6.18",
     "zod": "^4.3.6"
   },
   "devDependencies": {

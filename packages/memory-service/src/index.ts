@@ -1,0 +1,27 @@
+export {
+  createDisabledShareGrantStore,
+  createMemoryService,
+  createNoopGaiaMemoryFacade,
+  estimateTokenCount,
+  isPrivateMemoryAllowed,
+} from "./service.js";
+export type {
+  GaiaMemoryFacade,
+  GaiaRetrievalTraceRecord,
+  MemoryContextItem,
+  MemoryContextItemKind,
+  MemoryContextItemLocator,
+  MemoryContextItemVisibility,
+  MemoryRetrievalBudgets,
+  MemoryRetrievalLayer,
+  MemoryRetrievalModes,
+  MemoryRetrievalTrace,
+  MemoryRetrievalTraceTopFactor,
+  MemoryService,
+  MemoryServiceLayerSupplier,
+  MemoryServiceOptions,
+  MemoryShareGrantStore,
+  RetrievalScoreBreakdown,
+  RetrieveContextInput,
+  RetrieveContextResult,
+} from "./service.js";

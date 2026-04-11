@@ -45,6 +45,8 @@ export type MemoryGraphState = {
   projectionInterface: "markdown-vault";
   syncMode: "local-first";
   cloudSync: "unavailable" | "enabled" | "error";
+  lastSyncedLamport?: number;
+  e2eeRequired?: true;
   lastSyncedAt?: string;
   lastError?: string;
   matches: Array<{

@@ -1,0 +1,6 @@
+{
+  "name": "@alisio/memory-state",
+  "version": "0.0.0-private",
+  "private": true,
+  "type": "module"
+}

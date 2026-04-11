@@ -30,11 +30,19 @@ export type MemoryE2eeConfig = {
   required?: true;
 };
 
+export type MemoryObsidianReadOnlyConfig = {
+  enabled?: boolean;
+  vaultPath?: string;
+};
+
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
   sync?: MemorySyncConfig;
   e2ee?: MemoryE2eeConfig;
+  vaultPath?: string;
+  memoryPath?: string;
+  obsidianReadOnly?: MemoryObsidianReadOnlyConfig;
   qmd?: MemoryQmdConfig;
 };
 

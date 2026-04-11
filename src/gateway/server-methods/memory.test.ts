@@ -185,6 +185,10 @@ describe("memoryHandlers", () => {
               syncMode: "local-first",
               cloudSync: "unavailable",
               projectionSources: ["workspace-memory"],
+              ledgerEventsCount: 12,
+              lastSyncedLamport: 12,
+              checkpointsCount: 1,
+              e2eeRequired: true,
               lastSyncedAt: "2026-04-08T10:00:00.000Z",
               replica: {
                 deviceId: "device-main",
@@ -231,6 +235,10 @@ describe("memoryHandlers", () => {
             entities: 3,
             relations: 2,
             syncMode: "local-first",
+            ledgerEventsCount: 12,
+            lastSyncedLamport: 12,
+            checkpointsCount: 1,
+            e2eeRequired: true,
           }),
           vector: expect.objectContaining({
             enabled: true,

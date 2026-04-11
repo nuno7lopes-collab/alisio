@@ -303,6 +303,10 @@ function createProps(
           syncMode: "local-first",
           cloudSync: "enabled",
           projectionSources: ["workspace-memory"],
+          ledgerEventsCount: 5,
+          lastSyncedLamport: 5,
+          checkpointsCount: 1,
+          e2eeRequired: true,
         },
       },
       embedding: {
@@ -323,6 +327,8 @@ function createProps(
       projectionInterface: "markdown-vault",
       syncMode: "local-first",
       cloudSync: "enabled",
+      lastSyncedLamport: 5,
+      e2eeRequired: true,
       matches: [
         {
           entityId: "atlas",

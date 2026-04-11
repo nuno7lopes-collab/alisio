@@ -23,6 +23,11 @@ export type ResolvedObsidianMemoryLayout = {
   usesExternalVault: boolean;
 };
 
+type LegacyObsidianMemoryConfig = {
+  vaultPath?: string;
+  memoryPath?: string;
+};
+
 type ObsidianRollupEntry = {
   date: string;
   body: string;
@@ -121,8 +126,9 @@ export function resolveObsidianMemoryLayout(params: {
   cfg?: AlisioConfig;
   workspaceDir: string;
 }): ResolvedObsidianMemoryLayout | null {
-  const rawVaultPath = params.cfg?.memory?.vaultPath?.trim();
-  const rawMemoryPath = params.cfg?.memory?.memoryPath?.trim();
+  const legacyMemory = params.cfg?.memory as LegacyObsidianMemoryConfig | undefined;
+  const rawVaultPath = legacyMemory?.vaultPath?.trim();
+  const rawMemoryPath = legacyMemory?.memoryPath?.trim();
   const normalizedMemoryPath = rawMemoryPath ? normalizeObsidianMemoryPath(rawMemoryPath) : null;
   const vaultRoot = rawVaultPath ? resolveVaultRoot(rawVaultPath) : params.workspaceDir;
   const obsidianEnabled =

@@ -32,6 +32,13 @@ export type ObsidianReadOnlyVaultScanResult = {
   files?: ObsidianReadOnlyVaultFile[];
 };
 
+type LegacyObsidianReadOnlyConfig = {
+  obsidianReadOnly?: {
+    enabled?: boolean;
+    vaultPath?: string;
+  };
+};
+
 function resolveVaultRoot(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -77,7 +84,8 @@ function normalizeRelativePath(raw: string): string {
 export function resolveObsidianReadOnlyVault(params: {
   cfg?: AlisioConfig;
 }): ResolvedObsidianReadOnlyVault | null {
-  const connector = params.cfg?.memory?.obsidianReadOnly;
+  const legacyMemory = params.cfg?.memory as LegacyObsidianReadOnlyConfig | undefined;
+  const connector = legacyMemory?.obsidianReadOnly;
   if (!connector?.enabled) {
     return null;
   }

@@ -25,7 +25,9 @@ export const MemorySearchSchema = Type.Object({
 });
 
 export const MemoryGetSchema = Type.Object({
-  path: Type.String(),
+  projectionId: Type.Optional(Type.String()),
+  pageId: Type.Optional(Type.String()),
+  path: Type.Optional(Type.String()),
   from: Type.Optional(Type.Number()),
   lines: Type.Optional(Type.Number()),
 });

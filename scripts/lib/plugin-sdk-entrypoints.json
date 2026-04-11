@@ -147,6 +147,7 @@
   "memory-core-host-runtime-cli",
   "memory-core-host-runtime-core",
   "memory-core-host-runtime-files",
+  "memory-core-state",
   "memory-lancedb",
   "minimax",
   "modelstudio",

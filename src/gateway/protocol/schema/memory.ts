@@ -13,10 +13,7 @@ const MemoryCanonicalProfileSourceSchema = Type.Union([
   Type.Literal("local-profile"),
   Type.Literal("state-dir"),
 ]);
-const MemoryCanonicalProjectionSourceSchema = Type.Union([
-  Type.Literal("workspace-memory"),
-  Type.Literal("obsidian-memory"),
-]);
+const MemoryCanonicalProjectionSourceSchema = Type.Union([Type.Literal("workspace-memory")]);
 const MemoryCanonicalCloudSyncSchema = Type.Union([
   Type.Literal("unavailable"),
   Type.Literal("enabled"),
@@ -168,6 +165,10 @@ export const MemoryCanonicalStoreRuntimeSchema = Type.Object(
     syncMode: Type.Literal("local-first"),
     cloudSync: MemoryCanonicalCloudSyncSchema,
     projectionSources: Type.Array(MemoryCanonicalProjectionSourceSchema),
+    ledgerEventsCount: Type.Integer({ minimum: 0 }),
+    lastSyncedLamport: Type.Integer({ minimum: 0 }),
+    checkpointsCount: Type.Integer({ minimum: 0 }),
+    e2eeRequired: Type.Literal(true),
     lastSyncedAt: Type.Optional(Type.String()),
     lastError: Type.Optional(Type.String()),
     replica: Type.Optional(MemoryCanonicalStoreReplicaSchema),

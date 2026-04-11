@@ -217,6 +217,17 @@ async function loadInstalledModel(record: InstalledLocalModelRecord) {
   return await loadPromise;
 }
 
+async function resolveChatWrapperForLocalModel(modelId: string) {
+  const catalogEntry = findAlisioLocalModelCatalogEntry(modelId);
+  if (catalogEntry?.family !== "Qwen") {
+    return undefined;
+  }
+  const runtime = await getLlamaRuntimeModule();
+  // Qwen3 local GGUFs tend to spend the whole budget inside <think> unless we
+  // discourage thought segments for interactive chat responses.
+  return new runtime.QwenChatWrapper({ thoughts: "discourage" });
+}
+
 export async function installAlisioLocalModel(params: {
   modelId: string;
   env?: NodeJS.ProcessEnv;
@@ -384,8 +395,10 @@ export async function chatWithInstalledAlisioLocalModel(params: {
   const model = await loadInstalledModel(record);
   const context = await model.createContext();
   try {
+    const chatWrapper = await resolveChatWrapperForLocalModel(params.modelId);
     const session = new runtime.LlamaChatSession({
       contextSequence: context.getSequence(),
+      ...(chatWrapper ? { chatWrapper } : {}),
       systemPrompt,
       autoDisposeSequence: true,
     });
