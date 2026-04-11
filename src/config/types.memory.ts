@@ -3,31 +3,38 @@ import type { SessionSendPolicyConfig } from "./types.base.js";
 export type MemoryBackend = "builtin" | "qmd";
 export type MemoryCitationsMode = "auto" | "on" | "off";
 export type MemoryQmdSearchMode = "query" | "search" | "vsearch";
+export type MemorySyncMode = "cloud" | "direct" | "off";
 
-export type MemoryObsidianReadOnlyConfig = {
-  /** Explicit opt-in for read-only whole-vault indexing. */
+export type MemorySyncDirectConfig = {
+  /** Optional direct transport flag. Defaults to false. */
   enabled?: boolean;
-  /** Absolute Obsidian Vault root (absolute path or "~" path). */
-  vaultPath?: string;
+};
+
+export type MemorySyncConfig = {
+  /** Explicit sync gate for local-first memory replication. */
+  enabled?: boolean;
+  /** Sync transport mode. */
+  mode?: MemorySyncMode;
+  /** Maximum ciphertext events per push batch. */
+  batchSize?: number;
+  /** Pull cadence in milliseconds. */
+  pullIntervalMs?: number;
+  /** Maximum concurrent inflight ciphertext batches. */
+  maxInflightBatches?: number;
+  /** Optional direct transport flag. */
+  direct?: MemorySyncDirectConfig;
+};
+
+export type MemoryE2eeConfig = {
+  /** Informational config only. E2EE is always enforced when sync is on. */
+  required?: true;
 };
 
 export type MemoryConfig = {
   backend?: MemoryBackend;
   citations?: MemoryCitationsMode;
-  /**
-   * Absolute Vault root for Obsidian-backed memory (absolute path or "~" path).
-   * When set, daily memory notes are written inside the Vault instead of the workspace.
-   */
-  vaultPath?: string;
-  /**
-   * Relative directory inside the workspace or Vault used for Alisio memory files.
-   * Legacy default remains "memory"; Obsidian mode defaults to "Alisio Memory".
-   */
-  memoryPath?: string;
-  /**
-   * Separate read-only connector that indexes an entire Obsidian vault without writing to it.
-   */
-  obsidianReadOnly?: MemoryObsidianReadOnlyConfig;
+  sync?: MemorySyncConfig;
+  e2ee?: MemoryE2eeConfig;
   qmd?: MemoryQmdConfig;
 };
 
