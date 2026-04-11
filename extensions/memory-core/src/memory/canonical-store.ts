@@ -134,6 +134,9 @@ type CanonicalStoreContext = {
   flags: CanonicalStoreFeatureFlags;
   backend: CanonicalStoreBackend;
   workspaceDir: string;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 };
 
 type MemorySyncEncryptedEvent = {
@@ -1748,7 +1751,13 @@ function deleteImportedFileRow(db: DatabaseSync, relativePath: string): void {
   db.prepare(`DELETE FROM imported_files WHERE source_path = ?`).run(relativePath);
 }
 
-function createCheckpointIfNeeded(params: { db: DatabaseSync; lastAppliedLamport: number }): void {
+async function createCheckpointIfNeeded(params: {
+  db: DatabaseSync;
+  lastAppliedLamport: number;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
+}): Promise<void> {
   const latestCheckpoint = readLatestCheckpoint(params.db);
   const lastCheckpointLamport = normalizeNumber(latestCheckpoint?.lamport);
   if (params.lastAppliedLamport === 0) {
@@ -1757,12 +1766,18 @@ function createCheckpointIfNeeded(params: { db: DatabaseSync; lastAppliedLamport
   if (params.lastAppliedLamport - lastCheckpointLamport < CHECKPOINT_EVENT_INTERVAL) {
     return;
   }
+  const checkpointLamport = readLatestLamport(params.db) + 1;
   const snapshot = captureMemoryStateCheckpoint(params.db);
-  const stateHash = computeMemoryStateHash(params.db);
-  const checkpointId = hashText(`checkpoint:${params.lastAppliedLamport}:${stateHash}`).slice(
-    0,
-    24,
-  );
+  const checkpointId = hashText(
+    `checkpoint:${checkpointLamport}:${computeMemoryStateHash(params.db)}`,
+  ).slice(0, 24);
+  snapshot.meta = {
+    migrationVersion: snapshot.meta.migrationVersion,
+    lastAppliedLamport: checkpointLamport,
+    lastCheckpointId: checkpointId,
+  };
+  const stateHash = hashText(JSON.stringify(snapshot));
+  const encryptedSnapshot = (await params.encryptCheckpointSnapshot?.(snapshot)) ?? null;
   params.db
     .prepare(
       `INSERT OR REPLACE INTO checkpoints (
@@ -1771,23 +1786,23 @@ function createCheckpointIfNeeded(params: { db: DatabaseSync; lastAppliedLamport
     )
     .run(
       checkpointId,
-      params.lastAppliedLamport,
+      checkpointLamport,
       stateHash,
       JSON.stringify(snapshot),
-      null,
+      encryptedSnapshot,
       Date.now(),
     );
   const checkpointEvent: MemoryStateEventEnvelopePlain = {
     schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
     eventId: hashText(`checkpoint-event:${checkpointId}`).slice(0, 24),
-    lamport: readLatestLamport(params.db) + 1,
+    lamport: checkpointLamport,
     actorId: "gaia-checkpoint",
     createdAtMs: Date.now(),
     type: "CHECKPOINT_CREATED",
     payload: {
       checkpointId,
       stateHash,
-      encryptedSnapshot: null,
+      encryptedSnapshot,
     },
     source: "checkpoint",
   };
@@ -1891,9 +1906,10 @@ async function applyEventDrafts(params: {
     });
   }
   const meta = readMemoryStateMeta(params.context.db);
-  createCheckpointIfNeeded({
+  await createCheckpointIfNeeded({
     db: params.context.db,
     lastAppliedLamport: meta.lastAppliedLamport,
+    encryptCheckpointSnapshot: params.context.encryptCheckpointSnapshot,
   });
   upsertCanonicalSyncState({
     db: params.context.db,
@@ -2239,6 +2255,9 @@ function createCanonicalContext(params: {
   agentId: string;
   workspaceDir: string;
   backend: CanonicalStoreBackend;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 }): CanonicalStoreContext {
   const env = params.env ?? process.env;
   const baseStatus = createStatusBase({
@@ -2275,6 +2294,7 @@ function createCanonicalContext(params: {
     flags,
     backend: params.backend,
     workspaceDir: params.workspaceDir,
+    encryptCheckpointSnapshot: params.encryptCheckpointSnapshot,
   };
 }
 
@@ -2313,6 +2333,9 @@ export async function memoryWriteEvent(params: {
   events: MemoryStateEventDraft[];
   env?: NodeJS.ProcessEnv;
   materializeMarkdown?: boolean;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 }): Promise<MemoryWriteEventResult> {
   const context = createCanonicalContext(params);
   try {
@@ -2340,6 +2363,9 @@ export async function memoryPullApplySync(params: {
   decryptEvent?: (event: MemorySyncEncryptedEvent) => Promise<MemoryStateEventEnvelopePlain>;
   env?: NodeJS.ProcessEnv;
   materializeMarkdown?: boolean;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 }): Promise<MemoryPullApplySyncResult> {
   const context = createCanonicalContext(params);
   try {
@@ -2371,9 +2397,10 @@ export async function memoryPullApplySync(params: {
         });
       }
     }
-    createCheckpointIfNeeded({
+    await createCheckpointIfNeeded({
       db: context.db,
       lastAppliedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+      encryptCheckpointSnapshot: context.encryptCheckpointSnapshot,
     });
     upsertCanonicalSyncState({
       db: context.db,
@@ -2408,6 +2435,9 @@ export async function upsertCanonicalMemoryStructuredEntities(params: {
   entities: CanonicalMemoryStructuredEntityInput[];
   env?: NodeJS.ProcessEnv;
   materializeMarkdown?: boolean;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 }): Promise<CanonicalMemoryStoreStatus> {
   const context = createCanonicalContext(params);
   try {
@@ -2752,6 +2782,9 @@ export async function syncCanonicalMemoryStore(params: {
   workspaceDir: string;
   backend: CanonicalStoreBackend;
   env?: NodeJS.ProcessEnv;
+  encryptCheckpointSnapshot?: (
+    snapshot: MemoryStateCheckpointSnapshot,
+  ) => Promise<string | null | undefined>;
 }): Promise<CanonicalMemoryStoreStatus> {
   const context = createCanonicalContext(params);
   try {

@@ -6,7 +6,7 @@ GAIA mantém o estado canónico de memória como estado derivado local reconstru
 
 ## O que foi removido
 
-- Dependência do layout Obsidian no `canonical-store`
+- Dependência do layout Markdown legado no `canonical-store`
 - Replicação cloud baseada em snapshots em claro
 - Mutações silenciosas ao estado canónico
 
@@ -23,10 +23,12 @@ GAIA mantém o estado canónico de memória como estado derivado local reconstru
   - Escreve eventos locais no ledger
   - Aplica reducers ao estado derivado
   - Actualiza projections Markdown
+  - Pode receber `encryptCheckpointSnapshot(...)` para anexar payload cifrado ao `CHECKPOINT_CREATED`
 - `memoryPullApplySync(...)`
   - Recebe eventos plain ou cifrados
   - Exige `decryptEvent(...)` quando o input vem cifrado
   - Faz append ao ledger local e aplica ao estado derivado
+  - Pode receber `encryptCheckpointSnapshot(...)` para checkpoints locais prontos para HERMES
 
 ## Migração
 

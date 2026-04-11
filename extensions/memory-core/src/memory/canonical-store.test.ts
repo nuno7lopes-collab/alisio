@@ -338,4 +338,99 @@ describe("canonical memory store", () => {
       await fs.rm(target.root, { recursive: true, force: true });
     }
   });
+
+  it("restores the latest checkpoint without regressing lamport metadata", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-checkpoint-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const pageId = "page-checkpoint";
+      const writeResult = await memoryWriteEvent({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+        encryptCheckpointSnapshot: async () => "cipher-checkpoint",
+        events: [
+          {
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PAGE_CREATED",
+            payload: {
+              pageId,
+              title: "Checkpoint",
+              slug: "checkpoint",
+              aliases: ["checkpoint"],
+              tags: ["state"],
+              createdAtMs: 1,
+              updatedAtMs: 1,
+            },
+          },
+          ...Array.from({ length: 49 }, (_, index) => ({
+            actorId: "gaia-device-a",
+            pageId,
+            type: "PROJECTION_SET" as const,
+            payload: {
+              pageId,
+              kind: "legacy-markdown:memory/checkpoint.md",
+              markdownBody: `# Checkpoint\n\n${index}\n`,
+            },
+          })),
+        ],
+      });
+
+      expect(writeResult.status.ledgerEventsCount).toBe(51);
+      expect(writeResult.status.lastSyncedLamport).toBe(51);
+      expect(writeResult.status.checkpointsCount).toBe(1);
+
+      const reopened = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      expect(reopened.ledgerEventsCount).toBe(51);
+      expect(reopened.lastSyncedLamport).toBe(51);
+      expect(reopened.checkpointsCount).toBe(1);
+
+      const db = openDb(reopened.path);
+      try {
+        const meta = db
+          .prepare(
+            `SELECT last_applied_lamport, last_checkpoint_id
+             FROM meta`,
+          )
+          .get() as
+          | {
+              last_applied_lamport: number;
+              last_checkpoint_id: string | null;
+            }
+          | undefined;
+        const checkpoint = db
+          .prepare(
+            `SELECT checkpoint_id, encrypted_snapshot
+             FROM checkpoints
+             ORDER BY lamport DESC
+             LIMIT 1`,
+          )
+          .get() as
+          | {
+              checkpoint_id: string;
+              encrypted_snapshot: string | null;
+            }
+          | undefined;
+
+        expect(meta?.last_applied_lamport).toBe(51);
+        expect(meta?.last_checkpoint_id).toBe(checkpoint?.checkpoint_id);
+        expect(checkpoint?.encrypted_snapshot).toBe("cipher-checkpoint");
+      } finally {
+        db.close();
+      }
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
 });
