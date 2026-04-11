@@ -52,4 +52,10 @@ GAIA should provide the retrieval-trace sink that appends `RETRIEVAL_TRACE_RECOR
 - `retrieval_budget_tokens`
 - `isolation_denies_count`
 
-If layered retrieval fails, tools may fall back to reduced functionality, but private memory isolation must still hold.
+## Compatibility
+
+- The native layered retrieval path is authoritative.
+- Stable locators (`pageId`, `projectionId`, `memory://...`) are the normal contract.
+- Legacy path-based fallback is emergency-only behind `memory.retrieval.emergencyLegacyFallback.enabled`.
+- That emergency flag must stay disabled by default.
+- Even in emergency mode, private memory isolation must still hold.

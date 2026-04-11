@@ -27,7 +27,6 @@ export const MemorySearchSchema = Type.Object({
 export const MemoryGetSchema = Type.Object({
   projectionId: Type.Optional(Type.String()),
   pageId: Type.Optional(Type.String()),
-  path: Type.Optional(Type.String()),
   from: Type.Optional(Type.Number()),
   lines: Type.Optional(Type.Number()),
 });
@@ -120,13 +119,20 @@ export function createMemoryTool(params: {
 
 export function buildMemorySearchUnavailableResult(error: string | undefined) {
   const reason = (error ?? "memory search unavailable").trim() || "memory search unavailable";
-  const isQuotaError = /insufficient_quota|quota|429/.test(reason.toLowerCase());
+  const lowered = reason.toLowerCase();
+  const isQuotaError = /insufficient_quota|quota|429/.test(lowered);
+  const isNativeStoreError =
+    /native canonical memory store unavailable|canonical memory store unavailable/.test(lowered);
   const warning = isQuotaError
     ? "Memory search is unavailable because the embedding provider quota is exhausted."
-    : "Memory search is unavailable due to an embedding/provider error.";
+    : isNativeStoreError
+      ? "Memory retrieval is unavailable because the native canonical store is unavailable."
+      : "Memory retrieval is unavailable due to a native retrieval error.";
   const action = isQuotaError
     ? "Top up or switch embedding provider, then retry memory_search."
-    : "Check embedding provider configuration and retry memory_search.";
+    : isNativeStoreError
+      ? "Repair or resync the canonical memory store, then retry memory_search."
+      : "Check native memory retrieval configuration and retry memory_search.";
   return {
     results: [],
     disabled: true,
