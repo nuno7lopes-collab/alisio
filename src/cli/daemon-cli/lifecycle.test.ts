@@ -129,8 +129,8 @@ describe("runDaemonRestart health checks", () => {
   });
 
   beforeEach(() => {
-    envSnapshot = captureEnv(["OPENCLAW_CONTAINER_HINT", "OPENCLAW_PROFILE"]);
-    delete process.env.OPENCLAW_CONTAINER_HINT;
+    envSnapshot = captureEnv(["ALISIO_CONTAINER_HINT", "ALISIO_PROFILE"]);
+    delete process.env.ALISIO_CONTAINER_HINT;
     service.readCommand.mockReset();
     service.restart.mockReset();
     runServiceRestart.mockReset();
@@ -149,7 +149,7 @@ describe("runDaemonRestart health checks", () => {
     loadConfig.mockReset();
 
     service.readCommand.mockResolvedValue({
-      programArguments: ["openclaw", "gateway", "--port", "40705"],
+      programArguments: ["alisio", "gateway", "run", "--port", "40705"],
       environment: {},
     });
     service.restart.mockResolvedValue({ outcome: "completed" });
@@ -242,10 +242,7 @@ describe("runDaemonRestart health checks", () => {
 
     await expect(runDaemonRestart({ json: true })).rejects.toMatchObject({
       message: "Gateway restart timed out after 60s waiting for health checks.",
-      hints: [
-        formatCliCommand("openclaw gateway status --deep"),
-        formatCliCommand("openclaw doctor"),
-      ],
+      hints: [formatCliCommand("alisio gateway status --deep"), formatCliCommand("alisio doctor")],
     });
     expect(terminateStaleGatewayPids).not.toHaveBeenCalled();
     expect(renderRestartDiagnostics).toHaveBeenCalledTimes(1);

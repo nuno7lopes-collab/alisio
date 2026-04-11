@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { TelegramInlineButtonsScope } from "alisio/plugin-sdk/config-runtime";
 import { listTelegramAccountIds, resolveTelegramAccount } from "./accounts.js";
 
@@ -53,7 +53,7 @@ export function resolveTelegramInlineButtonsScopeFromCapabilities(
 }
 
 export function resolveTelegramInlineButtonsScope(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): TelegramInlineButtonsScope {
   const account = resolveTelegramAccount({ cfg: params.cfg, accountId: params.accountId });
@@ -61,7 +61,7 @@ export function resolveTelegramInlineButtonsScope(params: {
 }
 
 export function isTelegramInlineButtonsEnabled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   if (params.accountId) {

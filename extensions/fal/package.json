@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/fal-provider",
+  "name": "@alisio/fal-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw fal provider plugin",
+  "description": "Alisio fal provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

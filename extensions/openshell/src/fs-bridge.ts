@@ -85,7 +85,7 @@ class OpenShellFsBridge implements SandboxFsBridge {
     }
     const tempPath = path.join(
       parentDir,
-      `.openclaw-openshell-write-${path.basename(hostPath)}-${process.pid}-${Date.now()}`,
+      `.alisio-openshell-write-${path.basename(hostPath)}-${process.pid}-${Date.now()}`,
     );
     await fsPromises.writeFile(tempPath, buffer);
     await fsPromises.rename(tempPath, hostPath);

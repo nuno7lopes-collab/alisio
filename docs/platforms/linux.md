@@ -79,7 +79,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/alisio gateway --port 40705
+ExecStart=/usr/local/bin/alisio gateway run --port 40705
 Restart=always
 RestartSec=5
 

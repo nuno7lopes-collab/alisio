@@ -8,7 +8,7 @@ import {
   withBundledPluginVitestCompat,
 } from "./bundled-compat.js";
 import { createCapturedPluginRegistration } from "./captured-registration.js";
-import { discoverOpenClawPlugins } from "./discovery.js";
+import { discoverAlisioPlugins } from "./discovery.js";
 import type { PluginLoadOptions } from "./loader.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
 import { createEmptyPluginRegistry } from "./registry-empty.js";
@@ -19,7 +19,7 @@ import {
   shouldPreferNativeJiti,
   type PluginSdkResolutionPreference,
 } from "./sdk-alias.js";
-import type { OpenClawPluginDefinition, OpenClawPluginModule } from "./types.js";
+import type { AlisioPluginDefinition, AlisioPluginModule } from "./types.js";
 
 const log = createSubsystemLogger("plugins");
 
@@ -32,25 +32,25 @@ function applyVitestCapabilityAliasOverrides(params: {
     return params.aliasMap;
   }
 
-  const { ["openclaw/plugin-sdk"]: _ignoredRootAlias, ...scopedAliasMap } = params.aliasMap;
+  const { ["alisio/plugin-sdk"]: _ignoredRootAlias, ...scopedAliasMap } = params.aliasMap;
   return {
     ...scopedAliasMap,
     // Capability contract loads only need a narrow SDK slice. Keep those
     // helpers on a tiny source graph so Vitest does not pull the dist chunk
     // bundle that also drags Matrix/WhatsApp code into these tests.
-    "openclaw/plugin-sdk/llm-task": fileURLToPath(
+    "alisio/plugin-sdk/llm-task": fileURLToPath(
       new URL("./capability-runtime-vitest-shims/llm-task.ts", import.meta.url),
     ),
-    "openclaw/plugin-sdk/config-runtime": fileURLToPath(
+    "alisio/plugin-sdk/config-runtime": fileURLToPath(
       new URL("./capability-runtime-vitest-shims/config-runtime.ts", import.meta.url),
     ),
-    "openclaw/plugin-sdk/media-runtime": fileURLToPath(
+    "alisio/plugin-sdk/media-runtime": fileURLToPath(
       new URL("./capability-runtime-vitest-shims/media-runtime.ts", import.meta.url),
     ),
-    "openclaw/plugin-sdk/provider-onboard": fileURLToPath(
+    "alisio/plugin-sdk/provider-onboard": fileURLToPath(
       new URL("../plugin-sdk/provider-onboard.ts", import.meta.url),
     ),
-    "openclaw/plugin-sdk/speech-core": fileURLToPath(
+    "alisio/plugin-sdk/speech-core": fileURLToPath(
       new URL("./capability-runtime-vitest-shims/speech-core.ts", import.meta.url),
     ),
   };
@@ -72,8 +72,8 @@ export function buildBundledCapabilityRuntimeConfig(
 }
 
 function resolvePluginModuleExport(moduleExport: unknown): {
-  definition?: OpenClawPluginDefinition;
-  register?: OpenClawPluginDefinition["register"];
+  definition?: AlisioPluginDefinition;
+  register?: AlisioPluginDefinition["register"];
 } {
   const resolved =
     moduleExport &&
@@ -83,11 +83,11 @@ function resolvePluginModuleExport(moduleExport: unknown): {
       : moduleExport;
   if (typeof resolved === "function") {
     return {
-      register: resolved as OpenClawPluginDefinition["register"],
+      register: resolved as AlisioPluginDefinition["register"],
     };
   }
   if (resolved && typeof resolved === "object") {
-    const definition = resolved as OpenClawPluginDefinition;
+    const definition = resolved as AlisioPluginDefinition;
     return {
       definition,
       register: definition.register ?? definition.activate,
@@ -191,7 +191,7 @@ export function loadBundledCapabilityRuntimeRegistry(params: {
     return loader;
   };
 
-  const discovery = discoverOpenClawPlugins({
+  const discovery = discoverAlisioPlugins({
     cache: false,
     env,
   });
@@ -248,9 +248,9 @@ export function loadBundledCapabilityRuntimeRegistry(params: {
     const safeSource = opened.path;
     fs.closeSync(opened.fd);
 
-    let mod: OpenClawPluginModule | null = null;
+    let mod: AlisioPluginModule | null = null;
     try {
-      mod = getJiti(safeSource)(safeSource) as OpenClawPluginModule;
+      mod = getJiti(safeSource)(safeSource) as AlisioPluginModule;
     } catch (error) {
       recordCapabilityLoadError(registry, record, String(error));
       continue;

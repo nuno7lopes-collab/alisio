@@ -6,7 +6,7 @@ import { loadConfig } from "../config/config.js";
 import type { AlisioConfig } from "../config/config.js";
 import { computeBackoff, type BackoffPolicy } from "../infra/backoff.js";
 import { consumeRootOptionToken, FLAG_TERMINATOR } from "../infra/cli-root-options.js";
-import { resolveOpenClawAgentDir } from "./agent-paths.js";
+import { resolveAlisioAgentDir } from "./agent-paths.js";
 import { lookupCachedContextTokens, MODEL_CONTEXT_TOKEN_CACHE } from "./context-cache.js";
 import { normalizeProviderId } from "./model-selection.js";
 
@@ -98,8 +98,8 @@ function isLikelyCliProcess(argv: string[] = process.argv): boolean {
   return (
     entryBasename === "alisio" ||
     entryBasename === "alisio.mjs" ||
-    entryBasename === "openclaw" ||
-    entryBasename === "openclaw.mjs" ||
+    entryBasename === "alisio" ||
+    entryBasename === "alisio.mjs" ||
     entryBasename === "entry.js" ||
     entryBasename === "entry.mjs"
   );
@@ -152,7 +152,7 @@ function shouldEagerWarmContextWindowCache(argv: string[] = process.argv): boole
   // This module can also land inside shared dist chunks that are imported from
   // plugin-sdk/library surfaces during smoke tests and plugin loading. If we do
   // eager warmup for those generic Node script imports, merely importing the
-  // built plugin-sdk can call ensureOpenClawModelsJson(), which cascades into
+  // built plugin-sdk can call ensureAlisioModelsJson(), which cascades into
   // plugin discovery and breaks dist/source singleton assumptions.
   if (!isLikelyCliProcess(argv)) {
     return false;
@@ -199,7 +199,7 @@ function ensureContextWindowCacheLoaded(): Promise<void> {
 
   loadPromise = (async () => {
     try {
-      await (await loadModelsConfigRuntime()).ensureOpenClawModelsJson(cfg);
+      await (await loadModelsConfigRuntime()).ensureAlisioModelsJson(cfg);
     } catch {
       // Continue with best-effort discovery/overrides.
     }
@@ -207,7 +207,7 @@ function ensureContextWindowCacheLoaded(): Promise<void> {
     try {
       const { discoverAuthStorage, discoverModels } =
         await import("./pi-model-discovery-runtime.js");
-      const agentDir = resolveOpenClawAgentDir();
+      const agentDir = resolveAlisioAgentDir();
       const authStorage = discoverAuthStorage(agentDir);
       const modelRegistry = discoverModels(authStorage, agentDir) as unknown as ModelRegistryLike;
       const models =

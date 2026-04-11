@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from "node:util";
 import JSON5 from "json5";
 import { ensureOwnerDisplaySecret } from "../agents/owner-display.js";
 import { loadDotEnv } from "../infra/dotenv.js";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { resolveRequiredHomeDir } from "../infra/home-dir.js";
 import {
   loadShellEnvFallback,
@@ -73,9 +73,9 @@ const SHELL_ENV_EXPECTED_KEYS = [
   "SLACK_BOT_TOKEN",
   "SLACK_APP_TOKEN",
   "ALISIO_GATEWAY_TOKEN",
-  legacyEnvKey("GATEWAY_TOKEN"),
+  runtimeEnvKey("GATEWAY_TOKEN"),
   "ALISIO_GATEWAY_PASSWORD",
-  legacyEnvKey("GATEWAY_PASSWORD"),
+  runtimeEnvKey("GATEWAY_PASSWORD"),
 ];
 
 const OPEN_DM_POLICY_ALLOW_FROM_RE =
@@ -2215,7 +2215,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       const shouldLogInVitest =
         readEnv("ALISIO_TEST_CONFIG_OVERWRITE_LOG", {
           env: deps.env,
-          fallback: legacyEnvKey("TEST_CONFIG_OVERWRITE_LOG"),
+          fallback: runtimeEnvKey("TEST_CONFIG_OVERWRITE_LOG"),
         }) === "1";
       if (isVitest && !shouldLogInVitest) {
         return;
@@ -2235,7 +2235,7 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       const shouldLogInVitest =
         readEnv("ALISIO_TEST_CONFIG_WRITE_ANOMALY_LOG", {
           env: deps.env,
-          fallback: legacyEnvKey("TEST_CONFIG_WRITE_ANOMALY_LOG"),
+          fallback: runtimeEnvKey("TEST_CONFIG_WRITE_ANOMALY_LOG"),
         }) === "1";
       if (isVitest && !shouldLogInVitest) {
         return;
@@ -2255,17 +2255,17 @@ export function createConfigIO(overrides: ConfigIoDeps = {}) {
       watchMode:
         readEnv("ALISIO_WATCH_MODE", {
           env: deps.env,
-          fallback: legacyEnvKey("WATCH_MODE"),
+          fallback: runtimeEnvKey("WATCH_MODE"),
         }) === "1",
       watchSession:
         readEnv("ALISIO_WATCH_SESSION", {
           env: deps.env,
-          fallback: legacyEnvKey("WATCH_SESSION"),
+          fallback: runtimeEnvKey("WATCH_SESSION"),
         }) ?? null,
       watchCommand:
         readEnv("ALISIO_WATCH_COMMAND", {
           env: deps.env,
-          fallback: legacyEnvKey("WATCH_COMMAND"),
+          fallback: runtimeEnvKey("WATCH_COMMAND"),
         }) ?? null,
       existsBefore: snapshot.exists,
       previousHash: previousHash ?? null,

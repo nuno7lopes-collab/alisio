@@ -134,12 +134,15 @@ alisio onboard --non-interactive \
     ```
     Swap to `--auth-choice opencode-go --opencode-go-api-key "$OPENCODE_API_KEY"` for the Go catalog.
   </Accordion>
-  <Accordion title="Ollama example">
+  <Accordion title="Local server example">
     ```bash
     alisio onboard --non-interactive \
       --mode local \
-      --auth-choice ollama \
-      --custom-model-id "qwen3.5:27b" \
+      --auth-choice custom-api-key \
+      --custom-base-url "http://127.0.0.1:1234/v1" \
+      --custom-model-id "qwen3.5-27b" \
+      --custom-api-key "sk-local" \
+      --custom-compatibility openai \
       --accept-risk \
       --gateway-port 40705 \
       --gateway-bind loopback

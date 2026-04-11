@@ -9,7 +9,7 @@ import {
 } from "alisio/plugin-sdk/channel-inbound";
 import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
 import { resolveDualTextControlCommandGate } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   resolveChannelGroupPolicy,
   resolveChannelGroupRequireMention,
@@ -135,7 +135,7 @@ export type IMessageInboundDecision =
   | IMessageInboundDispatchDecision;
 
 export function resolveIMessageInboundDecision(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   message: IMessagePayload;
   opts?: Pick<MonitorIMessageOpts, "requireMention">;
@@ -478,7 +478,7 @@ export function resolveIMessageInboundDecision(params: {
 }
 
 export function buildIMessageInboundContext(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   decision: IMessageInboundDispatchDecision;
   message: IMessagePayload;
   envelopeOptions?: EnvelopeFormatOptions;

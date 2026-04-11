@@ -10,14 +10,14 @@ const readConfigFileSnapshotForWrite = vi.fn().mockResolvedValue({
   writeOptions: {},
 });
 const setRuntimeConfigSnapshot = vi.fn();
-const ensureOpenClawModelsJson = vi.fn().mockResolvedValue(undefined);
-const resolveOpenClawAgentDir = vi.fn().mockReturnValue("/tmp/openclaw-agent");
+const ensureAlisioModelsJson = vi.fn().mockResolvedValue(undefined);
+const resolveAlisioAgentDir = vi.fn().mockReturnValue("/tmp/alisio-agent");
 const ensureAuthProfileStore = vi.fn().mockReturnValue({ version: 1, profiles: {} });
 const listProfilesForProvider = vi.fn().mockReturnValue([]);
 const resolveAuthProfileDisplayLabel = vi.fn(({ profileId }: { profileId: string }) => profileId);
 const resolveAuthStorePathForDisplay = vi
   .fn()
-  .mockReturnValue("/tmp/openclaw-agent/auth-profiles.json");
+  .mockReturnValue("/tmp/alisio-agent/auth-profiles.json");
 const resolveProfileUnusableUntilForDisplay = vi.fn().mockReturnValue(null);
 const resolveEnvApiKey = vi.fn().mockReturnValue(undefined);
 const resolveAwsSdkEnvVarName = vi.fn().mockReturnValue(undefined);
@@ -36,8 +36,8 @@ vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/config.js")>();
   return {
     ...actual,
-    CONFIG_PATH: "/tmp/openclaw.json",
-    STATE_DIR: "/tmp/openclaw-state",
+    CONFIG_PATH: "/tmp/alisio.json",
+    STATE_DIR: "/tmp/alisio-state",
     loadConfig,
     readConfigFileSnapshotForWrite,
     setRuntimeConfigSnapshot,
@@ -48,7 +48,7 @@ vi.mock("../agents/models-config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../agents/models-config.js")>();
   return {
     ...actual,
-    ensureOpenClawModelsJson,
+    ensureAlisioModelsJson,
   };
 });
 
@@ -56,7 +56,7 @@ vi.mock("../agents/agent-paths.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../agents/agent-paths.js")>();
   return {
     ...actual,
-    resolveOpenClawAgentDir,
+    resolveAlisioAgentDir,
   };
 });
 
@@ -159,7 +159,7 @@ beforeEach(() => {
   modelRegistryState.getAllError = undefined;
   modelRegistryState.getAvailableError = undefined;
   listProfilesForProvider.mockReturnValue([]);
-  ensureOpenClawModelsJson.mockClear();
+  ensureAlisioModelsJson.mockClear();
   readConfigFileSnapshotForWrite.mockClear();
   readConfigFileSnapshotForWrite.mockResolvedValue({
     snapshot: { valid: false, resolved: {} },
@@ -410,7 +410,7 @@ describe("models list/status", () => {
 
     await loadModelRegistry(resolvedConfig as never);
 
-    expect(ensureOpenClawModelsJson).not.toHaveBeenCalled();
+    expect(ensureAlisioModelsJson).not.toHaveBeenCalled();
   });
 
   it("filters stale direct OpenAI spark rows from models list and registry views", async () => {
@@ -459,8 +459,8 @@ describe("models list/status", () => {
 
     await modelsListCommand({ all: true, json: true }, runtime);
 
-    expect(ensureOpenClawModelsJson).toHaveBeenCalled();
-    expect(ensureOpenClawModelsJson.mock.calls[0]?.[0]).toEqual(resolvedConfig);
+    expect(ensureAlisioModelsJson).toHaveBeenCalled();
+    expect(ensureAlisioModelsJson.mock.calls[0]?.[0]).toEqual(resolvedConfig);
   });
 
   it("toModelRow does not crash without cfg/authStore when availability is undefined", async () => {

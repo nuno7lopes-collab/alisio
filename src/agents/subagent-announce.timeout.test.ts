@@ -258,7 +258,7 @@ describe("subagent announce timeout config", () => {
 
   it("retries gateway timeout for externally delivered completion announces before giving up", async () => {
     try {
-      vi.stubEnv("OPENCLAW_TEST_FAST", "1");
+      vi.stubEnv("ALISIO_TEST_FAST", "1");
       callGatewayImpl = async (request) => {
         if (request.method === "chat.history") {
           return { messages: [] };

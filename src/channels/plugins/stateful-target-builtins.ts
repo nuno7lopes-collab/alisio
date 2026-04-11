@@ -3,7 +3,13 @@ import {
   unregisterStatefulBindingTargetDriver,
 } from "./stateful-target-drivers.js";
 
+const BUILTIN_STATEFUL_TARGET_DRIVER_IDS = new Set(["acp"]);
+
 let builtinsRegisteredPromise: Promise<void> | null = null;
+
+export function isBuiltinStatefulBindingTargetDriverId(id: string): boolean {
+  return BUILTIN_STATEFUL_TARGET_DRIVER_IDS.has(id.trim());
+}
 
 export async function ensureStatefulTargetBuiltinsRegistered(): Promise<void> {
   if (builtinsRegisteredPromise) {

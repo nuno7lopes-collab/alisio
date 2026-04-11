@@ -20,7 +20,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=/usr/bin/node /home/alisio/.npm-global/lib/node_modules/alisio/dist/entry.js gateway --port 40705
+ExecStart=/usr/bin/node /home/alisio/.npm-global/lib/node_modules/alisio/dist/entry.js gateway run --port 40705
 Restart=always
 Environment=ALISIO_SERVICE_MARKER=alisio
 Environment=ALISIO_SERVICE_KIND=gateway
@@ -30,15 +30,15 @@ Environment=ALISIO_SERVICE_VERSION=2026.3.8
 WantedBy=default.target
 `;
 
-const LEGACY_OPENCLAW_GATEWAY_CONTENTS = `\
+const LEGACY_ALISIO_GATEWAY_CONTENTS = `\
 [Unit]
-Description=OpenClaw Gateway
+Description=Alisio Gateway
 After=network-online.target
 
 [Service]
-ExecStart=/usr/bin/node /home/openclaw/.npm-global/lib/node_modules/openclaw/dist/entry.js gateway --port 40705
-Environment=OPENCLAW_SERVICE_MARKER=openclaw
-Environment=OPENCLAW_SERVICE_KIND=gateway
+ExecStart=/usr/bin/node /home/alisio/.npm-global/lib/node_modules/alisio/dist/entry.js gateway run --port 40705
+Environment=ALISIO_SERVICE_MARKER=alisio
+Environment=ALISIO_SERVICE_KIND=gateway
 
 [Install]
 WantedBy=default.target
@@ -59,12 +59,12 @@ Restart=on-failure
 WantedBy=default.target
 `;
 
-const CLAWDBOT_GATEWAY_CONTENTS = `\
+const CUSTOM_ALISIO_GATEWAY_CONTENTS = `\
 [Unit]
-Description=Clawdbot Gateway
+Description=Custom Alisio Gateway
 [Service]
-ExecStart=/usr/bin/node /opt/clawdbot/dist/entry.js gateway --port 40705
-Environment=HOME=/home/clawdbot
+ExecStart=/usr/bin/node /opt/alisio/dist/entry.js gateway run --port 40705
+Environment=HOME=/home/alisio
 `;
 
 describe("detectMarkerLineWithGateway", () => {
@@ -76,12 +76,12 @@ describe("detectMarkerLineWithGateway", () => {
     expect(detectMarkerLineWithGateway(GATEWAY_SERVICE_CONTENTS)).toBe("alisio");
   });
 
-  it("returns clawdbot for a clawdbot gateway unit", () => {
-    expect(detectMarkerLineWithGateway(CLAWDBOT_GATEWAY_CONTENTS)).toBe("clawdbot");
+  it("returns alisio for a non-canonical alisio gateway unit", () => {
+    expect(detectMarkerLineWithGateway(CUSTOM_ALISIO_GATEWAY_CONTENTS)).toBe("alisio");
   });
 
   it("handles line continuations — marker and gateway split across physical lines", () => {
-    const contents = `[Service]\nExecStart=/usr/bin/node /opt/alisio/dist/entry.js \\\n  gateway --port 40705\n`;
+    const contents = `[Service]\nExecStart=/usr/bin/node /opt/alisio/dist/entry.js \\\n  gateway run --port 40705\n`;
     expect(detectMarkerLineWithGateway(contents)).toBe("alisio");
   });
 });
@@ -125,22 +125,22 @@ describe("findExtraGatewayServices (linux / scanSystemdDir) — real filesystem"
   );
 
   it.skipIf(!isLinux)(
-    "reports a legacy openclaw-gateway service as an extra gateway service",
+    "reports a legacy alisio-gateway service as an extra gateway service",
     async () => {
       const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-test-"));
       const systemdDir = path.join(tmpHome, ".config", "systemd", "user");
-      const unitPath = path.join(systemdDir, "openclaw-gateway.service");
+      const unitPath = path.join(systemdDir, "alisio-gateway.service");
       try {
         await fs.mkdir(systemdDir, { recursive: true });
-        await fs.writeFile(unitPath, LEGACY_OPENCLAW_GATEWAY_CONTENTS);
+        await fs.writeFile(unitPath, LEGACY_ALISIO_GATEWAY_CONTENTS);
         const result = await findExtraGatewayServices({ HOME: tmpHome });
         expect(result).toEqual([
           {
             platform: "linux",
-            label: "openclaw-gateway.service",
+            label: "alisio-gateway.service",
             detail: `unit: ${unitPath}`,
             scope: "user",
-            marker: "openclaw",
+            marker: "alisio",
             legacy: true,
           },
         ]);
@@ -151,23 +151,23 @@ describe("findExtraGatewayServices (linux / scanSystemdDir) — real filesystem"
   );
 
   it.skipIf(!isLinux)(
-    "reports a legacy clawdbot-gateway service as an extra gateway service",
+    "reports a custom alisio gateway service as an extra gateway service",
     async () => {
       const tmpHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-test-"));
       const systemdDir = path.join(tmpHome, ".config", "systemd", "user");
-      const unitPath = path.join(systemdDir, "clawdbot-gateway.service");
+      const unitPath = path.join(systemdDir, "custom-alisio-gateway.service");
       try {
         await fs.mkdir(systemdDir, { recursive: true });
-        await fs.writeFile(unitPath, CLAWDBOT_GATEWAY_CONTENTS);
+        await fs.writeFile(unitPath, CUSTOM_ALISIO_GATEWAY_CONTENTS);
         const result = await findExtraGatewayServices({ HOME: tmpHome });
         expect(result).toEqual([
           {
             platform: "linux",
-            label: "clawdbot-gateway.service",
+            label: "custom-alisio-gateway.service",
             detail: `unit: ${unitPath}`,
             scope: "user",
-            marker: "clawdbot",
-            legacy: true,
+            marker: "alisio",
+            legacy: false,
           },
         ]);
       } finally {
@@ -217,10 +217,10 @@ describe("findExtraGatewayServices (win32)", () => {
       code: 0,
       stdout: [
         "TaskName: Alisio Gateway",
-        "Task To Run: C:\\Program Files\\OpenClaw\\openclaw.exe gateway run",
+        "Task To Run: C:\\Program Files\\Alisio\\alisio.exe gateway run",
         "",
-        "TaskName: Clawdbot Legacy",
-        "Task To Run: C:\\clawdbot\\clawdbot.exe run",
+        "TaskName: Custom Alisio Gateway",
+        "Task To Run: C:\\Program Files\\Alisio\\alisio.exe gateway run --profile work",
         "",
         "TaskName: Other Task",
         "Task To Run: C:\\tools\\helper.exe",
@@ -233,19 +233,12 @@ describe("findExtraGatewayServices (win32)", () => {
     expect(result).toEqual([
       {
         platform: "win32",
-        label: "Alisio Gateway",
-        detail: "task: Alisio Gateway, run: C:\\Program Files\\OpenClaw\\openclaw.exe gateway run",
+        label: "Custom Alisio Gateway",
+        detail:
+          "task: Custom Alisio Gateway, run: C:\\Program Files\\Alisio\\alisio.exe gateway run --profile work",
         scope: "system",
-        marker: "openclaw",
-        legacy: true,
-      },
-      {
-        platform: "win32",
-        label: "Clawdbot Legacy",
-        detail: "task: Clawdbot Legacy, run: C:\\clawdbot\\clawdbot.exe run",
-        scope: "system",
-        marker: "clawdbot",
-        legacy: true,
+        marker: "alisio",
+        legacy: false,
       },
     ]);
   });

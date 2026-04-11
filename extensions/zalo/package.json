@@ -1,23 +1,23 @@
 {
-  "name": "@openclaw/zalo",
+  "name": "@alisio/zalo",
   "version": "2026.3.30",
-  "description": "OpenClaw Zalo channel plugin",
+  "description": "Alisio Zalo channel plugin",
   "type": "module",
   "dependencies": {
     "undici": "7.24.6"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],
@@ -36,7 +36,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@openclaw/zalo",
+      "npmSpec": "@alisio/zalo",
       "defaultChoice": "npm",
       "minHostVersion": ">=2026.3.30"
     },

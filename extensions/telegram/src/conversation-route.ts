@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   resolveConfiguredBindingRoute,
   type ConfiguredBindingRouteResult,
@@ -24,7 +24,7 @@ import {
 } from "./bot/helpers.js";
 
 export function resolveTelegramConversationRoute(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   chatId: number | string;
   isGroup: boolean;
@@ -156,7 +156,7 @@ export function resolveTelegramConversationRoute(params: {
 }
 
 export function resolveTelegramConversationBaseSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   route: Pick<
     ReturnType<typeof resolveTelegramConversationRoute>["route"],
     "agentId" | "accountId" | "matchedBy" | "sessionKey"

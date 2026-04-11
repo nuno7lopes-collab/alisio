@@ -34,7 +34,7 @@ describe("watch-node script", () => {
     const { child, spawn, watcher, createWatcher, fakeProcess } = createWatchHarness();
 
     const runPromise = runWatchMain({
-      args: ["gateway", "--force"],
+      args: ["gateway", "run", "--force"],
       cwd: "/tmp/alisio",
       createWatcher,
       env: { PATH: "/usr/bin" },
@@ -68,7 +68,7 @@ describe("watch-node script", () => {
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn).toHaveBeenCalledWith(
       "/usr/local/bin/node",
-      ["scripts/run-node.mjs", "gateway", "--force"],
+      ["scripts/run-node.mjs", "gateway", "run", "--force"],
       expect.objectContaining({
         cwd: "/tmp/alisio",
         stdio: "inherit",
@@ -76,7 +76,7 @@ describe("watch-node script", () => {
           PATH: "/usr/bin",
           ALISIO_WATCH_MODE: "1",
           ALISIO_WATCH_SESSION: "1700000000000-4242",
-          ALISIO_WATCH_COMMAND: "gateway --force",
+          ALISIO_WATCH_COMMAND: "gateway run --force",
         }),
       }),
     );
@@ -91,7 +91,7 @@ describe("watch-node script", () => {
     const { child, spawn, watcher, createWatcher, fakeProcess } = createWatchHarness();
 
     const runPromise = runWatchMain({
-      args: ["gateway", "--force"],
+      args: ["gateway", "run", "--force"],
       createWatcher,
       process: fakeProcess,
       spawn,
@@ -111,7 +111,7 @@ describe("watch-node script", () => {
     const { child, spawn, watcher, createWatcher, fakeProcess } = createWatchHarness();
 
     const runPromise = runWatchMain({
-      args: ["gateway", "--force"],
+      args: ["gateway", "run", "--force"],
       createWatcher,
       process: fakeProcess,
       spawn,
@@ -159,7 +159,7 @@ describe("watch-node script", () => {
     const fakeProcess = createFakeProcess();
 
     const runPromise = runWatchMain({
-      args: ["gateway", "--force"],
+      args: ["gateway", "run", "--force"],
       createWatcher,
       process: fakeProcess,
       spawn,
@@ -209,7 +209,7 @@ describe("watch-node script", () => {
     const { child, spawn, watcher, createWatcher, fakeProcess } = createWatchHarness();
 
     const runPromise = runWatchMain({
-      args: ["gateway", "--force"],
+      args: ["gateway", "run", "--force"],
       createWatcher,
       process: fakeProcess,
       spawn,

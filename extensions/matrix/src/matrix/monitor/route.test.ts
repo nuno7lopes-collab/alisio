@@ -6,7 +6,7 @@ import {
   registerSessionBindingAdapter,
   resolveAgentRoute,
   setActivePluginRegistry,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../../test-support/monitor-route-test-support.js";
 import { resolveMatrixInboundRoute } from "./route.js";
 
@@ -15,9 +15,9 @@ const baseCfg = {
   agents: {
     list: [{ id: "main" }, { id: "sender-agent" }, { id: "room-agent" }, { id: "acp-agent" }],
   },
-} satisfies OpenClawConfig;
+} satisfies AlisioConfig;
 
-function resolveDmRoute(cfg: OpenClawConfig) {
+function resolveDmRoute(cfg: AlisioConfig) {
   return resolveMatrixInboundRoute({
     cfg,
     accountId: "ops",
@@ -58,7 +58,7 @@ describe("resolveMatrixInboundRoute", () => {
           },
         },
       ],
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const { route, configuredBinding } = resolveDmRoute(cfg);
 
@@ -88,7 +88,7 @@ describe("resolveMatrixInboundRoute", () => {
           },
         },
       ],
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const { route, configuredBinding } = resolveDmRoute(cfg);
 
@@ -120,7 +120,7 @@ describe("resolveMatrixInboundRoute", () => {
           },
         },
       ],
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const { route, configuredBinding } = resolveDmRoute(cfg);
 
@@ -175,7 +175,7 @@ describe("resolveMatrixInboundRoute", () => {
           },
         },
       ],
-    } satisfies OpenClawConfig;
+    } satisfies AlisioConfig;
 
     const { route, configuredBinding, runtimeBindingId } = resolveDmRoute(cfg);
 

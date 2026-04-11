@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/core";
+import type { AlisioConfig } from "alisio/plugin-sdk/core";
 import { sendMessage } from "./client.js";
 import { buildSynologyChatInboundContext, type SynologyInboundMessage } from "./inbound-context.js";
 import { getSynologyRuntime } from "./runtime.js";
@@ -12,7 +12,7 @@ type SynologyChannelLog = {
 };
 
 function resolveSynologyChatInboundRoute(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   account: ResolvedSynologyChatAccount;
   userId: string;
 }) {

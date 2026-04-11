@@ -6,7 +6,7 @@ import { copyA2uiAssets } from "../../scripts/canvas-a2ui-copy.js";
 
 describe("canvas a2ui copy", () => {
   async function withA2uiFixture(run: (dir: string) => Promise<void>) {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-a2ui-"));
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-a2ui-"));
     try {
       await run(dir);
     } finally {

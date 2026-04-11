@@ -5,7 +5,7 @@ import { withAudioFixture } from "./runner.test-utils.js";
 
 describe("runCapability deepgram provider options", () => {
   it("merges provider options, headers, and baseUrl overrides", async () => {
-    await withAudioFixture("openclaw-deepgram", async ({ ctx, media, cache }) => {
+    await withAudioFixture("alisio-deepgram", async ({ ctx, media, cache }) => {
       let seenQuery: Record<string, string | number | boolean> | undefined;
       let seenBaseUrl: string | undefined;
       let seenHeaders: Record<string, string> | undefined;

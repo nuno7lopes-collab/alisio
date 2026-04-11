@@ -9,7 +9,7 @@ import { computeBackoff, sleepWithAbort } from "../../infra/backoff.js";
 import { getGlobalHookRunner } from "../../plugins/hook-runner-global.js";
 import { enqueueCommandInLane } from "../../process/command-queue.js";
 import { isMarkdownCapableMessageChannel } from "../../utils/message-channel.js";
-import { resolveOpenClawAgentDir } from "../agent-paths.js";
+import { resolveAlisioAgentDir } from "../agent-paths.js";
 import { hasConfiguredModelFallbacks } from "../agent-scope.js";
 import {
   type AuthProfileFailureReason,
@@ -38,7 +38,7 @@ import {
   resolveAuthProfileOrder,
 } from "../model-auth.js";
 import { normalizeProviderId } from "../model-selection.js";
-import { ensureOpenClawModelsJson } from "../models-config.js";
+import { ensureAlisioModelsJson } from "../models-config.js";
 import { disposeSessionMcpRuntime } from "../pi-bundle-mcp-tools.js";
 import {
   classifyFailoverReason,
@@ -88,6 +88,7 @@ import {
   sessionLikelyHasOversizedToolResults,
   truncateOversizedToolResultsInSession,
 } from "./tool-result-truncation.js";
+import { restoreTranscriptLeafInSessionFile } from "./transcript-rewrite.js";
 import type { EmbeddedPiAgentMeta, EmbeddedPiRunResult } from "./types.js";
 import { createUsageAccumulator, mergeUsageIntoAccumulator } from "./usage-accumulator.js";
 import { describeUnknownError } from "./utils.js";
@@ -139,13 +140,13 @@ export async function runEmbeddedPiAgent(
 
       let provider = (params.provider ?? DEFAULT_PROVIDER).trim() || DEFAULT_PROVIDER;
       let modelId = (params.model ?? DEFAULT_MODEL).trim() || DEFAULT_MODEL;
-      const agentDir = params.agentDir ?? resolveOpenClawAgentDir();
+      const agentDir = params.agentDir ?? resolveAlisioAgentDir();
       const fallbackConfigured = hasConfiguredModelFallbacks({
         cfg: params.config,
         agentId: params.agentId,
         sessionKey: params.sessionKey,
       });
-      await ensureOpenClawModelsJson(params.config, agentDir);
+      await ensureAlisioModelsJson(params.config, agentDir);
       const hookRunner = getGlobalHookRunner();
       const hookCtx = {
         runId: params.runId,
@@ -366,6 +367,26 @@ export async function runEmbeddedPiAgent(
             throw abortErr;
           }
           throw err;
+        }
+      };
+      const rewindTranscriptForRetry = async (
+        attempt: Pick<Awaited<ReturnType<typeof runEmbeddedAttempt>>, "prePromptTranscriptLeafId">,
+        retryReason: string,
+      ) => {
+        if (attempt.prePromptTranscriptLeafId === undefined) {
+          return;
+        }
+        const result = await restoreTranscriptLeafInSessionFile({
+          sessionFile: params.sessionFile,
+          sessionId: params.sessionId,
+          sessionKey: params.sessionKey,
+          targetEntryId: attempt.prePromptTranscriptLeafId ?? null,
+        });
+        if (!result.changed && result.reason !== "already at requested transcript leaf") {
+          log.warn(
+            `[transcript-rewind] retry=${retryReason} session=${params.sessionKey ?? params.sessionId} ` +
+              `target=${attempt.prePromptTranscriptLeafId ?? "root"} reason=${result.reason ?? "unknown"}`,
+          );
         }
       };
       // Resolve the context engine once and reuse across retries to avoid
@@ -974,6 +995,7 @@ export async function runEmbeddedPiAgent(
             const errorText = promptErrorDetails.message || describeUnknownError(promptError);
             if (await maybeRefreshRuntimeAuthForAuthError(errorText, runtimeAuthRetry)) {
               authRetryPending = true;
+              await rewindTranscriptForRetry(attempt, "prompt_auth_refresh");
               continue;
             }
             // Handle role ordering errors with a user-friendly message
@@ -1067,6 +1089,7 @@ export async function runEmbeddedPiAgent(
             ) {
               logPromptFailoverDecision("rotate_profile");
               await maybeBackoffBeforeOverloadFailover(promptFailoverReason);
+              await rewindTranscriptForRetry(attempt, "prompt_rotate_profile");
               continue;
             }
             const fallbackThinking = pickFallbackThinkingLevel({
@@ -1078,6 +1101,7 @@ export async function runEmbeddedPiAgent(
                 `unsupported thinking level for ${provider}/${modelId}; retrying with ${fallbackThinking}`,
               );
               thinkLevel = fallbackThinking;
+              await rewindTranscriptForRetry(attempt, "prompt_thinking_fallback");
               continue;
             }
             // Throw FailoverError for prompt-side failover reasons when fallbacks
@@ -1113,6 +1137,7 @@ export async function runEmbeddedPiAgent(
               `unsupported thinking level for ${provider}/${modelId}; retrying with ${fallbackThinking}`,
             );
             thinkLevel = fallbackThinking;
+            await rewindTranscriptForRetry(attempt, "assistant_thinking_fallback");
             continue;
           }
 
@@ -1149,6 +1174,7 @@ export async function runEmbeddedPiAgent(
             ))
           ) {
             authRetryPending = true;
+            await rewindTranscriptForRetry(attempt, "assistant_auth_refresh");
             continue;
           }
           if (imageDimensionError && lastProfileId) {
@@ -1200,6 +1226,7 @@ export async function runEmbeddedPiAgent(
             if (rotated) {
               logAssistantFailoverDecision("rotate_profile");
               await maybeBackoffBeforeOverloadFailover(assistantFailoverReason);
+              await rewindTranscriptForRetry(attempt, "assistant_rotate_profile");
               continue;
             }
 

@@ -1,5 +1,5 @@
 import type { ChildProcessWithoutNullStreams, SpawnOptions } from "node:child_process";
-import { legacyEnvKey, readEnv } from "../../../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../../../infra/env.js";
 import { killProcessTree } from "../../kill-tree.js";
 import { spawnWithFallback } from "../../spawn-utils.js";
 import { resolveWindowsCommandShim } from "../../windows-command.js";
@@ -20,7 +20,7 @@ export type ChildAdapter = SpawnProcessAdapter<NodeJS.Signals | null>;
 function isServiceManagedRuntime(): boolean {
   return Boolean(
     readEnv("ALISIO_SERVICE_MARKER", {
-      fallback: legacyEnvKey("SERVICE_MARKER"),
+      fallback: runtimeEnvKey("SERVICE_MARKER"),
     }),
   );
 }

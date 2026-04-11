@@ -52,9 +52,7 @@ export function applyNonInteractiveGatewayConfig(params: {
 
   let nextConfig = params.nextConfig;
   const explicitGatewayToken = normalizeGatewayTokenInput(opts.gatewayToken);
-  const envGatewayToken = normalizeGatewayTokenInput(
-    process.env.ALISIO_GATEWAY_TOKEN ?? process.env.OPENCLAW_GATEWAY_TOKEN,
-  );
+  const envGatewayToken = normalizeGatewayTokenInput(process.env.ALISIO_GATEWAY_TOKEN);
   let gatewayToken = explicitGatewayToken || envGatewayToken || undefined;
   const gatewayTokenRefEnv = String(opts.gatewayTokenRefEnv ?? "").trim();
 

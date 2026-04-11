@@ -133,7 +133,7 @@ export async function runCli(argv: string[] = process.argv) {
   const containerTargetName =
     parsedContainer.container ??
     process.env.ALISIO_CONTAINER?.trim() ??
-    process.env.OPENCLAW_CONTAINER?.trim() ??
+    process.env.ALISIO_CONTAINER?.trim() ??
     null;
   if (containerTargetName && parsedProfile.profile) {
     throw new Error("--container cannot be combined with --profile/--dev");

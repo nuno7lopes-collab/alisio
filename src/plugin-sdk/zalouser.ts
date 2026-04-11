@@ -35,7 +35,6 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
 export {
   resolveDefaultGroupPolicy,
@@ -45,17 +44,10 @@ export {
 export type { GroupToolPolicyConfig, MarkdownTableMode } from "../config/types.js";
 export { ToolPolicySchema } from "../config/zod-schema.agent-runtime.js";
 export { MarkdownConfigSchema } from "../config/zod-schema.core.js";
-export {
-  resolvePreferredAlisioTmpDir,
-  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
-} from "../infra/tmp-alisio-dir.js";
+export { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export type { PluginRuntime } from "../plugins/runtime/types.js";
-export type {
-  AnyAgentTool,
-  OpenClawPluginApi,
-  OpenClawPluginToolContext,
-} from "../plugins/types.js";
+export type { AnyAgentTool, AlisioPluginApi, AlisioPluginToolContext } from "../plugins/types.js";
 export { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "../routing/session-key.js";
 export type { RuntimeEnv } from "../runtime.js";
 export type { WizardPrompter } from "../wizard/prompts.js";
@@ -85,7 +77,7 @@ export { chunkTextForOutbound } from "./text-chunking.js";
 const zalouserSetup = createOptionalChannelSetupSurface({
   channel: "zalouser",
   label: "Zalo Personal",
-  npmSpec: "@openclaw/zalouser",
+  npmSpec: "@alisio/zalouser",
   docsPath: "/channels/zalouser",
 });
 

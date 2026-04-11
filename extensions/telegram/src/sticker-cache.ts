@@ -7,7 +7,7 @@ import {
   modelSupportsVision,
 } from "alisio/plugin-sdk/agent-runtime";
 import { resolveDefaultModelForAgent } from "alisio/plugin-sdk/agent-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { loadJsonFile, saveJsonFile } from "alisio/plugin-sdk/json-store";
 import { AUTO_IMAGE_KEY_PROVIDERS, DEFAULT_IMAGE_MODELS } from "alisio/plugin-sdk/media-runtime";
 import { resolveAutoImageModel } from "alisio/plugin-sdk/media-runtime";
@@ -146,7 +146,7 @@ const STICKER_DESCRIPTION_PROMPT =
 
 export interface DescribeStickerParams {
   imagePath: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentDir?: string;
   agentId?: string;
 }

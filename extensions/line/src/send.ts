@@ -1,6 +1,6 @@
 import { messagingApi } from "@line/bot-sdk";
 import { recordChannelActivity } from "alisio/plugin-sdk/channel-runtime";
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { logVerbose } from "alisio/plugin-sdk/runtime-env";
 import { resolveLineAccount } from "./accounts.js";
 import { resolveLineChannelAccessToken } from "./channel-access-token.js";
@@ -25,7 +25,7 @@ const userProfileCache = new Map<
 const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 interface LineSendOpts {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   channelAccessToken?: string;
   accountId?: string;
   verbose?: boolean;

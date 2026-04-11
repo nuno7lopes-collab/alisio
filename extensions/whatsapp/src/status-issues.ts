@@ -63,7 +63,7 @@ export function collectWhatsAppStatusIssues(
           accountId,
           kind: "auth",
           message: "Not linked (no WhatsApp Web session).",
-          fix: `Run: ${formatCliCommand("openclaw channels login")} (scan QR on the gateway host).`,
+          fix: `Run: ${formatCliCommand("alisio channels login")} (scan QR on the gateway host).`,
         });
         return;
       }
@@ -78,7 +78,7 @@ export function collectWhatsAppStatusIssues(
           accountId,
           kind: "runtime",
           message: `Linked but stale${staleSuffix}${lastError ? `: ${lastError}` : "."}`,
-          fix: `Run: ${formatCliCommand("openclaw doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
+          fix: `Run: ${formatCliCommand("alisio doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
         });
         return;
       }
@@ -99,7 +99,7 @@ export function collectWhatsAppStatusIssues(
           accountId,
           kind: "runtime",
           message: `Linked but ${stateLabel}${reconnectAttempts != null ? ` (reconnectAttempts=${reconnectAttempts})` : ""}${lastError ? `: ${lastError}` : "."}`,
-          fix: `Run: ${formatCliCommand("openclaw doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
+          fix: `Run: ${formatCliCommand("alisio doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
         });
         return;
       }
@@ -110,7 +110,7 @@ export function collectWhatsAppStatusIssues(
           accountId,
           kind: "auth",
           message: `Linked session logged out${lastError ? `: ${lastError}` : "."}`,
-          fix: `Run: ${formatCliCommand("openclaw channels login")} (scan QR on the gateway host).`,
+          fix: `Run: ${formatCliCommand("alisio channels login")} (scan QR on the gateway host).`,
         });
         return;
       }
@@ -121,7 +121,7 @@ export function collectWhatsAppStatusIssues(
           accountId,
           kind: "runtime",
           message: `Linked but disconnected${reconnectAttempts != null ? ` (reconnectAttempts=${reconnectAttempts})` : ""}${lastError ? `: ${lastError}` : "."}`,
-          fix: `Run: ${formatCliCommand("openclaw doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
+          fix: `Run: ${formatCliCommand("alisio doctor")} (or restart the gateway). If it persists, relink via channels login and check logs.`,
         });
       }
     },

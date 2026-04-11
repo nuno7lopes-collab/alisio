@@ -8,7 +8,7 @@ import {
 } from "@buape/carbon";
 import type { GatewayPlugin } from "@buape/carbon/gateway";
 import { VoicePlugin } from "@buape/carbon/voice";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
 import { danger } from "alisio/plugin-sdk/runtime-env";
 import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
@@ -173,7 +173,7 @@ export async function fetchDiscordBotIdentity(params: {
 }
 
 export function registerDiscordMonitorListeners(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   client: Pick<Client, "listeners">;
   accountId: string;
   discordConfig: DiscordListenerConfig;

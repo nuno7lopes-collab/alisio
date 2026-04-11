@@ -1,7 +1,7 @@
 {
-  "name": "@openclaw/media-understanding-core",
+  "name": "@alisio/media-understanding-core",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw media understanding runtime package",
+  "description": "Alisio media understanding runtime package",
   "type": "module"
 }

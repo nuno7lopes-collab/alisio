@@ -16,7 +16,7 @@ import { createLanceDbRuntimeLoader, type LanceDbRuntimeLogger } from "./lancedb
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? "test-key";
 const HAS_OPENAI_KEY = Boolean(process.env.OPENAI_API_KEY);
-const liveEnabled = HAS_OPENAI_KEY && process.env.OPENCLAW_LIVE_TEST === "1";
+const liveEnabled = HAS_OPENAI_KEY && process.env.ALISIO_LIVE_TEST === "1";
 const describeLive = liveEnabled ? describe : describe.skip;
 
 type MemoryPluginTestConfig = {
@@ -32,7 +32,7 @@ type MemoryPluginTestConfig = {
 };
 
 const TEST_RUNTIME_MANIFEST = {
-  name: "openclaw-memory-lancedb-runtime",
+  name: "alisio-memory-lancedb-runtime",
   private: true as const,
   type: "module" as const,
   dependencies: {
@@ -94,7 +94,7 @@ function createRuntimeLoader(
 ) {
   return createLanceDbRuntimeLoader({
     env: overrides.env ?? ({} as NodeJS.ProcessEnv),
-    resolveStateDir: () => "/tmp/openclaw-state",
+    resolveStateDir: () => "/tmp/alisio-state",
     runtimeManifest: TEST_RUNTIME_MANIFEST,
     importBundled:
       overrides.importBundled ??
@@ -111,7 +111,7 @@ function createRuntimeLoader(
 }
 
 describe("memory plugin e2e", () => {
-  const { getDbPath } = installTmpDirHarness({ prefix: "openclaw-memory-test-" });
+  const { getDbPath } = installTmpDirHarness({ prefix: "alisio-memory-test-" });
 
   async function parseConfig(overrides: Record<string, unknown> = {}) {
     const { default: memoryPlugin } = await import("./index.js");
@@ -363,7 +363,7 @@ describe("lancedb runtime loader", () => {
     const importBundled = vi.fn(async () => bundledModule);
     const importResolved = vi.fn(async () => createMockModule());
     const resolveRuntimeEntry = vi.fn(() => null);
-    const installRuntime = vi.fn(async () => "/tmp/openclaw-state/plugin-runtimes/lancedb.js");
+    const installRuntime = vi.fn(async () => "/tmp/alisio-state/plugin-runtimes/lancedb.js");
     const loader = createRuntimeLoader({
       importBundled,
       importResolved,
@@ -382,10 +382,10 @@ describe("lancedb runtime loader", () => {
     const runtimeModule = createMockModule();
     const importResolved = vi.fn(async () => runtimeModule);
     const resolveRuntimeEntry = vi.fn(
-      () => "/tmp/openclaw-state/plugin-runtimes/memory-lancedb/runtime-entry.js",
+      () => "/tmp/alisio-state/plugin-runtimes/memory-lancedb/runtime-entry.js",
     );
     const installRuntime = vi.fn(
-      async () => "/tmp/openclaw-state/plugin-runtimes/memory-lancedb/runtime-entry.js",
+      async () => "/tmp/alisio-state/plugin-runtimes/memory-lancedb/runtime-entry.js",
     );
     const loader = createRuntimeLoader({
       importResolved,
@@ -397,7 +397,7 @@ describe("lancedb runtime loader", () => {
 
     expect(resolveRuntimeEntry).toHaveBeenCalledWith(
       expect.objectContaining({
-        runtimeDir: "/tmp/openclaw-state/plugin-runtimes/memory-lancedb/lancedb",
+        runtimeDir: "/tmp/alisio-state/plugin-runtimes/memory-lancedb/lancedb",
       }),
     );
     expect(installRuntime).not.toHaveBeenCalled();
@@ -425,13 +425,13 @@ describe("lancedb runtime loader", () => {
 
     expect(installRuntime).toHaveBeenCalledWith(
       expect.objectContaining({
-        runtimeDir: "/tmp/openclaw-state/plugin-runtimes/memory-lancedb/lancedb",
+        runtimeDir: "/tmp/alisio-state/plugin-runtimes/memory-lancedb/lancedb",
         manifest: TEST_RUNTIME_MANIFEST,
       }),
     );
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining(
-        "installing runtime deps under /tmp/openclaw-state/plugin-runtimes/memory-lancedb/lancedb",
+        "installing runtime deps under /tmp/alisio-state/plugin-runtimes/memory-lancedb/lancedb",
       ),
     );
   });
@@ -442,7 +442,7 @@ describe("lancedb runtime loader", () => {
         `${runtimeDir}/node_modules/@lancedb/lancedb/index.js`,
     );
     const loader = createRuntimeLoader({
-      env: { OPENCLAW_NIX_MODE: "1" } as NodeJS.ProcessEnv,
+      env: { ALISIO_NIX_MODE: "1" } as NodeJS.ProcessEnv,
       installRuntime,
     });
 
@@ -458,7 +458,7 @@ describe("lancedb runtime loader", () => {
       .fn()
       .mockRejectedValueOnce(new Error("network down"))
       .mockResolvedValueOnce(
-        "/tmp/openclaw-state/plugin-runtimes/memory-lancedb/lancedb/node_modules/@lancedb/lancedb/index.js",
+        "/tmp/alisio-state/plugin-runtimes/memory-lancedb/lancedb/node_modules/@lancedb/lancedb/index.js",
       );
     const importResolved = vi.fn(async () => runtimeModule);
     const loader = createRuntimeLoader({
@@ -475,7 +475,7 @@ describe("lancedb runtime loader", () => {
 
 // Live tests that require OpenAI API key and actually use LanceDB
 describeLive("memory plugin live tests", () => {
-  const { getDbPath } = installTmpDirHarness({ prefix: "openclaw-memory-live-" });
+  const { getDbPath } = installTmpDirHarness({ prefix: "alisio-memory-live-" });
 
   test("memory tools work end-to-end", async () => {
     const { default: memoryPlugin } = await import("./index.js");

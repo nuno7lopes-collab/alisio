@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { isKnownDistributionPackageName } from "./infra/distribution-profile.js";
 
-declare const __OPENCLAW_VERSION__: string | undefined;
+declare const __ALISIO_VERSION__: string | undefined;
 
 const PACKAGE_JSON_CANDIDATES = [
   "../package.json",
@@ -117,11 +117,11 @@ function resolveVersionFromRuntimeSources(params: {
   fallback: string;
   preference: RuntimeVersionPreference;
 }): string {
-  const envVersion = readRuntimeVersionEnv(params.env, "ALISIO_VERSION", "OPENCLAW_VERSION");
+  const envVersion = readRuntimeVersionEnv(params.env, "ALISIO_VERSION", "ALISIO_VERSION");
   const envServiceVersion = readRuntimeVersionEnv(
     params.env,
     "ALISIO_SERVICE_VERSION",
-    "OPENCLAW_SERVICE_VERSION",
+    "ALISIO_SERVICE_VERSION",
   );
   const preferredCandidates =
     params.preference === "env-first"
@@ -162,9 +162,9 @@ export function resolveCompatibilityHostVersion(
 // - Dev/npm builds: package.json.
 export const VERSION = resolveBinaryVersion({
   moduleUrl: import.meta.url,
-  injectedVersion: typeof __OPENCLAW_VERSION__ === "string" ? __OPENCLAW_VERSION__ : undefined,
+  injectedVersion: typeof __ALISIO_VERSION__ === "string" ? __ALISIO_VERSION__ : undefined,
   bundledVersion: firstNonEmpty(
     process.env.ALISIO_BUNDLED_VERSION,
-    process.env.OPENCLAW_BUNDLED_VERSION,
+    process.env.ALISIO_BUNDLED_VERSION,
   ),
 });

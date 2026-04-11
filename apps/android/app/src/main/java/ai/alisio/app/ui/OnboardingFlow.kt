@@ -9,6 +9,7 @@ import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import ai.alisio.app.gateway.DEFAULT_GATEWAY_PORT_TEXT
 import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -223,7 +224,7 @@ fun OnboardingFlow(viewModel: MainViewModel, modifier: Modifier = Modifier) {
   var gatewayInputMode by rememberSaveable { mutableStateOf(GatewayInputMode.SetupCode) }
   var gatewayAdvancedOpen by rememberSaveable { mutableStateOf(false) }
   var manualHost by rememberSaveable { mutableStateOf("10.0.2.2") }
-  var manualPort by rememberSaveable { mutableStateOf("40705") }
+  var manualPort by rememberSaveable { mutableStateOf(DEFAULT_GATEWAY_PORT_TEXT) }
   var manualTls by rememberSaveable { mutableStateOf(false) }
   var gatewayError by rememberSaveable { mutableStateOf<String?>(null) }
   var attemptedConnect by rememberSaveable { mutableStateOf(false) }
@@ -1091,12 +1092,12 @@ private fun GatewayStep(
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             QuickFillChip(label = "Android Emulator", onClick = {
               onManualHostChange("10.0.2.2")
-              onManualPortChange("40705")
+              onManualPortChange(DEFAULT_GATEWAY_PORT_TEXT)
               onManualTlsChange(false)
             })
             QuickFillChip(label = "Localhost", onClick = {
               onManualHostChange("127.0.0.1")
-              onManualPortChange("40705")
+              onManualPortChange(DEFAULT_GATEWAY_PORT_TEXT)
               onManualTlsChange(false)
             })
           }
@@ -1119,7 +1120,7 @@ private fun GatewayStep(
           OutlinedTextField(
             value = manualPort,
             onValueChange = onManualPortChange,
-            placeholder = { Text("40705", color = onboardingTextTertiary, style = onboardingBodyStyle) },
+            placeholder = { Text(DEFAULT_GATEWAY_PORT_TEXT, color = onboardingTextTertiary, style = onboardingBodyStyle) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

@@ -1,15 +1,8 @@
 import { isTruthyEnvValue } from "../infra/env.js";
 
 export const LIVE_OK_PROMPT = "Reply with the word ok.";
-export const SHARED_LIVE_TEST_ENV_NAMES = [
-  "ALISIO_LIVE_TEST",
-  "OPENCLAW_LIVE_TEST",
-  "LIVE",
-] as const;
-export const LIVE_PROFILE_KEY_ENV_NAMES = [
-  "ALISIO_LIVE_REQUIRE_PROFILE_KEYS",
-  "OPENCLAW_LIVE_REQUIRE_PROFILE_KEYS",
-] as const;
+export const SHARED_LIVE_TEST_ENV_NAMES = ["ALISIO_LIVE_TEST", "LIVE"] as const;
+export const LIVE_PROFILE_KEY_ENV_NAMES = ["ALISIO_LIVE_REQUIRE_PROFILE_KEYS"] as const;
 
 export function readLiveEnv(
   names: readonly string[],

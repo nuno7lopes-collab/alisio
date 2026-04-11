@@ -8,7 +8,7 @@ import type { TypingController } from "./typing.js";
 
 const handleCommandsMock = vi.fn();
 const getChannelPluginMock = vi.fn();
-const createOpenClawToolsMock = vi.fn();
+const createAlisioToolsMock = vi.fn();
 
 let handleInlineActions: typeof import("./get-reply-inline-actions.js").handleInlineActions;
 type HandleInlineActionsInput = Parameters<
@@ -21,8 +21,8 @@ async function loadFreshInlineActionsModuleForTest() {
     handleCommands: (...args: unknown[]) => handleCommandsMock(...args),
     buildStatusReply: vi.fn(),
   }));
-  vi.doMock("../../agents/openclaw-tools.runtime.js", () => ({
-    createOpenClawTools: (...args: unknown[]) => createOpenClawToolsMock(...args),
+  vi.doMock("../../agents/alisio-tools.runtime.js", () => ({
+    createAlisioTools: (...args: unknown[]) => createAlisioToolsMock(...args),
   }));
   vi.doMock("../../channels/plugins/index.js", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../../channels/plugins/index.js")>();
@@ -119,8 +119,8 @@ describe("handleInlineActions", () => {
     handleCommandsMock.mockReset();
     handleCommandsMock.mockResolvedValue({ shouldContinue: true, reply: undefined });
     getChannelPluginMock.mockReset();
-    createOpenClawToolsMock.mockReset();
-    createOpenClawToolsMock.mockReturnValue([]);
+    createAlisioToolsMock.mockReset();
+    createAlisioToolsMock.mockReturnValue([]);
     getChannelPluginMock.mockImplementation((channelId?: string) =>
       channelId === "whatsapp" ? { commands: { skipWhenConfigEmpty: true } } : undefined,
     );
@@ -303,7 +303,7 @@ describe("handleInlineActions", () => {
   it("passes requesterAgentIdOverride into inline tool runtimes", async () => {
     const typing = createTypingController();
     const toolExecute = vi.fn(async () => ({ text: "spawned" }));
-    createOpenClawToolsMock.mockReturnValue([
+    createAlisioToolsMock.mockReturnValue([
       {
         name: "sessions_spawn",
         execute: toolExecute,
@@ -351,7 +351,7 @@ describe("handleInlineActions", () => {
     );
 
     expect(result).toEqual({ kind: "reply", reply: { text: "✅ Done." } });
-    expect(createOpenClawToolsMock).toHaveBeenCalledWith(
+    expect(createAlisioToolsMock).toHaveBeenCalledWith(
       expect.objectContaining({
         requesterAgentIdOverride: "named-worker",
       }),

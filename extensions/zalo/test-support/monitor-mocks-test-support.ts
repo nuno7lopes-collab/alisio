@@ -1,4 +1,4 @@
-import type { OpenClawConfig, PluginRuntime } from "alisio/plugin-sdk/zalo";
+import type { AlisioConfig, PluginRuntime } from "alisio/plugin-sdk/zalo";
 import { vi } from "vitest";
 import {
   createEmptyPluginRegistry,
@@ -105,7 +105,7 @@ export async function loadLifecycleMonitorModule(): Promise<MonitorModule> {
 
 export async function startWebhookLifecycleMonitor(params: {
   account: ResolvedZaloAccount;
-  config: OpenClawConfig;
+  config: AlisioConfig;
   token?: string;
   webhookUrl?: string;
   webhookSecret?: string;

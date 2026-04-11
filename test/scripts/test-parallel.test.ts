@@ -30,18 +30,18 @@ const clearPlannerShardEnv = (env) => {
   delete nextEnv.ALISIO_TEST_INCLUDE_EXTENSIONS;
   delete nextEnv.ALISIO_TEST_INCLUDE_CHANNELS;
   delete nextEnv.ALISIO_TEST_INCLUDE_GATEWAY;
-  delete nextEnv.OPENCLAW_TEST_SHARDS;
-  delete nextEnv.OPENCLAW_TEST_SHARD_INDEX;
-  delete nextEnv.OPENCLAW_TEST_FORCE_THREADS;
-  delete nextEnv.OPENCLAW_TEST_FORCE_FORKS;
-  delete nextEnv.OPENCLAW_TEST_DISABLE_THREAD_EXPANSION;
-  delete nextEnv.OPENCLAW_TEST_SHOW_POOL_DECISION;
-  delete nextEnv.OPENCLAW_TEST_PROFILE;
-  delete nextEnv.OPENCLAW_TEST_WORKERS;
-  delete nextEnv.OPENCLAW_TEST_SKIP_DEFAULT;
-  delete nextEnv.OPENCLAW_TEST_INCLUDE_EXTENSIONS;
-  delete nextEnv.OPENCLAW_TEST_INCLUDE_CHANNELS;
-  delete nextEnv.OPENCLAW_TEST_INCLUDE_GATEWAY;
+  delete nextEnv.ALISIO_TEST_SHARDS;
+  delete nextEnv.ALISIO_TEST_SHARD_INDEX;
+  delete nextEnv.ALISIO_TEST_FORCE_THREADS;
+  delete nextEnv.ALISIO_TEST_FORCE_FORKS;
+  delete nextEnv.ALISIO_TEST_DISABLE_THREAD_EXPANSION;
+  delete nextEnv.ALISIO_TEST_SHOW_POOL_DECISION;
+  delete nextEnv.ALISIO_TEST_PROFILE;
+  delete nextEnv.ALISIO_TEST_WORKERS;
+  delete nextEnv.ALISIO_TEST_SKIP_DEFAULT;
+  delete nextEnv.ALISIO_TEST_INCLUDE_EXTENSIONS;
+  delete nextEnv.ALISIO_TEST_INCLUDE_CHANNELS;
+  delete nextEnv.ALISIO_TEST_INCLUDE_GATEWAY;
   return nextEnv;
 };
 
@@ -564,7 +564,7 @@ describe("scripts/test-parallel lane planning", () => {
   });
 
   it("rejects explicit existing files that are not known test files", () => {
-    const tempFilePath = path.join(os.tmpdir(), `openclaw-non-test-${Date.now()}.ts`);
+    const tempFilePath = path.join(os.tmpdir(), `alisio-non-test-${Date.now()}.ts`);
     fs.writeFileSync(tempFilePath, "export const notATest = true;\n", "utf8");
 
     try {

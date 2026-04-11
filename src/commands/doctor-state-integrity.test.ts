@@ -16,9 +16,6 @@ type EnvSnapshot = {
   ALISIO_STATE_DIR?: string;
   ALISIO_OAUTH_DIR?: string;
   HOME?: string;
-  OPENCLAW_HOME?: string;
-  OPENCLAW_STATE_DIR?: string;
-  OPENCLAW_OAUTH_DIR?: string;
 };
 
 function captureEnv(): EnvSnapshot {
@@ -27,9 +24,6 @@ function captureEnv(): EnvSnapshot {
     ALISIO_STATE_DIR: process.env.ALISIO_STATE_DIR,
     ALISIO_OAUTH_DIR: process.env.ALISIO_OAUTH_DIR,
     HOME: process.env.HOME,
-    OPENCLAW_HOME: process.env.OPENCLAW_HOME,
-    OPENCLAW_STATE_DIR: process.env.OPENCLAW_STATE_DIR,
-    OPENCLAW_OAUTH_DIR: process.env.OPENCLAW_OAUTH_DIR,
   };
 }
 
@@ -91,14 +85,11 @@ describe("doctor state integrity oauth dir checks", () => {
 
   beforeEach(() => {
     envSnapshot = captureEnv();
-    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-doctor-state-integrity-"));
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-doctor-state-integrity-"));
     process.env.HOME = tempHome;
     process.env.ALISIO_HOME = tempHome;
     process.env.ALISIO_STATE_DIR = path.join(tempHome, ".alisio");
-    process.env.OPENCLAW_HOME = tempHome;
-    process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".alisio");
     delete process.env.ALISIO_OAUTH_DIR;
-    delete process.env.OPENCLAW_OAUTH_DIR;
     fs.mkdirSync(process.env.ALISIO_STATE_DIR, { recursive: true, mode: 0o700 });
     vi.mocked(note).mockClear();
   });
@@ -140,8 +131,8 @@ describe("doctor state integrity oauth dir checks", () => {
     expect(confirmRuntimeRepair).toHaveBeenCalledWith(OAUTH_PROMPT_MATCHER);
   });
 
-  it("prompts for oauth dir when OPENCLAW_OAUTH_DIR is explicitly configured", async () => {
-    process.env.OPENCLAW_OAUTH_DIR = path.join(tempHome, ".oauth");
+  it("prompts for oauth dir when ALISIO_OAUTH_DIR is explicitly configured", async () => {
+    process.env.ALISIO_OAUTH_DIR = path.join(tempHome, ".oauth");
     const cfg: AlisioConfig = {};
     const confirmRuntimeRepair = await runStateIntegrity(cfg);
     expect(confirmRuntimeRepair).toHaveBeenCalledWith(OAUTH_PROMPT_MATCHER);
@@ -170,7 +161,7 @@ describe("doctor state integrity oauth dir checks", () => {
     expect(files.some((name) => name.startsWith("orphan-session.jsonl.deleted."))).toBe(true);
   });
 
-  it("prints openclaw-only verification hints when recent sessions are missing transcripts", async () => {
+  it("prints alisio-only verification hints when recent sessions are missing transcripts", async () => {
     const cfg: AlisioConfig = {};
     writeSessionStore(cfg, {
       "agent:main:main": {

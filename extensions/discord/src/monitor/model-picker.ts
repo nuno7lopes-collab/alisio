@@ -11,7 +11,7 @@ import {
 } from "@buape/carbon";
 import { normalizeProviderId } from "alisio/plugin-sdk/agent-runtime";
 import { buildModelsProviderData, type ModelsProviderData } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { APISelectMenuOption } from "discord-api-types/v10";
 import { ButtonStyle } from "discord-api-types/v10";
 
@@ -538,7 +538,7 @@ function buildModelRows(params: {
  * same provider/model resolver used by text and Telegram model commands.
  */
 export async function loadDiscordModelPickerData(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   agentId?: string,
 ): Promise<ModelsProviderData> {
   return buildModelsProviderData(cfg, agentId);

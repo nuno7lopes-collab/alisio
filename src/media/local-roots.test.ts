@@ -14,7 +14,7 @@ function normalizeHostPath(value: string): string {
 
 describe("local media roots", () => {
   function withStateDir<T>(stateDir: string, run: () => T): T {
-    vi.stubEnv("OPENCLAW_STATE_DIR", stateDir);
+    vi.stubEnv("ALISIO_STATE_DIR", stateDir);
     return run();
   }
 
@@ -78,7 +78,7 @@ describe("local media roots", () => {
   it.each([
     {
       name: "keeps temp, media cache, and workspace roots by default",
-      stateDir: path.join("/tmp", "openclaw-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-media-roots-state"),
       getRoots: () => getDefaultMediaLocalRoots(),
       expectedContained: ["media", "workspace", "sandboxes"],
       expectedExcluded: ["agents"],
@@ -86,7 +86,7 @@ describe("local media roots", () => {
     },
     {
       name: "adds the active agent workspace without re-opening broad agent state roots",
-      stateDir: path.join("/tmp", "openclaw-agent-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-agent-media-roots-state"),
       getRoots: () => getAgentScopedMediaLocalRoots({}, "ops"),
       expectedContained: ["workspace-ops", "sandboxes"],
       expectedExcluded: ["agents"],
@@ -130,25 +130,25 @@ describe("local media roots", () => {
   it.each([
     {
       name: "widens agent media roots for concrete local sources when workspaceOnly is disabled",
-      stateDir: path.join("/tmp", "openclaw-flexible-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-flexible-media-roots-state"),
       cfg: {},
       shouldContainPictures: true,
     },
     {
       name: "does not widen agent media roots when workspaceOnly is enabled",
-      stateDir: path.join("/tmp", "openclaw-flexible-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-flexible-media-roots-state"),
       cfg: { tools: { fs: { workspaceOnly: true } } },
       shouldContainPictures: false,
     },
     {
       name: "does not widen media roots for messaging-profile agents without filesystem tools",
-      stateDir: path.join("/tmp", "openclaw-messaging-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-messaging-media-roots-state"),
       cfg: { tools: { profile: "messaging" } },
       shouldContainPictures: false,
     },
     {
       name: "widens media roots again when messaging-profile agents explicitly enable filesystem tools",
-      stateDir: path.join("/tmp", "openclaw-messaging-fs-media-roots-state"),
+      stateDir: path.join("/tmp", "alisio-messaging-fs-media-roots-state"),
       cfg: {
         tools: {
           profile: "messaging",

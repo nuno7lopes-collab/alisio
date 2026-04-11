@@ -24,33 +24,33 @@ export type HookResolutionCollision = {
 };
 
 const HOOK_SOURCE_POLICIES: Record<HookSource, HookSourcePolicy> = {
-  "openclaw-bundled": {
+  "alisio-bundled": {
     precedence: 10,
     trustedLocalCode: true,
     defaultEnableMode: "default-on",
-    canOverride: ["openclaw-bundled"],
-    canBeOverriddenBy: ["openclaw-managed", "openclaw-plugin"],
+    canOverride: ["alisio-bundled"],
+    canBeOverriddenBy: ["alisio-managed", "alisio-plugin"],
   },
-  "openclaw-plugin": {
+  "alisio-plugin": {
     precedence: 20,
     trustedLocalCode: true,
     defaultEnableMode: "default-on",
-    canOverride: ["openclaw-bundled", "openclaw-plugin"],
-    canBeOverriddenBy: ["openclaw-managed"],
+    canOverride: ["alisio-bundled", "alisio-plugin"],
+    canBeOverriddenBy: ["alisio-managed"],
   },
-  "openclaw-managed": {
+  "alisio-managed": {
     precedence: 30,
     trustedLocalCode: true,
     defaultEnableMode: "default-on",
-    canOverride: ["openclaw-bundled", "openclaw-managed", "openclaw-plugin"],
-    canBeOverriddenBy: ["openclaw-managed"],
+    canOverride: ["alisio-bundled", "alisio-managed", "alisio-plugin"],
+    canBeOverriddenBy: ["alisio-managed"],
   },
-  "openclaw-workspace": {
+  "alisio-workspace": {
     precedence: 40,
     trustedLocalCode: true,
     defaultEnableMode: "explicit-opt-in",
-    canOverride: ["openclaw-workspace"],
-    canBeOverriddenBy: ["openclaw-workspace"],
+    canOverride: ["alisio-workspace"],
+    canBeOverriddenBy: ["alisio-workspace"],
   },
 };
 
@@ -82,7 +82,7 @@ export function resolveHookEnableState(params: {
   const hookKey = resolveHookKey(entry.hook.name, entry);
   const hookConfig = params.hookConfig ?? resolveHookConfig(config, hookKey);
 
-  if (entry.hook.source === "openclaw-plugin") {
+  if (entry.hook.source === "alisio-plugin") {
     return { enabled: true };
   }
   if (hookConfig?.enabled === false) {

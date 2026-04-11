@@ -15,7 +15,6 @@ export {
   WhatsAppConfigSchema,
   type ChannelPlugin,
   type AlisioConfig,
-  type AlisioConfig as OpenClawConfig,
 } from "alisio/plugin-sdk/whatsapp-core";
 
 export {

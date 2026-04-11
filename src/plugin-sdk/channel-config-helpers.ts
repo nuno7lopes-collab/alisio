@@ -75,8 +75,8 @@ type ChannelConfigAdapterWithAccessors<ResolvedAccount> = Pick<
 >;
 
 function formatPairingApproveHint(channelId: string): string {
-  const listCmd = formatCliCommand(`openclaw pairing list ${channelId}`);
-  const approveCmd = formatCliCommand(`openclaw pairing approve ${channelId} <code>`);
+  const listCmd = formatCliCommand(`alisio pairing list ${channelId}`);
+  const approveCmd = formatCliCommand(`alisio pairing approve ${channelId} <code>`);
   return `Approve via: ${listCmd} / ${approveCmd}`;
 }
 

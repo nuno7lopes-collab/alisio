@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "alisio/plugin-sdk/plugin-runtime";
+import type { AlisioPluginApi } from "alisio/plugin-sdk/plugin-runtime";
 import {
   jsonResult,
   readNumberParam,
@@ -43,7 +43,7 @@ const FirecrawlSearchToolSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createFirecrawlSearchTool(api: OpenClawPluginApi) {
+export function createFirecrawlSearchTool(api: AlisioPluginApi) {
   return {
     name: "firecrawl_search",
     label: "Firecrawl Search",

@@ -1,7 +1,7 @@
 import type { AlisioConfig } from "../config/config.js";
 import { containsEnvVarReference } from "../config/env-substitution.js";
 import { hasConfiguredSecretInput, resolveSecretInputRef } from "../config/types.secrets.js";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 
 export type GatewayCredentialInputPath =
   | "gateway.auth.token"
@@ -53,7 +53,7 @@ export function trimToUndefined(value: unknown): string | undefined {
 
 /**
  * Like trimToUndefined but also rejects unresolved env var placeholders (e.g. `${VAR}`).
- * This prevents literal placeholder strings like `${OPENCLAW_GATEWAY_TOKEN}` from being
+ * This prevents literal placeholder strings like `${ALISIO_GATEWAY_TOKEN}` from being
  * accepted as valid credentials when the referenced env var is missing.
  * Note: legitimate credential values containing literal `${UPPER_CASE}` patterns will
  * also be rejected, but this is an extremely unlikely edge case.
@@ -70,7 +70,7 @@ export function readGatewayTokenEnv(env: NodeJS.ProcessEnv = process.env): strin
   return trimToUndefined(
     readEnv("ALISIO_GATEWAY_TOKEN", {
       env,
-      fallback: legacyEnvKey("GATEWAY_TOKEN"),
+      fallback: runtimeEnvKey("GATEWAY_TOKEN"),
       redact: true,
     }),
   );
@@ -80,7 +80,7 @@ export function readGatewayPasswordEnv(env: NodeJS.ProcessEnv = process.env): st
   return trimToUndefined(
     readEnv("ALISIO_GATEWAY_PASSWORD", {
       env,
-      fallback: legacyEnvKey("GATEWAY_PASSWORD"),
+      fallback: runtimeEnvKey("GATEWAY_PASSWORD"),
       redact: true,
     }),
   );

@@ -7,7 +7,7 @@ import {
   loadPluginManifest,
   PLUGIN_MANIFEST_FILENAMES,
   resolvePluginManifestPath,
-  type OpenClawPackageManifest,
+  type AlisioPackageManifest,
   type PackageManifest,
 } from "./manifest.js";
 
@@ -43,13 +43,12 @@ afterEach(() => {
 });
 
 describe("plugin manifest compatibility", () => {
-  it("checks current manifest names before legacy aliases", () => {
-    expect(PLUGIN_MANIFEST_FILENAMES).toEqual(["alisio.plugin.json", "openclaw.plugin.json"]);
+  it("uses only the canonical manifest filename", () => {
+    expect(PLUGIN_MANIFEST_FILENAMES).toEqual(["alisio.plugin.json"]);
   });
 
-  it("prefers alisio.plugin.json when both manifest filenames exist", () => {
+  it("resolves the canonical manifest filename", () => {
     const rootDir = makeTempPluginDir("alisio-plugin-manifest-");
-    writeManifestFile(rootDir, "openclaw.plugin.json", "legacy");
     writeManifestFile(rootDir, "alisio.plugin.json", "current");
 
     expect(resolvePluginManifestPath(rootDir)).toBe(path.join(rootDir, "alisio.plugin.json"));
@@ -62,35 +61,24 @@ describe("plugin manifest compatibility", () => {
     }
   });
 
-  it("falls back to openclaw.plugin.json when the current manifest is absent", () => {
-    const rootDir = makeTempPluginDir("openclaw-plugin-manifest-");
-    writeManifestFile(rootDir, "openclaw.plugin.json", "legacy");
-
-    expect(resolvePluginManifestPath(rootDir)).toBe(path.join(rootDir, "openclaw.plugin.json"));
-
+  it("returns the canonical manifest path when the manifest is absent", () => {
+    const rootDir = makeTempPluginDir("alisio-plugin-manifest-");
+    const expectedPath = path.join(rootDir, "alisio.plugin.json");
+    expect(resolvePluginManifestPath(rootDir)).toBe(expectedPath);
     const loaded = loadPluginManifest(rootDir);
-    expect(loaded.ok).toBe(true);
-    if (loaded.ok) {
-      expect(loaded.manifest.id).toBe("legacy");
-      expect(loaded.manifestPath).toBe(path.join(rootDir, "openclaw.plugin.json"));
-    }
+    expect(loaded.ok).toBe(false);
+    expect(loaded.manifestPath).toBe(expectedPath);
   });
 
-  it("reads package metadata from current and legacy package.json keys", () => {
-    const current: OpenClawPackageManifest = { extensions: ["./current.js"] };
-    const legacy: OpenClawPackageManifest = { extensions: ["./legacy.js"] };
+  it("reads package metadata from the canonical package.json key", () => {
+    const current: AlisioPackageManifest = { extensions: ["./current.js"] };
 
     expect(
       getPackageManifestMetadata({
         alisio: current,
-        openclaw: legacy,
       } as PackageManifest),
     ).toEqual(current);
 
-    expect(
-      getPackageManifestMetadata({
-        openclaw: legacy,
-      } as PackageManifest),
-    ).toEqual(legacy);
+    expect(getPackageManifestMetadata({} as PackageManifest)).toBeUndefined();
   });
 });

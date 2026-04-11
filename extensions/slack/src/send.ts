@@ -1,5 +1,5 @@
 import { type Block, type KnownBlock, type WebClient } from "@slack/web-api";
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
 import { withTrustedEnvProxyGuardedFetchMode } from "alisio/plugin-sdk/fetch-runtime";
 import { resolveTextChunksWithFallback } from "alisio/plugin-sdk/reply-payload";
@@ -45,7 +45,7 @@ export type SlackSendIdentity = {
 };
 
 type SlackSendOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   token?: string;
   accountId?: string;
   mediaUrl?: string;

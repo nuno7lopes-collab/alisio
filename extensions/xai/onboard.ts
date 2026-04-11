@@ -1,6 +1,6 @@
 import {
   createDefaultModelsPresetAppliers,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/provider-onboard";
 import { XAI_BASE_URL, XAI_DEFAULT_MODEL_ID } from "./model-definitions.js";
 import { buildXaiCatalogModels } from "./model-definitions.js";
@@ -11,7 +11,7 @@ const xaiPresetAppliers = createDefaultModelsPresetAppliers<
   ["openai-completions" | "openai-responses"]
 >({
   primaryModelRef: XAI_DEFAULT_MODEL_REF,
-  resolveParams: (_cfg: OpenClawConfig, api) => ({
+  resolveParams: (_cfg: AlisioConfig, api) => ({
     providerId: "xai",
     api,
     baseUrl: XAI_BASE_URL,
@@ -21,14 +21,14 @@ const xaiPresetAppliers = createDefaultModelsPresetAppliers<
   }),
 });
 
-export function applyXaiProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyXaiProviderConfig(cfg: AlisioConfig): AlisioConfig {
   return xaiPresetAppliers.applyProviderConfig(cfg, "openai-responses");
 }
 
-export function applyXaiResponsesApiConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyXaiResponsesApiConfig(cfg: AlisioConfig): AlisioConfig {
   return xaiPresetAppliers.applyProviderConfig(cfg, "openai-responses");
 }
 
-export function applyXaiConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyXaiConfig(cfg: AlisioConfig): AlisioConfig {
   return xaiPresetAppliers.applyConfig(cfg, "openai-responses");
 }

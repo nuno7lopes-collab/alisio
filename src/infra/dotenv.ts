@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { resolveConfigDir } from "../utils.js";
-import { legacyEnvKey } from "./env.js";
+import { runtimeEnvKey } from "./env.js";
 import {
   isDangerousHostEnvOverrideVarName,
   isDangerousHostEnvVarName,
@@ -18,7 +18,7 @@ const BLOCKED_WORKSPACE_DOTENV_KEYS = new Set([
   "PI_CODING_AGENT_DIR",
   ...["AGENT_DIR", "CONFIG_PATH", "HOME", "OAUTH_DIR", "PROFILE", "STATE_DIR"].flatMap((suffix) => [
     `ALISIO_${suffix}`,
-    legacyEnvKey(suffix),
+    runtimeEnvKey(suffix),
   ]),
 ]);
 

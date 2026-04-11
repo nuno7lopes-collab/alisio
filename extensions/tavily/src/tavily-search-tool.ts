@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { OpenClawPluginApi } from "alisio/plugin-sdk/plugin-runtime";
+import type { AlisioPluginApi } from "alisio/plugin-sdk/plugin-runtime";
 import {
   jsonResult,
   readNumberParam,
@@ -58,7 +58,7 @@ const TavilySearchToolSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createTavilySearchTool(api: OpenClawPluginApi) {
+export function createTavilySearchTool(api: AlisioPluginApi) {
   return {
     name: "tavily_search",
     label: "Tavily Search",

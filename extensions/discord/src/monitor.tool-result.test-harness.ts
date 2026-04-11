@@ -54,7 +54,7 @@ vi.spyOn(configRuntimeModule, "loadConfig").mockImplementation(
 );
 vi.spyOn(configRuntimeModule, "readSessionUpdatedAt").mockImplementation(() => undefined);
 vi.spyOn(configRuntimeModule, "resolveStorePath").mockImplementation(
-  () => "/tmp/openclaw-sessions.json",
+  () => "/tmp/alisio-sessions.json",
 );
 vi.spyOn(configRuntimeModule, "updateLastRoute").mockImplementation(
   (...args) => updateLastRouteMock(...args) as never,

@@ -17,8 +17,8 @@ import { attachChildProcessBridge } from "./process/child-process-bridge.js";
 const ENTRY_WRAPPER_PAIRS = [
   { wrapperBasename: "alisio.mjs", entryBasename: "entry.js" },
   { wrapperBasename: "alisio.js", entryBasename: "entry.js" },
-  { wrapperBasename: "openclaw.mjs", entryBasename: "entry.js" },
-  { wrapperBasename: "openclaw.js", entryBasename: "entry.js" },
+  { wrapperBasename: "alisio.mjs", entryBasename: "entry.js" },
+  { wrapperBasename: "alisio.js", entryBasename: "entry.js" },
 ] as const;
 
 function shouldForceReadOnlyAuthStore(argv: string[]): boolean {
@@ -60,7 +60,7 @@ if (
   }
 
   if (shouldForceReadOnlyAuthStore(process.argv)) {
-    process.env.OPENCLAW_AUTH_STORE_READONLY = "1";
+    process.env.ALISIO_AUTH_STORE_READONLY = "1";
   }
 
   if (process.argv.includes("--no-color")) {

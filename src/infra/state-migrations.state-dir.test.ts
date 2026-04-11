@@ -7,10 +7,6 @@ import {
   resetAutoMigrateLegacyStateDirForTest,
 } from "./state-migrations.js";
 
-const LEGACY_STATE_DIRNAME = `.${["open", "claw"].join("")}`;
-const LEGACY_ALT_STATE_DIRNAME = `.${["claw", "dbot"].join("")}`;
-const LEGACY_CONFIG_FILENAME = `${["open", "claw"].join("")}.json`;
-
 let tempRoot: string | null = null;
 
 async function makeTempRoot() {
@@ -28,39 +24,51 @@ afterEach(async () => {
   tempRoot = null;
 });
 
-describe("legacy state dir auto-migration", () => {
-  it("skips a legacy symlinked state dir when it points outside supported legacy roots", async () => {
+describe("state dir auto-migration", () => {
+  it("does nothing when only canonical paths are supported", async () => {
     const root = await makeTempRoot();
-    const legacySymlink = path.join(root, LEGACY_ALT_STATE_DIRNAME);
-    const legacyDir = path.join(root, "legacy-state-source");
-
-    fs.mkdirSync(legacyDir, { recursive: true });
-    fs.writeFileSync(path.join(legacyDir, "marker.txt"), "ok", "utf-8");
-
-    const dirLinkType = process.platform === "win32" ? "junction" : "dir";
-    fs.symlinkSync(legacyDir, legacySymlink, dirLinkType);
 
     const result = await autoMigrateLegacyStateDir({
       env: {} as NodeJS.ProcessEnv,
       homedir: () => root,
     });
 
-    expect(result.migrated).toBe(false);
-    expect(result.warnings).toEqual([
-      `Legacy state dir is a symlink (${legacySymlink} → ${legacyDir}); skipping auto-migration.`,
-    ]);
-    expect(fs.readFileSync(path.join(root, "legacy-state-source", "marker.txt"), "utf-8")).toBe(
-      "ok",
-    );
-    expect(fs.readFileSync(path.join(root, LEGACY_ALT_STATE_DIRNAME, "marker.txt"), "utf-8")).toBe(
-      "ok",
-    );
+    expect(result).toEqual({
+      migrated: false,
+      skipped: false,
+      changes: [],
+      warnings: [],
+    });
+  });
+
+  it("only runs once per process until reset", async () => {
+    const root = await makeTempRoot();
+
+    const first = await autoMigrateLegacyStateDir({
+      env: {} as NodeJS.ProcessEnv,
+      homedir: () => root,
+    });
+    const second = await autoMigrateLegacyStateDir({
+      env: {} as NodeJS.ProcessEnv,
+      homedir: () => root,
+    });
+
+    expect(first).toEqual({
+      migrated: false,
+      skipped: false,
+      changes: [],
+      warnings: [],
+    });
+    expect(second).toEqual({
+      migrated: false,
+      skipped: true,
+      changes: [],
+      warnings: [],
+    });
   });
 
   it("skips state-dir migration when ALISIO_STATE_DIR is explicitly set", async () => {
     const root = await makeTempRoot();
-    const legacyDir = path.join(root, LEGACY_STATE_DIRNAME);
-    fs.mkdirSync(legacyDir, { recursive: true });
 
     const result = await autoMigrateLegacyStateDir({
       env: { ALISIO_STATE_DIR: path.join(root, "custom-state") } as NodeJS.ProcessEnv,
@@ -73,55 +81,5 @@ describe("legacy state dir auto-migration", () => {
       changes: [],
       warnings: [],
     });
-    expect(fs.existsSync(legacyDir)).toBe(true);
-  });
-
-  it("only runs once per process until reset", async () => {
-    const root = await makeTempRoot();
-    const legacyDir = path.join(root, LEGACY_STATE_DIRNAME);
-    fs.mkdirSync(legacyDir, { recursive: true });
-    fs.writeFileSync(path.join(legacyDir, "marker.txt"), "ok", "utf-8");
-
-    const first = await autoMigrateLegacyStateDir({
-      env: {} as NodeJS.ProcessEnv,
-      homedir: () => root,
-    });
-    const second = await autoMigrateLegacyStateDir({
-      env: {} as NodeJS.ProcessEnv,
-      homedir: () => root,
-    });
-
-    expect(first.migrated).toBe(true);
-    expect(second).toEqual({
-      migrated: false,
-      skipped: true,
-      changes: [],
-      warnings: [],
-    });
-  });
-
-  it("copies into ~/.alisio, renames the config file, and keeps a backup", async () => {
-    const root = await makeTempRoot();
-    const legacyDir = path.join(root, LEGACY_STATE_DIRNAME);
-    fs.mkdirSync(path.join(legacyDir, "logs"), { recursive: true });
-    fs.writeFileSync(
-      path.join(legacyDir, LEGACY_CONFIG_FILENAME),
-      '{"gateway":{"port":40705}}',
-      "utf-8",
-    );
-    fs.writeFileSync(path.join(legacyDir, "logs", "marker.txt"), "ok", "utf-8");
-
-    const result = await autoMigrateLegacyStateDir({
-      env: {} as NodeJS.ProcessEnv,
-      homedir: () => root,
-    });
-
-    expect(result.migrated).toBe(true);
-    expect(fs.existsSync(path.join(root, ".alisio", "alisio.json"))).toBe(true);
-    expect(fs.existsSync(path.join(root, ".alisio", "logs", "marker.txt"))).toBe(true);
-    expect(fs.existsSync(legacyDir)).toBe(false);
-    expect(
-      fs.readdirSync(root).some((entry) => entry.startsWith(`${LEGACY_STATE_DIRNAME}.backup-`)),
-    ).toBe(true);
   });
 });

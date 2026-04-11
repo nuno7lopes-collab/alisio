@@ -1,10 +1,10 @@
 import path from "node:path";
 
-export const DEFAULT_CLI_NAME = "openclaw";
+export const DEFAULT_CLI_NAME = "alisio";
 export const PUBLIC_CLI_NAME = "alisio";
 
-const KNOWN_CLI_NAMES = new Set([PUBLIC_CLI_NAME, DEFAULT_CLI_NAME]);
-const CLI_PREFIX_RE = /^(?:((?:pnpm|npm|bunx|npx)\s+))?(alisio|openclaw)\b/;
+const KNOWN_CLI_NAMES = new Set<string>([PUBLIC_CLI_NAME, DEFAULT_CLI_NAME]);
+const CLI_PREFIX_RE = /^(?:((?:pnpm|npm|bunx|npx)\s+))?(alisio)\b/;
 
 export function resolveCliName(argv: string[] = process.argv): string {
   const argv1 = argv[1];

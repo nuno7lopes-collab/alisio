@@ -51,7 +51,7 @@ describe("media server outside-workspace mapping", () => {
     ({ SafeOpenError } = await import("../infra/fs-safe.js"));
     ({ startMediaServer } = await import("./server.js"));
     ({ fetch: realFetch } = require("undici") as typeof import("undici"));
-    mediaDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-outside-workspace-"));
+    mediaDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-media-outside-workspace-"));
     server = await startMediaServer(0, 1_000);
     port = (server.address() as AddressInfo).port;
   });

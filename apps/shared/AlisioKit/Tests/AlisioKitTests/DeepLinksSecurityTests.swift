@@ -1,0 +1,68 @@
+import Foundation
+import AlisioKit
+import Testing
+
+@Suite struct DeepLinksSecurityTests {
+    @Test func gatewayDeepLinkRejectsInsecureNonLoopbackWs() {
+        let url = URL(
+            string: "alisio://gateway?host=attacker.example&port=40705&tls=0&token=abc")!
+        #expect(DeepLinkParser.parse(url) == nil)
+    }
+
+    @Test func gatewayDeepLinkRejectsInsecurePrefixBypassHost() {
+        let url = URL(
+            string: "alisio://gateway?host=127.attacker.example&port=40705&tls=0&token=abc")!
+        #expect(DeepLinkParser.parse(url) == nil)
+    }
+
+    @Test func gatewayDeepLinkAllowsLoopbackWs() {
+        let url = URL(
+            string: "alisio://gateway?host=127.0.0.1&port=40705&tls=0&token=abc")!
+        #expect(
+            DeepLinkParser.parse(url) == .gateway(
+                .init(
+                    host: "127.0.0.1",
+                    port: 40705,
+                    tls: false,
+                    bootstrapToken: nil,
+                    token: "abc",
+                    password: nil)))
+    }
+
+    @Test func setupCodeRejectsInsecureNonLoopbackWs() {
+        let payload = #"{"url":"ws://attacker.example:40705","bootstrapToken":"tok"}"#
+        let encoded = Data(payload.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        #expect(GatewayConnectDeepLink.fromSetupCode(encoded) == nil)
+    }
+
+    @Test func setupCodeRejectsInsecurePrefixBypassHost() {
+        let payload = #"{"url":"ws://127.attacker.example:40705","bootstrapToken":"tok"}"#
+        let encoded = Data(payload.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        #expect(GatewayConnectDeepLink.fromSetupCode(encoded) == nil)
+    }
+
+    @Test func setupCodeAllowsLoopbackWs() {
+        let payload = #"{"url":"ws://127.0.0.1:40705","bootstrapToken":"tok"}"#
+        let encoded = Data(payload.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        #expect(
+            GatewayConnectDeepLink.fromSetupCode(encoded) == .init(
+                host: "127.0.0.1",
+                port: 40705,
+                tls: false,
+                bootstrapToken: "tok",
+                token: nil,
+                password: nil))
+    }
+}

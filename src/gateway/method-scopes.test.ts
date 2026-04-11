@@ -32,11 +32,12 @@ describe("method scope resolution", () => {
     ["alisio.account.updatePassword", ["operator.write"]],
     ["alisio.account.signUp", ["operator.write"]],
     ["alisio.account.signIn", ["operator.write"]],
-    ["alisio.sharing.request", ["operator.write"]],
-    ["alisio.models.runtime.start", ["operator.write"]],
+    ["devices.share.request", ["operator.write"]],
+    ["connectors.begin", ["operator.write"]],
     ["alisio.models.uninstall", ["operator.write"]],
     ["alisio.security.policy.get", ["operator.admin"]],
     ["alisio.security.policy.applyProfile", ["operator.admin"]],
+    ["alisio.app.rebuild", ["operator.admin"]],
     ["alisio.runtime.restart", ["operator.admin"]],
     ["config.patch", ["operator.admin"]],
     ["wizard.start", ["operator.admin"]],
@@ -72,13 +73,14 @@ describe("operator scope authorization", () => {
     ["health", ["operator.write"], { allowed: true }],
     ["alisio.bootstrap.get", ["operator.read"], { allowed: true }],
     ["alisio.models.get", ["operator.read"], { allowed: true }],
-    ["alisio.sharing.get", ["operator.read"], { allowed: true }],
+    ["devices.list", ["operator.read"], { allowed: true }],
+    ["connectors.catalog", ["operator.read"], { allowed: true }],
     ["alisio.doctor.summary", ["operator.read"], { allowed: true }],
+    ["alisio.app.rebuild", ["operator.admin"], { allowed: true }],
     ["alisio.runtime.restart", ["operator.admin"], { allowed: true }],
     ["config.schema.lookup", ["operator.read"], { allowed: true }],
     ["alisio.models.install", ["operator.write"], { allowed: true }],
     ["alisio.models.uninstall", ["operator.write"], { allowed: true }],
-    ["alisio.models.runtime.start", ["operator.write"], { allowed: true }],
     ["alisio.account.completeEmailLinkAuth", ["operator.write"], { allowed: true }],
     ["alisio.account.changeEmail", ["operator.write"], { allowed: true }],
     ["alisio.account.signUp", ["operator.write"], { allowed: true }],
@@ -86,10 +88,10 @@ describe("operator scope authorization", () => {
     ["alisio.account.updatePassword", ["operator.write"], { allowed: true }],
     ["alisio.security.policy.get", ["operator.admin"], { allowed: true }],
     ["alisio.security.policy.applyProfile", ["operator.admin"], { allowed: true }],
-    ["alisio.sharing.approve", ["operator.write"], { allowed: true }],
-    ["alisio.sharing.reject", ["operator.write"], { allowed: true }],
-    ["alisio.sharing.revoke", ["operator.write"], { allowed: true }],
-    ["alisio.sharing.policy.set", ["operator.write"], { allowed: true }],
+    ["devices.share.approve", ["operator.write"], { allowed: true }],
+    ["devices.share.revoke", ["operator.write"], { allowed: true }],
+    ["devices.policy.set", ["operator.write"], { allowed: true }],
+    ["connectors.begin", ["operator.write"], { allowed: true }],
     ["config.patch", ["operator.admin"], { allowed: true }],
   ])("authorizes %s for scopes %j", (method, scopes, expected) => {
     expect(authorizeOperatorScopesForMethod(method, scopes)).toEqual(expected);
@@ -165,14 +167,17 @@ describe("plugin approval method registration", () => {
     expect(methods).not.toContain("alisio.account.requestPasswordReset");
   });
 
-  it("lists the sharing methods", () => {
+  it("lists canonical sharing and connector methods", () => {
     const methods = listGatewayMethods();
-    expect(methods).toContain("alisio.sharing.get");
-    expect(methods).toContain("alisio.sharing.request");
-    expect(methods).toContain("alisio.sharing.approve");
-    expect(methods).toContain("alisio.sharing.reject");
-    expect(methods).toContain("alisio.sharing.revoke");
-    expect(methods).toContain("alisio.sharing.policy.set");
+    expect(methods).toContain("devices.list");
+    expect(methods).toContain("devices.share.request");
+    expect(methods).toContain("devices.share.approve");
+    expect(methods).toContain("devices.share.revoke");
+    expect(methods).toContain("devices.policy.set");
+    expect(methods).toContain("connectors.catalog");
+    expect(methods).toContain("connectors.begin");
+    expect(methods).not.toContain("alisio.sharing.get");
+    expect(methods).not.toContain("alisio.connectors.begin");
   });
 
   it("classifies plugin approval methods", () => {

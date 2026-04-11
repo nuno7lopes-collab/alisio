@@ -2,7 +2,7 @@ import fs from "node:fs";
 import { createJiti } from "jiti";
 import { openBoundaryFileSync } from "../../infra/boundary-file-read.js";
 import { createSubsystemLogger } from "../../logging/subsystem.js";
-import { discoverOpenClawPlugins } from "../../plugins/discovery.js";
+import { discoverAlisioPlugins } from "../../plugins/discovery.js";
 import { loadPluginManifestRegistry } from "../../plugins/manifest-registry.js";
 import type { PluginRuntime } from "../../plugins/runtime/types.js";
 import {
@@ -117,7 +117,7 @@ function loadBundledModule(modulePath: string, rootDir: string): unknown {
 }
 
 function loadGeneratedBundledChannelEntries(): readonly GeneratedBundledChannelEntry[] {
-  const discovery = discoverOpenClawPlugins({ cache: false });
+  const discovery = discoverAlisioPlugins({ cache: false });
   const manifestRegistry = loadPluginManifestRegistry({
     cache: false,
     config: {},

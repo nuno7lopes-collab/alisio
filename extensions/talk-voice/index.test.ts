@@ -1,10 +1,10 @@
-import type { OpenClawPluginCommandDefinition } from "alisio/plugin-sdk/core";
+import type { AlisioPluginCommandDefinition } from "alisio/plugin-sdk/core";
 import { describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../test/helpers/plugins/plugin-runtime-mock.js";
 import register from "./index.js";
 
 function createHarness(config: Record<string, unknown>) {
-  let command: OpenClawPluginCommandDefinition | undefined;
+  let command: AlisioPluginCommandDefinition | undefined;
   const runtime = createPluginRuntimeMock({
     config: {
       loadConfig: vi.fn(() => config),
@@ -16,7 +16,7 @@ function createHarness(config: Record<string, unknown>) {
   });
   const api = {
     runtime,
-    registerCommand: vi.fn((definition: OpenClawPluginCommandDefinition) => {
+    registerCommand: vi.fn((definition: AlisioPluginCommandDefinition) => {
       command = definition;
     }),
   };

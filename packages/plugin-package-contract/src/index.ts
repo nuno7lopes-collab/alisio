@@ -2,7 +2,7 @@ export type JsonObject = Record<string, unknown>;
 
 export type ExternalPluginCompatibility = {
   pluginApiRange?: string;
-  builtWithOpenClawVersion?: string;
+  builtWithAlisioVersion?: string;
   pluginSdkVersion?: string;
   minGatewayVersion?: string;
 };
@@ -33,8 +33,7 @@ function getTrimmedString(value: unknown): string | undefined {
 function readPluginCompatibilityBlock(packageJson: unknown) {
   const root = isRecord(packageJson) ? packageJson : undefined;
   const alisio = isRecord(root?.alisio) ? root.alisio : undefined;
-  const legacyOpenClaw = isRecord(root?.openclaw) ? root.openclaw : undefined;
-  const pluginBlock = alisio ?? legacyOpenClaw;
+  const pluginBlock = alisio;
   const compat = isRecord(pluginBlock?.compat) ? pluginBlock.compat : undefined;
   const build = isRecord(pluginBlock?.build) ? pluginBlock.build : undefined;
   const install = isRecord(pluginBlock?.install) ? pluginBlock.install : undefined;
@@ -59,10 +58,9 @@ export function normalizeExternalPluginCompatibility(
     compatibility.minGatewayVersion = minGatewayVersion;
   }
 
-  const builtWithOpenClawVersion =
-    getTrimmedString(build?.alisioVersion) ?? getTrimmedString(build?.openclawVersion) ?? version;
-  if (builtWithOpenClawVersion) {
-    compatibility.builtWithOpenClawVersion = builtWithOpenClawVersion;
+  const builtWithAlisioVersion = getTrimmedString(build?.alisioVersion) ?? version;
+  if (builtWithAlisioVersion) {
+    compatibility.builtWithAlisioVersion = builtWithAlisioVersion;
   }
 
   const pluginSdkVersion = getTrimmedString(build?.pluginSdkVersion);
@@ -79,7 +77,7 @@ export function listMissingExternalCodePluginFieldPaths(packageJson: unknown): s
   if (!getTrimmedString(compat?.pluginApi)) {
     missing.push("alisio.compat.pluginApi");
   }
-  if (!getTrimmedString(build?.alisioVersion) && !getTrimmedString(build?.openclawVersion)) {
+  if (!getTrimmedString(build?.alisioVersion)) {
     missing.push("alisio.build.alisioVersion");
   }
   return missing;

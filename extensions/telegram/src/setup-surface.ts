@@ -4,7 +4,7 @@ import {
   createStandardChannelSetupStatus,
   DEFAULT_ACCOUNT_ID,
   hasConfiguredSecretInput,
-  type OpenClawConfig,
+  type AlisioConfig,
   patchChannelConfigForAccount,
   setSetupChannelEnabled,
   splitSetupEntries,
@@ -37,10 +37,7 @@ import {
 
 const channel = "telegram" as const;
 
-function ensureTelegramDefaultGroupMentionGate(
-  cfg: OpenClawConfig,
-  accountId: string,
-): OpenClawConfig {
+function ensureTelegramDefaultGroupMentionGate(cfg: AlisioConfig, accountId: string): AlisioConfig {
   const resolved = resolveTelegramAccount({ cfg, accountId });
   const wildcardGroup = resolved.config.groups?.["*"];
   if (wildcardGroup?.requireMention !== undefined) {
@@ -62,7 +59,7 @@ function ensureTelegramDefaultGroupMentionGate(
   });
 }
 
-async function resolveTelegramConfiguredState(cfg: OpenClawConfig): Promise<{
+async function resolveTelegramConfiguredState(cfg: AlisioConfig): Promise<{
   configured: boolean;
   onboarding: TelegramDmOnboardingStatus | null;
 }> {
@@ -81,7 +78,7 @@ async function resolveTelegramConfiguredState(cfg: OpenClawConfig): Promise<{
   return { configured: true, onboarding: null };
 }
 
-function shouldShowTelegramDmAccessWarning(cfg: OpenClawConfig, accountId: string): boolean {
+function shouldShowTelegramDmAccessWarning(cfg: AlisioConfig, accountId: string): boolean {
   const merged = mergeTelegramAccountConfig(cfg, accountId);
   const policy = merged.dmPolicy ?? "pairing";
   const hasAllowFrom =
@@ -90,7 +87,7 @@ function shouldShowTelegramDmAccessWarning(cfg: OpenClawConfig, accountId: strin
 }
 
 async function createTelegramOwnerOnboardingSession(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): Promise<TelegramOwnerOnboardingSession> {
   const inspected = inspectTelegramAccount({

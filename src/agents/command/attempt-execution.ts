@@ -137,7 +137,7 @@ export function prependInternalEventContext(
   events: AgentCommandOpts["internalEvents"],
 ): string {
   if (
-    body.includes("OpenClaw runtime context (internal):") ||
+    body.includes("Alisio runtime context (internal):") ||
     body.includes("Alisio runtime context (internal):")
   ) {
     return body;
@@ -292,7 +292,7 @@ export async function persistAcpTurnTranscript(params: {
       role: "assistant",
       content: [{ type: "text", text: replyText }],
       api: "openai-responses",
-      provider: "openclaw",
+      provider: "alisio",
       model: "acp-runtime",
       usage: ACP_TRANSCRIPT_USAGE,
       stopReason: "stop",

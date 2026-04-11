@@ -6,7 +6,7 @@ import {
   setConfiguredMcpServer,
   unsetConfiguredMcpServer,
 } from "../config/mcp-config.js";
-import { serveOpenClawChannelMcp } from "../mcp/channel-server.js";
+import { serveAlisioChannelMcp } from "../mcp/channel-server.js";
 import { defaultRuntime } from "../runtime.js";
 
 function fail(message: string): never {
@@ -92,7 +92,7 @@ export function registerMcpCli(program: Command) {
         ) {
           throw new Error("Invalid --claude-channel-mode value. Use auto, on, or off.");
         }
-        await serveOpenClawChannelMcp({
+        await serveAlisioChannelMcp({
           gatewayUrl: opts.url as string | undefined,
           gatewayToken,
           gatewayPassword,

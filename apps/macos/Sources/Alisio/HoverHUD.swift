@@ -81,7 +81,7 @@ final class HoverHUDController {
     func openChat() {
         guard self.anchorProvider != nil else { return }
         self.dismiss(reason: "openChat")
-        LumeWindowManager.shared.showPreferredChat()
+        AlisioWindowManager.shared.showPreferredChat()
     }
 
     func dismiss(reason: String = "explicit") {

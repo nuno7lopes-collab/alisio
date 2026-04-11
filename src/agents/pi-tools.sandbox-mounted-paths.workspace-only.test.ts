@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import { createOpenClawCodingTools } from "./pi-tools.js";
+import { createAlisioCodingTools } from "./pi-tools.js";
 import {
   expectReadWriteEditTools,
   expectReadWriteTools,
@@ -18,7 +18,7 @@ vi.mock("../infra/shell-env.js", async (importOriginal) => {
 type ToolWithExecute = {
   execute: (toolCallId: string, args: unknown, signal?: AbortSignal) => Promise<unknown>;
 };
-type CodingToolsInput = NonNullable<Parameters<typeof createOpenClawCodingTools>[0]>;
+type CodingToolsInput = NonNullable<Parameters<typeof createAlisioCodingTools>[0]>;
 
 const APPLY_PATCH_PAYLOAD = `*** Begin Patch
 *** Add File: /agent/pwned.txt
@@ -28,7 +28,7 @@ const APPLY_PATCH_PAYLOAD = `*** Begin Patch
 function resolveApplyPatchTool(
   params: Pick<CodingToolsInput, "sandbox" | "workspaceDir"> & { config: AlisioConfig },
 ): ToolWithExecute {
-  const tools = createOpenClawCodingTools({
+  const tools = createAlisioCodingTools({
     sandbox: params.sandbox,
     workspaceDir: params.workspaceDir,
     config: params.config,
@@ -47,7 +47,7 @@ describe("tools.fs.workspaceOnly", () => {
     await withUnsafeMountedSandboxHarness(async ({ sandboxRoot, agentRoot, sandbox }) => {
       await fs.writeFile(path.join(agentRoot, "secret.txt"), "shh", "utf8");
 
-      const tools = createOpenClawCodingTools({ sandbox, workspaceDir: sandboxRoot });
+      const tools = createAlisioCodingTools({ sandbox, workspaceDir: sandboxRoot });
       const { readTool, writeTool } = expectReadWriteTools(tools);
 
       const readResult = await readTool?.execute("t1", { path: "/agent/secret.txt" });
@@ -63,7 +63,7 @@ describe("tools.fs.workspaceOnly", () => {
       await fs.writeFile(path.join(agentRoot, "secret.txt"), "shh", "utf8");
 
       const cfg = { tools: { fs: { workspaceOnly: true } } } as unknown as AlisioConfig;
-      const tools = createOpenClawCodingTools({ sandbox, workspaceDir: sandboxRoot, config: cfg });
+      const tools = createAlisioCodingTools({ sandbox, workspaceDir: sandboxRoot, config: cfg });
       const { readTool, writeTool, editTool } = expectReadWriteEditTools(tools);
 
       await expect(readTool?.execute("t1", { path: "/agent/secret.txt" })).rejects.toThrow(

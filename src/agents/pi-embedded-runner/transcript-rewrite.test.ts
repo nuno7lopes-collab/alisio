@@ -13,6 +13,8 @@ vi.mock("../session-write-lock.js", () => ({
 
 let rewriteTranscriptEntriesInSessionFile: typeof import("./transcript-rewrite.js").rewriteTranscriptEntriesInSessionFile;
 let rewriteTranscriptEntriesInSessionManager: typeof import("./transcript-rewrite.js").rewriteTranscriptEntriesInSessionManager;
+let restoreTranscriptLeafInSessionFile: typeof import("./transcript-rewrite.js").restoreTranscriptLeafInSessionFile;
+let restoreTranscriptLeafInSessionManager: typeof import("./transcript-rewrite.js").restoreTranscriptLeafInSessionManager;
 let onSessionTranscriptUpdate: typeof import("../../sessions/transcript-events.js").onSessionTranscriptUpdate;
 let installSessionToolResultGuard: typeof import("../session-tool-result-guard.js").installSessionToolResultGuard;
 
@@ -23,8 +25,12 @@ async function loadFreshTranscriptRewriteModuleForTest() {
   }));
   ({ onSessionTranscriptUpdate } = await import("../../sessions/transcript-events.js"));
   ({ installSessionToolResultGuard } = await import("../session-tool-result-guard.js"));
-  ({ rewriteTranscriptEntriesInSessionFile, rewriteTranscriptEntriesInSessionManager } =
-    await import("./transcript-rewrite.js"));
+  ({
+    rewriteTranscriptEntriesInSessionFile,
+    rewriteTranscriptEntriesInSessionManager,
+    restoreTranscriptLeafInSessionFile,
+    restoreTranscriptLeafInSessionManager,
+  } = await import("./transcript-rewrite.js"));
 }
 
 type AppendMessage = Parameters<SessionManager["appendMessage"]>[0];
@@ -271,6 +277,46 @@ describe("rewriteTranscriptEntriesInSessionManager", () => {
   });
 });
 
+describe("restoreTranscriptLeafInSessionManager", () => {
+  it("branches the active transcript back to the requested entry", () => {
+    const { sessionManager } = createReadRewriteSession();
+    const branch = sessionManager.getBranch();
+    const targetEntryId = branch[1]?.id ?? null;
+    expect(targetEntryId).toBeTruthy();
+
+    const result = restoreTranscriptLeafInSessionManager({
+      sessionManager,
+      targetEntryId,
+    });
+
+    expect(result).toMatchObject({
+      changed: true,
+      restoredToEntryId: targetEntryId,
+    });
+    expect(sessionManager.getLeafEntry()?.id).toBe(targetEntryId);
+    expect(getBranchMessages(sessionManager).map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+    ]);
+  });
+
+  it("resets to the root when asked to restore a null leaf", () => {
+    const { sessionManager } = createExecRewriteSession();
+
+    const result = restoreTranscriptLeafInSessionManager({
+      sessionManager,
+      targetEntryId: null,
+    });
+
+    expect(result).toMatchObject({
+      changed: true,
+      restoredToEntryId: null,
+    });
+    expect(sessionManager.getBranch()).toEqual([]);
+    expect(sessionManager.getLeafEntry()).toBeUndefined();
+  });
+});
+
 describe("rewriteTranscriptEntriesInSessionFile", () => {
   it("emits transcript updates when the active branch changes", async () => {
     const sessionFile = "/tmp/session.jsonl";
@@ -308,6 +354,43 @@ describe("rewriteTranscriptEntriesInSessionFile", () => {
         { role: "toolResult" }
       >;
       expect(rewrittenToolResult.content).toEqual([{ type: "text", text: "[file_ref:file_abc]" }]);
+    } finally {
+      cleanup();
+      openSpy.mockRestore();
+    }
+  });
+});
+
+describe("restoreTranscriptLeafInSessionFile", () => {
+  it("emits transcript updates when the active leaf rewinds", async () => {
+    const sessionFile = "/tmp/session-rewind.jsonl";
+    const { sessionManager } = createReadRewriteSession();
+    const targetEntryId = sessionManager.getBranch()[1]?.id ?? null;
+    expect(targetEntryId).toBeTruthy();
+
+    const openSpy = vi
+      .spyOn(SessionManager, "open")
+      .mockReturnValue(sessionManager as unknown as ReturnType<typeof SessionManager.open>);
+    const listener = vi.fn();
+    const cleanup = onSessionTranscriptUpdate(listener);
+
+    try {
+      const result = await restoreTranscriptLeafInSessionFile({
+        sessionFile,
+        sessionKey: "agent:main:test",
+        targetEntryId,
+      });
+
+      expect(result).toMatchObject({
+        changed: true,
+        restoredToEntryId: targetEntryId,
+      });
+      expect(acquireSessionWriteLockMock).toHaveBeenCalledWith({
+        sessionFile,
+      });
+      expect(acquireSessionWriteLockReleaseMock).toHaveBeenCalledTimes(1);
+      expect(listener).toHaveBeenCalledWith({ sessionFile });
+      expect(sessionManager.getLeafEntry()?.id).toBe(targetEntryId);
     } finally {
       cleanup();
       openSpy.mockRestore();

@@ -8,9 +8,9 @@ describe("buildPairingReply", () => {
   let envSnapshot: ReturnType<typeof captureEnv>;
 
   beforeEach(() => {
-    envSnapshot = captureEnv(["OPENCLAW_CONTAINER_HINT", "OPENCLAW_PROFILE"]);
-    delete process.env.OPENCLAW_CONTAINER_HINT;
-    process.env.OPENCLAW_PROFILE = "isolated";
+    envSnapshot = captureEnv(["ALISIO_CONTAINER_HINT", "ALISIO_PROFILE"]);
+    delete process.env.ALISIO_CONTAINER_HINT;
+    process.env.ALISIO_PROFILE = "isolated";
   });
 
   afterEach(() => {
@@ -52,7 +52,7 @@ describe("buildPairingReply", () => {
 
   function expectPairingApproveCommand(text: string, testCase: (typeof pairingReplyCases)[number]) {
     expect(text).toContain(
-      formatCliCommand(`openclaw pairing approve ${testCase.channel} ${testCase.code}`),
+      formatCliCommand(`alisio pairing approve ${testCase.channel} ${testCase.code}`),
     );
   }
 

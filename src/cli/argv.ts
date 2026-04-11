@@ -288,7 +288,7 @@ export function buildParseArgv(params: {
   const normalizedArgv =
     programName && baseArgv[0] === programName
       ? baseArgv.slice(1)
-      : baseArgv[0]?.endsWith("alisio") || baseArgv[0]?.endsWith("openclaw")
+      : baseArgv[0]?.endsWith("alisio") || baseArgv[0]?.endsWith("alisio")
         ? baseArgv.slice(1)
         : baseArgv;
   const looksLikeNode =

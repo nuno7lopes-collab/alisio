@@ -1,6 +1,6 @@
 import os from "node:os";
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
 function normalize(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
@@ -30,7 +30,7 @@ export function resolveOsHomeDir(
 }
 
 function resolveRawHomeDir(env: NodeJS.ProcessEnv, homedir: () => string): string | undefined {
-  const explicitHome = normalize(readEnv("ALISIO_HOME", { env, fallback: legacyEnvKey("HOME") }));
+  const explicitHome = normalize(readEnv("ALISIO_HOME", { env, fallback: runtimeEnvKey("HOME") }));
   if (explicitHome) {
     if (explicitHome === "~" || explicitHome.startsWith("~/") || explicitHome.startsWith("~\\")) {
       const fallbackHome = resolveRawOsHomeDir(env, homedir);

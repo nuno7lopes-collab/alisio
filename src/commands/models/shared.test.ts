@@ -36,12 +36,12 @@ describe("models/shared", () => {
   it("throws formatted issues when snapshot is invalid", async () => {
     mocks.readConfigFileSnapshot.mockResolvedValue({
       valid: false,
-      path: "/tmp/openclaw.json",
+      path: "/tmp/alisio.json",
       issues: [{ path: "providers.openai.apiKey", message: "Required" }],
     });
 
     await expect(loadValidConfigOrThrow()).rejects.toThrowError(
-      "Invalid config at /tmp/openclaw.json\n- providers.openai.apiKey: Required",
+      "Invalid config at /tmp/alisio.json\n- providers.openai.apiKey: Required",
     );
   });
 

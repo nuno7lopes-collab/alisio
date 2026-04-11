@@ -314,7 +314,12 @@ export const AgentsFilesDeleteResultSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const ModelsListParamsSchema = Type.Object({}, { additionalProperties: false });
+export const ModelsListParamsSchema = Type.Object(
+  {
+    scope: Type.Optional(Type.Union([Type.Literal("allowed"), Type.Literal("all")])),
+  },
+  { additionalProperties: false },
+);
 
 export const ModelsListResultSchema = Type.Object(
   {

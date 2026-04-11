@@ -4,7 +4,7 @@ import {
 } from "alisio/plugin-sdk/reply-payload";
 import {
   getAgentScopedMediaLocalRoots,
-  type OpenClawConfig,
+  type AlisioConfig,
   type PluginRuntime,
   type ReplyPayload,
 } from "./runtime-api.js";
@@ -15,7 +15,7 @@ type SendMattermostMessage = (
   to: string,
   text: string,
   opts: {
-    cfg?: OpenClawConfig;
+    cfg?: AlisioConfig;
     accountId?: string;
     mediaUrl?: string;
     mediaLocalRoots?: readonly string[];
@@ -25,7 +25,7 @@ type SendMattermostMessage = (
 
 export async function deliverMattermostReplyPayload(params: {
   core: PluginRuntime;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   payload: ReplyPayload;
   to: string;
   accountId: string;

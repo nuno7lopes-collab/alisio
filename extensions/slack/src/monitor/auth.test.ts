@@ -23,7 +23,7 @@ function makeSlackCtx(allowFrom: string[]): SlackMonitorContext {
 }
 
 describe("resolveSlackEffectiveAllowFrom", () => {
-  const prevTtl = process.env.OPENCLAW_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS;
+  const prevTtl = process.env.ALISIO_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS;
 
   beforeEach(async () => {
     vi.resetModules();
@@ -32,9 +32,9 @@ describe("resolveSlackEffectiveAllowFrom", () => {
     readStoreAllowFromForDmPolicyMock.mockReset();
     clearSlackAllowFromCacheForTest();
     if (prevTtl === undefined) {
-      delete process.env.OPENCLAW_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS;
+      delete process.env.ALISIO_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS;
     } else {
-      process.env.OPENCLAW_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS = prevTtl;
+      process.env.ALISIO_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS = prevTtl;
     }
   });
 
@@ -69,7 +69,7 @@ describe("resolveSlackEffectiveAllowFrom", () => {
   });
 
   it("refreshes pairing-store allowFrom when cache TTL is zero", async () => {
-    process.env.OPENCLAW_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS = "0";
+    process.env.ALISIO_SLACK_PAIRING_ALLOWFROM_CACHE_TTL_MS = "0";
     readStoreAllowFromForDmPolicyMock.mockResolvedValue(["u2"]);
     const ctx = makeSlackCtx(["u1"]);
 

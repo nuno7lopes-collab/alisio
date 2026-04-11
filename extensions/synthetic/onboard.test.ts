@@ -1,12 +1,12 @@
 import { resolveAgentModelPrimaryValue } from "alisio/plugin-sdk/provider-onboard";
-import { SYNTHETIC_DEFAULT_MODEL_ID } from "alisio/plugin-sdk/synthetic";
 import { describe, expect, it } from "vitest";
 import { createLegacyProviderConfig } from "../../test/helpers/plugins/onboard-config.js";
 import {
   applySyntheticConfig,
   applySyntheticProviderConfig,
+  SYNTHETIC_DEFAULT_MODEL_ID,
   SYNTHETIC_DEFAULT_MODEL_REF,
-} from "./onboard.js";
+} from "./api.js";
 
 describe("synthetic onboard", () => {
   it("adds synthetic provider with correct settings", () => {

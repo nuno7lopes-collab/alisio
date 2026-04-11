@@ -56,7 +56,7 @@ Alisio should make three AI paths feel equally intentional:
 
 1. **OpenAI** for fast, high-quality hosted setup
 2. **Local** for privacy, ownership, and offline or low-latency loops on capable machines
-3. **Servers** for Ollama and OpenAI-compatible deployments on another machine or inside a private network
+3. **Servers** for OpenAI-compatible deployments on another machine or inside a private network
 
 The user should be able to mix these paths, switch between them, and set fallbacks without learning internal config structure first.
 

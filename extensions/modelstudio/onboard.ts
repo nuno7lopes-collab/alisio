@@ -1,6 +1,6 @@
 import {
   createModelCatalogPresetAppliers,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/provider-onboard";
 import {
   MODELSTUDIO_CN_BASE_URL,
@@ -21,7 +21,7 @@ export {
 
 const modelStudioPresetAppliers = createModelCatalogPresetAppliers<[string]>({
   primaryModelRef: MODELSTUDIO_DEFAULT_MODEL_REF,
-  resolveParams: (_cfg: OpenClawConfig, baseUrl: string) => {
+  resolveParams: (_cfg: AlisioConfig, baseUrl: string) => {
     const provider = buildModelStudioProvider();
     return {
       providerId: "modelstudio",
@@ -36,34 +36,34 @@ const modelStudioPresetAppliers = createModelCatalogPresetAppliers<[string]>({
   },
 });
 
-export function applyModelStudioProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioProviderConfig(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyProviderConfig(cfg, MODELSTUDIO_GLOBAL_BASE_URL);
 }
 
-export function applyModelStudioProviderConfigCn(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioProviderConfigCn(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyProviderConfig(cfg, MODELSTUDIO_CN_BASE_URL);
 }
 
-export function applyModelStudioConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioConfig(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyConfig(cfg, MODELSTUDIO_GLOBAL_BASE_URL);
 }
 
-export function applyModelStudioConfigCn(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioConfigCn(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyConfig(cfg, MODELSTUDIO_CN_BASE_URL);
 }
 
-export function applyModelStudioStandardProviderConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioStandardProviderConfig(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyProviderConfig(cfg, MODELSTUDIO_STANDARD_GLOBAL_BASE_URL);
 }
 
-export function applyModelStudioStandardProviderConfigCn(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioStandardProviderConfigCn(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyProviderConfig(cfg, MODELSTUDIO_STANDARD_CN_BASE_URL);
 }
 
-export function applyModelStudioStandardConfig(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioStandardConfig(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyConfig(cfg, MODELSTUDIO_STANDARD_GLOBAL_BASE_URL);
 }
 
-export function applyModelStudioStandardConfigCn(cfg: OpenClawConfig): OpenClawConfig {
+export function applyModelStudioStandardConfigCn(cfg: AlisioConfig): AlisioConfig {
   return modelStudioPresetAppliers.applyConfig(cfg, MODELSTUDIO_STANDARD_CN_BASE_URL);
 }

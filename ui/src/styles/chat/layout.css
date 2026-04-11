@@ -748,7 +748,53 @@
   display: none;
 }
 
-/* Chat controls - moved to content-header area, left aligned */
+.alisio-chat-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.alisio-chat-shell > .alisio-chat {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.alisio-chat-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  width: min(100%, 1160px);
+  margin: 0 auto;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+}
+
+.alisio-chat-toolbar__primary,
+.alisio-chat-toolbar__secondary {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.alisio-chat-toolbar__primary {
+  flex: 1 1 360px;
+}
+
+.alisio-chat-toolbar__secondary {
+  flex: 0 1 auto;
+}
+
+.alisio-chat-toolbar .chat-controls {
+  justify-content: flex-end;
+}
+
+/* Chat controls */
 .chat-controls {
   display: flex;
   align-items: center;
@@ -823,6 +869,14 @@
 }
 
 @media (max-width: 768px) {
+  .alisio-chat-shell {
+    gap: 0;
+  }
+
+  .alisio-chat-toolbar {
+    display: none;
+  }
+
   .chat-controls__session {
     min-width: 120px;
     max-width: none;

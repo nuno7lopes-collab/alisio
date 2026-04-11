@@ -1,12 +1,12 @@
 import { formatTerminalLink } from "./terminal-link.js";
 
 const DOCS_ROOT_URL = "https://docs.alisio.pt";
-const LEGACY_DOCS_ROOT_URL = "https://docs.openclaw.ai";
+const LEGACY_DOCS_ROOT_URL = "https://docs.alisio.ai";
 
 function canonicalizeDocsText(value: string): string {
   return value
     .replaceAll(LEGACY_DOCS_ROOT_URL, DOCS_ROOT_URL)
-    .replaceAll("docs.openclaw.ai", "docs.alisio.pt");
+    .replaceAll("docs.alisio.ai", "docs.alisio.pt");
 }
 
 export function resolveDocsRoot(): string {

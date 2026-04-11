@@ -50,12 +50,10 @@ function renderPanelCount(value: number) {
 function resolveSharingScopeLabel(scope: string) {
   switch (scope) {
     case "model-use":
-    case "model.use":
       return t("alisio.connections.sharing.models");
     case "exec":
       return t("alisio.connections.sharing.exec");
     case "read-only":
-    case "device.use":
       return t("alisio.connections.sharing.readOnly");
     default:
       return null;
@@ -555,10 +553,8 @@ function renderSharing(props: NodesProps) {
                     </div>
                     <div class="list">
                       ${sharedWithMe.map((target) => {
-                        const scopes = formatSharingScopes(
-                          target.approvalScopes ?? target.grantScopes,
-                        );
-                        const grantId = target.approvalId ?? target.grantId;
+                        const scopes = formatSharingScopes(target.grantScopes);
+                        const grantId = target.grantId;
                         const requestButtons = renderSharingRequestButtons({
                           target,
                           loading,

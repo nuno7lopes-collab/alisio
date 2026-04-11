@@ -108,11 +108,11 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
   }
 
   it("passes heartbeatModelOverride from defaults heartbeat config", async () => {
-    const replyOpts = await runDefaultsHeartbeat({ model: "ollama/llama3.2:1b" });
+    const replyOpts = await runDefaultsHeartbeat({ model: "vllm/llama3.2:1b" });
     expect(replyOpts).toEqual(
       expect.objectContaining({
         isHeartbeat: true,
-        heartbeatModelOverride: "ollama/llama3.2:1b",
+        heartbeatModelOverride: "vllm/llama3.2:1b",
         suppressToolErrorWarnings: false,
       }),
     );
@@ -210,7 +210,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
               heartbeat: {
                 every: "5m",
                 target: "whatsapp",
-                model: "ollama/llama3.2:1b",
+                model: "vllm/llama3.2:1b",
               },
             },
           ],
@@ -230,7 +230,7 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
         expect.any(Object),
         expect.objectContaining({
           isHeartbeat: true,
-          heartbeatModelOverride: "ollama/llama3.2:1b",
+          heartbeatModelOverride: "vllm/llama3.2:1b",
         }),
         cfg,
       );
@@ -247,11 +247,11 @@ describe("runHeartbeatOnce – heartbeat model override", () => {
   });
 
   it("trims heartbeat model override before passing it downstream", async () => {
-    const replyOpts = await runDefaultsHeartbeat({ model: "  ollama/llama3.2:1b  " });
+    const replyOpts = await runDefaultsHeartbeat({ model: "  vllm/llama3.2:1b  " });
     expect(replyOpts).toEqual(
       expect.objectContaining({
         isHeartbeat: true,
-        heartbeatModelOverride: "ollama/llama3.2:1b",
+        heartbeatModelOverride: "vllm/llama3.2:1b",
       }),
     );
   });

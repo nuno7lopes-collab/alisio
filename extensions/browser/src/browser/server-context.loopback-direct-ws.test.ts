@@ -33,15 +33,15 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     });
 
     global.fetch = withFetchPreconnect(fetchMock);
-    const state = makeState("openclaw");
-    state.resolved.profiles.openclaw = {
+    const state = makeState("alisio");
+    state.resolved.profiles.alisio = {
       cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });
-    const openclaw = ctx.forProfile("openclaw");
+    const alisio = ctx.forProfile("alisio");
 
-    const opened = await openclaw.openTab("http://127.0.0.1:8080");
+    const opened = await alisio.openTab("http://127.0.0.1:8080");
     expect(opened.targetId).toBe("CREATED");
     expect(createTargetViaCdp).toHaveBeenCalledWith({
       cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
@@ -77,16 +77,16 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     });
 
     global.fetch = withFetchPreconnect(fetchMock);
-    const state = makeState("openclaw");
-    state.resolved.profiles.openclaw = {
+    const state = makeState("alisio");
+    state.resolved.profiles.alisio = {
       cdpUrl: "ws://127.0.0.1:40716/devtools/browser/SESSION?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });
-    const openclaw = ctx.forProfile("openclaw");
+    const alisio = ctx.forProfile("alisio");
 
-    await openclaw.focusTab("T1");
-    await openclaw.closeTab("T1");
+    await alisio.focusTab("T1");
+    await alisio.closeTab("T1");
 
     expect(fetchMock).toHaveBeenCalledWith(
       "http://127.0.0.1:40716/json/activate/T1?token=abc",
@@ -125,18 +125,18 @@ describe("browser server-context loopback direct WebSocket profiles", () => {
     });
 
     global.fetch = withFetchPreconnect(fetchMock);
-    const state = makeState("openclaw");
-    state.resolved.profiles.openclaw = {
+    const state = makeState("alisio");
+    state.resolved.profiles.alisio = {
       cdpUrl: "wss://127.0.0.1:40716/cdp?token=abc",
       color: "#FF4500",
     };
     const ctx = createBrowserRouteContext({ getState: () => state });
-    const openclaw = ctx.forProfile("openclaw");
+    const alisio = ctx.forProfile("alisio");
 
-    const tabs = await openclaw.listTabs();
+    const tabs = await alisio.listTabs();
     expect(tabs.map((tab) => tab.targetId)).toEqual(["T2"]);
 
-    await openclaw.focusTab("T2");
-    await openclaw.closeTab("T2");
+    await alisio.focusTab("T2");
+    await alisio.closeTab("T2");
   });
 });

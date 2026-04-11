@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const listSkillCommandsForAgents = vi.hoisted(() => vi.fn());
-const parseStrictPositiveInteger = vi.hoisted(() => vi.fn());
+const resolveGatewayPort = vi.hoisted(() => vi.fn());
 const fetchMattermostUserTeams = vi.hoisted(() => vi.fn());
 const normalizeMattermostBaseUrl = vi.hoisted(() => vi.fn((value: string | undefined) => value));
 const isSlashCommandsEnabled = vi.hoisted(() => vi.fn());
@@ -12,7 +12,7 @@ const activateSlashCommands = vi.hoisted(() => vi.fn());
 
 vi.mock("./runtime-api.js", () => ({
   listSkillCommandsForAgents,
-  parseStrictPositiveInteger,
+  resolveGatewayPort,
 }));
 
 vi.mock("./client.js", async (importOriginal) => {
@@ -43,7 +43,7 @@ describe("mattermost monitor slash", () => {
   beforeEach(() => {
     vi.resetModules();
     listSkillCommandsForAgents.mockReset();
-    parseStrictPositiveInteger.mockReset();
+    resolveGatewayPort.mockReset();
     fetchMattermostUserTeams.mockReset();
     normalizeMattermostBaseUrl.mockClear();
     isSlashCommandsEnabled.mockReset();
@@ -76,12 +76,12 @@ describe("mattermost monitor slash", () => {
   });
 
   it("registers deduped default and native skill commands across teams", async () => {
-    vi.stubEnv("OPENCLAW_GATEWAY_PORT", "40804");
+    vi.stubEnv("ALISIO_GATEWAY_PORT", "40804");
     resolveSlashCommandConfig.mockReturnValue({ enabled: true, nativeSkills: true });
     isSlashCommandsEnabled.mockReturnValue(true);
-    parseStrictPositiveInteger.mockReturnValue(40804);
+    resolveGatewayPort.mockReturnValue(40804);
     fetchMattermostUserTeams.mockResolvedValue([{ id: "team-1" }, { id: "team-2" }]);
-    resolveCallbackUrl.mockReturnValue("https://openclaw.test/slash");
+    resolveCallbackUrl.mockReturnValue("https://alisio.test/slash");
     listSkillCommandsForAgents.mockReturnValue([
       { name: "skill", description: "Skill run" },
       { name: "oc_ping", description: "Already prefixed" },
@@ -110,7 +110,7 @@ describe("mattermost monitor slash", () => {
     expect(registerSlashCommands.mock.calls[0]?.[0]).toMatchObject({
       teamId: "team-1",
       creatorUserId: "bot-user",
-      callbackUrl: "https://openclaw.test/slash",
+      callbackUrl: "https://alisio.test/slash",
     });
     expect(registerSlashCommands.mock.calls[0]?.[0].commands).toEqual([
       { trigger: "ping", description: "ping" },
@@ -139,14 +139,14 @@ describe("mattermost monitor slash", () => {
       }),
     );
     expect(runtime.log).toHaveBeenCalledWith(
-      "mattermost: slash commands registered (2 commands across 2 teams, callback=https://openclaw.test/slash)",
+      "mattermost: slash commands registered (2 commands across 2 teams, callback=https://alisio.test/slash)",
     );
   });
 
   it("warns on loopback callback urls and reports partial team failures", async () => {
     resolveSlashCommandConfig.mockReturnValue({ enabled: true, nativeSkills: false });
     isSlashCommandsEnabled.mockReturnValue(true);
-    parseStrictPositiveInteger.mockReturnValue(undefined);
+    resolveGatewayPort.mockReturnValue(40705);
     fetchMattermostUserTeams.mockResolvedValue([{ id: "team-1" }, { id: "team-2" }]);
     resolveCallbackUrl.mockReturnValue("http://127.0.0.1:40705/slash");
     registerSlashCommands

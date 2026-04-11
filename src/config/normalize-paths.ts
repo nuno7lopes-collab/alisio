@@ -1,6 +1,6 @@
 import path from "node:path";
 import { isPlainObject, resolveUserPath } from "../utils.js";
-import { resolveLegacyStateDirs, resolveNewStateDir } from "./paths.js";
+import { resolveAlternativeStateDirs, resolveNewStateDir } from "./paths.js";
 import type { AlisioConfig } from "./types.js";
 
 const PATH_VALUE_RE = /^~(?=$|[\\/])/;
@@ -19,7 +19,7 @@ function rewriteLegacyStateDirPrefix(value: string): string {
   }
   const resolvedValue = path.resolve(value);
   const targetDir = path.resolve(resolveNewStateDir());
-  for (const legacyDir of resolveLegacyStateDirs().map((entry) => path.resolve(entry))) {
+  for (const legacyDir of resolveAlternativeStateDirs().map((entry) => path.resolve(entry))) {
     if (legacyDir === targetDir || !isPathWithinRoot(resolvedValue, legacyDir)) {
       continue;
     }

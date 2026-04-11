@@ -21,9 +21,9 @@ afterEach(() => {
 describe("ACP install hints", () => {
   it("prefers explicit runtime install command", () => {
     const cfg = withAcpConfig({
-      runtime: { installCommand: "pnpm openclaw plugins install acpx" },
+      runtime: { installCommand: "pnpm alisio plugins install acpx" },
     });
-    expect(resolveAcpInstallCommandHint(cfg)).toBe("pnpm openclaw plugins install acpx");
+    expect(resolveAcpInstallCommandHint(cfg)).toBe("pnpm alisio plugins install acpx");
   });
 
   it("uses local acpx extension path when present", () => {
@@ -34,7 +34,7 @@ describe("ACP install hints", () => {
 
     const cfg = withAcpConfig({ backend: "acpx" });
     const hint = resolveAcpInstallCommandHint(cfg);
-    expect(hint).toBe(`openclaw plugins install ${path.join(tempRoot, "extensions", "acpx")}`);
+    expect(hint).toBe(`alisio plugins install ${path.join(tempRoot, "extensions", "acpx")}`);
   });
 
   it("falls back to scoped install hint for acpx when local extension is absent", () => {
@@ -43,7 +43,7 @@ describe("ACP install hints", () => {
     vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
 
     const cfg = withAcpConfig({ backend: "acpx" });
-    expect(resolveAcpInstallCommandHint(cfg)).toBe("openclaw plugins install acpx");
+    expect(resolveAcpInstallCommandHint(cfg)).toBe("alisio plugins install acpx");
   });
 
   it("returns generic plugin hint for non-acpx backend", () => {

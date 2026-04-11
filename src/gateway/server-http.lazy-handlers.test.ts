@@ -59,7 +59,7 @@ describe("server-http lazy handler loading", () => {
     const { AUTH_TOKEN, createTestGatewayServer, sendRequest, withGatewayTempConfig } =
       await loadHarness();
 
-    await withGatewayTempConfig("openclaw-gateway-http-lazy-", async () => {
+    await withGatewayTempConfig("alisio-gateway-http-lazy-", async () => {
       const server = createTestGatewayServer({
         resolvedAuth: AUTH_TOKEN,
         overrides: {
@@ -91,7 +91,7 @@ describe("server-http lazy handler loading", () => {
     const { AUTH_TOKEN, createTestGatewayServer, sendRequest, withGatewayTempConfig } =
       await loadHarness();
 
-    await withGatewayTempConfig("openclaw-gateway-http-models-lazy-", async () => {
+    await withGatewayTempConfig("alisio-gateway-http-models-lazy-", async () => {
       const server = createTestGatewayServer({
         resolvedAuth: AUTH_TOKEN,
         overrides: {
@@ -116,7 +116,7 @@ describe("server-http lazy handler loading", () => {
     const { AUTH_TOKEN, createTestGatewayServer, sendRequest, withGatewayTempConfig } =
       await loadHarness();
 
-    await withGatewayTempConfig("openclaw-gateway-http-route-lazy-", async () => {
+    await withGatewayTempConfig("alisio-gateway-http-route-lazy-", async () => {
       const server = createTestGatewayServer({
         resolvedAuth: AUTH_TOKEN,
         overrides: {

@@ -13,7 +13,7 @@ import { CANVAS_WS_PATH, handleA2uiHttpRequest } from "../canvas-host/a2ui.js";
 import type { CanvasHostHandler } from "../canvas-host/server.js";
 import { loadConfig } from "../config/config.js";
 import { loadAlisioModelProviderSnapshot } from "../infra/alisio-model-snapshot.js";
-import { loadAlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
+import { loadAlisioRuntimeSetupStateWithTimeout } from "../infra/alisio-runtime.js";
 import type { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveHookExternalContentSource as resolveHookExternalContentSourceFromSession } from "../security/external-content.js";
 import { safeEqualSecret } from "../security/secret-equal.js";
@@ -591,7 +591,7 @@ export function createHooksRequestHandler(
       res.statusCode = 400;
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.end(
-        "Hook token must be provided via Authorization: Bearer <token> or X-OpenClaw-Token header (query parameters are not allowed).",
+        "Hook token must be provided via Authorization: Bearer <token> or X-Alisio-Token header (query parameters are not allowed).",
       );
       return true;
     }
@@ -1083,7 +1083,7 @@ export function createGatewayHttpServer(opts: {
               trustedProxies,
               allowRealIpFallback,
               loadRuntimeSetup: () =>
-                loadAlisioRuntimeSetupState({
+                loadAlisioRuntimeSetupStateWithTimeout({
                   ...(nodeRegistry
                     ? {
                         loadAlisioModelProviderSnapshot: () =>

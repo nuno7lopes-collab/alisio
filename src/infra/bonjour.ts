@@ -2,7 +2,7 @@ import { logDebug, logWarn } from "../logger.js";
 import { getLogger } from "../logging.js";
 import { classifyCiaoUnhandledRejection } from "./bonjour-ciao.js";
 import { formatBonjourError } from "./bonjour-errors.js";
-import { isTruthyEnvValue, legacyEnvKey, readEnv } from "./env.js";
+import { isTruthyEnvValue, runtimeEnvKey, readEnv } from "./env.js";
 import { registerUnhandledRejectionHandler } from "./unhandled-rejections.js";
 
 export type GatewayBonjourAdvertiser = {
@@ -25,14 +25,13 @@ export type GatewayBonjourAdvertiseOpts = {
   minimal?: boolean;
 };
 
-const LEGACY_BRAND_NAME = ["Open", "Claw"].join("");
 const GATEWAY_SERVICE_TYPE = "alisio-gw";
 
 function isDisabledByEnv() {
   if (
     isTruthyEnvValue(
       readEnv("ALISIO_DISABLE_BONJOUR", {
-        fallback: legacyEnvKey("DISABLE_BONJOUR"),
+        fallback: runtimeEnvKey("DISABLE_BONJOUR"),
         description: "disable bonjour advertising",
       }),
     )
@@ -55,7 +54,7 @@ function safeServiceName(name: string) {
 
 function prettifyInstanceName(name: string) {
   const normalized = name.trim().replace(/\s+/g, " ");
-  const brandSuffix = new RegExp(`\\s+\\((?:${LEGACY_BRAND_NAME}|Alisio)\\)\\s*$`, "i");
+  const brandSuffix = /\s+\((?:Alisio)\)\s*$/i;
   return normalized.replace(brandSuffix, "").trim() || normalized;
 }
 
@@ -161,7 +160,7 @@ export async function startGatewayBonjourAdvertiser(
     // Keep only the first label and normalize away a trailing `.local`.
     const hostnameRaw =
       readEnv("ALISIO_MDNS_HOSTNAME", {
-        fallback: legacyEnvKey("MDNS_HOSTNAME"),
+        fallback: runtimeEnvKey("MDNS_HOSTNAME"),
         description: "bonjour hostname override",
       }) ?? "alisio";
     const hostname =

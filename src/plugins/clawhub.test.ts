@@ -146,7 +146,7 @@ describe("installPluginFromClawHub", () => {
     installPluginFromArchiveMock.mockResolvedValue({
       ok: true,
       pluginId: "demo",
-      targetDir: "/tmp/openclaw/plugins/demo",
+      targetDir: "/tmp/alisio/plugins/demo",
       version: "2026.3.22",
     });
   });
@@ -229,7 +229,7 @@ describe("installPluginFromClawHub", () => {
       expected: {
         ok: false,
         code: CLAWHUB_INSTALL_ERROR_CODE.SKILL_PACKAGE,
-        error: '"calendar" is a skill. Use "openclaw skills install calendar" instead.',
+        error: '"calendar" is a skill. Use "alisio skills install calendar" instead.',
       },
     },
     {

@@ -24,6 +24,10 @@ export const modelsHandlers: GatewayRequestHandlers = {
     }
     try {
       const catalog = await context.loadGatewayModelCatalog();
+      if (params?.scope === "all") {
+        respond(true, { models: catalog }, undefined);
+        return;
+      }
       const cfg = loadConfig();
       const { allowedCatalog } = buildAllowedModelSet({
         cfg,

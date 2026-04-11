@@ -15,9 +15,9 @@ explicitly needs them.
 
 - Default mode is focused: only `telegram`, `whatsapp`, and `discord` show up
   in product-facing setup/status/catalog flows.
-- Set `OPENCLAW_CHANNEL_SURFACE=all` to expose the broader built-in channel
+- Set `ALISIO_CHANNEL_SURFACE=all` to expose the broader built-in channel
   surface again.
-- `OPENCLAW_EXPERIMENTAL_CHANNELS=1` is kept as a legacy alias for the broader
+- `ALISIO_EXPERIMENTAL_CHANNELS=1` is kept as a legacy alias for the broader
   surface.
 
 ## Hardening Expectations
@@ -35,7 +35,7 @@ explicitly needs them.
   `botToken` / `tokenFile`.
 - Discord: use `DISCORD_BOT_TOKEN` for the default account or a per-account
   token in config.
-- WhatsApp: no env var is required; link with `openclaw channels login`.
+- WhatsApp: no env var is required; link with `alisio channels login`.
 
 Every missing-config or startup failure message should tell the operator what
 to set or which command to run next.

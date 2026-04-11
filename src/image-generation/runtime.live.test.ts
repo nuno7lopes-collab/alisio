@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveOpenClawAgentDir } from "../agents/agent-paths.js";
+import { resolveAlisioAgentDir } from "../agents/agent-paths.js";
 import { collectProviderApiKeys } from "../agents/live-auth-keys.js";
 import { isLiveTestEnabled } from "../agents/live-test-helpers.js";
 import { resolveApiKeyForProvider } from "../agents/model-auth.js";
@@ -24,7 +24,7 @@ import {
 import { generateImage } from "./runtime.js";
 
 const LIVE = isLiveTestEnabled();
-const REQUIRE_PROFILE_KEYS = isTruthyEnvValue(process.env.OPENCLAW_LIVE_REQUIRE_PROFILE_KEYS);
+const REQUIRE_PROFILE_KEYS = isTruthyEnvValue(process.env.ALISIO_LIVE_REQUIRE_PROFILE_KEYS);
 const describeLive = LIVE ? describe : describe.skip;
 
 type LiveImageCase = {
@@ -113,10 +113,10 @@ async function resolveLiveAuthForProvider(
 describeLive("image generation live (provider sweep)", () => {
   it("generates images for every configured image-generation variant with available auth", async () => {
     const cfg = withPluginsEnabled(loadConfig());
-    const agentDir = resolveOpenClawAgentDir();
-    const providerFilter = parseCsvFilter(process.env.OPENCLAW_LIVE_IMAGE_GENERATION_PROVIDERS);
-    const caseFilter = parseCaseFilter(process.env.OPENCLAW_LIVE_IMAGE_GENERATION_CASES);
-    const envModelMap = parseProviderModelMap(process.env.OPENCLAW_LIVE_IMAGE_GENERATION_MODELS);
+    const agentDir = resolveAlisioAgentDir();
+    const providerFilter = parseCsvFilter(process.env.ALISIO_LIVE_IMAGE_GENERATION_PROVIDERS);
+    const caseFilter = parseCaseFilter(process.env.ALISIO_LIVE_IMAGE_GENERATION_CASES);
+    const envModelMap = parseProviderModelMap(process.env.ALISIO_LIVE_IMAGE_GENERATION_MODELS);
     const configuredModels = resolveConfiguredLiveImageModels(cfg);
     const availableProviders = imageGenerationProviderContractRegistry
       .map((entry) => entry.provider.id)

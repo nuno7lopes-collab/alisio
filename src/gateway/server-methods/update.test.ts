@@ -33,7 +33,7 @@ vi.mock("../../config/sessions.js", () => ({
 }));
 
 vi.mock("../../infra/alisio-root.js", () => ({
-  resolveAlisioPackageRoot: async () => "/tmp/openclaw",
+  resolveAlisioPackageRoot: async () => "/tmp/alisio",
 }));
 
 vi.mock("../../infra/restart-sentinel.js", async (importOriginal) => {

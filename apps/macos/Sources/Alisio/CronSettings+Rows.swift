@@ -37,7 +37,7 @@ extension CronSettings {
         Button("Run now") { Task { await self.store.runJob(id: job.id, force: true) } }
         if let transcriptSessionKey = job.transcriptSessionKey {
             Button("Open transcript") {
-                LumeWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
+                AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
             }
         }
         Divider()
@@ -78,7 +78,7 @@ extension CronSettings {
                     .buttonStyle(.borderedProminent)
                 if let transcriptSessionKey = job.transcriptSessionKey {
                     Button("Transcript") {
-                        LumeWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
+                        AlisioWorkspaceManager.shared.show(sessionKey: transcriptSessionKey)
                     }
                     .buttonStyle(.bordered)
                 }

@@ -14,9 +14,9 @@ function Get-AppName { return "Alisio" }
 function Get-AppSlug { return "alisio" }
 function Get-StateDirName { return ".alisio" }
 function Get-ConfigFileName { return "alisio.json" }
-function Get-LegacySlug { return ("open" + "claw") }
-function Get-LegacyTitle { return ("Open" + "Claw") }
-function Get-LegacyEnvPrefix { return ("OPEN" + "CLAW") }
+function Get-LegacySlug { return (Get-AppSlug) }
+function Get-LegacyTitle { return (Get-AppName) }
+function Get-LegacyEnvPrefix { return "ALISIO" }
 function Get-LegacyEnvName([string]$Suffix) { return "$(Get-LegacyEnvPrefix)_$Suffix" }
 function Get-PublicRepoNwo {
     $slug = Get-AppSlug

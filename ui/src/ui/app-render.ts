@@ -16,20 +16,30 @@ import {
   rememberAlisioConnectorOAuthReturnTo,
   rememberPendingAlisioConnectorChatResume,
 } from "./alisio-connector-oauth.ts";
+import {
+  loadNativeShellState,
+  openExternal,
+  openNativeSettings,
+  rebuildAppFromCheckout,
+  requestNativePermission,
+  revealLogs,
+  setLaunchAtLogin,
+  setVoiceWake,
+} from "./alisio-host.ts";
 import { alisioBootstrapBlocksChatAccess } from "./alisio-setup-state.ts";
 import { refreshChatAvatar } from "./app-chat.ts";
 import {
   resolveEffectiveAlisioAiState,
+  renderChatDesktopToolbar,
   renderChatMobileToggle,
   resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
   renderTab,
-  setActiveChatModel,
   setDefaultChatModel,
   switchChatSession,
 } from "./app-render.helpers.ts";
 import type { AppViewState } from "./app-view-state.ts";
-import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
+import { buildChatModelOptions, resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import {
   loadAgentMemoryFiles,
   loadAgentMemoryFileContent,
@@ -56,17 +66,16 @@ import {
   renameAlisioAiProfile,
   refreshAlisioAi,
   refreshAlisioAiProfile,
-  requestAlisioSharedDeviceAccess,
   requestAlisioRecoveryEmail,
+  requestAlisioSharedDeviceAccess,
+  rebuildAlisioApp,
   restartAlisioRuntime,
   revokeAlisioConnector,
   revokeAlisioSharedDeviceGrant,
   saveAlisioAccount,
   selectAlisioAiProfile,
   saveAlisioSharingPolicy,
-  signInAlisioAccountWithPassword,
   signOutAlisioAccount,
-  signUpAlisioAccountWithPassword,
   saveAlisioOrganization,
   startAlisioSetupWizard,
   uninstallAlisioModel,
@@ -141,15 +150,6 @@ import {
   updateSkillEnabled,
 } from "./controllers/skills.ts";
 import { icons } from "./icons.ts";
-import {
-  loadNativeShellState,
-  openExternal,
-  openNativeSettings,
-  requestNativePermission,
-  revealLogs,
-  setLaunchAtLogin,
-  setVoiceWake,
-} from "./lume-host.ts";
 import "./components/dashboard-header.ts";
 import {
   buildMemoryNoteName,
@@ -761,21 +761,6 @@ export function renderApp(state: AppViewState) {
     onBeginEmailAuth: () => {
       void beginAlisioAccountEmailAuth(state);
     },
-    onRequestRecoveryEmail: () => {
-      void requestAlisioRecoveryEmail(state);
-    },
-    onSignInWithPassword: (password) => {
-      void signInAlisioAccountWithPassword(state, {
-        email: state.alisioAuthEmail,
-        password,
-      });
-    },
-    onSignUpWithPassword: (password) => {
-      void signUpAlisioAccountWithPassword(state, {
-        email: state.alisioAuthEmail,
-        password,
-      });
-    },
     onVerifyEmailAuth: () => {
       void verifyAlisioAccountEmailAuth(state);
     },
@@ -850,12 +835,17 @@ export function renderApp(state: AppViewState) {
       configForm: state.configForm ?? state.configSnapshot?.config ?? null,
       execApprovalsForm: state.execApprovalsForm ?? state.execApprovalsSnapshot?.file ?? null,
     });
-  const chatModelSelectState = resolveChatModelSelectState(state);
-  const effectiveChatModelValue =
-    chatModelSelectState.currentOverride || chatModelSelectState.defaultModel;
-  const effectiveChatModelLabel =
-    chatModelSelectState.options.find((entry) => entry.value === effectiveChatModelValue)?.label ??
-    chatModelSelectState.defaultDisplay;
+  const managementModelCatalog =
+    state.modelManagementCatalog.length > 0 ? state.modelManagementCatalog : state.chatModelCatalog;
+  const modelsPageModelSelectState = resolveChatModelSelectState({
+    sessionKey: state.sessionKey,
+    chatModelOverrides: state.chatModelOverrides,
+    chatModelCatalog: managementModelCatalog,
+    sessionsResult: state.sessionsResult,
+  });
+  const modelsPageModelOptions = buildChatModelOptions(managementModelCatalog, [
+    modelsPageModelSelectState.defaultModel,
+  ]);
   const isChat = activeTab === "chat";
   const chatFocus = isChat && state.settings.chatFocusMode;
   const navDrawerOpen = Boolean(state.navDrawerOpen && !chatFocus);
@@ -1680,167 +1670,172 @@ export function renderApp(state: AppViewState) {
             })
           : nothing}
         ${activeTab === "chat"
-          ? renderChat({
-              sessionKey: state.sessionKey,
-              onSessionKeyChange: (next) => {
-                state.sessionKey = next;
-                state.chatMessage = "";
-                state.chatAttachments = [];
-                state.chatStream = null;
-                state.chatStreamStartedAt = null;
-                state.chatRunId = null;
-                state.chatFinalizing = false;
-                state.chatQueue = [];
-                state.resetToolStream();
-                state.resetChatScroll();
-                state.applySettings({
-                  ...state.settings,
-                  sessionKey: next,
-                  lastActiveSessionKey: next,
-                });
-                void state.loadAssistantIdentity();
-                void loadChatHistory(state);
-                void refreshChatAvatar(state);
-              },
-              thinkingLevel: state.chatThinkingLevel,
-              showThinking,
-              showToolCalls,
-              loading: state.chatLoading,
-              sending: state.chatSending,
-              finalizing: state.chatFinalizing,
-              compactionStatus: state.compactionStatus,
-              fallbackStatus: state.fallbackStatus,
-              assistantAvatarUrl: chatAvatarUrl,
-              messages: state.chatMessages,
-              toolMessages: state.chatToolMessages,
-              streamSegments: state.chatStreamSegments,
-              stream: state.chatStream,
-              streamStartedAt: state.chatStreamStartedAt,
-              draft: state.chatMessage,
-              queue: state.chatQueue,
-              connected: state.connected,
-              canSend: state.connected,
-              accessMode: state.gatewayAccessMode,
-              accessModeLoading: state.gatewayAccessModeLoading,
-              accessModeBusy: state.gatewayAccessModeBusy,
-              disabledReason: chatDisabledReason,
-              error: state.lastError,
-              runtimeSetupHint: chatRuntimeSetupHint,
-              sessions: state.sessionsResult,
-              focusMode: chatFocus,
-              onRefresh: () => {
-                return Promise.all([
-                  loadChatHistory(state, {
-                    preserveEphemeral: Boolean(state.chatRunId || state.chatFinalizing),
-                  }),
-                  refreshChatAvatar(state),
-                  loadGatewayAccessMode(state),
-                  loadNativeShellState(state),
-                ]);
-              },
-              onToggleFocusMode: () => {
-                state.applySettings({
-                  ...state.settings,
-                  chatFocusMode: !state.settings.chatFocusMode,
-                });
-              },
-              onApplyAccessMode: (mode) => {
-                void applyGatewayAccessMode(state, mode);
-              },
-              onChatScroll: (event) => state.handleChatScroll(event),
-              getDraft: () => state.chatMessage,
-              onDraftChange: (next) => (state.chatMessage = next),
-              onOpenRuntimeSetup: () => {
-                state.setupStep = state.alisioBootstrap?.nextStep ?? "runtime";
-                state.setTab("setup" as import("./navigation.ts").Tab);
-              },
-              onBeginConnector: (connectorId) => {
-                beginConnectorFlow(state, connectorId, { resumeChatIntent: true });
-              },
-              onRequestUpdate: requestHostUpdate,
-              securityDiagnostics: chatSecurityDiagnostics,
-              approvalQueue: state.execApprovalQueue,
-              approvalAuditTrail: state.execApprovalAuditTrail,
-              approvalBusy: state.execApprovalBusy,
-              nativeShellLoading: state.nativeShellLoading,
-              nativeShellError: state.nativeShellError,
-              nativeShellState: state.nativeShellState,
-              attachments: state.chatAttachments,
-              onAttachmentsChange: (next) => (state.chatAttachments = next),
-              onSend: () => state.handleSendChat(),
-              canAbort: Boolean(state.chatRunId),
-              onAbort: () => void state.handleAbortChat(),
-              onResolveApproval: (entry, decision) => {
-                void resolveApprovalDecision(entry, decision);
-              },
-              onOpenAdvancedSecurity: () => {
-                state.setTab("security");
-              },
-              onOpenNativeSettings:
-                state.nativeShellState || state.nativeShellLoading || state.nativeShellError
-                  ? () => {
-                      void openNativeSettings();
-                    }
-                  : undefined,
-              onQueueRemove: (id) => state.removeQueuedMessage(id),
-              onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
-              onClearHistory: async () => {
-                if (!state.client || !state.connected) {
-                  return;
-                }
-                try {
-                  await state.client.request("sessions.reset", { key: state.sessionKey });
-                  state.chatMessages = [];
-                  state.chatStream = null;
-                  state.chatRunId = null;
-                  state.chatFinalizing = false;
-                  await loadChatHistory(state);
-                } catch (err) {
-                  state.lastError = String(err);
-                }
-              },
-              agentsList: state.agentsList,
-              currentAgentId: resolvedAgentId ?? "main",
-              onAgentChange: (agentId: string) => {
-                state.sessionKey = buildAgentMainSessionKey({ agentId });
-                state.chatMessages = [];
-                state.chatAttachments = [];
-                state.chatStream = null;
-                state.chatRunId = null;
-                state.chatFinalizing = false;
-                state.chatQueue = [];
-                state.chatStreamStartedAt = null;
-                state.resetToolStream();
-                state.applySettings({
-                  ...state.settings,
+          ? html`
+              <section class="alisio-chat-shell">
+                ${renderChatDesktopToolbar(state)}
+                ${renderChat({
                   sessionKey: state.sessionKey,
-                  lastActiveSessionKey: state.sessionKey,
-                });
-                void loadChatHistory(state);
-                void state.loadAssistantIdentity();
-              },
-              onNavigateToAgent: () => {
-                state.settingsSection = "account";
-                state.setTab("settings" as import("./navigation.ts").Tab);
-              },
-              onSessionSelect: (key: string) => {
-                switchChatSession(state, key);
-              },
-              showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
-              onScrollToBottom: () => state.scrollToBottom(),
-              // Sidebar props for tool output viewing
-              sidebarOpen: state.sidebarOpen,
-              sidebarContent: state.sidebarContent,
-              sidebarError: state.sidebarError,
-              splitRatio: state.splitRatio,
-              onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
-              onCloseSidebar: () => state.handleCloseSidebar(),
-              onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
-              assistantName: state.assistantName,
-              assistantAvatar: state.assistantAvatar,
-              assistantAgentId: state.assistantAgentId,
-              basePath: state.basePath ?? "",
-            })
+                  onSessionKeyChange: (next) => {
+                    state.sessionKey = next;
+                    state.chatMessage = "";
+                    state.chatAttachments = [];
+                    state.chatStream = null;
+                    state.chatStreamStartedAt = null;
+                    state.chatRunId = null;
+                    state.chatFinalizing = false;
+                    state.chatQueue = [];
+                    state.resetToolStream();
+                    state.resetChatScroll();
+                    state.applySettings({
+                      ...state.settings,
+                      sessionKey: next,
+                      lastActiveSessionKey: next,
+                    });
+                    void state.loadAssistantIdentity();
+                    void loadChatHistory(state);
+                    void refreshChatAvatar(state);
+                  },
+                  thinkingLevel: state.chatThinkingLevel,
+                  showThinking,
+                  showToolCalls,
+                  loading: state.chatLoading,
+                  sending: state.chatSending,
+                  finalizing: state.chatFinalizing,
+                  compactionStatus: state.compactionStatus,
+                  fallbackStatus: state.fallbackStatus,
+                  assistantAvatarUrl: chatAvatarUrl,
+                  messages: state.chatMessages,
+                  toolMessages: state.chatToolMessages,
+                  streamSegments: state.chatStreamSegments,
+                  stream: state.chatStream,
+                  streamStartedAt: state.chatStreamStartedAt,
+                  draft: state.chatMessage,
+                  queue: state.chatQueue,
+                  connected: state.connected,
+                  canSend: state.connected,
+                  accessMode: state.gatewayAccessMode,
+                  accessModeLoading: state.gatewayAccessModeLoading,
+                  accessModeBusy: state.gatewayAccessModeBusy,
+                  disabledReason: chatDisabledReason,
+                  error: state.lastError,
+                  runtimeSetupHint: chatRuntimeSetupHint,
+                  sessions: state.sessionsResult,
+                  focusMode: chatFocus,
+                  onRefresh: () => {
+                    return Promise.all([
+                      loadChatHistory(state, {
+                        preserveEphemeral: Boolean(state.chatRunId || state.chatFinalizing),
+                      }),
+                      refreshChatAvatar(state),
+                      loadGatewayAccessMode(state),
+                      loadNativeShellState(state),
+                    ]);
+                  },
+                  onToggleFocusMode: () => {
+                    state.applySettings({
+                      ...state.settings,
+                      chatFocusMode: !state.settings.chatFocusMode,
+                    });
+                  },
+                  onApplyAccessMode: (mode) => {
+                    void applyGatewayAccessMode(state, mode);
+                  },
+                  onChatScroll: (event) => state.handleChatScroll(event),
+                  getDraft: () => state.chatMessage,
+                  onDraftChange: (next) => (state.chatMessage = next),
+                  onOpenRuntimeSetup: () => {
+                    state.setupStep = state.alisioBootstrap?.nextStep ?? "runtime";
+                    state.setTab("setup" as import("./navigation.ts").Tab);
+                  },
+                  onBeginConnector: (connectorId) => {
+                    beginConnectorFlow(state, connectorId, { resumeChatIntent: true });
+                  },
+                  onRequestUpdate: requestHostUpdate,
+                  securityDiagnostics: chatSecurityDiagnostics,
+                  approvalQueue: state.execApprovalQueue,
+                  approvalAuditTrail: state.execApprovalAuditTrail,
+                  approvalBusy: state.execApprovalBusy,
+                  nativeShellLoading: state.nativeShellLoading,
+                  nativeShellError: state.nativeShellError,
+                  nativeShellState: state.nativeShellState,
+                  attachments: state.chatAttachments,
+                  onAttachmentsChange: (next) => (state.chatAttachments = next),
+                  onSend: () => state.handleSendChat(),
+                  canAbort: Boolean(state.chatRunId),
+                  onAbort: () => void state.handleAbortChat(),
+                  onResolveApproval: (entry, decision) => {
+                    void resolveApprovalDecision(entry, decision);
+                  },
+                  onOpenAdvancedSecurity: () => {
+                    state.setTab("security");
+                  },
+                  onOpenNativeSettings:
+                    state.nativeShellState || state.nativeShellLoading || state.nativeShellError
+                      ? () => {
+                          void openNativeSettings();
+                        }
+                      : undefined,
+                  onQueueRemove: (id) => state.removeQueuedMessage(id),
+                  onNewSession: () => state.handleSendChat("/new", { restoreDraft: true }),
+                  onClearHistory: async () => {
+                    if (!state.client || !state.connected) {
+                      return;
+                    }
+                    try {
+                      await state.client.request("sessions.reset", { key: state.sessionKey });
+                      state.chatMessages = [];
+                      state.chatStream = null;
+                      state.chatRunId = null;
+                      state.chatFinalizing = false;
+                      await loadChatHistory(state);
+                    } catch (err) {
+                      state.lastError = String(err);
+                    }
+                  },
+                  agentsList: state.agentsList,
+                  currentAgentId: resolvedAgentId ?? "main",
+                  onAgentChange: (agentId: string) => {
+                    state.sessionKey = buildAgentMainSessionKey({ agentId });
+                    state.chatMessages = [];
+                    state.chatAttachments = [];
+                    state.chatStream = null;
+                    state.chatRunId = null;
+                    state.chatFinalizing = false;
+                    state.chatQueue = [];
+                    state.chatStreamStartedAt = null;
+                    state.resetToolStream();
+                    state.applySettings({
+                      ...state.settings,
+                      sessionKey: state.sessionKey,
+                      lastActiveSessionKey: state.sessionKey,
+                    });
+                    void loadChatHistory(state);
+                    void state.loadAssistantIdentity();
+                  },
+                  onNavigateToAgent: () => {
+                    state.settingsSection = "account";
+                    state.setTab("settings" as import("./navigation.ts").Tab);
+                  },
+                  onSessionSelect: (key: string) => {
+                    switchChatSession(state, key);
+                  },
+                  showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
+                  onScrollToBottom: () => state.scrollToBottom(),
+                  // Sidebar props for tool output viewing
+                  sidebarOpen: state.sidebarOpen,
+                  sidebarContent: state.sidebarContent,
+                  sidebarError: state.sidebarError,
+                  splitRatio: state.splitRatio,
+                  onOpenSidebar: (content: string) => state.handleOpenSidebar(content),
+                  onCloseSidebar: () => state.handleCloseSidebar(),
+                  onSplitRatioChange: (ratio: number) => state.handleSplitRatioChange(ratio),
+                  assistantName: state.assistantName,
+                  assistantAvatar: state.assistantAvatar,
+                  assistantAgentId: state.assistantAgentId,
+                  basePath: state.basePath ?? "",
+                })}
+              </section>
+            `
           : nothing}
         ${activeTab === "memory"
           ? renderMemoryHub({
@@ -2079,19 +2074,13 @@ export function renderApp(state: AppViewState) {
               onRenameAiProfile: (profileId, label) => {
                 void renameAlisioAiProfile(state, profileId, label);
               },
-              chatModelOptions: chatModelSelectState.options,
-              currentChatModelOverrideValue: chatModelSelectState.currentOverride,
-              defaultChatModelValue: chatModelSelectState.defaultModel,
-              defaultChatModelDisplay: chatModelSelectState.defaultDisplay,
-              defaultChatModelLabel: chatModelSelectState.defaultLabel,
-              effectiveChatModelValue,
-              effectiveChatModelLabel,
-              modelPickerBusy: state.chatModelsLoading || state.sessionsLoading,
+              modelOptions: modelsPageModelOptions,
+              defaultChatModelValue: modelsPageModelSelectState.defaultModel,
+              defaultChatModelDisplay: modelsPageModelSelectState.defaultDisplay,
+              defaultChatModelLabel: modelsPageModelSelectState.defaultLabel,
+              modelPickerBusy: state.modelManagementLoading || state.sessionsLoading,
               onSelectDefaultChatModel: (modelValue) => {
                 void setDefaultChatModel(state, modelValue);
-              },
-              onSelectChatModel: (modelValue) => {
-                void setActiveChatModel(state, modelValue);
               },
               onInstallModel: (targetId, modelId) => {
                 const target = state.alisioModels?.targets.find(
@@ -2224,6 +2213,38 @@ export function renderApp(state: AppViewState) {
                 void restartAlisioRuntime(state).catch(() => {
                   state.connect();
                 });
+              },
+              nativeRebuildAvailable:
+                Boolean(state.nativeShellState?.developerCheckoutAvailable) ||
+                Boolean(window.__ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__?.trim()),
+              nativeRebuildInFlight: state.nativeRebuildInFlight,
+              nativeRebuildStatus: state.nativeRebuildStatus,
+              nativeRebuildError: state.nativeRebuildError,
+              onRebuildNativeApp: () => {
+                state.nativeRebuildInFlight = true;
+                state.nativeRebuildStatus = null;
+                state.nativeRebuildError = null;
+                const rebuildPromise =
+                  state.client && state.connected
+                    ? rebuildAlisioApp(state).then((result) => {
+                        if (!result) {
+                          throw new Error(t("alisio.settings.doctor.rebuildUnavailable"));
+                        }
+                        state.nativeRebuildStatus = result.message;
+                      })
+                    : state.nativeShellState?.developerCheckoutAvailable
+                      ? rebuildAppFromCheckout().then(() => {
+                          state.nativeRebuildStatus = t("alisio.settings.doctor.rebuildStarted");
+                        })
+                      : Promise.reject(new Error(t("alisio.settings.doctor.rebuildUnavailable")));
+                void rebuildPromise
+                  .catch((error) => {
+                    state.nativeRebuildError =
+                      error instanceof Error ? error.message : String(error);
+                  })
+                  .finally(() => {
+                    state.nativeRebuildInFlight = false;
+                  });
               },
             })
           : nothing}

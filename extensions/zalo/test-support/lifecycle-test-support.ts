@@ -1,5 +1,5 @@
 import { request as httpRequest } from "node:http";
-import type { OpenClawConfig, PluginRuntime } from "alisio/plugin-sdk/zalo";
+import type { AlisioConfig, PluginRuntime } from "alisio/plugin-sdk/zalo";
 import { expect, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../test/helpers/plugins/plugin-runtime-mock.js";
 import type { ResolvedZaloAccount } from "../src/types.js";
@@ -10,7 +10,7 @@ export function createLifecycleConfig(params: {
   allowFrom?: string[];
   webhookUrl?: string;
   webhookSecret?: string;
-}): OpenClawConfig {
+}): AlisioConfig {
   const webhookUrl = params.webhookUrl ?? "https://example.com/hooks/zalo";
   const webhookSecret = params.webhookSecret ?? "supersecret";
   return {
@@ -28,7 +28,7 @@ export function createLifecycleConfig(params: {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 export function createLifecycleAccount(params: {

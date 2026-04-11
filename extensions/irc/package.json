@@ -1,9 +1,9 @@
 {
-  "name": "@openclaw/irc",
+  "name": "@alisio/irc",
   "version": "2026.3.30",
-  "description": "OpenClaw IRC channel plugin",
+  "description": "Alisio IRC channel plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],

@@ -1,5 +1,5 @@
 import { summarizeAlisioConnectorUiStatuses } from "../../../../src/shared/alisio-connector-status.js";
-import { isAlisioManagedProvider } from "../../../../src/shared/alisio-remote-model-provider.js";
+import { isAlisioManagedProvider } from "../../../../src/shared/alisio-dynamic-provider.js";
 import { resolveAlisioAccountEmailRedirectUrl } from "../alisio-account-auth.ts";
 import {
   alisioBootstrapBlocksChatAccess,
@@ -11,6 +11,7 @@ import { loadOrCreateDeviceIdentity } from "../device-identity.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import {
   makeModelsOperationKey,
+  type ModelProviderId,
   type ModelsOperation,
   type ModelsOperationMap,
 } from "../models-view-types.ts";
@@ -19,7 +20,6 @@ import type {
   AlisioAiState,
   AlisioBootstrapState,
   AlisioModelsInstallResult,
-  AlisioModelsRuntimeStartResult,
   AlisioModelsUninstallResult,
   AlisioModelsState,
   AlisioConnectorsBeginResult,
@@ -41,6 +41,7 @@ import type {
   WizardStep,
 } from "../types.ts";
 import { generateUUID } from "../uuid.ts";
+import { loadModelCatalogPair } from "./models.ts";
 
 export type AlisioState = {
   client: GatewayBrowserClient | null;
@@ -71,8 +72,10 @@ export type AlisioState = {
   alisioModelOperations: ModelsOperationMap;
   chatModelCatalog?: ModelCatalogEntry[];
   chatModelsLoading?: boolean;
+  modelManagementCatalog?: ModelCatalogEntry[];
+  modelManagementLoading?: boolean;
   modelsExpandedProfileId?: string | null;
-  modelsSelectedProviderId?: "openai" | "nodes" | "local" | null;
+  modelsSelectedProviderId?: ModelProviderId | null;
   alisioAccountLoading: boolean;
   alisioAccountError: string | null;
   alisioAccountNotice: string | null;
@@ -192,18 +195,41 @@ function syncModelOperationsWithSnapshot(state: AlisioState, models: AlisioModel
   state.alisioModelOperations = nextEntries.length > 0 ? Object.fromEntries(nextEntries) : {};
 }
 
-async function refreshChatModelCatalog(state: AlisioState) {
-  if (!state.client || !state.connected || !("chatModelCatalog" in state)) {
+async function refreshModelCatalogs(state: AlisioState) {
+  if (!state.client || !state.connected) {
     return;
   }
-  state.chatModelsLoading = true;
+  const refreshChatCatalog = "chatModelCatalog" in state;
+  const refreshManagementCatalog = "modelManagementCatalog" in state;
+  if (!refreshChatCatalog && !refreshManagementCatalog) {
+    return;
+  }
+  if (refreshChatCatalog) {
+    state.chatModelsLoading = true;
+  }
+  if (refreshManagementCatalog) {
+    state.modelManagementLoading = true;
+  }
   try {
-    const result = await state.client.request<{ models: ModelCatalogEntry[] }>("models.list", {});
-    state.chatModelCatalog = result?.models ?? [];
+    const pair = await loadModelCatalogPair(state.client);
+    if (!pair) {
+      return;
+    }
+    if (refreshChatCatalog) {
+      state.chatModelCatalog = pair.chatCatalog;
+    }
+    if (refreshManagementCatalog) {
+      state.modelManagementCatalog = pair.managementCatalog;
+    }
   } catch {
     // Keep the existing picker state when this secondary refresh fails.
   } finally {
-    state.chatModelsLoading = false;
+    if (refreshChatCatalog) {
+      state.chatModelsLoading = false;
+    }
+    if (refreshManagementCatalog) {
+      state.modelManagementLoading = false;
+    }
   }
 }
 
@@ -545,7 +571,13 @@ function resetSignedOutAccountState(state: AlisioState) {
       (entry) => !isAlisioManagedProvider(entry.provider),
     );
   }
+  if (Array.isArray(state.modelManagementCatalog)) {
+    state.modelManagementCatalog = state.modelManagementCatalog.filter(
+      (entry) => !isAlisioManagedProvider(entry.provider),
+    );
+  }
   state.chatModelsLoading = false;
+  state.modelManagementLoading = false;
   syncOrganizationDraftState(state, null, { resetWhenNone: true });
   state.alisioConnectorCatalog = [];
   state.alisioConnectorAuthorizations = [];
@@ -723,7 +755,7 @@ export async function loadAlisioModels(state: AlisioState) {
     }
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshChatModelCatalog(state);
+    await refreshModelCatalogs(state);
   } catch (error) {
     if (!isTrackedRequestCurrent(state, modelsRequests, request)) {
       return;
@@ -769,7 +801,7 @@ export async function installAlisioModel(
     const result = await state.client.request<AlisioModelsState>("alisio.models.get", {});
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshChatModelCatalog(state);
+    await refreshModelCatalogs(state);
   } catch (error) {
     clearModelOperation(state, params.targetId, params.modelId);
     state.alisioModelsError = String(error);
@@ -804,7 +836,7 @@ export async function uninstallAlisioModel(
     const result = await state.client.request<AlisioModelsState>("alisio.models.get", {});
     state.alisioModels = result;
     syncModelOperationsWithSnapshot(state, result);
-    await refreshChatModelCatalog(state);
+    await refreshModelCatalogs(state);
   } catch (error) {
     clearModelOperation(state, params.targetId, params.modelId);
     state.alisioModelsError = String(error);
@@ -826,32 +858,6 @@ export function applyAlisioModelOperation(
     ...operation,
     updatedAt: Date.now(),
   });
-}
-
-export async function startAlisioModelsRuntimeServer(
-  state: AlisioState,
-  params: {
-    targetId: string;
-  },
-) {
-  if (!state.client || !state.connected || state.alisioModelsLoading) {
-    return;
-  }
-  state.alisioModelsLoading = true;
-  state.alisioModelsError = null;
-  try {
-    await state.client.request<AlisioModelsRuntimeStartResult>(
-      "alisio.models.runtime.start",
-      params,
-    );
-    state.alisioModels = await state.client.request<AlisioModelsState>("alisio.models.get", {});
-    syncModelOperationsWithSnapshot(state, state.alisioModels);
-    await refreshChatModelCatalog(state);
-  } catch (error) {
-    state.alisioModelsError = String(error);
-  } finally {
-    state.alisioModelsLoading = false;
-  }
 }
 
 export async function loadAlisioAccount(state: AlisioState) {
@@ -889,7 +895,7 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (state.alisioAccount?.cloud?.available === false) {
+  if (state.alisioAccount?.cloud?.available !== true) {
     showAlisioCloudBackendUnavailableError(state);
     return;
   }
@@ -928,10 +934,7 @@ export async function beginAlisioAccountEmailAuth(state: AlisioState) {
         .catch(() => null);
       if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
         applyAccountSnapshot(state, account);
-        const cloudAvailable = state.alisioAccount
-          ? Boolean(state.alisioAccount.cloud.available)
-          : undefined;
-        if (cloudAvailable === false) {
+        if (!state.alisioAccount?.cloud?.available) {
           showAlisioCloudBackendUnavailableError(state);
           return;
         }
@@ -1052,7 +1055,7 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (state.alisioAccount?.cloud?.available === false) {
+  if (state.alisioAccount?.cloud?.available !== true) {
     showAlisioCloudBackendUnavailableError(state);
     return null;
   }
@@ -1077,10 +1080,7 @@ export async function beginAlisioAccountGoogleAuth(state: AlisioState, callbackU
         .catch(() => null);
       if (account && isTrackedRequestCurrent(state, accountRequests, request)) {
         applyAccountSnapshot(state, account);
-        const cloudAvailable = state.alisioAccount
-          ? Boolean(state.alisioAccount.cloud.available)
-          : undefined;
-        if (cloudAvailable === false) {
+        if (!state.alisioAccount?.cloud?.available) {
           showAlisioCloudBackendUnavailableError(state);
           return null;
         }
@@ -1209,7 +1209,7 @@ async function authenticateAlisioAccountWithPassword(
   if (!state.alisioAccount && !state.alisioAccountLoading) {
     await loadAlisioAccount(state);
   }
-  if (state.alisioAccount?.cloud?.available === false) {
+  if (state.alisioAccount?.cloud?.available !== true) {
     showAlisioCloudBackendUnavailableError(state);
     return;
   }
@@ -1806,12 +1806,9 @@ export async function loadAlisioConnectors(state: AlisioState, opts?: { force?: 
   state.alisioConnectorsError = null;
   try {
     const [catalog, authorizations] = await Promise.all([
-      request.client.request<{ connectors: AlisioConnectorDefinition[] }>(
-        "alisio.connectors.catalog",
-        {},
-      ),
+      request.client.request<{ connectors: AlisioConnectorDefinition[] }>("connectors.catalog", {}),
       request.client.request<{ authorizations: AlisioConnectorAuthorization[] }>(
-        "alisio.connectors.list",
+        "connectors.list",
         {},
       ),
     ]);
@@ -1838,7 +1835,7 @@ export async function revokeAlisioConnector(state: AlisioState, connectorId: str
   if (!state.client || !state.connected) {
     return;
   }
-  await state.client.request("alisio.connectors.revoke", { connectorId });
+  await state.client.request("connectors.revoke", { connectorId });
   await Promise.allSettled([
     loadAlisioProviderOverview(state, { force: true }),
     loadAlisioConnectors(state, { force: true }),
@@ -1853,7 +1850,7 @@ export async function beginAlisioConnector(
   if (!state.client || !state.connected) {
     return null;
   }
-  return state.client.request("alisio.connectors.begin", { connectorId });
+  return state.client.request("connectors.begin", { connectorId });
 }
 
 export async function startAlisioSetupWizard(
@@ -1931,4 +1928,14 @@ export async function restartAlisioRuntime(state: AlisioState) {
     return;
   }
   await state.client.request("alisio.runtime.restart", {});
+}
+
+export async function rebuildAlisioApp(state: AlisioState) {
+  if (!state.client || !state.connected) {
+    return null;
+  }
+  return await state.client.request<{ ok: true; message: string; logPath?: string }>(
+    "alisio.app.rebuild",
+    {},
+  );
 }

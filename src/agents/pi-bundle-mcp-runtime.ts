@@ -30,7 +30,7 @@ type BundleMcpSession = {
 type LoadedMcpConfig = ReturnType<typeof loadEmbeddedPiMcpConfig>;
 type ListedTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number];
 
-const SESSION_MCP_RUNTIME_MANAGER_KEY = Symbol.for("openclaw.sessionMcpRuntimeManager");
+const SESSION_MCP_RUNTIME_MANAGER_KEY = Symbol.for("alisio.sessionMcpRuntimeManager");
 
 function connectWithTimeout(
   client: Client,
@@ -171,7 +171,7 @@ export function createSessionMcpRuntime(params: {
 
           const client = new Client(
             {
-              name: "openclaw-bundle-mcp",
+              name: "alisio-bundle-mcp",
               version: "0.0.0",
             },
             {},

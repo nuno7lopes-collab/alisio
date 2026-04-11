@@ -12,7 +12,7 @@ import {
   writeSessionStore,
 } from "../gateway/test-helpers.server.js";
 import { emitSessionTranscriptUpdate } from "../sessions/transcript-events.js";
-import { createOpenClawChannelMcpServer, OpenClawChannelBridge } from "./channel-server.js";
+import { createAlisioChannelMcpServer, AlisioChannelBridge } from "./channel-server.js";
 
 installGatewayTestHooks({ scope: "suite" });
 
@@ -41,7 +41,7 @@ afterEach(async () => {
 });
 
 async function createSessionStoreFile(): Promise<string> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-mcp-channel-"));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-mcp-channel-"));
   cleanupDirs.push(dir);
   const storePath = path.join(dir, "sessions.json");
   testState.sessionStorePath = storePath;
@@ -93,7 +93,7 @@ async function connectMcp(params: {
   gatewayToken: string;
   claudeChannelMode?: "auto" | "on" | "off";
 }) {
-  const serverHarness = await createOpenClawChannelMcpServer({
+  const serverHarness = await createAlisioChannelMcpServer({
     gatewayUrl: params.gatewayUrl,
     gatewayToken: params.gatewayToken,
     claudeChannelMode: params.claudeChannelMode ?? "auto",
@@ -113,7 +113,7 @@ async function connectMcp(params: {
   };
 }
 
-describe("openclaw channel mcp server", () => {
+describe("alisio channel mcp server", () => {
   test("lists conversations, reads messages, and waits for events", async () => {
     const storePath = await createSessionStoreFile();
     const sessionKey = "agent:main:main";
@@ -248,7 +248,7 @@ describe("openclaw channel mcp server", () => {
   });
 
   test("sendMessage normalizes route metadata for gateway send", async () => {
-    const bridge = new OpenClawChannelBridge({} as never, {
+    const bridge = new AlisioChannelBridge({} as never, {
       claudeChannelMode: "off",
       verbose: false,
     });
@@ -303,7 +303,7 @@ describe("openclaw channel mcp server", () => {
   });
 
   test("lists routed sessions that only expose modern channel fields", async () => {
-    const bridge = new OpenClawChannelBridge({} as never, {
+    const bridge = new AlisioChannelBridge({} as never, {
       claudeChannelMode: "off",
       verbose: false,
     });
@@ -369,7 +369,7 @@ describe("openclaw channel mcp server", () => {
   });
 
   test("swallows notification send errors after channel replies are matched", async () => {
-    const bridge = new OpenClawChannelBridge({} as never, {
+    const bridge = new AlisioChannelBridge({} as never, {
       claudeChannelMode: "on",
       verbose: false,
     });

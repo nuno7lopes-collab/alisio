@@ -1,5 +1,5 @@
 import type { RequestClient } from "@buape/carbon";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { RetryConfig } from "alisio/plugin-sdk/retry-runtime";
 
 export class DiscordSendError extends Error {
@@ -29,7 +29,7 @@ export type DiscordSendResult = {
 };
 
 export type DiscordReactOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   token?: string;
   accountId?: string;
   rest?: RequestClient;

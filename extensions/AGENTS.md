@@ -25,15 +25,13 @@ third-party plugins see.
 ## Boundary Rules
 
 - Extension production code should import from `alisio/plugin-sdk/*` and its
-  own local barrels such as `./api.ts` and `./runtime-api.ts`. Legacy
-  `openclaw/plugin-sdk/*` imports remain compatibility-only.
+  own local barrels such as `./api.ts` and `./runtime-api.ts`.
 - Do not import core internals from `src/**`, `src/channels/**`,
   `src/plugin-sdk-internal/**`, or another extension's `src/**`.
 - Do not use relative imports that escape the current extension package root.
-- Keep plugin metadata accurate in `alisio.plugin.json`, keep the temporary
-  `openclaw.plugin.json` shim aligned during the transition, and keep the
-  package `openclaw` block accurate so discovery and setup work without
-  executing plugin code.
+- Keep plugin metadata accurate in `alisio.plugin.json` and keep the package
+  `alisio` block accurate so discovery and setup work without executing
+  plugin code.
 - Treat files like `src/**`, `onboard.ts`, and other local helpers as private
   unless you intentionally promote them through `api.ts` and, if needed, a
   matching `src/plugin-sdk/<id>.ts` facade.

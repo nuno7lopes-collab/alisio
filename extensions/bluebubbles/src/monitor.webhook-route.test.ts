@@ -3,12 +3,12 @@ import { setActivePluginRegistry } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WebhookTarget } from "./monitor-shared.js";
 import { registerBlueBubblesWebhookTarget } from "./monitor.js";
-import type { OpenClawConfig } from "./runtime-api.js";
+import type { AlisioConfig } from "./runtime-api.js";
 
 function createTarget(): WebhookTarget {
   return {
     account: { accountId: "default" } as WebhookTarget["account"],
-    config: {} as OpenClawConfig,
+    config: {} as AlisioConfig,
     runtime: {},
     core: {} as WebhookTarget["core"],
     path: "/bluebubbles-webhook",

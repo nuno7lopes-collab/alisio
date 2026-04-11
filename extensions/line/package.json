@@ -1,21 +1,21 @@
 {
-  "name": "@openclaw/line",
+  "name": "@alisio/line",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw LINE channel plugin",
+  "description": "Alisio LINE channel plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],
@@ -33,7 +33,7 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@openclaw/line",
+      "npmSpec": "@alisio/line",
       "defaultChoice": "npm",
       "minHostVersion": ">=2026.3.30"
     }

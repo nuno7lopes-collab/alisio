@@ -24,7 +24,7 @@ import AlisioSupport
         return (tmp, pnpmPath)
     }
 
-    @Test func `prefers open claw binary`() async throws {
+    @Test func `prefers alisio binary`() async throws {
         let defaults = self.makeLocalDefaults()
 
         let tmp = try makeTempDirForTests()
@@ -75,7 +75,7 @@ import AlisioSupport
         }
     }
 
-    @Test func `prefers open claw binary over pnpm`() throws {
+    @Test func `prefers alisio binary over pnpm`() throws {
         let defaults = self.makeLocalDefaults()
 
         let tmp = try makeTempDirForTests()
@@ -96,7 +96,7 @@ import AlisioSupport
         #expect(cmd.prefix(2).elementsEqual([alisioPath.path, "rpc"]))
     }
 
-    @Test func `uses open claw binary without node runtime`() throws {
+    @Test func `uses alisio binary without node runtime`() throws {
         let defaults = self.makeLocalDefaults()
 
         let tmp = try makeTempDirForTests()
@@ -115,7 +115,7 @@ import AlisioSupport
         #expect(cmd.prefix(2).elementsEqual([alisioPath.path, "gateway"]))
     }
 
-    @Test func `prefers bundled app runtime over global cli`() throws {
+    @Test func `prefers bundled app wrapper over global cli`() throws {
         let defaults = self.makeLocalDefaults()
 
         let bundleRoot = try makeTempDirForTests()
@@ -125,6 +125,10 @@ import AlisioSupport
         try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
         try #"{"name":"alisio","version":"2026.4.8"}"#.write(
             to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("alisio.mjs"),
             atomically: true,
             encoding: .utf8)
         try FileManager().createDirectory(
@@ -153,7 +157,7 @@ import AlisioSupport
         #expect(cmd.count >= 3)
         if cmd.count >= 3 {
             #expect(cmd[0] == nodePath.path)
-            #expect(cmd[1] == packagedRoot.appendingPathComponent("dist/index.js").path)
+            #expect(cmd[1] == packagedRoot.appendingPathComponent("alisio.mjs").path)
             #expect(cmd[2] == "gateway")
         }
     }
@@ -220,6 +224,42 @@ import AlisioSupport
             homeDirectory: FileManager().homeDirectoryForCurrentUser)
 
         #expect(resolved.path == bundledRoot.path)
+    }
+
+    @Test func `developer checkout root resolves dist app back to repo root`() throws {
+        let bundledRoot = try makeTempDirForTests()
+        try "{}".write(to: bundledRoot.appendingPathComponent("package.json"), atomically: true, encoding: .utf8)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("src"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("ui"),
+            withIntermediateDirectories: true)
+        try FileManager().createDirectory(
+            at: bundledRoot.appendingPathComponent("apps/macos"),
+            withIntermediateDirectories: true)
+
+        let bundleURL = bundledRoot.appendingPathComponent("dist/Alisio.app", isDirectory: true)
+        let packagedRoot = bundleURL
+            .appendingPathComponent("Contents/Resources/alisio-package", isDirectory: true)
+        try FileManager().createDirectory(at: packagedRoot, withIntermediateDirectories: true)
+        try #"{"name":"alisio"}"#.write(
+            to: packagedRoot.appendingPathComponent("package.json"),
+            atomically: true,
+            encoding: .utf8)
+        try FileManager().createDirectory(
+            at: packagedRoot.appendingPathComponent("dist"),
+            withIntermediateDirectories: true)
+        try "export {};\n".write(
+            to: packagedRoot.appendingPathComponent("dist/index.js"),
+            atomically: true,
+            encoding: .utf8)
+
+        let resolved = CommandResolver.developerCheckoutRoot(
+            bundleURL: bundleURL,
+            fileManager: FileManager())
+
+        #expect(resolved?.path == bundledRoot.path)
     }
 
     @Test func `prefers packaged runtime root over stored project root`() throws {

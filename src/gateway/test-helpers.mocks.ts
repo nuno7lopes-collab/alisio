@@ -185,12 +185,12 @@ const createStubPluginRegistry = (): PluginRegistry => ({
 });
 
 const GATEWAY_TEST_PLUGIN_REGISTRY_STATE_KEY = Symbol.for(
-  "openclaw.gatewayTestHelpers.pluginRegistryState",
+  "alisio.gatewayTestHelpers.pluginRegistryState",
 );
-const GATEWAY_TEST_CONFIG_ROOT_KEY = Symbol.for("openclaw.gatewayTestHelpers.configRoot");
+const GATEWAY_TEST_CONFIG_ROOT_KEY = Symbol.for("alisio.gatewayTestHelpers.configRoot");
 
 const hoisted = vi.hoisted(() => {
-  const key = Symbol.for("openclaw.gatewayTestHelpers.hoisted");
+  const key = Symbol.for("alisio.gatewayTestHelpers.hoisted");
   const store = globalThis as Record<PropertyKey, unknown>;
   if (Object.prototype.hasOwnProperty.call(store, key)) {
     return store[key] as {
@@ -308,13 +308,13 @@ export const resetTestPluginRegistry = () => {
 };
 
 const testConfigRoot = resolveGlobalSingleton(GATEWAY_TEST_CONFIG_ROOT_KEY, () => ({
-  value: path.join(os.tmpdir(), `openclaw-gateway-test-${process.pid}-${crypto.randomUUID()}`),
+  value: path.join(os.tmpdir(), `alisio-gateway-test-${process.pid}-${crypto.randomUUID()}`),
 }));
 
 export const setTestConfigRoot = (root: string) => {
   testConfigRoot.value = root;
-  process.env.ALISIO_CONFIG_PATH = path.join(root, "openclaw.json");
-  process.env.OPENCLAW_CONFIG_PATH = path.join(root, "openclaw.json");
+  process.env.ALISIO_CONFIG_PATH = path.join(root, "alisio.json");
+  process.env.ALISIO_CONFIG_PATH = path.join(root, "alisio.json");
 };
 
 export const testTailnetIPv4 = hoisted.testTailnetIPv4;
@@ -420,7 +420,7 @@ vi.mock("../config/sessions.js", async () => {
 
 vi.mock("../config/config.js", async () => {
   const actual = await vi.importActual<typeof import("../config/config.js")>("../config/config.js");
-  const resolveConfigPath = () => path.join(testConfigRoot.value, "openclaw.json");
+  const resolveConfigPath = () => path.join(testConfigRoot.value, "alisio.json");
   const hashConfigRaw = (raw: string | null) =>
     crypto
       .createHash("sha256")
@@ -505,7 +505,7 @@ vi.mock("../config/config.js", async () => {
         : {};
     const defaults = {
       model: { primary: "anthropic/claude-opus-4-6" },
-      workspace: path.join(os.tmpdir(), "openclaw-gateway-test"),
+      workspace: path.join(os.tmpdir(), "alisio-gateway-test"),
       ...fileDefaults,
       ...testState.agentConfig,
     };
@@ -768,7 +768,7 @@ vi.mock("../plugins/loader.js", async () => {
     await vi.importActual<typeof import("../plugins/loader.js")>("../plugins/loader.js");
   return {
     ...actual,
-    loadOpenClawPlugins: () => pluginRegistryState.registry,
+    loadAlisioPlugins: () => pluginRegistryState.registry,
   };
 });
 vi.mock("../plugins/runtime/runtime-whatsapp-boundary.js", () => ({
@@ -780,7 +780,7 @@ vi.mock("/src/plugins/runtime/runtime-whatsapp-boundary.js", () => ({
     (hoisted.sendWhatsAppMock as (...args: unknown[]) => unknown)(...args),
 }));
 
-process.env.OPENCLAW_SKIP_CHANNELS = "1";
-process.env.OPENCLAW_SKIP_CRON = "1";
-process.env.OPENCLAW_SKIP_CHANNELS = "1";
-process.env.OPENCLAW_SKIP_CRON = "1";
+process.env.ALISIO_SKIP_CHANNELS = "1";
+process.env.ALISIO_SKIP_CRON = "1";
+process.env.ALISIO_SKIP_CHANNELS = "1";
+process.env.ALISIO_SKIP_CRON = "1";

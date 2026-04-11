@@ -93,7 +93,7 @@ describe("authentications view", () => {
     expect(container.textContent).toContain("Providers");
     expect(container.textContent).toContain("Primary assistant account");
     expect(container.textContent).toContain("Model providers");
-    expect(container.textContent).toContain("Runtimes and servers");
+    expect(container.textContent).toContain("Runtimes and nodes");
 
     const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
       candidate.textContent?.includes("Open models"),

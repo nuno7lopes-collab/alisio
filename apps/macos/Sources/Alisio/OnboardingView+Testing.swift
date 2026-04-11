@@ -14,7 +14,7 @@ extension OnboardingView {
             lanHost: "gateway.local",
             tailnetDns: "gateway.ts.net",
             sshPort: 2222,
-            gatewayPort: 40705,
+            gatewayPort: GatewayDefaults.defaultPort,
             cliPath: "/usr/local/bin/alisio",
             stableID: "gateway-1",
             debugID: "gateway-1",

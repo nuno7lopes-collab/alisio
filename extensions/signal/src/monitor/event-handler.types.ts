@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type {
   DmPolicy,
   GroupPolicy,
@@ -73,7 +73,7 @@ export type SignalReceivePayload = {
 
 export type SignalEventHandlerDeps = {
   runtime: RuntimeEnv;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   baseUrl: string;
   account?: string;
   accountUuid?: string;

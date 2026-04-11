@@ -4,7 +4,7 @@ import {
   resolveCronStyleNow,
   SILENT_REPLY_TOKEN,
   type MemoryFlushPlan,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
   resolveObsidianMemoryLayout,
@@ -98,7 +98,7 @@ function appendCurrentTimeLine(text: string, timeLine: string): string {
   return `${trimmed}\n${timeLine}`;
 }
 
-function resolveMemoryFlushTarget(params: { cfg?: OpenClawConfig; dateStamp: string }): {
+function resolveMemoryFlushTarget(params: { cfg?: AlisioConfig; dateStamp: string }): {
   path: string;
   obsidian: boolean;
 } {
@@ -124,7 +124,7 @@ function resolveMemoryFlushTarget(params: { cfg?: OpenClawConfig; dateStamp: str
 
 export function buildMemoryFlushPlan(
   params: {
-    cfg?: OpenClawConfig;
+    cfg?: AlisioConfig;
     nowMs?: number;
   } = {},
 ): MemoryFlushPlan | null {

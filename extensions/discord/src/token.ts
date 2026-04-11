@@ -1,5 +1,5 @@
 import type { BaseTokenResolution } from "alisio/plugin-sdk/channel-contract";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "alisio/plugin-sdk/routing";
 import { resolveAccountEntry } from "alisio/plugin-sdk/routing";
 import { normalizeResolvedSecretInputString } from "alisio/plugin-sdk/secret-input";
@@ -19,7 +19,7 @@ export function normalizeDiscordToken(raw: unknown, path: string): string | unde
 }
 
 export function resolveDiscordToken(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   opts: { accountId?: string | null; envToken?: string | null } = {},
 ): DiscordTokenResolution {
   const accountId = normalizeAccountId(opts.accountId);

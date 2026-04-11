@@ -213,9 +213,6 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onWizardDraftMultiIndexesChange: vi.fn(),
     onAccountFieldChange: vi.fn(),
     onBeginEmailAuth: vi.fn(),
-    onRequestRecoveryEmail: vi.fn(),
-    onSignInWithPassword: vi.fn(),
-    onSignUpWithPassword: vi.fn(),
     onVerifyEmailAuth: vi.fn(),
     onBeginGoogleAuth: vi.fn(),
     onBeginAiConnect: vi.fn(),
@@ -565,16 +562,12 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Welcome to Alisio");
     expect(container.textContent).toContain("Set up your personal agent.");
-    expect(container.textContent).toContain("connect OpenAI");
-    expect(container.textContent).toContain("Sign in to Alisio");
+    expect(container.textContent).toContain("Sign in or create an account");
     expect(container.textContent).toContain("Email");
     expect(container.textContent).toContain("Continue with Google");
-    expect(container.textContent).toContain("Sign in");
-    expect(container.textContent).toContain("Create account");
-    expect(container.textContent).toContain("Send recovery email");
-    expect(container.textContent).toContain("Use the email address for your Alisio account.");
+    expect(container.textContent).toContain("Continue with email");
+    expect(container.textContent).toContain("Use your Alisio email.");
     expect(container.textContent).toContain("Reconnect app");
     expect(container.textContent).toContain("Wait for Alisio to reconnect");
   });
@@ -689,13 +682,13 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("What should your agent be called?");
+    expect(container.textContent).toContain("Agent name");
     expect(container.textContent).toContain("I agree to the Terms and Privacy Policy.");
     expect(container.textContent).toContain("Date of birth");
     const fields = Array.from(container.querySelectorAll(".field span")).map(
       (element) => element.textContent?.trim() ?? "",
     );
-    expect(fields).toContain("What should your agent be called?");
+    expect(fields).toContain("Agent name");
   });
 
   it("shows the verification-code stage while email sign-in is pending", () => {
@@ -712,10 +705,12 @@ describe("setup view", () => {
       container,
     );
 
+    expect(container.textContent).toContain("Check your email");
     expect(container.textContent).toContain("Verification code");
-    expect(container.textContent).toContain("Send another code");
-    expect(container.textContent).toContain("Use another email");
+    expect(container.textContent).toContain("Resend email");
+    expect(container.textContent).toContain("Change email");
     expect(container.textContent).toContain("nuno@example.com");
+    expect(container.querySelector("details.alisio-setup-advanced")).toBeNull();
   });
 
   it("mostra o formulário de nova password quando o recovery já abriu sessão", () => {
@@ -756,7 +751,7 @@ describe("setup view", () => {
     );
 
     expect(container.textContent).toContain("Set a new password");
-    expect(container.textContent).toContain("Save new password");
+    expect(container.textContent).toContain("Save password");
     expect(container.textContent).not.toContain("Verification code");
   });
 

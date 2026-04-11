@@ -14,8 +14,7 @@ private struct StoredPushRelayRegistrationState: Codable {
 
 enum PushRelayRegistrationStore {
     private static let service = "ai.alisio.pushrelay"
-    private static let legacyBrandName = ["open", "claw"].joined()
-    private static let legacyService = "ai.\(legacyBrandName).pushrelay"
+    private static let legacyService = service
     private static let registrationStateAccount = "registration-state"
     private static let appAttestKeyIDAccount = "app-attest-key-id"
     private static let appAttestedKeyIDAccount = "app-attested-key-id"

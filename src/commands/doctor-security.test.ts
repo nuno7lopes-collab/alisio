@@ -21,22 +21,22 @@ describe("noteSecurityWarnings gateway exposure", () => {
   beforeEach(() => {
     note.mockClear();
     pluginRegistry.list = [];
-    prevToken = process.env.OPENCLAW_GATEWAY_TOKEN;
-    prevPassword = process.env.OPENCLAW_GATEWAY_PASSWORD;
-    delete process.env.OPENCLAW_GATEWAY_TOKEN;
-    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+    prevToken = process.env.ALISIO_GATEWAY_TOKEN;
+    prevPassword = process.env.ALISIO_GATEWAY_PASSWORD;
+    delete process.env.ALISIO_GATEWAY_TOKEN;
+    delete process.env.ALISIO_GATEWAY_PASSWORD;
   });
 
   afterEach(() => {
     if (prevToken === undefined) {
-      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+      delete process.env.ALISIO_GATEWAY_TOKEN;
     } else {
-      process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
+      process.env.ALISIO_GATEWAY_TOKEN = prevToken;
     }
     if (prevPassword === undefined) {
-      delete process.env.OPENCLAW_GATEWAY_PASSWORD;
+      delete process.env.ALISIO_GATEWAY_PASSWORD;
     } else {
-      process.env.OPENCLAW_GATEWAY_PASSWORD = prevPassword;
+      process.env.ALISIO_GATEWAY_PASSWORD = prevPassword;
     }
   });
 
@@ -53,7 +53,7 @@ describe("noteSecurityWarnings gateway exposure", () => {
   });
 
   it("uses env token to avoid critical warning", async () => {
-    process.env.OPENCLAW_GATEWAY_TOKEN = "token-123";
+    process.env.ALISIO_GATEWAY_TOKEN = "token-123";
     const cfg = { gateway: { bind: "lan" } } as AlisioConfig;
     await noteSecurityWarnings(cfg);
     const message = lastMessage();
@@ -67,7 +67,7 @@ describe("noteSecurityWarnings gateway exposure", () => {
         bind: "lan",
         auth: {
           mode: "token",
-          token: { source: "env", provider: "default", id: "OPENCLAW_GATEWAY_TOKEN" },
+          token: { source: "env", provider: "default", id: "ALISIO_GATEWAY_TOKEN" },
         },
       },
     } as AlisioConfig;

@@ -1,6 +1,9 @@
 import type { AlisioConfig } from "../../config/config.js";
 import type { ConfiguredBindingResolution } from "./binding-types.js";
-import { ensureStatefulTargetBuiltinsRegistered } from "./stateful-target-builtins.js";
+import {
+  ensureStatefulTargetBuiltinsRegistered,
+  isBuiltinStatefulBindingTargetDriverId,
+} from "./stateful-target-builtins.js";
 import {
   getStatefulBindingTargetDriver,
   resolveStatefulBindingTargetBySessionKey,
@@ -10,6 +13,9 @@ async function resolveConfiguredBindingTargetDriver(driverId: string) {
   const registered = getStatefulBindingTargetDriver(driverId);
   if (registered) {
     return registered;
+  }
+  if (!isBuiltinStatefulBindingTargetDriverId(driverId)) {
+    return null;
   }
   await ensureStatefulTargetBuiltinsRegistered();
   return getStatefulBindingTargetDriver(driverId);

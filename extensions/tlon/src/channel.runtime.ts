@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { ChannelAccountSnapshot } from "alisio/plugin-sdk/channel-contract";
 import type { ChannelOutboundAdapter } from "alisio/plugin-sdk/channel-send-result";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ChannelPlugin } from "alisio/plugin-sdk/core";
 import { createLoggerBackedRuntime } from "alisio/plugin-sdk/runtime";
 import { monitorTlonProvider } from "./monitor/index.js";
@@ -90,7 +90,7 @@ async function createHttpPokeApi(params: {
 }
 
 function resolveOutboundContext(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   to: string;
 }) {

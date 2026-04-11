@@ -105,6 +105,6 @@ export type {
   GatewayRpcOpts,
   NodeListNode,
   NodeSession,
-  OpenClawConfig,
-  OpenClawPluginService,
+  AlisioConfig,
+  AlisioPluginService,
 } from "alisio/plugin-sdk/browser-support";

@@ -4,8 +4,14 @@ import type { GatewayBrowserClient } from "../ui/src/ui/gateway.ts";
 const loadAlisioBootstrapMock = vi.hoisted(() => vi.fn(async () => undefined));
 const loadAlisioModelsMock = vi.hoisted(() => vi.fn(async () => undefined));
 const loadSessionsMock = vi.hoisted(() => vi.fn(async () => undefined));
-const loadChatModelsMock = vi.hoisted(() =>
-  vi.fn(async () => [{ id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" }]),
+const loadModelCatalogPairMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    chatCatalog: [{ id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" }],
+    managementCatalog: [
+      { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
+      { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "openai-codex" },
+    ],
+  })),
 );
 
 vi.mock("../ui/src/ui/controllers/alisio.ts", async (importOriginal) => {
@@ -24,7 +30,7 @@ vi.mock("../ui/src/ui/controllers/sessions.ts", async (importOriginal) => {
 
 vi.mock("../ui/src/ui/controllers/models.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../ui/src/ui/controllers/models.ts")>();
-  return { ...actual, loadModels: loadChatModelsMock };
+  return { ...actual, loadModelCatalogPair: loadModelCatalogPairMock };
 });
 
 import { refreshActiveTab } from "../ui/src/ui/app-settings.ts";
@@ -36,6 +42,8 @@ function createHost(): Parameters<typeof refreshActiveTab>[0] {
     client: { request: vi.fn() } as unknown as GatewayBrowserClient,
     chatModelsLoading: false,
     chatModelCatalog: [],
+    modelManagementLoading: false,
+    modelManagementCatalog: [],
     sessionsLoading: false,
     sessionsResult: null,
     sessionsError: null,
@@ -73,7 +81,7 @@ describe("refreshActiveTab (models)", () => {
     loadAlisioBootstrapMock.mockClear();
     loadAlisioModelsMock.mockClear();
     loadSessionsMock.mockClear();
-    loadChatModelsMock.mockClear();
+    loadModelCatalogPairMock.mockClear();
   });
 
   it("loads the models tab support state in one refresh", async () => {
@@ -89,11 +97,16 @@ describe("refreshActiveTab (models)", () => {
       includeGlobal: true,
       includeUnknown: true,
     });
-    expect(loadChatModelsMock).toHaveBeenCalledTimes(1);
-    expect(loadChatModelsMock).toHaveBeenCalledWith(host.client);
+    expect(loadModelCatalogPairMock).toHaveBeenCalledTimes(1);
+    expect(loadModelCatalogPairMock).toHaveBeenCalledWith(host.client);
     expect(host.chatModelCatalog).toEqual([
       { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
     ]);
+    expect(host.modelManagementCatalog).toEqual([
+      { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
+      { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "openai-codex" },
+    ]);
     expect(host.chatModelsLoading).toBe(false);
+    expect(host.modelManagementLoading).toBe(false);
   });
 });

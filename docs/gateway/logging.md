@@ -87,10 +87,10 @@ Examples:
 alisio gateway
 
 # show all WS traffic (paired)
-alisio gateway --verbose --ws-log compact
+alisio gateway run --verbose --ws-log compact
 
 # show all WS traffic (full meta)
-alisio gateway --verbose --ws-log full
+alisio gateway run --verbose --ws-log full
 ```
 
 ## Console formatting (subsystem logging)

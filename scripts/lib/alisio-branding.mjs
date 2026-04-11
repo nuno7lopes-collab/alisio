@@ -3,15 +3,15 @@ import path from "node:path";
 
 export const APP_NAME = "Alisio";
 export const APP_SLUG = "alisio";
-export const LEGACY_SLUG = ["open", "claw"].join("");
-export const LEGACY_TITLE = ["Open", "Claw"].join("");
-export const LEGACY_ENV_PREFIX = ["OPEN", "CLAW"].join("");
-export const LEGACY_SCOPE = `@${LEGACY_SLUG}`;
-export const LEGACY_PLUGIN_MANIFEST = `${LEGACY_SLUG}.plugin.json`;
-export const LEGACY_ENTRYPOINT = `${LEGACY_SLUG}.mjs`;
-export const LEGACY_CONFIG_FILE = `${LEGACY_SLUG}.json`;
-export const LEGACY_PLUGIN_SDK_ROOT = `${LEGACY_SLUG}/plugin-sdk`;
-export const LEGACY_REPO_NWO = `${LEGACY_SLUG}/${LEGACY_SLUG}`;
+export const LEGACY_SLUG = APP_SLUG;
+export const LEGACY_TITLE = APP_NAME;
+export const LEGACY_ENV_PREFIX = "ALISIO";
+export const LEGACY_SCOPE = `@${APP_SLUG}`;
+export const LEGACY_PLUGIN_MANIFEST = `${APP_SLUG}.plugin.json`;
+export const LEGACY_ENTRYPOINT = `${APP_SLUG}.mjs`;
+export const LEGACY_CONFIG_FILE = `${APP_SLUG}.json`;
+export const LEGACY_PLUGIN_SDK_ROOT = `${APP_SLUG}/plugin-sdk`;
+export const LEGACY_REPO_NWO = `${APP_SLUG}/${APP_SLUG}`;
 export const LEGACY_REPO_URL = `https://github.com/${LEGACY_REPO_NWO}`;
 
 export function legacyEnvName(suffix) {
@@ -63,7 +63,7 @@ export function hostPackageName(repoRoot = process.cwd()) {
 }
 
 export function hostPackageNames(repoRoot = process.cwd()) {
-  return [...new Set([hostPackageName(repoRoot), APP_SLUG, LEGACY_SLUG])];
+  return [...new Set([hostPackageName(repoRoot), APP_SLUG])];
 }
 
 export function currentExtensionScope(repoRoot = process.cwd()) {
@@ -77,7 +77,7 @@ export function currentExtensionScope(repoRoot = process.cwd()) {
     counts.set(scope, (counts.get(scope) ?? 0) + 1);
   }
 
-  let resolved = LEGACY_SCOPE;
+  let resolved = `@${APP_SLUG}`;
   let bestCount = -1;
   for (const [scope, count] of counts) {
     if (count > bestCount) {
@@ -102,7 +102,7 @@ export function currentPackageBrandKey(repoRoot = process.cwd()) {
     if (!isRecord(packageJson)) {
       continue;
     }
-    for (const key of [APP_SLUG, LEGACY_SLUG]) {
+    for (const key of [APP_SLUG]) {
       if (isRecord(packageJson[key])) {
         return key;
       }
@@ -114,7 +114,7 @@ export function currentPackageBrandKey(repoRoot = process.cwd()) {
 export function currentPluginManifestName(repoRoot = process.cwd()) {
   const extensionsRoot = path.join(resolveRepoRoot(repoRoot), "extensions");
   if (!fs.existsSync(extensionsRoot)) {
-    return LEGACY_PLUGIN_MANIFEST;
+    return `${APP_SLUG}.plugin.json`;
   }
 
   const counts = new Map();
@@ -133,7 +133,7 @@ export function currentPluginManifestName(repoRoot = process.cwd()) {
     counts.set(manifestName, (counts.get(manifestName) ?? 0) + 1);
   }
 
-  let resolved = LEGACY_PLUGIN_MANIFEST;
+  let resolved = `${APP_SLUG}.plugin.json`;
   let bestCount = -1;
   for (const [manifestName, count] of counts) {
     if (count > bestCount) {
@@ -160,7 +160,7 @@ export function packageBrandConfigKeys(packageJson) {
   if (!isRecord(packageJson)) {
     return [APP_SLUG];
   }
-  const keys = [APP_SLUG, LEGACY_SLUG].filter((key) => isRecord(packageJson[key]));
+  const keys = [APP_SLUG].filter((key) => isRecord(packageJson[key]));
   return keys.length > 0 ? keys : [APP_SLUG];
 }
 

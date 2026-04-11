@@ -219,8 +219,8 @@ export async function handleInlineActions(params: {
         resolveGatewayMessageChannel(ctx.Provider) ??
         undefined;
 
-      const { createOpenClawTools } = await import("../../agents/openclaw-tools.runtime.js");
-      const tools = createOpenClawTools({
+      const { createAlisioTools } = await import("../../agents/alisio-tools.runtime.js");
+      const tools = createAlisioTools({
         agentSessionKey: sessionKey,
         agentChannel: channel,
         agentAccountId: (ctx as { AccountId?: string }).AccountId,

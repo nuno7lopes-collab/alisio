@@ -1,5 +1,5 @@
 import { mergeDmAllowFromSources } from "alisio/plugin-sdk/allow-from";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   listChannelPairingRequests,
   readChannelAllowFromStore,
@@ -47,7 +47,7 @@ function buildTelegramPendingRequestLabel(request: {
 }
 
 export async function resolveTelegramDmOnboardingStatus(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): Promise<TelegramDmOnboardingStatus | null> {
   const accountId = params.accountId.trim() || DEFAULT_ACCOUNT_ID;

@@ -450,6 +450,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
           const shouldFormatError =
             isGenericBrowserFetchFailure(error.message) ||
             normalized.startsWith("unauthorized:") ||
+            normalized.startsWith("invalid connect params") ||
             normalized.includes("connection token") ||
             normalized.includes("connection auth") ||
             normalized.includes("gateway auth") ||

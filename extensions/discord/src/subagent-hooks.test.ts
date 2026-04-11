@@ -1,4 +1,4 @@
-import type { OpenClawPluginApi } from "alisio/plugin-sdk/core";
+import type { AlisioPluginApi } from "alisio/plugin-sdk/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getRequiredHookHandler,
@@ -60,7 +60,7 @@ function registerHandlersForTest(
     },
   },
 ) {
-  return registerHookHandlersForTest<OpenClawPluginApi>({
+  return registerHookHandlersForTest<AlisioPluginApi>({
     config,
     register: registerDiscordSubagentHooks,
   });

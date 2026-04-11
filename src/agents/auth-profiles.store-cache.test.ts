@@ -24,17 +24,17 @@ async function loadFreshAuthProfilesModuleForTest() {
 
 function withAgentDirEnv(prefix: string, run: (agentDir: string) => void | Promise<void>) {
   const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+  const previousAgentDir = process.env.ALISIO_AGENT_DIR;
   const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR;
   try {
-    process.env.OPENCLAW_AGENT_DIR = agentDir;
+    process.env.ALISIO_AGENT_DIR = agentDir;
     process.env.PI_CODING_AGENT_DIR = agentDir;
     return run(agentDir);
   } finally {
     if (previousAgentDir === undefined) {
-      delete process.env.OPENCLAW_AGENT_DIR;
+      delete process.env.ALISIO_AGENT_DIR;
     } else {
-      process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+      process.env.ALISIO_AGENT_DIR = previousAgentDir;
     }
     if (previousPiAgentDir === undefined) {
       delete process.env.PI_CODING_AGENT_DIR;
@@ -80,7 +80,7 @@ describe("auth profile store cache", () => {
   });
 
   it("reuses the synced auth store while auth-profiles.json is unchanged", async () => {
-    await withAgentDirEnv("openclaw-auth-store-cache-", (agentDir) => {
+    await withAgentDirEnv("alisio-auth-store-cache-", (agentDir) => {
       writeAuthStore(agentDir, "sk-test");
 
       ensureAuthProfileStore(agentDir);
@@ -91,7 +91,7 @@ describe("auth profile store cache", () => {
   });
 
   it("refreshes the cached auth store after auth-profiles.json changes", async () => {
-    await withAgentDirEnv("openclaw-auth-store-refresh-", async (agentDir) => {
+    await withAgentDirEnv("alisio-auth-store-refresh-", async (agentDir) => {
       const authPath = writeAuthStore(agentDir, "sk-test-1");
 
       ensureAuthProfileStore(agentDir);
@@ -110,8 +110,8 @@ describe("auth profile store cache", () => {
   });
 
   it("re-syncs external CLI credentials after the cache ttl when auth-profiles.json is absent", () => {
-    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-auth-store-missing-"));
-    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-auth-store-missing-"));
+    const previousAgentDir = process.env.ALISIO_AGENT_DIR;
     const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR;
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-21T15:00:00.000Z"));
@@ -128,7 +128,7 @@ describe("auth profile store cache", () => {
       return true;
     });
     try {
-      process.env.OPENCLAW_AGENT_DIR = agentDir;
+      process.env.ALISIO_AGENT_DIR = agentDir;
       process.env.PI_CODING_AGENT_DIR = agentDir;
 
       const first = ensureAuthProfileStore(agentDir);
@@ -146,9 +146,9 @@ describe("auth profile store cache", () => {
       expect(third.profiles["openai-codex:default"]).toMatchObject({ access: "access-2" });
     } finally {
       if (previousAgentDir === undefined) {
-        delete process.env.OPENCLAW_AGENT_DIR;
+        delete process.env.ALISIO_AGENT_DIR;
       } else {
-        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+        process.env.ALISIO_AGENT_DIR = previousAgentDir;
       }
       if (previousPiAgentDir === undefined) {
         delete process.env.PI_CODING_AGENT_DIR;
@@ -159,12 +159,12 @@ describe("auth profile store cache", () => {
     }
   });
 
-  it("ignora o sync de credenciais externas quando OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC=1", async () => {
-    const previousDisableExternalCliSync = process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC;
+  it("ignora o sync de credenciais externas quando ALISIO_DISABLE_EXTERNAL_CLI_SYNC=1", async () => {
+    const previousDisableExternalCliSync = process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC;
     try {
-      process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC = "1";
+      process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC = "1";
 
-      await withAgentDirEnv("openclaw-auth-store-disabled-", (agentDir) => {
+      await withAgentDirEnv("alisio-auth-store-disabled-", (agentDir) => {
         writeAuthStore(agentDir, "sk-test");
 
         ensureAuthProfileStore(agentDir);
@@ -173,9 +173,9 @@ describe("auth profile store cache", () => {
       });
     } finally {
       if (previousDisableExternalCliSync === undefined) {
-        delete process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC;
+        delete process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC;
       } else {
-        process.env.OPENCLAW_DISABLE_EXTERNAL_CLI_SYNC = previousDisableExternalCliSync;
+        process.env.ALISIO_DISABLE_EXTERNAL_CLI_SYNC = previousDisableExternalCliSync;
       }
     }
   });

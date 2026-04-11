@@ -1,6 +1,3 @@
-type LegacyBrowserDriver = "openclaw";
-export const LEGACY_BROWSER_DRIVER = "openclaw";
-
 export type BrowserProfileConfig = {
   /** CDP port for this profile. Allocated once at creation, persisted permanently. */
   cdpPort?: number;
@@ -9,7 +6,7 @@ export type BrowserProfileConfig = {
   /** Explicit user data directory for existing-session Chrome MCP attachment. */
   userDataDir?: string;
   /** Profile driver (default: alisio). */
-  driver?: "alisio" | LegacyBrowserDriver | "clawd" | "existing-session";
+  driver?: "alisio" | "clawd" | "existing-session";
   /** If true, never launch a browser for this profile; only attach. Falls back to browser.attachOnly. */
   attachOnly?: boolean;
   /** Profile color (hex). Auto-assigned at creation. */

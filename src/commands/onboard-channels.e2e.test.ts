@@ -98,7 +98,7 @@ function createTelegramCfg(botToken: string, enabled?: boolean): AlisioConfig {
 function createMSTeamsCatalogEntry(): ChannelPluginCatalogEntry {
   return {
     id: "msteams",
-    pluginId: "@openclaw/msteams-plugin",
+    pluginId: "@alisio/msteams-plugin",
     meta: {
       id: "msteams",
       label: "Microsoft Teams",
@@ -107,7 +107,7 @@ function createMSTeamsCatalogEntry(): ChannelPluginCatalogEntry {
       blurb: "teams channel",
     },
     install: {
-      npmSpec: "@openclaw/msteams",
+      npmSpec: "@alisio/msteams",
     },
   };
 }
@@ -257,7 +257,7 @@ type PatchedSetupAdapterFields = {
 
 function createMSTeamsPluginRegistryEntry(params?: { includeSetupWizard?: boolean }) {
   return {
-    pluginId: "@openclaw/msteams-plugin",
+    pluginId: "@alisio/msteams-plugin",
     source: "test",
     plugin: {
       id: "msteams",
@@ -660,7 +660,7 @@ describe("setupChannels", () => {
         },
         plugins: {
           entries: {
-            "@openclaw/msteams-plugin": { enabled: true },
+            "@alisio/msteams-plugin": { enabled: true },
           },
         },
       } as AlisioConfig,
@@ -670,7 +670,7 @@ describe("setupChannels", () => {
     expect(loadChannelSetupPluginRegistrySnapshotForChannel).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: "msteams",
-        pluginId: "@openclaw/msteams-plugin",
+        pluginId: "@alisio/msteams-plugin",
       }),
     );
     expect(multiselect).not.toHaveBeenCalled();
@@ -682,7 +682,7 @@ describe("setupChannels", () => {
     manifestRegistryMocks.loadPluginManifestRegistry.mockReturnValue({
       plugins: [
         {
-          id: "@openclaw/msteams-plugin",
+          id: "@alisio/msteams-plugin",
           channels: ["msteams"],
         } as never,
       ],
@@ -711,7 +711,7 @@ describe("setupChannels", () => {
     expect(loadChannelSetupPluginRegistrySnapshotForChannel).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: "msteams",
-        pluginId: "@openclaw/msteams-plugin",
+        pluginId: "@alisio/msteams-plugin",
       }),
     );
     expect(multiselect).not.toHaveBeenCalled();

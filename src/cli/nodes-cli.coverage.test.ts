@@ -79,6 +79,10 @@ describe("nodes-cli coverage", () => {
     ({ registerNodesCli } = await import("./nodes-cli.js"));
     sharedProgram = new Command();
     sharedProgram.exitOverride();
+    sharedProgram.configureOutput({
+      writeOut: () => {},
+      writeErr: () => {},
+    });
     registerNodesCli(sharedProgram);
   });
 

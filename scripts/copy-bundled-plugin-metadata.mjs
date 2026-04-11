@@ -16,6 +16,14 @@ import {
 const GENERATED_BUNDLED_SKILLS_DIR = "bundled-skills";
 const TRANSIENT_COPY_ERROR_CODES = new Set(["EEXIST", "ENOENT", "ENOTEMPTY", "EBUSY"]);
 const COPY_RETRY_DELAYS_MS = [10, 25, 50];
+const TOP_LEVEL_PUBLIC_SURFACE_EXTENSIONS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
+const CAPABILITY_ONLY_PUBLIC_SURFACE_BASENAMES = new Set([
+  "api",
+  "channel-config-api",
+  "provider-catalog",
+  "runtime-api",
+  "session-key-api",
+]);
 
 export function rewritePackageExtensions(entries) {
   if (!Array.isArray(entries)) {
@@ -38,6 +46,33 @@ function rewritePackageEntry(entry) {
   const normalized = entry.replace(/^\.\//, "");
   const rewritten = normalized.replace(/\.[^.]+$/u, ".js");
   return `./${rewritten}`;
+}
+
+function hasCapabilityOnlyPublicSurfaces(pluginDir) {
+  if (!fs.existsSync(pluginDir)) {
+    return false;
+  }
+
+  return fs.readdirSync(pluginDir, { withFileTypes: true }).some((entry) => {
+    if (!entry.isFile()) {
+      return false;
+    }
+    const ext = path.extname(entry.name);
+    if (!TOP_LEVEL_PUBLIC_SURFACE_EXTENSIONS.has(ext)) {
+      return false;
+    }
+    const normalizedName = entry.name.toLowerCase();
+    if (
+      normalizedName.endsWith(".d.ts") ||
+      normalizedName.includes(".test.") ||
+      normalizedName.includes(".spec.") ||
+      normalizedName.includes(".fixture.") ||
+      normalizedName.includes(".snap")
+    ) {
+      return false;
+    }
+    return CAPABILITY_ONLY_PUBLIC_SURFACE_BASENAMES.has(path.basename(entry.name, ext));
+  });
 }
 
 function ensurePathInsideRoot(rootDir, rawPath) {
@@ -209,7 +244,16 @@ export function copyBundledPluginMetadata(params = {}) {
     const distManifestPath = path.join(distPluginDir, pluginManifestName);
     const distPackageJsonPath = path.join(distPluginDir, "package.json");
     if (!fs.existsSync(manifestPath)) {
-      removePathIfExists(distPluginDir);
+      if (!hasCapabilityOnlyPublicSurfaces(pluginDir)) {
+        removePathIfExists(distPluginDir);
+        continue;
+      }
+      if (packageJson) {
+        writeTextFileIfChanged(distPackageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
+      } else {
+        removeFileIfExists(distPackageJsonPath);
+      }
+      removeFileIfExists(distManifestPath);
       continue;
     }
 

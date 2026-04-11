@@ -477,7 +477,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     {
                       type: "string",
-                      const: "openclaw",
+                      const: "alisio",
                     },
                     {
                       type: "string",
@@ -1041,7 +1041,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     "google-generative-ai",
                     "github-copilot",
                     "bedrock-converse-stream",
-                    "ollama",
                     "azure-openai-responses",
                   ],
                 },
@@ -1146,7 +1145,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                           "google-generative-ai",
                           "github-copilot",
                           "bedrock-converse-stream",
-                          "ollama",
                           "azure-openai-responses",
                         ],
                       },
@@ -13510,7 +13508,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.memorySearch.provider": {
       label: "Memory Embeddings Provider",
-      help: 'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", "ollama", or "local". Keep your most reliable provider here and configure fallback for resilience. Codex/OpenAI OAuth covers chat only and does not satisfy memory embeddings; when OAuth is present and no provider is configured, Alisio defaults memory embeddings to `local`.',
+      help: 'Selects the embedding backend used to build/query memory vectors: "openai", "gemini", "voyage", "mistral", or "local". Keep your most reliable provider here and configure fallback for resilience. Codex/OpenAI OAuth covers chat only and does not satisfy memory embeddings; when OAuth is present and no provider is configured, Alisio defaults memory embeddings to `local`.',
       tags: ["advanced"],
     },
     "agents.defaults.memorySearch.remote.baseUrl": {
@@ -13566,7 +13564,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "agents.defaults.memorySearch.fallback": {
       label: "Memory Search Fallback",
-      help: 'Backup provider used when primary embeddings fail: "openai", "gemini", "voyage", "mistral", "ollama", "local", or "none". Set a real fallback for production reliability; use "none" only if you prefer explicit failures.',
+      help: 'Backup provider used when primary embeddings fail: "openai", "gemini", "voyage", "mistral", "local", or "none". Set a real fallback for production reliability; use "none" only if you prefer explicit failures.',
       tags: ["reliability"],
     },
     "agents.defaults.memorySearch.local.modelPath": {
@@ -14017,7 +14015,7 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
     },
     "models.providers.*.injectNumCtxForOpenAICompat": {
       label: "Model Provider Inject num_ctx (OpenAI Compat)",
-      help: "Controls whether Alisio injects `options.num_ctx` for Ollama providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
+      help: "Controls whether Alisio injects `options.num_ctx` for providers configured with the OpenAI-compatible adapter (`openai-completions`). Default is true. Set false only if your proxy/upstream rejects unknown `options` payload fields.",
       tags: ["models"],
     },
     "models.providers.*.headers": {

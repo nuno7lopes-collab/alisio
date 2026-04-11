@@ -5,7 +5,7 @@ import {
   signDevicePayload,
   type DeviceIdentity,
 } from "./device-identity.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
 export type ApnsRelayPushType = "alert" | "background";
 
@@ -41,13 +41,9 @@ export type ApnsRelayRequestSender = (params: {
 }) => Promise<ApnsRelayPushResponse>;
 
 const DEFAULT_APNS_RELAY_TIMEOUT_MS = 10_000;
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
 const GATEWAY_DEVICE_ID_HEADER = "x-alisio-gateway-device-id";
 const GATEWAY_SIGNATURE_HEADER = "x-alisio-gateway-signature";
 const GATEWAY_SIGNED_AT_HEADER = "x-alisio-gateway-signed-at-ms";
-const LEGACY_GATEWAY_DEVICE_ID_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-device-id`;
-const LEGACY_GATEWAY_SIGNATURE_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signature`;
-const LEGACY_GATEWAY_SIGNED_AT_HEADER = `x-${LEGACY_RUNTIME_NAMESPACE}-gateway-signed-at-ms`;
 const CURRENT_RELAY_SIGNATURE_VERSION = "alisio-relay-send-v1";
 
 function normalizeNonEmptyString(value: string | undefined): string | null {
@@ -106,14 +102,14 @@ export function resolveApnsRelayConfigFromEnv(
 ): ApnsRelayConfigResolution {
   const configuredRelay = gatewayConfig?.push?.apns?.relay;
   const currentEnvBaseUrl = normalizeNonEmptyString(env.ALISIO_APNS_RELAY_BASE_URL);
-  const legacyEnvBaseUrl = normalizeNonEmptyString(env[legacyEnvKey("APNS_RELAY_BASE_URL")]);
+  const legacyEnvBaseUrl = normalizeNonEmptyString(env[runtimeEnvKey("APNS_RELAY_BASE_URL")]);
   const envBaseUrl = currentEnvBaseUrl ?? legacyEnvBaseUrl;
   const configBaseUrl = normalizeNonEmptyString(configuredRelay?.baseUrl);
   const baseUrl = envBaseUrl ?? configBaseUrl;
   const baseUrlSource = currentEnvBaseUrl
     ? "ALISIO_APNS_RELAY_BASE_URL"
     : legacyEnvBaseUrl
-      ? legacyEnvKey("APNS_RELAY_BASE_URL")
+      ? runtimeEnvKey("APNS_RELAY_BASE_URL")
       : "gateway.push.apns.relay.baseUrl";
   if (!baseUrl) {
     return {
@@ -136,7 +132,7 @@ export function resolveApnsRelayConfigFromEnv(
       !readAllowHttp(
         readEnv("ALISIO_APNS_RELAY_ALLOW_HTTP", {
           env,
-          fallback: legacyEnvKey("APNS_RELAY_ALLOW_HTTP"),
+          fallback: runtimeEnvKey("APNS_RELAY_ALLOW_HTTP"),
           description: "allow insecure APNs relay http",
         }),
       )
@@ -161,7 +157,7 @@ export function resolveApnsRelayConfigFromEnv(
         timeoutMs: normalizeTimeoutMs(
           readEnv("ALISIO_APNS_RELAY_TIMEOUT_MS", {
             env,
-            fallback: legacyEnvKey("APNS_RELAY_TIMEOUT_MS"),
+            fallback: runtimeEnvKey("APNS_RELAY_TIMEOUT_MS"),
             description: "APNs relay timeout",
           }) ?? configuredRelay?.timeoutMs,
         ),
@@ -195,11 +191,8 @@ async function sendApnsRelayRequest(params: {
       authorization: `Bearer ${params.sendGrant}`,
       "content-type": "application/json",
       [GATEWAY_DEVICE_ID_HEADER]: params.gatewayDeviceId,
-      [LEGACY_GATEWAY_DEVICE_ID_HEADER]: params.gatewayDeviceId,
       [GATEWAY_SIGNATURE_HEADER]: params.signature,
-      [LEGACY_GATEWAY_SIGNATURE_HEADER]: params.signature,
       [GATEWAY_SIGNED_AT_HEADER]: String(params.signedAtMs),
-      [LEGACY_GATEWAY_SIGNED_AT_HEADER]: String(params.signedAtMs),
     },
     body: params.bodyJson,
     signal: AbortSignal.timeout(params.relayConfig.timeoutMs),

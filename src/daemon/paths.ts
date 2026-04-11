@@ -1,5 +1,5 @@
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { resolveGatewayProfileSuffix } from "./constants.js";
 
 const windowsAbsolutePath = /^[a-zA-Z]:[\\/]/;
@@ -34,7 +34,7 @@ export function resolveUserPathWithHome(input: string, home?: string): string {
 export function resolveGatewayStateDir(env: Record<string, string | undefined>): string {
   const override = readEnv("ALISIO_STATE_DIR", {
     env,
-    fallback: legacyEnvKey("STATE_DIR"),
+    fallback: runtimeEnvKey("STATE_DIR"),
   });
   if (override) {
     const home = override.startsWith("~") ? resolveHomeDir(env) : undefined;
@@ -43,7 +43,7 @@ export function resolveGatewayStateDir(env: Record<string, string | undefined>):
   const home = resolveHomeDir(env);
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   const suffix = resolveGatewayProfileSuffix(profile);
   return path.join(home, `.alisio${suffix}`);

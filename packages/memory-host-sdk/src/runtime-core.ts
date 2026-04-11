@@ -18,7 +18,7 @@ export {
 export { loadOrCreateDeviceIdentity } from "../../../src/infra/device-identity.js";
 export { emptyPluginConfigSchema } from "../../../src/plugins/config-schema.js";
 export { parseAgentSessionKey } from "../../../src/routing/session-key.js";
-export type { OpenClawConfig } from "../../../src/config/config.js";
+export type { AlisioConfig } from "../../../src/config/config.js";
 export type { MemoryCitationsMode } from "../../../src/config/types.memory.js";
 export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";
 export type { DeviceIdentity } from "../../../src/infra/device-identity.js";
@@ -28,4 +28,4 @@ export type {
   MemoryPluginRuntime,
   MemoryPromptSectionBuilder,
 } from "../../../src/plugins/memory-state.js";
-export type { OpenClawPluginApi } from "../../../src/plugins/types.js";
+export type { AlisioPluginApi } from "../../../src/plugins/types.js";

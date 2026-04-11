@@ -6,7 +6,7 @@ import type { MockBaileysSocket } from "../../../test/mocks/baileys.js";
 import { createMockBaileys } from "../../../test/mocks/baileys.js";
 
 // Use globalThis to store the mock config so it survives vi.mock hoisting
-const CONFIG_KEY = Symbol.for("openclaw:testConfigMock");
+const CONFIG_KEY = Symbol.for("alisio:testConfigMock");
 const DEFAULT_CONFIG = {
   channels: {
     whatsapp: {
@@ -38,7 +38,7 @@ function resolveStorePathFallback(store?: string, opts?: { agentId?: string }) {
     const agentId = (opts?.agentId?.trim() || "main").toLowerCase();
     return path.join(
       process.env.HOME ?? "/tmp",
-      ".openclaw",
+      ".alisio",
       "agents",
       agentId,
       "sessions",
@@ -164,14 +164,14 @@ vi.mock("alisio/plugin-sdk/state-paths", async (importOriginal) => {
   const actual = await importOriginal<typeof import("alisio/plugin-sdk/state-paths")>();
   return {
     ...actual,
-    resolveOAuthDir: () => "/tmp/openclaw-oauth",
+    resolveOAuthDir: () => "/tmp/alisio-oauth",
   };
 });
 
 vi.mock("@whiskeysockets/baileys", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@whiskeysockets/baileys")>();
   const created = createMockBaileys();
-  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")] =
+  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("alisio:lastSocket")] =
     created.lastSocket;
   return {
     ...actual,
@@ -188,7 +188,7 @@ export const baileys = await import("@whiskeysockets/baileys");
 
 export function resetBaileysMocks() {
   const recreated = createMockBaileys();
-  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")] =
+  (globalThis as Record<PropertyKey, unknown>)[Symbol.for("alisio:lastSocket")] =
     recreated.lastSocket;
 
   const makeWASocket = vi.mocked(baileys.makeWASocket);
@@ -224,7 +224,7 @@ export function resetBaileysMocks() {
 }
 
 export function getLastSocket(): MockBaileysSocket {
-  const getter = (globalThis as Record<PropertyKey, unknown>)[Symbol.for("openclaw:lastSocket")];
+  const getter = (globalThis as Record<PropertyKey, unknown>)[Symbol.for("alisio:lastSocket")];
   if (typeof getter === "function") {
     return (getter as () => MockBaileysSocket)();
   }

@@ -22,7 +22,7 @@ import {
 import { MEDIA_FFMPEG_MAX_AUDIO_DURATION_SECS } from "alisio/plugin-sdk/media-runtime";
 import { unlinkIfExists } from "alisio/plugin-sdk/media-runtime";
 import type { RetryRunner } from "alisio/plugin-sdk/retry-runtime";
-import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
+import { resolvePreferredAlisioTmpDir } from "alisio/plugin-sdk/temp-path";
 
 const DISCORD_VOICE_MESSAGE_FLAG = 1 << 13;
 const SUPPRESS_NOTIFICATIONS_FLAG = 1 << 12;
@@ -95,7 +95,7 @@ export async function generateWaveform(filePath: string): Promise<string> {
  * Generate waveform by extracting raw PCM data and sampling amplitudes
  */
 async function generateWaveformFromPcm(filePath: string): Promise<string> {
-  const tempDir = resolvePreferredOpenClawTmpDir();
+  const tempDir = resolvePreferredAlisioTmpDir();
   const tempPcm = path.join(tempDir, `waveform-${crypto.randomUUID()}.raw`);
 
   try {
@@ -207,7 +207,7 @@ export async function ensureOggOpus(filePath: string): Promise<{ path: string; c
   // Convert to OGG/Opus
   // Always resample to 48kHz to ensure Discord voice messages play at correct speed
   // (Discord expects 48kHz; lower sample rates like 24kHz from some TTS providers cause 0.5x playback)
-  const tempDir = resolvePreferredOpenClawTmpDir();
+  const tempDir = resolvePreferredAlisioTmpDir();
   const outputPath = path.join(tempDir, `voice-${crypto.randomUUID()}.ogg`);
 
   await runFfmpeg([

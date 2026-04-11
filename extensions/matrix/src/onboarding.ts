@@ -452,7 +452,7 @@ async function runMatrixConfigure(params: {
   const deviceName = String(
     await params.prompter.text({
       message: "Matrix device name (optional)",
-      initialValue: existing.deviceName ?? "OpenClaw Gateway",
+      initialValue: existing.deviceName ?? "Alisio Gateway",
     }),
   ).trim();
 

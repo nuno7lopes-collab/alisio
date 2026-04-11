@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AlisioConfig } from "../config/config.js";
-import { createOpenClawCodingTools } from "./pi-tools.js";
+import { createAlisioCodingTools } from "./pi-tools.js";
 import { resolveSandboxConfigForAgent } from "./sandbox/config.js";
 import { createHostSandboxFsBridge } from "./test-helpers/host-sandbox-fs-bridge.js";
 import { createPiToolsSandboxContext } from "./test-helpers/pi-tools-sandbox-context.js";
@@ -11,7 +11,7 @@ function listToolNames(params: {
   sessionKey?: string;
   sandboxAgentId?: string;
 }): string[] {
-  const workspaceDir = "/tmp/openclaw-sandbox-policy";
+  const workspaceDir = "/tmp/alisio-sandbox-policy";
   const sessionKey = params.sessionKey ?? "agent:tavern:main";
   const sandboxAgentId = params.sandboxAgentId ?? params.agentId ?? "tavern";
   const sandbox = createPiToolsSandboxContext({
@@ -20,7 +20,7 @@ function listToolNames(params: {
     sessionKey,
     tools: resolveSandboxConfigForAgent(params.cfg, sandboxAgentId).tools,
   });
-  return createOpenClawCodingTools({
+  return createAlisioCodingTools({
     config: params.cfg,
     agentId: params.agentId,
     sessionKey,

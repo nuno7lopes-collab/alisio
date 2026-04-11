@@ -164,15 +164,15 @@
    =========================================== */
 
 .alisio-setup-page {
-  width: min(520px, 100%);
+  width: min(560px, 100%);
   margin: 0 auto;
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .alisio-setup-page__hero {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   text-align: left;
 }
 
@@ -216,10 +216,10 @@
 .alisio-setup-page__card {
   display: grid;
   gap: 12px;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--card) 98%, transparent);
+  padding: clamp(18px, 2.8vw, 24px);
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--card) 99%, transparent);
   box-shadow: none;
 }
 
@@ -230,11 +230,21 @@
 
 .alisio-setup-card {
   display: grid;
-  gap: 0;
+  gap: 14px;
   padding: 0;
   border: none;
   background: transparent;
   box-shadow: none;
+}
+
+.alisio-setup-card__header {
+  display: grid;
+  gap: 6px;
+}
+
+.alisio-setup-card__intro {
+  display: grid;
+  gap: 6px;
 }
 
 .alisio-setup-card .card-title {
@@ -253,7 +263,6 @@
 .alisio-setup-account {
   display: grid;
   gap: 14px;
-  margin-top: 16px;
 }
 
 .alisio-setup-account__mode {
@@ -265,6 +274,115 @@
 .alisio-setup-account__fields {
   display: grid;
   gap: 14px;
+}
+
+.alisio-setup-account-shell {
+  display: grid;
+  gap: 12px;
+}
+
+.alisio-setup-surface-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+}
+
+.alisio-setup-account__inline-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.alisio-setup-account__recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.alisio-setup-account__method-btn {
+  width: 100%;
+  min-height: 56px;
+  justify-content: flex-start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+}
+
+.alisio-setup-account__method-copy {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.alisio-setup-account__method-label {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-setup-account__method-title {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.alisio-setup-account__divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alisio-setup-account__divider::before,
+.alisio-setup-account__divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--border) 74%, transparent);
+}
+
+.alisio-setup-account__code-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.24em;
+}
+
+.alisio-setup-consent {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 70%, transparent);
+}
+
+.alisio-setup-checkbox {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.alisio-setup-checkbox input {
+  margin: 2px 0 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
 }
 
 .alisio-setup-account__fields .field {
@@ -284,6 +402,32 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.alisio-setup-page .callout {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border-color: color-mix(in srgb, var(--border) 84%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  color: var(--text);
+}
+
+.alisio-setup-page .callout.danger {
+  border-color: color-mix(in srgb, var(--danger) 20%, var(--border));
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-elevated));
+  color: color-mix(in srgb, var(--danger) 84%, var(--text));
+}
+
+.alisio-setup-page .callout.info {
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--border));
+  background: color-mix(in srgb, var(--accent) 5%, var(--bg-elevated));
+  color: var(--text);
+}
+
+.alisio-setup-page .chip,
+.alisio-setup-page .pill,
+.alisio-setup-page__progress-pill {
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
 }
 
 .alisio-setup-advanced {

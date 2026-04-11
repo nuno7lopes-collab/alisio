@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -95,7 +95,7 @@ describe("monitorLineProvider lifecycle", () => {
     const task = monitorLineProvider({
       channelAccessToken: "token",
       channelSecret: "secret", // pragma: allowlist secret
-      config: {} as OpenClawConfig,
+      config: {} as AlisioConfig,
       runtime: {} as RuntimeEnv,
       abortSignal: abort.signal,
     }).then((monitor) => {
@@ -121,7 +121,7 @@ describe("monitorLineProvider lifecycle", () => {
     await monitorLineProvider({
       channelAccessToken: "token",
       channelSecret: "secret", // pragma: allowlist secret
-      config: {} as OpenClawConfig,
+      config: {} as AlisioConfig,
       runtime: {} as RuntimeEnv,
       abortSignal: abort.signal,
     });
@@ -133,7 +133,7 @@ describe("monitorLineProvider lifecycle", () => {
     const monitor = await monitorLineProvider({
       channelAccessToken: "token",
       channelSecret: "secret", // pragma: allowlist secret
-      config: {} as OpenClawConfig,
+      config: {} as AlisioConfig,
       runtime: {} as RuntimeEnv,
     });
 
@@ -148,7 +148,7 @@ describe("monitorLineProvider lifecycle", () => {
       monitorLineProvider({
         channelAccessToken: "token",
         channelSecret: "   ",
-        config: {} as OpenClawConfig,
+        config: {} as AlisioConfig,
         runtime: {} as RuntimeEnv,
       }),
     ).rejects.toThrow("LINE webhook mode requires a non-empty channel secret.");
@@ -159,7 +159,7 @@ describe("monitorLineProvider lifecycle", () => {
       monitorLineProvider({
         channelAccessToken: "   ",
         channelSecret: "secret",
-        config: {} as OpenClawConfig,
+        config: {} as AlisioConfig,
         runtime: {} as RuntimeEnv,
       }),
     ).rejects.toThrow("LINE webhook mode requires a non-empty channel access token.");

@@ -278,8 +278,8 @@ export async function resolveGatewayConnection(
   const gatewayAuthMode = config.gateway?.auth?.mode;
   const isRemoteMode = config.gateway?.mode === "remote";
   const remote = config.gateway?.remote;
-  const envToken = trimToUndefined(env.ALISIO_GATEWAY_TOKEN ?? env.OPENCLAW_GATEWAY_TOKEN);
-  const envPassword = trimToUndefined(env.ALISIO_GATEWAY_PASSWORD ?? env.OPENCLAW_GATEWAY_PASSWORD);
+  const envToken = trimToUndefined(env.ALISIO_GATEWAY_TOKEN);
+  const envPassword = trimToUndefined(env.ALISIO_GATEWAY_PASSWORD);
 
   const urlOverride =
     typeof opts.url === "string" && opts.url.trim().length > 0 ? opts.url.trim() : undefined;

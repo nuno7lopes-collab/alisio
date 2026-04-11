@@ -6,7 +6,6 @@ export {
   getChatChannelMeta,
   type ChannelPlugin,
   type AlisioConfig,
-  type AlisioConfig as OpenClawConfig,
 } from "alisio/plugin-sdk/core";
 export { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/channel-status";
 export {

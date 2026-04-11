@@ -1,17 +1,17 @@
 import { expect } from "vitest";
-import type { OpenClawConfig } from "../api.js";
+import type { AlisioConfig } from "../api.js";
 import { createMemoryGetTool, createMemoryGraphTool, createMemorySearchTool } from "./tools.js";
 
-export function asOpenClawConfig(config: Partial<OpenClawConfig>): OpenClawConfig {
-  return config as OpenClawConfig;
+export function asAlisioConfig(config: Partial<AlisioConfig>): AlisioConfig {
+  return config as AlisioConfig;
 }
 
-export function createDefaultMemoryToolConfig(): OpenClawConfig {
-  return asOpenClawConfig({ agents: { list: [{ id: "main", default: true }] } });
+export function createDefaultMemoryToolConfig(): AlisioConfig {
+  return asAlisioConfig({ agents: { list: [{ id: "main", default: true }] } });
 }
 
 export function createMemorySearchToolOrThrow(params?: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentSessionKey?: string;
 }) {
   const tool = createMemorySearchTool({
@@ -24,9 +24,7 @@ export function createMemorySearchToolOrThrow(params?: {
   return tool;
 }
 
-export function createMemoryGetToolOrThrow(
-  config: OpenClawConfig = createDefaultMemoryToolConfig(),
-) {
+export function createMemoryGetToolOrThrow(config: AlisioConfig = createDefaultMemoryToolConfig()) {
   const tool = createMemoryGetTool({ config });
   if (!tool) {
     throw new Error("tool missing");
@@ -35,7 +33,7 @@ export function createMemoryGetToolOrThrow(
 }
 
 export function createMemoryGraphToolOrThrow(
-  config: OpenClawConfig = createDefaultMemoryToolConfig(),
+  config: AlisioConfig = createDefaultMemoryToolConfig(),
 ) {
   const tool = createMemoryGraphTool({ config });
   if (!tool) {
@@ -46,7 +44,7 @@ export function createMemoryGraphToolOrThrow(
 
 export function createAutoCitationsMemorySearchTool(agentSessionKey: string) {
   return createMemorySearchToolOrThrow({
-    config: asOpenClawConfig({
+    config: asAlisioConfig({
       memory: { citations: "auto" },
       agents: { list: [{ id: "main", default: true }] },
     }),

@@ -14,7 +14,7 @@ import {
   normalizeProviderResolvedModelWithPlugin,
 } from "../../plugins/provider-runtime.js";
 import type { ProviderRuntimeProviderConfig } from "../../plugins/types.js";
-import { resolveOpenClawAgentDir } from "../agent-paths.js";
+import { resolveAlisioAgentDir } from "../agent-paths.js";
 import { DEFAULT_CONTEXT_TOKENS } from "../defaults.js";
 import { buildModelAliasLines } from "../model-alias-lines.js";
 import { isSecretRefHeaderValueMarker } from "../model-auth-markers.js";
@@ -107,7 +107,6 @@ function normalizeProviderRuntimeApi(
     case "bedrock-converse-stream":
     case "github-copilot":
     case "google-generative-ai":
-    case "ollama":
     case "openai-codex-responses":
     case "openai-completions":
     case "openai-responses":
@@ -635,7 +634,7 @@ export function resolveModel(
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
 } {
-  const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
+  const resolvedAgentDir = agentDir ?? resolveAlisioAgentDir();
   const authStorage = options?.authStorage ?? discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = options?.modelRegistry ?? discoverModels(authStorage, resolvedAgentDir);
   const runtimeHooks = resolveRuntimeHooks(options);
@@ -682,7 +681,7 @@ export async function resolveModelAsync(
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
 }> {
-  const resolvedAgentDir = agentDir ?? resolveOpenClawAgentDir();
+  const resolvedAgentDir = agentDir ?? resolveAlisioAgentDir();
   const authStorage = options?.authStorage ?? discoverAuthStorage(resolvedAgentDir);
   const modelRegistry = options?.modelRegistry ?? discoverModels(authStorage, resolvedAgentDir);
   const runtimeHooks = resolveRuntimeHooks(options);
@@ -766,7 +765,7 @@ export async function resolveModelAsync(
  * providers before setup, the raw `Unknown model` error is too vague. Provider
  * plugins can append a targeted recovery hint here.
  *
- * See: https://github.com/openclaw/openclaw/issues/17328
+ * See: https://github.com/alisio/alisio/issues/17328
  */
 function buildUnknownModelError(params: {
   provider: string;

@@ -50,7 +50,7 @@ export function buildGatewayConnectionDetailsWithResolvers(
   const envUrlOverride = cliUrlOverride
     ? undefined
     : (trimToUndefined(process.env.ALISIO_GATEWAY_URL) ??
-      trimToUndefined(process.env.OPENCLAW_GATEWAY_URL));
+      trimToUndefined(process.env.ALISIO_GATEWAY_URL));
   const urlOverride = cliUrlOverride ?? envUrlOverride;
   const remoteUrl =
     typeof remote?.url === "string" && remote.url.trim().length > 0 ? remote.url.trim() : undefined;
@@ -72,9 +72,7 @@ export function buildGatewayConnectionDetailsWithResolvers(
     ? "Warn: gateway.mode=remote but gateway.remote.url is missing; set gateway.remote.url or switch gateway.mode=local."
     : undefined;
 
-  const allowPrivateWs =
-    process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS === "1" ||
-    process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS === "1";
+  const allowPrivateWs = process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS === "1";
   if (!isSecureWebSocketUrl(url, { allowPrivateWs })) {
     throw new Error(
       [

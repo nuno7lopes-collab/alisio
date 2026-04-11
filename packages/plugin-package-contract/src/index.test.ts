@@ -6,7 +6,7 @@ import {
   validateExternalCodePluginPackageJson,
 } from "./index.js";
 
-describe("@openclaw/plugin-package-contract", () => {
+describe("@alisio/plugin-package-contract", () => {
   it("normalizes the canonical Alisio compatibility block for external plugins", () => {
     expect(
       normalizeExternalPluginCompatibility({
@@ -24,7 +24,7 @@ describe("@openclaw/plugin-package-contract", () => {
       }),
     ).toEqual({
       pluginApiRange: ">=2026.3.24-beta.2",
-      builtWithOpenClawVersion: "2026.3.24-beta.2",
+      builtWithAlisioVersion: "2026.3.24-beta.2",
       pluginSdkVersion: "0.9.0",
       minGatewayVersion: "2026.3.24-beta.2",
     });
@@ -45,27 +45,8 @@ describe("@openclaw/plugin-package-contract", () => {
       }),
     ).toEqual({
       pluginApiRange: ">=1.0.0",
-      builtWithOpenClawVersion: "1.2.3",
+      builtWithAlisioVersion: "1.2.3",
       minGatewayVersion: "2026.3.24-beta.2",
-    });
-  });
-
-  it("accepts the legacy OpenClaw compatibility block as a fallback", () => {
-    expect(
-      normalizeExternalPluginCompatibility({
-        version: "1.2.3",
-        openclaw: {
-          compat: {
-            pluginApi: ">=2026.3.24-beta.2",
-          },
-          build: {
-            openclawVersion: "2026.3.24-beta.2",
-          },
-        },
-      }),
-    ).toEqual({
-      pluginApiRange: ">=2026.3.24-beta.2",
-      builtWithOpenClawVersion: "2026.3.24-beta.2",
     });
   });
 

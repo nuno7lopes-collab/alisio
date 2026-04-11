@@ -1,6 +1,6 @@
 import { buildPluginConfigSchema } from "alisio/plugin-sdk/core";
 import { z } from "alisio/plugin-sdk/zod";
-import type { OpenClawPluginConfigSchema } from "../api.js";
+import type { AlisioPluginConfigSchema } from "../api.js";
 import {
   DIFF_IMAGE_QUALITY_PRESETS,
   DIFF_INDICATORS,
@@ -146,7 +146,7 @@ const DiffsPluginJsonSchemaSource = z.strictObject({
     .optional(),
 });
 
-export const diffsPluginConfigSchema: OpenClawPluginConfigSchema = buildPluginConfigSchema(
+export const diffsPluginConfigSchema: AlisioPluginConfigSchema = buildPluginConfigSchema(
   DiffsPluginJsonSchemaSource,
   {
     safeParse(value: unknown) {

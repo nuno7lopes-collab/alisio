@@ -9,7 +9,7 @@ export { setGoogleChatRuntime } from "./src/runtime.js";
 export default defineChannelPluginEntry({
   id: "googlechat",
   name: "Google Chat",
-  description: "OpenClaw Google Chat channel plugin",
+  description: "Alisio Google Chat channel plugin",
   plugin: googlechatPlugin as ChannelPlugin,
   setRuntime: setGoogleChatRuntime,
 });

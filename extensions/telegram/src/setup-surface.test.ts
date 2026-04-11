@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/setup";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -40,7 +40,7 @@ vi.mock("./probe.js", () => ({
 import { resolveTelegramAllowFromEntries } from "./setup-core.js";
 import { telegramSetupWizard } from "./setup-surface.js";
 
-async function runPrepare(cfg: OpenClawConfig, accountId: string) {
+async function runPrepare(cfg: AlisioConfig, accountId: string) {
   return await runSetupWizardPrepare({
     prepare: telegramSetupWizard.prepare,
     cfg,
@@ -49,7 +49,7 @@ async function runPrepare(cfg: OpenClawConfig, accountId: string) {
   });
 }
 
-async function runFinalize(cfg: OpenClawConfig, accountId: string) {
+async function runFinalize(cfg: AlisioConfig, accountId: string) {
   const note = vi.fn(async () => undefined);
 
   const result = await runSetupWizardFinalize({
@@ -64,7 +64,7 @@ async function runFinalize(cfg: OpenClawConfig, accountId: string) {
 
 function expectPreparedResult(
   prepared: Awaited<ReturnType<typeof runPrepare>>,
-): { cfg: OpenClawConfig } & Exclude<Awaited<ReturnType<typeof runPrepare>>, void | undefined> {
+): { cfg: AlisioConfig } & Exclude<Awaited<ReturnType<typeof runPrepare>>, void | undefined> {
   expect(prepared).toBeDefined();
   if (
     !prepared ||
@@ -74,7 +74,7 @@ function expectPreparedResult(
   ) {
     throw new Error("Expected prepare result with cfg");
   }
-  return prepared as { cfg: OpenClawConfig } & Exclude<
+  return prepared as { cfg: AlisioConfig } & Exclude<
     Awaited<ReturnType<typeof runPrepare>>,
     void | undefined
   >;

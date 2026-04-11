@@ -7,7 +7,7 @@ export function resolveTaskStateDir(env: NodeJS.ProcessEnv = process.env): strin
   if (explicitCanonical) {
     return resolveStateDir(env);
   }
-  const explicitLegacy = env.OPENCLAW_STATE_DIR?.trim();
+  const explicitLegacy = env.ALISIO_STATE_DIR?.trim();
   if (explicitLegacy) {
     if (env.VITEST || env.NODE_ENV === "test") {
       return resolveStateDir({
@@ -18,7 +18,7 @@ export function resolveTaskStateDir(env: NodeJS.ProcessEnv = process.env): strin
     return resolveStateDir(env);
   }
   if (env.VITEST || env.NODE_ENV === "test") {
-    return path.join(os.tmpdir(), "openclaw-test-state", String(process.pid));
+    return path.join(os.tmpdir(), "alisio-test-state", String(process.pid));
   }
   return resolveStateDir(env);
 }

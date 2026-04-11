@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { quoteCmdScriptArg } from "../daemon/cmd-argv.js";
 import { resolveGatewayWindowsTaskName } from "../daemon/constants.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import type { RestartAttempt } from "./restart.js";
 import { resolvePreferredAlisioTmpDir } from "./tmp-alisio-dir.js";
 
@@ -14,7 +14,7 @@ const TASK_RESTART_RETRY_DELAY_SEC = 1;
 function resolveWindowsTaskName(env: NodeJS.ProcessEnv): string {
   const override = readEnv("ALISIO_WINDOWS_TASK_NAME", {
     env,
-    fallback: legacyEnvKey("WINDOWS_TASK_NAME"),
+    fallback: runtimeEnvKey("WINDOWS_TASK_NAME"),
     description: "Windows Scheduled Task name",
   })?.trim();
   if (override) {
@@ -23,7 +23,7 @@ function resolveWindowsTaskName(env: NodeJS.ProcessEnv): string {
   return resolveGatewayWindowsTaskName(
     readEnv("ALISIO_PROFILE", {
       env,
-      fallback: legacyEnvKey("PROFILE"),
+      fallback: runtimeEnvKey("PROFILE"),
       description: "gateway profile",
     }),
   );

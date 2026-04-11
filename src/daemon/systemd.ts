@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { parseStrictInteger, parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { splitArgsPreservingQuotes } from "./arg-split.js";
 import {
@@ -47,14 +47,14 @@ function resolveSystemdUnitPathForName(env: GatewayServiceEnv, name: string): st
 function resolveSystemdServiceName(env: GatewayServiceEnv): string {
   const override = readEnv("ALISIO_SYSTEMD_UNIT", {
     env,
-    fallback: legacyEnvKey("SYSTEMD_UNIT"),
+    fallback: runtimeEnvKey("SYSTEMD_UNIT"),
   });
   if (override) {
     return override.endsWith(".service") ? override.slice(0, -".service".length) : override;
   }
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   return resolveGatewaySystemdServiceName(profile);
 }
@@ -487,7 +487,7 @@ export async function stageSystemdService({
 async function activateSystemdService(params: { env: GatewayServiceEnv }) {
   const profile = readEnv("ALISIO_PROFILE", {
     env: params.env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   const serviceName = resolveGatewaySystemdServiceName(profile);
   const unitName = `${serviceName}.service`;
@@ -540,7 +540,7 @@ export async function uninstallSystemdService({
   await assertSystemdAvailable(env);
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   const serviceName = resolveGatewaySystemdServiceName(profile);
   const unitName = `${serviceName}.service`;

@@ -17,10 +17,10 @@ export const DEFAULT_AI_SNAPSHOT_MAX_CHARS: FacadeModule["DEFAULT_AI_SNAPSHOT_MA
   loadFacadeModule()["DEFAULT_AI_SNAPSHOT_MAX_CHARS"];
 export const DEFAULT_BROWSER_EVALUATE_ENABLED: FacadeModule["DEFAULT_BROWSER_EVALUATE_ENABLED"] =
   loadFacadeModule()["DEFAULT_BROWSER_EVALUATE_ENABLED"];
-export const DEFAULT_OPENCLAW_BROWSER_COLOR: FacadeModule["DEFAULT_OPENCLAW_BROWSER_COLOR"] =
-  loadFacadeModule()["DEFAULT_OPENCLAW_BROWSER_COLOR"];
-export const DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME: FacadeModule["DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME"] =
-  loadFacadeModule()["DEFAULT_OPENCLAW_BROWSER_PROFILE_NAME"];
+export const DEFAULT_ALISIO_BROWSER_COLOR: FacadeModule["DEFAULT_ALISIO_BROWSER_COLOR"] =
+  loadFacadeModule()["DEFAULT_ALISIO_BROWSER_COLOR"];
+export const DEFAULT_ALISIO_BROWSER_PROFILE_NAME: FacadeModule["DEFAULT_ALISIO_BROWSER_PROFILE_NAME"] =
+  loadFacadeModule()["DEFAULT_ALISIO_BROWSER_PROFILE_NAME"];
 export const DEFAULT_UPLOAD_DIR: FacadeModule["DEFAULT_UPLOAD_DIR"] =
   loadFacadeModule()["DEFAULT_UPLOAD_DIR"];
 export const applyBrowserProxyPaths: FacadeModule["applyBrowserProxyPaths"] = ((...args) =>
@@ -239,9 +239,6 @@ export type BrowserTransport = FacadeEntry["types"]["BrowserTransport"];
 export type AlisioPluginApi = FacadeEntry["types"]["AlisioPluginApi"];
 export type AlisioPluginToolContext = FacadeEntry["types"]["AlisioPluginToolContext"];
 export type AlisioPluginToolFactory = FacadeEntry["types"]["AlisioPluginToolFactory"];
-export type OpenClawPluginApi = AlisioPluginApi;
-export type OpenClawPluginToolContext = AlisioPluginToolContext;
-export type OpenClawPluginToolFactory = AlisioPluginToolFactory;
 export type ProfileStatus = FacadeEntry["types"]["ProfileStatus"];
 export type ResolvedBrowserConfig = FacadeEntry["types"]["ResolvedBrowserConfig"];
 export type ResolvedBrowserProfile = FacadeEntry["types"]["ResolvedBrowserProfile"];

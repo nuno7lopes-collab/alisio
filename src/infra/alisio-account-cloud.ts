@@ -749,7 +749,8 @@ export async function beginAlisioCloudAccountEmailAuth(params: {
   return {
     ok: true,
     email,
-    message: "Check your email for the verification code or sign-in link, then return to Alisio.",
+    message:
+      "Check your email for the Alisio sign-in link. If the email also includes a 6-digit code, you can enter it in the app.",
   };
 }
 

@@ -165,7 +165,6 @@ describe("loadAlisioProviderOverview", () => {
                   update: true,
                   uninstall: true,
                   consentRequired: false,
-                  startServer: true,
                 },
                 supportsInstall: true,
                 supportsUpdate: true,
@@ -174,18 +173,6 @@ describe("loadAlisioProviderOverview", () => {
                 installedModels: [{ id: "qwen", name: "Qwen" }],
                 availableModels: [],
                 recommendations: [],
-              },
-            ],
-            servers: [
-              {
-                serverId: "server-1",
-                label: "Office GPU",
-                kind: "openai-compatible",
-                baseUrl: "https://models.example.com",
-                active: true,
-                hasApiKey: true,
-                status: "ready",
-                models: [{ id: "gpt-4.1", name: "GPT-4.1" }],
               },
             ],
           }) as never,
@@ -284,7 +271,6 @@ describe("loadAlisioProviderOverview", () => {
     expect(result.providers.find((item) => item.id === "openai")?.chips).toContain("Image");
     expect(result.providers.find((item) => item.id === "anthropic")?.status).toBe("attention");
     expect(result.runtimes.map((item) => item.title)).toContain("MacBook Pro");
-    expect(result.runtimes.map((item) => item.title)).toContain("Office GPU");
     expect(result.apps[0]?.connectorId).toBe("google-calendar");
     expect(result.connectors.catalog).toHaveLength(1);
   });

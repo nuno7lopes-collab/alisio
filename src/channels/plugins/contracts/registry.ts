@@ -215,7 +215,7 @@ vi.mock(buildBundledPluginModuleId("matrix", "runtime-api.js"), async () => {
 });
 
 const matrixSessionBindingStateDir = fs.mkdtempSync(
-  path.join(os.tmpdir(), "openclaw-matrix-session-binding-contract-"),
+  path.join(os.tmpdir(), "alisio-matrix-session-binding-contract-"),
 );
 const matrixSessionBindingAuth = {
   accountId: "ops",

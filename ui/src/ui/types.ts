@@ -13,16 +13,8 @@ export type AlisioBootstrapState =
 export type AlisioModelsState = import("../../../src/gateway/protocol/index.js").AlisioModelsResult;
 export type AlisioModelsInstallResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsInstallResult;
-export type AlisioModelsRuntimeStartResult =
-  import("../../../src/gateway/protocol/index.js").AlisioModelsRuntimeStartResult;
 export type AlisioModelsUninstallResult =
   import("../../../src/gateway/protocol/index.js").AlisioModelsUninstallResult;
-export type AlisioModelsServerSaveResult =
-  import("../../../src/gateway/protocol/index.js").AlisioModelsServerSaveResult;
-export type AlisioModelsServerRemoveResult =
-  import("../../../src/gateway/protocol/index.js").AlisioModelsServerRemoveResult;
-export type AlisioModelsServerSelectResult =
-  import("../../../src/gateway/protocol/index.js").AlisioModelsServerSelectResult;
 export type AlisioDoctorSummaryState =
   import("../../../src/gateway/protocol/index.js").AlisioDoctorSummaryResult;
 export type AlisioProviderOverviewItem =
@@ -487,6 +479,7 @@ export type NativeShellState = {
   permissions: Record<NativeShellPermission, boolean>;
   voiceWake: NativeShellVoiceWakeState;
   logsPath: string | null;
+  developerCheckoutAvailable?: boolean;
 };
 
 export type AgentIdentityResult = {

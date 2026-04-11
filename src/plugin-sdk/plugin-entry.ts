@@ -3,14 +3,14 @@ import { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 import type {
   AnyAgentTool,
   MediaUnderstandingProviderPlugin,
-  OpenClawPluginApi,
-  OpenClawPluginCommandDefinition,
-  OpenClawPluginConfigSchema,
-  OpenClawPluginDefinition,
-  OpenClawPluginService,
-  OpenClawPluginServiceContext,
-  OpenClawPluginToolContext,
-  OpenClawPluginToolFactory,
+  AlisioPluginApi,
+  AlisioPluginCommandDefinition,
+  AlisioPluginConfigSchema,
+  AlisioPluginDefinition,
+  AlisioPluginService,
+  AlisioPluginServiceContext,
+  AlisioPluginToolContext,
+  AlisioPluginToolFactory,
   PluginInteractiveTelegramHandlerContext,
   PluginLogger,
   ProviderAugmentModelCatalogContext,
@@ -52,11 +52,11 @@ import type {
 export type {
   AnyAgentTool,
   MediaUnderstandingProviderPlugin,
-  OpenClawPluginApi,
-  OpenClawPluginToolContext,
-  OpenClawPluginToolFactory,
+  AlisioPluginApi,
+  AlisioPluginToolContext,
+  AlisioPluginToolFactory,
   PluginCommandContext,
-  OpenClawPluginConfigSchema,
+  AlisioPluginConfigSchema,
   ProviderDiscoveryContext,
   ProviderCatalogContext,
   ProviderCatalogResult,
@@ -85,20 +85,19 @@ export type {
   SpeechProviderPlugin,
   ProviderThinkingPolicyContext,
   ProviderWrapStreamFnContext,
-  OpenClawPluginService,
-  OpenClawPluginServiceContext,
+  AlisioPluginService,
+  AlisioPluginServiceContext,
   ProviderAuthContext,
   ProviderAuthDoctorHintContext,
   ProviderAuthMethodNonInteractiveContext,
   ProviderAuthMethod,
   ProviderAuthResult,
-  OpenClawPluginCommandDefinition,
-  OpenClawPluginDefinition,
+  AlisioPluginCommandDefinition,
+  AlisioPluginDefinition,
   PluginLogger,
   PluginInteractiveTelegramHandlerContext,
 };
 export type { AlisioConfig };
-export type { AlisioConfig as OpenClawConfig };
 
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 
@@ -107,24 +106,24 @@ type DefinePluginEntryOptions = {
   id: string;
   name: string;
   description: string;
-  kind?: OpenClawPluginDefinition["kind"];
-  configSchema?: OpenClawPluginConfigSchema | (() => OpenClawPluginConfigSchema);
-  register: (api: OpenClawPluginApi) => void;
+  kind?: AlisioPluginDefinition["kind"];
+  configSchema?: AlisioPluginConfigSchema | (() => AlisioPluginConfigSchema);
+  register: (api: AlisioPluginApi) => void;
 };
 
-/** Normalized object shape that OpenClaw loads from a plugin entry module. */
+/** Normalized object shape that Alisio loads from a plugin entry module. */
 type DefinedPluginEntry = {
   id: string;
   name: string;
   description: string;
-  configSchema: OpenClawPluginConfigSchema;
-  register: NonNullable<OpenClawPluginDefinition["register"]>;
-} & Pick<OpenClawPluginDefinition, "kind">;
+  configSchema: AlisioPluginConfigSchema;
+  register: NonNullable<AlisioPluginDefinition["register"]>;
+} & Pick<AlisioPluginDefinition, "kind">;
 
 /** Resolve either a concrete config schema or a lazy schema factory. */
 function resolvePluginConfigSchema(
   configSchema: DefinePluginEntryOptions["configSchema"] = emptyPluginConfigSchema,
-): OpenClawPluginConfigSchema {
+): AlisioPluginConfigSchema {
   return typeof configSchema === "function" ? configSchema() : configSchema;
 }
 
@@ -133,7 +132,7 @@ function resolvePluginConfigSchema(
  *
  * Use this for provider, tool, command, service, memory, and context-engine
  * plugins. Channel plugins should use `defineChannelPluginEntry(...)` from
- * `openclaw/plugin-sdk/core` so they inherit the channel capability wiring.
+ * `alisio/plugin-sdk/core` so they inherit the channel capability wiring.
  */
 export function definePluginEntry({
   id,

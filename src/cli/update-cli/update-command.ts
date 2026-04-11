@@ -82,9 +82,9 @@ const SERVICE_REFRESH_PATH_ENV_KEYS = [
   "ALISIO_HOME",
   "ALISIO_STATE_DIR",
   "ALISIO_CONFIG_PATH",
-  "OPENCLAW_HOME",
-  "OPENCLAW_STATE_DIR",
-  "OPENCLAW_CONFIG_PATH",
+  "ALISIO_HOME",
+  "ALISIO_STATE_DIR",
+  "ALISIO_CONFIG_PATH",
 ] as const;
 
 const UPDATE_QUIPS = [
@@ -352,7 +352,7 @@ async function tryInstallShellCompletion(opts: {
       if (!opts.skipPrompt) {
         defaultRuntime.log(
           theme.muted(
-            `Skipped. Run \`${replaceCliName(formatCliCommand("openclaw completion --install"), CLI_NAME)}\` later to enable.`,
+            `Skipped. Run \`${replaceCliName(formatCliCommand("alisio completion --install"), CLI_NAME)}\` later to enable.`,
           ),
         );
       }
@@ -698,7 +698,7 @@ async function maybeRestartService(params: {
         defaultRuntime.log(theme.success("Daemon restarted successfully."));
         defaultRuntime.log("");
         process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
-        process.env.OPENCLAW_UPDATE_IN_PROGRESS = "1";
+        process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
         try {
           const interactiveDoctor =
             Boolean(process.stdin.isTTY) && !params.opts.json && params.opts.yes !== true;
@@ -709,7 +709,7 @@ async function maybeRestartService(params: {
           defaultRuntime.log(theme.warn(`Doctor failed: ${String(err)}`));
         } finally {
           delete process.env.ALISIO_UPDATE_IN_PROGRESS;
-          delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
+          delete process.env.ALISIO_UPDATE_IN_PROGRESS;
         }
       }
 
@@ -744,7 +744,7 @@ async function maybeRestartService(params: {
           }
           defaultRuntime.log(
             theme.muted(
-              `Run \`${replaceCliName(formatCliCommand("openclaw gateway status --deep"), CLI_NAME)}\` for details.`,
+              `Run \`${replaceCliName(formatCliCommand("alisio gateway status --deep"), CLI_NAME)}\` for details.`,
             ),
           );
         }
@@ -755,7 +755,7 @@ async function maybeRestartService(params: {
         defaultRuntime.log(theme.warn(`Daemon restart failed: ${String(err)}`));
         defaultRuntime.log(
           theme.muted(
-            `You may need to restart the service manually: ${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}`,
+            `You may need to restart the service manually: ${replaceCliName(formatCliCommand("alisio gateway restart"), CLI_NAME)}`,
           ),
         );
       }
@@ -768,13 +768,13 @@ async function maybeRestartService(params: {
     if (params.result.mode === "npm" || params.result.mode === "pnpm") {
       defaultRuntime.log(
         theme.muted(
-          `Tip: Run \`${replaceCliName(formatCliCommand("openclaw doctor"), CLI_NAME)}\`, then \`${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}\` to apply updates to a running gateway.`,
+          `Tip: Run \`${replaceCliName(formatCliCommand("alisio doctor"), CLI_NAME)}\`, then \`${replaceCliName(formatCliCommand("alisio gateway restart"), CLI_NAME)}\` to apply updates to a running gateway.`,
         ),
       );
     } else {
       defaultRuntime.log(
         theme.muted(
-          `Tip: Run \`${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}\` to apply updates to a running gateway.`,
+          `Tip: Run \`${replaceCliName(formatCliCommand("alisio gateway restart"), CLI_NAME)}\` to apply updates to a running gateway.`,
         ),
       );
     }
@@ -1070,7 +1070,7 @@ export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
     if (result.reason === "not-git-install") {
       defaultRuntime.log(
         theme.warn(
-          `Skipped: this Alisio install isn't a git checkout, and the package manager couldn't be detected. Update via your package manager, then run \`${replaceCliName(formatCliCommand("openclaw doctor"), CLI_NAME)}\` and \`${replaceCliName(formatCliCommand("openclaw gateway restart"), CLI_NAME)}\`.`,
+          `Skipped: this Alisio install isn't a git checkout, and the package manager couldn't be detected. Update via your package manager, then run \`${replaceCliName(formatCliCommand("alisio doctor"), CLI_NAME)}\` and \`${replaceCliName(formatCliCommand("alisio gateway restart"), CLI_NAME)}\`.`,
         ),
       );
       defaultRuntime.log(

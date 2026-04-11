@@ -1,5 +1,5 @@
 import type { AlisioConfig } from "../config/config.js";
-import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
+import { DEFAULT_GATEWAY_PORT, resolveGatewayPort } from "../config/paths.js";
 import type { SecretInput } from "../config/types.secrets.js";
 import { isSecureWebSocketUrl } from "../gateway/net.js";
 import { discoverGatewayBeacons, type GatewayBonjourBeacon } from "../infra/bonjour-discovery.js";
@@ -14,16 +14,18 @@ import type { WizardPrompter } from "../wizard/prompts.js";
 import { detectBinary } from "./onboard-helpers.js";
 import type { SecretInputMode } from "./onboard-types.js";
 
-const DEFAULT_GATEWAY_URL = `ws://127.0.0.1:${DEFAULT_GATEWAY_PORT}`;
-
 function buildLabel(beacon: GatewayBonjourBeacon): string {
   return buildGatewayDiscoveryLabel(beacon);
 }
 
-function ensureWsUrl(value: string): string {
+function buildDefaultGatewayUrl(cfg?: AlisioConfig): string {
+  return `ws://127.0.0.1:${resolveGatewayPort(cfg, process.env)}`;
+}
+
+function ensureWsUrl(value: string, cfg?: AlisioConfig): string {
   const trimmed = value.trim();
   if (!trimmed) {
-    return DEFAULT_GATEWAY_URL;
+    return buildDefaultGatewayUrl(cfg);
   }
   return trimmed;
 }
@@ -35,9 +37,7 @@ function validateGatewayWebSocketUrl(value: string): string | undefined {
   }
   if (
     !isSecureWebSocketUrl(trimmed, {
-      allowPrivateWs:
-        process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS === "1" ||
-        process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS === "1",
+      allowPrivateWs: process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS === "1",
     })
   ) {
     return (
@@ -54,7 +54,7 @@ export async function promptRemoteGatewayConfig(
   options?: { secretInputMode?: SecretInputMode },
 ): Promise<AlisioConfig> {
   let selectedBeacon: GatewayBonjourBeacon | null = null;
-  let suggestedUrl = cfg.gateway?.remote?.url ?? DEFAULT_GATEWAY_URL;
+  let suggestedUrl = cfg.gateway?.remote?.url ?? buildDefaultGatewayUrl(cfg);
   let discoveryTlsFingerprint: string | undefined;
   let trustedDiscoveryUrl: string | undefined;
 
@@ -131,17 +131,19 @@ export async function promptRemoteGatewayConfig(
               "Direct remote access defaults to TLS.",
               `Using: ${suggestedUrl}`,
               ...(fingerprint ? [`TLS pin: ${fingerprint}`] : []),
-              "If your gateway is loopback-only, choose SSH tunnel and keep ws://127.0.0.1:40705.",
+              `If your gateway is loopback-only, choose SSH tunnel and keep ${buildDefaultGatewayUrl(cfg)}.`,
             ].join("\n"),
             "Direct remote",
           );
         }
       } else {
-        suggestedUrl = DEFAULT_GATEWAY_URL;
+        const localPort = resolveGatewayPort(cfg, process.env);
+        const remotePort = target.endpoint.port || DEFAULT_GATEWAY_PORT;
+        suggestedUrl = buildDefaultGatewayUrl(cfg);
         await prompter.note(
           [
             "Start a tunnel before using the CLI:",
-            `ssh -N -L 40705:127.0.0.1:40705 <user>@${host}${target.sshPort ? ` -p ${target.sshPort}` : ""}`,
+            `ssh -N -L ${localPort}:127.0.0.1:${remotePort} <user>@${host}${target.sshPort ? ` -p ${target.sshPort}` : ""}`,
             "Docs: https://docs.alisio.pt/gateway/remote",
           ].join("\n"),
           "SSH tunnel",
@@ -155,7 +157,7 @@ export async function promptRemoteGatewayConfig(
     initialValue: suggestedUrl,
     validate: (value) => validateGatewayWebSocketUrl(String(value)),
   });
-  const url = ensureWsUrl(String(urlInput));
+  const url = ensureWsUrl(String(urlInput), cfg);
   const pinnedDiscoveryFingerprint =
     discoveryTlsFingerprint && url === trustedDiscoveryUrl ? discoveryTlsFingerprint : undefined;
 

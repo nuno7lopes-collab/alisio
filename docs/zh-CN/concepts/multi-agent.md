@@ -22,17 +22,17 @@ x-i18n:
 
 - **工作区**（文件、AGENTS.md/SOUL.md/USER.md、本地笔记、人设规则）。
 - **状态目录**（`agentDir`）用于认证配置文件、模型注册表和每智能体配置。
-- **会话存储**（聊天历史 + 路由状态）位于 `~/.openclaw/agents/<agentId>/sessions` 下。
+- **会话存储**（聊天历史 + 路由状态）位于 `~/.alisio/agents/<agentId>/sessions` 下。
 
 认证配置文件是**每智能体独立的**。每个智能体从自己的位置读取：
 
 ```
-~/.openclaw/agents/<agentId>/agent/auth-profiles.json
+~/.alisio/agents/<agentId>/agent/auth-profiles.json
 ```
 
 主智能体凭证**不会**自动共享。切勿在智能体之间重用 `agentDir`（这会导致认证/会话冲突）。如果你想共享凭证，请将 `auth-profiles.json` 复制到另一个智能体的 `agentDir`。
 
-Skills 通过每个工作区的 `skills/` 文件夹实现每智能体独立，共享的 Skills 可从 `~/.openclaw/skills` 获取。参见 [Skills：每智能体 vs 共享](/tools/skills#per-agent-vs-shared-skills)。
+Skills 通过每个工作区的 `skills/` 文件夹实现每智能体独立，共享的 Skills 可从 `~/.alisio/skills` 获取。参见 [Skills：每智能体 vs 共享](/tools/skills#per-agent-vs-shared-skills)。
 
 Gateway 网关可以托管**一个智能体**（默认）或**多个智能体**并行。
 
@@ -40,27 +40,27 @@ Gateway 网关可以托管**一个智能体**（默认）或**多个智能体**�
 
 ## 路径（快速映射）
 
-- 配置：`~/.openclaw/openclaw.json`（或 `OPENCLAW_CONFIG_PATH`）
-- 状态目录：`~/.openclaw`（或 `OPENCLAW_STATE_DIR`）
-- 工作区：`~/.openclaw/workspace`（或 `~/.openclaw/workspace-<agentId>`）
-- 智能体目录：`~/.openclaw/agents/<agentId>/agent`（或 `agents.list[].agentDir`）
-- 会话：`~/.openclaw/agents/<agentId>/sessions`
+- 配置：`~/.alisio/alisio.json`（或 `ALISIO_CONFIG_PATH`）
+- 状态目录：`~/.alisio`（或 `ALISIO_STATE_DIR`）
+- 工作区：`~/.alisio/workspace`（或 `~/.alisio/workspace-<agentId>`）
+- 智能体目录：`~/.alisio/agents/<agentId>/agent`（或 `agents.list[].agentDir`）
+- 会话：`~/.alisio/agents/<agentId>/sessions`
 
 ### 单智能体模式（默认）
 
-如果你什么都不做，OpenClaw 运行单个智能体：
+如果你什么都不做，Alisio 运行单个智能体：
 
 - `agentId` 默认为 **`main`**。
 - 会话键为 `agent:main:<mainKey>`。
-- 工作区默认为 `~/.openclaw/workspace`（或当设置了 `OPENCLAW_PROFILE` 时为 `~/.openclaw/workspace-<profile>`）。
-- 状态默认为 `~/.openclaw/agents/main/agent`。
+- 工作区默认为 `~/.alisio/workspace`（或当设置了 `ALISIO_PROFILE` 时为 `~/.alisio/workspace-<profile>`）。
+- 状态默认为 `~/.alisio/agents/main/agent`。
 
 ## 智能体助手
 
 使用智能体向导添加新的隔离智能体：
 
 ```bash
-openclaw agents add work
+alisio agents add work
 ```
 
 然后添加 `bindings`（或让向导完成）来路由入站消息。
@@ -68,7 +68,7 @@ openclaw agents add work
 验证：
 
 ```bash
-openclaw agents list --bindings
+alisio agents list --bindings
 ```
 
 ## 多个智能体 = 多个人、多种人格
@@ -93,8 +93,8 @@ openclaw agents list --bindings
 {
   agents: {
     list: [
-      { id: "alex", workspace: "~/.openclaw/workspace-alex" },
-      { id: "mia", workspace: "~/.openclaw/workspace-mia" },
+      { id: "alex", workspace: "~/.alisio/workspace-alex" },
+      { id: "mia", workspace: "~/.alisio/workspace-mia" },
     ],
   },
   bindings: [
@@ -139,7 +139,7 @@ openclaw agents list --bindings
 
 ## 示例：两个 WhatsApp → 两个智能体
 
-`~/.openclaw/openclaw.json`（JSON5）：
+`~/.alisio/alisio.json`（JSON5）：
 
 ```js
 {
@@ -149,14 +149,14 @@ openclaw agents list --bindings
         id: "home",
         default: true,
         name: "Home",
-        workspace: "~/.openclaw/workspace-home",
-        agentDir: "~/.openclaw/agents/home/agent",
+        workspace: "~/.alisio/workspace-home",
+        agentDir: "~/.alisio/agents/home/agent",
       },
       {
         id: "work",
         name: "Work",
-        workspace: "~/.openclaw/workspace-work",
-        agentDir: "~/.openclaw/agents/work/agent",
+        workspace: "~/.alisio/workspace-work",
+        agentDir: "~/.alisio/agents/work/agent",
       },
     ],
   },
@@ -189,12 +189,12 @@ openclaw agents list --bindings
     whatsapp: {
       accounts: {
         personal: {
-          // 可选覆盖。默认：~/.openclaw/credentials/whatsapp/personal
-          // authDir: "~/.openclaw/credentials/whatsapp/personal",
+          // 可选覆盖。默认：~/.alisio/credentials/whatsapp/personal
+          // authDir: "~/.alisio/credentials/whatsapp/personal",
         },
         biz: {
-          // 可选覆盖。默认：~/.openclaw/credentials/whatsapp/biz
-          // authDir: "~/.openclaw/credentials/whatsapp/biz",
+          // 可选覆盖。默认：~/.alisio/credentials/whatsapp/biz
+          // authDir: "~/.alisio/credentials/whatsapp/biz",
         },
       },
     },
@@ -213,13 +213,13 @@ openclaw agents list --bindings
       {
         id: "chat",
         name: "Everyday",
-        workspace: "~/.openclaw/workspace-chat",
+        workspace: "~/.alisio/workspace-chat",
         model: "anthropic/claude-sonnet-4-5",
       },
       {
         id: "opus",
         name: "Deep Work",
-        workspace: "~/.openclaw/workspace-opus",
+        workspace: "~/.alisio/workspace-opus",
         model: "anthropic/claude-opus-4-5",
       },
     ],
@@ -247,13 +247,13 @@ openclaw agents list --bindings
       {
         id: "chat",
         name: "Everyday",
-        workspace: "~/.openclaw/workspace-chat",
+        workspace: "~/.alisio/workspace-chat",
         model: "anthropic/claude-sonnet-4-5",
       },
       {
         id: "opus",
         name: "Deep Work",
-        workspace: "~/.openclaw/workspace-opus",
+        workspace: "~/.alisio/workspace-opus",
         model: "anthropic/claude-opus-4-5",
       },
     ],
@@ -278,7 +278,7 @@ openclaw agents list --bindings
       {
         id: "family",
         name: "Family",
-        workspace: "~/.openclaw/workspace-family",
+        workspace: "~/.alisio/workspace-family",
         identity: { name: "Family Bot" },
         groupChat: {
           mentionPatterns: ["@family", "@familybot", "@Family Bot"],
@@ -329,7 +329,7 @@ openclaw agents list --bindings
     list: [
       {
         id: "personal",
-        workspace: "~/.openclaw/workspace-personal",
+        workspace: "~/.alisio/workspace-personal",
         sandbox: {
           mode: "off",  // 个人智能体无沙箱
         },
@@ -337,7 +337,7 @@ openclaw agents list --bindings
       },
       {
         id: "family",
-        workspace: "~/.openclaw/workspace-family",
+        workspace: "~/.alisio/workspace-family",
         sandbox: {
           mode: "all",     // 始终沙箱隔离
           scope: "agent",  // 每智能体一个容器

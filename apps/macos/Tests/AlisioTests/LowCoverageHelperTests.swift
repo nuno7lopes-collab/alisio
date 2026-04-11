@@ -127,7 +127,7 @@ struct LowCoverageHelperTests {
             port: 40705,
             mode: .local,
             listeners: [(pid: 1, command: "node",
-                         fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway --port 40705",
+                         fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway run --port 40705",
                          user: "me")])
         #expect(okReport.offenders.isEmpty)
 
@@ -175,18 +175,18 @@ struct LowCoverageHelperTests {
             port: 40705, mode: .local) == true)
 
         #expect(PortGuardian._testIsExpected(
-            command: "openclaw-gateway",
-            fullCommand: "openclaw-gateway",
-            port: 40705, mode: .local) == false)
+            command: "alisio-gateway",
+            fullCommand: "alisio-gateway",
+            port: 40705, mode: .local) == true)
 
         #expect(PortGuardian._testIsExpected(
             command: "node",
-            fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway --port 40705",
+            fullCommand: "node /opt/homebrew/lib/node_modules/alisio/dist/index.js gateway run --port 40705",
             port: 40705, mode: .local) == true)
 
         #expect(PortGuardian._testIsExpected(
             command: "pnpm",
-            fullCommand: "pnpm alisio gateway --port 40705",
+            fullCommand: "pnpm alisio gateway run --port 40705",
             port: 40705, mode: .local) == true)
 
         #expect(PortGuardian._testIsExpected(

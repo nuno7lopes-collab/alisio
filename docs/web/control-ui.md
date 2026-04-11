@@ -146,7 +146,7 @@ code may run on that host, require token/password auth.
 ### Bind to tailnet + token
 
 ```bash
-alisio gateway --bind tailnet --token "$(openssl rand -hex 32)"
+alisio gateway run --bind tailnet --token "$(openssl rand -hex 32)"
 ```
 
 Then open:

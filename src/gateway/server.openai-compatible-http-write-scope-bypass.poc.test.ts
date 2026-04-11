@@ -35,10 +35,10 @@ describe("gateway OpenAI-compatible HTTP write-scope bypass PoC", () => {
         headers: {
           authorization: "Bearer secret",
           "content-type": "application/json",
-          "x-openclaw-scopes": "operator.approvals",
+          "x-alisio-scopes": "operator.approvals",
         },
         body: JSON.stringify({
-          model: "openclaw",
+          model: "alisio",
           messages: [{ role: "user", content: "hi" }],
         }),
       });
@@ -59,7 +59,7 @@ describe("gateway OpenAI-compatible HTTP write-scope bypass PoC", () => {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          model: "openclaw",
+          model: "alisio",
           messages: [{ role: "user", content: "hi" }],
         }),
       });
@@ -92,10 +92,10 @@ describe("gateway OpenAI-compatible HTTP write-scope bypass PoC", () => {
         headers: {
           authorization: "Bearer secret",
           "content-type": "application/json",
-          "x-openclaw-scopes": "operator.write",
+          "x-alisio-scopes": "operator.write",
         },
         body: JSON.stringify({
-          model: "openclaw",
+          model: "alisio",
           messages: [{ role: "user", content: "hi" }],
         }),
       });
@@ -140,11 +140,11 @@ describe("gateway OpenAI-compatible HTTP write-scope bypass PoC", () => {
         headers: {
           authorization: "Bearer secret",
           "content-type": "application/json",
-          "x-openclaw-scopes": "operator.approvals",
+          "x-alisio-scopes": "operator.approvals",
         },
         body: JSON.stringify({
           stream: false,
-          model: "openclaw",
+          model: "alisio",
           input: "hi",
         }),
       });
@@ -177,11 +177,11 @@ describe("gateway OpenAI-compatible HTTP write-scope bypass PoC", () => {
         headers: {
           authorization: "Bearer secret",
           "content-type": "application/json",
-          "x-openclaw-scopes": "operator.write",
+          "x-alisio-scopes": "operator.write",
         },
         body: JSON.stringify({
           stream: false,
-          model: "openclaw",
+          model: "alisio",
           input: "hi",
         }),
       });

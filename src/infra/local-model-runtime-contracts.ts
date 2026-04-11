@@ -1,12 +1,8 @@
 import { ALISIO_LOCAL_MODEL_BACKEND } from "../shared/alisio-local-models.js";
 
-export type LocalRuntimeKind =
-  | typeof ALISIO_LOCAL_MODEL_BACKEND
-  | "ollama"
-  | "lmstudio"
-  | "openai-compatible";
+export type LocalRuntimeKind = typeof ALISIO_LOCAL_MODEL_BACKEND;
 
-export type RuntimeLocation = "local" | "server";
+export type RuntimeLocation = "local" | "node";
 
 export interface InstalledModel {
   id: string;
@@ -35,7 +31,6 @@ export interface RuntimeCapabilities {
   update: boolean;
   uninstall: boolean;
   consentRequired: boolean;
-  startServer: boolean;
 }
 
 export function buildRuntimeCapabilities(
@@ -46,6 +41,5 @@ export function buildRuntimeCapabilities(
     update: overrides?.update ?? false,
     uninstall: overrides?.uninstall ?? false,
     consentRequired: overrides?.consentRequired ?? false,
-    startServer: overrides?.startServer ?? false,
   };
 }

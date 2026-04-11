@@ -78,7 +78,7 @@ vi.mock("../daemon/service.js", () => ({
 
 vi.mock("../daemon/program-args.js", () => ({
   resolveGatewayProgramArguments: async () => ({
-    programArguments: ["/bin/node", "cli", "gateway", "--port", "40705"],
+    programArguments: ["/bin/node", "cli", "gateway", "run", "--port", "40705"],
   }),
 }));
 
@@ -145,10 +145,10 @@ describe("gateway-cli coverage", () => {
     discoverGatewayBeacons.mockClear();
     discoverGatewayBeacons.mockResolvedValueOnce([
       {
-        instanceName: "Studio (OpenClaw)",
+        instanceName: "Studio (Alisio)",
         displayName: "Studio",
-        domain: "openclaw.internal.",
-        host: "studio.openclaw.internal",
+        domain: "alisio.internal.",
+        host: "studio.alisio.internal",
         port: 40705,
         lanHost: "studio.local",
         tailnetDns: "studio.tailnet.ts.net",
@@ -187,7 +187,7 @@ describe("gateway-cli coverage", () => {
     resetRuntimeCapture();
 
     // Invalid port
-    await expectGatewayExit(["gateway", "--port", "0", "--token", "test-token"]);
+    await expectGatewayExit(["gateway", "run", "--port", "0", "--token", "test-token"]);
 
     // Force free failure
     forceFreePortAndWait.mockImplementationOnce(async () => {
@@ -195,6 +195,7 @@ describe("gateway-cli coverage", () => {
     });
     await expectGatewayExit([
       "gateway",
+      "run",
       "--port",
       "40705",
       "--token",
@@ -209,6 +210,7 @@ describe("gateway-cli coverage", () => {
     const beforeSigint = new Set(process.listeners("SIGINT"));
     await expectGatewayExit([
       "gateway",
+      "run",
       "--port",
       "40705",
       "--token",
@@ -233,14 +235,14 @@ describe("gateway-cli coverage", () => {
         LAUNCH_JOB_LABEL: undefined,
         LAUNCH_JOB_NAME: undefined,
         XPC_SERVICE_NAME: undefined,
-        OPENCLAW_LAUNCHD_LABEL: undefined,
-        OPENCLAW_SYSTEMD_UNIT: undefined,
+        ALISIO_LAUNCHD_LABEL: undefined,
+        ALISIO_SYSTEMD_UNIT: undefined,
         INVOCATION_ID: undefined,
         SYSTEMD_EXEC_PID: undefined,
         JOURNAL_STREAM: undefined,
-        OPENCLAW_WINDOWS_TASK_NAME: undefined,
-        OPENCLAW_SERVICE_MARKER: undefined,
-        OPENCLAW_SERVICE_KIND: undefined,
+        ALISIO_WINDOWS_TASK_NAME: undefined,
+        ALISIO_SERVICE_MARKER: undefined,
+        ALISIO_SERVICE_KIND: undefined,
       },
       async () => {
         resetRuntimeCapture();
@@ -249,7 +251,7 @@ describe("gateway-cli coverage", () => {
           new GatewayLockError("another gateway instance is already listening"),
         );
         await expect(
-          runGatewayCommand(["gateway", "--token", "test-token", "--allow-unconfigured"]),
+          runGatewayCommand(["gateway", "run", "--token", "test-token", "--allow-unconfigured"]),
         ).rejects.toThrow("__exit__:0");
 
         expect(startGatewayServer).toHaveBeenCalled();
@@ -266,7 +268,7 @@ describe("gateway-cli coverage", () => {
       new GatewayLockError("failed to bind gateway socket on ws://127.0.0.1:40705: Error: boom"),
     );
 
-    await expectGatewayExit(["gateway", "--token", "test-token", "--allow-unconfigured"]);
+    await expectGatewayExit(["gateway", "run", "--token", "test-token", "--allow-unconfigured"]);
 
     expect(runtimeErrors.join("\n")).toContain("failed to bind gateway socket");
   });
@@ -275,21 +277,21 @@ describe("gateway-cli coverage", () => {
     resetRuntimeCapture();
     serviceIsLoaded.mockResolvedValue(true);
     startGatewayServer.mockRejectedValueOnce(
-      new GatewayLockError("failed to acquire gateway lock at /tmp/openclaw/gateway.lock"),
+      new GatewayLockError("failed to acquire gateway lock at /tmp/alisio/gateway.lock"),
     );
 
-    await expectGatewayExit(["gateway", "--token", "test-token", "--allow-unconfigured"]);
+    await expectGatewayExit(["gateway", "run", "--token", "test-token", "--allow-unconfigured"]);
 
     expect(runtimeErrors.join("\n")).toContain("failed to acquire gateway lock");
   });
 
   it("uses env/config port when --port is omitted", async () => {
-    await withEnvOverride({ OPENCLAW_GATEWAY_PORT: "19001" }, async () => {
+    await withEnvOverride({ ALISIO_GATEWAY_PORT: "19001" }, async () => {
       resetRuntimeCapture();
       startGatewayServer.mockClear();
 
       startGatewayServer.mockRejectedValueOnce(new Error("nope"));
-      await expectGatewayExit(["gateway", "--token", "test-token", "--allow-unconfigured"]);
+      await expectGatewayExit(["gateway", "run", "--token", "test-token", "--allow-unconfigured"]);
 
       expect(startGatewayServer).toHaveBeenCalledWith(19001, expect.anything());
     });

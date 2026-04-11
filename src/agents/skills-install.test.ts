@@ -27,7 +27,7 @@ vi.mock("../security/skill-scanner.js", async (importOriginal) => ({
 async function writeInstallableSkill(
   workspaceDir: string,
   name: string,
-  metadataJson = '{"openclaw":{"install":[{"id":"deps","kind":"node","package":"example-package"}]}}',
+  metadataJson = '{"alisio":{"install":[{"id":"deps","kind":"node","package":"example-package"}]}}',
 ): Promise<string> {
   const skillDir = path.join(workspaceDir, "skills", name);
   await fs.mkdir(skillDir, { recursive: true });
@@ -47,11 +47,11 @@ metadata: ${metadataJson}
   return skillDir;
 }
 
-const workspaceSuite = createFixtureSuite("openclaw-skills-install-");
+const workspaceSuite = createFixtureSuite("alisio-skills-install-");
 let tempHome: TempHomeEnv;
 
 beforeAll(async () => {
-  tempHome = await createTempHomeEnv("openclaw-skills-install-home-");
+  tempHome = await createTempHomeEnv("alisio-skills-install-home-");
   await workspaceSuite.setup();
 });
 
@@ -241,7 +241,7 @@ describe("installSkill code safety scanning", () => {
       await writeInstallableSkill(
         workspaceDir,
         "apt-skill",
-        '{"openclaw":{"install":[{"id":"deps","kind":"apt","package":"gh"}]}}',
+        '{"alisio":{"install":[{"id":"deps","kind":"apt","package":"gh"}]}}',
       );
 
       const previousPath = process.env.PATH;

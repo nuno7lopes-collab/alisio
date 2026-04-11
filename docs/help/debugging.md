@@ -40,7 +40,7 @@ pnpm gateway:watch
 This maps to:
 
 ```bash
-node scripts/watch-node.mjs gateway --force
+node scripts/watch-node.mjs gateway run --force
 ```
 
 The watcher restarts on build-relevant files under `src/`, extension source files,
@@ -59,7 +59,7 @@ debugging. There are **two** `--dev` flags:
 
 - **Global `--dev` (profile):** isolates state under `~/.alisio-dev` and
   defaults the gateway port to `19001` (derived ports shift with it).
-- **`gateway --dev`: tells the Gateway to auto-create a default config +
+- **`gateway run --dev`: tells the Gateway to auto-create a default config +
   workspace** when missing (and skip BOOTSTRAP.md).
 
 Recommended flow (dev profile + dev bootstrap):
@@ -79,7 +79,7 @@ What this does:
    - `ALISIO_CONFIG_PATH=~/.alisio-dev/alisio.json`
    - `ALISIO_GATEWAY_PORT=19001` (browser/canvas shift accordingly)
 
-2. **Dev bootstrap** (`gateway --dev`)
+2. **Dev bootstrap** (`gateway run --dev`)
    - Writes a minimal config if missing (`gateway.mode=local`, bind loopback).
    - Sets `agent.workspace` to the dev workspace.
    - Sets `agent.skipBootstrap=true` (no BOOTSTRAP.md).
@@ -98,7 +98,7 @@ Note: `--dev` is a **global** profile flag and gets eaten by some runners.
 If you need to spell it out, use the env var form:
 
 ```bash
-ALISIO_PROFILE=dev alisio gateway --dev --reset
+ALISIO_PROFILE=dev alisio gateway run --dev --reset
 ```
 
 `--reset` wipes config, credentials, sessions, and the dev workspace (using

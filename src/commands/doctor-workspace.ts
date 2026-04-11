@@ -12,8 +12,8 @@ export const MEMORY_SYSTEM_PROMPT = [
   "Paste this into your agent:",
   "",
   "Install the memory system by applying:",
-  "https://github.com/openclaw/openclaw/commit/9ffea23f31ca1df5183b25668f8f814bee0fb34e",
-  "https://github.com/openclaw/openclaw/commit/7d1fee70e76f2f634f1b41fca927ee663914183a",
+  "https://github.com/alisio/alisio/commit/9ffea23f31ca1df5183b25668f8f814bee0fb34e",
+  "https://github.com/alisio/alisio/commit/7d1fee70e76f2f634f1b41fca927ee663914183a",
 ].join("\n");
 
 export async function shouldSuggestMemorySystem(params: {
@@ -24,7 +24,7 @@ export async function shouldSuggestMemorySystem(params: {
   if (resolveObsidianMemoryLayout({ cfg: params.cfg, workspaceDir })) {
     return false;
   }
-  const memoryPaths = [path.join(workspaceDir, "MEMORY.md"), path.join(workspaceDir, "memory.md")];
+  const memoryPaths = [path.join(workspaceDir, "MEMORY.md")];
   const obsidianMemoryPaths = [
     path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH),
     path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH, "long-term.md"),
@@ -42,7 +42,7 @@ export async function shouldSuggestMemorySystem(params: {
   const agentsPath = path.join(workspaceDir, DEFAULT_AGENTS_FILENAME);
   try {
     const content = await fs.promises.readFile(agentsPath, "utf-8");
-    if (/memory\.md/i.test(content)) {
+    if (/MEMORY\.md/i.test(content)) {
       return false;
     }
   } catch {

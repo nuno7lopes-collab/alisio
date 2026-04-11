@@ -1,10 +1,6 @@
 // swift-tools-version: 6.2
-// Canonical shared package surface during the OpenClawKit -> AlisioKit transition.
 
 import PackageDescription
-
-let legacySharedPackageName = "OpenClawKit"
-let legacySharedPackagePath = "../OpenClawKit"
 
 let package = Package(
     name: "AlisioKit",
@@ -18,14 +14,12 @@ let package = Package(
         .library(name: "AlisioChatUI", targets: ["AlisioChatUI"]),
     ],
     dependencies: [
-        .package(path: legacySharedPackagePath),
+        .package(url: "https://github.com/steipete/ElevenLabsKit", exact: "0.1.0"),
+        .package(url: "https://github.com/gonzalezreal/textual", exact: "0.3.1"),
     ],
     targets: [
         .target(
             name: "AlisioProtocol",
-            dependencies: [
-                .product(name: "OpenClawProtocol", package: legacySharedPackageName),
-            ],
             path: "Sources/AlisioProtocol",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
@@ -34,9 +28,12 @@ let package = Package(
             name: "AlisioKit",
             dependencies: [
                 "AlisioProtocol",
-                .product(name: "OpenClawKit", package: legacySharedPackageName),
+                .product(name: "ElevenLabsKit", package: "ElevenLabsKit"),
             ],
             path: "Sources/AlisioKit",
+            resources: [
+                .process("Resources"),
+            ],
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),
             ]),
@@ -44,7 +41,10 @@ let package = Package(
             name: "AlisioChatUI",
             dependencies: [
                 "AlisioKit",
-                .product(name: "OpenClawChatUI", package: legacySharedPackageName),
+                .product(
+                    name: "Textual",
+                    package: "textual",
+                    condition: .when(platforms: [.macOS, .iOS])),
             ],
             path: "Sources/AlisioChatUI",
             swiftSettings: [
@@ -52,14 +52,7 @@ let package = Package(
             ]),
         .testTarget(
             name: "AlisioKitTests",
-            dependencies: [
-                "AlisioProtocol",
-                "AlisioKit",
-                "AlisioChatUI",
-                .product(name: "OpenClawProtocol", package: legacySharedPackageName),
-                .product(name: "OpenClawKit", package: legacySharedPackageName),
-                .product(name: "OpenClawChatUI", package: legacySharedPackageName),
-            ],
+            dependencies: ["AlisioKit", "AlisioChatUI"],
             path: "Tests/AlisioKitTests",
             swiftSettings: [
                 .enableUpcomingFeature("StrictConcurrency"),

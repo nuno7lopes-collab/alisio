@@ -67,13 +67,13 @@ export function resolveEnabledMarketplaceFeatureFlags(
 
   const env = params?.env ?? process.env;
   addFeatureFlags(resolved, env.ALISIO_SKILL_FEATURES);
-  addFeatureFlags(resolved, env.OPENCLAW_SKILL_FEATURES);
+  addFeatureFlags(resolved, env.ALISIO_SKILL_FEATURES);
 
   for (const [key, value] of Object.entries(env)) {
     const suffix = key.startsWith("ALISIO_FEATURE_")
       ? key.slice("ALISIO_FEATURE_".length)
-      : key.startsWith("OPENCLAW_FEATURE_")
-        ? key.slice("OPENCLAW_FEATURE_".length)
+      : key.startsWith("ALISIO_FEATURE_")
+        ? key.slice("ALISIO_FEATURE_".length)
         : "";
     if (!suffix) {
       continue;

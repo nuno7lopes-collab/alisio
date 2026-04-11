@@ -1,4 +1,4 @@
-// Default service labels (canonical + legacy compatibility)
+// Default service labels for canonical Alisio services.
 export const GATEWAY_LAUNCH_AGENT_LABEL = "ai.alisio.gateway";
 export const GATEWAY_SYSTEMD_SERVICE_NAME = "alisio-gateway";
 export const GATEWAY_WINDOWS_TASK_NAME = "Alisio Gateway";
@@ -10,11 +10,8 @@ export const NODE_WINDOWS_TASK_NAME = "Alisio Node";
 export const NODE_SERVICE_MARKER = "alisio";
 export const NODE_SERVICE_KIND = "node";
 export const NODE_WINDOWS_TASK_SCRIPT_NAME = "node.cmd";
-export const LEGACY_GATEWAY_LAUNCH_AGENT_LABELS: string[] = ["ai.openclaw.gateway"];
-export const LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES: string[] = [
-  "openclaw-gateway",
-  "clawdbot-gateway",
-];
+export const LEGACY_GATEWAY_LAUNCH_AGENT_LABELS: string[] = [];
+export const LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES: string[] = [];
 export const LEGACY_GATEWAY_WINDOWS_TASK_NAMES: string[] = [];
 
 export function normalizeGatewayProfile(profile?: string): string | null {
@@ -39,11 +36,8 @@ export function resolveGatewayLaunchAgentLabel(profile?: string): string {
 }
 
 export function resolveLegacyGatewayLaunchAgentLabels(profile?: string): string[] {
-  const normalized = normalizeGatewayProfile(profile);
-  if (!normalized) {
-    return LEGACY_GATEWAY_LAUNCH_AGENT_LABELS;
-  }
-  return [`ai.openclaw.${normalized}`];
+  void profile;
+  return LEGACY_GATEWAY_LAUNCH_AGENT_LABELS;
 }
 
 export function resolveGatewaySystemdServiceName(profile?: string): string {
@@ -86,12 +80,9 @@ export function resolveGatewayServiceDescription(params: {
   environment?: Record<string, string | undefined>;
   description?: string;
 }): string {
-  const profile = params.env.ALISIO_PROFILE ?? params.env.OPENCLAW_PROFILE;
+  const profile = params.env.ALISIO_PROFILE;
   const environmentVersion =
-    params.environment?.ALISIO_SERVICE_VERSION ??
-    params.environment?.OPENCLAW_SERVICE_VERSION ??
-    params.env.ALISIO_SERVICE_VERSION ??
-    params.env.OPENCLAW_SERVICE_VERSION;
+    params.environment?.ALISIO_SERVICE_VERSION ?? params.env.ALISIO_SERVICE_VERSION;
   return (
     params.description ??
     formatGatewayServiceDescription({

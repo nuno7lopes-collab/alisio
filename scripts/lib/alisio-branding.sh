@@ -54,45 +54,43 @@ alisio_public_repo_nwo() {
 }
 
 alisio_legacy_slug() {
-  printf '%s\n' "open""claw"
+  alisio_app_slug
 }
 
 alisio_legacy_title() {
-  printf '%s\n' "Open""Claw"
+  alisio_app_name
 }
 
 alisio_legacy_env_prefix() {
-  printf '%s\n' "OPEN""CLAW"
+  printf '%s\n' "ALISIO"
 }
 
 alisio_legacy_scope() {
-  printf '@%s\n' "$(alisio_legacy_slug)"
+  printf '@%s\n' "$(alisio_app_slug)"
 }
 
 alisio_legacy_plugin_manifest() {
-  printf '%s.plugin.json\n' "$(alisio_legacy_slug)"
+  printf '%s.plugin.json\n' "$(alisio_app_slug)"
 }
 
 alisio_legacy_entrypoint() {
-  printf '%s.mjs\n' "$(alisio_legacy_slug)"
+  printf '%s.mjs\n' "$(alisio_app_slug)"
 }
 
 alisio_legacy_config_name() {
-  printf '%s.json\n' "$(alisio_legacy_slug)"
+  printf '%s.json\n' "$(alisio_app_slug)"
 }
 
 alisio_legacy_state_dir_name() {
-  printf '.%s\n' "$(alisio_legacy_slug)"
+  alisio_state_dir_name
 }
 
 alisio_legacy_plugin_sdk_root() {
-  printf '%s/plugin-sdk\n' "$(alisio_legacy_slug)"
+  printf '%s/plugin-sdk\n' "$(alisio_app_slug)"
 }
 
 alisio_legacy_repo_nwo() {
-  local slug
-  slug="$(alisio_legacy_slug)"
-  printf '%s/%s\n' "$slug" "$slug"
+  alisio_public_repo_nwo
 }
 
 alisio_distribution_id() {
@@ -100,11 +98,6 @@ alisio_distribution_id() {
 }
 
 alisio_repo_nwo() {
-  local distribution="${1:-$(alisio_distribution_id)}"
-  if [[ "$distribution" == "$(alisio_legacy_slug)" ]]; then
-    alisio_legacy_repo_nwo
-    return 0
-  fi
   alisio_public_repo_nwo
 }
 
@@ -272,7 +265,7 @@ NODE
       return 0
     fi
   fi
-  alisio_legacy_scope
+  printf '@%s\n' "$(alisio_app_slug)"
 }
 
 alisio_current_plugin_manifest_name() {
@@ -289,7 +282,7 @@ alisio_current_plugin_manifest_name() {
       return 0
     fi
   fi
-  alisio_legacy_plugin_manifest
+  printf '%s.plugin.json\n' "$(alisio_app_slug)"
 }
 
 alisio_current_package_brand_key() {
@@ -300,7 +293,7 @@ alisio_current_package_brand_key() {
 const fs = require("node:fs");
 const path = require("node:path");
 const repoRoot = process.argv[2];
-const keys = ["alisio", ["open", "claw"].join("")];
+const keys = ["alisio"];
 try {
   for (const entry of fs.readdirSync(path.join(repoRoot, "extensions"), { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;

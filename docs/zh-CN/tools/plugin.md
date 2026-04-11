@@ -3,7 +3,7 @@ read_when:
   - 添加或修改插件/扩展时
   - 记录插件安装或加载规则时
   - 使用与 Codex/Claude 兼容的插件包时
-summary: OpenClaw 插件/扩展：发现、配置与安全
+summary: Alisio 插件/扩展：发现、配置与安全
 title: 插件
 x-i18n:
   generated_at: "2026-03-16T06:36:16Z"
@@ -20,32 +20,32 @@ x-i18n:
 
 插件可以是以下两种之一：
 
-- 原生 **OpenClaw 插件**（`openclaw.plugin.json` + 运行时模块），或
+- 原生 **Alisio 插件**（`alisio.plugin.json` + 运行时模块），或
 - 兼容的 **bundle**（`.codex-plugin/plugin.json` 或 `.claude-plugin/plugin.json`）
 
-两者都会显示在 `openclaw plugins` 下，但只有原生 OpenClaw 插件会在进程内执行运行时代码。
+两者都会显示在 `alisio plugins` 下，但只有原生 Alisio 插件会在进程内执行运行时代码。
 
-大多数情况下，当你想要某项核心 OpenClaw 尚未内置的功能时，就会使用插件（或者你希望将可选功能保留在主安装之外）。
+大多数情况下，当你想要某项核心 Alisio 尚未内置的功能时，就会使用插件（或者你希望将可选功能保留在主安装之外）。
 
 快捷路径：
 
 1. 查看当前已加载的内容：
 
 ```bash
-openclaw plugins list
+alisio plugins list
 ```
 
 2. 安装官方插件（示例：Voice Call）：
 
 ```bash
-openclaw plugins install @openclaw/voice-call
+alisio plugins install @alisio/voice-call
 ```
 
 Npm 规格仅支持 **registry-only**（包名 + 可选的 **精确版本** 或 **dist-tag**）。
 
 Git/URL/file 规格和 semver 范围都会被拒绝。
 
-裸规格和 `@latest` 会停留在稳定通道。如果 npm 将其中任一解析为预发布版本，OpenClaw 会停止并要求你通过预发布标签（例如 `@beta`/`@rc`）或精确的预发布版本显式选择加入。
+裸规格和 `@latest` 会停留在稳定通道。如果 npm 将其中任一解析为预发布版本，Alisio 会停止并要求你通过预发布标签（例如 `@beta`/`@rc`）或精确的预发布版本显式选择加入。
 
 3. 重启 Gateway 网关，然后在 `plugins.entries.<id>.config` 下进行配置。
 
@@ -56,33 +56,33 @@ Git/URL/file 规格和 semver 范围都会被拒绝。
 对于兼容的 bundle，可从本地目录或归档文件安装：
 
 ```bash
-openclaw plugins install ./my-bundle
-openclaw plugins install ./my-bundle.tgz
+alisio plugins install ./my-bundle
+alisio plugins install ./my-bundle.tgz
 ```
 
 ## 架构
 
-OpenClaw 的插件系统有四层：
+Alisio 的插件系统有四层：
 
 1. **清单 + 发现**
-   OpenClaw 会从已配置路径、工作区根目录、全局扩展根目录以及随附扩展中查找候选插件。发现过程会先读取原生 `openclaw.plugin.json` 清单以及受支持的 bundle 清单。
+   Alisio 会从已配置路径、工作区根目录、全局扩展根目录以及随附扩展中查找候选插件。发现过程会先读取原生 `alisio.plugin.json` 清单以及受支持的 bundle 清单。
 2. **启用 + 验证**
    核心会决定某个已发现插件是启用、禁用、阻止，还是被选用于某个独占插槽（例如内存）。
 3. **运行时加载**
-   原生 OpenClaw 插件通过 jiti 在进程内加载，并将功能注册到一个中央注册表中。兼容的 bundle 会被规范化为注册表记录，而不会导入运行时代码。
+   原生 Alisio 插件通过 jiti 在进程内加载，并将功能注册到一个中央注册表中。兼容的 bundle 会被规范化为注册表记录，而不会导入运行时代码。
 4. **表面消费**
-   OpenClaw 的其余部分会读取注册表，以公开工具、渠道、提供商设置、hooks、HTTP 路由、CLI 命令和服务。
+   Alisio 的其余部分会读取注册表，以公开工具、渠道、提供商设置、hooks、HTTP 路由、CLI 命令和服务。
 
 重要的设计边界：
 
 - 发现 + 配置验证应基于 **manifest/schema 元数据** 运行，而不执行插件代码
 - 原生运行时行为来自插件模块的 `register(api)` 路径
 
-这种拆分让 OpenClaw 能够在完整运行时激活之前，就验证配置、解释缺失/被禁用的插件，并构建 UI/schema 提示。
+这种拆分让 Alisio 能够在完整运行时激活之前，就验证配置、解释缺失/被禁用的插件，并构建 UI/schema 提示。
 
 ## 兼容的 bundle
 
-OpenClaw 还识别两种兼容的外部 bundle 布局：
+Alisio 还识别两种兼容的外部 bundle 布局：
 
 - Codex 风格 bundle：`.codex-plugin/plugin.json`
 - Claude 风格 bundle：`.claude-plugin/plugin.json`，或者没有清单的默认 Claude 组件布局
@@ -92,31 +92,31 @@ OpenClaw 还识别两种兼容的外部 bundle 布局：
 
 有关精确的检测规则、映射行为和当前支持矩阵，请参阅 [Plugin bundles](/plugins/bundles)。
 
-目前，OpenClaw 将这些内容视为 **能力包**，而不是原生运行时插件：
+目前，Alisio 将这些内容视为 **能力包**，而不是原生运行时插件：
 
 - 当前支持：捆绑的 `skills`
-- 当前支持：Claude `commands/` markdown 根目录，映射到常规 OpenClaw 技能加载器
+- 当前支持：Claude `commands/` markdown 根目录，映射到常规 Alisio 技能加载器
 - 当前支持：Claude bundle `settings.json` 默认值，用于嵌入式 Pi 智能体设置（会清理 shell override 键）
-- 当前支持：Cursor `.cursor/commands/*.md` 根目录，映射到常规 OpenClaw 技能加载器
-- 当前支持：使用 OpenClaw hook-pack 布局的 Codex bundle hook 目录（`HOOK.md` + `handler.ts`/`handler.js`）
+- 当前支持：Cursor `.cursor/commands/*.md` 根目录，映射到常规 Alisio 技能加载器
+- 当前支持：使用 Alisio hook-pack 布局的 Codex bundle hook 目录（`HOOK.md` + `handler.ts`/`handler.js`）
 - 已检测但尚未接线：其他已声明的 bundle 能力，例如 agents、Claude hook 自动化、Cursor rules/hooks/MCP 元数据、MCP/app/LSP 元数据、输出样式
 
 这意味着 bundle 的安装/发现/列表/info/启用都可正常工作，并且当 bundle 被启用时，bundle skills、Claude command-skills、Claude bundle settings 默认值以及兼容的 Codex hook 目录都会被加载，但 bundle 运行时代码不会在进程内执行。
 
-Bundle hook 支持仅限于常规 OpenClaw hook 目录格式（在声明的 hook 根目录下使用 `HOOK.md` 加上 `handler.ts`/`handler.js`）。
+Bundle hook 支持仅限于常规 Alisio hook 目录格式（在声明的 hook 根目录下使用 `HOOK.md` 加上 `handler.ts`/`handler.js`）。
 供应商特定的 shell/JSON hook 运行时，包括 Claude `hooks.json`，当前仅会被检测，不会被直接执行。
 
 ## 执行模型
 
-原生 OpenClaw 插件与 Gateway 网关 **在同一进程内** 运行。它们不会进行沙箱隔离。已加载的原生插件与核心代码处于相同的进程级信任边界。
+原生 Alisio 插件与 Gateway 网关 **在同一进程内** 运行。它们不会进行沙箱隔离。已加载的原生插件与核心代码处于相同的进程级信任边界。
 
 这意味着：
 
 - 原生插件可以注册工具、网络处理器、hooks 和服务
 - 原生插件中的 bug 可能导致 gateway 崩溃或不稳定
-- 恶意原生插件等同于在 OpenClaw 进程内部执行任意代码
+- 恶意原生插件等同于在 Alisio 进程内部执行任意代码
 
-兼容的 bundle 默认更安全，因为 OpenClaw 目前将它们视为元数据/内容包。在当前版本中，这主要意味着捆绑的技能。
+兼容的 bundle 默认更安全，因为 Alisio 目前将它们视为元数据/内容包。在当前版本中，这主要意味着捆绑的技能。
 
 对于非捆绑插件，请使用 allowlist 和显式安装/加载路径。将工作区插件视为开发期代码，而不是生产默认项。
 
@@ -128,15 +128,15 @@ Bundle hook 支持仅限于常规 OpenClaw hook 目录格式（在声明的 hook
 
 ## 可用插件（官方）
 
-- Microsoft Teams 自 `2026.1.15` 起仅以插件形式提供；如果你使用 Teams，请安装 `@openclaw/msteams`。
+- Microsoft Teams 自 `2026.1.15` 起仅以插件形式提供；如果你使用 Teams，请安装 `@alisio/msteams`。
 - Memory（Core）— 捆绑的内存搜索插件（默认通过 `plugins.slots.memory` 启用）
 - Memory（LanceDB）— 捆绑的长期记忆插件（自动召回/捕获；设置 `plugins.slots.memory = "memory-lancedb"`）
-- [Voice Call](/plugins/voice-call) — `@openclaw/voice-call`
-- [Zalo Personal](/plugins/zalouser) — `@openclaw/zalouser`
-- [Matrix](/channels/matrix) — `@openclaw/matrix`
-- [Nostr](/channels/nostr) — `@openclaw/nostr`
-- [Zalo](/channels/zalo) — `@openclaw/zalo`
-- [Microsoft Teams](/channels/msteams) — `@openclaw/msteams`
+- [Voice Call](/plugins/voice-call) — `@alisio/voice-call`
+- [Zalo Personal](/plugins/zalouser) — `@alisio/zalouser`
+- [Matrix](/channels/matrix) — `@alisio/matrix`
+- [Nostr](/channels/nostr) — `@alisio/nostr`
+- [Zalo](/channels/zalo) — `@alisio/zalo`
+- [Microsoft Teams](/channels/msteams) — `@alisio/msteams`
 - Anthropic provider 运行时 — 以 `anthropic` 形式捆绑（默认启用）
 - BytePlus provider catalog — 以 `byteplus` 形式捆绑（默认启用）
 - Cloudflare AI Gateway provider catalog — 以 `cloudflare-ai-gateway` 形式捆绑（默认启用）
@@ -164,10 +164,10 @@ Bundle hook 支持仅限于常规 OpenClaw hook 目录格式（在声明的 hook
 - Z.AI provider 运行时 — 以 `zai` 形式捆绑（默认启用）
 - Copilot Proxy（provider 身份验证）— 本地 VS Code Copilot Proxy 桥接；不同于内置的 `github-copilot` 设备登录（已捆绑，默认禁用）
 
-原生 OpenClaw 插件是通过 jiti 在运行时加载的 **TypeScript 模块**。
+原生 Alisio 插件是通过 jiti 在运行时加载的 **TypeScript 模块**。
 **配置验证不会执行插件代码**；它使用的是插件 manifest 和 JSON Schema。请参阅 [Plugin manifest](/plugins/manifest)。
 
-原生 OpenClaw 插件可以注册：
+原生 Alisio 插件可以注册：
 
 - Gateway RPC 方法
 - Gateway HTTP 路由
@@ -181,7 +181,7 @@ Bundle hook 支持仅限于常规 OpenClaw hook 目录格式（在声明的 hook
 - **Skills**（通过在插件 manifest 中列出 `skills` 目录）
 - **自动回复命令**（无需调用 AI 智能体即可执行）
 
-原生 OpenClaw 插件与 Gateway 网关 **在同一进程内** 运行，因此应将其视为受信任代码。
+原生 Alisio 插件与 Gateway 网关 **在同一进程内** 运行，因此应将其视为受信任代码。
 工具编写指南：[Plugin agent tools](/plugins/agent-tools)。
 
 ## Provider 运行时 hooks
@@ -192,19 +192,19 @@ Provider 插件现在有两层：
 - 配置时 hooks：`catalog` / 旧版 `discovery`
 - 运行时 hooks：`resolveDynamicModel`、`prepareDynamicModel`、`normalizeResolvedModel`、`capabilities`、`prepareExtraParams`、`wrapStreamFn`、`formatApiKey`、`refreshOAuth`、`buildAuthDoctorHint`、`isCacheTtlEligible`、`buildMissingAuthMessage`、`suppressBuiltInModel`、`augmentModelCatalog`、`isBinaryThinking`、`supportsXHighThinking`、`resolveDefaultThinkingLevel`、`isModernModelRef`、`prepareRuntimeAuth`、`resolveUsageAuth`、`fetchUsageSnapshot`
 
-OpenClaw 仍然负责通用的智能体循环、故障切换、转录处理和工具策略。这些 hooks 是 provider 特定行为的接缝，而无需整个自定义推理传输层。
+Alisio 仍然负责通用的智能体循环、故障切换、转录处理和工具策略。这些 hooks 是 provider 特定行为的接缝，而无需整个自定义推理传输层。
 
 当 provider 具有基于环境变量的凭据，并且你希望通用 auth/status/model-picker 路径在不加载插件运行时的情况下就能看到这些凭据时，请使用 manifest `providerAuthEnvVars`。
 保留 provider 运行时 `envVars` 用于面向操作员的提示，例如新手引导标签或 OAuth client-id/client-secret 设置环境变量。
 
 ### Hook 顺序
 
-对于 model/provider 插件，OpenClaw 大致按以下顺序使用 hooks：
+对于 model/provider 插件，Alisio 大致按以下顺序使用 hooks：
 
 1. `catalog`
    在生成 `models.json` 期间，将 provider 配置发布到 `models.providers` 中。
 2. 内置/已发现模型查找
-   OpenClaw 会先尝试常规注册表/目录路径。
+   Alisio 会先尝试常规注册表/目录路径。
 3. `resolveDynamicModel`
    对于本地注册表中尚不存在的 provider 自有 model id，进行同步后备解析。
 4. `prepareDynamicModel`
@@ -294,7 +294,7 @@ OpenClaw 仍然负责通用的智能体循环、故障切换、转录处理和�
 - provider 需要自定义 usage/quota 令牌解析或不同的 usage 凭据：使用 `resolveUsageAuth`
 - provider 需要 provider 特定的 usage 端点或负载解析器：使用 `fetchUsageSnapshot`
 
-如果 provider 需要完全自定义的线协议或自定义请求执行器，那属于另一类扩展。这些 hooks 适用于仍运行在 OpenClaw 常规推理循环上的 provider 行为。
+如果 provider 需要完全自定义的线协议或自定义请求执行器，那属于另一类扩展。这些 hooks 适用于仍运行在 Alisio 常规推理循环上的 provider 行为。
 
 ### Provider 示例
 
@@ -354,7 +354,7 @@ api.registerProvider({
 
 - Anthropic 使用 `resolveDynamicModel`、`capabilities`、`buildAuthDoctorHint`、`resolveUsageAuth`、`fetchUsageSnapshot`、`isCacheTtlEligible`、`resolveDefaultThinkingLevel` 和 `isModernModelRef`，因为它拥有 Claude 4.6 前向兼容、provider 家族提示、身份验证修复指导、usage 端点集成、提示词缓存资格以及 Claude 默认/自适应 thinking 策略。
 - OpenAI 使用 `resolveDynamicModel`、`normalizeResolvedModel` 和 `capabilities`，以及 `buildMissingAuthMessage`、`suppressBuiltInModel`、`augmentModelCatalog`、`supportsXHighThinking` 和 `isModernModelRef`，因为它拥有 GPT-5.4 前向兼容、直接 OpenAI `openai-completions` -> `openai-responses` 规范化、支持 Codex 的身份验证提示、Spark 抑制、合成 OpenAI 列表行以及 GPT-5 thinking / live-model 策略。
-- OpenRouter 使用 `catalog` 以及 `resolveDynamicModel` 和 `prepareDynamicModel`，因为该 provider 是透传型的，可能会在 OpenClaw 静态目录更新之前暴露新的 model id。
+- OpenRouter 使用 `catalog` 以及 `resolveDynamicModel` 和 `prepareDynamicModel`，因为该 provider 是透传型的，可能会在 Alisio 静态目录更新之前暴露新的 model id。
 - GitHub Copilot 使用 `catalog`、`auth`、`resolveDynamicModel` 和 `capabilities`，以及 `prepareRuntimeAuth` 和 `fetchUsageSnapshot`，因为它需要 provider 自有设备登录、模型回退行为、Claude 转录差异、GitHub token -> Copilot token 交换，以及 provider 自有 usage 端点。
 - OpenAI Codex 使用 `catalog`、`resolveDynamicModel`、`normalizeResolvedModel`、`refreshOAuth` 和 `augmentModelCatalog`，以及 `prepareExtraParams`、`resolveUsageAuth` 和 `fetchUsageSnapshot`，因为它仍运行在核心 OpenAI 传输之上，但拥有自己的传输/base URL 规范化、OAuth 刷新后备策略、默认传输选择、合成 Codex 目录行以及 ChatGPT usage 端点集成。
 - Google AI Studio 和 Gemini CLI OAuth 使用 `resolveDynamicModel` 和 `isModernModelRef`，因为它们拥有 Gemini 3.1 前向兼容后备和现代模型匹配；Gemini CLI OAuth 还使用 `formatApiKey`、`resolveUsageAuth` 和 `fetchUsageSnapshot` 来处理令牌格式化、令牌解析和 quota 端点接线。
@@ -369,7 +369,7 @@ api.registerProvider({
 
 ## 加载流水线
 
-启动时，OpenClaw 大致会执行以下步骤：
+启动时，Alisio 大致会执行以下步骤：
 
 1. 发现候选插件根目录
 2. 读取原生或兼容 bundle 的 manifest 和包元数据
@@ -385,7 +385,7 @@ api.registerProvider({
 
 ### 清单优先行为
 
-Manifest 是控制面的事实来源。OpenClaw 用它来：
+Manifest 是控制面的事实来源。Alisio 用它来：
 
 - 识别插件
 - 发现声明的渠道/skills/配置 schema 或 bundle 能力
@@ -397,7 +397,7 @@ Manifest 是控制面的事实来源。OpenClaw 用它来：
 
 ### 加载器缓存了什么
 
-OpenClaw 会保留短期进程内缓存，用于：
+Alisio 会保留短期进程内缓存，用于：
 
 - 发现结果
 - manifest 注册表数据
@@ -411,7 +411,7 @@ OpenClaw 会保留短期进程内缓存，用于：
 
 ```ts
 const result = await api.runtime.tts.textToSpeechTelephony({
-  text: "Hello from OpenClaw",
+  text: "Hello from Alisio",
   cfg: api.config,
 });
 ```
@@ -472,35 +472,35 @@ api.registerHttpRoute({
 
 ## Plugin SDK 导入路径
 
-编写插件时，请使用 SDK 子路径，而不是单体式 `openclaw/plugin-sdk` 导入：
+编写插件时，请使用 SDK 子路径，而不是单体式 `alisio/plugin-sdk` 导入：
 
-- `openclaw/plugin-sdk/core` 用于通用插件 API、provider 身份验证类型和共享辅助工具。
-- `openclaw/plugin-sdk/compat` 用于比 `core` 需要更广泛共享运行时辅助工具的捆绑/内部插件代码。
-- `openclaw/plugin-sdk/telegram` 用于 Telegram 渠道插件。
-- `openclaw/plugin-sdk/discord` 用于 Discord 渠道插件。
-- `openclaw/plugin-sdk/slack` 用于 Slack 渠道插件。
-- `openclaw/plugin-sdk/signal` 用于 Signal 渠道插件。
-- `openclaw/plugin-sdk/imessage` 用于 iMessage 渠道插件。
-- `openclaw/plugin-sdk/whatsapp` 用于 WhatsApp 渠道插件。
-- `openclaw/plugin-sdk/line` 用于 LINE 渠道插件。
-- `openclaw/plugin-sdk/msteams` 用于捆绑的 Microsoft Teams 插件表面。
+- `alisio/plugin-sdk/core` 用于通用插件 API、provider 身份验证类型和共享辅助工具。
+- `alisio/plugin-sdk/compat` 用于比 `core` 需要更广泛共享运行时辅助工具的捆绑/内部插件代码。
+- `alisio/plugin-sdk/telegram` 用于 Telegram 渠道插件。
+- `alisio/plugin-sdk/discord` 用于 Discord 渠道插件。
+- `alisio/plugin-sdk/slack` 用于 Slack 渠道插件。
+- `alisio/plugin-sdk/signal` 用于 Signal 渠道插件。
+- `alisio/plugin-sdk/imessage` 用于 iMessage 渠道插件。
+- `alisio/plugin-sdk/whatsapp` 用于 WhatsApp 渠道插件。
+- `alisio/plugin-sdk/line` 用于 LINE 渠道插件。
+- `alisio/plugin-sdk/msteams` 用于捆绑的 Microsoft Teams 插件表面。
 - 也提供捆绑扩展专用子路径：
-  `openclaw/plugin-sdk/acpx`、`openclaw/plugin-sdk/bluebubbles`、
-  `openclaw/plugin-sdk/copilot-proxy`、`openclaw/plugin-sdk/device-pair`、
-  `openclaw/plugin-sdk/diagnostics-otel`、`openclaw/plugin-sdk/diffs`、
-  `openclaw/plugin-sdk/feishu`、`openclaw/plugin-sdk/googlechat`、
-  `openclaw/plugin-sdk/irc`、`openclaw/plugin-sdk/llm-task`、
-  `openclaw/plugin-sdk/lobster`、`openclaw/plugin-sdk/matrix`、
-  `openclaw/plugin-sdk/mattermost`、`openclaw/plugin-sdk/memory-core`、
-  `openclaw/plugin-sdk/memory-lancedb`、
-  `openclaw/plugin-sdk/minimax-portal-auth`、
-  `openclaw/plugin-sdk/nextcloud-talk`、`openclaw/plugin-sdk/nostr`、
-  `openclaw/plugin-sdk/open-prose`、`openclaw/plugin-sdk/phone-control`、
-  `openclaw/plugin-sdk/synology-chat`、
-  `openclaw/plugin-sdk/talk-voice`、`openclaw/plugin-sdk/test-utils`、
-  `openclaw/plugin-sdk/thread-ownership`、`openclaw/plugin-sdk/tlon`、
-  `openclaw/plugin-sdk/twitch`、`openclaw/plugin-sdk/voice-call`、
-  `openclaw/plugin-sdk/zalo` 和 `openclaw/plugin-sdk/zalouser`。
+  `alisio/plugin-sdk/acpx`、`alisio/plugin-sdk/bluebubbles`、
+  `alisio/plugin-sdk/copilot-proxy`、`alisio/plugin-sdk/device-pair`、
+  `alisio/plugin-sdk/diagnostics-otel`、`alisio/plugin-sdk/diffs`、
+  `alisio/plugin-sdk/feishu`、`alisio/plugin-sdk/googlechat`、
+  `alisio/plugin-sdk/irc`、`alisio/plugin-sdk/llm-task`、
+  `alisio/plugin-sdk/lobster`、`alisio/plugin-sdk/matrix`、
+  `alisio/plugin-sdk/mattermost`、`alisio/plugin-sdk/memory-core`、
+  `alisio/plugin-sdk/memory-lancedb`、
+  `alisio/plugin-sdk/minimax-portal-auth`、
+  `alisio/plugin-sdk/nextcloud-talk`、`alisio/plugin-sdk/nostr`、
+  `alisio/plugin-sdk/open-prose`、`alisio/plugin-sdk/phone-control`、
+  `alisio/plugin-sdk/synology-chat`、
+  `alisio/plugin-sdk/talk-voice`、`alisio/plugin-sdk/test-utils`、
+  `alisio/plugin-sdk/thread-ownership`、`alisio/plugin-sdk/tlon`、
+  `alisio/plugin-sdk/twitch`、`alisio/plugin-sdk/voice-call`、
+  `alisio/plugin-sdk/zalo` 和 `alisio/plugin-sdk/zalouser`。
 
 ## Provider 目录
 
@@ -508,7 +508,7 @@ Provider 插件可以使用
 `registerProvider({ catalog: { run(...) { ... } } })`
 定义用于推理的模型目录。
 
-`catalog.run(...)` 返回与 OpenClaw 写入
+`catalog.run(...)` 返回与 Alisio 写入
 `models.providers` 相同的结构：
 
 - `{ provider }` 表示一个 provider 条目
@@ -516,7 +516,7 @@ Provider 插件可以使用
 
 当插件拥有 provider 特定的 model id、base URL 默认值或由身份验证控制的模型元数据时，请使用 `catalog`。
 
-`catalog.order` 控制插件目录相对于 OpenClaw 内置隐式 provider 的合并时机：
+`catalog.order` 控制插件目录相对于 Alisio 内置隐式 provider 的合并时机：
 
 - `simple`：纯 API 密钥或环境变量驱动的 provider
 - `profile`：当存在 auth profile 时出现的 provider
@@ -528,11 +528,11 @@ Provider 插件可以使用
 兼容性：
 
 - `discovery` 仍可作为旧版别名使用
-- 如果同时注册了 `catalog` 和 `discovery`，OpenClaw 会使用 `catalog`
+- 如果同时注册了 `catalog` 和 `discovery`，Alisio 会使用 `catalog`
 
 兼容性说明：
 
-- `openclaw/plugin-sdk` 仍支持现有外部插件。
+- `alisio/plugin-sdk` 仍支持现有外部插件。
 - 新的和已迁移的捆绑插件应使用渠道或扩展专用子路径；通用表面使用 `core`，只有在确实需要更广泛共享辅助工具时才使用 `compat`。
 
 ## 只读渠道检查
@@ -543,8 +543,8 @@ Provider 插件可以使用
 原因：
 
 - `resolveAccount(...)` 是运行时路径。它可以假定凭据已完全实体化，并在缺少所需 secret 时快速失败。
-- 只读命令路径，例如 `openclaw status`、`openclaw status --all`、
-  `openclaw channels status`、`openclaw channels resolve` 以及 Doctor/配置修复流程，不应仅为了描述配置就必须实体化运行时凭据。
+- 只读命令路径，例如 `alisio status`、`alisio status --all`、
+  `alisio channels status`、`alisio channels resolve` 以及 Doctor/配置修复流程，不应仅为了描述配置就必须实体化运行时凭据。
 
 推荐的 `inspectAccount(...)` 行为：
 
@@ -563,14 +563,14 @@ Provider 插件可以使用
 性能说明：
 
 - 插件发现和 manifest 元数据使用短期进程内缓存，以减少突发启动/重载工作。
-- 设置 `OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE=1` 或
-  `OPENCLAW_DISABLE_PLUGIN_MANIFEST_CACHE=1` 可禁用这些缓存。
-- 使用 `OPENCLAW_PLUGIN_DISCOVERY_CACHE_MS` 和
-  `OPENCLAW_PLUGIN_MANIFEST_CACHE_MS` 调整缓存窗口。
+- 设置 `ALISIO_DISABLE_PLUGIN_DISCOVERY_CACHE=1` 或
+  `ALISIO_DISABLE_PLUGIN_MANIFEST_CACHE=1` 可禁用这些缓存。
+- 使用 `ALISIO_PLUGIN_DISCOVERY_CACHE_MS` 和
+  `ALISIO_PLUGIN_MANIFEST_CACHE_MS` 调整缓存窗口。
 
 ## 设备发现 + 传输协议优先级
 
-OpenClaw 按以下顺序扫描：
+Alisio 按以下顺序扫描：
 
 1. 配置路径
 
@@ -578,20 +578,20 @@ OpenClaw 按以下顺序扫描：
 
 2. 工作区扩展
 
-- `<workspace>/.openclaw/extensions/*.ts`
-- `<workspace>/.openclaw/extensions/*/index.ts`
+- `<workspace>/.alisio/extensions/*.ts`
+- `<workspace>/.alisio/extensions/*/index.ts`
 
 3. 全局扩展
 
-- `~/.openclaw/extensions/*.ts`
-- `~/.openclaw/extensions/*/index.ts`
+- `~/.alisio/extensions/*.ts`
+- `~/.alisio/extensions/*/index.ts`
 
-4. 捆绑扩展（随 OpenClaw 一起提供；默认开启/关闭混合）
+4. 捆绑扩展（随 Alisio 一起提供；默认开启/关闭混合）
 
-- `<openclaw>/extensions/*`
+- `<alisio>/extensions/*`
 
 许多捆绑的 provider 插件默认启用，这样模型目录/运行时 hooks 无需额外设置即可使用。其他插件仍需要通过 `plugins.entries.<id>.enabled` 或
-`openclaw plugins enable <id>` 显式启用。
+`alisio plugins enable <id>` 显式启用。
 
 默认开启的捆绑插件示例：
 
@@ -607,7 +607,6 @@ OpenClaw 按以下顺序扫描：
 - `modelstudio`
 - `moonshot`
 - `nvidia`
-- `ollama`
 - `openai`
 - `openrouter`
 - `phone-control`
@@ -629,14 +628,14 @@ OpenClaw 按以下顺序扫描：
 
 加固说明：
 
-- 如果 `plugins.allow` 为空且可发现非捆绑插件，OpenClaw 会在启动时记录一条警告，其中包含 plugin id 和来源。
-- 候选路径在被接受进入发现流程前会经过安全检查。当出现以下情况时，OpenClaw 会阻止候选项：
+- 如果 `plugins.allow` 为空且可发现非捆绑插件，Alisio 会在启动时记录一条警告，其中包含 plugin id 和来源。
+- 候选路径在被接受进入发现流程前会经过安全检查。当出现以下情况时，Alisio 会阻止候选项：
   - 扩展条目解析到插件根目录之外（包括符号链接/路径遍历逃逸），
   - 插件根目录/来源路径对所有人可写，
   - 对于非捆绑插件来说，路径所有权可疑（POSIX owner 既不是当前 uid 也不是 root）。
 - 对于缺少安装/加载路径来源信息的已加载非捆绑插件，会发出警告，以便你固定信任（`plugins.allow`）或安装跟踪（`plugins.installs`）。
 
-每个原生 OpenClaw 插件都必须在其根目录中包含一个 `openclaw.plugin.json` 文件。
+每个原生 Alisio 插件都必须在其根目录中包含一个 `alisio.plugin.json` 文件。
 如果某条路径指向一个文件，则插件根目录是该文件所在目录，并且该目录必须包含该 manifest。
 
 兼容的 bundle 可以改为提供以下之一：
@@ -674,12 +673,12 @@ Bundle 目录会从与原生插件相同的根目录中被发现。
 
 ### 包集合
 
-插件目录可以包含带有 `openclaw.extensions` 的 `package.json`：
+插件目录可以包含带有 `alisio.extensions` 的 `package.json`：
 
 ```json
 {
   "name": "my-pack",
-  "openclaw": {
+  "alisio": {
     "extensions": ["./src/safety.ts", "./src/tools.ts"],
     "setupEntry": "./src/setup-entry.ts"
   }
@@ -690,26 +689,26 @@ Bundle 目录会从与原生插件相同的根目录中被发现。
 
 如果你的插件导入 npm 依赖，请在该目录中安装它们，以便 `node_modules` 可用（`npm install` / `pnpm install`）。
 
-安全护栏：每个 `openclaw.extensions` 条目在解析符号链接后都必须保持在插件目录内。逃逸出包目录的条目会被拒绝。
+安全护栏：每个 `alisio.extensions` 条目在解析符号链接后都必须保持在插件目录内。逃逸出包目录的条目会被拒绝。
 
-安全说明：`openclaw plugins install` 会使用
+安全说明：`alisio plugins install` 会使用
 `npm install --ignore-scripts` 安装插件依赖（不会运行生命周期脚本）。
 请保持插件依赖树为“纯 JS/TS”，并避免需要 `postinstall` 构建的包。
 
-可选项：`openclaw.setupEntry` 可以指向一个轻量级、仅用于 setup 的模块。
-当 OpenClaw 需要为一个已禁用的渠道插件提供 setup 表面，或某个渠道插件虽然已启用但仍未配置时，它会加载 `setupEntry`，而不是完整插件入口。
+可选项：`alisio.setupEntry` 可以指向一个轻量级、仅用于 setup 的模块。
+当 Alisio 需要为一个已禁用的渠道插件提供 setup 表面，或某个渠道插件虽然已启用但仍未配置时，它会加载 `setupEntry`，而不是完整插件入口。
 当你的主插件入口还连接了工具、hooks 或其他仅运行时代码时，这能让启动和 setup 更轻量。
 
 ### 渠道目录元数据
 
-渠道插件可以通过 `openclaw.channel` 公布 setup/discovery 元数据，并通过 `openclaw.install` 公布安装提示。这使核心目录保持无数据化。
+渠道插件可以通过 `alisio.channel` 公布 setup/discovery 元数据，并通过 `alisio.install` 公布安装提示。这使核心目录保持无数据化。
 
 示例：
 
 ```json
 {
-  "name": "@openclaw/nextcloud-talk",
-  "openclaw": {
+  "name": "@alisio/nextcloud-talk",
+  "alisio": {
     "extensions": ["./index.ts"],
     "channel": {
       "id": "nextcloud-talk",
@@ -722,7 +721,7 @@ Bundle 目录会从与原生插件相同的根目录中被发现。
       "aliases": ["nc-talk", "nc"]
     },
     "install": {
-      "npmSpec": "@openclaw/nextcloud-talk",
+      "npmSpec": "@alisio/nextcloud-talk",
       "localPath": "extensions/nextcloud-talk",
       "defaultChoice": "npm"
     }
@@ -730,16 +729,16 @@ Bundle 目录会从与原生插件相同的根目录中被发现。
 }
 ```
 
-OpenClaw 还可以合并 **外部渠道目录**（例如 MPM registry 导出）。
+Alisio 还可以合并 **外部渠道目录**（例如 MPM registry 导出）。
 将 JSON 文件放到以下任一位置：
 
-- `~/.openclaw/mpm/plugins.json`
-- `~/.openclaw/mpm/catalog.json`
-- `~/.openclaw/plugins/catalog.json`
+- `~/.alisio/mpm/plugins.json`
+- `~/.alisio/mpm/catalog.json`
+- `~/.alisio/plugins/catalog.json`
 
-或者将 `OPENCLAW_PLUGIN_CATALOG_PATHS`（或 `OPENCLAW_MPM_CATALOG_PATHS`）指向一个或多个 JSON 文件（用逗号/分号/`PATH` 分隔）。
+或者将 `ALISIO_PLUGIN_CATALOG_PATHS`（或 `ALISIO_MPM_CATALOG_PATHS`）指向一个或多个 JSON 文件（用逗号/分号/`PATH` 分隔）。
 每个文件应包含
-`{ "entries": [ { "name": "@scope/pkg", "openclaw": { "channel": {...}, "install": {...} } } ] }`。
+`{ "entries": [ { "name": "@scope/pkg", "alisio": { "channel": {...}, "install": {...} } } ] }`。
 
 ## Plugin ID
 
@@ -748,7 +747,7 @@ OpenClaw 还可以合并 **外部渠道目录**（例如 MPM registry 导出）�
 - 包集合：`package.json` 中的 `name`
 - 独立文件：文件基础名（`~/.../voice-call.ts` → `voice-call`）
 
-如果插件导出 `id`，OpenClaw 会使用它，但如果它与配置的 id 不匹配，则会发出警告。
+如果插件导出 `id`，Alisio 会使用它，但如果它与配置的 id 不匹配，则会发出警告。
 
 ## 注册表模型
 
@@ -805,8 +804,8 @@ OpenClaw 还可以合并 **外部渠道目录**（例如 MPM registry 导出）�
 
 - `entries`、`allow`、`deny` 或 `slots` 中出现未知 plugin id 都是 **错误**。
 - 未知的 `channels.<id>` 键都是 **错误**，除非某个插件 manifest 声明了该渠道 id。
-- 原生插件配置使用嵌入在 `openclaw.plugin.json` 中的 JSON Schema（`configSchema`）进行验证。
-- 兼容的 bundle 当前不公开原生 OpenClaw 配置 schema。
+- 原生插件配置使用嵌入在 `alisio.plugin.json` 中的 JSON Schema（`configSchema`）进行验证。
+- 兼容的 bundle 当前不公开原生 Alisio 配置 schema。
 - 如果某个插件被禁用，其配置会被保留，并发出 **警告**。
 
 ### 禁用 vs 缺失 vs 无效
@@ -817,7 +816,7 @@ OpenClaw 还可以合并 **外部渠道目录**（例如 MPM registry 导出）�
 - **missing**：配置引用了某个 plugin id，但发现过程没有找到它
 - **invalid**：插件存在，但其配置与声明的 schema 不匹配
 
-OpenClaw 会保留已禁用插件的配置，因此重新启用它们不会造成破坏。
+Alisio 会保留已禁用插件的配置，因此重新启用它们不会造成破坏。
 
 ## Plugin 插槽（独占类别）
 
@@ -854,7 +853,7 @@ OpenClaw 会保留已禁用插件的配置，因此重新启用它们不会造�
 
 Control UI 使用 `config.schema`（JSON Schema + `uiHints`）来渲染更好的表单。
 
-OpenClaw 会在运行时根据已发现的插件增强 `uiHints`：
+Alisio 会在运行时根据已发现的插件增强 `uiHints`：
 
 - 为 `plugins.entries.<id>` / `.enabled` / `.config` 添加每插件标签
 - 合并可选的插件提供配置字段提示，路径为：
@@ -885,29 +884,29 @@ OpenClaw 会在运行时根据已发现的插件增强 `uiHints`：
 ## CLI
 
 ```bash
-openclaw plugins list
-openclaw plugins info <id>
-openclaw plugins install <path>                 # 将本地文件/目录复制到 ~/.openclaw/extensions/<id>
-openclaw plugins install ./extensions/voice-call # 支持相对路径
-openclaw plugins install ./plugin.tgz           # 从本地 tarball 安装
-openclaw plugins install ./plugin.zip           # 从本地 zip 安装
-openclaw plugins install -l ./extensions/voice-call # link（不复制），用于开发
-openclaw plugins install @openclaw/voice-call # 从 npm 安装
-openclaw plugins install @openclaw/voice-call --pin # 存储精确解析后的 name@version
-openclaw plugins update <id>
-openclaw plugins update --all
-openclaw plugins enable <id>
-openclaw plugins disable <id>
-openclaw plugins doctor
+alisio plugins list
+alisio plugins info <id>
+alisio plugins install <path>                 # 将本地文件/目录复制到 ~/.alisio/extensions/<id>
+alisio plugins install ./extensions/voice-call # 支持相对路径
+alisio plugins install ./plugin.tgz           # 从本地 tarball 安装
+alisio plugins install ./plugin.zip           # 从本地 zip 安装
+alisio plugins install -l ./extensions/voice-call # link（不复制），用于开发
+alisio plugins install @alisio/voice-call # 从 npm 安装
+alisio plugins install @alisio/voice-call --pin # 存储精确解析后的 name@version
+alisio plugins update <id>
+alisio plugins update --all
+alisio plugins enable <id>
+alisio plugins disable <id>
+alisio plugins doctor
 ```
 
-`openclaw plugins list` 会将顶层格式显示为 `openclaw` 或 `bundle`。
+`alisio plugins list` 会将顶层格式显示为 `alisio` 或 `bundle`。
 详细列表/info 输出还会显示 bundle 子类型（`codex` 或 `claude`）以及已检测到的 bundle 能力。
 
 `plugins update` 仅适用于在 `plugins.installs` 下跟踪的 npm 安装。
-如果更新之间存储的完整性元数据发生变化，OpenClaw 会发出警告并要求确认（使用全局 `--yes` 可绕过提示）。
+如果更新之间存储的完整性元数据发生变化，Alisio 会发出警告并要求确认（使用全局 `--yes` 可绕过提示）。
 
-插件也可以注册自己的顶层命令（例如：`openclaw voicecall`）。
+插件也可以注册自己的顶层命令（例如：`alisio voicecall`）。
 
 ## Plugin API（概览）
 
@@ -951,7 +950,7 @@ export default function (api) {
 如果你的引擎**并不拥有**压缩算法，仍然要实现 `compact()`，并显式委托给运行时：
 
 ```ts
-import { delegateCompactionToRuntime } from "openclaw/plugin-sdk";
+import { delegateCompactionToRuntime } from "alisio/plugin-sdk";
 
 export default function (api) {
   api.registerContextEngine("my-memory-engine", () => ({
@@ -1014,8 +1013,8 @@ export default function register(api) {
 
 - 通过 `api.registerHook(...)` 显式注册 hooks。
 - Hook 资格规则仍然适用（OS/bins/env/config 要求）。
-- 插件管理的 hooks 会在 `openclaw hooks list` 中显示为 `plugin:<id>`。
-- 你不能通过 `openclaw hooks` 启用/禁用插件管理的 hooks；应改为启用/禁用插件本身。
+- 插件管理的 hooks 会在 `alisio hooks list` 中显示为 `plugin:<id>`。
+- 你不能通过 `alisio hooks` 启用/禁用插件管理的 hooks；应改为启用/禁用插件本身。
 
 ### 智能体生命周期 hooks（`api.on`）
 
@@ -1044,7 +1043,7 @@ export default function register(api) {
 核心强制执行的 hook 策略：
 
 - 操作员可以通过 `plugins.entries.<id>.hooks.allowPromptInjection: false` 按插件禁用提示词变更 hooks。
-- 禁用后，OpenClaw 会阻止 `before_prompt_build`，并忽略旧版 `before_agent_start` 返回的提示词变更字段，同时保留旧版 `modelOverride` 和 `providerOverride`。
+- 禁用后，Alisio 会阻止 `before_prompt_build`，并忽略旧版 `before_agent_start` 返回的提示词变更字段，同时保留旧版 `modelOverride` 和 `providerOverride`。
 
 `before_prompt_build` 结果字段：
 
@@ -1072,7 +1071,7 @@ export default function register(api) {
 
 ## Provider 插件（模型身份验证）
 
-插件可以注册 **模型 providers**，从而让用户能够在 OpenClaw 内完成 OAuth 或 API 密钥设置、在新手引导/模型选择器中显示 provider 设置，并参与隐式 provider 发现。
+插件可以注册 **模型 providers**，从而让用户能够在 Alisio 内完成 OAuth 或 API 密钥设置、在新手引导/模型选择器中显示 provider 设置，并参与隐式 provider 发现。
 
 Provider 插件现在是模型 provider 设置的模块化扩展接缝。它们不再只是“OAuth 辅助工具”。
 
@@ -1083,9 +1082,9 @@ Provider 插件现在是模型 provider 设置的模块化扩展接缝。它们�
 1. **身份验证**
    `auth[].run(ctx)` 执行 OAuth、API 密钥采集、设备码或自定义设置，并返回 auth profile 以及可选的配置补丁。
 2. **非交互式设置**
-   `auth[].runNonInteractive(ctx)` 处理 `openclaw onboard --non-interactive`，且不进行提示。当 provider 需要超出内置简单 API 密钥路径之外的自定义无头设置时，请使用它。
+   `auth[].runNonInteractive(ctx)` 处理 `alisio onboard --non-interactive`，且不进行提示。当 provider 需要超出内置简单 API 密钥路径之外的自定义无头设置时，请使用它。
 3. **向导集成**
-   `wizard.setup` 会向 `openclaw onboard` 添加一个条目。
+   `wizard.setup` 会向 `alisio onboard` 添加一个条目。
    `wizard.modelPicker` 会向模型选择器添加一个 setup 条目。
 4. **隐式发现**
    `discovery.run(ctx)` 可以在模型解析/列出期间自动贡献 provider 配置。
@@ -1105,7 +1104,7 @@ Provider 插件现在是模型 provider 设置的模块化扩展接缝。它们�
 `auth[].run(ctx)` 返回：
 
 - `profiles`：要写入的 auth profile
-- `configPatch`：可选的 `openclaw.json` 变更
+- `configPatch`：可选的 `alisio.json` 变更
 - `defaultModel`：可选的 `provider/model` 引用
 - `notes`：可选的面向用户备注
 
@@ -1157,9 +1156,9 @@ Provider 插件现在是模型 provider 设置的模块化扩展接缝。它们�
 - `hint`
 - `methodId`
 
-当 provider 具有多种身份验证方法时，向导可以显式指向其中一种方法，也可以让 OpenClaw 为每种方法自动生成选择项。
+当 provider 具有多种身份验证方法时，向导可以显式指向其中一种方法，也可以让 Alisio 为每种方法自动生成选择项。
 
-在插件注册时，OpenClaw 会验证 provider 向导元数据：
+在插件注册时，Alisio 会验证 provider 向导元数据：
 
 - 重复或空白的 auth-method id 会被拒绝
 - 当 provider 没有身份验证方法时，向导元数据会被忽略
@@ -1227,8 +1226,8 @@ Provider discovery 按有序阶段运行：
 
 通过 `api.registerProvider(...)` 注册 provider。每个 provider 暴露一个或多个身份验证方法（OAuth、API key、device code 等）。这些方法可以驱动：
 
-- `openclaw models auth login --provider <id> [--method <id>]`
-- `openclaw onboard`
+- `alisio models auth login --provider <id> [--method <id>]`
+- `alisio onboard`
 - 模型选择器中的“自定义 provider”设置条目
 - 模型解析/列出期间的隐式 provider 发现
 
@@ -1295,12 +1294,12 @@ api.registerProvider({
 
 - `run` 会接收一个 `ProviderAuthContext`，其中包含 `prompter`、`runtime`、
   `openUrl`、`oauth.createVpsAwareHandlers`、`secretInputMode` 和
-  `allowSecretRefPrompt` 辅助工具/状态。新手引导/配置流程可以用它们来遵守 `--secret-input-mode`，或提供 env/file/exec secret-ref 采集，而 `openclaw models auth` 会保持更严格的提示表面。
+  `allowSecretRefPrompt` 辅助工具/状态。新手引导/配置流程可以用它们来遵守 `--secret-input-mode`，或提供 env/file/exec secret-ref 采集，而 `alisio models auth` 会保持更严格的提示表面。
 - `runNonInteractive` 会接收一个 `ProviderAuthMethodNonInteractiveContext`，
   其中包含 `opts`、`agentDir`、`resolveApiKey` 和 `toApiKeyCredential` 辅助工具，用于无头 onboarding。
 - 当你需要添加默认模型或 provider 配置时，请返回 `configPatch`。
 - 返回 `defaultModel`，这样 `--set-default` 就能更新智能体默认值。
-- `wizard.setup` 会向 `openclaw onboard` 添加一个 provider 选项。
+- `wizard.setup` 会向 `alisio onboard` 添加一个 provider 选项。
 - `wizard.modelPicker` 会向模型选择器添加一个“设置此 provider”条目。
 - `discovery.run` 对于插件自有 provider id 返回 `{ provider }`，对于多 provider 发现返回 `{ providers }`。
 - `discovery.order` 控制该 provider 相对于内置发现阶段的运行时机：`simple`、`profile`、`paired` 或 `late`。
@@ -1505,7 +1504,7 @@ export default function (api) {
 - `isAuthorizedSender`：发送者是否为已授权用户
 - `args`：命令后的参数（如果 `acceptsArgs: true`）
 - `commandBody`：完整命令文本
-- `config`：当前 OpenClaw 配置
+- `config`：当前 Alisio 配置
 
 命令选项：
 
@@ -1568,15 +1567,15 @@ export default function (api) {
 
 推荐打包方式：
 
-- 主包：`openclaw`（本仓库）
-- 插件：位于 `@openclaw/*` 下的独立 npm 包（例如：`@openclaw/voice-call`）
+- 主包：`alisio`（本仓库）
+- 插件：位于 `@alisio/*` 下的独立 npm 包（例如：`@alisio/voice-call`）
 
 发布契约：
 
-- 插件 `package.json` 必须包含 `openclaw.extensions`，并指向一个或多个入口文件。
-- 可选：`openclaw.setupEntry` 可指向一个轻量级的仅 setup 入口，用于已禁用或尚未配置完成的渠道 setup。
+- 插件 `package.json` 必须包含 `alisio.extensions`，并指向一个或多个入口文件。
+- 可选：`alisio.setupEntry` 可指向一个轻量级的仅 setup 入口，用于已禁用或尚未配置完成的渠道 setup。
 - 入口文件可以是 `.js` 或 `.ts`（jiti 会在运行时加载 TS）。
-- `openclaw plugins install <npm-spec>` 会使用 `npm pack`，提取到 `~/.openclaw/extensions/<id>/`，并在配置中启用它。
+- `alisio plugins install <npm-spec>` 会使用 `npm pack`，提取到 `~/.alisio/extensions/<id>/`，并在配置中启用它。
 - 配置键稳定性：带 scope 的包会被规范化为 **无 scope** 的 id，用于 `plugins.entries.*`。
 
 ## 示例插件：Voice Call
@@ -1585,7 +1584,7 @@ export default function (api) {
 
 - 源码：`extensions/voice-call`
 - Skill：`skills/voice-call`
-- CLI：`openclaw voicecall start|status`
+- CLI：`alisio voicecall start|status`
 - 工具：`voice_call`
 - RPC：`voicecall.start`、`voicecall.status`
 - 配置（twilio）：`provider: "twilio"` + `twilio.accountSid/authToken/from`（可选 `statusCallbackUrl`、`twimlUrl`）
@@ -1607,4 +1606,4 @@ export default function (api) {
 插件可以（也应该）附带测试：
 
 - 仓库内插件可以将 Vitest 测试放在 `src/**` 下（例如：`src/plugins/voice-call.plugin.test.ts`）。
-- 单独发布的插件应运行自己的 CI（lint/build/test），并验证 `openclaw.extensions` 指向构建后的入口点（`dist/index.js`）。
+- 单独发布的插件应运行自己的 CI（lint/build/test），并验证 `alisio.extensions` 指向构建后的入口点（`dist/index.js`）。

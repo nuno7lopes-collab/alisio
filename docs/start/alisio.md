@@ -52,7 +52,7 @@ alisio channels login
 2. Start the Gateway (leave it running):
 
 ```bash
-alisio gateway --port 40705
+alisio gateway run --port 40705
 ```
 
 3. Put a minimal config in `~/.alisio/alisio.json`:

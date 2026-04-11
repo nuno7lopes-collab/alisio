@@ -66,7 +66,7 @@ For a path comparison, see [Onboarding Overview](/start/onboarding-overview).
 
     - **OpenAI** through OAuth or API key
     - **Local** for models on this machine
-    - **Server** for Ollama or OpenAI-compatible endpoints
+    - **Server** for OpenAI-compatible endpoints
 
     These can coexist later. The first choice just gets the machine into a working state quickly.
 

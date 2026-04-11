@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildOpenClawChromeLaunchArgs } from "./chrome.js";
+import { buildAlisioChromeLaunchArgs } from "./chrome.js";
 
 describe("browser chrome launch args", () => {
   it("does not force an about:blank tab at startup", () => {
-    const args = buildOpenClawChromeLaunchArgs({
+    const args = buildAlisioChromeLaunchArgs({
       resolved: {
         enabled: true,
         controlPort: 40707,
@@ -21,26 +21,26 @@ describe("browser chrome launch args", () => {
         noSandbox: false,
         attachOnly: false,
         ssrfPolicy: { allowPrivateNetwork: true },
-        defaultProfile: "openclaw",
+        defaultProfile: "alisio",
         profiles: {
-          openclaw: { cdpPort: 40716, color: "#FF4500" },
+          alisio: { cdpPort: 40716, color: "#FF4500" },
         },
       },
       profile: {
-        name: "openclaw",
+        name: "alisio",
         cdpUrl: "http://127.0.0.1:40716",
         cdpPort: 40716,
         cdpHost: "127.0.0.1",
         cdpIsLoopback: true,
         color: "#FF4500",
-        driver: "openclaw",
+        driver: "alisio",
         attachOnly: false,
       },
-      userDataDir: "/tmp/openclaw-test-user-data",
+      userDataDir: "/tmp/alisio-test-user-data",
     });
 
     expect(args).not.toContain("about:blank");
     expect(args).toContain("--remote-debugging-port=40716");
-    expect(args).toContain("--user-data-dir=/tmp/openclaw-test-user-data");
+    expect(args).toContain("--user-data-dir=/tmp/alisio-test-user-data");
   });
 });

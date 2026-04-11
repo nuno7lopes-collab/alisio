@@ -14,6 +14,7 @@ import {
 import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/agents.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { loadConfig } from "./controllers/config.ts";
+import { loadModelCatalogPair } from "./controllers/models.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { icons } from "./icons.ts";
 import { iconForTab, pathForTab, publicTabFor, titleForTab, type Tab } from "./navigation.ts";
@@ -255,6 +256,15 @@ export function renderChatSessionSelect(state: AppViewState) {
   `;
 }
 
+export function renderChatDesktopToolbar(state: AppViewState) {
+  return html`
+    <div class="alisio-chat-toolbar" role="toolbar" aria-label=${t("alisio.shell.chatSettings")}>
+      <div class="alisio-chat-toolbar__primary">${renderChatSessionSelect(state)}</div>
+      <div class="alisio-chat-toolbar__secondary">${renderChatControls(state)}</div>
+    </div>
+  `;
+}
+
 export function renderChatControls(state: AppViewState) {
   const hideCron = state.sessionsHideCron ?? true;
   const hiddenCronCount = hideCron
@@ -421,6 +431,7 @@ export function renderChatControls(state: AppViewState) {
  */
 export function renderChatMobileToggle(state: AppViewState) {
   const sessionGroups = resolveSessionOptionGroups(state, state.sessionKey, state.sessionsResult);
+  const modelSelect = renderChatModelSelect(state);
   const disableThinkingToggle = false;
   const disableFocusToggle = false;
   const showThinking = state.settings.chatShowThinking;
@@ -527,6 +538,7 @@ export function renderChatMobileToggle(state: AppViewState) {
               )}
             </select>
           </label>
+          ${modelSelect}
           <div class="chat-controls__thinking">
             <button
               class="btn btn--sm btn--icon ${showThinking ? "active" : ""}"
@@ -684,23 +696,74 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
   }
 }
 
-export async function setActiveChatModel(state: AppViewState, nextModel: string) {
-  await switchChatModel(state, nextModel);
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function buildDefaultChatModelPatch(model: string) {
+function resolveConfiguredDefaultModelAllowlist(
+  config: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (!isRecord(config)) {
+    return null;
+  }
+  const agents = config.agents;
+  if (!isRecord(agents)) {
+    return null;
+  }
+  const defaults = agents.defaults;
+  if (!isRecord(defaults)) {
+    return null;
+  }
+  const models = defaults.models;
+  if (!isRecord(models) || Object.keys(models).length === 0) {
+    return null;
+  }
+  return models;
+}
+
+function buildDefaultChatModelPatch(
+  model: string,
+  config: Record<string, unknown> | null | undefined,
+) {
+  const allowlist = resolveConfiguredDefaultModelAllowlist(config);
   return {
     agents: {
       defaults: {
         model: {
           primary: model,
         },
-        models: {
-          [model]: {},
-        },
+        ...(allowlist
+          ? {
+              models: {
+                ...allowlist,
+                [model]: allowlist[model] ?? {},
+              },
+            }
+          : {}),
       },
     },
   };
+}
+
+async function refreshModelPickerCatalogs(state: AppViewState) {
+  if (!state.client || !state.connected) {
+    return;
+  }
+  state.chatModelsLoading = true;
+  state.modelManagementLoading = true;
+  try {
+    const pair = await loadModelCatalogPair(state.client);
+    if (!pair) {
+      return;
+    }
+    state.chatModelCatalog = pair.chatCatalog;
+    state.modelManagementCatalog = pair.managementCatalog;
+  } catch {
+    // Keep the existing picker state when the catalog refresh is unavailable.
+  } finally {
+    state.chatModelsLoading = false;
+    state.modelManagementLoading = false;
+  }
 }
 
 export async function setDefaultChatModel(state: AppViewState, nextModel: string) {
@@ -727,10 +790,14 @@ export async function setDefaultChatModel(state: AppViewState, nextModel: string
       return;
     }
     await state.client.request("config.patch", {
-      raw: JSON.stringify(buildDefaultChatModelPatch(trimmedModel)),
+      raw: JSON.stringify(buildDefaultChatModelPatch(trimmedModel, snapshot.config ?? null)),
       baseHash: snapshot.hash,
     });
-    await Promise.all([loadConfig(state), refreshSessionOptions(state)]);
+    await Promise.all([
+      loadConfig(state),
+      refreshSessionOptions(state),
+      refreshModelPickerCatalogs(state),
+    ]);
   } catch (err) {
     state.lastError = `Failed to set default model: ${String(err)}`;
   }

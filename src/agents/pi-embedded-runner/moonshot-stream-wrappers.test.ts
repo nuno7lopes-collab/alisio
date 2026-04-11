@@ -17,12 +17,6 @@ describe("moonshot stream wrappers", () => {
     ).toBe(true);
     expect(
       shouldApplyMoonshotPayloadCompat({
-        provider: "ollama",
-        modelId: "kimi-k2.5:cloud",
-      }),
-    ).toBe(true);
-    expect(
-      shouldApplyMoonshotPayloadCompat({
         provider: "openai",
         modelId: "gpt-5.4",
       }),

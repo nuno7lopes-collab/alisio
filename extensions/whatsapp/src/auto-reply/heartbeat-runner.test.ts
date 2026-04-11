@@ -110,8 +110,8 @@ vi.mock("./session-snapshot.js", () => ({
 }));
 
 vi.mock("../auth-store.js", () => ({
-  WA_WEB_AUTH_DIR: "/tmp/openclaw-oauth/whatsapp/default",
-  resolveDefaultWebAuthDir: () => "/tmp/openclaw-oauth/whatsapp/default",
+  WA_WEB_AUTH_DIR: "/tmp/alisio-oauth/whatsapp/default",
+  resolveDefaultWebAuthDir: () => "/tmp/alisio-oauth/whatsapp/default",
   hasWebCredsSync: () => false,
   maybeRestoreCredsFromBackup: () => undefined,
   webAuthExists: async () => false,

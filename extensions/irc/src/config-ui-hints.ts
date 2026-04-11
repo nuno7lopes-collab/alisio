@@ -3,7 +3,7 @@ import type { ChannelConfigUiHint } from "alisio/plugin-sdk/core";
 export const ircChannelConfigUiHints = {
   "": {
     label: "IRC",
-    help: "IRC channel provider configuration and compatibility settings for classic IRC transport workflows. Use this section when bridging legacy chat infrastructure into OpenClaw.",
+    help: "IRC channel provider configuration and compatibility settings for classic IRC transport workflows. Use this section when bridging legacy chat infrastructure into Alisio.",
   },
   dmPolicy: {
     label: "IRC DM Policy",

@@ -3,7 +3,7 @@ import type {
   ChannelGatewayContext,
   AlisioConfig,
   RuntimeEnv,
-} from "openclaw/plugin-sdk/testing";
+} from "alisio/plugin-sdk/testing";
 import { vi } from "vitest";
 import { createRuntimeEnv } from "./runtime-env.js";
 

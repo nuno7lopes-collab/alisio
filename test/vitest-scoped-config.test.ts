@@ -21,9 +21,9 @@ describe("resolveVitestIsolation", () => {
     expect(resolveVitestIsolation({ ALISIO_TEST_NO_ISOLATE: "false" })).toBe(true);
   });
 
-  it("accepts legacy OpenClaw isolation env names as a fallback", () => {
-    expect(resolveVitestIsolation({ OPENCLAW_TEST_ISOLATE: "1" })).toBe(true);
-    expect(resolveVitestIsolation({ OPENCLAW_TEST_NO_ISOLATE: "0" })).toBe(true);
+  it("accepts legacy Alisio isolation env names as a fallback", () => {
+    expect(resolveVitestIsolation({ ALISIO_TEST_ISOLATE: "1" })).toBe(true);
+    expect(resolveVitestIsolation({ ALISIO_TEST_NO_ISOLATE: "0" })).toBe(true);
   });
 });
 

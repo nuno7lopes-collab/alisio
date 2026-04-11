@@ -22,20 +22,25 @@ describe("check-no-legacy-provider-adapter", () => {
         filePath: "src/provider-adapters/alisio-provider-adapters.ts",
         content: [
           "",
-          'const a = "server-\u006fpenai";',
-          'const b = "ollama";',
-          'const c = "remote model servers";',
-          'const d = "model\u0053ervers";',
+          ['const a = "', ["server-", "openai"].join(""), '";'].join(""),
+          ['const b = "', ["openai", "compatible"].join("-"), '";'].join(""),
+          ['const c = "', ["remote model", " servers"].join(""), '";'].join(""),
+          ['const d = "', ["model", "Servers"].join(""), '";'].join(""),
+          ['const e = "', ["local", " servers"].join(""), '";'].join(""),
           "",
         ].join("\n"),
       },
     ]);
 
-    expect(violations).toEqual([
-      expect.objectContaining({ label: "ollama", line: 3 }),
-      expect.objectContaining({ label: "remote model servers", line: 4 }),
-      expect.objectContaining({ label: "legacy model state field", line: 5 }),
-      expect.objectContaining({ label: "legacy server openai token", line: 2 }),
-    ]);
+    expect(violations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: ["openai", "compatible"].join("-"), line: 3 }),
+        expect.objectContaining({ label: "legacy remote endpoint copy", line: 4 }),
+        expect.objectContaining({ label: "legacy model state field", line: 5 }),
+        expect.objectContaining({ label: ["local", " servers"].join(""), line: 6 }),
+        expect.objectContaining({ label: "legacy server openai token", line: 2 }),
+      ]),
+    );
+    expect(violations).toHaveLength(5);
   });
 });

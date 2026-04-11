@@ -3,11 +3,10 @@
 
 import PackageDescription
 
-let legacyBrand = "Open" + "Claw"
-let sharedPackageName = "\(legacyBrand)Kit"
-let sharedProtocolModule = "\(legacyBrand)Protocol"
-let sharedChatUIModule = "\(legacyBrand)ChatUI"
-let sharedPackagePath = "../shared/\(sharedPackageName)"
+let sharedPackageName = "AlisioKit"
+let sharedProtocolModule = "AlisioProtocol"
+let sharedChatUIModule = "AlisioChatUI"
+let sharedPackagePath = "../shared/AlisioKit"
 
 let package = Package(
     name: "Alisio",

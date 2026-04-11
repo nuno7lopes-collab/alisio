@@ -30,11 +30,11 @@ Use this page for day-1 startup and day-2 operations of the Gateway service.
   <Step title="Start the Gateway">
 
 ```bash
-alisio gateway --port 40705
+alisio gateway run --port 40705
 # debug/trace mirrored to stdio
-alisio gateway --port 40705 --verbose
+alisio gateway run --port 40705 --verbose
 # force-kill listener on selected port, then start
-alisio gateway --force
+alisio gateway run --force
 ```
 
   </Step>
@@ -208,8 +208,8 @@ Checklist per instance:
 Example:
 
 ```bash
-ALISIO_CONFIG_PATH=~/.alisio/a.json ALISIO_STATE_DIR=~/.alisio-a alisio gateway --port 19001
-ALISIO_CONFIG_PATH=~/.alisio/b.json ALISIO_STATE_DIR=~/.alisio-b alisio gateway --port 19002
+ALISIO_CONFIG_PATH=~/.alisio/a.json ALISIO_STATE_DIR=~/.alisio-a alisio gateway run --port 19001
+ALISIO_CONFIG_PATH=~/.alisio/b.json ALISIO_STATE_DIR=~/.alisio-b alisio gateway run --port 19002
 ```
 
 See: [Multiple gateways](/gateway/multiple-gateways).
@@ -218,7 +218,7 @@ See: [Multiple gateways](/gateway/multiple-gateways).
 
 ```bash
 alisio --dev setup
-alisio --dev gateway --allow-unconfigured
+alisio --dev gateway run --allow-unconfigured
 alisio --dev status
 ```
 

@@ -9,7 +9,7 @@ import {
   PUBLIC_PACKAGE_NAME as distributionPublicPackageName,
   resolveUpdateSourceConfig,
 } from "./distribution-profile.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { readPackageVersion } from "./package-json.js";
 import { applyPathPrepend } from "./path-prepend.js";
 
@@ -204,11 +204,11 @@ export function resolveGlobalInstallSpec(params: {
   const override =
     readEnv("ALISIO_UPDATE_PACKAGE_SPEC", {
       env: params.env,
-      fallback: legacyEnvKey("UPDATE_PACKAGE_SPEC"),
+      fallback: runtimeEnvKey("UPDATE_PACKAGE_SPEC"),
       description: "update package spec override",
     }) ??
     readEnv("ALISIO_UPDATE_PACKAGE_SPEC", {
-      fallback: legacyEnvKey("UPDATE_PACKAGE_SPEC"),
+      fallback: runtimeEnvKey("UPDATE_PACKAGE_SPEC"),
       description: "update package spec override",
     });
   if (override) {

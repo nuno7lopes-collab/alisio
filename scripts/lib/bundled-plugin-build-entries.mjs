@@ -9,6 +9,13 @@ import {
 import { shouldBuildBundledCluster } from "./optional-bundled-clusters.mjs";
 
 const TOP_LEVEL_PUBLIC_SURFACE_EXTENSIONS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
+const CAPABILITY_ONLY_PUBLIC_SURFACE_BASENAMES = new Set([
+  "api",
+  "channel-config-api",
+  "provider-catalog",
+  "runtime-api",
+  "session-key-api",
+]);
 
 function readBundledPluginPackageJson(packageJsonPath) {
   if (!fs.existsSync(packageJsonPath)) {
@@ -69,6 +76,12 @@ function collectTopLevelPublicSurfaceEntries(pluginDir) {
     .toSorted((left, right) => left.localeCompare(right));
 }
 
+function collectCapabilityOnlyPublicSurfaceEntries(pluginDir) {
+  return collectTopLevelPublicSurfaceEntries(pluginDir).filter((entry) =>
+    CAPABILITY_ONLY_PUBLIC_SURFACE_BASENAMES.has(path.basename(entry, path.extname(entry))),
+  );
+}
+
 export function collectBundledPluginBuildEntries(params = {}) {
   const cwd = params.cwd ?? process.cwd();
   const env = params.env ?? process.env;
@@ -83,13 +96,23 @@ export function collectBundledPluginBuildEntries(params = {}) {
 
     const pluginDir = path.join(extensionsRoot, dirent.name);
     const manifestPath = path.join(pluginDir, pluginManifestName);
-    if (!fs.existsSync(manifestPath)) {
-      continue;
-    }
-
     const packageJsonPath = path.join(pluginDir, "package.json");
     const packageJson = readBundledPluginPackageJson(packageJsonPath);
     if (!shouldBuildBundledCluster(dirent.name, env, { packageJson })) {
+      continue;
+    }
+
+    if (!fs.existsSync(manifestPath)) {
+      const capabilitySourceEntries = collectCapabilityOnlyPublicSurfaceEntries(pluginDir);
+      if (capabilitySourceEntries.length === 0) {
+        continue;
+      }
+      entries.push({
+        id: dirent.name,
+        hasPackageJson: packageJson !== null,
+        packageJson,
+        sourceEntries: capabilitySourceEntries,
+      });
       continue;
     }
 

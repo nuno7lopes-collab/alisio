@@ -6,7 +6,7 @@ import {
   type CommandOptions,
 } from "@buape/carbon";
 import { resolveCommandAuthorizedFromAuthorizers } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
 import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import {
@@ -34,7 +34,7 @@ const VOICE_CHANNEL_TYPES: NonNullable<APIApplicationCommandChannelOption["chann
 ];
 
 type VoiceCommandContext = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   discordConfig: DiscordAccountConfig;
   accountId: string;
   groupPolicy: "open" | "disabled" | "allowlist";

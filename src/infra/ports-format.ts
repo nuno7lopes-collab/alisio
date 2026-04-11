@@ -1,11 +1,9 @@
 import { formatCliCommand } from "../cli/command-format.js";
 import type { PortListener, PortListenerKind, PortUsage } from "./ports-types.js";
 
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
-
 export function classifyPortListener(listener: PortListener, port: number): PortListenerKind {
   const raw = `${listener.commandLine ?? ""} ${listener.command ?? ""}`.trim().toLowerCase();
-  if (raw.includes("alisio") || raw.includes(LEGACY_RUNTIME_NAMESPACE)) {
+  if (raw.includes("alisio")) {
     return "gateway";
   }
   if (raw.includes("ssh")) {

@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/anthropic-provider",
+  "name": "@alisio/anthropic-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Anthropic provider plugin",
+  "description": "Alisio Anthropic provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

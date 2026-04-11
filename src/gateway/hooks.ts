@@ -145,11 +145,7 @@ export function extractHookToken(req: IncomingMessage): string | undefined {
     }
   }
   const headerToken =
-    typeof req.headers["x-alisio-token"] === "string"
-      ? req.headers["x-alisio-token"].trim()
-      : typeof req.headers["x-openclaw-token"] === "string"
-        ? req.headers["x-openclaw-token"].trim()
-        : "";
+    typeof req.headers["x-alisio-token"] === "string" ? req.headers["x-alisio-token"].trim() : "";
   if (headerToken) {
     return headerToken;
   }
@@ -265,7 +261,7 @@ export function resolveHookIdempotencyKey(params: {
   return (
     resolveOptionalHookIdempotencyKey(params.headers?.["idempotency-key"]) ||
     resolveOptionalHookIdempotencyKey(params.headers?.["x-alisio-idempotency-key"]) ||
-    resolveOptionalHookIdempotencyKey(params.headers?.["x-openclaw-idempotency-key"]) ||
+    resolveOptionalHookIdempotencyKey(params.headers?.["x-alisio-idempotency-key"]) ||
     resolveOptionalHookIdempotencyKey(params.payload.idempotencyKey)
   );
 }

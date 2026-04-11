@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "../runtime-api.js";
+import type { AlisioConfig } from "../runtime-api.js";
 import { createFeishuCardInteractionEnvelope } from "./card-interaction.js";
 import { looksLikeFeishuId, normalizeFeishuTarget, resolveReceiveIdType } from "./targets.js";
 
@@ -62,7 +62,7 @@ vi.mock("../../../src/channels/plugins/bundled.js", () => ({
 
 let feishuPlugin: typeof import("./channel.js").feishuPlugin;
 
-function getDescribedActions(cfg: OpenClawConfig): string[] {
+function getDescribedActions(cfg: AlisioConfig): string[] {
   return [...(feishuPlugin.actions?.describeMessageTool?.({ cfg })?.actions ?? [])];
 }
 
@@ -86,7 +86,7 @@ function createLegacyFeishuButtonCard(value: { command?: string; text?: string }
   };
 }
 
-async function expectLegacyFeishuCardPayloadRejected(cfg: OpenClawConfig, card: unknown) {
+async function expectLegacyFeishuCardPayloadRejected(cfg: AlisioConfig, card: unknown) {
   await expect(
     feishuPlugin.actions?.handleAction?.({
       action: "send",
@@ -121,7 +121,7 @@ describe("feishuPlugin.status.probeAccount", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const account = feishuPlugin.config.resolveAccount(cfg, "main");
     probeFeishuMock.mockResolvedValueOnce({ ok: true, appId: "cli_main" });
@@ -165,7 +165,7 @@ describe("feishuPlugin.pairing.notifyApproval", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     await feishuPlugin.pairing?.notifyApproval?.({
       cfg,
@@ -195,7 +195,7 @@ describe("feishuPlugin actions", () => {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -231,7 +231,7 @@ describe("feishuPlugin actions", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     expect(getDescribedActions(disabledCfg)).toEqual([
       "send",

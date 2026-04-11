@@ -439,6 +439,12 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   if (payload.state === "delta") {
     const next = extractText(payload.message);
     if (typeof next === "string" && !isSilentReplyStream(next)) {
+      if (!state.chatRunId && payload.runId) {
+        state.chatRunId = payload.runId;
+        state.chatStreamStartedAt ??= Date.now();
+      }
+      state.lastError = null;
+      state.chatRuntimeSetupHint = null;
       const current = state.chatStream ?? "";
       if (!current || next.length >= current.length) {
         state.chatStream = next;
@@ -447,8 +453,12 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   } else if (payload.state === "final") {
     const finalMessage = normalizeFinalAssistantMessage(payload.message);
     if (finalMessage && !isAssistantSilentReply(finalMessage)) {
+      state.lastError = null;
+      state.chatRuntimeSetupHint = null;
       appendChatMessageIfDistinct(state, finalMessage);
     } else if (state.chatStream?.trim() && !isSilentReplyStream(state.chatStream)) {
+      state.lastError = null;
+      state.chatRuntimeSetupHint = null;
       appendChatMessageIfDistinct(state, {
         role: "assistant",
         content: [{ type: "text", text: state.chatStream }],
@@ -461,10 +471,14 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   } else if (payload.state === "aborted") {
     const normalizedMessage = normalizeAbortedAssistantMessage(payload.message);
     if (normalizedMessage && !isAssistantSilentReply(normalizedMessage)) {
+      state.lastError = null;
+      state.chatRuntimeSetupHint = null;
       appendChatMessageIfDistinct(state, normalizedMessage);
     } else {
       const streamedText = state.chatStream ?? "";
       if (streamedText.trim() && !isSilentReplyStream(streamedText)) {
+        state.lastError = null;
+        state.chatRuntimeSetupHint = null;
         appendChatMessageIfDistinct(state, {
           role: "assistant",
           content: [{ type: "text", text: streamedText }],

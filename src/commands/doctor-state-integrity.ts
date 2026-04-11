@@ -137,7 +137,7 @@ function findOtherStateDirs(stateDir: string, homeDir: string): string[] {
       if (entry.name.startsWith(".")) {
         continue;
       }
-      const candidates = [".alisio", ".openclaw"].map((dir) => path.resolve(root, entry.name, dir));
+      const candidates = [".alisio", ".alisio"].map((dir) => path.resolve(root, entry.name, dir));
       for (const candidate of candidates) {
         if (candidate === resolvedState) {
           continue;
@@ -458,7 +458,7 @@ function isSlashRoutingSessionKey(sessionKey: string): boolean {
 }
 
 function shouldRequireOAuthDir(cfg: AlisioConfig, env: NodeJS.ProcessEnv): boolean {
-  if (env.ALISIO_OAUTH_DIR?.trim() || env.OPENCLAW_OAUTH_DIR?.trim()) {
+  if (env.ALISIO_OAUTH_DIR?.trim()) {
     return true;
   }
   const channels = cfg.channels;

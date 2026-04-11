@@ -8,7 +8,7 @@ import {
   resolveDmGroupAccessWithLists,
   resolveEffectiveAllowFromLists,
   resolveSenderScopedGroupPolicy,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../../runtime-api.js";
 import { normalizeMSTeamsConversationId } from "../inbound.js";
 import { resolveMSTeamsAllowlistMatch, resolveMSTeamsRouteConfig } from "../policy.js";
@@ -18,7 +18,7 @@ import type { MSTeamsTurnContext } from "../sdk-types.js";
 export type MSTeamsResolvedSenderAccess = Awaited<ReturnType<typeof resolveMSTeamsSenderAccess>>;
 
 export async function resolveMSTeamsSenderAccess(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   activity: MSTeamsTurnContext["activity"];
 }) {
   const activity = params.activity;

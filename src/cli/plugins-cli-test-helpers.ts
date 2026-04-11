@@ -11,7 +11,7 @@ export const writeConfigFile = vi.fn<(config: AlisioConfig) => Promise<void>>(
 export const replaceConfigFile = vi.fn(
   async (params: { nextConfig: AlisioConfig }) => await writeConfigFile(params.nextConfig),
 );
-export const resolveStateDir = vi.fn(() => "/tmp/openclaw-state");
+export const resolveStateDir = vi.fn(() => "/tmp/alisio-state");
 export const installPluginFromMarketplace = vi.fn();
 export const listMarketplacePlugins = vi.fn();
 export const resolveMarketplaceInstallShortcut = vi.fn();
@@ -172,7 +172,7 @@ export function resetPluginsCliTestState() {
   readConfigFileSnapshot.mockImplementation(async () => {
     const config = loadConfig();
     return {
-      path: "/tmp/openclaw-config.json5",
+      path: "/tmp/alisio-config.json5",
       exists: true,
       raw: "{}",
       parsed: config,
@@ -191,7 +191,7 @@ export function resetPluginsCliTestState() {
   replaceConfigFile.mockImplementation(
     async (params: { nextConfig: AlisioConfig }) => await writeConfigFile(params.nextConfig),
   );
-  resolveStateDir.mockReturnValue("/tmp/openclaw-state");
+  resolveStateDir.mockReturnValue("/tmp/alisio-state");
   resolveMarketplaceInstallShortcut.mockResolvedValue(null);
   installPluginFromMarketplace.mockResolvedValue({
     ok: false,

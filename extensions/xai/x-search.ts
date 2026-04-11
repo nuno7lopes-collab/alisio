@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { getRuntimeConfigSnapshot } from "alisio/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/plugin-entry";
+import type { AlisioConfig } from "alisio/plugin-sdk/plugin-entry";
 import {
   jsonResult,
   readCache,
@@ -22,7 +22,7 @@ import {
   type XaiXSearchOptions,
 } from "./src/x-search-shared.js";
 
-type XSearchConfig = NonNullable<OpenClawConfig["tools"]>["web"] extends infer Web
+type XSearchConfig = NonNullable<AlisioConfig["tools"]>["web"] extends infer Web
   ? Web extends { x_search?: infer XSearch }
     ? XSearch
     : undefined
@@ -35,7 +35,7 @@ class PluginToolInputError extends Error {
   }
 }
 
-const X_SEARCH_CACHE_KEY = Symbol.for("openclaw.xai.x-search.cache");
+const X_SEARCH_CACHE_KEY = Symbol.for("alisio.xai.x-search.cache");
 
 type XSearchCacheEntry = {
   expiresAt: number;
@@ -56,7 +56,7 @@ function getSharedXSearchCache(): Map<string, XSearchCacheEntry> {
 
 const X_SEARCH_CACHE = getSharedXSearchCache();
 
-function readLegacyGrokApiKey(cfg?: OpenClawConfig): string | undefined {
+function readLegacyGrokApiKey(cfg?: AlisioConfig): string | undefined {
   const search = cfg?.tools?.web?.search;
   if (!search || typeof search !== "object") {
     return undefined;
@@ -68,18 +68,18 @@ function readLegacyGrokApiKey(cfg?: OpenClawConfig): string | undefined {
   );
 }
 
-function readPluginXaiWebSearchApiKey(cfg?: OpenClawConfig): string | undefined {
+function readPluginXaiWebSearchApiKey(cfg?: AlisioConfig): string | undefined {
   return readConfiguredSecretString(
     resolveProviderWebSearchPluginConfig(cfg as Record<string, unknown> | undefined, "xai")?.apiKey,
     "plugins.entries.xai.config.webSearch.apiKey",
   );
 }
 
-function resolveFallbackXaiApiKey(cfg?: OpenClawConfig): string | undefined {
+function resolveFallbackXaiApiKey(cfg?: AlisioConfig): string | undefined {
   return readPluginXaiWebSearchApiKey(cfg) ?? readLegacyGrokApiKey(cfg);
 }
 
-function resolveXSearchConfig(cfg?: OpenClawConfig): XSearchConfig {
+function resolveXSearchConfig(cfg?: AlisioConfig): XSearchConfig {
   const xSearch = cfg?.tools?.web?.x_search;
   if (!xSearch || typeof xSearch !== "object") {
     return undefined;
@@ -88,9 +88,9 @@ function resolveXSearchConfig(cfg?: OpenClawConfig): XSearchConfig {
 }
 
 function resolveXSearchEnabled(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   config?: XSearchConfig;
-  runtimeConfig?: OpenClawConfig;
+  runtimeConfig?: AlisioConfig;
 }): boolean {
   if (params.config?.enabled === false) {
     return false;
@@ -117,8 +117,8 @@ function resolveXSearchEnabled(params: {
 }
 
 function resolveXSearchApiKey(params: {
-  sourceConfig?: OpenClawConfig;
-  runtimeConfig?: OpenClawConfig;
+  sourceConfig?: AlisioConfig;
+  runtimeConfig?: AlisioConfig;
 }): string | undefined {
   const sourceXSearchConfig = resolveXSearchConfig(params.sourceConfig);
   const runtimeXSearchConfig =
@@ -180,8 +180,8 @@ function buildXSearchCacheKey(params: {
 }
 
 export function createXSearchTool(options?: {
-  config?: OpenClawConfig;
-  runtimeConfig?: OpenClawConfig | null;
+  config?: AlisioConfig;
+  runtimeConfig?: AlisioConfig | null;
 }) {
   const xSearchConfig = resolveXSearchConfig(options?.config);
   const runtimeConfig = options?.runtimeConfig ?? getRuntimeConfigSnapshot();
@@ -235,7 +235,7 @@ export function createXSearchTool(options?: {
           error: "missing_xai_api_key",
           message:
             "x_search needs an xAI API key. Set XAI_API_KEY in the Gateway environment, or configure tools.web.x_search.apiKey or plugins.entries.xai.config.webSearch.apiKey.",
-          docs: "https://docs.openclaw.ai/tools/web",
+          docs: "https://docs.alisio.ai/tools/web",
         });
       }
 

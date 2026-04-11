@@ -30,7 +30,7 @@ vi.mock("alisio/plugin-sdk/json-store", () => ({
 }));
 
 vi.mock("alisio/plugin-sdk/state-paths", () => ({
-  resolveStateDir: () => "/tmp/openclaw-state",
+  resolveStateDir: () => "/tmp/alisio-state",
 }));
 
 import type { ProviderResolveDynamicModelContext } from "alisio/plugin-sdk/core";
@@ -238,7 +238,7 @@ describe("fetchCopilotUsage", () => {
 });
 
 describe("github-copilot token", () => {
-  const cachePath = "/tmp/openclaw-state/credentials/github-copilot.token.json";
+  const cachePath = "/tmp/alisio-state/credentials/github-copilot.token.json";
 
   beforeEach(async () => {
     vi.resetModules();

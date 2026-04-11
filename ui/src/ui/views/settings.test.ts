@@ -75,6 +75,11 @@ function createProps(
     onChangeEmail: vi.fn(),
     onUpdatePassword: vi.fn(),
     onReconnectRuntime: vi.fn(),
+    nativeRebuildAvailable: false,
+    nativeRebuildInFlight: false,
+    nativeRebuildStatus: null,
+    nativeRebuildError: null,
+    onRebuildNativeApp: vi.fn(),
     ...overrides,
   };
 }
@@ -257,5 +262,34 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).toContain("Alisio");
     expect(container.textContent).toContain("Reconnect Alisio");
     expect(container.textContent).not.toContain("gateway");
+  });
+
+  it("shows the rebuild action in the Mac section when a local checkout is available", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "mac",
+          nativeRebuildAvailable: true,
+          doctor: {
+            ok: true,
+            bootstrap: {} as never,
+            issues: [],
+            checks: {
+              gateway: true,
+              runtime: true,
+              account: true,
+              organization: true,
+              connectors: true,
+              permissions: true,
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Rebuild app");
   });
 });

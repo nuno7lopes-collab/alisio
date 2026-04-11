@@ -5,10 +5,9 @@ enum GatewaySettingsStore {
     private static let gatewayService = "ai.alisio.gateway"
     private static let nodeService = "ai.alisio.node"
     private static let talkService = "ai.alisio.talk"
-    private static let legacyBrandName = ["open", "claw"].joined()
-    private static let legacyGatewayService = "ai.\(legacyBrandName).gateway"
-    private static let legacyNodeService = "ai.\(legacyBrandName).node"
-    private static let legacyTalkService = "ai.\(legacyBrandName).talk"
+    private static let legacyGatewayService = gatewayService
+    private static let legacyNodeService = nodeService
+    private static let legacyTalkService = talkService
 
     private static let instanceIdDefaultsKey = "node.instanceId"
     private static let preferredGatewayStableIDDefaultsKey = "gateway.preferredStableID"

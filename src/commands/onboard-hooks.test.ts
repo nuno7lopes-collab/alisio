@@ -57,7 +57,7 @@ describe("onboard-hooks", () => {
       ? undefined
       : "missing requirements") as HookStatusEntry["blockedReason"],
     ...params,
-    source: "openclaw-bundled" as const,
+    source: "alisio-bundled" as const,
     pluginId: undefined,
     homepage: undefined,
     always: false,
@@ -85,7 +85,7 @@ describe("onboard-hooks", () => {
 
   const createMockHookReport = (eligible = true): HookStatusReport => ({
     workspaceDir: "/mock/workspace",
-    managedHooksDir: "/mock/.openclaw/hooks",
+    managedHooksDir: "/mock/.alisio/hooks",
     hooks: [
       createMockHook(
         {
@@ -234,7 +234,7 @@ describe("onboard-hooks", () => {
 
       // Second note should confirm configuration
       expect(noteCalls[1][0]).toContain("Enabled 1 hook: session-memory");
-      expect(noteCalls[1][0]).toMatch(/(?:openclaw|openclaw)( --profile isolated)? hooks list/);
+      expect(noteCalls[1][0]).toMatch(/alisio( --profile isolated)? hooks list/);
     });
   });
 });

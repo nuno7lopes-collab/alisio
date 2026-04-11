@@ -20,7 +20,7 @@ async function runOpenAiMessageChannelRequest(params?: { messageChannelHeader?: 
       const headers: Record<string, string> = {
         "content-type": "application/json",
         authorization: "Bearer secret",
-        "x-openclaw-scopes": "operator.write",
+        "x-alisio-scopes": "operator.write",
       };
       if (params?.messageChannelHeader) {
         headers["x-alisio-message-channel"] = params.messageChannelHeader;

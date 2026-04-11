@@ -1,4 +1,4 @@
-import { DEFAULT_ACCOUNT_ID, type OpenClawConfig } from "alisio/plugin-sdk/account-resolution";
+import { DEFAULT_ACCOUNT_ID, type AlisioConfig } from "alisio/plugin-sdk/account-resolution";
 import { waitUntilAbort } from "alisio/plugin-sdk/channel-lifecycle";
 import { registerPluginHttpRoute } from "alisio/plugin-sdk/webhook-ingress";
 import { listAccountIds, resolveAccount } from "./accounts.js";
@@ -67,7 +67,7 @@ function createUnknownArgsLogAdapter(
 }
 
 export function collectSynologyGatewayStartupIssues(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   account: ResolvedSynologyChatAccount;
   accountId: string;
 }): SynologyGatewayStartupIssue[] {
@@ -133,7 +133,7 @@ export function collectSynologyGatewayStartupIssues(params: {
 }
 
 export function collectSynologyGatewayRoutingWarnings(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   account: ResolvedSynologyChatAccount;
 }): string[] {
   return collectSynologyGatewayStartupIssues({
@@ -149,7 +149,7 @@ export function collectSynologyGatewayRoutingWarnings(params: {
 }
 
 export function validateSynologyGatewayAccountStartup(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   account: ResolvedSynologyChatAccount;
   accountId: string;
   log?: SynologyGatewayLog;

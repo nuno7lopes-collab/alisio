@@ -120,15 +120,15 @@ jobs:
       - name: Build CI manifest
         id: manifest
         env:
-          OPENCLAW_CI_DOCS_ONLY: ${{ steps.docs_scope.outputs.docs_only }}
-          OPENCLAW_CI_DOCS_CHANGED: ${{ steps.docs_scope.outputs.docs_changed }}
-          OPENCLAW_CI_RUN_NODE: ${{ steps.changed_scope.outputs.run_node || 'false' }}
-          OPENCLAW_CI_RUN_MACOS: ${{ steps.changed_scope.outputs.run_macos || 'false' }}
-          OPENCLAW_CI_RUN_ANDROID: ${{ steps.changed_scope.outputs.run_android || 'false' }}
-          OPENCLAW_CI_RUN_WINDOWS: ${{ steps.changed_scope.outputs.run_windows || 'false' }}
-          OPENCLAW_CI_RUN_SKILLS_PYTHON: ${{ steps.changed_scope.outputs.run_skills_python || 'false' }}
-          OPENCLAW_CI_HAS_CHANGED_EXTENSIONS: ${{ steps.changed_extensions.outputs.has_changed_extensions || 'false' }}
-          OPENCLAW_CI_CHANGED_EXTENSIONS_MATRIX: ${{ steps.changed_extensions.outputs.changed_extensions_matrix || '{"include":[]}' }}
+          ALISIO_CI_DOCS_ONLY: ${{ steps.docs_scope.outputs.docs_only }}
+          ALISIO_CI_DOCS_CHANGED: ${{ steps.docs_scope.outputs.docs_changed }}
+          ALISIO_CI_RUN_NODE: ${{ steps.changed_scope.outputs.run_node || 'false' }}
+          ALISIO_CI_RUN_MACOS: ${{ steps.changed_scope.outputs.run_macos || 'false' }}
+          ALISIO_CI_RUN_ANDROID: ${{ steps.changed_scope.outputs.run_android || 'false' }}
+          ALISIO_CI_RUN_WINDOWS: ${{ steps.changed_scope.outputs.run_windows || 'false' }}
+          ALISIO_CI_RUN_SKILLS_PYTHON: ${{ steps.changed_scope.outputs.run_skills_python || 'false' }}
+          ALISIO_CI_HAS_CHANGED_EXTENSIONS: ${{ steps.changed_extensions.outputs.has_changed_extensions || 'false' }}
+          ALISIO_CI_CHANGED_EXTENSIONS_MATRIX: ${{ steps.changed_extensions.outputs.changed_extensions_matrix || '{"include":[]}' }}
         run: node scripts/ci-write-manifest-outputs.mjs --workflow ci
 
   # Run the fast security/SCM checks in parallel with scope detection so the
@@ -362,15 +362,15 @@ jobs:
         run: |
           # `pnpm test` runs `scripts/test-parallel.mjs`, which spawns multiple Node processes.
           # Default heap limits have been too low on Linux CI (V8 OOM near 4GB).
-          echo "OPENCLAW_TEST_WORKERS=2" >> "$GITHUB_ENV"
-          echo "OPENCLAW_TEST_MAX_OLD_SPACE_SIZE_MB=6144" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_WORKERS=2" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_MAX_OLD_SPACE_SIZE_MB=6144" >> "$GITHUB_ENV"
           if [ "$TASK" = "channels" ]; then
-            echo "OPENCLAW_TEST_WORKERS=1" >> "$GITHUB_ENV"
-            echo "OPENCLAW_TEST_ISOLATE=1" >> "$GITHUB_ENV"
+            echo "ALISIO_TEST_WORKERS=1" >> "$GITHUB_ENV"
+            echo "ALISIO_TEST_ISOLATE=1" >> "$GITHUB_ENV"
           fi
           if [ -n "$SHARD_COUNT" ] && [ -n "$SHARD_INDEX" ]; then
-            echo "OPENCLAW_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
-            echo "OPENCLAW_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
+            echo "ALISIO_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
+            echo "ALISIO_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
           fi
 
       - name: Download dist artifact
@@ -438,8 +438,8 @@ jobs:
 
       - name: Run changed extension tests
         env:
-          OPENCLAW_CHANGED_EXTENSION: ${{ matrix.extension }}
-        run: pnpm test:extension "$OPENCLAW_CHANGED_EXTENSION"
+          ALISIO_CHANGED_EXTENSION: ${{ matrix.extension }}
+        run: pnpm test:extension "$ALISIO_CHANGED_EXTENSION"
 
   # Types, lint, and format check.
   check:
@@ -724,7 +724,7 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=6144
       # Keep total concurrency predictable on the 32 vCPU runner.
       # Windows shard 2 has shown intermittent instability at 2 workers.
-      OPENCLAW_TEST_WORKERS: 1
+      ALISIO_TEST_WORKERS: 1
     defaults:
       run:
         shell: bash
@@ -803,8 +803,8 @@ jobs:
           SHARD_COUNT: ${{ matrix.shard_count }}
           SHARD_INDEX: ${{ matrix.shard_index }}
         run: |
-          echo "OPENCLAW_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
-          echo "OPENCLAW_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
 
       - name: Download dist artifact
         if: matrix.task == 'test'
@@ -874,8 +874,8 @@ jobs:
           SHARD_COUNT: ${{ matrix.shard_count }}
           SHARD_INDEX: ${{ matrix.shard_index }}
         run: |
-          echo "OPENCLAW_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
-          echo "OPENCLAW_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_SHARDS=$SHARD_COUNT" >> "$GITHUB_ENV"
+          echo "ALISIO_TEST_SHARD_INDEX=$SHARD_INDEX" >> "$GITHUB_ENV"
 
       - name: TS tests (macOS)
         env:

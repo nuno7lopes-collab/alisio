@@ -19,8 +19,8 @@ install_sh_define_branding_fallbacks() {
   alisio_state_dir_name() { printf '%s\n' ".alisio"; }
   alisio_config_file_name() { printf '%s\n' "alisio.json"; }
   alisio_package_dir_name() { printf '%s\n' "alisio-package"; }
-  alisio_legacy_slug() { printf '%s\n' "open""claw"; }
-  alisio_legacy_env_name() { printf '%s_%s\n' "OPEN""CLAW" "${1:-}"; }
+  alisio_legacy_slug() { alisio_app_slug; }
+  alisio_legacy_env_name() { printf '%s_%s\n' "ALISIO" "${1:-}"; }
   alisio_read_prefixed_env() {
     local suffix="${1:-}"
     local default_value="${2:-}"
@@ -325,7 +325,7 @@ require_command() {
 }
 
 resolve_alisio_version() {
-  local cli_bin="${ALISIO_BIN:-${FAKE_ALISIO_BIN:-${OPENCLAW_BIN:-${FAKE_OPENCLAW_BIN:-${CLI_BIN:-}}}}}"
+  local cli_bin="${ALISIO_BIN:-${FAKE_ALISIO_BIN:-${ALISIO_BIN:-${FAKE_ALISIO_BIN:-${CLI_BIN:-}}}}}"
   if [[ -z "$cli_bin" ]]; then
     cli_bin="$(command -v "$APP_SLUG" 2>/dev/null || true)"
   fi

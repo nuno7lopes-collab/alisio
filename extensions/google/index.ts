@@ -2,7 +2,7 @@ import type { ImageGenerationProvider } from "alisio/plugin-sdk/image-generation
 import type { MediaUnderstandingProvider } from "alisio/plugin-sdk/media-understanding";
 import {
   definePluginEntry,
-  type OpenClawPluginApi,
+  type AlisioPluginApi,
   type ProviderAuthContext,
   type ProviderFetchUsageSnapshotContext,
 } from "alisio/plugin-sdk/plugin-entry";
@@ -24,8 +24,8 @@ const GOOGLE_GEMINI_CLI_PROVIDER_ID = "google-gemini-cli";
 const GOOGLE_GEMINI_CLI_PROVIDER_LABEL = "Gemini CLI OAuth";
 const GOOGLE_GEMINI_CLI_DEFAULT_MODEL = "google-gemini-cli/gemini-3.1-pro-preview";
 const GOOGLE_GEMINI_CLI_ENV_VARS = [
-  "OPENCLAW_GEMINI_OAUTH_CLIENT_ID",
-  "OPENCLAW_GEMINI_OAUTH_CLIENT_SECRET",
+  "ALISIO_GEMINI_OAUTH_CLIENT_ID",
+  "ALISIO_GEMINI_OAUTH_CLIENT_SECRET",
   "GEMINI_CLI_OAUTH_CLIENT_ID",
   "GEMINI_CLI_OAUTH_CLIENT_SECRET",
 ] as const;
@@ -65,7 +65,7 @@ async function loadGoogleGeminiCliProvider(): Promise<ProviderPlugin> {
         registerProvider(entry) {
           provider = entry;
         },
-      } as Pick<OpenClawPluginApi, "registerProvider"> as OpenClawPluginApi);
+      } as Pick<AlisioPluginApi, "registerProvider"> as AlisioPluginApi);
       if (!provider) {
         throw new Error("google gemini cli provider missing provider registration");
       }

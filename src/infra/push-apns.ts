@@ -4,7 +4,7 @@ import http2 from "node:http2";
 import path from "node:path";
 import { resolveStateDir } from "../config/paths.js";
 import type { DeviceIdentity } from "./device-identity.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import {
   type ApnsRelayConfig,
@@ -17,7 +17,6 @@ import {
 
 export type ApnsEnvironment = "sandbox" | "production";
 export type ApnsTransport = "direct" | "relay";
-const LEGACY_PUSH_METADATA_KEY = ["open", "claw"].join("");
 const PUSH_METADATA_KEY = "alisio";
 
 export type DirectApnsRegistration = {
@@ -596,14 +595,14 @@ export async function resolveApnsAuthConfigFromEnv(
   const teamId = normalizeNonEmptyString(
     readEnv("ALISIO_APNS_TEAM_ID", {
       env,
-      fallback: legacyEnvKey("APNS_TEAM_ID"),
+      fallback: runtimeEnvKey("APNS_TEAM_ID"),
       description: "APNs team id",
     }),
   );
   const keyId = normalizeNonEmptyString(
     readEnv("ALISIO_APNS_KEY_ID", {
       env,
-      fallback: legacyEnvKey("APNS_KEY_ID"),
+      fallback: runtimeEnvKey("APNS_KEY_ID"),
       description: "APNs key id",
     }),
   );
@@ -618,7 +617,7 @@ export async function resolveApnsAuthConfigFromEnv(
     normalizeNonEmptyString(
       readEnv("ALISIO_APNS_PRIVATE_KEY_P8", {
         env,
-        fallback: [legacyEnvKey("APNS_PRIVATE_KEY_P8"), legacyEnvKey("APNS_PRIVATE_KEY")],
+        fallback: [runtimeEnvKey("APNS_PRIVATE_KEY_P8"), runtimeEnvKey("APNS_PRIVATE_KEY")],
         description: "inline APNs private key",
         redact: true,
       }),
@@ -626,7 +625,7 @@ export async function resolveApnsAuthConfigFromEnv(
     normalizeNonEmptyString(
       readEnv("ALISIO_APNS_PRIVATE_KEY", {
         env,
-        fallback: legacyEnvKey("APNS_PRIVATE_KEY"),
+        fallback: runtimeEnvKey("APNS_PRIVATE_KEY"),
         description: "inline APNs private key",
         redact: true,
       }),
@@ -645,7 +644,7 @@ export async function resolveApnsAuthConfigFromEnv(
   const keyPath = normalizeNonEmptyString(
     readEnv("ALISIO_APNS_PRIVATE_KEY_PATH", {
       env,
-      fallback: legacyEnvKey("APNS_PRIVATE_KEY_PATH"),
+      fallback: runtimeEnvKey("APNS_PRIVATE_KEY_PATH"),
       description: "APNs private key path",
     }),
   );
@@ -914,7 +913,6 @@ function createAlertPayload(params: { nodeId: string; title: string; body: strin
       sound: "default",
     },
     [PUSH_METADATA_KEY]: metadata,
-    [LEGACY_PUSH_METADATA_KEY]: metadata,
   };
 }
 
@@ -929,7 +927,6 @@ function createBackgroundPayload(params: { nodeId: string; wakeReason?: string }
       "content-available": 1,
     },
     [PUSH_METADATA_KEY]: metadata,
-    [LEGACY_PUSH_METADATA_KEY]: metadata,
   };
 }
 

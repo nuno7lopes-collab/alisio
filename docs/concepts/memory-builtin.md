@@ -51,7 +51,6 @@ Without an embedding provider, only keyword search is available.
 | Gemini   | `gemini`  | Yes           | Supports multimodal (image + audio) |
 | Voyage   | `voyage`  | Yes           |                                     |
 | Mistral  | `mistral` | Yes           |                                     |
-| Ollama   | `ollama`  | No            | Local, set explicitly               |
 | Local    | `local`   | Yes (first)   | GGUF model, ~0.6 GB download        |
 
 Auto-detection picks the first provider whose API key can be resolved, in the

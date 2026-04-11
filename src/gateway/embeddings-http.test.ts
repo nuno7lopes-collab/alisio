@@ -166,7 +166,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
 
   it("rejects invalid agent targets", async () => {
     const res = await postEmbeddings({
-      model: "ollama/nomic-embed-text",
+      model: "vllm/nomic-embed-text",
       input: "hello",
     });
     expect(res.status).toBe(400);
@@ -183,7 +183,7 @@ describe("OpenAI-compatible embeddings HTTP API (e2e)", () => {
         model: "alisio/default",
         input: "hello",
       },
-      { "x-alisio-model": "ollama/nomic-embed-text" },
+      { "x-alisio-model": "vllm/nomic-embed-text" },
     );
     expect(res.status).toBe(400);
     const json = (await res.json()) as { error?: { type?: string; message?: string } };

@@ -43,17 +43,19 @@ alisio onboard --non-interactive \
 
 `--custom-api-key` is optional in non-interactive mode. If omitted, onboarding checks `CUSTOM_API_KEY`.
 
-Non-interactive Ollama:
+Non-interactive local server:
 
 ```bash
 alisio onboard --non-interactive \
-  --auth-choice ollama \
-  --custom-base-url "http://ollama-host:11434" \
-  --custom-model-id "qwen3.5:27b" \
+  --auth-choice custom-api-key \
+  --custom-base-url "http://llm-host:1234/v1" \
+  --custom-model-id "qwen3.5-27b" \
+  --custom-api-key "sk-local" \
+  --custom-compatibility openai \
   --accept-risk
 ```
 
-`--custom-base-url` defaults to `http://127.0.0.1:11434`. `--custom-model-id` is optional; if omitted, onboarding uses Ollama's suggested defaults. Cloud model IDs such as `kimi-k2.5:cloud` also work here.
+`--custom-base-url` and `--custom-model-id` are both optional. If your server advertises models cleanly, onboarding can often infer the catalog without hardcoding a local provider id.
 
 Store provider keys as refs instead of plaintext:
 

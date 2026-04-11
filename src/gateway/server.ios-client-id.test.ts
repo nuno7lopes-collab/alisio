@@ -47,4 +47,19 @@ describe("connect params client id validation", () => {
     const ok = validateConnectParams(makeConnectParams("alisio-mobile"));
     expect(ok).toBe(false);
   });
+
+  test("accepts the legacy Control UI client id and normalizes it", () => {
+    const ok = validateConnectParams({
+      ...makeConnectParams("alisio-control-ui"),
+      client: {
+        id: "alisio-control-ui",
+        version: "dev",
+        platform: "web",
+        mode: GATEWAY_CLIENT_MODES.WEBCHAT,
+      },
+      role: "operator",
+    });
+    expect(ok).toBe(true);
+    expect(normalizeGatewayClientId("alisio-control-ui")).toBe(GATEWAY_CLIENT_IDS.CONTROL_UI);
+  });
 });

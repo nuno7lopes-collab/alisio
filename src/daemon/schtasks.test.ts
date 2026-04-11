@@ -126,27 +126,27 @@ describe("scheduled task runtime derivation", () => {
 describe("resolveTaskScriptPath", () => {
   it.each([
     {
-      name: "uses default path when OPENCLAW_PROFILE is unset",
+      name: "uses default path when ALISIO_PROFILE is unset",
       env: { USERPROFILE: "C:\\Users\\test" },
       expected: path.join("C:\\Users\\test", ".alisio", "gateway.cmd"),
     },
     {
-      name: "uses profile-specific path when OPENCLAW_PROFILE is set to a custom value",
-      env: { USERPROFILE: "C:\\Users\\test", OPENCLAW_PROFILE: "jbphoenix" },
+      name: "uses profile-specific path when ALISIO_PROFILE is set to a custom value",
+      env: { USERPROFILE: "C:\\Users\\test", ALISIO_PROFILE: "jbphoenix" },
       expected: path.join("C:\\Users\\test", ".alisio-jbphoenix", "gateway.cmd"),
     },
     {
       name: "prefers ALISIO_STATE_DIR over profile-derived defaults",
       env: {
         USERPROFILE: "C:\\Users\\test",
-        OPENCLAW_PROFILE: "rescue",
+        ALISIO_PROFILE: "rescue",
         ALISIO_STATE_DIR: "C:\\State\\alisio",
       },
       expected: path.join("C:\\State\\alisio", "gateway.cmd"),
     },
     {
       name: "falls back to HOME when USERPROFILE is not set",
-      env: { HOME: "/home/test", OPENCLAW_PROFILE: "default" },
+      env: { HOME: "/home/test", ALISIO_PROFILE: "default" },
       expected: path.join("/home/test", ".alisio", "gateway.cmd"),
     },
   ])("$name", ({ env, expected }) => {
@@ -248,7 +248,7 @@ describe("readScheduledTaskCommand", () => {
       {
         scriptLines: [
           "@echo off",
-          '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js gateway --port 40705',
+          '"C:\\Program Files\\nodejs\\node.exe" C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js gateway run --port 40705',
         ],
       },
       async (env) => {
@@ -258,6 +258,7 @@ describe("readScheduledTaskCommand", () => {
             "C:\\Program Files\\nodejs\\node.exe",
             "C:\\Users\\test\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js",
             "gateway",
+            "run",
             "--port",
             "40705",
           ],
@@ -272,7 +273,7 @@ describe("readScheduledTaskCommand", () => {
       {
         scriptLines: [
           "@echo off",
-          '"\\\\fileserver\\Alisio Share\\node.exe" "\\\\fileserver\\Alisio Share\\dist\\index.js" gateway --port 40705',
+          '"\\\\fileserver\\Alisio Share\\node.exe" "\\\\fileserver\\Alisio Share\\dist\\index.js" gateway run --port 40705',
         ],
       },
       async (env) => {
@@ -282,6 +283,7 @@ describe("readScheduledTaskCommand", () => {
             "\\\\fileserver\\Alisio Share\\node.exe",
             "\\\\fileserver\\Alisio Share\\dist\\index.js",
             "gateway",
+            "run",
             "--port",
             "40705",
           ],

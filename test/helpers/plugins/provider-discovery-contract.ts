@@ -116,7 +116,7 @@ async function importBundledProviderPlugin<T>(moduleUrl: string): Promise<T> {
 function installDiscoveryHooks(state: DiscoveryState) {
   beforeEach(async () => {
     vi.resetModules();
-    vi.doMock("openclaw/plugin-sdk/agent-runtime", async () => {
+    vi.doMock("alisio/plugin-sdk/agent-runtime", async () => {
       const actual = await import("../../../src/plugin-sdk/agent-runtime.ts");
       return {
         ...actual,
@@ -124,8 +124,8 @@ function installDiscoveryHooks(state: DiscoveryState) {
         listProfilesForProvider: listProfilesForProviderMock,
       };
     });
-    vi.doMock("openclaw/plugin-sdk/provider-auth", async () => {
-      const actual = await vi.importActual<object>("openclaw/plugin-sdk/provider-auth");
+    vi.doMock("alisio/plugin-sdk/provider-auth", async () => {
+      const actual = await vi.importActual<object>("alisio/plugin-sdk/provider-auth");
       return {
         ...actual,
         ensureAuthProfileStore: ensureAuthProfileStoreMock,

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ChannelGroupPolicy } from "alisio/plugin-sdk/config-runtime";
 import type { TelegramAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
@@ -99,7 +99,7 @@ vi.mock("./bot/delivery.replies.js", () => ({ deliverReplies: deliveryMocks.deli
 export { createNativeCommandTestParams };
 
 export function createNativeCommandsHarness(params?: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   runtime?: RuntimeEnv;
   telegramCfg?: TelegramAccountConfig;
   allowFrom?: string[];
@@ -114,7 +114,7 @@ export function createNativeCommandsHarness(params?: {
   const setMyCommands: AnyAsyncMock = vi.fn(async () => undefined);
   const log: AnyMock = vi.fn();
   const telegramDeps = {
-    loadConfig: vi.fn(() => params?.cfg ?? ({} as OpenClawConfig)),
+    loadConfig: vi.fn(() => params?.cfg ?? ({} as AlisioConfig)),
     resolveStorePath: vi.fn((storePath?: string) => storePath ?? "/tmp/sessions.json"),
     readChannelAllowFromStore: vi.fn(async () => []),
     upsertChannelPairingRequest: vi.fn(async () => ({ code: "PAIRCODE", created: true })),
@@ -142,7 +142,7 @@ export function createNativeCommandsHarness(params?: {
 
   registerTelegramNativeCommands({
     bot,
-    cfg: params?.cfg ?? ({} as OpenClawConfig),
+    cfg: params?.cfg ?? ({} as AlisioConfig),
     runtime: params?.runtime ?? ({ log } as unknown as RuntimeEnv),
     accountId: "default",
     telegramCfg: params?.telegramCfg ?? ({} as TelegramAccountConfig),

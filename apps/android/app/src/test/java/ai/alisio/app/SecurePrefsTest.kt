@@ -10,9 +10,9 @@ import org.robolectric.RuntimeEnvironment
 @RunWith(RobolectricTestRunner::class)
 class SecurePrefsTest {
   @Test
-  fun loadWakeWords_promotesLegacyBrandFromLegacyPrefsFile() {
+  fun loadWakeWords_readsWakeWordsFromPrefsFile() {
     val context = RuntimeEnvironment.getApplication()
-    val legacyBrand = listOf("open", "claw").joinToString("")
+    val legacyBrand = "alisio"
     val legacyPrefs = context.getSharedPreferences("$legacyBrand.node", Context.MODE_PRIVATE)
     val currentPrefs = context.getSharedPreferences("alisio.node", Context.MODE_PRIVATE)
     legacyPrefs.edit()

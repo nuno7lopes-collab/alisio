@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ClawdbotConfig } from "../runtime-api.js";
+import type { AlisioConfig } from "../runtime-api.js";
 
 const resolveFeishuAccountMock = vi.hoisted(() => vi.fn());
 const createFeishuClientMock = vi.hoisted(() => vi.fn());
@@ -16,7 +16,7 @@ vi.mock("./client.js", () => ({
 let resolveFeishuSendTarget: typeof import("./send-target.js").resolveFeishuSendTarget;
 
 describe("resolveFeishuSendTarget", () => {
-  const cfg = {} as ClawdbotConfig;
+  const cfg = {} as AlisioConfig;
   const client = { id: "client" };
 
   beforeEach(async () => {

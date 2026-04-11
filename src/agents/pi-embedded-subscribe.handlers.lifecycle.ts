@@ -23,6 +23,7 @@ export function handleAgentStart(ctx: EmbeddedPiSubscribeContext) {
   emitAgentEvent({
     runId: ctx.params.runId,
     stream: "lifecycle",
+    ...(ctx.params.sessionKey ? { sessionKey: ctx.params.sessionKey } : {}),
     data: {
       phase: "start",
       startedAt: Date.now(),
@@ -71,6 +72,7 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
     emitAgentEvent({
       runId: ctx.params.runId,
       stream: "lifecycle",
+      ...(ctx.params.sessionKey ? { sessionKey: ctx.params.sessionKey } : {}),
       data: {
         phase: "error",
         error: safeErrorText,
@@ -89,6 +91,7 @@ export function handleAgentEnd(ctx: EmbeddedPiSubscribeContext) {
     emitAgentEvent({
       runId: ctx.params.runId,
       stream: "lifecycle",
+      ...(ctx.params.sessionKey ? { sessionKey: ctx.params.sessionKey } : {}),
       data: {
         phase: "end",
         endedAt: Date.now(),

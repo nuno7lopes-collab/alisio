@@ -32,7 +32,7 @@ export function createSandboxMediaStageConfig(home: string): AlisioConfig {
     agents: {
       defaults: {
         model: "anthropic/claude-opus-4-5",
-        workspace: join(home, "openclaw"),
+        workspace: join(home, "alisio"),
         sandbox: {
           mode: "non-main",
           workspaceRoot: join(home, "sandboxes"),

@@ -27,17 +27,7 @@ export function shouldApplyMoonshotPayloadCompat(params: {
   modelId: string;
 }): boolean {
   const normalizedProvider = normalizeProviderId(params.provider);
-  const normalizedModelId = params.modelId.trim().toLowerCase();
-
-  if (usesMoonshotThinkingPayloadCompatStatic(normalizedProvider)) {
-    return true;
-  }
-
-  return (
-    normalizedProvider === "ollama" &&
-    normalizedModelId.startsWith("kimi-k") &&
-    normalizedModelId.includes(":cloud")
-  );
+  return usesMoonshotThinkingPayloadCompatStatic(normalizedProvider);
 }
 
 export function createSiliconFlowThinkingWrapper(baseStreamFn: StreamFn | undefined): StreamFn {

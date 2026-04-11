@@ -26,9 +26,9 @@ export type {
   MemoryFlushPlanResolver,
   MemoryPluginRuntime,
   MemoryPromptSectionBuilder,
-  OpenClawPluginApi,
+  AlisioPluginApi,
 } from "./memory-core-host-runtime-core.js";
-export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "../config/config.js";
+export type { AlisioConfig } from "../config/config.js";
 export {
   colorize,
   defaultRuntime,

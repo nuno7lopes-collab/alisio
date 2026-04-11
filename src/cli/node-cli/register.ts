@@ -1,5 +1,6 @@
 import type { Command } from "commander";
-import { DEFAULT_GATEWAY_PORT } from "../../config/paths.js";
+import { readBestEffortConfig } from "../../config/config.js";
+import { DEFAULT_GATEWAY_PORT, resolveGatewayPort } from "../../config/paths.js";
 import { loadNodeHostConfig } from "../../node-host/config.js";
 import { runNodeHost } from "../../node-host/runner.js";
 import { formatDocsLink } from "../../terminal/links.js";
@@ -28,13 +29,13 @@ export function registerNodeCli(program: Command) {
       () =>
         `\n${theme.heading("Examples:")}\n${formatHelpExamples([
           [
-            `openclaw node run --host 127.0.0.1 --port ${DEFAULT_GATEWAY_PORT}`,
+            `alisio node run --host 127.0.0.1 --port ${DEFAULT_GATEWAY_PORT}`,
             "Run the node host in the foreground.",
           ],
-          ["openclaw node status", "Check node host service status."],
-          ["openclaw node install", "Install the node host service."],
-          ["openclaw node restart", "Restart the installed node host service."],
-        ])}\n\n${theme.muted("Docs:")} ${formatDocsLink("/cli/node", "docs.openclaw.ai/cli/node")}\n`,
+          ["alisio node status", "Check node host service status."],
+          ["alisio node install", "Install the node host service."],
+          ["alisio node restart", "Restart the installed node host service."],
+        ])}\n\n${theme.muted("Docs:")} ${formatDocsLink("/cli/node", "docs.alisio.ai/cli/node")}\n`,
     );
 
   node
@@ -48,11 +49,12 @@ export function registerNodeCli(program: Command) {
     .option("--display-name <name>", "Override node display name")
     .action(async (opts) => {
       const existing = await loadNodeHostConfig();
+      const fallbackConfig = await readBestEffortConfig();
       const host =
         (opts.host as string | undefined)?.trim() || existing?.gateway?.host || "127.0.0.1";
       const port = parsePortWithFallback(
         opts.port,
-        existing?.gateway?.port ?? DEFAULT_GATEWAY_PORT,
+        existing?.gateway?.port ?? resolveGatewayPort(fallbackConfig, process.env),
       );
       await runNodeHost({
         gatewayHost: host,

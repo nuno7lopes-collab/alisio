@@ -224,7 +224,7 @@ describe("launchctl list detection", () => {
   it("detects the resolved label in launchctl list", async () => {
     state.listOutput = "123 0 ai.alisio.gateway\n";
     const listed = await isLaunchAgentListed({
-      env: { HOME: "/Users/test", OPENCLAW_PROFILE: "default" },
+      env: { HOME: "/Users/test", ALISIO_PROFILE: "default" },
     });
     expect(listed).toBe(true);
   });
@@ -232,7 +232,7 @@ describe("launchctl list detection", () => {
   it("returns false when the label is missing", async () => {
     state.listOutput = "123 0 com.other.service\n";
     const listed = await isLaunchAgentListed({
-      env: { HOME: "/Users/test", OPENCLAW_PROFILE: "default" },
+      env: { HOME: "/Users/test", ALISIO_PROFILE: "default" },
     });
     expect(listed).toBe(false);
   });
@@ -242,7 +242,7 @@ describe("launchd bootstrap repair", () => {
   it("enables, bootstraps, and kickstarts the resolved label", async () => {
     const env: Record<string, string | undefined> = {
       HOME: "/Users/test",
-      OPENCLAW_PROFILE: "default",
+      ALISIO_PROFILE: "default",
     };
     const repair = await repairLaunchAgentBootstrap({ env });
     expect(repair.ok).toBe(true);
@@ -261,7 +261,7 @@ describe("launchd install", () => {
   function createDefaultLaunchdEnv(): Record<string, string | undefined> {
     return {
       HOME: "/Users/test",
-      OPENCLAW_PROFILE: "default",
+      ALISIO_PROFILE: "default",
     };
   }
 
@@ -277,7 +277,9 @@ describe("launchd install", () => {
     const installKickstartIndex = state.launchctlCalls.findIndex(
       (c) => c[0] === "kickstart" && c[2] === serviceId,
     );
+    const installStartIndex = state.launchctlCalls.findIndex((c) => c[0] === "start");
     expect(installKickstartIndex).toBe(-1);
+    expect(installStartIndex).toBe(-1);
   });
 
   it("writes TMPDIR to LaunchAgent environment when provided", async () => {
@@ -339,7 +341,7 @@ describe("launchd install", () => {
   it("ignores the built-in legacy launchd label during reinstall", async () => {
     const env = {
       ...createDefaultLaunchdEnv(),
-      OPENCLAW_LAUNCHD_LABEL: "ai.openclaw.gateway",
+      ALISIO_LAUNCHD_LABEL: "ai.alisio.gateway",
     };
 
     await installLaunchAgent({
@@ -351,9 +353,7 @@ describe("launchd install", () => {
     const domain = typeof process.getuid === "function" ? `gui/${process.getuid()}` : "gui/501";
     const canonicalPlistPath = "/Users/test/Library/LaunchAgents/ai.alisio.gateway.plist";
     expect(state.files.has(canonicalPlistPath)).toBe(true);
-    expect(state.files.has("/Users/test/Library/LaunchAgents/ai.openclaw.gateway.plist")).toBe(
-      false,
-    );
+    expect(state.files.size).toBe(1);
     expect(state.launchctlCalls).toContainEqual(["enable", `${domain}/ai.alisio.gateway`]);
     expect(state.launchctlCalls).toContainEqual(["bootstrap", domain, canonicalPlistPath]);
   });
@@ -361,7 +361,7 @@ describe("launchd install", () => {
   it("restarts LaunchAgent with kickstart and no bootout", async () => {
     const env = {
       ...createDefaultLaunchdEnv(),
-      OPENCLAW_GATEWAY_PORT: "40705",
+      ALISIO_GATEWAY_PORT: "40705",
     };
     const result = await restartLaunchAgent({
       env,
@@ -381,7 +381,7 @@ describe("launchd install", () => {
   it("uses the configured gateway port for stale cleanup", async () => {
     const env = {
       ...createDefaultLaunchdEnv(),
-      OPENCLAW_GATEWAY_PORT: "19001",
+      ALISIO_GATEWAY_PORT: "19001",
     };
 
     await restartLaunchAgent({
@@ -488,43 +488,79 @@ describe("launchd install", () => {
       }),
     ).rejects.toThrow("launchctl bootstrap failed: Operation not permitted");
   });
+
+  it("falls back to launchctl load -w when bootstrap fails with input/output error", async () => {
+    state.bootstrapError = "Bootstrap failed: 5: Input/output error";
+    const env = createDefaultLaunchdEnv();
+
+    await expect(
+      installLaunchAgent({
+        env,
+        stdout: new PassThrough(),
+        programArguments: defaultProgramArguments,
+      }),
+    ).resolves.toEqual({
+      plistPath: resolveLaunchAgentPlistPath(env),
+    });
+
+    const plistPath = resolveLaunchAgentPlistPath(env);
+    expect(
+      state.launchctlCalls.some(
+        (call) => call[0] === "load" && call[1] === "-w" && call[2] === plistPath,
+      ),
+    ).toBe(true);
+  });
+
+  it("repairLaunchAgentBootstrap also falls back to launchctl load -w on input/output error", async () => {
+    state.bootstrapError = "Bootstrap failed: 5: Input/output error";
+    const env = createDefaultLaunchdEnv();
+
+    await expect(repairLaunchAgentBootstrap({ env })).resolves.toEqual({ ok: true });
+
+    const plistPath = resolveLaunchAgentPlistPath(env);
+    expect(
+      state.launchctlCalls.some(
+        (call) => call[0] === "load" && call[1] === "-w" && call[2] === plistPath,
+      ),
+    ).toBe(true);
+  });
 });
 
 describe("resolveLaunchAgentPlistPath", () => {
   it.each([
     {
-      name: "uses default label when OPENCLAW_PROFILE is unset",
+      name: "uses default label when ALISIO_PROFILE is unset",
       env: { HOME: "/Users/test" },
       expected: "/Users/test/Library/LaunchAgents/ai.alisio.gateway.plist",
     },
     {
-      name: "uses profile-specific label when OPENCLAW_PROFILE is set to a custom value",
-      env: { HOME: "/Users/test", OPENCLAW_PROFILE: "jbphoenix" },
+      name: "uses profile-specific label when ALISIO_PROFILE is set to a custom value",
+      env: { HOME: "/Users/test", ALISIO_PROFILE: "jbphoenix" },
       expected: "/Users/test/Library/LaunchAgents/ai.alisio.jbphoenix.plist",
     },
     {
-      name: "prefers OPENCLAW_LAUNCHD_LABEL over OPENCLAW_PROFILE",
+      name: "prefers ALISIO_LAUNCHD_LABEL over ALISIO_PROFILE",
       env: {
         HOME: "/Users/test",
-        OPENCLAW_PROFILE: "jbphoenix",
-        OPENCLAW_LAUNCHD_LABEL: "com.custom.label",
+        ALISIO_PROFILE: "jbphoenix",
+        ALISIO_LAUNCHD_LABEL: "com.custom.label",
       },
       expected: "/Users/test/Library/LaunchAgents/com.custom.label.plist",
     },
     {
-      name: "trims whitespace from OPENCLAW_LAUNCHD_LABEL",
+      name: "trims whitespace from ALISIO_LAUNCHD_LABEL",
       env: {
         HOME: "/Users/test",
-        OPENCLAW_LAUNCHD_LABEL: "  com.custom.label  ",
+        ALISIO_LAUNCHD_LABEL: "  com.custom.label  ",
       },
       expected: "/Users/test/Library/LaunchAgents/com.custom.label.plist",
     },
     {
-      name: "ignores empty OPENCLAW_LAUNCHD_LABEL and falls back to profile",
+      name: "ignores empty ALISIO_LAUNCHD_LABEL and falls back to profile",
       env: {
         HOME: "/Users/test",
-        OPENCLAW_PROFILE: "myprofile",
-        OPENCLAW_LAUNCHD_LABEL: "   ",
+        ALISIO_PROFILE: "myprofile",
+        ALISIO_LAUNCHD_LABEL: "   ",
       },
       expected: "/Users/test/Library/LaunchAgents/ai.alisio.myprofile.plist",
     },

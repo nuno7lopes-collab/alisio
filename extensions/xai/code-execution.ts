@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import { getRuntimeConfigSnapshot } from "alisio/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/plugin-entry";
+import type { AlisioConfig } from "alisio/plugin-sdk/plugin-entry";
 import {
   jsonResult,
   readConfiguredSecretString,
@@ -15,9 +15,7 @@ import {
   resolveXaiCodeExecutionModel,
 } from "./src/code-execution-shared.js";
 
-type XaiPluginConfig = NonNullable<
-  NonNullable<OpenClawConfig["plugins"]>["entries"]
->["xai"] extends {
+type XaiPluginConfig = NonNullable<NonNullable<AlisioConfig["plugins"]>["entries"]>["xai"] extends {
   config?: infer Config;
 }
   ? Config
@@ -36,7 +34,7 @@ function readCodeExecutionConfigRecord(
   return config && typeof config === "object" ? (config as Record<string, unknown>) : undefined;
 }
 
-function readLegacyGrokApiKey(cfg?: OpenClawConfig): string | undefined {
+function readLegacyGrokApiKey(cfg?: AlisioConfig): string | undefined {
   const search = cfg?.tools?.web?.search;
   if (!search || typeof search !== "object") {
     return undefined;
@@ -48,7 +46,7 @@ function readLegacyGrokApiKey(cfg?: OpenClawConfig): string | undefined {
   );
 }
 
-function readPluginCodeExecutionConfig(cfg?: OpenClawConfig): CodeExecutionConfig | undefined {
+function readPluginCodeExecutionConfig(cfg?: AlisioConfig): CodeExecutionConfig | undefined {
   const entries = cfg?.plugins?.entries;
   if (!entries || typeof entries !== "object") {
     return undefined;
@@ -68,7 +66,7 @@ function readPluginCodeExecutionConfig(cfg?: OpenClawConfig): CodeExecutionConfi
   return codeExecution as CodeExecutionConfig;
 }
 
-function resolveFallbackXaiApiKey(cfg?: OpenClawConfig): string | undefined {
+function resolveFallbackXaiApiKey(cfg?: AlisioConfig): string | undefined {
   return (
     readConfiguredSecretString(
       resolveProviderWebSearchPluginConfig(cfg as Record<string, unknown> | undefined, "xai")
@@ -79,8 +77,8 @@ function resolveFallbackXaiApiKey(cfg?: OpenClawConfig): string | undefined {
 }
 
 function resolveCodeExecutionEnabled(params: {
-  sourceConfig?: OpenClawConfig;
-  runtimeConfig?: OpenClawConfig;
+  sourceConfig?: AlisioConfig;
+  runtimeConfig?: AlisioConfig;
   config?: CodeExecutionConfig;
 }): boolean {
   if (readCodeExecutionConfigRecord(params.config)?.enabled === false) {
@@ -94,8 +92,8 @@ function resolveCodeExecutionEnabled(params: {
 }
 
 export function createCodeExecutionTool(options?: {
-  config?: OpenClawConfig;
-  runtimeConfig?: OpenClawConfig | null;
+  config?: AlisioConfig;
+  runtimeConfig?: AlisioConfig | null;
 }) {
   const runtimeConfig = options?.runtimeConfig ?? getRuntimeConfigSnapshot();
   const codeExecutionConfig =
@@ -132,7 +130,7 @@ export function createCodeExecutionTool(options?: {
           error: "missing_xai_api_key",
           message:
             "code_execution needs an xAI API key. Set XAI_API_KEY in the Gateway environment, or configure plugins.entries.xai.config.webSearch.apiKey.",
-          docs: "https://docs.openclaw.ai/tools/code-execution",
+          docs: "https://docs.alisio.ai/tools/code-execution",
         });
       }
 

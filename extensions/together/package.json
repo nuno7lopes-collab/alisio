@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/together-provider",
+  "name": "@alisio/together-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Together provider plugin",
+  "description": "Alisio Together provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

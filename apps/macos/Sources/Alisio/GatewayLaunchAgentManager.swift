@@ -4,7 +4,11 @@ import AlisioSupport
 enum GatewayLaunchAgentManager {
     private static let logger = Logger(subsystem: AlisioBrand.logSubsystem, category: "gateway.launchd")
     private static let disableLaunchAgentMarker = ".alisio/disable-launchagent"
+    private static let legacyLaunchAgentLabels = ["ai.alisio.gateway"]
     private static var currentLaunchAgentLabel: String { gatewayLaunchdLabel }
+    private static var cleanupLaunchAgentLabels: [String] {
+        [self.currentLaunchAgentLabel] + self.legacyLaunchAgentLabels
+    }
 
     private static var disableLaunchAgentMarkerURL: URL {
         FileManager().homeDirectoryForCurrentUser
@@ -129,9 +133,10 @@ enum GatewayLaunchAgentManager {
 extension GatewayLaunchAgentManager {
     private static func loadedLaunchAgentLabels() async -> [String] {
         var loaded: [String] = []
+        let listedLabels = await Launchctl.listedLabels()
         for label in [self.currentLaunchAgentLabel] {
             let result = await Launchctl.run(["print", "gui/\(getuid())/\(label)"])
-            if result.status == 0 {
+            if result.status == 0 || listedLabels.contains(label) {
                 loaded.append(label)
             }
         }
@@ -140,20 +145,23 @@ extension GatewayLaunchAgentManager {
 
     private static func cleanupCompatibilityLaunchAgents() async -> [String] {
         var errors: [String] = []
-        let loadedLabels = await self.loadedLaunchAgentLabels()
-
-        for label in loadedLabels {
-            let result = await Launchctl.run(["bootout", "gui/\(getuid())/\(label)"])
-            if result.status != 0 {
-                let output = result.output.lowercased()
+        let listedLabels = await Launchctl.listedLabels()
+        for label in self.cleanupLaunchAgentLabels {
+            let printResult = await Launchctl.run(["print", "gui/\(getuid())/\(label)"])
+            let isLoaded = printResult.status == 0 || listedLabels.contains(label)
+            guard isLoaded else { continue }
+            let bootoutResult = await Launchctl.run(["bootout", "gui/\(getuid())/\(label)"])
+            if bootoutResult.status != 0 {
+                let output = bootoutResult.output.lowercased()
                 if !output.contains("could not find service") && !output.contains("service not found") {
-                    let detail = self.summarize(result.output) ?? "exit \(result.status)"
+                    let detail = self.summarize(bootoutResult.output) ?? "exit \(bootoutResult.status)"
                     errors.append("launchctl bootout \(label): \(detail)")
                 }
             }
         }
 
-        for url in self.plistURLs where FileManager().fileExists(atPath: url.path) {
+        for url in self.cleanupLaunchAgentLabels.map({ self.plistURL(for: $0) })
+        where FileManager().fileExists(atPath: url.path) {
             do {
                 try FileManager().removeItem(at: url)
             } catch {

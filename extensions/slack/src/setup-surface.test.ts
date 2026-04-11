@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 import {
   createTestWizardPrompter,
@@ -15,7 +15,7 @@ describe("slackSetupWizard.finalize", () => {
         appToken: "xapp-test",
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 
   it("prompts to enable interactive replies for newly configured Slack accounts", async () => {
     const confirm = vi.fn(async () => true);

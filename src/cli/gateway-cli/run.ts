@@ -181,8 +181,7 @@ function isHealthyGatewayLockError(err: unknown): boolean {
 }
 
 async function runGatewayCommand(opts: GatewayRunOpts) {
-  const isDevProfile =
-    (process.env.ALISIO_PROFILE ?? process.env.OPENCLAW_PROFILE)?.trim().toLowerCase() === "dev";
+  const isDevProfile = process.env.ALISIO_PROFILE?.trim().toLowerCase() === "dev";
   const devMode = Boolean(opts.dev) || isDevProfile;
   if (opts.reset && !devMode) {
     defaultRuntime.error("Use --reset with --dev.");
@@ -195,7 +194,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   if (opts.cliBackendLogs || opts.claudeCliLogs) {
     setConsoleSubsystemFilter(["agent/cli-backend"]);
     process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT = "1";
-    process.env.OPENCLAW_CLI_BACKEND_LOG_OUTPUT = "1";
+    process.env.ALISIO_CLI_BACKEND_LOG_OUTPUT = "1";
   }
   const wsLogRaw = (opts.compact ? "compact" : opts.wsLog) as string | undefined;
   const wsLogStyle: GatewayWsLogStyle =
@@ -213,12 +212,12 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
 
   if (opts.rawStream) {
     process.env.ALISIO_RAW_STREAM = "1";
-    process.env.OPENCLAW_RAW_STREAM = "1";
+    process.env.ALISIO_RAW_STREAM = "1";
   }
   const rawStreamPath = toOptionString(opts.rawStreamPath);
   if (rawStreamPath) {
     process.env.ALISIO_RAW_STREAM_PATH = rawStreamPath;
-    process.env.OPENCLAW_RAW_STREAM_PATH = rawStreamPath;
+    process.env.ALISIO_RAW_STREAM_PATH = rawStreamPath;
   }
 
   const stateDirMigration = await autoMigrateLegacyStateDir({ env: process.env });
@@ -266,7 +265,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     defaultRuntime.exit(1);
     return;
   }
-  if (process.env.ALISIO_SERVICE_MARKER?.trim() || process.env.OPENCLAW_SERVICE_MARKER?.trim()) {
+  if (process.env.ALISIO_SERVICE_MARKER?.trim()) {
     const stale = cleanStaleGatewayProcessesSync(port);
     if (stale.length > 0) {
       gatewayLog.info(
@@ -323,7 +322,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     const token = toOptionString(opts.token);
     if (token) {
       process.env.ALISIO_GATEWAY_TOKEN = token;
-      process.env.OPENCLAW_GATEWAY_TOKEN = token;
+      process.env.ALISIO_GATEWAY_TOKEN = token;
     }
   }
   const authModeRaw = toOptionString(opts.auth);
@@ -363,7 +362,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
   if (!opts.allowUnconfigured && mode !== "local") {
     if (!configExists) {
       defaultRuntime.error(
-        `Missing config. Run \`${formatCliCommand("openclaw setup")}\` or set gateway.mode=local (or pass --allow-unconfigured).`,
+        `Missing config. Run \`${formatCliCommand("alisio setup")}\` or set gateway.mode=local (or pass --allow-unconfigured).`,
       );
     } else {
       defaultRuntime.error(
@@ -499,7 +498,7 @@ async function runGatewayCommand(opts: GatewayRunOpts) {
     if (isGatewayLockError(err)) {
       const errMessage = describeUnknownError(err);
       defaultRuntime.error(
-        `Gateway failed to start: ${errMessage}\nIf the gateway is supervised, stop it with: ${formatCliCommand("openclaw gateway stop")}`,
+        `Gateway failed to start: ${errMessage}\nIf the gateway is supervised, stop it with: ${formatCliCommand("alisio gateway stop")}`,
       );
       try {
         const diagnostics = await inspectPortUsage(port);

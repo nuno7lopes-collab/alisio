@@ -14,14 +14,14 @@ import { startGatewayServer } from "./server.js";
 import { extractPayloadText } from "./test-helpers.agent-results.js";
 
 const LIVE = isLiveTestEnabled();
-const CLI_LIVE = isLiveEnvEnabled(["ALISIO_LIVE_CLI_BACKEND", "OPENCLAW_LIVE_CLI_BACKEND"]);
+const CLI_LIVE = isLiveEnvEnabled(["ALISIO_LIVE_CLI_BACKEND", "ALISIO_LIVE_CLI_BACKEND"]);
 const CLI_IMAGE = isLiveEnvEnabled([
   "ALISIO_LIVE_CLI_BACKEND_IMAGE_PROBE",
-  "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_PROBE",
+  "ALISIO_LIVE_CLI_BACKEND_IMAGE_PROBE",
 ]);
 const CLI_RESUME = isLiveEnvEnabled([
   "ALISIO_LIVE_CLI_BACKEND_RESUME_PROBE",
-  "OPENCLAW_LIVE_CLI_BACKEND_RESUME_PROBE",
+  "ALISIO_LIVE_CLI_BACKEND_RESUME_PROBE",
 ]);
 const describeLive = LIVE && CLI_LIVE ? describe : describe.skip;
 
@@ -177,27 +177,27 @@ describeLive("gateway live (cli backend)", () => {
         "ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV",
         readLiveEnv([
           "ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV",
-          "OPENCLAW_LIVE_CLI_BACKEND_PRESERVE_ENV",
+          "ALISIO_LIVE_CLI_BACKEND_PRESERVE_ENV",
         ]),
       ) ?? [],
     );
 
     clearRuntimeConfigSnapshot();
     const previous = {
-      configPath: process.env.OPENCLAW_CONFIG_PATH,
-      token: process.env.OPENCLAW_GATEWAY_TOKEN,
-      skipChannels: process.env.OPENCLAW_SKIP_CHANNELS,
-      skipGmail: process.env.OPENCLAW_SKIP_GMAIL_WATCHER,
-      skipCron: process.env.OPENCLAW_SKIP_CRON,
-      skipCanvas: process.env.OPENCLAW_SKIP_CANVAS_HOST,
+      configPath: process.env.ALISIO_CONFIG_PATH,
+      token: process.env.ALISIO_GATEWAY_TOKEN,
+      skipChannels: process.env.ALISIO_SKIP_CHANNELS,
+      skipGmail: process.env.ALISIO_SKIP_GMAIL_WATCHER,
+      skipCron: process.env.ALISIO_SKIP_CRON,
+      skipCanvas: process.env.ALISIO_SKIP_CANVAS_HOST,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       anthropicApiKeyOld: process.env.ANTHROPIC_API_KEY_OLD,
     };
 
-    process.env.OPENCLAW_SKIP_CHANNELS = "1";
-    process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
-    process.env.OPENCLAW_SKIP_CRON = "1";
-    process.env.OPENCLAW_SKIP_CANVAS_HOST = "1";
+    process.env.ALISIO_SKIP_CHANNELS = "1";
+    process.env.ALISIO_SKIP_GMAIL_WATCHER = "1";
+    process.env.ALISIO_SKIP_CRON = "1";
+    process.env.ALISIO_SKIP_CANVAS_HOST = "1";
     if (!preservedEnv.has("ANTHROPIC_API_KEY")) {
       delete process.env.ANTHROPIC_API_KEY;
     }
@@ -206,10 +206,10 @@ describeLive("gateway live (cli backend)", () => {
     }
 
     const token = `test-${randomUUID()}`;
-    process.env.OPENCLAW_GATEWAY_TOKEN = token;
+    process.env.ALISIO_GATEWAY_TOKEN = token;
 
     const rawModel =
-      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_MODEL", "OPENCLAW_LIVE_CLI_BACKEND_MODEL"]) ??
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_MODEL", "ALISIO_LIVE_CLI_BACKEND_MODEL"]) ??
       DEFAULT_MODEL;
     const parsed = parseModelRef(rawModel, "claude-cli");
     if (!parsed) {
@@ -228,7 +228,7 @@ describeLive("gateway live (cli backend)", () => {
           : null;
 
     const cliCommand =
-      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_COMMAND", "OPENCLAW_LIVE_CLI_BACKEND_COMMAND"]) ??
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_COMMAND", "ALISIO_LIVE_CLI_BACKEND_COMMAND"]) ??
       providerDefaults?.command;
     if (!cliCommand) {
       throw new Error(`ALISIO_LIVE_CLI_BACKEND_COMMAND is required for provider "${providerId}".`);
@@ -236,7 +236,7 @@ describeLive("gateway live (cli backend)", () => {
     const baseCliArgs =
       parseJsonStringArray(
         "ALISIO_LIVE_CLI_BACKEND_ARGS",
-        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_ARGS", "OPENCLAW_LIVE_CLI_BACKEND_ARGS"]),
+        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_ARGS", "ALISIO_LIVE_CLI_BACKEND_ARGS"]),
       ) ?? providerDefaults?.args;
     if (!baseCliArgs || baseCliArgs.length === 0) {
       throw new Error(`ALISIO_LIVE_CLI_BACKEND_ARGS is required for provider "${providerId}".`);
@@ -244,14 +244,14 @@ describeLive("gateway live (cli backend)", () => {
     const cliClearEnv =
       parseJsonStringArray(
         "ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV",
-        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV", "OPENCLAW_LIVE_CLI_BACKEND_CLEAR_ENV"]),
+        readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV", "ALISIO_LIVE_CLI_BACKEND_CLEAR_ENV"]),
       ) ?? (providerId === "claude-cli" ? DEFAULT_CLEAR_ENV : []);
     const filteredCliClearEnv = cliClearEnv.filter((name) => !preservedEnv.has(name));
     const cliImageArg =
-      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG", "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_ARG"]) ||
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG", "ALISIO_LIVE_CLI_BACKEND_IMAGE_ARG"]) ||
       undefined;
     const cliImageMode = parseImageMode(
-      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE", "OPENCLAW_LIVE_CLI_BACKEND_IMAGE_MODE"]),
+      readLiveEnv(["ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE", "ALISIO_LIVE_CLI_BACKEND_IMAGE_MODE"]),
     );
 
     if (cliImageMode && !cliImageArg) {
@@ -264,7 +264,7 @@ describeLive("gateway live (cli backend)", () => {
     const disableMcpConfig =
       readLiveEnv([
         "ALISIO_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG",
-        "OPENCLAW_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG",
+        "ALISIO_LIVE_CLI_BACKEND_DISABLE_MCP_CONFIG",
       ]) !== "0";
     let cliArgs = baseCliArgs;
     if (providerId === "claude-cli" && disableMcpConfig) {
@@ -299,9 +299,9 @@ describeLive("gateway live (cli backend)", () => {
         },
       },
     };
-    const tempConfigPath = path.join(tempDir, "openclaw.json");
+    const tempConfigPath = path.join(tempDir, "alisio.json");
     await fs.writeFile(tempConfigPath, `${JSON.stringify(nextCfg, null, 2)}\n`);
-    process.env.OPENCLAW_CONFIG_PATH = tempConfigPath;
+    process.env.ALISIO_CONFIG_PATH = tempConfigPath;
 
     const port = await getFreeGatewayPort();
     const server = await startGatewayServer(port, {
@@ -421,34 +421,34 @@ describeLive("gateway live (cli backend)", () => {
       await server.close();
       await fs.rm(tempDir, { recursive: true, force: true });
       if (previous.configPath === undefined) {
-        delete process.env.OPENCLAW_CONFIG_PATH;
+        delete process.env.ALISIO_CONFIG_PATH;
       } else {
-        process.env.OPENCLAW_CONFIG_PATH = previous.configPath;
+        process.env.ALISIO_CONFIG_PATH = previous.configPath;
       }
       if (previous.token === undefined) {
-        delete process.env.OPENCLAW_GATEWAY_TOKEN;
+        delete process.env.ALISIO_GATEWAY_TOKEN;
       } else {
-        process.env.OPENCLAW_GATEWAY_TOKEN = previous.token;
+        process.env.ALISIO_GATEWAY_TOKEN = previous.token;
       }
       if (previous.skipChannels === undefined) {
-        delete process.env.OPENCLAW_SKIP_CHANNELS;
+        delete process.env.ALISIO_SKIP_CHANNELS;
       } else {
-        process.env.OPENCLAW_SKIP_CHANNELS = previous.skipChannels;
+        process.env.ALISIO_SKIP_CHANNELS = previous.skipChannels;
       }
       if (previous.skipGmail === undefined) {
-        delete process.env.OPENCLAW_SKIP_GMAIL_WATCHER;
+        delete process.env.ALISIO_SKIP_GMAIL_WATCHER;
       } else {
-        process.env.OPENCLAW_SKIP_GMAIL_WATCHER = previous.skipGmail;
+        process.env.ALISIO_SKIP_GMAIL_WATCHER = previous.skipGmail;
       }
       if (previous.skipCron === undefined) {
-        delete process.env.OPENCLAW_SKIP_CRON;
+        delete process.env.ALISIO_SKIP_CRON;
       } else {
-        process.env.OPENCLAW_SKIP_CRON = previous.skipCron;
+        process.env.ALISIO_SKIP_CRON = previous.skipCron;
       }
       if (previous.skipCanvas === undefined) {
-        delete process.env.OPENCLAW_SKIP_CANVAS_HOST;
+        delete process.env.ALISIO_SKIP_CANVAS_HOST;
       } else {
-        process.env.OPENCLAW_SKIP_CANVAS_HOST = previous.skipCanvas;
+        process.env.ALISIO_SKIP_CANVAS_HOST = previous.skipCanvas;
       }
       if (previous.anthropicApiKey === undefined) {
         delete process.env.ANTHROPIC_API_KEY;

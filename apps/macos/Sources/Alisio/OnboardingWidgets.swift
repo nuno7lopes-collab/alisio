@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 import AlisioSupport
-struct LumeOnboardingIcon: View {
+struct AlisioOnboardingIcon: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var breathe = false
@@ -11,7 +11,7 @@ struct LumeOnboardingIcon: View {
         let size: CGFloat = 138
         let glowBlurRadius: CGFloat = 22
         let glowCanvasSize: CGFloat = size + 68
-        let palette = LumePalette.resolve(theme: .dark, systemScheme: .dark)
+        let palette = AlisioPalette.resolve(theme: .dark, systemScheme: .dark)
         ZStack {
             RoundedRectangle(cornerRadius: 32, style: .continuous)
                 .fill(
@@ -28,7 +28,7 @@ struct LumeOnboardingIcon: View {
                 .scaleEffect(self.breathe ? 1.08 : 0.96)
                 .opacity(0.92)
 
-            LumeBrandMark(palette: palette, size: size)
+            AlisioBrandMark(palette: palette, size: size)
                 .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
                 .scaleEffect(self.breathe ? 1.02 : 1.0)
         }

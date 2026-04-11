@@ -38,7 +38,7 @@ vi.mock("../plugins/tools.js", () => ({
   getPluginToolMeta: noPluginToolMeta,
 }));
 
-vi.mock("../agents/openclaw-tools.js", () => {
+vi.mock("../agents/alisio-tools.js", () => {
   const tools = [
     {
       name: "cron",
@@ -52,7 +52,7 @@ vi.mock("../agents/openclaw-tools.js", () => {
     },
   ];
   return {
-    createOpenClawTools: () => tools,
+    createAlisioTools: () => tools,
   };
 });
 

@@ -11,7 +11,7 @@ import {
   resolveAlisioManifestRequires,
 } from "../shared/frontmatter.js";
 import type {
-  OpenClawHookMetadata,
+  AlisioHookMetadata,
   HookEntry,
   HookInstallSpec,
   HookInvocationPolicy,
@@ -44,9 +44,9 @@ function parseInstallSpec(input: unknown): HookInstallSpec | undefined {
   return spec;
 }
 
-export function resolveOpenClawMetadata(
+export function resolveAlisioHookMetadata(
   frontmatter: ParsedHookFrontmatter,
-): OpenClawHookMetadata | undefined {
+): AlisioHookMetadata | undefined {
   const metadataObj = resolveAlisioManifestBlock({ frontmatter });
   if (!metadataObj) {
     return undefined;

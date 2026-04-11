@@ -189,10 +189,10 @@ function buildPayloadLanguages(payload: {
 
 function renderDiffCard(payload: DiffViewerPayload): string {
   return `<section class="oc-diff-card">
-    <diffs-container class="oc-diff-host" data-openclaw-diff-host>
+    <diffs-container class="oc-diff-host" data-alisio-diff-host>
       <template shadowrootmode="open">${payload.prerenderedHTML}</template>
     </diffs-container>
-    <script type="application/json" data-openclaw-diff-payload>${escapeJsonScript(payload)}</script>
+    <script type="application/json" data-alisio-diff-payload>${escapeJsonScript(payload)}</script>
   </section>`;
 }
 
@@ -252,7 +252,7 @@ function buildHtmlDocument(params: {
         max-width: ${Math.max(640, Math.round(params.imageMaxWidth))}px;
       }
 
-      [data-openclaw-diff-root] {
+      [data-alisio-diff-root] {
         display: grid;
         gap: 18px;
       }
@@ -284,7 +284,7 @@ function buildHtmlDocument(params: {
           padding: 12px;
         }
 
-        [data-openclaw-diff-root] {
+        [data-alisio-diff-root] {
           gap: 12px;
         }
       }
@@ -292,7 +292,7 @@ function buildHtmlDocument(params: {
   </head>
   <body data-theme="${params.theme}">
     <main class="oc-frame" data-render-mode="${params.runtimeMode}">
-      <div data-openclaw-diff-root>
+      <div data-alisio-diff-root>
         ${params.bodyHtml}
       </div>
     </main>

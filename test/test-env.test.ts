@@ -124,15 +124,15 @@ describe("installTestEnv", () => {
     expect(fs.existsSync(path.join(testEnv.tempHome, ".claude", ".credentials.json"))).toBe(true);
   });
 
-  it("accepts legacy OpenClaw env aliases when staging live state", () => {
+  it("accepts legacy Alisio env aliases when staging live state", () => {
     const realHome = createTempHome();
-    writeFile(path.join(realHome, ".openclaw", "openclaw.json"), JSON.stringify({ ok: true }));
+    writeFile(path.join(realHome, ".alisio", "alisio.json"), JSON.stringify({ ok: true }));
 
     process.env.HOME = realHome;
     process.env.USERPROFILE = realHome;
     process.env.ALISIO_LIVE_TEST = "1";
     process.env.ALISIO_LIVE_TEST_QUIET = "1";
-    process.env.OPENCLAW_STATE_DIR = path.join(realHome, ".openclaw");
+    process.env.ALISIO_STATE_DIR = path.join(realHome, ".alisio");
 
     const testEnv = installTestEnv();
     cleanupFns.push(testEnv.cleanup);

@@ -16,7 +16,7 @@ const JITI_EXTENSIONS = [
   ".json",
 ] as const;
 
-const PLUGIN_SDK_SPECIFIER_PREFIXES = ["alisio/plugin-sdk/", "openclaw/plugin-sdk/"] as const;
+const PLUGIN_SDK_SPECIFIER_PREFIXES = ["alisio/plugin-sdk/", "alisio/plugin-sdk/"] as const;
 const SOURCE_MODULE_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
 
 type SourceModuleRef = {

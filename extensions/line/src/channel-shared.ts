@@ -1,10 +1,6 @@
 import { describeWebhookAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
 import type { ChannelPlugin } from "../api.js";
-import {
-  resolveLineAccount,
-  type OpenClawConfig,
-  type ResolvedLineAccount,
-} from "../runtime-api.js";
+import { resolveLineAccount, type AlisioConfig, type ResolvedLineAccount } from "../runtime-api.js";
 import { hasLineCredentials, parseLineAllowFromId } from "./account-helpers.js";
 import { lineConfigAdapter } from "./config-adapter.js";
 import { LineChannelConfigSchema } from "./config-schema.js";
@@ -52,7 +48,7 @@ export const lineChannelPluginCommon = {
   "meta" | "capabilities" | "reload" | "configSchema" | "config"
 >;
 
-export function isLineConfigured(cfg: OpenClawConfig, accountId: string): boolean {
+export function isLineConfigured(cfg: AlisioConfig, accountId: string): boolean {
   return hasLineCredentials(resolveLineAccount({ cfg, accountId }));
 }
 

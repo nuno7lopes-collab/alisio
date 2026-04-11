@@ -20,6 +20,7 @@ type PersistedUiSettings = Omit<UiSettings, "token" | "sessionKey" | "lastActive
   chatPresentationModeVersion?: number;
 };
 
+import { DEFAULT_GATEWAY_PORT_TEXT } from "../../../src/shared/gateway-defaults.js";
 import { isSupportedLocale, loadPersistedLocale } from "../i18n/index.ts";
 import { getSafeLocalStorage, getSafeSessionStorage } from "../local-storage.ts";
 import { normalizeBasePath } from "./base-path.ts";
@@ -55,6 +56,14 @@ function formatHostWithPort(hostname: string, port: string): string {
   return `${normalizedHost}:${port}`;
 }
 
+function resolveViteDevGatewayPort(): string {
+  const raw =
+    typeof window !== "undefined"
+      ? window.__ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__?.trim()
+      : undefined;
+  return raw && /^\d+$/.test(raw) ? raw : DEFAULT_GATEWAY_PORT_TEXT;
+}
+
 function deriveDefaultGatewayUrl(): { pageUrl: string; effectiveUrl: string } {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const configured =
@@ -68,7 +77,7 @@ function deriveDefaultGatewayUrl(): { pageUrl: string; effectiveUrl: string } {
   if (!isViteDevPage()) {
     return { pageUrl, effectiveUrl: pageUrl };
   }
-  const effectiveUrl = `${proto}://${formatHostWithPort(location.hostname, "40705")}`;
+  const effectiveUrl = `${proto}://${formatHostWithPort(location.hostname, resolveViteDevGatewayPort())}`;
   return { pageUrl, effectiveUrl };
 }
 

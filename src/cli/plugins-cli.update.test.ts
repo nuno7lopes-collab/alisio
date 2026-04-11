@@ -108,11 +108,11 @@ describe("plugins cli update", () => {
     const config = {
       plugins: {
         installs: {
-          "openclaw-codex-app-server": {
+          "alisio-codex-app-server": {
             source: "npm",
-            spec: "openclaw-codex-app-server",
-            installPath: "/tmp/openclaw-codex-app-server",
-            resolvedName: "openclaw-codex-app-server",
+            spec: "alisio-codex-app-server",
+            installPath: "/tmp/alisio-codex-app-server",
+            resolvedName: "alisio-codex-app-server",
           },
         },
       },
@@ -124,14 +124,14 @@ describe("plugins cli update", () => {
       outcomes: [],
     });
 
-    await runPluginsCommand(["plugins", "update", "openclaw-codex-app-server@beta"]);
+    await runPluginsCommand(["plugins", "update", "alisio-codex-app-server@beta"]);
 
     expect(updateNpmInstalledPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
-        pluginIds: ["openclaw-codex-app-server"],
+        pluginIds: ["alisio-codex-app-server"],
         specOverrides: {
-          "openclaw-codex-app-server": "openclaw-codex-app-server@beta",
+          "alisio-codex-app-server": "alisio-codex-app-server@beta",
         },
       }),
     );
@@ -143,9 +143,9 @@ describe("plugins cli update", () => {
         installs: {
           "voice-call": {
             source: "npm",
-            spec: "@openclaw/voice-call",
+            spec: "@alisio/voice-call",
             installPath: "/tmp/voice-call",
-            resolvedName: "@openclaw/voice-call",
+            resolvedName: "@alisio/voice-call",
           },
         },
       },
@@ -157,14 +157,14 @@ describe("plugins cli update", () => {
       outcomes: [],
     });
 
-    await runPluginsCommand(["plugins", "update", "@openclaw/voice-call@beta"]);
+    await runPluginsCommand(["plugins", "update", "@alisio/voice-call@beta"]);
 
     expect(updateNpmInstalledPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
         pluginIds: ["voice-call"],
         specOverrides: {
-          "voice-call": "@openclaw/voice-call@beta",
+          "voice-call": "@alisio/voice-call@beta",
         },
       }),
     );
@@ -174,11 +174,11 @@ describe("plugins cli update", () => {
     const config = {
       plugins: {
         installs: {
-          "openclaw-codex-app-server": {
+          "alisio-codex-app-server": {
             source: "npm",
-            spec: "openclaw-codex-app-server",
-            installPath: "/tmp/openclaw-codex-app-server",
-            resolvedName: "openclaw-codex-app-server",
+            spec: "alisio-codex-app-server",
+            installPath: "/tmp/alisio-codex-app-server",
+            resolvedName: "alisio-codex-app-server",
           },
         },
       },
@@ -190,14 +190,14 @@ describe("plugins cli update", () => {
       outcomes: [],
     });
 
-    await runPluginsCommand(["plugins", "update", "openclaw-codex-app-server@0.2.0-beta.4"]);
+    await runPluginsCommand(["plugins", "update", "alisio-codex-app-server@0.2.0-beta.4"]);
 
     expect(updateNpmInstalledPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
-        pluginIds: ["openclaw-codex-app-server"],
+        pluginIds: ["alisio-codex-app-server"],
         specOverrides: {
-          "openclaw-codex-app-server": "openclaw-codex-app-server@0.2.0-beta.4",
+          "alisio-codex-app-server": "alisio-codex-app-server@0.2.0-beta.4",
         },
       }),
     );
@@ -207,11 +207,11 @@ describe("plugins cli update", () => {
     const config = {
       plugins: {
         installs: {
-          "openclaw-codex-app-server": {
+          "alisio-codex-app-server": {
             source: "npm",
-            spec: "openclaw-codex-app-server@beta",
-            installPath: "/tmp/openclaw-codex-app-server",
-            resolvedName: "openclaw-codex-app-server",
+            spec: "alisio-codex-app-server@beta",
+            installPath: "/tmp/alisio-codex-app-server",
+            resolvedName: "alisio-codex-app-server",
           },
         },
       },
@@ -223,12 +223,12 @@ describe("plugins cli update", () => {
       outcomes: [],
     });
 
-    await runPluginsCommand(["plugins", "update", "openclaw-codex-app-server"]);
+    await runPluginsCommand(["plugins", "update", "alisio-codex-app-server"]);
 
     expect(updateNpmInstalledPlugins).toHaveBeenCalledWith(
       expect.objectContaining({
         config,
-        pluginIds: ["openclaw-codex-app-server"],
+        pluginIds: ["alisio-codex-app-server"],
       }),
     );
     expect(updateNpmInstalledPlugins).not.toHaveBeenCalledWith(
@@ -244,7 +244,7 @@ describe("plugins cli update", () => {
         installs: {
           alpha: {
             source: "npm",
-            spec: "@openclaw/alpha@1.0.0",
+            spec: "@alisio/alpha@1.0.0",
           },
         },
       },
@@ -254,7 +254,7 @@ describe("plugins cli update", () => {
         installs: {
           alpha: {
             source: "npm",
-            spec: "@openclaw/alpha@1.1.0",
+            spec: "@alisio/alpha@1.1.0",
           },
         },
       },

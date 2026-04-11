@@ -111,7 +111,7 @@ describeUnix("inspectPortUsage", () => {
       if (command === "ps") {
         if (argv.includes("command=")) {
           return {
-            stdout: "node /tmp/alisio/dist/index.js gateway --port 40705\n",
+            stdout: "node /tmp/alisio/dist/index.js gateway run --port 40705\n",
             stderr: "",
             code: 0,
           };

@@ -686,12 +686,12 @@ describe("config io write", () => {
         env: {
           ALISIO_WATCH_MODE: "1",
           ALISIO_WATCH_SESSION: "watch-session-1",
-          ALISIO_WATCH_COMMAND: "gateway --force",
+          ALISIO_WATCH_COMMAND: "gateway run --force",
         } as NodeJS.ProcessEnv,
       });
       expect(last.watchMode).toBe(true);
       expect(last.watchSession).toBe("watch-session-1");
-      expect(last.watchCommand).toBe("gateway --force");
+      expect(last.watchCommand).toBe("gateway run --force");
     });
   });
 });

@@ -1,4 +1,5 @@
-import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
+import { readBestEffortConfig } from "../config/config.js";
+import { resolveGatewayPort } from "../config/paths.js";
 import { loadNodeHostConfig } from "../node-host/config.js";
 
 type NodeOnlyServiceLike = {
@@ -20,9 +21,12 @@ export type NodeOnlyGatewayInfo = {
   connectionDetails: string;
 };
 
-function resolveNodeGatewayTarget(gateway?: { host?: string; port?: number }): string {
+function resolveNodeGatewayTarget(
+  gateway: { host?: string; port?: number } | undefined,
+  fallbackPort: number,
+): string {
   return gateway?.host
-    ? `${gateway.host}:${gateway.port ?? DEFAULT_GATEWAY_PORT}`
+    ? `${gateway.host}:${gateway.port ?? fallbackPort}`
     : "(gateway address unknown)";
 }
 
@@ -61,7 +65,14 @@ export async function resolveNodeOnlyGatewayInfo(params: {
     return null;
   }
 
-  const gatewayTarget = resolveNodeGatewayTarget((await loadNodeHostConfig())?.gateway);
+  const [nodeHostConfig, fallbackConfig] = await Promise.all([
+    loadNodeHostConfig(),
+    readBestEffortConfig(),
+  ]);
+  const gatewayTarget = resolveNodeGatewayTarget(
+    nodeHostConfig?.gateway,
+    resolveGatewayPort(fallbackConfig, process.env),
+  );
   return {
     gatewayTarget,
     gatewayValue: `node → ${gatewayTarget} · no local gateway`,

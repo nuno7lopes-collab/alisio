@@ -1,12 +1,12 @@
 {
-  "name": "@openclaw/lobster",
+  "name": "@alisio/lobster",
   "version": "2026.3.30",
   "description": "Lobster workflow tool plugin (typed pipelines + resumable approvals)",
   "type": "module",
   "dependencies": {
     "@sinclair/typebox": "0.34.49"
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],

@@ -123,7 +123,7 @@ describe("resolveGatewayServiceDescription", () => {
   it("resolves version from explicit environment map", () => {
     expect(
       resolveGatewayServiceDescription({
-        env: { OPENCLAW_PROFILE: "work", OPENCLAW_SERVICE_VERSION: "local" },
+        env: { ALISIO_PROFILE: "work", ALISIO_SERVICE_VERSION: "local" },
         environment: { ALISIO_SERVICE_VERSION: "remote" },
       }),
     ).toBe("Alisio Gateway (profile: work, vremote)");
@@ -131,7 +131,7 @@ describe("resolveGatewayServiceDescription", () => {
 });
 
 describe("LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES", () => {
-  it("includes known pre-rebrand gateway unit names", () => {
-    expect(LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES).toContain("clawdbot-gateway");
+  it("is empty after removing pre-rebrand gateway unit names", () => {
+    expect(LEGACY_GATEWAY_SYSTEMD_SERVICE_NAMES).toEqual([]);
   });
 });

@@ -19,7 +19,7 @@ export type CompactionSafeguardRuntimeValue = {
   qualityGuardMaxRetries?: number;
   /**
    * Pending human-readable cancel reason from the current safeguard compaction
-   * attempt. OpenClaw consumes this to replace the upstream generic
+   * attempt. Alisio consumes this to replace the upstream generic
    * "Compaction cancelled" message.
    */
   cancelReason?: string;

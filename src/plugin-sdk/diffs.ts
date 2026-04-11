@@ -3,15 +3,12 @@
 
 export { definePluginEntry } from "./plugin-entry.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
-export {
-  resolvePreferredAlisioTmpDir,
-  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
-} from "../infra/tmp-alisio-dir.js";
+export { resolveGatewayPort } from "../config/paths.js";
+export { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";
 export type {
   AnyAgentTool,
-  OpenClawPluginApi,
-  OpenClawPluginConfigSchema,
-  OpenClawPluginToolContext,
+  AlisioPluginApi,
+  AlisioPluginConfigSchema,
+  AlisioPluginToolContext,
   PluginLogger,
 } from "../plugins/types.js";

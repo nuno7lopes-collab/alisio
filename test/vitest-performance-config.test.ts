@@ -93,11 +93,11 @@ describe("loadVitestExperimentalConfig", () => {
     expect(loadVitestExperimentalConfig({ RUNNER_OS: "Windows" }, "linux")).toEqual({});
   });
 
-  it("accepts legacy OpenClaw env names as a fallback", () => {
+  it("accepts legacy Alisio env names as a fallback", () => {
     expect(
       loadVitestExperimentalConfig(
         {
-          OPENCLAW_VITEST_FS_MODULE_CACHE: "1",
+          ALISIO_VITEST_FS_MODULE_CACHE: "1",
         },
         "linux",
       ),

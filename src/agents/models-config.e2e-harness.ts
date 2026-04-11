@@ -5,7 +5,7 @@ import type { MockFn } from "../test-utils/vitest-mock-fn.js";
 import { resolveImplicitProviders } from "./models-config.providers.implicit.js";
 
 export function withModelsTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  return withTempHomeBase(fn, { prefix: "openclaw-models-" });
+  return withTempHomeBase(fn, { prefix: "alisio-models-" });
 }
 
 export function installModelsConfigTestHooks(opts?: { restoreFetch?: boolean }) {
@@ -97,7 +97,7 @@ export const MODELS_CONFIG_IMPLICIT_ENV_VARS = [
   "MINIMAX_OAUTH_TOKEN",
   "MOONSHOT_API_KEY",
   "NVIDIA_API_KEY",
-  "OPENCLAW_AGENT_DIR",
+  "ALISIO_AGENT_DIR",
   "OPENAI_API_KEY",
   "OPENROUTER_API_KEY",
   "PI_CODING_AGENT_DIR",

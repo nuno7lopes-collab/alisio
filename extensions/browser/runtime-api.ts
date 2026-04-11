@@ -4,15 +4,10 @@ export { registerBrowserCli } from "./src/cli/browser-cli.js";
 export { createBrowserPluginService } from "./src/plugin-service.js";
 export { handleBrowserGatewayRequest } from "./src/gateway/browser-request.js";
 export { browserHandlers } from "./src/gateway/browser-request.js";
-export {
-  definePluginEntry,
-  type OpenClawPluginApi as AlisioPluginApi,
-  type OpenClawPluginToolContext as AlisioPluginToolContext,
-  type OpenClawPluginToolFactory as AlisioPluginToolFactory,
-} from "alisio/plugin-sdk/plugin-entry";
+export { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
 
 export type {
-  OpenClawPluginApi,
-  OpenClawPluginToolContext,
-  OpenClawPluginToolFactory,
+  AlisioPluginApi,
+  AlisioPluginToolContext,
+  AlisioPluginToolFactory,
 } from "alisio/plugin-sdk/plugin-entry";

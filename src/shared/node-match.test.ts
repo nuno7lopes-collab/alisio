@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeNodeKey, resolveNodeIdFromCandidates, resolveNodeMatches } from "./node-match.js";
 
-const LEGACY_ALT_CLIENT_ID = `${["claw", "dbot"].join("")}-macos`;
-
 describe("shared/node-match", () => {
   it("normalizes node keys by lowercasing and collapsing separators", () => {
     expect(normalizeNodeKey(" Mac Studio! ")).toBe("mac-studio");
@@ -49,14 +47,14 @@ describe("shared/node-match", () => {
     ).toBe("mac-studio");
   });
 
-  it("prefers a unique current Alisio client over a legacy alisio-bot client", () => {
+  it("prefers a unique current Alisio client over an unprefixed duplicate match", () => {
     expect(
       resolveNodeIdFromCandidates(
         [
           {
             nodeId: "legacy-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: LEGACY_ALT_CLIENT_ID,
+            clientId: "custom-macos",
             connected: false,
           },
           {
@@ -114,7 +112,7 @@ describe("shared/node-match", () => {
           {
             nodeId: "legacy-mac",
             displayName: "Peter’s Mac Studio",
-            clientId: LEGACY_ALT_CLIENT_ID,
+            clientId: "custom-macos",
             connected: true,
           },
           {

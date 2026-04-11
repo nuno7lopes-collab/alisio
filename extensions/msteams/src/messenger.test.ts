@@ -17,7 +17,7 @@ vi.mock("./graph-upload.js", async () => {
   };
 });
 
-import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
+import { resolvePreferredAlisioTmpDir } from "alisio/plugin-sdk/temp-path";
 import {
   type MSTeamsAdapter,
   type MSTeamsRenderedMessage,
@@ -251,7 +251,7 @@ describe("msteams messenger", () => {
     });
 
     it("preserves parsed mentions when appending OneDrive fallback file links", async () => {
-      const tmpDir = await mkdtemp(path.join(resolvePreferredOpenClawTmpDir(), "msteams-mention-"));
+      const tmpDir = await mkdtemp(path.join(resolvePreferredAlisioTmpDir(), "msteams-mention-"));
       const localFile = path.join(tmpDir, "note.txt");
       await writeFile(localFile, "hello");
 

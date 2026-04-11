@@ -1370,7 +1370,7 @@ describe("registerMatrixMonitorEvents verification routing", () => {
     );
     expect(logger.warn).toHaveBeenNthCalledWith(
       2,
-      "matrix: failed to decrypt a message from this same Matrix user. This usually means another Matrix device did not share the room key, or another OpenClaw runtime is using the same account. Check 'openclaw matrix verify status --verbose --account ops' and 'openclaw matrix devices list --account ops'.",
+      "matrix: failed to decrypt a message from this same Matrix user. This usually means another Matrix device did not share the room key, or another Alisio runtime is using the same account. Check 'alisio matrix verify status --verbose --account ops' and 'alisio matrix devices list --account ops'.",
       {
         roomId: "!room:example.org",
         eventId: "$enc-self",

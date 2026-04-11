@@ -477,7 +477,7 @@ describe("renderMemoryHub", () => {
         sync: { ...baseConfig.sync },
         store: {
           ...baseConfig.store,
-          path: "/Users/nuno/.openclaw/memory/main.sqlite",
+          path: "/Users/nuno/.alisio/memory/main.sqlite",
         },
       },
       runtime: {
@@ -487,19 +487,19 @@ describe("renderMemoryHub", () => {
         files: baseRuntime.files,
         chunks: baseRuntime.chunks,
         dirty: baseRuntime.dirty,
-        dbPath: "/Users/nuno/.openclaw/memory/main.sqlite",
+        dbPath: "/Users/nuno/.alisio/memory/main.sqlite",
         sourceCounts: baseRuntime.sourceCounts,
         fts: baseRuntime.fts,
         vector: baseRuntime.vector,
         canonicalStore: {
           ...baseRuntime.canonicalStore!,
-          path: "/Users/nuno/.openclaw/memory/profiles/local-main/canonical.sqlite",
+          path: "/Users/nuno/.alisio/memory/profiles/local-main/canonical.sqlite",
         },
       },
     };
 
     render(renderMemoryHub(props), container);
 
-    expect(container.textContent).toContain(".openclaw");
+    expect(container.textContent).toContain(".alisio");
   });
 });

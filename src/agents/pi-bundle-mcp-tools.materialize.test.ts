@@ -15,8 +15,8 @@ afterEach(async () => {
 
 describe("createBundleMcpToolRuntime", () => {
   it("loads bundle MCP tools and executes them", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath);
     await writeClaudeBundle({ pluginRoot, serverScriptPath });
@@ -49,8 +49,8 @@ describe("createBundleMcpToolRuntime", () => {
   });
 
   it("disambiguates bundle MCP tools that collide with existing tool names", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath);
     await writeClaudeBundle({ pluginRoot, serverScriptPath });
@@ -75,7 +75,7 @@ describe("createBundleMcpToolRuntime", () => {
   });
 
   it("loads configured stdio MCP tools without a bundle", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const serverScriptPath = path.join(workspaceDir, "servers", "configured-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath);
 
@@ -121,7 +121,7 @@ describe("createBundleMcpToolRuntime", () => {
     const sseServer = await startSseProbeServer();
 
     try {
-      const workspaceDir = await makeTempDir("openclaw-bundle-mcp-sse-");
+      const workspaceDir = await makeTempDir("alisio-bundle-mcp-sse-");
       const runtime = await createBundleMcpToolRuntime({
         workspaceDir,
         cfg: {

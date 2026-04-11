@@ -15,7 +15,28 @@ export const GATEWAY_CLIENT_IDS = {
 } as const;
 
 export type GatewayClientId = (typeof GATEWAY_CLIENT_IDS)[keyof typeof GATEWAY_CLIENT_IDS];
-export type AcceptedGatewayClientId = GatewayClientId;
+export const LEGACY_GATEWAY_CLIENT_ID_ALIASES = {
+  "alisio-control-ui": GATEWAY_CLIENT_IDS.CONTROL_UI,
+  "alisio-tui": GATEWAY_CLIENT_IDS.TUI,
+  "alisio-probe": GATEWAY_CLIENT_IDS.PROBE,
+  "alisio-macos": GATEWAY_CLIENT_IDS.MACOS_APP,
+  "alisio-ios": GATEWAY_CLIENT_IDS.IOS_APP,
+  "alisio-android": GATEWAY_CLIENT_IDS.ANDROID_APP,
+} as const;
+export type LegacyGatewayClientId = keyof typeof LEGACY_GATEWAY_CLIENT_ID_ALIASES;
+export type AcceptedGatewayClientId = GatewayClientId | LegacyGatewayClientId;
+
+// Keep stale clients working across the Alisio -> Alisio client-id rename.
+const LEGACY_GATEWAY_CLIENT_ID_SET = new Set<LegacyGatewayClientId>(
+  Object.keys(LEGACY_GATEWAY_CLIENT_ID_ALIASES) as LegacyGatewayClientId[],
+);
+export const ACCEPTED_GATEWAY_CLIENT_ID_VALUES = [
+  ...Object.values(GATEWAY_CLIENT_IDS),
+  ...Object.keys(LEGACY_GATEWAY_CLIENT_ID_ALIASES),
+];
+const LEGACY_GATEWAY_CLIENT_ID_ALIAS_MAP: Record<string, GatewayClientId> = {
+  ...LEGACY_GATEWAY_CLIENT_ID_ALIASES,
+};
 
 // Back-compat naming (internal): these values are IDs, not display names.
 export const GATEWAY_CLIENT_NAMES = GATEWAY_CLIENT_IDS;
@@ -57,6 +78,9 @@ export function normalizeGatewayClientId(raw?: string | null): GatewayClientId |
   const normalized = raw?.trim().toLowerCase();
   if (!normalized) {
     return undefined;
+  }
+  if (LEGACY_GATEWAY_CLIENT_ID_SET.has(normalized as LegacyGatewayClientId)) {
+    return LEGACY_GATEWAY_CLIENT_ID_ALIAS_MAP[normalized];
   }
   return GATEWAY_CLIENT_ID_SET.has(normalized as GatewayClientId)
     ? (normalized as GatewayClientId)

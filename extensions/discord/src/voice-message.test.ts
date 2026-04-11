@@ -5,7 +5,7 @@ const runFfmpegMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => Promise<voi
 
 vi.mock("alisio/plugin-sdk/temp-path", async (importOriginal) => {
   return {
-    resolvePreferredOpenClawTmpDir: () => "/tmp",
+    resolvePreferredAlisioTmpDir: () => "/tmp",
   };
 });
 

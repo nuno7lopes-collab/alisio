@@ -1,6 +1,5 @@
 export const PRIMARY_MEMORY_FILE_NAME = "MEMORY.md";
-export const LEGACY_MEMORY_FILE_NAME = "memory.md";
-export const LEGACY_MEMORY_NOTES_DIR = "memory";
+export const MANUAL_MEMORY_NOTES_DIR = "memory";
 export const OBSIDIAN_MEMORY_TOOL_PREFIX = "obsidian";
 export const OBSIDIAN_DAILY_NOTES_DIR = "daily";
 export const OBSIDIAN_LONG_TERM_FILE_NAME = "long-term.md";
@@ -10,11 +9,6 @@ export function normalizeMemoryFileName(value: string): string {
     .trim()
     .replace(/\\/g, "/")
     .replace(/^\.?\//, "");
-}
-
-export function isLegacyLongTermMemoryFileName(name: string): boolean {
-  const normalized = normalizeMemoryFileName(name);
-  return normalized === PRIMARY_MEMORY_FILE_NAME || normalized === LEGACY_MEMORY_FILE_NAME;
 }
 
 export function isObsidianMemoryToolPath(name: string): boolean {
@@ -27,7 +21,7 @@ export function isObsidianMemoryToolPath(name: string): boolean {
 
 export function isLongTermMemoryFileName(name: string): boolean {
   const normalized = normalizeMemoryFileName(name);
-  if (isLegacyLongTermMemoryFileName(normalized)) {
+  if (normalized === PRIMARY_MEMORY_FILE_NAME) {
     return true;
   }
   return (
@@ -39,7 +33,7 @@ export function isLongTermMemoryFileName(name: string): boolean {
 export function isMemoryNoteFileName(name: string): boolean {
   const normalized = normalizeMemoryFileName(name);
   if (
-    normalized.startsWith(`${LEGACY_MEMORY_NOTES_DIR}/`) &&
+    normalized.startsWith(`${MANUAL_MEMORY_NOTES_DIR}/`) &&
     normalized.toLowerCase().endsWith(".md")
   ) {
     return true;
@@ -58,10 +52,7 @@ export function getLongTermMemoryFilePriority(name: string): number {
   if (normalized === PRIMARY_MEMORY_FILE_NAME) {
     return 1;
   }
-  if (normalized === LEGACY_MEMORY_FILE_NAME) {
-    return 2;
-  }
-  return 3;
+  return 2;
 }
 
 function dirnamePosix(value: string): string {
@@ -98,8 +89,8 @@ export function resolveManualMemoryNoteRoot(existingNames: Iterable<string> = []
 
   const legacyNote = normalized.find((name) => isMemoryNoteFileName(name));
   if (legacyNote) {
-    return dirnamePosix(legacyNote) || LEGACY_MEMORY_NOTES_DIR;
+    return dirnamePosix(legacyNote) || MANUAL_MEMORY_NOTES_DIR;
   }
 
-  return LEGACY_MEMORY_NOTES_DIR;
+  return MANUAL_MEMORY_NOTES_DIR;
 }

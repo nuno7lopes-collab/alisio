@@ -1,8 +1,8 @@
 import { resolveChannelGroupRequireMention } from "alisio/plugin-sdk/channel-policy";
-import type { OpenClawConfig } from "alisio/plugin-sdk/core";
+import type { AlisioConfig } from "alisio/plugin-sdk/core";
 
 type GoogleChatGroupContext = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   groupId?: string | null;
 };

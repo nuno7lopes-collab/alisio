@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { serializePayload, type MessagePayloadObject, type RequestClient } from "@buape/carbon";
 import { recordChannelActivity } from "alisio/plugin-sdk/channel-runtime";
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
 import { maxBytesForKind } from "alisio/plugin-sdk/media-runtime";
 import { extensionForMime } from "alisio/plugin-sdk/media-runtime";
@@ -11,7 +11,7 @@ import { unlinkIfExists } from "alisio/plugin-sdk/media-runtime";
 import type { PollInput } from "alisio/plugin-sdk/media-runtime";
 import { resolveChunkMode } from "alisio/plugin-sdk/reply-runtime";
 import type { RetryConfig } from "alisio/plugin-sdk/retry-runtime";
-import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
+import { resolvePreferredAlisioTmpDir } from "alisio/plugin-sdk/temp-path";
 import { convertMarkdownTables } from "alisio/plugin-sdk/text-runtime";
 import { loadWebMediaRaw } from "alisio/plugin-sdk/web-media";
 import { ChannelType, Routes } from "discord-api-types/v10";
@@ -44,7 +44,7 @@ import {
 } from "./voice-message.js";
 
 type DiscordSendOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   token?: string;
   accountId?: string;
   mediaUrl?: string;
@@ -320,7 +320,7 @@ export async function sendMessageDiscord(
 }
 
 type DiscordWebhookSendOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   webhookId: string;
   webhookToken: string;
   accountId?: string;
@@ -475,7 +475,7 @@ export async function sendPollDiscord(
 }
 
 type VoiceMessageOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   token?: string;
   accountId?: string;
   verbose?: boolean;
@@ -492,7 +492,7 @@ async function materializeVoiceMessageInput(mediaUrl: string): Promise<{ filePat
   const extFromName = media.fileName ? path.extname(media.fileName) : "";
   const extFromMime = media.contentType ? extensionForMime(media.contentType) : "";
   const ext = extFromName || extFromMime || ".bin";
-  const tempDir = resolvePreferredOpenClawTmpDir();
+  const tempDir = resolvePreferredAlisioTmpDir();
   const filePath = path.join(tempDir, `voice-src-${crypto.randomUUID()}${ext}`);
   await fs.writeFile(filePath, media.buffer, { mode: 0o600 });
   return { filePath };

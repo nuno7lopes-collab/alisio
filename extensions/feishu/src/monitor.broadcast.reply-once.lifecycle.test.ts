@@ -1,7 +1,7 @@
 import "./lifecycle.test-support.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createNonExitingRuntimeEnv } from "../../../test/helpers/plugins/runtime-env.js";
-import type { ClawdbotConfig, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, RuntimeEnv } from "../runtime-api.js";
 import { FeishuConfigSchema } from "./config-schema.js";
 import { getFeishuLifecycleTestMocks } from "./lifecycle.test-support.js";
 import {
@@ -29,9 +29,9 @@ const {
 
 let handlersByAccount = new Map<string, Record<string, (data: unknown) => Promise<void>>>();
 let runtimesByAccount = new Map<string, RuntimeEnv>();
-const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+const originalStateDir = process.env.ALISIO_STATE_DIR;
 
-function createLifecycleConfig(): ClawdbotConfig {
+function createLifecycleConfig(): AlisioConfig {
   return {
     broadcast: {
       oc_broadcast_group: ["susan", "main"],
@@ -85,7 +85,7 @@ function createLifecycleConfig(): ClawdbotConfig {
         },
       },
     },
-  } as ClawdbotConfig;
+  } as AlisioConfig;
 }
 
 function createLifecycleAccount(accountId: "account-A" | "account-B"): ResolvedFeishuAccount {
@@ -136,7 +136,7 @@ describe("Feishu broadcast reply-once lifecycle", () => {
     vi.clearAllMocks();
     handlersByAccount = new Map();
     runtimesByAccount = new Map();
-    setFeishuLifecycleStateDir("openclaw-feishu-broadcast");
+    setFeishuLifecycleStateDir("alisio-feishu-broadcast");
 
     createFeishuReplyDispatcherMock.mockReturnValue(createFeishuLifecycleReplyDispatcher());
 

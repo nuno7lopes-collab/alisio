@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const require = createRequire(import.meta.url);
 const { createJiti } = require("jiti");
 
-const OPENCLAW_PLUGIN_SDK_PREFIX = ["openclaw", "plugin-sdk"].join("/");
+const ALISIO_PLUGIN_SDK_PREFIX = ["alisio", "plugin-sdk"].join("/");
 const PLUGIN_SDK_EXPORT_PREFIX = "./plugin-sdk/";
 const PLUGIN_SDK_SOURCE_EXTENSIONS = [".ts", ".mts", ".js", ".mjs", ".cts", ".cjs"];
 const JITI_EXTENSIONS = [
@@ -33,11 +33,11 @@ function readPackageJson(packageRoot) {
   }
 }
 
-function findOpenClawPackageRoot(startDir) {
+function findAlisioPackageRoot(startDir) {
   let cursor = path.resolve(startDir);
   for (let i = 0; i < 12; i += 1) {
     const pkg = readPackageJson(cursor);
-    if (pkg?.name === "openclaw" && pkg.exports?.["./plugin-sdk"]) {
+    if (pkg?.name === "alisio" && pkg.exports?.["./plugin-sdk"]) {
       return { packageRoot: cursor, packageJson: pkg };
     }
     const parent = path.dirname(cursor);
@@ -60,7 +60,7 @@ function resolveExistingFile(basePath, extensions) {
 }
 
 function buildPluginSdkAliasMap(moduleUrl) {
-  const location = findOpenClawPackageRoot(path.dirname(fileURLToPath(moduleUrl)));
+  const location = findAlisioPackageRoot(path.dirname(fileURLToPath(moduleUrl)));
   if (!location) {
     return {};
   }
@@ -73,7 +73,7 @@ function buildPluginSdkAliasMap(moduleUrl) {
     resolveExistingFile(path.join(sourcePluginSdkDir, "root-alias"), [".cjs"]) ??
     resolveExistingFile(path.join(distPluginSdkDir, "root-alias"), [".cjs"]);
   if (rootAlias) {
-    aliasMap[OPENCLAW_PLUGIN_SDK_PREFIX] = rootAlias;
+    aliasMap[ALISIO_PLUGIN_SDK_PREFIX] = rootAlias;
   }
 
   for (const exportKey of Object.keys(packageJson.exports ?? {})) {
@@ -88,7 +88,7 @@ function buildPluginSdkAliasMap(moduleUrl) {
       resolveExistingFile(path.join(sourcePluginSdkDir, subpath), PLUGIN_SDK_SOURCE_EXTENSIONS) ??
       resolveExistingFile(path.join(distPluginSdkDir, subpath), [".js"]);
     if (resolvedPath) {
-      aliasMap[`${OPENCLAW_PLUGIN_SDK_PREFIX}/${subpath}`] = resolvedPath;
+      aliasMap[`${ALISIO_PLUGIN_SDK_PREFIX}/${subpath}`] = resolvedPath;
     }
   }
 
@@ -96,7 +96,7 @@ function buildPluginSdkAliasMap(moduleUrl) {
     resolveExistingFile(path.join(packageRoot, "src", "extensionAPI"), [".ts", ".js"]) ??
     resolveExistingFile(path.join(packageRoot, "dist", "extensionAPI"), [".js"]);
   if (extensionApi) {
-    aliasMap["openclaw/extension-api"] = extensionApi;
+    aliasMap["alisio/extension-api"] = extensionApi;
   }
 
   return aliasMap;

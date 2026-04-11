@@ -10,23 +10,23 @@ This file records the deterministic audit requested for the core naming rebrand 
 ## Scope Audited
 
 - `src/compat/**`
-- `src/agents/**` files whose path includes `openclaw`
-- `extensions/**` files whose source imports `openclaw/plugin-sdk/*`
+- `src/agents/**` files whose path includes `alisio`
+- `extensions/**` files whose source imports `alisio/plugin-sdk/*`
 - `scripts/lib/alisio-branding.sh`
-- `openclaw.mjs`
+- `alisio.mjs`
 
 ## Audit Method
 
-- Ran `rg -n "OpenClaw|openclaw|openclaw/|openclaw.plugin.json|PROJECT_NAME|MACOS_APP_SOURCES_DIR"` across the owned paths.
+- Ran `rg -n "Alisio|alisio|alisio/|alisio.plugin.json|PROJECT_NAME|MACOS_APP_SOURCES_DIR"` across the owned paths.
 - Counted `extensions/**` files importing the legacy `plugin-sdk` package specifier.
 - Verified the macOS source directory candidates on disk before changing the canonical constant.
 
 ## Initial Snapshot
 
 - Canonical naming source still pointing at the legacy slug: `src/compat/legacy-names.ts`
-- Legacy entrypoint shim already present and silent: `openclaw.mjs`
+- Legacy entrypoint shim already present and silent: `alisio.mjs`
 - Legacy `plugin-sdk` specifier hits in `extensions/**`: **1223**
-- Code files migrated from `openclaw/plugin-sdk/*` to `alisio/plugin-sdk/*`: **1221**
+- Code files migrated from `alisio/plugin-sdk/*` to `alisio/plugin-sdk/*`: **1221**
 - Affected extension packages with at least one migrated `plugin-sdk` import: **87**
 - macOS app sources present at the new path: `apps/macos/Sources/Alisio`
 
@@ -34,9 +34,9 @@ This file records the deterministic audit requested for the core naming rebrand 
 
 - `src/compat/legacy-names.ts`
 - `src/compat/legacy-names.test.ts`
-- `openclaw.mjs`
+- `alisio.mjs`
 - `docs/rebrand/audit-core-naming.md`
-- `extensions/**` files importing `openclaw/plugin-sdk/*` or dynamically importing the same path
+- `extensions/**` files importing `alisio/plugin-sdk/*` or dynamically importing the same path
 
 ## Highest-Volume Extension Packages
 
@@ -54,10 +54,10 @@ This file records the deterministic audit requested for the core naming rebrand 
 ## Rebrand Decisions Applied
 
 - `alisio` is the canonical project slug in compat constants.
-- `openclaw` is retained only as a legacy alias for manifests, canvas-handler compatibility, and historical macOS source paths.
+- `alisio` is retained only as a legacy alias for manifests, canvas-handler compatibility, and historical macOS source paths.
 - `apps/macos/Sources/Alisio` is the canonical macOS source directory, with the old path retained only as a legacy candidate.
-- `openclaw.mjs` remains a silent shim with an explicit removal note for the next release cycle.
-- Owned extension imports now target `alisio/plugin-sdk/*` instead of `openclaw/plugin-sdk/*`.
+- `alisio.mjs` remains a silent shim with an explicit removal note for the next release cycle.
+- Owned extension imports now target `alisio/plugin-sdk/*` instead of `alisio/plugin-sdk/*`.
 
 ## Follow-Up Observations
 

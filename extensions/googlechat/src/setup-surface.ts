@@ -10,7 +10,7 @@ import {
   splitSetupEntries,
   type ChannelSetupDmPolicy,
   type ChannelSetupWizard,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/setup";
 import {
   listGoogleChatAccountIds,

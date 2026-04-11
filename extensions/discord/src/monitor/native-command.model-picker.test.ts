@@ -1,7 +1,7 @@
 import * as commandRegistryModule from "alisio/plugin-sdk/command-auth";
 import type { ChatCommandDefinition, CommandArgsParsing } from "alisio/plugin-sdk/command-auth";
 import type { ModelsProviderData } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import * as dispatcherModule from "alisio/plugin-sdk/reply-runtime";
 import * as globalsModule from "alisio/plugin-sdk/runtime-env";
 import * as commandTextModule from "alisio/plugin-sdk/text-runtime";
@@ -68,7 +68,7 @@ function createModelPickerContext(): ModelPickerContext {
         },
       },
     },
-  } as unknown as OpenClawConfig;
+  } as unknown as AlisioConfig;
 
   return {
     cfg,

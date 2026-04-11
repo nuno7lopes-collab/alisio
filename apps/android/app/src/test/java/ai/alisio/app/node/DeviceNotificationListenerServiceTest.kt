@@ -36,9 +36,9 @@ class DeviceNotificationListenerServiceTest {
   }
 
   @Test
-  fun recentPackages_migratesLegacyPrefsFile() {
+  fun recentPackages_readsRecentPackagesPrefsFile() {
     val context = RuntimeEnvironment.getApplication()
-    val legacyBrand = listOf("open", "claw").joinToString("")
+    val legacyBrand = "alisio"
     val currentPrefs = context.getSharedPreferences("alisio.secure", Context.MODE_PRIVATE)
     val legacyPrefs = context.getSharedPreferences("$legacyBrand.secure", Context.MODE_PRIVATE)
     currentPrefs.edit().clear().commit()

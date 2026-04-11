@@ -8,7 +8,7 @@ import {
   resetSessionsSpawnHookRunnerOverride,
   setSessionsSpawnConfigOverride,
   setSessionsSpawnHookRunnerOverride,
-} from "./openclaw-tools.subagents.sessions-spawn.test-harness.js";
+} from "./alisio-tools.subagents.sessions-spawn.test-harness.js";
 import { resetSubagentRegistryForTests } from "./subagent-registry.js";
 
 const hookRunnerMocks = vi.hoisted(() => ({

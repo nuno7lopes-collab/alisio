@@ -193,14 +193,14 @@ async function loadConfigFromSnapshotForInstall(
 ): Promise<AlisioConfig> {
   if (resolvePluginInstallInvalidConfigPolicy(request) !== "recover-matrix-only") {
     throw buildInvalidPluginInstallConfigError(
-      "Config invalid; run `openclaw doctor --fix` before installing plugins.",
+      "Config invalid; run `alisio doctor --fix` before installing plugins.",
     );
   }
   const snapshot = await readConfigFileSnapshot();
   const parsed = (snapshot.parsed ?? {}) as Record<string, unknown>;
   if (!snapshot.exists || Object.keys(parsed).length === 0) {
     throw buildInvalidPluginInstallConfigError(
-      "Config file could not be parsed; run `openclaw doctor` to repair it.",
+      "Config file could not be parsed; run `alisio doctor` to repair it.",
     );
   }
   if (
@@ -209,7 +209,7 @@ async function loadConfigFromSnapshotForInstall(
     snapshot.issues.some((issue) => !isAllowedMatrixRecoveryIssue(issue))
   ) {
     throw buildInvalidPluginInstallConfigError(
-      "Config invalid outside the Matrix upgrade recovery path; run `openclaw doctor --fix` before reinstalling Matrix.",
+      "Config invalid outside the Matrix upgrade recovery path; run `alisio doctor --fix` before reinstalling Matrix.",
     );
   }
   const cleaned = await cleanStaleMatrixPluginConfig(snapshot.config);

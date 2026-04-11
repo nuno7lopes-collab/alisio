@@ -25,6 +25,18 @@ enum Launchctl {
             }
         }.value
     }
+
+    static func listedLabels() async -> Set<String> {
+        let result = await self.run(["list"])
+        guard result.status == 0 else { return [] }
+        return Set(
+            result.output
+                .split(whereSeparator: \.isNewline)
+                .compactMap { line in
+                    line.split(whereSeparator: \.isWhitespace).last.map(String.init)
+                }
+                .filter { !$0.isEmpty })
+    }
 }
 
 struct LaunchAgentPlistSnapshot: Equatable {

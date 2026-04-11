@@ -48,7 +48,7 @@ export function resolveCopilotForwardCompatModel(
   // Catch-all: create a synthetic model definition for any unknown model ID.
   // The Copilot API is OpenAI-compatible and will return its own error if the
   // model isn't available on the user's plan. This lets new models be used
-  // by simply adding them to agents.defaults.models in openclaw.json — no
+  // by simply adding them to agents.defaults.models in alisio.json — no
   // code change required.
   const lowerModelId = trimmedModelId.toLowerCase();
   const reasoning = /^o[13](\b|$)/.test(lowerModelId);

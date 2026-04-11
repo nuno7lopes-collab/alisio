@@ -24,7 +24,7 @@ export type {
   ChannelMessageActionName,
 } from "alisio/plugin-sdk/bluebubbles";
 export type { ChannelPlugin } from "alisio/plugin-sdk/bluebubbles";
-export type { AlisioConfig, AlisioConfig as OpenClawConfig } from "alisio/plugin-sdk/bluebubbles";
+export type { AlisioConfig } from "alisio/plugin-sdk/bluebubbles";
 export { parseFiniteNumber } from "alisio/plugin-sdk/bluebubbles";
 export type { PluginRuntime } from "alisio/plugin-sdk/bluebubbles";
 export { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/bluebubbles";

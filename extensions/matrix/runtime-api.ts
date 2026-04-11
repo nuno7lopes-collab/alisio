@@ -28,7 +28,6 @@ export type {
   ChannelDirectoryEntry,
   ChannelMessageActionContext,
   AlisioConfig,
-  AlisioConfig as OpenClawConfig,
   PluginRuntime,
   RuntimeLogger,
   RuntimeEnv,

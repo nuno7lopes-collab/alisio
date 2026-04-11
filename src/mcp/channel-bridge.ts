@@ -38,7 +38,7 @@ type ServerNotification = {
 const CLAUDE_PERMISSION_REPLY_RE = /^(yes|no)\s+([a-km-z]{5})$/i;
 const QUEUE_LIMIT = 1_000;
 
-export class OpenClawChannelBridge {
+export class AlisioChannelBridge {
   private gateway: GatewayClient | null = null;
   private readonly verbose: boolean;
   private readonly claudeChannelMode: ClaudeChannelMode;
@@ -91,7 +91,7 @@ export class OpenClawChannelBridge {
     const gatewayUrlOverrideSource =
       connection.urlSource === "cli --url"
         ? "cli"
-        : connection.urlSource === "env OPENCLAW_GATEWAY_URL"
+        : connection.urlSource === "env ALISIO_GATEWAY_URL"
           ? "env"
           : undefined;
     const creds = await resolveGatewayConnectionAuth({
@@ -296,7 +296,7 @@ export class OpenClawChannelBridge {
       inputPreview: params.inputPreview,
     });
     if (this.verbose) {
-      process.stderr.write(`openclaw mcp: pending Claude permission ${params.requestId}\n`);
+      process.stderr.write(`alisio mcp: pending Claude permission ${params.requestId}\n`);
     }
   }
 
@@ -319,7 +319,7 @@ export class OpenClawChannelBridge {
     } catch (error) {
       if (this.verbose && !this.closed) {
         process.stderr.write(
-          `openclaw mcp: notification ${notification.method} failed: ${String(error)}\n`,
+          `alisio mcp: notification ${notification.method} failed: ${String(error)}\n`,
         );
       }
     }

@@ -5,7 +5,7 @@ import {
 import { getSessionBindingService } from "alisio/plugin-sdk/conversation-runtime";
 import { deriveLastRoutePolicy } from "alisio/plugin-sdk/routing";
 import { resolveAgentIdFromSessionKey } from "alisio/plugin-sdk/routing";
-import type { ClawdbotConfig, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, RuntimeEnv } from "../runtime-api.js";
 import {
   buildAgentMediaPayload,
   buildPendingHistoryContextFromMap,
@@ -101,7 +101,7 @@ export type FeishuBotAddedEvent = {
 // --- Broadcast support ---
 // Resolve broadcast agent list for a given peer (group) ID.
 // Returns null if no broadcast config exists or the peer is not in the broadcast list.
-export function resolveBroadcastAgents(cfg: ClawdbotConfig, peerId: string): string[] | null {
+export function resolveBroadcastAgents(cfg: AlisioConfig, peerId: string): string[] | null {
   const broadcast = (cfg as Record<string, unknown>).broadcast;
   if (!broadcast || typeof broadcast !== "object") return null;
   const agents = (broadcast as Record<string, unknown>)[peerId];
@@ -219,7 +219,7 @@ export function buildFeishuAgentBody(params: {
 }
 
 export async function handleFeishuMessage(params: {
-  cfg: ClawdbotConfig;
+  cfg: AlisioConfig;
   event: FeishuMessageEvent;
   botOpenId?: string;
   botName?: string;

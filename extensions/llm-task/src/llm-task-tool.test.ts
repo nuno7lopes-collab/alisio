@@ -40,7 +40,7 @@ vi.mock("../api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../api.js")>();
   return {
     ...actual,
-    resolvePreferredOpenClawTmpDir: () => "/tmp",
+    resolvePreferredAlisioTmpDir: () => "/tmp",
     supportsXHighThinking: () => false,
   };
 });

@@ -1,5 +1,5 @@
 import {
-  type OpenClawConfig,
+  type AlisioConfig,
   type WizardPrompter,
   type ChannelSetupWizard,
 } from "alisio/plugin-sdk/setup-runtime";
@@ -48,10 +48,10 @@ async function resolveDiscordAllowFromEntries(params: { token?: string; entries:
 }
 
 async function promptDiscordAllowFrom(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   prompter: WizardPrompter;
   accountId?: string;
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   return await promptLegacyChannelAllowFromForAccount({
     cfg: params.cfg,
     channel,
@@ -94,7 +94,7 @@ async function promptDiscordAllowFrom(params: {
 }
 
 async function resolveDiscordGroupAllowlist(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   credentialValues: { token?: string };
   entries: string[];

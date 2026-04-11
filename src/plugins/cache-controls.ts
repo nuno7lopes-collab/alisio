@@ -2,7 +2,7 @@ export const DEFAULT_PLUGIN_DISCOVERY_CACHE_MS = 1000;
 export const DEFAULT_PLUGIN_MANIFEST_CACHE_MS = 1000;
 
 function readPluginCacheEnv(env: NodeJS.ProcessEnv, suffix: string): string | undefined {
-  return env[`ALISIO_${suffix}`] ?? env[`OPENCLAW_${suffix}`];
+  return env[`ALISIO_${suffix}`] ?? env[`ALISIO_${suffix}`];
 }
 
 export function shouldUsePluginSnapshotCache(env: NodeJS.ProcessEnv): boolean {

@@ -1,8 +1,8 @@
 ---
 read_when:
-  - 理解 OpenClaw 中 Pi SDK 集成设计时
+  - 理解 Alisio 中 Pi SDK 集成设计时
   - 修改 Pi 的智能体会话生命周期、工具或提供商接线时
-summary: OpenClaw 内嵌 Pi 智能体集成与会话生命周期的架构
+summary: Alisio 内嵌 Pi 智能体集成与会话生命周期的架构
 title: Pi 集成架构
 x-i18n:
   generated_at: "2026-03-29T04:10:02Z"
@@ -15,11 +15,11 @@ x-i18n:
 
 # Pi 集成架构
 
-本文档介绍 OpenClaw 如何与 [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) 及其同级软件包（`pi-ai`、`pi-agent-core`、`pi-tui`）集成，以提供其 AI 智能体能力。
+本文档介绍 Alisio 如何与 [pi-coding-agent](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) 及其同级软件包（`pi-ai`、`pi-agent-core`、`pi-tui`）集成，以提供其 AI 智能体能力。
 
 ## 概览
 
-OpenClaw 使用 pi SDK 将 AI 编码智能体嵌入到其消息 Gateway 网关架构中。OpenClaw 不会将 pi 作为子进程启动，也不会使用 RPC 模式，而是通过 `createAgentSession()` 直接导入并实例化 pi 的 `AgentSession`。这种内嵌方式提供了：
+Alisio 使用 pi SDK 将 AI 编码智能体嵌入到其消息 Gateway 网关架构中。Alisio 不会将 pi 作为子进程启动，也不会使用 RPC 模式，而是通过 `createAgentSession()` 直接导入并实例化 pi 的 `AgentSession`。这种内嵌方式提供了：
 
 - 对会话生命周期和事件处理的完全控制
 - 自定义工具注入（消息、沙箱、渠道特定操作）
@@ -44,7 +44,7 @@ OpenClaw 使用 pi SDK 将 AI 编码智能体嵌入到其消息 Gateway 网关�
 | `pi-ai`           | 核心 LLM 抽象：`Model`、`streamSimple`、消息类型、提供商 API                               |
 | `pi-agent-core`   | 智能体循环、工具执行、`AgentMessage` 类型                                                  |
 | `pi-coding-agent` | 高层 SDK：`createAgentSession`、`SessionManager`、`AuthStorage`、`ModelRegistry`、内置工具 |
-| `pi-tui`          | 终端 UI 组件（用于 OpenClaw 的本地 TUI 模式）                                              |
+| `pi-tui`          | 终端 UI 组件（用于 Alisio 的本地 TUI 模式）                                                |
 
 ## 文件结构
 
@@ -87,7 +87,7 @@ src/agents/
 ├── pi-embedded-helpers.ts         # Error classification, turn validation
 ├── pi-embedded-helpers/           # Helper modules
 ├── pi-embedded-utils.ts           # Formatting utilities
-├── pi-tools.ts                    # createOpenClawCodingTools()
+├── pi-tools.ts                    # createAlisioCodingTools()
 ├── pi-tools.abort.ts              # AbortSignal wrapping for tools
 ├── pi-tools.policy.ts             # Tool allowlist/denylist policy
 ├── pi-tools.read.ts               # Read tool customizations
@@ -119,7 +119,7 @@ src/agents/
 ├── sandbox.ts                     # Sandbox context resolution
 ├── sandbox/                       # Sandbox subsystem
 ├── channel-tools.ts               # Channel-specific tool injection
-├── openclaw-tools.ts              # OpenClaw-specific tools
+├── alisio-tools.ts              # Alisio-specific tools
 ├── bash-tools.ts                  # exec/process tools
 ├── apply-patch.ts                 # apply_patch tool (OpenAI)
 ├── tools/                         # Individual tool implementations
@@ -157,7 +157,7 @@ const result = await runEmbeddedPiAgent({
   sessionKey: "main:whatsapp:+1234567890",
   sessionFile: "/path/to/session.jsonl",
   workspaceDir: "/path/to/workspace",
-  config: openclawConfig,
+  config: alisioConfig,
   prompt: "Hello, how are you?",
   provider: "anthropic",
   model: "claude-sonnet-4-20250514",
@@ -243,15 +243,15 @@ await session.prompt(effectivePrompt, { images: imageResult.images });
 
 SDK 会处理完整的智能体循环：发送给 LLM、执行工具调用、流式返回响应。
 
-图像注入仅限当前提示：OpenClaw 会从当前提示中加载图像引用，并仅通过 `images` 将其传入该轮。它不会重新扫描较早的历史轮次来重新注入图像负载。
+图像注入仅限当前提示：Alisio 会从当前提示中加载图像引用，并仅通过 `images` 将其传入该轮。它不会重新扫描较早的历史轮次来重新注入图像负载。
 
 ## 工具架构
 
 ### 工具流水线
 
 1. **基础工具**：pi 的 `codingTools`（read、bash、edit、write）
-2. **自定义替换**：OpenClaw 用 `exec` / `process` 替换 bash，并为沙箱定制 read / edit / write
-3. **OpenClaw 工具**：消息、浏览器、画布、会话、cron、Gateway 网关 等
+2. **自定义替换**：Alisio 用 `exec` / `process` 替换 bash，并为沙箱定制 read / edit / write
+3. **Alisio 工具**：消息、浏览器、画布、会话、cron、Gateway 网关 等
 4. **渠道工具**：Discord / Telegram / Slack / WhatsApp 特定操作工具
 5. **策略过滤**：按配置、提供商、智能体、群组、沙箱策略过滤工具
 6. **模式归一化**：清理模式以适配 Gemini / OpenAI 的特殊行为
@@ -289,11 +289,11 @@ export function splitSdkTools(options: { tools: AnyAgentTool[]; sandboxEnabled: 
 }
 ```
 
-这样可以确保 OpenClaw 的策略过滤、沙箱集成和扩展工具集在不同提供商之间保持一致。
+这样可以确保 Alisio 的策略过滤、沙箱集成和扩展工具集在不同提供商之间保持一致。
 
 ## 系统提示词构建
 
-系统提示词在 `buildAgentSystemPrompt()`（`system-prompt.ts`）中构建。它会组装完整提示词，包含工具、工具调用风格、安全护栏、OpenClaw CLI 参考、Skills、文档、工作区、沙箱、消息、回复标签、语音、静默回复、心跳、运行时元数据等部分，并在启用时包含 Memory 和 Reactions，以及可选的上下文文件和额外系统提示词内容。为子智能体使用的最小提示词模式会对各部分进行裁剪。
+系统提示词在 `buildAgentSystemPrompt()`（`system-prompt.ts`）中构建。它会组装完整提示词，包含工具、工具调用风格、安全护栏、Alisio CLI 参考、Skills、文档、工作区、沙箱、消息、回复标签、语音、静默回复、心跳、运行时元数据等部分，并在启用时包含 Memory 和 Reactions，以及可选的上下文文件和额外系统提示词内容。为子智能体使用的最小提示词模式会对各部分进行裁剪。
 
 系统提示词会在会话创建后通过 `applySystemPromptOverrideToSession()` 应用：
 
@@ -312,7 +312,7 @@ applySystemPromptOverrideToSession(session, systemPromptOverride);
 const sessionManager = SessionManager.open(params.sessionFile);
 ```
 
-OpenClaw 通过 `guardSessionManager()` 对其进行包装，以保证工具结果安全。
+Alisio 通过 `guardSessionManager()` 对其进行包装，以保证工具结果安全。
 
 ### 会话缓存
 
@@ -342,7 +342,7 @@ const compactResult = await compactEmbeddedPiSessionDirect({
 
 ### 凭证配置
 
-OpenClaw 维护一个凭证配置存储，为每个提供商保存多个 API 密钥：
+Alisio 维护一个凭证配置存储，为每个提供商保存多个 API 密钥：
 
 ```typescript
 const authStore = ensureAuthProfileStore(agentDir, { allowKeychainPrompt: false });
@@ -390,7 +390,7 @@ if (fallbackConfigured && isFailoverErrorMessage(errorText)) {
 
 ## Pi 扩展
 
-OpenClaw 会加载自定义的 pi 扩展，以实现专门行为：
+Alisio 会加载自定义的 pi 扩展，以实现专门行为：
 
 ### 压缩保护
 
@@ -517,7 +517,7 @@ if (sandboxRoot) {
 
 ## TUI 集成
 
-OpenClaw 还提供本地 TUI 模式，可直接使用 pi-tui 组件：
+Alisio 还提供本地 TUI 模式，可直接使用 pi-tui 组件：
 
 ```typescript
 // src/tui/tui.ts
@@ -528,15 +528,15 @@ import { ... } from "@mariozechner/pi-tui";
 
 ## 与 Pi CLI 的关键差异
 
-| 方面       | Pi CLI                  | OpenClaw 内嵌版                                                                                 |
-| ---------- | ----------------------- | ----------------------------------------------------------------------------------------------- |
-| 调用方式   | `pi` 命令 / RPC         | 通过 `createAgentSession()` 使用 SDK                                                            |
-| 工具       | 默认编码工具            | 自定义 OpenClaw 工具套件                                                                        |
-| 系统提示词 | AGENTS.md + prompts     | 按渠道 / 上下文动态生成                                                                         |
-| 会话存储   | `~/.pi/agent/sessions/` | `~/.openclaw/agents/<agentId>/sessions/`（或 `$OPENCLAW_STATE_DIR/agents/<agentId>/sessions/`） |
-| 身份验证   | 单一凭证                | 支持轮换的多配置                                                                                |
-| 扩展       | 从磁盘加载              | 通过编程方式 + 磁盘路径                                                                         |
-| 事件处理   | TUI 渲染                | 基于回调（`onBlockReply` 等）                                                                   |
+| 方面       | Pi CLI                  | Alisio 内嵌版                                                                               |
+| ---------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| 调用方式   | `pi` 命令 / RPC         | 通过 `createAgentSession()` 使用 SDK                                                        |
+| 工具       | 默认编码工具            | 自定义 Alisio 工具套件                                                                      |
+| 系统提示词 | AGENTS.md + prompts     | 按渠道 / 上下文动态生成                                                                     |
+| 会话存储   | `~/.pi/agent/sessions/` | `~/.alisio/agents/<agentId>/sessions/`（或 `$ALISIO_STATE_DIR/agents/<agentId>/sessions/`） |
+| 身份验证   | 单一凭证                | 支持轮换的多配置                                                                            |
+| 扩展       | 从磁盘加载              | 通过编程方式 + 磁盘路径                                                                     |
+| 事件处理   | TUI 渲染                | 基于回调（`onBlockReply` 等）                                                               |
 
 ## 未来考虑
 
@@ -566,6 +566,6 @@ Pi 集成的覆盖范围包括以下测试套件：
 
 实时 / 按需启用：
 
-- `src/agents/pi-embedded-runner-extraparams.live.test.ts`（启用 `OPENCLAW_LIVE_TEST=1`）
+- `src/agents/pi-embedded-runner-extraparams.live.test.ts`（启用 `ALISIO_LIVE_TEST=1`）
 
 有关当前运行命令，请参见 [Pi 开发工作流](/pi-dev)。

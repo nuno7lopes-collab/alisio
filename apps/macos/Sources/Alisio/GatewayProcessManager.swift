@@ -367,28 +367,20 @@ final class GatewayProcessManager {
             return
         }
 
-        // Best-effort: wait for the gateway to accept connections.
-        let deadline = Date().addingTimeInterval(6)
-        while Date() < deadline {
-            if !self.desiredActive { return }
-            do {
-                _ = try await self.connection.requestRaw(method: .health, timeoutMs: 1500)
-                let instance = await PortGuardian.shared.describe(port: port)
-                let details = instance.map { "pid \($0.pid)" }
-                self.clearLastFailure()
-                self.status = .running(details: details)
-                self.logger.info("gateway started details=\(details ?? "ok")")
-                self.refreshControlChannelIfNeeded(reason: "gateway started")
-                self.refreshLog()
-                return
-            } catch {
-                try? await Task.sleep(nanoseconds: 400_000_000)
-            }
+        if await self.waitForManagedGatewayStartup(port: port, timeout: 6, reason: "launchd install") {
+            return
+        }
+
+        self.appendLog("[gateway] launchd install timed out; forcing supervised restart\n")
+        self.logger.warning("gateway launchd install timed out; forcing supervised restart")
+        await GatewayLaunchAgentManager.kickstart()
+        if await self.waitForManagedGatewayStartup(port: port, timeout: 8, reason: "launchd restart") {
+            return
         }
 
         self.status = .failed("Gateway did not start in time")
         self.lastFailureReason = "launchd start timeout"
-        self.logger.warning("gateway start timed out")
+        self.logger.warning("gateway start timed out after restart attempt")
     }
 
     private func appendLog(_ chunk: String) {
@@ -415,6 +407,21 @@ final class GatewayProcessManager {
         Task { await ControlChannel.shared.configure() }
     }
 
+    func ensureLocalGatewayReady(timeout: TimeInterval = 12) async throws {
+        self.setActive(true)
+        if await self.waitForGatewayReady(timeout: timeout) {
+            return
+        }
+
+        let reason = self.localGatewayReadinessFailureReason()
+        self.appendLog("[gateway] readiness ensure failed: \(reason)\n")
+        self.logger.warning("gateway readiness ensure failed reason=\(reason)")
+        throw NSError(
+            domain: "Gateway",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: reason])
+    }
+
     func waitForGatewayReady(timeout: TimeInterval = 6) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
@@ -429,6 +436,61 @@ final class GatewayProcessManager {
         }
         self.appendLog("[gateway] readiness wait timed out\n")
         self.logger.warning("gateway readiness wait timed out")
+        return false
+    }
+
+    private func localGatewayReadinessFailureReason() -> String {
+        let trimmedFailure = self.lastFailureReason?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmedFailure.isEmpty {
+            return trimmedFailure
+        }
+
+        switch self.status {
+        case let .failed(reason):
+            let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedReason.isEmpty {
+                return trimmedReason
+            }
+        case let .attachedExisting(details):
+            if let details, !details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Using existing gateway, but the health check still failed (\(details))."
+            }
+        case let .running(details):
+            if let details, !details.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return "Gateway reported as running, but the health check still failed (\(details))."
+            }
+        case .starting:
+            return "Gateway is still starting. Check the local gateway logs and try again."
+        case .stopped:
+            break
+        }
+
+        return "Gateway did not become ready. Check that it is running."
+    }
+
+    private func waitForManagedGatewayStartup(
+        port: Int,
+        timeout: TimeInterval,
+        reason: String) async -> Bool
+    {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if !self.desiredActive { return false }
+            do {
+                _ = try await self.connection.requestRaw(method: .health, timeoutMs: 1500)
+                let instance = await PortGuardian.shared.describe(port: port)
+                let details = instance.map { "pid \($0.pid)" }
+                self.clearLastFailure()
+                self.status = .running(details: details)
+                self.logger.info("gateway started reason=\(reason) details=\(details ?? "ok")")
+                self.refreshControlChannelIfNeeded(reason: "gateway started")
+                self.refreshLog()
+                return true
+            } catch {
+                try? await Task.sleep(nanoseconds: 400_000_000)
+            }
+        }
         return false
     }
 

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { TelegramAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -52,7 +52,7 @@ describe("registerTelegramNativeCommands (plugin auth)", () => {
     getPluginCommandSpecsMock.mockReturnValue(specs);
 
     const { handlers, setMyCommands, log } = createNativeCommandsHarness({
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       telegramCfg: {} as TelegramAccountConfig,
       nativeEnabled: false,
     });
@@ -78,7 +78,7 @@ describe("registerTelegramNativeCommands (plugin auth)", () => {
     executePluginCommandMock.mockResolvedValue({ text: "ok" });
 
     const { handlers, bot } = createNativeCommandsHarness({
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       telegramCfg: {} as TelegramAccountConfig,
       allowFrom: ["999"],
       nativeEnabled: false,

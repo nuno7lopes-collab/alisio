@@ -376,8 +376,8 @@ function buildRuntimeItems(snapshot: AlisioModelProviderSnapshot): AlisioProvide
       providerId: target.chatProviderId,
       authSource: "runtime",
       chips: toUniqueList([
-        "Local runtime",
-        target.current ? "Current device" : "",
+        target.backend,
+        target.current ? "Current device" : "Linked node",
         target.access === "shared" ? "Shared" : "",
         target.platform ?? "",
       ]),
@@ -387,36 +387,7 @@ function buildRuntimeItems(snapshot: AlisioModelProviderSnapshot): AlisioProvide
     };
   });
 
-  const serverItems = snapshot.servers.map<AlisioProviderOverviewItem>((server) => ({
-    id: server.serverId,
-    title: server.label,
-    subtitle: server.baseUrl,
-    detail:
-      server.status === "error"
-        ? (server.message ?? "Remote runtime needs attention.")
-        : server.models.length > 0
-          ? `${server.models.length} remote model${server.models.length === 1 ? "" : "s"} exposed by this server.`
-          : (server.message ?? "Remote server is configured but no models are published yet."),
-    status:
-      server.active && server.status === "ready"
-        ? "connected"
-        : server.status === "error"
-          ? "attention"
-          : "ready",
-    providerId: server.chatProviderId,
-    authSource: "runtime",
-    chips: toUniqueList([
-      "Remote runtime",
-      humanizeToken(server.kind),
-      server.active ? "Active" : "Configured",
-      server.hasApiKey ? "API key" : "",
-    ]),
-    usageWindows: [],
-    current: false,
-    active: server.active,
-  }));
-
-  return sortItems([...targetItems, ...serverItems]);
+  return sortItems(targetItems);
 }
 
 function buildAppItems(params: {
@@ -675,7 +646,6 @@ function buildEmptyModelSnapshot(): AlisioModelProviderSnapshot {
   return {
     catalog: [],
     targets: [],
-    servers: [],
     dynamicSources: [],
     dynamicCatalogEntries: [],
   };

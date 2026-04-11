@@ -26,11 +26,6 @@ if [[ -z "${APP_BUILD:-}" && "$BUILD_CONFIG" == "release" ]]; then
   fi
 fi
 
-bash "$ROOT_DIR/scripts/package-mac-app.sh"
-
-APP_SOURCE="$ROOT_DIR/dist/${APP_NAME}.app"
-[[ -d "$APP_SOURCE" ]] || { echo "Error: missing app bundle at $APP_SOURCE" >&2; exit 1; }
-
 ARTIFACT_STAGE_ROOT="$(mktemp -d -t ${APP_NAME}-mac-dist.XXXXXX)"
 cleanup_stage() {
   rm -rf "$ARTIFACT_STAGE_ROOT"
@@ -38,8 +33,9 @@ cleanup_stage() {
 trap cleanup_stage EXIT
 
 APP="$ARTIFACT_STAGE_ROOT/${APP_NAME}.app"
-rm -rf "$APP"
-ditto "$APP_SOURCE" "$APP"
+MACOS_FINAL_APP_PATH="$APP" bash "$ROOT_DIR/scripts/package-mac-app.sh"
+
+[[ -d "$APP" ]] || { echo "Error: missing staged app bundle at $APP" >&2; exit 1; }
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$APP/Contents/Info.plist" 2>/dev/null || echo "0.0.0")
 BUNDLE_VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$APP/Contents/Info.plist" 2>/dev/null || echo "")

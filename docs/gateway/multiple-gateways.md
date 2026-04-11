@@ -27,11 +27,11 @@ Profiles auto-scope `ALISIO_STATE_DIR` + `ALISIO_CONFIG_PATH` and suffix service
 ```bash
 # main
 alisio --profile main setup
-alisio --profile main gateway --port 40705
+alisio --profile main gateway run --port 40705
 
 # rescue
 alisio --profile rescue setup
-alisio --profile rescue gateway --port 19001
+alisio --profile rescue gateway run --port 19001
 ```
 
 Per-profile services:
@@ -96,11 +96,11 @@ If you override any of these in config or env, you must keep them unique per ins
 ```bash
 ALISIO_CONFIG_PATH=~/.alisio/main.json \
 ALISIO_STATE_DIR=~/.alisio-main \
-alisio gateway --port 40705
+alisio gateway run --port 40705
 
 ALISIO_CONFIG_PATH=~/.alisio/rescue.json \
 ALISIO_STATE_DIR=~/.alisio-rescue \
-alisio gateway --port 19001
+alisio gateway run --port 19001
 ```
 
 ## Quick checks

@@ -5,7 +5,7 @@ import {
   runSetupWizardConfigure,
   type WizardPrompter,
 } from "../../../test/helpers/plugins/setup-wizard.js";
-import type { OpenClawConfig } from "../runtime-api.js";
+import type { AlisioConfig } from "../runtime-api.js";
 import { nostrPlugin } from "./channel.js";
 import {
   TEST_HEX_PRIVATE_KEY,
@@ -192,7 +192,7 @@ describe("nostr setup wizard", () => {
 
     const result = await runSetupWizardConfigure({
       configure: nostrConfigure,
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       prompter,
       options: {},
     });

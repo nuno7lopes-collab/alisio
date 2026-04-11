@@ -297,10 +297,33 @@ function installPluginRuntimeDeps(params) {
     }
 
     removePathIfExists(nodeModulesDir);
-    fs.cpSync(stagedNodeModulesDir, nodeModulesDir, {
-      recursive: true,
-      dereference: true,
-    });
+    fs.mkdirSync(pluginDir, { recursive: true });
+    try {
+      fs.renameSync(stagedNodeModulesDir, nodeModulesDir);
+    } catch (error) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        (error.code === "ENOTEMPTY" || error.code === "EEXIST")
+      ) {
+        removePathIfExists(nodeModulesDir);
+        fs.renameSync(stagedNodeModulesDir, nodeModulesDir);
+        writeJson(stampPath, {
+          fingerprint,
+          layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION,
+          generatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+      if (!error || typeof error !== "object" || !("code" in error) || error.code !== "EXDEV") {
+        throw error;
+      }
+      fs.cpSync(stagedNodeModulesDir, nodeModulesDir, {
+        recursive: true,
+      });
+      removePathIfExists(stagedNodeModulesDir);
+    }
     writeJson(stampPath, {
       fingerprint,
       layoutVersion: RUNTIME_DEPS_LAYOUT_VERSION,

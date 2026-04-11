@@ -2,7 +2,7 @@ import { createSubsystemLogger } from "../logging/subsystem.js";
 
 let log: ReturnType<typeof createSubsystemLogger> | null = null;
 const loggedEnv = new Set<string>();
-const LEGACY_RUNTIME_PREFIX = "OPENCLAW";
+const RUNTIME_PREFIX = "ALISIO";
 
 function getLog(): ReturnType<typeof createSubsystemLogger> {
   if (!log) {
@@ -46,8 +46,8 @@ export function logAcceptedEnvOption(option: AcceptedEnvOption): void {
   );
 }
 
-export function legacyEnvKey(suffix: string): string {
-  return `${LEGACY_RUNTIME_PREFIX}_${suffix.trim()}`;
+export function runtimeEnvKey(suffix: string): string {
+  return `${RUNTIME_PREFIX}_${suffix.trim()}`;
 }
 
 export function readEnv(
@@ -80,7 +80,7 @@ export function readEnv(
         description:
           candidate === key
             ? options.description
-            : `${options.description}; compatibility fallback for ${key}`,
+            : `${options.description}; alternate lookup for ${key}`,
         value,
         redact: options.redact,
       });

@@ -12,7 +12,7 @@ import {
 const tempDirs: string[] = [];
 
 function makeTempStateDir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-channel-config-presence-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-channel-config-presence-"));
   tempDirs.push(dir);
   return dir;
 }
@@ -46,7 +46,7 @@ describe("config presence", () => {
 
   it("ignores enabled-only matrix config when listing configured channels", () => {
     const stateDir = makeTempStateDir();
-    const env = { OPENCLAW_STATE_DIR: stateDir } as NodeJS.ProcessEnv;
+    const env = { ALISIO_STATE_DIR: stateDir } as NodeJS.ProcessEnv;
     const cfg = { channels: { matrix: { enabled: false } } };
 
     expectPotentialConfiguredChannelCase({

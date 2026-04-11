@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import type { AlisioConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemoryIndexManager } from "./index.js";
 
@@ -58,7 +58,7 @@ describe("memory vector dedupe", () => {
     ({ buildFileEntry } = await import("alisio/plugin-sdk/memory-core-host-engine-storage"));
     ({ createMemoryManagerOrThrow } = await import("./test-manager.js"));
     ({ closeAllMemorySearchManagers } = await import("./index.js"));
-    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-mem-"));
+    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-mem-"));
     indexPath = path.join(workspaceDir, "index.sqlite");
     await seedMemoryWorkspace(workspaceDir);
   });
@@ -84,7 +84,7 @@ describe("memory vector dedupe", () => {
         },
         list: [{ id: "main", default: true }],
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     manager = await createMemoryManagerOrThrow(cfg);
     await ensureProviderInitialized(manager);

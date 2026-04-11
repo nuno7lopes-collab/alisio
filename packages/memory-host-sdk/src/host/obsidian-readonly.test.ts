@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../../../src/config/config.js";
+import type { AlisioConfig } from "../../../../src/config/config.js";
 import {
   OBSIDIAN_READONLY_TOOL_PREFIX,
   resolveObsidianReadOnlyDisplayPath,
@@ -16,8 +16,8 @@ describe("obsidian read-only vault", () => {
   let outsideDir = "";
 
   beforeEach(async () => {
-    vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-obsidian-vault-ro-"));
-    outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-obsidian-outside-"));
+    vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-obsidian-vault-ro-"));
+    outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-obsidian-outside-"));
   });
 
   afterEach(async () => {
@@ -34,7 +34,7 @@ describe("obsidian read-only vault", () => {
               vaultPath: vaultDir,
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       }),
     ).toBeNull();
 
@@ -47,7 +47,7 @@ describe("obsidian read-only vault", () => {
               vaultPath: vaultDir,
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       }),
     ).toMatchObject({
       vaultRoot: vaultDir,

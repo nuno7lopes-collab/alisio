@@ -1,159 +1,89 @@
 ---
 read_when:
   - 你想从自己的 GPU 主机提供模型服务
-  - 你正在接入 LM Studio 或兼容 OpenAI 的代理
-  - 你需要最安全的本地模型指南
-summary: 在本地 LLM 上运行 OpenClaw（LM Studio、vLLM、LiteLLM、自定义 OpenAI 端点）
+  - 你正在接入兼容 OpenAI 的代理
+  - 你需要本地模型与私有服务器的选择指南
+summary: 在本地 LLM 上运行 Alisio（本地模型与兼容 OpenAI 的端点）
 title: 本地模型
-x-i18n:
-  generated_at: "2026-03-16T06:22:54Z"
-  model: gpt-5.4
-  provider: openai
-  source_hash: 43ad6b91216e12be4d0c9395c981e0b5d8bd16ba4952efd02b7261052304a4ce
-  source_path: gateway/local-models.md
-  workflow: 15
 ---
 
 # 本地模型
 
-本地部署是可行的，但 OpenClaw 需要大上下文和对提示注入的强防御能力。小显卡会截断上下文并削弱安全性。目标要高：**至少 2 台满配 Mac Studio 或同等 GPU 设备（约 3 万美元以上）**。单张 **24 GB** GPU 仅适用于较轻的提示，且延迟更高。请使用**你能运行的最大 / 完整尺寸模型变体**；激进量化或“small”检查点会提高提示注入风险（见 [安全](/gateway/security)）。
+Alisio 把本地模型和私有服务器都当作一等运行方式。
 
-如果你想要摩擦最小的本地设置，请从 [Ollama](/providers/ollama) 和 `openclaw onboard` 开始。本页是面向更高端本地栈和自定义兼容 OpenAI 的本地服务器的偏好型指南。
+这意味着你不必在“只用托管模型”和“专家模式”之间二选一。你可以先从 OpenAI 开始，再随着自己的设备和网络环境逐步加入本地模型或私有服务器。
 
-## 推荐：LM Studio + MiniMax M2.5（Responses API，完整尺寸）
+## 三种运行形态
 
-当前最佳的本地栈。先在 LM Studio 中加载 MiniMax M2.5，启用本地服务器（默认 `http://127.0.0.1:1234`），然后使用 Responses API 将推理与最终文本分离。
+### OpenAI
 
-```json5
-{
-  agents: {
-    defaults: {
-      model: { primary: "lmstudio/minimax-m2.5-gs32" },
-      models: {
-        "anthropic/claude-opus-4-6": { alias: "Opus" },
-        "lmstudio/minimax-m2.5-gs32": { alias: "Minimax" },
-      },
-    },
-  },
-  models: {
-    mode: "merge",
-    providers: {
-      lmstudio: {
-        baseUrl: "http://127.0.0.1:1234/v1",
-        apiKey: "lmstudio",
-        api: "openai-responses",
-        models: [
-          {
-            id: "minimax-m2.5-gs32",
-            name: "MiniMax M2.5 GS32",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 196608,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+托管方案，最容易开始，默认也最稳妥。
 
-**设置清单**
+### Local
 
-- 安装 LM Studio：[https://lmstudio.ai](https://lmstudio.ai)
-- 在 LM Studio 中，下载**可用的最大 MiniMax M2.5 构建版本**（避免 “small” / 重度量化变体），启动服务器，并确认 `http://127.0.0.1:1234/v1/models` 中列出了它。
-- 保持模型处于已加载状态；冷加载会增加启动延迟。
-- 如果你的 LM Studio 构建不同，请调整 `contextWindow` / `maxTokens`。
-- 对于 WhatsApp，请坚持使用 Responses API，这样只会发送最终文本。
+运行时就在 Alisio 所在的这台电脑上。
 
-即使在本地运行时，也要保留托管模型配置；使用 `models.mode: "merge"`，以便回退模型始终可用。
+适合：
 
-### 混合配置：托管主模型，本地回退
+- 隐私优先
+- 想保留本机控制权
+- 硬件足够时追求低延迟
 
-```json5
-{
-  agents: {
-    defaults: {
-      model: {
-        primary: "anthropic/claude-sonnet-4-5",
-        fallbacks: ["lmstudio/minimax-m2.5-gs32", "anthropic/claude-opus-4-6"],
-      },
-      models: {
-        "anthropic/claude-sonnet-4-5": { alias: "Sonnet" },
-        "lmstudio/minimax-m2.5-gs32": { alias: "MiniMax Local" },
-        "anthropic/claude-opus-4-6": { alias: "Opus" },
-      },
-    },
-  },
-  models: {
-    mode: "merge",
-    providers: {
-      lmstudio: {
-        baseUrl: "http://127.0.0.1:1234/v1",
-        apiKey: "lmstudio",
-        api: "openai-responses",
-        models: [
-          {
-            id: "minimax-m2.5-gs32",
-            name: "MiniMax M2.5 GS32",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 196608,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+### Server
 
-### 本地优先，并保留托管安全网
+运行时在别的机器上，Alisio 通过网络连接过去。
 
-交换主模型与回退模型的顺序；保留相同的 providers 块和 `models.mode: "merge"`，这样当本地主机不可用时，你仍然可以回退到 Sonnet 或 Opus。
+适合：
 
-### 区域托管 / 数据路由
+- 另一台机器承载推理
+- 多台电脑共享一个私有运行时
+- 当前这台 Mac 需要保持轻量
 
-- OpenRouter 上也提供托管版 MiniMax / Kimi / GLM 变体，并带有区域固定端点（例如托管在美国）。可以在那里选择区域变体，将流量保留在你选定的司法辖区内，同时继续使用 `models.mode: "merge"` 作为 Anthropic / OpenAI 回退。
-- 纯本地仍然是最强的隐私方案；当你需要提供商功能但又想控制数据流向时，托管区域路由是折中方案。
+## 服务器类型
 
-## 其他兼容 OpenAI 的本地代理
+Alisio 应该明确支持：
 
-只要暴露兼容 OpenAI 风格的 `/v1` 端点，vLLM、LiteLLM、OAI-proxy 或自定义网关都可以工作。将上面的 provider 块替换为你的端点和模型 ID：
+- **兼容 OpenAI 的服务器**
+- **已连接设备暴露的私有运行时**
 
-```json5
-{
-  models: {
-    mode: "merge",
-    providers: {
-      local: {
-        baseUrl: "http://127.0.0.1:8000/v1",
-        apiKey: "sk-local",
-        api: "openai-responses",
-        models: [
-          {
-            id: "my-local-model",
-            name: "Local Model",
-            reasoning: false,
-            input: ["text"],
-            cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            contextWindow: 120000,
-            maxTokens: 8192,
-          },
-        ],
-      },
-    },
-  },
-}
-```
+这已经覆盖了大多数操作者真正需要的服务器形态，不必把产品逻辑绑定到某个特定 runtime 品牌。
 
-保留 `models.mode: "merge"`，这样托管模型仍可作为回退使用。
+## 推荐顺序
 
-## 故障排除
+1. 先把 OpenAI 跑通
+2. 如果需要，再为当前电脑加入本地模型
+3. 如果推理应该跑在别的机器上，再添加兼容 OpenAI 的服务器
 
-- Gateway 网关能连接到代理吗？`curl http://127.0.0.1:1234/v1/models`
-- LM Studio 模型已卸载？重新加载；冷启动是常见的“卡住”原因。
-- 上下文错误？降低 `contextWindow` 或提高你的服务器限制。
-- 安全性：本地模型会跳过提供商侧过滤；请保持智能体职责范围狭窄，并开启压缩，以限制提示注入的影响范围。
+## 实用建议
+
+- **Local** 视图是按电脑区分的，只展示当前机器能用的模型与建议。
+- **Server** 视图同样按机器区分，只展示你添加的服务器暴露出来的模型，而不是全局合并目录。
+- 本地模型很适合隐私和控制，但质量依然取决于你实际能跑起来的模型与硬件。
+- 如果当前 Mac 不该承担重负，服务器型运行时是更折中的方案。
+- 托管与本地/服务器方案最好并存，这样你可以保留回退模型，而不是一次性押注单一路径。
+
+## 运行时发现
+
+- **当前电脑上的 Local**：Alisio 会发现当前机器可用的本地模型，并把 Local 视图严格限定在这台设备上。
+- **已连接设备**：当某个已连接节点暴露兼容 OpenAI 的运行时，Alisio 会把它显示为独立的链接目标，而不是强行折叠进一个通用服务器目录。
+- **另一台机器上的私有服务器**：如果推理应跑在别处，在 **Server** 里添加任意兼容 OpenAI 的端点即可。
+
+## 重要限制
+
+- 两台设备同时出现在 Alisio 中，并不代表它们的模型会自动同步。每个链接运行时仍然属于那台具体机器。
+- 本地模型是否可用是设备级的。某台机器上的模型不会自动出现在另一台机器上，除非那台机器主动暴露自己的运行时。
+- `llama.cpp` 运行时管理仍然依赖目标平台和硬件上可正常构建/运行的原生 `node-llama-cpp` 支持。只有原生运行时可用时，GGUF 才真正可用。
+
+## 示例策略
+
+对一台电脑来说，比较现实的产品策略是：
+
+- 默认使用 OpenAI
+- 需要隐私或低延迟时使用本地模型
+- 当另一台机器可用时，再加入一个兼容 OpenAI 的服务器作为附加运行时
+
+## 相关页面
+
+- [模型提供商](/concepts/model-providers)
+- [模型](/concepts/models)
+- [入门](/start/getting-started)

@@ -318,11 +318,11 @@ function createSharingCloudFetchMock() {
   return { fetchMock, tables };
 }
 
-describe("legacy Alisio state-dir migration", () => {
-  it("migrates ~/.openclaw into ~/.alisio before loading account state", async () => {
+describe("Alisio state-dir loading", () => {
+  it("loads account state from ~/.alisio", async () => {
     await withTempDir({ prefix: "alisio-store-home-" }, async (home) => {
-      const legacyRoot = path.join(home, ".openclaw");
-      const legacyStatePath = path.join(legacyRoot, "alisio", "state.json");
+      const stateRoot = path.join(home, ".alisio");
+      const legacyStatePath = path.join(stateRoot, "alisio", "state.json");
 
       await fs.mkdir(path.dirname(legacyStatePath), { recursive: true });
       await fs.writeFile(
@@ -369,7 +369,6 @@ describe("legacy Alisio state-dir migration", () => {
       await expect(
         fs.stat(path.join(home, ".alisio", "alisio", "state.json")),
       ).resolves.toBeTruthy();
-      await expect(fs.stat(legacyRoot)).rejects.toThrow();
     });
   });
 });
@@ -662,7 +661,7 @@ describe("Alisio sharing state", () => {
       const request = await requestAlisioSharingAccess(
         {
           targetId: "owner-device",
-          scopes: ["device.use", "model.use"],
+          scopes: ["read-only", "model-use"],
         },
         env,
       );
@@ -851,7 +850,7 @@ describe("Alisio sharing state", () => {
       const request = await requestAlisioSharingAccess(
         {
           targetId: "org-device",
-          scopes: ["device.use"],
+          scopes: ["read-only"],
         },
         env,
       );
@@ -1039,7 +1038,7 @@ describe("beginAlisioConnectorSetup", () => {
     ).toBe(true);
   });
 
-  it("looks up connector token keychain secrets under current and legacy state-dir accounts", () => {
+  it("looks up connector token keychain secrets under the canonical state-dir account", () => {
     const env = {
       HOME: "/Users/nuno",
     } as NodeJS.ProcessEnv;
@@ -1048,8 +1047,6 @@ describe("beginAlisioConnectorSetup", () => {
 
     expect(__testing.resolveConnectorTokenKeychainAccounts(env)).toEqual([
       accountFor("/Users/nuno/.alisio"),
-      accountFor("/Users/nuno/.openclaw"),
-      accountFor("/Users/nuno/.clawdbot"),
     ]);
   });
 

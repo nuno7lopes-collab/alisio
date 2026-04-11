@@ -21,14 +21,14 @@ export function resolveAcpInstallCommandHint(cfg: AlisioConfig): string {
       pluginId: backendId,
     });
     if (workspaceLocalPath && existsSync(workspaceLocalPath)) {
-      return `openclaw plugins install ${workspaceLocalPath}`;
+      return `alisio plugins install ${workspaceLocalPath}`;
     }
     const bundledInstallHint = resolveBundledPluginInstallCommandHint({
       pluginId: backendId,
       workspaceDir,
     });
     if (bundledInstallHint) {
-      const localPath = bundledInstallHint.replace(/^openclaw plugins install /u, "");
+      const localPath = bundledInstallHint.replace(/^alisio plugins install /u, "");
       const resolvedLocalPath = path.resolve(localPath);
       const relativeToWorkspace = path.relative(workspaceDir, resolvedLocalPath);
       const belongsToWorkspace =
@@ -38,7 +38,7 @@ export function resolveAcpInstallCommandHint(cfg: AlisioConfig): string {
         return bundledInstallHint;
       }
     }
-    return "openclaw plugins install acpx";
+    return "alisio plugins install acpx";
   }
   return `Install and enable the plugin that provides ACP backend "${backendId}".`;
 }

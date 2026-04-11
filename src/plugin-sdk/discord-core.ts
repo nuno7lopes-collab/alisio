@@ -2,7 +2,6 @@ export type { ChannelPlugin } from "./channel-plugin-common.js";
 export type { DiscordAccountConfig, DiscordActionConfig } from "../config/types.js";
 export { buildChannelConfigSchema, getChatChannelMeta } from "./channel-plugin-common.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { DiscordConfig } from "../config/types.discord.js";
 export { withNormalizedTimestamp } from "../agents/date-time.js";
 export { assertMediaNotDataUrl } from "../agents/sandbox-paths.js";

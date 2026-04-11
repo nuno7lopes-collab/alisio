@@ -6,26 +6,24 @@ export type MatrixManagedDeviceInfo = {
 
 export type MatrixDeviceHealthSummary = {
   currentDeviceId: string | null;
-  staleOpenClawDevices: MatrixManagedDeviceInfo[];
-  currentOpenClawDevices: MatrixManagedDeviceInfo[];
+  staleAlisioDevices: MatrixManagedDeviceInfo[];
+  currentAlisioDevices: MatrixManagedDeviceInfo[];
 };
 
-const OPENCLAW_DEVICE_NAME_PREFIX = "OpenClaw ";
+const ALISIO_DEVICE_NAME_PREFIX = "Alisio ";
 
-export function isOpenClawManagedMatrixDevice(displayName: string | null | undefined): boolean {
-  return displayName?.startsWith(OPENCLAW_DEVICE_NAME_PREFIX) === true;
+export function isAlisioManagedMatrixDevice(displayName: string | null | undefined): boolean {
+  return displayName?.startsWith(ALISIO_DEVICE_NAME_PREFIX) === true;
 }
 
 export function summarizeMatrixDeviceHealth(
   devices: MatrixManagedDeviceInfo[],
 ): MatrixDeviceHealthSummary {
   const currentDeviceId = devices.find((device) => device.current)?.deviceId ?? null;
-  const openClawDevices = devices.filter((device) =>
-    isOpenClawManagedMatrixDevice(device.displayName),
-  );
+  const alisioDevices = devices.filter((device) => isAlisioManagedMatrixDevice(device.displayName));
   return {
     currentDeviceId,
-    staleOpenClawDevices: openClawDevices.filter((device) => !device.current),
-    currentOpenClawDevices: openClawDevices.filter((device) => device.current),
+    staleAlisioDevices: alisioDevices.filter((device) => !device.current),
+    currentAlisioDevices: alisioDevices.filter((device) => device.current),
   };
 }

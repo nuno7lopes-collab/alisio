@@ -10,7 +10,7 @@ import {
   resolveStateDir,
   type AlisioCloudAccessSession,
   type AlisioMemoryOwnerProfile,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import {
   buildFileEntry,
@@ -891,7 +891,7 @@ export function buildCanonicalMarkdownProjection(params: {
 }
 
 function resolveCanonicalProjectionAbsolutePath(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   relativePath: string;
   sourceKind: CanonicalProjectionSource;
@@ -921,7 +921,7 @@ function resolveCanonicalProjectionAbsolutePath(params: {
 }
 
 function normalizeStructuredProjectionInput(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   entityTitle: string;
   entitySlug: string;
@@ -971,7 +971,7 @@ function normalizeStructuredProjectionInput(params: {
 }
 
 function normalizeStructuredEntityInput(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   entity: CanonicalMemoryStructuredEntityInput;
 }): StructuredNormalizedEntity {
@@ -1222,7 +1222,7 @@ function parseCloudSnapshotRecord(value: unknown): CanonicalMemoryCloudSnapshotR
 }
 
 async function collectOwnedMemoryProjections(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   structuredProjectionPaths?: ReadonlySet<string>;
 }): Promise<CollectedOwnedMemoryProjections> {
@@ -2286,7 +2286,7 @@ async function appendRemoteCanonicalBackup(params: {
 
 async function finalizeCanonicalCloudSync(params: {
   db: DatabaseSync;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   workspaceDir: string;
   env: NodeJS.ProcessEnv;
@@ -2701,7 +2701,7 @@ function renderStoredProjectionMarkdown(params: {
 
 async function materializeCanonicalScopeProjections(params: {
   db: DatabaseSync;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   profileId: string;
   workspaceScope: string;
@@ -2935,7 +2935,7 @@ function hashCanonicalCloudScopeSnapshot(snapshot: CanonicalCloudScopeSnapshot) 
 
 function applyCanonicalCloudScopeSnapshot(params: {
   db: DatabaseSync;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   workspaceDir: string;
   profileId: string;
   workspaceScope: string;
@@ -3082,7 +3082,7 @@ function applyCanonicalCloudScopeSnapshot(params: {
 }
 
 export async function upsertCanonicalMemoryStructuredEntities(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   workspaceDir: string;
   backend: CanonicalStoreBackend;
@@ -3601,7 +3601,7 @@ export function buildCanonicalMemoryStoreStatus(params: {
 }
 
 export async function syncCanonicalMemoryStore(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   workspaceDir: string;
   backend: CanonicalStoreBackend;

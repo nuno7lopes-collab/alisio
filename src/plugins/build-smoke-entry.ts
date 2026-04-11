@@ -4,4 +4,4 @@ export {
   getPluginCommandSpecs,
   matchPluginCommand,
 } from "./commands.js";
-export { loadAlisioPlugins, loadOpenClawPlugins } from "./loader.js";
+export { loadAlisioPlugins } from "./loader.js";

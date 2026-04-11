@@ -6,7 +6,7 @@ import {
   prepareScopedSetupConfig,
   type ChannelSetupAdapter,
   type DmPolicy,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/setup";
 import { applyBlueBubblesConnectionConfig } from "./config-apply.js";
 
@@ -15,15 +15,15 @@ const setBlueBubblesTopLevelDmPolicy = createTopLevelChannelDmPolicySetter({
   channel,
 });
 
-export function setBlueBubblesDmPolicy(cfg: OpenClawConfig, dmPolicy: DmPolicy): OpenClawConfig {
+export function setBlueBubblesDmPolicy(cfg: AlisioConfig, dmPolicy: DmPolicy): AlisioConfig {
   return setBlueBubblesTopLevelDmPolicy(cfg, dmPolicy);
 }
 
 export function setBlueBubblesAllowFrom(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   accountId: string,
   allowFrom: string[],
-): OpenClawConfig {
+): AlisioConfig {
   return patchScopedAccountConfig({
     cfg,
     channelKey: channel,

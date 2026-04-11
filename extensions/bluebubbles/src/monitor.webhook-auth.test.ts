@@ -20,7 +20,7 @@ import {
   trackWebhookRegistrationForTest,
   type WebhookRequestParams,
 } from "./monitor.webhook.test-helpers.js";
-import type { OpenClawConfig, PluginRuntime } from "./runtime-api.js";
+import type { AlisioConfig, PluginRuntime } from "./runtime-api.js";
 import {
   createBlueBubblesMonitorTestRuntime,
   EMPTY_DISPATCH_RESULT,
@@ -168,7 +168,7 @@ describe("BlueBubbles webhook monitor", () => {
 
   function setupWebhookTarget(params?: {
     account?: ResolvedBlueBubblesAccount;
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     core?: PluginRuntime;
     statusSink?: (event: unknown) => void;
   }) {
@@ -449,7 +449,7 @@ describe("BlueBubbles webhook monitor", () => {
           gateway: {
             trustedProxies: ["10.0.0.0/8"],
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       });
 
       let saw429 = false;
@@ -511,7 +511,7 @@ describe("BlueBubbles webhook monitor", () => {
             trustedProxies: ["10.0.0.0/8"],
             allowRealIpFallback: true,
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       });
 
       let saw429 = false;

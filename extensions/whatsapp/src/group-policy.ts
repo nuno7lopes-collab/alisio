@@ -3,10 +3,10 @@ import {
   resolveChannelGroupToolsPolicy,
   type GroupToolPolicyConfig,
 } from "alisio/plugin-sdk/channel-policy";
-import type { OpenClawConfig } from "./runtime-api.js";
+import type { AlisioConfig } from "./runtime-api.js";
 
 type WhatsAppGroupContext = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   groupId?: string | null;
   senderId?: string | null;

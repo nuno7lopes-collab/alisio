@@ -127,7 +127,7 @@ export { isPrivateOrLoopbackHost } from "../../gateway/net.js";
 export { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
 export { emptyPluginConfigSchema } from "../config-schema.js";
 export type { PluginRuntime, RuntimeLogger } from "./types.js";
-export type { OpenClawPluginApi } from "../types.js";
+export type { AlisioPluginApi } from "../types.js";
 export type { PollInput } from "../../polls.js";
 export { normalizePollInput } from "../../polls.js";
 export {
@@ -170,7 +170,7 @@ export {
 const matrixSetup = createOptionalChannelSetupSurface({
   channel: "matrix",
   label: "Matrix",
-  npmSpec: "@openclaw/matrix",
+  npmSpec: "@alisio/matrix",
   docsPath: "/channels/matrix",
 });
 

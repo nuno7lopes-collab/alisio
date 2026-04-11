@@ -16,7 +16,7 @@ afterEach(async () => {
 
 describe("prepareCliBundleMcpConfig", () => {
   it("injects a strict empty --mcp-config overlay for bundle-MCP-enabled backends without servers", async () => {
-    const workspaceDir = await tempHarness.createTempDir("openclaw-cli-bundle-mcp-empty-");
+    const workspaceDir = await tempHarness.createTempDir("alisio-cli-bundle-mcp-empty-");
 
     const prepared = await prepareCliBundleMcpConfig({
       enabled: true,
@@ -44,8 +44,8 @@ describe("prepareCliBundleMcpConfig", () => {
   it("injects a merged --mcp-config overlay for bundle-MCP-enabled backends", async () => {
     const env = captureEnv(["HOME"]);
     try {
-      const homeDir = await tempHarness.createTempDir("openclaw-cli-bundle-mcp-home-");
-      const workspaceDir = await tempHarness.createTempDir("openclaw-cli-bundle-mcp-workspace-");
+      const homeDir = await tempHarness.createTempDir("alisio-cli-bundle-mcp-home-");
+      const workspaceDir = await tempHarness.createTempDir("alisio-cli-bundle-mcp-workspace-");
       process.env.HOME = homeDir;
 
       const { serverPath } = await createBundleProbePlugin(homeDir);
@@ -92,7 +92,7 @@ describe("prepareCliBundleMcpConfig", () => {
         command: "node",
         args: ["./fake-cli.mjs"],
       },
-      workspaceDir: "/tmp/openclaw-bundle-mcp-disabled",
+      workspaceDir: "/tmp/alisio-bundle-mcp-disabled",
     });
 
     expect(prepared.backend.args).toEqual(["./fake-cli.mjs"]);

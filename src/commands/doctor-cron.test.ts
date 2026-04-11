@@ -9,7 +9,7 @@ import { maybeRepairLegacyCronStore } from "./doctor-cron.js";
 let tempRoot: string | null = null;
 
 async function makeTempStorePath() {
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-doctor-cron-"));
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-doctor-cron-"));
   return path.join(tempRoot, "cron", "jobs.json");
 }
 

@@ -419,6 +419,6 @@ export async function tasksMaintenanceCommand(
     );
   }
   if (!opts.apply) {
-    runtime.log("Dry run only. Re-run with `openclaw tasks maintenance --apply` to write changes.");
+    runtime.log("Dry run only. Re-run with `alisio tasks maintenance --apply` to write changes.");
   }
 }

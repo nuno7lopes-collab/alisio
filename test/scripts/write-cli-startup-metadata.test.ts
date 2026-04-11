@@ -28,18 +28,18 @@ describe("write-cli-startup-metadata", () => {
       [
         "export async function outputRootHelp() {",
         "  await Promise.resolve();",
-        "  process.stdout.write('OpenClaw help\\n');",
+        "  process.stdout.write('Alisio help\\n');",
         "}",
         "",
       ].join("\n"),
       "utf8",
     );
 
-    await expect(renderBundledRootHelpText(distDir)).resolves.toBe("OpenClaw help\n");
+    await expect(renderBundledRootHelpText(distDir)).resolves.toBe("Alisio help\n");
   });
 
   it("writes startup metadata with populated root help text", async () => {
-    const tempRoot = createTempDir("openclaw-startup-metadata-");
+    const tempRoot = createTempDir("alisio-startup-metadata-");
     tempDirs.push(tempRoot);
     const distDir = path.join(tempRoot, "dist");
     const extensionsDir = path.join(tempRoot, "extensions");
@@ -49,13 +49,13 @@ describe("write-cli-startup-metadata", () => {
     mkdirSync(path.join(extensionsDir, "matrix"), { recursive: true });
     writeFileSync(
       path.join(distDir, "root-help-fixture.js"),
-      "export async function outputRootHelp() { process.stdout.write('Usage: openclaw\\n'); }\n",
+      "export async function outputRootHelp() { process.stdout.write('Usage: alisio\\n'); }\n",
       "utf8",
     );
     writeFileSync(
       path.join(extensionsDir, "matrix", "package.json"),
       JSON.stringify({
-        openclaw: {
+        alisio: {
           channel: {
             id: "matrix",
             order: 120,
@@ -73,6 +73,6 @@ describe("write-cli-startup-metadata", () => {
       rootHelpText: string;
     };
     expect(written.channelOptions).toContain("matrix");
-    expect(written.rootHelpText).toBe("Usage: openclaw\n");
+    expect(written.rootHelpText).toBe("Usage: alisio\n");
   });
 });

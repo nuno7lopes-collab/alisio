@@ -36,7 +36,7 @@ docker run --rm \
     entry=dist/index.mjs
     [ -f \"\$entry\" ] || entry=dist/index.js
     node --import tsx scripts/e2e/mcp-channels-seed.ts >/tmp/mcp-channels-seed.log
-    node \"\$entry\" gateway --port $PORT --bind loopback --allow-unconfigured >/tmp/mcp-channels-gateway.log 2>&1 &
+    node \"\$entry\" gateway run --port $PORT --bind loopback --allow-unconfigured >/tmp/mcp-channels-gateway.log 2>&1 &
     gateway_pid=\$!
     cleanup_inner() {
       kill \"\$gateway_pid\" >/dev/null 2>&1 || true

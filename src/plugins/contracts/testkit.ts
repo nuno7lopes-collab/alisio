@@ -2,7 +2,7 @@ import type { AlisioConfig } from "../../config/config.js";
 import { createPluginRegistry, type PluginRecord } from "../registry.js";
 import type { PluginRuntime } from "../runtime/types.js";
 import { createPluginRecord } from "../status.test-helpers.js";
-import type { OpenClawPluginApi } from "../types.js";
+import type { AlisioPluginApi } from "../types.js";
 
 export {
   registerProviderPlugins as registerProviders,
@@ -32,7 +32,7 @@ export function registerTestPlugin(params: {
   registry: ReturnType<typeof createPluginRegistry>;
   config: AlisioConfig;
   record: PluginRecord;
-  register(api: OpenClawPluginApi): void;
+  register(api: AlisioPluginApi): void;
 }) {
   params.registry.registry.plugins.push(params.record);
   params.register(
@@ -49,7 +49,7 @@ export function registerVirtualTestPlugin(params: {
   name: string;
   source?: string;
   kind?: PluginRecord["kind"];
-  register(this: void, api: OpenClawPluginApi): void;
+  register(this: void, api: AlisioPluginApi): void;
 }) {
   registerTestPlugin({
     registry: params.registry,

@@ -2,6 +2,6 @@ import { describeChannelCatalogEntryContract } from "../../test/helpers/channels
 
 describeChannelCatalogEntryContract({
   channelId: "msteams",
-  npmSpec: "@openclaw/msteams",
+  npmSpec: "@alisio/msteams",
   alias: "teams",
 });

@@ -14,7 +14,7 @@ describe("formatAuthDoctorHint", () => {
       provider: "qwen-portal",
     });
 
-    expect(hint).toContain("openclaw onboard --auth-choice modelstudio-api-key");
+    expect(hint).toContain("alisio onboard --auth-choice modelstudio-api-key");
     expect(hint).toContain("modelstudio-api-key-cn");
     expect(hint).not.toContain("--provider modelstudio");
   });

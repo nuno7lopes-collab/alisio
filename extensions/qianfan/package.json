@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/qianfan-provider",
+  "name": "@alisio/qianfan-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Qianfan provider plugin",
+  "description": "Alisio Qianfan provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

@@ -3,11 +3,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import type { AlisioConfig } from "../config/config.js";
 import { DEFAULT_GATEWAY_PORT } from "../config/paths.js";
+import { type AlisioRuntimeSetupState } from "../infra/alisio-runtime.js";
 import {
-  resolveAlisioRuntimeProviderReady,
-  type AlisioRuntimeSetupState,
-} from "../infra/alisio-runtime.js";
-import { hasRestorableAlisioAccount, loadAlisioBootstrapState } from "../infra/alisio-store.js";
+  hasRestorableAlisioAccount,
+  loadStoredAlisioBootstrapState,
+} from "../infra/alisio-store.js";
 import { matchBoundaryFileOpenFailure, openBoundaryFileSync } from "../infra/boundary-file-read.js";
 import {
   isPackageProvenControlUiRootSync,
@@ -198,10 +198,9 @@ export async function handleAlisioBootstrapHttpRequest(
   }
 
   const runtimeSetup = await opts.loadRuntimeSetup();
-  const providerReady = resolveAlisioRuntimeProviderReady(runtimeSetup);
-  const { snapshot, summary } = await loadAlisioBootstrapState({
+  const { snapshot, summary } = await loadStoredAlisioBootstrapState({
     wizardRunning: false,
-    providerReady,
+    providerReady: runtimeSetup.providerReady,
     connectionRequired: false,
   });
   const account = snapshot.account;

@@ -69,8 +69,8 @@ This repository has three public release lanes:
 
 ## Public references
 
-- [`.github/workflows/alisio-npm-release.yml`](https://github.com/nuno7lopes-collab/lume/blob/main/.github/workflows/alisio-npm-release.yml)
-- [`.github/workflows/macos-release.yml`](https://github.com/nuno7lopes-collab/lume/blob/main/.github/workflows/macos-release.yml)
-- [`scripts/alisio-npm-release-check.ts`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/alisio-npm-release-check.ts)
-- [`scripts/package-mac-dist.sh`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/package-mac-dist.sh)
-- [`scripts/make_appcast.sh`](https://github.com/nuno7lopes-collab/lume/blob/main/scripts/make_appcast.sh)
+- `.github/workflows/alisio-npm-release.yml`
+- `.github/workflows/macos-release.yml`
+- `scripts/alisio-npm-release-check.ts`
+- `scripts/package-mac-dist.sh`
+- `scripts/make_appcast.sh`

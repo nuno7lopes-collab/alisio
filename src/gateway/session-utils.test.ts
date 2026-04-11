@@ -196,7 +196,7 @@ describe("gateway session utils", () => {
   test("resolveGatewaySessionStoreTarget uses canonical key for main alias", () => {
     const storeTemplate = path.join(
       os.tmpdir(),
-      "openclaw-session-utils",
+      "alisio-session-utils",
       "{agentId}",
       "sessions.json",
     );
@@ -535,7 +535,7 @@ describe("gateway session utils", () => {
   });
 
   test("listAgentsForGateway keeps explicit agents.list scope over disk-only agents (scope boundary)", async () => {
-    await withStateDirEnv("openclaw-agent-list-scope-", async ({ stateDir }) => {
+    await withStateDirEnv("alisio-agent-list-scope-", async ({ stateDir }) => {
       fs.mkdirSync(path.join(stateDir, "agents", "main"), { recursive: true });
       fs.mkdirSync(path.join(stateDir, "agents", "codex"), { recursive: true });
 
@@ -1123,7 +1123,7 @@ describe("listSessionsFromStore search", () => {
   });
 
   test("prefers persisted estimated session cost from the store", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-store-cost-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-store-cost-"));
     const storePath = path.join(tmpDir, "sessions.json");
     fs.writeFileSync(
       path.join(tmpDir, "sess-main.jsonl"),
@@ -1212,7 +1212,7 @@ describe("listSessionsFromStore search", () => {
   });
 
   test("falls back to transcript usage for totalTokens and zero estimatedCostUsd", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-zero-cost-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-zero-cost-"));
     const storePath = path.join(tmpDir, "sessions.json");
     fs.writeFileSync(
       path.join(tmpDir, "sess-main.jsonl"),
@@ -1265,7 +1265,7 @@ describe("listSessionsFromStore search", () => {
   });
 
   test("falls back to transcript usage for totalTokens and estimatedCostUsd, and derives contextTokens from the resolved model", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-"));
     const storePath = path.join(tmpDir, "sessions.json");
     const cfg = {
       session: { mainKey: "main" },
@@ -1330,7 +1330,7 @@ describe("listSessionsFromStore search", () => {
   });
 
   test("uses subagent run model immediately for child sessions while transcript usage fills live totals", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-subagent-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-subagent-"));
     const storePath = path.join(tmpDir, "sessions.json");
     const now = Date.now();
     const cfg = {
@@ -1411,7 +1411,7 @@ describe("listSessionsFromStore search", () => {
 
   test("keeps a running subagent model when transcript fallback still reflects an older run", () => {
     const tmpDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "openclaw-session-utils-subagent-stale-model-"),
+      path.join(os.tmpdir(), "alisio-session-utils-subagent-stale-model-"),
     );
     const storePath = path.join(tmpDir, "sessions.json");
     const now = Date.now();
@@ -1491,7 +1491,7 @@ describe("listSessionsFromStore search", () => {
 
   test("keeps the selected override model when runtime identity was intentionally cleared", () => {
     const tmpDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "openclaw-session-utils-cleared-runtime-model-"),
+      path.join(os.tmpdir(), "alisio-session-utils-cleared-runtime-model-"),
     );
     const storePath = path.join(tmpDir, "sessions.json");
     const now = Date.now();
@@ -1557,7 +1557,7 @@ describe("listSessionsFromStore search", () => {
   });
 
   test("does not replace the current runtime model when transcript fallback is only for missing pricing", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-pricing-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-pricing-"));
     const storePath = path.join(tmpDir, "sessions.json");
     const now = Date.now();
     const cfg = {
@@ -2199,7 +2199,7 @@ describe("listSessionsFromStore subagent metadata", () => {
   });
 
   test("uses persisted active subagent runs when the local worker only has terminal snapshots", async () => {
-    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-session-utils-subagent-"));
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-session-utils-subagent-"));
     const stateDir = path.join(tempRoot, "state");
     fs.mkdirSync(stateDir, { recursive: true });
     try {
@@ -2245,8 +2245,8 @@ describe("listSessionsFromStore subagent metadata", () => {
 
       const row = withEnv(
         {
-          OPENCLAW_STATE_DIR: stateDir,
-          OPENCLAW_TEST_READ_SUBAGENT_RUNS_FROM_DISK: "1",
+          ALISIO_STATE_DIR: stateDir,
+          ALISIO_TEST_READ_SUBAGENT_RUNS_FROM_DISK: "1",
         },
         () => {
           const result = listSessionsFromStore({
@@ -2404,7 +2404,7 @@ describe("listSessionsFromStore subagent metadata", () => {
 
 describe("loadCombinedSessionStoreForGateway includes disk-only agents (#32804)", () => {
   test("ACP agent sessions are visible even when agents.list is configured", async () => {
-    await withStateDirEnv("openclaw-acp-vis-", async ({ stateDir }) => {
+    await withStateDirEnv("alisio-acp-vis-", async ({ stateDir }) => {
       const customRoot = path.join(stateDir, "custom-state");
       const agentsDir = path.join(customRoot, "agents");
       const mainDir = path.join(agentsDir, "main", "sessions");

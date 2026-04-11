@@ -53,10 +53,9 @@ function resolveDefaultModelValue(state: ChatModelSelectStateInput): string {
   );
 }
 
-function buildChatModelOptions(
+export function buildChatModelOptions(
   catalog: ModelCatalogEntry[],
-  currentOverride: string,
-  defaultModel: string,
+  extraValues: string[] = [],
 ): ChatModelSelectOption[] {
   const seen = new Set<string>();
   const options: ChatModelSelectOption[] = [];
@@ -79,11 +78,8 @@ function buildChatModelOptions(
     addOption(option.value, option.label);
   }
 
-  if (currentOverride) {
-    addOption(currentOverride);
-  }
-  if (defaultModel) {
-    addOption(defaultModel);
+  for (const value of extraValues) {
+    addOption(value);
   }
   return options;
 }
@@ -100,6 +96,6 @@ export function resolveChatModelSelectState(
     defaultModel,
     defaultDisplay,
     defaultLabel: defaultModel ? `Default (${defaultDisplay})` : "Default model",
-    options: buildChatModelOptions(state.chatModelCatalog ?? [], currentOverride, defaultModel),
+    options: buildChatModelOptions(state.chatModelCatalog ?? [], [currentOverride, defaultModel]),
   };
 }

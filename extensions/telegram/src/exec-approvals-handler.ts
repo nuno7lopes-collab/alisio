@@ -6,7 +6,7 @@ import {
   type ExecApprovalRequest,
   type ExecApprovalResolved,
 } from "alisio/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { GatewayClient } from "alisio/plugin-sdk/gateway-runtime";
 import { createOperatorApprovalsGatewayClient } from "alisio/plugin-sdk/gateway-runtime";
 import type { EventFrame } from "alisio/plugin-sdk/gateway-runtime";
@@ -42,7 +42,7 @@ type TelegramApprovalTarget = {
 export type TelegramExecApprovalHandlerOpts = {
   token: string;
   accountId: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   gatewayUrl?: string;
   runtime?: RuntimeEnv;
 };
@@ -55,7 +55,7 @@ export type TelegramExecApprovalHandlerDeps = {
 };
 
 function matchesFilters(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   request: ExecApprovalRequest;
 }): boolean {
@@ -100,7 +100,7 @@ function matchesFilters(params: {
   return true;
 }
 
-function isHandlerConfigured(params: { cfg: OpenClawConfig; accountId: string }): boolean {
+function isHandlerConfigured(params: { cfg: AlisioConfig; accountId: string }): boolean {
   const config = resolveTelegramExecApprovalConfig({
     cfg: params.cfg,
     accountId: params.accountId,
@@ -117,7 +117,7 @@ function isHandlerConfigured(params: { cfg: OpenClawConfig; accountId: string })
 }
 
 function resolveRequestSessionTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   request: ExecApprovalRequest;
 }): { to: string; accountId?: string; threadId?: number; channel?: string } | null {
   return resolveExecApprovalSessionTarget({
@@ -131,7 +131,7 @@ function resolveRequestSessionTarget(params: {
 }
 
 function resolveTelegramSourceTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   request: ExecApprovalRequest;
 }): TelegramApprovalTarget | null {

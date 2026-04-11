@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEGACY_PROJECT_NAMES, PROJECT_NAME } from "../compat/legacy-names.js";
+import { PROJECT_NAME } from "../compat/legacy-names.js";
 import { resolveAlisioPackageRootSync } from "../infra/alisio-root.js";
 
 type PluginSdkAliasCandidateKind = "dist" | "src";
@@ -62,13 +62,9 @@ function hasTrustedProjectRootIndicator(params: {
   const hasCliEntryExport = Object.prototype.hasOwnProperty.call(packageExports, "./cli-entry");
   const bin = params.packageJson.bin;
   const hasKnownCliBin =
-    (typeof bin === "string" && /(alisio|openclaw)/.test(bin.toLowerCase())) ||
-    (typeof bin === "object" &&
-      bin !== null &&
-      (typeof bin.alisio === "string" || typeof bin.openclaw === "string"));
-  const hasKnownCliEntrypoint =
-    fs.existsSync(path.join(params.packageRoot, "alisio.mjs")) ||
-    fs.existsSync(path.join(params.packageRoot, "openclaw.mjs"));
+    (typeof bin === "string" && /alisio/.test(bin.toLowerCase())) ||
+    (typeof bin === "object" && bin !== null && typeof bin.alisio === "string");
+  const hasKnownCliEntrypoint = fs.existsSync(path.join(params.packageRoot, "alisio.mjs"));
   return hasCliEntryExport || hasKnownCliBin || hasKnownCliEntrypoint;
 }
 
@@ -249,12 +245,8 @@ export function resolvePluginSdkAliasFile(params: {
 
 const cachedPluginSdkExportedSubpaths = new Map<string, string[]>();
 const cachedPluginSdkScopedAliasMaps = new Map<string, Record<string, string>>();
-const PLUGIN_SDK_PACKAGE_SPECIFIERS = [PROJECT_NAME, ...LEGACY_PROJECT_NAMES].map(
-  (projectName) => `${projectName}/plugin-sdk`,
-);
-const EXTENSION_API_SPECIFIERS = [PROJECT_NAME, ...LEGACY_PROJECT_NAMES].map(
-  (projectName) => `${projectName}/extension-api`,
-);
+const PLUGIN_SDK_PACKAGE_SPECIFIERS = [`${PROJECT_NAME}/plugin-sdk`];
+const EXTENSION_API_SPECIFIERS = [`${PROJECT_NAME}/extension-api`];
 
 export function listPluginSdkExportedSubpaths(
   params: {

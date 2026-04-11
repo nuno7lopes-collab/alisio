@@ -6,7 +6,7 @@ import {
   type MessagePayloadObject,
   type TopLevelComponents,
 } from "@buape/carbon";
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { buildOutboundMediaLoadOptions } from "alisio/plugin-sdk/media-runtime";
 import { extensionForMime } from "alisio/plugin-sdk/media-runtime";
 import {
@@ -86,7 +86,7 @@ function parseRecipient(raw: string): DiscordRecipient {
 export async function parseAndResolveRecipient(
   raw: string,
   accountId?: string,
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
 ): Promise<DiscordRecipient> {
   const resolvedCfg = cfg ?? loadConfig();
   const accountInfo = resolveDiscordAccount({ cfg: resolvedCfg, accountId });

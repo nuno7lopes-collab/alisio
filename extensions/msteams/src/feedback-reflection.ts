@@ -10,10 +10,7 @@
  * 6. Optionally sends a proactive follow-up to the user
  */
 
-import {
-  dispatchReplyFromConfigWithSettledDispatcher,
-  type OpenClawConfig,
-} from "../runtime-api.js";
+import { dispatchReplyFromConfigWithSettledDispatcher, type AlisioConfig } from "../runtime-api.js";
 import type { StoredConversationReference } from "./conversation-store.js";
 import { buildReflectionPrompt, parseReflectionResponse } from "./feedback-reflection-prompt.js";
 import {
@@ -64,7 +61,7 @@ export function buildFeedbackEvent(params: {
 }
 
 export type RunFeedbackReflectionParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   adapter: MSTeamsAdapter;
   appId: string;
   conversationRef: StoredConversationReference;
@@ -78,7 +75,7 @@ export type RunFeedbackReflectionParams = {
 };
 
 function buildReflectionContext(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   conversationId: string;
   sessionKey: string;
   reflectionPrompt: string;
@@ -116,7 +113,7 @@ function buildReflectionContext(params: {
 }
 
 function createReflectionCaptureDispatcher(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   log: MSTeamsMonitorLogger;
 }) {

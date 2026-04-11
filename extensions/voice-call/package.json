@@ -1,7 +1,7 @@
 {
-  "name": "@openclaw/voice-call",
+  "name": "@alisio/voice-call",
   "version": "2026.3.30",
-  "description": "OpenClaw voice-call plugin",
+  "description": "Alisio voice-call plugin",
   "type": "module",
   "dependencies": {
     "@sinclair/typebox": "0.34.49",
@@ -9,17 +9,17 @@
     "ws": "^8.20.0"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],

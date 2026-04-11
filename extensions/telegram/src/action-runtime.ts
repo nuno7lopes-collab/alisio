@@ -9,7 +9,7 @@ import {
   readStringOrNumberParam,
   readStringParam,
   resolvePollMaxSelections,
-  type OpenClawConfig,
+  type AlisioConfig,
   type TelegramActionConfig,
 } from "alisio/plugin-sdk/telegram-core";
 import { createTelegramActionGate, resolveTelegramPollActionGateState } from "./accounts.js";
@@ -211,7 +211,7 @@ function readTelegramSendContent(params: {
 
 export async function handleTelegramAction(
   params: Record<string, unknown>,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   options?: {
     mediaLocalRoots?: readonly string[];
   },

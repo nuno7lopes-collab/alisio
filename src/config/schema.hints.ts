@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import type { ConfigUiHints } from "../shared/config-ui-hints-types.js";
+import { DEFAULT_GATEWAY_PORT } from "../shared/gateway-defaults.js";
 import {
   isSensitiveUrlConfigPath,
   SENSITIVE_URL_HINT_TAG,
@@ -80,7 +81,7 @@ const GROUP_ORDER: Record<string, number> = {
 };
 
 const FIELD_PLACEHOLDERS: Record<string, string> = {
-  "gateway.remote.url": "ws://host:40705",
+  "gateway.remote.url": `ws://host:${DEFAULT_GATEWAY_PORT}`,
   "gateway.remote.tlsFingerprint": "sha256:ab12cd34…",
   "gateway.remote.sshTarget": "user@host",
   "gateway.controlUi.basePath": "/alisio",

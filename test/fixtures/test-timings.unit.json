@@ -79,10 +79,6 @@
       "durationMs": 853.270263671875,
       "testCount": 2
     },
-    "src/memory/embeddings-ollama.test.ts": {
-      "durationMs": 841.48876953125,
-      "testCount": 4
-    },
     "src/secrets/audit.test.ts": {
       "durationMs": 828.3154296875,
       "testCount": 18

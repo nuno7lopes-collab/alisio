@@ -6,7 +6,7 @@ import AlisioSupport
 extension OnboardingView {
     var body: some View {
         VStack(spacing: 0) {
-            LumeOnboardingIcon()
+            AlisioOnboardingIcon()
                 .offset(y: 10)
                 .frame(height: 145)
 
@@ -234,7 +234,7 @@ extension OnboardingView {
         .padding(.vertical, 4)
     }
 
-    private var lumeOnboardingStep: LumeOnboardingState.Step {
+    private var alisioOnboardingStep: AlisioOnboardingState.Step {
         switch self.activePageIndex {
         case 1:
             .gateway
@@ -251,7 +251,7 @@ extension OnboardingView {
 
     func syncShellOnboardingState() {
         guard let shellOnboarding = self.shellOnboarding else { return }
-        shellOnboarding.currentStep = self.lumeOnboardingStep
+        shellOnboarding.currentStep = self.alisioOnboardingStep
         shellOnboarding.selectedGateway = switch self.state.connectionMode {
         case .local: .local
         case .remote: .remote

@@ -32,7 +32,6 @@ export type {
   GroupToolPolicyConfig,
   MarkdownConfig,
   AlisioConfig,
-  AlisioConfig as OpenClawConfig,
   OutboundReplyPayload,
   PluginRuntime,
   RuntimeEnv,

@@ -1,25 +1,16 @@
 import { createRequire } from "node:module";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
-const LEGACY_CORE_PACKAGE_NAME = "open\u0063law" as const;
-
-export const CORE_PACKAGE_NAME = LEGACY_CORE_PACKAGE_NAME;
-export const PUBLIC_PACKAGE_NAME = "alisio";
-const LEGACY_REPO_NWO = `${CORE_PACKAGE_NAME}/${CORE_PACKAGE_NAME}`;
-const PUBLIC_REPO_NWO = `${PUBLIC_PACKAGE_NAME}/${PUBLIC_PACKAGE_NAME}`;
-const LEGACY_MAIN_PACKAGE_SPEC = `github:${LEGACY_REPO_NWO}#main`;
-const LEGACY_GIT_REPO_URL = `https://github.com/${LEGACY_REPO_NWO}.git`;
-const LEGACY_REGISTRY_PACKAGE_NAME = CORE_PACKAGE_NAME;
-const LEGACY_REGISTRY_INSTALL_PREFIX = `${CORE_PACKAGE_NAME}@`;
-export const ALISIO_MAIN_PACKAGE_SPEC = `github:${PUBLIC_REPO_NWO}#main`;
-export const ALISIO_GIT_REPO_URL = `https://github.com/${PUBLIC_REPO_NWO}.git`;
+export const CORE_PACKAGE_NAME = "alisio" as const;
+export const PUBLIC_PACKAGE_NAME = CORE_PACKAGE_NAME;
+const REPO_NWO = `${CORE_PACKAGE_NAME}/${CORE_PACKAGE_NAME}`;
+export const ALISIO_MAIN_PACKAGE_SPEC = `github:${REPO_NWO}#main`;
+export const ALISIO_GIT_REPO_URL = `https://github.com/${REPO_NWO}.git`;
 export const ALISIO_REGISTRY_PACKAGE_NAME = PUBLIC_PACKAGE_NAME;
-// Keep the globally installed CLI on the public alias so in-place npm upgrades target the
-// `alisio` command consistently.
-export const ALISIO_REGISTRY_INSTALL_PREFIX = `${PUBLIC_PACKAGE_NAME}@npm:${PUBLIC_PACKAGE_NAME}@`;
+export const ALISIO_REGISTRY_INSTALL_PREFIX = `${PUBLIC_PACKAGE_NAME}@`;
 
-const KNOWN_DISTRIBUTIONS = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
-const KNOWN_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
+const KNOWN_DISTRIBUTIONS = new Set<string>([CORE_PACKAGE_NAME]);
+const KNOWN_PACKAGE_NAMES = new Set<string>([CORE_PACKAGE_NAME]);
 
 const PACKAGE_JSON_CANDIDATES = [
   "../../package.json",
@@ -35,8 +26,7 @@ const BUILD_INFO_CANDIDATES = [
   "../../build-info.json",
 ] as const;
 
-const LEGACY_DISTRIBUTION_ID = "open\u0063law" as const;
-export type DistributionId = typeof LEGACY_DISTRIBUTION_ID | "alisio";
+export type DistributionId = typeof CORE_PACKAGE_NAME;
 
 type DistributionBuildInfo = {
   distribution?: unknown;
@@ -100,7 +90,7 @@ function readBuildInfoForModuleUrl(moduleUrl: string): DistributionBuildInfo | n
 function readDistributionEnv(env: NodeJS.ProcessEnv): string | undefined {
   return readEnv("ALISIO_DISTRIBUTION", {
     env,
-    fallback: legacyEnvKey("DISTRIBUTION"),
+    fallback: runtimeEnvKey("DISTRIBUTION"),
     description: "distribution id",
   });
 }
@@ -112,7 +102,7 @@ function readUpdateEnv(
 ): string | undefined {
   return readEnv(`ALISIO_UPDATE_${suffix}`, {
     env,
-    fallback: legacyEnvKey(`UPDATE_${suffix}`),
+    fallback: runtimeEnvKey(`UPDATE_${suffix}`),
     description,
   });
 }
@@ -138,21 +128,12 @@ function resolveConfiguredUpdateField(
   return normalizeString(envValue) ?? normalizeString(buildValue);
 }
 
-function resolveDefaultUpdateSourceConfig(distribution: DistributionId) {
-  if (distribution === PUBLIC_PACKAGE_NAME) {
-    return {
-      registryPackageName: ALISIO_REGISTRY_PACKAGE_NAME,
-      registryInstallPrefix: ALISIO_REGISTRY_INSTALL_PREFIX,
-      mainPackageSpec: ALISIO_MAIN_PACKAGE_SPEC,
-      gitRepoUrl: ALISIO_GIT_REPO_URL,
-    };
-  }
-
+function resolveDefaultUpdateSourceConfig(_distribution: DistributionId) {
   return {
-    registryPackageName: LEGACY_REGISTRY_PACKAGE_NAME,
-    registryInstallPrefix: LEGACY_REGISTRY_INSTALL_PREFIX,
-    mainPackageSpec: LEGACY_MAIN_PACKAGE_SPEC,
-    gitRepoUrl: LEGACY_GIT_REPO_URL,
+    registryPackageName: ALISIO_REGISTRY_PACKAGE_NAME,
+    registryInstallPrefix: ALISIO_REGISTRY_INSTALL_PREFIX,
+    mainPackageSpec: ALISIO_MAIN_PACKAGE_SPEC,
+    gitRepoUrl: ALISIO_GIT_REPO_URL,
   };
 }
 

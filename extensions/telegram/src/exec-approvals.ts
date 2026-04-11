@@ -1,6 +1,6 @@
 import { getExecApprovalReplyMetadata } from "alisio/plugin-sdk/approval-runtime";
 import { resolveApprovalApprovers } from "alisio/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { TelegramExecApprovalConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
 import { normalizeAccountId } from "alisio/plugin-sdk/routing";
@@ -22,14 +22,14 @@ function normalizeTelegramDirectApproverId(value: string | number): string | und
 }
 
 export function resolveTelegramExecApprovalConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): TelegramExecApprovalConfig | undefined {
   return resolveTelegramAccount(params).config.execApprovals;
 }
 
 export function getTelegramExecApprovalApprovers(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   const account = resolveTelegramAccount(params).config;
@@ -42,7 +42,7 @@ export function getTelegramExecApprovalApprovers(params: {
 }
 
 export function isTelegramExecApprovalClientEnabled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   const config = resolveTelegramExecApprovalConfig(params);
@@ -50,7 +50,7 @@ export function isTelegramExecApprovalClientEnabled(params: {
 }
 
 export function isTelegramExecApprovalApprover(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   senderId?: string | null;
 }): boolean {
@@ -62,7 +62,7 @@ export function isTelegramExecApprovalApprover(params: {
   return approvers.includes(senderId);
 }
 
-function isTelegramExecApprovalTargetsMode(cfg: OpenClawConfig): boolean {
+function isTelegramExecApprovalTargetsMode(cfg: AlisioConfig): boolean {
   const execApprovals = cfg.approvals?.exec;
   if (!execApprovals?.enabled) {
     return false;
@@ -71,7 +71,7 @@ function isTelegramExecApprovalTargetsMode(cfg: OpenClawConfig): boolean {
 }
 
 export function isTelegramExecApprovalTargetRecipient(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   senderId?: string | null;
   accountId?: string | null;
 }): boolean {
@@ -101,7 +101,7 @@ export function isTelegramExecApprovalTargetRecipient(params: {
 }
 
 export function isTelegramExecApprovalAuthorizedSender(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   senderId?: string | null;
 }): boolean {
@@ -109,14 +109,14 @@ export function isTelegramExecApprovalAuthorizedSender(params: {
 }
 
 export function resolveTelegramExecApprovalTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): "dm" | "channel" | "both" {
   return resolveTelegramExecApprovalConfig(params)?.target ?? "dm";
 }
 
 export function shouldInjectTelegramExecApprovalButtons(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   to: string;
 }): boolean {
@@ -135,7 +135,7 @@ export function shouldInjectTelegramExecApprovalButtons(params: {
 }
 
 function resolveExecApprovalButtonsExplicitlyDisabled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   const capabilities = resolveTelegramAccount(params).config.capabilities;
@@ -143,7 +143,7 @@ function resolveExecApprovalButtonsExplicitlyDisabled(params: {
 }
 
 export function shouldEnableTelegramExecApprovalButtons(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   to: string;
 }): boolean {
@@ -154,7 +154,7 @@ export function shouldEnableTelegramExecApprovalButtons(params: {
 }
 
 export function shouldSuppressLocalTelegramExecApprovalPrompt(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   payload: ReplyPayload;
 }): boolean {

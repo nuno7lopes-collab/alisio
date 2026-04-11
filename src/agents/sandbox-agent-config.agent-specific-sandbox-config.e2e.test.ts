@@ -104,7 +104,7 @@ function createWorkSetupCommandConfig(scope: "agent" | "shared"): AlisioConfig {
       list: [
         {
           id: "work",
-          workspace: "~/openclaw-work",
+          workspace: "~/alisio-work",
           sandbox: {
             mode: "all",
             scope,
@@ -139,13 +139,13 @@ describe("Agent-specific sandbox config", () => {
           sandbox: {
             mode: "all",
             scope: "agent",
-            workspaceRoot: "~/.openclaw/sandboxes",
+            workspaceRoot: "~/.alisio/sandboxes",
           },
         },
         list: [
           {
             id: "isolated",
-            workspace: "~/openclaw-isolated",
+            workspace: "~/alisio-isolated",
             sandbox: {
               mode: "all",
               scope: "agent",
@@ -174,14 +174,14 @@ describe("Agent-specific sandbox config", () => {
         list: [
           {
             id: "main",
-            workspace: "~/openclaw",
+            workspace: "~/alisio",
             sandbox: {
               mode: "off",
             },
           },
           {
             id: "family",
-            workspace: "~/openclaw-family",
+            workspace: "~/alisio-family",
             sandbox: {
               mode: "all",
               scope: "agent",
@@ -241,7 +241,7 @@ describe("Agent-specific sandbox config", () => {
         list: [
           {
             id: "main",
-            workspace: "~/openclaw",
+            workspace: "~/alisio",
           },
         ],
       },
@@ -291,7 +291,7 @@ describe("Agent-specific sandbox config", () => {
         list: [
           {
             id: "work",
-            workspace: "~/openclaw-work",
+            workspace: "~/alisio-work",
             sandbox: {
               mode: "all",
               scope: "agent",
@@ -324,7 +324,7 @@ describe("Agent-specific sandbox config", () => {
             list: [
               {
                 id: "main",
-                workspace: "~/openclaw",
+                workspace: "~/alisio",
                 sandbox: {
                   mode: "off",
                 },
@@ -349,7 +349,7 @@ describe("Agent-specific sandbox config", () => {
             list: [
               {
                 id: "family",
-                workspace: "~/openclaw-family",
+                workspace: "~/alisio-family",
                 sandbox: {
                   mode: "all",
                   scope: "agent",
@@ -385,7 +385,7 @@ describe("Agent-specific sandbox config", () => {
         list: [
           {
             id: "work",
-            workspace: "~/openclaw-work",
+            workspace: "~/alisio-work",
             sandbox: {
               mode: "all",
               scope: "agent",

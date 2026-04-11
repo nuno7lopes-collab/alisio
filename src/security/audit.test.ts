@@ -24,9 +24,9 @@ const pathResolutionEnvKeys = [
   "USERPROFILE",
   "HOMEDRIVE",
   "HOMEPATH",
-  "OPENCLAW_HOME",
-  "OPENCLAW_STATE_DIR",
-  "OPENCLAW_BUNDLED_PLUGINS_DIR",
+  "ALISIO_HOME",
+  "ALISIO_STATE_DIR",
+  "ALISIO_BUNDLED_PLUGINS_DIR",
 ] as const;
 const execDockerRawUnavailable: NonNullable<SecurityAuditOptions["execDockerRawFn"]> = async () => {
   return {
@@ -321,7 +321,7 @@ async function runInstallMetadataAudit(
     includeFilesystem: true,
     includeChannelSecurity: false,
     stateDir,
-    configPath: path.join(stateDir, "openclaw.json"),
+    configPath: path.join(stateDir, "alisio.json"),
     execDockerRawFn: execDockerRawUnavailable,
   });
 }
@@ -350,7 +350,7 @@ describe("security audit", () => {
     const tmp = await makeTmpDir(label);
     const stateDir = path.join(tmp, "state");
     await fs.mkdir(stateDir, { recursive: true, mode: 0o700 });
-    const configPath = path.join(stateDir, "openclaw.json");
+    const configPath = path.join(stateDir, "alisio.json");
     await fs.writeFile(configPath, "{}\n", "utf-8");
     if (!isWindows) {
       await fs.chmod(configPath, 0o600);
@@ -362,7 +362,7 @@ describe("security audit", () => {
     const credentialsDir = path.join(sharedChannelSecurityStateDir, "credentials");
     await fs.rm(credentialsDir, { recursive: true, force: true }).catch(() => undefined);
     await fs.mkdir(credentialsDir, { recursive: true, mode: 0o700 });
-    await withEnvAsync({ OPENCLAW_STATE_DIR: sharedChannelSecurityStateDir }, () =>
+    await withEnvAsync({ ALISIO_STATE_DIR: sharedChannelSecurityStateDir }, () =>
       fn(sharedChannelSecurityStateDir),
     );
   };
@@ -384,7 +384,7 @@ describe("security audit", () => {
       includeFilesystem: true,
       includeChannelSecurity: false,
       stateDir: sharedExtensionsStateDir,
-      configPath: path.join(sharedExtensionsStateDir, "openclaw.json"),
+      configPath: path.join(sharedExtensionsStateDir, "alisio.json"),
       execDockerRawFn: execDockerRawUnavailable,
     });
   };
@@ -400,7 +400,7 @@ describe("security audit", () => {
       path.join(pluginDir, "package.json"),
       JSON.stringify({
         name: "evil-plugin",
-        openclaw: { extensions: [".hidden/index.js"] },
+        alisio: { extensions: [".hidden/index.js"] },
       }),
     );
     await fs.writeFile(
@@ -430,9 +430,9 @@ description: test skill
   };
 
   beforeAll(async () => {
-    fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-security-audit-"));
+    fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-security-audit-"));
     isolatedHome = path.join(fixtureRoot, "home");
-    const isolatedEnv = createPathResolutionEnv(isolatedHome, { OPENCLAW_HOME: isolatedHome });
+    const isolatedEnv = createPathResolutionEnv(isolatedHome, { ALISIO_HOME: isolatedHome });
     for (const key of pathResolutionEnvKeys) {
       previousPathResolutionEnv[key] = process.env[key];
       const value = isolatedEnv[key];
@@ -505,8 +505,8 @@ description: test skill
         run: async () =>
           withEnvAsync(
             {
-              OPENCLAW_GATEWAY_TOKEN: undefined,
-              OPENCLAW_GATEWAY_PASSWORD: undefined,
+              ALISIO_GATEWAY_TOKEN: undefined,
+              ALISIO_GATEWAY_PASSWORD: undefined,
             },
             async () =>
               audit({
@@ -531,7 +531,7 @@ description: test skill
                   password: {
                     source: "env",
                     provider: "default",
-                    id: "OPENCLAW_GATEWAY_PASSWORD",
+                    id: "ALISIO_GATEWAY_PASSWORD",
                   },
                 },
               },
@@ -552,7 +552,7 @@ description: test skill
                 token: {
                   source: "env",
                   provider: "default",
-                  id: "OPENCLAW_GATEWAY_TOKEN",
+                  id: "ALISIO_GATEWAY_TOKEN",
                 },
               },
             },
@@ -834,7 +834,7 @@ description: test skill
     const riskyGlobalTrustedDirs =
       process.platform === "win32"
         ? [String.raw`C:\Users\ci-user\bin`, String.raw`C:\Users\ci-user\.local\bin`]
-        : ["/usr/local/bin", "/tmp/openclaw-safe-bins"];
+        : ["/usr/local/bin", "/tmp/alisio-safe-bins"];
     const cases = [
       {
         name: "warns for risky global and relative trusted dirs",
@@ -1097,7 +1097,7 @@ description: test skill
           const tmp = await makeTmpDir(testCase.label);
           const stateDir = path.join(tmp, "state");
           await fs.mkdir(stateDir, { recursive: true });
-          const configPath = path.join(stateDir, "openclaw.json");
+          const configPath = path.join(stateDir, "alisio.json");
           await fs.writeFile(configPath, "{}\n", "utf-8");
 
           return runSecurityAudit({
@@ -1133,21 +1133,19 @@ description: test skill
             execDockerRawFn: (async (args: string[]) => {
               if (args[0] === "ps") {
                 return {
-                  stdout: Buffer.from(
-                    "openclaw-sbx-browser-old\nopenclaw-sbx-browser-missing-hash\n",
-                  ),
+                  stdout: Buffer.from("alisio-sbx-browser-old\nalisio-sbx-browser-missing-hash\n"),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };
               }
-              if (args[0] === "inspect" && args.at(-1) === "openclaw-sbx-browser-old") {
+              if (args[0] === "inspect" && args.at(-1) === "alisio-sbx-browser-old") {
                 return {
                   stdout: Buffer.from("abc123\tepoch-v0\n"),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };
               }
-              if (args[0] === "inspect" && args.at(-1) === "openclaw-sbx-browser-missing-hash") {
+              if (args[0] === "inspect" && args.at(-1) === "alisio-sbx-browser-missing-hash") {
                 return {
                   stdout: Buffer.from("<no value>\t<no value>\n"),
                   stderr: Buffer.alloc(0),
@@ -1170,7 +1168,7 @@ description: test skill
           const staleEpoch = res.findings.find(
             (f) => f.checkId === "sandbox.browser_container.hash_epoch_stale",
           );
-          expect(staleEpoch?.detail).toContain("openclaw-sbx-browser-old");
+          expect(staleEpoch?.detail).toContain("alisio-sbx-browser-old");
         },
       },
       {
@@ -1210,19 +1208,19 @@ description: test skill
             execDockerRawFn: (async (args: string[]) => {
               if (args[0] === "ps") {
                 return {
-                  stdout: Buffer.from("openclaw-sbx-browser-exposed\n"),
+                  stdout: Buffer.from("alisio-sbx-browser-exposed\n"),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };
               }
-              if (args[0] === "inspect" && args.at(-1) === "openclaw-sbx-browser-exposed") {
+              if (args[0] === "inspect" && args.at(-1) === "alisio-sbx-browser-exposed") {
                 return {
                   stdout: Buffer.from("hash123\t2026-02-21-novnc-auth-default\n"),
                   stderr: Buffer.alloc(0),
                   code: 0,
                 };
               }
-              if (args[0] === "port" && args.at(-1) === "openclaw-sbx-browser-exposed") {
+              if (args[0] === "port" && args.at(-1) === "alisio-sbx-browser-exposed") {
                 return {
                   stdout: Buffer.from("6080/tcp -> 0.0.0.0:49101\n9222/tcp -> 127.0.0.1:49100\n"),
                   stderr: Buffer.alloc(0),
@@ -1295,11 +1293,11 @@ description: test skill
     const stateDir = path.join(tmp, "state");
     await fs.mkdir(stateDir, { recursive: true, mode: 0o700 });
 
-    const targetConfigPath = path.join(tmp, "managed-openclaw.json");
+    const targetConfigPath = path.join(tmp, "managed-alisio.json");
     await fs.writeFile(targetConfigPath, "{}\n", "utf-8");
     await fs.chmod(targetConfigPath, 0o444);
 
-    const configPath = path.join(stateDir, "openclaw.json");
+    const configPath = path.join(stateDir, "alisio.json");
     await fs.symlink(targetConfigPath, configPath);
 
     const res = await runSecurityAudit({
@@ -1377,7 +1375,7 @@ description: test skill
         .map((testCase) => ({
           run: async () => {
             const fixture = await testCase.setup();
-            const configPath = path.join(fixture.stateDir, "openclaw.json");
+            const configPath = path.join(fixture.stateDir, "alisio.json");
             await fs.writeFile(configPath, "{}\n", "utf-8");
             if (!isWindows) {
               await fs.chmod(configPath, 0o600);
@@ -1417,7 +1415,7 @@ description: test skill
       {
         name: "small model with web and browser enabled",
         cfg: {
-          agents: { defaults: { model: { primary: "ollama/mistral-8b" } } },
+          agents: { defaults: { model: { primary: "vllm/mistral-8b" } } },
           tools: { web: { search: { enabled: true }, fetch: { enabled: true } } },
           browser: { enabled: true },
         },
@@ -1428,7 +1426,7 @@ description: test skill
         name: "small model with sandbox all and web/browser disabled",
         cfg: {
           agents: {
-            defaults: { model: { primary: "ollama/mistral-8b" }, sandbox: { mode: "all" } },
+            defaults: { model: { primary: "vllm/mistral-8b" }, sandbox: { mode: "all" } },
           },
           tools: { web: { search: { enabled: false }, fetch: { enabled: false } } },
           browser: { enabled: false },
@@ -1725,7 +1723,7 @@ description: test skill
             password: {
               source: "env",
               provider: "default",
-              id: "OPENCLAW_GATEWAY_PASSWORD",
+              id: "ALISIO_GATEWAY_PASSWORD",
             },
           },
         },
@@ -3101,7 +3099,7 @@ description: test skill
           hooks: { enabled: true, token: "shared-gateway-token-1234567890" },
         } satisfies AlisioConfig,
         env: {
-          OPENCLAW_GATEWAY_TOKEN: "shared-gateway-token-1234567890",
+          ALISIO_GATEWAY_TOKEN: "shared-gateway-token-1234567890",
         },
         expectedFinding: "hooks.token_reuse_gateway_token",
         expectedSeverity: "critical" as const,
@@ -3261,8 +3259,8 @@ description: test skill
     const cfg: AlisioConfig = {};
 
     const res = await audit(cfg, {
-      stateDir: "/Users/test/Dropbox/.openclaw",
-      configPath: "/Users/test/Dropbox/.openclaw/openclaw.json",
+      stateDir: "/Users/test/Dropbox/.alisio",
+      configPath: "/Users/test/Dropbox/.alisio/alisio.json",
     });
 
     expectFinding(res, "fs.synced_dir", "warn");
@@ -3283,7 +3281,7 @@ description: test skill
       await fs.chmod(includePath, 0o644);
     }
 
-    const configPath = path.join(stateDir, "openclaw.json");
+    const configPath = path.join(stateDir, "alisio.json");
     await fs.writeFile(configPath, `{ "$include": "./extra.json5" }\n`, "utf-8");
     await fs.chmod(configPath, 0o600);
 
@@ -3340,7 +3338,7 @@ description: test skill
                 installs: {
                   "voice-call": {
                     source: "npm",
-                    spec: "@openclaw/voice-call",
+                    spec: "@alisio/voice-call",
                   },
                 },
               },
@@ -3349,7 +3347,7 @@ description: test skill
                   installs: {
                     "test-hooks": {
                       source: "npm",
-                      spec: "@openclaw/test-hooks",
+                      spec: "@alisio/test-hooks",
                     },
                   },
                 },
@@ -3373,7 +3371,7 @@ description: test skill
                 installs: {
                   "voice-call": {
                     source: "npm",
-                    spec: "@openclaw/voice-call@1.2.3",
+                    spec: "@alisio/voice-call@1.2.3",
                     integrity: "sha512-plugin",
                   },
                 },
@@ -3383,7 +3381,7 @@ description: test skill
                   installs: {
                     "test-hooks": {
                       source: "npm",
-                      spec: "@openclaw/test-hooks@1.2.3",
+                      spec: "@alisio/test-hooks@1.2.3",
                       integrity: "sha512-hook",
                     },
                   },
@@ -3410,12 +3408,12 @@ description: test skill
           await fs.mkdir(hookDir, { recursive: true });
           await fs.writeFile(
             path.join(pluginDir, "package.json"),
-            JSON.stringify({ name: "@openclaw/voice-call", version: "9.9.9" }),
+            JSON.stringify({ name: "@alisio/voice-call", version: "9.9.9" }),
             "utf-8",
           );
           await fs.writeFile(
             path.join(hookDir, "package.json"),
-            JSON.stringify({ name: "@openclaw/test-hooks", version: "8.8.8" }),
+            JSON.stringify({ name: "@alisio/test-hooks", version: "8.8.8" }),
             "utf-8",
           );
 
@@ -3425,7 +3423,7 @@ description: test skill
                 installs: {
                   "voice-call": {
                     source: "npm",
-                    spec: "@openclaw/voice-call@1.2.3",
+                    spec: "@alisio/voice-call@1.2.3",
                     integrity: "sha512-plugin",
                     resolvedVersion: "1.2.3",
                   },
@@ -3436,7 +3434,7 @@ description: test skill
                   installs: {
                     "test-hooks": {
                       source: "npm",
-                      spec: "@openclaw/test-hooks@1.2.3",
+                      spec: "@alisio/test-hooks@1.2.3",
                       integrity: "sha512-hook",
                       resolvedVersion: "1.2.3",
                     },
@@ -3637,7 +3635,7 @@ description: test skill
             path.join(pluginDir, "package.json"),
             JSON.stringify({
               name: "escape-plugin",
-              openclaw: { extensions: ["../outside.js"] },
+              alisio: { extensions: ["../outside.js"] },
             }),
           );
           await fs.writeFile(path.join(pluginDir, "index.js"), "export {};");
@@ -3661,7 +3659,7 @@ description: test skill
               path.join(pluginDir, "package.json"),
               JSON.stringify({
                 name: "scanfail-plugin",
-                openclaw: { extensions: ["index.js"] },
+                alisio: { extensions: ["index.js"] },
               }),
             );
             await fs.writeFile(path.join(pluginDir, "index.js"), "export {};");
@@ -3837,10 +3835,10 @@ description: test skill
     const makeProbeEnv = (env?: { token?: string; password?: string }) => {
       const probeEnv: NodeJS.ProcessEnv = {};
       if (env?.token !== undefined) {
-        probeEnv.OPENCLAW_GATEWAY_TOKEN = env.token;
+        probeEnv.ALISIO_GATEWAY_TOKEN = env.token;
       }
       if (env?.password !== undefined) {
-        probeEnv.OPENCLAW_GATEWAY_PASSWORD = env.password;
+        probeEnv.ALISIO_GATEWAY_PASSWORD = env.password;
       }
       return probeEnv;
     };

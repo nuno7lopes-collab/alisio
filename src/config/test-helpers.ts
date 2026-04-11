@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { withTempHome as withTempHomeBase } from "../../test/helpers/temp-home.js";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import {
   resetConfigRuntimeState,
   resolveCanonicalConfigPath,
@@ -35,7 +35,7 @@ export async function writeStateDirDotEnv(
     params?.stateDir ??
     readEnv("ALISIO_STATE_DIR", {
       env: params?.env,
-      fallback: legacyEnvKey("STATE_DIR"),
+      fallback: runtimeEnvKey("STATE_DIR"),
     });
   if (!stateDir) {
     throw new Error("Expected ALISIO_STATE_DIR or explicit stateDir for .env test setup");

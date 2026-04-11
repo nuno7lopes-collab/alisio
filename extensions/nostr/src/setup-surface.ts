@@ -1,5 +1,5 @@
 import type { ChannelSetupAdapter } from "alisio/plugin-sdk/channel-setup";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/routing";
 import {
   createTopLevelChannelParsedAllowFromPrompt,

@@ -1,4 +1,4 @@
-import type { RuntimeEnv, ReplyPayload, OpenClawConfig } from "../../api.js";
+import type { RuntimeEnv, ReplyPayload, AlisioConfig } from "../../api.js";
 import { createLoggerBackedRuntime } from "../../api.js";
 import { getTlonRuntime } from "../runtime.js";
 import { createSettingsManager, type TlonSettingsStore } from "../settings.js";
@@ -49,7 +49,7 @@ export type MonitorTlonOpts = {
 
 export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<void> {
   const core = getTlonRuntime();
-  const cfg = core.config.loadConfig() as OpenClawConfig;
+  const cfg = core.config.loadConfig() as AlisioConfig;
   if (cfg.channels?.tlon?.enabled === false) {
     return;
   }
@@ -196,7 +196,7 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
                 "bucket-key": "tlon",
                 "entry-key": key,
                 value: fileValue,
-                desk: "moltbot",
+                desk: "alisio",
               },
             },
           });
@@ -437,7 +437,7 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
         // Log warning
         runtime.log?.(
           `[tlon] ⚠️ SECURITY: Multiple users sharing DM session. ` +
-            `Configure "session.dmScope: per-channel-peer" in OpenClaw config.`,
+            `Configure "session.dmScope: per-channel-peer" in Alisio config.`,
         );
 
         // Notify owner via DM (once per monitor session)
@@ -446,9 +446,9 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
           const warningMsg =
             `⚠️ Security Warning: Multiple users are sharing a DM session with this bot. ` +
             `This can leak conversation context between users.\n\n` +
-            `Fix: Add to your OpenClaw config:\n` +
+            `Fix: Add to your Alisio config:\n` +
             `session:\n  dmScope: "per-channel-peer"\n\n` +
-            `Docs: https://docs.openclaw.ai/concepts/session#secure-dm-mode`;
+            `Docs: https://docs.alisio.ai/concepts/session#secure-dm-mode`;
 
           // Send async, don't block message processing
           sendDm({
@@ -1151,7 +1151,7 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
                                 "bucket-key": "tlon",
                                 "entry-key": "groupChannels",
                                 value: updatedChannels,
-                                desk: "moltbot",
+                                desk: "alisio",
                               },
                             },
                           });
@@ -1193,7 +1193,7 @@ export async function monitorTlonProvider(opts: MonitorTlonOpts = {}): Promise<v
                                   "bucket-key": "tlon",
                                   "entry-key": "groupChannels",
                                   value: updatedChannels,
-                                  desk: "moltbot",
+                                  desk: "alisio",
                                 },
                               },
                             });

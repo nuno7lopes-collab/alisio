@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { resolveGatewayLaunchAgentLabel } from "./constants.js";
 
 export type LaunchdRestartHandoffMode = "kickstart" | "start-after-exit";
@@ -29,14 +29,14 @@ function resolveGuiDomain(): string {
 function resolveLaunchAgentLabel(env?: Record<string, string | undefined>): string {
   const envLabel = readEnv("ALISIO_LAUNCHD_LABEL", {
     env,
-    fallback: legacyEnvKey("LAUNCHD_LABEL"),
+    fallback: runtimeEnvKey("LAUNCHD_LABEL"),
   });
   if (envLabel) {
     return envLabel;
   }
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   return resolveGatewayLaunchAgentLabel(profile);
 }
@@ -67,7 +67,7 @@ export function isCurrentProcessLaunchdServiceLabel(
   }
   const configuredLabel = readEnv("ALISIO_LAUNCHD_LABEL", {
     env,
-    fallback: legacyEnvKey("LAUNCHD_LABEL"),
+    fallback: runtimeEnvKey("LAUNCHD_LABEL"),
   });
   return Boolean(configuredLabel && configuredLabel === label);
 }

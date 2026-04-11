@@ -179,7 +179,7 @@ export async function startWebLoginWithQr(
     clearTimeout(qrTimer);
     await resetActiveLogin(account.accountId);
     return {
-      message: `Failed to start WhatsApp login: ${formatError(err)}. Retry with openclaw channels login and confirm the gateway host can start a WhatsApp Web session.`,
+      message: `Failed to start WhatsApp login: ${formatError(err)}. Retry with alisio channels login and confirm the gateway host can start a WhatsApp Web session.`,
       accountId: account.accountId,
     };
   }
@@ -208,7 +208,7 @@ export async function startWebLoginWithQr(
     clearTimeout(qrTimer);
     await resetActiveLogin(account.accountId);
     return {
-      message: `Failed to get QR: ${formatError(err)}. Retry with openclaw channels login; if it persists, restart the gateway and request a fresh QR.`,
+      message: `Failed to get QR: ${formatError(err)}. Retry with alisio channels login; if it persists, restart the gateway and request a fresh QR.`,
       accountId: account.accountId,
     };
   }

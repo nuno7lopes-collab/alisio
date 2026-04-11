@@ -784,7 +784,7 @@ final class GatewayConnectionController {
         if useTLS && self.shouldForceTLS(host: trimmedHost) {
             return 443
         }
-        return 40705
+        return GatewayDefaults.defaultPort
     }
 
     private func resolvedDisplayName(defaults: UserDefaults) -> String {

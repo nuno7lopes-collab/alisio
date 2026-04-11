@@ -6,7 +6,7 @@ import { registerProviderStreamForModel } from "./provider-stream.js";
 
 function resolveAnthropicVertexSimpleApi(baseUrl?: string): Api {
   const suffix = baseUrl?.trim() ? encodeURIComponent(baseUrl.trim()) : "default";
-  return `openclaw-anthropic-vertex-simple:${suffix}`;
+  return `alisio-anthropic-vertex-simple:${suffix}`;
 }
 
 export function prepareModelForSimpleCompletion<TApi extends Api>(params: {

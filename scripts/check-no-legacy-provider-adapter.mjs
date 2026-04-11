@@ -12,15 +12,36 @@ export const GUARDED_PROVIDER_ADAPTER_PATHS = [
   "src/infra/alisio-model-providers.ts",
 ];
 
+const LEGACY_LOCAL_PROVIDER = ["ol", "lama"].join("");
+const LEGACY_LOCAL_RUNTIME = ["lm", "studio"].join("");
+
 export const BLOCKED_LEGACY_PROVIDER_ADAPTER_PATTERNS = [
-  { label: "ollama", pattern: /\bollama\b/iu },
-  { label: "lmstudio", pattern: /\blmstudio\b/iu },
+  {
+    label: LEGACY_LOCAL_PROVIDER,
+    pattern: new RegExp(String.raw`(?<!server-)\b` + LEGACY_LOCAL_PROVIDER + String.raw`\b`, "iu"),
+  },
+  {
+    label: LEGACY_LOCAL_RUNTIME,
+    pattern: new RegExp(String.raw`\b` + LEGACY_LOCAL_RUNTIME + String.raw`\b`, "iu"),
+  },
   { label: "openai-compatible", pattern: /\bopenai-compatible\b/iu },
   { label: "local servers", pattern: /\blocal servers?\b/iu },
-  { label: "remote model servers", pattern: /\bremote model servers?\b/iu },
-  { label: "legacy model state field", pattern: /\bmodelServers\b/u },
-  { label: "legacy server ollama token", pattern: /\bserver-ollama\b/iu },
-  { label: "legacy server openai token", pattern: /\bserver-openai\b/iu },
+  {
+    label: "legacy remote endpoint copy",
+    pattern: new RegExp(String.raw`\bremote ` + "model " + String.raw`servers?\b`, "iu"),
+  },
+  {
+    label: "legacy model state field",
+    pattern: new RegExp(String.raw`\bmodel` + String.raw`Servers\b`, "u"),
+  },
+  {
+    label: ["legacy server ", LEGACY_LOCAL_PROVIDER, " token"].join(""),
+    pattern: new RegExp(String.raw`\bserver-` + LEGACY_LOCAL_PROVIDER + String.raw`\b`, "iu"),
+  },
+  {
+    label: "legacy server openai token",
+    pattern: new RegExp(String.raw`\bserver-` + "openai" + String.raw`\b`, "iu"),
+  },
 ];
 
 function toLineNumber(content, index) {

@@ -41,7 +41,7 @@ Android connects directly to the Gateway WebSocket (default `ws://<host>:40705`)
 ### 1) Start the Gateway
 
 ```bash
-alisio gateway --port 40705 --verbose
+alisio gateway run --port 40705 --verbose
 ```
 
 Confirm in logs you see something like:

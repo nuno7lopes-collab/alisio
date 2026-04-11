@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveAgentWorkspaceDir } from "../../../../src/agents/agent-scope.js";
 import { parseDurationMs } from "../../../../src/cli/parse-duration.js";
-import type { OpenClawConfig } from "../../../../src/config/config.js";
+import type { AlisioConfig } from "../../../../src/config/config.js";
 import type { SessionSendPolicyConfig } from "../../../../src/config/types.base.js";
 import type {
   MemoryBackend,
@@ -310,7 +310,7 @@ function resolveMcporterConfig(raw?: MemoryQmdMcporterConfig): ResolvedQmdMcport
 
 function resolveDefaultCollections(
   include: boolean,
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   workspaceDir: string,
   existing: Set<string>,
   agentId: string,
@@ -320,7 +320,6 @@ function resolveDefaultCollections(
   }
   const entries: Array<{ path: string; pattern: string; base: string }> = [
     { path: workspaceDir, pattern: "MEMORY.md", base: "memory-root" },
-    { path: workspaceDir, pattern: "memory.md", base: "memory-alt" },
     { path: path.join(workspaceDir, "memory"), pattern: "**/*.md", base: "memory-dir" },
   ];
   const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
@@ -340,7 +339,7 @@ function resolveDefaultCollections(
 }
 
 export function resolveMemoryBackendConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
 }): ResolvedMemoryBackendConfig {
   const normalizedAgentId = normalizeAgentId(params.agentId);

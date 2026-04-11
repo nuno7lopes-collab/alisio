@@ -30,7 +30,7 @@ export function formatMatrixLegacyStatePreview(
     `- Legacy sync store: ${detection.legacyStoragePath} -> ${detection.targetStoragePath}`,
     `- Legacy crypto store: ${detection.legacyCryptoPath} -> ${detection.targetCryptoPath}`,
     ...(detection.selectionNote ? [`- ${detection.selectionNote}`] : []),
-    '- Run "openclaw doctor --fix" to migrate this Matrix state now.',
+    '- Run "alisio doctor --fix" to migrate this Matrix state now.',
   ].join("\n");
 }
 
@@ -48,7 +48,7 @@ export function formatMatrixLegacyCryptoPreview(
         `- Legacy crypto store: ${plan.legacyCryptoPath}`,
         `- New recovery key file: ${plan.recoveryKeyPath}`,
         `- Migration state file: ${plan.statePath}`,
-        '- Run "openclaw doctor --fix" to extract any saved backup key now. Backed-up room keys will restore automatically on next gateway start.',
+        '- Run "alisio doctor --fix" to extract any saved backup key now. Backed-up room keys will restore automatically on next gateway start.',
       ].join("\n"),
     );
   }
@@ -66,7 +66,7 @@ export async function collectMatrixInstallPathWarnings(cfg: AlisioConfig): Promi
   return formatPluginInstallPathIssue({
     issue,
     pluginLabel: "Matrix",
-    defaultInstallCommand: "openclaw plugins install @openclaw/matrix",
+    defaultInstallCommand: "alisio plugins install @alisio/matrix",
     repoInstallCommand: resolveBundledPluginInstallCommandHint({
       pluginId: "matrix",
       workspaceDir: process.cwd(),
@@ -174,7 +174,7 @@ export async function applyMatrixDoctorRepair(params: {
       matrixSnapshotReady = false;
       warnings.push(`- Failed creating a Matrix migration snapshot before repair: ${String(err)}`);
       warnings.push(
-        '- Skipping Matrix migration changes for now. Resolve the snapshot failure, then rerun "openclaw doctor --fix".',
+        '- Skipping Matrix migration changes for now. Resolve the snapshot failure, then rerun "alisio doctor --fix".',
       );
     }
   } else if (pendingMatrixMigration) {

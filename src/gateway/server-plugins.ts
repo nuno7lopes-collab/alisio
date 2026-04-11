@@ -26,7 +26,7 @@ import type {
 // dispatchGatewayMethod can use it as a fallback.
 
 const FALLBACK_GATEWAY_CONTEXT_STATE_KEY: unique symbol = Symbol.for(
-  "openclaw.fallbackGatewayContextState",
+  "alisio.fallbackGatewayContextState",
 );
 
 type FallbackGatewayContextState = {
@@ -71,7 +71,7 @@ type PluginSubagentPolicyState = {
 };
 
 const PLUGIN_SUBAGENT_POLICY_STATE_KEY: unique symbol = Symbol.for(
-  "openclaw.pluginSubagentOverridePolicyState",
+  "alisio.pluginSubagentOverridePolicyState",
 );
 
 const getPluginSubagentPolicyState = () =>

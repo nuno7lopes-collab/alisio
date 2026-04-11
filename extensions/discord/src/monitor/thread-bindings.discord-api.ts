@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { logVerbose } from "alisio/plugin-sdk/runtime-env";
 import { ChannelType, Routes } from "discord-api-types/v10";
 import { createDiscordRestClient } from "../client.js";
@@ -123,7 +123,7 @@ export function isDiscordThreadGoneError(err: unknown): boolean {
 }
 
 export async function maybeSendBindingMessage(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   record: ThreadBindingRecord;
   text: string;
   preferWebhook?: boolean;
@@ -159,7 +159,7 @@ export async function maybeSendBindingMessage(params: {
 }
 
 export async function createWebhookForChannel(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   accountId: string;
   token?: string;
   channelId: string;
@@ -174,7 +174,7 @@ export async function createWebhookForChannel(params: {
     ).rest;
     const created = (await rest.post(Routes.channelWebhooks(params.channelId), {
       body: {
-        name: "OpenClaw Agents",
+        name: "Alisio Agents",
       },
     })) as { id?: string; token?: string };
     const webhookId = typeof created?.id === "string" ? created.id.trim() : "";
@@ -226,7 +226,7 @@ export function findReusableWebhook(params: { accountId: string; channelId: stri
 }
 
 export async function resolveChannelIdForBinding(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   accountId: string;
   token?: string;
   threadId: string;
@@ -273,7 +273,7 @@ export async function resolveChannelIdForBinding(params: {
 }
 
 export async function createThreadForBinding(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   accountId: string;
   token?: string;
   channelId: string;

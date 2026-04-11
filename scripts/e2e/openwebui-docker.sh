@@ -95,7 +95,7 @@ docker run -d \
     node "$entry" config set gateway.http.endpoints.chatCompletions.enabled true --strict-json >/dev/null
     node "$entry" config set agents.defaults.model.primary "$ALISIO_OPENWEBUI_MODEL" >/dev/null
 
-    exec node "$entry" gateway --port '"$PORT"' --bind lan --allow-unconfigured > /tmp/openwebui-gateway.log 2>&1
+    exec node "$entry" gateway run --port '"$PORT"' --bind lan --allow-unconfigured > /tmp/openwebui-gateway.log 2>&1
   '
 
 echo "Waiting for gateway HTTP surface..."
@@ -132,7 +132,6 @@ docker run -d \
   -e OFFLINE_MODE=True \
   -e ENABLE_VERSION_UPDATE_CHECK=False \
   -e ENABLE_PERSISTENT_CONFIG=False \
-  -e ENABLE_OLLAMA_API=False \
   -e ENABLE_OPENAI_API=True \
   -e OPENAI_API_BASE_URLS="http://$GW_NAME:$PORT/v1" \
   -e OPENAI_API_KEY="$TOKEN" \

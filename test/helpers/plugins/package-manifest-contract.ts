@@ -7,7 +7,7 @@ import { bundledPluginFile } from "../bundled-plugin-paths.js";
 
 type PackageManifest = {
   dependencies?: Record<string, string>;
-  openclaw?: {
+  alisio?: {
     install?: {
       minHostVersion?: string;
     };
@@ -54,12 +54,12 @@ export function describePackageManifestContract(params: PackageManifestContractP
 
         const manifest = readJson<PackageManifest>(packagePath);
         const requirement = parseMinHostVersionRequirement(
-          manifest.openclaw?.install?.minHostVersion ?? null,
+          manifest.alisio?.install?.minHostVersion ?? null,
         );
 
         expect(
           requirement,
-          `${packagePath} should declare openclaw.install.minHostVersion`,
+          `${packagePath} should declare alisio.install.minHostVersion`,
         ).not.toBeNull();
         if (!requirement) {
           return;
@@ -73,7 +73,7 @@ export function describePackageManifestContract(params: PackageManifestContractP
 
         expect(
           isAtLeast(minimum, baseline),
-          `${packagePath} should require at least OpenClaw ${minHostVersionBaseline}`,
+          `${packagePath} should require at least Alisio ${minHostVersionBaseline}`,
         ).toBe(true);
       });
     }

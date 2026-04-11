@@ -62,7 +62,7 @@ function createThreadBinding(
 }
 
 function createPreflightArgs(params: {
-  cfg: import("alisio/plugin-sdk/config-runtime").OpenClawConfig;
+  cfg: import("alisio/plugin-sdk/config-runtime").AlisioConfig;
   discordConfig: DiscordConfig;
   data: DiscordMessageEvent;
   client: DiscordClient;
@@ -154,7 +154,7 @@ async function runGuildPreflight(params: {
   guildId: string;
   message: import("@buape/carbon").Message;
   discordConfig: DiscordConfig;
-  cfg?: import("alisio/plugin-sdk/config-runtime").OpenClawConfig;
+  cfg?: import("alisio/plugin-sdk/config-runtime").AlisioConfig;
   guildEntries?: Parameters<typeof preflightDiscordMessage>[0]["guildEntries"];
   includeGuildObject?: boolean;
 }) {
@@ -278,7 +278,7 @@ describe("preflightDiscordMessage", () => {
       author: {
         id: "relay-bot-1",
         bot: true,
-        username: "OpenClaw",
+        username: "Alisio",
       },
     });
 
@@ -310,8 +310,8 @@ describe("preflightDiscordMessage", () => {
               },
               metadata: {
                 pluginBindingOwner: "plugin",
-                pluginId: "openclaw-codex-app-server",
-                pluginRoot: "/Users/huntharo/github/openclaw-app-server",
+                pluginId: "alisio-codex-app-server",
+                pluginRoot: "/Users/huntharo/github/alisio-app-server",
               },
             })
           : null,
@@ -344,7 +344,7 @@ describe("preflightDiscordMessage", () => {
       },
       metadata: {
         pluginBindingOwner: "plugin",
-        pluginId: "openclaw-codex-app-server",
+        pluginId: "alisio-codex-app-server",
       },
     });
   });
@@ -471,7 +471,7 @@ describe("preflightDiscordMessage", () => {
       createPreflightArgs({
         cfg: {
           ...DEFAULT_PREFLIGHT_CFG,
-        } as import("alisio/plugin-sdk/config-runtime").OpenClawConfig,
+        } as import("alisio/plugin-sdk/config-runtime").AlisioConfig,
         discordConfig: {
           allowBots: true,
         } as DiscordConfig,
@@ -515,8 +515,8 @@ describe("preflightDiscordMessage", () => {
     const message = createDiscordMessage({
       id: "m-bot-mentions-on",
       channelId,
-      content: "hi <@openclaw-bot>",
-      mentionedUsers: [{ id: "openclaw-bot" }],
+      content: "hi <@alisio-bot>",
+      mentionedUsers: [{ id: "alisio-bot" }],
       author: {
         id: "relay-bot-1",
         bot: true,
@@ -697,7 +697,7 @@ describe("preflightDiscordMessage", () => {
   });
 
   it("uses attachment content_type for guild audio preflight mention detection", async () => {
-    transcribeFirstAudioMock.mockResolvedValue("hey openclaw");
+    transcribeFirstAudioMock.mockResolvedValue("hey alisio");
 
     const channelId = "channel-audio-1";
     const client = createGuildTextClient(channelId);
@@ -727,10 +727,10 @@ describe("preflightDiscordMessage", () => {
           ...DEFAULT_PREFLIGHT_CFG,
           messages: {
             groupChat: {
-              mentionPatterns: ["openclaw"],
+              mentionPatterns: ["alisio"],
             },
           },
-        } as import("alisio/plugin-sdk/config-runtime").OpenClawConfig,
+        } as import("alisio/plugin-sdk/config-runtime").AlisioConfig,
         discordConfig: {} as DiscordConfig,
         data: createGuildEvent({
           channelId,
@@ -836,9 +836,9 @@ describe("preflightDiscordMessage", () => {
         message: createDiscordMessage({
           id: "m-binding-2",
           channelId,
-          content: "hello <@openclaw-bot>",
+          content: "hello <@alisio-bot>",
           author: { id: "user-1", bot: false, username: "alice" },
-          mentionedUsers: [{ id: "openclaw-bot" }],
+          mentionedUsers: [{ id: "alisio-bot" }],
         }),
         discordConfig: {} as DiscordConfig,
         guildEntries: {

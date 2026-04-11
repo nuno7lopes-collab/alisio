@@ -7,7 +7,7 @@ import {
   resolveGatewaySystemdServiceName,
 } from "../daemon/constants.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { cleanStaleGatewayProcessesSync, findGatewayPidsOnPortSync } from "./restart-stale-pids.js";
 import { relaunchGatewayScheduledTask } from "./windows-task-restart.js";
 
@@ -303,12 +303,12 @@ export function triggerAlisioRestart(): RestartAttempt {
   const tried: string[] = [];
   if (process.platform === "linux") {
     const profile = readEnv("ALISIO_PROFILE", {
-      fallback: legacyEnvKey("PROFILE"),
+      fallback: runtimeEnvKey("PROFILE"),
       description: "gateway profile for restart",
     });
     const unit = normalizeSystemdUnit(
       readEnv("ALISIO_SYSTEMD_UNIT", {
-        fallback: legacyEnvKey("SYSTEMD_UNIT"),
+        fallback: runtimeEnvKey("SYSTEMD_UNIT"),
         description: "systemd unit override",
       }),
       profile,
@@ -352,12 +352,12 @@ export function triggerAlisioRestart(): RestartAttempt {
 
   const label =
     readEnv("ALISIO_LAUNCHD_LABEL", {
-      fallback: legacyEnvKey("LAUNCHD_LABEL"),
+      fallback: runtimeEnvKey("LAUNCHD_LABEL"),
       description: "launchd label override",
     }) ||
     resolveGatewayLaunchAgentLabel(
       readEnv("ALISIO_PROFILE", {
-        fallback: legacyEnvKey("PROFILE"),
+        fallback: runtimeEnvKey("PROFILE"),
         description: "gateway profile for launchd restart",
       }),
     );

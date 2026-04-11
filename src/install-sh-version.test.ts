@@ -108,7 +108,7 @@ describe("install.sh version resolution", () => {
       fs.writeFileSync(
         hostileHelper,
         `#!/usr/bin/env bash
-extract_openclaw_semver() {
+extract_alisio_semver() {
   printf '%s' 'poisoned'
 }
 `,

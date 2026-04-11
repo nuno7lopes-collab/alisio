@@ -16,7 +16,7 @@ describe("ensureAuthProfileStore", () => {
   }
 
   it("migrates legacy auth.json and deletes it (PR #368)", () => {
-    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-auth-profiles-"));
+    const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-auth-profiles-"));
     try {
       const legacyPath = path.join(agentDir, "auth.json");
       fs.writeFileSync(
@@ -57,8 +57,8 @@ describe("ensureAuthProfileStore", () => {
   });
 
   it("merges main auth profiles into agent store and keeps agent overrides", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-auth-merge-"));
-    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-auth-merge-"));
+    const previousAgentDir = process.env.ALISIO_AGENT_DIR;
     const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR;
     try {
       const mainDir = path.join(root, "main-agent");
@@ -66,7 +66,7 @@ describe("ensureAuthProfileStore", () => {
       fs.mkdirSync(mainDir, { recursive: true });
       fs.mkdirSync(agentDir, { recursive: true });
 
-      process.env.OPENCLAW_AGENT_DIR = mainDir;
+      process.env.ALISIO_AGENT_DIR = mainDir;
       process.env.PI_CODING_AGENT_DIR = mainDir;
 
       const mainStore = {
@@ -119,9 +119,9 @@ describe("ensureAuthProfileStore", () => {
       });
     } finally {
       if (previousAgentDir === undefined) {
-        delete process.env.OPENCLAW_AGENT_DIR;
+        delete process.env.ALISIO_AGENT_DIR;
       } else {
-        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+        process.env.ALISIO_AGENT_DIR = previousAgentDir;
       }
       if (previousPiAgentDir === undefined) {
         delete process.env.PI_CODING_AGENT_DIR;
@@ -186,7 +186,7 @@ describe("ensureAuthProfileStore", () => {
   ] as const)(
     "normalizes auth-profiles credential aliases with canonical-field precedence: $name",
     ({ name, profile, expected }) => {
-      withTempAgentDir("openclaw-auth-alias-", (agentDir) => {
+      withTempAgentDir("alisio-auth-alias-", (agentDir) => {
         const storeData = {
           version: AUTH_STORE_VERSION,
           profiles: {
@@ -206,7 +206,7 @@ describe("ensureAuthProfileStore", () => {
   );
 
   it("normalizes mode/apiKey aliases while migrating legacy auth.json", () => {
-    withTempAgentDir("openclaw-auth-legacy-alias-", (agentDir) => {
+    withTempAgentDir("alisio-auth-legacy-alias-", (agentDir) => {
       fs.writeFileSync(
         path.join(agentDir, "auth.json"),
         `${JSON.stringify(
@@ -233,9 +233,9 @@ describe("ensureAuthProfileStore", () => {
   });
 
   it("merges legacy oauth.json into auth-profiles.json", () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-oauth-migrate-"));
-    const previousStateDir = process.env.OPENCLAW_STATE_DIR;
-    const previousAgentDir = process.env.OPENCLAW_AGENT_DIR;
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-oauth-migrate-"));
+    const previousStateDir = process.env.ALISIO_STATE_DIR;
+    const previousAgentDir = process.env.ALISIO_AGENT_DIR;
     const previousPiAgentDir = process.env.PI_CODING_AGENT_DIR;
     try {
       const agentDir = path.join(root, "agent");
@@ -259,8 +259,8 @@ describe("ensureAuthProfileStore", () => {
         "utf8",
       );
 
-      process.env.OPENCLAW_STATE_DIR = root;
-      process.env.OPENCLAW_AGENT_DIR = agentDir;
+      process.env.ALISIO_STATE_DIR = root;
+      process.env.ALISIO_AGENT_DIR = agentDir;
       process.env.PI_CODING_AGENT_DIR = agentDir;
       clearRuntimeAuthProfileStoreSnapshots();
 
@@ -286,14 +286,14 @@ describe("ensureAuthProfileStore", () => {
     } finally {
       clearRuntimeAuthProfileStoreSnapshots();
       if (previousStateDir === undefined) {
-        delete process.env.OPENCLAW_STATE_DIR;
+        delete process.env.ALISIO_STATE_DIR;
       } else {
-        process.env.OPENCLAW_STATE_DIR = previousStateDir;
+        process.env.ALISIO_STATE_DIR = previousStateDir;
       }
       if (previousAgentDir === undefined) {
-        delete process.env.OPENCLAW_AGENT_DIR;
+        delete process.env.ALISIO_AGENT_DIR;
       } else {
-        process.env.OPENCLAW_AGENT_DIR = previousAgentDir;
+        process.env.ALISIO_AGENT_DIR = previousAgentDir;
       }
       if (previousPiAgentDir === undefined) {
         delete process.env.PI_CODING_AGENT_DIR;
@@ -307,7 +307,7 @@ describe("ensureAuthProfileStore", () => {
   it("logs one warning with aggregated reasons for rejected auth-profiles entries", () => {
     const warnSpy = vi.spyOn(log, "warn").mockImplementation(() => undefined);
     try {
-      withTempAgentDir("openclaw-auth-invalid-", (agentDir) => {
+      withTempAgentDir("alisio-auth-invalid-", (agentDir) => {
         const invalidStore = {
           version: AUTH_STORE_VERSION,
           profiles: {

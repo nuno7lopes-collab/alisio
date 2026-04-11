@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { GatewayBonjourBeacon } from "../../infra/bonjour-discovery.js";
-import { pickBeaconHost, pickGatewayPort } from "./discover.js";
+import { pickBeaconHost, pickGatewayPort, renderBeaconLines } from "./discover.js";
 
 const acquireGatewayLock = vi.fn(async (_opts?: { port?: number }) => ({
   release: vi.fn(async () => {}),
@@ -453,5 +453,18 @@ describe("gateway discover routing helpers", () => {
     };
     expect(pickBeaconHost(beacon)).toBeNull();
     expect(pickGatewayPort(beacon)).toBeNull();
+  });
+
+  it("renders ssh hints with the discovered remote port", () => {
+    vi.stubEnv("ALISIO_GATEWAY_PORT", "19001");
+    const beacon: GatewayBonjourBeacon = {
+      instanceName: "Test",
+      host: "10.0.0.2",
+      port: 19000,
+      sshPort: 2222,
+    };
+    expect(renderBeaconLines(beacon, false)).toContain(
+      "  ssh: ssh -N -L 19001:127.0.0.1:19000 <user>@10.0.0.2 -p 2222",
+    );
   });
 });

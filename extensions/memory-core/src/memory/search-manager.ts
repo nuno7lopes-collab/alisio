@@ -2,7 +2,7 @@ import {
   createSubsystemLogger,
   resolveAgentWorkspaceDir,
   resolveGlobalSingleton,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { checkQmdBinaryAvailability } from "alisio/plugin-sdk/memory-core-host-engine-qmd";
 import {
@@ -13,7 +13,7 @@ import {
   type ResolvedQmdConfig,
 } from "alisio/plugin-sdk/memory-core-host-engine-storage";
 
-const MEMORY_SEARCH_MANAGER_CACHE_KEY = Symbol.for("openclaw.memorySearchManagerCache");
+const MEMORY_SEARCH_MANAGER_CACHE_KEY = Symbol.for("alisio.memorySearchManagerCache");
 type MemorySearchManagerCacheStore = {
   qmdManagerCache: Map<string, MemorySearchManager>;
 };
@@ -43,7 +43,7 @@ export type MemorySearchManagerResult = {
 };
 
 export async function getMemorySearchManager(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   purpose?: "default" | "status";
 }): Promise<MemorySearchManagerResult> {

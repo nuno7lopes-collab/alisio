@@ -54,9 +54,9 @@ vi.mock("../agents/auth-profiles.js", async (importOriginal) => {
 });
 
 vi.mock("../agents/workspace.js", () => {
-  const resolveDefaultAgentWorkspaceDir = () => "/tmp/openclaw-workspace";
+  const resolveDefaultAgentWorkspaceDir = () => "/tmp/alisio-workspace";
   return {
-    DEFAULT_AGENT_WORKSPACE_DIR: "/tmp/openclaw-workspace",
+    DEFAULT_AGENT_WORKSPACE_DIR: "/tmp/alisio-workspace",
     DEFAULT_AGENTS_FILENAME: "AGENTS.md",
     DEFAULT_IDENTITY_FILENAME: "IDENTITY.md",
     resolveDefaultAgentWorkspaceDir,
@@ -94,7 +94,7 @@ const readConfigFileSnapshotForWriteSpy = vi.spyOn(configModule, "readConfigFile
 const runCliAgentSpy = vi.spyOn(cliRunnerModule, "runCliAgent");
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  return withTempHomeBase(fn, { prefix: "openclaw-agent-" });
+  return withTempHomeBase(fn, { prefix: "alisio-agent-" });
 }
 
 async function loadFreshAgentCommandModulesForTest() {
@@ -144,7 +144,7 @@ function mockConfig(
       defaults: {
         model: { primary: "anthropic/claude-opus-4-5" },
         models: { "anthropic/claude-opus-4-5": {} },
-        workspace: path.join(home, "openclaw"),
+        workspace: path.join(home, "alisio"),
         ...agentOverrides,
       },
       list: agentsList,
@@ -369,7 +369,7 @@ describe("agentCommand", () => {
           defaults: {
             model: { primary: "anthropic/claude-opus-4-5" },
             models: { "anthropic/claude-opus-4-5": {} },
-            workspace: path.join(home, "openclaw"),
+            workspace: path.join(home, "alisio"),
           },
         },
         session: { store, mainKey: "main" },

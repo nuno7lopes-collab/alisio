@@ -627,16 +627,14 @@ export function renderOrganization(props: {
                       <div class="loading-state__list">
                         ${(sharing?.devices.sharedWithMe ?? []).map((target) => {
                           const requestButtons = renderRequestAccessButtons(target);
-                          const grantId = target.approvalId ?? target.grantId;
+                          const grantId = target.grantId;
                           return html`
                             <div class="list-item">
                               <div>${target.label}</div>
                               <div class="list-sub">${target.ownerLabel}</div>
-                              ${formatScopes(target.approvalScopes ?? target.grantScopes)
+                              ${formatScopes(target.grantScopes)
                                 ? html`
-                                    <div class="list-sub">
-                                      ${formatScopes(target.approvalScopes ?? target.grantScopes)}
-                                    </div>
+                                    <div class="list-sub">${formatScopes(target.grantScopes)}</div>
                                   `
                                 : nothing}
                               ${requestButtons.length > 0 || grantId
@@ -741,8 +739,7 @@ export function renderOrganization(props: {
                                 <button
                                   class="btn"
                                   ?disabled=${sharingDisabled}
-                                  @click=${() =>
-                                    props.onRevokeGrant(grant.approvalId ?? grant.grantId)}
+                                  @click=${() => props.onRevokeGrant(grant.grantId)}
                                 >
                                   ${text.sharingRevoke}
                                 </button>

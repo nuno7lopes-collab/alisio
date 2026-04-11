@@ -44,7 +44,7 @@ function createSelectPrompter(
 }
 
 describe("promptRemoteGatewayConfig", () => {
-  const envSnapshot = captureEnv(["OPENCLAW_ALLOW_INSECURE_PRIVATE_WS"]);
+  const envSnapshot = captureEnv(["ALISIO_ALLOW_INSECURE_PRIVATE_WS"]);
 
   async function runRemotePrompt(params: {
     text: WizardPrompter["text"];
@@ -64,7 +64,7 @@ describe("promptRemoteGatewayConfig", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     envSnapshot.restore();
-    delete process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
+    delete process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS;
     detectBinary.mockResolvedValue(false);
     discoverGatewayBeacons.mockResolvedValue([]);
     resolveWideAreaDiscoveryDomain.mockReturnValue(undefined);
@@ -72,7 +72,7 @@ describe("promptRemoteGatewayConfig", () => {
 
   afterEach(() => {
     envSnapshot.restore();
-    delete process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS;
+    delete process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS;
   });
 
   it("defaults discovered direct remote URLs to wss://", async () => {
@@ -274,6 +274,44 @@ describe("promptRemoteGatewayConfig", () => {
     );
   });
 
+  it("renders the ssh tunnel hint with the discovered remote port and local resolved port", async () => {
+    vi.stubEnv("ALISIO_GATEWAY_PORT", "19001");
+    detectBinary.mockResolvedValue(true);
+    discoverGatewayBeacons.mockResolvedValue([
+      {
+        instanceName: "gateway",
+        displayName: "Gateway",
+        host: "gateway.example",
+        port: 19000,
+        sshPort: 2222,
+      },
+    ]);
+
+    const text: WizardPrompter["text"] = vi.fn(async (params) => {
+      if (params.message === "Gateway WebSocket URL") {
+        expect(params.initialValue).toBe("ws://127.0.0.1:19001");
+        return String(params.initialValue);
+      }
+      return "";
+    }) as WizardPrompter["text"];
+
+    const { next, prompter } = await runRemotePrompt({
+      text,
+      confirm: true,
+      selectResponses: {
+        "Select gateway": "0",
+        "Connection method": "ssh",
+        "Gateway auth": "off",
+      },
+    });
+
+    expect(next.gateway?.remote?.url).toBe("ws://127.0.0.1:19001");
+    expect(prompter.note).toHaveBeenCalledWith(
+      expect.stringContaining("ssh -N -L 19001:127.0.0.1:19000 <user>@gateway.example -p 2222"),
+      "SSH tunnel",
+    );
+  });
+
   it("validates insecure ws:// remote URLs and allows only loopback ws:// by default", async () => {
     const text: WizardPrompter["text"] = vi.fn(async (params) => {
       if (params.message === "Gateway WebSocket URL") {
@@ -299,13 +337,13 @@ describe("promptRemoteGatewayConfig", () => {
     expect(next.gateway?.remote?.token).toBeUndefined();
   });
 
-  it("allows ws:// hostname remote URLs when OPENCLAW_ALLOW_INSECURE_PRIVATE_WS=1", async () => {
-    process.env.OPENCLAW_ALLOW_INSECURE_PRIVATE_WS = "1";
+  it("allows ws:// hostname remote URLs when ALISIO_ALLOW_INSECURE_PRIVATE_WS=1", async () => {
+    process.env.ALISIO_ALLOW_INSECURE_PRIVATE_WS = "1";
     const text: WizardPrompter["text"] = vi.fn(async (params) => {
       if (params.message === "Gateway WebSocket URL") {
-        expect(params.validate?.("ws://openclaw-gateway.ai:40705")).toBeUndefined();
+        expect(params.validate?.("ws://alisio-gateway.ai:40705")).toBeUndefined();
         expect(params.validate?.("ws://1.1.1.1:40705")).toContain("Use wss://");
-        return "ws://openclaw-gateway.ai:40705";
+        return "ws://alisio-gateway.ai:40705";
       }
       return "";
     }) as WizardPrompter["text"];
@@ -317,17 +355,17 @@ describe("promptRemoteGatewayConfig", () => {
     });
 
     expect(next.gateway?.mode).toBe("remote");
-    expect(next.gateway?.remote?.url).toBe("ws://openclaw-gateway.ai:40705");
+    expect(next.gateway?.remote?.url).toBe("ws://alisio-gateway.ai:40705");
   });
 
   it("supports storing remote auth as an external env secret ref", async () => {
-    process.env.OPENCLAW_GATEWAY_TOKEN = "remote-token-value";
+    process.env.ALISIO_GATEWAY_TOKEN = "remote-token-value";
     const text: WizardPrompter["text"] = vi.fn(async (params) => {
       if (params.message === "Gateway WebSocket URL") {
         return "wss://remote.example.com:40705";
       }
       if (params.message === "Environment variable name") {
-        return "OPENCLAW_GATEWAY_TOKEN";
+        return "ALISIO_GATEWAY_TOKEN";
       }
       return "";
     }) as WizardPrompter["text"];
@@ -359,7 +397,7 @@ describe("promptRemoteGatewayConfig", () => {
     expect(next.gateway?.remote?.token).toEqual({
       source: "env",
       provider: "default",
-      id: "OPENCLAW_GATEWAY_TOKEN",
+      id: "ALISIO_GATEWAY_TOKEN",
     });
   });
 });

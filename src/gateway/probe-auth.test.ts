@@ -115,7 +115,7 @@ describe("resolveGatewayProbeAuthSafeWithSecretInputs", () => {
         gateway: {
           auth: {
             mode: "token",
-            token: { source: "env", provider: "default", id: "OPENCLAW_GATEWAY_TOKEN" },
+            token: { source: "env", provider: "default", id: "ALISIO_GATEWAY_TOKEN" },
           },
         },
         secrets: {
@@ -126,7 +126,7 @@ describe("resolveGatewayProbeAuthSafeWithSecretInputs", () => {
       } as AlisioConfig,
       mode: "local",
       env: {
-        OPENCLAW_GATEWAY_TOKEN: "test-token-from-env",
+        ALISIO_GATEWAY_TOKEN: "test-token-from-env",
       } as NodeJS.ProcessEnv,
     });
 

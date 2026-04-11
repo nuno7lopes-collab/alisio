@@ -5,10 +5,8 @@ export type {
   ChannelMessageActionName,
   ChannelMeta,
   ChannelOutboundAdapter,
-  AlisioConfig as ClawdbotConfig,
   AlisioConfig,
-  AlisioConfig as OpenClawConfig,
-  OpenClawPluginApi,
+  AlisioPluginApi,
   PluginRuntime,
   RuntimeEnv,
 } from "alisio/plugin-sdk/feishu";

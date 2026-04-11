@@ -1289,8 +1289,8 @@ describe("applyExtraParamsToAgent", () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.headers).toEqual({
-      "HTTP-Referer": "https://openclaw.ai",
-      "X-OpenRouter-Title": "OpenClaw",
+      "HTTP-Referer": "https://alisio.ai",
+      "X-OpenRouter-Title": "Alisio",
       "X-OpenRouter-Categories": "cli-agent",
       "X-Custom": "1",
     });

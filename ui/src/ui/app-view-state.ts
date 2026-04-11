@@ -13,7 +13,7 @@ import type {
 } from "./controllers/security-access.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
-import type { ModelsOperationMap } from "./models-view-types.ts";
+import type { ModelProviderId, ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import type { UiSettings } from "./storage.ts";
 import type { ThemeTransitionContext } from "./theme-transition.ts";
@@ -69,6 +69,9 @@ export type AppViewState = {
   nativeShellLoading: boolean;
   nativeShellError: string | null;
   nativeShellState: NativeShellState | null;
+  nativeRebuildInFlight: boolean;
+  nativeRebuildStatus: string | null;
+  nativeRebuildError: string | null;
   alisioStartupLoading: boolean;
   alisioStartupError: string | null;
   alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null;
@@ -148,8 +151,10 @@ export type AppViewState = {
   chatModelOverrides: Record<string, ChatModelOverride | null>;
   chatModelsLoading: boolean;
   chatModelCatalog: ModelCatalogEntry[];
+  modelManagementLoading: boolean;
+  modelManagementCatalog: ModelCatalogEntry[];
   modelsExpandedProfileId?: string | null;
-  modelsSelectedProviderId?: "openai" | "nodes" | "local" | null;
+  modelsSelectedProviderId?: ModelProviderId | null;
   alisioModelOperations: ModelsOperationMap;
   chatQueue: ChatQueueItem[];
   chatManualRefreshInFlight: boolean;

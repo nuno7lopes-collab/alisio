@@ -34,7 +34,7 @@ describe("WA_WEB_AUTH_DIR", () => {
   });
 
   it("resolves lazily and caches across the legacy and channels/web entrypoints", async () => {
-    const resolveWaWebAuthDir = vi.fn(() => "/tmp/openclaw-whatsapp-auth");
+    const resolveWaWebAuthDir = vi.fn(() => "/tmp/alisio-whatsapp-auth");
 
     vi.resetModules();
     vi.doMock("../plugins/runtime/runtime-whatsapp-boundary.js", () => ({
@@ -62,8 +62,8 @@ describe("WA_WEB_AUTH_DIR", () => {
     const webEntry = await import("./web/index.js");
 
     expect(resolveWaWebAuthDir).not.toHaveBeenCalled();
-    expect(String(channelWeb.WA_WEB_AUTH_DIR)).toBe("/tmp/openclaw-whatsapp-auth");
-    expect(String(webEntry.WA_WEB_AUTH_DIR)).toBe("/tmp/openclaw-whatsapp-auth");
+    expect(String(channelWeb.WA_WEB_AUTH_DIR)).toBe("/tmp/alisio-whatsapp-auth");
+    expect(String(webEntry.WA_WEB_AUTH_DIR)).toBe("/tmp/alisio-whatsapp-auth");
     expect(resolveWaWebAuthDir).toHaveBeenCalledTimes(1);
   });
 });

@@ -50,7 +50,7 @@ title: "Features"
 
 - 35+ model providers (Anthropic, OpenAI, Google, and more)
 - Subscription auth via OAuth (e.g. OpenAI Codex)
-- Custom and self-hosted provider support (vLLM, SGLang, Ollama, and any OpenAI-compatible or Anthropic-compatible endpoint)
+- Custom and self-hosted provider support (vLLM, SGLang, and any OpenAI-compatible or Anthropic-compatible endpoint)
 
 **Media:**
 

@@ -102,7 +102,7 @@ function normalizeRegistryModel<T>(value: T, agentDir: string): T {
   return normalizeModelCompat(transportNormalized as Model<Api>) as T;
 }
 
-class OpenClawModelRegistry extends PiModelRegistryClass {
+class AlisioModelRegistry extends PiModelRegistryClass {
   constructor(
     authStorage: PiAuthStorage,
     modelsJsonPath: string,
@@ -125,7 +125,7 @@ class OpenClawModelRegistry extends PiModelRegistryClass {
 }
 
 function scrubLegacyStaticAuthJsonEntries(pathname: string): void {
-  if (process.env.OPENCLAW_AUTH_STORE_READONLY === "1") {
+  if (process.env.ALISIO_AUTH_STORE_READONLY === "1") {
     return;
   }
   if (!fs.existsSync(pathname)) {
@@ -243,5 +243,5 @@ export function discoverAuthStorage(agentDir: string): PiAuthStorage {
 }
 
 export function discoverModels(authStorage: PiAuthStorage, agentDir: string): PiModelRegistry {
-  return new OpenClawModelRegistry(authStorage, path.join(agentDir, "models.json"), agentDir);
+  return new AlisioModelRegistry(authStorage, path.join(agentDir, "models.json"), agentDir);
 }

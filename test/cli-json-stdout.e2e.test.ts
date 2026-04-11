@@ -5,12 +5,12 @@ import { describe, expect, it } from "vitest";
 import { withTempHome } from "./helpers/temp-home.ts";
 
 describe("cli json stdout contract", () => {
-  it("keeps `update status --json` stdout parseable even with legacy doctor preflight inputs", async () => {
+  it("keeps `update status --json` stdout parseable with only canonical doctor preflight inputs", async () => {
     await withTempHome(
       async (tempHome) => {
-        const legacyDir = path.join(tempHome, ".clawdbot");
+        const legacyDir = path.join(tempHome, ".alisio");
         await fs.mkdir(legacyDir, { recursive: true });
-        await fs.writeFile(path.join(legacyDir, "clawdbot.json"), "{}", "utf8");
+        await fs.writeFile(path.join(legacyDir, "alisio.json"), "{}", "utf8");
 
         const env = {
           ...process.env,
@@ -21,9 +21,6 @@ describe("cli json stdout contract", () => {
         delete env.ALISIO_HOME;
         delete env.ALISIO_STATE_DIR;
         delete env.ALISIO_CONFIG_PATH;
-        delete env.OPENCLAW_HOME;
-        delete env.OPENCLAW_STATE_DIR;
-        delete env.OPENCLAW_CONFIG_PATH;
         delete env.VITEST;
 
         const entry = path.resolve(process.cwd(), "alisio.mjs");

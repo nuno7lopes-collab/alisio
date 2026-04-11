@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import * as conversationRuntime from "alisio/plugin-sdk/conversation-runtime";
 import type { ResolvedAgentRoute } from "alisio/plugin-sdk/routing";
 import {
@@ -26,7 +26,7 @@ export type DiscordNativeInteractionRouteState = {
 };
 
 export async function resolveDiscordNativeInteractionRouteState(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   guildId?: string;
   memberRoleIds?: string[];

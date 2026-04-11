@@ -47,6 +47,10 @@ func loadGatewayConfig() -> GatewayConfig {
     return cfg
 }
 
+func resolveGatewayPort(config: GatewayConfig) -> Int {
+    GatewayDefaults.resolvedPort(configPort: config.port)
+}
+
 func parseInt(_ value: Any?) -> Int? {
     switch value {
     case let number as Int:

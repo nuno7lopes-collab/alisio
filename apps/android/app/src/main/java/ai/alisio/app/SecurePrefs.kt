@@ -4,6 +4,7 @@ package ai.alisio.app
 
 import android.content.Context
 import android.content.SharedPreferences
+import ai.alisio.app.gateway.DEFAULT_GATEWAY_PORT
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
@@ -21,7 +22,7 @@ class SecurePrefs(
 ) {
   companion object {
     val defaultWakeWords: List<String> = listOf("alisio", "claude")
-    private val legacyBrandName = listOf("open", "claw").joinToString("")
+    private const val legacyBrandName = "alisio"
     private const val displayNameKey = "node.displayName"
     private const val locationModeKey = "location.enabledMode"
     private const val voiceWakeModeKey = "voiceWake.mode"
@@ -92,7 +93,7 @@ class SecurePrefs(
   val manualHost: StateFlow<String> = _manualHost
 
   private val _manualPort =
-    MutableStateFlow(plainPrefs.getInt("gateway.manual.port", 40705))
+    MutableStateFlow(plainPrefs.getInt("gateway.manual.port", DEFAULT_GATEWAY_PORT))
   val manualPort: StateFlow<Int> = _manualPort
 
   private val _manualTls =

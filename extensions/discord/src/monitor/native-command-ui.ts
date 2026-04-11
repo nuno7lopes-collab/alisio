@@ -24,7 +24,7 @@ import {
   type CommandArgValues,
   type CommandArgs,
 } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { loadSessionStore, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
 import type { ResolvedAgentRoute } from "alisio/plugin-sdk/routing";
 import { logVerbose } from "alisio/plugin-sdk/runtime-env";
@@ -51,7 +51,7 @@ import { resolveDiscordNativeInteractionRouteState } from "./native-command-rout
 import type { ThreadBindingManager } from "./thread-bindings.js";
 import { resolveDiscordThreadParentInfo } from "./threading.js";
 
-type DiscordConfig = NonNullable<OpenClawConfig["channels"]>["discord"];
+type DiscordConfig = NonNullable<AlisioConfig["channels"]>["discord"];
 
 const DISCORD_COMMAND_ARG_CUSTOM_ID_KEY = "cmdarg";
 

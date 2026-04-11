@@ -59,7 +59,7 @@ export function buildGatewayRuntimeHints(
     return hints;
   }
   if (runtime.cachedLabel && platform === "darwin") {
-    const profile = env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE;
+    const profile = env.ALISIO_PROFILE;
     const label = resolveGatewayLaunchAgentLabel(profile);
     hints.push(
       `LaunchAgent label cached but plist missing. Clear with: launchctl bootout gui/$UID/${label}`,
@@ -82,10 +82,8 @@ export function buildGatewayRuntimeHints(
       ...buildPlatformRuntimeLogHints({
         platform,
         env,
-        systemdServiceName: resolveGatewaySystemdServiceName(
-          env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE,
-        ),
-        windowsTaskName: resolveGatewayWindowsTaskName(env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE),
+        systemdServiceName: resolveGatewaySystemdServiceName(env.ALISIO_PROFILE),
+        windowsTaskName: resolveGatewayWindowsTaskName(env.ALISIO_PROFILE),
       }),
     );
   }

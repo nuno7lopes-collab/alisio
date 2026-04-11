@@ -22,17 +22,17 @@ import { buildOutboundBaseSessionKey } from "../infra/outbound/base-session-key.
 import type { OutboundDeliveryResult } from "../infra/outbound/deliver.js";
 import { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 import type { PluginRuntime } from "../plugins/runtime/types.js";
-import type { OpenClawPluginApi, OpenClawPluginConfigSchema } from "../plugins/types.js";
+import type { AlisioPluginApi, AlisioPluginConfigSchema } from "../plugins/types.js";
 
 export type {
   AnyAgentTool,
   MediaUnderstandingProviderPlugin,
-  OpenClawPluginApi,
-  OpenClawPluginCommandDefinition,
-  OpenClawPluginConfigSchema,
-  OpenClawPluginDefinition,
-  OpenClawPluginService,
-  OpenClawPluginServiceContext,
+  AlisioPluginApi,
+  AlisioPluginCommandDefinition,
+  AlisioPluginConfigSchema,
+  AlisioPluginDefinition,
+  AlisioPluginService,
+  AlisioPluginServiceContext,
   PluginCommandContext,
   PluginInteractiveTelegramHandlerContext,
   PluginLogger,
@@ -66,9 +66,8 @@ export type {
   ProviderWrapStreamFnContext,
   SpeechProviderPlugin,
 } from "./plugin-entry.js";
-export type { OpenClawPluginToolContext, OpenClawPluginToolFactory } from "../plugins/types.js";
+export type { AlisioPluginToolContext, AlisioPluginToolFactory } from "../plugins/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isSecretRef } from "../config/types.secrets.js";
 export type { GatewayRequestHandlerOptions } from "../gateway/server-methods/types.js";
 export type {
@@ -219,18 +218,18 @@ type DefineChannelPluginEntryOptions<TPlugin = ChannelPlugin> = {
   name: string;
   description: string;
   plugin: TPlugin;
-  configSchema?: OpenClawPluginConfigSchema | (() => OpenClawPluginConfigSchema);
+  configSchema?: AlisioPluginConfigSchema | (() => AlisioPluginConfigSchema);
   setRuntime?: (runtime: PluginRuntime) => void;
-  registerCliMetadata?: (api: OpenClawPluginApi) => void;
-  registerFull?: (api: OpenClawPluginApi) => void;
+  registerCliMetadata?: (api: AlisioPluginApi) => void;
+  registerFull?: (api: AlisioPluginApi) => void;
 };
 
 type DefinedChannelPluginEntry<TPlugin> = {
   id: string;
   name: string;
   description: string;
-  configSchema: OpenClawPluginConfigSchema;
-  register: (api: OpenClawPluginApi) => void;
+  configSchema: AlisioPluginConfigSchema;
+  register: (api: AlisioPluginApi) => void;
   channelPlugin: TPlugin;
   setChannelRuntime?: (runtime: PluginRuntime) => void;
 };
@@ -294,7 +293,7 @@ export function defineChannelPluginEntry<TPlugin>({
     name,
     description,
     configSchema: resolvedConfigSchema,
-    register(api: OpenClawPluginApi) {
+    register(api: AlisioPluginApi) {
       if (api.registrationMode === "cli-metadata") {
         registerCliMetadata?.(api);
         return;

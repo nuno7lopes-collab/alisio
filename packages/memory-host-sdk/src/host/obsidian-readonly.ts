@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { OpenClawConfig } from "../../../../src/config/config.js";
+import type { AlisioConfig } from "../../../../src/config/config.js";
 import { resolveUserPath } from "../../../../src/utils.js";
 
 export const OBSIDIAN_READONLY_TOOL_PREFIX = "obsidian-vault";
@@ -75,7 +75,7 @@ function normalizeRelativePath(raw: string): string {
 }
 
 export function resolveObsidianReadOnlyVault(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
 }): ResolvedObsidianReadOnlyVault | null {
   const connector = params.cfg?.memory?.obsidianReadOnly;
   if (!connector?.enabled) {

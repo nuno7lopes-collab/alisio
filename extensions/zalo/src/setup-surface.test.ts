@@ -5,7 +5,7 @@ import {
   runSetupWizardConfigure,
   type WizardPrompter,
 } from "../../../test/helpers/plugins/setup-wizard.js";
-import type { OpenClawConfig } from "../runtime-api.js";
+import type { AlisioConfig } from "../runtime-api.js";
 import { zaloPlugin } from "./channel.js";
 
 const zaloConfigure = createPluginSetupWizardConfigure(zaloPlugin);
@@ -30,7 +30,7 @@ describe("zalo setup wizard", () => {
 
     const result = await runSetupWizardConfigure({
       configure: zaloConfigure,
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       prompter,
       options: { secretInputMode: "plaintext" as const },
     });

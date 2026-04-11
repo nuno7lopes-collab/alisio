@@ -350,7 +350,7 @@ describe("getHealthSnapshot", () => {
   });
 
   it("treats telegram.tokenFile as configured", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-health-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-health-"));
     const tokenFile = path.join(tmpDir, "telegram-token");
     fs.writeFileSync(tokenFile, "t-file\n", "utf-8");
     const { calls, telegram } = await runSuccessfulTelegramProbe(
@@ -481,7 +481,7 @@ describe("getHealthSnapshot", () => {
   it("can expose the broader health surface behind the product-surface flag", async () => {
     testConfig = {};
     testStore = {};
-    vi.stubEnv("OPENCLAW_CHANNEL_SURFACE", "all");
+    vi.stubEnv("ALISIO_CHANNEL_SURFACE", "all");
     setActivePluginRegistry(
       createTestRegistry([
         { pluginId: "telegram", plugin: createTelegramHealthPlugin(), source: "test" },

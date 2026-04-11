@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/google-plugin",
+  "name": "@alisio/google-plugin",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Google plugin",
+  "description": "Alisio Google plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

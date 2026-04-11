@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/deepseek-provider",
+  "name": "@alisio/deepseek-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw DeepSeek provider plugin",
+  "description": "Alisio DeepSeek provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

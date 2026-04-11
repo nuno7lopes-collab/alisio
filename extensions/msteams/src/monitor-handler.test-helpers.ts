@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import type { OpenClawConfig, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, RuntimeEnv } from "../runtime-api.js";
 import type { MSTeamsConversationStore } from "./conversation-store.js";
 import type { MSTeamsAdapter } from "./messenger.js";
 import type { MSTeamsActivityHandler, MSTeamsMessageHandlerDeps } from "./monitor-handler.js";
@@ -24,7 +24,7 @@ export function createActivityHandler(
 }
 
 export function createMSTeamsMessageHandlerDeps(params?: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   runtime?: RuntimeEnv;
 }): MSTeamsMessageHandlerDeps {
   const adapter: MSTeamsAdapter = {
@@ -48,7 +48,7 @@ export function createMSTeamsMessageHandlerDeps(params?: {
   };
 
   return {
-    cfg: (params?.cfg ?? {}) as OpenClawConfig,
+    cfg: (params?.cfg ?? {}) as AlisioConfig,
     runtime: (params?.runtime ?? { error: vi.fn() }) as RuntimeEnv,
     appId: "test-app-id",
     adapter,

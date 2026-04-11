@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import type { AlisioConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   EmbeddingProvider,
@@ -52,7 +52,7 @@ function buildConfig(params: {
   indexPath: string;
   provider: "openai" | "mistral";
   fallback?: "none" | "mistral";
-}): OpenClawConfig {
+}): AlisioConfig {
   return {
     agents: {
       defaults: {
@@ -68,7 +68,7 @@ function buildConfig(params: {
       },
       list: [{ id: "main", default: true }],
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 describe("memory manager mistral provider wiring", () => {
@@ -81,7 +81,7 @@ describe("memory manager mistral provider wiring", () => {
     ({ getMemorySearchManager, closeAllMemorySearchManagers } = await import("./index.js"));
     vi.clearAllMocks();
     createEmbeddingProviderMock.mockReset();
-    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-memory-mistral-"));
+    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-memory-mistral-"));
     indexPath = path.join(workspaceDir, "index.sqlite");
     await fs.mkdir(path.join(workspaceDir, "memory"), { recursive: true });
     await fs.writeFile(path.join(workspaceDir, "MEMORY.md"), "test");

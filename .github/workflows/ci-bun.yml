@@ -34,15 +34,15 @@ jobs:
       - name: Build Bun CI manifest
         id: manifest
         env:
-          OPENCLAW_CI_DOCS_ONLY: "false"
-          OPENCLAW_CI_DOCS_CHANGED: "false"
-          OPENCLAW_CI_RUN_NODE: "true"
-          OPENCLAW_CI_RUN_MACOS: "false"
-          OPENCLAW_CI_RUN_ANDROID: "false"
-          OPENCLAW_CI_RUN_WINDOWS: "false"
-          OPENCLAW_CI_RUN_SKILLS_PYTHON: "false"
-          OPENCLAW_CI_HAS_CHANGED_EXTENSIONS: "false"
-          OPENCLAW_CI_CHANGED_EXTENSIONS_MATRIX: '{"include":[]}'
+          ALISIO_CI_DOCS_ONLY: "false"
+          ALISIO_CI_DOCS_CHANGED: "false"
+          ALISIO_CI_RUN_NODE: "true"
+          ALISIO_CI_RUN_MACOS: "false"
+          ALISIO_CI_RUN_ANDROID: "false"
+          ALISIO_CI_RUN_WINDOWS: "false"
+          ALISIO_CI_RUN_SKILLS_PYTHON: "false"
+          ALISIO_CI_HAS_CHANGED_EXTENSIONS: "false"
+          ALISIO_CI_CHANGED_EXTENSIONS_MATRIX: '{"include":[]}'
         run: node scripts/ci-write-manifest-outputs.mjs --workflow ci-bun
 
   build-bun-artifacts:
@@ -107,4 +107,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          OPENCLAW_TEST_ISOLATE=1 bunx vitest run --config vitest.unit.config.ts --shard "$SHARD_INDEX/$SHARD_COUNT"
+          ALISIO_TEST_ISOLATE=1 bunx vitest run --config vitest.unit.config.ts --shard "$SHARD_INDEX/$SHARD_COUNT"

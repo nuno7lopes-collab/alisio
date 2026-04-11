@@ -14,7 +14,7 @@ import {
   resolveAgentDir,
   resolveSessionTranscriptsDirForAgent,
   resolveUserPath,
-  type OpenClawConfig,
+  type AlisioConfig,
   type ResolvedMemorySearchConfig,
 } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import {
@@ -114,7 +114,7 @@ export function runDetachedMemorySync(sync: () => Promise<void>, reason: "interv
 }
 
 export abstract class MemoryManagerSyncOps {
-  protected abstract readonly cfg: OpenClawConfig;
+  protected abstract readonly cfg: AlisioConfig;
   protected abstract readonly agentId: string;
   protected abstract readonly workspaceDir: string;
   protected abstract readonly settings: ResolvedMemorySearchConfig;
@@ -406,7 +406,6 @@ export abstract class MemoryManagerSyncOps {
     });
     const watchPaths = new Set<string>([
       path.join(this.workspaceDir, "MEMORY.md"),
-      path.join(this.workspaceDir, "memory.md"),
       path.join(this.workspaceDir, "memory", "**", "*.md"),
     ]);
     if (obsidianLayout) {
@@ -1062,8 +1061,8 @@ export abstract class MemoryManagerSyncOps {
           this.shouldFallbackOnError(reason) && (await this.activateFallbackProvider(reason));
         if (activated) {
           if (
-            process.env.OPENCLAW_TEST_FAST === "1" &&
-            process.env.OPENCLAW_TEST_MEMORY_UNSAFE_REINDEX === "1"
+            process.env.ALISIO_TEST_FAST === "1" &&
+            process.env.ALISIO_TEST_MEMORY_UNSAFE_REINDEX === "1"
           ) {
             await this.runUnsafeReindex({
               reason: params?.reason,
@@ -1099,8 +1098,8 @@ export abstract class MemoryManagerSyncOps {
     try {
       if (needsFullReindex) {
         if (
-          process.env.OPENCLAW_TEST_FAST === "1" &&
-          process.env.OPENCLAW_TEST_MEMORY_UNSAFE_REINDEX === "1"
+          process.env.ALISIO_TEST_FAST === "1" &&
+          process.env.ALISIO_TEST_MEMORY_UNSAFE_REINDEX === "1"
         ) {
           await this.runUnsafeReindex({
             reason: params?.reason,

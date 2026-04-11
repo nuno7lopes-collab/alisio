@@ -33,10 +33,10 @@ async function writeWorkspacePlugin(params: {
   id: string;
   body: string;
 }): Promise<void> {
-  const pluginDir = path.join(params.workspaceDir, ".openclaw", "extensions", params.id);
+  const pluginDir = path.join(params.workspaceDir, ".alisio", "extensions", params.id);
   await fs.mkdir(pluginDir, { recursive: true });
   await fs.writeFile(
-    path.join(pluginDir, "openclaw.plugin.json"),
+    path.join(pluginDir, "alisio.plugin.json"),
     `${JSON.stringify(
       {
         id: params.id,
@@ -95,37 +95,37 @@ describe("gateway e2e", () => {
     async () => {
       const envSnapshot = captureEnv([
         "HOME",
-        "OPENCLAW_STATE_DIR",
-        "OPENCLAW_CONFIG_PATH",
-        "OPENCLAW_GATEWAY_TOKEN",
-        "OPENCLAW_SKIP_CHANNELS",
-        "OPENCLAW_SKIP_GMAIL_WATCHER",
-        "OPENCLAW_SKIP_CRON",
+        "ALISIO_STATE_DIR",
+        "ALISIO_CONFIG_PATH",
+        "ALISIO_GATEWAY_TOKEN",
+        "ALISIO_SKIP_CHANNELS",
+        "ALISIO_SKIP_GMAIL_WATCHER",
+        "ALISIO_SKIP_CRON",
         "ALISIO_SKIP_CANVAS_HOST",
-        "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
+        "ALISIO_SKIP_BROWSER_CONTROL_SERVER",
       ]);
 
       const { baseUrl: openaiBaseUrl, restore } = installOpenAiResponsesMock();
 
-      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-mock-home-"));
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-mock-home-"));
       process.env.HOME = tempHome;
-      process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
-      delete process.env.OPENCLAW_CONFIG_PATH;
-      process.env.OPENCLAW_SKIP_CHANNELS = "1";
-      process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
-      process.env.OPENCLAW_SKIP_CRON = "1";
+      process.env.ALISIO_STATE_DIR = path.join(tempHome, ".alisio");
+      delete process.env.ALISIO_CONFIG_PATH;
+      process.env.ALISIO_SKIP_CHANNELS = "1";
+      process.env.ALISIO_SKIP_GMAIL_WATCHER = "1";
+      process.env.ALISIO_SKIP_CRON = "1";
       process.env.ALISIO_SKIP_CANVAS_HOST = "1";
-      process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = "1";
+      process.env.ALISIO_SKIP_BROWSER_CONTROL_SERVER = "1";
 
       const token = nextGatewayId("test-token");
-      process.env.OPENCLAW_GATEWAY_TOKEN = token;
+      process.env.ALISIO_GATEWAY_TOKEN = token;
 
-      const workspaceDir = path.join(tempHome, "openclaw");
+      const workspaceDir = path.join(tempHome, "alisio");
       await fs.mkdir(workspaceDir, { recursive: true });
 
-      const configDir = path.join(tempHome, ".openclaw");
+      const configDir = path.join(tempHome, ".alisio");
       await fs.mkdir(configDir, { recursive: true });
-      const configPath = path.join(configDir, "openclaw.json");
+      const configPath = path.join(configDir, "alisio.json");
       const mockProvider = buildMockOpenAiResponsesProvider(openaiBaseUrl);
 
       const cfg = {
@@ -195,30 +195,30 @@ describe("gateway e2e", () => {
     async () => {
       const envSnapshot = captureEnv([
         "HOME",
-        "OPENCLAW_STATE_DIR",
-        "OPENCLAW_CONFIG_PATH",
-        "OPENCLAW_GATEWAY_TOKEN",
-        "OPENCLAW_SKIP_CHANNELS",
-        "OPENCLAW_SKIP_GMAIL_WATCHER",
-        "OPENCLAW_SKIP_CRON",
+        "ALISIO_STATE_DIR",
+        "ALISIO_CONFIG_PATH",
+        "ALISIO_GATEWAY_TOKEN",
+        "ALISIO_SKIP_CHANNELS",
+        "ALISIO_SKIP_GMAIL_WATCHER",
+        "ALISIO_SKIP_CRON",
         "ALISIO_SKIP_CANVAS_HOST",
-        "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
+        "ALISIO_SKIP_BROWSER_CONTROL_SERVER",
       ]);
 
-      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-gw-http-tools-home-"));
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-gw-http-tools-home-"));
       process.env.HOME = tempHome;
-      process.env.OPENCLAW_STATE_DIR = path.join(tempHome, ".openclaw");
-      delete process.env.OPENCLAW_CONFIG_PATH;
-      process.env.OPENCLAW_SKIP_CHANNELS = "1";
-      process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
-      process.env.OPENCLAW_SKIP_CRON = "1";
+      process.env.ALISIO_STATE_DIR = path.join(tempHome, ".alisio");
+      delete process.env.ALISIO_CONFIG_PATH;
+      process.env.ALISIO_SKIP_CHANNELS = "1";
+      process.env.ALISIO_SKIP_GMAIL_WATCHER = "1";
+      process.env.ALISIO_SKIP_CRON = "1";
       process.env.ALISIO_SKIP_CANVAS_HOST = "1";
-      process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = "1";
+      process.env.ALISIO_SKIP_BROWSER_CONTROL_SERVER = "1";
 
       const token = nextGatewayId("http-tools-token");
-      process.env.OPENCLAW_GATEWAY_TOKEN = token;
+      process.env.ALISIO_GATEWAY_TOKEN = token;
 
-      const workspaceDir = path.join(tempHome, "openclaw");
+      const workspaceDir = path.join(tempHome, "alisio");
       await fs.mkdir(workspaceDir, { recursive: true });
       const registerCountPath = path.join(tempHome, "workspace-plugin-register-count.txt");
       await writeWorkspacePlugin({
@@ -239,9 +239,9 @@ module.exports = {
 `.trimStart(),
       });
 
-      const configDir = path.join(tempHome, ".openclaw");
+      const configDir = path.join(tempHome, ".alisio");
       await fs.mkdir(configDir, { recursive: true });
-      const configPath = path.join(configDir, "openclaw.json");
+      const configPath = path.join(configDir, "alisio.json");
       const cfg = {
         agents: {
           defaults: { workspace: workspaceDir },
@@ -253,7 +253,7 @@ module.exports = {
         gateway: { auth: { token } },
       };
       await fs.writeFile(configPath, `${JSON.stringify(cfg, null, 2)}\n`);
-      process.env.OPENCLAW_CONFIG_PATH = configPath;
+      process.env.ALISIO_CONFIG_PATH = configPath;
 
       const port = await getFreeGatewayPort();
       const server = await startGatewayServer(port, {
@@ -301,27 +301,27 @@ module.exports = {
     async () => {
       const envSnapshot = captureEnv([
         "HOME",
-        "OPENCLAW_STATE_DIR",
-        "OPENCLAW_CONFIG_PATH",
-        "OPENCLAW_GATEWAY_TOKEN",
-        "OPENCLAW_SKIP_CHANNELS",
-        "OPENCLAW_SKIP_GMAIL_WATCHER",
-        "OPENCLAW_SKIP_CRON",
+        "ALISIO_STATE_DIR",
+        "ALISIO_CONFIG_PATH",
+        "ALISIO_GATEWAY_TOKEN",
+        "ALISIO_SKIP_CHANNELS",
+        "ALISIO_SKIP_GMAIL_WATCHER",
+        "ALISIO_SKIP_CRON",
         "ALISIO_SKIP_CANVAS_HOST",
-        "OPENCLAW_SKIP_BROWSER_CONTROL_SERVER",
+        "ALISIO_SKIP_BROWSER_CONTROL_SERVER",
       ]);
 
-      process.env.OPENCLAW_SKIP_CHANNELS = "1";
-      process.env.OPENCLAW_SKIP_GMAIL_WATCHER = "1";
-      process.env.OPENCLAW_SKIP_CRON = "1";
+      process.env.ALISIO_SKIP_CHANNELS = "1";
+      process.env.ALISIO_SKIP_GMAIL_WATCHER = "1";
+      process.env.ALISIO_SKIP_CRON = "1";
       process.env.ALISIO_SKIP_CANVAS_HOST = "1";
-      process.env.OPENCLAW_SKIP_BROWSER_CONTROL_SERVER = "1";
-      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+      process.env.ALISIO_SKIP_BROWSER_CONTROL_SERVER = "1";
+      delete process.env.ALISIO_GATEWAY_TOKEN;
 
-      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-wizard-home-"));
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-wizard-home-"));
       process.env.HOME = tempHome;
-      delete process.env.OPENCLAW_STATE_DIR;
-      delete process.env.OPENCLAW_CONFIG_PATH;
+      delete process.env.ALISIO_STATE_DIR;
+      delete process.env.ALISIO_CONFIG_PATH;
 
       const wizardToken = nextGatewayId("wiz-token");
       const port = await getFreeGatewayPort();

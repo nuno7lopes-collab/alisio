@@ -23,7 +23,6 @@ export type { CliMockOutputRuntime, CliRuntimeCapture } from "../cli/test-runtim
 export { setDefaultChannelPluginRegistryForTests } from "../commands/channel-test-helpers.js";
 export type { ChannelAccountSnapshot, ChannelGatewayContext } from "../channels/plugins/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { callGateway } from "../gateway/call.js";
 export { createEmptyPluginRegistry } from "../plugins/registry.js";
 export {

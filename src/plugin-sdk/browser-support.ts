@@ -27,7 +27,7 @@ export {
   startLazyPluginServiceModule,
   type LazyPluginServiceHandle,
 } from "../plugins/lazy-service-module.js";
-export type { OpenClawPluginService } from "../plugins/types.js";
+export type { AlisioPluginService } from "../plugins/types.js";
 export { resolveGatewayAuth } from "../gateway/auth.js";
 export { isLoopbackHost } from "../gateway/net.js";
 export { ensureGatewayStartupAuth } from "../gateway/startup-auth.js";
@@ -68,7 +68,6 @@ export {
 } from "../gateway/server-methods/nodes.helpers.js";
 export type { GatewayRequestHandlers } from "../gateway/server-methods/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { extractErrorCode, formatErrorMessage } from "../infra/errors.js";
 export {
   SafeOpenError,

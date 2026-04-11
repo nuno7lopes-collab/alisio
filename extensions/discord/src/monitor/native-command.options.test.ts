@@ -1,4 +1,4 @@
-import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { ChannelType } from "discord-api-types/v10";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,7 +34,7 @@ function createNativeCommand(
   name: string,
   opts?: {
     cfg?: ReturnType<typeof loadConfig>;
-    discordConfig?: NonNullable<OpenClawConfig["channels"]>["discord"];
+    discordConfig?: NonNullable<AlisioConfig["channels"]>["discord"];
   },
 ): ReturnType<typeof import("./native-command.js").createDiscordNativeCommand> {
   const command = listNativeCommandSpecs({ provider: "discord" }).find(
@@ -45,7 +45,7 @@ function createNativeCommand(
   }
   const cfg = (opts?.cfg ?? {}) as ReturnType<typeof loadConfig>;
   const discordConfig = (opts?.discordConfig ?? {}) as NonNullable<
-    OpenClawConfig["channels"]
+    AlisioConfig["channels"]
   >["discord"];
   return createDiscordNativeCommand({
     command,
@@ -202,7 +202,7 @@ describe("createDiscordNativeCommand option wiring", () => {
   it("truncates Discord command and option descriptions to Discord's limit", () => {
     const longDescription = "x".repeat(140);
     const cfg = {} as ReturnType<typeof loadConfig>;
-    const discordConfig = {} as NonNullable<OpenClawConfig["channels"]>["discord"];
+    const discordConfig = {} as NonNullable<AlisioConfig["channels"]>["discord"];
     const command = createDiscordNativeCommand({
       command: {
         name: "longdesc",

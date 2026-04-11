@@ -11,7 +11,7 @@ import {
   type WizardPrompter,
 } from "../../../test/helpers/plugins/setup-wizard.js";
 import { createStartAccountContext } from "../../../test/helpers/plugins/start-account-context.js";
-import type { OpenClawConfig, PluginRuntime, ResolvedLineAccount } from "../api.js";
+import type { AlisioConfig, PluginRuntime, ResolvedLineAccount } from "../api.js";
 import { linePlugin } from "./channel.js";
 import { clearLineRuntime, setLineRuntime } from "./runtime.js";
 
@@ -164,7 +164,7 @@ describe("line setup wizard", () => {
 
     const result = await runSetupWizardConfigure({
       configure: lineConfigure,
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       prompter,
       options: {},
     });
@@ -207,9 +207,9 @@ describe("probeLineBot", () => {
 
   it("returns bot info when available", async () => {
     getBotInfoMock.mockResolvedValue({
-      displayName: "OpenClaw",
+      displayName: "Alisio",
       userId: "U123",
-      basicId: "@openclaw",
+      basicId: "@alisio",
       pictureUrl: "https://example.com/bot.png",
     });
 
@@ -227,9 +227,9 @@ describe("linePlugin status.probeAccount", () => {
       return { getBotInfo: getBotInfoMock };
     });
     getBotInfoMock.mockResolvedValue({
-      displayName: "OpenClaw",
+      displayName: "Alisio",
       userId: "U123",
-      basicId: "@openclaw",
+      basicId: "@alisio",
       pictureUrl: "https://example.com/bot.png",
     });
 
@@ -238,7 +238,7 @@ describe("linePlugin status.probeAccount", () => {
     const { probeLineBot: directProbeLineBot } = await import("./probe.js");
     clearFreshLineRuntime();
     const params = {
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       account: {
         accountId: "default",
         enabled: true,

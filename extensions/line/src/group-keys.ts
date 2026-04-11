@@ -1,5 +1,5 @@
 import { normalizeAccountId } from "alisio/plugin-sdk/account-id";
-import type { OpenClawConfig } from "alisio/plugin-sdk/account-resolution";
+import type { AlisioConfig } from "alisio/plugin-sdk/account-resolution";
 import { resolveAccountEntry } from "alisio/plugin-sdk/account-resolution";
 import type { LineConfig, LineGroupConfig } from "./types.js";
 
@@ -38,7 +38,7 @@ export function resolveLineGroupConfigEntry<T>(
 }
 
 export function resolveLineGroupsConfig(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   accountId?: string | null,
 ): Record<string, LineGroupConfig | undefined> | undefined {
   const lineConfig = cfg.channels?.line as LineConfig | undefined;
@@ -51,7 +51,7 @@ export function resolveLineGroupsConfig(
 }
 
 export function resolveExactLineGroupConfigKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   groupId?: string | null;
 }): string | undefined {

@@ -1,4 +1,4 @@
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
 import { kindFromMime } from "alisio/plugin-sdk/media-runtime";
 import { resolveOutboundAttachmentFromUrl } from "alisio/plugin-sdk/media-runtime";
@@ -8,7 +8,7 @@ import { markdownToSignalText, type SignalTextStyleRange } from "./format.js";
 import { resolveSignalRpcContext } from "./rpc-context.js";
 
 export type SignalSendOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   baseUrl?: string;
   account?: string;
   accountId?: string;

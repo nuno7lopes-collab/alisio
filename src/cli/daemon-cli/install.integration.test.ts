@@ -48,18 +48,18 @@ describe("runDaemonInstall integration", () => {
       "ALISIO_CONFIG_PATH",
       "ALISIO_GATEWAY_TOKEN",
       "ALISIO_GATEWAY_PASSWORD",
-      "OPENCLAW_STATE_DIR",
-      "OPENCLAW_CONFIG_PATH",
-      "OPENCLAW_GATEWAY_TOKEN",
-      "OPENCLAW_GATEWAY_PASSWORD",
+      "ALISIO_STATE_DIR",
+      "ALISIO_CONFIG_PATH",
+      "ALISIO_GATEWAY_TOKEN",
+      "ALISIO_GATEWAY_PASSWORD",
     ]);
     tempHome = await makeTempWorkspace("alisio-daemon-install-int-");
     configPath = path.join(tempHome, "alisio.json");
     process.env.HOME = tempHome;
     process.env.ALISIO_STATE_DIR = tempHome;
     process.env.ALISIO_CONFIG_PATH = configPath;
-    process.env.OPENCLAW_STATE_DIR = tempHome;
-    process.env.OPENCLAW_CONFIG_PATH = configPath;
+    process.env.ALISIO_STATE_DIR = tempHome;
+    process.env.ALISIO_CONFIG_PATH = configPath;
   });
 
   afterAll(async () => {
@@ -74,8 +74,8 @@ describe("runDaemonInstall integration", () => {
     // Keep these defined-but-empty so dotenv won't repopulate from local .env.
     process.env.ALISIO_GATEWAY_TOKEN = "";
     process.env.ALISIO_GATEWAY_PASSWORD = "";
-    process.env.OPENCLAW_GATEWAY_TOKEN = "";
-    process.env.OPENCLAW_GATEWAY_PASSWORD = "";
+    process.env.ALISIO_GATEWAY_TOKEN = "";
+    process.env.ALISIO_GATEWAY_PASSWORD = "";
     serviceMock.isLoaded.mockResolvedValue(false);
     await fs.writeFile(configPath, JSON.stringify({}, null, 2));
     clearConfigCache();

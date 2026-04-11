@@ -22,8 +22,6 @@ type TestCase = {
 const gatewayEnv = {
   ALISIO_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
   ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
-  OPENCLAW_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
-  OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
 } as NodeJS.ProcessEnv;
 
 function makeRemoteGatewayConfig(remote: { token?: string; password?: string }): AlisioConfig {
@@ -40,13 +38,7 @@ function makeRemoteGatewayConfig(remote: { token?: string; password?: string }):
 }
 
 function withGatewayAuthEnv<T>(env: NodeJS.ProcessEnv, fn: () => T): T {
-  const keys = [
-    "ALISIO_GATEWAY_TOKEN",
-    "ALISIO_GATEWAY_PASSWORD",
-    "OPENCLAW_GATEWAY_TOKEN",
-    "OPENCLAW_GATEWAY_PASSWORD",
-    "OPENCLAW_SERVICE_KIND",
-  ] as const;
+  const keys = ["ALISIO_GATEWAY_TOKEN", "ALISIO_GATEWAY_PASSWORD", "ALISIO_SERVICE_KIND"] as const;
   const previous = new Map<string, string | undefined>();
   for (const key of keys) {
     previous.set(key, process.env[key]);
@@ -87,8 +79,6 @@ describe("gateway credential precedence coverage", () => {
       env: {
         ALISIO_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
         ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
-        OPENCLAW_GATEWAY_TOKEN: "env-token", // pragma: allowlist secret
-        OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
       } as NodeJS.ProcessEnv,
       expected: {
         call: { token: "env-token", password: "env-password" }, // pragma: allowlist secret
@@ -138,9 +128,7 @@ describe("gateway credential precedence coverage", () => {
       env: {
         ALISIO_GATEWAY_TOKEN: "env-token",
         ALISIO_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
-        OPENCLAW_GATEWAY_TOKEN: "env-token",
-        OPENCLAW_GATEWAY_PASSWORD: "env-password", // pragma: allowlist secret
-        OPENCLAW_SERVICE_KIND: "gateway",
+        ALISIO_SERVICE_KIND: "gateway",
       } as NodeJS.ProcessEnv,
       expected: {
         call: { token: "config-token", password: "env-password" }, // pragma: allowlist secret

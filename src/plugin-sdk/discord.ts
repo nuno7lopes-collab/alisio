@@ -4,7 +4,6 @@ export type {
   ChannelMessageActionAdapter,
 } from "../channels/plugins/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { DiscordAccountConfig, DiscordActionConfig } from "../config/types.js";
 export type { DiscordConfig, DiscordPluralKitConfig } from "../config/types.discord.js";
 export type {
@@ -28,7 +27,7 @@ export type {
 export type {
   ChannelMessageActionContext,
   ChannelPlugin,
-  OpenClawPluginApi,
+  AlisioPluginApi,
   PluginRuntime,
 } from "./channel-plugin-common.js";
 export {

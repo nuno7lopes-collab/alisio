@@ -7,11 +7,11 @@ import {
   withModelsTempHome as withTempHome,
   withTempEnv,
 } from "./models-config.e2e-harness.js";
-import { ensureOpenClawModelsJson } from "./models-config.js";
+import { ensureAlisioModelsJson } from "./models-config.js";
 
 installModelsConfigTestHooks();
 
-const TEST_ENV_VAR = "OPENCLAW_MODELS_CONFIG_TEST_ENV";
+const TEST_ENV_VAR = "ALISIO_MODELS_CONFIG_TEST_ENV";
 
 describe("models-config", () => {
   it("uses config env.vars entries for implicit provider discovery without mutating process.env", async () => {
@@ -28,7 +28,7 @@ describe("models-config", () => {
           },
         };
 
-        const { agentDir } = await ensureOpenClawModelsJson(cfg);
+        const { agentDir } = await ensureAlisioModelsJson(cfg);
 
         expect(process.env.OPENROUTER_API_KEY).toBeUndefined();
         expect(process.env[TEST_ENV_VAR]).toBeUndefined();
@@ -56,7 +56,7 @@ describe("models-config", () => {
           },
         };
 
-        const { agentDir } = await ensureOpenClawModelsJson(cfg);
+        const { agentDir } = await ensureAlisioModelsJson(cfg);
 
         const modelsJson = JSON.parse(await fs.readFile(`${agentDir}/models.json`, "utf8")) as {
           providers?: { openrouter?: { apiKey?: string } };

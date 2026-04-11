@@ -27,9 +27,9 @@ function resolveCurrentPrimaryModel(model: unknown): string | undefined {
 }
 
 export function applyOpencodeZenModelDefault(
-  cfg: import("alisio/plugin-sdk/provider-onboard").OpenClawConfig,
+  cfg: import("alisio/plugin-sdk/provider-onboard").AlisioConfig,
 ): {
-  next: import("alisio/plugin-sdk/provider-onboard").OpenClawConfig;
+  next: import("alisio/plugin-sdk/provider-onboard").AlisioConfig;
   changed: boolean;
 } {
   const current = resolveCurrentPrimaryModel(cfg.agents?.defaults?.model);

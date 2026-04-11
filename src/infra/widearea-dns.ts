@@ -2,10 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CONFIG_DIR, ensureDir } from "../utils.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
-const LEGACY_CONTENT_HASH_MARKER = `${LEGACY_RUNTIME_NAMESPACE}-content-hash`;
 const CURRENT_CONTENT_HASH_MARKER = "alisio-content-hash";
 const CURRENT_GATEWAY_SERVICE_TYPE = "_alisio-gw._tcp";
 
@@ -26,7 +24,7 @@ export function resolveWideAreaDiscoveryDomain(params?: {
     params?.configDomain ??
     readEnv("ALISIO_WIDE_AREA_DOMAIN", {
       env,
-      fallback: legacyEnvKey("WIDE_AREA_DOMAIN"),
+      fallback: runtimeEnvKey("WIDE_AREA_DOMAIN"),
       description: "wide-area discovery domain",
     }) ??
     null;
@@ -88,10 +86,7 @@ function extractSerial(zoneText: string): number | null {
 
 function extractContentHash(zoneText: string): string | null {
   const match = zoneText.match(
-    new RegExp(
-      `^\\s*;\\s*(?:${CURRENT_CONTENT_HASH_MARKER}|${LEGACY_CONTENT_HASH_MARKER}):\\s*(\\S+)\\s*$`,
-      "m",
-    ),
+    new RegExp(`^\\s*;\\s*${CURRENT_CONTENT_HASH_MARKER}:\\s*(\\S+)\\s*$`, "m"),
   );
   return match?.[1] ?? null;
 }

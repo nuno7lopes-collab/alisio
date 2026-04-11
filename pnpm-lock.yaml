@@ -264,7 +264,7 @@ importers:
 
   extensions/bluebubbles:
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -353,7 +353,7 @@ importers:
         specifier: ^0.1.1
         version: 0.1.1
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -377,7 +377,7 @@ importers:
         specifier: ^8.0.0
         version: 8.0.0
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -393,7 +393,7 @@ importers:
         specifier: ^10.6.2
         version: 10.6.2
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -413,7 +413,7 @@ importers:
 
   extensions/line:
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -455,7 +455,7 @@ importers:
         specifier: ^11.12.3
         version: 11.12.3
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -468,7 +468,7 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -476,7 +476,7 @@ importers:
 
   extensions/memory-core:
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -520,13 +520,13 @@ importers:
         specifier: ^5.2.1
         version: 5.2.1
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
   extensions/nextcloud-talk:
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -536,7 +536,7 @@ importers:
         specifier: ^2.23.3
         version: 2.23.3(typescript@6.0.2)
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -606,7 +606,7 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -642,7 +642,7 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -657,7 +657,7 @@ importers:
         specifier: ^1.6.0
         version: 1.6.0
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -673,7 +673,7 @@ importers:
         specifier: 7.24.6
         version: 7.24.6
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -686,13 +686,13 @@ importers:
         specifier: 2.1.2
         version: 2.1.2
     devDependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
   packages/clawdbot:
     dependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 
@@ -700,7 +700,7 @@ importers:
 
   packages/moltbot:
     dependencies:
-      openclaw:
+      alisio:
         specifier: workspace:*
         version: link:../..
 

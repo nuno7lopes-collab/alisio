@@ -1,4 +1,4 @@
-import { type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveTextChunkLimit } from "alisio/plugin-sdk/reply-runtime";
 import { resolveAccountEntry } from "alisio/plugin-sdk/routing";
 import { normalizeAccountId } from "alisio/plugin-sdk/routing";
@@ -8,7 +8,7 @@ const DEFAULT_DISCORD_DRAFT_STREAM_MIN = 200;
 const DEFAULT_DISCORD_DRAFT_STREAM_MAX = 800;
 
 export function resolveDiscordDraftStreamingChunking(
-  cfg: OpenClawConfig | undefined,
+  cfg: AlisioConfig | undefined,
   accountId?: string | null,
 ): {
   minChars: number;

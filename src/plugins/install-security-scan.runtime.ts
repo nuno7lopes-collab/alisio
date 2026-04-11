@@ -223,8 +223,8 @@ export async function scanBundleInstallSourceRuntime(params: {
   const builtinScan = await scanDirectoryTarget({
     logger: params.logger,
     path: params.sourceDir,
-    scanFailureMessage: `Bundle "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "openclaw security audit --deep" after install.`,
-    suspiciousMessage: `Bundle "{target}" has {count} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+    scanFailureMessage: `Bundle "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "alisio security audit --deep" after install.`,
+    suspiciousMessage: `Bundle "{target}" has {count} suspicious code pattern(s). Run "alisio security audit --deep" for details.`,
     targetName: params.pluginId,
     warningMessage: `WARNING: Bundle "${params.pluginId}" contains dangerous code patterns`,
   });
@@ -283,8 +283,8 @@ export async function scanPackageInstallSourceRuntime(params: {
     includeFiles: forcedScanEntries,
     logger: params.logger,
     path: params.packageDir,
-    scanFailureMessage: `Plugin "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "openclaw security audit --deep" after install.`,
-    suspiciousMessage: `Plugin "{target}" has {count} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+    scanFailureMessage: `Plugin "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "alisio security audit --deep" after install.`,
+    suspiciousMessage: `Plugin "{target}" has {count} suspicious code pattern(s). Run "alisio security audit --deep" for details.`,
     targetName: params.pluginId,
     warningMessage: `WARNING: Plugin "${params.pluginId}" contains dangerous code patterns`,
   });
@@ -322,8 +322,8 @@ export async function scanFileInstallSourceRuntime(params: {
   const builtinScan = await scanFileTarget({
     logger: params.logger,
     path: params.filePath,
-    scanFailureMessage: `Plugin file "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "openclaw security audit --deep" after install.`,
-    suspiciousMessage: `Plugin file "{target}" has {count} suspicious code pattern(s). Run "openclaw security audit --deep" for details.`,
+    scanFailureMessage: `Plugin file "${params.pluginId}" code safety scan failed ({error}). Installation continues; run "alisio security audit --deep" after install.`,
+    suspiciousMessage: `Plugin file "{target}" has {count} suspicious code pattern(s). Run "alisio security audit --deep" for details.`,
     targetName: params.pluginId,
     warningMessage: `WARNING: Plugin file "${params.pluginId}" contains dangerous code patterns`,
   });

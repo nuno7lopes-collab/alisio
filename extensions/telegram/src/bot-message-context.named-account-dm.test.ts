@@ -11,7 +11,7 @@ let setRuntimeConfigSnapshot: typeof import("alisio/plugin-sdk/config-runtime").
 
 describe("buildTelegramMessageContext named-account DM fallback", () => {
   const baseCfg = {
-    agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/openclaw" } },
+    agents: { defaults: { model: "anthropic/claude-opus-4-5", workspace: "/tmp/alisio" } },
     channels: { telegram: {} },
     messages: { groupChat: { mentionPatterns: [] } },
   };

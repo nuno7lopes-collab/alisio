@@ -12,7 +12,7 @@ import {
   type PluginLoadOptions,
 } from "./loader.js";
 import type { PluginRegistry } from "./registry.js";
-import type { OpenClawPluginCliCommandDescriptor } from "./types.js";
+import type { AlisioPluginCliCommandDescriptor } from "./types.js";
 import type { PluginLogger } from "./types.js";
 
 const log = createSubsystemLogger("plugins");
@@ -26,7 +26,7 @@ type RegisterPluginCliOptions = {
 
 function canRegisterPluginCliLazily(entry: {
   commands: string[];
-  descriptors: OpenClawPluginCliCommandDescriptor[];
+  descriptors: AlisioPluginCliCommandDescriptor[];
 }): boolean {
   if (entry.descriptors.length === 0) {
     return false;
@@ -146,11 +146,11 @@ async function loadPluginCliCommandRegistry(
 export async function getPluginCliCommandDescriptors(
   cfg?: AlisioConfig,
   env?: NodeJS.ProcessEnv,
-): Promise<OpenClawPluginCliCommandDescriptor[]> {
+): Promise<AlisioPluginCliCommandDescriptor[]> {
   try {
     const { registry } = await loadPluginCliMetadataRegistry(cfg, env);
     const seen = new Set<string>();
-    const descriptors: OpenClawPluginCliCommandDescriptor[] = [];
+    const descriptors: AlisioPluginCliCommandDescriptor[] = [];
     for (const entry of registry.cliRegistrars) {
       for (const descriptor of entry.descriptors) {
         if (seen.has(descriptor.name)) {

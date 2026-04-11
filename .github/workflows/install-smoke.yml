@@ -66,16 +66,16 @@ jobs:
       - name: Build install-smoke CI manifest
         id: manifest
         env:
-          OPENCLAW_CI_DOCS_ONLY: ${{ steps.docs_scope.outputs.docs_only }}
-          OPENCLAW_CI_DOCS_CHANGED: "false"
-          OPENCLAW_CI_RUN_NODE: "false"
-          OPENCLAW_CI_RUN_MACOS: "false"
-          OPENCLAW_CI_RUN_ANDROID: "false"
-          OPENCLAW_CI_RUN_WINDOWS: "false"
-          OPENCLAW_CI_RUN_SKILLS_PYTHON: "false"
-          OPENCLAW_CI_HAS_CHANGED_EXTENSIONS: "false"
-          OPENCLAW_CI_CHANGED_EXTENSIONS_MATRIX: '{"include":[]}'
-          OPENCLAW_CI_RUN_CHANGED_SMOKE: ${{ steps.changed_scope.outputs.run_changed_smoke || 'false' }}
+          ALISIO_CI_DOCS_ONLY: ${{ steps.docs_scope.outputs.docs_only }}
+          ALISIO_CI_DOCS_CHANGED: "false"
+          ALISIO_CI_RUN_NODE: "false"
+          ALISIO_CI_RUN_MACOS: "false"
+          ALISIO_CI_RUN_ANDROID: "false"
+          ALISIO_CI_RUN_WINDOWS: "false"
+          ALISIO_CI_RUN_SKILLS_PYTHON: "false"
+          ALISIO_CI_HAS_CHANGED_EXTENSIONS: "false"
+          ALISIO_CI_CHANGED_EXTENSIONS_MATRIX: '{"include":[]}'
+          ALISIO_CI_RUN_CHANGED_SMOKE: ${{ steps.changed_scope.outputs.run_changed_smoke || 'false' }}
         run: node scripts/ci-write-manifest-outputs.mjs --workflow install-smoke
 
   install-smoke:
@@ -100,7 +100,7 @@ jobs:
           context: .
           file: ./Dockerfile
           build-args: |
-            OPENCLAW_DOCKER_APT_UPGRADE=0
+            ALISIO_DOCKER_APT_UPGRADE=0
           tags: alisio-dockerfile-smoke:local
           load: true
           push: false
@@ -119,8 +119,8 @@ jobs:
           context: .
           file: ./Dockerfile
           build-args: |
-            OPENCLAW_DOCKER_APT_UPGRADE=0
-            OPENCLAW_EXTENSIONS=matrix
+            ALISIO_DOCKER_APT_UPGRADE=0
+            ALISIO_EXTENSIONS=matrix
           tags: alisio-ext-smoke:local
           load: true
           push: false

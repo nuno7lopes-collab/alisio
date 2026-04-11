@@ -100,6 +100,34 @@ describe("handleChatEvent", () => {
     expect(state.chatStream).toBe("Hello");
   });
 
+  it("clears stale error state and restores the active run when a retry resumes streaming", () => {
+    const state = createState({
+      sessionKey: "main",
+      chatRunId: null,
+      chatStream: null,
+      chatStreamStartedAt: null,
+      lastError: "⚠️ You have hit your ChatGPT usage limit (team plan). Try again in ~174 min.",
+      chatRuntimeSetupHint: {
+        title: "Runtime setup required",
+        message: "Configure um provider",
+        ctaLabel: "Abrir setup do runtime",
+      },
+    });
+    const payload: ChatEventPayload = {
+      runId: "run-1",
+      sessionKey: "main",
+      state: "delta",
+      message: { role: "assistant", content: [{ type: "text", text: "Resposta" }] },
+    };
+
+    expect(handleChatEvent(state, payload)).toBe("delta");
+    expect(state.chatRunId).toBe("run-1");
+    expect(state.chatStream).toBe("Resposta");
+    expect(state.chatStreamStartedAt).not.toBeNull();
+    expect(state.lastError).toBeNull();
+    expect(state.chatRuntimeSetupHint).toBeNull();
+  });
+
   it("appends final payload from another run without clearing active stream", () => {
     const state = createState({
       sessionKey: "main",
@@ -278,6 +306,35 @@ describe("handleChatEvent", () => {
     expect(state.chatRunId).toBe(null);
     expect(state.chatStream).toBe(null);
     expect(state.chatStreamStartedAt).toBe(null);
+  });
+
+  it("clears stale error state when a later final reply arrives for the same turn", () => {
+    const finalMsg = {
+      role: "assistant",
+      content: [{ type: "text", text: "Resposta final" }],
+      timestamp: 101,
+    };
+    const state = createState({
+      sessionKey: "main",
+      chatRunId: null,
+      lastError: "⚠️ You have hit your ChatGPT usage limit (team plan). Try again in ~174 min.",
+      chatRuntimeSetupHint: {
+        title: "Runtime setup required",
+        message: "Configure um provider",
+        ctaLabel: "Abrir setup do runtime",
+      },
+    });
+    const payload: ChatEventPayload = {
+      runId: "run-1",
+      sessionKey: "main",
+      state: "final",
+      message: finalMsg,
+    };
+
+    expect(handleChatEvent(state, payload)).toBe("final");
+    expect(state.chatMessages).toEqual([finalMsg]);
+    expect(state.lastError).toBeNull();
+    expect(state.chatRuntimeSetupHint).toBeNull();
   });
 
   it("processes aborted from own run and keeps partial assistant message", () => {

@@ -86,7 +86,7 @@ async function runAudioCapabilityWithTranscriber(params: {
 describe("runCapability skips tiny audio files", () => {
   it("skips audio transcription when file is smaller than MIN_AUDIO_FILE_BYTES", async () => {
     await withAudioFixture({
-      filePrefix: "openclaw-tiny-audio",
+      filePrefix: "alisio-tiny-audio",
       extension: "wav",
       mediaType: "audio/wav",
       fileContents: Buffer.alloc(100), // 100 bytes, way below 1024
@@ -118,7 +118,7 @@ describe("runCapability skips tiny audio files", () => {
 
   it("skips audio transcription for empty (0-byte) files", async () => {
     await withAudioFixture({
-      filePrefix: "openclaw-empty-audio",
+      filePrefix: "alisio-empty-audio",
       extension: "ogg",
       mediaType: "audio/ogg",
       fileContents: Buffer.alloc(0),
@@ -142,7 +142,7 @@ describe("runCapability skips tiny audio files", () => {
 
   it("proceeds with transcription when file meets minimum size", async () => {
     await withAudioFixture({
-      filePrefix: "openclaw-ok-audio",
+      filePrefix: "alisio-ok-audio",
       extension: "wav",
       mediaType: "audio/wav",
       fileContents: Buffer.alloc(MIN_AUDIO_FILE_BYTES + 100),

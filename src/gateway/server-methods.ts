@@ -40,6 +40,7 @@ import { webHandlers } from "./server-methods/web.js";
 import { wizardHandlers } from "./server-methods/wizard.js";
 
 const CONTROL_PLANE_WRITE_METHODS = new Set([
+  "alisio.app.rebuild",
   "alisio.runtime.restart",
   "alisio.security.policy.applyProfile",
   "config.apply",

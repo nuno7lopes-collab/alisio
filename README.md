@@ -8,7 +8,7 @@ Alisio can run with:
 
 - OpenAI via OAuth or API key
 - local models on your Mac
-- OpenAI-compatible or Ollama servers you control
+- OpenAI-compatible servers you control
 
 It can then:
 

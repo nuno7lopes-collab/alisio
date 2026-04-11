@@ -21,7 +21,6 @@ const STALE_SIGKILL_WAIT_MS = 400;
 const PORT_FREE_POLL_INTERVAL_MS = 50;
 const PORT_FREE_TIMEOUT_MS = 2000;
 const POLL_SPAWN_TIMEOUT_MS = 400;
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
 
 const restartLog = createSubsystemLogger("restart");
 let sleepSyncOverride: ((ms: number) => void) | null = null;
@@ -61,12 +60,7 @@ function parsePidsFromLsofOutput(stdout: string): number[] {
   let currentCmd: string | undefined;
   for (const line of stdout.split(/\r?\n/).filter(Boolean)) {
     if (line.startsWith("p")) {
-      if (
-        currentPid != null &&
-        currentCmd &&
-        (currentCmd.toLowerCase().includes("alisio") ||
-          currentCmd.toLowerCase().includes(LEGACY_RUNTIME_NAMESPACE))
-      ) {
+      if (currentPid != null && currentCmd && currentCmd.toLowerCase().includes("alisio")) {
         pids.push(currentPid);
       }
       const parsed = Number.parseInt(line.slice(1), 10);
@@ -76,12 +70,7 @@ function parsePidsFromLsofOutput(stdout: string): number[] {
       currentCmd = line.slice(1);
     }
   }
-  if (
-    currentPid != null &&
-    currentCmd &&
-    (currentCmd.toLowerCase().includes("alisio") ||
-      currentCmd.toLowerCase().includes(LEGACY_RUNTIME_NAMESPACE))
-  ) {
+  if (currentPid != null && currentCmd && currentCmd.toLowerCase().includes("alisio")) {
     pids.push(currentPid);
   }
   // Deduplicate: dual-stack listeners (IPv4 + IPv6) cause lsof to emit the

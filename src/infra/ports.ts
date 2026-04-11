@@ -8,8 +8,6 @@ import { inspectPortUsage } from "./ports-inspect.js";
 import { tryListenOnPort } from "./ports-probe.js";
 import type { PortListener, PortListenerKind, PortUsage, PortUsageStatus } from "./ports-types.js";
 
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
-
 class PortInUseError extends Error {
   port: number;
   details?: string;
@@ -58,11 +56,7 @@ export async function handlePortError(
     if (details) {
       runtime.error(info("Port listener details:"));
       runtime.error(details);
-      if (
-        new RegExp(`alisio|${LEGACY_RUNTIME_NAMESPACE}|src\\/index\\.ts|dist\\/index\\.js`).test(
-          details,
-        )
-      ) {
+      if (/alisio|src\/index\.ts|dist\/index\.js/.test(details)) {
         runtime.error(
           warn(
             "It looks like another Alisio instance is already running. Stop it or pick a different port.",

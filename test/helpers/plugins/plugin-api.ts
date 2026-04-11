@@ -1,12 +1,12 @@
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk/plugin-runtime";
+import type { AlisioPluginApi } from "alisio/plugin-sdk/plugin-runtime";
 
 type TestPluginApiInput = Omit<
-  Partial<OpenClawPluginApi>,
+  Partial<AlisioPluginApi>,
   "id" | "name" | "source" | "config" | "runtime"
 > &
-  Pick<OpenClawPluginApi, "id" | "name" | "source" | "config" | "runtime">;
+  Pick<AlisioPluginApi, "id" | "name" | "source" | "config" | "runtime">;
 
-export function createTestPluginApi(api: TestPluginApiInput): OpenClawPluginApi {
+export function createTestPluginApi(api: TestPluginApiInput): AlisioPluginApi {
   return {
     registrationMode: "full",
     logger: { info() {}, warn() {}, error() {}, debug() {} },

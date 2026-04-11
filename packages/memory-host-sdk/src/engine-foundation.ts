@@ -37,7 +37,7 @@ export {
   resolveUserPath,
   truncateUtf16Safe,
 } from "../../../src/utils.js";
-export type { OpenClawConfig } from "../../../src/config/config.js";
+export type { AlisioConfig } from "../../../src/config/config.js";
 export type { SessionSendPolicyConfig } from "../../../src/config/types.base.js";
 export type { SecretInput } from "../../../src/config/types.secrets.js";
 export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";

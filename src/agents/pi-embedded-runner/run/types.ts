@@ -38,6 +38,7 @@ export type EmbeddedRunAttemptResult = {
   /** True if the timeout occurred while compaction was in progress or pending. */
   timedOutDuringCompaction: boolean;
   promptError: unknown;
+  prePromptTranscriptLeafId?: string | null;
   sessionIdUsed: string;
   bootstrapPromptWarningSignaturesSeen?: string[];
   bootstrapPromptWarningSignature?: string;

@@ -65,14 +65,14 @@ describe("loadExtraExcludePatternsFromEnv", () => {
     ).toThrow(/JSON array/u);
   });
 
-  it("accepts legacy OpenClaw env names as a fallback", () => {
+  it("accepts legacy Alisio env names as a fallback", () => {
     const filePath = patternFiles.writePatternFile("legacy-extra-exclude.json", [
       "src/infra/update-runner.test.ts",
     ]);
 
     expect(
       loadExtraExcludePatternsFromEnv({
-        OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE: filePath,
+        ALISIO_VITEST_EXTRA_EXCLUDE_FILE: filePath,
       }),
     ).toEqual(["src/infra/update-runner.test.ts"]);
   });

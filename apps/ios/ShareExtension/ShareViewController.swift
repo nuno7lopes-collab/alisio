@@ -211,7 +211,7 @@ final class ShareViewController: UIViewController {
                 token: config.token,
                 bootstrapToken: nil,
                 password: config.password,
-                connectOptions: makeOptions("moltbot-ios"),
+                connectOptions: makeOptions("alisio-ios"),
                 sessionBox: nil,
                 onConnected: {},
                 onDisconnected: { _ in },

@@ -1,5 +1,4 @@
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { LineChannelData, LineConfig } from "./line-surface.js";
 export {
   createTopLevelChannelDmPolicy,

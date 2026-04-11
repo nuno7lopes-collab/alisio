@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { MessageEvent, PostbackEvent } from "@line/bot-sdk";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { getSessionBindingService } from "alisio/plugin-sdk/conversation-runtime";
 import { __testing as sessionBindingTesting } from "alisio/plugin-sdk/conversation-runtime";
 import { setDefaultChannelPluginRegistryForTests } from "alisio/plugin-sdk/testing";
@@ -11,12 +11,12 @@ import { buildLineMessageContext, buildLinePostbackContext } from "./bot-message
 import { linePlugin } from "./channel.js";
 import type { ResolvedLineAccount } from "./types.js";
 
-type AgentBinding = NonNullable<OpenClawConfig["bindings"]>[number];
+type AgentBinding = NonNullable<AlisioConfig["bindings"]>[number];
 
 describe("buildLineMessageContext", () => {
   let tmpDir: string;
   let storePath: string;
-  let cfg: OpenClawConfig;
+  let cfg: AlisioConfig;
   const account: ResolvedLineAccount = {
     accountId: "default",
     enabled: true,
@@ -61,7 +61,7 @@ describe("buildLineMessageContext", () => {
   beforeEach(async () => {
     setDefaultChannelPluginRegistryForTests();
     sessionBindingTesting.resetSessionBindingAdaptersForTests();
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-line-context-"));
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-line-context-"));
     storePath = path.join(tmpDir, "sessions.json");
     cfg = { session: { store: storePath } };
   });
@@ -232,7 +232,7 @@ describe("buildLineMessageContext", () => {
 
   it("group peer binding matches raw groupId without prefix (#21907)", async () => {
     const groupId = "Cc7e3bece1234567890abcdef"; // pragma: allowlist secret
-    const bindingCfg: OpenClawConfig = {
+    const bindingCfg: AlisioConfig = {
       session: { store: storePath },
       agents: {
         list: [{ id: "main" }, { id: "line-group-agent" }],
@@ -270,7 +270,7 @@ describe("buildLineMessageContext", () => {
 
   it("room peer binding matches raw roomId without prefix (#21907)", async () => {
     const roomId = "Rr1234567890abcdef";
-    const bindingCfg: OpenClawConfig = {
+    const bindingCfg: AlisioConfig = {
       session: { store: storePath },
       agents: {
         list: [{ id: "main" }, { id: "line-room-agent" }],

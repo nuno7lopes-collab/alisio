@@ -126,7 +126,7 @@ function expectInboxPairingReplyText(
   const code = text.match(/Pairing code:\s*```[\r\n]+([A-Z2-9]{6,})/)?.[1];
   expect(code).toBeDefined();
   const resolvedCode = params.code ?? code ?? "";
-  expect(text).toContain("OpenClaw: this account is not approved yet.");
+  expect(text).toContain("Alisio: this account is not approved yet.");
   expect(text).toContain(params.idLine);
   expect(text).toContain("Pairing code:");
   expect(text).toContain(`\n\`\`\`\n${resolvedCode}\n\`\`\`\n`);
@@ -231,7 +231,7 @@ export function installWebMonitorInboxUnitTestHooks(opts?: { authDir?: boolean }
     const { resetWebInboundDedupe } = inboundModule;
     resetWebInboundDedupe();
     if (createAuthDir) {
-      authDir = fsSync.mkdtempSync(path.join(os.tmpdir(), "openclaw-auth-"));
+      authDir = fsSync.mkdtempSync(path.join(os.tmpdir(), "alisio-auth-"));
     } else {
       authDir = undefined;
     }

@@ -1,5 +1,6 @@
 package ai.alisio.app.ui
 
+import ai.alisio.app.gateway.DEFAULT_GATEWAY_PORT_TEXT
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -402,7 +403,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 label = "Android Emulator",
                 onClick = {
                   manualHostInput = "10.0.2.2"
-                  manualPortInput = "40705"
+                  manualPortInput = DEFAULT_GATEWAY_PORT_TEXT
                   manualTlsInput = false
                   validationText = null
                 },
@@ -411,7 +412,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 label = "Localhost",
                 onClick = {
                   manualHostInput = "127.0.0.1"
-                  manualPortInput = "40705"
+                  manualPortInput = DEFAULT_GATEWAY_PORT_TEXT
                   manualTlsInput = false
                   validationText = null
                 },
@@ -441,7 +442,7 @@ fun ConnectTabScreen(viewModel: MainViewModel) {
                 manualPortInput = it
                 validationText = null
               },
-              placeholder = { Text("40705", style = mobileBody, color = mobileTextTertiary) },
+              placeholder = { Text(DEFAULT_GATEWAY_PORT_TEXT, style = mobileBody, color = mobileTextTertiary) },
               modifier = Modifier.fillMaxWidth(),
               singleLine = true,
               keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),

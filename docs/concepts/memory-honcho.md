@@ -51,7 +51,7 @@ Install the plugin and run setup:
 ```bash
 alisio plugins install @honcho-ai/alisio-honcho
 alisio honcho setup
-alisio gateway --force
+alisio gateway run --force
 ```
 
 The setup command prompts for your API credentials, writes the config, and

@@ -21,7 +21,7 @@ import {
   resolveDefaultAgentId,
   resolveSessionTranscriptsDirForAgent,
   resolveStateDir,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
   listMemoryFiles,
@@ -58,7 +58,7 @@ type MemorySourceScan = {
 };
 
 type LoadedMemoryCommandConfig = {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   diagnostics: string[];
 };
 
@@ -103,13 +103,13 @@ function formatSourceLabel(
   source: string,
   workspaceDir: string,
   agentId: string,
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
 ): string {
   if (source === "memory") {
     const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
     if (obsidianLayout) {
       return shortenHomeInString(
-        `memory (legacy MEMORY.md + memory/*.md, Obsidian ${obsidianLayout.memoryDir}${path.sep}**/*.md)`,
+        `memory (MEMORY.md + memory/*.md, Obsidian ${obsidianLayout.memoryDir}${path.sep}**/*.md)`,
       );
     }
     return shortenHomeInString(
@@ -125,7 +125,7 @@ function formatSourceLabel(
   return source;
 }
 
-function resolveAgent(cfg: OpenClawConfig, agent?: string) {
+function resolveAgent(cfg: AlisioConfig, agent?: string) {
   const trimmed = agent?.trim();
   if (trimmed) {
     return trimmed;
@@ -142,7 +142,7 @@ function buildCliMemorySearchSessionKey(agentId: string): string {
   });
 }
 
-function resolveAgentIds(cfg: OpenClawConfig, agent?: string): string[] {
+function resolveAgentIds(cfg: AlisioConfig, agent?: string): string[] {
   const trimmed = agent?.trim();
   if (trimmed) {
     return [trimmed];
@@ -171,7 +171,7 @@ function normalizeGraphDirection(
 }
 
 async function withMemoryManagerForAgent(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   purpose?: MemoryManagerPurpose;
   run: (manager: MemoryManager) => Promise<void>;
@@ -236,22 +236,17 @@ async function scanSessionFiles(agentId: string): Promise<SourceScan> {
 async function scanMemoryFiles(
   workspaceDir: string,
   extraPaths: string[] = [],
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
 ): Promise<SourceScan> {
   const issues: string[] = [];
   const memoryFile = path.join(workspaceDir, "MEMORY.md");
-  const altMemoryFile = path.join(workspaceDir, "memory.md");
   const memoryDir = path.join(workspaceDir, "memory");
   const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
   const primaryMemoryDir = obsidianLayout?.memoryDir ?? memoryDir;
 
   const primary = await checkReadableFile(memoryFile);
-  const alt = await checkReadableFile(altMemoryFile);
   if (primary.issue) {
     issues.push(primary.issue);
-  }
-  if (alt.issue) {
-    issues.push(alt.issue);
   }
 
   const resolvedExtraPaths = normalizeExtraMemoryPaths(workspaceDir, extraPaths);
@@ -317,9 +312,6 @@ async function scanMemoryFiles(
     if (!listedOk) {
       if (primary.exists) {
         files.add(memoryFile);
-      }
-      if (alt.exists) {
-        files.add(altMemoryFile);
       }
     }
     totalFiles = files.size;
@@ -393,7 +385,7 @@ async function scanMemorySources(params: {
   agentId: string;
   sources: MemorySourceName[];
   extraPaths?: string[];
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
 }): Promise<MemorySourceScan> {
   const scans: SourceScan[] = [];
   const extraPaths = params.extraPaths ?? [];

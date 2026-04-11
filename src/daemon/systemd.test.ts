@@ -387,37 +387,37 @@ describe("systemd runtime parsing", () => {
 describe("resolveSystemdUserUnitPath", () => {
   it.each([
     {
-      name: "uses default service name when OPENCLAW_PROFILE is unset",
+      name: "uses default service name when ALISIO_PROFILE is unset",
       env: { HOME: "/home/test" },
       expected: "/home/test/.config/systemd/user/alisio-gateway.service",
     },
     {
-      name: "uses profile-specific service name when OPENCLAW_PROFILE is set to a custom value",
-      env: { HOME: "/home/test", OPENCLAW_PROFILE: "jbphoenix" },
+      name: "uses profile-specific service name when ALISIO_PROFILE is set to a custom value",
+      env: { HOME: "/home/test", ALISIO_PROFILE: "jbphoenix" },
       expected: "/home/test/.config/systemd/user/alisio-gateway-jbphoenix.service",
     },
     {
-      name: "prefers ALISIO_SYSTEMD_UNIT over OPENCLAW_PROFILE",
+      name: "prefers ALISIO_SYSTEMD_UNIT over ALISIO_PROFILE",
       env: {
         HOME: "/home/test",
-        OPENCLAW_PROFILE: "jbphoenix",
+        ALISIO_PROFILE: "jbphoenix",
         ALISIO_SYSTEMD_UNIT: "custom-unit",
       },
       expected: "/home/test/.config/systemd/user/custom-unit.service",
     },
     {
-      name: "handles OPENCLAW_SYSTEMD_UNIT with .service suffix",
+      name: "handles ALISIO_SYSTEMD_UNIT with .service suffix",
       env: {
         HOME: "/home/test",
-        OPENCLAW_SYSTEMD_UNIT: "custom-unit.service",
+        ALISIO_SYSTEMD_UNIT: "custom-unit.service",
       },
       expected: "/home/test/.config/systemd/user/custom-unit.service",
     },
     {
-      name: "trims whitespace from OPENCLAW_SYSTEMD_UNIT",
+      name: "trims whitespace from ALISIO_SYSTEMD_UNIT",
       env: {
         HOME: "/home/test",
-        OPENCLAW_SYSTEMD_UNIT: "  custom-unit  ",
+        ALISIO_SYSTEMD_UNIT: "  custom-unit  ",
       },
       expected: "/home/test/.config/systemd/user/custom-unit.service",
     },
@@ -653,7 +653,7 @@ describe("systemd service control", () => {
         assertUserSystemctlArgs(args, "restart", "alisio-gateway-work.service");
         cb(null, "", "");
       });
-    await assertRestartSuccess({ OPENCLAW_PROFILE: "work" });
+    await assertRestartSuccess({ ALISIO_PROFILE: "work" });
   });
 
   it("surfaces stop failures with systemctl detail", async () => {

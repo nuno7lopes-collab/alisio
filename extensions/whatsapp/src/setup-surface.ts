@@ -8,7 +8,7 @@ import {
   splitSetupEntries,
   setSetupChannelEnabled,
   type DmPolicy,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/setup";
 import type { ChannelSetupWizard } from "alisio/plugin-sdk/setup";
 import { formatCliCommand, formatDocsLink } from "alisio/plugin-sdk/setup-tools";
@@ -19,10 +19,10 @@ import { whatsappSetupAdapter } from "./setup-core.js";
 const channel = "whatsapp" as const;
 
 function mergeWhatsAppConfig(
-  cfg: OpenClawConfig,
-  patch: Partial<NonNullable<NonNullable<OpenClawConfig["channels"]>["whatsapp"]>>,
+  cfg: AlisioConfig,
+  patch: Partial<NonNullable<NonNullable<AlisioConfig["channels"]>["whatsapp"]>>,
   options?: { unsetOnUndefined?: string[] },
-): OpenClawConfig {
+): AlisioConfig {
   const base = { ...(cfg.channels?.whatsapp ?? {}) } as Record<string, unknown>;
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) {
@@ -42,19 +42,19 @@ function mergeWhatsAppConfig(
   };
 }
 
-function setWhatsAppDmPolicy(cfg: OpenClawConfig, dmPolicy: DmPolicy): OpenClawConfig {
+function setWhatsAppDmPolicy(cfg: AlisioConfig, dmPolicy: DmPolicy): AlisioConfig {
   return mergeWhatsAppConfig(cfg, { dmPolicy });
 }
 
-function setWhatsAppAllowFrom(cfg: OpenClawConfig, allowFrom?: string[]): OpenClawConfig {
+function setWhatsAppAllowFrom(cfg: AlisioConfig, allowFrom?: string[]): AlisioConfig {
   return mergeWhatsAppConfig(cfg, { allowFrom }, { unsetOnUndefined: ["allowFrom"] });
 }
 
-function setWhatsAppSelfChatMode(cfg: OpenClawConfig, selfChatMode: boolean): OpenClawConfig {
+function setWhatsAppSelfChatMode(cfg: AlisioConfig, selfChatMode: boolean): AlisioConfig {
   return mergeWhatsAppConfig(cfg, { selfChatMode });
 }
 
-async function detectWhatsAppLinked(cfg: OpenClawConfig, accountId: string): Promise<boolean> {
+async function detectWhatsAppLinked(cfg: AlisioConfig, accountId: string): Promise<boolean> {
   const { authDir } = resolveWhatsAppAuthDir({ cfg, accountId });
   const credsPath = path.join(authDir, "creds.json");
   return await pathExists(credsPath);
@@ -67,7 +67,7 @@ async function promptWhatsAppOwnerAllowFrom(params: {
   const { prompter, existingAllowFrom } = params;
 
   await prompter.note(
-    "We need the sender/owner number so OpenClaw can allowlist you.",
+    "We need the sender/owner number so Alisio can allowlist you.",
     "WhatsApp number",
   );
   const entry = await prompter.text({
@@ -99,12 +99,12 @@ async function promptWhatsAppOwnerAllowFrom(params: {
 }
 
 async function applyWhatsAppOwnerAllowlist(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   existingAllowFrom: string[];
   messageLines: string[];
   prompter: Parameters<NonNullable<ChannelSetupWizard["finalize"]>>[0]["prompter"];
   title: string;
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   const { normalized, allowFrom } = await promptWhatsAppOwnerAllowFrom({
     prompter: params.prompter,
     existingAllowFrom: params.existingAllowFrom,
@@ -140,10 +140,10 @@ function parseWhatsAppAllowFromEntries(raw: string): { entries: string[]; invali
 }
 
 async function promptWhatsAppDmAccess(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   forceAllowFrom: boolean;
   prompter: Parameters<NonNullable<ChannelSetupWizard["finalize"]>>[0]["prompter"];
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   const existingPolicy = params.cfg.channels?.whatsapp?.dmPolicy ?? "pairing";
   const existingAllowFrom = params.cfg.channels?.whatsapp?.allowFrom ?? [];
   const existingLabel = existingAllowFrom.length > 0 ? existingAllowFrom.join(", ") : "unset";
@@ -176,7 +176,7 @@ async function promptWhatsAppDmAccess(params: {
     message: "WhatsApp phone setup",
     options: [
       { value: "personal", label: "This is my personal phone number" },
-      { value: "separate", label: "Separate phone just for OpenClaw" },
+      { value: "separate", label: "Separate phone just for Alisio" },
     ],
   });
 
@@ -344,7 +344,7 @@ export const whatsappSetupWizard: ChannelSetupWizard = {
         }
       } else if (!linked) {
         await prompter.note(
-          `Run \`${formatCliCommand("openclaw channels login")}\` later to link WhatsApp.`,
+          `Run \`${formatCliCommand("alisio channels login")}\` later to link WhatsApp.`,
           "WhatsApp",
         );
       }

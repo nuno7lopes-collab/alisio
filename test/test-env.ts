@@ -13,9 +13,9 @@ type RestoreEntry = { key: string; value: string | undefined };
 
 const LIVE_EXTERNAL_AUTH_DIRS = [".claude", ".codex", ".minimax"] as const;
 const CANONICAL_STATE_DIRNAME = ".alisio";
-const LEGACY_STATE_DIRNAME = ".openclaw";
+const LEGACY_STATE_DIRNAME = ".alisio";
 const CANONICAL_CONFIG_FILENAME = "alisio.json";
-const LEGACY_CONFIG_FILENAME = "openclaw.json";
+const LEGACY_CONFIG_FILENAME = "alisio.json";
 
 function readEnvWithLegacyFallback(
   env: NodeJS.ProcessEnv,
@@ -43,11 +43,7 @@ function resolveDefaultLiveStateDir(homeDir: string): string {
 }
 
 function resolveLiveStateDir(env: NodeJS.ProcessEnv, homeDir: string): string {
-  const configuredStateDir = readEnvWithLegacyFallback(
-    env,
-    "ALISIO_STATE_DIR",
-    "OPENCLAW_STATE_DIR",
-  );
+  const configuredStateDir = readEnvWithLegacyFallback(env, "ALISIO_STATE_DIR", "ALISIO_STATE_DIR");
   if (configuredStateDir) {
     return resolveHomeRelativePath(configuredStateDir, homeDir);
   }
@@ -58,7 +54,7 @@ function resolveLiveConfigPath(env: NodeJS.ProcessEnv, homeDir: string, stateDir
   const configuredConfigPath = readEnvWithLegacyFallback(
     env,
     "ALISIO_CONFIG_PATH",
-    "OPENCLAW_CONFIG_PATH",
+    "ALISIO_CONFIG_PATH",
   );
   if (configuredConfigPath) {
     return resolveHomeRelativePath(configuredConfigPath, homeDir);
@@ -143,7 +139,7 @@ function loadProfileEnv(homeDir = os.homedir()): void {
     return;
   }
   const quietLiveLogs = isLiveEnvEnabled(
-    ["ALISIO_LIVE_TEST_QUIET", "OPENCLAW_LIVE_TEST_QUIET"],
+    ["ALISIO_LIVE_TEST_QUIET", "ALISIO_LIVE_TEST_QUIET"],
     process.env,
   );
   const applyEntry = (entry: string) => {
@@ -213,7 +209,7 @@ function loadProfileEnv(homeDir = os.homedir()): void {
 function resolveRestoreEntries(): RestoreEntry[] {
   return [
     { key: "ALISIO_TEST_FAST", value: process.env.ALISIO_TEST_FAST },
-    { key: "OPENCLAW_TEST_FAST", value: process.env.OPENCLAW_TEST_FAST },
+    { key: "ALISIO_TEST_FAST", value: process.env.ALISIO_TEST_FAST },
     { key: "HOME", value: process.env.HOME },
     { key: "USERPROFILE", value: process.env.USERPROFILE },
     { key: "XDG_CONFIG_HOME", value: process.env.XDG_CONFIG_HOME },
@@ -229,15 +225,15 @@ function resolveRestoreEntries(): RestoreEntry[] {
     { key: "ALISIO_CANVAS_HOST_PORT", value: process.env.ALISIO_CANVAS_HOST_PORT },
     { key: "ALISIO_TEST_HOME", value: process.env.ALISIO_TEST_HOME },
     { key: "ALISIO_AGENT_DIR", value: process.env.ALISIO_AGENT_DIR },
-    { key: "OPENCLAW_STATE_DIR", value: process.env.OPENCLAW_STATE_DIR },
-    { key: "OPENCLAW_CONFIG_PATH", value: process.env.OPENCLAW_CONFIG_PATH },
-    { key: "OPENCLAW_GATEWAY_PORT", value: process.env.OPENCLAW_GATEWAY_PORT },
-    { key: "OPENCLAW_BRIDGE_ENABLED", value: process.env.OPENCLAW_BRIDGE_ENABLED },
-    { key: "OPENCLAW_BRIDGE_HOST", value: process.env.OPENCLAW_BRIDGE_HOST },
-    { key: "OPENCLAW_BRIDGE_PORT", value: process.env.OPENCLAW_BRIDGE_PORT },
-    { key: "OPENCLAW_CANVAS_HOST_PORT", value: process.env.OPENCLAW_CANVAS_HOST_PORT },
-    { key: "OPENCLAW_TEST_HOME", value: process.env.OPENCLAW_TEST_HOME },
-    { key: "OPENCLAW_AGENT_DIR", value: process.env.OPENCLAW_AGENT_DIR },
+    { key: "ALISIO_STATE_DIR", value: process.env.ALISIO_STATE_DIR },
+    { key: "ALISIO_CONFIG_PATH", value: process.env.ALISIO_CONFIG_PATH },
+    { key: "ALISIO_GATEWAY_PORT", value: process.env.ALISIO_GATEWAY_PORT },
+    { key: "ALISIO_BRIDGE_ENABLED", value: process.env.ALISIO_BRIDGE_ENABLED },
+    { key: "ALISIO_BRIDGE_HOST", value: process.env.ALISIO_BRIDGE_HOST },
+    { key: "ALISIO_BRIDGE_PORT", value: process.env.ALISIO_BRIDGE_PORT },
+    { key: "ALISIO_CANVAS_HOST_PORT", value: process.env.ALISIO_CANVAS_HOST_PORT },
+    { key: "ALISIO_TEST_HOME", value: process.env.ALISIO_TEST_HOME },
+    { key: "ALISIO_AGENT_DIR", value: process.env.ALISIO_AGENT_DIR },
     { key: "PI_CODING_AGENT_DIR", value: process.env.PI_CODING_AGENT_DIR },
     { key: "TELEGRAM_BOT_TOKEN", value: process.env.TELEGRAM_BOT_TOKEN },
     { key: "DISCORD_BOT_TOKEN", value: process.env.DISCORD_BOT_TOKEN },
@@ -260,18 +256,18 @@ function createIsolatedTestHome(restore: RestoreEntry[]): {
   process.env.HOME = tempHome;
   process.env.USERPROFILE = tempHome;
   process.env.ALISIO_TEST_HOME = tempHome;
-  process.env.OPENCLAW_TEST_HOME = tempHome;
+  process.env.ALISIO_TEST_HOME = tempHome;
   process.env.ALISIO_TEST_FAST = "1";
-  process.env.OPENCLAW_TEST_FAST = "1";
+  process.env.ALISIO_TEST_FAST = "1";
 
   // Ensure test runs never touch the developer's real config/state, even if they have overrides set.
   delete process.env.ALISIO_CONFIG_PATH;
-  delete process.env.OPENCLAW_CONFIG_PATH;
+  delete process.env.ALISIO_CONFIG_PATH;
   // Prefer deriving state dir from HOME so nested tests that change HOME also isolate correctly.
   delete process.env.ALISIO_STATE_DIR;
-  delete process.env.OPENCLAW_STATE_DIR;
+  delete process.env.ALISIO_STATE_DIR;
   delete process.env.ALISIO_AGENT_DIR;
-  delete process.env.OPENCLAW_AGENT_DIR;
+  delete process.env.ALISIO_AGENT_DIR;
   delete process.env.PI_CODING_AGENT_DIR;
   // Prefer test-controlled ports over developer overrides (avoid port collisions across tests/workers).
   delete process.env.ALISIO_GATEWAY_PORT;
@@ -279,11 +275,11 @@ function createIsolatedTestHome(restore: RestoreEntry[]): {
   delete process.env.ALISIO_BRIDGE_HOST;
   delete process.env.ALISIO_BRIDGE_PORT;
   delete process.env.ALISIO_CANVAS_HOST_PORT;
-  delete process.env.OPENCLAW_GATEWAY_PORT;
-  delete process.env.OPENCLAW_BRIDGE_ENABLED;
-  delete process.env.OPENCLAW_BRIDGE_HOST;
-  delete process.env.OPENCLAW_BRIDGE_PORT;
-  delete process.env.OPENCLAW_CANVAS_HOST_PORT;
+  delete process.env.ALISIO_GATEWAY_PORT;
+  delete process.env.ALISIO_BRIDGE_ENABLED;
+  delete process.env.ALISIO_BRIDGE_HOST;
+  delete process.env.ALISIO_BRIDGE_PORT;
+  delete process.env.ALISIO_CANVAS_HOST_PORT;
   // Avoid leaking real GitHub/Copilot tokens into non-live test runs.
   delete process.env.TELEGRAM_BOT_TOKEN;
   delete process.env.DISCORD_BOT_TOKEN;
@@ -300,7 +296,7 @@ function createIsolatedTestHome(restore: RestoreEntry[]): {
   if (process.platform === "win32") {
     const tempStateDir = path.join(tempHome, CANONICAL_STATE_DIRNAME);
     process.env.ALISIO_STATE_DIR = tempStateDir;
-    process.env.OPENCLAW_STATE_DIR = tempStateDir;
+    process.env.ALISIO_STATE_DIR = tempStateDir;
   }
 
   process.env.XDG_CONFIG_HOME = path.join(tempHome, ".config");
@@ -399,7 +395,7 @@ function stageLiveTestState(params: {
   const priorIsolatedHome = readEnvWithLegacyFallback(
     params.env,
     "ALISIO_TEST_HOME",
-    "OPENCLAW_TEST_HOME",
+    "ALISIO_TEST_HOME",
   );
   const snapshotHome = params.env.HOME?.trim();
   if (
@@ -426,9 +422,9 @@ function stageLiveTestState(params: {
 }
 
 export function installTestEnv(): { cleanup: () => void; tempHome: string } {
-  const live = isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], process.env);
+  const live = isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "ALISIO_LIVE_GATEWAY"], process.env);
   const allowRealHome = isTruthyEnvValue(
-    readLiveEnv(["ALISIO_LIVE_USE_REAL_HOME", "OPENCLAW_LIVE_USE_REAL_HOME"], process.env),
+    readLiveEnv(["ALISIO_LIVE_USE_REAL_HOME", "ALISIO_LIVE_USE_REAL_HOME"], process.env),
   );
   const realHome = process.env.HOME ?? os.homedir();
   const liveEnvSnapshot = { ...process.env };

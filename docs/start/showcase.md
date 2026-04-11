@@ -306,7 +306,7 @@ Watches company Slack channel, responds helpfully, and forwards notifications to
 <Card title="Karakeep Semantic Search" icon="magnifying-glass" href="https://github.com/jamesbrooksco/karakeep-semantic-search">
   **@jamesbrooksco** • `search` `vector` `bookmarks`
   
-  Adds vector search to Karakeep bookmarks using Qdrant + OpenAI/Ollama embeddings.
+  Adds vector search to Karakeep bookmarks using Qdrant + OpenAI/local embeddings.
 </Card>
 
 <Card title="Inside-Out-2 Memory" icon="brain">

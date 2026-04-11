@@ -24,25 +24,24 @@ describe("resolveSystemTheme", () => {
 });
 
 describe("parseThemeSelection", () => {
-  it("maps legacy stored values onto theme + mode", () => {
+  it("falls back to defaults for retired stored aliases", () => {
     expect(parseThemeSelection("system", undefined)).toEqual({
       theme: "claw",
       mode: "system",
     });
     expect(parseThemeSelection("fieldmanual", undefined)).toEqual({
-      theme: "dash",
-      mode: "dark",
+      theme: "claw",
+      mode: "system",
     });
   });
 });
 
 describe("theme bootstrap", () => {
-  it("keeps the inline first-paint legacy aliases aligned with the runtime parser", () => {
+  it("uses only canonical theme names during first paint", () => {
     const html = readFileSync(new URL("../../index.html", import.meta.url), "utf8");
 
-    for (const alias of ["defaultTheme", "docsTheme", "lightTheme", "landingTheme", "newTheme"]) {
-      expect(html).toContain(`${alias}:`);
-    }
+    expect(html).not.toContain("defaultTheme:");
+    expect(html).not.toContain("fieldmanual:");
     expect(html).toContain("document.documentElement.style.colorScheme");
   });
 });

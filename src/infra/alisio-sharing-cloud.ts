@@ -1,6 +1,6 @@
 type SharingOwnerScope = "user" | "organization";
 type SharingTargetSourceKind = "current" | "node";
-type SharingScope = "read-only" | "model-use" | "exec" | "device.use" | "model.use";
+type SharingScope = "read-only" | "model-use" | "exec";
 type SharingRequestStatus = "pending" | "approved" | "denied" | "revoked" | "rejected";
 type SharingResource =
   | "compute"

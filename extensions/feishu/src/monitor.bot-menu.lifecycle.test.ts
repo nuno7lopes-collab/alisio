@@ -1,7 +1,7 @@
 import "./lifecycle.test-support.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRuntimeEnv } from "../../../test/helpers/plugins/runtime-env.js";
-import type { ClawdbotConfig, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, RuntimeEnv } from "../runtime-api.js";
 import { getFeishuLifecycleTestMocks } from "./lifecycle.test-support.js";
 import {
   createFeishuLifecycleConfig,
@@ -32,7 +32,7 @@ const {
 
 let handlers: Record<string, (data: unknown) => Promise<void>> = {};
 let lastRuntime: RuntimeEnv | null = null;
-const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+const originalStateDir = process.env.ALISIO_STATE_DIR;
 const lifecycleConfig = createFeishuLifecycleConfig({
   accountId: "acct-menu",
   appId: "cli_test",
@@ -43,7 +43,7 @@ const lifecycleConfig = createFeishuLifecycleConfig({
   accountConfig: {
     dmPolicy: "open",
   },
-}) as ClawdbotConfig;
+}) as AlisioConfig;
 
 const lifecycleAccount = createResolvedFeishuLifecycleAccount({
   accountId: "acct-menu",
@@ -89,7 +89,7 @@ describe("Feishu bot-menu lifecycle", () => {
     vi.clearAllMocks();
     handlers = {};
     lastRuntime = null;
-    setFeishuLifecycleStateDir("openclaw-feishu-bot-menu");
+    setFeishuLifecycleStateDir("alisio-feishu-bot-menu");
 
     createFeishuReplyDispatcherMock.mockReturnValue(createFeishuLifecycleReplyDispatcher());
 

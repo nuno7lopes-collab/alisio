@@ -246,8 +246,8 @@ export async function finalizeSetupWizard(
         await prompter.note(
           [
             "Docs:",
-            "https://docs.openclaw.ai/gateway/health",
-            "https://docs.openclaw.ai/gateway/troubleshooting",
+            "https://docs.alisio.ai/gateway/health",
+            "https://docs.alisio.ai/gateway/troubleshooting",
           ].join("\n"),
           "Health check help",
         );
@@ -263,8 +263,8 @@ export async function finalizeSetupWizard(
       await prompter.note(
         [
           "Docs:",
-          "https://docs.openclaw.ai/gateway/health",
-          "https://docs.openclaw.ai/gateway/troubleshooting",
+          "https://docs.alisio.ai/gateway/health",
+          "https://docs.alisio.ai/gateway/troubleshooting",
         ].join("\n"),
         "Health check help",
       );
@@ -273,9 +273,9 @@ export async function finalizeSetupWizard(
         [
           "Gateway not detected yet.",
           "Setup was run without Gateway service install, so no background gateway is expected.",
-          `Start now: ${formatCliCommand("openclaw gateway run")}`,
-          `Or rerun with: ${formatCliCommand("openclaw onboard --install-daemon")}`,
-          `Or skip this probe next time: ${formatCliCommand("openclaw onboard --skip-health")}`,
+          `Start now: ${formatCliCommand("alisio gateway run")}`,
+          `Or rerun with: ${formatCliCommand("alisio onboard --install-daemon")}`,
+          `Or skip this probe next time: ${formatCliCommand("alisio onboard --skip-health")}`,
         ].join("\n"),
         "Gateway",
       );
@@ -361,7 +361,7 @@ export async function finalizeSetupWizard(
         : undefined,
       `Gateway WS: ${links.wsUrl}`,
       gatewayStatusLine,
-      "Docs: https://docs.openclaw.ai/web/control-ui",
+      "Docs: https://docs.alisio.ai/web/control-ui",
     ]
       .filter(Boolean)
       .join("\n"),
@@ -390,11 +390,11 @@ export async function finalizeSetupWizard(
     await prompter.note(
       [
         "Gateway token: shared auth for the Gateway + Control UI.",
-        "Stored in: ~/.openclaw/openclaw.json (gateway.auth.token) or OPENCLAW_GATEWAY_TOKEN.",
-        `View token: ${formatCliCommand("openclaw config get gateway.auth.token")}`,
-        `Generate token: ${formatCliCommand("openclaw doctor --generate-gateway-token")}`,
+        "Stored in: ~/.alisio/alisio.json (gateway.auth.token) or ALISIO_GATEWAY_TOKEN.",
+        `View token: ${formatCliCommand("alisio config get gateway.auth.token")}`,
+        `Generate token: ${formatCliCommand("alisio doctor --generate-gateway-token")}`,
         "Web UI keeps dashboard URL tokens in memory for the current tab and strips them from the URL after load.",
-        `Open the dashboard anytime: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        `Open the dashboard anytime: ${formatCliCommand("alisio dashboard --no-open")}`,
         "If prompted: paste the token into Control UI settings (or use the tokenized dashboard URL).",
       ].join("\n"),
       "Token",
@@ -453,7 +453,7 @@ export async function finalizeSetupWizard(
       );
     } else {
       await prompter.note(
-        `When you're ready: ${formatCliCommand("openclaw dashboard --no-open")}`,
+        `When you're ready: ${formatCliCommand("alisio dashboard --no-open")}`,
         "Later",
       );
     }
@@ -462,15 +462,14 @@ export async function finalizeSetupWizard(
   }
 
   await prompter.note(
-    [
-      "Back up your agent workspace.",
-      "Docs: https://docs.openclaw.ai/concepts/agent-workspace",
-    ].join("\n"),
+    ["Back up your agent workspace.", "Docs: https://docs.alisio.ai/concepts/agent-workspace"].join(
+      "\n",
+    ),
     "Workspace backup",
   );
 
   await prompter.note(
-    "Running agents on your computer is risky — harden your setup: https://docs.openclaw.ai/security",
+    "Running agents on your computer is risky — harden your setup: https://docs.alisio.ai/security",
     "Security",
   );
 
@@ -539,9 +538,9 @@ export async function finalizeSetupWizard(
         [
           `Web search provider ${label} is selected but unavailable under the current plugin policy.`,
           "web_search will not work until the provider is re-enabled or a different provider is selected.",
-          `  ${formatCliCommand("openclaw configure --section web")}`,
+          `  ${formatCliCommand("alisio configure --section web")}`,
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -552,7 +551,7 @@ export async function finalizeSetupWizard(
           "",
           `Provider: ${label}`,
           ...(keySource ? [keySource] : []),
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -561,10 +560,10 @@ export async function finalizeSetupWizard(
         [
           `Provider ${label} is selected but no API key was found.`,
           "web_search will not work until a key is added.",
-          `  ${formatCliCommand("openclaw configure --section web")}`,
+          `  ${formatCliCommand("alisio configure --section web")}`,
           "",
-          `Get your key at: ${entry?.signupUrl ?? "https://docs.openclaw.ai/tools/web"}`,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          `Get your key at: ${entry?.signupUrl ?? "https://docs.alisio.ai/tools/web"}`,
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -572,9 +571,9 @@ export async function finalizeSetupWizard(
       await prompter.note(
         [
           `Web search (${label}) is configured but disabled.`,
-          `Re-enable: ${formatCliCommand("openclaw configure --section web")}`,
+          `Re-enable: ${formatCliCommand("alisio configure --section web")}`,
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -590,7 +589,7 @@ export async function finalizeSetupWizard(
       await prompter.note(
         [
           `Web search is available via ${legacyDetected.label} (auto-detected).`,
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -598,9 +597,9 @@ export async function finalizeSetupWizard(
       await prompter.note(
         [
           "Web search was skipped. You can enable it later:",
-          `  ${formatCliCommand("openclaw configure --section web")}`,
+          `  ${formatCliCommand("alisio configure --section web")}`,
           "",
-          "Docs: https://docs.openclaw.ai/tools/web",
+          "Docs: https://docs.alisio.ai/tools/web",
         ].join("\n"),
         "Web search",
       );
@@ -608,7 +607,7 @@ export async function finalizeSetupWizard(
   }
 
   await prompter.note(
-    'What now: https://openclaw.ai/showcase ("What People Are Building").',
+    'What now: https://alisio.ai/showcase ("What People Are Building").',
     "What now",
   );
 

@@ -10,8 +10,8 @@ import {
 } from "./owner-onboarding.js";
 
 async function withStateDir<T>(fn: (stateDir: string) => Promise<T>): Promise<T> {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-telegram-owner-"));
-  return await withEnvAsync({ OPENCLAW_STATE_DIR: stateDir }, async () => {
+  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-telegram-owner-"));
+  return await withEnvAsync({ ALISIO_STATE_DIR: stateDir }, async () => {
     try {
       return await fn(stateDir);
     } finally {

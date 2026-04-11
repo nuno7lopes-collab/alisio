@@ -1,7 +1,9 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
+import { resolveGatewayPort } from "../src/config/paths.js";
 import { CONTROL_UI_BOOTSTRAP_CONFIG_PATH } from "../src/gateway/control-ui-contract.js";
+import { DEFAULT_LOCAL_GATEWAY_HOST } from "../src/shared/gateway-defaults.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,10 +64,23 @@ function isAlisioFeatureModule(id: string): boolean {
 
 export default defineConfig(() => {
   const envBase = process.env.ALISIO_CONTROL_UI_BASE_PATH?.trim();
+  const devGatewayPort = String(resolveGatewayPort(undefined, process.env));
+  const devGatewayOrigin = `http://${DEFAULT_LOCAL_GATEWAY_HOST}:${devGatewayPort}`;
   const base = envBase ? normalizeBase(envBase) : "./";
   return {
     base,
     publicDir: path.resolve(here, "public"),
+    plugins: [
+      {
+        name: "alisio-dev-gateway-port",
+        transformIndexHtml(html) {
+          return html.replace(
+            '"__ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__"',
+            JSON.stringify(devGatewayPort),
+          );
+        },
+      },
+    ],
     optimizeDeps: {
       include: ["lit/directives/repeat.js"],
     },
@@ -105,11 +120,11 @@ export default defineConfig(() => {
       strictPort: true,
       proxy: {
         "/__alisio/bootstrap": {
-          target: "http://127.0.0.1:40705",
+          target: devGatewayOrigin,
           changeOrigin: true,
         },
         [CONTROL_UI_BOOTSTRAP_CONFIG_PATH]: {
-          target: "http://127.0.0.1:40705",
+          target: devGatewayOrigin,
           changeOrigin: true,
         },
       },

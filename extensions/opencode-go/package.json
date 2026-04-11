@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/opencode-go-provider",
+  "name": "@alisio/opencode-go-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw OpenCode Go provider plugin",
+  "description": "Alisio OpenCode Go provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

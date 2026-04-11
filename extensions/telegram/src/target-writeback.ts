@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { readConfigFileSnapshotForWrite, writeConfigFile } from "alisio/plugin-sdk/config-runtime";
 import {
   loadCronStore,
@@ -96,7 +96,7 @@ function rewriteTargetIfMatch(params: {
 }
 
 function replaceTelegramDefaultToTargets(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   matchKey: string;
   resolvedTarget: string;
 }): boolean {
@@ -135,7 +135,7 @@ function replaceTelegramDefaultToTargets(params: {
 }
 
 export async function maybePersistResolvedTelegramTarget(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   rawTarget: string;
   resolvedChatId: string;
   verbose?: boolean;

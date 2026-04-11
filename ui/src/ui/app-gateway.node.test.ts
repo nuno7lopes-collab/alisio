@@ -718,6 +718,28 @@ describe("connectGateway", () => {
     expect(host.lastError).toContain("origin not allowed");
   });
 
+  it("maps legacy client-id handshake failures to a stale-page message", () => {
+    const host = createHost();
+
+    connectGateway(host);
+    const client = gatewayClientInstances[0];
+    expect(client).toBeDefined();
+
+    client.emitClose({
+      code: 4008,
+      reason: "connect failed",
+      error: {
+        code: "INVALID_REQUEST",
+        message:
+          "invalid connect params: at /client/id: must be equal to constant; at /client/id: must match a schema in anyOf",
+      },
+    });
+
+    expect(host.lastError).toBe(
+      "The local Alisio app and this page are out of sync. Reload the page or reopen Alisio, then try again.",
+    );
+  });
+
   it("preserves specific close errors even when auth detail codes are present", () => {
     const host = createHost();
 

@@ -1,6 +1,6 @@
 import {
   definePluginEntry,
-  type OpenClawPluginApi,
+  type AlisioPluginApi,
   type ProviderAuthMethodNonInteractiveContext,
 } from "alisio/plugin-sdk/plugin-entry";
 import {
@@ -21,7 +21,7 @@ export default definePluginEntry({
   id: "vllm",
   name: "vLLM Provider",
   description: "Bundled vLLM provider plugin",
-  register(api: OpenClawPluginApi) {
+  register(api: AlisioPluginApi) {
     api.registerProvider({
       id: PROVIDER_ID,
       label: "vLLM",
@@ -87,8 +87,8 @@ export default definePluginEntry({
       },
       buildUnknownModelHint: () =>
         "vLLM requires authentication to be registered as a provider. " +
-        'Set VLLM_API_KEY (any value works) or run "openclaw configure". ' +
-        "See: https://docs.openclaw.ai/providers/vllm",
+        'Set VLLM_API_KEY (any value works) or run "alisio configure". ' +
+        "See: https://docs.alisio.ai/providers/vllm",
     });
   },
 });

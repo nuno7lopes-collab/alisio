@@ -77,6 +77,11 @@ export const mockedTruncateOversizedToolResultsInSession = vi.fn<
   truncatedCount: 0,
   reason: "no oversized tool results",
 }));
+export const mockedRestoreTranscriptLeafInSessionFile = vi.fn(async () => ({
+  changed: true,
+  previousLeafId: "assistant-2",
+  restoredToEntryId: "assistant-1",
+}));
 
 type MockFailoverErrorDescription = {
   message: string;
@@ -224,6 +229,12 @@ export function resetRunOverflowCompactionHarnessMocks(): void {
     truncatedCount: 0,
     reason: "no oversized tool results",
   });
+  mockedRestoreTranscriptLeafInSessionFile.mockReset();
+  mockedRestoreTranscriptLeafInSessionFile.mockResolvedValue({
+    changed: true,
+    previousLeafId: "assistant-2",
+    restoredToEntryId: "assistant-1",
+  });
 
   mockedCoerceToFailoverError.mockReset();
   mockedCoerceToFailoverError.mockReturnValue(null);
@@ -332,9 +343,13 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
     ensureRuntimePluginsLoaded: mockedEnsureRuntimePluginsLoaded,
   }));
 
-  vi.doMock("../../plugins/provider-runtime.js", () => ({
-    prepareProviderRuntimeAuth: mockedPrepareProviderRuntimeAuth,
-  }));
+  vi.doMock("../../plugins/provider-runtime.js", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("../../plugins/provider-runtime.js")>();
+    return {
+      ...actual,
+      prepareProviderRuntimeAuth: mockedPrepareProviderRuntimeAuth,
+    };
+  });
 
   vi.doMock("../auth-profiles.js", () => ({
     isProfileInCooldown: vi.fn(() => false),
@@ -419,7 +434,7 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
   }));
 
   vi.doMock("../models-config.js", () => ({
-    ensureOpenClawModelsJson: vi.fn(async () => {}),
+    ensureAlisioModelsJson: vi.fn(async () => {}),
   }));
 
   vi.doMock("../context-window-guard.js", () => ({
@@ -438,7 +453,7 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
   }));
 
   vi.doMock("../agent-paths.js", () => ({
-    resolveOpenClawAgentDir: vi.fn(() => "/tmp/agent-dir"),
+    resolveAlisioAgentDir: vi.fn(() => "/tmp/agent-dir"),
   }));
 
   vi.doMock("../defaults.js", () => ({
@@ -470,6 +485,10 @@ export async function loadRunOverflowCompactionHarness(): Promise<{
   vi.doMock("./tool-result-truncation.js", () => ({
     truncateOversizedToolResultsInSession: mockedTruncateOversizedToolResultsInSession,
     sessionLikelyHasOversizedToolResults: mockedSessionLikelyHasOversizedToolResults,
+  }));
+
+  vi.doMock("./transcript-rewrite.js", () => ({
+    restoreTranscriptLeafInSessionFile: mockedRestoreTranscriptLeafInSessionFile,
   }));
 
   vi.doMock("./compact.js", () => ({

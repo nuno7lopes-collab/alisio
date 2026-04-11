@@ -27,7 +27,6 @@ export { ConfigMutationConflictError, mutateConfigFile, replaceConfigFile } from
 export * from "./paths.js";
 export * from "./runtime-overrides.js";
 export * from "./types.js";
-export type { AlisioConfig as OpenClawConfig } from "./types.js";
 export {
   validateConfigObject,
   validateConfigObjectRaw,

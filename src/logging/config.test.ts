@@ -19,7 +19,7 @@ describe("readLoggingConfig", () => {
   });
 
   it("skips mutating config loads for config schema", async () => {
-    process.argv = ["node", "openclaw", "config", "schema"];
+    process.argv = ["node", "alisio", "config", "schema"];
     loadConfigMock.mockImplementation(() => {
       throw new Error("loadConfig should not be called");
     });

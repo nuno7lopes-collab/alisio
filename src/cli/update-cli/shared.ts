@@ -63,7 +63,7 @@ export function parseTimeoutMsOrExit(timeout?: string): number | undefined | nul
 const MAX_LOG_CHARS = 8000;
 
 export const DEFAULT_PACKAGE_NAME = CORE_PACKAGE_NAME;
-const CORE_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
+const CORE_PACKAGE_NAMES = new Set<string>([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
 
 export function normalizeTag(value?: string | null): string | null {
   return normalizePackageTagInput(value, [PUBLIC_PACKAGE_NAME, CORE_PACKAGE_NAME]);
@@ -119,7 +119,7 @@ export async function isEmptyDir(targetPath: string): Promise<boolean> {
 }
 
 export function resolveGitInstallDir(): string {
-  const override = process.env.ALISIO_GIT_DIR?.trim() || process.env.OPENCLAW_GIT_DIR?.trim();
+  const override = process.env.ALISIO_GIT_DIR?.trim();
   if (override) {
     return path.resolve(override);
   }

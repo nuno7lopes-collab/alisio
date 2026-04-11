@@ -54,7 +54,7 @@ const KNOWN_SECRET_ENV_VARS = [
   ...new Set(Object.values(PROVIDER_ENV_VARS).flatMap((keys) => keys)),
 ];
 
-// OPENCLAW_API_KEY authenticates the local OpenClaw bridge itself and must
+// ALISIO_API_KEY authenticates the local Alisio bridge itself and must
 // remain available to child bridge/runtime processes.
 const KNOWN_PROVIDER_AUTH_ENV_VARS = [
   ...new Set([

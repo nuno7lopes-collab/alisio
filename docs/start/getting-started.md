@@ -61,7 +61,7 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
 
     - **OpenAI**: fastest path, with OAuth or API key
     - **Local**: run a local model on this Mac
-    - **Server**: connect an Ollama or OpenAI-compatible server you control
+    - **Server**: connect an OpenAI-compatible server you control
 
     You can add more than one source later and choose fallbacks.
 
@@ -98,7 +98,7 @@ You install Alisio, sign in, grant the permissions you want, choose how AI shoul
     Best when privacy, ownership, or low-latency local loops matter more.
   </Card>
   <Card title="Servers" href="/gateway/local-models" icon="server">
-    Best when another machine should host Ollama or an OpenAI-compatible runtime.
+    Best when another machine should host an OpenAI-compatible runtime.
   </Card>
 </Columns>
 

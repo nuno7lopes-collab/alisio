@@ -33,12 +33,12 @@ describe("resolveAssistantIdentity avatar normalization", () => {
     const cfg: AlisioConfig = {
       ui: {
         assistant: {
-          avatar: "avatars/openclaw.png",
+          avatar: "avatars/alisio.png",
         },
       },
     };
 
-    expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe("avatars/openclaw.png");
+    expect(resolveAssistantIdentity({ cfg, workspaceDir: "" }).avatar).toBe("avatars/alisio.png");
   });
 
   it("falls back to the Alisio account agent name when no configured identity exists", () => {

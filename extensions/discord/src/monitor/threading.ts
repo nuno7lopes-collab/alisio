@@ -1,7 +1,7 @@
 import { ChannelType, type Client } from "@buape/carbon";
 import {
   resolveChannelModelOverride,
-  type OpenClawConfig,
+  type AlisioConfig,
   type ReplyToMode,
 } from "alisio/plugin-sdk/config-runtime";
 import { createReplyReferencePlanner } from "alisio/plugin-sdk/reply-runtime";
@@ -331,7 +331,7 @@ type MaybeCreateDiscordAutoThreadParams = {
   channelDescription?: string;
   baseText: string;
   combinedBody: string;
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   agentId?: string;
 };
 
@@ -340,7 +340,7 @@ export async function resolveDiscordAutoThreadReplyPlan(
     replyToMode: ReplyToMode;
     agentId: string;
     channel: string;
-    cfg?: OpenClawConfig;
+    cfg?: AlisioConfig;
   },
 ): Promise<DiscordAutoThreadReplyPlan> {
   const messageChannelId = resolveTrimmedDiscordMessageChannelId(params);
@@ -479,7 +479,7 @@ export async function maybeCreateDiscordAutoThread(
 }
 
 function resolveDiscordThreadTitleModelRef(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   channel?: string;
   agentId: string;
   threadId: string;
@@ -517,7 +517,7 @@ async function maybeRenameDiscordAutoThread(params: {
   modelRef?: string;
   channelName?: string;
   channelDescription?: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
 }): Promise<void> {
   try {

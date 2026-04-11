@@ -1,9 +1,9 @@
-import type { OpenClawConfig, ProviderAuthResult } from "alisio/plugin-sdk/provider-auth";
+import type { AlisioConfig, ProviderAuthResult } from "alisio/plugin-sdk/provider-auth";
 import { readClaudeCliCredentialsCached } from "alisio/plugin-sdk/provider-auth";
 
 const DEFAULT_CLAUDE_CLI_MODEL = "claude-cli/claude-sonnet-4-6";
-type AgentDefaultsModel = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>["model"];
-type AgentDefaultsModels = NonNullable<NonNullable<OpenClawConfig["agents"]>["defaults"]>["models"];
+type AgentDefaultsModel = NonNullable<NonNullable<AlisioConfig["agents"]>["defaults"]>["model"];
+type AgentDefaultsModels = NonNullable<NonNullable<AlisioConfig["agents"]>["defaults"]>["models"];
 
 function toClaudeCliModelRef(raw: string): string | null {
   const trimmed = raw.trim();
@@ -97,7 +97,7 @@ export function hasClaudeCliAuth(): boolean {
   return Boolean(readClaudeCliCredentialsCached());
 }
 
-export function buildAnthropicCliMigrationResult(config: OpenClawConfig): ProviderAuthResult {
+export function buildAnthropicCliMigrationResult(config: AlisioConfig): ProviderAuthResult {
   const defaults = config.agents?.defaults;
   const rewrittenModel = rewriteModelSelection(defaults?.model);
   const rewrittenModels = rewriteModelEntryMap(defaults?.models);

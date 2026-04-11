@@ -29,10 +29,10 @@ function createGatewayAudit({
     platform: "linux",
     expectedGatewayToken,
     command: {
-      programArguments: ["/usr/bin/node", "gateway"],
+      programArguments: ["/usr/bin/node", "gateway", "run"],
       environment: {
         PATH: path,
-        ...(serviceToken ? { OPENCLAW_GATEWAY_TOKEN: serviceToken } : {}),
+        ...(serviceToken ? { ALISIO_GATEWAY_TOKEN: serviceToken } : {}),
       },
       ...(environmentValueSources ? { environmentValueSources } : {}),
     },
@@ -59,7 +59,7 @@ describe("auditGatewayServiceConfig", () => {
       env: { HOME: "/tmp" },
       platform: "darwin",
       command: {
-        programArguments: ["/opt/homebrew/bin/bun", "gateway"],
+        programArguments: ["/opt/homebrew/bin/bun", "gateway", "run"],
         environment: { PATH: "/usr/bin:/bin" },
       },
     });
@@ -73,7 +73,7 @@ describe("auditGatewayServiceConfig", () => {
       env: { HOME: "/tmp" },
       platform: "darwin",
       command: {
-        programArguments: ["/Users/test/.nvm/versions/node/v22.0.0/bin/node", "gateway"],
+        programArguments: ["/Users/test/.nvm/versions/node/v22.0.0/bin/node", "gateway", "run"],
         environment: {
           PATH: "/usr/bin:/bin:/Users/test/.nvm/versions/node/v22.0.0/bin",
         },
@@ -99,7 +99,7 @@ describe("auditGatewayServiceConfig", () => {
       env,
       platform: "linux",
       command: {
-        programArguments: ["/usr/bin/node", "gateway"],
+        programArguments: ["/usr/bin/node", "gateway", "run"],
         environment: { PATH: minimalPath },
       },
     });
@@ -140,10 +140,23 @@ describe("auditGatewayServiceConfig", () => {
       expectedGatewayToken: "new-token",
       serviceToken: "old-token",
       environmentValueSources: {
-        OPENCLAW_GATEWAY_TOKEN: "file",
+        ALISIO_GATEWAY_TOKEN: "file",
       },
     });
     expectTokenAudit(audit, { embedded: false, mismatch: false });
+  });
+
+  it("flags service commands that omit the gateway run subcommand", async () => {
+    const audit = await auditGatewayServiceConfig({
+      env: { HOME: "/tmp" },
+      platform: "darwin",
+      command: {
+        programArguments: ["/usr/bin/node", "cli", "gateway", "--port", "40705"],
+        environment: { PATH: "/usr/bin:/bin" },
+      },
+    });
+
+    expect(hasIssue(audit, SERVICE_AUDIT_CODES.gatewayRunSubcommandMissing)).toBe(true);
   });
 });
 

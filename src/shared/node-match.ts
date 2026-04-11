@@ -13,8 +13,6 @@ type ScoredNodeMatch = {
 };
 
 const CURRENT_CLIENT_PREFIX = "alisio-";
-const LEGACY_ALT_CLIENT_PREFIX = ["claw", "dbot-"].join("");
-
 export function normalizeNodeKey(value: string) {
   return value
     .toLowerCase()
@@ -42,25 +40,6 @@ function formatNodeCandidateLabel(node: NodeMatchCandidate): string {
 function isCurrentAlisioClient(clientId: string | undefined): boolean {
   const normalized = clientId?.trim().toLowerCase() ?? "";
   return normalized.startsWith(CURRENT_CLIENT_PREFIX);
-}
-
-function isLegacyAltClient(clientId: string | undefined): boolean {
-  const normalized = clientId?.trim().toLowerCase() ?? "";
-  return normalized.startsWith(LEGACY_ALT_CLIENT_PREFIX) || normalized.startsWith("moldbot-");
-}
-
-function pickPreferredLegacyMigrationMatch(
-  matches: NodeMatchCandidate[],
-): NodeMatchCandidate | undefined {
-  const current = matches.filter((match) => isCurrentAlisioClient(match.clientId));
-  if (current.length !== 1) {
-    return undefined;
-  }
-  const legacyCount = matches.filter((match) => isLegacyAltClient(match.clientId)).length;
-  if (legacyCount === 0 || current.length + legacyCount !== matches.length) {
-    return undefined;
-  }
-  return current[0];
 }
 
 function resolveMatchScore(
@@ -91,8 +70,6 @@ function scoreNodeCandidate(node: NodeMatchCandidate, matchScore: number): numbe
   }
   if (isCurrentAlisioClient(node.clientId)) {
     score += 10;
-  } else if (isLegacyAltClient(node.clientId)) {
-    score -= 10;
   }
   return score;
 }
@@ -150,11 +127,6 @@ export function resolveNodeIdFromCandidates(nodes: NodeMatchCandidate[], query: 
   const matches = strongestMatches.filter((match) => match.selectionScore === topSelectionScore);
   if (matches.length === 1) {
     return matches[0]?.node.nodeId ?? "";
-  }
-
-  const preferred = pickPreferredLegacyMigrationMatch(matches.map((match) => match.node));
-  if (preferred) {
-    return preferred.nodeId;
   }
 
   throw new Error(

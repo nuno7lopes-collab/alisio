@@ -15,7 +15,7 @@ describe("prepareModelForSimpleCompletion", () => {
     ensureCustomApiRegistered.mockReset();
     resolveProviderStreamFn.mockReset();
     createAnthropicVertexStreamFnForModel.mockReturnValue("vertex-stream");
-    resolveProviderStreamFn.mockReturnValue("ollama-stream");
+    resolveProviderStreamFn.mockReturnValue("provider-stream");
 
     vi.doMock("./anthropic-vertex-stream.js", () => ({
       createAnthropicVertexStreamFnForModel,
@@ -30,12 +30,12 @@ describe("prepareModelForSimpleCompletion", () => {
     ({ prepareModelForSimpleCompletion } = await import("./simple-completion-transport.js"));
   });
 
-  it("registers the configured Ollama transport and keeps the original api", () => {
-    const model: Model<"ollama"> = {
+  it("registers the configured custom transport and keeps the original api", () => {
+    const model: Model<"custom-local"> = {
       id: "llama3",
       name: "Llama 3",
-      api: "ollama",
-      provider: "ollama",
+      api: "custom-local",
+      provider: "localproxy",
       baseUrl: "http://localhost:11434",
       reasoning: false,
       input: ["text"],
@@ -47,8 +47,8 @@ describe("prepareModelForSimpleCompletion", () => {
     const cfg: AlisioConfig = {
       models: {
         providers: {
-          ollama: {
-            baseUrl: "http://remote-ollama:11434",
+          localproxy: {
+            baseUrl: "http://remote-localproxy:11434",
             models: [],
           },
         },
@@ -62,16 +62,16 @@ describe("prepareModelForSimpleCompletion", () => {
 
     expect(resolveProviderStreamFn).toHaveBeenCalledWith(
       expect.objectContaining({
-        provider: "ollama",
+        provider: "localproxy",
         config: cfg,
         context: expect.objectContaining({
-          provider: "ollama",
+          provider: "localproxy",
           modelId: "llama3",
           model,
         }),
       }),
     );
-    expect(ensureCustomApiRegistered).toHaveBeenCalledWith("ollama", "ollama-stream");
+    expect(ensureCustomApiRegistered).toHaveBeenCalledWith("custom-local", "provider-stream");
     expect(result).toBe(model);
   });
 
@@ -95,12 +95,12 @@ describe("prepareModelForSimpleCompletion", () => {
 
     expect(createAnthropicVertexStreamFnForModel).toHaveBeenCalledWith(model);
     expect(ensureCustomApiRegistered).toHaveBeenCalledWith(
-      "openclaw-anthropic-vertex-simple:https%3A%2F%2Fus-central1-aiplatform.googleapis.com",
+      "alisio-anthropic-vertex-simple:https%3A%2F%2Fus-central1-aiplatform.googleapis.com",
       "vertex-stream",
     );
     expect(result).toEqual({
       ...model,
-      api: "openclaw-anthropic-vertex-simple:https%3A%2F%2Fus-central1-aiplatform.googleapis.com",
+      api: "alisio-anthropic-vertex-simple:https%3A%2F%2Fus-central1-aiplatform.googleapis.com",
     });
   });
 });

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig, PluginRuntime, RuntimeEnv } from "../../runtime-api.js";
+import type { AlisioConfig, PluginRuntime, RuntimeEnv } from "../../runtime-api.js";
 import type { MSTeamsMessageHandlerDeps } from "../monitor-handler.js";
 import { setMSTeamsRuntime } from "../runtime.js";
 import { createMSTeamsMessageHandler } from "./message-handler.js";
 
 describe("msteams monitor handler authz", () => {
-  function createDeps(cfg: OpenClawConfig) {
+  function createDeps(cfg: AlisioConfig) {
     const readAllowFromStore = vi.fn(async () => ["attacker-aad"]);
     const upsertPairingRequest = vi.fn(async () => null);
     setMSTeamsRuntime({
@@ -70,7 +70,7 @@ describe("msteams monitor handler authz", () => {
           groupAllowFrom: [],
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     const handler = createMSTeamsMessageHandler(deps);
     await handler({
@@ -121,7 +121,7 @@ describe("msteams monitor handler authz", () => {
           },
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     const handler = createMSTeamsMessageHandler(deps);
     await handler({
@@ -162,7 +162,7 @@ describe("msteams monitor handler authz", () => {
           allowFrom: [],
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     const handler = createMSTeamsMessageHandler(deps);
     await handler({
@@ -205,7 +205,7 @@ describe("msteams monitor handler authz", () => {
           allowFrom: ["trusted-aad"],
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     const handler = createMSTeamsMessageHandler(deps);
     await handler({
@@ -252,7 +252,7 @@ describe("msteams monitor handler authz", () => {
           groupAllowFrom: [],
         },
       },
-    } as OpenClawConfig);
+    } as AlisioConfig);
 
     const handler = createMSTeamsMessageHandler(deps);
     await handler({

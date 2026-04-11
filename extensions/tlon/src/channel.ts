@@ -1,7 +1,7 @@
 import { describeAccountSnapshot } from "alisio/plugin-sdk/account-helpers";
 import { DEFAULT_ACCOUNT_ID } from "alisio/plugin-sdk/account-id";
 import { createHybridChannelConfigAdapter } from "alisio/plugin-sdk/channel-config-helpers";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { createChatChannelPlugin, type ChannelPlugin } from "alisio/plugin-sdk/core";
 import { createLazyRuntimeModule } from "alisio/plugin-sdk/lazy-runtime";
 import { createRuntimeOutboundDelegates } from "alisio/plugin-sdk/outbound-runtime";

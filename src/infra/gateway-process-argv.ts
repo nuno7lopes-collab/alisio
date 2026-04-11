@@ -2,7 +2,6 @@ function normalizeProcArg(arg: string): string {
   return arg.replaceAll("\\", "/").toLowerCase();
 }
 
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
 const CURRENT_CLI_NAME = "alisio";
 const CURRENT_GATEWAY_BINARY = "alisio-gateway";
 
@@ -35,10 +34,6 @@ export function isGatewayArgv(args: string[], opts?: { allowGatewayBinary?: bool
   return (
     exe.endsWith(`/${CURRENT_CLI_NAME}`) ||
     exe === CURRENT_CLI_NAME ||
-    exe.endsWith(`/${LEGACY_RUNTIME_NAMESPACE}`) ||
-    exe === LEGACY_RUNTIME_NAMESPACE ||
-    (opts?.allowGatewayBinary === true &&
-      (exe.endsWith(`/${CURRENT_GATEWAY_BINARY}`) ||
-        exe.endsWith(`/${LEGACY_RUNTIME_NAMESPACE}-gateway`)))
+    (opts?.allowGatewayBinary === true && exe.endsWith(`/${CURRENT_GATEWAY_BINARY}`))
   );
 }

@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  readBestEffortConfig: vi.fn(),
   loadNodeHostConfig: vi.fn(),
+}));
+
+vi.mock("../config/config.js", () => ({
+  readBestEffortConfig: mocks.readBestEffortConfig,
 }));
 
 vi.mock("../node-host/config.js", () => ({
@@ -12,7 +17,9 @@ import { resolveNodeOnlyGatewayInfo } from "./status.node-mode.js";
 
 describe("resolveNodeOnlyGatewayInfo", () => {
   beforeEach(() => {
+    mocks.readBestEffortConfig.mockReset();
     mocks.loadNodeHostConfig.mockReset();
+    mocks.readBestEffortConfig.mockResolvedValue({});
   });
 
   it("returns node-only gateway details when no local gateway is installed", async () => {
@@ -87,6 +94,32 @@ describe("resolveNodeOnlyGatewayInfo", () => {
         "Remote gateway target: (gateway address unknown)",
         "Inspect the remote gateway host for live channel and health details.",
       ].join("\n"),
+    });
+  });
+
+  it("uses the canonical resolved gateway port when node-only config omits the port", async () => {
+    mocks.readBestEffortConfig.mockResolvedValueOnce({
+      gateway: { port: 19001 },
+    });
+    mocks.loadNodeHostConfig.mockResolvedValueOnce({
+      version: 1,
+      nodeId: "node-1",
+      gateway: { host: "gateway.example.com" },
+    });
+
+    await expect(
+      resolveNodeOnlyGatewayInfo({
+        daemon: { installed: false },
+        node: {
+          installed: true,
+          loaded: true,
+          externallyManaged: false,
+          runtimeShort: "running (pid 4321)",
+        },
+      }),
+    ).resolves.toMatchObject({
+      gatewayTarget: "gateway.example.com:19001",
+      gatewayValue: "node → gateway.example.com:19001 · no local gateway",
     });
   });
 });

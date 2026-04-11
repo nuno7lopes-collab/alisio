@@ -21,9 +21,9 @@ afterEach(async () => {
 
 describe("session MCP runtime", () => {
   it("reuses the same session runtime across repeated materialization", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const startupCounterPath = path.join(workspaceDir, "bundle-starts.txt");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath, { startupCounterPath });
     await writeClaudeBundle({ pluginRoot, serverScriptPath });
@@ -67,9 +67,9 @@ describe("session MCP runtime", () => {
   });
 
   it("recreates the session runtime after explicit disposal", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const startupCounterPath = path.join(workspaceDir, "bundle-starts.txt");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath, { startupCounterPath });
     await writeClaudeBundle({ pluginRoot, serverScriptPath });
@@ -104,7 +104,7 @@ describe("session MCP runtime", () => {
   });
 
   it("recreates the session runtime when MCP config changes", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const startupCounterPath = path.join(workspaceDir, "bundle-starts.txt");
     const serverScriptPath = path.join(workspaceDir, "servers", "configured-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath, { startupCounterPath });
@@ -169,11 +169,11 @@ describe("session MCP runtime", () => {
 
   it("disposes startup-in-flight runtimes without leaking MCP processes", async () => {
     vi.useRealTimers();
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const startupCounterPath = path.join(workspaceDir, "bundle-starts.txt");
     const pidPath = path.join(workspaceDir, "bundle.pid");
     const exitMarkerPath = path.join(workspaceDir, "bundle.exit");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath, {
       startupCounterPath,
@@ -215,11 +215,11 @@ describe("session MCP runtime", () => {
   });
 
   it("materialized disposal can retire a manager-owned runtime", async () => {
-    const workspaceDir = await makeTempDir("openclaw-bundle-mcp-tools-");
+    const workspaceDir = await makeTempDir("alisio-bundle-mcp-tools-");
     const startupCounterPath = path.join(workspaceDir, "bundle-starts.txt");
     const pidPath = path.join(workspaceDir, "bundle.pid");
     const exitMarkerPath = path.join(workspaceDir, "bundle.exit");
-    const pluginRoot = path.join(workspaceDir, ".openclaw", "extensions", "bundle-probe");
+    const pluginRoot = path.join(workspaceDir, ".alisio", "extensions", "bundle-probe");
     const serverScriptPath = path.join(pluginRoot, "servers", "bundle-probe.mjs");
     await writeBundleProbeMcpServer(serverScriptPath, {
       startupCounterPath,

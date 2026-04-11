@@ -192,7 +192,8 @@ describe("alisio-account-cloud", () => {
     expect(result).toEqual({
       ok: true,
       email: "owner@example.com",
-      message: "Check your email for the verification code or sign-in link, then return to Alisio.",
+      message:
+        "Check your email for the Alisio sign-in link. If the email also includes a 6-digit code, you can enter it in the app.",
     });
   });
 

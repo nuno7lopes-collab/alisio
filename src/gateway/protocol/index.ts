@@ -113,18 +113,10 @@ import {
   AlisioModelsInstallParamsSchema,
   type AlisioModelsInstallResult,
   AlisioModelsInstallResultSchema,
-  AlisioModelsRuntimeStartParamsSchema,
-  AlisioModelsRuntimeStartResultSchema,
   type AlisioModelsUninstallParams,
   AlisioModelsUninstallParamsSchema,
   type AlisioModelsUninstallResult,
   AlisioModelsUninstallResultSchema,
-  AlisioModelsServerRemoveParamsSchema,
-  AlisioModelsServerRemoveResultSchema,
-  AlisioModelsServerSaveParamsSchema,
-  AlisioModelsServerSaveResultSchema,
-  AlisioModelsServerSelectParamsSchema,
-  AlisioModelsServerSelectResultSchema,
   type AlisioModelsResult,
   AlisioModelsResultSchema,
   type AlisioBootstrapResult,
@@ -143,6 +135,10 @@ import {
   AlisioProvidersGetParamsSchema,
   type AlisioProvidersResult,
   AlisioProvidersResultSchema,
+  type AlisioAppRebuildParams,
+  AlisioAppRebuildParamsSchema,
+  type AlisioAppRebuildResult,
+  AlisioAppRebuildResultSchema,
   type AlisioRuntimeRestartParams,
   AlisioRuntimeRestartParamsSchema,
   type AlisioRuntimeRestartResult,
@@ -180,7 +176,6 @@ import {
   AlisioModelRecommendationSchema,
   type AlisioLocalUserPreferences,
   AlisioLocalUserPreferencesSchema,
-  AlisioRemoteModelServerSchema,
   type AlisioModelsTarget,
   AlisioModelsTargetSchema,
   type AlisioOrganizationGetParams,
@@ -567,19 +562,7 @@ import {
   type WizardStep,
   WizardStepSchema,
 } from "./schema.js";
-import type {
-  AlisioModelHardware,
-  AlisioModelRecommendation,
-  AlisioModelsRuntimeStartParams,
-  AlisioModelsRuntimeStartResult,
-  AlisioModelsServerRemoveParams,
-  AlisioModelsServerRemoveResult,
-  AlisioModelsServerSaveParams,
-  AlisioModelsServerSaveResult,
-  AlisioModelsServerSelectParams,
-  AlisioModelsServerSelectResult,
-  AlisioRemoteModelServer,
-} from "./schema/types.js";
+import type { AlisioModelHardware, AlisioModelRecommendation } from "./schema/types.js";
 
 const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
   allErrors: true,
@@ -680,35 +663,11 @@ export const validateAlisioModelsInstallParams = ajv.compile<AlisioModelsInstall
 export const validateAlisioModelsInstallResult = ajv.compile<AlisioModelsInstallResult>(
   AlisioModelsInstallResultSchema,
 );
-export const validateAlisioModelsRuntimeStartParams = ajv.compile<AlisioModelsRuntimeStartParams>(
-  AlisioModelsRuntimeStartParamsSchema,
-);
-export const validateAlisioModelsRuntimeStartResult = ajv.compile<AlisioModelsRuntimeStartResult>(
-  AlisioModelsRuntimeStartResultSchema,
-);
 export const validateAlisioModelsUninstallParams = ajv.compile<AlisioModelsUninstallParams>(
   AlisioModelsUninstallParamsSchema,
 );
 export const validateAlisioModelsUninstallResult = ajv.compile<AlisioModelsUninstallResult>(
   AlisioModelsUninstallResultSchema,
-);
-export const validateAlisioModelsServerSaveParams = ajv.compile<AlisioModelsServerSaveParams>(
-  AlisioModelsServerSaveParamsSchema,
-);
-export const validateAlisioModelsServerSaveResult = ajv.compile<AlisioModelsServerSaveResult>(
-  AlisioModelsServerSaveResultSchema,
-);
-export const validateAlisioModelsServerRemoveParams = ajv.compile<AlisioModelsServerRemoveParams>(
-  AlisioModelsServerRemoveParamsSchema,
-);
-export const validateAlisioModelsServerRemoveResult = ajv.compile<AlisioModelsServerRemoveResult>(
-  AlisioModelsServerRemoveResultSchema,
-);
-export const validateAlisioModelsServerSelectParams = ajv.compile<AlisioModelsServerSelectParams>(
-  AlisioModelsServerSelectParamsSchema,
-);
-export const validateAlisioModelsServerSelectResult = ajv.compile<AlisioModelsServerSelectResult>(
-  AlisioModelsServerSelectResultSchema,
 );
 export const validateAlisioModelsResult = ajv.compile<AlisioModelsResult>(AlisioModelsResultSchema);
 export const validateAlisioBootstrapResult = ajv.compile<AlisioBootstrapResult>(
@@ -733,6 +692,12 @@ export const validateAlisioProvidersGetParams = ajv.compile<AlisioProvidersGetPa
 );
 export const validateAlisioProvidersResult = ajv.compile<AlisioProvidersResult>(
   AlisioProvidersResultSchema,
+);
+export const validateAlisioAppRebuildParams = ajv.compile<AlisioAppRebuildParams>(
+  AlisioAppRebuildParamsSchema,
+);
+export const validateAlisioAppRebuildResult = ajv.compile<AlisioAppRebuildResult>(
+  AlisioAppRebuildResultSchema,
 );
 export const validateAlisioRuntimeRestartParams = ajv.compile<AlisioRuntimeRestartParams>(
   AlisioRuntimeRestartParamsSchema,
@@ -1132,7 +1097,6 @@ export {
   AlisioInstalledLocalModelSchema,
   AlisioModelHardwareSchema,
   AlisioModelRecommendationSchema,
-  AlisioRemoteModelServerSchema,
   AlisioModelsTargetSchema,
   AlisioLocalUserPreferencesSchema,
   AlisioLocalDeviceSessionSchema,
@@ -1147,16 +1111,8 @@ export {
   AlisioModelsGetParamsSchema,
   AlisioModelsInstallParamsSchema,
   AlisioModelsInstallResultSchema,
-  AlisioModelsRuntimeStartParamsSchema,
-  AlisioModelsRuntimeStartResultSchema,
   AlisioModelsUninstallParamsSchema,
   AlisioModelsUninstallResultSchema,
-  AlisioModelsServerSaveParamsSchema,
-  AlisioModelsServerSaveResultSchema,
-  AlisioModelsServerRemoveParamsSchema,
-  AlisioModelsServerRemoveResultSchema,
-  AlisioModelsServerSelectParamsSchema,
-  AlisioModelsServerSelectResultSchema,
   AlisioModelsResultSchema,
   AlisioBootstrapResultSchema,
   AlisioDoctorSummaryParamsSchema,
@@ -1373,7 +1329,6 @@ export type {
   AlisioInstalledLocalModel,
   AlisioModelHardware,
   AlisioModelRecommendation,
-  AlisioRemoteModelServer,
   AlisioModelsTarget,
   AlisioLocalUserPreferences,
   AlisioAiState,
@@ -1389,16 +1344,8 @@ export type {
   AlisioModelsGetParams,
   AlisioModelsInstallParams,
   AlisioModelsInstallResult,
-  AlisioModelsRuntimeStartParams,
-  AlisioModelsRuntimeStartResult,
   AlisioModelsUninstallParams,
   AlisioModelsUninstallResult,
-  AlisioModelsServerSaveParams,
-  AlisioModelsServerSaveResult,
-  AlisioModelsServerRemoveParams,
-  AlisioModelsServerRemoveResult,
-  AlisioModelsServerSelectParams,
-  AlisioModelsServerSelectResult,
   AlisioModelsResult,
   AlisioBootstrapResult,
   AlisioDoctorSummaryParams,

@@ -140,7 +140,7 @@ Use `adb reverse` so Android `localhost:40705` tunnels to your laptop `localhost
 Terminal A (gateway):
 
 ```bash
-pnpm alisio gateway --port 40705 --verbose
+pnpm alisio gateway run --port 40705 --verbose
 ```
 
 Terminal B (USB tunnel):
@@ -169,7 +169,7 @@ This app is native Kotlin + Jetpack Compose.
 1) Start the gateway (on your main machine):
 
 ```bash
-pnpm alisio gateway --port 40705 --verbose
+pnpm alisio gateway run --port 40705 --verbose
 ```
 
 2) In the Android app:

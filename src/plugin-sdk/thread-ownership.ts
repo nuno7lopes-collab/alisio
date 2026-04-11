@@ -3,7 +3,6 @@
 
 export { definePluginEntry } from "./plugin-entry.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
-export type { OpenClawPluginApi } from "../plugins/types.js";
+export type { AlisioPluginApi } from "../plugins/types.js";
 export { fetchWithSsrFGuard } from "../infra/net/fetch-guard.js";
 export { ssrfPolicyFromAllowPrivateNetwork } from "./ssrf-policy.js";

@@ -114,7 +114,7 @@ struct MenuContent: View {
                 Label("Open Workspace", systemImage: "gauge")
             }
             Button {
-                LumeWindowManager.shared.showPreferredChat()
+                AlisioWindowManager.shared.showPreferredChat()
             } label: {
                 Label("Open Alisio", systemImage: "bubble.left.and.bubble.right")
             }

@@ -61,17 +61,17 @@ describe("listManifestInstalledChannelIds", () => {
     const installedIds = listManifestInstalledChannelIds({
       cfg: {} as never,
       workspaceDir: "/tmp/workspace",
-      env: { OPENCLAW_HOME: "/tmp/home" } as NodeJS.ProcessEnv,
+      env: { ALISIO_HOME: "/tmp/home" } as NodeJS.ProcessEnv,
     });
 
     expect(applyPluginAutoEnable).toHaveBeenCalledWith({
       config: {},
-      env: { OPENCLAW_HOME: "/tmp/home" },
+      env: { ALISIO_HOME: "/tmp/home" },
     });
     expect(loadPluginManifestRegistry).toHaveBeenCalledWith({
       config: autoEnabledConfig,
       workspaceDir: "/tmp/workspace",
-      env: { OPENCLAW_HOME: "/tmp/home" },
+      env: { ALISIO_HOME: "/tmp/home" },
     });
     expect(installedIds).toEqual(new Set(["slack"]));
   });
@@ -204,7 +204,7 @@ describe("listManifestInstalledChannelIds", () => {
       installedPlugins: [] as never,
       workspaceDir: "/tmp/workspace",
       env: {
-        OPENCLAW_CHANNEL_SURFACE: "all",
+        ALISIO_CHANNEL_SURFACE: "all",
       } as NodeJS.ProcessEnv,
     });
 

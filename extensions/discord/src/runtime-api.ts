@@ -19,7 +19,6 @@ export {
   type DiscordActionConfig,
   type DiscordConfig,
   type AlisioConfig,
-  type AlisioConfig as OpenClawConfig,
 } from "alisio/plugin-sdk/discord-core";
 export { DiscordConfigSchema } from "alisio/plugin-sdk/discord-core";
 export { readBooleanParam } from "alisio/plugin-sdk/boolean-param";

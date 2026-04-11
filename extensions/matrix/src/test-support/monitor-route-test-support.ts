@@ -4,5 +4,5 @@ export {
   registerSessionBindingAdapter,
   resolveAgentRoute,
   setActivePluginRegistry,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "../../../../test/helpers/plugins/matrix-monitor-route.js";

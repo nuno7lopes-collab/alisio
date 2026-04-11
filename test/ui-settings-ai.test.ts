@@ -168,7 +168,6 @@ function createModelsState(): AlisioModelsState {
     backend: "llama.cpp",
     catalog: [],
     targets: [],
-    servers: [],
   } as AlisioModelsState;
 }
 
@@ -188,34 +187,23 @@ function renderAiModels(
       aiError: null,
       expandedProfileId: "team-profile",
       selectedProviderId: "openai",
-      chatModelOptions: [{ value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" }],
-      currentChatModelOverrideValue: "",
+      modelOptions: [{ value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" }],
       defaultChatModelValue: "openai-codex/gpt-5.4",
       defaultChatModelDisplay: "gpt-5.4 · openai-codex",
       defaultChatModelLabel: "Default (gpt-5.4 · openai-codex)",
-      effectiveChatModelValue: "openai-codex/gpt-5.4",
-      effectiveChatModelLabel: "gpt-5.4 · openai-codex",
       modelPickerBusy: false,
-      serverDraft: null,
       onToggleProfile: vi.fn(),
       onSelectProvider: vi.fn(),
       onConnectAi: vi.fn(),
       onRefreshAllAiProfiles: vi.fn(),
       onSelectDefaultChatModel: vi.fn(),
-      onSelectChatModel: vi.fn(),
       onSelectAiProfile: vi.fn(),
       onDisconnectAiProfile: vi.fn(),
       onRefreshAiProfile: vi.fn(),
       onRenameAiProfile: vi.fn(),
       onInstallModel: vi.fn(),
+      onUpdateModel: vi.fn(),
       onUninstallModel: vi.fn(),
-      onStartCreateServer: vi.fn(),
-      onStartEditServer: vi.fn(),
-      onChangeServerDraft: vi.fn(),
-      onCancelServerDraft: vi.fn(),
-      onSubmitServerDraft: vi.fn(),
-      onRemoveServer: vi.fn(),
-      onSelectServer: vi.fn(),
       ...overrides,
     }),
     container,
@@ -255,20 +243,35 @@ describe("settings AI view", () => {
     ).toBe("Personal");
   });
 
-  it("uses the human display name as the rename default instead of duplicating the email", () => {
+  it("uses the human display name as the rename default instead of duplicating the email", async () => {
     const onRenameAiProfile = vi.fn();
-    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Ops Team");
+    const promptSpy = vi.spyOn(window, "prompt");
     const container = renderAiModels({ onRenameAiProfile });
 
     const activeCardRenameButton = Array.from(
       container.querySelectorAll<HTMLButtonElement>(
         ".alisio-settings-ai__profile.is-active button",
       ),
-    ).find((button) => button.textContent?.includes("Rename"));
+    ).find((button) => button.classList.contains("alisio-models__profile-rename-trigger"));
 
     activeCardRenameButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await Promise.resolve();
 
-    expect(promptSpy).toHaveBeenCalledWith("Give this account a name", "Team");
+    const editingContainer = renderAiModels({ onRenameAiProfile });
+
+    const renameInput = editingContainer.querySelector<HTMLInputElement>(
+      '[data-profile-rename-input="team-profile"]',
+    );
+    expect(renameInput?.value).toBe("Team");
+
+    if (!renameInput) {
+      throw new Error("missing inline rename input");
+    }
+    renameInput.value = "Ops Team";
+    renameInput.dispatchEvent(new InputEvent("input", { bubbles: true, composed: true }));
+    renameInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    expect(promptSpy).not.toHaveBeenCalled();
     expect(onRenameAiProfile).toHaveBeenCalledWith("team-profile", "Ops Team");
   });
 

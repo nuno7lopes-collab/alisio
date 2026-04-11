@@ -14,7 +14,7 @@ import {
 } from "alisio/plugin-sdk/channel-inbound";
 import { resolveControlCommandGate } from "alisio/plugin-sdk/command-auth";
 import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type {
   TelegramDirectConfig,
   TelegramGroupConfig,
@@ -58,7 +58,7 @@ export type TelegramInboundBodyResult = {
 };
 
 async function resolveStickerVisionSupport(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId?: string;
 }): Promise<boolean> {
   try {
@@ -78,7 +78,7 @@ async function resolveStickerVisionSupport(params: {
 }
 
 export async function resolveTelegramInboundBody(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   primaryCtx: TelegramContext;
   msg: TelegramContext["message"];
   allMedia: TelegramMediaRef[];

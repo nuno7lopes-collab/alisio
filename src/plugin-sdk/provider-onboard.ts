@@ -17,7 +17,6 @@ type NormalizedModelRef = {
 };
 
 export type { AlisioConfig, ModelApi, ModelDefinitionConfig, ModelProviderConfig };
-export type { AlisioConfig as OpenClawConfig };
 export {
   resolveAgentModelFallbackValues,
   resolveAgentModelPrimaryValue,

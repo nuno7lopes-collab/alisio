@@ -84,7 +84,7 @@ function resolveProvidersForMode(params: {
   });
 }
 
-export async function planOpenClawModelsJson(params: {
+export async function planAlisioModelsJson(params: {
   cfg: AlisioConfig;
   sourceConfigForSecrets?: AlisioConfig;
   agentDir: string;

@@ -114,6 +114,39 @@ enum DebugActions {
         }
     }
 
+    static func rebuildAppFromCheckout() async -> Result<String, DebugActionError> {
+        guard let checkoutRoot = CommandResolver.developerCheckoutRoot() else {
+            return .failure(.message(
+                "This action is only available for apps launched from dist/Alisio.app.",
+            ))
+        }
+
+        let restartScript = checkoutRoot.appendingPathComponent("scripts/restart-mac.sh")
+        guard FileManager().fileExists(atPath: restartScript.path) else {
+            return .failure(.message("Missing scripts/restart-mac.sh in the local checkout."))
+        }
+
+        let appBundle = checkoutRoot.appendingPathComponent("dist/Alisio.app")
+        let logPath = "/tmp/alisio-dev-rebuild.log"
+        let command = self.devRebuildLaunchCommand(
+            checkoutRoot: checkoutRoot,
+            restartScript: restartScript,
+            appBundle: appBundle,
+            logPath: logPath)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-lc", command]
+
+        do {
+            try process.run()
+        } catch {
+            return .failure(.message("Failed to start rebuild: \(error.localizedDescription)"))
+        }
+
+        return .success("Rebuild started. The app will close and reopen. Log: \(logPath)")
+    }
+
     static func resetGatewayTunnel() async -> Result<String, DebugActionError> {
         let mode = CommandResolver.connectionSettings().mode
         guard mode == .remote else {
@@ -184,7 +217,7 @@ enum DebugActions {
 
     @MainActor
     static func openSetup() {
-        LumeWindowManager.shared.show(route: .onboarding)
+        AlisioWindowManager.shared.show(route: .onboarding)
     }
 
     @MainActor
@@ -247,6 +280,33 @@ enum DebugActions {
         proc.launchPath = "/usr/bin/env"
         proc.arguments = ["code", path]
         try? proc.run()
+    }
+
+    private static func devRebuildLaunchCommand(
+        checkoutRoot: URL,
+        restartScript: URL,
+        appBundle: URL,
+        logPath: String) -> String
+    {
+        let quotedRoot = self.shellQuote(checkoutRoot.path)
+        let quotedScript = self.shellQuote(restartScript.path)
+        let quotedBundle = self.shellQuote(appBundle.path)
+        let quotedLog = self.shellQuote(logPath)
+        let backgroundScript = """
+        set -euo pipefail
+        launchctl bootout gui/"$UID"/\(AlisioBrand.gatewayLaunchdLabel) >/dev/null 2>&1 || true
+        cd \(quotedRoot)
+        if ! env SKIP_PNPM_INSTALL=1 SKIP_TSC=0 ALISIO_APP_BUNDLE=\(quotedBundle) ALISIO_RESTART_LOG=\(quotedLog) bash \(quotedScript) --wait --no-sign; then
+          env ALLOW_LOCKFILE_REFRESH=1 SKIP_TSC=0 ALISIO_APP_BUNDLE=\(quotedBundle) ALISIO_RESTART_LOG=\(quotedLog) bash \(quotedScript) --wait --no-sign
+        fi
+        """
+        return "nohup /bin/bash -lc \(self.shellQuote(backgroundScript)) >/dev/null 2>&1 </dev/null &"
+    }
+
+    private static func shellQuote(_ text: String) -> String {
+        if text.isEmpty { return "''" }
+        let escaped = text.replacingOccurrences(of: "'", with: "'\\''")
+        return "'\(escaped)'"
     }
 }
 

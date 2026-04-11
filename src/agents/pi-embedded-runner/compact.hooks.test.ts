@@ -160,7 +160,7 @@ describe("compactEmbeddedPiSessionDirect hooks", () => {
       details: { ok: true },
     });
     resetCompactSessionStateMocks();
-    unregisterApiProviders(getCustomApiRegistrySourceId("ollama"));
+    unregisterApiProviders(getCustomApiRegistrySourceId("custom-local"));
   });
 
   it("bootstraps runtime plugins with the resolved workspace", async () => {
@@ -539,22 +539,22 @@ describe("compactEmbeddedPiSessionDirect hooks", () => {
     ).toBe(true);
   });
 
-  it("registers the Ollama api provider before compaction", async () => {
+  it("registers a custom api provider before compaction", async () => {
     resolveModelMock.mockReturnValue({
       model: {
-        provider: "ollama",
-        api: "ollama",
+        provider: "localproxy",
+        api: "custom-local",
         id: "qwen3:8b",
         input: ["text"],
         baseUrl: "http://127.0.0.1:11434",
-        headers: { Authorization: "Bearer ollama-cloud" },
+        headers: { Authorization: "Bearer localproxy" },
       },
       error: null,
       authStorage: { setRuntimeApiKey: vi.fn() },
       modelRegistry: {},
     } as never);
     sessionCompactImpl.mockImplementation(async () => {
-      expect(getApiProvider("ollama" as Parameters<typeof getApiProvider>[0])).toBeDefined();
+      expect(getApiProvider("custom-local" as Parameters<typeof getApiProvider>[0])).toBeDefined();
       return {
         summary: "summary",
         firstKeptEntryId: "entry-1",

@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/open-prose",
+  "name": "@alisio/open-prose",
   "version": "2026.3.30",
   "private": true,
   "description": "OpenProse VM skill pack plugin (slash command + telemetry).",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

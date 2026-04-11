@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import type { AlisioConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterAll, beforeAll, beforeEach, expect, vi, type Mock } from "vitest";
 import type { MemoryIndexManager, MemorySearchManager } from "./index.js";
 
@@ -15,11 +15,7 @@ export function installEmbeddingManagerFixture(opts: {
   fixturePrefix: string;
   largeTokens: number;
   smallTokens: number;
-  createCfg: (params: {
-    workspaceDir: string;
-    indexPath: string;
-    tokens: number;
-  }) => OpenClawConfig;
+  createCfg: (params: { workspaceDir: string; indexPath: string; tokens: number }) => AlisioConfig;
   resetIndexEachTest?: boolean;
 }) {
   const resetIndexEachTest = opts.resetIndexEachTest ?? true;

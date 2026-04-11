@@ -10,7 +10,7 @@ import {
 } from "@buape/carbon";
 import { createChannelPairingChallengeIssuer } from "alisio/plugin-sdk/channel-pairing";
 import { resolveCommandAuthorizedFromAuthorizers } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { DiscordAccountConfig } from "alisio/plugin-sdk/config-runtime";
 import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
 import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
@@ -67,7 +67,7 @@ export type DiscordChannelContext = {
 };
 
 export type AgentComponentContext = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   discordConfig?: DiscordAccountConfig;
   runtime?: import("alisio/plugin-sdk/runtime-env").RuntimeEnv;

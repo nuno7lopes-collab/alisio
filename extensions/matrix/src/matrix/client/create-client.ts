@@ -55,7 +55,7 @@ export async function createMatrixClient(params: {
     deviceId: params.deviceId,
   });
 
-  const cryptoDatabasePrefix = `openclaw-matrix-${storagePaths.accountKey}-${storagePaths.tokenHash}`;
+  const cryptoDatabasePrefix = `alisio-matrix-${storagePaths.accountKey}-${storagePaths.tokenHash}`;
 
   return new MatrixClient(homeserver, params.accessToken, undefined, undefined, {
     userId: matrixClientUserId,

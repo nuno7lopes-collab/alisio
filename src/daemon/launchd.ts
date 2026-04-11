@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { parseStrictInteger, parseStrictPositiveInteger } from "../infra/parse-finite-number.js";
 import { cleanStaleGatewayProcessesSync } from "../infra/restart-stale-pids.js";
 import {
@@ -38,14 +38,14 @@ const LAUNCH_AGENT_PLIST_MODE = 0o644;
 function resolveLaunchAgentLabel(args?: { env?: Record<string, string | undefined> }): string {
   const envLabel = readEnv("ALISIO_LAUNCHD_LABEL", {
     env: args?.env,
-    fallback: legacyEnvKey("LAUNCHD_LABEL"),
+    fallback: runtimeEnvKey("LAUNCHD_LABEL"),
   });
   if (envLabel) {
     return envLabel;
   }
   const profile = readEnv("ALISIO_PROFILE", {
     env: args?.env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   return resolveGatewayLaunchAgentLabel(profile);
 }
@@ -60,7 +60,7 @@ function resolveLaunchAgentInstallTarget(params: {
   plistPath: string;
 } {
   // Forced reinstalls should migrate built-in legacy LaunchAgent labels to the
-  // canonical Alisio label instead of persisting the legacy OPENCLAW override.
+  // canonical Alisio label instead of persisting the legacy ALISIO override.
   const installEnv = {
     ...params.env,
     ...params.environment,
@@ -72,12 +72,12 @@ function resolveLaunchAgentInstallTarget(params: {
     resolveGatewayLaunchAgentLabel(
       readEnv("ALISIO_PROFILE", {
         env: installEnv,
-        fallback: legacyEnvKey("PROFILE"),
+        fallback: runtimeEnvKey("PROFILE"),
       }),
     );
   const profile = readEnv("ALISIO_PROFILE", {
     env: installEnv,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   return {
     env: installEnv,
@@ -110,7 +110,7 @@ export function resolveGatewayLogPaths(env: GatewayServiceEnv): {
   const prefix =
     readEnv("ALISIO_LOG_PREFIX", {
       env,
-      fallback: legacyEnvKey("LOG_PREFIX"),
+      fallback: runtimeEnvKey("LOG_PREFIX"),
     }) || "gateway";
   return {
     logDir,
@@ -200,7 +200,7 @@ async function resolveLaunchAgentGatewayPort(env: GatewayServiceEnv): Promise<nu
   const fromEnv = parseStrictPositiveInteger(
     readEnv("ALISIO_GATEWAY_PORT", {
       env,
-      fallback: legacyEnvKey("GATEWAY_PORT"),
+      fallback: runtimeEnvKey("GATEWAY_PORT"),
     }) ?? "",
   );
   return fromEnv ?? null;
@@ -262,6 +262,16 @@ async function bootstrapLaunchAgentOrThrow(params: {
       actionHint: params.actionHint,
     });
   }
+  if (isBootstrapInputOutputError(detail)) {
+    const legacyLoad = await execLaunchctl(["load", "-w", params.plistPath]);
+    if (legacyLoad.code === 0) {
+      return;
+    }
+    const legacyDetail = (legacyLoad.stderr || legacyLoad.stdout).trim();
+    throw new Error(
+      `launchctl bootstrap failed: ${detail}\nlaunchctl load -w fallback failed: ${legacyDetail}`,
+    );
+  }
   throw new Error(`launchctl bootstrap failed: ${detail}`);
 }
 
@@ -318,7 +328,10 @@ export async function isLaunchAgentLoaded(args: GatewayServiceEnvArgs): Promise<
   const domain = resolveGuiDomain();
   const label = resolveLaunchAgentLabel({ env: args.env });
   const res = await execLaunchctl(["print", `${domain}/${label}`]);
-  return res.code === 0;
+  if (res.code === 0) {
+    return true;
+  }
+  return await isLaunchAgentListed(args);
 }
 
 export async function isLaunchAgentListed(args: GatewayServiceEnvArgs): Promise<boolean> {
@@ -347,6 +360,14 @@ export async function readLaunchAgentRuntime(
   const label = resolveLaunchAgentLabel({ env });
   const res = await execLaunchctl(["print", `${domain}/${label}`]);
   if (res.code !== 0) {
+    const listed = await isLaunchAgentListed({ env });
+    if (listed) {
+      return {
+        status: "unknown",
+        detail: (res.stderr || res.stdout).trim() || undefined,
+        missingUnit: false,
+      };
+    }
     return {
       status: "unknown",
       detail: (res.stderr || res.stdout).trim() || undefined,
@@ -379,7 +400,25 @@ export async function repairLaunchAgentBootstrap(args: {
   await execLaunchctl(["enable", `${domain}/${label}`]);
   const boot = await execLaunchctl(["bootstrap", domain, plistPath]);
   if (boot.code !== 0) {
-    return { ok: false, detail: (boot.stderr || boot.stdout).trim() || undefined };
+    const detail = (boot.stderr || boot.stdout).trim() || undefined;
+    if (detail && isBootstrapInputOutputError(detail)) {
+      const legacyLoad = await execLaunchctl(["load", "-w", plistPath]);
+      if (legacyLoad.code === 0) {
+        const kick = await execLaunchctl(["kickstart", "-k", `${domain}/${label}`]);
+        if (kick.code === 0) {
+          return { ok: true };
+        }
+        return { ok: false, detail: (kick.stderr || kick.stdout).trim() || undefined };
+      }
+      const legacyDetail = (legacyLoad.stderr || legacyLoad.stdout).trim() || undefined;
+      return {
+        ok: false,
+        detail: legacyDetail
+          ? `${detail}\nlaunchctl load -w fallback failed: ${legacyDetail}`
+          : detail,
+      };
+    }
+    return { ok: false, detail };
   }
   const kick = await execLaunchctl(["kickstart", "-k", `${domain}/${label}`]);
   if (kick.code !== 0) {
@@ -400,7 +439,7 @@ export async function findLegacyLaunchAgents(env: GatewayServiceEnv): Promise<Le
   const results: LegacyLaunchAgent[] = [];
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   for (const label of resolveLegacyGatewayLaunchAgentLabels(profile)) {
     const plistPath = resolveLaunchAgentPlistPathForLabel(env, label);
@@ -504,6 +543,11 @@ function isUnsupportedGuiDomain(detail: string): boolean {
     normalized.includes("domain does not support specified action") ||
     normalized.includes("bootstrap failed: 125")
   );
+}
+
+function isBootstrapInputOutputError(detail: string): boolean {
+  const normalized = detail.toLowerCase();
+  return normalized.includes("input/output error") || normalized.includes("bootstrap failed: 5");
 }
 
 export async function stopLaunchAgent({ stdout, env }: GatewayServiceControlArgs): Promise<void> {

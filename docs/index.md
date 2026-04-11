@@ -36,7 +36,7 @@ The desktop app is the center. Around it, you can add:
 
 - OpenAI accounts and API keys
 - local models on the machine you are using
-- OpenAI-compatible or Ollama servers on other machines
+- OpenAI-compatible servers on other machines
 - channels such as WhatsApp, Telegram, Slack, Discord, and email
 - connectors, apps, and skills from a local marketplace on each computer
 - paired devices for camera, voice, screen, notifications, and automation
@@ -63,7 +63,7 @@ flowchart LR
     Product positioning, use cases, and the minimum sellable product.
   </Card>
   <Card title="AI Sources" href="/concepts/model-providers" icon="cpu">
-    OpenAI, local runtimes, Ollama, and OpenAI-compatible servers.
+    OpenAI, local runtimes, and OpenAI-compatible servers.
   </Card>
   <Card title="Devices" href="/nodes" icon="smartphone">
     Device-local actions, permissions, and pairing.

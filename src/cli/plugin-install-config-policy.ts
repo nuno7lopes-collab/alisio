@@ -25,7 +25,7 @@ function isExplicitMatrixInstallRequest(request: PluginInstallRequestContext): b
     return false;
   }
   const candidates = [request.rawSpec.trim(), request.normalizedSpec.trim()];
-  if (candidates.includes("@openclaw/matrix")) {
+  if (candidates.includes("@alisio/matrix")) {
     return true;
   }
   if (!request.resolvedPath) {

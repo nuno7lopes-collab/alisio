@@ -8,8 +8,8 @@ import {
 } from "./product-surface.shared.js";
 import { listChatChannels } from "./registry.js";
 
-export const CHANNEL_SURFACE_MODE_ENV = "OPENCLAW_CHANNEL_SURFACE";
-export const EXPERIMENTAL_CHANNELS_ENV = "OPENCLAW_EXPERIMENTAL_CHANNELS";
+export const CHANNEL_SURFACE_MODE_ENV = "ALISIO_CHANNEL_SURFACE";
+export const EXPERIMENTAL_CHANNELS_ENV = "ALISIO_EXPERIMENTAL_CHANNELS";
 export { isProductChatChannelId, PRODUCT_CHAT_CHANNEL_IDS };
 export type { ProductChatChannelId, ProductChannelSurfaceMode } from "./product-surface.shared.js";
 

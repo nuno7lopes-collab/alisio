@@ -21,7 +21,7 @@ async function createReadyAlisioAccountEnv(
   extra: Record<string, string> = {},
 ): Promise<NodeJS.ProcessEnv> {
   const env = {
-    OPENCLAW_STATE_DIR: root,
+    ALISIO_STATE_DIR: root,
     ALISIO_SUPABASE_URL: "https://example.supabase.co",
     ALISIO_SUPABASE_ANON_KEY: "anon-key",
     ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY: CONNECTOR_ENCRYPTION_KEY,

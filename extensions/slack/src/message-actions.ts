@@ -1,10 +1,10 @@
 import { createActionGate } from "alisio/plugin-sdk/agent-runtime";
 import type { ChannelMessageActionName } from "alisio/plugin-sdk/channel-contract";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ChannelToolSend } from "alisio/plugin-sdk/tool-send";
 import { listEnabledSlackAccounts } from "./accounts.js";
 
-export function listSlackMessageActions(cfg: OpenClawConfig): ChannelMessageActionName[] {
+export function listSlackMessageActions(cfg: AlisioConfig): ChannelMessageActionName[] {
   const accounts = listEnabledSlackAccounts(cfg).filter(
     (account) => account.botTokenSource !== "none",
   );

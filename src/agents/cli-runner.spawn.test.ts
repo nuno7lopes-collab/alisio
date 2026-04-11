@@ -266,7 +266,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-prompt-image-"),
+      path.join(resolvePreferredAlisioTmpDir(), "alisio-cli-prompt-image-"),
     );
     const sourceImage = path.join(tempDir, "bb-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -290,7 +290,7 @@ describe("runCliAgent spawn path", () => {
     const argv = input.argv ?? [];
     const imageArgIndex = argv.indexOf("--image");
     expect(imageArgIndex).toBeGreaterThanOrEqual(0);
-    expect(argv[imageArgIndex + 1]).toContain("openclaw-cli-images-");
+    expect(argv[imageArgIndex + 1]).toContain("alisio-cli-images-");
     expect(argv[imageArgIndex + 1]).not.toBe(sourceImage);
   });
 
@@ -310,7 +310,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-prompt-image-generic-"),
+      path.join(resolvePreferredAlisioTmpDir(), "alisio-cli-prompt-image-generic-"),
     );
     const sourceImage = path.join(tempDir, "claude-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -334,7 +334,7 @@ describe("runCliAgent spawn path", () => {
     const argv = input.argv ?? [];
     expect(argv).not.toContain("--image");
     const promptCarrier = [input.input ?? "", ...argv].join("\n");
-    const appendedPath = argv.find((value) => value.includes("openclaw-cli-images-"));
+    const appendedPath = argv.find((value) => value.includes("alisio-cli-images-"));
     expect(appendedPath).toBeDefined();
     expect(appendedPath).not.toBe(sourceImage);
     expect(promptCarrier).toContain(appendedPath ?? "");
@@ -356,7 +356,7 @@ describe("runCliAgent spawn path", () => {
     );
 
     const tempDir = await fs.mkdtemp(
-      path.join(resolvePreferredAlisioTmpDir(), "openclaw-cli-explicit-images-"),
+      path.join(resolvePreferredAlisioTmpDir(), "alisio-cli-explicit-images-"),
     );
     const sourceImage = path.join(tempDir, "ignored-prompt-image.png");
     await fs.writeFile(sourceImage, Buffer.from(SMALL_PNG_BASE64, "base64"));
@@ -384,9 +384,7 @@ describe("runCliAgent spawn path", () => {
 
   it("falls back to per-agent workspace when workspaceDir is missing", async () => {
     const runCliAgent = await setupCliRunnerTestModule();
-    const tempDir = await fs.mkdtemp(
-      path.join(process.env.TMPDIR ?? "/tmp", "openclaw-cli-runner-"),
-    );
+    const tempDir = await fs.mkdtemp(path.join(process.env.TMPDIR ?? "/tmp", "alisio-cli-runner-"));
     const fallbackWorkspace = path.join(tempDir, "workspace-main");
     await fs.mkdir(fallbackWorkspace, { recursive: true });
     const cfg = {

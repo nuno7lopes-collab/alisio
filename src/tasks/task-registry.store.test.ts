@@ -31,7 +31,7 @@ function createStoredTask(): TaskRecord {
 
 describe("task-registry store runtime", () => {
   afterEach(() => {
-    delete process.env.OPENCLAW_STATE_DIR;
+    delete process.env.ALISIO_STATE_DIR;
     resetTaskRegistryForTests();
   });
 
@@ -142,8 +142,8 @@ describe("task-registry store runtime", () => {
     if (process.platform === "win32") {
       return;
     }
-    const stateDir = mkdtempSync(path.join(os.tmpdir(), "openclaw-task-store-"));
-    process.env.OPENCLAW_STATE_DIR = stateDir;
+    const stateDir = mkdtempSync(path.join(os.tmpdir(), "alisio-task-store-"));
+    process.env.ALISIO_STATE_DIR = stateDir;
 
     createTaskRecord({
       runtime: "cron",

@@ -88,7 +88,6 @@ export type {
   TtsModelOverrideConfig,
   TtsProvider,
 } from "../config/types.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/types.js";
 export {
   clearSessionStoreCacheForTest,
   loadSessionStore,

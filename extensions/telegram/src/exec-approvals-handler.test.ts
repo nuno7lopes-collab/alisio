@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 import { TelegramExecApprovalHandler } from "./exec-approvals-handler.js";
 
@@ -17,7 +17,7 @@ const baseRequest = {
   expiresAtMs: 61_000,
 };
 
-function createHandler(cfg: OpenClawConfig) {
+function createHandler(cfg: AlisioConfig) {
   const sendTyping = vi.fn().mockResolvedValue({ ok: true });
   const sendMessage = vi
     .fn()
@@ -52,7 +52,7 @@ describe("TelegramExecApprovalHandler", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const { handler, sendTyping, sendMessage } = createHandler(cfg);
 
     await handler.handleRequested(baseRequest);
@@ -103,7 +103,7 @@ describe("TelegramExecApprovalHandler", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const { handler, sendMessage } = createHandler(cfg);
 
     await handler.handleRequested({
@@ -132,7 +132,7 @@ describe("TelegramExecApprovalHandler", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const { handler, editReplyMarkup } = createHandler(cfg);
 
     await handler.handleRequested(baseRequest);

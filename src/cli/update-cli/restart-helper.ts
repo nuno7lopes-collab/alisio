@@ -26,27 +26,27 @@ function isBatchSafe(value: string): boolean {
 }
 
 function resolveSystemdUnit(env: NodeJS.ProcessEnv): string {
-  const override = env.ALISIO_SYSTEMD_UNIT?.trim() || env.OPENCLAW_SYSTEMD_UNIT?.trim();
+  const override = env.ALISIO_SYSTEMD_UNIT?.trim();
   if (override) {
     return override.endsWith(".service") ? override : `${override}.service`;
   }
-  return `${resolveGatewaySystemdServiceName(env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE)}.service`;
+  return `${resolveGatewaySystemdServiceName(env.ALISIO_PROFILE)}.service`;
 }
 
 function resolveLaunchdLabel(env: NodeJS.ProcessEnv): string {
-  const override = env.ALISIO_LAUNCHD_LABEL?.trim() || env.OPENCLAW_LAUNCHD_LABEL?.trim();
+  const override = env.ALISIO_LAUNCHD_LABEL?.trim();
   if (override) {
     return override;
   }
-  return resolveGatewayLaunchAgentLabel(env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE);
+  return resolveGatewayLaunchAgentLabel(env.ALISIO_PROFILE);
 }
 
 function resolveWindowsTaskName(env: NodeJS.ProcessEnv): string {
-  const override = env.ALISIO_WINDOWS_TASK_NAME?.trim() || env.OPENCLAW_WINDOWS_TASK_NAME?.trim();
+  const override = env.ALISIO_WINDOWS_TASK_NAME?.trim();
   if (override) {
     return override;
   }
-  return resolveGatewayWindowsTaskName(env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE);
+  return resolveGatewayWindowsTaskName(env.ALISIO_PROFILE);
 }
 
 /**

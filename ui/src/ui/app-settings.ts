@@ -1,6 +1,7 @@
 import { roleScopesAllow } from "../../../src/shared/operator-scope-compat.js";
 import { docsUrl } from "../brand-compat.ts";
 import { i18n, isSupportedLocale } from "../i18n/index.ts";
+import { loadNativeShellState } from "./alisio-host.ts";
 import {
   alisioBootstrapBlocksChatAccess,
   isPostReadySetupStep,
@@ -35,7 +36,7 @@ import { loadDevices } from "./controllers/devices.ts";
 import { loadSelectedExecApprovals } from "./controllers/exec-approvals.ts";
 import { loadLogs } from "./controllers/logs.ts";
 import { loadMemoryGraph, loadMemoryStatus } from "./controllers/memory-runtime.ts";
-import { loadModels as loadChatModels } from "./controllers/models.ts";
+import { loadModelCatalogPair } from "./controllers/models.ts";
 import { loadNodePairings } from "./controllers/node-pairing.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
@@ -43,7 +44,6 @@ import { loadGatewayAccessMode } from "./controllers/security-access.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
 import { loadUsage } from "./controllers/usage.ts";
-import { loadNativeShellState } from "./lume-host.ts";
 import {
   humanizeMemoryNoteTitle,
   isMemoryNoteFileName,
@@ -105,6 +105,8 @@ type SettingsHost = {
   sessionsError?: string | null;
   chatModelsLoading?: boolean;
   chatModelCatalog?: import("./types.ts").ModelCatalogEntry[];
+  modelManagementLoading?: boolean;
+  modelManagementCatalog?: import("./types.ts").ModelCatalogEntry[];
 };
 
 type RefreshActiveTabOptions = {
@@ -349,16 +351,38 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
       includeGlobal: true,
       includeUnknown: true,
     });
-    if (
+    const shouldLoadChatCatalog =
       host.connected &&
       host.client &&
-      (!host.chatModelCatalog || host.chatModelCatalog.length === 0)
-    ) {
-      host.chatModelsLoading = true;
+      (!host.chatModelCatalog || host.chatModelCatalog.length === 0);
+    const shouldLoadManagementCatalog =
+      host.connected &&
+      host.client &&
+      (!host.modelManagementCatalog || host.modelManagementCatalog.length === 0);
+    if (host.client && (shouldLoadChatCatalog || shouldLoadManagementCatalog)) {
+      if (shouldLoadChatCatalog) {
+        host.chatModelsLoading = true;
+      }
+      if (shouldLoadManagementCatalog) {
+        host.modelManagementLoading = true;
+      }
       try {
-        host.chatModelCatalog = await loadChatModels(host.client);
+        const pair = await loadModelCatalogPair(host.client);
+        if (pair) {
+          if (shouldLoadChatCatalog) {
+            host.chatModelCatalog = pair.chatCatalog;
+          }
+          if (shouldLoadManagementCatalog) {
+            host.modelManagementCatalog = pair.managementCatalog;
+          }
+        }
       } finally {
-        host.chatModelsLoading = false;
+        if (shouldLoadChatCatalog) {
+          host.chatModelsLoading = false;
+        }
+        if (shouldLoadManagementCatalog) {
+          host.modelManagementLoading = false;
+        }
       }
     }
   }

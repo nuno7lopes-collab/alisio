@@ -448,7 +448,7 @@ final class AppState {
                     .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let parsedExisting = existingUrl.isEmpty ? nil : URL(string: existingUrl)
                 let scheme = parsedExisting?.scheme?.isEmpty == false ? parsedExisting?.scheme : "ws"
-                let port = parsedExisting?.port ?? 40705
+                let port = parsedExisting?.port ?? GatewayDefaults.defaultPort
                 let desiredUrl = "\(scheme ?? "ws")://\(host):\(port)"
                 changed = Self.updateGatewayString(&remote, key: "url", value: desiredUrl) || changed
             }

@@ -190,7 +190,7 @@ function setMinimalChannelPluginRegistryForTests(): void {
 }
 
 beforeAll(async () => {
-  testWorkspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-commands-"));
+  testWorkspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-commands-"));
   await fs.writeFile(path.join(testWorkspaceDir, "AGENTS.md"), "# Agents\n", "utf-8");
 });
 
@@ -209,7 +209,7 @@ beforeEach(() => {
   resetTaskRegistryForTests();
   setMinimalChannelPluginRegistryForTests();
   readConfigFileSnapshotMock.mockImplementation(async () => {
-    const configPath = process.env.OPENCLAW_CONFIG_PATH;
+    const configPath = process.env.ALISIO_CONFIG_PATH;
     if (!configPath) {
       return { valid: false, parsed: null };
     }
@@ -221,7 +221,7 @@ beforeEach(() => {
     config,
   }));
   writeConfigFileMock.mockImplementation(async (config: unknown) => {
-    const configPath = process.env.OPENCLAW_CONFIG_PATH;
+    const configPath = process.env.ALISIO_CONFIG_PATH;
     if (!configPath) {
       return;
     }
@@ -236,18 +236,18 @@ async function withTempConfigPath<T>(
   initialConfig: Record<string, unknown>,
   run: (configPath: string) => Promise<T>,
 ): Promise<T> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-commands-config-"));
-  const configPath = path.join(dir, "openclaw.json");
-  const previous = process.env.OPENCLAW_CONFIG_PATH;
-  process.env.OPENCLAW_CONFIG_PATH = configPath;
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-commands-config-"));
+  const configPath = path.join(dir, "alisio.json");
+  const previous = process.env.ALISIO_CONFIG_PATH;
+  process.env.ALISIO_CONFIG_PATH = configPath;
   await fs.writeFile(configPath, JSON.stringify(initialConfig, null, 2), "utf-8");
   try {
     return await run(configPath);
   } finally {
     if (previous === undefined) {
-      delete process.env.OPENCLAW_CONFIG_PATH;
+      delete process.env.ALISIO_CONFIG_PATH;
     } else {
-      process.env.OPENCLAW_CONFIG_PATH = previous;
+      process.env.ALISIO_CONFIG_PATH = previous;
     }
     await fs.rm(dir, {
       recursive: true,
@@ -1136,13 +1136,13 @@ describe("/compact command", () => {
     const cfg = {
       commands: { text: true },
       channels: { whatsapp: { allowFrom: ["*"] } },
-      session: { store: "/tmp/openclaw-session-store.json" },
+      session: { store: "/tmp/alisio-session-store.json" },
     } as AlisioConfig;
     const params = buildParams("/compact: focus on decisions", cfg, {
       From: "+15550001",
       To: "+15550002",
     });
-    const agentDir = "/tmp/openclaw-agent-compact";
+    const agentDir = "/tmp/alisio-agent-compact";
     vi.mocked(compactEmbeddedPiSession).mockResolvedValueOnce({
       ok: true,
       compacted: false,

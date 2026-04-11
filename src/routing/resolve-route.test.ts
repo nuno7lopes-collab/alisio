@@ -517,7 +517,7 @@ describe("resolveAgentRoute", () => {
       name: "defaultAgentId is used when no binding matches",
       cfg: {
         agents: {
-          list: [{ id: "home", default: true, workspace: "~/openclaw-home" }],
+          list: [{ id: "home", default: true, workspace: "~/alisio-home" }],
         },
       } satisfies AlisioConfig,
       channel: "whatsapp" as const,

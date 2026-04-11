@@ -5,7 +5,7 @@ import {
   type NormalizedLocation,
 } from "alisio/plugin-sdk/channel-inbound";
 import { normalizeCommandBody } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { readSessionUpdatedAt, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
 import type {
   TelegramDirectConfig,
@@ -40,7 +40,7 @@ import type { TelegramContext } from "./bot/types.js";
 import { resolveTelegramGroupPromptSettings } from "./group-config-helpers.js";
 
 export async function buildTelegramInboundContextPayload(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   primaryCtx: TelegramContext;
   msg: TelegramContext["message"];
   allMedia: TelegramMediaRef[];

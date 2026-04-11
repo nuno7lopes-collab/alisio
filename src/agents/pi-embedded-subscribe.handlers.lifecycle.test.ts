@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { emitAgentEvent } from "../infra/agent-events.js";
 import { createInlineCodeState } from "../markdown/code-spans.js";
 import { handleAgentEnd } from "./pi-embedded-subscribe.handlers.lifecycle.js";
 import type { EmbeddedPiSubscribeContext } from "./pi-embedded-subscribe.handlers.types.js";
@@ -43,6 +44,10 @@ function createContext(
 }
 
 describe("handleAgentEnd", () => {
+  beforeEach(() => {
+    vi.mocked(emitAgentEvent).mockReset();
+  });
+
   it("logs the resolved error message when run ends with assistant error", () => {
     const onAgentEvent = vi.fn();
     const ctx = createContext(
@@ -74,6 +79,15 @@ describe("handleAgentEnd", () => {
         phase: "error",
         error: "LLM request failed: connection refused by the provider endpoint.",
       },
+    });
+    expect(vi.mocked(emitAgentEvent)).toHaveBeenCalledWith({
+      runId: "run-1",
+      stream: "lifecycle",
+      sessionKey: "agent:main:main",
+      data: expect.objectContaining({
+        phase: "error",
+        error: "LLM request failed: connection refused by the provider endpoint.",
+      }),
     });
   });
 
@@ -163,6 +177,14 @@ describe("handleAgentEnd", () => {
 
     expect(ctx.log.warn).not.toHaveBeenCalled();
     expect(ctx.log.debug).toHaveBeenCalledWith("embedded run agent end: runId=run-1 isError=false");
+    expect(vi.mocked(emitAgentEvent)).toHaveBeenCalledWith({
+      runId: "run-1",
+      stream: "lifecycle",
+      sessionKey: "agent:main:main",
+      data: expect.objectContaining({
+        phase: "end",
+      }),
+    });
   });
 
   it("flushes orphaned tool media as a media-only block reply", () => {

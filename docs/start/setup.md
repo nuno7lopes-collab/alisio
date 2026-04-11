@@ -51,7 +51,7 @@ If you don’t have a global install yet, run it via `pnpm alisio setup`.
 After `pnpm build`, you can run the packaged CLI directly:
 
 ```bash
-node alisio.mjs gateway --port 40705 --verbose
+node alisio.mjs gateway run --port 40705 --verbose
 ```
 
 ## Stable workflow (macOS app first)

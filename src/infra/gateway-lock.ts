@@ -7,7 +7,7 @@ import { z } from "zod";
 import { resolveConfigPath, resolveGatewayLockDir, resolveStateDir } from "../config/paths.js";
 import { isPidAlive } from "../shared/pid-alive.js";
 import { safeParseJsonWithSchema } from "../utils/zod-parse.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { isGatewayArgv, parseProcCmdline } from "./gateway-process-argv.js";
 
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -174,7 +174,7 @@ export async function acquireGatewayLock(
   if (
     readEnv("ALISIO_ALLOW_MULTI_GATEWAY", {
       env,
-      fallback: legacyEnvKey("ALLOW_MULTI_GATEWAY"),
+      fallback: runtimeEnvKey("ALLOW_MULTI_GATEWAY"),
       description: "multi-gateway bypass",
     }) === "1" ||
     (!allowInTests && (env.VITEST || env.NODE_ENV === "test"))

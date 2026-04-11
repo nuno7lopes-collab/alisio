@@ -1,7 +1,11 @@
 import { html, nothing } from "lit";
 import { t } from "../../i18n/index.ts";
 import { icons } from "../icons.ts";
-import { makeModelsOperationKey, type ModelsOperationMap } from "../models-view-types.ts";
+import {
+  makeModelsOperationKey,
+  type ModelProviderId,
+  type ModelsOperationMap,
+} from "../models-view-types.ts";
 import type { AlisioAiState, AlisioBootstrapState, AlisioModelsState } from "../types.ts";
 import {
   renderSkeletonButton,
@@ -12,7 +16,6 @@ import {
 
 type AiProfile = NonNullable<AlisioAiState["profiles"]>[number];
 type LocalModelTarget = NonNullable<AlisioModelsState["targets"]>[number];
-type ModelProviderId = "openai" | "nodes" | "local";
 type ChatModelOption = {
   value: string;
   label: string;
@@ -73,8 +76,8 @@ function modelsText() {
     chatgptSubtitle: t("alisio.settings.models.chatgptSubtitle"),
     localTitle: t("alisio.settings.models.localTitle"),
     localSubtitle: t("alisio.settings.models.localSubtitle"),
-    nodesTitle: t("alisio.settings.models.serversTitle"),
-    nodesSubtitle: t("alisio.settings.models.serversSubtitle"),
+    nodesTitle: t("alisio.settings.models.nodesTitle"),
+    nodesSubtitle: t("alisio.settings.models.nodesSubtitle"),
     currentComputer: t("alisio.settings.models.currentComputer"),
     node: t("alisio.settings.models.linkedComputer"),
     nodeShort: t("alisio.settings.models.linkedComputerShort"),
@@ -87,7 +90,7 @@ function modelsText() {
     modelSourcePending: t("alisio.settings.models.modelSourcePending"),
     noTargets: t("alisio.settings.models.noTargets"),
     noLocalModels: t("alisio.settings.models.noLocalModels"),
-    emptyServers: t("alisio.settings.models.emptyServers"),
+    emptyNodes: t("alisio.settings.models.emptyNodes"),
     install: t("alisio.settings.models.install"),
     installing: t("alisio.settings.models.installing"),
     update: t("alisio.settings.models.update"),
@@ -116,12 +119,9 @@ function modelsText() {
     disk: t("alisio.settings.models.disk"),
     nodesGroupTitle: t("alisio.settings.models.linkedComputersTitle"),
     nodesGroupSubtitle: t("alisio.settings.models.linkedComputersSubtitle"),
-    noNodes: t("alisio.settings.models.emptyServers"),
+    noNodes: t("alisio.settings.models.emptyNodes"),
     defaultModel: t("alisio.settings.models.defaultModel"),
-    activeModel: t("alisio.settings.models.activeModel"),
-    currentChat: t("alisio.settings.models.currentChat"),
     chooseModel: t("alisio.settings.models.chooseModel"),
-    autoModel: t("alisio.settings.models.autoModel"),
     noModelChoices: t("alisio.settings.models.noModelChoices"),
     modelsAvailable: t("alisio.settings.models.modelsAvailable"),
     suggestion: t("alisio.settings.models.suggestion"),
@@ -351,41 +351,16 @@ function resolveOpenAiModelOptions(options: readonly ChatModelOption[]) {
   return options.filter((entry) => isOpenAiModelValue(entry.value));
 }
 
-function buildProviderModelValue(providerId: string, modelId: string) {
-  const normalizedProviderId = providerId.trim();
-  const trimmed = modelId.trim();
-  return normalizedProviderId && trimmed ? `${normalizedProviderId}/${trimmed}` : "";
-}
-
-function isProviderModelValue(value: string, providerId: string | null | undefined) {
-  const normalizedProviderId = providerId?.trim().toLowerCase();
-  if (!normalizedProviderId) {
-    return false;
-  }
-  return value.trim().toLowerCase().startsWith(`${normalizedProviderId}/`);
-}
-
 function resolveProviderModelId(value: string, providerId: string | null | undefined) {
   const normalizedProviderId = providerId?.trim();
-  if (!normalizedProviderId || !isProviderModelValue(value, normalizedProviderId)) {
+  if (!normalizedProviderId) {
     return "";
   }
-  return value.trim().slice(normalizedProviderId.length + 1);
-}
-
-function resolveProviderModelLabel(params: {
-  models: ReadonlyArray<{ id: string; name: string }>;
-  providerId: string | null | undefined;
-  value: string;
-}) {
-  const modelId = resolveProviderModelId(params.value, params.providerId);
-  if (!modelId) {
+  const normalizedValue = value.trim();
+  if (!normalizedValue.toLowerCase().startsWith(`${normalizedProviderId.toLowerCase()}/`)) {
     return "";
   }
-  return (
-    params.models.find((model) => model.id.trim().toLowerCase() === modelId.toLowerCase())?.name ??
-    modelId
-  );
+  return normalizedValue.slice(normalizedProviderId.length + 1);
 }
 
 function resolveProviderModelOptions(
@@ -889,21 +864,19 @@ function renderTargetCatalog(props: {
 function renderTargetCard(props: {
   target: LocalModelTarget;
   installCatalog?: readonly AlisioModelsState["catalog"][number][];
-  chatModelOptions?: readonly ChatModelOption[];
-  effectiveChatModelValue?: string;
+  modelOptions?: readonly ChatModelOption[];
   operations?: ModelsOperationMap;
   busy?: boolean;
   onInstallModel?: (targetId: string, modelId: string) => void;
   onUpdateModel?: (targetId: string, modelId: string) => void;
   onUninstallModel?: (targetId: string, modelId: string) => void;
-  onSelectChatModel?: (value: string) => void;
 }) {
   const text = modelsText();
   const canManageInstalledModels = Boolean(props.onUninstallModel && props.target.supportsInstall);
   const targetProviderId = props.target.chatProviderId?.trim() || "";
   const targetDisplayModels = resolveTargetDisplayModels(
     props.target,
-    props.chatModelOptions ?? [],
+    props.modelOptions ?? [],
     targetProviderId,
   );
   const targetCatalogEntries = props.installCatalog
@@ -980,16 +953,6 @@ function renderTargetCard(props: {
       ${resolveTargetRecommendationLabel(props.target)
         ? html`<div class="list-sub">${resolveTargetRecommendationLabel(props.target)}</div>`
         : nothing}
-      ${targetProviderId && props.onSelectChatModel
-        ? renderScopedModelChooser({
-            providerId: targetProviderId,
-            models: targetDisplayModels,
-            effectiveChatModelValue: props.effectiveChatModelValue ?? "",
-            busy: props.busy ?? false,
-            onSelectModel: props.onSelectChatModel,
-            emptyLabel: resolveTargetEmptyModelsLabel(props.target),
-          })
-        : nothing}
       <div class="alisio-models__installed">
         <div class="alisio-models__installed-title">${resolveTargetModelsLabel(props.target)}</div>
         ${canManageInstalledModels
@@ -1033,159 +996,42 @@ function renderTargetCard(props: {
 }
 
 function renderOpenAiModelChooser(props: {
-  chatModelOptions: readonly ChatModelOption[];
-  currentChatModelOverrideValue: string;
+  modelOptions: readonly ChatModelOption[];
   defaultChatModelValue: string;
   defaultChatModelDisplay: string;
   defaultChatModelLabel: string;
-  effectiveChatModelValue: string;
-  effectiveChatModelLabel: string;
   busy: boolean;
   onSelectDefaultModel: (value: string) => void;
-  onSelectModel: (value: string) => void;
 }) {
   const text = modelsText();
-  const openAiOptions = resolveOpenAiModelOptions(props.chatModelOptions);
+  const openAiOptions = resolveOpenAiModelOptions(props.modelOptions);
   const defaultModelLabel = isOpenAiModelValue(props.defaultChatModelValue)
     ? props.defaultChatModelDisplay || props.defaultChatModelLabel
     : text.chooseModel;
-  const activeModelLabel = isOpenAiModelValue(props.effectiveChatModelValue)
-    ? props.effectiveChatModelLabel
-    : text.chooseModel;
-
-  return html`
-    <div class="alisio-models__chooser-group">
-      <section class="alisio-models__chooser">
-        <div class="alisio-models__chooser-head">
-          <div class="alisio-models__chooser-title">${text.defaultModel}</div>
-          <div class="list-sub">${defaultModelLabel}</div>
-        </div>
-        ${openAiOptions.length === 0
-          ? html`<div class="list-sub">${text.noModelChoices}</div>`
-          : html`
-              <div class="alisio-models__model-chips">
-                ${openAiOptions.map(
-                  (option) => html`
-                    <button
-                      class="alisio-models__model-chip ${option.value ===
-                      props.defaultChatModelValue
-                        ? "is-active"
-                        : ""}"
-                      ?disabled=${props.busy}
-                      @click=${() => props.onSelectDefaultModel(option.value)}
-                    >
-                      ${option.label}
-                    </button>
-                  `,
-                )}
-              </div>
-            `}
-      </section>
-      <section class="alisio-models__chooser">
-        <div class="alisio-models__chooser-head">
-          <div class="alisio-models__chooser-title">${text.currentChat}</div>
-          <div class="list-sub">${activeModelLabel}</div>
-        </div>
-        ${openAiOptions.length === 0
-          ? html`<div class="list-sub">${text.noModelChoices}</div>`
-          : html`
-              <div class="alisio-models__model-chips">
-                ${props.currentChatModelOverrideValue ||
-                (props.defaultChatModelValue && isOpenAiModelValue(props.defaultChatModelValue))
-                  ? html`
-                      <button
-                        class="alisio-models__model-chip ${props.currentChatModelOverrideValue
-                          ? ""
-                          : "is-active"}"
-                        ?disabled=${props.busy}
-                        @click=${() => props.onSelectModel("")}
-                      >
-                        ${text.autoModel}
-                      </button>
-                    `
-                  : nothing}
-                ${openAiOptions.map(
-                  (option) => html`
-                    <button
-                      class="alisio-models__model-chip ${option.value ===
-                      props.effectiveChatModelValue
-                        ? "is-active"
-                        : ""}"
-                      ?disabled=${props.busy}
-                      @click=${() => props.onSelectModel(option.value)}
-                    >
-                      ${option.label}
-                    </button>
-                  `,
-                )}
-              </div>
-            `}
-        ${props.currentChatModelOverrideValue &&
-        props.defaultChatModelValue &&
-        props.defaultChatModelLabel
-          ? html`<div class="list-sub">${props.defaultChatModelLabel}</div>`
-          : nothing}
-      </section>
-    </div>
-  `;
-}
-
-function renderScopedModelChooser(props: {
-  providerId: string;
-  models: ReadonlyArray<{ id: string; name: string }>;
-  title?: string;
-  effectiveChatModelValue: string;
-  busy: boolean;
-  onSelectModel: (value: string) => void;
-  emptyLabel: string;
-}) {
-  const text = modelsText();
-  if (!props.providerId.trim()) {
-    return nothing;
-  }
-  const activeModelLabel = isProviderModelValue(props.effectiveChatModelValue, props.providerId)
-    ? resolveProviderModelLabel({
-        models: props.models,
-        providerId: props.providerId,
-        value: props.effectiveChatModelValue,
-      }) || text.chooseModel
-    : text.chooseModel;
-  const autoSelected = !isProviderModelValue(props.effectiveChatModelValue, props.providerId);
 
   return html`
     <section class="alisio-models__chooser">
       <div class="alisio-models__chooser-head">
-        <div class="alisio-models__chooser-title">${props.title ?? text.activeModel}</div>
-        <div class="list-sub">${activeModelLabel}</div>
+        <div class="alisio-models__chooser-title">${text.defaultModel}</div>
+        <div class="list-sub">${defaultModelLabel}</div>
       </div>
-      <div class="alisio-models__chooser-label">${text.chooseModel}</div>
-      ${props.models.length === 0
-        ? html`<div class="list-sub">${props.emptyLabel}</div>`
+      ${openAiOptions.length === 0
+        ? html`<div class="list-sub">${text.noModelChoices}</div>`
         : html`
             <div class="alisio-models__model-chips">
-              <button
-                type="button"
-                class="alisio-models__model-chip ${autoSelected ? "is-active" : ""}"
-                ?disabled=${props.busy}
-                @click=${() => props.onSelectModel("")}
-              >
-                ${text.autoModel}
-              </button>
-              ${props.models.map((model) => {
-                const value = buildProviderModelValue(props.providerId, model.id);
-                return html`
+              ${openAiOptions.map(
+                (option) => html`
                   <button
-                    type="button"
-                    class="alisio-models__model-chip ${value === props.effectiveChatModelValue
+                    class="alisio-models__model-chip ${option.value === props.defaultChatModelValue
                       ? "is-active"
                       : ""}"
                     ?disabled=${props.busy}
-                    @click=${() => props.onSelectModel(value)}
+                    @click=${() => props.onSelectDefaultModel(option.value)}
                   >
-                    ${model.name}
+                    ${option.label}
                   </button>
-                `;
-              })}
+                `,
+              )}
             </div>
           `}
     </section>
@@ -1269,21 +1115,36 @@ function renderProviderPicker(props: {
 const profileRenameDrafts = new Map<string, string>();
 const profileRenameEditingIds = new Set<string>();
 
+function resolveEventTargetRoot(eventTarget: EventTarget | null): Document | ShadowRoot | null {
+  if (!(eventTarget instanceof Node)) {
+    return null;
+  }
+  const root = eventTarget.getRootNode();
+  return root instanceof ShadowRoot || root instanceof Document ? root : null;
+}
+
+function hasRequestUpdateHost(value: unknown): value is { requestUpdate: () => void } {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as { requestUpdate?: unknown }).requestUpdate === "function"
+  );
+}
+
 function requestModelsViewUpdate(eventTarget: EventTarget | null) {
-  const root = eventTarget instanceof Node ? eventTarget.getRootNode() : null;
+  const root = resolveEventTargetRoot(eventTarget);
   if (!root || !("host" in root)) {
     return;
   }
   const host = root.host;
-  if (host && typeof (host as { requestUpdate?: () => void }).requestUpdate === "function") {
-    (host as { requestUpdate: () => void }).requestUpdate();
+  if (hasRequestUpdateHost(host)) {
+    host.requestUpdate();
   }
 }
 
 function focusInlineRenameInput(profileId: string, eventTarget: EventTarget | null) {
-  const root = eventTarget instanceof Node ? eventTarget.getRootNode() : null;
-  const canQuery = root instanceof ShadowRoot || root instanceof Document;
-  if (!canQuery) {
+  const root = resolveEventTargetRoot(eventTarget);
+  if (!root) {
     return;
   }
   requestAnimationFrame(() => {
@@ -1571,19 +1432,15 @@ function renderChatGptSection(props: {
   aiLoading: boolean;
   aiError: string | null;
   expandedProfileId: string | null | undefined;
-  chatModelOptions: readonly ChatModelOption[];
-  currentChatModelOverrideValue: string;
+  modelOptions: readonly ChatModelOption[];
   defaultChatModelValue: string;
   defaultChatModelDisplay: string;
   defaultChatModelLabel: string;
-  effectiveChatModelValue: string;
-  effectiveChatModelLabel: string;
   modelPickerBusy: boolean;
   onSelectDefaultModel: (value: string) => void;
   onToggleProfile: (profileId: string) => void;
   onConnect: () => void;
   onRefreshAll: () => void;
-  onSelectModel: (value: string) => void;
   onSelectProfile: (profileId: string) => void;
   onDisconnectProfile: (profileId: string) => void;
   onRefreshProfile: (profileId: string) => void;
@@ -1639,16 +1496,12 @@ function renderChatGptSection(props: {
       ${props.aiError ? html`<div class="callout danger">${props.aiError}</div>` : nothing}
       ${showModelChooser
         ? renderOpenAiModelChooser({
-            chatModelOptions: props.chatModelOptions,
-            currentChatModelOverrideValue: props.currentChatModelOverrideValue,
+            modelOptions: props.modelOptions,
             defaultChatModelValue: props.defaultChatModelValue,
             defaultChatModelDisplay: props.defaultChatModelDisplay,
             defaultChatModelLabel: props.defaultChatModelLabel,
-            effectiveChatModelValue: props.effectiveChatModelValue,
-            effectiveChatModelLabel: props.effectiveChatModelLabel,
             busy: props.modelPickerBusy,
             onSelectDefaultModel: props.onSelectDefaultModel,
-            onSelectModel: props.onSelectModel,
           })
         : nothing}
       ${showInitialLoading
@@ -1688,13 +1541,11 @@ function renderLocalModelsSection(props: {
   models: AlisioModelsState | null;
   modelsLoading: boolean;
   modelsError: string | null;
-  chatModelOptions: readonly ChatModelOption[];
-  effectiveChatModelValue: string;
+  modelOptions: readonly ChatModelOption[];
   modelOperations?: ModelsOperationMap;
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
-  onSelectModel: (value: string) => void;
 }) {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
@@ -1742,14 +1593,12 @@ function renderLocalModelsSection(props: {
             renderTargetCard({
               target,
               installCatalog: publishedModels,
-              chatModelOptions: props.chatModelOptions,
-              effectiveChatModelValue: props.effectiveChatModelValue,
+              modelOptions: props.modelOptions,
               operations: props.modelOperations,
               busy: props.modelsLoading,
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
-              onSelectChatModel: props.onSelectModel,
             }),
           )}
       </div>
@@ -1768,13 +1617,11 @@ function renderNodesSection(props: {
   models: AlisioModelsState | null;
   modelsLoading: boolean;
   modelsError: string | null;
-  chatModelOptions: readonly ChatModelOption[];
+  modelOptions: readonly ChatModelOption[];
   modelOperations?: ModelsOperationMap;
-  effectiveChatModelValue: string;
   onInstallModel: (targetId: string, modelId: string) => void;
   onUpdateModel: (targetId: string, modelId: string) => void;
   onUninstallModel: (targetId: string, modelId: string) => void;
-  onSelectModel: (value: string) => void;
 }) {
   const text = modelsText();
   const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
@@ -1812,14 +1659,12 @@ function renderNodesSection(props: {
                   renderTargetCard({
                     target,
                     installCatalog: target.supportsInstall ? catalog : undefined,
-                    chatModelOptions: props.chatModelOptions,
-                    effectiveChatModelValue: props.effectiveChatModelValue,
+                    modelOptions: props.modelOptions,
                     operations: props.modelOperations,
                     busy: props.modelsLoading,
                     onInstallModel: props.onInstallModel,
                     onUpdateModel: props.onUpdateModel,
                     onUninstallModel: props.onUninstallModel,
-                    onSelectChatModel: props.onSelectModel,
                   }),
                 )}
               </div>
@@ -1843,20 +1688,16 @@ export function renderModelsHub(props: {
   aiError: string | null;
   expandedProfileId: string | null | undefined;
   selectedProviderId: ModelProviderId | null | undefined;
-  chatModelOptions: readonly ChatModelOption[];
-  currentChatModelOverrideValue: string;
+  modelOptions: readonly ChatModelOption[];
   defaultChatModelValue: string;
   defaultChatModelDisplay: string;
   defaultChatModelLabel: string;
-  effectiveChatModelValue: string;
-  effectiveChatModelLabel: string;
   modelPickerBusy: boolean;
   onToggleProfile: (profileId: string) => void;
   onSelectProvider: (providerId: ModelProviderId) => void;
   onConnectAi: () => void;
   onRefreshAllAiProfiles: () => void;
   onSelectDefaultChatModel: (value: string) => void;
-  onSelectChatModel: (value: string) => void;
   onSelectAiProfile: (profileId: string) => void;
   onDisconnectAiProfile: (profileId: string) => void;
   onRefreshAiProfile: (profileId: string) => void;
@@ -1872,7 +1713,7 @@ export function renderModelsHub(props: {
   const { currentTargets, linkedTargets } = splitTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
   const currentTargetDisplayModels = currentTargets.flatMap((target) =>
-    resolveTargetDisplayModels(target, props.chatModelOptions, target.chatProviderId ?? null),
+    resolveTargetDisplayModels(target, props.modelOptions, target.chatProviderId ?? null),
   );
   const localSuggestionsCount = currentTargets.reduce(
     (total, target) =>
@@ -1886,94 +1727,51 @@ export function renderModelsHub(props: {
     (props.aiLoading && profiles.length === 0) || (props.modelsLoading && !props.models);
   const uniqueInstalledModels = countUniqueInstalledModels(currentTargets);
   const localDisplayModelCount = currentTargetDisplayModels.length;
-  const selectedLocalTarget =
-    currentTargets.find((target) =>
-      isProviderModelValue(props.effectiveChatModelValue, target.chatProviderId),
-    ) ?? null;
-  const selectedLocalModelLabel = selectedLocalTarget?.chatProviderId
-    ? resolveProviderModelLabel({
-        models: resolveTargetDisplayModels(
-          selectedLocalTarget,
-          props.chatModelOptions,
-          selectedLocalTarget.chatProviderId,
-        ),
-        providerId: selectedLocalTarget.chatProviderId,
-        value: props.effectiveChatModelValue,
-      })
-    : "";
-  const localPrimary =
-    selectedLocalModelLabel ||
-    resolvePrimaryLocalSummary(currentTargets, localCatalog) ||
-    text.localTitle;
-  const localSecondary =
-    selectedLocalModelLabel && selectedLocalTarget
-      ? resolveTargetRuntimeLabel(selectedLocalTarget)
-      : currentTargets.some((target) => !target.connected)
-        ? text.targetNotConnected
-        : localDisplayModelCount > 0 || uniqueInstalledModels > 0
-          ? currentTargets.every((target) => !target.supportsInstall)
-            ? text.availableModels
-            : text.installedModels
-          : localSuggestionsCount > 0
-            ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
-            : text.noLocalModels;
+  const localPrimary = resolvePrimaryLocalSummary(currentTargets, localCatalog) || text.localTitle;
+  const localSecondary = currentTargets.some((target) => !target.connected)
+    ? text.targetNotConnected
+    : localDisplayModelCount > 0 || uniqueInstalledModels > 0
+      ? currentTargets.every((target) => !target.supportsInstall)
+        ? text.availableModels
+        : text.installedModels
+      : localSuggestionsCount > 0
+        ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
+        : text.noLocalModels;
   const linkedDisplayModelCount = linkedTargets.reduce(
     (total, target) =>
       total +
-      resolveTargetDisplayModels(target, props.chatModelOptions, target.chatProviderId ?? null)
-        .length,
+      resolveTargetDisplayModels(target, props.modelOptions, target.chatProviderId ?? null).length,
     0,
   );
-  const selectedNodeTarget =
-    linkedTargets.find((target) =>
-      isProviderModelValue(props.effectiveChatModelValue, target.chatProviderId),
-    ) ?? null;
-  const selectedNodeModelLabel = selectedNodeTarget?.chatProviderId
-    ? resolveProviderModelLabel({
-        models: resolveTargetDisplayModels(
-          selectedNodeTarget,
-          props.chatModelOptions,
-          selectedNodeTarget.chatProviderId ?? null,
-        ),
-        providerId: selectedNodeTarget.chatProviderId,
-        value: props.effectiveChatModelValue,
-      })
-    : "";
-  const nodesPrimary = selectedNodeModelLabel || linkedTargets[0]?.label || text.nodesTitle;
-  const nodesSecondary = selectedNodeTarget
-    ? selectedNodeTarget.label
-    : linkedTargets.some((target) => !target.connected)
-      ? text.targetNotConnected
-      : linkedDisplayModelCount > 0
-        ? linkedTargets.every((target) => !target.supportsInstall)
-          ? text.availableModels
-          : text.installedModels
-        : linkedTargets.length > 0
-          ? formatCount(linkedTargets.length, text.nodeShort, text.nodesShort)
-          : text.noNodes;
+  const nodesPrimary = linkedTargets[0]?.label || text.nodesTitle;
+  const nodesSecondary = linkedTargets.some((target) => !target.connected)
+    ? text.targetNotConnected
+    : linkedDisplayModelCount > 0
+      ? linkedTargets.every((target) => !target.supportsInstall)
+        ? text.availableModels
+        : text.installedModels
+      : linkedTargets.length > 0
+        ? formatCount(linkedTargets.length, text.nodeShort, text.nodesShort)
+        : text.noNodes;
   const primaryOpenAiProfile = profiles[0] ?? null;
   const openAiPrimary =
-    primaryOpenAiProfile && isOpenAiModelValue(props.effectiveChatModelValue)
-      ? props.effectiveChatModelLabel
+    profiles.length > 0 && isOpenAiModelValue(props.defaultChatModelValue)
+      ? props.defaultChatModelDisplay || props.defaultChatModelLabel
       : primaryOpenAiProfile
         ? resolveProfileTitle(primaryOpenAiProfile)
         : aiTextValues.noProfiles;
   const openAiSecondary = `${profiles.length} ${profiles.length === 1 ? aiTextValues.profile : aiTextValues.profiles}`;
   const selectedProviderId =
     props.selectedProviderId ??
-    (isOpenAiModelValue(props.effectiveChatModelValue)
+    (providerPickerLoading
       ? "openai"
-      : selectedLocalModelLabel
-        ? "local"
-        : selectedNodeModelLabel
-          ? "nodes"
-          : providerPickerLoading
-            ? "openai"
-            : profiles.length > 0
-              ? "openai"
-              : currentTargets.length > 0 || localCatalog.length > 0
-                ? "local"
-                : "nodes");
+      : profiles.length > 0
+        ? "openai"
+        : currentTargets.length > 0 || localCatalog.length > 0
+          ? "local"
+          : linkedTargets.length > 0
+            ? "nodes"
+            : "openai");
 
   return html`
     <section class="alisio-page alisio-models-page">
@@ -1998,19 +1796,15 @@ export function renderModelsHub(props: {
               aiLoading: props.aiLoading,
               aiError: props.aiError,
               expandedProfileId: props.expandedProfileId,
-              chatModelOptions: props.chatModelOptions,
-              currentChatModelOverrideValue: props.currentChatModelOverrideValue,
+              modelOptions: props.modelOptions,
               defaultChatModelValue: props.defaultChatModelValue,
               defaultChatModelDisplay: props.defaultChatModelDisplay,
               defaultChatModelLabel: props.defaultChatModelLabel,
-              effectiveChatModelValue: props.effectiveChatModelValue,
-              effectiveChatModelLabel: props.effectiveChatModelLabel,
               modelPickerBusy: props.modelPickerBusy,
               onSelectDefaultModel: props.onSelectDefaultChatModel,
               onToggleProfile: props.onToggleProfile,
               onConnect: props.onConnectAi,
               onRefreshAll: props.onRefreshAllAiProfiles,
-              onSelectModel: props.onSelectChatModel,
               onSelectProfile: props.onSelectAiProfile,
               onDisconnectProfile: props.onDisconnectAiProfile,
               onRefreshProfile: props.onRefreshAiProfile,
@@ -2022,13 +1816,11 @@ export function renderModelsHub(props: {
               models: props.models,
               modelsLoading: props.modelsLoading,
               modelsError: props.modelsError,
-              chatModelOptions: props.chatModelOptions,
-              effectiveChatModelValue: props.effectiveChatModelValue,
+              modelOptions: props.modelOptions,
               modelOperations: props.modelOperations,
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,
-              onSelectModel: props.onSelectChatModel,
             })
           : nothing}
         ${selectedProviderId === "nodes"
@@ -2036,10 +1828,8 @@ export function renderModelsHub(props: {
               models: props.models,
               modelsLoading: props.modelsLoading,
               modelsError: props.modelsError,
-              chatModelOptions: props.chatModelOptions,
+              modelOptions: props.modelOptions,
               modelOperations: props.modelOperations,
-              effectiveChatModelValue: props.effectiveChatModelValue,
-              onSelectModel: props.onSelectChatModel,
               onInstallModel: props.onInstallModel,
               onUpdateModel: props.onUpdateModel,
               onUninstallModel: props.onUninstallModel,

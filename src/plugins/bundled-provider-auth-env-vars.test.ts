@@ -78,9 +78,9 @@ describe("bundled provider auth env vars", () => {
   });
 
   it("supports check mode for stale generated artifacts", () => {
-    const tempRoot = createGeneratedPluginTempRoot("openclaw-provider-auth-env-vars-");
+    const tempRoot = createGeneratedPluginTempRoot("alisio-provider-auth-env-vars-");
 
-    writeJson(path.join(tempRoot, "extensions", "alpha", "openclaw.plugin.json"), {
+    writeJson(path.join(tempRoot, "extensions", "alpha", "alisio.plugin.json"), {
       id: "alpha",
       providerAuthEnvVars: {
         alpha: ["ALPHA_TOKEN"],

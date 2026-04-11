@@ -2,7 +2,7 @@ import { type Api, completeSimple, type Model } from "@mariozechner/pi-ai";
 import { Type } from "@sinclair/typebox";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../config/config.js";
-import { resolveOpenClawAgentDir } from "./agent-paths.js";
+import { resolveAlisioAgentDir } from "./agent-paths.js";
 import {
   collectAnthropicApiKeys,
   isAnthropicBillingError,
@@ -16,20 +16,20 @@ import {
 } from "./live-test-helpers.js";
 import { getApiKeyForModel, requireApiKey } from "./model-auth.js";
 import { shouldSuppressBuiltInModel } from "./model-suppression.js";
-import { ensureOpenClawModelsJson } from "./models-config.js";
+import { ensureAlisioModelsJson } from "./models-config.js";
 import { isRateLimitErrorMessage } from "./pi-embedded-helpers/errors.js";
 import { discoverAuthStorage, discoverModels } from "./pi-model-discovery.js";
 
 const LIVE = isLiveTestEnabled();
-const DIRECT_ENABLED = Boolean(readLiveEnv(["ALISIO_LIVE_MODELS", "OPENCLAW_LIVE_MODELS"]));
+const DIRECT_ENABLED = Boolean(readLiveEnv(["ALISIO_LIVE_MODELS", "ALISIO_LIVE_MODELS"]));
 const REQUIRE_PROFILE_KEYS = isLiveProfileKeyModeEnabled();
 const LIVE_HEARTBEAT_MS = Math.max(
   1_000,
-  toInt(readLiveEnv(["ALISIO_LIVE_HEARTBEAT_MS", "OPENCLAW_LIVE_HEARTBEAT_MS"]), 30_000),
+  toInt(readLiveEnv(["ALISIO_LIVE_HEARTBEAT_MS", "ALISIO_LIVE_HEARTBEAT_MS"]), 30_000),
 );
 const LIVE_SETUP_TIMEOUT_MS = Math.max(
   1_000,
-  toInt(readLiveEnv(["ALISIO_LIVE_SETUP_TIMEOUT_MS", "OPENCLAW_LIVE_SETUP_TIMEOUT_MS"]), 45_000),
+  toInt(readLiveEnv(["ALISIO_LIVE_SETUP_TIMEOUT_MS", "ALISIO_LIVE_SETUP_TIMEOUT_MS"]), 45_000),
 );
 
 const describeLive = LIVE ? describe : describe.skip;
@@ -384,10 +384,7 @@ describeLive("live models (profile keys)", () => {
         "[live-models] load config",
       );
       logProgress("[live-models] preparing models.json");
-      await withLiveStageTimeout(
-        ensureOpenClawModelsJson(cfg),
-        "[live-models] prepare models.json",
-      );
+      await withLiveStageTimeout(ensureAlisioModelsJson(cfg), "[live-models] prepare models.json");
       if (!DIRECT_ENABLED) {
         logProgress(
           "[live-models] skipping (set ALISIO_LIVE_MODELS=modern|all|<list>; all=modern)",
@@ -400,7 +397,7 @@ describeLive("live models (profile keys)", () => {
         logProgress(`[live-models] anthropic keys loaded: ${anthropicKeys.length}`);
       }
 
-      const agentDir = resolveOpenClawAgentDir();
+      const agentDir = resolveAlisioAgentDir();
       const authStorage = discoverAuthStorage(agentDir);
       logProgress("[live-models] loading model registry");
       const models = await withLiveStageTimeout(
@@ -408,22 +405,19 @@ describeLive("live models (profile keys)", () => {
         "[live-models] load model registry",
       );
 
-      const rawModels = readLiveEnv(["ALISIO_LIVE_MODELS", "OPENCLAW_LIVE_MODELS"])?.trim();
+      const rawModels = readLiveEnv(["ALISIO_LIVE_MODELS", "ALISIO_LIVE_MODELS"])?.trim();
       const useModern = rawModels === "modern" || rawModels === "all";
       const useExplicit = Boolean(rawModels) && !useModern;
       const filter = useExplicit ? parseModelFilter(rawModels) : null;
       const allowNotFoundSkip = useModern;
       const providers = parseProviderFilter(
-        readLiveEnv(["ALISIO_LIVE_PROVIDERS", "OPENCLAW_LIVE_PROVIDERS"]),
+        readLiveEnv(["ALISIO_LIVE_PROVIDERS", "ALISIO_LIVE_PROVIDERS"]),
       );
       const perModelTimeoutMs = toInt(
-        readLiveEnv(["ALISIO_LIVE_MODEL_TIMEOUT_MS", "OPENCLAW_LIVE_MODEL_TIMEOUT_MS"]),
+        readLiveEnv(["ALISIO_LIVE_MODEL_TIMEOUT_MS", "ALISIO_LIVE_MODEL_TIMEOUT_MS"]),
         30_000,
       );
-      const maxModels = toInt(
-        readLiveEnv(["ALISIO_LIVE_MAX_MODELS", "OPENCLAW_LIVE_MAX_MODELS"]),
-        0,
-      );
+      const maxModels = toInt(readLiveEnv(["ALISIO_LIVE_MAX_MODELS", "ALISIO_LIVE_MAX_MODELS"]), 0);
 
       const failures: Array<{ model: string; error: string }> = [];
       const skipped: Array<{ model: string; reason: string }> = [];

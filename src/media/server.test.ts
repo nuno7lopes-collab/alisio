@@ -110,7 +110,7 @@ describe("media server", () => {
     ({ startMediaServer } = await import("./server.js"));
     ({ MEDIA_MAX_BYTES } = await import("./store.js"));
     ({ fetch: realFetch } = require("undici") as typeof import("undici"));
-    MEDIA_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-media-test-"));
+    MEDIA_DIR = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-media-test-"));
     server = await startMediaServer(0, 1_000);
     port = (server.address() as AddressInfo).port;
   });

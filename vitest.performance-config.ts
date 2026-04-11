@@ -47,22 +47,22 @@ export function loadVitestExperimentalConfig(
   const fsModuleCache = readEnvWithLegacyFallback(
     env,
     "ALISIO_VITEST_FS_MODULE_CACHE",
-    "OPENCLAW_VITEST_FS_MODULE_CACHE",
+    "ALISIO_VITEST_FS_MODULE_CACHE",
   );
   const fsModuleCachePath = readEnvWithLegacyFallback(
     env,
     "ALISIO_VITEST_FS_MODULE_CACHE_PATH",
-    "OPENCLAW_VITEST_FS_MODULE_CACHE_PATH",
+    "ALISIO_VITEST_FS_MODULE_CACHE_PATH",
   );
   const importDurations = readEnvWithLegacyFallback(
     env,
     "ALISIO_VITEST_IMPORT_DURATIONS",
-    "OPENCLAW_VITEST_IMPORT_DURATIONS",
+    "ALISIO_VITEST_IMPORT_DURATIONS",
   );
   const printImportBreakdown = readEnvWithLegacyFallback(
     env,
     "ALISIO_VITEST_PRINT_IMPORT_BREAKDOWN",
-    "OPENCLAW_VITEST_PRINT_IMPORT_BREAKDOWN",
+    "ALISIO_VITEST_PRINT_IMPORT_BREAKDOWN",
   );
 
   if (!windowsEnv && !isDisabled(fsModuleCache)) {

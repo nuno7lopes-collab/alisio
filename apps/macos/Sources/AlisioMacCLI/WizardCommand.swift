@@ -2,6 +2,8 @@ import Darwin
 import Foundation
 import AlisioSupport
 
+typealias WizardProtoAnyCodable = AlisioProtocol.AnyCodable
+
 struct WizardCliOptions {
     var url: String?
     var token: String?
@@ -125,7 +127,7 @@ private func resolveWizardGatewayEndpoint(opts: WizardCliOptions, config: Gatewa
             mode: mode)
     }
 
-    let port = config.port ?? 40705
+    let port = resolveGatewayPort(config: config)
     let host = "127.0.0.1"
     guard let url = URL(string: "ws://\(host):\(port)") else {
         throw WizardCliError.invalidUrl("ws://\(host):\(port)")
@@ -188,7 +190,7 @@ actor GatewayWizardClient {
         self.task = nil
     }
 
-    func request(method: String, params: [String: ProtoAnyCodable]?) async throws -> ResponseFrame {
+    func request(method: String, params: [String: WizardProtoAnyCodable]?) async throws -> ResponseFrame {
         guard let task = self.task else {
             throw WizardCliError.gatewayError("gateway not connected")
         }
@@ -197,7 +199,7 @@ actor GatewayWizardClient {
             type: "req",
             id: id,
             method: method,
-            params: params.map { ProtoAnyCodable($0) })
+            params: params.map { WizardProtoAnyCodable($0) })
         let data = try self.encoder.encode(frame)
         try await task.send(.data(data))
 
@@ -245,30 +247,30 @@ actor GatewayWizardClient {
         let role = "operator"
         // Explicit scopes; gateway no longer defaults empty scopes to admin.
         let scopes = defaultOperatorConnectScopes
-        let client: [String: ProtoAnyCodable] = [
-            "id": ProtoAnyCodable(clientId),
-            "displayName": ProtoAnyCodable(Host.current().localizedName ?? "Alisio macOS Wizard CLI"),
-            "version": ProtoAnyCodable("dev"),
-            "platform": ProtoAnyCodable(platform),
-            "deviceFamily": ProtoAnyCodable("Mac"),
-            "mode": ProtoAnyCodable(clientMode),
-            "instanceId": ProtoAnyCodable(UUID().uuidString),
+        let client: [String: WizardProtoAnyCodable] = [
+            "id": WizardProtoAnyCodable(clientId),
+            "displayName": WizardProtoAnyCodable(Host.current().localizedName ?? "Alisio macOS Wizard CLI"),
+            "version": WizardProtoAnyCodable("dev"),
+            "platform": WizardProtoAnyCodable(platform),
+            "deviceFamily": WizardProtoAnyCodable("Mac"),
+            "mode": WizardProtoAnyCodable(clientMode),
+            "instanceId": WizardProtoAnyCodable(UUID().uuidString),
         ]
 
-        var params: [String: ProtoAnyCodable] = [
-            "minProtocol": ProtoAnyCodable(GATEWAY_PROTOCOL_VERSION),
-            "maxProtocol": ProtoAnyCodable(GATEWAY_PROTOCOL_VERSION),
-            "client": ProtoAnyCodable(client),
-            "caps": ProtoAnyCodable([String]()),
-            "locale": ProtoAnyCodable(Locale.preferredLanguages.first ?? Locale.current.identifier),
-            "userAgent": ProtoAnyCodable(ProcessInfo.processInfo.operatingSystemVersionString),
-            "role": ProtoAnyCodable(role),
-            "scopes": ProtoAnyCodable(scopes),
+        var params: [String: WizardProtoAnyCodable] = [
+            "minProtocol": WizardProtoAnyCodable(GATEWAY_PROTOCOL_VERSION),
+            "maxProtocol": WizardProtoAnyCodable(GATEWAY_PROTOCOL_VERSION),
+            "client": WizardProtoAnyCodable(client),
+            "caps": WizardProtoAnyCodable([String]()),
+            "locale": WizardProtoAnyCodable(Locale.preferredLanguages.first ?? Locale.current.identifier),
+            "userAgent": WizardProtoAnyCodable(ProcessInfo.processInfo.operatingSystemVersionString),
+            "role": WizardProtoAnyCodable(role),
+            "scopes": WizardProtoAnyCodable(scopes),
         ]
         if let token = self.token {
-            params["auth"] = ProtoAnyCodable(["token": ProtoAnyCodable(token)])
+            params["auth"] = WizardProtoAnyCodable(["token": WizardProtoAnyCodable(token)])
         } else if let password = self.password {
-            params["auth"] = ProtoAnyCodable(["password": ProtoAnyCodable(password)])
+            params["auth"] = WizardProtoAnyCodable(["password": WizardProtoAnyCodable(password)])
         }
         let connectNonce = try await self.waitForConnectChallenge()
         let identity = DeviceIdentityStore.loadOrCreate()
@@ -290,7 +292,7 @@ actor GatewayWizardClient {
             signedAtMs: signedAtMs,
             nonce: connectNonce)
         {
-            params["device"] = ProtoAnyCodable(device)
+            params["device"] = WizardProtoAnyCodable(device)
         }
 
         let reqId = UUID().uuidString
@@ -298,7 +300,7 @@ actor GatewayWizardClient {
             type: "req",
             id: reqId,
             method: "connect",
-            params: ProtoAnyCodable(params))
+            params: WizardProtoAnyCodable(params))
         let data = try self.encoder.encode(frame)
         try await task.send(.data(data))
 
@@ -326,7 +328,7 @@ actor GatewayWizardClient {
                     let message = try await task.receive()
                     let frame = try await self.decodeFrame(message)
                     if case let .event(evt) = frame, evt.event == "connect.challenge",
-                       let payload = evt.payload?.value as? [String: ProtoAnyCodable],
+                       let payload = evt.payload?.value as? [String: WizardProtoAnyCodable],
                        let nonce = GatewayConnectChallengeSupport.nonce(from: payload)
                     {
                         return nonce
@@ -337,13 +339,13 @@ actor GatewayWizardClient {
 }
 
 private func runWizard(client: GatewayWizardClient, opts: WizardCliOptions) async throws {
-    var params: [String: ProtoAnyCodable] = [:]
+    var params: [String: WizardProtoAnyCodable] = [:]
     let mode = opts.mode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     if mode == "local" || mode == "remote" {
-        params["mode"] = ProtoAnyCodable(mode)
+        params["mode"] = WizardProtoAnyCodable(mode)
     }
     if let workspace = opts.workspace?.trimmingCharacters(in: .whitespacesAndNewlines), !workspace.isEmpty {
-        params["workspace"] = ProtoAnyCodable(workspace)
+        params["workspace"] = WizardProtoAnyCodable(workspace)
     }
 
     let startResponse = try await client.request(method: "wizard.start", params: params)
@@ -376,17 +378,17 @@ private func runWizard(client: GatewayWizardClient, opts: WizardCliOptions) asyn
 
             if let step = decodeWizardStep(nextResult.step) {
                 let answer = try promptAnswer(for: step)
-                var answerPayload: [String: ProtoAnyCodable] = [
-                    "stepId": ProtoAnyCodable(step.id),
+                var answerPayload: [String: WizardProtoAnyCodable] = [
+                    "stepId": WizardProtoAnyCodable(step.id),
                 ]
                 if !(answer is NSNull) {
-                    answerPayload["value"] = ProtoAnyCodable(answer)
+                    answerPayload["value"] = WizardProtoAnyCodable(answer)
                 }
                 let response = try await client.request(
                     method: "wizard.next",
                     params: [
-                        "sessionId": ProtoAnyCodable(sessionId),
-                        "answer": ProtoAnyCodable(answerPayload),
+                        "sessionId": WizardProtoAnyCodable(sessionId),
+                        "answer": WizardProtoAnyCodable(answerPayload),
                     ])
                 nextResult = try await client.decodePayload(response, as: WizardNextResult.self)
                 if opts.json {
@@ -395,7 +397,7 @@ private func runWizard(client: GatewayWizardClient, opts: WizardCliOptions) asyn
             } else {
                 let response = try await client.request(
                     method: "wizard.next",
-                    params: ["sessionId": ProtoAnyCodable(sessionId)])
+                    params: ["sessionId": WizardProtoAnyCodable(sessionId)])
                 nextResult = try await client.decodePayload(response, as: WizardNextResult.self)
                 if opts.json {
                     dumpResult(response)
@@ -405,7 +407,7 @@ private func runWizard(client: GatewayWizardClient, opts: WizardCliOptions) asyn
     } catch WizardCliError.cancelled {
         _ = try? await client.request(
             method: "wizard.cancel",
-            params: ["sessionId": ProtoAnyCodable(sessionId)])
+            params: ["sessionId": WizardProtoAnyCodable(sessionId)])
         throw WizardCliError.cancelled
     }
 }

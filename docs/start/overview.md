@@ -36,7 +36,7 @@ Alisio turns one computer into:
 flowchart TD
   A["Alisio app on macOS"] --> B["OpenAI"]
   A --> C["Local models on this computer"]
-  A --> D["Ollama or OpenAI-compatible server"]
+  A --> D["OpenAI-compatible server"]
   A --> E["Channels"]
   A --> F["Connectors and apps"]
   A --> G["Paired devices"]

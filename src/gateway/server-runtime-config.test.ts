@@ -118,9 +118,9 @@ describe("resolveGatewayRuntimeConfig", () => {
 
     beforeEach(() => {
       originalAlisioToken = process.env.ALISIO_GATEWAY_TOKEN;
-      originalToken = process.env.OPENCLAW_GATEWAY_TOKEN;
+      originalToken = process.env.ALISIO_GATEWAY_TOKEN;
       delete process.env.ALISIO_GATEWAY_TOKEN;
-      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+      delete process.env.ALISIO_GATEWAY_TOKEN;
     });
 
     afterEach(() => {
@@ -130,9 +130,9 @@ describe("resolveGatewayRuntimeConfig", () => {
         delete process.env.ALISIO_GATEWAY_TOKEN;
       }
       if (originalToken !== undefined) {
-        process.env.OPENCLAW_GATEWAY_TOKEN = originalToken;
+        process.env.ALISIO_GATEWAY_TOKEN = originalToken;
       } else {
-        delete process.env.OPENCLAW_GATEWAY_TOKEN;
+        delete process.env.ALISIO_GATEWAY_TOKEN;
       }
     });
 

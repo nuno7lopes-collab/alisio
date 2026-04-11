@@ -1,6 +1,6 @@
 import { resolveActiveTalkProviderConfig } from "alisio/plugin-sdk/config-runtime";
 import type { SpeechVoiceOption } from "alisio/plugin-sdk/speech";
-import { definePluginEntry, type OpenClawPluginApi } from "./api.js";
+import { definePluginEntry, type AlisioPluginApi } from "./api.js";
 
 function mask(s: string, keep: number = 6): string {
   const trimmed = s.trim();
@@ -103,7 +103,7 @@ export default definePluginEntry({
   id: "talk-voice",
   name: "Talk Voice",
   description: "Command helpers for managing Talk voice configuration",
-  register(api: OpenClawPluginApi) {
+  register(api: AlisioPluginApi) {
     api.registerCommand({
       name: "voice",
       nativeNames: {

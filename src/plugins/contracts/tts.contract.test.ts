@@ -535,18 +535,18 @@ describe("tts", () => {
       expect(resolveModelAsyncMock).toHaveBeenCalledWith("openai", "gpt-4.1-mini", undefined, cfg);
     });
 
-    it("keeps the Ollama api for direct summarization", async () => {
+    it("keeps a direct custom api for summarization", async () => {
       vi.mocked(resolveModelAsyncMock).mockResolvedValue({
-        ...createResolvedModel("ollama", "qwen3:8b", "ollama"),
+        ...createResolvedModel("localproxy", "qwen3:8b", "custom-local"),
         model: {
-          ...createResolvedModel("ollama", "qwen3:8b", "ollama").model,
+          ...createResolvedModel("localproxy", "qwen3:8b", "custom-local").model,
           baseUrl: "http://127.0.0.1:11434",
         },
       } as never);
 
       await runSummarizeText();
 
-      expect(vi.mocked(completeSimple).mock.calls[0]?.[0]?.api).toBe("ollama");
+      expect(vi.mocked(completeSimple).mock.calls[0]?.[0]?.api).toBe("custom-local");
       expect(ensureCustomApiRegisteredMock).not.toHaveBeenCalled();
     });
 
@@ -778,12 +778,12 @@ describe("tts", () => {
     const withMockedAutoTtsFetch = async (
       run: (fetchMock: ReturnType<typeof vi.fn>) => Promise<void>,
     ) => {
-      const prevPrefs = process.env.OPENCLAW_TTS_PREFS;
-      process.env.OPENCLAW_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
+      const prevPrefs = process.env.ALISIO_TTS_PREFS;
+      process.env.ALISIO_TTS_PREFS = `/tmp/tts-test-${Date.now()}.json`;
       try {
         await withMockedSpeechFetch(run, 1);
       } finally {
-        process.env.OPENCLAW_TTS_PREFS = prevPrefs;
+        process.env.ALISIO_TTS_PREFS = prevPrefs;
       }
     };
 

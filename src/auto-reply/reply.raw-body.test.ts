@@ -11,14 +11,14 @@ import {
 let getReplyFromConfig: typeof import("./reply.js").getReplyFromConfig;
 const agentMocks = createReplyRuntimeMocks();
 
-const { withTempHome } = createTempHomeHarness({ prefix: "openclaw-rawbody-" });
+const { withTempHome } = createTempHomeHarness({ prefix: "alisio-rawbody-" });
 
 installReplyRuntimeMocks(agentMocks);
 
 describe("RawBody directive parsing", () => {
   beforeEach(async () => {
     vi.resetModules();
-    vi.stubEnv("OPENCLAW_TEST_FAST", "1");
+    vi.stubEnv("ALISIO_TEST_FAST", "1");
     resetReplyRuntimeMocks(agentMocks);
     ({ getReplyFromConfig } = await import("./reply.js"));
   });

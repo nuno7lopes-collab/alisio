@@ -40,19 +40,19 @@ describe("tavily client X-Client-Source header", () => {
     ({ runTavilySearch, runTavilyExtract } = await import("./tavily-client.js"));
   });
 
-  it("runTavilySearch sends X-Client-Source: openclaw", async () => {
+  it("runTavilySearch sends X-Client-Source: alisio", async () => {
     await runTavilySearch({ query: "test query" });
 
     expect(postTrustedWebToolsJson).toHaveBeenCalledOnce();
     const params = postTrustedWebToolsJson.mock.calls[0][0];
-    expect(params.extraHeaders).toEqual({ "X-Client-Source": "openclaw" });
+    expect(params.extraHeaders).toEqual({ "X-Client-Source": "alisio" });
   });
 
-  it("runTavilyExtract sends X-Client-Source: openclaw", async () => {
+  it("runTavilyExtract sends X-Client-Source: alisio", async () => {
     await runTavilyExtract({ urls: ["https://example.com"] });
 
     expect(postTrustedWebToolsJson).toHaveBeenCalledOnce();
     const params = postTrustedWebToolsJson.mock.calls[0][0];
-    expect(params.extraHeaders).toEqual({ "X-Client-Source": "openclaw" });
+    expect(params.extraHeaders).toEqual({ "X-Client-Source": "alisio" });
   });
 });

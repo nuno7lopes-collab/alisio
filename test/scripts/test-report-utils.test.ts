@@ -53,13 +53,13 @@ describe("scripts/test-report-utils collectVitestFileDurations", () => {
 
 describe("scripts/test-report-utils tryReadJsonFile", () => {
   it("returns the fallback when the file is missing", () => {
-    const missingPath = path.join(os.tmpdir(), `openclaw-missing-${Date.now()}.json`);
+    const missingPath = path.join(os.tmpdir(), `alisio-missing-${Date.now()}.json`);
 
     expect(tryReadJsonFile(missingPath, { ok: true })).toEqual({ ok: true });
   });
 
   it("reads valid JSON files", () => {
-    const tempPath = path.join(os.tmpdir(), `openclaw-json-${Date.now()}.json`);
+    const tempPath = path.join(os.tmpdir(), `alisio-json-${Date.now()}.json`);
     fs.writeFileSync(tempPath, JSON.stringify({ ok: true }));
 
     try {

@@ -1,11 +1,11 @@
 import {
   parseAgentSessionKey,
   type MemoryCitationsMode,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import type { MemorySearchResult } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 
-export function resolveMemoryCitationsMode(cfg: OpenClawConfig): MemoryCitationsMode {
+export function resolveMemoryCitationsMode(cfg: AlisioConfig): MemoryCitationsMode {
   const mode = cfg.memory?.citations;
   if (mode === "on" || mode === "off" || mode === "auto") {
     return mode;

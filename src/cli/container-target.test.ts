@@ -8,24 +8,24 @@ import {
 describe("parseCliContainerArgs", () => {
   it("extracts a root --container flag before the command", () => {
     expect(
-      parseCliContainerArgs(["node", "openclaw", "--container", "demo", "status", "--deep"]),
+      parseCliContainerArgs(["node", "alisio", "--container", "demo", "status", "--deep"]),
     ).toEqual({
       ok: true,
       container: "demo",
-      argv: ["node", "openclaw", "status", "--deep"],
+      argv: ["node", "alisio", "status", "--deep"],
     });
   });
 
   it("accepts the equals form", () => {
-    expect(parseCliContainerArgs(["node", "openclaw", "--container=demo", "health"])).toEqual({
+    expect(parseCliContainerArgs(["node", "alisio", "--container=demo", "health"])).toEqual({
       ok: true,
       container: "demo",
-      argv: ["node", "openclaw", "health"],
+      argv: ["node", "alisio", "health"],
     });
   });
 
   it("rejects a missing container value", () => {
-    expect(parseCliContainerArgs(["node", "openclaw", "--container"])).toEqual({
+    expect(parseCliContainerArgs(["node", "alisio", "--container"])).toEqual({
       ok: false,
       error: "--container requires a value",
     });
@@ -33,7 +33,7 @@ describe("parseCliContainerArgs", () => {
 
   it("does not consume an adjacent flag as the container value", () => {
     expect(
-      parseCliContainerArgs(["node", "openclaw", "--container", "--no-color", "status"]),
+      parseCliContainerArgs(["node", "alisio", "--container", "--no-color", "status"]),
     ).toEqual({
       ok: false,
       error: "--container requires a value",
@@ -41,20 +41,20 @@ describe("parseCliContainerArgs", () => {
   });
 
   it("leaves argv unchanged when the flag is absent", () => {
-    expect(parseCliContainerArgs(["node", "openclaw", "status"])).toEqual({
+    expect(parseCliContainerArgs(["node", "alisio", "status"])).toEqual({
       ok: true,
       container: null,
-      argv: ["node", "openclaw", "status"],
+      argv: ["node", "alisio", "status"],
     });
   });
 
   it("extracts --container after the command like other root options", () => {
     expect(
-      parseCliContainerArgs(["node", "openclaw", "status", "--container", "demo", "--deep"]),
+      parseCliContainerArgs(["node", "alisio", "status", "--container", "demo", "--deep"]),
     ).toEqual({
       ok: true,
       container: "demo",
-      argv: ["node", "openclaw", "status", "--deep"],
+      argv: ["node", "alisio", "status", "--deep"],
     });
   });
 
@@ -62,7 +62,7 @@ describe("parseCliContainerArgs", () => {
     expect(
       parseCliContainerArgs([
         "node",
-        "openclaw",
+        "alisio",
         "nodes",
         "run",
         "--",
@@ -77,7 +77,7 @@ describe("parseCliContainerArgs", () => {
       container: null,
       argv: [
         "node",
-        "openclaw",
+        "alisio",
         "nodes",
         "run",
         "--",
@@ -92,14 +92,14 @@ describe("parseCliContainerArgs", () => {
 });
 
 describe("resolveCliContainerTarget", () => {
-  it("uses argv first and falls back to OPENCLAW_CONTAINER", () => {
+  it("uses argv first and falls back to ALISIO_CONTAINER", () => {
+    expect(resolveCliContainerTarget(["node", "alisio", "--container", "demo", "status"], {})).toBe(
+      "demo",
+    );
+    expect(resolveCliContainerTarget(["node", "alisio", "status"], {})).toBeNull();
     expect(
-      resolveCliContainerTarget(["node", "openclaw", "--container", "demo", "status"], {}),
-    ).toBe("demo");
-    expect(resolveCliContainerTarget(["node", "openclaw", "status"], {})).toBeNull();
-    expect(
-      resolveCliContainerTarget(["node", "openclaw", "status"], {
-        OPENCLAW_CONTAINER: "demo",
+      resolveCliContainerTarget(["node", "alisio", "status"], {
+        ALISIO_CONTAINER: "demo",
       } as NodeJS.ProcessEnv),
     ).toBe("demo");
   });
@@ -107,13 +107,13 @@ describe("resolveCliContainerTarget", () => {
 
 describe("maybeRunCliInContainer", () => {
   it("passes through when no container target is provided", () => {
-    expect(maybeRunCliInContainer(["node", "openclaw", "status"], { env: {} })).toEqual({
+    expect(maybeRunCliInContainer(["node", "alisio", "status"], { env: {} })).toEqual({
       handled: false,
-      argv: ["node", "openclaw", "status"],
+      argv: ["node", "alisio", "status"],
     });
   });
 
-  it("uses OPENCLAW_CONTAINER when the flag is absent", () => {
+  it("uses ALISIO_CONTAINER when the flag is absent", () => {
     const spawnSync = vi
       .fn()
       .mockReturnValueOnce({
@@ -130,8 +130,8 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "status"], {
-        env: { OPENCLAW_CONTAINER: "demo" } as NodeJS.ProcessEnv,
+      maybeRunCliInContainer(["node", "alisio", "status"], {
+        env: { ALISIO_CONTAINER: "demo" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
     ).toEqual({
@@ -148,11 +148,7 @@ describe("maybeRunCliInContainer", () => {
         "--env",
         "ALISIO_CONTAINER_HINT=demo",
         "--env",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "--env",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "--env",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "status",
@@ -161,7 +157,6 @@ describe("maybeRunCliInContainer", () => {
         stdio: "inherit",
         env: {
           ALISIO_CONTAINER: "",
-          OPENCLAW_CONTAINER: "",
         },
       },
     );
@@ -183,14 +178,14 @@ describe("maybeRunCliInContainer", () => {
         stdout: "",
       });
 
-    maybeRunCliInContainer(["node", "openclaw", "status"], {
+    maybeRunCliInContainer(["node", "alisio", "status"], {
       env: {
-        OPENCLAW_CONTAINER: "demo",
-        OPENCLAW_PROFILE: "work",
-        OPENCLAW_GATEWAY_PORT: "19001",
-        OPENCLAW_GATEWAY_URL: "ws://127.0.0.1:40705",
-        OPENCLAW_GATEWAY_TOKEN: "token",
-        OPENCLAW_GATEWAY_PASSWORD: "password",
+        ALISIO_CONTAINER: "demo",
+        ALISIO_PROFILE: "work",
+        ALISIO_GATEWAY_PORT: "19001",
+        ALISIO_GATEWAY_URL: "ws://127.0.0.1:40705",
+        ALISIO_GATEWAY_TOKEN: "token",
+        ALISIO_GATEWAY_PASSWORD: "password",
       } as NodeJS.ProcessEnv,
       spawnSync,
     });
@@ -204,11 +199,7 @@ describe("maybeRunCliInContainer", () => {
         "--env",
         "ALISIO_CONTAINER_HINT=demo",
         "--env",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "--env",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "--env",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "status",
@@ -217,7 +208,6 @@ describe("maybeRunCliInContainer", () => {
         stdio: "inherit",
         env: {
           ALISIO_CONTAINER: "",
-          OPENCLAW_CONTAINER: "",
         },
       },
     );
@@ -240,7 +230,7 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
         env: {},
         spawnSync,
       }),
@@ -264,18 +254,14 @@ describe("maybeRunCliInContainer", () => {
         "--env",
         "ALISIO_CONTAINER_HINT=demo",
         "--env",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "--env",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "--env",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "status",
       ],
       {
         stdio: "inherit",
-        env: { ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
+        env: { ALISIO_CONTAINER: "" },
       },
     );
   });
@@ -297,8 +283,8 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "health"], {
-        env: { USER: "openclaw" } as NodeJS.ProcessEnv,
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "health"], {
+        env: { USER: "alisio" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
     ).toEqual({
@@ -321,18 +307,14 @@ describe("maybeRunCliInContainer", () => {
         "-e",
         "ALISIO_CONTAINER_HINT=demo",
         "-e",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "-e",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "-e",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "health",
       ],
       {
         stdio: "inherit",
-        env: { USER: "openclaw", ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
+        env: { USER: "alisio", ALISIO_CONTAINER: "" },
       },
     );
   });
@@ -358,7 +340,7 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
         env: { USER: "somalley" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
@@ -388,18 +370,14 @@ describe("maybeRunCliInContainer", () => {
         "-e",
         "ALISIO_CONTAINER_HINT=demo",
         "-e",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "-e",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "-e",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "status",
       ],
       {
         stdio: "inherit",
-        env: { USER: "somalley", ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
+        env: { USER: "somalley", ALISIO_CONTAINER: "" },
       },
     );
     expect(spawnSync).toHaveBeenCalledTimes(3);
@@ -418,7 +396,7 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
         env: { USER: "somalley" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
@@ -456,7 +434,7 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
         env: { USER: "somalley" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
@@ -481,7 +459,7 @@ describe("maybeRunCliInContainer", () => {
         stdout: "",
       });
 
-    maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "setup"], {
+    maybeRunCliInContainer(["node", "alisio", "--container", "demo", "setup"], {
       env: {},
       spawnSync,
       stdinIsTTY: true,
@@ -498,23 +476,19 @@ describe("maybeRunCliInContainer", () => {
         "--env",
         "ALISIO_CONTAINER_HINT=demo",
         "--env",
-        "OPENCLAW_CONTAINER_HINT=demo",
-        "--env",
         "ALISIO_CLI_CONTAINER_BYPASS=1",
-        "--env",
-        "OPENCLAW_CLI_CONTAINER_BYPASS=1",
         "demo",
         "alisio",
         "setup",
       ],
       {
         stdio: "inherit",
-        env: { ALISIO_CONTAINER: "", OPENCLAW_CONTAINER: "" },
+        env: { ALISIO_CONTAINER: "" },
       },
     );
   });
 
-  it("prefers --container over OPENCLAW_CONTAINER", () => {
+  it("prefers --container over ALISIO_CONTAINER", () => {
     const spawnSync = vi
       .fn()
       .mockReturnValueOnce({
@@ -531,8 +505,8 @@ describe("maybeRunCliInContainer", () => {
       });
 
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "--container", "flag-demo", "health"], {
-        env: { OPENCLAW_CONTAINER: "env-demo" } as NodeJS.ProcessEnv,
+      maybeRunCliInContainer(["node", "alisio", "--container", "flag-demo", "health"], {
+        env: { ALISIO_CONTAINER: "env-demo" } as NodeJS.ProcessEnv,
         spawnSync,
       }),
     ).toEqual({
@@ -555,7 +529,7 @@ describe("maybeRunCliInContainer", () => {
     });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
         env: {},
         spawnSync,
       }),
@@ -564,12 +538,12 @@ describe("maybeRunCliInContainer", () => {
 
   it("skips recursion when the bypass env is set", () => {
     expect(
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "status"], {
-        env: { OPENCLAW_CLI_CONTAINER_BYPASS: "1" } as NodeJS.ProcessEnv,
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "status"], {
+        env: { ALISIO_CLI_CONTAINER_BYPASS: "1" } as NodeJS.ProcessEnv,
       }),
     ).toEqual({
       handled: false,
-      argv: ["node", "openclaw", "--container", "demo", "status"],
+      argv: ["node", "alisio", "--container", "demo", "status"],
     });
   });
 
@@ -580,7 +554,7 @@ describe("maybeRunCliInContainer", () => {
     });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "update"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "update"], {
         env: {},
         spawnSync,
       }),
@@ -597,7 +571,7 @@ describe("maybeRunCliInContainer", () => {
     });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "--no-color", "update"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "--no-color", "update"], {
         env: {},
         spawnSync,
       }),
@@ -614,7 +588,7 @@ describe("maybeRunCliInContainer", () => {
     });
 
     expect(() =>
-      maybeRunCliInContainer(["node", "openclaw", "--container", "demo", "--update"], {
+      maybeRunCliInContainer(["node", "alisio", "--container", "demo", "--update"], {
         env: {},
         spawnSync,
       }),

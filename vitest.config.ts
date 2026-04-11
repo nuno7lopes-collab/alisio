@@ -30,7 +30,7 @@ export default defineConfig({
         replacement: path.join(repoRoot, "src", "extensionAPI.ts"),
       },
       {
-        find: "openclaw/extension-api",
+        find: "alisio/extension-api",
         replacement: path.join(repoRoot, "src", "extensionAPI.ts"),
       },
       ...pluginSdkSubpaths.flatMap((subpath) => [
@@ -39,7 +39,7 @@ export default defineConfig({
           replacement: path.join(repoRoot, "src", "plugin-sdk", `${subpath}.ts`),
         },
         {
-          find: `openclaw/plugin-sdk/${subpath}`,
+          find: `alisio/plugin-sdk/${subpath}`,
           replacement: path.join(repoRoot, "src", "plugin-sdk", `${subpath}.ts`),
         },
       ]),
@@ -48,7 +48,7 @@ export default defineConfig({
         replacement: path.join(repoRoot, "src", "plugin-sdk", "index.ts"),
       },
       {
-        find: "openclaw/plugin-sdk",
+        find: "alisio/plugin-sdk",
         replacement: path.join(repoRoot, "src", "plugin-sdk", "index.ts"),
       },
     ],
@@ -138,7 +138,7 @@ export default defineConfig({
       "apps/macos/.build/**",
       "**/node_modules/**",
       "**/vendor/**",
-      "dist/OpenClaw.app/**",
+      "dist/Alisio.app/**",
       "**/*.live.test.ts",
       "**/*.e2e.test.ts",
     ],

@@ -40,12 +40,10 @@ const serviceReadCommand = vi.fn<
     environment?: Record<string, string>;
   }>
 >(async (_env?: NodeJS.ProcessEnv) => ({
-  programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
+  programArguments: ["/bin/node", "cli", "gateway", "run", "--port", "19001"],
   environment: {
-    ALISIO_STATE_DIR: "/tmp/openclaw-daemon",
-    ALISIO_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
-    OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon",
-    OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
+    ALISIO_STATE_DIR: "/tmp/alisio-daemon",
+    ALISIO_CONFIG_PATH: "/tmp/alisio-daemon/alisio.json",
   },
 }));
 const resolveGatewayBindHost = vi.fn(
@@ -54,10 +52,10 @@ const resolveGatewayBindHost = vi.fn(
 const pickPrimaryTailnetIPv4 = vi.fn(() => "100.64.0.9");
 const resolveGatewayPort = vi.fn((_cfg?: unknown, _env?: unknown) => 40705);
 const resolveStateDir = vi.fn(
-  (env: NodeJS.ProcessEnv) => env.ALISIO_STATE_DIR ?? env.OPENCLAW_STATE_DIR ?? "/tmp/openclaw-cli",
+  (env: NodeJS.ProcessEnv) => env.ALISIO_STATE_DIR ?? "/tmp/alisio-cli",
 );
 const resolveConfigPath = vi.fn((env: NodeJS.ProcessEnv, stateDir: string) => {
-  return env.ALISIO_CONFIG_PATH ?? env.OPENCLAW_CONFIG_PATH ?? `${stateDir}/openclaw.json`;
+  return env.ALISIO_CONFIG_PATH ?? `${stateDir}/alisio.json`;
 });
 let daemonLoadedConfig: Record<string, unknown> = {
   gateway: {
@@ -74,7 +72,7 @@ let cliLoadedConfig: Record<string, unknown> = {
 
 vi.mock("../../config/config.js", () => ({
   createConfigIO: ({ configPath }: { configPath: string }) => {
-    const isDaemon = configPath.includes("/openclaw-daemon/");
+    const isDaemon = configPath.includes("/alisio-daemon/");
     return {
       readConfigFileSnapshot: async () => ({
         path: configPath,
@@ -149,21 +147,13 @@ describe("gatherDaemonStatus", () => {
       "ALISIO_CONFIG_PATH",
       "ALISIO_GATEWAY_TOKEN",
       "ALISIO_GATEWAY_PASSWORD",
-      "OPENCLAW_STATE_DIR",
-      "OPENCLAW_CONFIG_PATH",
-      "OPENCLAW_GATEWAY_TOKEN",
-      "OPENCLAW_GATEWAY_PASSWORD",
       "DAEMON_GATEWAY_TOKEN",
       "DAEMON_GATEWAY_PASSWORD",
     ]);
-    process.env.ALISIO_STATE_DIR = "/tmp/openclaw-cli";
-    process.env.ALISIO_CONFIG_PATH = "/tmp/openclaw-cli/openclaw.json";
-    process.env.OPENCLAW_STATE_DIR = "/tmp/openclaw-cli";
-    process.env.OPENCLAW_CONFIG_PATH = "/tmp/openclaw-cli/openclaw.json";
+    process.env.ALISIO_STATE_DIR = "/tmp/alisio-cli";
+    process.env.ALISIO_CONFIG_PATH = "/tmp/alisio-cli/alisio.json";
     delete process.env.ALISIO_GATEWAY_TOKEN;
     delete process.env.ALISIO_GATEWAY_PASSWORD;
-    delete process.env.OPENCLAW_GATEWAY_TOKEN;
-    delete process.env.OPENCLAW_GATEWAY_PASSWORD;
     delete process.env.DAEMON_GATEWAY_TOKEN;
     delete process.env.DAEMON_GATEWAY_PASSWORD;
     callGatewayStatusProbe.mockClear();
@@ -218,7 +208,7 @@ describe("gatherDaemonStatus", () => {
     expect(callGatewayStatusProbe).toHaveBeenCalledWith(
       expect.objectContaining({
         requireRpc: true,
-        configPath: "/tmp/openclaw-daemon/openclaw.json",
+        configPath: "/tmp/alisio-daemon/alisio.json",
       }),
     );
   });
@@ -273,19 +263,16 @@ describe("gatherDaemonStatus", () => {
 
   it("reuses command environment when reading runtime status", async () => {
     serviceReadCommand.mockResolvedValueOnce({
-      programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
+      programArguments: ["/bin/node", "cli", "gateway", "run", "--port", "19001"],
       environment: {
         ALISIO_GATEWAY_PORT: "19001",
-        ALISIO_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
-        ALISIO_STATE_DIR: "/tmp/openclaw-daemon",
-        OPENCLAW_GATEWAY_PORT: "19001",
-        OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon/openclaw.json",
-        OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon",
+        ALISIO_CONFIG_PATH: "/tmp/alisio-daemon/alisio.json",
+        ALISIO_STATE_DIR: "/tmp/alisio-daemon",
       } as Record<string, string>,
     });
     serviceReadRuntime.mockImplementationOnce(async (env?: NodeJS.ProcessEnv) => ({
-      status: env?.OPENCLAW_GATEWAY_PORT === "19001" ? "running" : "unknown",
-      detail: env?.OPENCLAW_GATEWAY_PORT ?? "missing-port",
+      status: env?.ALISIO_GATEWAY_PORT === "19001" ? "running" : "unknown",
+      detail: env?.ALISIO_GATEWAY_PORT ?? "missing-port",
     }));
 
     const status = await gatherDaemonStatus({
@@ -296,7 +283,7 @@ describe("gatherDaemonStatus", () => {
 
     expect(serviceReadRuntime).toHaveBeenCalledWith(
       expect.objectContaining({
-        OPENCLAW_GATEWAY_PORT: "19001",
+        ALISIO_GATEWAY_PORT: "19001",
       }),
     );
     expect(status.service.runtime).toMatchObject({
@@ -478,8 +465,8 @@ describe("gatherDaemonStatus", () => {
         },
       },
     };
-    process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
-    process.env.OPENCLAW_GATEWAY_PASSWORD = "env-password"; // pragma: allowlist secret
+    process.env.ALISIO_GATEWAY_TOKEN = "env-token";
+    process.env.ALISIO_GATEWAY_PASSWORD = "env-password"; // pragma: allowlist secret
 
     await gatherDaemonStatus({
       rpc: {},
@@ -513,7 +500,7 @@ describe("gatherDaemonStatus", () => {
       portUsage: {
         port: 19001,
         status: "busy",
-        listeners: [{ pid: 9000, ppid: 8999, commandLine: "openclaw-gateway" }],
+        listeners: [{ pid: 9000, ppid: 8999, commandLine: "alisio-gateway" }],
         hints: [],
       },
       healthy: false,

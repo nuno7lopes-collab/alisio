@@ -134,7 +134,7 @@ describe("buildWorkspaceSkillStatus", () => {
   });
 
   it("does not mark an overridden workspace skill as bundled by bundled name alone", async () => {
-    const bundledDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-bundled-"));
+    const bundledDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-bundled-"));
     tempDirs.push(bundledDir);
     await writeSkill({
       dir: path.join(bundledDir, "peekaboo"),
@@ -142,7 +142,7 @@ describe("buildWorkspaceSkillStatus", () => {
       description: "Bundled peekaboo",
     });
 
-    await withEnvAsync({ OPENCLAW_BUNDLED_SKILLS_DIR: bundledDir }, async () => {
+    await withEnvAsync({ ALISIO_BUNDLED_SKILLS_DIR: bundledDir }, async () => {
       const report = buildWorkspaceSkillStatus("/tmp/ws", {
         entries: [
           makeEntry({

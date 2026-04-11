@@ -117,8 +117,8 @@ export function createGatewayReloadHandlers(params: {
 
     if (plan.restartChannels.size > 0) {
       if (
-        isTruthyEnvValue(process.env.ALISIO_SKIP_CHANNELS ?? process.env.OPENCLAW_SKIP_CHANNELS) ||
-        isTruthyEnvValue(process.env.ALISIO_SKIP_PROVIDERS ?? process.env.OPENCLAW_SKIP_PROVIDERS)
+        isTruthyEnvValue(process.env.ALISIO_SKIP_CHANNELS) ||
+        isTruthyEnvValue(process.env.ALISIO_SKIP_PROVIDERS)
       ) {
         params.logChannels.info(
           "skipping channel reload (ALISIO_SKIP_CHANNELS=1 or ALISIO_SKIP_PROVIDERS=1)",

@@ -1,4 +1,4 @@
-import type { OpenClawPluginApi } from "alisio/plugin-sdk/core";
+import type { AlisioPluginApi } from "alisio/plugin-sdk/core";
 import { registerSandboxBackend } from "alisio/plugin-sdk/sandbox";
 import {
   createOpenShellSandboxBackendFactory,
@@ -11,7 +11,7 @@ const plugin = {
   name: "OpenShell Sandbox",
   description: "OpenShell-backed sandbox runtime for agent exec and file tools.",
   configSchema: createOpenShellPluginConfigSchema(),
-  register(api: OpenClawPluginApi) {
+  register(api: AlisioPluginApi) {
     if (api.registrationMode !== "full") {
       return;
     }

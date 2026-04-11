@@ -10,7 +10,7 @@ vi.mock("alisio/plugin-sdk/conversation-runtime", () => ({
   listChannelPairingRequests,
 }));
 
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveTelegramDmOnboardingStatus } from "./dm-onboarding-state.js";
 
 describe("resolveTelegramDmOnboardingStatus", () => {
@@ -22,7 +22,7 @@ describe("resolveTelegramDmOnboardingStatus", () => {
   });
 
   it("reports waiting for the first DM when pairing has no approved sender yet", async () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           botToken: "tok",
@@ -41,7 +41,7 @@ describe("resolveTelegramDmOnboardingStatus", () => {
   });
 
   it("reports pending approval when a first-DM pairing request already exists", async () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           botToken: "tok",
@@ -75,7 +75,7 @@ describe("resolveTelegramDmOnboardingStatus", () => {
   });
 
   it("returns null once a DM sender is already approved through the pairing store", async () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           botToken: "tok",
@@ -91,7 +91,7 @@ describe("resolveTelegramDmOnboardingStatus", () => {
   });
 
   it("ignores non-pairing DM policies", async () => {
-    const cfg: OpenClawConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         telegram: {
           botToken: "tok",

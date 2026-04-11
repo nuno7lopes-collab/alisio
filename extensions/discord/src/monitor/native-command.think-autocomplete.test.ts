@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { ChannelType, type AutocompleteInteraction } from "@buape/carbon";
 import { findCommandByNativeName, resolveCommandArgChoices } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { clearSessionStoreCacheForTest } from "alisio/plugin-sdk/config-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createNoopThreadBindingManager } from "./thread-bindings.js";
@@ -44,10 +44,7 @@ vi.mock("alisio/plugin-sdk/conversation-runtime", async (importOriginal) => {
   );
 });
 
-const STORE_PATH = path.join(
-  os.tmpdir(),
-  `openclaw-discord-think-autocomplete-${process.pid}.json`,
-);
+const STORE_PATH = path.join(os.tmpdir(), `alisio-discord-think-autocomplete-${process.pid}.json`);
 const SESSION_KEY = "agent:main:main";
 let resolveDiscordNativeChoiceContext: typeof import("./native-command-ui.js").resolveDiscordNativeChoiceContext;
 

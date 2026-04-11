@@ -1,6 +1,6 @@
 import { Type } from "@sinclair/typebox";
 import type { ChannelMessageActionContext } from "alisio/plugin-sdk/channel-contract";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it, vi } from "vitest";
 
 const handleDiscordMessageActionMock = vi.hoisted(() =>
@@ -22,7 +22,7 @@ describe("discordMessageActions", () => {
             enabled: true,
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(discovery).toEqual({
@@ -47,7 +47,7 @@ describe("discordMessageActions", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     expect(discovery?.capabilities).toEqual(["interactive", "components"]);
@@ -67,7 +67,7 @@ describe("discordMessageActions", () => {
             token: "Bot token-main",
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
     const schema = discovery?.schema;
     if (!schema || Array.isArray(schema)) {
@@ -104,7 +104,7 @@ describe("discordMessageActions", () => {
           token: "Bot token-main",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const toolContext: ChannelMessageActionContext["toolContext"] = {
       currentChannelProvider: "discord",
     };

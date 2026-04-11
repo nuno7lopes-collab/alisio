@@ -3,7 +3,7 @@ import { createEmptyPluginRegistry } from "alisio/plugin-sdk/testing";
 import { setActivePluginRegistry } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withServer } from "../../../test/helpers/http-test-server.js";
-import type { OpenClawConfig, PluginRuntime } from "../runtime-api.js";
+import type { AlisioConfig, PluginRuntime } from "../runtime-api.js";
 import {
   createImageLifecycleCore,
   createImageUpdate,
@@ -41,13 +41,13 @@ function registerTarget(params: {
   secret?: string;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   account?: ResolvedZaloAccount;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   core?: PluginRuntime;
 }): () => void {
   return registerZaloWebhookTarget({
     token: "tok",
     account: params.account ?? DEFAULT_ACCOUNT,
-    config: params.config ?? ({} as OpenClawConfig),
+    config: params.config ?? ({} as AlisioConfig),
     runtime: {},
     core: params.core ?? ({} as PluginRuntime),
     secret: params.secret ?? "secret",
@@ -378,7 +378,7 @@ describe("handleZaloWebhookRequest", () => {
         gateway: {
           trustedProxies: ["127.0.0.1"],
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
     });
 
     try {

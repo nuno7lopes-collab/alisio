@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { OpenClawConfig } from "../../../../src/config/config.js";
+import type { AlisioConfig } from "../../../../src/config/config.js";
 import { resolveUserPath } from "../../../../src/utils.js";
 
 export const OBSIDIAN_MEMORY_TOOL_PREFIX = "obsidian";
@@ -118,7 +118,7 @@ export function normalizeObsidianMemoryPath(raw: string): string {
 }
 
 export function resolveObsidianMemoryLayout(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   workspaceDir: string;
 }): ResolvedObsidianMemoryLayout | null {
   const rawVaultPath = params.cfg?.memory?.vaultPath?.trim();
@@ -249,7 +249,7 @@ function buildObsidianLongTermRollup(entries: ObsidianRollupEntry[]): string {
 }
 
 export async function syncObsidianLongTermMemoryRollup(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   workspaceDir: string;
 }): Promise<{ updated: boolean; path?: string }> {
   const layout = resolveObsidianMemoryLayout(params);

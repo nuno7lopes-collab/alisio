@@ -106,7 +106,7 @@ describe("xai web search config resolution", () => {
         throw new Error("expected xai web search tool");
       }
 
-      await expect(maybeTool.execute({ query: "OpenClaw" })).resolves.toMatchObject({
+      await expect(maybeTool.execute({ query: "Alisio" })).resolves.toMatchObject({
         error: "missing_xai_api_key",
       });
     });

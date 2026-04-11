@@ -82,12 +82,6 @@ describe("memory search config", () => {
       transport: "remote",
       create: async () => ({ provider: null }),
     });
-    registerMemoryEmbeddingProvider({
-      id: "ollama",
-      defaultModel: "nomic-embed-text",
-      transport: "remote",
-      create: async () => ({ provider: null }),
-    });
   });
 
   afterEach(() => {
@@ -429,13 +423,6 @@ describe("memory search config", () => {
     const resolved = resolveMemorySearchConfig(cfg, "main");
     expectDefaultRemoteBatch(resolved);
     expect(resolved?.model).toBe("mistral-embed");
-  });
-
-  it("includes remote defaults and model default for ollama without overrides", () => {
-    const cfg = configWithDefaultProvider("ollama");
-    const resolved = resolveMemorySearchConfig(cfg, "main");
-    expectDefaultRemoteBatch(resolved);
-    expect(resolved?.model).toBe("nomic-embed-text");
   });
 
   it("defaults session delta thresholds", () => {

@@ -5,7 +5,7 @@ import {
   runSetupWizardConfigure,
   type WizardPrompter,
 } from "../../../test/helpers/plugins/setup-wizard.js";
-import type { OpenClawConfig } from "../api.js";
+import type { AlisioConfig } from "../api.js";
 import { tlonPlugin } from "./channel.js";
 import { TlonAuthorizationSchema, TlonConfigSchema } from "./config-schema.js";
 import { resolveTlonOutboundTarget } from "./targets.js";
@@ -17,7 +17,7 @@ describe("tlon core", () => {
   it("formats dm allowlist entries through the shared hybrid adapter", () => {
     expect(
       tlonPlugin.config.formatAllowFrom?.({
-        cfg: {} as OpenClawConfig,
+        cfg: {} as AlisioConfig,
         allowFrom: ["zod", " ~nec "],
       }),
     ).toEqual(["~zod", "~nec"]);
@@ -35,7 +35,7 @@ describe("tlon core", () => {
               dmAllowlist: ["~zod"],
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         accountId: "default",
       }),
     ).toEqual(["~zod"]);
@@ -104,7 +104,7 @@ describe("tlon core", () => {
 
     const result = await runSetupWizardConfigure({
       configure: tlonConfigure,
-      cfg: {} as OpenClawConfig,
+      cfg: {} as AlisioConfig,
       prompter,
       options: {},
     });
@@ -157,7 +157,7 @@ describe("tlon core", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     expect(listTlonAccountIds(cfg)).toEqual(["alerts", "default", "work"]);
   });
@@ -183,7 +183,7 @@ describe("tlon core", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       "work",
     );
 
@@ -214,7 +214,7 @@ describe("tlon core", () => {
             },
           },
         },
-      } as OpenClawConfig,
+      } as AlisioConfig,
       "default",
     );
 

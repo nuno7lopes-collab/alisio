@@ -29,7 +29,7 @@ vi.mock("./config.js", () => ({
   resolveBrowserConfig: vi.fn(() => ({
     enabled: true,
     controlPort: 40707,
-    profiles: { openclaw: { cdpPort: 40716 } },
+    profiles: { alisio: { cdpPort: 40716 } },
   })),
 }));
 

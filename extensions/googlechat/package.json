@@ -1,24 +1,24 @@
 {
-  "name": "@openclaw/googlechat",
+  "name": "@alisio/googlechat",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Google Chat channel plugin",
+  "description": "Alisio Google Chat channel plugin",
   "type": "module",
   "dependencies": {
     "google-auth-library": "^10.6.2"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],
@@ -40,7 +40,7 @@
       "markdownCapable": true
     },
     "install": {
-      "npmSpec": "@openclaw/googlechat",
+      "npmSpec": "@alisio/googlechat",
       "defaultChoice": "npm",
       "minHostVersion": ">=2026.3.30"
     }

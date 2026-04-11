@@ -43,11 +43,11 @@ type ImplicitProviderContext = ImplicitProviderParams & {
 };
 
 function resolveLiveProviderCatalogTimeoutMs(env: NodeJS.ProcessEnv): number | null {
-  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], env)) {
+  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "ALISIO_LIVE_GATEWAY"], env)) {
     return null;
   }
   const raw = readLiveEnv(
-    ["ALISIO_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS", "OPENCLAW_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS"],
+    ["ALISIO_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS", "ALISIO_LIVE_PROVIDER_DISCOVERY_TIMEOUT_MS"],
     env,
   );
   if (!raw) {
@@ -58,10 +58,10 @@ function resolveLiveProviderCatalogTimeoutMs(env: NodeJS.ProcessEnv): number | n
 }
 
 function resolveLiveProviderDiscoveryFilter(env: NodeJS.ProcessEnv): string[] | undefined {
-  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "OPENCLAW_LIVE_GATEWAY"], env)) {
+  if (!isLiveTestEnabled(["ALISIO_LIVE_GATEWAY", "ALISIO_LIVE_GATEWAY"], env)) {
     return undefined;
   }
-  const raw = readLiveEnv(["ALISIO_LIVE_PROVIDERS", "OPENCLAW_LIVE_PROVIDERS"], env);
+  const raw = readLiveEnv(["ALISIO_LIVE_PROVIDERS", "ALISIO_LIVE_PROVIDERS"], env);
   if (!raw || raw === "all") {
     return undefined;
   }

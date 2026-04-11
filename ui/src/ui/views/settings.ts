@@ -93,6 +93,11 @@ function renderDoctorCard(props: {
   doctor: AlisioDoctorSummaryState | null;
   onReconnectRuntime: () => void;
   onOpenSetup: () => void;
+  rebuildAvailable?: boolean;
+  rebuildInFlight?: boolean;
+  rebuildStatus?: string | null;
+  rebuildError?: string | null;
+  onRebuildApp?: () => void;
 }) {
   const reconnectRequired =
     props.doctor?.issues.some(
@@ -110,6 +115,8 @@ function renderDoctorCard(props: {
       count: String(props.doctor?.issues.length ?? 0),
     }),
     restartRuntime: t("alisio.settings.doctor.restartRuntime"),
+    rebuildApp: t("alisio.settings.doctor.rebuildApp"),
+    rebuildingApp: t("alisio.settings.doctor.rebuildingApp"),
     reconnectApp: t("alisio.settings.doctor.reconnectApp"),
     openSetup: t("alisio.settings.doctor.openSetup"),
   };
@@ -170,7 +177,26 @@ function renderDoctorCard(props: {
         ? html`
             <div class="alisio-settings-doctor__actions">
               <button class="btn btn--sm" @click=${props.onOpenSetup}>${text.openSetup}</button>
+              ${props.rebuildAvailable && props.onRebuildApp
+                ? html`
+                    <button
+                      class="btn btn--sm"
+                      ?disabled=${Boolean(props.rebuildInFlight)}
+                      @click=${props.onRebuildApp}
+                    >
+                      ${props.rebuildInFlight ? text.rebuildingApp : text.rebuildApp}
+                    </button>
+                  `
+                : nothing}
             </div>
+            ${props.rebuildStatus
+              ? html`<div class="list-sub" style="margin-top: 8px;">${props.rebuildStatus}</div>`
+              : nothing}
+            ${props.rebuildError
+              ? html`<div class="callout danger" style="margin-top: 8px;">
+                  ${props.rebuildError}
+                </div>`
+              : nothing}
           `
         : html`
             <div class="alisio-settings-doctor__actions">
@@ -179,6 +205,27 @@ function renderDoctorCard(props: {
               </button>
               <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
             </div>
+            ${props.rebuildAvailable && props.onRebuildApp
+              ? html`
+                  <div class="alisio-settings-doctor__actions" style="margin-top: 8px;">
+                    <button
+                      class="btn"
+                      ?disabled=${Boolean(props.rebuildInFlight)}
+                      @click=${props.onRebuildApp}
+                    >
+                      ${props.rebuildInFlight ? text.rebuildingApp : text.rebuildApp}
+                    </button>
+                  </div>
+                `
+              : nothing}
+            ${props.rebuildStatus
+              ? html`<div class="list-sub" style="margin-top: 8px;">${props.rebuildStatus}</div>`
+              : nothing}
+            ${props.rebuildError
+              ? html`<div class="callout danger" style="margin-top: 8px;">
+                  ${props.rebuildError}
+                </div>`
+              : nothing}
           `}
     </section>
   `;
@@ -915,6 +962,11 @@ export function renderSettingsHub(props: {
   onChangeEmail: (email: string) => void;
   onUpdatePassword: (password: string) => void;
   onReconnectRuntime: () => void;
+  nativeRebuildAvailable: boolean;
+  nativeRebuildInFlight: boolean;
+  nativeRebuildStatus: string | null;
+  nativeRebuildError: string | null;
+  onRebuildNativeApp: () => void;
 }) {
   const activeSection = resolveVisibleSection(props.section);
   const billingFocused = props.section === "billing";
@@ -1046,6 +1098,11 @@ export function renderSettingsHub(props: {
                 doctor: props.doctor,
                 onReconnectRuntime: props.onReconnectRuntime,
                 onOpenSetup: props.onOpenSetup,
+                rebuildAvailable: activeSection === "mac" && props.nativeRebuildAvailable,
+                rebuildInFlight: props.nativeRebuildInFlight,
+                rebuildStatus: props.nativeRebuildStatus,
+                rebuildError: props.nativeRebuildError,
+                onRebuildApp: props.onRebuildNativeApp,
               })
             : nothing}
         </aside>

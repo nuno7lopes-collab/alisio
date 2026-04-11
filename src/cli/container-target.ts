@@ -77,7 +77,7 @@ export function resolveCliContainerTarget(
   if (!parsed.ok) {
     throw new Error(parsed.error);
   }
-  return parsed.container ?? env.ALISIO_CONTAINER?.trim() ?? env.OPENCLAW_CONTAINER?.trim() ?? null;
+  return parsed.container ?? env.ALISIO_CONTAINER?.trim() ?? null;
 }
 
 function isContainerRunning(params: {
@@ -159,11 +159,7 @@ function buildContainerExecArgs(params: {
     envFlag,
     `ALISIO_CONTAINER_HINT=${params.containerName}`,
     envFlag,
-    `OPENCLAW_CONTAINER_HINT=${params.containerName}`,
-    envFlag,
     "ALISIO_CLI_CONTAINER_BYPASS=1",
-    envFlag,
-    "OPENCLAW_CLI_CONTAINER_BYPASS=1",
     params.containerName,
     "alisio",
     ...params.argv,
@@ -179,21 +175,15 @@ function buildContainerExecEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   delete next.ALISIO_GATEWAY_URL;
   delete next.ALISIO_GATEWAY_TOKEN;
   delete next.ALISIO_GATEWAY_PASSWORD;
-  delete next.OPENCLAW_PROFILE;
-  delete next.OPENCLAW_GATEWAY_PORT;
-  delete next.OPENCLAW_GATEWAY_URL;
-  delete next.OPENCLAW_GATEWAY_TOKEN;
-  delete next.OPENCLAW_GATEWAY_PASSWORD;
   // The child CLI should render container-aware follow-up commands via
   // ALISIO_CONTAINER_HINT, but it should not treat itself as still
   // container-targeted for validation/routing.
   next.ALISIO_CONTAINER = "";
-  next.OPENCLAW_CONTAINER = "";
   return next;
 }
 
 function isBlockedContainerCommand(argv: string[]): boolean {
-  if (getPrimaryCommand(["node", "openclaw", ...argv]) === "update") {
+  if (getPrimaryCommand(["node", "alisio", ...argv]) === "update") {
     return true;
   }
   for (let i = 0; i < argv.length; i += 1) {
@@ -227,10 +217,7 @@ export function maybeRunCliInContainer(
     stdoutIsTTY: deps?.stdoutIsTTY ?? Boolean(process.stdout.isTTY),
   };
 
-  if (
-    resolvedDeps.env.ALISIO_CLI_CONTAINER_BYPASS === "1" ||
-    resolvedDeps.env.OPENCLAW_CLI_CONTAINER_BYPASS === "1"
-  ) {
+  if (resolvedDeps.env.ALISIO_CLI_CONTAINER_BYPASS === "1") {
     return { handled: false, argv };
   }
 

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { telegramMessageActions, telegramMessageActionRuntime } from "./channel-actions.js";
 
@@ -64,7 +64,7 @@ describe("telegramMessageActions", () => {
     const cases = [
       {
         name: "configured telegram enables poll",
-        cfg: { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig,
+        cfg: { channels: { telegram: { botToken: "tok" } } } as AlisioConfig,
         expectPoll: true,
         expectTopicEdit: true,
       },
@@ -77,7 +77,7 @@ describe("telegramMessageActions", () => {
               actions: { sendMessage: false },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         expectPoll: false,
         expectTopicEdit: true,
       },
@@ -90,7 +90,7 @@ describe("telegramMessageActions", () => {
               actions: { poll: false },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         expectPoll: false,
         expectTopicEdit: true,
       },
@@ -117,7 +117,7 @@ describe("telegramMessageActions", () => {
               },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         expectPoll: false,
         expectTopicEdit: true,
       },
@@ -145,7 +145,7 @@ describe("telegramMessageActions", () => {
     const cases = [
       {
         name: "default config",
-        cfg: { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig,
+        cfg: { channels: { telegram: { botToken: "tok" } } } as AlisioConfig,
         expectSticker: false,
       },
       {
@@ -158,7 +158,7 @@ describe("telegramMessageActions", () => {
               },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         expectSticker: true,
       },
       {
@@ -172,7 +172,7 @@ describe("telegramMessageActions", () => {
               },
             },
           },
-        } as OpenClawConfig,
+        } as AlisioConfig,
         expectSticker: false,
       },
     ] as const;
@@ -194,7 +194,7 @@ describe("telegramMessageActions", () => {
   });
 
   it("normalizes reaction message identifiers before dispatch", async () => {
-    const cfg = { channels: { telegram: { botToken: "tok" } } } as OpenClawConfig;
+    const cfg = { channels: { telegram: { botToken: "tok" } } } as AlisioConfig;
     const cases = [
       {
         name: "numeric channelId/messageId",

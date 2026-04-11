@@ -4,11 +4,11 @@ import {
   resolveThreadSessionKeys,
   type RoutePeer,
 } from "alisio/plugin-sdk/routing";
-import type { OpenClawConfig } from "./runtime-api.js";
+import type { AlisioConfig } from "./runtime-api.js";
 import { parseDiscordTarget } from "./targets.js";
 
 export type ResolveDiscordOutboundSessionRouteParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   accountId?: string | null;
   target: string;

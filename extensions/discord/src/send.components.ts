@@ -5,7 +5,7 @@ import {
   type RequestClient,
 } from "@buape/carbon";
 import { recordChannelActivity } from "alisio/plugin-sdk/channel-runtime";
-import { loadConfig, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { loadConfig, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { loadWebMedia } from "alisio/plugin-sdk/web-media";
 import { ChannelType, Routes } from "discord-api-types/v10";
 import { resolveDiscordAccount } from "./accounts.js";
@@ -42,7 +42,7 @@ function extractComponentAttachmentNames(spec: DiscordComponentMessageSpec): str
 }
 
 type DiscordComponentSendOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   accountId?: string;
   token?: string;
   rest?: RequestClient;

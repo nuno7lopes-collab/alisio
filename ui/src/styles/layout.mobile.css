@@ -291,6 +291,16 @@
     padding: 12px;
   }
 
+  .alisio-setup-page {
+    width: 100%;
+    gap: 14px;
+  }
+
+  .alisio-setup-page__card {
+    padding: 16px;
+    border-radius: 20px;
+  }
+
   .setup-hero {
     padding: 18px;
   }
@@ -301,6 +311,34 @@
 
   .setup-hero__headline h1 {
     font-size: 32px;
+  }
+
+  .alisio-setup-page__hero h1 {
+    font-size: 30px;
+  }
+
+  .alisio-setup-account__inline-row,
+  .alisio-setup-actions {
+    align-items: stretch;
+  }
+
+  .alisio-setup-actions .btn,
+  .alisio-setup-account__inline-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .alisio-setup-account__recipient {
+    width: 100%;
+  }
+
+  .alisio-setup-surface-card {
+    padding: 12px;
+    border-radius: 18px;
+  }
+
+  .alisio-setup-account__code-input {
+    letter-spacing: 0.18em;
   }
 
   .topnav-shell {
@@ -448,6 +486,10 @@
   .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__session {
     min-width: unset;
     max-width: unset;
+    width: 100%;
+  }
+
+  .chat-mobile-controls-wrapper .chat-controls-dropdown .chat-controls__model {
     width: 100%;
   }
 

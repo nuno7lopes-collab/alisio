@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { OpenClawConfig } from "../../../../src/config/config.js";
+import type { AlisioConfig } from "../../../../src/config/config.js";
 import { buildFileEntry, listMemoryFiles } from "./internal.js";
 import {
   buildObsidianDailyNoteSeed,
@@ -17,8 +17,8 @@ describe("obsidian memory layout", () => {
   let vaultDir = "";
 
   beforeEach(async () => {
-    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-memory-workspace-"));
-    vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-memory-vault-"));
+    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-memory-workspace-"));
+    vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-memory-vault-"));
   });
 
   afterEach(async () => {
@@ -30,14 +30,14 @@ describe("obsidian memory layout", () => {
     expect(() =>
       resolveObsidianMemoryLayout({
         workspaceDir,
-        cfg: { memory: { vaultPath: "relative/vault" } } as OpenClawConfig,
+        cfg: { memory: { vaultPath: "relative/vault" } } as AlisioConfig,
       }),
     ).toThrow('memory.vaultPath must be absolute or start with "~"');
 
     expect(() =>
       resolveObsidianMemoryLayout({
         workspaceDir,
-        cfg: { memory: { memoryPath: "../escape" } } as OpenClawConfig,
+        cfg: { memory: { memoryPath: "../escape" } } as AlisioConfig,
       }),
     ).toThrow('memory.memoryPath must not contain "." or ".." segments');
   });
@@ -48,7 +48,7 @@ describe("obsidian memory layout", () => {
         vaultPath: vaultDir,
         memoryPath: "Alisio Memory",
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const layout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
     expect(layout).not.toBeNull();
 
@@ -75,7 +75,7 @@ describe("obsidian memory layout", () => {
         vaultPath: vaultDir,
         memoryPath: "Alisio Memory",
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const layout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
     expect(layout).not.toBeNull();
 

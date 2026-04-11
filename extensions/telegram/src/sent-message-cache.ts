@@ -9,7 +9,7 @@ const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
  * Keep sent-message tracking shared across bundled chunks so Telegram reaction
  * filters see the same sent-message history regardless of which chunk recorded it.
  */
-const TELEGRAM_SENT_MESSAGES_KEY = Symbol.for("openclaw.telegramSentMessages");
+const TELEGRAM_SENT_MESSAGES_KEY = Symbol.for("alisio.telegramSentMessages");
 
 let sentMessages: Map<string, Map<string, number>> | undefined;
 

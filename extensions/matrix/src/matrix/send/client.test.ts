@@ -50,7 +50,7 @@ describe("withResolvedMatrixClient", () => {
   });
 
   it("stops one-off shared clients when no active monitor client is registered", async () => {
-    vi.stubEnv("OPENCLAW_GATEWAY_PORT", "40715");
+    vi.stubEnv("ALISIO_GATEWAY_PORT", "40715");
 
     const result = await withResolvedMatrixClient({ accountId: "default" }, async () => "ok");
 

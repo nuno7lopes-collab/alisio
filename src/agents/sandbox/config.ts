@@ -34,7 +34,7 @@ export const DANGEROUS_SANDBOX_DOCKER_BOOLEAN_KEYS = [
 ] as const;
 
 const DEFAULT_SANDBOX_SSH_COMMAND = "ssh";
-const DEFAULT_SANDBOX_SSH_WORKSPACE_ROOT = "/tmp/openclaw-sandboxes";
+const DEFAULT_SANDBOX_SSH_WORKSPACE_ROOT = "/tmp/alisio-sandboxes";
 
 type DangerousSandboxDockerBooleanKey = (typeof DANGEROUS_SANDBOX_DOCKER_BOOLEAN_KEYS)[number];
 type DangerousSandboxDockerBooleans = Pick<SandboxDockerConfig, DangerousSandboxDockerBooleanKey>;

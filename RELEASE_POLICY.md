@@ -26,7 +26,7 @@ requiring that rename first.
   - `pnpm build`
   - `pnpm release:check`
 - `pnpm release:check` includes the forbidden-artifact guardrail derived from `.gitignore`.
-- Also run `OPENCLAW_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` when the installer or published install path changed. The env var keeps its legacy name for compatibility with the current smoke helper.
+- Also run `ALISIO_INSTALL_SMOKE_SKIP_NONROOT=1 pnpm test:install:smoke` when the installer or published install path changed. The env var keeps its legacy name for compatibility with the current smoke helper.
 
 ## macOS artifact classes
 

@@ -1,8 +1,8 @@
 ---
-summary: "How Alisio chooses between OpenAI, local models, and operator-managed servers."
+summary: "How Alisio chooses between OpenAI, local models, and linked Alisio nodes."
 read_when:
   - Explaining AI source selection in the product
-  - Comparing hosted, local, and server-backed model paths
+  - Comparing hosted, local, and linked-node model paths
 title: "Model Providers"
 ---
 
@@ -32,15 +32,15 @@ Best when you want:
 
 This means the model runtime lives on the same computer as Alisio.
 
-## 3. Server
+## 3. Linked Node
 
 Best when you want:
 
-- Ollama on another machine
-- OpenAI-compatible endpoints you control
+- llama.cpp on another machine
 - one shared runtime serving multiple computers
+- a remote Alisio node managed from the same account
 
-This means Alisio connects to a model server instead of running the model directly on the current computer.
+This means Alisio uses a linked Alisio node instead of running the model directly on the current computer.
 
 ## What The Picker Should Communicate
 
@@ -49,7 +49,7 @@ The user should understand four things immediately:
 1. Where the model runs
 2. Which credentials are required
 3. Whether the source is local to this computer or shared remotely
-4. Whether OpenAI, Local, and Server can coexist
+4. Whether OpenAI, Local, and Linked Node can coexist
 
 They can. One computer can use all three.
 
@@ -59,13 +59,13 @@ Start here:
 
 1. OpenAI for the first working setup
 2. add Local when privacy or ownership matters
-3. add Server when a separate machine should host the runtime
+3. add Linked Node when a separate machine should host the runtime
 
 ## Common Examples
 
 - **OpenAI**: sign in or paste an API key
 - **Local**: run a model directly on your Mac
-- **Server**: connect to an Ollama or OpenAI-compatible endpoint on another machine
+- **Linked Node**: use llama.cpp from a paired Alisio node on another machine
 
 ## Advanced Surfaces
 

@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveStorePath, updateSessionStore } from "alisio/plugin-sdk/config-runtime";
 
 /**
@@ -11,7 +11,7 @@ import { resolveStorePath, updateSessionStore } from "alisio/plugin-sdk/config-r
  * any on-disk transcript history.
  */
 export async function closeDiscordThreadSessions(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   threadId: string;
 }): Promise<number> {

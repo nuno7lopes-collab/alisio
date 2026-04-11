@@ -29,21 +29,21 @@ async function loadFreshGatewayToolModuleForTest() {
 
 describe("gateway tool defaults", () => {
   const envSnapshot = {
-    openclaw: process.env.OPENCLAW_GATEWAY_TOKEN,
+    alisio: process.env.ALISIO_GATEWAY_TOKEN,
   };
 
   beforeEach(async () => {
     callGatewayMock.mockClear();
     configState.value = {};
-    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.ALISIO_GATEWAY_TOKEN;
     await loadFreshGatewayToolModuleForTest();
   });
 
   afterAll(() => {
-    if (envSnapshot.openclaw === undefined) {
-      delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    if (envSnapshot.alisio === undefined) {
+      delete process.env.ALISIO_GATEWAY_TOKEN;
     } else {
-      process.env.OPENCLAW_GATEWAY_TOKEN = envSnapshot.openclaw;
+      process.env.ALISIO_GATEWAY_TOKEN = envSnapshot.alisio;
     }
   });
 
@@ -69,8 +69,8 @@ describe("gateway tool defaults", () => {
     );
   });
 
-  it("uses OPENCLAW_GATEWAY_TOKEN for allowlisted local overrides", () => {
-    process.env.OPENCLAW_GATEWAY_TOKEN = "env-token";
+  it("uses ALISIO_GATEWAY_TOKEN for allowlisted local overrides", () => {
+    process.env.ALISIO_GATEWAY_TOKEN = "env-token";
     const opts = resolveGatewayOptions({ gatewayUrl: "ws://127.0.0.1:40705" });
     expect(opts.url).toBe("ws://127.0.0.1:40705");
     expect(opts.token).toBe("env-token");
@@ -101,7 +101,7 @@ describe("gateway tool defaults", () => {
   });
 
   it("does not leak local env/config tokens to remote overrides", () => {
-    process.env.OPENCLAW_GATEWAY_TOKEN = "local-env-token";
+    process.env.ALISIO_GATEWAY_TOKEN = "local-env-token";
     configState.value = {
       gateway: {
         auth: { token: "local-config-token" },
@@ -136,7 +136,7 @@ describe("gateway tool defaults", () => {
   });
 
   it("explicit gatewayToken overrides fallback token resolution", () => {
-    process.env.OPENCLAW_GATEWAY_TOKEN = "local-env-token";
+    process.env.ALISIO_GATEWAY_TOKEN = "local-env-token";
     configState.value = {
       gateway: {
         remote: {

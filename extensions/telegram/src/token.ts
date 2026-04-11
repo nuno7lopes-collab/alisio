@@ -1,6 +1,6 @@
 import { resolveNormalizedAccountEntry } from "alisio/plugin-sdk/account-core";
 import type { BaseTokenResolution } from "alisio/plugin-sdk/channel-contract";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { tryReadSecretFileSync } from "alisio/plugin-sdk/core";
 import { DEFAULT_ACCOUNT_ID, normalizeAccountId } from "alisio/plugin-sdk/routing";
 import { normalizeResolvedSecretInputString } from "alisio/plugin-sdk/secret-input";
@@ -19,7 +19,7 @@ type ResolveTelegramTokenOpts = {
 };
 
 export function resolveTelegramToken(
-  cfg?: OpenClawConfig,
+  cfg?: AlisioConfig,
   opts: ResolveTelegramTokenOpts = {},
 ): TelegramTokenResolution {
   const accountId = normalizeAccountId(opts.accountId);
@@ -47,7 +47,7 @@ export function resolveTelegramToken(
   //
   // Single-bot: no accounts section (or empty) → allow fallthrough so that
   // binding-created accountIds inherit the channel-level token.
-  // See: https://github.com/openclaw/openclaw/issues/53876
+  // See: https://github.com/alisio/alisio/issues/53876
   if (accountId !== DEFAULT_ACCOUNT_ID && !accountCfg) {
     const accounts = telegramCfg?.accounts;
     const hasConfiguredAccounts =

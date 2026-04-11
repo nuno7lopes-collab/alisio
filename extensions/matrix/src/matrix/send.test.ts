@@ -359,12 +359,12 @@ describe("sendMessageMatrix media", () => {
     await sendMessageMatrix("room:!room:example", "caption", {
       client,
       mediaUrl: "file:///tmp/photo.png",
-      mediaLocalRoots: ["/tmp/openclaw-matrix-test"],
+      mediaLocalRoots: ["/tmp/alisio-matrix-test"],
     });
 
     expect(loadWebMediaMock).toHaveBeenCalledWith("file:///tmp/photo.png", {
       maxBytes: undefined,
-      localRoots: ["/tmp/openclaw-matrix-test"],
+      localRoots: ["/tmp/alisio-matrix-test"],
     });
   });
 });

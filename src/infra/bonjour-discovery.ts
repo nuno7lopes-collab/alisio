@@ -66,10 +66,8 @@ export type GatewayBonjourDiscoverOpts = {
 };
 
 const DEFAULT_TIMEOUT_MS = 2000;
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
 const CURRENT_GATEWAY_SERVICE_TYPE = "_alisio-gw._tcp";
-const LEGACY_GATEWAY_SERVICE_TYPE = `_${LEGACY_RUNTIME_NAMESPACE}-gw._tcp`;
-const GATEWAY_SERVICE_TYPES = [CURRENT_GATEWAY_SERVICE_TYPE, LEGACY_GATEWAY_SERVICE_TYPE] as const;
+const GATEWAY_SERVICE_TYPES = [CURRENT_GATEWAY_SERVICE_TYPE] as const;
 const GATEWAY_SERVICE_TYPE = CURRENT_GATEWAY_SERVICE_TYPE;
 
 function escapeRegex(value: string): string {
@@ -79,9 +77,7 @@ function escapeRegex(value: string): string {
 const GATEWAY_SERVICE_MATCH_RE = new RegExp(
   `(?:${GATEWAY_SERVICE_TYPES.map(escapeRegex).join("|")})\\.?\\s+(.+)$`,
 );
-const GATEWAY_SERVICE_SUFFIX_RE = new RegExp(
-  `\\.?_(?:alisio|${LEGACY_RUNTIME_NAMESPACE})-gw\\._tcp\\..*$`,
-);
+const GATEWAY_SERVICE_SUFFIX_RE = /\.?_alisio-gw\._tcp\..*$/;
 
 function decodeDnsSdEscapes(value: string): string {
   let decoded = false;

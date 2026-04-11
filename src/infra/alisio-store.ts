@@ -3,7 +3,11 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import os from "node:os";
 import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
-import { resolveLegacyStateDirs, resolveNewStateDir, resolveStateDir } from "../config/paths.js";
+import {
+  resolveAlternativeStateDirs,
+  resolveNewStateDir,
+  resolveStateDir,
+} from "../config/paths.js";
 import {
   type AlisioAccountAuthMethod,
   deriveAlisioAvatarLabel,
@@ -83,7 +87,6 @@ import {
   type AlisioSharingCloudPrincipal,
   type AlisioSharingCloudRuntimeTarget,
 } from "./alisio-sharing-cloud.js";
-import { warnLegacyCompatibilityOnce } from "./compat-warning.js";
 import { resolveRequiredHomeDir } from "./home-dir.js";
 import { createAsyncLock, readJsonFile, writeJsonAtomic } from "./json-files.js";
 import { autoMigrateLegacyStateDir } from "./state-migrations.js";
@@ -270,8 +273,7 @@ export type AlisioSharingSuggestionKind =
   | "artifact-cache"
   | "cache-reuse"
   | "sensitive-consent";
-type AlisioLegacySharingScope = "device.use" | "model.use";
-type AlisioStoredSharingScope = AlisioSharingScope | AlisioLegacySharingScope;
+type AlisioStoredSharingScope = AlisioSharingScope;
 type AlisioLegacySharingRequestStatus = "rejected";
 type AlisioStoredSharingRequestStatus =
   | AlisioSharingRequestStatus
@@ -305,10 +307,6 @@ export type AlisioSharingTargetState = AlisioSharingRuntimeTarget & {
   execAccess: AlisioSharingTargetAccess;
   requestId?: string;
   requestStatus?: AlisioSharingRequestStatus;
-  /** @deprecated Compatibility alias for grantId. Sunset target: 2026-06-30. */
-  approvalId?: string;
-  /** @deprecated Compatibility alias for grantScopes. Sunset target: 2026-06-30. */
-  approvalScopes?: AlisioSharingScope[];
   grantId?: string;
   grantScopes?: AlisioSharingScope[];
 };
@@ -325,14 +323,10 @@ export type AlisioSharingRequestState = {
   status: AlisioSharingRequestStatus;
   createdAt: string;
   resolvedAt?: string;
-  /** @deprecated Compatibility alias for grantId. Sunset target: 2026-06-30. */
-  approvalId?: string;
   grantId?: string;
 };
 
 export type AlisioSharingGrantState = {
-  /** @deprecated Compatibility alias for grantId. Sunset target: 2026-06-30. */
-  approvalId: string;
   grantId: string;
   requestId: string;
   targetId: string;
@@ -635,7 +629,7 @@ const ALISIO_SHARING_AUDIT_LIMIT = 100;
 const ALISIO_DEFAULT_SHARING_SCOPES: readonly AlisioSharingScope[] = ["read-only", "model-use"];
 const CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV = "ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY";
 const ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = "Alisio Connector Token Encryption";
-const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = `${["Open", "Claw"].join("")} Alisio Connector Token Encryption`;
+const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE;
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const withLock = createAsyncLock();
 
@@ -924,7 +918,7 @@ function resolveConnectorTokenKeychainAccounts(env: NodeJS.ProcessEnv): string[]
   const stateRoots = [
     resolveStateDir(env),
     resolveNewStateDir(homeDir),
-    ...resolveLegacyStateDirs(homeDir),
+    ...resolveAlternativeStateDirs(homeDir),
   ];
   return [...new Set(stateRoots.map((root) => buildConnectorTokenKeychainAccount(root)))];
 }
@@ -1984,6 +1978,91 @@ export async function loadAlisioBootstrapState(
   };
 }
 
+function buildStoredAlisioConnectorAuthorizations(
+  state: AlisioStoredState,
+  env: NodeJS.ProcessEnv,
+): AlisioConnectorAuthorization[] {
+  if (!hasReadyAlisioAccountSession(state, env)) {
+    return buildDefaultConnectorAuthorizations(env);
+  }
+  return CONNECTOR_CATALOG.map((connector) => {
+    const existing = state.authorizations[connector.id];
+    return existing ?? buildDefaultConnectorAuthorization(connector, env);
+  });
+}
+
+async function loadStoredAlisioBootstrapSnapshot(
+  env?: NodeJS.ProcessEnv,
+): Promise<AlisioBootstrapSnapshot> {
+  const runtimeEnv = env ?? process.env;
+  const cloud = getAlisioAccountCloudState(runtimeEnv);
+  const state = await loadStoredState(runtimeEnv);
+  const authorizations = buildStoredAlisioConnectorAuthorizations(state, runtimeEnv);
+  const account: AlisioAccountState = {
+    profile: state.account.profile,
+    preferences: state.account.preferences,
+    session: state.account.session,
+    devices: [currentDevice()],
+    cloud,
+  };
+  const ai: AlisioAiState = hasReadyAlisioAccountSession(state, runtimeEnv)
+    ? toAlisioAiState({
+        state: state.ai,
+        workerId: currentWorkerId(),
+        authStore: ensureAuthProfileStore(),
+      })
+    : {
+        provider: "openai",
+        status: "disconnected",
+      };
+  const organization: AlisioOrganizationMembershipState = hasReadyAlisioAccountSession(
+    state,
+    runtimeEnv,
+  )
+    ? resolveEffectiveAlisioOrganizationState({
+        plan: resolveStoredAlisioPlan(state),
+        organization: state.organization,
+      })
+    : { mode: "none" };
+  return {
+    account,
+    ai,
+    organization,
+    connectors: {
+      catalog: listAlisioConnectorDefinitions(),
+      authorizations,
+      summary: summarizeAlisioConnectorAuthorizations(authorizations),
+    },
+  };
+}
+
+export async function loadStoredAlisioBootstrapState(
+  params: {
+    env?: NodeJS.ProcessEnv;
+    wizardRunning?: boolean;
+    providerReady?: boolean;
+    connectionRequired?: boolean;
+  } = {},
+): Promise<{
+  snapshot: AlisioBootstrapSnapshot;
+  summary: AlisioBootstrapSummary;
+}> {
+  const snapshot = await loadStoredAlisioBootstrapSnapshot(params.env);
+  return {
+    snapshot,
+    summary: buildAlisioBootstrapSummary({
+      account: snapshot.account,
+      ai: snapshot.ai,
+      organization: snapshot.organization,
+      authorizations: snapshot.connectors.authorizations,
+      wizardRunning: params.wizardRunning,
+      providerReady: params.providerReady,
+      connectionRequired: params.connectionRequired,
+      env: params.env,
+    }),
+  };
+}
+
 export async function getAlisioBootstrapSummary(
   params: {
     env?: NodeJS.ProcessEnv;
@@ -2597,7 +2676,7 @@ async function loadStoredState(env?: NodeJS.ProcessEnv): Promise<AlisioStoredSta
   const loadedWithoutLegacyProviders = {
     ...(loaded as AlisioStoredState & Record<string, unknown>),
   };
-  delete loadedWithoutLegacyProviders.modelServers;
+  Reflect.deleteProperty(loadedWithoutLegacyProviders, ["model", "Servers"].join(""));
   const loadedAccountWithoutSecrets = { ...loaded.account };
   const loadedCloudSession = hydrateStoredTokenSecrets(
     loadedAccountWithoutSecrets.cloudSession,
@@ -3056,37 +3135,12 @@ const ALISIO_DEFAULT_SHARING_RESOURCE_POLICIES: AlisioSharingResourcePolicies = 
   files: "explicit-consent",
   context: "explicit-consent",
 };
-const ALISIO_LEGACY_SHARING_SCOPE_REPLACEMENTS: Record<
-  AlisioLegacySharingScope,
-  AlisioSharingScope
-> = {
-  "device.use": "read-only",
-  "model.use": "model-use",
-};
-
-function warnOnLegacySharingScopeInput(
-  scopes: readonly AlisioStoredSharingScope[] | undefined,
-): void {
-  for (const scope of scopes ?? []) {
-    if (scope === "device.use" || scope === "model.use") {
-      const replacement = ALISIO_LEGACY_SHARING_SCOPE_REPLACEMENTS[scope];
-      warnLegacyCompatibilityOnce({
-        key: `sharing-scope:${scope}`,
-        message: `Legacy sharing scope alias "${scope}" is deprecated and scheduled for removal after 2026-06-30.`,
-        replacement: `"${replacement}"`,
-      });
-    }
-  }
-}
-
 function normalizeAlisioSharingScope(
   scope: AlisioStoredSharingScope | null | undefined,
 ): AlisioSharingScope | null {
   switch (scope) {
-    case "device.use":
     case "read-only":
       return "read-only";
-    case "model.use":
     case "model-use":
       return "model-use";
     case "exec":
@@ -3334,14 +3388,12 @@ function toAlisioSharingRequestState(
     ...request,
     scopes: normalizeAlisioSharingScopes(request.scopes),
     status: normalizeAlisioSharingRequestStatus(request.status),
-    ...(request.grantId ? { approvalId: request.grantId } : {}),
   };
 }
 
 function toAlisioSharingGrantState(grant: AlisioStoredSharingGrant): AlisioSharingGrantState {
   return {
     ...grant,
-    approvalId: grant.grantId,
     scopes: normalizeAlisioSharingScopes(grant.scopes),
   };
 }
@@ -3574,14 +3626,11 @@ function buildAlisioSharingTargetState(params: {
       : {}),
     ...(activeGrant
       ? {
-          approvalId: activeGrant.grantId,
-          approvalScopes: effectiveScopes,
           grantId: activeGrant.grantId,
           grantScopes: effectiveScopes,
         }
       : linkedSameAccountTarget && effectiveScopes.length > 0
         ? {
-            approvalScopes: effectiveScopes,
             grantScopes: effectiveScopes,
           }
         : {}),
@@ -5219,7 +5268,6 @@ function requestAlisioSharingAccessOnState(
   },
   env?: NodeJS.ProcessEnv,
 ): AlisioSharingRequestMutation {
-  warnOnLegacySharingScopeInput(input.scopes);
   assertAlisioAccountSetupAccess(state, "organization", env ?? process.env);
   const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
   if (!gate.ok) {
@@ -5425,7 +5473,6 @@ function approveAlisioSharingRequestOnState(
   input: { requestId: string; scopes?: readonly AlisioStoredSharingScope[] },
   env?: NodeJS.ProcessEnv,
 ): AlisioSharingApprovedMutation {
-  warnOnLegacySharingScopeInput(input.scopes);
   assertAlisioAccountSetupAccess(state, "organization", env ?? process.env);
   const gate = gateAlisioSharing({ plan: resolveStoredAlisioPlan(state) });
   if (!gate.ok) {

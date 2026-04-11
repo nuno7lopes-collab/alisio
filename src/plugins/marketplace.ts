@@ -436,7 +436,7 @@ async function cloneMarketplaceRepo(params: {
     return { ok: false, error: `unsupported marketplace source: ${params.source}` };
   }
 
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-marketplace-"));
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-"));
   const repoDir = path.join(tmpDir, "repo");
   const argv = ["git", "clone", "--depth", "1"];
   if (normalized.ref) {
@@ -599,7 +599,7 @@ async function downloadUrlToTempFile(url: string): Promise<
 
   const pathname = new URL(url).pathname;
   const fileName = path.basename(pathname) || "plugin.tgz";
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-marketplace-download-"));
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-marketplace-download-"));
   const targetPath = path.join(tmpDir, fileName);
   const fileStream = createWriteStream(targetPath);
   await response.body.pipeTo(Writable.toWeb(fileStream));

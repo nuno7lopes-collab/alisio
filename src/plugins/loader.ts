@@ -7,10 +7,6 @@ import type { AlisioConfig } from "../config/config.js";
 import type { PluginInstallRecord } from "../config/types.plugins.js";
 import type { GatewayRequestHandler } from "../gateway/server-methods/types.js";
 import { openBoundaryFileSync } from "../infra/boundary-file-read.js";
-import {
-  ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
-  warnLegacyCompatibilityOnce,
-} from "../infra/compat-warning.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import { resolveUserPath } from "../utils.js";
 import { buildPluginApi } from "./api-builder.js";
@@ -23,7 +19,7 @@ import {
   resolveMemorySlotDecision,
   type NormalizedPluginsConfig,
 } from "./config-state.js";
-import { discoverOpenClawPlugins } from "./discovery.js";
+import { discoverAlisioPlugins } from "./discovery.js";
 import { initializeGlobalHookRunner } from "./hook-runner-global.js";
 import { clearPluginInteractiveHandlers } from "./interactive.js";
 import { loadPluginManifestRegistry } from "./manifest-registry.js";
@@ -64,8 +60,8 @@ import {
   shouldPreferNativeJiti,
 } from "./sdk-alias.js";
 import type {
-  OpenClawPluginDefinition,
-  OpenClawPluginModule,
+  AlisioPluginDefinition,
+  AlisioPluginModule,
   PluginDiagnostic,
   PluginBundleFormat,
   PluginFormat,
@@ -393,8 +389,8 @@ function validatePluginConfig(params: {
 }
 
 function resolvePluginModuleExport(moduleExport: unknown): {
-  definition?: OpenClawPluginDefinition;
-  register?: OpenClawPluginDefinition["register"];
+  definition?: AlisioPluginDefinition;
+  register?: AlisioPluginDefinition["register"];
 } {
   const resolved =
     moduleExport &&
@@ -404,11 +400,11 @@ function resolvePluginModuleExport(moduleExport: unknown): {
       : moduleExport;
   if (typeof resolved === "function") {
     return {
-      register: resolved as OpenClawPluginDefinition["register"],
+      register: resolved as AlisioPluginDefinition["register"],
     };
   }
   if (resolved && typeof resolved === "object") {
-    const def = resolved as OpenClawPluginDefinition;
+    const def = resolved as AlisioPluginDefinition;
     const register = def.register ?? def.activate;
     return { definition: def, register };
   }
@@ -480,7 +476,7 @@ function createPluginRecord(params: {
     name: params.name ?? params.id,
     description: params.description,
     version: params.version,
-    format: params.format ?? "openclaw",
+    format: params.format ?? "alisio",
     bundleFormat: params.bundleFormat,
     bundleCapabilities: params.bundleCapabilities,
     source: params.source,
@@ -522,7 +518,7 @@ function recordPluginError(params: {
   diagnosticMessagePrefix: string;
 }) {
   const errorText =
-    process.env.OPENCLAW_PLUGIN_LOADER_DEBUG_STACKS === "1" &&
+    process.env.ALISIO_PLUGIN_LOADER_DEBUG_STACKS === "1" &&
     params.error instanceof Error &&
     typeof params.error.stack === "string"
       ? params.error.stack
@@ -679,7 +675,7 @@ function matchesExplicitInstallRule(params: {
 }
 
 function resolveCandidateDuplicateRank(params: {
-  candidate: ReturnType<typeof discoverOpenClawPlugins>["candidates"][number];
+  candidate: ReturnType<typeof discoverAlisioPlugins>["candidates"][number];
   manifestByRoot: Map<string, ReturnType<typeof loadPluginManifestRegistry>["plugins"][number]>;
   provenance: PluginProvenanceIndex;
   env: NodeJS.ProcessEnv;
@@ -713,8 +709,8 @@ function resolveCandidateDuplicateRank(params: {
 }
 
 function compareDuplicateCandidateOrder(params: {
-  left: ReturnType<typeof discoverOpenClawPlugins>["candidates"][number];
-  right: ReturnType<typeof discoverOpenClawPlugins>["candidates"][number];
+  left: ReturnType<typeof discoverAlisioPlugins>["candidates"][number];
+  right: ReturnType<typeof discoverAlisioPlugins>["candidates"][number];
   manifestByRoot: Map<string, ReturnType<typeof loadPluginManifestRegistry>["plugins"][number]>;
   provenance: PluginProvenanceIndex;
   env: NodeJS.ProcessEnv;
@@ -945,7 +941,7 @@ export function loadAlisioPlugins(options: PluginLoadOptions = {}): PluginRegist
     suppressGlobalCommands: !shouldActivate,
   });
 
-  const discovery = discoverOpenClawPlugins({
+  const discovery = discoverAlisioPlugins({
     workspaceDir: options.workspaceDir,
     extraPaths: normalized.loadPaths,
     cache: options.cache,
@@ -1209,9 +1205,9 @@ export function loadAlisioPlugins(options: PluginLoadOptions = {}): PluginRegist
     const safeSource = opened.path;
     fs.closeSync(opened.fd);
 
-    let mod: OpenClawPluginModule | null = null;
+    let mod: AlisioPluginModule | null = null;
     try {
-      mod = getJiti(safeSource)(safeSource) as OpenClawPluginModule;
+      mod = getJiti(safeSource)(safeSource) as AlisioPluginModule;
     } catch (err) {
       recordPluginError({
         logger,
@@ -1414,19 +1410,6 @@ export function loadAlisioPlugins(options: PluginLoadOptions = {}): PluginRegist
   return registry;
 }
 
-/**
- * @deprecated Use loadAlisioPlugins instead. Sunset target: 2026-06-30.
- */
-export function loadOpenClawPlugins(options: PluginLoadOptions = {}): PluginRegistry {
-  warnLegacyCompatibilityOnce({
-    key: "loadOpenClawPlugins",
-    message: "loadOpenClawPlugins() is deprecated.",
-    replacement: "loadAlisioPlugins()",
-    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
-  });
-  return loadAlisioPlugins(options);
-}
-
 export async function loadAlisioPluginCliRegistry(
   options: PluginLoadOptions = {},
 ): Promise<PluginRegistry> {
@@ -1445,7 +1428,7 @@ export async function loadAlisioPluginCliRegistry(
     suppressGlobalCommands: true,
   });
 
-  const discovery = discoverOpenClawPlugins({
+  const discovery = discoverAlisioPlugins({
     workspaceDir: options.workspaceDir,
     extraPaths: normalized.loadPaths,
     cache: false,
@@ -1611,9 +1594,9 @@ export async function loadAlisioPluginCliRegistry(
     const safeSource = opened.path;
     fs.closeSync(opened.fd);
 
-    let mod: OpenClawPluginModule | null = null;
+    let mod: AlisioPluginModule | null = null;
     try {
-      mod = getJiti(safeSource)(safeSource) as OpenClawPluginModule;
+      mod = getJiti(safeSource)(safeSource) as AlisioPluginModule;
     } catch (err) {
       recordPluginError({
         logger,
@@ -1717,21 +1700,6 @@ export async function loadAlisioPluginCliRegistry(
   }
 
   return registry;
-}
-
-/**
- * @deprecated Use loadAlisioPluginCliRegistry instead. Sunset target: 2026-06-30.
- */
-export async function loadOpenClawPluginCliRegistry(
-  options: PluginLoadOptions = {},
-): Promise<PluginRegistry> {
-  warnLegacyCompatibilityOnce({
-    key: "loadOpenClawPluginCliRegistry",
-    message: "loadOpenClawPluginCliRegistry() is deprecated.",
-    replacement: "loadAlisioPluginCliRegistry()",
-    sunset: ALISIO_LEGACY_COMPATIBILITY_SUNSET_DATE,
-  });
-  return loadAlisioPluginCliRegistry(options);
 }
 
 function safeRealpathOrResolve(value: string): string {

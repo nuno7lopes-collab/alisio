@@ -25,7 +25,7 @@ const runtime: RuntimeEnv = {
 };
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
-  return withTempHomeBase(fn, { prefix: "openclaw-agent-acp-" });
+  return withTempHomeBase(fn, { prefix: "alisio-agent-acp-" });
 }
 
 function createAcpEnabledConfig(home: string, storePath: string): AlisioConfig {
@@ -40,7 +40,7 @@ function createAcpEnabledConfig(home: string, storePath: string): AlisioConfig {
       defaults: {
         model: { primary: "openai/gpt-5.4" },
         models: { "openai/gpt-5.4": {} },
-        workspace: path.join(home, "openclaw"),
+        workspace: path.join(home, "alisio"),
       },
     },
     session: { store: storePath, mainKey: "main" },

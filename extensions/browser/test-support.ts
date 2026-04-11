@@ -4,7 +4,7 @@ export {
   type CliMockOutputRuntime,
   type CliRuntimeCapture,
 } from "alisio/plugin-sdk/testing";
-export { type OpenClawConfig } from "alisio/plugin-sdk/browser-support";
+export { type AlisioConfig } from "alisio/plugin-sdk/browser-support";
 export { expectGeneratedTokenPersistedToGatewayAuth } from "../../src/test-utils/auth-token-assertions.js";
 export { withEnv, withEnvAsync } from "../../test/helpers/plugins/env.ts";
 export { withFetchPreconnect, type FetchMock } from "../../test/helpers/plugins/fetch-mock.ts";

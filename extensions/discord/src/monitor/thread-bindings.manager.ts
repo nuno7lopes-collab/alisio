@@ -1,4 +1,4 @@
-import { getRuntimeConfigSnapshot, type OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import { getRuntimeConfigSnapshot, type AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   registerSessionBindingAdapter,
   resolveThreadBindingConversationIdFromBindingId,
@@ -172,7 +172,7 @@ export function createThreadBindingManager(
   params: {
     accountId?: string;
     token?: string;
-    cfg?: OpenClawConfig;
+    cfg?: AlisioConfig;
     persist?: boolean;
     enableSweeper?: boolean;
     idleTimeoutMs?: number;

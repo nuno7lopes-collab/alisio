@@ -85,7 +85,7 @@ export function isMemoryPath(relPath: string): boolean {
   if (!normalized) {
     return false;
   }
-  if (normalized === "MEMORY.md" || normalized === "memory.md") {
+  if (normalized === "MEMORY.md") {
     return true;
   }
   return normalized.startsWith("memory/");
@@ -129,7 +129,6 @@ export async function listMemoryFiles(
 ): Promise<string[]> {
   const result: string[] = [];
   const memoryFile = path.join(workspaceDir, "MEMORY.md");
-  const altMemoryFile = path.join(workspaceDir, "memory.md");
   const memoryDir = path.join(workspaceDir, "memory");
 
   const addMarkdownFile = async (absPath: string) => {
@@ -146,7 +145,6 @@ export async function listMemoryFiles(
   };
 
   await addMarkdownFile(memoryFile);
-  await addMarkdownFile(altMemoryFile);
   try {
     const dirStat = await fs.lstat(memoryDir);
     if (!dirStat.isSymbolicLink() && dirStat.isDirectory()) {

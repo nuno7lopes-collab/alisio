@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/vllm-provider",
+  "name": "@alisio/vllm-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw vLLM provider plugin",
+  "description": "Alisio vLLM provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

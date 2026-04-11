@@ -13,6 +13,13 @@ import { log } from "./logger.js";
 type SessionManagerLike = ReturnType<typeof SessionManager.open>;
 type SessionBranchEntry = ReturnType<SessionManagerLike["getBranch"]>[number];
 
+export type TranscriptLeafRestoreResult = {
+  changed: boolean;
+  previousLeafId: string | null;
+  restoredToEntryId: string | null;
+  reason?: string;
+};
+
 function estimateMessageBytes(message: AgentMessage): number {
   return Buffer.byteLength(JSON.stringify(message), "utf8");
 }
@@ -81,6 +88,49 @@ function appendBranchEntry(params: {
     remapEntryId(entry.targetId, rewrittenEntryIds) ?? entry.targetId,
     entry.label,
   );
+}
+
+export function restoreTranscriptLeafInSessionManager(params: {
+  sessionManager: SessionManagerLike;
+  targetEntryId: string | null;
+}): TranscriptLeafRestoreResult {
+  const previousLeafId =
+    (params.sessionManager.getLeafEntry() as { id?: string } | null | undefined)?.id ?? null;
+  if (previousLeafId === params.targetEntryId) {
+    return {
+      changed: false,
+      previousLeafId,
+      restoredToEntryId: params.targetEntryId,
+      reason: "already at requested transcript leaf",
+    };
+  }
+
+  if (params.targetEntryId === null) {
+    params.sessionManager.resetLeaf();
+    return {
+      changed: true,
+      previousLeafId,
+      restoredToEntryId: null,
+    };
+  }
+
+  const branch = params.sessionManager.getBranch();
+  const targetExists = branch.some((entry) => entry.id === params.targetEntryId);
+  if (!targetExists) {
+    return {
+      changed: false,
+      previousLeafId,
+      restoredToEntryId: params.targetEntryId,
+      reason: "requested transcript leaf not found on active branch",
+    };
+  }
+
+  params.sessionManager.branch(params.targetEntryId);
+  return {
+    changed: true,
+    previousLeafId,
+    restoredToEntryId: params.targetEntryId,
+  };
 }
 
 /**
@@ -224,6 +274,45 @@ export async function rewriteTranscriptEntriesInSessionFile(params: {
       changed: false,
       bytesFreed: 0,
       rewrittenEntries: 0,
+      reason,
+    };
+  } finally {
+    await sessionLock?.release();
+  }
+}
+
+export async function restoreTranscriptLeafInSessionFile(params: {
+  sessionFile: string;
+  sessionId?: string;
+  sessionKey?: string;
+  targetEntryId: string | null;
+}): Promise<TranscriptLeafRestoreResult> {
+  let sessionLock: Awaited<ReturnType<typeof acquireSessionWriteLock>> | undefined;
+  try {
+    sessionLock = await acquireSessionWriteLock({
+      sessionFile: params.sessionFile,
+    });
+    const sessionManager = SessionManager.open(params.sessionFile);
+    const result = restoreTranscriptLeafInSessionManager({
+      sessionManager,
+      targetEntryId: params.targetEntryId,
+    });
+    if (result.changed) {
+      emitSessionTranscriptUpdate(params.sessionFile);
+      log.info(
+        `[transcript-rewind] restored leaf from ${result.previousLeafId ?? "root"} to ` +
+          `${result.restoredToEntryId ?? "root"} ` +
+          `sessionKey=${params.sessionKey ?? params.sessionId ?? "unknown"}`,
+      );
+    }
+    return result;
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    log.warn(`[transcript-rewind] failed: ${reason}`);
+    return {
+      changed: false,
+      previousLeafId: null,
+      restoredToEntryId: params.targetEntryId,
       reason,
     };
   } finally {

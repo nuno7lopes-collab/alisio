@@ -3,13 +3,12 @@
 
 export type { ChannelMessageActionAdapter } from "../channels/plugins/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export type { SignalAccountConfig } from "../config/types.js";
 export type { ResolvedSignalAccount } from "./signal-surface.js";
 export type {
   ChannelMessageActionContext,
   ChannelPlugin,
-  OpenClawPluginApi,
+  AlisioPluginApi,
   PluginRuntime,
 } from "./channel-plugin-common.js";
 export type { ChannelSetupAdapter } from "../channels/plugins/types.adapters.js";

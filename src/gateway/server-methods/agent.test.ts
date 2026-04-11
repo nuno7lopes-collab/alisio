@@ -8,7 +8,7 @@ import { agentHandlers } from "./agent.js";
 import { expectSubagentFollowupReactivation } from "./subagent-followup.test-helpers.js";
 import type { GatewayRequestContext } from "./types.js";
 
-const ORIGINAL_STATE_DIR = process.env.OPENCLAW_STATE_DIR;
+const ORIGINAL_STATE_DIR = process.env.ALISIO_STATE_DIR;
 
 const mocks = vi.hoisted(() => ({
   loadSessionEntry: vi.fn(),
@@ -316,9 +316,9 @@ async function invokeAgentIdentityGet(
 describe("gateway agent handler", () => {
   afterEach(() => {
     if (ORIGINAL_STATE_DIR === undefined) {
-      delete process.env.OPENCLAW_STATE_DIR;
+      delete process.env.ALISIO_STATE_DIR;
     } else {
-      process.env.OPENCLAW_STATE_DIR = ORIGINAL_STATE_DIR;
+      process.env.ALISIO_STATE_DIR = ORIGINAL_STATE_DIR;
     }
     resetTaskRegistryForTests();
   });
@@ -881,8 +881,8 @@ describe("gateway agent handler", () => {
   });
 
   it("tracks async gateway agent runs in the shared task registry", async () => {
-    await withTempDir({ prefix: "openclaw-gateway-agent-task-" }, async (root) => {
-      process.env.OPENCLAW_STATE_DIR = root;
+    await withTempDir({ prefix: "alisio-gateway-agent-task-" }, async (root) => {
+      process.env.ALISIO_STATE_DIR = root;
       resetTaskRegistryForTests();
       primeMainAgentRun();
 
@@ -1079,8 +1079,8 @@ describe("gateway agent handler", () => {
   });
 
   it("uses the Alisio account agent name as the identity fallback", async () => {
-    await withTempDir({ prefix: "openclaw-gateway-agent-identity-" }, async (root) => {
-      process.env.OPENCLAW_STATE_DIR = root;
+    await withTempDir({ prefix: "alisio-gateway-agent-identity-" }, async (root) => {
+      process.env.ALISIO_STATE_DIR = root;
       const statePath = path.join(root, "alisio", "state.json");
       await fs.mkdir(path.dirname(statePath), { recursive: true });
       await fs.writeFile(

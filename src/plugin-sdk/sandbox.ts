@@ -20,7 +20,6 @@ export type {
   SshSandboxSettings,
 } from "../agents/sandbox.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 
 export {
   buildExecRemoteCommand,
@@ -47,7 +46,4 @@ export {
   type PluginCommandRunOptions,
   type PluginCommandRunResult,
 } from "./run-command.js";
-export {
-  resolvePreferredAlisioTmpDir,
-  resolvePreferredAlisioTmpDir as resolvePreferredOpenClawTmpDir,
-} from "../infra/tmp-alisio-dir.js";
+export { resolvePreferredAlisioTmpDir } from "../infra/tmp-alisio-dir.js";

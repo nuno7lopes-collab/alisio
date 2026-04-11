@@ -2,7 +2,7 @@ import { hasControlCommand } from "alisio/plugin-sdk/command-auth";
 import { createInboundDebouncer, resolveInboundDebounceMs } from "alisio/plugin-sdk/reply-runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../test/helpers/plugins/plugin-runtime-mock.js";
-import type { ClawdbotConfig, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, RuntimeEnv } from "../runtime-api.js";
 import { monitorSingleAccount } from "./monitor.account.js";
 import { setFeishuRuntime } from "./runtime.js";
 import type { ResolvedFeishuAccount } from "./types.js";
@@ -15,7 +15,7 @@ const sendCardFeishuMock = vi.hoisted(() => vi.fn(async () => ({ messageId: "m1"
 const createFeishuThreadBindingManagerMock = vi.hoisted(() => vi.fn(() => ({ stop: vi.fn() })));
 
 let handlers: Record<string, (data: unknown) => Promise<void>> = {};
-const originalStateDir = process.env.OPENCLAW_STATE_DIR;
+const originalStateDir = process.env.ALISIO_STATE_DIR;
 
 vi.mock("./client.js", () => ({
   createEventDispatcher: createEventDispatcherMock,
@@ -95,7 +95,7 @@ async function registerHandlers() {
   createEventDispatcherMock.mockReturnValue({ register });
 
   await monitorSingleAccount({
-    cfg: {} as ClawdbotConfig,
+    cfg: {} as AlisioConfig,
     account: buildAccount(),
     runtime: {
       log: vi.fn(),
@@ -120,15 +120,15 @@ describe("Feishu bot menu handler", () => {
   beforeEach(() => {
     handlers = {};
     vi.clearAllMocks();
-    process.env.OPENCLAW_STATE_DIR = `/tmp/openclaw-feishu-bot-menu-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    process.env.ALISIO_STATE_DIR = `/tmp/alisio-feishu-bot-menu-test-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   });
 
   afterEach(() => {
     if (originalStateDir === undefined) {
-      delete process.env.OPENCLAW_STATE_DIR;
+      delete process.env.ALISIO_STATE_DIR;
       return;
     }
-    process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    process.env.ALISIO_STATE_DIR = originalStateDir;
   });
 
   it("opens the quick-action launcher card at the webhook/event layer", async () => {

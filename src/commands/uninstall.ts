@@ -91,9 +91,9 @@ async function removeMacApp(runtime: RuntimeEnv, dryRun?: boolean) {
     dryRun,
     label: "/Applications/Alisio.app",
   });
-  await removePath("/Applications/OpenClaw.app", runtime, {
+  await removePath("/Applications/Alisio.app", runtime, {
     dryRun,
-    label: "/Applications/OpenClaw.app",
+    label: "/Applications/Alisio.app",
   });
 }
 

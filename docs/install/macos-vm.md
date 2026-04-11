@@ -20,9 +20,9 @@ Use a macOS VM when you specifically need macOS-only capabilities (iMessage/Blue
 
 ## macOS VM options
 
-### Local VM on your Apple Silicon Mac (Lume)
+### Local VM on your Apple Silicon Mac
 
-Run Alisio in a sandboxed macOS VM on your existing Apple Silicon Mac using [Lume](https://cua.ai/docs/lume).
+Run Alisio in a sandboxed macOS VM on your existing Apple Silicon Mac using a third-party Apple Silicon macOS VM CLI.
 
 This gives you:
 
@@ -42,18 +42,18 @@ Once you have SSH access to a macOS VM, continue at step 6 below.
 
 ---
 
-## Quick path (Lume, experienced users)
+## Quick path (experienced users)
 
-1. Install Lume
-2. `lume create alisio --os macos --ipsw latest`
+1. Install your preferred macOS VM CLI
+2. `<vm-cli> create alisio --os macos --ipsw latest`
 3. Complete Setup Assistant, enable Remote Login (SSH)
-4. `lume run alisio --no-display`
+4. `<vm-cli> run alisio --no-display`
 5. SSH in, install Alisio, configure channels
 6. Done
 
 ---
 
-## What you need (Lume)
+## What you need
 
 - Apple Silicon Mac (M1/M2/M3/M4)
 - macOS Sequoia or later on the host
@@ -62,11 +62,9 @@ Once you have SSH access to a macOS VM, continue at step 6 below.
 
 ---
 
-## 1) Install Lume
+## 1) Install your macOS VM CLI
 
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/lume/scripts/install.sh)"
-```
+Follow your VM provider's installation guide for its Apple Silicon macOS CLI.
 
 If `~/.local/bin` isn't in your PATH:
 
@@ -77,17 +75,17 @@ echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.zshrc && source ~/.zshrc
 Verify:
 
 ```bash
-lume --version
+<vm-cli> --version
 ```
 
-Docs: [Lume Installation](https://cua.ai/docs/lume/guide/getting-started/installation)
+Tip: verify that your CLI can create, clone, stop, and run named macOS VMs before continuing.
 
 ---
 
 ## 2) Create the macOS VM
 
 ```bash
-lume create alisio --os macos --ipsw latest
+<vm-cli> create alisio --os macos --ipsw latest
 ```
 
 This downloads macOS and creates the VM. A VNC window opens automatically.
@@ -115,7 +113,7 @@ After setup completes, enable SSH:
 ## 4) Get the VM IP address
 
 ```bash
-lume get alisio
+<vm-cli> get alisio
 ```
 
 Look for the IP address (usually `192.168.64.x`).
@@ -182,8 +180,8 @@ alisio channels login
 Stop the VM and restart without display:
 
 ```bash
-lume stop alisio
-lume run alisio --no-display
+<vm-cli> stop alisio
+<vm-cli> run alisio --no-display
 ```
 
 The VM runs in the background. Alisio's daemon keeps the gateway running.
@@ -232,16 +230,16 @@ Full setup details: [BlueBubbles channel](/channels/bluebubbles)
 Before customizing further, snapshot your clean state:
 
 ```bash
-lume stop alisio
-lume clone alisio alisio-golden
+<vm-cli> stop alisio
+<vm-cli> clone alisio alisio-golden
 ```
 
 Reset anytime:
 
 ```bash
-lume stop alisio && lume delete alisio
-lume clone alisio-golden alisio
-lume run alisio --no-display
+<vm-cli> stop alisio && <vm-cli> delete alisio
+<vm-cli> clone alisio-golden alisio
+<vm-cli> run alisio --no-display
 ```
 
 ---
@@ -263,8 +261,8 @@ For true always-on, consider a dedicated Mac mini or a small VPS. See [VPS hosti
 | Problem                  | Solution                                                                         |
 | ------------------------ | -------------------------------------------------------------------------------- |
 | Can't SSH into VM        | Check "Remote Login" is enabled in VM's System Settings                          |
-| VM IP not showing        | Wait for VM to fully boot, run `lume get alisio` again                           |
-| Lume command not found   | Add `~/.local/bin` to your PATH                                                  |
+| VM IP not showing        | Wait for VM to fully boot, run `<vm-cli> get alisio` again                       |
+| VM CLI command not found | Add your CLI install path to `PATH`                                              |
 | WhatsApp QR not scanning | Ensure you're logged into the VM (not host) when running `alisio channels login` |
 
 ---
@@ -275,7 +273,4 @@ For true always-on, consider a dedicated Mac mini or a small VPS. See [VPS hosti
 - [Nodes](/nodes)
 - [Gateway remote](/gateway/remote)
 - [BlueBubbles channel](/channels/bluebubbles)
-- [Lume Quickstart](https://cua.ai/docs/lume/guide/getting-started/quickstart)
-- [Lume CLI Reference](https://cua.ai/docs/lume/reference/cli-reference)
-- [Unattended VM Setup](https://cua.ai/docs/lume/guide/fundamentals/unattended-setup) (advanced)
 - [Docker Sandboxing](/install/docker) (alternative isolation approach)

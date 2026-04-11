@@ -1,16 +1,13 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import type { AlisioConfig } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { resetEmbeddingMocks } from "./embedding.test-mocks.js";
 import type { MemoryIndexManager } from "./index.js";
 import { getRequiredMemoryIndexManager } from "./test-manager-helpers.js";
 
-function createMemorySearchCfg(options: {
-  workspaceDir: string;
-  indexPath: string;
-}): OpenClawConfig {
+function createMemorySearchCfg(options: { workspaceDir: string; indexPath: string }): AlisioConfig {
   return {
     agents: {
       defaults: {
@@ -26,7 +23,7 @@ function createMemorySearchCfg(options: {
       },
       list: [{ id: "main", default: true }],
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 describe("MemoryIndexManager.readFile", () => {
@@ -37,7 +34,7 @@ describe("MemoryIndexManager.readFile", () => {
 
   beforeAll(async () => {
     resetEmbeddingMocks();
-    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-mem-read-"));
+    workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-mem-read-"));
     indexPath = path.join(workspaceDir, "index.sqlite");
     memoryDir = path.join(workspaceDir, "memory");
     await fs.mkdir(memoryDir, { recursive: true });

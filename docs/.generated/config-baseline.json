@@ -13155,7 +13155,7 @@
         "performance"
       ],
       "label": "Discord EventQueue Listener Timeout (ms)",
-      "help": "Canonical Discord listener timeout control in ms for gateway normalization/enqueue handlers. Default is 120000 in OpenClaw; set per account via channels.discord.accounts.<id>.eventQueue.listenerTimeout.",
+      "help": "Canonical Discord listener timeout control in ms for gateway normalization/enqueue handlers. Default is 120000 in Alisio; set per account via channels.discord.accounts.<id>.eventQueue.listenerTimeout.",
       "hasChildren": false
     },
     {
@@ -31153,7 +31153,7 @@
         "network"
       ],
       "label": "Synology Chat",
-      "help": "Connect your Synology NAS Chat to OpenClaw with full agent capabilities.",
+      "help": "Connect your Synology NAS Chat to Alisio with full agent capabilities.",
       "hasChildren": true
     },
     {
@@ -34259,7 +34259,7 @@
         "network"
       ],
       "label": "Telegram Exec Approval Approvers",
-      "help": "Telegram user IDs allowed to approve exec requests for this bot account. Use numeric Telegram user IDs. If you leave this unset, OpenClaw falls back to numeric owner IDs inferred from channels.telegram.allowFrom and direct-message defaultTo when possible.",
+      "help": "Telegram user IDs allowed to approve exec requests for this bot account. Use numeric Telegram user IDs. If you leave this unset, Alisio falls back to numeric owner IDs inferred from channels.telegram.allowFrom and direct-message defaultTo when possible.",
       "hasChildren": true
     },
     {
@@ -46018,7 +46018,7 @@
         "advanced"
       ],
       "label": "Plugin Tools MCP Bridge",
-      "help": "Default off. When enabled, inject the built-in OpenClaw plugin-tools MCP server into ACPX sessions so ACP agents can call plugin-registered tools.",
+      "help": "Default off. When enabled, inject the built-in Alisio plugin-tools MCP server into ACPX sessions so ACP agents can call plugin-registered tools.",
       "hasChildren": false
     },
     {
@@ -46033,7 +46033,7 @@
         "advanced"
       ],
       "label": "Queue Owner TTL Seconds",
-      "help": "Idle queue-owner TTL for acpx prompt turns. Keep this short in OpenClaw to avoid delayed completion after each turn.",
+      "help": "Idle queue-owner TTL for acpx prompt turns. Keep this short in Alisio to avoid delayed completion after each turn.",
       "hasChildren": false
     },
     {
@@ -46168,8 +46168,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/amazon-bedrock-provider",
-      "help": "OpenClaw Amazon Bedrock provider plugin (plugin: amazon-bedrock)",
+      "label": "@alisio/amazon-bedrock-provider",
+      "help": "Alisio Amazon Bedrock provider plugin (plugin: amazon-bedrock)",
       "hasChildren": true
     },
     {
@@ -46182,7 +46182,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/amazon-bedrock-provider Config",
+      "label": "@alisio/amazon-bedrock-provider Config",
       "help": "Plugin-defined config payload for amazon-bedrock.",
       "hasChildren": false
     },
@@ -46196,7 +46196,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/amazon-bedrock-provider",
+      "label": "Enable @alisio/amazon-bedrock-provider",
       "hasChildren": false
     },
     {
@@ -46289,8 +46289,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/anthropic-provider",
-      "help": "OpenClaw Anthropic provider plugin (plugin: anthropic)",
+      "label": "@alisio/anthropic-provider",
+      "help": "Alisio Anthropic provider plugin (plugin: anthropic)",
       "hasChildren": true
     },
     {
@@ -46303,8 +46303,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/anthropic-vertex-provider",
-      "help": "OpenClaw Anthropic Vertex provider plugin (plugin: anthropic-vertex)",
+      "label": "@alisio/anthropic-vertex-provider",
+      "help": "Alisio Anthropic Vertex provider plugin (plugin: anthropic-vertex)",
       "hasChildren": true
     },
     {
@@ -46317,7 +46317,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/anthropic-vertex-provider Config",
+      "label": "@alisio/anthropic-vertex-provider Config",
       "help": "Plugin-defined config payload for anthropic-vertex.",
       "hasChildren": false
     },
@@ -46331,7 +46331,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/anthropic-vertex-provider",
+      "label": "Enable @alisio/anthropic-vertex-provider",
       "hasChildren": false
     },
     {
@@ -46424,7 +46424,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/anthropic-provider Config",
+      "label": "@alisio/anthropic-provider Config",
       "help": "Plugin-defined config payload for anthropic.",
       "hasChildren": false
     },
@@ -46438,7 +46438,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/anthropic-provider",
+      "label": "Enable @alisio/anthropic-provider",
       "hasChildren": false
     },
     {
@@ -46531,8 +46531,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/bluebubbles",
-      "help": "OpenClaw BlueBubbles channel plugin (plugin: bluebubbles)",
+      "label": "@alisio/bluebubbles",
+      "help": "Alisio BlueBubbles channel plugin (plugin: bluebubbles)",
       "hasChildren": true
     },
     {
@@ -46545,7 +46545,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/bluebubbles Config",
+      "label": "@alisio/bluebubbles Config",
       "help": "Plugin-defined config payload for bluebubbles.",
       "hasChildren": false
     },
@@ -46559,7 +46559,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/bluebubbles",
+      "label": "Enable @alisio/bluebubbles",
       "hasChildren": false
     },
     {
@@ -46652,8 +46652,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/brave-plugin",
-      "help": "OpenClaw Brave plugin (plugin: brave)",
+      "label": "@alisio/brave-plugin",
+      "help": "Alisio Brave plugin (plugin: brave)",
       "hasChildren": true
     },
     {
@@ -46666,7 +46666,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/brave-plugin Config",
+      "label": "@alisio/brave-plugin Config",
       "help": "Plugin-defined config payload for brave.",
       "hasChildren": true
     },
@@ -46726,7 +46726,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/brave-plugin",
+      "label": "Enable @alisio/brave-plugin",
       "hasChildren": false
     },
     {
@@ -46819,8 +46819,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/browser-plugin",
-      "help": "OpenClaw browser tool plugin (plugin: browser)",
+      "label": "@alisio/browser-plugin",
+      "help": "Alisio browser tool plugin (plugin: browser)",
       "hasChildren": true
     },
     {
@@ -46833,7 +46833,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/browser-plugin Config",
+      "label": "@alisio/browser-plugin Config",
       "help": "Plugin-defined config payload for browser.",
       "hasChildren": false
     },
@@ -46847,7 +46847,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/browser-plugin",
+      "label": "Enable @alisio/browser-plugin",
       "hasChildren": false
     },
     {
@@ -46940,8 +46940,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/byteplus-provider",
-      "help": "OpenClaw BytePlus provider plugin (plugin: byteplus)",
+      "label": "@alisio/byteplus-provider",
+      "help": "Alisio BytePlus provider plugin (plugin: byteplus)",
       "hasChildren": true
     },
     {
@@ -46954,7 +46954,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/byteplus-provider Config",
+      "label": "@alisio/byteplus-provider Config",
       "help": "Plugin-defined config payload for byteplus.",
       "hasChildren": false
     },
@@ -46968,7 +46968,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/byteplus-provider",
+      "label": "Enable @alisio/byteplus-provider",
       "hasChildren": false
     },
     {
@@ -47061,8 +47061,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/chutes-provider",
-      "help": "OpenClaw Chutes.ai provider plugin (plugin: chutes)",
+      "label": "@alisio/chutes-provider",
+      "help": "Alisio Chutes.ai provider plugin (plugin: chutes)",
       "hasChildren": true
     },
     {
@@ -47075,7 +47075,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/chutes-provider Config",
+      "label": "@alisio/chutes-provider Config",
       "help": "Plugin-defined config payload for chutes.",
       "hasChildren": false
     },
@@ -47089,7 +47089,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/chutes-provider",
+      "label": "Enable @alisio/chutes-provider",
       "hasChildren": false
     },
     {
@@ -47182,8 +47182,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/cloudflare-ai-gateway-provider",
-      "help": "OpenClaw Cloudflare AI Gateway provider plugin (plugin: cloudflare-ai-gateway)",
+      "label": "@alisio/cloudflare-ai-gateway-provider",
+      "help": "Alisio Cloudflare AI Gateway provider plugin (plugin: cloudflare-ai-gateway)",
       "hasChildren": true
     },
     {
@@ -47196,7 +47196,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/cloudflare-ai-gateway-provider Config",
+      "label": "@alisio/cloudflare-ai-gateway-provider Config",
       "help": "Plugin-defined config payload for cloudflare-ai-gateway.",
       "hasChildren": false
     },
@@ -47210,7 +47210,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/cloudflare-ai-gateway-provider",
+      "label": "Enable @alisio/cloudflare-ai-gateway-provider",
       "hasChildren": false
     },
     {
@@ -47303,8 +47303,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/copilot-proxy",
-      "help": "OpenClaw Copilot Proxy provider plugin (plugin: copilot-proxy)",
+      "label": "@alisio/copilot-proxy",
+      "help": "Alisio Copilot Proxy provider plugin (plugin: copilot-proxy)",
       "hasChildren": true
     },
     {
@@ -47317,7 +47317,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/copilot-proxy Config",
+      "label": "@alisio/copilot-proxy Config",
       "help": "Plugin-defined config payload for copilot-proxy.",
       "hasChildren": false
     },
@@ -47331,7 +47331,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/copilot-proxy",
+      "label": "Enable @alisio/copilot-proxy",
       "hasChildren": false
     },
     {
@@ -47424,8 +47424,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/deepgram-provider",
-      "help": "OpenClaw Deepgram media-understanding provider (plugin: deepgram)",
+      "label": "@alisio/deepgram-provider",
+      "help": "Alisio Deepgram media-understanding provider (plugin: deepgram)",
       "hasChildren": true
     },
     {
@@ -47438,7 +47438,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/deepgram-provider Config",
+      "label": "@alisio/deepgram-provider Config",
       "help": "Plugin-defined config payload for deepgram.",
       "hasChildren": false
     },
@@ -47452,7 +47452,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/deepgram-provider",
+      "label": "Enable @alisio/deepgram-provider",
       "hasChildren": false
     },
     {
@@ -47545,8 +47545,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/deepseek-provider",
-      "help": "OpenClaw DeepSeek provider plugin (plugin: deepseek)",
+      "label": "@alisio/deepseek-provider",
+      "help": "Alisio DeepSeek provider plugin (plugin: deepseek)",
       "hasChildren": true
     },
     {
@@ -47559,7 +47559,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/deepseek-provider Config",
+      "label": "@alisio/deepseek-provider Config",
       "help": "Plugin-defined config payload for deepseek.",
       "hasChildren": false
     },
@@ -47573,7 +47573,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/deepseek-provider",
+      "label": "Enable @alisio/deepseek-provider",
       "hasChildren": false
     },
     {
@@ -47801,8 +47801,8 @@
       "tags": [
         "observability"
       ],
-      "label": "@openclaw/diagnostics-otel",
-      "help": "OpenClaw diagnostics OpenTelemetry exporter (plugin: diagnostics-otel)",
+      "label": "@alisio/diagnostics-otel",
+      "help": "Alisio diagnostics OpenTelemetry exporter (plugin: diagnostics-otel)",
       "hasChildren": true
     },
     {
@@ -47815,7 +47815,7 @@
       "tags": [
         "observability"
       ],
-      "label": "@openclaw/diagnostics-otel Config",
+      "label": "@alisio/diagnostics-otel Config",
       "help": "Plugin-defined config payload for diagnostics-otel.",
       "hasChildren": false
     },
@@ -47829,7 +47829,7 @@
       "tags": [
         "observability"
       ],
-      "label": "Enable @openclaw/diagnostics-otel",
+      "label": "Enable @alisio/diagnostics-otel",
       "hasChildren": false
     },
     {
@@ -48380,8 +48380,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/discord",
-      "help": "OpenClaw Discord channel plugin (plugin: discord)",
+      "label": "@alisio/discord",
+      "help": "Alisio Discord channel plugin (plugin: discord)",
       "hasChildren": true
     },
     {
@@ -48394,7 +48394,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/discord Config",
+      "label": "@alisio/discord Config",
       "help": "Plugin-defined config payload for discord.",
       "hasChildren": false
     },
@@ -48408,7 +48408,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/discord",
+      "label": "Enable @alisio/discord",
       "hasChildren": false
     },
     {
@@ -48501,8 +48501,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/duckduckgo-plugin",
-      "help": "OpenClaw DuckDuckGo plugin (plugin: duckduckgo)",
+      "label": "@alisio/duckduckgo-plugin",
+      "help": "Alisio DuckDuckGo plugin (plugin: duckduckgo)",
       "hasChildren": true
     },
     {
@@ -48515,7 +48515,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/duckduckgo-plugin Config",
+      "label": "@alisio/duckduckgo-plugin Config",
       "help": "Plugin-defined config payload for duckduckgo.",
       "hasChildren": true
     },
@@ -48572,7 +48572,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/duckduckgo-plugin",
+      "label": "Enable @alisio/duckduckgo-plugin",
       "hasChildren": false
     },
     {
@@ -48665,8 +48665,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/elevenlabs-speech",
-      "help": "OpenClaw ElevenLabs speech plugin (plugin: elevenlabs)",
+      "label": "@alisio/elevenlabs-speech",
+      "help": "Alisio ElevenLabs speech plugin (plugin: elevenlabs)",
       "hasChildren": true
     },
     {
@@ -48679,7 +48679,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/elevenlabs-speech Config",
+      "label": "@alisio/elevenlabs-speech Config",
       "help": "Plugin-defined config payload for elevenlabs.",
       "hasChildren": false
     },
@@ -48693,7 +48693,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/elevenlabs-speech",
+      "label": "Enable @alisio/elevenlabs-speech",
       "hasChildren": false
     },
     {
@@ -48786,8 +48786,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/exa-plugin",
-      "help": "OpenClaw Exa plugin (plugin: exa)",
+      "label": "@alisio/exa-plugin",
+      "help": "Alisio Exa plugin (plugin: exa)",
       "hasChildren": true
     },
     {
@@ -48800,7 +48800,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/exa-plugin Config",
+      "label": "@alisio/exa-plugin Config",
       "help": "Plugin-defined config payload for exa.",
       "hasChildren": true
     },
@@ -48842,7 +48842,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/exa-plugin",
+      "label": "Enable @alisio/exa-plugin",
       "hasChildren": false
     },
     {
@@ -48935,8 +48935,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/fal-provider",
-      "help": "OpenClaw fal provider plugin (plugin: fal)",
+      "label": "@alisio/fal-provider",
+      "help": "Alisio fal provider plugin (plugin: fal)",
       "hasChildren": true
     },
     {
@@ -48949,7 +48949,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/fal-provider Config",
+      "label": "@alisio/fal-provider Config",
       "help": "Plugin-defined config payload for fal.",
       "hasChildren": false
     },
@@ -48963,7 +48963,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/fal-provider",
+      "label": "Enable @alisio/fal-provider",
       "hasChildren": false
     },
     {
@@ -49056,8 +49056,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/feishu",
-      "help": "OpenClaw Feishu/Lark channel plugin (community maintained by @m1heng) (plugin: feishu)",
+      "label": "@alisio/feishu",
+      "help": "Alisio Feishu/Lark channel plugin (community maintained by @m1heng) (plugin: feishu)",
       "hasChildren": true
     },
     {
@@ -49070,7 +49070,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/feishu Config",
+      "label": "@alisio/feishu Config",
       "help": "Plugin-defined config payload for feishu.",
       "hasChildren": false
     },
@@ -49084,7 +49084,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/feishu",
+      "label": "Enable @alisio/feishu",
       "hasChildren": false
     },
     {
@@ -49177,8 +49177,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/firecrawl-plugin",
-      "help": "OpenClaw Firecrawl plugin (plugin: firecrawl)",
+      "label": "@alisio/firecrawl-plugin",
+      "help": "Alisio Firecrawl plugin (plugin: firecrawl)",
       "hasChildren": true
     },
     {
@@ -49191,7 +49191,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/firecrawl-plugin Config",
+      "label": "@alisio/firecrawl-plugin Config",
       "help": "Plugin-defined config payload for firecrawl.",
       "hasChildren": true
     },
@@ -49248,7 +49248,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/firecrawl-plugin",
+      "label": "Enable @alisio/firecrawl-plugin",
       "hasChildren": false
     },
     {
@@ -49341,8 +49341,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/github-copilot-provider",
-      "help": "OpenClaw GitHub Copilot provider plugin (plugin: github-copilot)",
+      "label": "@alisio/github-copilot-provider",
+      "help": "Alisio GitHub Copilot provider plugin (plugin: github-copilot)",
       "hasChildren": true
     },
     {
@@ -49355,7 +49355,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/github-copilot-provider Config",
+      "label": "@alisio/github-copilot-provider Config",
       "help": "Plugin-defined config payload for github-copilot.",
       "hasChildren": false
     },
@@ -49369,7 +49369,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/github-copilot-provider",
+      "label": "Enable @alisio/github-copilot-provider",
       "hasChildren": false
     },
     {
@@ -49462,8 +49462,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/google-plugin",
-      "help": "OpenClaw Google plugin (plugin: google)",
+      "label": "@alisio/google-plugin",
+      "help": "Alisio Google plugin (plugin: google)",
       "hasChildren": true
     },
     {
@@ -49476,7 +49476,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/google-plugin Config",
+      "label": "@alisio/google-plugin Config",
       "help": "Plugin-defined config payload for google.",
       "hasChildren": true
     },
@@ -49532,7 +49532,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/google-plugin",
+      "label": "Enable @alisio/google-plugin",
       "hasChildren": false
     },
     {
@@ -49625,8 +49625,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/googlechat",
-      "help": "OpenClaw Google Chat channel plugin (plugin: googlechat)",
+      "label": "@alisio/googlechat",
+      "help": "Alisio Google Chat channel plugin (plugin: googlechat)",
       "hasChildren": true
     },
     {
@@ -49639,7 +49639,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/googlechat Config",
+      "label": "@alisio/googlechat Config",
       "help": "Plugin-defined config payload for googlechat.",
       "hasChildren": false
     },
@@ -49653,7 +49653,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/googlechat",
+      "label": "Enable @alisio/googlechat",
       "hasChildren": false
     },
     {
@@ -49746,8 +49746,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/groq-provider",
-      "help": "OpenClaw Groq media-understanding provider (plugin: groq)",
+      "label": "@alisio/groq-provider",
+      "help": "Alisio Groq media-understanding provider (plugin: groq)",
       "hasChildren": true
     },
     {
@@ -49760,7 +49760,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/groq-provider Config",
+      "label": "@alisio/groq-provider Config",
       "help": "Plugin-defined config payload for groq.",
       "hasChildren": false
     },
@@ -49774,7 +49774,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/groq-provider",
+      "label": "Enable @alisio/groq-provider",
       "hasChildren": false
     },
     {
@@ -49867,8 +49867,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/huggingface-provider",
-      "help": "OpenClaw Hugging Face provider plugin (plugin: huggingface)",
+      "label": "@alisio/huggingface-provider",
+      "help": "Alisio Hugging Face provider plugin (plugin: huggingface)",
       "hasChildren": true
     },
     {
@@ -49881,7 +49881,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/huggingface-provider Config",
+      "label": "@alisio/huggingface-provider Config",
       "help": "Plugin-defined config payload for huggingface.",
       "hasChildren": false
     },
@@ -49895,7 +49895,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/huggingface-provider",
+      "label": "Enable @alisio/huggingface-provider",
       "hasChildren": false
     },
     {
@@ -49988,8 +49988,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/imessage",
-      "help": "OpenClaw iMessage channel plugin (plugin: imessage)",
+      "label": "@alisio/imessage",
+      "help": "Alisio iMessage channel plugin (plugin: imessage)",
       "hasChildren": true
     },
     {
@@ -50002,7 +50002,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/imessage Config",
+      "label": "@alisio/imessage Config",
       "help": "Plugin-defined config payload for imessage.",
       "hasChildren": false
     },
@@ -50016,7 +50016,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/imessage",
+      "label": "Enable @alisio/imessage",
       "hasChildren": false
     },
     {
@@ -50109,8 +50109,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/irc",
-      "help": "OpenClaw IRC channel plugin (plugin: irc)",
+      "label": "@alisio/irc",
+      "help": "Alisio IRC channel plugin (plugin: irc)",
       "hasChildren": true
     },
     {
@@ -50123,7 +50123,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/irc Config",
+      "label": "@alisio/irc Config",
       "help": "Plugin-defined config payload for irc.",
       "hasChildren": false
     },
@@ -50137,7 +50137,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/irc",
+      "label": "Enable @alisio/irc",
       "hasChildren": false
     },
     {
@@ -50230,8 +50230,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/kilocode-provider",
-      "help": "OpenClaw Kilo Gateway provider plugin (plugin: kilocode)",
+      "label": "@alisio/kilocode-provider",
+      "help": "Alisio Kilo Gateway provider plugin (plugin: kilocode)",
       "hasChildren": true
     },
     {
@@ -50244,7 +50244,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/kilocode-provider Config",
+      "label": "@alisio/kilocode-provider Config",
       "help": "Plugin-defined config payload for kilocode.",
       "hasChildren": false
     },
@@ -50258,7 +50258,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/kilocode-provider",
+      "label": "Enable @alisio/kilocode-provider",
       "hasChildren": false
     },
     {
@@ -50351,8 +50351,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/kimi-provider",
-      "help": "OpenClaw Kimi provider plugin (plugin: kimi)",
+      "label": "@alisio/kimi-provider",
+      "help": "Alisio Kimi provider plugin (plugin: kimi)",
       "hasChildren": true
     },
     {
@@ -50365,7 +50365,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/kimi-provider Config",
+      "label": "@alisio/kimi-provider Config",
       "help": "Plugin-defined config payload for kimi.",
       "hasChildren": false
     },
@@ -50379,7 +50379,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/kimi-provider",
+      "label": "Enable @alisio/kimi-provider",
       "hasChildren": false
     },
     {
@@ -50472,8 +50472,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/line",
-      "help": "OpenClaw LINE channel plugin (plugin: line)",
+      "label": "@alisio/line",
+      "help": "Alisio LINE channel plugin (plugin: line)",
       "hasChildren": true
     },
     {
@@ -50486,7 +50486,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/line Config",
+      "label": "@alisio/line Config",
       "help": "Plugin-defined config payload for line.",
       "hasChildren": false
     },
@@ -50500,7 +50500,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/line",
+      "label": "Enable @alisio/line",
       "hasChildren": false
     },
     {
@@ -50593,8 +50593,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/litellm-provider",
-      "help": "OpenClaw LiteLLM provider plugin (plugin: litellm)",
+      "label": "@alisio/litellm-provider",
+      "help": "Alisio LiteLLM provider plugin (plugin: litellm)",
       "hasChildren": true
     },
     {
@@ -50607,7 +50607,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/litellm-provider Config",
+      "label": "@alisio/litellm-provider Config",
       "help": "Plugin-defined config payload for litellm.",
       "hasChildren": false
     },
@@ -50621,7 +50621,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/litellm-provider",
+      "label": "Enable @alisio/litellm-provider",
       "hasChildren": false
     },
     {
@@ -51026,8 +51026,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/matrix",
-      "help": "OpenClaw Matrix channel plugin (plugin: matrix)",
+      "label": "@alisio/matrix",
+      "help": "Alisio Matrix channel plugin (plugin: matrix)",
       "hasChildren": true
     },
     {
@@ -51040,7 +51040,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/matrix Config",
+      "label": "@alisio/matrix Config",
       "help": "Plugin-defined config payload for matrix.",
       "hasChildren": false
     },
@@ -51054,7 +51054,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/matrix",
+      "label": "Enable @alisio/matrix",
       "hasChildren": false
     },
     {
@@ -51147,8 +51147,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/mattermost",
-      "help": "OpenClaw Mattermost channel plugin (plugin: mattermost)",
+      "label": "@alisio/mattermost",
+      "help": "Alisio Mattermost channel plugin (plugin: mattermost)",
       "hasChildren": true
     },
     {
@@ -51161,7 +51161,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/mattermost Config",
+      "label": "@alisio/mattermost Config",
       "help": "Plugin-defined config payload for mattermost.",
       "hasChildren": false
     },
@@ -51175,7 +51175,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/mattermost",
+      "label": "Enable @alisio/mattermost",
       "hasChildren": false
     },
     {
@@ -51268,8 +51268,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/memory-core",
-      "help": "OpenClaw core memory search plugin (plugin: memory-core)",
+      "label": "@alisio/memory-core",
+      "help": "Alisio core memory search plugin (plugin: memory-core)",
       "hasChildren": true
     },
     {
@@ -51282,7 +51282,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/memory-core Config",
+      "label": "@alisio/memory-core Config",
       "help": "Plugin-defined config payload for memory-core.",
       "hasChildren": false
     },
@@ -51296,7 +51296,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/memory-core",
+      "label": "Enable @alisio/memory-core",
       "hasChildren": false
     },
     {
@@ -51389,8 +51389,8 @@
       "tags": [
         "storage"
       ],
-      "label": "@openclaw/memory-lancedb",
-      "help": "OpenClaw LanceDB-backed long-term memory plugin with auto-recall/capture (plugin: memory-lancedb)",
+      "label": "@alisio/memory-lancedb",
+      "help": "Alisio LanceDB-backed long-term memory plugin with auto-recall/capture (plugin: memory-lancedb)",
       "hasChildren": true
     },
     {
@@ -51403,7 +51403,7 @@
       "tags": [
         "storage"
       ],
-      "label": "@openclaw/memory-lancedb Config",
+      "label": "@alisio/memory-lancedb Config",
       "help": "Plugin-defined config payload for memory-lancedb.",
       "hasChildren": true
     },
@@ -51547,7 +51547,7 @@
       "tags": [
         "storage"
       ],
-      "label": "Enable @openclaw/memory-lancedb",
+      "label": "Enable @alisio/memory-lancedb",
       "hasChildren": false
     },
     {
@@ -51640,8 +51640,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/microsoft-speech",
-      "help": "OpenClaw Microsoft speech plugin (plugin: microsoft)",
+      "label": "@alisio/microsoft-speech",
+      "help": "Alisio Microsoft speech plugin (plugin: microsoft)",
       "hasChildren": true
     },
     {
@@ -51654,8 +51654,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/microsoft-foundry",
-      "help": "OpenClaw Microsoft Foundry provider plugin (plugin: microsoft-foundry)",
+      "label": "@alisio/microsoft-foundry",
+      "help": "Alisio Microsoft Foundry provider plugin (plugin: microsoft-foundry)",
       "hasChildren": true
     },
     {
@@ -51668,7 +51668,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/microsoft-foundry Config",
+      "label": "@alisio/microsoft-foundry Config",
       "help": "Plugin-defined config payload for microsoft-foundry.",
       "hasChildren": false
     },
@@ -51682,7 +51682,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/microsoft-foundry",
+      "label": "Enable @alisio/microsoft-foundry",
       "hasChildren": false
     },
     {
@@ -51775,7 +51775,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/microsoft-speech Config",
+      "label": "@alisio/microsoft-speech Config",
       "help": "Plugin-defined config payload for microsoft.",
       "hasChildren": false
     },
@@ -51789,7 +51789,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/microsoft-speech",
+      "label": "Enable @alisio/microsoft-speech",
       "hasChildren": false
     },
     {
@@ -51882,8 +51882,8 @@
       "tags": [
         "performance"
       ],
-      "label": "@openclaw/minimax-provider",
-      "help": "OpenClaw MiniMax provider and OAuth plugin (plugin: minimax)",
+      "label": "@alisio/minimax-provider",
+      "help": "Alisio MiniMax provider and OAuth plugin (plugin: minimax)",
       "hasChildren": true
     },
     {
@@ -51896,7 +51896,7 @@
       "tags": [
         "performance"
       ],
-      "label": "@openclaw/minimax-provider Config",
+      "label": "@alisio/minimax-provider Config",
       "help": "Plugin-defined config payload for minimax.",
       "hasChildren": false
     },
@@ -51910,7 +51910,7 @@
       "tags": [
         "performance"
       ],
-      "label": "Enable @openclaw/minimax-provider",
+      "label": "Enable @alisio/minimax-provider",
       "hasChildren": false
     },
     {
@@ -52003,8 +52003,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/mistral-provider",
-      "help": "OpenClaw Mistral provider plugin (plugin: mistral)",
+      "label": "@alisio/mistral-provider",
+      "help": "Alisio Mistral provider plugin (plugin: mistral)",
       "hasChildren": true
     },
     {
@@ -52017,7 +52017,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/mistral-provider Config",
+      "label": "@alisio/mistral-provider Config",
       "help": "Plugin-defined config payload for mistral.",
       "hasChildren": false
     },
@@ -52031,7 +52031,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/mistral-provider",
+      "label": "Enable @alisio/mistral-provider",
       "hasChildren": false
     },
     {
@@ -52124,8 +52124,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/modelstudio-provider",
-      "help": "OpenClaw Model Studio provider plugin (plugin: modelstudio)",
+      "label": "@alisio/modelstudio-provider",
+      "help": "Alisio Model Studio provider plugin (plugin: modelstudio)",
       "hasChildren": true
     },
     {
@@ -52138,7 +52138,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/modelstudio-provider Config",
+      "label": "@alisio/modelstudio-provider Config",
       "help": "Plugin-defined config payload for modelstudio.",
       "hasChildren": false
     },
@@ -52152,7 +52152,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/modelstudio-provider",
+      "label": "Enable @alisio/modelstudio-provider",
       "hasChildren": false
     },
     {
@@ -52245,8 +52245,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/moonshot-provider",
-      "help": "OpenClaw Moonshot provider plugin (plugin: moonshot)",
+      "label": "@alisio/moonshot-provider",
+      "help": "Alisio Moonshot provider plugin (plugin: moonshot)",
       "hasChildren": true
     },
     {
@@ -52259,7 +52259,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/moonshot-provider Config",
+      "label": "@alisio/moonshot-provider Config",
       "help": "Plugin-defined config payload for moonshot.",
       "hasChildren": true
     },
@@ -52330,7 +52330,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/moonshot-provider",
+      "label": "Enable @alisio/moonshot-provider",
       "hasChildren": false
     },
     {
@@ -52423,8 +52423,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/msteams",
-      "help": "OpenClaw Microsoft Teams channel plugin (plugin: msteams)",
+      "label": "@alisio/msteams",
+      "help": "Alisio Microsoft Teams channel plugin (plugin: msteams)",
       "hasChildren": true
     },
     {
@@ -52437,7 +52437,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/msteams Config",
+      "label": "@alisio/msteams Config",
       "help": "Plugin-defined config payload for msteams.",
       "hasChildren": false
     },
@@ -52451,7 +52451,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/msteams",
+      "label": "Enable @alisio/msteams",
       "hasChildren": false
     },
     {
@@ -52544,8 +52544,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nextcloud-talk",
-      "help": "OpenClaw Nextcloud Talk channel plugin (plugin: nextcloud-talk)",
+      "label": "@alisio/nextcloud-talk",
+      "help": "Alisio Nextcloud Talk channel plugin (plugin: nextcloud-talk)",
       "hasChildren": true
     },
     {
@@ -52558,7 +52558,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nextcloud-talk Config",
+      "label": "@alisio/nextcloud-talk Config",
       "help": "Plugin-defined config payload for nextcloud-talk.",
       "hasChildren": false
     },
@@ -52572,7 +52572,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/nextcloud-talk",
+      "label": "Enable @alisio/nextcloud-talk",
       "hasChildren": false
     },
     {
@@ -52665,8 +52665,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nostr",
-      "help": "OpenClaw Nostr channel plugin for NIP-04 encrypted DMs (plugin: nostr)",
+      "label": "@alisio/nostr",
+      "help": "Alisio Nostr channel plugin for NIP-04 encrypted DMs (plugin: nostr)",
       "hasChildren": true
     },
     {
@@ -52679,7 +52679,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nostr Config",
+      "label": "@alisio/nostr Config",
       "help": "Plugin-defined config payload for nostr.",
       "hasChildren": false
     },
@@ -52693,7 +52693,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/nostr",
+      "label": "Enable @alisio/nostr",
       "hasChildren": false
     },
     {
@@ -52786,8 +52786,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nvidia-provider",
-      "help": "OpenClaw NVIDIA provider plugin (plugin: nvidia)",
+      "label": "@alisio/nvidia-provider",
+      "help": "Alisio NVIDIA provider plugin (plugin: nvidia)",
       "hasChildren": true
     },
     {
@@ -52800,7 +52800,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/nvidia-provider Config",
+      "label": "@alisio/nvidia-provider Config",
       "help": "Plugin-defined config payload for nvidia.",
       "hasChildren": false
     },
@@ -52814,7 +52814,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/nvidia-provider",
+      "label": "Enable @alisio/nvidia-provider",
       "hasChildren": false
     },
     {
@@ -52907,8 +52907,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/ollama-provider",
-      "help": "OpenClaw Ollama provider plugin (plugin: ollama)",
+      "label": "@alisio/ollama-provider",
+      "help": "Alisio Ollama provider plugin (plugin: ollama)",
       "hasChildren": true
     },
     {
@@ -52921,7 +52921,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/ollama-provider Config",
+      "label": "@alisio/ollama-provider Config",
       "help": "Plugin-defined config payload for ollama.",
       "hasChildren": false
     },
@@ -52935,7 +52935,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/ollama-provider",
+      "label": "Enable @alisio/ollama-provider",
       "hasChildren": false
     },
     {
@@ -53149,8 +53149,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/openai-provider",
-      "help": "OpenClaw OpenAI provider plugins (plugin: openai)",
+      "label": "@alisio/openai-provider",
+      "help": "Alisio OpenAI provider plugins (plugin: openai)",
       "hasChildren": true
     },
     {
@@ -53163,7 +53163,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/openai-provider Config",
+      "label": "@alisio/openai-provider Config",
       "help": "Plugin-defined config payload for openai.",
       "hasChildren": false
     },
@@ -53177,7 +53177,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/openai-provider",
+      "label": "Enable @alisio/openai-provider",
       "hasChildren": false
     },
     {
@@ -53270,8 +53270,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/opencode-provider",
-      "help": "OpenClaw OpenCode Zen provider plugin (plugin: opencode)",
+      "label": "@alisio/opencode-provider",
+      "help": "Alisio OpenCode Zen provider plugin (plugin: opencode)",
       "hasChildren": true
     },
     {
@@ -53284,8 +53284,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/opencode-go-provider",
-      "help": "OpenClaw OpenCode Go provider plugin (plugin: opencode-go)",
+      "label": "@alisio/opencode-go-provider",
+      "help": "Alisio OpenCode Go provider plugin (plugin: opencode-go)",
       "hasChildren": true
     },
     {
@@ -53298,7 +53298,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/opencode-go-provider Config",
+      "label": "@alisio/opencode-go-provider Config",
       "help": "Plugin-defined config payload for opencode-go.",
       "hasChildren": false
     },
@@ -53312,7 +53312,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/opencode-go-provider",
+      "label": "Enable @alisio/opencode-go-provider",
       "hasChildren": false
     },
     {
@@ -53405,7 +53405,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/opencode-provider Config",
+      "label": "@alisio/opencode-provider Config",
       "help": "Plugin-defined config payload for opencode.",
       "hasChildren": false
     },
@@ -53419,7 +53419,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/opencode-provider",
+      "label": "Enable @alisio/opencode-provider",
       "hasChildren": false
     },
     {
@@ -53512,8 +53512,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/openrouter-provider",
-      "help": "OpenClaw OpenRouter provider plugin (plugin: openrouter)",
+      "label": "@alisio/openrouter-provider",
+      "help": "Alisio OpenRouter provider plugin (plugin: openrouter)",
       "hasChildren": true
     },
     {
@@ -53526,7 +53526,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/openrouter-provider Config",
+      "label": "@alisio/openrouter-provider Config",
       "help": "Plugin-defined config payload for openrouter.",
       "hasChildren": false
     },
@@ -53540,7 +53540,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/openrouter-provider",
+      "label": "Enable @alisio/openrouter-provider",
       "hasChildren": false
     },
     {
@@ -53690,7 +53690,7 @@
         "advanced"
       ],
       "label": "Sandbox Source",
-      "help": "OpenShell sandbox source for first-time create. Defaults to openclaw.",
+      "help": "OpenShell sandbox source for first-time create. Defaults to alisio.",
       "hasChildren": false
     },
     {
@@ -53939,8 +53939,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/perplexity-plugin",
-      "help": "OpenClaw Perplexity plugin (plugin: perplexity)",
+      "label": "@alisio/perplexity-plugin",
+      "help": "Alisio Perplexity plugin (plugin: perplexity)",
       "hasChildren": true
     },
     {
@@ -53953,7 +53953,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/perplexity-plugin Config",
+      "label": "@alisio/perplexity-plugin Config",
       "help": "Plugin-defined config payload for perplexity.",
       "hasChildren": true
     },
@@ -54024,7 +54024,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/perplexity-plugin",
+      "label": "Enable @alisio/perplexity-plugin",
       "hasChildren": false
     },
     {
@@ -54238,8 +54238,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/qianfan-provider",
-      "help": "OpenClaw Qianfan provider plugin (plugin: qianfan)",
+      "label": "@alisio/qianfan-provider",
+      "help": "Alisio Qianfan provider plugin (plugin: qianfan)",
       "hasChildren": true
     },
     {
@@ -54252,7 +54252,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/qianfan-provider Config",
+      "label": "@alisio/qianfan-provider Config",
       "help": "Plugin-defined config payload for qianfan.",
       "hasChildren": false
     },
@@ -54266,7 +54266,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/qianfan-provider",
+      "label": "Enable @alisio/qianfan-provider",
       "hasChildren": false
     },
     {
@@ -54359,8 +54359,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/sglang-provider",
-      "help": "OpenClaw SGLang provider plugin (plugin: sglang)",
+      "label": "@alisio/sglang-provider",
+      "help": "Alisio SGLang provider plugin (plugin: sglang)",
       "hasChildren": true
     },
     {
@@ -54373,7 +54373,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/sglang-provider Config",
+      "label": "@alisio/sglang-provider Config",
       "help": "Plugin-defined config payload for sglang.",
       "hasChildren": false
     },
@@ -54387,7 +54387,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/sglang-provider",
+      "label": "Enable @alisio/sglang-provider",
       "hasChildren": false
     },
     {
@@ -54480,8 +54480,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/signal",
-      "help": "OpenClaw Signal channel plugin (plugin: signal)",
+      "label": "@alisio/signal",
+      "help": "Alisio Signal channel plugin (plugin: signal)",
       "hasChildren": true
     },
     {
@@ -54494,7 +54494,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/signal Config",
+      "label": "@alisio/signal Config",
       "help": "Plugin-defined config payload for signal.",
       "hasChildren": false
     },
@@ -54508,7 +54508,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/signal",
+      "label": "Enable @alisio/signal",
       "hasChildren": false
     },
     {
@@ -54601,8 +54601,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/slack",
-      "help": "OpenClaw Slack channel plugin (plugin: slack)",
+      "label": "@alisio/slack",
+      "help": "Alisio Slack channel plugin (plugin: slack)",
       "hasChildren": true
     },
     {
@@ -54615,7 +54615,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/slack Config",
+      "label": "@alisio/slack Config",
       "help": "Plugin-defined config payload for slack.",
       "hasChildren": false
     },
@@ -54629,7 +54629,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/slack",
+      "label": "Enable @alisio/slack",
       "hasChildren": false
     },
     {
@@ -54722,8 +54722,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/synology-chat",
-      "help": "Synology Chat channel plugin for OpenClaw (plugin: synology-chat)",
+      "label": "@alisio/synology-chat",
+      "help": "Synology Chat channel plugin for Alisio (plugin: synology-chat)",
       "hasChildren": true
     },
     {
@@ -54736,7 +54736,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/synology-chat Config",
+      "label": "@alisio/synology-chat Config",
       "help": "Plugin-defined config payload for synology-chat.",
       "hasChildren": false
     },
@@ -54750,7 +54750,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/synology-chat",
+      "label": "Enable @alisio/synology-chat",
       "hasChildren": false
     },
     {
@@ -54843,8 +54843,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/synthetic-provider",
-      "help": "OpenClaw Synthetic provider plugin (plugin: synthetic)",
+      "label": "@alisio/synthetic-provider",
+      "help": "Alisio Synthetic provider plugin (plugin: synthetic)",
       "hasChildren": true
     },
     {
@@ -54857,7 +54857,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/synthetic-provider Config",
+      "label": "@alisio/synthetic-provider Config",
       "help": "Plugin-defined config payload for synthetic.",
       "hasChildren": false
     },
@@ -54871,7 +54871,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/synthetic-provider",
+      "label": "Enable @alisio/synthetic-provider",
       "hasChildren": false
     },
     {
@@ -55085,8 +55085,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/tavily-plugin",
-      "help": "OpenClaw Tavily plugin (plugin: tavily)",
+      "label": "@alisio/tavily-plugin",
+      "help": "Alisio Tavily plugin (plugin: tavily)",
       "hasChildren": true
     },
     {
@@ -55099,7 +55099,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/tavily-plugin Config",
+      "label": "@alisio/tavily-plugin Config",
       "help": "Plugin-defined config payload for tavily.",
       "hasChildren": true
     },
@@ -55156,7 +55156,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/tavily-plugin",
+      "label": "Enable @alisio/tavily-plugin",
       "hasChildren": false
     },
     {
@@ -55249,8 +55249,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/telegram",
-      "help": "OpenClaw Telegram channel plugin (plugin: telegram)",
+      "label": "@alisio/telegram",
+      "help": "Alisio Telegram channel plugin (plugin: telegram)",
       "hasChildren": true
     },
     {
@@ -55263,7 +55263,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/telegram Config",
+      "label": "@alisio/telegram Config",
       "help": "Plugin-defined config payload for telegram.",
       "hasChildren": false
     },
@@ -55277,7 +55277,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/telegram",
+      "label": "Enable @alisio/telegram",
       "hasChildren": false
     },
     {
@@ -55529,8 +55529,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/tlon",
-      "help": "OpenClaw Tlon/Urbit channel plugin (plugin: tlon)",
+      "label": "@alisio/tlon",
+      "help": "Alisio Tlon/Urbit channel plugin (plugin: tlon)",
       "hasChildren": true
     },
     {
@@ -55543,7 +55543,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/tlon Config",
+      "label": "@alisio/tlon Config",
       "help": "Plugin-defined config payload for tlon.",
       "hasChildren": false
     },
@@ -55557,7 +55557,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/tlon",
+      "label": "Enable @alisio/tlon",
       "hasChildren": false
     },
     {
@@ -55650,8 +55650,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/together-provider",
-      "help": "OpenClaw Together provider plugin (plugin: together)",
+      "label": "@alisio/together-provider",
+      "help": "Alisio Together provider plugin (plugin: together)",
       "hasChildren": true
     },
     {
@@ -55664,7 +55664,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/together-provider Config",
+      "label": "@alisio/together-provider Config",
       "help": "Plugin-defined config payload for together.",
       "hasChildren": false
     },
@@ -55678,7 +55678,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/together-provider",
+      "label": "Enable @alisio/together-provider",
       "hasChildren": false
     },
     {
@@ -55771,8 +55771,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/twitch",
-      "help": "OpenClaw Twitch channel plugin (plugin: twitch)",
+      "label": "@alisio/twitch",
+      "help": "Alisio Twitch channel plugin (plugin: twitch)",
       "hasChildren": true
     },
     {
@@ -55785,7 +55785,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/twitch Config",
+      "label": "@alisio/twitch Config",
       "help": "Plugin-defined config payload for twitch.",
       "hasChildren": false
     },
@@ -55799,7 +55799,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/twitch",
+      "label": "Enable @alisio/twitch",
       "hasChildren": false
     },
     {
@@ -55892,8 +55892,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/venice-provider",
-      "help": "OpenClaw Venice provider plugin (plugin: venice)",
+      "label": "@alisio/venice-provider",
+      "help": "Alisio Venice provider plugin (plugin: venice)",
       "hasChildren": true
     },
     {
@@ -55906,7 +55906,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/venice-provider Config",
+      "label": "@alisio/venice-provider Config",
       "help": "Plugin-defined config payload for venice.",
       "hasChildren": false
     },
@@ -55920,7 +55920,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/venice-provider",
+      "label": "Enable @alisio/venice-provider",
       "hasChildren": false
     },
     {
@@ -56013,8 +56013,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/vercel-ai-gateway-provider",
-      "help": "OpenClaw Vercel AI Gateway provider plugin (plugin: vercel-ai-gateway)",
+      "label": "@alisio/vercel-ai-gateway-provider",
+      "help": "Alisio Vercel AI Gateway provider plugin (plugin: vercel-ai-gateway)",
       "hasChildren": true
     },
     {
@@ -56027,7 +56027,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/vercel-ai-gateway-provider Config",
+      "label": "@alisio/vercel-ai-gateway-provider Config",
       "help": "Plugin-defined config payload for vercel-ai-gateway.",
       "hasChildren": false
     },
@@ -56041,7 +56041,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/vercel-ai-gateway-provider",
+      "label": "Enable @alisio/vercel-ai-gateway-provider",
       "hasChildren": false
     },
     {
@@ -56134,8 +56134,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/vllm-provider",
-      "help": "OpenClaw vLLM provider plugin (plugin: vllm)",
+      "label": "@alisio/vllm-provider",
+      "help": "Alisio vLLM provider plugin (plugin: vllm)",
       "hasChildren": true
     },
     {
@@ -56148,7 +56148,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/vllm-provider Config",
+      "label": "@alisio/vllm-provider Config",
       "help": "Plugin-defined config payload for vllm.",
       "hasChildren": false
     },
@@ -56162,7 +56162,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/vllm-provider",
+      "label": "Enable @alisio/vllm-provider",
       "hasChildren": false
     },
     {
@@ -56255,8 +56255,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/voice-call",
-      "help": "OpenClaw voice-call plugin (plugin: voice-call)",
+      "label": "@alisio/voice-call",
+      "help": "Alisio voice-call plugin (plugin: voice-call)",
       "hasChildren": true
     },
     {
@@ -56269,7 +56269,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/voice-call Config",
+      "label": "@alisio/voice-call Config",
       "help": "Plugin-defined config payload for voice-call.",
       "hasChildren": true
     },
@@ -57646,7 +57646,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/voice-call",
+      "label": "Enable @alisio/voice-call",
       "hasChildren": false
     },
     {
@@ -57739,8 +57739,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/volcengine-provider",
-      "help": "OpenClaw Volcengine provider plugin (plugin: volcengine)",
+      "label": "@alisio/volcengine-provider",
+      "help": "Alisio Volcengine provider plugin (plugin: volcengine)",
       "hasChildren": true
     },
     {
@@ -57753,7 +57753,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/volcengine-provider Config",
+      "label": "@alisio/volcengine-provider Config",
       "help": "Plugin-defined config payload for volcengine.",
       "hasChildren": false
     },
@@ -57767,7 +57767,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/volcengine-provider",
+      "label": "Enable @alisio/volcengine-provider",
       "hasChildren": false
     },
     {
@@ -57860,8 +57860,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/whatsapp",
-      "help": "OpenClaw WhatsApp channel plugin (plugin: whatsapp)",
+      "label": "@alisio/whatsapp",
+      "help": "Alisio WhatsApp channel plugin (plugin: whatsapp)",
       "hasChildren": true
     },
     {
@@ -57874,7 +57874,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/whatsapp Config",
+      "label": "@alisio/whatsapp Config",
       "help": "Plugin-defined config payload for whatsapp.",
       "hasChildren": false
     },
@@ -57888,7 +57888,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/whatsapp",
+      "label": "Enable @alisio/whatsapp",
       "hasChildren": false
     },
     {
@@ -57981,8 +57981,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/xai-plugin",
-      "help": "OpenClaw xAI plugin (plugin: xai)",
+      "label": "@alisio/xai-plugin",
+      "help": "Alisio xAI plugin (plugin: xai)",
       "hasChildren": true
     },
     {
@@ -57995,7 +57995,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/xai-plugin Config",
+      "label": "@alisio/xai-plugin Config",
       "help": "Plugin-defined config payload for xai.",
       "hasChildren": true
     },
@@ -58131,7 +58131,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/xai-plugin",
+      "label": "Enable @alisio/xai-plugin",
       "hasChildren": false
     },
     {
@@ -58224,8 +58224,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/xiaomi-provider",
-      "help": "OpenClaw Xiaomi provider plugin (plugin: xiaomi)",
+      "label": "@alisio/xiaomi-provider",
+      "help": "Alisio Xiaomi provider plugin (plugin: xiaomi)",
       "hasChildren": true
     },
     {
@@ -58238,7 +58238,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/xiaomi-provider Config",
+      "label": "@alisio/xiaomi-provider Config",
       "help": "Plugin-defined config payload for xiaomi.",
       "hasChildren": false
     },
@@ -58252,7 +58252,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/xiaomi-provider",
+      "label": "Enable @alisio/xiaomi-provider",
       "hasChildren": false
     },
     {
@@ -58345,8 +58345,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zai-provider",
-      "help": "OpenClaw Z.AI provider plugin (plugin: zai)",
+      "label": "@alisio/zai-provider",
+      "help": "Alisio Z.AI provider plugin (plugin: zai)",
       "hasChildren": true
     },
     {
@@ -58359,7 +58359,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zai-provider Config",
+      "label": "@alisio/zai-provider Config",
       "help": "Plugin-defined config payload for zai.",
       "hasChildren": false
     },
@@ -58373,7 +58373,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/zai-provider",
+      "label": "Enable @alisio/zai-provider",
       "hasChildren": false
     },
     {
@@ -58466,8 +58466,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zalo",
-      "help": "OpenClaw Zalo channel plugin (plugin: zalo)",
+      "label": "@alisio/zalo",
+      "help": "Alisio Zalo channel plugin (plugin: zalo)",
       "hasChildren": true
     },
     {
@@ -58480,7 +58480,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zalo Config",
+      "label": "@alisio/zalo Config",
       "help": "Plugin-defined config payload for zalo.",
       "hasChildren": false
     },
@@ -58494,7 +58494,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/zalo",
+      "label": "Enable @alisio/zalo",
       "hasChildren": false
     },
     {
@@ -58587,8 +58587,8 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zalouser",
-      "help": "OpenClaw Zalo Personal Account plugin via native zca-js integration (plugin: zalouser)",
+      "label": "@alisio/zalouser",
+      "help": "Alisio Zalo Personal Account plugin via native zca-js integration (plugin: zalouser)",
       "hasChildren": true
     },
     {
@@ -58601,7 +58601,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "@openclaw/zalouser Config",
+      "label": "@alisio/zalouser Config",
       "help": "Plugin-defined config payload for zalouser.",
       "hasChildren": false
     },
@@ -58615,7 +58615,7 @@
       "tags": [
         "advanced"
       ],
-      "label": "Enable @openclaw/zalouser",
+      "label": "Enable @alisio/zalouser",
       "hasChildren": false
     },
     {

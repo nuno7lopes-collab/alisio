@@ -13,7 +13,7 @@ import {
   resolveCommandArgMenu,
   type CommandArgs,
 } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ChannelGroupPolicy } from "alisio/plugin-sdk/config-runtime";
 import { getRuntimeConfigSnapshot } from "alisio/plugin-sdk/config-runtime";
 import { resolveMarkdownTableMode } from "alisio/plugin-sdk/config-runtime";
@@ -103,7 +103,7 @@ type TelegramCommandAuthResult = {
 };
 
 export type RegisterTelegramHandlerParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   bot: Bot;
   mediaMaxBytes: number;
@@ -148,7 +148,7 @@ export function parseTelegramNativeCommandCallbackData(data?: string | null): st
 
 export type RegisterTelegramNativeCommandsParams = {
   bot: Bot;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime: RuntimeEnv;
   accountId: string;
   telegramCfg: TelegramAccountConfig;
@@ -173,7 +173,7 @@ export type RegisterTelegramNativeCommandsParams = {
 async function resolveTelegramCommandAuth(params: {
   msg: NonNullable<TelegramNativeCommandContext["message"]>;
   bot: Bot;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   telegramCfg: TelegramAccountConfig;
   readChannelAllowFromStore: TelegramBotDeps["readChannelAllowFromStore"];
@@ -455,8 +455,8 @@ export const registerTelegramNativeCommands = ({
   for (const issue of pluginCatalog.issues) {
     runtime.error?.(danger(issue));
   }
-  const loadFreshRuntimeConfig = (): OpenClawConfig => telegramDeps.loadConfig();
-  const resolveFreshTelegramConfig = (runtimeCfg: OpenClawConfig): TelegramAccountConfig => {
+  const loadFreshRuntimeConfig = (): AlisioConfig => telegramDeps.loadConfig();
+  const resolveFreshTelegramConfig = (runtimeCfg: AlisioConfig): TelegramAccountConfig => {
     try {
       return resolveTelegramAccount({
         cfg: runtimeCfg,
@@ -513,7 +513,7 @@ export const registerTelegramNativeCommands = ({
 
   const resolveCommandRuntimeContext = async (params: {
     msg: NonNullable<TelegramNativeCommandContext["message"]>;
-    runtimeCfg: OpenClawConfig;
+    runtimeCfg: AlisioConfig;
     isGroup: boolean;
     isForum: boolean;
     resolvedThreadId?: number;

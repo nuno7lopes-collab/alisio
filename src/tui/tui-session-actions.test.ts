@@ -128,7 +128,7 @@ describe("tui session actions", () => {
         {
           key: "agent:main:main",
           model: "old-model",
-          modelProvider: "ollama",
+          modelProvider: "vllm",
           updatedAt: 100,
         },
       ],
@@ -146,7 +146,7 @@ describe("tui session actions", () => {
       historyLoaded: false,
       sessionInfo: {
         model: "old-model",
-        modelProvider: "ollama",
+        modelProvider: "vllm",
         updatedAt: 100,
       },
       initialSessionApplied: true,

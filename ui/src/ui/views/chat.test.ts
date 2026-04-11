@@ -3,7 +3,7 @@
 import { render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getSafeLocalStorage } from "../../local-storage.ts";
-import { renderChatSessionSelect } from "../app-render.helpers.ts";
+import { renderChatDesktopToolbar, renderChatSessionSelect } from "../app-render.helpers.ts";
 import type { AppViewState } from "../app-view-state.ts";
 import {
   createModelCatalog,
@@ -1615,6 +1615,17 @@ describe("chat view", () => {
     expect(labels.filter((label) => label === "Deep Chat (alpha) / main")).toHaveLength(1);
     expect(labels).toContain("Deep Chat (alpha) / main · named-main");
     expect(labels).toContain("Coding (beta) / main");
+  });
+
+  it("renders the desktop chat toolbar with session and model controls together", () => {
+    const { state } = createChatHeaderState();
+    const container = document.createElement("div");
+    render(renderChatDesktopToolbar(state), container);
+
+    expect(container.querySelector(".alisio-chat-toolbar")).not.toBeNull();
+    expect(container.querySelector(".chat-controls__session-row")).not.toBeNull();
+    expect(container.querySelector('select[data-chat-model-select="true"]')).not.toBeNull();
+    expect(container.querySelector(".chat-controls")).not.toBeNull();
   });
 
   it("renders the Alisio chat shell wrappers for the redesigned layout", () => {

@@ -5,5 +5,5 @@ export {
   writeConfigFile,
   type BrowserConfig,
   type BrowserProfileConfig,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/browser-support";

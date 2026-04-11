@@ -23,10 +23,9 @@ import Testing
         #expect(cleaned.count == VoiceWakePreferences.maxWords)
     }
 
-    @Test func sanitizeTriggerWordsPromotesLegacyBrandAndDedupes() {
-        let legacyBrand = ["open", "claw"].joined()
+    @Test func sanitizeTriggerWordsDedupesCurrentBrandAndPreservesOrder() {
         #expect(
-            VoiceWakePreferences.sanitizeTriggerWords([legacyBrand, " Alisio ", "claude"]) == ["alisio", "claude"])
+            VoiceWakePreferences.sanitizeTriggerWords(["alisio", " Alisio ", "claude"]) == ["alisio", "claude"])
     }
 
     @Test func displayStringUsesSanitizedWords() {

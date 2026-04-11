@@ -23,23 +23,23 @@ describe("buildUserAgent", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns teams.ts[apps]/<sdk> OpenClaw/<version> format", () => {
+  it("returns teams.ts[apps]/<sdk> Alisio/<version> format", () => {
     const ua = buildUserAgent();
-    expect(ua).toMatch(/^teams\.ts\[apps\]\/.+ OpenClaw\/2026\.3\.19$/);
+    expect(ua).toMatch(/^teams\.ts\[apps\]\/.+ Alisio\/2026\.3\.19$/);
   });
 
   it("reflects the runtime version", () => {
     vi.mocked(getMSTeamsRuntime).mockReturnValue({ version: "1.2.3" } as never);
     const ua = buildUserAgent();
-    expect(ua).toMatch(/OpenClaw\/1\.2\.3$/);
+    expect(ua).toMatch(/Alisio\/1\.2\.3$/);
   });
 
-  it("returns OpenClaw/unknown when runtime is not initialized", () => {
+  it("returns Alisio/unknown when runtime is not initialized", () => {
     vi.mocked(getMSTeamsRuntime).mockImplementation(() => {
       throw new Error("MSTeams runtime not initialized");
     });
     const ua = buildUserAgent();
-    expect(ua).toMatch(/OpenClaw\/unknown$/);
+    expect(ua).toMatch(/Alisio\/unknown$/);
     // SDK version should still be present
     expect(ua).toMatch(/^teams\.ts\[apps\]\//);
   });
@@ -55,7 +55,7 @@ describe("buildUserAgent", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [, init] = mockFetch.mock.calls[0];
-    expect(init.headers["User-Agent"]).toMatch(/^teams\.ts\[apps\]\/.+ OpenClaw\/2026\.3\.19$/);
+    expect(init.headers["User-Agent"]).toMatch(/^teams\.ts\[apps\]\/.+ Alisio\/2026\.3\.19$/);
     expect(init.headers).toHaveProperty("Authorization", "Bearer test-token");
   });
 

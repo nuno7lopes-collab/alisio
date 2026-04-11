@@ -2,7 +2,7 @@ import {
   normalizeAccountId,
   resolveMergedAccountConfig,
 } from "alisio/plugin-sdk/account-resolution";
-import type { OpenClawConfig } from "alisio/plugin-sdk/core";
+import type { AlisioConfig } from "alisio/plugin-sdk/core";
 import type { AllowlistMatch, ChannelGroupContext, GroupToolPolicyConfig } from "../runtime-api.js";
 import { evaluateSenderGroupAccessForPolicy } from "../runtime-api.js";
 import { normalizeFeishuTarget } from "./targets.js";
@@ -110,7 +110,7 @@ export function isFeishuGroupAllowed(params: {
 
 export function resolveFeishuReplyPolicy(params: {
   isDirectMessage: boolean;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   groupId?: string | null;
   /**

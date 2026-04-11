@@ -2177,7 +2177,7 @@ Alisio uses the built-in model catalog. Add custom providers via `models.provide
 - `models.providers.*.api`: request adapter (`openai-completions`, `openai-responses`, `anthropic-messages`, `google-generative-ai`, etc).
 - `models.providers.*.apiKey`: provider credential (prefer SecretRef/env substitution).
 - `models.providers.*.auth`: auth strategy (`api-key`, `token`, `oauth`, `aws-sdk`).
-- `models.providers.*.injectNumCtxForOpenAICompat`: for Ollama + `openai-completions`, inject `options.num_ctx` into requests (default: `true`).
+- `models.providers.*.injectNumCtxForOpenAICompat`: for some OpenAI-compatible backends, inject `options.num_ctx` into requests (default: `true`).
 - `models.providers.*.authHeader`: force credential transport in the `Authorization` header when required.
 - `models.providers.*.baseUrl`: upstream API base URL.
 - `models.providers.*.headers`: extra static headers for proxy/tenant routing.
@@ -2406,9 +2406,9 @@ The model catalog now defaults to M2.7 only.
 
 </Accordion>
 
-<Accordion title="Local models (LM Studio)">
+<Accordion title="Local models">
 
-See [Local Models](/gateway/local-models). TL;DR: run a large local model via LM Studio Responses API on serious hardware; keep hosted models merged for fallback.
+See [Local Models](/gateway/local-models). TL;DR: run a large local model behind an OpenAI-compatible Responses API on serious hardware, and keep hosted models merged for fallback.
 
 </Accordion>
 
@@ -2683,7 +2683,7 @@ Run multiple gateways on one host with unique ports and state dirs:
 ```bash
 ALISIO_CONFIG_PATH=~/.alisio/a.json \
 ALISIO_STATE_DIR=~/.alisio-a \
-alisio gateway --port 19001
+alisio gateway run --port 19001
 ```
 
 Convenience flags: `--dev` (uses `~/.alisio-dev` + port `19001`), `--profile <name>` (uses `~/.alisio-<name>`).

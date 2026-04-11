@@ -30,7 +30,7 @@ import {
   type CommandArgs,
   type NativeCommandSpec,
 } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig, loadConfig } from "alisio/plugin-sdk/config-runtime";
 import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
 import { resolveOpenProviderRuntimeGroupPolicy } from "alisio/plugin-sdk/config-runtime";
 import { buildPairingReply } from "alisio/plugin-sdk/conversation-runtime";
@@ -79,7 +79,7 @@ import { resolveDiscordSenderIdentity } from "./sender-identity.js";
 import type { ThreadBindingManager } from "./thread-bindings.js";
 import { resolveDiscordThreadParentInfo } from "./threading.js";
 
-type DiscordConfig = NonNullable<OpenClawConfig["channels"]>["discord"];
+type DiscordConfig = NonNullable<AlisioConfig["channels"]>["discord"];
 const log = createSubsystemLogger("discord/native-command");
 // Discord application command and option descriptions are limited to 1-100 chars.
 // https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-structure
@@ -139,7 +139,7 @@ function resolveDiscordCommandLogLabel(command: ChatCommandDefinition): string {
 }
 
 function resolveDiscordNativeCommandAllowlistAccess(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   sender: { id: string; name?: string; tag?: string };
   chatType: "direct" | "group" | "thread" | "channel";

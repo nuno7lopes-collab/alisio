@@ -2,10 +2,36 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deviceHandlers } from "./devices.js";
 import type { GatewayRequestHandlerOptions } from "./types.js";
 
-const { removePairedDeviceMock, revokeDeviceTokenMock } = vi.hoisted(() => ({
+const {
+  approveAlisioSharingRequestMock,
+  removePairedDeviceMock,
+  revokeAlisioSharingGrantMock,
+  revokeDeviceTokenMock,
+} = vi.hoisted(() => ({
+  approveAlisioSharingRequestMock: vi.fn(async ({ requestId }: { requestId: string }) => ({
+    ok: true as const,
+    requestId,
+    grantId: "grant-1",
+  })),
   removePairedDeviceMock: vi.fn(),
+  revokeAlisioSharingGrantMock: vi.fn(async ({ grantId }: { grantId: string }) => ({
+    ok: true as const,
+    grantId,
+    targetId: "device-1",
+  })),
   revokeDeviceTokenMock: vi.fn(),
 }));
+
+vi.mock("../../infra/alisio-store.js", async () => {
+  const actual = await vi.importActual<typeof import("../../infra/alisio-store.js")>(
+    "../../infra/alisio-store.js",
+  );
+  return {
+    ...actual,
+    approveAlisioSharingRequest: approveAlisioSharingRequestMock,
+    revokeAlisioSharingGrant: revokeAlisioSharingGrantMock,
+  };
+});
 
 vi.mock("../../infra/device-pairing.js", async () => {
   const actual = await vi.importActual<typeof import("../../infra/device-pairing.js")>(
@@ -30,6 +56,7 @@ function createOptions(
     isWebchatConnect: () => false,
     respond: vi.fn(),
     context: {
+      dedupe: new Map(),
       disconnectClientsForDevice: vi.fn(),
       logGateway: {
         debug: vi.fn(),
@@ -115,6 +142,50 @@ describe("deviceHandlers", () => {
       false,
       undefined,
       expect.objectContaining({ message: "unknown deviceId/role" }),
+    );
+  });
+
+  it("approves a sharing request with canonical grantId output", async () => {
+    const opts = createOptions("devices.share.approve", {
+      requestId: "request-1",
+      idempotencyKey: "approve-1",
+    });
+
+    await deviceHandlers["devices.share.approve"](opts);
+
+    expect(approveAlisioSharingRequestMock).toHaveBeenCalledWith({
+      requestId: "request-1",
+      scopes: undefined,
+    });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        requestId: "request-1",
+        status: "approved",
+        grantId: "grant-1",
+      },
+      undefined,
+    );
+  });
+
+  it("revokes a sharing grant with canonical grantId input", async () => {
+    const opts = createOptions("devices.share.revoke", {
+      grantId: "grant-1",
+      idempotencyKey: "revoke-1",
+    });
+
+    await deviceHandlers["devices.share.revoke"](opts);
+
+    expect(revokeAlisioSharingGrantMock).toHaveBeenCalledWith({ grantId: "grant-1" });
+    expect(opts.respond).toHaveBeenCalledWith(
+      true,
+      {
+        ok: true,
+        grantId: "grant-1",
+        targetId: "device-1",
+      },
+      undefined,
     );
   });
 });

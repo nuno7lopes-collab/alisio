@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createXSearchTool } from "./x-search.js";
 
 const liveEnabled =
-  process.env.OPENCLAW_LIVE_TEST === "1" && (process.env.XAI_API_KEY ?? "").trim().length > 0;
+  process.env.ALISIO_LIVE_TEST === "1" && (process.env.XAI_API_KEY ?? "").trim().length > 0;
 
 const describeLive = liveEnabled ? describe : describe.skip;
 
@@ -23,7 +23,7 @@ describeLive("xai x_search live", () => {
 
     expect(tool).toBeTruthy();
     const result = await tool!.execute("x-search:live", {
-      query: "OpenClaw from:steipete",
+      query: "Alisio from:steipete",
       to_date: "2026-03-28",
     });
 

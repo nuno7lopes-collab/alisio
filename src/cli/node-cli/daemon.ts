@@ -3,7 +3,8 @@ import {
   DEFAULT_NODE_DAEMON_RUNTIME,
   isNodeDaemonRuntime,
 } from "../../commands/node-daemon-runtime.js";
-import { DEFAULT_GATEWAY_PORT } from "../../config/paths.js";
+import { readBestEffortConfig } from "../../config/config.js";
+import { DEFAULT_GATEWAY_PORT, resolveGatewayPort } from "../../config/paths.js";
 import {
   resolveNodeLaunchAgentLabel,
   resolveNodeSystemdServiceName,
@@ -57,8 +58,8 @@ type NodeDaemonStatusOptions = {
 
 function renderNodeServiceStartHints(): string[] {
   return buildPlatformServiceStartHints({
-    installCommand: formatCliCommand("openclaw node install"),
-    startCommand: formatCliCommand("openclaw node start"),
+    installCommand: formatCliCommand("alisio node install"),
+    startCommand: formatCliCommand("alisio node start"),
     launchAgentPlistPath: `~/Library/LaunchAgents/${resolveNodeLaunchAgentLabel()}.plist`,
     systemdServiceName: resolveNodeSystemdServiceName(),
     windowsTaskName: resolveNodeWindowsTaskName(),
@@ -73,7 +74,7 @@ function buildNodeRuntimeHints(env: NodeJS.ProcessEnv = process.env): string[] {
   });
 }
 
-function resolveNodeDefaults(
+async function resolveNodeDefaults(
   opts: NodeDaemonInstallOptions,
   config: Awaited<ReturnType<typeof loadNodeHostConfig>>,
 ) {
@@ -82,7 +83,9 @@ function resolveNodeDefaults(
   if (opts.port !== undefined && portOverride === null) {
     return { host, port: null };
   }
-  const port = portOverride ?? config?.gateway?.port ?? DEFAULT_GATEWAY_PORT;
+  const fallbackConfig = await readBestEffortConfig();
+  const port =
+    portOverride ?? config?.gateway?.port ?? resolveGatewayPort(fallbackConfig, process.env);
   return { host, port };
 }
 
@@ -93,7 +96,7 @@ export async function runNodeDaemonInstall(opts: NodeDaemonInstallOptions) {
   }
 
   const config = await loadNodeHostConfig();
-  const { host, port } = resolveNodeDefaults(opts, config);
+  const { host, port } = await resolveNodeDefaults(opts, config);
   if (!Number.isFinite(port ?? NaN) || (port ?? 0) <= 0) {
     fail("Invalid port");
     return;
@@ -123,7 +126,7 @@ export async function runNodeDaemonInstall(opts: NodeDaemonInstallOptions) {
     });
     if (!json) {
       defaultRuntime.log(`Node service already ${service.loadedText}.`);
-      defaultRuntime.log(`Reinstall with: ${formatCliCommand("openclaw node install --force")}`);
+      defaultRuntime.log(`Reinstall with: ${formatCliCommand("alisio node install --force")}`);
     }
     return;
   }
@@ -264,7 +267,7 @@ export async function runNodeDaemonStatus(opts: NodeDaemonStatusOptions = {}) {
   };
   const hintEnv = {
     ...baseEnv,
-    ALISIO_LOG_PREFIX: baseEnv.ALISIO_LOG_PREFIX ?? baseEnv.OPENCLAW_LOG_PREFIX ?? "node",
+    ALISIO_LOG_PREFIX: baseEnv.ALISIO_LOG_PREFIX ?? "node",
   } as NodeJS.ProcessEnv;
 
   if (runtime?.missingUnit) {

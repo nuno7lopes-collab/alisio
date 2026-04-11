@@ -29,10 +29,10 @@ describe("canvas capability urls", () => {
   it("rejects legacy scoped prefixes", () => {
     expect(
       normalizeCanvasScopedUrl(
-        "http://127.0.0.1:40705/__openclaw__/cap/tok-1/__openclaw__/a2ui/?platform=ios",
+        "http://127.0.0.1:40705/__alisio__/cap/tok-1/__alisio__/a2ui/?platform=ios",
       ),
     ).toEqual({
-      pathname: "/__openclaw__/cap/tok-1/__openclaw__/a2ui/",
+      pathname: "/__alisio__/cap/tok-1/__alisio__/a2ui/",
       capability: undefined,
       rewrittenUrl: undefined,
       scopedPath: false,

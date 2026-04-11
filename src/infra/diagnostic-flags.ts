@@ -1,5 +1,5 @@
 import type { AlisioConfig } from "../config/config.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
 const DIAGNOSTICS_ENV = "ALISIO_DIAGNOSTICS";
 
@@ -50,7 +50,7 @@ export function resolveDiagnosticFlags(
   const envFlags = parseEnvFlags(
     readEnv(DIAGNOSTICS_ENV, {
       env,
-      fallback: legacyEnvKey("DIAGNOSTICS"),
+      fallback: runtimeEnvKey("DIAGNOSTICS"),
       description: "diagnostic flags",
     }),
   );

@@ -3,13 +3,13 @@
  */
 
 import { loadConfig } from "alisio/plugin-sdk/config-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveSignalAccount } from "./accounts.js";
 import { signalRpcRequest } from "./client.js";
 import { resolveSignalRpcContext } from "./rpc-context.js";
 
 export type SignalReactionOpts = {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   baseUrl?: string;
   account?: string;
   accountId?: string;

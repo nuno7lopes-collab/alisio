@@ -1,6 +1,6 @@
 import {
   definePluginEntry,
-  type OpenClawPluginApi,
+  type AlisioPluginApi,
   type ProviderAuthMethodNonInteractiveContext,
 } from "alisio/plugin-sdk/plugin-entry";
 import {
@@ -21,7 +21,7 @@ export default definePluginEntry({
   id: "sglang",
   name: "SGLang Provider",
   description: "Bundled SGLang provider plugin",
-  register(api: OpenClawPluginApi) {
+  register(api: AlisioPluginApi) {
     api.registerProvider({
       id: PROVIDER_ID,
       label: "SGLang",

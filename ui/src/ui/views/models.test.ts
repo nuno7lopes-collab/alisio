@@ -2,6 +2,7 @@
 
 import { render } from "lit";
 import { describe, expect, it, vi } from "vitest";
+import { setDefaultChatModel } from "../app-render.helpers.ts";
 import type { AlisioBootstrapState, AlisioModelsState } from "../types.ts";
 import { renderModelsHub } from "./models.ts";
 
@@ -95,7 +96,6 @@ function createModelsState(): AlisioModelsState {
           update: true,
           uninstall: true,
           consentRequired: true,
-          startServer: false,
         },
         supportsInstall: true,
         supportsUpdate: true,
@@ -127,7 +127,7 @@ function createModelsState(): AlisioModelsState {
         platform: "darwin",
         current: false,
         connected: true,
-        location: "server",
+        location: "node",
         backend: "llama.cpp",
         runtimeKind: "llama.cpp",
         chatProviderId: "alisio-target-node-1-llama",
@@ -137,7 +137,6 @@ function createModelsState(): AlisioModelsState {
           update: true,
           uninstall: true,
           consentRequired: true,
-          startServer: false,
         },
         supportsInstall: true,
         supportsUpdate: true,
@@ -154,7 +153,6 @@ function createModelsState(): AlisioModelsState {
         ],
       },
     ],
-    servers: [],
   };
 }
 
@@ -169,7 +167,7 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     aiError: null,
     expandedProfileId: "profile-1",
     selectedProviderId: "openai" as const,
-    chatModelOptions: [
+    modelOptions: [
       { value: "openai-codex/gpt-5.4", label: "gpt-5.4 · openai-codex" },
       { value: "openai-codex/gpt-5.3-codex", label: "gpt-5.3-codex · openai-codex" },
       {
@@ -181,19 +179,15 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
         label: "Qwen3 8B · Studio Mac",
       },
     ],
-    currentChatModelOverrideValue: "",
     defaultChatModelValue: "openai-codex/gpt-5.4",
     defaultChatModelDisplay: "gpt-5.4 · openai-codex",
     defaultChatModelLabel: "Default (gpt-5.4 · openai-codex)",
-    effectiveChatModelValue: "openai-codex/gpt-5.4",
-    effectiveChatModelLabel: "gpt-5.4 · openai-codex",
     modelPickerBusy: false,
     onToggleProfile: vi.fn(),
     onSelectProvider: vi.fn(),
     onConnectAi: vi.fn(),
     onRefreshAllAiProfiles: vi.fn(),
     onSelectDefaultChatModel: vi.fn(),
-    onSelectChatModel: vi.fn(),
     onSelectAiProfile: vi.fn(),
     onDisconnectAiProfile: vi.fn(),
     onRefreshAiProfile: vi.fn(),
@@ -203,6 +197,56 @@ function createProps(overrides: Partial<Parameters<typeof renderModelsHub>[0]> =
     onUninstallModel: vi.fn(),
     ...overrides,
   } satisfies Parameters<typeof renderModelsHub>[0];
+}
+
+function createDefaultModelState(
+  request: (method: string, params?: unknown) => Promise<unknown>,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    client: { request },
+    connected: true,
+    applySessionKey: "main",
+    configLoading: false,
+    configRaw: "",
+    configRawOriginal: "",
+    configValid: null,
+    configIssues: [],
+    configSaving: false,
+    configApplying: false,
+    updateRunning: false,
+    configSnapshot: null,
+    configSchema: null,
+    configSchemaVersion: null,
+    configSchemaLoading: false,
+    configUiHints: {},
+    configForm: null,
+    configFormOriginal: null,
+    configFormDirty: false,
+    configFormMode: "form",
+    configSearchQuery: "",
+    configActiveSection: null,
+    configActiveSubsection: null,
+    lastError: null,
+    sessionKey: "main",
+    chatModelOverrides: {},
+    chatModelCatalog: [{ id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" }],
+    chatModelsLoading: false,
+    modelManagementCatalog: [],
+    modelManagementLoading: false,
+    sessionsResult: {
+      ts: 0,
+      path: "",
+      count: 1,
+      defaults: {
+        modelProvider: "openai-codex",
+        model: "gpt-5.4",
+        contextTokens: null,
+      },
+      sessions: [{ key: "main", kind: "direct", updatedAt: null }],
+    },
+    ...overrides,
+  } as unknown as Parameters<typeof setDefaultChatModel>[0];
 }
 
 describe("renderModelsHub", () => {
@@ -229,12 +273,10 @@ describe("renderModelsHub", () => {
     ).filter((button) => button.textContent?.includes("gpt-5.3-codex"));
     allModelButtons[0]?.click();
     expect(props.onSelectDefaultChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
-
-    allModelButtons[1]?.click();
-    expect(props.onSelectChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
+    expect(container.textContent).not.toContain("This chat");
   });
 
-  it("renders the local surface with install, update, uninstall and model selection actions", () => {
+  it("renders the local surface with install, update and uninstall actions", () => {
     const props = createProps({
       selectedProviderId: "local",
       modelOperations: {
@@ -270,20 +312,11 @@ describe("renderModelsHub", () => {
     ).find((button) => button.textContent?.includes("Uninstall"));
     uninstallButton?.click();
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
-
-    const localChip = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.includes("Qwen3 4B"));
-    localChip?.click();
-    expect(props.onSelectChatModel).toHaveBeenCalledWith("alisio-local-current/qwen3-4b-q4-k-m");
   });
 
   it("renders the nodes surface with paired-node models only", () => {
     const props = createProps({
       selectedProviderId: "nodes",
-      currentChatModelOverrideValue: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
-      effectiveChatModelValue: "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
-      effectiveChatModelLabel: "Qwen3 8B · Studio Mac",
     });
     const container = document.createElement("div");
 
@@ -295,15 +328,7 @@ describe("renderModelsHub", () => {
     expect(section?.textContent).toContain("Studio Mac");
     expect(section?.textContent).toContain("Qwen3 8B");
     expect(section?.textContent ?? "").not.toContain("alice@example.com");
-
-    const nodeChip = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
-    ).find((button) => button.textContent?.includes("Qwen3 8B"));
-    nodeChip?.click();
-
-    expect(props.onSelectChatModel).toHaveBeenCalledWith(
-      "alisio-target-node-1-llama/qwen3-8b-q4-k-m",
-    );
+    expect(container.querySelector(".alisio-models__chooser")).toBeNull();
   });
 
   it("shows read-only metadata for shared nodes", () => {
@@ -442,5 +467,137 @@ describe("renderModelsHub", () => {
     render(renderModelsHub(props), container);
 
     expect(container.textContent).toContain("Connected (limits unavailable)");
+  });
+
+  it("setDefaultChatModel does not create a new allowlist when the config was previously open", async () => {
+    const patchedRaw: unknown[] = [];
+    const request = async (method: string, params?: unknown) => {
+      if (method === "config.get") {
+        return {
+          hash: "hash-1",
+          config: {
+            agents: {
+              defaults: {
+                model: {
+                  primary: "openai-codex/gpt-5.4",
+                },
+              },
+            },
+          },
+        };
+      }
+      if (method === "config.patch") {
+        const raw = (params as { raw?: unknown }).raw;
+        if (typeof raw !== "string") {
+          throw new Error("expected config.patch raw string");
+        }
+        patchedRaw.push(JSON.parse(raw));
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return {
+          ts: 0,
+          path: "",
+          count: 1,
+          defaults: {
+            modelProvider: "openai-codex",
+            model: "gpt-5.3-codex",
+            contextTokens: null,
+          },
+          sessions: [{ key: "main", kind: "direct", updatedAt: null }],
+        };
+      }
+      if (method === "models.list") {
+        return {
+          models: [{ id: "gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "openai-codex" }],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    };
+
+    const state = createDefaultModelState(request);
+    await setDefaultChatModel(state, "openai-codex/gpt-5.3-codex");
+
+    expect(patchedRaw).toHaveLength(1);
+    expect(patchedRaw[0]).toEqual({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai-codex/gpt-5.3-codex",
+          },
+        },
+      },
+    });
+  });
+
+  it("setDefaultChatModel preserves and extends an existing allowlist", async () => {
+    const patchedRaw: unknown[] = [];
+    const request = async (method: string, params?: unknown) => {
+      if (method === "config.get") {
+        return {
+          hash: "hash-1",
+          config: {
+            agents: {
+              defaults: {
+                model: {
+                  primary: "openai-codex/gpt-5.4",
+                },
+                models: {
+                  "openai-codex/gpt-5.4": {},
+                },
+              },
+            },
+          },
+        };
+      }
+      if (method === "config.patch") {
+        const raw = (params as { raw?: unknown }).raw;
+        if (typeof raw !== "string") {
+          throw new Error("expected config.patch raw string");
+        }
+        patchedRaw.push(JSON.parse(raw));
+        return { ok: true };
+      }
+      if (method === "sessions.list") {
+        return {
+          ts: 0,
+          path: "",
+          count: 1,
+          defaults: {
+            modelProvider: "openai-codex",
+            model: "gpt-5.3-codex",
+            contextTokens: null,
+          },
+          sessions: [{ key: "main", kind: "direct", updatedAt: null }],
+        };
+      }
+      if (method === "models.list") {
+        return {
+          models: [
+            { id: "gpt-5.4", name: "GPT-5.4", provider: "openai-codex" },
+            { id: "gpt-5.3-codex", name: "GPT-5.3 Codex", provider: "openai-codex" },
+          ],
+        };
+      }
+      throw new Error(`unexpected method: ${method}`);
+    };
+
+    const state = createDefaultModelState(request);
+    await setDefaultChatModel(state, "openai-codex/gpt-5.3-codex");
+
+    expect(patchedRaw).toHaveLength(1);
+    expect(patchedRaw[0]).toEqual({
+      agents: {
+        defaults: {
+          model: {
+            primary: "openai-codex/gpt-5.3-codex",
+          },
+          models: {
+            "openai-codex/gpt-5.4": {},
+            "openai-codex/gpt-5.3-codex": {},
+          },
+        },
+      },
+    });
   });
 });

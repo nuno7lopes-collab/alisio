@@ -45,7 +45,7 @@ function makeMoonshotConfig(home: string, storePath: string) {
     agents: {
       defaults: {
         model: { primary: "anthropic/claude-opus-4-5" },
-        workspace: path.join(home, "openclaw"),
+        workspace: path.join(home, "alisio"),
         models: {
           "anthropic/claude-opus-4-5": {},
           "moonshot/kimi-k2-0905-preview": {},
@@ -121,11 +121,11 @@ describe("directive behavior", () => {
             agents: {
               defaults: {
                 model: { primary: "minimax/MiniMax-M2.7" },
-                workspace: path.join(home, "openclaw"),
+                workspace: path.join(home, "alisio"),
                 models: {
                   "minimax/MiniMax-M2.7": {},
                   "minimax/MiniMax-M2.7-highspeed": {},
-                  "lmstudio/minimax-m2.5-gs32": {},
+                  "localproxy/minimax-m2.5-gs32": {},
                 },
               },
             },
@@ -141,9 +141,9 @@ describe("directive behavior", () => {
                     makeModelDefinition("MiniMax-M2.7-highspeed", "MiniMax M2.7 Highspeed"),
                   ],
                 },
-                lmstudio: {
+                localproxy: {
                   baseUrl: "http://127.0.0.1:1234/v1",
-                  apiKey: "lmstudio", // pragma: allowlist secret
+                  apiKey: "localproxy", // pragma: allowlist secret
                   api: "openai-responses",
                   models: [makeModelDefinition("minimax-m2.5-gs32", "MiniMax M2.5 GS32")],
                 },
@@ -162,7 +162,7 @@ describe("directive behavior", () => {
             agents: {
               defaults: {
                 model: { primary: "minimax/MiniMax-M2.7" },
-                workspace: path.join(home, "openclaw"),
+                workspace: path.join(home, "alisio"),
                 models: {
                   "minimax/MiniMax-M2.7": {},
                   "minimax/MiniMax-M2.7-highspeed": {},
@@ -210,11 +210,11 @@ describe("directive behavior", () => {
           agents: {
             defaults: {
               model: { primary: "anthropic/claude-opus-4-5" },
-              workspace: path.join(home, "openclaw"),
+              workspace: path.join(home, "alisio"),
               models: {
                 "anthropic/claude-opus-4-5": {},
                 "moonshot/kimi-k2-0905-preview": { alias: "Kimi" },
-                "lmstudio/kimi-k2-0905-preview": {},
+                "localproxy/kimi-k2-0905-preview": {},
               },
             },
           },
@@ -227,9 +227,9 @@ describe("directive behavior", () => {
                 api: "openai-completions",
                 models: [makeModelDefinition("kimi-k2-0905-preview", "Kimi K2")],
               },
-              lmstudio: {
+              localproxy: {
                 baseUrl: "http://127.0.0.1:1234/v1",
-                apiKey: "lmstudio", // pragma: allowlist secret
+                apiKey: "localproxy", // pragma: allowlist secret
                 api: "openai-responses",
                 models: [makeModelDefinition("kimi-k2-0905-preview", "Kimi K2 (Local)")],
               },
@@ -251,7 +251,7 @@ describe("directive behavior", () => {
   it("stores auth profile overrides on /model directive", async () => {
     await withTempHome(async (home) => {
       const storePath = sessionStorePath(home);
-      const authDir = path.join(home, ".openclaw", "agents", "main", "agent");
+      const authDir = path.join(home, ".alisio", "agents", "main", "agent");
       await fs.mkdir(authDir, { recursive: true, mode: 0o700 });
       await fs.writeFile(
         path.join(authDir, "auth-profiles.json"),

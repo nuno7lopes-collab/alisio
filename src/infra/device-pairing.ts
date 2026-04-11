@@ -165,14 +165,36 @@ function listActiveTokenRoles(
   );
 }
 
+function listRevokedTokenRoles(
+  tokens: Record<string, DeviceAuthToken> | undefined,
+): string[] | undefined {
+  if (!tokens) {
+    return undefined;
+  }
+  return mergeRoles(
+    Object.values(tokens)
+      .filter((entry) => Boolean(entry.revokedAtMs))
+      .map((entry) => entry.role),
+  );
+}
+
 export function listEffectivePairedDeviceRoles(
   device: Pick<PairedDevice, "role" | "roles" | "tokens">,
 ): string[] {
   const activeTokenRoles = listActiveTokenRoles(device.tokens);
-  if (device.tokens) {
-    return activeTokenRoles ?? [];
+  if (!device.tokens) {
+    return mergeRoles(device.roles, device.role) ?? [];
   }
-  return mergeRoles(device.roles, device.role) ?? [];
+  const declaredRoles = mergeRoles(device.roles, device.role) ?? [];
+  const revokedTokenRoles = new Set(listRevokedTokenRoles(device.tokens) ?? []);
+  const effective = new Set(activeTokenRoles ?? []);
+  for (const role of declaredRoles) {
+    if (revokedTokenRoles.has(role) || effective.has(role)) {
+      continue;
+    }
+    effective.add(role);
+  }
+  return [...effective];
 }
 
 export function hasEffectivePairedDeviceRole(
@@ -359,6 +381,28 @@ function resolveApprovedDeviceScopeBaseline(device: PairedDevice): string[] | nu
   return normalizeDeviceAuthScopes(baseline);
 }
 
+function resolveApprovedTokenScopesForRole(params: {
+  role: string;
+  pendingScopes?: string[];
+  existingToken?: DeviceAuthToken;
+  approvedScopes?: string[];
+  existing?: PairedDevice;
+}): string[] {
+  if (params.role === "operator") {
+    const requestedScopes = normalizeDeviceAuthScopes(params.pendingScopes);
+    if (requestedScopes.length > 0) {
+      return requestedScopes;
+    }
+    return normalizeDeviceAuthScopes(
+      params.existingToken?.scopes ??
+        params.approvedScopes ??
+        params.existing?.approvedScopes ??
+        params.existing?.scopes,
+    );
+  }
+  return normalizeDeviceAuthScopes(params.existingToken?.scopes ?? []);
+}
+
 function scopesWithinApprovedDeviceBaseline(params: {
   role: string;
   scopes: readonly string[];
@@ -524,19 +568,16 @@ export async function approveDevicePairing(
       pending.scopes,
     );
     const tokens = existing?.tokens ? { ...existing.tokens } : {};
-    const roleForToken = normalizeRole(pending.role);
-    if (roleForToken) {
+    const rolesForTokens = mergeRoles(pending.roles, pending.role) ?? [];
+    for (const roleForToken of rolesForTokens) {
       const existingToken = tokens[roleForToken];
-      const requestedScopes = normalizeDeviceAuthScopes(pending.scopes);
-      const nextScopes =
-        requestedScopes.length > 0
-          ? requestedScopes
-          : normalizeDeviceAuthScopes(
-              existingToken?.scopes ??
-                approvedScopes ??
-                existing?.approvedScopes ??
-                existing?.scopes,
-            );
+      const nextScopes = resolveApprovedTokenScopesForRole({
+        role: roleForToken,
+        pendingScopes: pending.scopes,
+        existingToken,
+        approvedScopes,
+        existing,
+      });
       const now = Date.now();
       tokens[roleForToken] = {
         token: newToken(),

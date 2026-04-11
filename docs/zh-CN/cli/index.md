@@ -2,7 +2,7 @@
 read_when:
   - 添加或修改 CLI 命令或选项时
   - 为新的命令界面编写文档时
-summary: "`openclaw` 命令、子命令和选项的 OpenClaw CLI 参考"
+summary: "`alisio` 命令、子命令和选项的 Alisio CLI 参考"
 title: CLI 参考
 x-i18n:
   generated_at: "2026-03-16T06:22:35Z"
@@ -68,10 +68,10 @@ x-i18n:
 
 ## 全局标志
 
-- `--dev`：将状态隔离到 `~/.openclaw-dev` 下，并变更默认端口。
-- `--profile <name>`：将状态隔离到 `~/.openclaw-<name>` 下。
+- `--dev`：将状态隔离到 `~/.alisio-dev` 下，并变更默认端口。
+- `--profile <name>`：将状态隔离到 `~/.alisio-<name>` 下。
 - `--no-color`：禁用 ANSI 颜色。
-- `--update`：`openclaw update` 的简写（仅适用于源码安装）。
+- `--update`：`alisio update` 的简写（仅适用于源码安装）。
 - `-V`, `--version`, `-v`：打印版本并退出。
 
 ## 输出样式
@@ -84,7 +84,7 @@ x-i18n:
 
 ## 调色板
 
-OpenClaw 在 CLI 输出中使用龙虾色调调色板。
+Alisio 在 CLI 输出中使用龙虾色调调色板。
 
 - `accent` (#FF5A2D)：标题、标签、主要高亮。
 - `accentBright` (#FF7A3D)：命令名称、强调。
@@ -100,7 +100,7 @@ OpenClaw 在 CLI 输出中使用龙虾色调调色板。
 ## 命令树
 
 ```
-openclaw [--dev] [--profile <name>] <command>
+alisio [--dev] [--profile <name>] <command>
   setup
   onboard
   configure
@@ -270,30 +270,30 @@ openclaw [--dev] [--profile <name>] <command>
   tui
 ```
 
-注意：插件可以添加额外的顶层命令（例如 `openclaw voicecall`）。
+注意：插件可以添加额外的顶层命令（例如 `alisio voicecall`）。
 
 ## 安全
 
-- `openclaw security audit` — 审计配置 + 本地状态中常见的安全陷阱。
-- `openclaw security audit --deep` — 尽力进行实时 Gateway 网关探测。
-- `openclaw security audit --fix` — 收紧安全默认值并对状态 / 配置执行 chmod。
+- `alisio security audit` — 审计配置 + 本地状态中常见的安全陷阱。
+- `alisio security audit --deep` — 尽力进行实时 Gateway 网关探测。
+- `alisio security audit --fix` — 收紧安全默认值并对状态 / 配置执行 chmod。
 
 ## 密钥
 
-- `openclaw secrets reload` — 重新解析引用，并以原子方式替换运行时快照。
-- `openclaw secrets audit` — 扫描明文残留、未解析引用和优先级漂移。
-- `openclaw secrets configure` — 用于提供商设置 + SecretRef 映射 + 预检 / 应用的交互式助手。
-- `openclaw secrets apply --from <plan.json>` — 应用先前生成的计划（支持 `--dry-run`）。
+- `alisio secrets reload` — 重新解析引用，并以原子方式替换运行时快照。
+- `alisio secrets audit` — 扫描明文残留、未解析引用和优先级漂移。
+- `alisio secrets configure` — 用于提供商设置 + SecretRef 映射 + 预检 / 应用的交互式助手。
+- `alisio secrets apply --from <plan.json>` — 应用先前生成的计划（支持 `--dry-run`）。
 
 ## 插件
 
 管理扩展及其配置：
 
-- `openclaw plugins list` — 发现插件（机器输出请使用 `--json`）。
-- `openclaw plugins info <id>` — 显示插件详情。
-- `openclaw plugins install <path|.tgz|npm-spec>` — 安装插件（或将插件路径添加到 `plugins.load.paths`）。
-- `openclaw plugins enable <id>` / `disable <id>` — 切换 `plugins.entries.<id>.enabled`。
-- `openclaw plugins doctor` — 报告插件加载错误。
+- `alisio plugins list` — 发现插件（机器输出请使用 `--json`）。
+- `alisio plugins info <id>` — 显示插件详情。
+- `alisio plugins install <path|.tgz|npm-spec>` — 安装插件（或将插件路径添加到 `plugins.load.paths`）。
+- `alisio plugins enable <id>` / `disable <id>` — 切换 `plugins.entries.<id>.enabled`。
+- `alisio plugins doctor` — 报告插件加载错误。
 
 大多数插件更改都需要重启 gateway。参见 [/plugin](/tools/plugin)。
 
@@ -301,9 +301,9 @@ openclaw [--dev] [--profile <name>] <command>
 
 对 `MEMORY.md` + `memory/*.md` 执行向量搜索：
 
-- `openclaw memory status` — 显示索引统计信息。
-- `openclaw memory index` — 重新索引内存文件。
-- `openclaw memory search "<query>"`（或 `--query "<query>"`）— 对内存执行语义搜索。
+- `alisio memory status` — 显示索引统计信息。
+- `alisio memory index` — 重新索引内存文件。
+- `alisio memory search "<query>"`（或 `--query "<query>"`）— 对内存执行语义搜索。
 
 ## 聊天斜杠命令
 
@@ -323,7 +323,7 @@ openclaw [--dev] [--profile <name>] <command>
 
 选项：
 
-- `--workspace <dir>`：智能体工作区路径（默认 `~/.openclaw/workspace`）。
+- `--workspace <dir>`：智能体工作区路径（默认 `~/.alisio/workspace`）。
 - `--wizard`：运行新手引导。
 - `--non-interactive`：无提示运行新手引导。
 - `--mode <local|remote>`：新手引导模式。
@@ -344,7 +344,7 @@ openclaw [--dev] [--profile <name>] <command>
 - `--non-interactive`
 - `--mode <local|remote>`
 - `--flow <quickstart|advanced|manual>`（`manual` 是 `advanced` 的别名）
-- `--auth-choice <setup-token|token|chutes|openai-codex|openai-api-key|openrouter-api-key|ollama|ai-gateway-api-key|moonshot-api-key|moonshot-api-key-cn|kimi-code-api-key|synthetic-api-key|venice-api-key|gemini-api-key|zai-api-key|mistral-api-key|apiKey|minimax-api|minimax-api-lightning|opencode-zen|opencode-go|custom-api-key|skip>`
+- `--auth-choice <setup-token|token|chutes|openai-codex|openai-api-key|openrouter-api-key|ai-gateway-api-key|moonshot-api-key|moonshot-api-key-cn|kimi-code-api-key|synthetic-api-key|venice-api-key|gemini-api-key|zai-api-key|mistral-api-key|apiKey|minimax-api|minimax-api-lightning|opencode-zen|opencode-go|custom-api-key|skip>`
 - `--token-provider <id>`（非交互式；与 `--auth-choice token` 一起使用）
 - `--token <token>`（非交互式；与 `--auth-choice token` 一起使用）
 - `--token-profile-id <id>`（非交互式；默认：`<provider>:manual`）
@@ -362,8 +362,8 @@ openclaw [--dev] [--profile <name>] <command>
 - `--minimax-api-key <key>`
 - `--opencode-zen-api-key <key>`
 - `--opencode-go-api-key <key>`
-- `--custom-base-url <url>`（非交互式；与 `--auth-choice custom-api-key` 或 `--auth-choice ollama` 一起使用）
-- `--custom-model-id <id>`（非交互式；与 `--auth-choice custom-api-key` 或 `--auth-choice ollama` 一起使用）
+- `--custom-base-url <url>`（非交互式；与 `--auth-choice custom-api-key` 一起使用）
+- `--custom-model-id <id>`（非交互式；与 `--auth-choice custom-api-key` 一起使用）
 - `--custom-api-key <key>`（非交互式；可选；与 `--auth-choice custom-api-key` 一起使用；省略时回退到 `CUSTOM_API_KEY`）
 - `--custom-provider-id <id>`（非交互式；可选自定义提供商 id）
 - `--custom-compatibility <openai|anthropic>`（非交互式；可选；默认 `openai`）
@@ -393,7 +393,7 @@ openclaw [--dev] [--profile <name>] <command>
 
 ### `config`
 
-非交互式配置助手（get/set/unset/file/validate）。直接运行 `openclaw config` 而不带
+非交互式配置助手（get/set/unset/file/validate）。直接运行 `alisio config` 而不带
 子命令会启动向导。
 
 子命令：
@@ -425,11 +425,11 @@ openclaw [--dev] [--profile <name>] <command>
 子命令：
 
 - `channels list`：显示已配置的渠道和认证配置文件。
-- `channels status`：检查 gateway 可达性和渠道健康状态（`--probe` 会运行额外检查；gateway 健康探测请使用 `openclaw health` 或 `openclaw status --deep`）。
-- 提示：如果能够检测到常见配置错误，`channels status` 会打印带建议修复方式的警告（随后指向 `openclaw doctor`）。
+- `channels status`：检查 gateway 可达性和渠道健康状态（`--probe` 会运行额外检查；gateway 健康探测请使用 `alisio health` 或 `alisio status --deep`）。
+- 提示：如果能够检测到常见配置错误，`channels status` 会打印带建议修复方式的警告（随后指向 `alisio doctor`）。
 - `channels logs`：显示 gateway 日志文件中的最近渠道日志。
 - `channels add`：未传入任何标志时为向导式设置；传入标志后切换为非交互模式。
-  - 当向仍使用单账户顶层配置的渠道添加非默认账户时，OpenClaw 会先将账户作用域值移动到 `channels.<channel>.accounts.default`，再写入新账户。
+  - 当向仍使用单账户顶层配置的渠道添加非默认账户时，Alisio 会先将账户作用域值移动到 `channels.<channel>.accounts.default`，再写入新账户。
   - 非交互式 `channels add` 不会自动创建 / 升级绑定；仅渠道绑定会继续匹配默认账户。
 - `channels remove`：默认执行禁用；传入 `--delete` 可在无提示下删除配置项。
 - `channels login`：交互式渠道登录（仅 WhatsApp Web）。
@@ -468,11 +468,11 @@ openclaw [--dev] [--profile <name>] <command>
 示例：
 
 ```bash
-openclaw channels add --channel telegram --account alerts --name "Alerts Bot" --token $TELEGRAM_BOT_TOKEN
-openclaw channels add --channel discord --account work --name "Work Bot" --token $DISCORD_BOT_TOKEN
-openclaw channels remove --channel discord --account work --delete
-openclaw channels status --probe
-openclaw status --deep
+alisio channels add --channel telegram --account alerts --name "Alerts Bot" --token $TELEGRAM_BOT_TOKEN
+alisio channels add --channel discord --account work --name "Work Bot" --token $DISCORD_BOT_TOKEN
+alisio channels remove --channel discord --account work --delete
+alisio channels status --probe
+alisio status --deep
 ```
 
 ### `skills`
@@ -556,8 +556,8 @@ Gmail Pub/Sub hook 设置 + 运行器。参见 [/automation/gmail-pubsub](/autom
 
 示例：
 
-- `openclaw message send --target +15555550123 --message "Hi"`
-- `openclaw message poll --channel discord --target channel:123 --poll-question "Snack?" --poll-option Pizza --poll-option Sushi`
+- `alisio message send --target +15555550123 --message "Hi"`
+- `alisio message poll --channel discord --target channel:123 --poll-question "Snack?" --poll-option Pizza --poll-option Sushi`
 
 ### `agent`
 
@@ -605,7 +605,7 @@ Gmail Pub/Sub hook 设置 + 运行器。参见 [/automation/gmail-pubsub](/autom
 - `--non-interactive`
 - `--json`
 
-绑定规范使用 `channel[:accountId]`。省略 `accountId` 时，OpenClaw 可能通过渠道默认值 / 插件 hook 解析账户作用域；否则这就是不带显式账户作用域的渠道绑定。
+绑定规范使用 `channel[:accountId]`。省略 `accountId` 时，Alisio 可能通过渠道默认值 / 插件 hook 解析账户作用域；否则这就是不带显式账户作用域的渠道绑定。
 
 #### `agents bindings`
 
@@ -672,12 +672,12 @@ Gmail Pub/Sub hook 设置 + 运行器。参见 [/automation/gmail-pubsub](/autom
 
 ### 用量跟踪
 
-在 OAuth / API 凭据可用时，OpenClaw 可以显示提供商用量 / 配额。
+在 OAuth / API 凭据可用时，Alisio 可以显示提供商用量 / 配额。
 
 展示位置：
 
 - `/status`（可用时添加一行简短的提供商用量信息）
-- `openclaw status --usage`（打印完整的提供商明细）
+- `alisio status --usage`（打印完整的提供商明细）
 - macOS 菜单栏（Context 下的 Usage 部分）
 
 说明：
@@ -788,7 +788,7 @@ Gmail Pub/Sub hook 设置 + 运行器。参见 [/automation/gmail-pubsub](/autom
 
 - `gateway status` 默认使用服务解析出的端口 / 配置来探测 Gateway 网关 RPC（可用 `--url/--token/--password` 覆盖）。
 - `gateway status` 支持 `--no-probe`、`--deep`、`--require-rpc` 和 `--json`，便于脚本化。
-- `gateway status` 还能在检测到时显示旧版或额外的 gateway 服务（`--deep` 会增加系统级扫描）。带 profile 名称的 OpenClaw 服务会被视为一等公民，不会标记为“额外”。
+- `gateway status` 还能在检测到时显示旧版或额外的 gateway 服务（`--deep` 会增加系统级扫描）。带 profile 名称的 Alisio 服务会被视为一等公民，不会标记为“额外”。
 - `gateway status` 会打印 CLI 使用的是哪个配置路径、服务可能使用的是哪个配置（服务环境），以及解析出的探测目标 URL。
 - 如果 gateway 认证 SecretRef 在当前命令路径中未解析，`gateway status --json` 仅会在探测连接 / 认证失败时报告 `rpc.authWarning`（探测成功时会抑制警告）。
 - 在 Linux systemd 安装中，状态 token 漂移检查同时包括 `Environment=` 和 `EnvironmentFile=` 单元来源。
@@ -808,11 +808,11 @@ Gmail Pub/Sub hook 设置 + 运行器。参见 [/automation/gmail-pubsub](/autom
 示例：
 
 ```bash
-openclaw logs --follow
-openclaw logs --limit 200
-openclaw logs --plain
-openclaw logs --json
-openclaw logs --no-color
+alisio logs --follow
+alisio logs --limit 200
+alisio logs --plain
+alisio logs --json
+alisio logs --no-color
 ```
 
 ### `gateway <subcommand>`
@@ -848,8 +848,8 @@ Anthropic setup-token（已支持）：
 
 ```bash
 claude setup-token
-openclaw models auth setup-token --provider anthropic
-openclaw models status
+alisio models auth setup-token --provider anthropic
+alisio models status
 ```
 
 策略说明：这是技术兼容性。Anthropic 过去曾阻止某些
@@ -858,7 +858,7 @@ Claude Code 之外的订阅使用；在生产环境依赖 setup-token 之前，�
 
 ### `models`（根命令）
 
-`openclaw models` 是 `models status` 的别名。
+`alisio models` 是 `models status` 的别名。
 
 根选项：
 
@@ -1014,7 +1014,7 @@ heartbeat 控制（Gateway 网关 RPC）。
 ## Node 主机
 
 `node` 运行一个**无头 node host**，或将其作为后台服务进行管理。参见
-[`openclaw node`](/cli/node)。
+[`alisio node`](/cli/node)。
 
 子命令：
 
@@ -1027,7 +1027,7 @@ heartbeat 控制（Gateway 网关 RPC）。
 
 认证说明：
 
-- `node` 从环境 / 配置解析 gateway 认证（不支持 `--token`/`--password` 标志）：`OPENCLAW_GATEWAY_TOKEN` / `OPENCLAW_GATEWAY_PASSWORD`，然后是 `gateway.auth.*`。在本地模式下，node host 会有意忽略 `gateway.remote.*`；在 `gateway.mode=remote` 时，`gateway.remote.*` 会根据远程优先级规则参与解析。
+- `node` 从环境 / 配置解析 gateway 认证（不支持 `--token`/`--password` 标志）：`ALISIO_GATEWAY_TOKEN` / `ALISIO_GATEWAY_PASSWORD`，然后是 `gateway.auth.*`。在本地模式下，node host 会有意忽略 `gateway.remote.*`；在 `gateway.mode=remote` 时，`gateway.remote.*` 会根据远程优先级规则参与解析。
 - 旧版 `CLAWDBOT_GATEWAY_*` 环境变量会被有意忽略，不用于 node-host 认证解析。
 
 ## Nodes
@@ -1073,7 +1073,7 @@ Canvas + 屏幕：
 
 ## 浏览器
 
-浏览器控制 CLI（专用 Chrome/Brave/Edge/Chromium）。参见 [`openclaw browser`](/cli/browser) 和 [Browser 工具](/tools/browser)。
+浏览器控制 CLI（专用 Chrome/Brave/Edge/Chromium）。参见 [`alisio browser`](/cli/browser) 和 [Browser 工具](/tools/browser)。
 
 通用选项：
 

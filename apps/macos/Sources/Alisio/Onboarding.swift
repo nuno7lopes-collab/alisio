@@ -30,7 +30,7 @@ final class OnboardingController {
         }
         DockIconManager.shared.temporarilyShowDock()
         NSApp.activate(ignoringOtherApps: true)
-        LumeWindowManager.shared.show(route: .onboarding)
+        AlisioWindowManager.shared.show(route: .onboarding)
     }
 
     func close() {}
@@ -57,7 +57,7 @@ struct OnboardingView: View {
     @State var localGatewayProbe: LocalGatewayProbe?
     @Bindable var state: AppState
     var permissionMonitor: PermissionMonitor
-    var shellOnboarding: LumeOnboardingState?
+    var shellOnboarding: AlisioOnboardingState?
 
     static let windowWidth: CGFloat = 630
     static let windowHeight: CGFloat = 752 // ~+10% to fit full onboarding content
@@ -109,7 +109,7 @@ struct OnboardingView: View {
 
     var devLinkCommand: String {
         let version = GatewayEnvironment.expectedGatewayVersionString() ?? "latest"
-        return "npm install -g alisio@npm:alisio@\(version)"
+        return "npm install -g alisio@\(version)"
     }
 
     struct LocalGatewayProbe: Equatable {
@@ -125,7 +125,7 @@ struct OnboardingView: View {
         discoveryModel: GatewayDiscoveryModel = GatewayDiscoveryModel(
             localDisplayName: InstanceIdentity.displayName,
             filterLocalGateways: false),
-        shellOnboarding: LumeOnboardingState? = nil)
+        shellOnboarding: AlisioOnboardingState? = nil)
     {
         self.state = state
         self.permissionMonitor = permissionMonitor

@@ -37,9 +37,9 @@ describe("formatAssistantErrorText", () => {
     );
     expect(formatAssistantErrorText(msg)).toContain("Context overflow");
   });
-  it("returns context overflow for Ollama 'prompt too long' errors (#34005)", () => {
+  it("returns context overflow for local runtime 'prompt too long' errors (#34005)", () => {
     const msg = makeAssistantError(
-      'Ollama API error 400: {"StatusCode":400,"Status":"400 Bad Request","error":"prompt too long; exceeded max context length by 4 tokens"}',
+      'Local runtime API error 400: {"StatusCode":400,"Status":"400 Bad Request","error":"prompt too long; exceeded max context length by 4 tokens"}',
     );
     expect(formatAssistantErrorText(msg)).toContain("Context overflow");
   });
@@ -257,7 +257,7 @@ describe("formatRawAssistantErrorForUi", () => {
 describe("raw API error payload helpers", () => {
   it("recognizes provider-prefixed JSON payloads for observation fingerprints", () => {
     const raw =
-      'Ollama API error: {"type":"error","error":{"type":"server_error","message":"Boom"},"request_id":"req_123"}';
+      'Local runtime API error: {"type":"error","error":{"type":"server_error","message":"Boom"},"request_id":"req_123"}';
 
     expect(isRawApiErrorPayload(raw)).toBe(true);
     expect(getApiErrorPayloadFingerprint(raw)).toContain("server_error");

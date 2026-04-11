@@ -6,7 +6,7 @@ import { runExec } from "../process/exec.js";
 import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { colorize, isRich, theme } from "../terminal/theme.js";
 import { ensureBinary } from "./binaries.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
 function parsePossiblyNoisyJsonObject(stdout: string): Record<string, unknown> {
   const trimmed = stdout.trim();
@@ -152,7 +152,7 @@ let cachedTailscaleBinary: string | null = null;
 
 export async function getTailscaleBinary(): Promise<string> {
   const forcedBinary = readEnv("ALISIO_TEST_TAILSCALE_BINARY", {
-    fallback: legacyEnvKey("TEST_TAILSCALE_BINARY"),
+    fallback: runtimeEnvKey("TEST_TAILSCALE_BINARY"),
     description: "tailscale binary override for tests",
   });
   if (forcedBinary) {

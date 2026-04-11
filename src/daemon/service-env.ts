@@ -5,7 +5,7 @@ import {
   resolveLinuxSystemCaBundle,
 } from "../bootstrap/node-extra-ca-certs.js";
 import { resolveNodeStartupTlsEnvironment } from "../bootstrap/node-startup-env.js";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { VERSION } from "../version.js";
 import {
   GATEWAY_SERVICE_KIND,
@@ -268,7 +268,7 @@ export function buildServiceEnvironment(params: {
   );
   const profile = readEnv("ALISIO_PROFILE", {
     env,
-    fallback: legacyEnvKey("PROFILE"),
+    fallback: runtimeEnvKey("PROFILE"),
   });
   const resolvedLaunchdLabel =
     launchdLabel || (platform === "darwin" ? resolveGatewayLaunchAgentLabel(profile) : undefined);
@@ -302,7 +302,7 @@ export function buildNodeServiceEnvironment(params: {
   );
   const gatewayToken = readEnv("ALISIO_GATEWAY_TOKEN", {
     env,
-    fallback: legacyEnvKey("GATEWAY_TOKEN"),
+    fallback: runtimeEnvKey("GATEWAY_TOKEN"),
     redact: true,
   });
   return {
@@ -346,11 +346,11 @@ function resolveSharedServiceEnvironmentFields(
 ): SharedServiceEnvironmentFields {
   const stateDir = readEnv("ALISIO_STATE_DIR", {
     env,
-    fallback: legacyEnvKey("STATE_DIR"),
+    fallback: runtimeEnvKey("STATE_DIR"),
   });
   const configPath = readEnv("ALISIO_CONFIG_PATH", {
     env,
-    fallback: legacyEnvKey("CONFIG_PATH"),
+    fallback: runtimeEnvKey("CONFIG_PATH"),
   });
   // Keep a usable temp directory for supervised services even when the host env omits TMPDIR.
   const tmpDir = env.TMPDIR?.trim() || os.tmpdir();

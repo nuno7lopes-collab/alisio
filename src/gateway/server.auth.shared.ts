@@ -92,9 +92,9 @@ const originForPort = (port: number) => `http://127.0.0.1:${port}`;
 
 function restoreGatewayToken(prevToken: string | undefined) {
   if (prevToken === undefined) {
-    delete process.env.OPENCLAW_GATEWAY_TOKEN;
+    delete process.env.ALISIO_GATEWAY_TOKEN;
   } else {
-    process.env.OPENCLAW_GATEWAY_TOKEN = prevToken;
+    process.env.ALISIO_GATEWAY_TOKEN = prevToken;
   }
 }
 
@@ -201,7 +201,7 @@ function resolveGatewayTokenOrEnv(): string {
   const token =
     typeof (testState.gatewayAuth as { token?: unknown } | undefined)?.token === "string"
       ? ((testState.gatewayAuth as { token?: string }).token ?? undefined)
-      : process.env.OPENCLAW_GATEWAY_TOKEN;
+      : process.env.ALISIO_GATEWAY_TOKEN;
   expect(typeof token).toBe("string");
   return String(token ?? "");
 }
@@ -316,7 +316,7 @@ async function startRateLimitedTokenServerWithPairedDeviceToken() {
   } as any;
 
   const { server, ws, port, prevToken } = await startServerWithClient();
-  const deviceIdentityPath = nextAuthIdentityPath("openclaw-auth-rate-limit");
+  const deviceIdentityPath = nextAuthIdentityPath("alisio-auth-rate-limit");
   try {
     const initial = await connectReq(ws, { token: "secret", deviceIdentityPath });
     if (!initial.ok) {
@@ -339,7 +339,7 @@ async function ensurePairedDeviceTokenForCurrentIdentity(ws: WebSocket): Promise
   deviceToken: string;
   deviceIdentityPath: string;
 }> {
-  const deviceIdentityPath = nextAuthIdentityPath("openclaw-auth-device");
+  const deviceIdentityPath = nextAuthIdentityPath("alisio-auth-device");
 
   const res = await connectReq(ws, { token: "secret", deviceIdentityPath });
   if (!res.ok) {

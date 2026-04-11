@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/elevenlabs-speech",
+  "name": "@alisio/elevenlabs-speech",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw ElevenLabs speech plugin",
+  "description": "Alisio ElevenLabs speech plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

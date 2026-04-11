@@ -632,7 +632,7 @@ extension OnboardingView {
                     systemImage: "terminal",
                     buttonTitle: "Open now")
                 {
-                    LumeWindowManager.shared.showPreferredChat()
+                    AlisioWindowManager.shared.showPreferredChat()
                 }
                 Divider()
                     .padding(.vertical, 6)

@@ -3010,7 +3010,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       "eventQueue.listenerTimeout": {
         label: "Discord EventQueue Listener Timeout (ms)",
-        help: "Canonical Discord listener timeout control in ms for gateway normalization/enqueue handlers. Default is 120000 in OpenClaw; set per account via channels.discord.accounts.<id>.eventQueue.listenerTimeout.",
+        help: "Canonical Discord listener timeout control in ms for gateway normalization/enqueue handlers. Default is 120000 in Alisio; set per account via channels.discord.accounts.<id>.eventQueue.listenerTimeout.",
       },
       "eventQueue.maxQueueSize": {
         label: "Discord EventQueue Max Queue Size",
@@ -6193,7 +6193,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
     uiHints: {
       "": {
         label: "IRC",
-        help: "IRC channel provider configuration and compatibility settings for classic IRC transport workflows. Use this section when bridging legacy chat infrastructure into OpenClaw.",
+        help: "IRC channel provider configuration and compatibility settings for classic IRC transport workflows. Use this section when bridging legacy chat infrastructure into Alisio.",
       },
       dmPolicy: {
         label: "IRC DM Policy",
@@ -11192,7 +11192,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
     pluginId: "synology-chat",
     channelId: "synology-chat",
     label: "Synology Chat",
-    description: "Connect your Synology NAS Chat to OpenClaw with full agent capabilities.",
+    description: "Connect your Synology NAS Chat to Alisio with full agent capabilities.",
     schema: {
       $schema: "http://json-schema.org/draft-07/schema#",
       type: "object",
@@ -13213,7 +13213,7 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
       },
       "execApprovals.approvers": {
         label: "Telegram Exec Approval Approvers",
-        help: "Telegram user IDs allowed to approve exec requests for this bot account. Use numeric Telegram user IDs. If you leave this unset, OpenClaw falls back to numeric owner IDs inferred from channels.telegram.allowFrom and direct-message defaultTo when possible.",
+        help: "Telegram user IDs allowed to approve exec requests for this bot account. Use numeric Telegram user IDs. If you leave this unset, Alisio falls back to numeric owner IDs inferred from channels.telegram.allowFrom and direct-message defaultTo when possible.",
       },
       "execApprovals.agentFilter": {
         label: "Telegram Exec Approval Agent Filter",

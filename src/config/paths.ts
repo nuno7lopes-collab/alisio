@@ -1,8 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { resolveHomeRelativePath, resolveRequiredHomeDir } from "../infra/home-dir.js";
+import { DEFAULT_GATEWAY_PORT } from "../shared/gateway-defaults.js";
+
+export { DEFAULT_GATEWAY_PORT };
 
 type GatewayPortConfig = {
   gateway?: {
@@ -18,23 +21,13 @@ type GatewayPortConfig = {
  * - Config is managed externally (read-only from Nix perspective)
  */
 export function resolveIsNixMode(env: NodeJS.ProcessEnv = process.env): boolean {
-  return readEnv("ALISIO_NIX_MODE", { env, fallback: legacyEnvKey("NIX_MODE") }) === "1";
+  return readEnv("ALISIO_NIX_MODE", { env, fallback: runtimeEnvKey("NIX_MODE") }) === "1";
 }
 
 export const isNixMode = resolveIsNixMode();
 
-const LEGACY_RUNTIME_NAMESPACE = ["open", "claw"].join("");
-const LEGACY_ALT_RUNTIME_NAMESPACE = ["claw", "dbot"].join("");
-const LEGACY_STATE_DIRNAMES = [
-  `.${LEGACY_RUNTIME_NAMESPACE}`,
-  `.${LEGACY_ALT_RUNTIME_NAMESPACE}`,
-] as const;
 const STATE_DIRNAME = ".alisio";
 const CONFIG_FILENAME = "alisio.json";
-const LEGACY_CONFIG_FILENAMES = [
-  `${LEGACY_RUNTIME_NAMESPACE}.json`,
-  `${LEGACY_ALT_RUNTIME_NAMESPACE}.json`,
-] as const;
 
 function resolveDefaultHomeDir(): string {
   return resolveRequiredHomeDir(process.env, os.homedir);
@@ -46,18 +39,21 @@ function envHomedir(env: NodeJS.ProcessEnv): () => string {
 }
 
 function legacyStateDirs(homedir: () => string = resolveDefaultHomeDir): string[] {
-  return LEGACY_STATE_DIRNAMES.map((dir) => path.join(homedir(), dir));
+  void homedir;
+  return [];
 }
 
 function newStateDir(homedir: () => string = resolveDefaultHomeDir): string {
   return path.join(homedir(), STATE_DIRNAME);
 }
 
-export function resolveLegacyStateDir(homedir: () => string = resolveDefaultHomeDir): string {
+export function resolveAlternativeStateDir(homedir: () => string = resolveDefaultHomeDir): string {
   return legacyStateDirs(homedir)[0] ?? newStateDir(homedir);
 }
 
-export function resolveLegacyStateDirs(homedir: () => string = resolveDefaultHomeDir): string[] {
+export function resolveAlternativeStateDirs(
+  homedir: () => string = resolveDefaultHomeDir,
+): string[] {
   return legacyStateDirs(homedir);
 }
 
@@ -75,12 +71,12 @@ export function resolveStateDir(
   homedir: () => string = envHomedir(env),
 ): string {
   const effectiveHomedir = () => resolveRequiredHomeDir(env, homedir);
-  const override = readEnv("ALISIO_STATE_DIR", { env, fallback: legacyEnvKey("STATE_DIR") });
+  const override = readEnv("ALISIO_STATE_DIR", { env, fallback: runtimeEnvKey("STATE_DIR") });
   if (override) {
     return resolveUserPath(override, env, effectiveHomedir);
   }
   const newDir = newStateDir(effectiveHomedir);
-  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: runtimeEnvKey("TEST_FAST") }) === "1") {
     return newDir;
   }
   const legacyDirs = legacyStateDirs(effectiveHomedir);
@@ -120,7 +116,7 @@ export function resolveCanonicalConfigPath(
   env: NodeJS.ProcessEnv = process.env,
   stateDir: string = resolveStateDir(env, envHomedir(env)),
 ): string {
-  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
+  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: runtimeEnvKey("CONFIG_PATH") });
   if (override) {
     return resolveUserPath(override, env, envHomedir(env));
   }
@@ -135,7 +131,7 @@ export function resolveConfigPathCandidate(
   env: NodeJS.ProcessEnv = process.env,
   homedir: () => string = envHomedir(env),
 ): string {
-  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: runtimeEnvKey("TEST_FAST") }) === "1") {
     return resolveCanonicalConfigPath(env, resolveStateDir(env, homedir));
   }
   const candidates = resolveDefaultConfigCandidates(env, homedir);
@@ -160,18 +156,15 @@ export function resolveConfigPath(
   stateDir: string = resolveStateDir(env, envHomedir(env)),
   homedir: () => string = envHomedir(env),
 ): string {
-  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
+  const override = readEnv("ALISIO_CONFIG_PATH", { env, fallback: runtimeEnvKey("CONFIG_PATH") });
   if (override) {
     return resolveUserPath(override, env, homedir);
   }
-  if (readEnv("ALISIO_TEST_FAST", { env, fallback: legacyEnvKey("TEST_FAST") }) === "1") {
+  if (readEnv("ALISIO_TEST_FAST", { env, fallback: runtimeEnvKey("TEST_FAST") }) === "1") {
     return path.join(stateDir, CONFIG_FILENAME);
   }
-  const stateOverride = readEnv("ALISIO_STATE_DIR", { env, fallback: legacyEnvKey("STATE_DIR") });
-  const candidates = [
-    path.join(stateDir, CONFIG_FILENAME),
-    ...LEGACY_CONFIG_FILENAMES.map((name) => path.join(stateDir, name)),
-  ];
+  const stateOverride = readEnv("ALISIO_STATE_DIR", { env, fallback: runtimeEnvKey("STATE_DIR") });
+  const candidates = [path.join(stateDir, CONFIG_FILENAME)];
   const existing = candidates.find((candidate) => {
     try {
       return fs.existsSync(candidate);
@@ -203,7 +196,7 @@ export function resolveDefaultConfigCandidates(
   homedir: () => string = envHomedir(env),
 ): string[] {
   const effectiveHomedir = () => resolveRequiredHomeDir(env, homedir);
-  const explicit = readEnv("ALISIO_CONFIG_PATH", { env, fallback: legacyEnvKey("CONFIG_PATH") });
+  const explicit = readEnv("ALISIO_CONFIG_PATH", { env, fallback: runtimeEnvKey("CONFIG_PATH") });
   if (explicit) {
     return [resolveUserPath(explicit, env, effectiveHomedir)];
   }
@@ -211,23 +204,19 @@ export function resolveDefaultConfigCandidates(
   const candidates: string[] = [];
   const stateDirOverride = readEnv("ALISIO_STATE_DIR", {
     env,
-    fallback: legacyEnvKey("STATE_DIR"),
+    fallback: runtimeEnvKey("STATE_DIR"),
   });
   if (stateDirOverride) {
     const resolved = resolveUserPath(stateDirOverride, env, effectiveHomedir);
     candidates.push(path.join(resolved, CONFIG_FILENAME));
-    candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(resolved, name)));
   }
 
   const defaultDirs = [newStateDir(effectiveHomedir), ...legacyStateDirs(effectiveHomedir)];
   for (const dir of defaultDirs) {
     candidates.push(path.join(dir, CONFIG_FILENAME));
-    candidates.push(...LEGACY_CONFIG_FILENAMES.map((name) => path.join(dir, name)));
   }
   return candidates;
 }
-
-export const DEFAULT_GATEWAY_PORT = 40705;
 
 /**
  * Gateway lock directory (ephemeral).
@@ -253,7 +242,7 @@ export function resolveOAuthDir(
   env: NodeJS.ProcessEnv = process.env,
   stateDir: string = resolveStateDir(env, envHomedir(env)),
 ): string {
-  const override = readEnv("ALISIO_OAUTH_DIR", { env, fallback: legacyEnvKey("OAUTH_DIR") });
+  const override = readEnv("ALISIO_OAUTH_DIR", { env, fallback: runtimeEnvKey("OAUTH_DIR") });
   if (override) {
     return resolveUserPath(override, env, envHomedir(env));
   }
@@ -278,7 +267,7 @@ function parseGatewayPortEnvValue(raw: string | undefined): number | null {
   }
 
   // Docker Compose publish strings can leak into host CLI env loading via repo `.env`,
-  // for example `127.0.0.1:40705` or `[::1]:40705`. Accept only explicit host:port forms.
+  // for example `127.0.0.1:<port>` or `[::1]:<port>`. Accept only explicit host:port forms.
   const bracketedIpv6Match = trimmed.match(/^\[[^\]]+\]:(\d+)$/);
   if (bracketedIpv6Match?.[1]) {
     const parsed = Number.parseInt(bracketedIpv6Match[1], 10);
@@ -302,7 +291,7 @@ export function resolveGatewayPort(
   cfg?: GatewayPortConfig,
   env: NodeJS.ProcessEnv = process.env,
 ): number {
-  const envRaw = readEnv("ALISIO_GATEWAY_PORT", { env, fallback: legacyEnvKey("GATEWAY_PORT") });
+  const envRaw = readEnv("ALISIO_GATEWAY_PORT", { env, fallback: runtimeEnvKey("GATEWAY_PORT") });
   const envPort = parseGatewayPortEnvValue(envRaw);
   if (envPort !== null) {
     return envPort;

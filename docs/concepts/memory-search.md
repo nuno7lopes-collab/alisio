@@ -23,7 +23,7 @@ search works automatically. To set a provider explicitly:
   agents: {
     defaults: {
       memorySearch: {
-        provider: "openai", // or "gemini", "local", "ollama", etc.
+        provider: "openai", // or "gemini", "local", etc.
       },
     },
   },
@@ -41,7 +41,6 @@ node-llama-cpp).
 | Gemini   | `gemini`  | Yes           | Supports image/audio indexing |
 | Voyage   | `voyage`  | Yes           | Auto-detected                 |
 | Mistral  | `mistral` | Yes           | Auto-detected                 |
-| Ollama   | `ollama`  | No            | Local, must set explicitly    |
 | Local    | `local`   | No            | GGUF model, ~0.6 GB download  |
 
 ## How search works

@@ -3,7 +3,7 @@ name: voice-call
 description: Start voice calls via the Alisio voice-call plugin.
 metadata:
   {
-    "openclaw":
+    "alisio":
       {
         "emoji": "📞",
         "skillKey": "voice-call",
@@ -19,8 +19,8 @@ Use the voice-call plugin to start or inspect calls (Twilio, Telnyx, Plivo, or m
 ## CLI
 
 ```bash
-openclaw voicecall call --to "+15555550123" --message "Hello from Alisio"
-openclaw voicecall status --call-id <id>
+alisio voicecall call --to "+15555550123" --message "Hello from Alisio"
+alisio voicecall status --call-id <id>
 ```
 
 ## Tool

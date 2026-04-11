@@ -1,4 +1,4 @@
-import { legacyEnvKey, readEnv } from "../../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../../infra/env.js";
 import { createExpiringMapCache, isCacheEnabled, resolveCacheTtlMs } from "../cache-utils.js";
 import type { SessionEntry } from "./types.js";
 
@@ -19,7 +19,7 @@ const SESSION_STORE_SERIALIZED_CACHE = new Map<string, string>();
 export function getSessionStoreTtl(): number {
   return resolveCacheTtlMs({
     envValue: readEnv("ALISIO_SESSION_CACHE_TTL_MS", {
-      fallback: legacyEnvKey("SESSION_CACHE_TTL_MS"),
+      fallback: runtimeEnvKey("SESSION_CACHE_TTL_MS"),
     }),
     defaultTtlMs: DEFAULT_SESSION_STORE_TTL_MS,
   });

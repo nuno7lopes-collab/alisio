@@ -11,11 +11,11 @@ import {
 } from "./task-executor.js";
 import { findTaskByRunId, resetTaskRegistryForTests } from "./task-registry.js";
 
-const ORIGINAL_STATE_DIR = process.env.OPENCLAW_STATE_DIR;
+const ORIGINAL_STATE_DIR = process.env.ALISIO_STATE_DIR;
 
 async function withTaskExecutorStateDir(run: (root: string) => Promise<void>): Promise<void> {
-  await withTempDir({ prefix: "openclaw-task-executor-" }, async (root) => {
-    process.env.OPENCLAW_STATE_DIR = root;
+  await withTempDir({ prefix: "alisio-task-executor-" }, async (root) => {
+    process.env.ALISIO_STATE_DIR = root;
     resetTaskRegistryForTests();
     try {
       await run(root);
@@ -28,9 +28,9 @@ async function withTaskExecutorStateDir(run: (root: string) => Promise<void>): P
 describe("task-executor", () => {
   afterEach(() => {
     if (ORIGINAL_STATE_DIR === undefined) {
-      delete process.env.OPENCLAW_STATE_DIR;
+      delete process.env.ALISIO_STATE_DIR;
     } else {
-      process.env.OPENCLAW_STATE_DIR = ORIGINAL_STATE_DIR;
+      process.env.ALISIO_STATE_DIR = ORIGINAL_STATE_DIR;
     }
     resetTaskRegistryForTests();
   });

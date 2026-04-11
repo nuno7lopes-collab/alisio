@@ -5,8 +5,8 @@ export type { ChannelMessageActionAdapter } from "alisio/plugin-sdk/channel-cont
 export { SignalConfigSchema } from "alisio/plugin-sdk/channel-config-schema";
 export { PAIRING_APPROVED_MESSAGE } from "alisio/plugin-sdk/channel-status";
 import type { AlisioConfig as RuntimeAlisioConfig } from "alisio/plugin-sdk/config-runtime";
-export type { RuntimeAlisioConfig as AlisioConfig, RuntimeAlisioConfig as OpenClawConfig };
-export type { OpenClawPluginApi, PluginRuntime } from "alisio/plugin-sdk/core";
+export type { RuntimeAlisioConfig as AlisioConfig };
+export type { AlisioPluginApi, PluginRuntime } from "alisio/plugin-sdk/core";
 export type { ChannelPlugin } from "alisio/plugin-sdk/core";
 export {
   DEFAULT_ACCOUNT_ID,

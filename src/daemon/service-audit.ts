@@ -32,6 +32,7 @@ export type ServiceConfigAudit = {
 
 export const SERVICE_AUDIT_CODES = {
   gatewayCommandMissing: "gateway-command-missing",
+  gatewayRunSubcommandMissing: "gateway-run-subcommand-missing",
   gatewayEntrypointMismatch: "gateway-entrypoint-mismatch",
   gatewayPathMissing: "gateway-path-missing",
   gatewayPathMissingDirs: "gateway-path-missing-dirs",
@@ -59,6 +60,17 @@ export function needsNodeRuntimeMigration(issues: ServiceConfigIssue[]): boolean
 
 function hasGatewaySubcommand(programArguments?: string[]): boolean {
   return Boolean(programArguments?.some((arg) => arg === "gateway"));
+}
+
+function hasGatewayRunSubcommand(programArguments?: string[]): boolean {
+  if (!programArguments || programArguments.length === 0) {
+    return false;
+  }
+  const gatewayIndex = programArguments.indexOf("gateway");
+  if (gatewayIndex < 0) {
+    return false;
+  }
+  return programArguments[gatewayIndex + 1] === "run";
 }
 
 function parseSystemdUnit(content: string): {
@@ -202,6 +214,15 @@ function auditGatewayCommand(programArguments: string[] | undefined, issues: Ser
       message: "Service command does not include the gateway subcommand",
       level: "aggressive",
     });
+    return;
+  }
+  if (!hasGatewayRunSubcommand(programArguments)) {
+    issues.push({
+      code: SERVICE_AUDIT_CODES.gatewayRunSubcommandMissing,
+      message: "Service command is missing the gateway run subcommand",
+      detail: "Run `alisio gateway install --force` to rewrite the service command.",
+      level: "recommended",
+    });
   }
 }
 
@@ -237,17 +258,10 @@ export function readEmbeddedGatewayToken(command: GatewayServiceCommand): string
   if (!command) {
     return undefined;
   }
-  if (
-    command.environmentValueSources?.ALISIO_GATEWAY_TOKEN === "file" ||
-    command.environmentValueSources?.OPENCLAW_GATEWAY_TOKEN === "file"
-  ) {
+  if (command.environmentValueSources?.ALISIO_GATEWAY_TOKEN === "file") {
     return undefined;
   }
-  return (
-    command.environment?.ALISIO_GATEWAY_TOKEN?.trim() ||
-    command.environment?.OPENCLAW_GATEWAY_TOKEN?.trim() ||
-    undefined
-  );
+  return command.environment?.ALISIO_GATEWAY_TOKEN?.trim() || undefined;
 }
 
 function getPathModule(platform: NodeJS.Platform) {

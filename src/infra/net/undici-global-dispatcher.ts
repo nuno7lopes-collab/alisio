@@ -37,7 +37,7 @@ function resolveAutoSelectFamily(): boolean | undefined {
     const systemDefault = net.getDefaultAutoSelectFamily();
     // WSL2 has unstable IPv6 connectivity; disable autoSelectFamily to
     // force IPv4 connections and avoid "fetch failed" errors when reaching
-    // Windows-host services (e.g. Ollama) from inside WSL2.
+    // Windows-host services from inside WSL2.
     if (systemDefault && isWSL2Sync()) {
       return false;
     }

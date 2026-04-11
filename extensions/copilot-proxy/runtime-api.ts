@@ -1,6 +1,6 @@
 export { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
 export type {
-  OpenClawPluginApi,
+  AlisioPluginApi,
   ProviderAuthContext,
   ProviderAuthResult,
 } from "alisio/plugin-sdk/core";

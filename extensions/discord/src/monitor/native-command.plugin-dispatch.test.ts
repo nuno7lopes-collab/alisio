@@ -1,5 +1,5 @@
 import type { NativeCommandSpec } from "alisio/plugin-sdk/command-auth";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { clearPluginCommands, registerPluginCommand } from "alisio/plugin-sdk/plugin-runtime";
 import { setDefaultChannelPluginRegistryForTests } from "alisio/plugin-sdk/testing";
 import { ChannelType } from "discord-api-types/v10";
@@ -56,14 +56,14 @@ function createInteraction(params?: {
   });
 }
 
-function createConfig(): OpenClawConfig {
+function createConfig(): AlisioConfig {
   return {
     channels: {
       discord: {
         dm: { enabled: true, policy: "open" },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 function createConfiguredAcpBinding(params: {
@@ -129,7 +129,7 @@ function createConfiguredAcpCase(params: {
           agentId: params.agentId,
         }),
       ],
-    } as OpenClawConfig,
+    } as AlisioConfig,
     interaction: createInteraction({
       channelType: params.channelType,
       channelId: params.channelId,
@@ -139,7 +139,7 @@ function createConfiguredAcpCase(params: {
   };
 }
 
-async function createNativeCommand(cfg: OpenClawConfig, commandSpec: NativeCommandSpec) {
+async function createNativeCommand(cfg: AlisioConfig, commandSpec: NativeCommandSpec) {
   return createDiscordNativeCommand({
     command: commandSpec,
     cfg,
@@ -217,7 +217,7 @@ function createUnboundRouteState(params: {
   >;
 }
 
-async function createPluginCommand(params: { cfg: OpenClawConfig; name: string }) {
+async function createPluginCommand(params: { cfg: AlisioConfig; name: string }) {
   return createDiscordNativeCommand({
     command: {
       name: params.name,
@@ -254,7 +254,7 @@ function registerPairPlugin(params?: { discordNativeName?: string }) {
 }
 
 async function expectPairCommandReply(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   commandName: string;
   interaction: MockCommandInteraction;
 }) {
@@ -280,7 +280,7 @@ async function expectPairCommandReply(params: {
   );
 }
 
-async function createStatusCommand(cfg: OpenClawConfig) {
+async function createStatusCommand(cfg: AlisioConfig) {
   return await createNativeCommand(cfg, {
     name: "status",
     description: "Status",
@@ -314,7 +314,7 @@ function expectBoundSessionDispatch(
 }
 
 async function expectBoundStatusCommandDispatch(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   interaction: MockCommandInteraction;
   expectedPattern: RegExp;
 }) {
@@ -423,7 +423,7 @@ describe("Discord native plugin command dispatch", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const commandSpec: NativeCommandSpec = {
       name: "pair",
       description: "Pair",
@@ -527,7 +527,7 @@ describe("Discord native plugin command dispatch", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const commandSpec: NativeCommandSpec = {
       name: "cron_jobs",
       description: "List cron jobs",
@@ -621,7 +621,7 @@ describe("Discord native plugin command dispatch", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const interaction = createInteraction({
       channelType: ChannelType.GuildText,
       channelId,

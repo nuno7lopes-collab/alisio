@@ -84,7 +84,7 @@ export function runDockerSandboxShellCommand(
     "sh",
     "-c",
     params.script,
-    "openclaw-sandbox-fs",
+    "alisio-sandbox-fs",
   ];
   if (params.args?.length) {
     dockerArgs.push(...params.args);

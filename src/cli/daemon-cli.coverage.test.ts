@@ -5,7 +5,7 @@ import { createCliRuntimeCapture } from "./test-runtime-capture.js";
 
 const probeGatewayStatus = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
 const resolveGatewayProgramArguments = vi.fn(async (_opts?: unknown) => ({
-  programArguments: ["/bin/node", "cli", "gateway", "--port", "40705"],
+  programArguments: ["/bin/node", "cli", "gateway", "run", "--port", "40705"],
 }));
 const serviceInstall = vi.fn().mockResolvedValue(undefined);
 const serviceStage = vi.fn().mockResolvedValue(undefined);
@@ -25,11 +25,11 @@ const inspectPortUsage = vi.fn(async (port: number) => ({
 }));
 const buildGatewayInstallPlan = vi.fn(
   async (params: { port: number; token?: string; env?: NodeJS.ProcessEnv }) => ({
-    programArguments: ["/bin/node", "cli", "gateway", "--port", String(params.port)],
+    programArguments: ["/bin/node", "cli", "gateway", "run", "--port", String(params.port)],
     workingDirectory: process.cwd(),
     environment: {
-      OPENCLAW_GATEWAY_PORT: String(params.port),
-      ...(params.token ? { OPENCLAW_GATEWAY_TOKEN: params.token } : {}),
+      ALISIO_GATEWAY_PORT: String(params.port),
+      ...(params.token ? { ALISIO_GATEWAY_TOKEN: params.token } : {}),
     },
   }),
 );
@@ -126,15 +126,15 @@ describe("daemon-cli coverage", () => {
   beforeEach(() => {
     daemonProgram = createDaemonProgram();
     envSnapshot = captureEnv([
-      "OPENCLAW_STATE_DIR",
-      "OPENCLAW_CONFIG_PATH",
-      "OPENCLAW_GATEWAY_PORT",
-      "OPENCLAW_PROFILE",
+      "ALISIO_STATE_DIR",
+      "ALISIO_CONFIG_PATH",
+      "ALISIO_GATEWAY_PORT",
+      "ALISIO_PROFILE",
     ]);
-    process.env.OPENCLAW_STATE_DIR = "/tmp/openclaw-cli-state";
-    process.env.OPENCLAW_CONFIG_PATH = "/tmp/openclaw-cli-state/openclaw.json";
-    delete process.env.OPENCLAW_GATEWAY_PORT;
-    delete process.env.OPENCLAW_PROFILE;
+    process.env.ALISIO_STATE_DIR = "/tmp/alisio-cli-state";
+    process.env.ALISIO_CONFIG_PATH = "/tmp/alisio-cli-state/alisio.json";
+    delete process.env.ALISIO_GATEWAY_PORT;
+    delete process.env.ALISIO_PROFILE;
     serviceReadCommand.mockResolvedValue(null);
     resolveGatewayProbeAuthWithSecretInputs.mockClear();
     buildGatewayInstallPlan.mockClear();
@@ -164,14 +164,14 @@ describe("daemon-cli coverage", () => {
     inspectPortUsage.mockClear();
 
     serviceReadCommand.mockResolvedValueOnce({
-      programArguments: ["/bin/node", "cli", "gateway", "--port", "19001"],
+      programArguments: ["/bin/node", "cli", "gateway", "run", "--port", "19001"],
       environment: {
-        OPENCLAW_PROFILE: "dev",
-        OPENCLAW_STATE_DIR: "/tmp/openclaw-daemon-state",
-        OPENCLAW_CONFIG_PATH: "/tmp/openclaw-daemon-state/openclaw.json",
-        OPENCLAW_GATEWAY_PORT: "19001",
+        ALISIO_PROFILE: "dev",
+        ALISIO_STATE_DIR: "/tmp/alisio-daemon-state",
+        ALISIO_CONFIG_PATH: "/tmp/alisio-daemon-state/alisio.json",
+        ALISIO_GATEWAY_PORT: "19001",
       },
-      sourcePath: "/tmp/ai.openclaw.gateway.plist",
+      sourcePath: "/tmp/ai.alisio.gateway.plist",
     });
 
     await runDaemonCommand(["daemon", "status", "--json"]);

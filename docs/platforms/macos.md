@@ -34,7 +34,7 @@ From the Mac app, Alisio should make three paths obvious:
 
 - **OpenAI** for fast hosted setup
 - **Local** for models on this Mac
-- **Server** for Ollama or OpenAI-compatible endpoints elsewhere
+- **Server** for OpenAI-compatible endpoints elsewhere
 
 Those sources can coexist on one machine.
 

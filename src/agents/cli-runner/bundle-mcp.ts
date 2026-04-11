@@ -101,7 +101,7 @@ export async function prepareCliBundleMcpConfig(params: {
   // Always pass an explicit strict MCP config for background claude-cli runs.
   // Otherwise Claude may inherit ambient user/global MCP servers (for example
   // Playwright) and spawn unexpected background processes.
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cli-mcp-"));
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-cli-mcp-"));
   const mcpConfigPath = path.join(tempDir, "mcp.json");
   const serializedConfig = `${JSON.stringify(mergedConfig, null, 2)}\n`;
   await fs.writeFile(mcpConfigPath, serializedConfig, "utf-8");

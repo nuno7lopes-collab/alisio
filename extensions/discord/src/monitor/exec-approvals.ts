@@ -18,7 +18,7 @@ import {
   type PluginApprovalRequest,
   type PluginApprovalResolved,
 } from "alisio/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { loadSessionStore, resolveStorePath } from "alisio/plugin-sdk/config-runtime";
 import type { DiscordExecApprovalConfig } from "alisio/plugin-sdk/config-runtime";
 import type { EventFrame } from "alisio/plugin-sdk/gateway-runtime";
@@ -126,7 +126,7 @@ function isPluginApprovalRequest(
 }
 
 type ExecApprovalContainerParams = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   title: string;
   description?: string;
@@ -216,7 +216,7 @@ class ExecApprovalActionRow extends Row<Button> {
 }
 
 function resolveAccountIdFromSessionKey(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   sessionKey?: string | null;
 }): string | null {
   const sessionKey = params.sessionKey?.trim();
@@ -240,7 +240,7 @@ function resolveAccountIdFromSessionKey(params: {
 }
 
 function resolveExecApprovalAccountId(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   request: ExecApprovalRequest;
 }): string | null {
   return resolveAccountIdFromSessionKey({
@@ -250,7 +250,7 @@ function resolveExecApprovalAccountId(params: {
 }
 
 function resolvePluginApprovalAccountId(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   request: PluginApprovalRequest;
 }): string | null {
   const fromSession = resolveAccountIdFromSessionKey({
@@ -264,7 +264,7 @@ function resolvePluginApprovalAccountId(params: {
 }
 
 function resolveApprovalAccountId(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   request: ExecApprovalRequest | PluginApprovalRequest;
 }): string | null {
   return isPluginApprovalRequest(params.request)
@@ -355,7 +355,7 @@ function resolveExecApprovalPreviews(
 
 function createExecApprovalRequestContainer(params: {
   request: ExecApprovalRequest;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   actionRow?: Row<Button>;
 }): ExecApprovalContainer {
@@ -382,7 +382,7 @@ function createExecApprovalRequestContainer(params: {
 
 function createPluginApprovalRequestContainer(params: {
   request: PluginApprovalRequest;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   actionRow?: Row<Button>;
 }): ExecApprovalContainer {
@@ -408,7 +408,7 @@ function createExecResolvedContainer(params: {
   request: ExecApprovalRequest;
   decision: ExecApprovalDecision;
   resolvedBy?: string | null;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): ExecApprovalContainer {
   const { commandPreview, commandSecondaryPreview } = resolveExecApprovalPreviews(
@@ -447,7 +447,7 @@ function createPluginResolvedContainer(params: {
   request: PluginApprovalRequest;
   decision: ExecApprovalDecision;
   resolvedBy?: string | null;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): ExecApprovalContainer {
   const decisionLabel =
@@ -479,7 +479,7 @@ function createPluginResolvedContainer(params: {
 
 function createExecExpiredContainer(params: {
   request: ExecApprovalRequest;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): ExecApprovalContainer {
   const { commandPreview, commandSecondaryPreview } = resolveExecApprovalPreviews(
@@ -502,7 +502,7 @@ function createExecExpiredContainer(params: {
 
 function createPluginExpiredContainer(params: {
   request: PluginApprovalRequest;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
 }): ExecApprovalContainer {
   return new ExecApprovalContainer({
@@ -523,7 +523,7 @@ export type DiscordExecApprovalHandlerOpts = {
   accountId: string;
   config: DiscordExecApprovalConfig;
   gatewayUrl?: string;
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   runtime?: RuntimeEnv;
   onResolve?: (id: string, decision: ExecApprovalDecision) => Promise<void>;
   __testing?: {

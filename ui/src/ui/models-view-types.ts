@@ -1,3 +1,5 @@
+export type ModelProviderId = "openai" | "nodes" | "local";
+
 export type ModelsOperationAction = "install" | "uninstall";
 export type ModelsOperationPhase = "started" | "running" | "completed" | "failed";
 

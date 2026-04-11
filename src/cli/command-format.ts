@@ -1,12 +1,12 @@
 import { replaceCliName, resolveCliName } from "./cli-name.js";
 import { normalizeProfileName } from "./profile-utils.js";
 
-const CLI_PREFIX_RE = /^(?:pnpm|npm|bunx|npx)\s+(?:alisio|openclaw)\b|^(?:alisio|openclaw)\b/;
+const CLI_PREFIX_RE = /^(?:pnpm|npm|bunx|npx)\s+alisio\b|^alisio\b/;
 const CONTAINER_FLAG_RE = /(?:^|\s)--container(?:\s|=|$)/;
 const PROFILE_FLAG_RE = /(?:^|\s)--profile(?:\s|=|$)/;
 const DEV_FLAG_RE = /(?:^|\s)--dev(?:\s|$)/;
 const UPDATE_COMMAND_RE =
-  /^(?:pnpm|npm|bunx|npx)\s+(?:alisio|openclaw)\b.*(?:^|\s)update(?:\s|$)|^(?:alisio|openclaw)\b.*(?:^|\s)update(?:\s|$)/;
+  /^(?:pnpm|npm|bunx|npx)\s+alisio\b.*(?:^|\s)update(?:\s|$)|^alisio\b.*(?:^|\s)update(?:\s|$)/;
 
 export function formatCliCommand(
   command: string,
@@ -14,8 +14,8 @@ export function formatCliCommand(
 ): string {
   const cliName = resolveCliName();
   const normalizedCommand = replaceCliName(command, cliName);
-  const container = env.ALISIO_CONTAINER_HINT?.trim() || env.OPENCLAW_CONTAINER_HINT?.trim();
-  const profile = normalizeProfileName(env.ALISIO_PROFILE || env.OPENCLAW_PROFILE);
+  const container = env.ALISIO_CONTAINER_HINT?.trim();
+  const profile = normalizeProfileName(env.ALISIO_PROFILE);
   if (!container && !profile) {
     return normalizedCommand;
   }

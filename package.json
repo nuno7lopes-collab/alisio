@@ -943,7 +943,6 @@
   "scripts": {
     "alisio": "node scripts/run-node.mjs",
     "alisio:legacy:cli": "node scripts/run-node.mjs",
-    "alisio:legacy:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "alisio:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "alisio:supabase:audit": "node --import tsx scripts/alisio-supabase-audit.ts",
     "android:assemble": "cd apps/android && ./gradlew :app:assemblePlayDebug",
@@ -1050,7 +1049,6 @@
     "mac:open": "open dist/Alisio.app",
     "mac:package": "bash scripts/package-mac-app.sh",
     "mac:restart": "bash scripts/restart-mac.sh",
-    "moltbot:rpc": "node scripts/run-node.mjs agent --mode rpc --json",
     "plugin-sdk:api:check": "node --import tsx scripts/generate-plugin-sdk-api-baseline.ts --check",
     "plugin-sdk:api:gen": "node --import tsx scripts/generate-plugin-sdk-api-baseline.ts --write",
     "plugin-sdk:check-exports": "node scripts/sync-plugin-sdk-exports.mjs --check",

@@ -4,17 +4,16 @@ import { collectProviderApiKeys } from "../agents/live-auth-keys.js";
 import { normalizeProviderId } from "../agents/provider-id.js";
 import type { NodeRegistry } from "../gateway/node-registry.js";
 import { loadGatewayModelCatalog } from "../gateway/server-model-catalog.js";
+import { withTimeout } from "../node-host/with-timeout.js";
 import { isAlisioDynamicProvider } from "../shared/alisio-dynamic-provider.js";
 
 export type AlisioRuntimeProviderSignals = {
   authenticatedProviderReady: boolean;
-  localTargetReady: boolean;
-  activeServerReady: boolean;
+  targetReady: boolean;
 };
 
 type RuntimeSetupSnapshot = {
   targets: Array<{ chatProviderId?: string }>;
-  servers: Array<{ active?: boolean; chatProviderId?: string }>;
   dynamicCatalogEntries: Array<{ provider: string; id: string; name: string }>;
 };
 
@@ -28,11 +27,21 @@ export type AlisioRuntimeSetupState = {
   };
 };
 
+export const ALISIO_RUNTIME_SETUP_TIMEOUT_MS = 1500;
+
 function buildEmptyRuntimeModels(): AlisioRuntimeSetupState["models"] {
   return {
     total: 0,
     defaultProvider: DEFAULT_PROVIDER,
     providers: [],
+  };
+}
+
+export function buildEmptyAlisioRuntimeSetupState(): AlisioRuntimeSetupState {
+  return {
+    providerReady: false,
+    signals: buildRuntimeSignals(false),
+    models: buildEmptyRuntimeModels(),
   };
 }
 
@@ -42,8 +51,7 @@ function buildRuntimeSignals(
 ): AlisioRuntimeProviderSignals {
   return {
     authenticatedProviderReady,
-    localTargetReady: overrides?.localTargetReady ?? false,
-    activeServerReady: overrides?.activeServerReady ?? false,
+    targetReady: overrides?.targetReady ?? false,
   };
 }
 
@@ -52,15 +60,10 @@ function hasPublishedChatProvider(providerId: string | undefined): boolean {
 }
 
 export function resolveAlisioRuntimeSignalsFromSnapshot(
-  snapshot: Pick<RuntimeSetupSnapshot, "targets" | "servers">,
+  snapshot: Pick<RuntimeSetupSnapshot, "targets">,
 ): Omit<AlisioRuntimeProviderSignals, "authenticatedProviderReady"> {
   return {
-    localTargetReady: snapshot.targets.some((target) =>
-      hasPublishedChatProvider(target.chatProviderId),
-    ),
-    activeServerReady: snapshot.servers.some(
-      (server) => server.active && hasPublishedChatProvider(server.chatProviderId),
-    ),
+    targetReady: snapshot.targets.some((target) => hasPublishedChatProvider(target.chatProviderId)),
   };
 }
 
@@ -72,11 +75,7 @@ export function resolveAlisioRuntimeProviderReady(
   if (runtimeSetup.providerReady) {
     return true;
   }
-  if (
-    runtimeSetup.signals?.authenticatedProviderReady ||
-    runtimeSetup.signals?.localTargetReady ||
-    runtimeSetup.signals?.activeServerReady
-  ) {
+  if (runtimeSetup.signals?.authenticatedProviderReady || runtimeSetup.signals?.targetReady) {
     return true;
   }
   return runtimeSetup.models.providers.some((provider) => isAlisioDynamicProvider(provider));
@@ -142,5 +141,21 @@ export async function loadAlisioRuntimeSetupState(params?: {
       signals: buildRuntimeSignals(false),
       models: buildEmptyRuntimeModels(),
     };
+  }
+}
+
+export async function loadAlisioRuntimeSetupStateWithTimeout(
+  params?: Parameters<typeof loadAlisioRuntimeSetupState>[0],
+  opts?: { timeoutMs?: number },
+): Promise<AlisioRuntimeSetupState> {
+  try {
+    return await withTimeout(
+      () => loadAlisioRuntimeSetupState(params),
+      opts?.timeoutMs ?? ALISIO_RUNTIME_SETUP_TIMEOUT_MS,
+      "Alisio runtime setup",
+    );
+  } catch {
+    // The setup shell must stay responsive even if catalog or node discovery stalls.
+    return buildEmptyAlisioRuntimeSetupState();
   }
 }

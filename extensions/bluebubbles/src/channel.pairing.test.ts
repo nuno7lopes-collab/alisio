@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { OpenClawConfig } from "./runtime-api.js";
+import type { AlisioConfig } from "./runtime-api.js";
 
 const sendMessageBlueBubblesMock = vi.hoisted(() => vi.fn());
 
@@ -36,7 +36,7 @@ describe("bluebubblesPlugin.pairing.notifyApproval", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     await bluebubblesPlugin.pairing?.notifyApproval?.({
       cfg,

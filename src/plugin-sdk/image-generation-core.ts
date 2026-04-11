@@ -12,7 +12,6 @@ export type {
   ImageGenerationSourceImage,
 } from "../image-generation/types.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 
 export { describeFailoverError, isFailoverError } from "../agents/failover-error.js";
 export { resolveApiKeyForProvider } from "../agents/model-auth.js";

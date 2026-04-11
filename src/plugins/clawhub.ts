@@ -150,7 +150,7 @@ function validateClawHubPluginPackage(params: {
   }
   if (pkg.family === "skill") {
     return buildClawHubInstallFailure(
-      `"${pkg.name}" is a skill. Use "openclaw skills install ${pkg.name}" instead.`,
+      `"${pkg.name}" is a skill. Use "alisio skills install ${pkg.name}" instead.`,
       CLAWHUB_INSTALL_ERROR_CODE.SKILL_PACKAGE,
     );
   }
@@ -329,9 +329,7 @@ export async function installPluginFromClawHub(params: {
       clawhub: {
         source: "clawhub",
         clawhubUrl:
-          params.baseUrl?.trim() ||
-          process.env.OPENCLAW_CLAWHUB_URL?.trim() ||
-          "https://clawhub.ai",
+          params.baseUrl?.trim() || process.env.ALISIO_CLAWHUB_URL?.trim() || "https://clawhub.ai",
         clawhubPackage: parsed.name,
         clawhubFamily,
         clawhubChannel: pkg.channel,

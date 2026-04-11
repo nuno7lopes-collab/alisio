@@ -11,9 +11,7 @@ type EnvSnapshot = {
   homeDrive: string | undefined;
   homePath: string | undefined;
   alisioHome: string | undefined;
-  openclawHome: string | undefined;
   alisioStateDir: string | undefined;
-  openclawStateDir: string | undefined;
 };
 
 type SharedHomeRootState = {
@@ -30,9 +28,7 @@ function snapshotEnv(): EnvSnapshot {
     homeDrive: process.env.HOMEDRIVE,
     homePath: process.env.HOMEPATH,
     alisioHome: process.env.ALISIO_HOME,
-    openclawHome: process.env.OPENCLAW_HOME,
     alisioStateDir: process.env.ALISIO_STATE_DIR,
-    openclawStateDir: process.env.OPENCLAW_STATE_DIR,
   };
 }
 
@@ -49,9 +45,7 @@ function restoreEnv(snapshot: EnvSnapshot) {
   restoreKey("HOMEDRIVE", snapshot.homeDrive);
   restoreKey("HOMEPATH", snapshot.homePath);
   restoreKey("ALISIO_HOME", snapshot.alisioHome);
-  restoreKey("OPENCLAW_HOME", snapshot.openclawHome);
   restoreKey("ALISIO_STATE_DIR", snapshot.alisioStateDir);
-  restoreKey("OPENCLAW_STATE_DIR", snapshot.openclawStateDir);
 }
 
 function snapshotExtraEnv(keys: string[]): Record<string, string | undefined> {
@@ -78,9 +72,7 @@ function setTempHome(base: string) {
   process.env.USERPROFILE = base;
   // Ensure tests using HOME isolation aren't affected by leaked home overrides.
   delete process.env.ALISIO_HOME;
-  delete process.env.OPENCLAW_HOME;
   process.env.ALISIO_STATE_DIR = tempStateDir;
-  process.env.OPENCLAW_STATE_DIR = tempStateDir;
 
   if (process.platform !== "win32") {
     return;
@@ -112,7 +104,7 @@ export async function withTempHome<T>(
   fn: (home: string) => Promise<T>,
   opts: { env?: Record<string, EnvValue>; prefix?: string } = {},
 ): Promise<T> {
-  const prefix = opts.prefix ?? "openclaw-test-home-";
+  const prefix = opts.prefix ?? "alisio-test-home-";
   const base = await allocateTempHomeBase(prefix);
   const snapshot = snapshotEnv();
   const envKeys = Object.keys(opts.env ?? {});
@@ -125,7 +117,7 @@ export async function withTempHome<T>(
 
   setTempHome(base);
   await fs.mkdir(path.join(base, ".alisio", "agents", "main", "sessions"), { recursive: true });
-  await fs.mkdir(path.join(base, ".openclaw", "agents", "main", "sessions"), {
+  await fs.mkdir(path.join(base, ".alisio", "agents", "main", "sessions"), {
     recursive: true,
   });
   if (opts.env) {

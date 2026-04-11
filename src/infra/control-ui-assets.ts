@@ -6,7 +6,6 @@ import { defaultRuntime, type RuntimeEnv } from "../runtime.js";
 import { resolveAlisioPackageRoot, resolveAlisioPackageRootSync } from "./alisio-root.js";
 
 const CONTROL_UI_DIST_PATH_SEGMENTS = ["dist", "control-ui", "index.html"] as const;
-const LEGACY_PACKAGE_NAME = ["open", "claw"].join("");
 
 export function resolveControlUiDistIndexPathForRoot(root: string): string {
   return path.join(root, ...CONTROL_UI_DIST_PATH_SEGMENTS);
@@ -118,7 +117,7 @@ export async function resolveControlUiDistIndexPath(
         try {
           const raw = fs.readFileSync(pkgJsonPath, "utf-8");
           const parsed = JSON.parse(raw) as { name?: unknown };
-          if (parsed.name === "alisio" || parsed.name === LEGACY_PACKAGE_NAME) {
+          if (parsed.name === "alisio") {
             return fs.existsSync(indexPath) ? indexPath : null;
           }
           // Stop at the first package boundary to avoid resolving through unrelated ancestors.

@@ -123,7 +123,7 @@ describe("channel plugin catalog", () => {
   }) {
     return {
       name: params.packageName,
-      openclaw: {
+      alisio: {
         channel: {
           id: params.channelId,
           label: params.label,
@@ -161,7 +161,7 @@ describe("channel plugin catalog", () => {
       path.join(pluginDir, "package.json"),
       JSON.stringify({
         name: params.packageName,
-        openclaw: {
+        alisio: {
           extensions: ["./index.js"],
           channel: {
             id: "demo-channel",
@@ -178,7 +178,7 @@ describe("channel plugin catalog", () => {
       "utf8",
     );
     fs.writeFileSync(
-      path.join(pluginDir, "openclaw.plugin.json"),
+      path.join(pluginDir, "alisio.plugin.json"),
       JSON.stringify({
         id: params.pluginId,
         configSchema: {},
@@ -231,12 +231,12 @@ describe("channel plugin catalog", () => {
     {
       name: "includes external catalog entries",
       setup: () => {
-        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-catalog-"));
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-catalog-"));
         const catalogPath = path.join(dir, "catalog.json");
         writeCatalogFile(
           catalogPath,
           createCatalogEntry({
-            packageName: "@openclaw/demo-channel",
+            packageName: "@alisio/demo-channel",
             channelId: "demo-channel",
             label: "Demo Channel",
             blurb: "Demo entry",
@@ -253,7 +253,7 @@ describe("channel plugin catalog", () => {
     {
       name: "preserves plugin ids when they differ from channel ids",
       setup: () => {
-        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-channel-catalog-state-"));
+        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-channel-catalog-state-"));
         writeDiscoveredChannelPlugin({
           stateDir,
           packageName: "@vendor/demo-channel-plugin",
@@ -265,8 +265,8 @@ describe("channel plugin catalog", () => {
           channelId: "demo-channel",
           env: {
             ...process.env,
-            OPENCLAW_STATE_DIR: stateDir,
-            OPENCLAW_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
+            ALISIO_STATE_DIR: stateDir,
+            ALISIO_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
           },
           expected: { pluginId: "@vendor/demo-runtime" },
         };
@@ -275,7 +275,7 @@ describe("channel plugin catalog", () => {
     {
       name: "keeps discovered plugins ahead of external catalog overrides",
       setup: () => {
-        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-catalog-state-"));
+        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-catalog-state-"));
         const catalogPath = path.join(stateDir, "catalog.json");
         writeDiscoveredChannelPlugin({
           stateDir,
@@ -298,9 +298,9 @@ describe("channel plugin catalog", () => {
           catalogPaths: [catalogPath],
           env: {
             ...process.env,
-            OPENCLAW_STATE_DIR: stateDir,
+            ALISIO_STATE_DIR: stateDir,
             CLAWDBOT_STATE_DIR: undefined,
-            OPENCLAW_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
+            ALISIO_BUNDLED_PLUGINS_DIR: "/nonexistent/bundled/plugins",
           },
           expected: {
             install: { npmSpec: "@vendor/demo-channel-plugin" },
@@ -325,12 +325,12 @@ describe("channel plugin catalog", () => {
     {
       name: "uses the provided env for external catalog path resolution",
       setup: () => {
-        const home = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-catalog-home-"));
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-catalog-home-"));
         const catalogPath = path.join(home, "catalog.json");
         writeCatalogFile(
           catalogPath,
           createCatalogEntry({
-            packageName: "@openclaw/env-demo-channel",
+            packageName: "@alisio/env-demo-channel",
             channelId: "env-demo-channel",
             label: "Env Demo Channel",
             blurb: "Env demo entry",
@@ -340,8 +340,8 @@ describe("channel plugin catalog", () => {
         return {
           env: {
             ...process.env,
-            OPENCLAW_PLUGIN_CATALOG_PATHS: "~/catalog.json",
-            OPENCLAW_HOME: home,
+            ALISIO_PLUGIN_CATALOG_PATHS: "~/catalog.json",
+            ALISIO_HOME: home,
             HOME: home,
           },
           expectedId: "env-demo-channel",
@@ -351,13 +351,13 @@ describe("channel plugin catalog", () => {
     {
       name: "uses the provided env for default catalog paths",
       setup: () => {
-        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-catalog-state-"));
+        const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-catalog-state-"));
         const catalogPath = path.join(stateDir, "plugins", "catalog.json");
         fs.mkdirSync(path.dirname(catalogPath), { recursive: true });
         writeCatalogFile(
           catalogPath,
           createCatalogEntry({
-            packageName: "@openclaw/default-env-demo",
+            packageName: "@alisio/default-env-demo",
             channelId: "default-env-demo",
             label: "Default Env Demo",
             blurb: "Default env demo entry",
@@ -366,7 +366,7 @@ describe("channel plugin catalog", () => {
         return {
           env: {
             ...process.env,
-            OPENCLAW_STATE_DIR: stateDir,
+            ALISIO_STATE_DIR: stateDir,
           },
           expectedId: "default-env-demo",
         };

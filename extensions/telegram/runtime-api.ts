@@ -2,8 +2,7 @@ export type {
   ChannelMessageActionAdapter,
   ChannelPlugin,
   AlisioConfig,
-  AlisioConfig as OpenClawConfig,
-  OpenClawPluginApi,
+  AlisioPluginApi,
   PluginRuntime,
   TelegramAccountConfig,
   TelegramActionConfig,
@@ -11,8 +10,8 @@ export type {
 } from "alisio/plugin-sdk/telegram-core";
 export type { TelegramApiOverride } from "./src/send.js";
 export type {
-  OpenClawPluginService,
-  OpenClawPluginServiceContext,
+  AlisioPluginService,
+  AlisioPluginServiceContext,
   PluginLogger,
 } from "alisio/plugin-sdk/core";
 export type {

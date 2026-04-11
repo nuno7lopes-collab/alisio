@@ -87,7 +87,7 @@ Control UIが読み込まれれば、Gatewayは使用可能な状態です。
     クイックテストやトラブルシューティングに便利です。
 
     ```bash
-    alisio gateway --port 40705
+    alisio gateway run --port 40705
     ```
 
   </Accordion>

@@ -194,7 +194,7 @@ vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
   return {
     ...actual,
     loadConfig: () => slackTestState.config,
-    resolveStorePath: vi.fn(() => "/tmp/openclaw-sessions.json"),
+    resolveStorePath: vi.fn(() => "/tmp/alisio-sessions.json"),
     updateLastRoute: (...args: unknown[]) => slackTestState.updateLastRouteMock(...args),
     resolveSessionKey: vi.fn(),
     readSessionUpdatedAt: vi.fn(() => undefined),

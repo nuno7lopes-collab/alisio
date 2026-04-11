@@ -1,5 +1,5 @@
 /**
- * Twitch channel plugin for OpenClaw.
+ * Twitch channel plugin for Alisio.
  *
  * Main plugin export combining all adapters (outbound, actions, status, gateway).
  * This is the primary entry point for the Twitch channel integration.
@@ -16,7 +16,7 @@ import {
   createComputedAccountStatusAdapter,
   createDefaultChannelRuntimeState,
 } from "alisio/plugin-sdk/status-helpers";
-import type { OpenClawConfig } from "../api.js";
+import type { AlisioConfig } from "../api.js";
 import { buildChannelConfigSchema } from "../api.js";
 import { twitchMessageActions } from "./actions.js";
 import { removeClientManager } from "./client-manager-registry.js";
@@ -48,7 +48,7 @@ type ResolvedTwitchAccount = TwitchAccountConfig & { accountId?: string | null }
  * Twitch channel plugin.
  *
  * Implements the ChannelPlugin interface to provide Twitch chat integration
- * for OpenClaw. Supports message sending, receiving, access control, and
+ * for Alisio. Supports message sending, receiving, access control, and
  * status monitoring.
  */
 export const twitchPlugin: ChannelPlugin<ResolvedTwitchAccount> =
@@ -79,8 +79,8 @@ export const twitchPlugin: ChannelPlugin<ResolvedTwitchAccount> =
       },
       configSchema: buildChannelConfigSchema(TwitchConfigSchema),
       config: {
-        listAccountIds: (cfg: OpenClawConfig): string[] => listAccountIds(cfg),
-        resolveAccount: (cfg: OpenClawConfig, accountId?: string | null): ResolvedTwitchAccount => {
+        listAccountIds: (cfg: AlisioConfig): string[] => listAccountIds(cfg),
+        resolveAccount: (cfg: AlisioConfig, accountId?: string | null): ResolvedTwitchAccount => {
           const resolvedAccountId = accountId ?? DEFAULT_ACCOUNT_ID;
           const account = getAccountConfig(cfg, resolvedAccountId);
           if (!account) {
@@ -99,7 +99,7 @@ export const twitchPlugin: ChannelPlugin<ResolvedTwitchAccount> =
           };
         },
         defaultAccountId: (): string => DEFAULT_ACCOUNT_ID,
-        isConfigured: (_account: unknown, cfg: OpenClawConfig): boolean =>
+        isConfigured: (_account: unknown, cfg: AlisioConfig): boolean =>
           resolveTwitchAccountContext(cfg, DEFAULT_ACCOUNT_ID).configured,
         isEnabled: (account: ResolvedTwitchAccount | undefined): boolean =>
           account?.enabled !== false,
@@ -124,7 +124,7 @@ export const twitchPlugin: ChannelPlugin<ResolvedTwitchAccount> =
           kind,
           runtime,
         }: {
-          cfg: OpenClawConfig;
+          cfg: AlisioConfig;
           accountId?: string | null;
           inputs: string[];
           kind: ChannelResolveKind;

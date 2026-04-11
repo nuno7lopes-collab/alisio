@@ -77,13 +77,7 @@ final class OnboardingWizardModel {
         defer { self.isStarting = false }
 
         do {
-            GatewayProcessManager.shared.setActive(true)
-            if await GatewayProcessManager.shared.waitForGatewayReady(timeout: 12) == false {
-                throw NSError(
-                    domain: "Gateway",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Gateway did not become ready. Check that it is running."])
-            }
+            try await GatewayProcessManager.shared.ensureLocalGatewayReady(timeout: 12)
             var params: [String: AnyCodable] = ["mode": AnyCodable("local")]
             if let workspace, !workspace.isEmpty {
                 params["workspace"] = AnyCodable(workspace)

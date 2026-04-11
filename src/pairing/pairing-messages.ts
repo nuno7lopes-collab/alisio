@@ -7,9 +7,9 @@ export function buildPairingReply(params: {
   code: string;
 }): string {
   const { channel, idLine, code } = params;
-  const approveCommand = formatCliCommand(`openclaw pairing approve ${channel} ${code}`);
+  const approveCommand = formatCliCommand(`alisio pairing approve ${channel} ${code}`);
   return [
-    "OpenClaw: this account is not approved yet.",
+    "Alisio: this account is not approved yet.",
     "",
     idLine,
     "",

@@ -551,6 +551,58 @@ describe("device pairing tokens", () => {
     expect(hasEffectivePairedDeviceRole(paired, "node")).toBe(false);
   });
 
+  test("keeps merged approved roles effective when a role token is missing", async () => {
+    const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
+    await requestDevicePairing(
+      {
+        deviceId: "device-1",
+        publicKey: "public-key-1",
+        role: "node",
+      },
+      baseDir,
+    );
+    const merged = await requestDevicePairing(
+      {
+        deviceId: "device-1",
+        publicKey: "public-key-1",
+        role: "operator",
+        scopes: ["operator.read", "operator.write"],
+      },
+      baseDir,
+    );
+    await approveDevicePairing(
+      merged.request.requestId,
+      { callerScopes: ["operator.admin"] },
+      baseDir,
+    );
+
+    await mutatePairedOperatorDevice(baseDir, (device) => {
+      if (device.tokens) {
+        delete device.tokens.node;
+      }
+    });
+
+    const paired = await getPairedDevice("device-1", baseDir);
+    expect(paired).toBeDefined();
+    if (!paired) {
+      throw new Error("expected paired node device");
+    }
+    expect(paired.roles).toContain("node");
+    expect(paired.approvedScopes).toEqual(
+      expect.arrayContaining(["operator.read", "operator.write"]),
+    );
+    expect(listEffectivePairedDeviceRoles(paired)).toEqual(["operator", "node"]);
+    expect(hasEffectivePairedDeviceRole(paired, "node")).toBe(true);
+
+    const minted = await ensureDeviceToken({
+      deviceId: "device-1",
+      role: "node",
+      scopes: [],
+      baseDir,
+    });
+    expect(minted?.role).toBe("node");
+  });
+
   test("removes paired devices by device id", async () => {
     const baseDir = await mkdtemp(join(tmpdir(), "alisio-device-pairing-"));
     await setupPairedOperatorDevice(baseDir, ["operator.read"]);

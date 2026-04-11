@@ -7,7 +7,7 @@ import {
   createChannelReplyPipeline,
   createReplyPrefixContext,
   logTypingFailure,
-  type ClawdbotConfig,
+  type AlisioConfig,
   type OutboundIdentity,
   type ReplyPayload,
   type RuntimeEnv,
@@ -73,7 +73,7 @@ function resolveCardNote(
 }
 
 export type CreateFeishuReplyDispatcherParams = {
-  cfg: ClawdbotConfig;
+  cfg: AlisioConfig;
   agentId: string;
   runtime: RuntimeEnv;
   chatId: string;

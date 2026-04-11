@@ -23,7 +23,7 @@ import {
   resetBlueBubblesParticipantContactNameCacheForTest,
   setBlueBubblesParticipantContactDepsForTest,
 } from "./participant-contact-names.js";
-import type { OpenClawConfig, PluginRuntime } from "./runtime-api.js";
+import type { AlisioConfig, PluginRuntime } from "./runtime-api.js";
 import {
   createBlueBubblesMonitorTestRuntime,
   EMPTY_DISPATCH_RESULT,
@@ -224,7 +224,7 @@ describe("BlueBubbles webhook monitor", () => {
 
   function setupWebhookTarget(params?: {
     account?: ReturnType<typeof createMockAccount>;
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     core?: PluginRuntime;
   }) {
     const registration = trackWebhookRegistrationForTest(

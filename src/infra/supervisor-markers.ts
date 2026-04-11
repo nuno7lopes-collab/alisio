@@ -1,4 +1,4 @@
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 
 const SUPERVISOR_HINTS = {
   launchd: [
@@ -6,16 +6,16 @@ const SUPERVISOR_HINTS = {
     "LAUNCH_JOB_NAME",
     "XPC_SERVICE_NAME",
     "ALISIO_LAUNCHD_LABEL",
-    legacyEnvKey("LAUNCHD_LABEL"),
+    runtimeEnvKey("LAUNCHD_LABEL"),
   ],
   systemd: [
     "ALISIO_SYSTEMD_UNIT",
-    legacyEnvKey("SYSTEMD_UNIT"),
+    runtimeEnvKey("SYSTEMD_UNIT"),
     "INVOCATION_ID",
     "SYSTEMD_EXEC_PID",
     "JOURNAL_STREAM",
   ],
-  schtasks: ["ALISIO_WINDOWS_TASK_NAME", legacyEnvKey("WINDOWS_TASK_NAME")],
+  schtasks: ["ALISIO_WINDOWS_TASK_NAME", runtimeEnvKey("WINDOWS_TASK_NAME")],
 } as const;
 
 export const SUPERVISOR_HINT_ENV_VARS = [
@@ -23,9 +23,9 @@ export const SUPERVISOR_HINT_ENV_VARS = [
   ...SUPERVISOR_HINTS.systemd,
   ...SUPERVISOR_HINTS.schtasks,
   "ALISIO_SERVICE_MARKER",
-  legacyEnvKey("SERVICE_MARKER"),
+  runtimeEnvKey("SERVICE_MARKER"),
   "ALISIO_SERVICE_KIND",
-  legacyEnvKey("SERVICE_KIND"),
+  runtimeEnvKey("SERVICE_KIND"),
 ] as const;
 
 export type RespawnSupervisor = "launchd" | "systemd" | "schtasks";
@@ -53,12 +53,12 @@ export function detectRespawnSupervisor(
     }
     const marker = readEnv("ALISIO_SERVICE_MARKER", {
       env,
-      fallback: legacyEnvKey("SERVICE_MARKER"),
+      fallback: runtimeEnvKey("SERVICE_MARKER"),
       description: "service marker",
     })?.trim();
     const serviceKind = readEnv("ALISIO_SERVICE_KIND", {
       env,
-      fallback: legacyEnvKey("SERVICE_KIND"),
+      fallback: runtimeEnvKey("SERVICE_KIND"),
       description: "service kind",
     })?.trim();
     return marker && serviceKind === "gateway" ? "schtasks" : null;

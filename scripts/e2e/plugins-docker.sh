@@ -47,7 +47,7 @@ stop_gateway() {
 start_gateway() {
   local log_file="$1"
   : > "$log_file"
-  node "$ALISIO_ENTRY" gateway --port 40705 --bind loopback --allow-unconfigured \
+  node "$ALISIO_ENTRY" gateway run --port 40705 --bind loopback --allow-unconfigured \
     >"$log_file" 2>&1 &
   gateway_pid=$!
 

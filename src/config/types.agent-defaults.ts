@@ -12,7 +12,7 @@ export type AgentModelEntryConfig = {
   alias?: string;
   /** Provider-specific API parameters (e.g., GLM-4.7 thinking mode). */
   params?: Record<string, unknown>;
-  /** Enable streaming for this model (default: true, false for Ollama to avoid SDK issue #1205). */
+  /** Enable streaming for this model (default: true unless a provider adapter overrides it). */
   streaming?: boolean;
 };
 

@@ -56,6 +56,8 @@ function createState(overrides: Partial<AlisioState> = {}): AlisioState {
     alisioModels: null,
     alisioModelOperations: {},
     chatModelCatalog: [],
+    modelManagementCatalog: [],
+    modelManagementLoading: false,
     modelsExpandedProfileId: undefined,
     modelsSelectedProviderId: undefined,
     alisioAccountLoading: false,
@@ -136,6 +138,10 @@ function createBootstrapSnapshot(
     wizard: { running: false, sessionId: null },
     ...overrides,
   } as unknown as NonNullable<AlisioState["alisioBootstrap"]>;
+}
+
+function createAvailableAccount(): NonNullable<AlisioState["alisioAccount"]> {
+  return createBootstrapSnapshot().account as NonNullable<AlisioState["alisioAccount"]>;
 }
 
 function createDoctorSummary(
@@ -533,7 +539,6 @@ describe("alisio controller reconnect safety", () => {
         backend: "llama.cpp",
         catalog: [],
         targets: [],
-        servers: [],
       } as unknown as AlisioState["alisioModels"],
       alisioModelOperations: {
         "current::qwen3-8b": {
@@ -545,6 +550,10 @@ describe("alisio controller reconnect safety", () => {
         },
       },
       chatModelCatalog: [
+        { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
+        { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
+      ],
+      modelManagementCatalog: [
         { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
         { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
       ],
@@ -585,6 +594,10 @@ describe("alisio controller reconnect safety", () => {
     expect(state.chatModelCatalog).toEqual([
       { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
     ]);
+    expect(state.modelManagementCatalog).toEqual([
+      { id: "gpt-5.4", name: "gpt-5.4", provider: "openai" },
+    ]);
+    expect(state.modelManagementLoading).toBe(false);
     expect(state.modelsExpandedProfileId).toBeUndefined();
     expect(state.modelsSelectedProviderId).toBeUndefined();
     expect(state.setupWizardSessionId).toBeNull();
@@ -1003,6 +1016,7 @@ describe("alisio controller reconnect safety", () => {
     const state = createState({
       client: createClient(request),
       alisioAuthEmail: "owner@example.com",
+      alisioAccount: createAvailableAccount(),
     });
 
     await beginAlisioAccountEmailAuth(state);
@@ -1216,6 +1230,7 @@ describe("alisio controller reconnect safety", () => {
     });
     const state = createState({
       client: createClient(request),
+      alisioAccount: createAvailableAccount(),
     });
 
     await signInAlisioAccountWithPassword(state, {
@@ -1274,6 +1289,7 @@ describe("alisio controller reconnect safety", () => {
     });
     const state = createState({
       client: createClient(request),
+      alisioAccount: createAvailableAccount(),
     });
 
     await signUpAlisioAccountWithPassword(state, {
@@ -1338,6 +1354,7 @@ describe("alisio controller reconnect safety", () => {
     } as unknown as Window & typeof globalThis);
     const state = createState({
       client: createClient(request),
+      alisioAccount: createAvailableAccount(),
     });
 
     await signUpAlisioAccountWithPassword(state, {

@@ -10,7 +10,6 @@ import {
   DEFAULT_BOOTSTRAP_FILENAME,
   DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_IDENTITY_FILENAME,
-  DEFAULT_MEMORY_ALT_FILENAME,
   DEFAULT_MEMORY_FILENAME,
   DEFAULT_SOUL_FILENAME,
   DEFAULT_TOOLS_FILENAME,
@@ -110,7 +109,7 @@ export const __testing = {
   },
 };
 
-const MEMORY_FILE_NAMES = [DEFAULT_MEMORY_FILENAME, DEFAULT_MEMORY_ALT_FILENAME] as const;
+const MEMORY_FILE_NAMES = [DEFAULT_MEMORY_FILENAME] as const;
 
 const ALLOWED_FILE_NAMES = new Set<string>([...BOOTSTRAP_FILE_NAMES, ...MEMORY_FILE_NAMES]);
 
@@ -466,9 +465,7 @@ async function listAgentMemoryFiles(workspaceDir: string) {
       resolveObsidianDisplayPath(absPath, obsidianLayout ?? null) ??
       path.relative(workspaceDir, absPath).replace(/\\/g, "/");
     if (
-      obsidianLayout
-        ? name === obsidianLayout.longTermToolPath
-        : name === DEFAULT_MEMORY_FILENAME || name === DEFAULT_MEMORY_ALT_FILENAME
+      obsidianLayout ? name === obsidianLayout.longTermToolPath : name === DEFAULT_MEMORY_FILENAME
     ) {
       hasPreferredLongTerm = true;
     }
@@ -583,28 +580,11 @@ async function listAgentFiles(
       updatedAtMs: primaryMeta.updatedAtMs,
     });
   } else {
-    const altMemoryResolved = await resolveAgentWorkspaceFilePath({
-      workspaceDir,
-      name: DEFAULT_MEMORY_ALT_FILENAME,
-      allowMissing: true,
+    files.push({
+      name: DEFAULT_MEMORY_FILENAME,
+      path: primaryResolved.requestPath,
+      missing: true,
     });
-    const altMeta =
-      altMemoryResolved.kind === "ready" ? await statFileSafely(altMemoryResolved.ioPath) : null;
-    if (altMeta) {
-      files.push({
-        name: DEFAULT_MEMORY_ALT_FILENAME,
-        path: altMemoryResolved.requestPath,
-        missing: false,
-        size: altMeta.size,
-        updatedAtMs: altMeta.updatedAtMs,
-      });
-    } else {
-      files.push({
-        name: DEFAULT_MEMORY_FILENAME,
-        path: primaryResolved.requestPath,
-        missing: true,
-      });
-    }
   }
 
   return files;

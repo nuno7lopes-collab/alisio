@@ -23,7 +23,7 @@ import {
   parseLsofOutput,
 } from "./ports.js";
 
-describe("gateway --force helpers", () => {
+describe("gateway run --force helpers", () => {
   let originalKill: typeof process.kill;
   let originalPlatform: NodeJS.Platform;
 
@@ -232,7 +232,7 @@ describe("gateway --force helpers", () => {
   });
 });
 
-describe("gateway --force helpers (Windows netstat path)", () => {
+describe("gateway run --force helpers (Windows netstat path)", () => {
   let originalKill: typeof process.kill;
   let originalPlatform: NodeJS.Platform;
 

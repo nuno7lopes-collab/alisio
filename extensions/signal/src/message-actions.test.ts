@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sendReactionsModule = await import("./send-reactions.js");
@@ -10,7 +10,7 @@ const removeReactionSignalMock = vi
   .mockResolvedValue({ ok: true });
 const { signalMessageActions } = await import("./message-actions.js");
 
-function createSignalAccountOverrideCfg(): OpenClawConfig {
+function createSignalAccountOverrideCfg(): AlisioConfig {
   return {
     channels: {
       signal: {
@@ -20,7 +20,7 @@ function createSignalAccountOverrideCfg(): OpenClawConfig {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
 describe("signalMessageActions", () => {
@@ -31,14 +31,14 @@ describe("signalMessageActions", () => {
 
   it("lists actions based on configured accounts and reaction gates", () => {
     expect(
-      signalMessageActions.describeMessageTool?.({ cfg: {} as OpenClawConfig })?.actions ?? [],
+      signalMessageActions.describeMessageTool?.({ cfg: {} as AlisioConfig })?.actions ?? [],
     ).toEqual([]);
 
     expect(
       signalMessageActions.describeMessageTool?.({
         cfg: {
           channels: { signal: { account: "+15550001111", actions: { reactions: false } } },
-        } as OpenClawConfig,
+        } as AlisioConfig,
       })?.actions,
     ).toEqual(["send"]);
 
@@ -56,7 +56,7 @@ describe("signalMessageActions", () => {
   it("blocks reactions when the action gate is disabled", async () => {
     const cfg = {
       channels: { signal: { account: "+15550001111", actions: { reactions: false } } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     await expect(
       signalMessageActions.handleAction?.({
@@ -82,7 +82,7 @@ describe("signalMessageActions", () => {
       },
       {
         name: "normalizes uuid recipients",
-        cfg: { channels: { signal: { account: "+15550001111" } } } as OpenClawConfig,
+        cfg: { channels: { signal: { account: "+15550001111" } } } as AlisioConfig,
         params: {
           recipient: "uuid:123e4567-e89b-12d3-a456-426614174000",
           messageId: "123",
@@ -95,7 +95,7 @@ describe("signalMessageActions", () => {
       },
       {
         name: "passes groupId and targetAuthor for group reactions",
-        cfg: { channels: { signal: { account: "+15550001111" } } } as OpenClawConfig,
+        cfg: { channels: { signal: { account: "+15550001111" } } } as AlisioConfig,
         params: {
           to: "signal:group:group-id",
           targetAuthor: "uuid:123e4567-e89b-12d3-a456-426614174000",
@@ -112,7 +112,7 @@ describe("signalMessageActions", () => {
       },
       {
         name: "falls back to toolContext.currentMessageId when messageId is omitted",
-        cfg: { channels: { signal: { account: "+15550001111" } } } as OpenClawConfig,
+        cfg: { channels: { signal: { account: "+15550001111" } } } as AlisioConfig,
         params: { to: "+15559999999", emoji: "🔥" },
         expectedRecipient: "+15559999999",
         expectedTimestamp: 1737630212345,
@@ -148,7 +148,7 @@ describe("signalMessageActions", () => {
   it("rejects invalid reaction inputs before dispatch", async () => {
     const cfg = {
       channels: { signal: { account: "+15550001111" } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     await expect(
       signalMessageActions.handleAction?.({

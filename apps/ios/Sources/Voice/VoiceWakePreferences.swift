@@ -3,7 +3,6 @@ import Foundation
 enum VoiceWakePreferences {
     static let enabledKey = "voiceWake.enabled"
     static let triggerWordsKey = "voiceWake.triggerWords"
-    private static let legacyBrandWord = ["open", "claw"].joined()
 
     // Keep defaults aligned with the mac app.
     static let defaultTriggerWords: [String] = ["alisio", "claude"]
@@ -35,16 +34,8 @@ enum VoiceWakePreferences {
     }
 
     static func sanitizeTriggerWords(_ words: [String]) -> [String] {
-        let preferredBrandWord = Self.defaultTriggerWords.first ?? "alisio"
         let cleaned = words
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .map { candidate in
-                candidate.compare(
-                    Self.legacyBrandWord,
-                    options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-                    ? preferredBrandWord
-                    : candidate
-            }
             .filter { !$0.isEmpty }
             .prefix(Self.maxWords)
             .map { String($0.prefix(Self.maxWordLength)) }

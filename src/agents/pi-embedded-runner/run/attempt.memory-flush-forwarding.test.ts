@@ -44,18 +44,18 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
     vi.resetModules();
     resetEmbeddedAttemptHarness();
 
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-attempt-memory-flush-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-attempt-memory-flush-"));
     const stop = new Error("stop after tool creation");
     const capturedOptions: Array<Record<string, unknown> | undefined> = [];
 
     try {
       vi.doMock("../../pi-tools.js", () => {
-        const createOpenClawCodingTools = vi.fn((options) => {
+        const createAlisioCodingTools = vi.fn((options) => {
           capturedOptions.push(options as Record<string, unknown> | undefined);
           throw stop;
         });
         return {
-          createOpenClawCodingTools,
+          createAlisioCodingTools,
           resolveToolLoopDetectionConfig: vi.fn(() => undefined),
         };
       });
@@ -77,7 +77,7 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
   });
 
   it("activates the memory flush append-only write wrapper", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-attempt-memory-flush-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-attempt-memory-flush-"));
     const memoryFile = path.join(workspaceDir, MEMORY_RELATIVE_PATH);
 
     try {
@@ -128,8 +128,8 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
   });
 
   it("creates obsidian-friendly daily notes with seed content for absolute vault targets", async () => {
-    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-attempt-memory-flush-"));
-    const vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-obsidian-vault-"));
+    const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-attempt-memory-flush-"));
+    const vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-obsidian-vault-"));
     const memoryFile = path.join(vaultDir, "Alisio Memory", "daily", `${OBSIDIAN_DATE}.md`);
 
     try {

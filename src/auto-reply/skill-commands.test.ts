@@ -144,7 +144,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("deduplicates by skillName across agents, keeping the first registration", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-");
+    const baseDir = await makeTempDir("alisio-skills-");
     const mainWorkspace = path.join(baseDir, "main");
     const researchWorkspace = path.join(baseDir, "research");
     await fs.mkdir(mainWorkspace, { recursive: true });
@@ -167,7 +167,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("scopes to specific agents when agentIds is provided", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-filter-");
+    const baseDir = await makeTempDir("alisio-skills-filter-");
     const researchWorkspace = path.join(baseDir, "research");
     await fs.mkdir(researchWorkspace, { recursive: true });
 
@@ -185,7 +185,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("prevents cross-agent skill leakage when each agent has an allowlist", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-leak-");
+    const baseDir = await makeTempDir("alisio-skills-leak-");
     const mainWorkspace = path.join(baseDir, "main");
     const researchWorkspace = path.join(baseDir, "research");
     await fs.mkdir(mainWorkspace, { recursive: true });
@@ -208,7 +208,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("merges allowlists for agents that share one workspace", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-shared-");
+    const baseDir = await makeTempDir("alisio-skills-shared-");
     const sharedWorkspace = path.join(baseDir, "research");
     await fs.mkdir(sharedWorkspace, { recursive: true });
 
@@ -229,7 +229,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("deduplicates overlapping allowlists for shared workspace", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-overlap-");
+    const baseDir = await makeTempDir("alisio-skills-overlap-");
     const sharedWorkspace = path.join(baseDir, "research");
     await fs.mkdir(sharedWorkspace, { recursive: true });
 
@@ -251,7 +251,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("keeps workspace unrestricted when one co-tenant agent has no skills filter", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-unfiltered-");
+    const baseDir = await makeTempDir("alisio-skills-unfiltered-");
     const sharedWorkspace = path.join(baseDir, "research");
     await fs.mkdir(sharedWorkspace, { recursive: true });
 
@@ -273,7 +273,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("merges empty allowlist with non-empty allowlist for shared workspace", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-empty-");
+    const baseDir = await makeTempDir("alisio-skills-empty-");
     const sharedWorkspace = path.join(baseDir, "research");
     await fs.mkdir(sharedWorkspace, { recursive: true });
 
@@ -293,7 +293,7 @@ describe("listSkillCommandsForAgents", () => {
   });
 
   it("skips agents with missing workspaces gracefully", async () => {
-    const baseDir = await makeTempDir("openclaw-skills-missing-");
+    const baseDir = await makeTempDir("alisio-skills-missing-");
     const validWorkspace = path.join(baseDir, "research");
     const missingWorkspace = path.join(baseDir, "nonexistent");
     await fs.mkdir(validWorkspace, { recursive: true });

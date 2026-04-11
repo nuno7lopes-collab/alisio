@@ -113,8 +113,8 @@ describe("resolveInitialTuiAgentId", () => {
   const cfg: AlisioConfig = {
     agents: {
       list: [
-        { id: "main", workspace: "/tmp/openclaw" },
-        { id: "ops", workspace: "/tmp/openclaw/projects/ops" },
+        { id: "main", workspace: "/tmp/alisio" },
+        { id: "ops", workspace: "/tmp/alisio/projects/ops" },
       ],
     },
   };
@@ -125,7 +125,7 @@ describe("resolveInitialTuiAgentId", () => {
         cfg,
         fallbackAgentId: "main",
         initialSessionInput: "",
-        cwd: "/tmp/openclaw/projects/ops/src",
+        cwd: "/tmp/alisio/projects/ops/src",
       }),
     ).toBe("ops");
   });
@@ -136,7 +136,7 @@ describe("resolveInitialTuiAgentId", () => {
         cfg,
         fallbackAgentId: "main",
         initialSessionInput: "agent:main:incident",
-        cwd: "/tmp/openclaw/projects/ops/src",
+        cwd: "/tmp/alisio/projects/ops/src",
       }),
     ).toBe("main");
   });

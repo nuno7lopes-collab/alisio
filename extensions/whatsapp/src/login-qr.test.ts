@@ -124,7 +124,7 @@ describe("login-qr", () => {
     expect(result.message).toContain(
       "Failed to start WhatsApp login: formatted:Error: browser launch failed",
     );
-    expect(result.message).toContain("openclaw channels login");
+    expect(result.message).toContain("alisio channels login");
     expect(result.message).toContain("gateway host");
   });
 
@@ -147,7 +147,7 @@ describe("login-qr", () => {
       expect(result.message).toContain(
         "Failed to get QR: formatted:Error: Timed out waiting for WhatsApp QR",
       );
-      expect(result.message).toContain("openclaw channels login");
+      expect(result.message).toContain("alisio channels login");
       expect(result.message).toContain("fresh QR");
     } finally {
       vi.useRealTimers();

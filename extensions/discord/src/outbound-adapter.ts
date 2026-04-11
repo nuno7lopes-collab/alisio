@@ -3,7 +3,7 @@ import {
   type ChannelOutboundAdapter,
   createAttachedChannelResultAdapter,
 } from "alisio/plugin-sdk/channel-send-result";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveOutboundSendDep, type OutboundIdentity } from "alisio/plugin-sdk/outbound-runtime";
 import {
   resolvePayloadMediaUrls,
@@ -76,7 +76,7 @@ function resolveDiscordWebhookIdentity(params: {
 }
 
 async function maybeSendDiscordWebhookText(params: {
-  cfg?: OpenClawConfig;
+  cfg?: AlisioConfig;
   text: string;
   threadId?: string | number | null;
   accountId?: string | null;

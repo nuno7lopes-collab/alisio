@@ -18,31 +18,31 @@
         <item>
             <title>2026.3.28</title>
             <pubDate>Sun, 29 Mar 2026 02:10:40 +0000</pubDate>
-            <link>https://raw.githubusercontent.com/openclaw/openclaw/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/alisio/alisio/main/appcast.xml</link>
             <sparkle:version>2026032890</sparkle:version>
             <sparkle:shortVersionString>2026.3.28</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>OpenClaw 2026.3.28</h2>
+            <description><![CDATA[<h2>Alisio 2026.3.28</h2>
 <h3>Breaking</h3>
 <ul>
-<li>Providers/Qwen: remove the deprecated <code>qwen-portal-auth</code> OAuth integration for <code>portal.qwen.ai</code>; migrate to Model Studio with <code>openclaw onboard --auth-choice modelstudio-api-key</code>. (#52709) Thanks @pomelo-nwu.</li>
-<li>Config/Doctor: drop automatic config migrations older than two months; very old legacy keys now fail validation instead of being rewritten on load or by <code>openclaw doctor</code>.</li>
+<li>Providers/Qwen: remove the deprecated <code>qwen-portal-auth</code> OAuth integration for <code>portal.qwen.ai</code>; migrate to Model Studio with <code>alisio onboard --auth-choice modelstudio-api-key</code>. (#52709) Thanks @pomelo-nwu.</li>
+<li>Config/Doctor: drop automatic config migrations older than two months; very old legacy keys now fail validation instead of being rewritten on load or by <code>alisio doctor</code>.</li>
 </ul>
 <h3>Changes</h3>
 <ul>
 <li>xAI/tools: move the bundled xAI provider to the Responses API, add first-class <code>x_search</code>, and auto-enable the xAI plugin from owned web-search and tool config so bundled Grok auth/configured search flows work without manual plugin toggles. (#56048) Thanks @huntharo.</li>
-<li>xAI/onboarding: let the bundled Grok web-search plugin offer optional <code>x_search</code> setup during <code>openclaw onboard</code> and <code>openclaw configure --section web</code>, including an x_search model picker with the shared xAI key.</li>
+<li>xAI/onboarding: let the bundled Grok web-search plugin offer optional <code>x_search</code> setup during <code>alisio onboard</code> and <code>alisio configure --section web</code>, including an x_search model picker with the shared xAI key.</li>
 <li>MiniMax: add image generation provider for <code>image-01</code> model, supporting generate and image-to-image editing with aspect ratio control. (#54487) Thanks @liyuan97.</li>
 <li>Plugins/hooks: add async <code>requireApproval</code> to <code>before_tool_call</code> hooks, letting plugins pause tool execution and prompt the user for approval via the exec approval overlay, Telegram buttons, Discord interactions, or the <code>/approve</code> command on any channel. The <code>/approve</code> command now handles both exec and plugin approvals with automatic fallback. (#55339) Thanks @vaclavbelak and @joshavant.</li>
 <li>ACP/channels: add current-conversation ACP binds for Discord, BlueBubbles, and iMessage so <code>/acp spawn codex --bind here</code> can turn the current chat into a Codex-backed workspace without creating a child thread, and document the distinction between chat surface, ACP session, and runtime workspace.</li>
 <li>OpenAI/apply_patch: enable <code>apply_patch</code> by default for OpenAI and OpenAI Codex models, and align its sandbox policy access with <code>write</code> permissions.</li>
 <li>Plugins/CLI backends: move bundled Claude CLI, Codex CLI, and Gemini CLI inference defaults onto the plugin surface, add bundled Gemini CLI backend support, and replace <code>gateway run --claude-cli-logs</code> with generic <code>--cli-backend-logs</code> while keeping the old flag as a compatibility alias.</li>
 <li>Plugins/startup: auto-load bundled provider and CLI-backend plugins from explicit config refs, so bundled Claude CLI, Codex CLI, and Gemini CLI message-provider setups no longer need manual <code>plugins.allow</code> entries.</li>
-<li>Podman: simplify the container setup around the current rootless user, install the launch helper under <code>~/.local/bin</code>, and document the host-CLI <code>openclaw --container <name> ...</code> workflow instead of a dedicated <code>openclaw</code> service user.</li>
+<li>Podman: simplify the container setup around the current rootless user, install the launch helper under <code>~/.local/bin</code>, and document the host-CLI <code>alisio --container <name> ...</code> workflow instead of a dedicated <code>alisio</code> service user.</li>
 <li>Slack/tool actions: add an explicit <code>upload-file</code> Slack action that routes file uploads through the existing Slack upload transport, with optional filename/title/comment overrides for channels and DMs.</li>
 <li>Message actions/files: start unifying file-first sends on the canonical <code>upload-file</code> action by adding explicit support for Microsoft Teams and Google Chat, and by exposing BlueBubbles file sends through <code>upload-file</code> while keeping the legacy <code>sendAttachment</code> alias.</li>
 <li>Plugins/Matrix TTS: send auto-TTS replies as native Matrix voice bubbles instead of generic audio attachments. (#37080) thanks @Matthew19990919.</li>
-<li>CLI: add <code>openclaw config schema</code> to print the generated JSON schema for <code>openclaw.json</code>. (#54523) Thanks @kvokka.</li>
+<li>CLI: add <code>alisio config schema</code> to print the generated JSON schema for <code>alisio.json</code>. (#54523) Thanks @kvokka.</li>
 <li>Config/TTS: auto-migrate legacy speech config on normal reads and secret resolution, keep legacy diagnostics for Doctor, and remove regular-mode runtime fallback for old bundled <code>tts.<provider></code> API-key shapes.</li>
 <li>Memory/plugins: move the pre-compaction memory flush plan behind the active memory plugin contract so <code>memory-core</code> owns flush prompts and target-path policy instead of hardcoded core logic.</li>
 <li>MiniMax: trim model catalog to M2.7 only, removing legacy M2, M2.1, M2.5, and VL-01 models. (#54487) Thanks @liyuan97.</li>
@@ -50,7 +50,7 @@
 <li>Agents/compaction: preserve the post-compaction AGENTS refresh on stale-usage preflight compaction for both immediate replies and queued followups. (#49479) Thanks @jared596.</li>
 <li>Agents/compaction: surface safeguard-specific cancel reasons and relabel benign manual <code>/compact</code> no-op cases as skipped instead of failed. (#51072) Thanks @afurm.</li>
 <li>Docs: add <code>pnpm docs:check-links:anchors</code> for Mintlify anchor validation while keeping <code>scripts/docs-link-audit.mjs</code> as the stable link-audit entrypoint. (#55912) Thanks @velvet-shark.</li>
-<li>Tavily: mark outbound API requests with <code>X-Client-Source: openclaw</code> so Tavily can attribute OpenClaw-originated traffic. (#55335) Thanks @lakshyaag-tavily.</li>
+<li>Tavily: mark outbound API requests with <code>X-Client-Source: alisio</code> so Tavily can attribute Alisio-originated traffic. (#55335) Thanks @lakshyaag-tavily.</li>
 </ul>
 <h3>Fixes</h3>
 <ul>
@@ -67,7 +67,7 @@
 <li>CLI/zsh: defer <code>compdef</code> registration until <code>compinit</code> is available so zsh completion loads cleanly with plugin managers and manual setups. (#56555)</li>
 <li>BlueBubbles/debounce: guard debounce flush against null message text by sanitizing at the enqueue boundary and adding an independent combiner guard. (#56573)</li>
 <li>Auto-reply: suppress JSON-wrapped <code>{"action":"NO_REPLY"}</code> control envelopes before channel delivery with a strict single-key detector; preserves media when text is only a silent envelope. (#56612)</li>
-<li>ACP/ACPX agent registry: align OpenClaw's ACPX built-in agent mirror with the latest <code>openclaw/acpx</code> command defaults and built-in aliases, pin versioned <code>npx</code> built-ins to exact versions, and stop unknown ACP agent ids from falling through to raw <code>--agent</code> command execution on the MCP-proxy path. (#28321) Thanks @m0nkmaster and @vincentkoc.</li>
+<li>ACP/ACPX agent registry: align Alisio's ACPX built-in agent mirror with the latest <code>alisio/acpx</code> command defaults and built-in aliases, pin versioned <code>npx</code> built-ins to exact versions, and stop unknown ACP agent ids from falling through to raw <code>--agent</code> command execution on the MCP-proxy path. (#28321) Thanks @m0nkmaster and @vincentkoc.</li>
 <li>Security/audit: extend web search key audit to recognize Gemini, Grok/xAI, Kimi, Moonshot, and OpenRouter credentials via a boundary-safe bundled-web-search registry shim. (#56540)</li>
 <li>Docs/FAQ: remove broken Xfinity SSL troubleshooting cross-links from English and zh-CN FAQ entries — both sections already contain the full workaround inline. (#56500)</li>
 <li>Telegram: deliver verbose tool summaries inside forum topic sessions again, so threaded topic chats now match DM verbose behavior. (#43236) Thanks @frankbuild.</li>
@@ -76,7 +76,7 @@
 <li>Discord/reconnect: drain stale gateway sockets, clear cached resume state before forced fresh reconnects, and fail closed when old sockets refuse to die so Discord recovery stops looping on poisoned resume state. (#54697) Thanks @ngutman.</li>
 <li>iMessage: stop leaking inline <code>[[reply_to:...]]</code> tags into delivered text by sending <code>reply_to</code> as RPC metadata and stripping stray directive tags from outbound messages. (#39512) Thanks @mvanhorn.</li>
 <li>CLI/plugins: make routed commands use the same auto-enabled bundled-channel snapshot as gateway startup, so configured bundled channels like Slack load without requiring a prior config rewrite. (#54809) Thanks @neeravmakwana.</li>
-<li>CLI/message send: write manual <code>openclaw message send</code> deliveries into the resolved agent session transcript again by always threading the default CLI agent through outbound mirroring. (#54187) Thanks @KevInTheCloud5617.</li>
+<li>CLI/message send: write manual <code>alisio message send</code> deliveries into the resolved agent session transcript again by always threading the default CLI agent through outbound mirroring. (#54187) Thanks @KevInTheCloud5617.</li>
 <li>CLI/onboarding: show the Kimi Code API key option again in the Moonshot setup menu so the interactive picker includes all Kimi setup paths together. Fixes #54412 Thanks @sparkyrider</li>
 <li>Agents/status: use provider-aware context window lookup for fresh Anthropic 4.6 model overrides so <code>/status</code> shows the correct 1.0m window instead of an underreported shared-cache minimum. (#54796) Thanks @neeravmakwana.</li>
 <li>OpenAI/WebSocket: preserve reasoning replay metadata and tool-call item ids on WebSocket tool turns, and start a fresh response chain when full-context resend is required. (#53856) Thanks @xujingchen1996.</li>
@@ -93,14 +93,14 @@
 <li>Mattermost/replies: keep pairing replies, slash-command fallback replies, and model-picker messages on the resolved config path so <code>exec:</code> SecretRef bot tokens work across all outbound reply branches. (#48347) thanks @mathiasnagler.</li>
 <li>Microsoft Teams/config: accept the existing <code>welcomeCard</code>, <code>groupWelcomeCard</code>, <code>promptStarters</code>, and feedback/reflection keys in strict config validation so already-supported Teams runtime settings stop failing schema checks. (#54679) Thanks @gumclaw.</li>
 <li>MCP/channels: add a Gateway-backed channel MCP bridge with Codex/Claude-facing conversation tools, Claude channel notifications, and safer stdio bridge lifecycle handling for reconnects and routed session discovery.</li>
-<li>Plugins/SDK: thread <code>moduleUrl</code> through plugin-sdk alias resolution so user-installed plugins outside the openclaw directory correctly resolve <code>openclaw/plugin-sdk/*</code> subpath imports, and gate <code>plugin-sdk:check-exports</code> in <code>release:check</code>. (#54283) Thanks @xieyongliang.</li>
+<li>Plugins/SDK: thread <code>moduleUrl</code> through plugin-sdk alias resolution so user-installed plugins outside the alisio directory correctly resolve <code>alisio/plugin-sdk/*</code> subpath imports, and gate <code>plugin-sdk:check-exports</code> in <code>release:check</code>. (#54283) Thanks @xieyongliang.</li>
 <li>Config/web fetch: allow the documented <code>tools.web.fetch.maxResponseBytes</code> setting in runtime schema validation so valid configs no longer fail with unrecognized-key errors. (#53401) Thanks @erhhung.</li>
 <li>Message tool/buttons: keep the shared <code>buttons</code> schema optional in merged tool definitions so plain <code>action=send</code> calls stop failing validation when no buttons are provided. (#54418) Thanks @adzendo.</li>
 <li>Agents/openai-compatible tool calls: deduplicate repeated tool call ids across live assistant messages and replayed history so OpenAI-compatible backends no longer reject duplicate <code>tool_call_id</code> values with HTTP 400. (#40996) Thanks @xaeon2026.</li>
 <li>Models/openai-completions: default non-native OpenAI-compatible providers to omit tool-definition <code>strict</code> fields unless users explicitly opt back in, so tool calling keeps working on providers that reject that option. (#45497) Thanks @sahancava.</li>
 <li>Plugins/context engines: retry strict legacy <code>assemble()</code> calls without the new <code>prompt</code> field when older engines reject it, preserving prompt-aware retrieval compatibility for pre-prompt plugins. (#50848) thanks @danhdoan.</li>
 <li>CLI/update status: explicitly say <code>up to date</code> when the local version already matches npm latest, while keeping the availability logic unchanged. (#51409) Thanks @dongzhenye.</li>
-<li>Daemon/Linux: stop flagging non-gateway systemd services as duplicate gateways just because their unit files mention OpenClaw, reducing false-positive doctor/log noise. (#45328) Thanks @gregretkowski.</li>
+<li>Daemon/Linux: stop flagging non-gateway systemd services as duplicate gateways just because their unit files mention Alisio, reducing false-positive doctor/log noise. (#45328) Thanks @gregretkowski.</li>
 <li>Feishu: close WebSocket connections on monitor stop/abort so ghost connections no longer persist, preventing duplicate event processing and resource leaks across restart cycles. (#52844) Thanks @schumilin.</li>
 <li>Feishu: use the original message <code>create_time</code> instead of <code>Date.now()</code> for inbound timestamps so offline-retried messages carry the correct authoring time, preventing mis-targeted agent actions on stale instructions. (#52809) Thanks @schumilin.</li>
 <li>Control UI/Skills: open skill detail dialogs with the browser modal lifecycle so clicking a skill row keeps the panel centered instead of rendering it off-screen at the bottom of the page.</li>
@@ -122,7 +122,6 @@
 <li>Config/Doctor: rewrite stale bundled plugin load paths from legacy bundled-plugin locations to the packaged bundled path, including directory-name mismatches and slash-suffixed config entries. (#55054) Thanks @SnowSky1.</li>
 <li>WhatsApp/mentions: stop treating mentions embedded in quoted messages as direct mentions so replying to a message that @mentioned the bot no longer falsely triggers mention gating. (#52711) Thanks @lurebat.</li>
 <li>Matrix: keep separate 2-person rooms out of DM routing after <code>m.direct</code> seeds successfully, while still honoring explicit <code>is_direct</code> state and startup fallback recovery. (#54890) thanks @private-peter</li>
-<li>Agents/ollama fallback: surface non-2xx Ollama HTTP errors with a leading status code so HTTP 503 responses trigger model fallback again. (#55214) Thanks @bugkill3r.</li>
 <li>Feishu/tools: stop synthetic agent ids like <code>agent-spawner</code> from being treated as Feishu account ids during tool execution, so tools fall back to the configured/default Feishu account unless the contextual id is a real enabled Feishu account. (#55627) Thanks @MonkeyLeeT.</li>
 <li>Google/tools: strip empty <code>required: []</code> arrays from Gemini tool schemas so optional-only tool parameters no longer trigger Google validator 400s. (#52106) Thanks @oliviareid-svg.</li>
 <li>Onboarding/TUI/local gateways: show the resolved gateway port in setup output, clarify no-daemon local health/dashboard messaging, and preserve loopback Control UI auth on reruns and explicit local gateway URLs so local quickstart flows recover cleanly. (#55730) Thanks @shakkernerd.</li>
@@ -135,7 +134,6 @@
 <li>Plugins/inbound claims: pass full inbound attachment arrays through <code>inbound_claim</code> hook metadata while keeping the legacy singular media attachment fields for compatibility. (#55452) Thanks @huntharo.</li>
 <li>Plugins/Matrix: preserve sender filenames for inbound media by forwarding <code>originalFilename</code> to <code>saveMediaBuffer</code>. (#55692) thanks @esrehmki.</li>
 <li>Matrix/mentions: recognize <code>matrix.to</code> mentions whose visible label uses the bot's room display name, so <code>requireMention: true</code> rooms respond correctly in modern Matrix clients. (#55393) thanks @nickludlam.</li>
-<li>Ollama/thinking off: route <code>thinkingLevel=off</code> through the live Ollama extension request path so thinking-capable Ollama models now receive top-level <code>think: false</code> instead of silently generating hidden reasoning tokens. (#53200) Thanks @BruceMacD.</li>
 <li>Plugins/diffs: stage bundled <code>@pierre/diffs</code> runtime dependencies during packaged updates so the bundled diff viewer keeps loading after global installs and updates. (#56077) Thanks @gumadeiras.</li>
 <li>Plugins/diffs: load bundled Pierre themes without JSON module imports so diff rendering keeps working on newer Node builds. (#45869) thanks @NickHood1984.</li>
 <li>Plugins/uninstall: remove owned <code>channels.<id></code> config when uninstalling channel plugins, and keep the uninstall preview aligned with explicit channel ownership so built-in channels and shared keys stay intact. (#35915) Thanks @wbxl2000.</li>
@@ -145,25 +143,25 @@
 <li>Gateway/plugins: reuse the session workspace when building HTTP <code>/tools/invoke</code> tool lists and harden tool construction to infer the session agent workspace by default, so workspace plugins do not re-register on repeated HTTP tool calls. (#56101) thanks @neeravmakwana</li>
 <li>Brave/web search: normalize unsupported Brave <code>country</code> filters to <code>ALL</code> before request and cache-key generation so locale-derived values like <code>VN</code> stop failing with upstream 422 validation errors. (#55695) Thanks @chen-zhang-cs-code.</li>
 <li>Discord/replies: preserve leading indentation when stripping inline reply tags so reply-tagged plain text and fenced code blocks keep their formatting. (#55960) Thanks @Nanako0129.</li>
-<li>Daemon/status: surface immediate gateway close reasons from lightweight probes and prefer those concrete auth or pairing failures over generic timeouts in <code>openclaw daemon status</code>. (#56282) Thanks @mbelinky.</li>
+<li>Daemon/status: surface immediate gateway close reasons from lightweight probes and prefer those concrete auth or pairing failures over generic timeouts in <code>alisio daemon status</code>. (#56282) Thanks @mbelinky.</li>
 <li>Agents/failover: classify HTTP 410 errors as retryable timeouts by default while still preserving explicit session-expired, billing, and auth signals from the payload. (#55201) thanks @nikus-pan.</li>
 <li>Agents/subagents: restore completion announce delivery for extension channels like BlueBubbles. (#56348)</li>
 <li>Plugins/Matrix: load bundled <code>@matrix-org/matrix-sdk-crypto-nodejs</code> through <code>createRequire(...)</code> so E2EE media send and receive keep the package-local native binding lookup working in packaged ESM builds. (#54566) thanks @joelnishanth.</li>
 <li>Plugins/Matrix: encrypt E2EE image thumbnails with <code>thumbnail_file</code> while keeping unencrypted-room previews on <code>thumbnail_url</code>, so encrypted Matrix image events keep thumbnail metadata without leaking plaintext previews. (#54711) thanks @frischeDaten.</li>
 <li>Telegram/forum topics: keep native <code>/new</code> and <code>/reset</code> routed to the active topic by preserving the topic target on forum-thread command context. (#35963)</li>
 </ul>
-<p><a href="https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/alisio/alisio/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/openclaw/openclaw/releases/download/v2026.3.28/OpenClaw-2026.3.28.zip" length="25811288" type="application/octet-stream" sparkle:edSignature="SJp4ptVaGlOIXRPevS89DbfN2WKP0bKMXQoaT0fmLhy7pataDfHN0kxC3zu6P0Q/HtsxaESEhJUw48SCUNNKDA=="/>
+            <enclosure url="https://github.com/alisio/alisio/releases/download/v2026.3.28/Alisio-2026.3.28.zip" length="25811288" type="application/octet-stream" sparkle:edSignature="SJp4ptVaGlOIXRPevS89DbfN2WKP0bKMXQoaT0fmLhy7pataDfHN0kxC3zu6P0Q/HtsxaESEhJUw48SCUNNKDA=="/>
         </item>
         <item>
             <title>2026.3.24</title>
             <pubDate>Wed, 25 Mar 2026 17:06:31 +0000</pubDate>
-            <link>https://raw.githubusercontent.com/openclaw/openclaw/main/appcast.xml</link>
+            <link>https://raw.githubusercontent.com/alisio/alisio/main/appcast.xml</link>
             <sparkle:version>2026032490</sparkle:version>
             <sparkle:shortVersionString>2026.3.24</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>OpenClaw 2026.3.24</h2>
+            <description><![CDATA[<h2>Alisio 2026.3.24</h2>
 <h3>Breaking</h3>
 <h3>Changes</h3>
 <ul>
@@ -174,24 +172,24 @@
 <li>Skills/install metadata: add one-click install recipes to bundled skills (coding-agent, gh-issues, openai-whisper-api, session-logs, tmux, trello, weather) so the CLI and Control UI can offer dependency installation when requirements are missing. (#53411) Thanks @BunsDev.</li>
 <li>Control UI/skills: add status-filter tabs (All / Ready / Needs Setup / Disabled) with counts, replace inline skill cards with a click-to-detail dialog showing requirements, toggle switch, install action, API key entry, source metadata, and homepage link. (#53411) Thanks @BunsDev.</li>
 <li>Slack/interactive replies: restore rich reply parity for direct deliveries, auto-render simple trailing <code>Options:</code> lines as buttons/selects, improve Slack interactive setup defaults, and isolate reply controls from plugin interactive handlers. (#53389) Thanks @vincentkoc.</li>
-<li>CLI/containers: add <code>--container</code> and <code>OPENCLAW_CONTAINER</code> to run <code>openclaw</code> commands inside a running Docker or Podman OpenClaw container. (#52651) Thanks @sallyom.</li>
+<li>CLI/containers: add <code>--container</code> and <code>ALISIO_CONTAINER</code> to run <code>alisio</code> commands inside a running Docker or Podman Alisio container. (#52651) Thanks @sallyom.</li>
 <li>Discord/auto threads: add optional <code>autoThreadName: "generated"</code> naming so new auto-created threads can be renamed asynchronously with concise LLM-generated titles while keeping the existing message-based naming as the default. (#43366) Thanks @davidguttman.</li>
 <li>Plugins/hooks: add <code>before_dispatch</code> with canonical inbound metadata and route handled replies through the normal final-delivery path, preserving TTS and routed delivery semantics. (#50444) Thanks @gfzhx.</li>
 <li>Control UI/agents: convert agent workspace file rows to expandable <code><details></code> with lazy-loaded inline markdown preview, and add comprehensive <code>.sidebar-markdown</code> styles for headings, lists, code blocks, tables, blockquotes, and details/summary elements. (#53411) Thanks @BunsDev.</li>
 <li>Control UI/markdown preview: restyle the agent workspace file preview dialog with a frosted backdrop, sized panel, and styled header, and integrate <code>@create-markdown/preview</code> v2 system theme for rich markdown rendering (headings, tables, code blocks, callouts, blockquotes) that auto-adapts to the app's light/dark design tokens. (#53411) Thanks @BunsDev.</li>
 <li>macOS app/config: replace horizontal pill-based subsection navigation with a collapsible tree sidebar using disclosure chevrons and indented subsection rows. (#53411) Thanks @BunsDev.</li>
-<li>CLI/skills: soften missing-requirements label from "missing" to "needs setup" and surface API key setup guidance (where to get a key, CLI save command, storage path) in <code>openclaw skills info</code> output. (#53411) Thanks @BunsDev.</li>
+<li>CLI/skills: soften missing-requirements label from "missing" to "needs setup" and surface API key setup guidance (where to get a key, CLI save command, storage path) in <code>alisio skills info</code> output. (#53411) Thanks @BunsDev.</li>
 <li>macOS app/skills: add "Get your key" homepage link and storage-path hint to the API key editor dialog, and show the config path in save confirmation messages. (#53411) Thanks @BunsDev.</li>
 <li>Control UI/agents: add a "Not set" placeholder to the default agent model selector dropdown. (#53411) Thanks @BunsDev.</li>
 <li>Runtime/install: lower the supported Node 22 floor to <code>22.14+</code> while continuing to recommend Node 24, so npm installs and self-updates do not strand Node 22.14 users on older releases.</li>
-<li>CLI/update: preflight the target npm package <code>engines.node</code> before <code>openclaw update</code> runs a global package install, so outdated Node runtimes fail with a clear upgrade message instead of attempting an unsupported latest release.</li>
+<li>CLI/update: preflight the target npm package <code>engines.node</code> before <code>alisio update</code> runs a global package install, so outdated Node runtimes fail with a clear upgrade message instead of attempting an unsupported latest release.</li>
 </ul>
 <h3>Fixes</h3>
 <ul>
 <li>Outbound media/local files: align outbound media access with the configured fs policy so host-local files and inbound-media paths keep sending when <code>workspaceOnly</code> is off, while strict workspace-only agents remain sandboxed.</li>
 <li>Security/sandbox media dispatch: close the <code>mediaUrl</code>/<code>fileUrl</code> alias bypass so outbound tool and message actions cannot escape media-root restrictions. (#54034)</li>
 <li>Gateway/restart sentinel: wake the interrupted agent session via heartbeat after restart instead of only sending a best-effort restart note, retry outbound delivery once on transient failure, and preserve explicit thread/topic routing through the wake path so replies land in the correct Telegram topic or Slack thread. (#53940) Thanks @VACInc.</li>
-<li>Docker/setup: avoid the pre-start <code>openclaw-cli</code> shared-network namespace loop by routing setup-time onboard/config writes through <code>openclaw-gateway</code>, so fresh Docker installs stop failing before the gateway comes up. (#53385) Thanks @amsminn.</li>
+<li>Docker/setup: avoid the pre-start <code>alisio-cli</code> shared-network namespace loop by routing setup-time onboard/config writes through <code>alisio-gateway</code>, so fresh Docker installs stop failing before the gateway comes up. (#53385) Thanks @amsminn.</li>
 <li>Gateway/channels: keep channel startup sequential while isolating per-channel boot failures, so one broken channel no longer blocks later channels from starting. (#54215) Thanks @JonathanJing.</li>
 <li>Embedded runs/secrets: stop unresolved <code>SecretRef</code> config from crashing embedded agent runs by falling back to the resolved runtime snapshot when needed. Fixes #45838.</li>
 <li>WhatsApp/groups: track recent gateway-sent message IDs and suppress only matching group echoes, preserving owner <code>/status</code>, <code>/new</code>, and <code>/activation</code> commands from linked-account <code>fromMe</code> traffic. (#53624) Thanks @w-sss.</li>
@@ -204,9 +202,9 @@
 <li>Telegram/photos: preflight Telegram photo dimension and aspect-ratio rules, and fall back to document sends when image metadata is invalid or unavailable so photo uploads stop failing with <code>PHOTO_INVALID_DIMENSIONS</code>. (#52545) Thanks @hnshah.</li>
 <li>Slack/runtime defaults: trim Slack DM reply overhead, restore Codex auto transport, and tighten Slack/web-search runtime defaults around DM preview threading, cache scoping, warning dedupe, and explicit web-search opt-in. (#53957) Thanks @vincentkoc.</li>
 </ul>
-<p><a href="https://github.com/openclaw/openclaw/blob/main/CHANGELOG.md">View full changelog</a></p>
+<p><a href="https://github.com/alisio/alisio/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
-            <enclosure url="https://github.com/openclaw/openclaw/releases/download/v2026.3.24/OpenClaw-2026.3.24.zip" length="24749233" type="application/octet-stream" sparkle:edSignature="gLm2VvI+PPEnNy4klYSs9WmZLkJTF5BcfFparrtPdnmeE4xgc8kFfICg445I039ev9/A6xGav7pm08reUHDcAg=="/>
+            <enclosure url="https://github.com/alisio/alisio/releases/download/v2026.3.24/Alisio-2026.3.24.zip" length="24749233" type="application/octet-stream" sparkle:edSignature="gLm2VvI+PPEnNy4klYSs9WmZLkJTF5BcfFparrtPdnmeE4xgc8kFfICg445I039ev9/A6xGav7pm08reUHDcAg=="/>
         </item>
     </channel>
 </rss>

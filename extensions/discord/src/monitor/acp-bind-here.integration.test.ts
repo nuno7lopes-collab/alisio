@@ -11,7 +11,7 @@ vi.mock("alisio/plugin-sdk/config-runtime", async (importOriginal) => {
   };
 });
 
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import {
   __testing as sessionBindingTesting,
   getSessionBindingService,
@@ -54,9 +54,9 @@ const baseCfg = {
       },
     },
   },
-} satisfies OpenClawConfig;
+} satisfies AlisioConfig;
 
-function createDiscordDmCommandParams(commandBody: string, cfg: OpenClawConfig = baseCfg) {
+function createDiscordDmCommandParams(commandBody: string, cfg: AlisioConfig = baseCfg) {
   const params = buildCommandTestParams(commandBody, cfg, {
     Provider: "discord",
     Surface: "discord",

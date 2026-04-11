@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { resolveOAuthDir, resolveStateDir } from "./config/paths.js";
 import { logVerbose, shouldLogVerbose } from "./globals.js";
-import { legacyEnvKey, readEnv } from "./infra/env.js";
+import { runtimeEnvKey, readEnv } from "./infra/env.js";
 import {
   resolveEffectiveHomeDir,
   resolveHomeRelativePath,
@@ -301,7 +301,7 @@ function resolveHomeDisplayPrefix(): { home: string; prefix: string } | undefine
     return undefined;
   }
   const explicitHome = readEnv("ALISIO_HOME", {
-    fallback: legacyEnvKey("HOME"),
+    fallback: runtimeEnvKey("HOME"),
   });
   if (explicitHome) {
     return { home, prefix: "$ALISIO_HOME" };

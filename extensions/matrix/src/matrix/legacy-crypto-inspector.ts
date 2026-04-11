@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
-import fs from "node:fs";
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
 import { createRequire } from "node:module";
-import path from "node:path";
+import * as path from "node:path";
 import { ensureMatrixCryptoRuntime } from "./deps.js";
 
 export type MatrixLegacyCryptoInspectionResult = {

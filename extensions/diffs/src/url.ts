@@ -1,9 +1,7 @@
-import type { OpenClawConfig } from "../api.js";
-
-const DEFAULT_GATEWAY_PORT = 40705;
+import { resolveGatewayPort, type AlisioConfig } from "../api.js";
 
 export function buildViewerUrl(params: {
-  config: OpenClawConfig;
+  config: AlisioConfig;
   viewerPath: string;
   baseUrl?: string;
 }): string {
@@ -40,10 +38,9 @@ export function normalizeViewerBaseUrl(raw: string): string {
   return withoutTrailingSlash;
 }
 
-function resolveGatewayBaseUrl(config: OpenClawConfig): string {
+function resolveGatewayBaseUrl(config: AlisioConfig): string {
   const scheme = config.gateway?.tls?.enabled ? "https" : "http";
-  const port =
-    typeof config.gateway?.port === "number" ? config.gateway.port : DEFAULT_GATEWAY_PORT;
+  const port = resolveGatewayPort(config, process.env);
   const customHost = config.gateway?.customBindHost?.trim();
 
   if (config.gateway?.bind === "custom" && customHost) {

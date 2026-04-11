@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { describe, expect, it } from "vitest";
 import { isSlackInteractiveRepliesEnabled } from "./interactive-replies.js";
 
@@ -16,7 +16,7 @@ describe("isSlackInteractiveRepliesEnabled", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     expect(isSlackInteractiveRepliesEnabled({ cfg, accountId: undefined })).toBe(true);
   });
@@ -32,7 +32,7 @@ describe("isSlackInteractiveRepliesEnabled", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     expect(isSlackInteractiveRepliesEnabled({ cfg, accountId: undefined })).toBe(true);
   });

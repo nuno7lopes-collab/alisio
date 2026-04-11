@@ -2,6 +2,9 @@ import Foundation
 import AlisioDiscovery
 import AlisioSupport
 
+typealias ConnectKitAnyCodable = AlisioKit.AnyCodable
+typealias ConnectProtoAnyCodable = AlisioProtocol.AnyCodable
+
 struct ConnectOptions {
     var url: String?
     var token: String?
@@ -72,7 +75,7 @@ struct ConnectOutput: Encodable {
     var clientMode: String
     var scopes: [String]
     var snapshot: HelloOk?
-    var health: ProtoAnyCodable?
+    var health: ConnectProtoAnyCodable?
     var error: String?
 }
 
@@ -144,12 +147,12 @@ func runConnect(_ args: [String]) async {
             },
             connectOptions: connectOptions)
 
-        let params: [String: KitAnyCodable]? = opts.probe ? ["probe": KitAnyCodable(true)] : nil
+        let params: [String: ConnectKitAnyCodable]? = opts.probe ? ["probe": ConnectKitAnyCodable(true)] : nil
         let data = try await channel.request(
             method: "health",
             params: params,
             timeoutMs: Double(opts.timeoutMs))
-        let health = try? JSONDecoder().decode(ProtoAnyCodable.self, from: data)
+        let health = try? JSONDecoder().decode(ConnectProtoAnyCodable.self, from: data)
         let snapshot = await snapshotStore.get()
         await channel.shutdown()
 
@@ -212,7 +215,7 @@ private func printConnectOutput(_ output: ConnectOutput, json: Bool) {
         }
     }
     if let health = output.health,
-       let ok = (health.value as? [String: ProtoAnyCodable])?["ok"]?.value as? Bool
+       let ok = (health.value as? [String: ConnectProtoAnyCodable])?["ok"]?.value as? Bool
     {
         print("Health: \(ok ? "ok" : "error")")
     } else if output.health != nil {
@@ -241,7 +244,7 @@ private func resolveGatewayEndpoint(opts: ConnectOptions, config: GatewayConfig)
         return try gatewayEndpoint(fromRawURL: raw, opts: opts, mode: resolvedMode, config: config)
     }
 
-    let port = config.port ?? 40705
+    let port = resolveGatewayPort(config: config)
     let host = resolveLocalHost(bind: config.bind)
     guard let url = URL(string: "ws://\(host):\(port)") else {
         throw NSError(

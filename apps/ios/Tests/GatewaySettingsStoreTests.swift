@@ -7,20 +7,13 @@ private struct KeychainEntry: Hashable {
     let account: String
 }
 
-private let legacyBrand = ["open", "claw"].joined()
 private let gatewayService = "ai.alisio.gateway"
 private let nodeService = "ai.alisio.node"
 private let talkService = "ai.alisio.talk"
-private let legacyGatewayService = "ai.\(legacyBrand).gateway"
-private let legacyNodeService = "ai.\(legacyBrand).node"
-private let legacyTalkService = "ai.\(legacyBrand).talk"
 private let instanceIdEntry = KeychainEntry(service: nodeService, account: "instanceId")
 private let preferredGatewayEntry = KeychainEntry(service: gatewayService, account: "preferredStableID")
 private let lastGatewayEntry = KeychainEntry(service: gatewayService, account: "lastDiscoveredStableID")
 private let talkAcmeProviderEntry = KeychainEntry(service: talkService, account: "provider.apiKey.acme")
-private let legacyInstanceIdEntry = KeychainEntry(service: legacyNodeService, account: "instanceId")
-private let legacyLastGatewayKeychainEntry = KeychainEntry(service: legacyGatewayService, account: "lastConnection")
-private let legacyTalkAcmeProviderEntry = KeychainEntry(service: legacyTalkService, account: "provider.apiKey.acme")
 private let bootstrapDefaultsKeys = [
     "node.instanceId",
     "gateway.preferredStableID",
@@ -30,7 +23,6 @@ private let bootstrapKeychainEntries = [
     instanceIdEntry,
     preferredGatewayEntry,
     lastGatewayEntry,
-    legacyInstanceIdEntry,
 ]
 private let lastGatewayDefaultsKeys = [
     "gateway.last.kind",
@@ -99,7 +91,7 @@ private func withBootstrapSnapshots(_ body: () -> Void) {
 
 private func withLastGatewaySnapshot(_ body: () -> Void) {
     let defaultsSnapshot = snapshotDefaults(lastGatewayDefaultsKeys)
-    let keychainSnapshot = snapshotKeychain([lastGatewayKeychainEntry, legacyLastGatewayKeychainEntry])
+    let keychainSnapshot = snapshotKeychain([lastGatewayKeychainEntry])
     defer {
         restoreDefaults(defaultsSnapshot)
         restoreKeychain(keychainSnapshot)
@@ -151,7 +143,7 @@ private func withLastGatewaySnapshot(_ body: () -> Void) {
         }
     }
 
-    @Test func bootstrapPromotesLegacyKeychainServices() {
+    @Test func bootstrapKeepsKeychainValuesStable() {
         withBootstrapSnapshots {
             applyDefaults([
                 "node.instanceId": nil,
@@ -159,15 +151,13 @@ private func withLastGatewaySnapshot(_ body: () -> Void) {
                 "gateway.lastDiscoveredStableID": nil,
             ])
             applyKeychain([
-                instanceIdEntry: nil,
-                legacyInstanceIdEntry: "legacy-node-id",
+                instanceIdEntry: "node-from-keychain",
             ])
 
             GatewaySettingsStore.bootstrapPersistence()
 
-            #expect(KeychainStore.loadString(service: nodeService, account: "instanceId") == "legacy-node-id")
-            #expect(KeychainStore.loadString(service: legacyNodeService, account: "instanceId") == "legacy-node-id")
-            #expect(UserDefaults.standard.string(forKey: "node.instanceId") == "legacy-node-id")
+            #expect(KeychainStore.loadString(service: nodeService, account: "instanceId") == "node-from-keychain")
+            #expect(UserDefaults.standard.string(forKey: "node.instanceId") == "node-from-keychain")
         }
     }
 
@@ -220,54 +210,16 @@ private func withLastGatewaySnapshot(_ body: () -> Void) {
         }
     }
 
-    @Test func lastGateway_promotesLegacyKeychainEntry() {
-        withLastGatewaySnapshot {
-            let legacyPayload =
-                #"{"kind":"manual","stableID":"manual|legacy.example|443","useTLS":true,"#
-                + #""host":"legacy.example","port":443}"#
-            applyKeychain([
-                lastGatewayKeychainEntry: nil,
-                legacyLastGatewayKeychainEntry: legacyPayload,
-            ])
-
-            let loaded = GatewaySettingsStore.loadLastGatewayConnection()
-
-            #expect(
-                loaded == .manual(
-                    host: "legacy.example",
-                    port: 443,
-                    useTLS: true,
-                    stableID: "manual|legacy.example|443"))
-            #expect(KeychainStore.loadString(service: gatewayService, account: "lastConnection") != nil)
-        }
-    }
-
     @Test func talkProviderApiKey_genericRoundTrip() {
-        let keychainSnapshot = snapshotKeychain([talkAcmeProviderEntry, legacyTalkAcmeProviderEntry])
+        let keychainSnapshot = snapshotKeychain([talkAcmeProviderEntry])
         defer { restoreKeychain(keychainSnapshot) }
 
         _ = KeychainStore.delete(service: talkService, account: talkAcmeProviderEntry.account)
-        _ = KeychainStore.delete(service: legacyTalkService, account: talkAcmeProviderEntry.account)
 
         GatewaySettingsStore.saveTalkProviderApiKey("acme-key", provider: "acme")
         #expect(GatewaySettingsStore.loadTalkProviderApiKey(provider: "acme") == "acme-key")
 
         GatewaySettingsStore.saveTalkProviderApiKey(nil, provider: "acme")
         #expect(GatewaySettingsStore.loadTalkProviderApiKey(provider: "acme") == nil)
-    }
-
-    @Test func talkProviderApiKey_promotesLegacyService() {
-        let keychainSnapshot = snapshotKeychain([talkAcmeProviderEntry, legacyTalkAcmeProviderEntry])
-        defer { restoreKeychain(keychainSnapshot) }
-
-        _ = KeychainStore.delete(service: talkService, account: talkAcmeProviderEntry.account)
-        _ = KeychainStore.saveString(
-            "legacy-acme-key",
-            service: legacyTalkService,
-            account: talkAcmeProviderEntry.account)
-
-        #expect(GatewaySettingsStore.loadTalkProviderApiKey(provider: "acme") == "legacy-acme-key")
-        #expect(
-            KeychainStore.loadString(service: talkService, account: talkAcmeProviderEntry.account) == "legacy-acme-key")
     }
 }

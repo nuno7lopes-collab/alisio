@@ -76,7 +76,7 @@ alisio --version
 
 ALISIO_SKIP_CHANNELS=1 \
 ALISIO_SKIP_CANVAS_HOST=1 \
-alisio gateway --port 18999 --bind loopback
+alisio gateway run --port 18999 --bind loopback
 ```
 
 Then:

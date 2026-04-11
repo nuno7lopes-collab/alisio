@@ -14,7 +14,7 @@ vi.mock("../logging/subsystem.js", () => ({
 type EnvModule = typeof import("./env.js");
 
 let isTruthyEnvValue: EnvModule["isTruthyEnvValue"];
-let legacyEnvKey: EnvModule["legacyEnvKey"];
+let runtimeEnvKey: EnvModule["runtimeEnvKey"];
 let logAcceptedEnvOption: EnvModule["logAcceptedEnvOption"];
 let normalizeEnv: EnvModule["normalizeEnv"];
 let normalizeZaiEnv: EnvModule["normalizeZaiEnv"];
@@ -24,7 +24,7 @@ beforeEach(async () => {
   vi.resetModules();
   ({
     isTruthyEnvValue,
-    legacyEnvKey,
+    runtimeEnvKey,
     logAcceptedEnvOption,
     normalizeEnv,
     normalizeZaiEnv,
@@ -143,7 +143,7 @@ describe("logAcceptedEnvOption", () => {
 
 describe("readEnv", () => {
   it("prefers the Alisio key and falls back to the compatibility key", () => {
-    const compatKey = legacyEnvKey("STATE_DIR");
+    const compatKey = runtimeEnvKey("STATE_DIR");
     expect(readEnv("ALISIO_STATE_DIR", { env: { ALISIO_STATE_DIR: "/new" } })).toBe("/new");
     expect(
       readEnv("ALISIO_STATE_DIR", {

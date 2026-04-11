@@ -69,7 +69,7 @@ describe("sendMessageIrc cfg threading", () => {
       channels: {
         irc: {
           host: "irc.example.com",
-          nick: "openclaw",
+          nick: "alisio",
           accounts: {
             work: {
               host: "irc.example.com",
@@ -107,7 +107,7 @@ describe("sendMessageIrc cfg threading", () => {
       channels: {
         irc: {
           host: "irc.example.com",
-          nick: "openclaw",
+          nick: "alisio",
         },
       },
     } as unknown as CoreConfig;
@@ -133,7 +133,7 @@ describe("sendMessageIrc cfg threading", () => {
       channels: {
         irc: {
           host: "irc.example.com",
-          nick: "openclaw",
+          nick: "alisio",
         },
       },
     } as unknown as CoreConfig;

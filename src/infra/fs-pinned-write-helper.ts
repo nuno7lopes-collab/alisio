@@ -5,7 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import type { FileIdentityStat } from "./file-identity.js";
 
 export type PinnedWriteInput =
@@ -104,7 +104,7 @@ const LOCAL_PINNED_WRITE_PYTHON = [
 
 const PINNED_WRITE_PYTHON_CANDIDATES = [
   readEnv("ALISIO_PINNED_WRITE_PYTHON", {
-    fallback: legacyEnvKey("PINNED_WRITE_PYTHON"),
+    fallback: runtimeEnvKey("PINNED_WRITE_PYTHON"),
     description: "pinned-write python interpreter override",
   }),
   "/usr/bin/python3",

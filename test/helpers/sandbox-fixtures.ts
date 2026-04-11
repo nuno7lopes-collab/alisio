@@ -9,8 +9,8 @@ export function createSandboxBrowserConfig(
 ): SandboxBrowserConfig {
   return {
     enabled: false,
-    image: "openclaw-browser",
-    containerPrefix: "openclaw-browser-",
+    image: "alisio-browser",
+    containerPrefix: "alisio-browser-",
     network: "bridge",
     cdpPort: 9222,
     vncPort: 5900,

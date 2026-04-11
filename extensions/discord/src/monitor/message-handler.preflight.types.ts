@@ -19,7 +19,7 @@ export type DiscordMessageEvent = import("./listeners.js").DiscordMessageEvent;
 type DiscordMessagePreflightSharedFields = {
   cfg: LoadedConfig;
   discordConfig: NonNullable<
-    import("alisio/plugin-sdk/config-runtime").OpenClawConfig["channels"]
+    import("alisio/plugin-sdk/config-runtime").AlisioConfig["channels"]
   >["discord"];
   accountId: string;
   token: string;

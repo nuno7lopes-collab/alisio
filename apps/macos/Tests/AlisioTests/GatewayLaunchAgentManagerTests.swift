@@ -8,7 +8,7 @@ struct GatewayLaunchAgentManagerTests {
         let url = FileManager().temporaryDirectory
             .appendingPathComponent("alisio-launchd-\(UUID().uuidString).plist")
         let plist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "40705", "--bind", "loopback"],
+            "ProgramArguments": ["alisio", "gateway", "run", "--port", "40705", "--bind", "loopback"],
             "EnvironmentVariables": [
                 "ALISIO_GATEWAY_TOKEN": " secret ",
                 "ALISIO_GATEWAY_PASSWORD": "pw",
@@ -29,7 +29,7 @@ struct GatewayLaunchAgentManagerTests {
         let url = FileManager().temporaryDirectory
             .appendingPathComponent("alisio-launchd-\(UUID().uuidString).plist")
         let plist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "40705"],
+            "ProgramArguments": ["alisio", "gateway", "run", "--port", "40705"],
         ]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         try data.write(to: url, options: [.atomic])
@@ -49,7 +49,7 @@ struct GatewayLaunchAgentManagerTests {
         let missing = root.appendingPathComponent("missing.plist")
         let current = root.appendingPathComponent("ai.alisio.gateway.plist")
         let currentPlist: [String: Any] = [
-            "ProgramArguments": ["alisio", "gateway", "--port", "40706"],
+            "ProgramArguments": ["alisio", "gateway", "run", "--port", "40706"],
             "EnvironmentVariables": ["ALISIO_GATEWAY_TOKEN": "current-token"],
         ]
         let currentData = try PropertyListSerialization.data(

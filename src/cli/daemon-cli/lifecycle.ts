@@ -58,11 +58,11 @@ async function assertUnmanagedGatewayRestartEnabled(port: number): Promise<void>
     auth: {
       token:
         process.env.ALISIO_GATEWAY_TOKEN?.trim() ||
-        process.env.OPENCLAW_GATEWAY_TOKEN?.trim() ||
+        process.env.ALISIO_GATEWAY_TOKEN?.trim() ||
         undefined,
       password:
         process.env.ALISIO_GATEWAY_PASSWORD?.trim() ||
-        process.env.OPENCLAW_GATEWAY_PASSWORD?.trim() ||
+        process.env.ALISIO_GATEWAY_PASSWORD?.trim() ||
         undefined,
     },
     timeoutMs: 1_000,
@@ -106,7 +106,7 @@ async function restartGatewayWithoutServiceManager(port: number) {
   }
   if (pids.length > 1) {
     throw new Error(
-      `multiple gateway processes are listening on port ${port}: ${formatGatewayPidList(pids)}; use "openclaw gateway status --deep" before retrying restart`,
+      `multiple gateway processes are listening on port ${port}: ${formatGatewayPidList(pids)}; use "alisio gateway status --deep" before retrying restart`,
     );
   }
   signalVerifiedGatewayPidSync(pids[0], "SIGUSR1");
@@ -200,8 +200,8 @@ export async function runDaemonRestart(opts: DaemonLifecycleOptions = {}): Promi
         }
 
         fail(`Gateway restart timed out after ${restartWaitSeconds}s waiting for health checks.`, [
-          formatCliCommand("openclaw gateway status --deep"),
-          formatCliCommand("openclaw doctor"),
+          formatCliCommand("alisio gateway status --deep"),
+          formatCliCommand("alisio doctor"),
         ]);
       }
 
@@ -262,8 +262,8 @@ export async function runDaemonRestart(opts: DaemonLifecycleOptions = {}): Promi
       }
 
       fail(`Gateway restart timed out after ${restartWaitSeconds}s waiting for health checks.`, [
-        formatCliCommand("openclaw gateway status --deep"),
-        formatCliCommand("openclaw doctor"),
+        formatCliCommand("alisio gateway status --deep"),
+        formatCliCommand("alisio doctor"),
       ]);
     },
   });

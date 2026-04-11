@@ -14,7 +14,7 @@ export function resolveDefaultAgentWorkspaceDir(
   homedir: () => string = os.homedir,
 ): string {
   const home = resolveRequiredHomeDir(env, homedir);
-  const explicitStateDir = (env.ALISIO_STATE_DIR ?? env.OPENCLAW_STATE_DIR)?.trim();
+  const explicitStateDir = env.ALISIO_STATE_DIR?.trim();
   if (explicitStateDir) {
     const expandedStateDir =
       explicitStateDir === "~"
@@ -24,7 +24,7 @@ export function resolveDefaultAgentWorkspaceDir(
           : explicitStateDir;
     return path.join(path.resolve(expandedStateDir), "workspace");
   }
-  const profile = (env.ALISIO_PROFILE ?? env.OPENCLAW_PROFILE)?.trim();
+  const profile = env.ALISIO_PROFILE?.trim();
   if (profile && profile.toLowerCase() !== "default") {
     return path.join(home, `.alisio-${profile}`, "workspace");
   }
@@ -40,9 +40,8 @@ export const DEFAULT_USER_FILENAME = "USER.md";
 export const DEFAULT_HEARTBEAT_FILENAME = "HEARTBEAT.md";
 export const DEFAULT_BOOTSTRAP_FILENAME = "BOOTSTRAP.md";
 export const DEFAULT_MEMORY_FILENAME = "MEMORY.md";
-export const DEFAULT_MEMORY_ALT_FILENAME = "memory.md";
 const WORKSPACE_STATE_DIRNAME = ".alisio";
-const LEGACY_WORKSPACE_STATE_DIRNAME = ".openclaw";
+const LEGACY_WORKSPACE_STATE_DIRNAME = ".alisio";
 const WORKSPACE_STATE_FILENAME = "workspace-state.json";
 const WORKSPACE_STATE_VERSION = 1;
 
@@ -148,8 +147,7 @@ export type WorkspaceBootstrapFileName =
   | typeof DEFAULT_USER_FILENAME
   | typeof DEFAULT_HEARTBEAT_FILENAME
   | typeof DEFAULT_BOOTSTRAP_FILENAME
-  | typeof DEFAULT_MEMORY_FILENAME
-  | typeof DEFAULT_MEMORY_ALT_FILENAME;
+  | typeof DEFAULT_MEMORY_FILENAME;
 
 export type WorkspaceBootstrapFile = {
   name: WorkspaceBootstrapFileName;
@@ -186,7 +184,6 @@ const VALID_BOOTSTRAP_NAMES: ReadonlySet<string> = new Set([
   DEFAULT_HEARTBEAT_FILENAME,
   DEFAULT_BOOTSTRAP_FILENAME,
   DEFAULT_MEMORY_FILENAME,
-  DEFAULT_MEMORY_ALT_FILENAME,
 ]);
 
 async function writeFileIfMissing(filePath: string, content: string): Promise<boolean> {
@@ -519,21 +516,13 @@ export async function ensureAgentWorkspace(params?: {
 async function resolveMemoryBootstrapEntry(
   resolvedDir: string,
 ): Promise<{ name: WorkspaceBootstrapFileName; filePath: string } | null> {
-  // Prefer MEMORY.md; fall back to memory.md only when absent.
-  // Checking both and deduplicating via realpath is unreliable on case-insensitive
-  // file systems mounted in Docker (e.g. macOS volumes), where both names pass
-  // fs.access() but realpath does not normalise case through the mount layer,
-  // causing the same content to be injected twice and wasting tokens.
-  for (const name of [DEFAULT_MEMORY_FILENAME, DEFAULT_MEMORY_ALT_FILENAME] as const) {
-    const filePath = path.join(resolvedDir, name);
-    try {
-      await fs.access(filePath);
-      return { name, filePath };
-    } catch {
-      // try next candidate
-    }
+  const filePath = path.join(resolvedDir, DEFAULT_MEMORY_FILENAME);
+  try {
+    await fs.access(filePath);
+    return { name: DEFAULT_MEMORY_FILENAME, filePath };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export async function loadWorkspaceBootstrapFiles(dir: string): Promise<WorkspaceBootstrapFile[]> {

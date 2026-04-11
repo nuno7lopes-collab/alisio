@@ -617,14 +617,14 @@ terms before depending on subscription auth.
 {
   agent: {
     workspace: "~/.alisio/workspace",
-    model: { primary: "lmstudio/my-local-model" },
+    model: { primary: "localproxy/my-local-model" },
   },
   models: {
     mode: "merge",
     providers: {
-      lmstudio: {
+      localproxy: {
         baseUrl: "http://127.0.0.1:1234/v1",
-        apiKey: "lmstudio",
+        apiKey: "sk-local",
         api: "openai-responses",
         models: [
           {

@@ -66,6 +66,6 @@ Every onboarding flow should make these three choices obvious:
 
 - **OpenAI** for fast hosted setup
 - **Local** for models on the current machine
-- **Server** for Ollama or OpenAI-compatible endpoints on another machine
+- **Server** for OpenAI-compatible endpoints on another machine
 
 Deeper details: [Model Providers](/concepts/model-providers)

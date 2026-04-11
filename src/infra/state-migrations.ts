@@ -4,7 +4,7 @@ import path from "node:path";
 import { resolveDefaultAgentId } from "../agents/agent-scope.js";
 import { listTelegramAccountIds } from "../channels/read-only-account-inspect.telegram.js";
 import {
-  resolveLegacyStateDirs,
+  resolveAlternativeStateDirs,
   resolveNewStateDir,
   resolveOAuthDir,
   resolveStateDir,
@@ -24,7 +24,7 @@ import {
   normalizeMainKey,
   parseAgentSessionKey,
 } from "../routing/session-key.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { expandHomePrefix, resolveRequiredHomeDir } from "./home-dir.js";
 import { isWithinDir } from "./path-safety.js";
 import {
@@ -434,10 +434,6 @@ type StateDirMigrationResult = {
 };
 
 const TARGET_CONFIG_FILENAME = "alisio.json";
-const LEGACY_CONFIG_FILENAMES = [
-  `${["open", "claw"].join("")}.json`,
-  `${["claw", "dbot"].join("")}.json`,
-] as const;
 
 function resolveSymlinkTarget(linkPath: string): string | null {
   try {
@@ -607,27 +603,12 @@ function verifyCopiedStateTree(sourceDir: string, targetDir: string): string[] {
   return warnings;
 }
 
-function resolveLegacyConfigPathInDir(dir: string): string | null {
-  for (const filename of LEGACY_CONFIG_FILENAMES) {
-    const candidate = path.join(dir, filename);
-    if (fileExists(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-}
-
 function finalizeMigratedConfigName(targetDir: string): string | null {
   const canonicalPath = path.join(targetDir, TARGET_CONFIG_FILENAME);
   if (fileExists(canonicalPath)) {
     return canonicalPath;
   }
-  const legacyPath = resolveLegacyConfigPathInDir(targetDir);
-  if (!legacyPath) {
-    return null;
-  }
-  fs.renameSync(legacyPath, canonicalPath);
-  return canonicalPath;
+  return null;
 }
 
 export async function autoMigrateLegacyStateDir(params: {
@@ -641,13 +622,13 @@ export async function autoMigrateLegacyStateDir(params: {
   autoMigrateStateDirChecked = true;
 
   const env = params.env ?? process.env;
-  if (readEnv("ALISIO_STATE_DIR", { env, fallback: legacyEnvKey("STATE_DIR") })) {
+  if (readEnv("ALISIO_STATE_DIR", { env, fallback: runtimeEnvKey("STATE_DIR") })) {
     return { migrated: false, skipped: true, changes: [], warnings: [] };
   }
 
   const homedir = resolveMigrationHomedir(env, params.homedir);
   const targetDir = resolveNewStateDir(homedir);
-  const legacyDirs = resolveLegacyStateDirs(homedir);
+  const legacyDirs = resolveAlternativeStateDirs(homedir);
   let legacyDir = legacyDirs.find((dir) => {
     try {
       return fs.existsSync(dir);
@@ -1333,7 +1314,7 @@ export async function autoMigrateLegacyState(params: {
   };
 
   if (
-    readEnv("ALISIO_AGENT_DIR", { env, fallback: legacyEnvKey("AGENT_DIR") }) ||
+    readEnv("ALISIO_AGENT_DIR", { env, fallback: runtimeEnvKey("AGENT_DIR") }) ||
     env.PI_CODING_AGENT_DIR?.trim()
   ) {
     const changes = [...stateDirResult.changes, ...orphanKeys.changes];

@@ -22,7 +22,7 @@ vi.mock("../config/config.js", () => ({
 }));
 
 vi.mock("./onboard-helpers.js", () => ({
-  DEFAULT_WORKSPACE: "~/.openclaw/workspace",
+  DEFAULT_WORKSPACE: "~/.alisio/workspace",
   handleReset: mocks.handleReset,
 }));
 
@@ -72,7 +72,7 @@ describe("setupWizardCommand", () => {
           "Windows detected - Alisio runs great on WSL2!",
           "Native Windows might be trickier.",
           "Quick setup: wsl --install (one command, one reboot)",
-          "Guide: https://docs.openclaw.ai/windows",
+          "Guide: https://docs.alisio.ai/windows",
         ].join("\n"),
       );
     } finally {
@@ -105,7 +105,7 @@ describe("setupWizardCommand", () => {
       config: {
         agents: {
           defaults: {
-            workspace: "/tmp/openclaw-custom-workspace",
+            workspace: "/tmp/alisio-custom-workspace",
           },
         },
       },
@@ -120,7 +120,7 @@ describe("setupWizardCommand", () => {
 
     expect(mocks.handleReset).toHaveBeenCalledWith(
       "config+creds+sessions",
-      path.resolve("/tmp/openclaw-custom-workspace"),
+      path.resolve("/tmp/alisio-custom-workspace"),
       runtime,
     );
   });

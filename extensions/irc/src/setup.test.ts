@@ -48,9 +48,9 @@ function buildAccount(): ResolvedIrcAccount {
     host: "irc.example.com",
     port: 6697,
     tls: true,
-    nick: "openclaw",
-    username: "openclaw",
-    realname: "OpenClaw",
+    nick: "alisio",
+    username: "alisio",
+    realname: "Alisio",
     password: "",
     passwordSource: "none",
     config: {} as ResolvedIrcAccount["config"],
@@ -136,7 +136,7 @@ describe("irc setup", () => {
     expect(
       updateIrcAccountConfig(cfg, "work", {
         host: "irc.libera.chat",
-        nick: "openclaw-work",
+        nick: "alisio-work",
       }),
     ).toMatchObject({
       channels: {
@@ -144,7 +144,7 @@ describe("irc setup", () => {
           accounts: {
             work: {
               host: "irc.libera.chat",
-              nick: "openclaw-work",
+              nick: "alisio-work",
             },
           },
         },
@@ -156,29 +156,23 @@ describe("irc setup", () => {
     const cfg: CoreConfig = { channels: { irc: {} } };
 
     expect(
-      setIrcGroupAccess(
-        cfg,
-        "default",
-        "allowlist",
-        ["openclaw", "#ops", "openclaw", "*"],
-        (raw) => {
-          const trimmed = raw.trim();
-          if (!trimmed) {
-            return null;
-          }
-          if (trimmed === "*") {
-            return "*";
-          }
-          return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
-        },
-      ),
+      setIrcGroupAccess(cfg, "default", "allowlist", ["alisio", "#ops", "alisio", "*"], (raw) => {
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          return null;
+        }
+        if (trimmed === "*") {
+          return "*";
+        }
+        return trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+      }),
     ).toMatchObject({
       channels: {
         irc: {
           enabled: true,
           groupPolicy: "allowlist",
           groups: {
-            "#openclaw": {},
+            "#alisio": {},
             "#ops": {},
             "*": {},
           },
@@ -204,7 +198,7 @@ describe("irc setup", () => {
 
     expect(
       validateInput!({
-        input: { host: "", nick: "openclaw" },
+        input: { host: "", nick: "alisio" },
       } as never),
     ).toBe("IRC requires host.");
 
@@ -216,7 +210,7 @@ describe("irc setup", () => {
 
     expect(
       validateInput!({
-        input: { host: "irc.libera.chat", nick: "openclaw" },
+        input: { host: "irc.libera.chat", nick: "alisio" },
       } as never),
     ).toBeNull();
 
@@ -229,11 +223,11 @@ describe("irc setup", () => {
           host: " irc.libera.chat ",
           port: "7000",
           tls: true,
-          nick: " openclaw ",
+          nick: " alisio ",
           username: " claw ",
-          realname: " OpenClaw Bot ",
+          realname: " Alisio Bot ",
           password: " secret ",
-          channels: ["#openclaw"],
+          channels: ["#alisio"],
         },
       } as never),
     ).toEqual({
@@ -244,11 +238,11 @@ describe("irc setup", () => {
           host: "irc.libera.chat",
           port: 7000,
           tls: true,
-          nick: "openclaw",
+          nick: "alisio",
           username: "claw",
-          realname: "OpenClaw Bot",
+          realname: "Alisio Bot",
           password: "secret",
-          channels: ["#openclaw"],
+          channels: ["#alisio"],
         },
       },
     });
@@ -264,19 +258,19 @@ describe("irc setup", () => {
           return "6697";
         }
         if (message === "IRC nick") {
-          return "openclaw-bot";
+          return "alisio-bot";
         }
         if (message === "IRC username") {
-          return "openclaw";
+          return "alisio";
         }
         if (message === "IRC real name") {
-          return "OpenClaw Bot";
+          return "Alisio Bot";
         }
         if (message.startsWith("Auto-join IRC channels")) {
-          return "#openclaw, #ops";
+          return "#alisio, #ops";
         }
         if (message.startsWith("IRC channels allowlist")) {
-          return "#openclaw, #ops";
+          return "#alisio, #ops";
         }
         throw new Error(`Unexpected prompt: ${message}`);
       }) as WizardPrompter["text"],
@@ -301,11 +295,11 @@ describe("irc setup", () => {
     expect(result.accountId).toBe("default");
     expect(result.cfg.channels?.irc?.enabled).toBe(true);
     expect(result.cfg.channels?.irc?.host).toBe("irc.libera.chat");
-    expect(result.cfg.channels?.irc?.nick).toBe("openclaw-bot");
+    expect(result.cfg.channels?.irc?.nick).toBe("alisio-bot");
     expect(result.cfg.channels?.irc?.tls).toBe(true);
-    expect(result.cfg.channels?.irc?.channels).toEqual(["#openclaw", "#ops"]);
+    expect(result.cfg.channels?.irc?.channels).toEqual(["#alisio", "#ops"]);
     expect(result.cfg.channels?.irc?.groupPolicy).toBe("allowlist");
-    expect(Object.keys(result.cfg.channels?.irc?.groups ?? {})).toEqual(["#openclaw", "#ops"]);
+    expect(Object.keys(result.cfg.channels?.irc?.groups ?? {})).toEqual(["#alisio", "#ops"]);
   });
 
   it("writes DM allowFrom to top-level config for non-default account prompts", async () => {
@@ -330,7 +324,7 @@ describe("irc setup", () => {
           accounts: {
             work: {
               host: "irc.libera.chat",
-              nick: "openclaw-work",
+              nick: "alisio-work",
             },
           },
         },

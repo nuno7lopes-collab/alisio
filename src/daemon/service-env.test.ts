@@ -279,6 +279,9 @@ describe("buildServiceEnvironment", () => {
       env: { HOME: "/home/user" },
       port: 40705,
     });
+    const definedKeys = Object.entries(env)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
     expect(env.HOME).toBe("/home/user");
     if (process.platform === "win32") {
       expect(env).not.toHaveProperty("PATH");
@@ -294,7 +297,9 @@ describe("buildServiceEnvironment", () => {
     if (process.platform === "darwin") {
       expect(env.ALISIO_LAUNCHD_LABEL).toBe("ai.alisio.gateway");
     }
-    expect(Object.keys(env).some((key) => key.startsWith("OPENCLAW_"))).toBe(false);
+    expect(definedKeys).not.toContain("ALISIO_GATEWAY_TOKEN");
+    expect(definedKeys).not.toContain("ALISIO_TASK_SCRIPT_NAME");
+    expect(definedKeys).not.toContain("ALISIO_LOG_PREFIX");
   });
 
   it("forwards TMPDIR from the host environment", () => {
@@ -315,7 +320,7 @@ describe("buildServiceEnvironment", () => {
 
   it("uses profile-specific unit and label", () => {
     const env = buildServiceEnvironment({
-      env: { HOME: "/home/user", OPENCLAW_PROFILE: "work" },
+      env: { HOME: "/home/user", ALISIO_PROFILE: "work" },
       port: 40705,
     });
     expect(env.ALISIO_SYSTEMD_UNIT).toBe("alisio-gateway-work.service");
@@ -388,11 +393,11 @@ describe("buildNodeServiceEnvironment", () => {
     expect(env.ALISIO_GATEWAY_TOKEN).toBe("node-token");
   });
 
-  it("accepts legacy OPENCLAW_GATEWAY_TOKEN for node services", () => {
+  it("trims ALISIO_GATEWAY_TOKEN for node services", () => {
     const env = buildNodeServiceEnvironment({
-      env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: " legacy-token " },
+      env: { HOME: "/home/user", ALISIO_GATEWAY_TOKEN: " trimmed-token " },
     });
-    expect(env.ALISIO_GATEWAY_TOKEN).toBe("legacy-token");
+    expect(env.ALISIO_GATEWAY_TOKEN).toBe("trimmed-token");
   });
 
   it("omits ALISIO_GATEWAY_TOKEN when the env var is empty", () => {
@@ -405,11 +410,15 @@ describe("buildNodeServiceEnvironment", () => {
     expect(env.ALISIO_GATEWAY_TOKEN).toBeUndefined();
   });
 
-  it("does not inject legacy OPENCLAW_* vars into node service environments", () => {
+  it("does not inject gateway-only vars into node service environments", () => {
     const env = buildNodeServiceEnvironment({
-      env: { HOME: "/home/user", OPENCLAW_GATEWAY_TOKEN: "legacy-token" },
+      env: { HOME: "/home/user", ALISIO_GATEWAY_TOKEN: "node-token" },
     });
-    expect(Object.keys(env).some((key) => key.startsWith("OPENCLAW_"))).toBe(false);
+    const definedKeys = Object.entries(env)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
+    expect(definedKeys).not.toContain("ALISIO_GATEWAY_PORT");
+    expect(definedKeys).not.toContain("ALISIO_PROFILE");
   });
 
   it("forwards proxy environment variables for node services", () => {
@@ -509,7 +518,7 @@ describe("resolveGatewayStateDir", () => {
   });
 
   it("treats default profiles as the base state dir", () => {
-    const env = { HOME: "/Users/test", OPENCLAW_PROFILE: "Default" };
+    const env = { HOME: "/Users/test", ALISIO_PROFILE: "Default" };
     expect(resolveGatewayStateDir(env)).toBe(path.join("/Users/test", ".alisio"));
   });
 
@@ -524,7 +533,7 @@ describe("resolveGatewayStateDir", () => {
   });
 
   it("preserves Windows absolute paths without HOME", () => {
-    const env = { OPENCLAW_STATE_DIR: "C:\\State\\alisio" };
+    const env = { ALISIO_STATE_DIR: "C:\\State\\alisio" };
     expect(resolveGatewayStateDir(env)).toBe("C:\\State\\alisio");
   });
 });

@@ -61,9 +61,9 @@ describe("doctor command update-mode repairs", () => {
 
     serviceIsLoaded.mockResolvedValueOnce(false);
     serviceReadCommand.mockResolvedValueOnce({
-      programArguments: ["node", "cli", "gateway", "--port", "40705"],
+      programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
       environment: {
-        OPENCLAW_GATEWAY_TOKEN: "stale-token",
+        ALISIO_GATEWAY_TOKEN: "stale-token",
       },
     });
     auditGatewayServiceConfig.mockResolvedValueOnce({
@@ -71,13 +71,13 @@ describe("doctor command update-mode repairs", () => {
       issues: [
         {
           code: "gateway-token-mismatch",
-          message: "Gateway service OPENCLAW_GATEWAY_TOKEN does not match gateway.auth.token",
+          message: "Gateway service ALISIO_GATEWAY_TOKEN does not match gateway.auth.token",
           level: "recommended",
         },
       ],
     });
     buildGatewayInstallPlan.mockResolvedValue({
-      programArguments: ["node", "cli", "gateway", "--port", "40705"],
+      programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
       workingDirectory: "/tmp",
       environment: {},
     });

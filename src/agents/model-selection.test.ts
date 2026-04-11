@@ -832,7 +832,7 @@ describe("model-selection", () => {
 
 describe("normalizeModelSelection", () => {
   it("returns trimmed string for string input", () => {
-    expect(normalizeModelSelection("ollama/llama3.2:3b")).toBe("ollama/llama3.2:3b");
+    expect(normalizeModelSelection("vllm/llama3.2:3b")).toBe("vllm/llama3.2:3b");
   });
 
   it("returns undefined for empty/whitespace string", () => {

@@ -1,9 +1,9 @@
 import { ChannelType } from "@buape/carbon";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { preflightDiscordMessage } from "./message-handler.preflight.js";
 import { createNoopThreadBindingManager } from "./thread-bindings.js";
 
-export type DiscordConfig = NonNullable<OpenClawConfig["channels"]>["discord"];
+export type DiscordConfig = NonNullable<AlisioConfig["channels"]>["discord"];
 export type DiscordMessageEvent = import("./listeners.js").DiscordMessageEvent;
 export type DiscordClient = import("@buape/carbon").Client;
 
@@ -12,7 +12,7 @@ export const DEFAULT_PREFLIGHT_CFG = {
     mainKey: "main",
     scope: "per-sender",
   },
-} as OpenClawConfig;
+} as AlisioConfig;
 
 export function createGuildTextClient(channelId: string): DiscordClient {
   return {
@@ -79,7 +79,7 @@ export function createDiscordMessage(params: {
 }
 
 export function createDiscordPreflightArgs(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   discordConfig: DiscordConfig;
   data: DiscordMessageEvent;
   client: DiscordClient;
@@ -91,7 +91,7 @@ export function createDiscordPreflightArgs(params: {
     accountId: "default",
     token: "token",
     runtime: {} as import("alisio/plugin-sdk/runtime-env").RuntimeEnv,
-    botUserId: params.botUserId ?? "openclaw-bot",
+    botUserId: params.botUserId ?? "alisio-bot",
     guildHistories: new Map(),
     historyLimit: 0,
     mediaMaxBytes: 1_000_000,

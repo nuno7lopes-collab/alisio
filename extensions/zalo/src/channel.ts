@@ -44,7 +44,7 @@ import {
   sendPayloadWithChunkedTextAndMedia,
   type ChannelAccountSnapshot,
   type ChannelPlugin,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "./runtime-api.js";
 import { resolveZaloOutboundSessionRoute } from "./session-route.js";
 import { zaloSetupAdapter } from "./setup-core.js";
@@ -117,7 +117,7 @@ const resolveZaloDmPolicy = createScopedDmSecurityResolver<ResolvedZaloAccount>(
 });
 
 const collectZaloSecurityWarnings = createOpenProviderGroupPolicyWarningCollector<{
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   account: ResolvedZaloAccount;
 }>({
   providerConfigPresent: (cfg) => cfg.channels?.zalo !== undefined,

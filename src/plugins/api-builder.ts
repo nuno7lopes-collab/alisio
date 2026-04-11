@@ -1,6 +1,6 @@
 import type { AlisioConfig } from "../config/config.js";
 import type { PluginRuntime } from "./runtime/types.js";
-import type { OpenClawPluginApi, PluginLogger } from "./types.js";
+import type { AlisioPluginApi, PluginLogger } from "./types.js";
 
 export type BuildPluginApiParams = {
   id: string;
@@ -9,7 +9,7 @@ export type BuildPluginApiParams = {
   description?: string;
   source: string;
   rootDir?: string;
-  registrationMode: OpenClawPluginApi["registrationMode"];
+  registrationMode: AlisioPluginApi["registrationMode"];
   config: AlisioConfig;
   pluginConfig?: Record<string, unknown>;
   runtime: PluginRuntime;
@@ -17,7 +17,7 @@ export type BuildPluginApiParams = {
   resolvePath: (input: string) => string;
   handlers?: Partial<
     Pick<
-      OpenClawPluginApi,
+      AlisioPluginApi,
       | "registerTool"
       | "registerHook"
       | "registerHttpRoute"
@@ -44,34 +44,34 @@ export type BuildPluginApiParams = {
   >;
 };
 
-const noopRegisterTool: OpenClawPluginApi["registerTool"] = () => {};
-const noopRegisterHook: OpenClawPluginApi["registerHook"] = () => {};
-const noopRegisterHttpRoute: OpenClawPluginApi["registerHttpRoute"] = () => {};
-const noopRegisterChannel: OpenClawPluginApi["registerChannel"] = () => {};
-const noopRegisterGatewayMethod: OpenClawPluginApi["registerGatewayMethod"] = () => {};
-const noopRegisterCli: OpenClawPluginApi["registerCli"] = () => {};
-const noopRegisterService: OpenClawPluginApi["registerService"] = () => {};
-const noopRegisterCliBackend: OpenClawPluginApi["registerCliBackend"] = () => {};
-const noopRegisterProvider: OpenClawPluginApi["registerProvider"] = () => {};
-const noopRegisterSpeechProvider: OpenClawPluginApi["registerSpeechProvider"] = () => {};
-const noopRegisterMediaUnderstandingProvider: OpenClawPluginApi["registerMediaUnderstandingProvider"] =
+const noopRegisterTool: AlisioPluginApi["registerTool"] = () => {};
+const noopRegisterHook: AlisioPluginApi["registerHook"] = () => {};
+const noopRegisterHttpRoute: AlisioPluginApi["registerHttpRoute"] = () => {};
+const noopRegisterChannel: AlisioPluginApi["registerChannel"] = () => {};
+const noopRegisterGatewayMethod: AlisioPluginApi["registerGatewayMethod"] = () => {};
+const noopRegisterCli: AlisioPluginApi["registerCli"] = () => {};
+const noopRegisterService: AlisioPluginApi["registerService"] = () => {};
+const noopRegisterCliBackend: AlisioPluginApi["registerCliBackend"] = () => {};
+const noopRegisterProvider: AlisioPluginApi["registerProvider"] = () => {};
+const noopRegisterSpeechProvider: AlisioPluginApi["registerSpeechProvider"] = () => {};
+const noopRegisterMediaUnderstandingProvider: AlisioPluginApi["registerMediaUnderstandingProvider"] =
   () => {};
-const noopRegisterImageGenerationProvider: OpenClawPluginApi["registerImageGenerationProvider"] =
+const noopRegisterImageGenerationProvider: AlisioPluginApi["registerImageGenerationProvider"] =
   () => {};
-const noopRegisterWebSearchProvider: OpenClawPluginApi["registerWebSearchProvider"] = () => {};
-const noopRegisterInteractiveHandler: OpenClawPluginApi["registerInteractiveHandler"] = () => {};
-const noopOnConversationBindingResolved: OpenClawPluginApi["onConversationBindingResolved"] =
+const noopRegisterWebSearchProvider: AlisioPluginApi["registerWebSearchProvider"] = () => {};
+const noopRegisterInteractiveHandler: AlisioPluginApi["registerInteractiveHandler"] = () => {};
+const noopOnConversationBindingResolved: AlisioPluginApi["onConversationBindingResolved"] =
   () => {};
-const noopRegisterCommand: OpenClawPluginApi["registerCommand"] = () => {};
-const noopRegisterContextEngine: OpenClawPluginApi["registerContextEngine"] = () => {};
-const noopRegisterMemoryPromptSection: OpenClawPluginApi["registerMemoryPromptSection"] = () => {};
-const noopRegisterMemoryFlushPlan: OpenClawPluginApi["registerMemoryFlushPlan"] = () => {};
-const noopRegisterMemoryRuntime: OpenClawPluginApi["registerMemoryRuntime"] = () => {};
-const noopRegisterMemoryEmbeddingProvider: OpenClawPluginApi["registerMemoryEmbeddingProvider"] =
+const noopRegisterCommand: AlisioPluginApi["registerCommand"] = () => {};
+const noopRegisterContextEngine: AlisioPluginApi["registerContextEngine"] = () => {};
+const noopRegisterMemoryPromptSection: AlisioPluginApi["registerMemoryPromptSection"] = () => {};
+const noopRegisterMemoryFlushPlan: AlisioPluginApi["registerMemoryFlushPlan"] = () => {};
+const noopRegisterMemoryRuntime: AlisioPluginApi["registerMemoryRuntime"] = () => {};
+const noopRegisterMemoryEmbeddingProvider: AlisioPluginApi["registerMemoryEmbeddingProvider"] =
   () => {};
-const noopOn: OpenClawPluginApi["on"] = () => {};
+const noopOn: AlisioPluginApi["on"] = () => {};
 
-export function buildPluginApi(params: BuildPluginApiParams): OpenClawPluginApi {
+export function buildPluginApi(params: BuildPluginApiParams): AlisioPluginApi {
   const handlers = params.handlers ?? {};
   return {
     id: params.id,

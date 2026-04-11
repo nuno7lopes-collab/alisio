@@ -15,7 +15,7 @@ import { resolveNodeCommandAllowlist } from "./node-command-policy.js";
 
 const LIVE = isLiveTestEnabled();
 const LIVE_ANDROID_NODE = isLiveEnvEnabled(
-  ["ALISIO_LIVE_ANDROID_NODE", "OPENCLAW_LIVE_ANDROID_NODE"],
+  ["ALISIO_LIVE_ANDROID_NODE", "ALISIO_LIVE_ANDROID_NODE"],
   process.env,
 );
 const describeLive = LIVE && LIVE_ANDROID_NODE ? describe : describe.skip;
@@ -260,13 +260,13 @@ const COMMAND_PROFILES: Record<string, CommandProfile> = {
 
 function resolveGatewayConnection() {
   const cfg = loadConfig();
-  const urlOverride = readString(process.env.OPENCLAW_ANDROID_GATEWAY_URL);
+  const urlOverride = readString(process.env.ALISIO_ANDROID_GATEWAY_URL);
   const details = buildGatewayConnectionDetails({
     config: cfg,
     ...(urlOverride ? { url: urlOverride } : {}),
   });
-  const tokenOverride = readString(process.env.OPENCLAW_ANDROID_GATEWAY_TOKEN);
-  const passwordOverride = readString(process.env.OPENCLAW_ANDROID_GATEWAY_PASSWORD);
+  const tokenOverride = readString(process.env.ALISIO_ANDROID_GATEWAY_TOKEN);
+  const passwordOverride = readString(process.env.ALISIO_ANDROID_GATEWAY_PASSWORD);
   const creds = resolveGatewayCredentialsFromConfig({
     cfg,
     explicitAuth: {
@@ -389,22 +389,22 @@ function isAndroidNode(node: NodeListNode): boolean {
 }
 
 function selectTargetNode(nodes: NodeListNode[]): NodeListNode {
-  const nodeIdOverride = readString(process.env.OPENCLAW_ANDROID_NODE_ID);
+  const nodeIdOverride = readString(process.env.ALISIO_ANDROID_NODE_ID);
   if (nodeIdOverride) {
     const match = nodes.find((node) => node.nodeId === nodeIdOverride);
     if (!match) {
-      throw new Error(`OPENCLAW_ANDROID_NODE_ID not found in node.list: ${nodeIdOverride}`);
+      throw new Error(`ALISIO_ANDROID_NODE_ID not found in node.list: ${nodeIdOverride}`);
     }
     return match;
   }
 
-  const nodeNameOverride = readString(process.env.OPENCLAW_ANDROID_NODE_NAME)?.toLowerCase();
+  const nodeNameOverride = readString(process.env.ALISIO_ANDROID_NODE_NAME)?.toLowerCase();
   if (nodeNameOverride) {
     const match = nodes.find(
       (node) => readString(node.displayName)?.toLowerCase() === nodeNameOverride,
     );
     if (!match) {
-      throw new Error(`OPENCLAW_ANDROID_NODE_NAME not found in node.list: ${nodeNameOverride}`);
+      throw new Error(`ALISIO_ANDROID_NODE_NAME not found in node.list: ${nodeNameOverride}`);
     }
     return match;
   }
@@ -519,7 +519,7 @@ describeLive("android node capability integration (preconditioned)", () => {
         [
           `selected node is not ready (nodeId=${nodeId}, connected=${String(target.connected)}, paired=${String(target.paired)})`,
           pendingHint,
-          "precondition: open app, keep foreground, ensure pairing approved (`openclaw nodes pending` / `openclaw nodes approve <requestId>`)",
+          "precondition: open app, keep foreground, ensure pairing approved (`alisio nodes pending` / `alisio nodes approve <requestId>`)",
         ].join("\n"),
       );
     }

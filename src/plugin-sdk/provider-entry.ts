@@ -2,9 +2,9 @@ import { createProviderApiKeyAuthMethod } from "../plugins/provider-api-key-auth
 import type { ProviderPlugin, ProviderPluginWizardSetup } from "../plugins/types.js";
 import { definePluginEntry } from "./plugin-entry.js";
 import type {
-  OpenClawPluginApi,
-  OpenClawPluginConfigSchema,
-  OpenClawPluginDefinition,
+  AlisioPluginApi,
+  AlisioPluginConfigSchema,
+  AlisioPluginDefinition,
 } from "./plugin-entry.js";
 import { buildSingleProviderApiKeyCatalog } from "./provider-catalog-shared.js";
 
@@ -27,8 +27,8 @@ export type SingleProviderPluginOptions = {
   id: string;
   name: string;
   description: string;
-  kind?: OpenClawPluginDefinition["kind"];
-  configSchema?: OpenClawPluginConfigSchema | (() => OpenClawPluginConfigSchema);
+  kind?: AlisioPluginDefinition["kind"];
+  configSchema?: AlisioPluginConfigSchema | (() => AlisioPluginConfigSchema);
   provider?: {
     id?: string;
     label: string;
@@ -41,7 +41,7 @@ export type SingleProviderPluginOptions = {
     ProviderPlugin,
     "id" | "label" | "docsPath" | "aliases" | "envVars" | "auth" | "catalog"
   >;
-  register?: (api: OpenClawPluginApi) => void;
+  register?: (api: AlisioPluginApi) => void;
 };
 
 function resolveWizardSetup(params: {

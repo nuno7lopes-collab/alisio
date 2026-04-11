@@ -21,7 +21,7 @@ export async function noteMacLaunchAgentOverrides() {
   const home = resolveHomeDir();
   const markerCandidates = [
     path.join(home, ".alisio", "disable-launchagent"),
-    path.join(home, ".openclaw", "disable-launchagent"),
+    path.join(home, ".alisio", "disable-launchagent"),
   ];
   const markerPath = markerCandidates.find((candidate) => fs.existsSync(candidate));
   if (!markerPath) {
@@ -78,11 +78,11 @@ export async function noteMacLaunchctlGatewayEnvOverrides(
   const getenv = deps?.getenv ?? launchctlGetenv;
   const tokenEntries = [
     ["ALISIO_GATEWAY_TOKEN", await getenv("ALISIO_GATEWAY_TOKEN")],
-    ["OPENCLAW_GATEWAY_TOKEN", await getenv("OPENCLAW_GATEWAY_TOKEN")],
+    ["ALISIO_GATEWAY_TOKEN", await getenv("ALISIO_GATEWAY_TOKEN")],
   ] as const;
   const passwordEntries = [
     ["ALISIO_GATEWAY_PASSWORD", await getenv("ALISIO_GATEWAY_PASSWORD")],
-    ["OPENCLAW_GATEWAY_PASSWORD", await getenv("OPENCLAW_GATEWAY_PASSWORD")],
+    ["ALISIO_GATEWAY_PASSWORD", await getenv("ALISIO_GATEWAY_PASSWORD")],
   ] as const;
   const tokenEntry = tokenEntries.find(([, value]) => value?.trim());
   const passwordEntry = passwordEntries.find(([, value]) => value?.trim());
@@ -150,7 +150,7 @@ export function noteStartupOptimizationHints(
   const noteFn = deps?.noteFn ?? note;
   const compileCache = env.NODE_COMPILE_CACHE?.trim() ?? "";
   const disableCompileCache = env.NODE_DISABLE_COMPILE_CACHE?.trim() ?? "";
-  const noRespawn = env.ALISIO_NO_RESPAWN?.trim() ?? env.OPENCLAW_NO_RESPAWN?.trim() ?? "";
+  const noRespawn = env.ALISIO_NO_RESPAWN?.trim() ?? "";
   const lines: string[] = [];
 
   if (!compileCache) {

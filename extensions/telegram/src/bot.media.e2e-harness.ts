@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resetInboundDedupe } from "alisio/plugin-sdk/reply-runtime";
 import type { GetReplyOptions, MsgContext } from "alisio/plugin-sdk/reply-runtime";
 import { beforeEach, vi, type Mock } from "vitest";
@@ -147,7 +147,7 @@ export const telegramBotDepsForTest: TelegramBotDeps = {
   loadConfig: (() =>
     ({
       channels: { telegram: { dmPolicy: "open", allowFrom: ["*"] } },
-    }) as OpenClawConfig) as TelegramBotDeps["loadConfig"],
+    }) as AlisioConfig) as TelegramBotDeps["loadConfig"],
   resolveStorePath: vi.fn(
     (storePath?: string) => storePath ?? "/tmp/telegram-media-sessions.json",
   ) as TelegramBotDeps["resolveStorePath"],

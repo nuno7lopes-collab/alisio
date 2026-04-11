@@ -1,9 +1,9 @@
 export { definePluginEntry } from "alisio/plugin-sdk/core";
 export type {
   AnyAgentTool,
-  OpenClawPluginApi,
-  OpenClawPluginToolContext,
-  OpenClawPluginToolFactory,
+  AlisioPluginApi,
+  AlisioPluginToolContext,
+  AlisioPluginToolFactory,
 } from "alisio/plugin-sdk/core";
 export {
   applyWindowsSpawnProgramPolicy,

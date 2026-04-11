@@ -16,10 +16,10 @@ export type {
   AcpSessionUpdateTag,
 } from "alisio/plugin-sdk/acp-runtime";
 export type {
-  OpenClawPluginApi,
-  OpenClawPluginConfigSchema,
-  OpenClawPluginService,
-  OpenClawPluginServiceContext,
+  AlisioPluginApi,
+  AlisioPluginConfigSchema,
+  AlisioPluginService,
+  AlisioPluginServiceContext,
   PluginLogger,
 } from "alisio/plugin-sdk/core";
 export type {

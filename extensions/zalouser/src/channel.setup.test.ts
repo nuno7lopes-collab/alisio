@@ -11,10 +11,10 @@ const zalouserSetupGetStatus = createPluginSetupWizardStatus(zalouserSetupPlugin
 
 describe("zalouser setup plugin", () => {
   it("builds setup status without an initialized runtime", async () => {
-    const stateDir = await mkdtemp(path.join(os.tmpdir(), "openclaw-zalouser-setup-"));
+    const stateDir = await mkdtemp(path.join(os.tmpdir(), "alisio-zalouser-setup-"));
 
     try {
-      await withEnvAsync({ OPENCLAW_STATE_DIR: stateDir }, async () => {
+      await withEnvAsync({ ALISIO_STATE_DIR: stateDir }, async () => {
         await expect(
           zalouserSetupGetStatus({
             cfg: {},

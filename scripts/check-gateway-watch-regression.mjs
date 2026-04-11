@@ -214,7 +214,7 @@ function sleep(ms) {
 function buildTimedWatchCommand(pidFilePath, timeFilePath, isolatedHomeDir) {
   const shellSource = [
     'echo "$$" > "$ALISIO_WATCH_PID_FILE"',
-    "exec node scripts/watch-node.mjs gateway --force --allow-unconfigured",
+    "exec node scripts/watch-node.mjs gateway run --force --allow-unconfigured",
   ].join("\n");
   const env = {
     ALISIO_WATCH_PID_FILE: pidFilePath,

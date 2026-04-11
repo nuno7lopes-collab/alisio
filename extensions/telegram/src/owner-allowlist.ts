@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { patchChannelConfigForAccount } from "alisio/plugin-sdk/setup";
 import { resolveTelegramAccount } from "./accounts.js";
 import { getTelegramRuntime } from "./runtime.js";
@@ -8,10 +8,10 @@ function normalizeAllowEntry(entry: string | number): string {
 }
 
 export function buildTelegramOwnerAllowlistConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   telegramUserId: string;
-}): OpenClawConfig {
+}): AlisioConfig {
   const telegramUserId = normalizeAllowEntry(params.telegramUserId);
   if (!telegramUserId) {
     return params.cfg;
@@ -43,11 +43,11 @@ export function buildTelegramOwnerAllowlistConfig(params: {
 }
 
 export async function persistTelegramOwnerAllowlist(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   telegramUserId: string;
-  writeConfigFile: (cfg: OpenClawConfig) => Promise<void> | void;
-}): Promise<OpenClawConfig> {
+  writeConfigFile: (cfg: AlisioConfig) => Promise<void> | void;
+}): Promise<AlisioConfig> {
   const nextCfg = buildTelegramOwnerAllowlistConfig(params);
   if (nextCfg === params.cfg) {
     return params.cfg;
@@ -59,7 +59,7 @@ export async function persistTelegramOwnerAllowlist(params: {
 export async function persistTelegramOwnerAllowlistFromRuntime(params: {
   accountId: string;
   telegramUserId: string;
-}): Promise<OpenClawConfig> {
+}): Promise<AlisioConfig> {
   const runtime = getTelegramRuntime();
   return await persistTelegramOwnerAllowlist({
     cfg: runtime.config.loadConfig(),

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createTestPluginApi } from "../../test/helpers/plugins/plugin-api.js";
-import type { OpenClawPluginApi } from "./runtime-api.js";
+import type { AlisioPluginApi } from "./runtime-api.js";
 
 const runtimeApiMocks = vi.hoisted(() => ({
   createBrowserPluginService: vi.fn(() => ({ id: "browser-control", start: vi.fn() })),
@@ -37,12 +37,12 @@ function createApi() {
     name: "Browser",
     source: "test",
     config: {},
-    runtime: {} as OpenClawPluginApi["runtime"],
+    runtime: {} as AlisioPluginApi["runtime"],
     registerCli,
     registerGatewayMethod,
     registerService,
     registerTool,
-  }) as OpenClawPluginApi;
+  }) as AlisioPluginApi;
   return { api, registerCli, registerGatewayMethod, registerService, registerTool };
 }
 

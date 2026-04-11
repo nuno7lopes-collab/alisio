@@ -17,11 +17,11 @@ describe("legacy-names", () => {
     expect(MACOS_APP_SOURCES_DIR).toBe("apps/macos/Sources/Alisio");
   });
 
-  it("tracks openclaw as a legacy compatibility alias", () => {
-    expect(LEGACY_PROJECT_NAMES).toContain("openclaw");
-    expect(LEGACY_MANIFEST_KEYS).toContain("openclaw");
-    expect(LEGACY_PLUGIN_MANIFEST_FILENAMES).toContain("openclaw.plugin.json");
-    expect(LEGACY_CANVAS_HANDLER_NAMES).toContain("openclaw");
-    expect(LEGACY_MACOS_APP_SOURCES_DIRS).toContain("apps/macos/Sources/OpenClaw");
+  it("drops legacy naming aliases", () => {
+    expect(LEGACY_PROJECT_NAMES).toEqual([]);
+    expect(LEGACY_MANIFEST_KEYS).toEqual([]);
+    expect(LEGACY_PLUGIN_MANIFEST_FILENAMES).toEqual([]);
+    expect(LEGACY_CANVAS_HANDLER_NAMES).toEqual([]);
+    expect(LEGACY_MACOS_APP_SOURCES_DIRS).toEqual([]);
   });
 });

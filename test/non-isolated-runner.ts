@@ -31,10 +31,10 @@ function resetEvaluatedModules(modules: EvaluatedModules, resetMocks: boolean) {
   });
 }
 
-export default class OpenClawNonIsolatedRunner extends TestRunner {
+export default class AlisioNonIsolatedRunner extends TestRunner {
   override onCollectStart(file: { filepath: string }) {
     super.onCollectStart(file);
-    const orderLogPath = process.env.OPENCLAW_VITEST_FILE_ORDER_LOG?.trim();
+    const orderLogPath = process.env.ALISIO_VITEST_FILE_ORDER_LOG?.trim();
     if (orderLogPath) {
       fs.appendFileSync(orderLogPath, `START ${file.filepath}\n`);
     }
@@ -46,7 +46,7 @@ export default class OpenClawNonIsolatedRunner extends TestRunner {
       return;
     }
 
-    const orderLogPath = process.env.OPENCLAW_VITEST_FILE_ORDER_LOG?.trim();
+    const orderLogPath = process.env.ALISIO_VITEST_FILE_ORDER_LOG?.trim();
     if (orderLogPath) {
       fs.appendFileSync(orderLogPath, `END ${suite.filepath}\n`);
     }

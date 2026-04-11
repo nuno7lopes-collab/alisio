@@ -74,12 +74,12 @@ describe("doctor discord provider repairs", () => {
   it("formats numeric id warnings", () => {
     const warnings = collectDiscordNumericIdWarnings({
       hits: [{ path: "channels.discord.allowFrom[0]", entry: 123 }],
-      doctorFixCommand: "openclaw doctor --fix",
+      doctorFixCommand: "alisio doctor --fix",
     });
 
     expect(warnings).toEqual([
       expect.stringContaining("Discord allowlists contain 1 numeric entries"),
-      expect.stringContaining('run "openclaw doctor --fix"'),
+      expect.stringContaining('run "alisio doctor --fix"'),
     ]);
   });
 });

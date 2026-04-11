@@ -1,5 +1,5 @@
 import { waitForTransportReady } from "alisio/plugin-sdk/channel-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { SignalReactionNotificationMode } from "alisio/plugin-sdk/config-runtime";
 import { loadConfig } from "alisio/plugin-sdk/config-runtime";
 import {
@@ -44,7 +44,7 @@ export type MonitorSignalOpts = {
   abortSignal?: AbortSignal;
   account?: string;
   accountId?: string;
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   baseUrl?: string;
   autoStart?: boolean;
   startupTimeoutMs?: number;

@@ -16,7 +16,7 @@ afterEach(async () => {
 });
 
 async function createExtensionsDir() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-postinstall-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-postinstall-"));
   cleanupDirs.push(root);
   const extensionsDir = path.join(root, "dist", "extensions");
   await fs.mkdir(path.join(extensionsDir, "acpx"), { recursive: true });

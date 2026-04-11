@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { ExternalPluginCompatibility } from "../../packages/plugin-package-contract/src/index.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { isAtLeast, parseSemver } from "./runtime-guard.js";
 import { compareComparableSemver, parseComparableSemver } from "./semver-compare.js";
 import { createTempDownloadTarget } from "./temp-download.js";
@@ -196,7 +196,7 @@ export class ClawHubRequestError extends Error {
 function normalizeBaseUrl(baseUrl?: string): string {
   const envValue =
     readEnv("ALISIO_CLAWHUB_URL", {
-      fallback: legacyEnvKey("CLAWHUB_URL"),
+      fallback: runtimeEnvKey("CLAWHUB_URL"),
       description: "ClawHub base URL",
     }) ||
     process.env.CLAWHUB_URL?.trim() ||
@@ -229,7 +229,7 @@ function extractTokenFromClawHubConfig(value: unknown): string | undefined {
 function resolveClawHubConfigPaths(): string[] {
   const explicit =
     readEnv("ALISIO_CLAWHUB_CONFIG_PATH", {
-      fallback: legacyEnvKey("CLAWHUB_CONFIG_PATH"),
+      fallback: runtimeEnvKey("CLAWHUB_CONFIG_PATH"),
       description: "ClawHub config path",
     }) ||
     process.env.CLAWHUB_CONFIG_PATH?.trim() ||
@@ -256,7 +256,7 @@ function resolveClawHubConfigPaths(): string[] {
 export async function resolveClawHubAuthToken(): Promise<string | undefined> {
   const envToken =
     readEnv("ALISIO_CLAWHUB_TOKEN", {
-      fallback: legacyEnvKey("CLAWHUB_TOKEN"),
+      fallback: runtimeEnvKey("CLAWHUB_TOKEN"),
       description: "ClawHub auth token",
       redact: true,
     }) ||

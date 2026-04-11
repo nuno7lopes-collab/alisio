@@ -20,7 +20,7 @@ vi.mock("alisio/plugin-sdk/media-understanding-runtime", () => ({
   describeImageFileWithModel: vi.fn(),
 }));
 
-const TEST_CACHE_DIR = "/tmp/openclaw-test-sticker-cache/telegram";
+const TEST_CACHE_DIR = "/tmp/alisio-test-sticker-cache/telegram";
 const TEST_CACHE_FILE = path.join(TEST_CACHE_DIR, "sticker-cache.json");
 
 type StickerCacheModule = typeof import("./sticker-cache.js");
@@ -29,16 +29,16 @@ let stickerCache: StickerCacheModule;
 
 describe("sticker-cache", () => {
   beforeEach(async () => {
-    process.env.OPENCLAW_STATE_DIR = "/tmp/openclaw-test-sticker-cache";
-    fs.rmSync("/tmp/openclaw-test-sticker-cache", { recursive: true, force: true });
+    process.env.ALISIO_STATE_DIR = "/tmp/alisio-test-sticker-cache";
+    fs.rmSync("/tmp/alisio-test-sticker-cache", { recursive: true, force: true });
     fs.mkdirSync(TEST_CACHE_DIR, { recursive: true });
     vi.resetModules();
     stickerCache = await import("./sticker-cache.js");
   });
 
   afterEach(() => {
-    fs.rmSync("/tmp/openclaw-test-sticker-cache", { recursive: true, force: true });
-    delete process.env.OPENCLAW_STATE_DIR;
+    fs.rmSync("/tmp/alisio-test-sticker-cache", { recursive: true, force: true });
+    delete process.env.ALISIO_STATE_DIR;
   });
 
   describe("getCachedSticker", () => {

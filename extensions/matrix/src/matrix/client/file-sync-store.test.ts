@@ -44,7 +44,7 @@ function createSyncResponse(nextBatch: string): ISyncResponse {
       events: [
         {
           content: { theme: "dark" },
-          type: "com.openclaw.test",
+          type: "com.alisio.test",
         },
       ],
     },
@@ -63,7 +63,7 @@ describe("FileBackedMatrixSyncStore", () => {
   const tempDirs: string[] = [];
 
   function createStoragePath(): string {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-matrix-sync-store-"));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-matrix-sync-store-"));
     tempDirs.push(tempDir);
     return path.join(tempDir, "bot-storage.json");
   }
@@ -93,7 +93,7 @@ describe("FileBackedMatrixSyncStore", () => {
     expect(savedSync?.accountData).toEqual([
       {
         content: { theme: "dark" },
-        type: "com.openclaw.test",
+        type: "com.alisio.test",
       },
     ]);
     expect(savedSync?.roomsData.join?.["!room:example.org"]).toBeTruthy();

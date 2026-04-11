@@ -55,7 +55,6 @@ export type {
 export type { ChannelPlugin } from "../channels/plugins/types.plugin.js";
 export { createChannelReplyPipeline } from "./channel-reply-pipeline.js";
 export type { AlisioConfig } from "../config/config.js";
-export type { AlisioConfig as OpenClawConfig } from "../config/config.js";
 export { isDangerousNameMatchingEnabled } from "../config/dangerous-name-matching.js";
 export { resolveToolsBySender } from "../config/group-policy.js";
 export {
@@ -86,7 +85,7 @@ export { detectMime, extensionForMime, getFileExtension } from "../media/mime.js
 export { extractOriginalFilename } from "../media/store.js";
 export { emptyPluginConfigSchema } from "../plugins/config-schema.js";
 export type { PluginRuntime } from "../plugins/runtime/types.js";
-export type { OpenClawPluginApi } from "../plugins/types.js";
+export type { AlisioPluginApi } from "../plugins/types.js";
 export { DEFAULT_ACCOUNT_ID } from "../routing/session-key.js";
 export type { RuntimeEnv } from "../runtime.js";
 export {
@@ -125,7 +124,7 @@ export { normalizeStringEntries } from "../shared/string-normalization.js";
 const msteamsSetup = createOptionalChannelSetupSurface({
   channel: "msteams",
   label: "Microsoft Teams",
-  npmSpec: "@openclaw/msteams",
+  npmSpec: "@alisio/msteams",
   docsPath: "/channels/msteams",
 });
 

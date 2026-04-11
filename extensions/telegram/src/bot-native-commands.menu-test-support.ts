@@ -1,7 +1,7 @@
 import type { SkillCommandSpec } from "alisio/plugin-sdk/command-auth";
 import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import { expect, vi } from "vitest";
-import type { OpenClawConfig } from "../runtime-api.js";
+import type { AlisioConfig } from "../runtime-api.js";
 import type { TelegramBotDeps } from "./bot-deps.js";
 import {
   createNativeCommandTestParams as createBaseNativeCommandTestParams,
@@ -23,7 +23,7 @@ type CreateCommandBotResult = {
 
 const skillCommandMocks = vi.hoisted(() => ({
   listSkillCommandsForAgents: vi.fn<
-    (params: { cfg: OpenClawConfig; agentIds?: string[] }) => SkillCommandSpec[]
+    (params: { cfg: AlisioConfig; agentIds?: string[] }) => SkillCommandSpec[]
   >(() => []),
 }));
 
@@ -83,7 +83,7 @@ export function createCommandBot(): CreateCommandBotResult {
 }
 
 export function createNativeCommandTestParams(
-  cfg: OpenClawConfig,
+  cfg: AlisioConfig,
   params: Partial<RegisterTelegramNativeCommandsParams> = {},
 ): RegisterTelegramNativeCommandsParams {
   const dispatchResult: Awaited<

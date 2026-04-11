@@ -1,7 +1,7 @@
 {
-  "name": "@openclaw/speech-core",
+  "name": "@alisio/speech-core",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw speech runtime package",
+  "description": "Alisio speech runtime package",
   "type": "module"
 }

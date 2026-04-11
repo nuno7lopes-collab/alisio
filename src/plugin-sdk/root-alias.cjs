@@ -17,7 +17,7 @@ const shouldPreferSourceGraph =
   !isDistRootAlias &&
   (process.env.NODE_ENV !== "production" ||
     Boolean(process.env.VITEST) ||
-    process.env.OPENCLAW_PLUGIN_SDK_SOURCE_IN_TESTS === "1");
+    process.env.ALISIO_PLUGIN_SDK_SOURCE_IN_TESTS === "1");
 
 function emptyPluginConfigSchema() {
   function error(message) {
@@ -127,14 +127,12 @@ function buildPluginSdkAliasMap(useDist) {
   const ext = useDist ? ".js" : ".ts";
   const aliasMap = {
     "alisio/plugin-sdk": __filename,
-    "openclaw/plugin-sdk": __filename,
   };
 
   for (const subpath of listPluginSdkExportedSubpaths()) {
     const candidate = path.join(pluginSdkDir, `${subpath}${ext}`);
     if (fs.existsSync(candidate)) {
       aliasMap[`alisio/plugin-sdk/${subpath}`] = candidate;
-      aliasMap[`openclaw/plugin-sdk/${subpath}`] = candidate;
     }
   }
 

@@ -6,7 +6,7 @@ import {
   listPotentialConfiguredChannelIds,
 } from "../channels/config-presence.js";
 import { getChatChannelMeta, normalizeChatChannelId } from "../channels/registry.js";
-import { legacyEnvKey } from "../infra/env.js";
+import { runtimeEnvKey } from "../infra/env.js";
 import {
   BUNDLED_AUTO_ENABLE_PROVIDER_PLUGIN_IDS,
   BUNDLED_PLUGIN_CONTRACT_SNAPSHOTS,
@@ -36,8 +36,11 @@ const EMPTY_PLUGIN_MANIFEST_REGISTRY: PluginManifestRegistry = {
 };
 
 const CANONICAL_PLUGIN_MANIFEST_KEY = "alisio";
-const LEGACY_PLUGIN_MANIFEST_KEY = ["open", "claw"].join("");
-const ENV_CATALOG_PATHS = [legacyEnvKey("PLUGIN_CATALOG_PATHS"), legacyEnvKey("MPM_CATALOG_PATHS")];
+const LEGACY_PLUGIN_MANIFEST_KEY = CANONICAL_PLUGIN_MANIFEST_KEY;
+const ENV_CATALOG_PATHS = [
+  runtimeEnvKey("PLUGIN_CATALOG_PATHS"),
+  runtimeEnvKey("MPM_CATALOG_PATHS"),
+];
 
 function resolveAutoEnableProviderPluginIds(
   registry: PluginManifestRegistry,

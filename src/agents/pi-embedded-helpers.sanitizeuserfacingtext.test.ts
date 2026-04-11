@@ -42,9 +42,9 @@ describe("sanitizeUserFacingText", () => {
     );
   });
 
-  it("sanitizes Ollama prompt-too-long payloads through the context-overflow path", () => {
+  it("sanitizes local runtime prompt-too-long payloads through the context-overflow path", () => {
     const text =
-      'Ollama API error 400: {"StatusCode":400,"Status":"400 Bad Request","error":"prompt too long; exceeded max context length by 4 tokens"}';
+      'Local runtime API error 400: {"StatusCode":400,"Status":"400 Bad Request","error":"prompt too long; exceeded max context length by 4 tokens"}';
     expect(sanitizeUserFacingText(text, { errorContext: true })).toContain(
       "Context overflow: prompt too large for the model.",
     );

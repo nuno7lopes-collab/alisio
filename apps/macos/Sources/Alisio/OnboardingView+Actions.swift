@@ -58,8 +58,8 @@ extension OnboardingView {
         AppStateStore.shared.onboardingSeen = true
         self.shellOnboarding?.isComplete = true
         self.syncShellOnboardingState()
-        LumeWindowManager.shared.shellState.completeOnboarding()
-        LumeWindowManager.shared.showPreferredChat()
+        AlisioWindowManager.shared.shellState.completeOnboarding()
+        AlisioWindowManager.shared.showPreferredChat()
         OnboardingController.shared.close()
     }
 }

@@ -25,12 +25,12 @@ All memory search settings live under `agents.defaults.memorySearch` in
 
 ## Provider selection
 
-| Key        | Type      | Default          | Description                                                                      |
-| ---------- | --------- | ---------------- | -------------------------------------------------------------------------------- |
-| `provider` | `string`  | auto-detected    | Embedding adapter ID: `openai`, `gemini`, `voyage`, `mistral`, `ollama`, `local` |
-| `model`    | `string`  | provider default | Embedding model name                                                             |
-| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                                       |
-| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                                  |
+| Key        | Type      | Default          | Description                                                            |
+| ---------- | --------- | ---------------- | ---------------------------------------------------------------------- |
+| `provider` | `string`  | auto-detected    | Embedding adapter ID: `openai`, `gemini`, `voyage`, `mistral`, `local` |
+| `model`    | `string`  | provider default | Embedding model name                                                   |
+| `fallback` | `string`  | `"none"`         | Fallback adapter ID when the primary fails                             |
+| `enabled`  | `boolean` | `true`           | Enable or disable memory search                                        |
 
 ### Auto-detection order
 
@@ -42,8 +42,6 @@ When `provider` is not set, Alisio selects the first available:
 4. `voyage` -- if a Voyage key can be resolved.
 5. `mistral` -- if a Mistral key can be resolved.
 
-`ollama` is supported but not auto-detected (set it explicitly).
-
 If OpenAI/Codex OAuth is active and you have not explicitly configured
 `memorySearch.provider`, Alisio defaults memory embeddings to `local` so chat
 sign-in does not trigger remote embedding credential warnings by default.
@@ -53,13 +51,12 @@ sign-in does not trigger remote embedding credential warnings by default.
 Remote embeddings require an API key. Alisio resolves from:
 auth profiles, `models.providers.*.apiKey`, or environment variables.
 
-| Provider | Env var                        | Config key                        |
-| -------- | ------------------------------ | --------------------------------- |
-| OpenAI   | `OPENAI_API_KEY`               | `models.providers.openai.apiKey`  |
-| Gemini   | `GEMINI_API_KEY`               | `models.providers.google.apiKey`  |
-| Voyage   | `VOYAGE_API_KEY`               | `models.providers.voyage.apiKey`  |
-| Mistral  | `MISTRAL_API_KEY`              | `models.providers.mistral.apiKey` |
-| Ollama   | `OLLAMA_API_KEY` (placeholder) | --                                |
+| Provider | Env var           | Config key                        |
+| -------- | ----------------- | --------------------------------- |
+| OpenAI   | `OPENAI_API_KEY`  | `models.providers.openai.apiKey`  |
+| Gemini   | `GEMINI_API_KEY`  | `models.providers.google.apiKey`  |
+| Voyage   | `VOYAGE_API_KEY`  | `models.providers.voyage.apiKey`  |
+| Mistral  | `MISTRAL_API_KEY` | `models.providers.mistral.apiKey` |
 
 Codex OAuth covers chat/completions only and does not satisfy embedding
 requests. Remote memory embeddings still need their own API key.

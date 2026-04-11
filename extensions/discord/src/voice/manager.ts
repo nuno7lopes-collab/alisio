@@ -8,7 +8,7 @@ import type { VoicePlugin } from "@buape/carbon/voice";
 import { resolveAgentDir } from "alisio/plugin-sdk/agent-runtime";
 import { agentCommandFromIngress } from "alisio/plugin-sdk/agent-runtime";
 import { resolveTtsConfig, type ResolvedTtsConfig } from "alisio/plugin-sdk/agent-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { isDangerousNameMatchingEnabled } from "alisio/plugin-sdk/config-runtime";
 import type { DiscordAccountConfig, TtsConfig } from "alisio/plugin-sdk/config-runtime";
 import { transcribeAudioFile } from "alisio/plugin-sdk/media-understanding-runtime";
@@ -19,7 +19,7 @@ import type { RuntimeEnv } from "alisio/plugin-sdk/runtime-env";
 import { parseTtsDirectives } from "alisio/plugin-sdk/speech";
 import { textToSpeech } from "alisio/plugin-sdk/speech-runtime";
 import { formatErrorMessage } from "alisio/plugin-sdk/ssrf-runtime";
-import { resolvePreferredOpenClawTmpDir } from "alisio/plugin-sdk/temp-path";
+import { resolvePreferredAlisioTmpDir } from "alisio/plugin-sdk/temp-path";
 import { formatMention } from "../mentions.js";
 import { resolveDiscordOwnerAccess } from "../monitor/allow-list.js";
 import { formatDiscordUserTag } from "../monitor/format.js";
@@ -100,8 +100,8 @@ function mergeTtsConfig(base: TtsConfig, override?: TtsConfig): TtsConfig {
   };
 }
 
-function resolveVoiceTtsConfig(params: { cfg: OpenClawConfig; override?: TtsConfig }): {
-  cfg: OpenClawConfig;
+function resolveVoiceTtsConfig(params: { cfg: AlisioConfig; override?: TtsConfig }): {
+  cfg: AlisioConfig;
   resolved: ResolvedTtsConfig;
 } {
   if (!params.override) {
@@ -199,7 +199,7 @@ function estimateDurationSeconds(pcm: Buffer): number {
 }
 
 async function writeWavFile(pcm: Buffer): Promise<{ path: string; durationSeconds: number }> {
-  const tempDir = await fs.mkdtemp(path.join(resolvePreferredOpenClawTmpDir(), "discord-voice-"));
+  const tempDir = await fs.mkdtemp(path.join(resolvePreferredAlisioTmpDir(), "discord-voice-"));
   const filePath = path.join(tempDir, `segment-${randomUUID()}.wav`);
   const wav = buildWavBuffer(pcm);
   await fs.writeFile(filePath, wav);
@@ -219,7 +219,7 @@ function scheduleTempCleanup(tempDir: string, delayMs: number = 30 * 60 * 1000):
 }
 
 async function transcribeAudio(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   filePath: string;
 }): Promise<string | undefined> {
@@ -251,7 +251,7 @@ export class DiscordVoiceManager {
   constructor(
     private params: {
       client: Client;
-      cfg: OpenClawConfig;
+      cfg: AlisioConfig;
       discordConfig: DiscordAccountConfig;
       accountId: string;
       runtime: RuntimeEnv;

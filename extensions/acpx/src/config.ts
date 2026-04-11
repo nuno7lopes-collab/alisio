@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPluginConfigSchema } from "alisio/plugin-sdk/core";
 import { z } from "alisio/plugin-sdk/zod";
-import type { OpenClawPluginConfigSchema as PluginConfigSchema } from "../runtime-api.js";
+import type { AlisioPluginConfigSchema as PluginConfigSchema } from "../runtime-api.js";
 
 export const ACPX_PERMISSION_MODES = ["approve-all", "approve-reads", "deny-all"] as const;
 export type AcpxPermissionMode = (typeof ACPX_PERMISSION_MODES)[number];
@@ -12,9 +12,9 @@ export const ACPX_NON_INTERACTIVE_POLICIES = ["deny", "fail"] as const;
 export type AcpxNonInteractivePermissionPolicy = (typeof ACPX_NON_INTERACTIVE_POLICIES)[number];
 
 export const ACPX_VERSION_ANY = "any";
-export const ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME = "openclaw-plugin-tools";
+export const ACPX_PLUGIN_TOOLS_MCP_SERVER_NAME = "alisio-plugin-tools";
 const ACPX_BIN_NAME = process.platform === "win32" ? "acpx.cmd" : "acpx";
-const ACPX_PLUGIN_MANIFEST_FILENAMES = ["alisio.plugin.json", "openclaw.plugin.json"] as const;
+const ACPX_PLUGIN_MANIFEST_FILENAMES = ["alisio.plugin.json"] as const;
 
 function isAcpxPluginRoot(dir: string): boolean {
   return (

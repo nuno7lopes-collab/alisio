@@ -148,7 +148,7 @@ function createBasePreflightParams(overrides?: Record<string, unknown>) {
       discordConfig: {
         allowBots: true,
       } as NonNullable<
-        import("alisio/plugin-sdk/config-runtime").OpenClawConfig["channels"]
+        import("alisio/plugin-sdk/config-runtime").AlisioConfig["channels"]
       >["discord"],
       data: createGuildEvent({
         channelId: CHANNEL_ID,
@@ -162,7 +162,7 @@ function createBasePreflightParams(overrides?: Record<string, unknown>) {
     discordConfig: {
       allowBots: true,
     } as NonNullable<
-      import("alisio/plugin-sdk/config-runtime").OpenClawConfig["channels"]
+      import("alisio/plugin-sdk/config-runtime").AlisioConfig["channels"]
     >["discord"],
     ...overrides,
   } satisfies Parameters<typeof preflightDiscordMessage>[0];

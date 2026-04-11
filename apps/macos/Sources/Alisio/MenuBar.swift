@@ -81,7 +81,7 @@ struct AlisioApp: App {
         .commands {
             CommandGroup(replacing: .appSettings) {
                 Button("Settings…") {
-                    LumeWindowManager.shared.showSettings(tab: .general)
+                    AlisioWindowManager.shared.showSettings(tab: .general)
                 }
                 .keyboardShortcut(",", modifiers: [.command])
             }
@@ -144,7 +144,7 @@ struct AlisioApp: App {
         guard let button = item.button else { return }
         if button.subviews.contains(where: { $0 is StatusItemMouseHandlerView }) { return }
 
-        LumeWindowManager.shared.onWindowVisibilityChanged = { [self] visible in
+        AlisioWindowManager.shared.onWindowVisibilityChanged = { [self] visible in
             self.isPanelVisible = visible
             self.updateStatusHighlight()
             self.updateHoverHUDSuppression()
@@ -158,11 +158,11 @@ struct AlisioApp: App {
         handler.translatesAutoresizingMaskIntoConstraints = false
         handler.onLeftClick = { [self] in
             HoverHUDController.shared.dismiss(reason: "statusItemClick")
-            self.showLumeWindow()
+            self.showAlisioWindow()
         }
         handler.onRightClick = { [self] in
             HoverHUDController.shared.dismiss(reason: "statusItemRightClick")
-            LumeWorkspaceManager.shared.closePanel()
+            AlisioWorkspaceManager.shared.closePanel()
             self.isMenuPresented = true
             self.updateStatusHighlight()
         }
@@ -182,10 +182,10 @@ struct AlisioApp: App {
     }
 
     @MainActor
-    private func showLumeWindow() {
+    private func showAlisioWindow() {
         HoverHUDController.shared.setSuppressed(true)
         self.isMenuPresented = false
-        LumeWindowManager.shared.showPreferredChat()
+        AlisioWindowManager.shared.showPreferredChat()
     }
 
     @MainActor
@@ -266,7 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.state = AppStateStore.shared
         if let state = self.state {
-            LumeWindowManager.shared.configure(state: state, updater: self.updaterController)
+            AlisioWindowManager.shared.configure(state: state, updater: self.updaterController)
         }
         AppActivationPolicy.apply(showDockIcon: self.state?.showDockIcon ?? false)
         if let state {
@@ -290,7 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Developer/testing helper: auto-open chat when launched with --chat.
         if CommandLine.arguments.contains("--chat") {
             self.webChatAutoLogger.debug("Auto-opening chat via CLI flag")
-            LumeWindowManager.shared.showPreferredChat()
+            AlisioWindowManager.shared.showPreferredChat()
         }
     }
 
@@ -303,9 +303,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         MacNodeModeCoordinator.shared.stop()
         TerminationSignalWatcher.shared.stop()
         VoiceWakeGlobalSettingsSync.shared.stop()
-        LumeWindowManager.shared.close()
-        LumeWorkspaceManager.shared.close()
-        LumeWorkspaceManager.shared.resetTunnels()
+        AlisioWindowManager.shared.close()
+        AlisioWorkspaceManager.shared.close()
+        AlisioWorkspaceManager.shared.resetTunnels()
         Task { await RemoteTunnelManager.shared.stopAll() }
         Task { await GatewayConnection.shared.shutdown() }
         Task { await PeekabooBridgeHostCoordinator.shared.stop() }

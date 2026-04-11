@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { ChannelType } from "discord-api-types/v10";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import * as discordClientModule from "../client.js";
@@ -88,7 +88,7 @@ describe("resolveChannelIdForBinding", () => {
   it("forwards cfg when resolving channel id through Discord client", async () => {
     const cfg = {
       channels: { discord: { token: "tok" } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     restGet.mockResolvedValueOnce({
       id: "thread-1",
       type: ChannelType.PublicThread,
@@ -152,7 +152,7 @@ describe("maybeSendBindingMessage", () => {
   it("forwards cfg to webhook send path", async () => {
     const cfg = {
       channels: { discord: { token: "tok" } },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const record = {
       accountId: "default",
       channelId: "parent-1",

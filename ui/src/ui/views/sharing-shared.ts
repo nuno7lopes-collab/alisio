@@ -72,23 +72,15 @@ export function resolveSharingRequestScopes(
 export function resolveSharingApprovalOptions(
   scopes: readonly string[] | null | undefined,
 ): SharingRequestScope[] {
-  // Temporary compatibility for legacy scope aliases still accepted by the protocol.
-  // Sunset: remove after 2026-06-30, or earlier once first-party clients emit only canonical scopes.
   const normalized = new Set<SharingRequestScope>();
   for (const scope of scopes ?? []) {
     if (scope === "exec") {
       normalized.add("exec");
     }
-    if (scope === "model-use" || scope === "model.use" || scope === "exec") {
+    if (scope === "model-use" || scope === "exec") {
       normalized.add("model-use");
     }
-    if (
-      scope === "read-only" ||
-      scope === "device.use" ||
-      scope === "model-use" ||
-      scope === "model.use" ||
-      scope === "exec"
-    ) {
+    if (scope === "read-only" || scope === "model-use" || scope === "exec") {
       normalized.add("read-only");
     }
   }

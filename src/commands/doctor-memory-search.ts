@@ -23,7 +23,7 @@ function resolveSuggestedRemoteMemoryProvider(): string | undefined {
 
 /**
  * Check whether memory search has a usable embedding provider.
- * Runs as part of `openclaw doctor` — config-only checks where possible;
+ * Runs as part of `alisio doctor` — config-only checks where possible;
  * may spawn a short-lived probe process when `memory.backend=qmd` to verify
  * the configured `qmd` binary is available.
  */
@@ -67,10 +67,10 @@ export async function noteMemorySearchHealth(
           "",
           "Fix (pick one):",
           "- Install the supported QMD package: npm install -g @tobilu/qmd",
-          `- Set an explicit binary path: ${formatCliCommand("openclaw config set memory.qmd.command /absolute/path/to/qmd")}`,
-          `- Or switch back to builtin memory: ${formatCliCommand("openclaw config set memory.backend builtin")}`,
+          `- Set an explicit binary path: ${formatCliCommand("alisio config set memory.qmd.command /absolute/path/to/qmd")}`,
+          `- Or switch back to builtin memory: ${formatCliCommand("alisio config set memory.backend builtin")}`,
           "",
-          `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+          `Verify: ${formatCliCommand("alisio memory status --deep")}`,
         ]
           .filter(Boolean)
           .join("\n"),
@@ -96,7 +96,7 @@ export async function noteMemorySearchHealth(
               "but the gateway reports local embeddings are not ready.",
               detail ? `Gateway probe: ${detail}` : null,
               "",
-              `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+              `Verify: ${formatCliCommand("alisio memory status --deep")}`,
             ]
               .filter(Boolean)
               .join("\n"),
@@ -112,10 +112,10 @@ export async function noteMemorySearchHealth(
           "Fix (pick one):",
           `- Install node-llama-cpp and set a local model path in config`,
           suggestedRemoteProvider
-            ? `- Switch to a remote provider: ${formatCliCommand(`openclaw config set agents.defaults.memorySearch.provider ${suggestedRemoteProvider}`)}`
+            ? `- Switch to a remote provider: ${formatCliCommand(`alisio config set agents.defaults.memorySearch.provider ${suggestedRemoteProvider}`)}`
             : `- Switch to a remote embedding provider in config`,
           "",
-          `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+          `Verify: ${formatCliCommand("alisio memory status --deep")}`,
         ].join("\n"),
         "Memory search",
       );
@@ -130,7 +130,7 @@ export async function noteMemorySearchHealth(
         [
           `Memory search provider is set to "${resolved.provider}" but the API key was not found in the CLI environment.`,
           "The running gateway reports memory embeddings are ready for the default agent.",
-          `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+          `Verify: ${formatCliCommand("alisio memory status --deep")}`,
         ].join("\n"),
         "Memory search",
       );
@@ -146,10 +146,10 @@ export async function noteMemorySearchHealth(
         "",
         "Fix (pick one):",
         `- Set ${envVar} in your environment`,
-        `- Configure credentials: ${formatCliCommand("openclaw configure --section model")}`,
-        `- To disable: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.enabled false")}`,
+        `- Configure credentials: ${formatCliCommand("alisio configure --section model")}`,
+        `- To disable: ${formatCliCommand("alisio config set agents.defaults.memorySearch.enabled false")}`,
         "",
-        `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+        `Verify: ${formatCliCommand("alisio memory status --deep")}`,
       ].join("\n"),
       "Memory search",
     );
@@ -174,7 +174,7 @@ export async function noteMemorySearchHealth(
       [
         'Memory search provider is set to "auto" but the API key was not found in the CLI environment.',
         "The running gateway reports memory embeddings are ready for the default agent.",
-        `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+        `Verify: ${formatCliCommand("alisio memory status --deep")}`,
       ].join("\n"),
       "Memory search",
     );
@@ -190,11 +190,11 @@ export async function noteMemorySearchHealth(
       gatewayProbeWarning ? gatewayProbeWarning : null,
       "",
       "Fix (pick one):",
-      `- Use local embeddings: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.provider local")}`,
-      `- Or choose an embeddings provider explicitly and configure its API key: ${formatCliCommand("openclaw configure --section model")}`,
-      `- To disable: ${formatCliCommand("openclaw config set agents.defaults.memorySearch.enabled false")}`,
+      `- Use local embeddings: ${formatCliCommand("alisio config set agents.defaults.memorySearch.provider local")}`,
+      `- Or choose an embeddings provider explicitly and configure its API key: ${formatCliCommand("alisio configure --section model")}`,
+      `- To disable: ${formatCliCommand("alisio config set agents.defaults.memorySearch.enabled false")}`,
       "",
-      `Verify: ${formatCliCommand("openclaw memory status --deep")}`,
+      `Verify: ${formatCliCommand("alisio memory status --deep")}`,
     ].join("\n"),
     "Memory search",
   );

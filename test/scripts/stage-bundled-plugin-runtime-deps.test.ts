@@ -131,7 +131,7 @@ describe("stageBundledPluginRuntimeDeps", () => {
     packageJson: Record<string, unknown>;
     pluginId?: string;
   }) {
-    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-runtime-deps-"));
+    const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-runtime-deps-"));
     const pluginId = params.pluginId ?? "fixture-plugin";
     const pluginDir = path.join(repoRoot, "dist", "extensions", pluginId);
     fs.mkdirSync(pluginDir, { recursive: true });
@@ -146,13 +146,13 @@ describe("stageBundledPluginRuntimeDeps", () => {
   it("skips restaging when runtime deps stamp matches the sanitized manifest", () => {
     const { pluginDir, repoRoot } = createBundledPluginFixture({
       packageJson: {
-        name: "@openclaw/fixture-plugin",
+        name: "@alisio/fixture-plugin",
         version: "1.0.0",
         dependencies: { "left-pad": "1.3.0" },
-        peerDependencies: { openclaw: "^1.0.0" },
-        peerDependenciesMeta: { openclaw: { optional: true } },
-        devDependencies: { openclaw: "^1.0.0" },
-        openclaw: { bundle: { stageRuntimeDependencies: true } },
+        peerDependencies: { alisio: "^1.0.0" },
+        peerDependenciesMeta: { alisio: { optional: true } },
+        devDependencies: { alisio: "^1.0.0" },
+        alisio: { bundle: { stageRuntimeDependencies: true } },
       },
     });
     const nodeModulesDir = path.join(pluginDir, "node_modules");
@@ -181,20 +181,20 @@ describe("stageBundledPluginRuntimeDeps", () => {
     expect(installCount).toBe(1);
     expect(fs.existsSync(path.join(nodeModulesDir, "marker.txt"))).toBe(true);
     expect(JSON.parse(fs.readFileSync(path.join(pluginDir, "package.json"), "utf8"))).toEqual({
-      name: "@openclaw/fixture-plugin",
+      name: "@alisio/fixture-plugin",
       version: "1.0.0",
       dependencies: { "left-pad": "1.3.0" },
-      openclaw: { bundle: { stageRuntimeDependencies: true } },
+      alisio: { bundle: { stageRuntimeDependencies: true } },
     });
   });
 
   it("restages when the manifest-owned runtime deps change", () => {
     const { pluginDir, repoRoot } = createBundledPluginFixture({
       packageJson: {
-        name: "@openclaw/fixture-plugin",
+        name: "@alisio/fixture-plugin",
         version: "1.0.0",
         dependencies: { "left-pad": "1.3.0" },
-        openclaw: { bundle: { stageRuntimeDependencies: true } },
+        alisio: { bundle: { stageRuntimeDependencies: true } },
       },
     });
 
@@ -234,10 +234,10 @@ describe("stageBundledPluginRuntimeDeps", () => {
   it("restages when an old stamp is missing the layout version", () => {
     const { pluginDir, repoRoot } = createBundledPluginFixture({
       packageJson: {
-        name: "@openclaw/fixture-plugin",
+        name: "@alisio/fixture-plugin",
         version: "1.0.0",
         dependencies: { "left-pad": "1.3.0" },
-        openclaw: { bundle: { stageRuntimeDependencies: true } },
+        alisio: { bundle: { stageRuntimeDependencies: true } },
       },
     });
     const nodeModulesDir = path.join(pluginDir, "node_modules");

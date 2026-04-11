@@ -299,7 +299,7 @@ class DeviceNotificationListenerService : NotificationListenerService() {
       context.applicationContext.getSharedPreferences("alisio.secure", Context.MODE_PRIVATE)
 
     private fun legacyRecentPackagesPrefs(context: Context): android.content.SharedPreferences {
-      val legacyBrandName = listOf("open", "claw").joinToString("")
+      val legacyBrandName = "alisio"
       return context.applicationContext.getSharedPreferences("$legacyBrandName.secure", Context.MODE_PRIVATE)
     }
 

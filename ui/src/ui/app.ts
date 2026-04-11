@@ -77,10 +77,11 @@ import type {
   SecurityAccessDiagnostics,
   SecurityAccessMode,
 } from "./controllers/security-access.ts";
-import "./lume-host.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
+import "./alisio-host.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import { todayMemoryDate } from "./memory-files.ts";
+import type { ModelProviderId } from "./models-view-types.ts";
 import type { ModelsOperationMap } from "./models-view-types.ts";
 import type { SettingsSection, Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
@@ -114,6 +115,7 @@ import { generateUUID } from "./uuid.ts";
 declare global {
   interface Window {
     __ALISIO_CONTROL_UI_BASE_PATH__?: string;
+    __ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__?: string;
   }
 }
 
@@ -153,6 +155,9 @@ export class AlisioApp extends LitElement {
   @state() nativeShellLoading = false;
   @state() nativeShellError: string | null = null;
   @state() nativeShellState: NativeShellState | null = null;
+  @state() nativeRebuildInFlight = false;
+  @state() nativeRebuildStatus: string | null = null;
+  @state() nativeRebuildError: string | null = null;
   @state() alisioStartupLoading = false;
   @state() alisioStartupError: string | null = null;
   @state() alisioStartupBootstrap: import("./types.ts").AlisioHttpBootstrap | null = null;
@@ -233,12 +238,14 @@ export class AlisioApp extends LitElement {
   @state() chatModelOverrides: Record<string, ChatModelOverride | null> = {};
   @state() chatModelsLoading = false;
   @state() chatModelCatalog: ModelCatalogEntry[] = [];
+  @state() modelManagementLoading = false;
+  @state() modelManagementCatalog: ModelCatalogEntry[] = [];
   @state() chatQueue: ChatQueueItem[] = [];
   @state() chatAttachments: ChatAttachment[] = [];
   @state() chatManualRefreshInFlight = false;
   @state() navDrawerOpen = false;
   @state() modelsExpandedProfileId: string | null | undefined = undefined;
-  @state() modelsSelectedProviderId: "openai" | "nodes" | "local" | null | undefined = undefined;
+  @state() modelsSelectedProviderId: ModelProviderId | null | undefined = undefined;
   @state() alisioModelOperations: ModelsOperationMap = {};
 
   onSlashAction?: (action: string) => void;

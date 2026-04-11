@@ -262,7 +262,7 @@ describe("channelsHandlers channels.status", () => {
   });
 
   it("pode expor a superfície alargada no status atrás da flag de product surface", async () => {
-    vi.stubEnv("OPENCLAW_CHANNEL_SURFACE", "all");
+    vi.stubEnv("ALISIO_CHANNEL_SURFACE", "all");
     const respond = vi.fn();
 
     await channelsHandlers["channels.status"](

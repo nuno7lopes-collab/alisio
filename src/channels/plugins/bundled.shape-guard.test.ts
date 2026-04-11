@@ -10,7 +10,7 @@ describe("bundled channel entry shape guards", () => {
   it("treats missing bundled discovery results as empty", async () => {
     vi.resetModules();
     vi.doMock("../../plugins/discovery.js", () => ({
-      discoverOpenClawPlugins: () => ({
+      discoverAlisioPlugins: () => ({
         candidates: [],
         diagnostics: [],
       }),

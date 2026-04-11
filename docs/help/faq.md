@@ -166,7 +166,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
     **Not on localhost:**
 
     - **Tailscale Serve** (recommended): keep bind loopback, run `alisio gateway --tailscale serve`, open `https://<magicdns>/`. If `gateway.auth.allowTailscale` is `true`, identity headers satisfy Control UI/WebSocket auth (no token, assumes trusted gateway host); HTTP APIs still require token/password.
-    - **Tailnet bind**: run `alisio gateway --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste token in dashboard settings.
+    - **Tailnet bind**: run `alisio gateway run --bind tailnet --token "<token>"`, open `http://<tailscale-ip>:40705/`, paste token in dashboard settings.
     - **SSH tunnel**: `ssh -N -L 40705:127.0.0.1:40705 user@host` then open `http://127.0.0.1:40705/` and paste the token in Control UI settings.
 
     See [Dashboard](/web/dashboard) and [Web surfaces](/web) for bind modes and auth details.
@@ -521,7 +521,7 @@ Quick answers plus deeper troubleshooting for real-world setups (local dev, VPS,
   <Accordion title="What does onboarding actually do?">
     `alisio onboard` is the recommended setup path. In **local mode** it walks you through:
 
-    - **Model/auth setup** (provider OAuth/setup-token flows and API keys supported, plus local model options such as LM Studio)
+    - **Model/auth setup** (provider OAuth/setup-token flows and API keys supported, plus local model options through compatible self-hosted runtimes)
     - **Workspace** location + bootstrap files
     - **Gateway settings** (bind/port/auth/tailscale)
     - **Providers** (WhatsApp, Telegram, Discord, Mattermost (plugin), Signal, iMessage)
@@ -636,7 +636,7 @@ for usage/billing and raise limits as needed.
   </Accordion>
 
   <Accordion title="Is a local model OK for casual chats?">
-    Usually no. Alisio needs large context + strong safety; small cards truncate and leak. If you must, run the **largest** model build you can locally (LM Studio) and see [/gateway/local-models](/gateway/local-models). Smaller/quantized models increase prompt-injection risk - see [Security](/gateway/security).
+    Usually no. Alisio needs large context + strong safety; small cards truncate and leak. If you must, run the **largest** model build you can locally behind a compatible server and see [/gateway/local-models](/gateway/local-models). Smaller/quantized models increase prompt-injection risk - see [Security](/gateway/security).
   </Accordion>
 
   <Accordion title="How do I keep hosted model traffic in a specific region?">
@@ -1216,14 +1216,12 @@ for usage/billing and raise limits as needed.
     It prefers OpenAI if an OpenAI key resolves, otherwise Gemini if a Gemini key
     resolves, then Voyage, then Mistral. If no remote key is available, memory
     search stays disabled until you configure it. If you have a local model path
-    configured and present, Alisio
-    prefers `local`. Ollama is supported when you explicitly set
-    `memorySearch.provider = "ollama"`.
+    configured and present, Alisio prefers `local`.
 
     If you'd rather stay local, set `memorySearch.provider = "local"` (and optionally
     `memorySearch.fallback = "none"`). If you want Gemini embeddings, set
     `memorySearch.provider = "gemini"` and provide `GEMINI_API_KEY` (or
-    `memorySearch.remote.apiKey`). We support **OpenAI, Gemini, Voyage, Mistral, Ollama, or local** embedding
+    `memorySearch.remote.apiKey`). We support **OpenAI, Gemini, Voyage, Mistral, or local** embedding
     models - see [Memory](/concepts/memory) for the setup details.
 
   </Accordion>
@@ -1883,7 +1881,7 @@ for usage/billing and raise limits as needed.
 
     - Onboarding also offers **Reset** if it sees an existing config. See [Onboarding (CLI)](/start/wizard).
     - If you used profiles (`--profile` / `ALISIO_PROFILE`), reset each state dir (defaults are `~/.alisio-<profile>`).
-    - Dev reset: `alisio gateway --dev --reset` (dev-only; wipes dev config + credentials + sessions + workspace).
+    - Dev reset: `alisio gateway run --dev --reset` (dev-only; wipes dev config + credentials + sessions + workspace).
 
   </Accordion>
 
@@ -2086,29 +2084,27 @@ for usage/billing and raise limits as needed.
 
   </Accordion>
 
-  <Accordion title="Can I use self-hosted models (llama.cpp, vLLM, Ollama)?">
-    Yes. Ollama is the easiest path for local models.
+  <Accordion title="Can I use self-hosted models (llama.cpp or vLLM)?">
+    Yes. Point Alisio at a self-hosted OpenAI-compatible endpoint.
 
     Quickest setup:
 
-    1. Install Ollama from `https://ollama.com/download`
-    2. Pull a local model such as `ollama pull glm-4.7-flash`
-    3. If you want Ollama Cloud too, run `ollama signin`
-    4. Run `alisio onboard` and choose `Ollama`
-    5. Pick `Local` or `Cloud + Local`
+    1. Start a local or remote server that exposes an OpenAI-compatible `/v1` API
+    2. Pick the largest model build you can actually run safely
+    3. Run `alisio onboard` and choose `Custom provider`
+    4. Enter the server base URL and model id
+    5. Keep a hosted fallback model configured if the local server is optional
 
     Notes:
 
-    - `Cloud + Local` gives you Ollama Cloud models plus your local Ollama models
-    - cloud models such as `kimi-k2.5:cloud` do not need a local pull
-    - for manual switching, use `alisio models list` and `alisio models set ollama/<model>`
+    - for manual switching, use `alisio models list` and `alisio models set <provider>/<model>`
+    - smaller or heavily quantized models are more vulnerable to prompt injection
 
     Security note: smaller or heavily quantized models are more vulnerable to prompt
     injection. We strongly recommend **large models** for any bot that can use tools.
     If you still want small models, enable sandboxing and strict tool allowlists.
 
-    Docs: [Ollama](/providers/ollama), [Local models](/gateway/local-models),
-    [Model providers](/concepts/model-providers), [Security](/gateway/security),
+    Docs: [Local models](/gateway/local-models), [Model providers](/concepts/model-providers), [Security](/gateway/security),
     [Sandboxing](/gateway/sandboxing).
 
   </Accordion>
@@ -2504,7 +2500,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
   <Accordion title='What does "another gateway instance is already listening" mean?'>
     Alisio enforces a runtime lock by binding the WebSocket listener immediately on startup (default `ws://127.0.0.1:40705`). If the bind fails with `EADDRINUSE`, it throws `GatewayLockError` indicating another instance is already listening.
 
-    Fix: stop the other instance, free the port, or run with `alisio gateway --port <port>`.
+    Fix: stop the other instance, free the port, or run with `alisio gateway run --port <port>`.
 
   </Accordion>
 
@@ -2650,7 +2646,7 @@ Related: [/concepts/oauth](/concepts/oauth) (OAuth flows, token storage, multi-a
     alisio gateway restart
     ```
 
-    If you run the gateway manually, `alisio gateway --force` can reclaim the port. See [Gateway](/gateway).
+    If you run the gateway manually, `alisio gateway run --force` can reclaim the port. See [Gateway](/gateway).
 
   </Accordion>
 

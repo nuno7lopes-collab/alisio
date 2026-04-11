@@ -64,20 +64,20 @@ describe("readGatewayServiceState", () => {
     const service = createService({
       isLoaded: vi.fn(async () => true),
       readCommand: vi.fn(async () => ({
-        programArguments: ["openclaw", "gateway", "run"],
-        environment: { OPENCLAW_GATEWAY_PORT: "40705" },
+        programArguments: ["alisio", "gateway", "run"],
+        environment: { ALISIO_GATEWAY_PORT: "40705" },
       })),
       readRuntime: vi.fn(async () => ({ status: "running" })),
     });
 
     const state = await readGatewayServiceState(service, {
-      env: { OPENCLAW_GATEWAY_PORT: "1" },
+      env: { ALISIO_GATEWAY_PORT: "1" },
     });
 
     expect(state.installed).toBe(true);
     expect(state.loaded).toBe(true);
     expect(state.running).toBe(true);
-    expect(state.env.OPENCLAW_GATEWAY_PORT).toBe("40705");
+    expect(state.env.ALISIO_GATEWAY_PORT).toBe("40705");
   });
 });
 
@@ -96,8 +96,8 @@ describe("startGatewayService", () => {
 
   it("restarts stopped installed services and returns post-start state", async () => {
     const readCommand = vi.fn(async () => ({
-      programArguments: ["openclaw", "gateway", "run"],
-      environment: { OPENCLAW_GATEWAY_PORT: "40705" },
+      programArguments: ["alisio", "gateway", "run"],
+      environment: { ALISIO_GATEWAY_PORT: "40705" },
     }));
     const isLoaded = vi
       .fn<GatewayService["isLoaded"]>()
@@ -129,7 +129,7 @@ describe("startGatewayService", () => {
     const readCommand = vi
       .fn<GatewayService["readCommand"]>()
       .mockResolvedValueOnce({
-        programArguments: ["openclaw", "gateway", "run"],
+        programArguments: ["alisio", "gateway", "run"],
       })
       .mockResolvedValueOnce(null);
     const service = createService({

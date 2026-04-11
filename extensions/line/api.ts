@@ -1,7 +1,7 @@
 export type {
   ChannelPlugin,
-  OpenClawConfig,
-  OpenClawPluginApi,
+  AlisioConfig,
+  AlisioPluginApi,
   PluginRuntime,
 } from "alisio/plugin-sdk/core";
 export { clearAccountEntryFields } from "alisio/plugin-sdk/core";

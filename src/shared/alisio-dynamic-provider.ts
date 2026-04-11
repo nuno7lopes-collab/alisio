@@ -14,7 +14,7 @@ export function buildAlisioCurrentProviderId(): string {
 
 export function buildAlisioTargetProviderId(params: {
   targetId: string;
-  runtimeKind?: "llama.cpp" | "ollama" | "lmstudio" | "openai-compatible";
+  runtimeKind?: "llama.cpp";
 }): string {
   const target = normalizeProviderToken(params.targetId) || "target";
   return `${ALISIO_DYNAMIC_PROVIDER_PREFIX}target-${target}-llama`;

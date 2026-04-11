@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { resolveBrewPathDirs } from "./brew.js";
-import { isTruthyEnvValue, legacyEnvKey, readEnv } from "./env.js";
+import { isTruthyEnvValue, runtimeEnvKey, readEnv } from "./env.js";
 
 type EnsureAlisioPathOpts = {
   execPath?: string;
@@ -75,7 +75,7 @@ function candidateBinDirs(opts: EnsureAlisioPathOpts): { prepend: string[]; appe
     opts.allowProjectLocalBin === true ||
     isTruthyEnvValue(
       readEnv("ALISIO_ALLOW_PROJECT_LOCAL_BIN", {
-        fallback: legacyEnvKey("ALLOW_PROJECT_LOCAL_BIN"),
+        fallback: runtimeEnvKey("ALLOW_PROJECT_LOCAL_BIN"),
         description: "allow project-local cli path bootstrap",
       }),
     );
@@ -122,7 +122,7 @@ export function ensureAlisioCliOnPath(opts: EnsureAlisioPathOpts = {}) {
   if (
     isTruthyEnvValue(
       readEnv("ALISIO_PATH_BOOTSTRAPPED", {
-        fallback: legacyEnvKey("PATH_BOOTSTRAPPED"),
+        fallback: runtimeEnvKey("PATH_BOOTSTRAPPED"),
         description: "cli path bootstrap marker",
       }),
     )

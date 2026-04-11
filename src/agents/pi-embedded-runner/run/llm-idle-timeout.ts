@@ -17,7 +17,7 @@ const MAX_SAFE_TIMEOUT_MS = 2_147_000_000;
 
 /**
  * Resolves the LLM idle timeout from configuration.
- * @param cfg - OpenClaw configuration
+ * @param cfg - Alisio configuration
  * @returns Idle timeout in milliseconds, or 0 to disable
  */
 export function resolveLlmIdleTimeoutMs(cfg?: AlisioConfig): number {

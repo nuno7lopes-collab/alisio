@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/kimi-provider",
+  "name": "@alisio/kimi-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Kimi provider plugin",
+  "description": "Alisio Kimi provider plugin",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

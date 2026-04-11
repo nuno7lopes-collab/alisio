@@ -1,4 +1,4 @@
-import type { ChannelSetupAdapter, OpenClawConfig } from "alisio/plugin-sdk/setup";
+import type { ChannelSetupAdapter, AlisioConfig } from "alisio/plugin-sdk/setup";
 import { createSetupInputPresenceValidator } from "alisio/plugin-sdk/setup";
 import { hasLineCredentials, parseLineAllowFromId } from "./account-helpers.js";
 import {
@@ -12,12 +12,12 @@ import {
 const channel = "line" as const;
 
 export function patchLineAccountConfig(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   patch: Record<string, unknown>;
   clearFields?: string[];
   enabled?: boolean;
-}): OpenClawConfig {
+}): AlisioConfig {
   const accountId = normalizeAccountId(params.accountId);
   const lineConfig = (params.cfg.channels?.line ?? {}) as LineConfig;
   const clearFields = params.clearFields ?? [];
@@ -67,7 +67,7 @@ export function patchLineAccountConfig(params: {
   };
 }
 
-export function isLineConfigured(cfg: OpenClawConfig, accountId: string): boolean {
+export function isLineConfigured(cfg: AlisioConfig, accountId: string): boolean {
   return hasLineCredentials(resolveLineAccount({ cfg, accountId }));
 }
 

@@ -7,11 +7,10 @@ enum CommandResolver {
     private static let bundledPackageDirName = AlisioBrand.bundledPackageDirectoryName
 
     static func gatewayEntrypoint(in root: URL) -> String? {
-        let distEntry = root.appendingPathComponent("dist/index.js").path
-        if FileManager().isReadableFile(atPath: distEntry) { return distEntry }
         let candidates = [
             root.appendingPathComponent("\(AlisioBrand.commandName).mjs").path,
             root.appendingPathComponent("bin/\(AlisioBrand.commandName).js").path,
+            root.appendingPathComponent("dist/index.js").path,
         ]
         for candidate in candidates where FileManager().isReadableFile(atPath: candidate) {
             return candidate
@@ -105,6 +104,13 @@ enum CommandResolver {
         }
         #endif
         return nil
+    }
+
+    static func developerCheckoutRoot(
+        bundleURL: URL = Bundle.main.bundleURL,
+        fileManager: FileManager = .default) -> URL?
+    {
+        self.inferBundledProjectRoot(bundleURL: bundleURL, fileManager: fileManager)
     }
 
     static func preferredPaths() -> [String] {

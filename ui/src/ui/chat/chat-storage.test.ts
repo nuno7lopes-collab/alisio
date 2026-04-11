@@ -15,9 +15,9 @@ afterEach(() => {
 });
 
 describe("chat storage keys", () => {
-  it("loads pinned messages from the legacy key and resaves them under alisio", () => {
+  it("loads pinned messages from the canonical alisio key", () => {
     const storage = getSafeLocalStorage();
-    storage?.setItem("\u006fpen\u0063law:pinned:main", JSON.stringify([1, 4]));
+    storage?.setItem("alisio:pinned:main", JSON.stringify([1, 4]));
 
     const pinned = new PinnedMessages("main");
     pinned.pin(7);
@@ -26,12 +26,11 @@ describe("chat storage keys", () => {
     expect(pinned.has(4)).toBe(true);
     expect(pinned.has(7)).toBe(true);
     expect(storage?.getItem("alisio:pinned:main")).toBe(JSON.stringify([1, 4, 7]));
-    expect(storage?.getItem("\u006fpen\u0063law:pinned:main")).toBeNull();
   });
 
-  it("loads deleted messages from the legacy key and resaves them under alisio", () => {
+  it("loads deleted messages from the canonical alisio key", () => {
     const storage = getSafeLocalStorage();
-    storage?.setItem("\u006fpen\u0063law:deleted:main", JSON.stringify(["a", "b"]));
+    storage?.setItem("alisio:deleted:main", JSON.stringify(["a", "b"]));
 
     const deleted = new DeletedMessages("main");
     deleted.delete("c");
@@ -40,6 +39,5 @@ describe("chat storage keys", () => {
     expect(deleted.has("b")).toBe(true);
     expect(deleted.has("c")).toBe(true);
     expect(storage?.getItem("alisio:deleted:main")).toBe(JSON.stringify(["a", "b", "c"]));
-    expect(storage?.getItem("\u006fpen\u0063law:deleted:main")).toBeNull();
   });
 });

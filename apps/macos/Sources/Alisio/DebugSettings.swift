@@ -30,6 +30,8 @@ struct DebugSettings: View {
     @State private var portKillStatus: String?
     @State private var tunnelResetInFlight = false
     @State private var tunnelResetStatus: String?
+    @State private var rebuildAppInFlight = false
+    @State private var rebuildAppStatus: String?
     @State private var pendingKill: DebugActions.PortListener?
     @AppStorage(debugFileLogEnabledKey) private var diagnosticsFileLogEnabled: Bool = false
     @AppStorage(appLogLevelKey) private var appLogLevelRaw: String = AppLogLevel.default.rawValue
@@ -236,6 +238,24 @@ struct DebugSettings: View {
                         Spacer(minLength: 0)
                     }
                     .buttonStyle(.bordered)
+
+                    if self.canRebuildFromCheckout {
+                        HStack(spacing: 8) {
+                            Button(self.rebuildAppInFlight ? "Rebuilding app…" : "Rebuild app") {
+                                Task { await self.rebuildAppFromCheckout() }
+                            }
+                            .disabled(self.rebuildAppInFlight)
+                            .help("Rebuilds the local dist app from the checkout and reopens it.")
+                            Spacer(minLength: 0)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if let rebuildAppStatus {
+                        Text(rebuildAppStatus)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }
@@ -686,6 +706,20 @@ struct DebugSettings: View {
     }
 
     @MainActor
+    private func rebuildAppFromCheckout() async {
+        self.rebuildAppInFlight = true
+        self.rebuildAppStatus = nil
+        let result = await DebugActions.rebuildAppFromCheckout()
+        switch result {
+        case let .success(message):
+            self.rebuildAppStatus = message
+        case let .failure(error):
+            self.rebuildAppStatus = error.localizedDescription
+        }
+        self.rebuildAppInFlight = false
+    }
+
+    @MainActor
     private func requestKill(_ listener: DebugActions.PortListener) {
         if listener.expected {
             self.pendingKill = listener
@@ -812,6 +846,10 @@ struct DebugSettings: View {
 
     private var canRestartGateway: Bool {
         self.state.connectionMode == .local
+    }
+
+    private var canRebuildFromCheckout: Bool {
+        CommandResolver.developerCheckoutRoot() != nil
     }
 }
 

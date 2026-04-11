@@ -1,10 +1,10 @@
 {
-  "name": "@openclaw/deepgram-provider",
+  "name": "@alisio/deepgram-provider",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Deepgram media-understanding provider",
+  "description": "Alisio Deepgram media-understanding provider",
   "type": "module",
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

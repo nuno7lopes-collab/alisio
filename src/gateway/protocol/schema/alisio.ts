@@ -129,10 +129,6 @@ const LocalModelRuntimeStatusSchema = Type.Union([
   Type.Literal("error"),
 ]);
 
-const RemoteModelServerKindSchema = Type.Union([
-  Type.Literal("openai-compatible"),
-  Type.Literal("ollama"),
-]);
 const SharingOwnerScopeSchema = Type.Union([Type.Literal("user"), Type.Literal("organization")]);
 const SharingScopeSchema = Type.Union([
   Type.Literal("read-only"),
@@ -144,8 +140,6 @@ const SharingScopeInputSchema = Type.Union([
   Type.Literal("read-only"),
   Type.Literal("model-use"),
   Type.Literal("exec"),
-  Type.Literal("device.use"),
-  Type.Literal("model.use"),
 ]);
 const SharingRequestStatusSchema = Type.Union([
   Type.Literal("pending"),
@@ -167,13 +161,8 @@ const SharingAuditActionSchema = Type.Union([
   Type.Literal("request.denied"),
   Type.Literal("grant.revoked"),
 ]);
-const LocalModelTargetRuntimeKindSchema = Type.Union([
-  Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
-  Type.Literal("ollama"),
-  Type.Literal("lmstudio"),
-  Type.Literal("openai-compatible"),
-]);
-const RuntimeLocationSchema = Type.Union([Type.Literal("local"), Type.Literal("server")]);
+const LocalModelTargetRuntimeKindSchema = Type.Literal(ALISIO_LOCAL_MODEL_BACKEND);
+const RuntimeLocationSchema = Type.Union([Type.Literal("local"), Type.Literal("node")]);
 const ProviderOverviewStatusSchema = Type.Union([
   Type.Literal("connected"),
   Type.Literal("ready"),
@@ -739,10 +728,6 @@ export const AlisioSharingTargetSchema = Type.Object(
     execAccess: SharingTargetAccessSchema,
     requestId: Type.Optional(Type.String()),
     requestStatus: Type.Optional(SharingRequestStatusSchema),
-    // Deprecated compatibility alias of grantId.
-    approvalId: Type.Optional(Type.String()),
-    // Deprecated compatibility alias of grantScopes.
-    approvalScopes: Type.Optional(Type.Array(SharingScopeSchema)),
     grantId: Type.Optional(Type.String()),
     grantScopes: Type.Optional(Type.Array(SharingScopeSchema)),
   },
@@ -762,8 +747,6 @@ export const AlisioSharingRequestSchema = Type.Object(
     status: SharingRequestStatusSchema,
     createdAt: NonEmptyString,
     resolvedAt: Type.Optional(Type.String()),
-    // Deprecated compatibility alias of grantId.
-    approvalId: Type.Optional(Type.String()),
     grantId: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
@@ -771,8 +754,6 @@ export const AlisioSharingRequestSchema = Type.Object(
 
 export const AlisioSharingGrantSchema = Type.Object(
   {
-    // Deprecated compatibility alias of grantId.
-    approvalId: NonEmptyString,
     grantId: NonEmptyString,
     requestId: NonEmptyString,
     targetId: NonEmptyString,
@@ -1004,7 +985,6 @@ export const AlisioRuntimeCapabilitiesSchema = Type.Object(
     update: Type.Boolean(),
     uninstall: Type.Boolean(),
     consentRequired: Type.Boolean(),
-    startServer: Type.Boolean(),
   },
   { additionalProperties: false },
 );
@@ -1074,87 +1054,11 @@ export const AlisioModelsUninstallResultSchema = Type.Object(
   },
   { additionalProperties: false },
 );
-export const AlisioModelsRuntimeStartParamsSchema = Type.Object(
-  {
-    targetId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsRuntimeStartResultSchema = Type.Object(
-  {
-    ok: Type.Literal(true),
-    targetId: NonEmptyString,
-    runtimeKind: Type.Literal("lmstudio"),
-    baseUrl: NonEmptyString,
-    alreadyRunning: Type.Boolean(),
-  },
-  { additionalProperties: false },
-);
-export const AlisioRemoteModelServerSchema = Type.Object(
-  {
-    serverId: NonEmptyString,
-    label: NonEmptyString,
-    chatProviderId: Type.Optional(NonEmptyString),
-    kind: RemoteModelServerKindSchema,
-    baseUrl: NonEmptyString,
-    active: Type.Boolean(),
-    hasApiKey: Type.Boolean(),
-    status: LocalModelRuntimeStatusSchema,
-    message: Type.Optional(Type.String()),
-    models: Type.Array(AlisioInstalledLocalModelSchema),
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerSaveParamsSchema = Type.Object(
-  {
-    serverId: Type.Optional(Type.String()),
-    label: NonEmptyString,
-    kind: RemoteModelServerKindSchema,
-    baseUrl: NonEmptyString,
-    apiKey: Type.Optional(Type.String()),
-    clearApiKey: Type.Optional(Type.Boolean()),
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerSaveResultSchema = Type.Object(
-  {
-    ok: Type.Literal(true),
-    serverId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerRemoveParamsSchema = Type.Object(
-  {
-    serverId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerRemoveResultSchema = Type.Object(
-  {
-    ok: Type.Literal(true),
-    serverId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerSelectParamsSchema = Type.Object(
-  {
-    serverId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-export const AlisioModelsServerSelectResultSchema = Type.Object(
-  {
-    ok: Type.Literal(true),
-    serverId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
 export const AlisioModelsResultSchema = Type.Object(
   {
     backend: Type.Literal(ALISIO_LOCAL_MODEL_BACKEND),
     catalog: Type.Array(AlisioLocalModelCatalogEntrySchema),
     targets: Type.Array(AlisioModelsTargetSchema),
-    servers: Type.Array(AlisioRemoteModelServerSchema),
   },
   { additionalProperties: false },
 );
@@ -1229,6 +1133,15 @@ export const AlisioRuntimeRestartResultSchema = Type.Object(
     mode: Type.Union([Type.Literal("emit"), Type.Literal("signal")]),
     coalesced: Type.Boolean(),
     cooldownMsApplied: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export const AlisioAppRebuildParamsSchema = Type.Object({}, { additionalProperties: false });
+export const AlisioAppRebuildResultSchema = Type.Object(
+  {
+    ok: Type.Boolean(),
+    message: Type.String(),
+    logPath: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );

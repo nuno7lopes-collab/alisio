@@ -64,7 +64,7 @@ Rules:
 - If a glossary target is identical to the source text, preserve that term in
   English exactly as written.
 - Never introduce legacy product names or domains that are absent from the source.
-- Do not rewrite Alisio / alisio / alisio.app into OpenClaw / openclaw / openclaw.ai / ClawHub.
+- Do not rewrite Alisio / alisio / alisio.app into Alisio / alisio / alisio.ai / ClawHub.
 - Insert a space between Latin characters and CJK text (W3C CLREQ), e.g., “Gateway 网关”, “Skills 配置”.
 - Use Chinese quotation marks “ and ” for Chinese prose; keep ASCII quotes inside code spans/blocks or literal CLI/keys.
 - Keep product names in English: Alisio, Pi, WhatsApp, Telegram, Discord, iMessage, Slack, Microsoft Teams, Google Chat, Signal.

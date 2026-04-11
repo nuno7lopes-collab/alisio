@@ -51,7 +51,7 @@ function createCommandWithTimeoutResult() {
 
 function createLegacyConfigSnapshot() {
   return {
-    path: "/tmp/openclaw.json",
+    path: "/tmp/alisio.json",
     exists: false,
     raw: null,
     parsed: {},
@@ -68,6 +68,7 @@ export const select = vi.fn().mockResolvedValue("node") as unknown as MockFn;
 export const note = vi.fn() as unknown as MockFn;
 export const writeConfigFile = vi.fn().mockResolvedValue(undefined) as unknown as MockFn;
 export const resolveAlisioPackageRoot = vi.fn().mockResolvedValue(null) as unknown as MockFn;
+export const resolveAlisioPackageRootSync = vi.fn(() => null) as unknown as MockFn;
 export const runGatewayUpdate = vi
   .fn()
   .mockResolvedValue(createGatewayUpdateResult()) as unknown as MockFn;
@@ -106,7 +107,7 @@ export const auditGatewayServiceConfig = vi
   .mockResolvedValue({ ok: true, issues: [] }) as unknown as MockFn;
 export const buildGatewayInstallPlan = vi.mocked(
   vi.fn().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "40705"],
+    programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
     workingDirectory: "/tmp",
     environment: {},
   }),
@@ -115,7 +116,7 @@ export const resolveGatewayAuthTokenForService = vi
   .fn()
   .mockResolvedValue({ token: undefined }) as unknown as MockFn;
 export const resolveGatewayProgramArguments = vi.fn().mockResolvedValue({
-  programArguments: ["node", "cli", "gateway", "--port", "40705"],
+  programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
 }) as unknown as MockFn;
 export const serviceInstall = vi.fn().mockResolvedValue(undefined) as unknown as MockFn;
 export const serviceIsLoaded = vi.fn().mockResolvedValue(false) as unknown as MockFn;
@@ -181,7 +182,7 @@ export const runLegacyStateMigrations = vi.fn().mockResolvedValue({
 }) as unknown as MockFn;
 
 const DEFAULT_CONFIG_SNAPSHOT = {
-  path: "/tmp/openclaw.json",
+  path: "/tmp/alisio.json",
   exists: true,
   raw: "{}",
   parsed: {},
@@ -203,15 +204,20 @@ vi.mock("../agents/skills-status.js", () => ({
   buildWorkspaceSkillStatus: () => ({ skills: [] }),
 }));
 
-vi.mock("../plugins/loader.js", () => ({
-  loadOpenClawPlugins: () => createEmptyPluginRegistry(),
-}));
+vi.mock("../plugins/loader.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../plugins/loader.js")>();
+  return {
+    ...actual,
+    loadAlisioPlugins: () => createEmptyPluginRegistry(),
+    resolveRuntimePluginRegistry: () => createEmptyPluginRegistry(),
+  };
+});
 
 vi.mock("../config/config.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../config/config.js")>();
   return {
     ...actual,
-    CONFIG_PATH: "/tmp/openclaw.json",
+    CONFIG_PATH: "/tmp/alisio.json",
     createConfigIO,
     readConfigFileSnapshot,
     writeConfigFile,
@@ -264,6 +270,7 @@ vi.mock("../process/exec.js", () => ({
 
 vi.mock("../infra/alisio-root.js", () => ({
   resolveAlisioPackageRoot,
+  resolveAlisioPackageRootSync,
 }));
 
 vi.mock("../infra/update-runner.js", () => ({
@@ -412,6 +419,7 @@ beforeEach(() => {
   readConfigFileSnapshot.mockReset();
   writeConfigFile.mockReset().mockResolvedValue(undefined);
   resolveAlisioPackageRoot.mockReset().mockResolvedValue(null);
+  resolveAlisioPackageRootSync.mockReset().mockReturnValue(null);
   runGatewayUpdate.mockReset().mockResolvedValue(createGatewayUpdateResult());
   legacyReadConfigFileSnapshot.mockReset().mockResolvedValue(createLegacyConfigSnapshot());
   createConfigIO.mockReset().mockImplementation(() => ({
@@ -430,13 +438,13 @@ beforeEach(() => {
   renderGatewayServiceCleanupHints.mockReset().mockReturnValue(["cleanup"]);
   auditGatewayServiceConfig.mockReset().mockResolvedValue({ ok: true, issues: [] });
   buildGatewayInstallPlan.mockReset().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "40705"],
+    programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
     workingDirectory: "/tmp",
     environment: {},
   });
   resolveGatewayAuthTokenForService.mockReset().mockResolvedValue({ token: undefined });
   resolveGatewayProgramArguments.mockReset().mockResolvedValue({
-    programArguments: ["node", "cli", "gateway", "--port", "40705"],
+    programArguments: ["node", "cli", "gateway", "run", "--port", "40705"],
   });
   serviceInstall.mockReset().mockResolvedValue(undefined);
   serviceIsLoaded.mockReset().mockResolvedValue(false);
@@ -449,11 +457,11 @@ beforeEach(() => {
 
   originalIsTTY = process.stdin.isTTY;
   setStdinTty(true);
-  originalStateDir = process.env.OPENCLAW_STATE_DIR;
-  originalUpdateInProgress = process.env.OPENCLAW_UPDATE_IN_PROGRESS;
-  process.env.OPENCLAW_UPDATE_IN_PROGRESS = "1";
-  tempStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-doctor-state-"));
-  process.env.OPENCLAW_STATE_DIR = tempStateDir;
+  originalStateDir = process.env.ALISIO_STATE_DIR;
+  originalUpdateInProgress = process.env.ALISIO_UPDATE_IN_PROGRESS;
+  process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
+  tempStateDir = fs.mkdtempSync(path.join(os.tmpdir(), "alisio-doctor-state-"));
+  process.env.ALISIO_STATE_DIR = tempStateDir;
   fs.mkdirSync(path.join(tempStateDir, "agents", "main", "sessions"), {
     recursive: true,
   });
@@ -463,14 +471,14 @@ beforeEach(() => {
 afterEach(() => {
   setStdinTty(originalIsTTY);
   if (originalStateDir === undefined) {
-    delete process.env.OPENCLAW_STATE_DIR;
+    delete process.env.ALISIO_STATE_DIR;
   } else {
-    process.env.OPENCLAW_STATE_DIR = originalStateDir;
+    process.env.ALISIO_STATE_DIR = originalStateDir;
   }
   if (originalUpdateInProgress === undefined) {
-    delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
+    delete process.env.ALISIO_UPDATE_IN_PROGRESS;
   } else {
-    process.env.OPENCLAW_UPDATE_IN_PROGRESS = originalUpdateInProgress;
+    process.env.ALISIO_UPDATE_IN_PROGRESS = originalUpdateInProgress;
   }
   if (tempStateDir) {
     fs.rmSync(tempStateDir, { recursive: true, force: true });

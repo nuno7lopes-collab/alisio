@@ -40,7 +40,7 @@ export function resetSchtasksBaseMocks() {
 
 export async function writeGatewayScript(
   env: Record<string, string>,
-  port = Number(env.ALISIO_GATEWAY_PORT || env.OPENCLAW_GATEWAY_PORT || "40705"),
+  port = Number(env.ALISIO_GATEWAY_PORT || "40705"),
 ) {
   const scriptPath = resolveTaskScriptPath(env);
   await fs.mkdir(path.dirname(scriptPath), { recursive: true });
@@ -49,7 +49,7 @@ export async function writeGatewayScript(
     [
       "@echo off",
       `set "ALISIO_GATEWAY_PORT=${port}"`,
-      `"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\steipete\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js" gateway --port ${port}`,
+      `"C:\\Program Files\\nodejs\\node.exe" "C:\\Users\\steipete\\AppData\\Roaming\\npm\\node_modules\\alisio\\dist\\index.js" gateway run --port ${port}`,
       "",
     ].join("\r\n"),
     "utf8",

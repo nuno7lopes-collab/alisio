@@ -9,7 +9,7 @@ import {
   type User,
 } from "@buape/carbon";
 import { enqueueSystemEvent } from "alisio/plugin-sdk/channel-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
 import {
   createSubsystemLogger,
@@ -732,7 +732,7 @@ type ThreadUpdateEvent = Parameters<ThreadUpdateListener["handle"]>[0];
 
 export class DiscordThreadUpdateListener extends ThreadUpdateListener {
   constructor(
-    private cfg: OpenClawConfig,
+    private cfg: AlisioConfig,
     private accountId: string,
     private logger?: Logger,
   ) {

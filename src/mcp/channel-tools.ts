@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { OpenClawChannelBridge } from "./channel-bridge.js";
+import type { AlisioChannelBridge } from "./channel-bridge.js";
 import {
   extractAttachmentsFromMessage,
   resolveMessageId,
@@ -20,7 +20,7 @@ export function getChannelMcpCapabilities(claudeChannelMode: "off" | "on" | "aut
   };
 }
 
-export function registerChannelMcpTools(server: McpServer, bridge: OpenClawChannelBridge): void {
+export function registerChannelMcpTools(server: McpServer, bridge: AlisioChannelBridge): void {
   server.tool(
     "conversations_list",
     "List Alisio channel-backed conversations available through session routes.",

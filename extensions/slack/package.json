@@ -1,14 +1,14 @@
 {
-  "name": "@openclaw/slack",
+  "name": "@alisio/slack",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw Slack channel plugin",
+  "description": "Alisio Slack channel plugin",
   "type": "module",
   "dependencies": {
     "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.15.0"
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],

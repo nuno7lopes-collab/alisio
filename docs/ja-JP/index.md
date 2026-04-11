@@ -103,7 +103,7 @@ Gatewayは、セッション、ルーティング、チャネル接続の信頼�
   <Step title="WhatsAppをペアリングしてGatewayを起動">
     ```bash
     alisio channels login
-    alisio gateway --port 40705
+    alisio gateway run --port 40705
     ```
   </Step>
 </Steps>

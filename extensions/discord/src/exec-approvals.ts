@@ -1,6 +1,6 @@
 import { getExecApprovalReplyMetadata } from "alisio/plugin-sdk/approval-runtime";
 import { resolveApprovalApprovers } from "alisio/plugin-sdk/approval-runtime";
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { ReplyPayload } from "alisio/plugin-sdk/reply-runtime";
 import { resolveDiscordAccount } from "./accounts.js";
 import { parseDiscordTarget } from "./targets.js";
@@ -22,7 +22,7 @@ function normalizeDiscordApproverId(value: string): string | undefined {
 }
 
 export function getDiscordExecApprovalApprovers(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): string[] {
   const account = resolveDiscordAccount(params).config;
@@ -44,7 +44,7 @@ export function getDiscordExecApprovalApprovers(params: {
 }
 
 export function isDiscordExecApprovalClientEnabled(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
 }): boolean {
   const config = resolveDiscordAccount(params).config.execApprovals;
@@ -52,7 +52,7 @@ export function isDiscordExecApprovalClientEnabled(params: {
 }
 
 export function isDiscordExecApprovalApprover(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   senderId?: string | null;
 }): boolean {
@@ -64,7 +64,7 @@ export function isDiscordExecApprovalApprover(params: {
 }
 
 export function shouldSuppressLocalDiscordExecApprovalPrompt(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId?: string | null;
   payload: ReplyPayload;
 }): boolean {

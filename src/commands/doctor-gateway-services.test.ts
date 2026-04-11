@@ -39,9 +39,22 @@ const mocks = vi.hoisted(() => ({
   note: vi.fn(),
 }));
 
+const testPaths = vi.hoisted(() => ({
+  stateDir: "/tmp/alisio-doctor-gateway-services",
+  configPath: "/tmp/alisio-doctor-gateway-services/alisio.json",
+}));
+
 vi.mock("../config/paths.js", () => ({
+  DEFAULT_GATEWAY_PORT: 40705,
+  STATE_DIR: testPaths.stateDir,
+  CONFIG_PATH: testPaths.configPath,
   resolveGatewayPort: mocks.resolveGatewayPort,
   resolveIsNixMode: mocks.resolveIsNixMode,
+  resolveStateDir: () => testPaths.stateDir,
+  resolveConfigPath: () => testPaths.configPath,
+  resolveCanonicalConfigPath: () => testPaths.configPath,
+  resolveConfigPathCandidate: () => testPaths.configPath,
+  resolveDefaultConfigCandidates: () => [testPaths.configPath],
 }));
 
 vi.mock("../config/config.js", async () => {
@@ -95,13 +108,11 @@ vi.mock("./doctor-gateway-auth-token.js", () => ({
   resolveGatewayAuthTokenForService: mocks.resolveGatewayAuthTokenForService,
 }));
 
-import {
-  maybeRepairGatewayServiceConfig,
-  maybeScanExtraGatewayServices,
-} from "./doctor-gateway-services.js";
+let maybeRepairGatewayServiceConfig: typeof import("./doctor-gateway-services.js").maybeRepairGatewayServiceConfig;
+let maybeScanExtraGatewayServices: typeof import("./doctor-gateway-services.js").maybeScanExtraGatewayServices;
 
 const originalStdinIsTTY = process.stdin.isTTY;
-const originalUpdateInProgress = process.env.OPENCLAW_UPDATE_IN_PROGRESS;
+const originalUpdateInProgress = process.env.ALISIO_UPDATE_IN_PROGRESS;
 
 function makeDoctorIo() {
   return { log: vi.fn(), error: vi.fn(), exit: vi.fn() };
@@ -136,9 +147,9 @@ async function runNonInteractiveRepair(params: { cfg?: AlisioConfig; updateInPro
     configurable: true,
   });
   if (params.updateInProgress) {
-    process.env.OPENCLAW_UPDATE_IN_PROGRESS = "1";
+    process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
   } else {
-    delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
+    delete process.env.ALISIO_UPDATE_IN_PROGRESS;
   }
   await maybeRepairGatewayServiceConfig(
     params.cfg ?? { gateway: {} },
@@ -156,15 +167,16 @@ async function runNonInteractiveRepair(params: { cfg?: AlisioConfig; updateInPro
 
 const gatewayProgramArguments = [
   "/usr/bin/node",
-  "/usr/local/bin/openclaw",
+  "/usr/local/bin/alisio",
   "gateway",
+  "run",
   "--port",
   "40705",
 ];
 
 function createGatewayCommand(entrypoint: string) {
   return {
-    programArguments: ["/usr/bin/node", entrypoint, "gateway", "--port", "40705"],
+    programArguments: ["/usr/bin/node", entrypoint, "gateway", "run", "--port", "40705"],
     environment: {},
   };
 }
@@ -198,7 +210,7 @@ function setupGatewayTokenRepairScenario() {
   mocks.readCommand.mockResolvedValue({
     programArguments: gatewayProgramArguments,
     environment: {
-      OPENCLAW_GATEWAY_TOKEN: "stale-token",
+      ALISIO_GATEWAY_TOKEN: "stale-token",
     },
   });
   mocks.auditGatewayServiceConfig.mockResolvedValue({
@@ -206,7 +218,7 @@ function setupGatewayTokenRepairScenario() {
     issues: [
       {
         code: "gateway-token-mismatch",
-        message: "Gateway service OPENCLAW_GATEWAY_TOKEN does not match gateway.auth.token",
+        message: "Gateway service ALISIO_GATEWAY_TOKEN does not match gateway.auth.token",
         level: "recommended",
       },
     ],
@@ -220,15 +232,18 @@ function setupGatewayTokenRepairScenario() {
 }
 
 describe("maybeRepairGatewayServiceConfig", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules();
     vi.clearAllMocks();
     fsMocks.realpath.mockImplementation(async (value: string) => value);
     mocks.resolveGatewayAuthTokenForService.mockImplementation(async (cfg: AlisioConfig, env) => {
       const configToken =
         typeof cfg.gateway?.auth?.token === "string" ? cfg.gateway.auth.token.trim() : undefined;
-      const envToken = env.OPENCLAW_GATEWAY_TOKEN?.trim() || undefined;
+      const envToken = env.ALISIO_GATEWAY_TOKEN?.trim() || undefined;
       return { token: configToken || envToken };
     });
+    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } =
+      await import("./doctor-gateway-services.js"));
   });
 
   afterEach(() => {
@@ -237,9 +252,9 @@ describe("maybeRepairGatewayServiceConfig", () => {
       configurable: true,
     });
     if (originalUpdateInProgress === undefined) {
-      delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
+      delete process.env.ALISIO_UPDATE_IN_PROGRESS;
     } else {
-      process.env.OPENCLAW_UPDATE_IN_PROGRESS = originalUpdateInProgress;
+      process.env.ALISIO_UPDATE_IN_PROGRESS = originalUpdateInProgress;
     }
   });
 
@@ -278,8 +293,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
     expect(mocks.install).toHaveBeenCalledTimes(1);
   });
 
-  it("uses OPENCLAW_GATEWAY_TOKEN when config token is missing", async () => {
-    await withEnvAsync({ OPENCLAW_GATEWAY_TOKEN: "env-token" }, async () => {
+  it("uses ALISIO_GATEWAY_TOKEN when config token is missing", async () => {
+    await withEnvAsync({ ALISIO_GATEWAY_TOKEN: "env-token" }, async () => {
       setupGatewayTokenRepairScenario();
 
       const cfg: AlisioConfig = {
@@ -320,14 +335,14 @@ describe("maybeRepairGatewayServiceConfig", () => {
 
   it("does not flag entrypoint mismatch when symlink and realpath match", async () => {
     setupGatewayEntrypointRepairScenario({
-      currentEntrypoint: "/Users/test/Library/pnpm/global/5/node_modules/openclaw/dist/index.js",
+      currentEntrypoint: "/Users/test/Library/pnpm/global/5/node_modules/alisio/dist/index.js",
       installEntrypoint:
-        "/Users/test/Library/pnpm/global/5/node_modules/.pnpm/openclaw@2026.3.12/node_modules/openclaw/dist/index.js",
+        "/Users/test/Library/pnpm/global/5/node_modules/.pnpm/alisio@2026.3.12/node_modules/alisio/dist/index.js",
       realpath: async (value: string) => {
-        if (value.includes("/global/5/node_modules/openclaw/")) {
+        if (value.includes("/global/5/node_modules/alisio/")) {
           return value.replace(
-            "/global/5/node_modules/openclaw/",
-            "/global/5/node_modules/.pnpm/openclaw@2026.3.12/node_modules/openclaw/",
+            "/global/5/node_modules/alisio/",
+            "/global/5/node_modules/.pnpm/alisio@2026.3.12/node_modules/alisio/",
           );
         }
         return value;
@@ -346,8 +361,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
 
   it("does not flag entrypoint mismatch when realpath fails but normalized absolute paths match", async () => {
     setupGatewayEntrypointRepairScenario({
-      currentEntrypoint: "/opt/openclaw/../openclaw/dist/index.js",
-      installEntrypoint: "/opt/openclaw/dist/index.js",
+      currentEntrypoint: "/opt/alisio/../alisio/dist/index.js",
+      installEntrypoint: "/opt/alisio/dist/index.js",
       realpathError: new Error("no realpath"),
     });
 
@@ -364,8 +379,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
   it("still flags entrypoint mismatch when canonicalized paths differ", async () => {
     setupGatewayEntrypointRepairScenario({
       currentEntrypoint:
-        "/Users/test/.nvm/versions/node/v22.0.0/lib/node_modules/openclaw/dist/index.js",
-      installEntrypoint: "/Users/test/Library/pnpm/global/5/node_modules/openclaw/dist/index.js",
+        "/Users/test/.nvm/versions/node/v22.0.0/lib/node_modules/alisio/dist/index.js",
+      installEntrypoint: "/Users/test/Library/pnpm/global/5/node_modules/alisio/dist/index.js",
     });
 
     await runRepair({ gateway: {} });
@@ -381,8 +396,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
   it("does not flag entrypoint mismatch when a dev app bundle wraps the current checkout dist", async () => {
     setupGatewayEntrypointRepairScenario({
       currentEntrypoint:
-        "/Users/test/openclaw/dist/OpenClaw.app/Contents/Resources/openclaw-package/dist/index.js",
-      installEntrypoint: "/Users/test/openclaw/dist/index.js",
+        "/Users/test/alisio/dist/Alisio.app/Contents/Resources/alisio-package/dist/index.js",
+      installEntrypoint: "/Users/test/alisio/dist/index.js",
     });
 
     await runRepair({ gateway: {} });
@@ -397,8 +412,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
 
   it("repairs entrypoint mismatch in non-interactive fix mode", async () => {
     setupGatewayEntrypointRepairScenario({
-      currentEntrypoint: "/Users/test/Library/npm/node_modules/openclaw/dist/entry.js",
-      installEntrypoint: "/Users/test/Library/npm/node_modules/openclaw/dist/index.js",
+      currentEntrypoint: "/Users/test/Library/npm/node_modules/alisio/dist/entry.js",
+      installEntrypoint: "/Users/test/Library/npm/node_modules/alisio/dist/index.js",
       installWorkingDirectory: "/tmp",
     });
 
@@ -417,8 +432,8 @@ describe("maybeRepairGatewayServiceConfig", () => {
 
   it("stages service config repairs during non-interactive update repairs", async () => {
     setupGatewayEntrypointRepairScenario({
-      currentEntrypoint: "/Users/test/Library/npm/node_modules/openclaw/dist/entry.js",
-      installEntrypoint: "/Users/test/Library/npm/node_modules/openclaw/dist/index.js",
+      currentEntrypoint: "/Users/test/Library/npm/node_modules/alisio/dist/entry.js",
+      installEntrypoint: "/Users/test/Library/npm/node_modules/alisio/dist/index.js",
       installWorkingDirectory: "/tmp",
     });
 
@@ -439,7 +454,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
     mocks.readCommand.mockResolvedValue({
       programArguments: gatewayProgramArguments,
       environment: {
-        OPENCLAW_GATEWAY_TOKEN: "stale-token",
+        ALISIO_GATEWAY_TOKEN: "stale-token",
       },
     });
     mocks.auditGatewayServiceConfig.mockResolvedValue({
@@ -460,7 +475,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
           token: {
             source: "env",
             provider: "default",
-            id: "OPENCLAW_GATEWAY_TOKEN",
+            id: "ALISIO_GATEWAY_TOKEN",
           },
         },
       },
@@ -485,7 +500,7 @@ describe("maybeRepairGatewayServiceConfig", () => {
   it("falls back to embedded service token when config and env tokens are missing", async () => {
     await withEnvAsync(
       {
-        OPENCLAW_GATEWAY_TOKEN: undefined,
+        ALISIO_GATEWAY_TOKEN: undefined,
       },
       async () => {
         setupGatewayTokenRepairScenario();
@@ -532,11 +547,11 @@ describe("maybeRepairGatewayServiceConfig", () => {
       value: false,
       configurable: true,
     });
-    process.env.OPENCLAW_UPDATE_IN_PROGRESS = "1";
+    process.env.ALISIO_UPDATE_IN_PROGRESS = "1";
 
     await withEnvAsync(
       {
-        OPENCLAW_GATEWAY_TOKEN: undefined,
+        ALISIO_GATEWAY_TOKEN: undefined,
       },
       async () => {
         setupGatewayTokenRepairScenario();
@@ -568,16 +583,16 @@ describe("maybeRepairGatewayServiceConfig", () => {
   it("does not persist EnvironmentFile-backed service tokens into config", async () => {
     await withEnvAsync(
       {
-        OPENCLAW_GATEWAY_TOKEN: undefined,
+        ALISIO_GATEWAY_TOKEN: undefined,
       },
       async () => {
         mocks.readCommand.mockResolvedValue({
           programArguments: gatewayProgramArguments,
           environment: {
-            OPENCLAW_GATEWAY_TOKEN: "env-file-token",
+            ALISIO_GATEWAY_TOKEN: "env-file-token",
           },
           environmentValueSources: {
-            OPENCLAW_GATEWAY_TOKEN: "file",
+            ALISIO_GATEWAY_TOKEN: "file",
           },
         });
         mocks.auditGatewayServiceConfig.mockResolvedValue({
@@ -610,27 +625,30 @@ describe("maybeRepairGatewayServiceConfig", () => {
 });
 
 describe("maybeScanExtraGatewayServices", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    vi.resetModules();
     vi.clearAllMocks();
     mocks.findExtraGatewayServices.mockResolvedValue([]);
     mocks.renderGatewayServiceCleanupHints.mockReturnValue([]);
     mocks.uninstallLegacySystemdUnits.mockResolvedValue([]);
+    ({ maybeRepairGatewayServiceConfig, maybeScanExtraGatewayServices } =
+      await import("./doctor-gateway-services.js"));
   });
 
   it("removes legacy Linux user systemd services", async () => {
     mocks.findExtraGatewayServices.mockResolvedValue([
       {
         platform: "linux",
-        label: "clawdbot-gateway.service",
-        detail: "unit: /home/test/.config/systemd/user/clawdbot-gateway.service",
+        label: "alisio-gateway.service",
+        detail: "unit: /home/test/.config/systemd/user/alisio-gateway.service",
         scope: "user",
         legacy: true,
       },
     ]);
     mocks.uninstallLegacySystemdUnits.mockResolvedValue([
       {
-        name: "clawdbot-gateway",
-        unitPath: "/home/test/.config/systemd/user/clawdbot-gateway.service",
+        name: "alisio-gateway",
+        unitPath: "/home/test/.config/systemd/user/alisio-gateway.service",
         enabled: true,
         exists: true,
       },
@@ -662,7 +680,7 @@ describe("maybeScanExtraGatewayServices", () => {
       stdout: process.stdout,
     });
     expect(mocks.note).toHaveBeenCalledWith(
-      expect.stringContaining("clawdbot-gateway.service"),
+      expect.stringContaining("alisio-gateway.service"),
       "Legacy gateway removed",
     );
     expect(runtime.log).toHaveBeenCalledWith(

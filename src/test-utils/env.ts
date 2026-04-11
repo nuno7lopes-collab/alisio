@@ -36,26 +36,8 @@ const PATH_RESOLUTION_ENV_KEYS = [
   "HOMEPATH",
   "ALISIO_HOME",
   "ALISIO_STATE_DIR",
-  "OPENCLAW_HOME",
-  "OPENCLAW_STATE_DIR",
-  "OPENCLAW_BUNDLED_PLUGINS_DIR",
+  "ALISIO_BUNDLED_PLUGINS_DIR",
 ] as const;
-
-function applyLegacyEnvAliases(
-  env: Record<string, string | undefined>,
-): Record<string, string | undefined> {
-  const resolved = { ...env };
-  if (!Object.hasOwn(resolved, "ALISIO_HOME") && Object.hasOwn(resolved, "OPENCLAW_HOME")) {
-    resolved.ALISIO_HOME = resolved.OPENCLAW_HOME;
-  }
-  if (
-    !Object.hasOwn(resolved, "ALISIO_STATE_DIR") &&
-    Object.hasOwn(resolved, "OPENCLAW_STATE_DIR")
-  ) {
-    resolved.ALISIO_STATE_DIR = resolved.OPENCLAW_STATE_DIR;
-  }
-  return resolved;
-}
 
 function resolveWindowsHomeParts(homeDir: string): { homeDrive?: string; homePath?: string } {
   if (process.platform !== "win32") {
@@ -82,9 +64,7 @@ export function createPathResolutionEnv(
     USERPROFILE: resolvedHome,
     ALISIO_HOME: undefined,
     ALISIO_STATE_DIR: undefined,
-    OPENCLAW_HOME: undefined,
-    OPENCLAW_STATE_DIR: undefined,
-    OPENCLAW_BUNDLED_PLUGINS_DIR: undefined,
+    ALISIO_BUNDLED_PLUGINS_DIR: undefined,
   };
 
   const windowsHome = resolveWindowsHomeParts(resolvedHome);
@@ -133,10 +113,9 @@ export function captureFullEnv() {
 }
 
 export function withEnv<T>(env: Record<string, string | undefined>, fn: () => T): T {
-  const resolvedEnv = applyLegacyEnvAliases(env);
-  const snapshot = captureEnv(Object.keys(resolvedEnv));
+  const snapshot = captureEnv(Object.keys(env));
   try {
-    applyEnvValues(resolvedEnv);
+    applyEnvValues(env);
     return fn();
   } finally {
     snapshot.restore();
@@ -147,10 +126,9 @@ export async function withEnvAsync<T>(
   env: Record<string, string | undefined>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const resolvedEnv = applyLegacyEnvAliases(env);
-  const snapshot = captureEnv(Object.keys(resolvedEnv));
+  const snapshot = captureEnv(Object.keys(env));
   try {
-    applyEnvValues(resolvedEnv);
+    applyEnvValues(env);
     return await fn();
   } finally {
     snapshot.restore();

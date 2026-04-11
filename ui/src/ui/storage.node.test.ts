@@ -31,6 +31,27 @@ function setControlUiBasePath(value: string | undefined) {
   });
 }
 
+function setControlUiDevGatewayPort(value: string | undefined) {
+  if (typeof window === "undefined") {
+    vi.stubGlobal(
+      "window",
+      value == null
+        ? ({} as Window & typeof globalThis)
+        : ({ __ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__: value } as Window & typeof globalThis),
+    );
+    return;
+  }
+  if (value == null) {
+    delete window.__ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__;
+    return;
+  }
+  Object.defineProperty(window, "__ALISIO_CONTROL_UI_DEV_GATEWAY_PORT__", {
+    value,
+    writable: true,
+    configurable: true,
+  });
+}
+
 function expectedGatewayUrl(basePath: string): string {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.host}${basePath}`;
@@ -45,11 +66,15 @@ describe("loadSettings default gateway URL derivation", () => {
     localStorage.clear();
     sessionStorage.clear();
     setControlUiBasePath(undefined);
+    setControlUiDevGatewayPort(undefined);
+    document.body.innerHTML = "";
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     setControlUiBasePath(undefined);
+    setControlUiDevGatewayPort(undefined);
+    document.body.innerHTML = "";
     vi.unstubAllGlobals();
   });
 
@@ -74,6 +99,19 @@ describe("loadSettings default gateway URL derivation", () => {
 
     const { loadSettings } = await import("./storage.ts");
     expect(loadSettings().gatewayUrl).toBe(expectedGatewayUrl("/apps/alisio"));
+  });
+
+  it("uses the injected dev gateway port on Vite pages", async () => {
+    setTestLocation({
+      protocol: "http:",
+      host: "gateway.example:5173",
+      pathname: "/",
+    });
+    setControlUiDevGatewayPort("19001");
+    document.body.innerHTML = '<script src="/@vite/client"></script>';
+
+    const { loadSettings } = await import("./storage.ts");
+    expect(loadSettings().gatewayUrl).toBe("ws://gateway.example:19001");
   });
 
   it("skips node sessionStorage accessors that warn without a storage file", async () => {

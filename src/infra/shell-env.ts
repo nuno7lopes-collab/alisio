@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { isTruthyEnvValue, legacyEnvKey, readEnv } from "./env.js";
+import { isTruthyEnvValue, runtimeEnvKey, readEnv } from "./env.js";
 import { sanitizeHostExecEnv } from "./host-env-security.js";
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -192,7 +192,7 @@ export function shouldEnableShellEnvFallback(env: NodeJS.ProcessEnv): boolean {
   return isTruthyEnvValue(
     readEnv("ALISIO_LOAD_SHELL_ENV", {
       env,
-      fallback: legacyEnvKey("LOAD_SHELL_ENV"),
+      fallback: runtimeEnvKey("LOAD_SHELL_ENV"),
       description: "shell env fallback toggle",
     }),
   );
@@ -202,7 +202,7 @@ export function shouldDeferShellEnvFallback(env: NodeJS.ProcessEnv): boolean {
   return isTruthyEnvValue(
     readEnv("ALISIO_DEFER_SHELL_ENV_FALLBACK", {
       env,
-      fallback: legacyEnvKey("DEFER_SHELL_ENV_FALLBACK"),
+      fallback: runtimeEnvKey("DEFER_SHELL_ENV_FALLBACK"),
       description: "shell env fallback deferral",
     }),
   );
@@ -211,7 +211,7 @@ export function shouldDeferShellEnvFallback(env: NodeJS.ProcessEnv): boolean {
 export function resolveShellEnvFallbackTimeoutMs(env: NodeJS.ProcessEnv): number {
   const raw = readEnv("ALISIO_SHELL_ENV_TIMEOUT_MS", {
     env,
-    fallback: legacyEnvKey("SHELL_ENV_TIMEOUT_MS"),
+    fallback: runtimeEnvKey("SHELL_ENV_TIMEOUT_MS"),
     description: "shell env fallback timeout",
   })?.trim();
   if (!raw) {

@@ -3,7 +3,7 @@ import {
   resolveMemorySearchConfig,
   resolveSessionAgentId,
   type AnyAgentTool,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 
 type MemoryToolRuntime = typeof import("./tools.runtime.js");
@@ -40,7 +40,7 @@ export const MemoryGraphSchema = Type.Object({
 });
 
 export function resolveMemoryToolContext(options: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentSessionKey?: string;
 }) {
   const cfg = options.config;
@@ -58,7 +58,7 @@ export function resolveMemoryToolContext(options: {
 }
 
 export async function getMemoryManagerContext(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
 }): Promise<
   | {
@@ -72,7 +72,7 @@ export async function getMemoryManagerContext(params: {
 }
 
 export async function getMemoryManagerContextWithPurpose(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   agentId: string;
   purpose?: "default" | "status";
 }): Promise<
@@ -94,14 +94,14 @@ export async function getMemoryManagerContextWithPurpose(params: {
 
 export function createMemoryTool(params: {
   options: {
-    config?: OpenClawConfig;
+    config?: AlisioConfig;
     agentSessionKey?: string;
   };
   label: string;
   name: string;
   description: string;
   parameters: typeof MemorySearchSchema | typeof MemoryGetSchema | typeof MemoryGraphSchema;
-  execute: (ctx: { cfg: OpenClawConfig; agentId: string }) => AnyAgentTool["execute"];
+  execute: (ctx: { cfg: AlisioConfig; agentId: string }) => AnyAgentTool["execute"];
 }): AnyAgentTool | null {
   const ctx = resolveMemoryToolContext(params.options);
   if (!ctx) {

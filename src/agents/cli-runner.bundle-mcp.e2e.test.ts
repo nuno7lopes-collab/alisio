@@ -19,7 +19,7 @@ describe("runCliAgent bundle MCP e2e", () => {
     { timeout: E2E_TIMEOUT_MS },
     async () => {
       const envSnapshot = captureEnv(["HOME"]);
-      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-cli-bundle-mcp-"));
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-cli-bundle-mcp-"));
       process.env.HOME = tempHome;
 
       const workspaceDir = path.join(tempHome, "workspace");
@@ -27,7 +27,7 @@ describe("runCliAgent bundle MCP e2e", () => {
       const binDir = path.join(tempHome, "bin");
       const serverScriptPath = path.join(tempHome, "mcp", "bundle-probe.mjs");
       const fakeClaudePath = path.join(binDir, "fake-claude.mjs");
-      const pluginRoot = path.join(tempHome, ".openclaw", "extensions", "bundle-probe");
+      const pluginRoot = path.join(tempHome, ".alisio", "extensions", "bundle-probe");
       await fs.mkdir(workspaceDir, { recursive: true });
       await writeBundleProbeMcpServer(serverScriptPath);
       await writeFakeClaudeCli(fakeClaudePath);

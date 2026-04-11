@@ -1,9 +1,6 @@
 import type { App } from "@slack/bolt";
 import { formatAllowlistMatchMeta } from "alisio/plugin-sdk/allow-from";
-import type {
-  OpenClawConfig,
-  SlackReactionNotificationMode,
-} from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig, SlackReactionNotificationMode } from "alisio/plugin-sdk/config-runtime";
 import { resolveSessionKey, type SessionScope } from "alisio/plugin-sdk/config-runtime";
 import type { DmPolicy, GroupPolicy } from "alisio/plugin-sdk/config-runtime";
 import { createDedupeCache } from "alisio/plugin-sdk/core";
@@ -22,7 +19,7 @@ import { isSlackChannelAllowedByPolicy } from "./policy.js";
 export { inferSlackChannelType, normalizeSlackChannelType } from "./channel-type.js";
 
 export type SlackMonitorContext = {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   botToken: string;
   app: App;
@@ -88,7 +85,7 @@ export type SlackMonitorContext = {
 };
 
 export function createSlackMonitorContext(params: {
-  cfg: OpenClawConfig;
+  cfg: AlisioConfig;
   accountId: string;
   botToken: string;
   app: App;

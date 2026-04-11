@@ -92,8 +92,8 @@ struct AlisioConfigFileTests {
         await TestIsolation.withEnvValues([
             "ALISIO_CONFIG_PATH": nil,
             "ALISIO_STATE_DIR": dir,
-            "OPENCLAW_CONFIG_PATH": nil,
-            "OPENCLAW_STATE_DIR": nil,
+            "ALISIO_CONFIG_PATH": nil,
+            "ALISIO_STATE_DIR": nil,
         ]) {
             #expect(AlisioConfigFile.stateDirURL().path == dir)
             #expect(AlisioConfigFile.url().path == "\(dir)/alisio.json")
@@ -101,19 +101,19 @@ struct AlisioConfigFileTests {
     }
 
     @Test
-    func `ignores legacy openclaw env overrides`() async {
+    func `ignores legacy alisio env overrides`() async {
         let legacyDir = FileManager().temporaryDirectory
-            .appendingPathComponent("openclaw-state-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("alisio-state-\(UUID().uuidString)", isDirectory: true)
             .path
 
         await TestIsolation.withEnvValues([
             "ALISIO_CONFIG_PATH": nil,
             "ALISIO_STATE_DIR": nil,
-            "OPENCLAW_CONFIG_PATH": "\(legacyDir)/openclaw.json",
-            "OPENCLAW_STATE_DIR": legacyDir,
+            "ALISIO_CONFIG_PATH": "\(legacyDir)/alisio.json",
+            "ALISIO_STATE_DIR": legacyDir,
         ]) {
             #expect(AlisioConfigFile.stateDirURL().path != legacyDir)
-            #expect(AlisioConfigFile.url().path != "\(legacyDir)/openclaw.json")
+            #expect(AlisioConfigFile.url().path != "\(legacyDir)/alisio.json")
         }
     }
 

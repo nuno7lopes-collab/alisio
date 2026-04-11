@@ -1,5 +1,6 @@
 package ai.alisio.app.ui
 
+import ai.alisio.app.gateway.DEFAULT_GATEWAY_PORT
 import java.util.Base64
 import java.util.Locale
 import java.net.URI
@@ -100,7 +101,7 @@ internal fun parseGatewayEndpoint(rawInput: String): GatewayEndpointConfig? {
   val defaultPort =
     when (scheme) {
       "wss", "https" -> 443
-      "ws", "http" -> 40705
+      "ws", "http" -> DEFAULT_GATEWAY_PORT
       else -> 443
     }
   val displayPort =

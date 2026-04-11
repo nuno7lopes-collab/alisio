@@ -30,31 +30,31 @@ Ask for:
 - which route they intend: same machine, same LAN, Tailscale tailnet, or public URL
 - whether they used QR/setup code or manual host/port
 - the exact app text/status/error, quoted exactly if possible
-- whether `openclaw devices list` shows a pending pairing request
+- whether `alisio devices list` shows a pending pairing request
 
 Do not guess from `can't connect`.
 
 ## Canonical checks
 
-Prefer `openclaw qr --json`. It uses the same setup-code payload Android scans.
+Prefer `alisio qr --json`. It uses the same setup-code payload Android scans.
 
 ```bash
-openclaw config get gateway.mode
-openclaw config get gateway.bind
-openclaw config get gateway.tailscale.mode
-openclaw config get gateway.remote.url
-openclaw config get gateway.auth.mode
-openclaw config get gateway.auth.allowTailscale
-openclaw config get plugins.entries.device-pair.config.publicUrl
-openclaw qr --json
-openclaw devices list
-openclaw nodes status
+alisio config get gateway.mode
+alisio config get gateway.bind
+alisio config get gateway.tailscale.mode
+alisio config get gateway.remote.url
+alisio config get gateway.auth.mode
+alisio config get gateway.auth.allowTailscale
+alisio config get plugins.entries.device-pair.config.publicUrl
+alisio qr --json
+alisio devices list
+alisio nodes status
 ```
 
 If this Alisio instance is pointed at a remote gateway, also run:
 
 ```bash
-openclaw qr --remote --json
+alisio qr --remote --json
 ```
 
 If Tailscale is part of the story:
@@ -65,7 +65,7 @@ tailscale status --json
 
 ## Read the result, not guesses
 
-`openclaw qr --json` success means:
+`alisio qr --json` success means:
 
 - `gatewayUrl`: this is the actual endpoint the app should use.
 - `urlSource`: this tells you which config path won.
@@ -80,7 +80,7 @@ Common good sources:
 
 ## Root-cause map
 
-If `openclaw qr --json` says `Gateway is only bound to loopback`:
+If `alisio qr --json` says `Gateway is only bound to loopback`:
 
 - remote node cannot connect yet
 - fix the route, then generate a fresh setup code
@@ -103,8 +103,8 @@ If the app says `pairing required`:
 - approve the pending device
 
 ```bash
-openclaw devices list
-openclaw devices approve --latest
+alisio devices list
+alisio devices approve --latest
 ```
 
 If the app says `bootstrap token invalid or expired`:
@@ -125,7 +125,7 @@ If the app says `unauthorized`:
 - Remote setup + setup/manual uses private LAN IP: wrong.
 - Tailnet setup + gateway advertises LAN IP instead of MagicDNS / tailnet route: wrong.
 - Public URL set but QR still advertises something else: inspect `urlSource`; config is not what you think.
-- `openclaw devices list` shows pending requests: stop changing network config and approve first.
+- `alisio devices list` shows pending requests: stop changing network config and approve first.
 
 ## Fix style
 
@@ -135,7 +135,7 @@ If there is not enough signal yet, ask for setup + exact app text instead of gue
 
 Good:
 
-- `The gateway is still loopback-only, so a node on another network can never reach it. Enable Tailscale Serve, restart the gateway, run openclaw qr again, rescan, then approve the pending device pairing.`
+- `The gateway is still loopback-only, so a node on another network can never reach it. Enable Tailscale Serve, restart the gateway, run alisio qr again, rescan, then approve the pending device pairing.`
 
 Bad:
 

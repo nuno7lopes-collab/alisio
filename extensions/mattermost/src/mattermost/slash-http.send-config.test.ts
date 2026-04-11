@@ -1,6 +1,6 @@
 import { ServerResponse, type IncomingMessage } from "node:http";
 import { PassThrough } from "node:stream";
-import type { OpenClawConfig, RuntimeEnv } from "alisio/plugin-sdk/mattermost";
+import type { AlisioConfig, RuntimeEnv } from "alisio/plugin-sdk/mattermost";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedMattermostAccount } from "./accounts.js";
 
@@ -214,7 +214,7 @@ describe("slash-http cfg threading", () => {
           botToken: "exec:secret-ref",
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
     const handler = createSlashCommandHttpHandler({
       account: accountFixture,
       cfg,

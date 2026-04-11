@@ -1,21 +1,21 @@
 {
-  "name": "@openclaw/memory-core",
+  "name": "@alisio/memory-core",
   "version": "2026.3.30",
   "private": true,
-  "description": "OpenClaw core memory search plugin",
+  "description": "Alisio core memory search plugin",
   "type": "module",
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ]

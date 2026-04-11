@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import type { PluginRuntime } from "alisio/plugin-sdk/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStartAccountContext } from "../../../test/helpers/plugins/start-account-context.js";
@@ -41,7 +41,7 @@ vi.mock("./monitor.js", async (importOriginal) => {
   };
 });
 
-function createCfg(): OpenClawConfig {
+function createCfg(): AlisioConfig {
   return {
     channels: {
       telegram: {
@@ -53,21 +53,21 @@ function createCfg(): OpenClawConfig {
         },
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 }
 
-function resolveAccount(cfg: OpenClawConfig, accountId: string): ResolvedTelegramAccount {
+function resolveAccount(cfg: AlisioConfig, accountId: string): ResolvedTelegramAccount {
   return telegramPlugin.config.resolveAccount(cfg, accountId) as ResolvedTelegramAccount;
 }
 
-function createStartTelegramContext(cfg: OpenClawConfig, accountId: string) {
+function createStartTelegramContext(cfg: AlisioConfig, accountId: string) {
   return createStartAccountContext({
     account: resolveAccount(cfg, accountId),
     cfg,
   });
 }
 
-function startTelegramAccount(cfg: OpenClawConfig, accountId: string) {
+function startTelegramAccount(cfg: AlisioConfig, accountId: string) {
   return telegramPlugin.gateway!.startAccount!(createStartTelegramContext(cfg, accountId));
 }
 
@@ -116,7 +116,7 @@ function installGatewayRuntime(params?: { probeOk?: boolean; botUsername?: strin
   };
 }
 
-function configureOpsProxyNetwork(cfg: OpenClawConfig) {
+function configureOpsProxyNetwork(cfg: AlisioConfig) {
   cfg.channels!.telegram!.accounts!.ops = {
     ...cfg.channels!.telegram!.accounts!.ops,
     proxy: "http://127.0.0.1:8888",
@@ -170,7 +170,7 @@ describe("telegramPlugin groups", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     expect(
       telegramPlugin.groups?.resolveRequireMention?.({
@@ -554,7 +554,7 @@ describe("telegramPlugin duplicate token guard", () => {
     expect(await telegramPlugin.config.isConfigured!(alertsAccount, cfg)).toBe(true);
   });
 
-  // Regression: https://github.com/openclaw/openclaw/issues/53876
+  // Regression: https://github.com/alisio/alisio/issues/53876
   // Single-bot setup with channel-level token should report configured.
   it("reports configured for single-bot setup with channel-level token", async () => {
     const cfg = {
@@ -564,13 +564,13 @@ describe("telegramPlugin duplicate token guard", () => {
           enabled: true,
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const account = resolveAccount(cfg, "default");
     expect(await telegramPlugin.config.isConfigured!(account, cfg)).toBe(true);
   });
 
-  // Regression: https://github.com/openclaw/openclaw/issues/53876
+  // Regression: https://github.com/alisio/alisio/issues/53876
   // Binding-created non-default accountId in single-bot setup should report configured.
   it("reports configured for binding-created accountId in single-bot setup", async () => {
     const cfg = {
@@ -580,7 +580,7 @@ describe("telegramPlugin duplicate token guard", () => {
           enabled: true,
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const account = resolveAccount(cfg, "bot-main");
     expect(account.token).toBe("single-bot-token");
@@ -600,7 +600,7 @@ describe("telegramPlugin duplicate token guard", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const account = resolveAccount(cfg, "unknownBot");
     expect(await telegramPlugin.config.isConfigured!(account, cfg)).toBe(false);
@@ -620,7 +620,7 @@ describe("telegramPlugin duplicate token guard", () => {
           },
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     // "carey-notifications" is the normalized form of "Carey Notifications"
     const account = resolveAccount(cfg, "carey-notifications");
@@ -637,7 +637,7 @@ describe("telegramPlugin duplicate token guard", () => {
           enabled: true,
         },
       },
-    } as OpenClawConfig;
+    } as AlisioConfig;
 
     const account = resolveAccount(cfg, "default");
     // tokenFile is configured but file doesn't exist → configured_unavailable

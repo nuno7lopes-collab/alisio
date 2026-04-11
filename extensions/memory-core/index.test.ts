@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/memory-core";
+import type { AlisioConfig } from "alisio/plugin-sdk/memory-core";
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
 import plugin, {
@@ -123,7 +123,7 @@ describe("buildMemoryFlushPlan", () => {
         timeFormat: "12",
       },
     },
-  } as OpenClawConfig;
+  } as AlisioConfig;
 
   it("replaces YYYY-MM-DD using user timezone and appends current time", () => {
     const plan = buildMemoryFlushPlan({

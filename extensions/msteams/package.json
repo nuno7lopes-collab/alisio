@@ -1,7 +1,7 @@
 {
-  "name": "@openclaw/msteams",
+  "name": "@alisio/msteams",
   "version": "2026.3.30",
-  "description": "OpenClaw Microsoft Teams channel plugin",
+  "description": "Alisio Microsoft Teams channel plugin",
   "type": "module",
   "dependencies": {
     "@microsoft/teams.api": "2.0.6",
@@ -9,17 +9,17 @@
     "express": "^5.2.1"
   },
   "devDependencies": {
-    "openclaw": "workspace:*"
+    "alisio": "workspace:*"
   },
   "peerDependencies": {
-    "openclaw": ">=2026.3.30"
+    "alisio": ">=2026.3.30"
   },
   "peerDependenciesMeta": {
-    "openclaw": {
+    "alisio": {
       "optional": true
     }
   },
-  "openclaw": {
+  "alisio": {
     "extensions": [
       "./index.ts"
     ],
@@ -37,7 +37,7 @@
       "order": 60
     },
     "install": {
-      "npmSpec": "@openclaw/msteams",
+      "npmSpec": "@alisio/msteams",
       "defaultChoice": "npm",
       "minHostVersion": ">=2026.3.30"
     },

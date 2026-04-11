@@ -10,10 +10,14 @@ APP_SLUG="$(alisio_app_slug)"
 LEGACY_SLUG="$(alisio_legacy_slug)"
 LEGACY_ENTRYPOINT="$(alisio_legacy_entrypoint)"
 PACKAGE_DIR_NAME="$(alisio_package_dir_name)"
+CURRENT_SHARED_KIT_BUNDLE_NAME="AlisioKit_AlisioKit.bundle"
 
 BUILD_ROOT="$ROOT_DIR/apps/macos/.build"
 PRODUCT="${APP_PRODUCT:-${ALISIO_MAC_APP_PRODUCT:-$APP_NAME}}"
 BUNDLE_ID="${BUNDLE_ID:-$(alisio_macos_debug_bundle_id)}"
+BUNDLE_ID_LOWER="$(printf '%s' "$BUNDLE_ID" | tr '[:upper:]' '[:lower:]')"
+APP_SLUG_LOWER="$(printf '%s' "$APP_SLUG" | tr '[:upper:]' '[:lower:]')"
+LEGACY_SLUG_LOWER="$(printf '%s' "$LEGACY_SLUG" | tr '[:upper:]' '[:lower:]')"
 PKG_VERSION="$(cd "$ROOT_DIR" && node -p "require('./package.json').version" 2>/dev/null || echo "0.0.0")"
 if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
   BUILD_TS="$(date -u -r "$SOURCE_DATE_EPOCH" +"%Y-%m-%dT%H:%M:%SZ")"
@@ -42,9 +46,10 @@ fi
 IFS=' ' read -r -a BUILD_ARCHS <<< "$BUILD_ARCHS_VALUE"
 PRIMARY_ARCH="${BUILD_ARCHS[0]}"
 DISTRO_ID="$(alisio_read_prefixed_env DISTRIBUTION "$APP_SLUG")"
-FINAL_APP_ROOT="$ROOT_DIR/dist/${APP_NAME}.app"
+FINAL_APP_ROOT="${MACOS_FINAL_APP_PATH:-$ROOT_DIR/dist/${APP_NAME}.app}"
 APP_STAGE_ROOT_PARENT="$(mktemp -d -t ${APP_SLUG}-mac-app.XXXXXX)"
 APP_ROOT="$APP_STAGE_ROOT_PARENT/${APP_NAME}.app"
+CONTROL_UI_STAGE="$APP_STAGE_ROOT_PARENT/control-ui"
 SPARKLE_PUBLIC_ED_KEY="${SPARKLE_PUBLIC_ED_KEY:-V+Cfq+Lc/udi4dxjxzHpObm3EHZdnphCPx1VNh3r0RU=}"
 SPARKLE_FEED_URL="${SPARKLE_FEED_URL:-$(alisio_macos_sparkle_feed_url "$DISTRO_ID")}"
 AUTO_CHECKS=true
@@ -85,8 +90,8 @@ case "$PACKAGE_MODE" in
     ;;
 esac
 
-if [[ "$BUNDLE_ID" == *openclaw* || "$BUNDLE_ID" == *OpenClaw* ]]; then
-  echo "ERROR: BUNDLE_ID must not contain openclaw: $BUNDLE_ID" >&2
+if [[ "$LEGACY_SLUG_LOWER" != "$APP_SLUG_LOWER" && "$BUNDLE_ID_LOWER" == *"$LEGACY_SLUG_LOWER"* ]]; then
+  echo "ERROR: BUNDLE_ID must not contain legacy branding ($LEGACY_SLUG): $BUNDLE_ID" >&2
   exit 1
 fi
 if [[ "$BUNDLE_ID" != "$(alisio_bundle_domain)."* ]]; then
@@ -185,6 +190,174 @@ node_binary_meets_min() {
   ' >/dev/null 2>&1
 }
 
+path_in_list() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    if [[ "$item" == "$needle" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+list_macho_deps() {
+  otool -L "$1" 2>/dev/null | tail -n +2 | awk '{print $1}'
+}
+
+list_macho_rpaths() {
+  otool -l "$1" 2>/dev/null | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { want = 1; next }
+    want && $1 == "path" { print $2; want = 0 }
+  '
+}
+
+resolve_special_macho_path() {
+  local token="$1"
+  local current_file="$2"
+  local runtime_root="$3"
+  local current_dir
+  current_dir="$(cd "$(dirname "$current_file")" && pwd)"
+  case "$token" in
+    @loader_path)
+      printf '%s\n' "$current_dir"
+      ;;
+    @loader_path/*)
+      printf '%s/%s\n' "$current_dir" "${token#@loader_path/}"
+      ;;
+    @executable_path)
+      printf '%s\n' "$runtime_root/bin"
+      ;;
+    @executable_path/*)
+      printf '%s/%s\n' "$runtime_root/bin" "${token#@executable_path/}"
+      ;;
+    *)
+      printf '%s\n' "$token"
+      ;;
+  esac
+}
+
+resolve_macho_dep_source() {
+  local current_file="$1"
+  local dep="$2"
+  local runtime_root="$3"
+  local candidate
+  case "$dep" in
+    /System/Library/*|/usr/lib/*)
+      return 1
+      ;;
+    /*)
+      [[ -e "$dep" ]] || return 1
+      printf '%s\n' "$dep"
+      return 0
+      ;;
+    @loader_path*|@executable_path*)
+      candidate="$(resolve_special_macho_path "$dep" "$current_file" "$runtime_root")"
+      [[ -e "$candidate" ]] || return 1
+      printf '%s\n' "$candidate"
+      return 0
+      ;;
+    @rpath/*)
+      local suffix="${dep#@rpath/}"
+      local rpath resolved_rpath
+      while IFS= read -r rpath; do
+        [[ -n "$rpath" ]] || continue
+        resolved_rpath="$(resolve_special_macho_path "$rpath" "$current_file" "$runtime_root")"
+        candidate="${resolved_rpath}/${suffix}"
+        if [[ -e "$candidate" ]]; then
+          printf '%s\n' "$candidate"
+          return 0
+        fi
+      done < <(list_macho_rpaths "$current_file")
+      candidate="$runtime_root/lib/$suffix"
+      if [[ -e "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+      return 1
+      ;;
+  esac
+  return 1
+}
+
+copy_bundled_node_runtime() {
+  local source_node="$1"
+  local dest_root="$2"
+  local source_runtime_root
+  source_runtime_root="$(cd "$(dirname "$source_node")/.." && pwd)"
+  local dest_bin_dir="$dest_root/bin"
+  local dest_lib_dir="$dest_root/lib"
+  local dest_node="$dest_bin_dir/node"
+  local -a queue_sources=()
+  local -a queue_dests=()
+  local -a processed_dests=()
+  local source_current dest_current dep_ref dep_source dep_basename dep_dest new_ref
+
+  mkdir -p "$dest_bin_dir" "$dest_lib_dir"
+  cp -L "$source_node" "$dest_node"
+  chmod +x "$dest_node"
+  chmod u+w "$dest_node" 2>/dev/null || true
+  /usr/bin/codesign --remove-signature "$dest_node" 2>/dev/null || true
+  queue_sources+=("$source_node")
+  queue_dests+=("$dest_node")
+
+  while [[ "${#queue_sources[@]}" -gt 0 ]]; do
+    source_current="${queue_sources[0]}"
+    dest_current="${queue_dests[0]}"
+    queue_sources=("${queue_sources[@]:1}")
+    queue_dests=("${queue_dests[@]:1}")
+
+    if [[ "${#processed_dests[@]}" -gt 0 ]] && path_in_list "$dest_current" "${processed_dests[@]}"; then
+      continue
+    fi
+    processed_dests+=("$dest_current")
+
+    while IFS= read -r dep_ref; do
+      [[ -n "$dep_ref" ]] || continue
+      dep_source="$(resolve_macho_dep_source "$source_current" "$dep_ref" "$source_runtime_root" || true)"
+      [[ -n "$dep_source" ]] || continue
+
+      dep_basename="$(basename "$dep_source")"
+      dep_dest="$dest_lib_dir/$dep_basename"
+      if [[ ! -e "$dep_dest" ]]; then
+        cp -L "$dep_source" "$dep_dest"
+        chmod u+w "$dep_dest" 2>/dev/null || true
+        /usr/bin/codesign --remove-signature "$dep_dest" 2>/dev/null || true
+        queue_sources+=("$dep_source")
+        queue_dests+=("$dep_dest")
+      fi
+
+      if [[ "$dest_current" == "$dest_bin_dir/"* ]]; then
+        new_ref="@loader_path/../lib/$dep_basename"
+      else
+        new_ref="@loader_path/$dep_basename"
+      fi
+      install_name_tool -change "$dep_ref" "$new_ref" "$dest_current"
+    done < <(list_macho_deps "$source_current")
+
+    if [[ "$dest_current" == "$dest_lib_dir/"* ]]; then
+      install_name_tool -id "@rpath/$(basename "$dest_current")" "$dest_current"
+    fi
+  done
+}
+
+validate_bundled_node_runtime() {
+  local node_path="$1"
+  "$node_path" -p 'process.execPath' >/dev/null
+}
+
+sign_bundled_node_runtime() {
+  local runtime_root="$1"
+  local dylib
+  if [[ -d "$runtime_root/lib" ]]; then
+    while IFS= read -r -d '' dylib; do
+      /usr/bin/codesign --force --sign - --timestamp=none "$dylib"
+    done < <(find "$runtime_root/lib" -type f -name '*.dylib' -print0)
+  fi
+  /usr/bin/codesign --force --sign - --timestamp=none "$runtime_root/bin/node"
+}
+
 resolve_bundled_node_source() {
   if [[ "${SKIP_BUNDLED_NODE:-0}" == "1" ]]; then
     return 1
@@ -220,20 +393,14 @@ find_shared_kit_bundle() {
   local build_dir="$1"
   local candidate
 
-  for candidate in \
-    "$build_dir/AlisioKit_AlisioKit.bundle" \
-    "$build_dir/OpenClawKit_OpenClawKit.bundle"
-  do
+  for candidate in "$build_dir/$CURRENT_SHARED_KIT_BUNDLE_NAME"; do
     if [[ -d "$candidate" ]]; then
       printf '%s\n' "$candidate"
       return 0
     fi
   done
 
-  find "$BUILD_ROOT" -type d \( \
-    -name "AlisioKit_AlisioKit.bundle" -o \
-    -name "OpenClawKit_OpenClawKit.bundle" \
-  \) -print -quit
+  find "$BUILD_ROOT" -type d -name "$CURRENT_SHARED_KIT_BUNDLE_NAME" -print -quit
 }
 
 plist_get() {
@@ -371,6 +538,15 @@ if [[ "${SKIP_UI_BUILD:-0}" != "1" ]]; then
   (cd "$ROOT_DIR" && node scripts/ui.js build)
 fi
 
+CONTROL_UI_SRC="$ROOT_DIR/dist/control-ui"
+if [[ -d "$CONTROL_UI_SRC" && -f "$CONTROL_UI_SRC/index.html" ]]; then
+  rm -rf "$CONTROL_UI_STAGE"
+  copy_tree_snapshot "$CONTROL_UI_SRC" "$CONTROL_UI_STAGE"
+else
+  echo "ERROR: Control UI assets em falta em $CONTROL_UI_SRC." >&2
+  exit 1
+fi
+
 cd "$ROOT_DIR/apps/macos"
 
 echo "📦 Packaging mode: $PACKAGE_MODE"
@@ -458,13 +634,12 @@ if [[ -f "$MODEL_CATALOG_SRC" ]]; then
   cp "$MODEL_CATALOG_SRC" "$APP_ROOT/Contents/Resources/models.generated.js"
 fi
 
-CONTROL_UI_SRC="$ROOT_DIR/dist/control-ui"
 CONTROL_UI_DEST="$APP_ROOT/Contents/Resources/control-ui"
-if [[ -d "$CONTROL_UI_SRC" && -f "$CONTROL_UI_SRC/index.html" ]]; then
+if [[ -d "$CONTROL_UI_STAGE" && -f "$CONTROL_UI_STAGE/index.html" ]]; then
   rm -rf "$CONTROL_UI_DEST"
-  cp -R "$CONTROL_UI_SRC" "$CONTROL_UI_DEST"
+  cp -R "$CONTROL_UI_STAGE" "$CONTROL_UI_DEST"
 else
-  echo "ERROR: Control UI assets em falta em $CONTROL_UI_SRC." >&2
+  echo "ERROR: Control UI staged assets em falta em $CONTROL_UI_STAGE." >&2
   exit 1
 fi
 
@@ -515,9 +690,12 @@ if [[ -d "$ROOT_DIR/skills" && ! -d "$BUNDLED_PACKAGE_STAGE/skills" ]]; then
   exit 1
 fi
 if [[ -n "$BUNDLED_NODE_RESOLVED" ]]; then
-  mkdir -p "$BUNDLED_PACKAGE_STAGE/tools/node/bin"
-  cp "$BUNDLED_NODE_RESOLVED" "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
-  chmod +x "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"
+  copy_bundled_node_runtime "$BUNDLED_NODE_RESOLVED" "$BUNDLED_PACKAGE_STAGE/tools/node"
+  sign_bundled_node_runtime "$BUNDLED_PACKAGE_STAGE/tools/node"
+  if ! validate_bundled_node_runtime "$BUNDLED_PACKAGE_STAGE/tools/node/bin/node"; then
+    echo "ERROR: bundled Node runtime validation failed for $BUNDLED_NODE_RESOLVED." >&2
+    exit 1
+  fi
 elif [[ "$BUILD_CONFIG" == "release" ]]; then
   echo "ERROR: release packaging exige Node bundled >=22.16.0." >&2
   exit 1
@@ -529,9 +707,6 @@ rm -rf "$BUNDLED_PACKAGE_STAGE_ROOT"
 
 KIT_BUNDLE_CANDIDATE="$(find_shared_kit_bundle "$(build_path_for_arch "$PRIMARY_ARCH")/$BUILD_CONFIG" || true)"
 if [[ -n "$KIT_BUNDLE_CANDIDATE" && -d "$KIT_BUNDLE_CANDIDATE" ]]; then
-  if [[ "$(basename "$KIT_BUNDLE_CANDIDATE")" == "OpenClawKit_OpenClawKit.bundle" ]]; then
-    echo "WARN: using legacy shared kit resource bundle $(basename "$KIT_BUNDLE_CANDIDATE")." >&2
-  fi
   rm -rf "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
   cp -R "$KIT_BUNDLE_CANDIDATE" "$APP_ROOT/Contents/Resources/$(basename "$KIT_BUNDLE_CANDIDATE")"
 fi
@@ -576,7 +751,7 @@ if [[ ! -x "$APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME" ]]; then
   echo "ERROR: bundle final sem executável em $APP_ROOT/Contents/MacOS/$EXECUTABLE_NAME." >&2
   exit 1
 fi
-mkdir -p "$ROOT_DIR/dist"
+mkdir -p "$(dirname "$FINAL_APP_ROOT")"
 rm -rf "$FINAL_APP_ROOT"
 mv "$APP_ROOT" "$FINAL_APP_ROOT"
 if [[ ! -d "$FINAL_APP_ROOT" ]]; then

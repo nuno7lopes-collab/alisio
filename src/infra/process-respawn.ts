@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { scheduleDetachedLaunchdRestartHandoff } from "../daemon/launchd-restart-handoff.js";
-import { legacyEnvKey, readEnv } from "./env.js";
+import { runtimeEnvKey, readEnv } from "./env.js";
 import { triggerAlisioRestart } from "./restart.js";
 import { detectRespawnSupervisor } from "./supervisor-markers.js";
 
@@ -30,7 +30,7 @@ export function restartGatewayProcessWithFreshPid(): GatewayRespawnResult {
   if (
     isTruthy(
       readEnv("ALISIO_NO_RESPAWN", {
-        fallback: legacyEnvKey("NO_RESPAWN"),
+        fallback: runtimeEnvKey("NO_RESPAWN"),
         description: "respawn disable flag",
       }),
     )

@@ -3,7 +3,7 @@ import type { ResolvedAgentRoute } from "alisio/plugin-sdk/routing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPluginRuntimeMock } from "../../../test/helpers/plugins/plugin-runtime-mock.js";
 import { createRuntimeEnv } from "../../../test/helpers/plugins/runtime-env.js";
-import type { ClawdbotConfig, PluginRuntime, RuntimeEnv } from "../runtime-api.js";
+import type { AlisioConfig, PluginRuntime, RuntimeEnv } from "../runtime-api.js";
 import type { FeishuMessageEvent } from "./bot.js";
 import {
   buildBroadcastSessionKey,
@@ -259,7 +259,7 @@ vi.mock("alisio/plugin-sdk/conversation-runtime", async (importOriginal) => {
   };
 });
 
-async function dispatchMessage(params: { cfg: ClawdbotConfig; event: FeishuMessageEvent }) {
+async function dispatchMessage(params: { cfg: AlisioConfig; event: FeishuMessageEvent }) {
   const runtime = createRuntimeEnv();
   await handleFeishuMessage({
     cfg: params.cfg,
@@ -543,13 +543,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("does not enqueue inbound preview text as system events", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -572,7 +572,7 @@ describe("handleFeishuMessage command authorization", () => {
   });
 
   it("uses authorizer resolution instead of hardcoded CommandAuthorized=true", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       commands: { useAccessGroups: true },
       channels: {
         feishu: {
@@ -580,7 +580,7 @@ describe("handleFeishuMessage command authorization", () => {
           allowFrom: ["ou-admin"],
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -617,7 +617,7 @@ describe("handleFeishuMessage command authorization", () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
     mockReadAllowFromStore.mockResolvedValue(["ou-attacker"]);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       commands: { useAccessGroups: true },
       channels: {
         feishu: {
@@ -625,7 +625,7 @@ describe("handleFeishuMessage command authorization", () => {
           allowFrom: [],
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -654,7 +654,7 @@ describe("handleFeishuMessage command authorization", () => {
   });
 
   it("skips sender-name lookup when resolveSenderNames is false", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
@@ -662,7 +662,7 @@ describe("handleFeishuMessage command authorization", () => {
           resolveSenderNames: false,
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -692,14 +692,14 @@ describe("handleFeishuMessage command authorization", () => {
       contentType: "text",
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           enabled: true,
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -732,13 +732,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("uses message create_time as Timestamp instead of Date.now()", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -768,13 +768,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("falls back to Date.now() when create_time is absent", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -801,13 +801,13 @@ describe("handleFeishuMessage command authorization", () => {
   });
 
   it("replies pairing challenge to DM chat_id instead of user:sender id", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "pairing",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -840,14 +840,14 @@ describe("handleFeishuMessage command authorization", () => {
     mockReadAllowFromStore.mockResolvedValue([]);
     mockUpsertPairingRequest.mockResolvedValue({ code: "ABCDEFGH", created: true });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "pairing",
           allowFrom: [],
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -901,7 +901,7 @@ describe("handleFeishuMessage command authorization", () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(true);
     mockResolveCommandAuthorizedFromAuthorizers.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       commands: { useAccessGroups: true },
       channels: {
         feishu: {
@@ -912,7 +912,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -947,7 +947,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("normalizes group mention-prefixed slash commands before command-auth probing", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(true);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -957,7 +957,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -984,7 +984,7 @@ describe("handleFeishuMessage command authorization", () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(true);
     mockResolveCommandAuthorizedFromAuthorizers.mockReturnValue(true);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       commands: { useAccessGroups: true },
       channels: {
         feishu: {
@@ -996,7 +996,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1031,7 +1031,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("allows group sender when global groupSenderAllowFrom includes sender", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "open",
@@ -1043,7 +1043,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1074,7 +1074,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("blocks group sender when global groupSenderAllowFrom excludes sender", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "open",
@@ -1086,7 +1086,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1112,7 +1112,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("prefers per-group allowFrom over global groupSenderAllowFrom", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "open",
@@ -1125,7 +1125,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1151,14 +1151,14 @@ describe("handleFeishuMessage command authorization", () => {
   it("dispatches group image message when groupPolicy is open (requireMention defaults to false)", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "open",
           // requireMention is NOT set — should default to false for open policy
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1181,14 +1181,14 @@ describe("handleFeishuMessage command authorization", () => {
   it("drops group image message when groupPolicy is open but requireMention is explicitly true", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "open",
           requireMention: true, // explicit override — user opts into mention-required even for open
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1212,7 +1212,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("drops group image message when groupPolicy is allowlist and requireMention is not set (defaults to true)", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groupPolicy: "allowlist",
@@ -1224,7 +1224,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1246,7 +1246,7 @@ describe("handleFeishuMessage command authorization", () => {
   });
 
   it("drops message when groupConfig.enabled is false", async () => {
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -1256,7 +1256,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1280,13 +1280,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("uses video file_key (not thumbnail image_key) for inbound video download", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1328,13 +1328,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("uses media message_type file_key (not thumbnail image_key) for inbound mobile video download", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1380,13 +1380,13 @@ describe("handleFeishuMessage command authorization", () => {
       contentType: "video/mp4",
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1421,13 +1421,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("downloads embedded media tags from post messages as files", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1475,13 +1475,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("includes message_id in BodyForAgent on its own line", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1548,13 +1548,13 @@ describe("handleFeishuMessage command authorization", () => {
       },
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1600,13 +1600,13 @@ describe("handleFeishuMessage command authorization", () => {
       },
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1649,7 +1649,7 @@ describe("handleFeishuMessage command authorization", () => {
       },
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           appId: "cli_test",
@@ -1661,7 +1661,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1712,7 +1712,7 @@ describe("handleFeishuMessage command authorization", () => {
       },
     });
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           appId: "cli_scope_bug",
@@ -1724,7 +1724,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -1759,7 +1759,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("routes group sessions by sender when groupSessionScope=group_sender", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -1770,7 +1770,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-scope-user" } },
@@ -1796,7 +1796,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("routes topic sessions and parentPeer when groupSessionScope=group_topic_sender", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -1807,7 +1807,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -1834,7 +1834,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("keeps root_id as topic key when root_id and thread_id both exist", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -1845,7 +1845,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -1873,7 +1873,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("uses thread_id as topic key when root_id is missing", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -1884,7 +1884,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -1911,7 +1911,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("maps legacy topicSessionMode=enabled to group_topic routing", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           topicSessionMode: "enabled",
@@ -1922,7 +1922,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-legacy" } },
@@ -1949,7 +1949,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("maps legacy topicSessionMode=enabled to root_id when both root_id and thread_id exist", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           topicSessionMode: "enabled",
@@ -1960,7 +1960,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-legacy-thread-id" } },
@@ -1988,7 +1988,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("uses message_id as topic root when group_topic + replyInThread and no root_id", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2000,7 +2000,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-init" } },
@@ -2026,7 +2026,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("keeps topic session key stable after first turn creates a thread", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2038,7 +2038,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const firstTurn: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-init" } },
@@ -2083,7 +2083,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("replies to the topic root when handling a message inside an existing topic", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2094,7 +2094,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -2121,7 +2121,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("replies to triggering message in normal group even when root_id is present (#32980)", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2132,7 +2132,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-normal-user" } },
@@ -2159,7 +2159,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("replies to topic root in topic-mode group with root_id", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2170,7 +2170,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -2197,7 +2197,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("replies to topic root in topic-sender group with root_id", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2208,7 +2208,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-sender-user" } },
@@ -2235,7 +2235,7 @@ describe("handleFeishuMessage command authorization", () => {
   it("forces thread replies when inbound message contains thread_id", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2247,7 +2247,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-thread-reply" } },
@@ -2299,7 +2299,7 @@ describe("handleFeishuMessage command authorization", () => {
       },
     ]);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2310,7 +2310,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -2349,7 +2349,7 @@ describe("handleFeishuMessage command authorization", () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
     mockReadSessionUpdatedAt.mockReturnValue(1710000000000);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2360,7 +2360,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: { sender_id: { open_id: "ou-topic-user" } },
@@ -2416,7 +2416,7 @@ describe("handleFeishuMessage command authorization", () => {
       },
     ]);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           groups: {
@@ -2427,7 +2427,7 @@ describe("handleFeishuMessage command authorization", () => {
           },
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {
@@ -2461,13 +2461,13 @@ describe("handleFeishuMessage command authorization", () => {
   it("does not dispatch twice for the same image message_id (concurrent dedupe)", async () => {
     mockShouldComputeCommandAuthorized.mockReturnValue(false);
 
-    const cfg: ClawdbotConfig = {
+    const cfg: AlisioConfig = {
       channels: {
         feishu: {
           dmPolicy: "open",
         },
       },
-    } as ClawdbotConfig;
+    } as AlisioConfig;
 
     const event: FeishuMessageEvent = {
       sender: {

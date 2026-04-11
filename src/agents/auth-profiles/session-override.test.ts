@@ -22,7 +22,7 @@ async function writeAuthStore(agentDir: string) {
 
 describe("resolveSessionAuthProfileOverride", () => {
   it("keeps user override when provider alias differs", async () => {
-    await withStateDirEnv("openclaw-auth-", async ({ stateDir }) => {
+    await withStateDirEnv("alisio-auth-", async ({ stateDir }) => {
       const agentDir = path.join(stateDir, "agent");
       await fs.mkdir(agentDir, { recursive: true });
       await writeAuthStore(agentDir);

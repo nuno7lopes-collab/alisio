@@ -112,7 +112,7 @@ TRASH
   }
 
 	  start_gateway() {
-	    node "$ALISIO_ENTRY" gateway --port 40705 --bind loopback --allow-unconfigured > /tmp/gateway-e2e.log 2>&1 &
+	    node "$ALISIO_ENTRY" gateway run --port 40705 --bind loopback --allow-unconfigured > /tmp/gateway-e2e.log 2>&1 &
 	    GATEWAY_PID="$!"
 	  }
 

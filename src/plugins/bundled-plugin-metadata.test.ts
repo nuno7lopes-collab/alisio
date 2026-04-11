@@ -5,6 +5,7 @@ import {
   clearBundledPluginMetadataCache,
   listBundledPluginMetadata,
   resolveBundledPluginGeneratedPath,
+  resolveBundledPluginPublicSurfacePath,
 } from "./bundled-plugin-metadata.js";
 import {
   createGeneratedPluginTempRoot,
@@ -94,7 +95,7 @@ describe("bundled plugin metadata", () => {
   });
 
   it("prefers built generated paths when present and falls back to source paths", () => {
-    const tempRoot = createGeneratedPluginTempRoot("openclaw-bundled-plugin-metadata-");
+    const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-metadata-");
 
     fs.mkdirSync(path.join(tempRoot, "plugin"), { recursive: true });
     fs.writeFileSync(path.join(tempRoot, "plugin", "index.ts"), "export {};\n", "utf8");
@@ -105,12 +106,12 @@ describe("bundled plugin metadata", () => {
   });
 
   it("merges runtime channel schema metadata with manifest-owned channel config fields", () => {
-    const tempRoot = createGeneratedPluginTempRoot("openclaw-bundled-plugin-channel-configs-");
+    const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-channel-configs-");
 
     writeJson(path.join(tempRoot, "extensions", "alpha", "package.json"), {
-      name: "@openclaw/alpha",
+      name: "@alisio/alpha",
       version: "0.0.1",
-      openclaw: {
+      alisio: {
         extensions: ["./index.ts"],
         channel: {
           id: "alpha",
@@ -120,7 +121,7 @@ describe("bundled plugin metadata", () => {
         },
       },
     });
-    writeJson(path.join(tempRoot, "extensions", "alpha", "openclaw.plugin.json"), {
+    writeJson(path.join(tempRoot, "extensions", "alpha", "alisio.plugin.json"), {
       id: "alpha",
       channels: ["alpha"],
       configSchema: { type: "object" },
@@ -182,17 +183,17 @@ describe("bundled plugin metadata", () => {
   });
 
   it("captures top-level public surface artifacts without duplicating the primary entrypoints", () => {
-    const tempRoot = createGeneratedPluginTempRoot("openclaw-bundled-plugin-public-artifacts-");
+    const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-public-artifacts-");
 
     writeJson(path.join(tempRoot, "extensions", "alpha", "package.json"), {
-      name: "@openclaw/alpha",
+      name: "@alisio/alpha",
       version: "0.0.1",
-      openclaw: {
+      alisio: {
         extensions: ["./index.ts"],
         setupEntry: "./setup-entry.ts",
       },
     });
-    writeJson(path.join(tempRoot, "extensions", "alpha", "openclaw.plugin.json"), {
+    writeJson(path.join(tempRoot, "extensions", "alpha", "alisio.plugin.json"), {
       id: "alpha",
       configSchema: { type: "object" },
     });
@@ -226,13 +227,13 @@ describe("bundled plugin metadata", () => {
   });
 
   it("loads channel config metadata from built public surfaces in dist-only roots", () => {
-    const tempRoot = createGeneratedPluginTempRoot("openclaw-bundled-plugin-dist-config-");
+    const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-dist-config-");
     const distRoot = path.join(tempRoot, "dist");
 
     writeJson(path.join(distRoot, "extensions", "alpha", "package.json"), {
-      name: "@openclaw/alpha",
+      name: "@alisio/alpha",
       version: "0.0.1",
-      openclaw: {
+      alisio: {
         extensions: ["./index.ts"],
         channel: {
           id: "alpha",
@@ -241,7 +242,7 @@ describe("bundled plugin metadata", () => {
         },
       },
     });
-    writeJson(path.join(distRoot, "extensions", "alpha", "openclaw.plugin.json"), {
+    writeJson(path.join(distRoot, "extensions", "alpha", "alisio.plugin.json"), {
       id: "alpha",
       configSchema: {
         type: "object",
@@ -300,5 +301,31 @@ describe("bundled plugin metadata", () => {
         "channels.alpha.explicitOnly": { help: "manifest hint" },
       },
     });
+  });
+
+  it("resolves built capability runtime surfaces from dist artifacts", () => {
+    const tempRoot = createGeneratedPluginTempRoot("alisio-bundled-plugin-capability-surface-");
+    const builtArtifact = path.join(
+      tempRoot,
+      "dist",
+      "extensions",
+      "speech-core",
+      "runtime-api.js",
+    );
+
+    fs.mkdirSync(path.dirname(builtArtifact), { recursive: true });
+    fs.writeFileSync(builtArtifact, "export {};\n", "utf8");
+
+    expect(
+      resolveBundledPluginPublicSurfacePath({
+        rootDir: tempRoot,
+        dirName: "speech-core",
+        artifactBasename: "runtime-api.js",
+        env: {
+          ...process.env,
+          ALISIO_BUNDLED_PLUGINS_DIR: path.join(tempRoot, "missing-bundled-plugins"),
+        },
+      }),
+    ).toBe(builtArtifact);
   });
 });

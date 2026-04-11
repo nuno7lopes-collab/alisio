@@ -1,4 +1,4 @@
-import type { OpenClawConfig } from "alisio/plugin-sdk/config-runtime";
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
 import { resolveAgentRoute } from "alisio/plugin-sdk/routing";
 import { normalizeE164 } from "alisio/plugin-sdk/text-runtime";
 import { describe, expect, it, vi } from "vitest";
@@ -33,7 +33,7 @@ type MonitorSignalProviderOptions = Parameters<typeof monitorSignalProvider>[0];
 
 async function runMonitorWithMocks(opts: MonitorSignalProviderOptions) {
   return monitorSignalProvider({
-    config: config as OpenClawConfig,
+    config: config as AlisioConfig,
     waitForTransportReady: waitForTransportReadyMock as any,
     ...opts,
   });
@@ -66,7 +66,7 @@ async function receiveSignalPayloads(params: {
 
 function hasQueuedReactionEventFor(sender: string) {
   const route = resolveAgentRoute({
-    cfg: config as OpenClawConfig,
+    cfg: config as AlisioConfig,
     channel: "signal",
     accountId: "default",
     peer: { kind: "direct", id: normalizeE164(sender) },

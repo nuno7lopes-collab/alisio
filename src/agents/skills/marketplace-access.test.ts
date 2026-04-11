@@ -70,7 +70,7 @@ describe("marketplace-access", () => {
       env: {
         ALISIO_SKILL_FEATURES: "mcp-beta, paid-skills",
         ALISIO_FEATURE_DEEP_RESEARCH: "true",
-        OPENCLAW_FEATURE_LEGACY_BRIDGE: "1",
+        ALISIO_FEATURE_LEGACY_BRIDGE: "1",
       } as NodeJS.ProcessEnv,
     });
 

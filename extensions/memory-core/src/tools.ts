@@ -3,7 +3,7 @@ import {
   readNumberParam,
   readStringParam,
   type AnyAgentTool,
-  type OpenClawConfig,
+  type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
 import {
   queryCanonicalMemoryGraph,
@@ -28,7 +28,7 @@ import {
 } from "./tools.shared.js";
 
 export function createMemorySearchTool(options: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentSessionKey?: string;
 }): AnyAgentTool | null {
   return createMemoryTool({
@@ -36,7 +36,7 @@ export function createMemorySearchTool(options: {
     label: "Memory Search",
     name: "memory_search",
     description:
-      "Mandatory recall step: semantically search configured durable memory files (legacy MEMORY.md + memory/*.md, any configured Obsidian memory directory, and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines. If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
+      "Mandatory recall step: semantically search configured durable memory files (MEMORY.md + memory/*.md, any configured Obsidian memory directory, and optional session transcripts) before answering questions about prior work, decisions, dates, people, preferences, or todos; returns top snippets with path + lines. If response has disabled=true, memory retrieval is unavailable and should be surfaced to the user.",
     parameters: MemorySearchSchema,
     execute:
       ({ cfg, agentId }) =>
@@ -85,7 +85,7 @@ export function createMemorySearchTool(options: {
 }
 
 export function createMemoryGetTool(options: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentSessionKey?: string;
 }): AnyAgentTool | null {
   return createMemoryTool({
@@ -142,7 +142,7 @@ export function createMemoryGetTool(options: {
 }
 
 export function createMemoryGraphTool(options: {
-  config?: OpenClawConfig;
+  config?: AlisioConfig;
   agentSessionKey?: string;
 }): AnyAgentTool | null {
   return createMemoryTool({

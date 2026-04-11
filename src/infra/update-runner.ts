@@ -96,7 +96,7 @@ const MAX_LOG_CHARS = 8000;
 const PREFLIGHT_MAX_COMMITS = 10;
 const START_DIRS = ["cwd", "argv1", "process"];
 const _DEFAULT_PACKAGE_NAME = CORE_PACKAGE_NAME;
-const CORE_PACKAGE_NAMES = new Set([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
+const CORE_PACKAGE_NAMES = new Set<string>([CORE_PACKAGE_NAME, PUBLIC_PACKAGE_NAME]);
 
 function normalizeDir(value?: string | null) {
   if (!value) {

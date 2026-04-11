@@ -15,7 +15,7 @@ export function loadIncludePatternsFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): string[] | null {
   return loadPatternListFromEnvKeys(
-    ["ALISIO_VITEST_INCLUDE_FILE", "OPENCLAW_VITEST_INCLUDE_FILE"],
+    ["ALISIO_VITEST_INCLUDE_FILE", "ALISIO_VITEST_INCLUDE_FILE"],
     env,
   );
 }
@@ -25,7 +25,7 @@ export function loadExtraExcludePatternsFromEnv(
 ): string[] {
   return (
     loadPatternListFromEnvKeys(
-      ["ALISIO_VITEST_EXTRA_EXCLUDE_FILE", "OPENCLAW_VITEST_EXTRA_EXCLUDE_FILE"],
+      ["ALISIO_VITEST_EXTRA_EXCLUDE_FILE", "ALISIO_VITEST_EXTRA_EXCLUDE_FILE"],
       env,
     ) ?? []
   );

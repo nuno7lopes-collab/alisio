@@ -5,7 +5,7 @@ import {
   ResolvedThemes,
   ResolvingThemes,
 } from "@pierre/diffs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_DIFFS_PLUGIN_SECURITY,
   DEFAULT_DIFFS_TOOL_DEFAULTS,
@@ -221,14 +221,24 @@ describe("diffs viewer URL helpers", () => {
     ).toBe("https://gateway.example.com/plugins/diffs/view/id/token");
   });
 
+  it("uses the runtime gateway port override when config has no explicit port", () => {
+    vi.stubEnv("ALISIO_GATEWAY_PORT", "19001");
+    expect(
+      buildViewerUrl({
+        config: { gateway: { bind: "lan" } },
+        viewerPath: "/plugins/diffs/view/id/token",
+      }),
+    ).toBe("http://127.0.0.1:19001/plugins/diffs/view/id/token");
+  });
+
   it("joins viewer path under baseUrl pathname", () => {
     expect(
       buildViewerUrl({
         config: {},
-        baseUrl: "https://example.com/openclaw",
+        baseUrl: "https://example.com/alisio",
         viewerPath: "/plugins/diffs/view/id/token",
       }),
-    ).toBe("https://example.com/openclaw/plugins/diffs/view/id/token");
+    ).toBe("https://example.com/alisio/plugins/diffs/view/id/token");
   });
 
   it("rejects base URLs with query/hash", () => {
@@ -259,7 +269,7 @@ describe("renderDiffDocument", () => {
 
     expect(rendered.title).toBe("src/example.ts");
     expect(rendered.fileCount).toBe(1);
-    expect(rendered.html).toContain("data-openclaw-diff-root");
+    expect(rendered.html).toContain("data-alisio-diff-root");
     expect(rendered.html).toContain("src/example.ts");
     expect(rendered.html).toContain("/plugins/diffs/assets/viewer.js");
     expect(rendered.imageHtml).toContain("/plugins/diffs/assets/viewer.js");
@@ -406,7 +416,7 @@ describe("viewer assets", () => {
     const runtime = await getServedViewerAsset(VIEWER_RUNTIME_PATH);
 
     expect(runtime?.contentType).toBe("text/javascript; charset=utf-8");
-    expect(String(runtime?.body)).toContain("openclawDiffsReady");
+    expect(String(runtime?.body)).toContain("alisioDiffsReady");
   });
 
   it("returns null for unknown asset paths", async () => {

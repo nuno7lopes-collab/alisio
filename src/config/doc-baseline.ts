@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveAlisioPackageRootSync } from "../infra/alisio-root.js";
-import { legacyEnvKey, readEnv } from "../infra/env.js";
+import { runtimeEnvKey, readEnv } from "../infra/env.js";
 import { loadPluginManifestRegistry } from "../plugins/manifest-registry.js";
 import {
   collectChannelSchemaMetadata,
@@ -83,7 +83,7 @@ const schemaHasChildrenCache = new WeakMap<JsonSchemaObject, boolean>();
 function logConfigDocBaselineDebug(message: string): void {
   if (
     readEnv("ALISIO_CONFIG_DOC_BASELINE_DEBUG", {
-      fallback: legacyEnvKey("CONFIG_DOC_BASELINE_DEBUG"),
+      fallback: runtimeEnvKey("CONFIG_DOC_BASELINE_DEBUG"),
     }) === "1"
   ) {
     console.error(`[config-doc-baseline] ${message}`);

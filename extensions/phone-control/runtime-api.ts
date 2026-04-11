@@ -1,7 +1,7 @@
 export { definePluginEntry } from "alisio/plugin-sdk/plugin-entry";
 export type {
-  OpenClawPluginApi,
-  OpenClawPluginCommandDefinition,
+  AlisioPluginApi,
+  AlisioPluginCommandDefinition,
   PluginCommandContext,
-  OpenClawPluginService,
+  AlisioPluginService,
 } from "alisio/plugin-sdk/plugin-entry";

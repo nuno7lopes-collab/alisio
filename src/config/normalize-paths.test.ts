@@ -18,7 +18,7 @@ describe("normalizeConfigPaths", () => {
           telegram: {
             accounts: {
               personal: {
-                tokenFile: "~/.openclaw/telegram.token",
+                tokenFile: "~/.alisio/telegram.token",
               },
             },
           },
@@ -31,7 +31,7 @@ describe("normalizeConfigPaths", () => {
             workspace: "~/ws-default",
             memorySearch: {
               store: {
-                path: "~/.openclaw/memory/{agentId}.sqlite",
+                path: "~/.alisio/memory/{agentId}.sqlite",
               },
             },
           },
@@ -39,7 +39,7 @@ describe("normalizeConfigPaths", () => {
             {
               id: "main",
               workspace: "~/ws-agent",
-              agentDir: "~/.openclaw/agents/main",
+              agentDir: "~/.alisio/agents/main",
               identity: {
                 name: "~not-a-path",
               },
@@ -80,7 +80,7 @@ describe("normalizeConfigPaths", () => {
           list: [
             {
               id: "main",
-              agentDir: path.join(home, ".openclaw", "agents", "main"),
+              agentDir: path.join(home, ".alisio", "agents", "main"),
             },
           ],
         },

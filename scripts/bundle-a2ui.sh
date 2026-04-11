@@ -12,7 +12,7 @@ HASH_FILE="$ROOT_DIR/src/canvas-host/a2ui/.bundle.hash"
 OUTPUT_FILE="$ROOT_DIR/src/canvas-host/a2ui/a2ui.bundle.js"
 A2UI_RENDERER_DIR="$ROOT_DIR/vendor/a2ui/renderers/lit"
 A2UI_APP_DIR="$ROOT_DIR/apps/shared/AlisioKit/Tools/CanvasA2UI"
-LEGACY_A2UI_APP_DIR="$ROOT_DIR/apps/shared/OpenClawKit/Tools/CanvasA2UI"
+LEGACY_A2UI_APP_DIR="$ROOT_DIR/apps/shared/AlisioKit/Tools/CanvasA2UI"
 
 if [[ ! -d "$A2UI_APP_DIR" && -d "$LEGACY_A2UI_APP_DIR" ]]; then
   A2UI_APP_DIR="$LEGACY_A2UI_APP_DIR"
