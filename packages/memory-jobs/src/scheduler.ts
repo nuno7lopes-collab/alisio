@@ -1,6 +1,10 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CancellationToken } from "./cancellation.js";
-import { createGaiaSleepWriteFacade, type GaiaSleepWriteFacade } from "./gaia.js";
+import {
+  createGaiaSleepWriteFacade,
+  resolveGaiaSleepStatus,
+  type GaiaSleepWriteFacade,
+} from "./gaia.js";
 import { runConsolidateSlice } from "./jobs/consolidate.js";
 import { runDedupSlice } from "./jobs/dedup.js";
 import { runHealthSlice, buildHealthJobId } from "./jobs/health.js";
@@ -9,6 +13,7 @@ import { SqliteMemoryJobStore } from "./store.js";
 import type {
   HealthDashboard,
   MemoryJobKind,
+  SleepClock,
   SleepRunResult,
   SleepSchedulerOptions,
 } from "./types.js";
@@ -32,40 +37,40 @@ export class MemorySleepScheduler {
   readonly db: DatabaseSync;
   readonly store: SqliteMemoryJobStore;
   readonly gaia: GaiaSleepWriteFacade;
-  readonly options: Required<
-    Pick<
-      SleepSchedulerOptions,
-      "profileId" | "workspaceScope" | "workspaceDir" | "autoMergeConfirmed"
-    >
-  > &
-    SleepSchedulerOptions;
+  readonly options: SleepSchedulerOptions & {
+    profileId: string;
+    workspaceScope: string;
+    workspaceDir: string;
+    autoMergeConfirmed: boolean;
+    clock: SleepClock;
+  };
 
   constructor(options: SleepSchedulerOptions) {
     const clock = options.clock ?? createClock();
-    this.db = openSqliteDatabase(options.dbPath);
+    const runtimeStatus = resolveGaiaSleepStatus(options.runtime);
+    this.db = openSqliteDatabase(runtimeStatus.path);
     this.store = new SqliteMemoryJobStore(this.db, clock);
     this.gaia = createGaiaSleepWriteFacade({
+      ...options.runtime,
       db: this.db,
-      actorId: options.gaiaActorId,
     });
-    this.gaia.ensureReady();
     this.options = {
       ...options,
-      profileId: options.profileId,
-      workspaceScope: options.workspaceScope,
-      workspaceDir: options.workspaceDir,
+      profileId: runtimeStatus.profileId,
+      workspaceScope: runtimeStatus.workspaceScope,
+      workspaceDir: runtimeStatus.workspaceDir,
       autoMergeConfirmed: options.autoMergeConfirmed === true,
       clock,
     };
   }
 
-  runOnce(): SleepRunResult {
-    const startedAtMs = this.options.clock!.now();
+  async runOnce(): Promise<SleepRunResult> {
+    const startedAtMs = this.options.clock.now();
     if (this.options.featureFlags?.enabled === false) {
       return {
         status: "disabled",
         startedAtMs,
-        endedAtMs: this.options.clock!.now(),
+        endedAtMs: this.options.clock.now(),
         workDoneCounts: {},
         telemetry: this.store.readTelemetry(this.options.profileId),
         jobRecords: this.store.listJobRecords(this.options.profileId),
@@ -77,13 +82,14 @@ export class MemorySleepScheduler {
       return {
         status: "skipped-active",
         startedAtMs,
-        endedAtMs: this.options.clock!.now(),
+        endedAtMs: this.options.clock.now(),
         workDoneCounts: {},
         telemetry: this.store.readTelemetry(this.options.profileId),
         jobRecords: this.store.listJobRecords(this.options.profileId),
       };
     }
 
+    await this.gaia.ensureReady();
     this.store.incrementTelemetry(this.options.profileId, "sleep_runs");
 
     const token = new CancellationToken();
@@ -98,7 +104,7 @@ export class MemorySleepScheduler {
     const jobOrder: MemoryJobKind[] = ["consolidate", "dedup", "health"];
     const pendingJobs = new Set(jobOrder);
 
-    while (pendingJobs.size > 0 && this.options.clock!.now() < runDeadlineMs) {
+    while (pendingJobs.size > 0 && this.options.clock.now() < runDeadlineMs) {
       for (const kind of jobOrder) {
         if (!pendingJobs.has(kind)) {
           continue;
@@ -111,10 +117,10 @@ export class MemorySleepScheduler {
           break;
         }
 
-        const sliceDeadlineMs = Math.min(runDeadlineMs, this.options.clock!.now() + sliceMs);
+        const sliceDeadlineMs = Math.min(runDeadlineMs, this.options.clock.now() + sliceMs);
         const result =
           kind === "consolidate"
-            ? runConsolidateSlice({
+            ? await runConsolidateSlice({
                 store: this.store,
                 gaia: this.gaia,
                 profileId: this.options.profileId,
@@ -125,7 +131,7 @@ export class MemorySleepScheduler {
                 shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
               })
             : kind === "dedup"
-              ? runDedupSlice({
+              ? await runDedupSlice({
                   store: this.store,
                   gaia: this.gaia,
                   profileId: this.options.profileId,
@@ -136,7 +142,7 @@ export class MemorySleepScheduler {
                   autoMergeConfirmed: this.options.autoMergeConfirmed,
                   shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
                 })
-              : runHealthSlice({
+              : await runHealthSlice({
                   store: this.store,
                   gaia: this.gaia,
                   profileId: this.options.profileId,
@@ -160,29 +166,29 @@ export class MemorySleepScheduler {
           pendingJobs.clear();
           break;
         } else {
-          status = this.options.clock!.now() >= runDeadlineMs ? "budget-exhausted" : status;
+          status = this.options.clock.now() >= runDeadlineMs ? "budget-exhausted" : status;
         }
       }
 
       if (status === "preempted") {
         break;
       }
-      if (this.options.clock!.now() >= runDeadlineMs && pendingJobs.size > 0) {
+      if (this.options.clock.now() >= runDeadlineMs && pendingJobs.size > 0) {
         status = "budget-exhausted";
         break;
       }
     }
 
     if (!healthDashboard) {
-      healthDashboard =
-        this.gaia.readDashboard<HealthDashboard>(buildHealthJobId(this.options.workspaceScope)) ??
-        this.store.readReport<HealthDashboard>(buildHealthJobId(this.options.workspaceScope));
+      healthDashboard = this.gaia.readDashboard<HealthDashboard>(
+        buildHealthJobId(this.options.workspaceScope),
+      );
     }
 
     return {
       status,
       startedAtMs,
-      endedAtMs: this.options.clock!.now(),
+      endedAtMs: this.options.clock.now(),
       ...(preemptedJob ? { preemptedJob } : {}),
       workDoneCounts,
       telemetry: this.store.readTelemetry(this.options.profileId),

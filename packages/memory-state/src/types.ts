@@ -99,6 +99,16 @@ export type MemoryCheckpointCreatedPayload = {
   encryptedSnapshot?: string | null;
 };
 
+export type MemoryJobCheckpointUpdatedPayload = {
+  jobId: string;
+  profileId: string;
+  kind: string;
+  reason: string;
+  cursor: Record<string, unknown>;
+  pendingEventCount: number;
+  pendingPayloadBytes: number;
+};
+
 export type MemoryStateEventType =
   | "PAGE_CREATED"
   | "PAGE_METADATA_UPDATED"
@@ -111,6 +121,7 @@ export type MemoryStateEventType =
   | "EVIDENCE_ADDED"
   | "ATTACHMENT_ADDED"
   | "DASHBOARD_SET"
+  | "JOB_CHECKPOINT_UPDATED"
   | "CHECKPOINT_CREATED";
 
 export type MemoryStateEventPayloadByType = {
@@ -125,6 +136,7 @@ export type MemoryStateEventPayloadByType = {
   EVIDENCE_ADDED: MemoryEvidenceAddedPayload;
   ATTACHMENT_ADDED: MemoryAttachmentAddedPayload;
   DASHBOARD_SET: MemoryDashboardSetPayload;
+  JOB_CHECKPOINT_UPDATED: MemoryJobCheckpointUpdatedPayload;
   CHECKPOINT_CREATED: MemoryCheckpointCreatedPayload;
 };
 

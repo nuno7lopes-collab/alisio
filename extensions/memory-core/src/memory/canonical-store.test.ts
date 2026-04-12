@@ -433,4 +433,72 @@ describe("canonical memory store", () => {
       await fs.rm(test.root, { recursive: true, force: true });
     }
   });
+
+  it("can force a checkpoint for job progress events before the normal interval", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-job-checkpoint-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      const writeResult = await memoryWriteEvent({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+        forceCheckpoint: true,
+        events: [
+          {
+            actorId: "gaia-sleep",
+            type: "JOB_CHECKPOINT_UPDATED",
+            source: "sleep/health",
+            batchId: "health:main",
+            payload: {
+              jobId: "health:main",
+              profileId: "local-main",
+              kind: "health",
+              reason: "threshold",
+              cursor: {
+                phase: "lowConfidenceItems",
+              },
+              pendingEventCount: 8,
+              pendingPayloadBytes: 4096,
+            },
+          },
+        ],
+      });
+
+      expect(writeResult.status.ledgerEventsCount).toBe(2);
+      expect(writeResult.status.lastSyncedLamport).toBe(2);
+      expect(writeResult.status.checkpointsCount).toBe(1);
+
+      const db = openDb(writeResult.status.path);
+      try {
+        const eventTypes = db
+          .prepare(
+            `SELECT event_type
+             FROM ledger_events
+             ORDER BY lamport ASC`,
+          )
+          .all() as Array<{ event_type: string }>;
+        const checkpoint = db
+          .prepare(
+            `SELECT checkpoint_id
+             FROM checkpoints
+             ORDER BY lamport DESC
+             LIMIT 1`,
+          )
+          .get() as { checkpoint_id: string } | undefined;
+
+        expect(eventTypes).toEqual([
+          { event_type: "JOB_CHECKPOINT_UPDATED" },
+          { event_type: "CHECKPOINT_CREATED" },
+        ]);
+        expect(checkpoint?.checkpoint_id).toBeTruthy();
+      } finally {
+        db.close();
+      }
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
 });

@@ -453,6 +453,7 @@ export function reduceEventToMutations(params: {
         },
       ];
     }
+    case "JOB_CHECKPOINT_UPDATED":
     case "CHECKPOINT_CREATED":
       return [];
     default:

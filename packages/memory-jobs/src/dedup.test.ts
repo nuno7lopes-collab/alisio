@@ -4,8 +4,8 @@ import { withMemoryJobDb } from "./test-utils.js";
 
 describe("memory dedup job", () => {
   it("proposes merges until explicit confirmation enables auto-merge", async () => {
-    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs, gaia }) => {
-      gaia.writeEvents([
+    await withMemoryJobDb(async ({ db, nowMs, gaia, runtime, status }) => {
+      await gaia.writeEvents([
         {
           actorId: "test",
           createdAtMs: nowMs,
@@ -104,34 +104,28 @@ describe("memory dedup job", () => {
       ]);
 
       const proposeOnly = createMemorySleepScheduler({
-        dbPath,
-        profileId: "local-main",
-        workspaceScope: "ws-1",
-        workspaceDir,
+        runtime,
         featureFlags: {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
       });
-      proposeOnly.runOnce();
+      await proposeOnly.runOnce();
       const proposed = proposeOnly.store
-        .listAuditEvents({ profileId: "local-main", kind: "dedup" })
+        .listAuditEvents({ profileId: status.profileId, kind: "dedup" })
         .filter((event) => event.eventType === "MERGE_PROPOSED");
       expect(proposed.length).toBeGreaterThan(0);
       proposeOnly.close();
 
       const mergeConfirmed = createMemorySleepScheduler({
-        dbPath,
-        profileId: "local-main",
-        workspaceScope: "ws-1",
-        workspaceDir,
+        runtime,
         autoMergeConfirmed: true,
         featureFlags: {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
       });
-      mergeConfirmed.runOnce();
+      await mergeConfirmed.runOnce();
 
       const pages = db
         .prepare(
@@ -154,7 +148,7 @@ describe("memory dedup job", () => {
       expect(claims.filter((claim) => claim.status === "merged")).toHaveLength(1);
 
       const mergedEvents = mergeConfirmed.store
-        .listAuditEvents({ profileId: "local-main", kind: "dedup" })
+        .listAuditEvents({ profileId: status.profileId, kind: "dedup" })
         .filter((event) => event.eventType === "ENTITY_MERGED");
       expect(mergedEvents).toHaveLength(1);
       mergeConfirmed.close();

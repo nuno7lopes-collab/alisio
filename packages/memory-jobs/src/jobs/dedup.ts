@@ -1,4 +1,4 @@
-import type { MemoryStateEventDraft } from "../../../memory-state/src/index.js";
+import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
 import type { CancellationToken } from "../cancellation.js";
 import {
   choosePageMergeWinner,
@@ -80,15 +80,15 @@ function appendMergeProposal(params: {
   });
 }
 
-function persistCheckpoint(params: {
+async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: DedupCursor;
   jobId: string;
   profileId: string;
   reason: "threshold" | "preempted" | "cycle-complete";
   requestCheckpoint?: boolean;
-}): void {
-  params.gaia.recordJobCheckpoint({
+}): Promise<void> {
+  await params.gaia.recordJobCheckpoint({
     jobId: params.jobId,
     profileId: params.profileId,
     kind: "dedup",
@@ -242,7 +242,7 @@ export function buildDedupJobId(workspaceScope: string): string {
   return `dedup:${workspaceScope}`;
 }
 
-export function runDedupSlice(params: {
+export async function runDedupSlice(params: {
   store: SqliteMemoryJobStore;
   gaia: GaiaSleepWriteFacade;
   profileId: string;
@@ -252,7 +252,7 @@ export function runDedupSlice(params: {
   token: CancellationToken;
   autoMergeConfirmed: boolean;
   shouldPreempt?: () => boolean;
-}): MemorySleepJobResult<DedupCursor> {
+}): Promise<MemorySleepJobResult<DedupCursor>> {
   const jobId = buildDedupJobId(params.workspaceScope);
   const { cursor } = params.store.readJobRecord({
     jobId,
@@ -270,9 +270,9 @@ export function runDedupSlice(params: {
 
   const workDoneCounts: Record<string, number> = {};
 
-  const preempt = () => {
+  const preempt = async () => {
     params.token.cancel("active-session");
-    persistCheckpoint({
+    await persistCheckpoint({
       gaia: params.gaia,
       cursor,
       jobId,
@@ -309,7 +309,7 @@ export function runDedupSlice(params: {
 
   while (Date.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
-      return preempt();
+      return await preempt();
     }
     params.token.throwIfCancelled();
     const batch = listPagesAfter({
@@ -321,7 +321,7 @@ export function runDedupSlice(params: {
     });
     if (batch.length === 0) {
       if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        persistCheckpoint({
+        await persistCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -346,7 +346,7 @@ export function runDedupSlice(params: {
 
     for (const page of batch) {
       if (params.shouldPreempt?.()) {
-        return preempt();
+        return await preempt();
       }
       params.token.throwIfCancelled();
       const duplicates = findPotentialPageDuplicates({
@@ -391,7 +391,7 @@ export function runDedupSlice(params: {
           loser: plan.loser,
           workspaceDir: params.workspaceDir,
         });
-        const writeResult = params.gaia.writeEvents(drafts);
+        const writeResult = await params.gaia.writeEvents(drafts);
         if (writeResult.events.length > 0) {
           params.store.transaction(() => {
             params.store.appendAuditEvent({
@@ -433,7 +433,7 @@ export function runDedupSlice(params: {
       }
 
       if (shouldCheckpoint(cursor)) {
-        persistCheckpoint({
+        await persistCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,

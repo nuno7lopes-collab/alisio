@@ -494,13 +494,20 @@ export const GENERATED_PLUGIN_SDK_FACADES = [
     subpath: "memory-core-engine-runtime",
     source: pluginSource("memory-core", "runtime-api.js"),
     exports: [
+      "buildCanonicalMemoryStoreStatus",
       "BuiltinMemoryEmbeddingProviderDoctorMetadata",
       "getBuiltinMemoryEmbeddingProviderDoctorMetadata",
       "getMemorySearchManager",
       "listBuiltinAutoSelectMemoryEmbeddingProviderDoctorMetadata",
+      "memoryWriteEvent",
       "MemoryIndexManager",
     ],
-    typeExports: ["BuiltinMemoryEmbeddingProviderDoctorMetadata"],
+    typeExports: [
+      "BuiltinMemoryEmbeddingProviderDoctorMetadata",
+      "CanonicalMemoryStoreStatus",
+      "CanonicalStoreBackend",
+      "MemoryWriteEventResult",
+    ],
   },
   {
     subpath: "mattermost-policy",

@@ -4,8 +4,8 @@ import { withMemoryJobDb } from "./test-utils.js";
 
 describe("memory sleep scheduler", () => {
   it("pauses and resumes deterministically without repeating promotions", async () => {
-    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs, gaia }) => {
-      gaia.writeEvents([
+    await withMemoryJobDb(async ({ db, nowMs, gaia, runtime, status }) => {
+      await gaia.writeEvents([
         {
           actorId: "test",
           createdAtMs: nowMs,
@@ -74,10 +74,7 @@ describe("memory sleep scheduler", () => {
       let calls = 0;
       let allowPreempt = true;
       const scheduler = createMemorySleepScheduler({
-        dbPath,
-        profileId: "local-main",
-        workspaceScope: "ws-1",
-        workspaceDir,
+        runtime,
         featureFlags: {
           enabled: true,
           maxWallTimeMs: 5_000,
@@ -93,13 +90,13 @@ describe("memory sleep scheduler", () => {
         },
       });
 
-      const firstRun = scheduler.runOnce();
+      const firstRun = await scheduler.runOnce();
       expect(firstRun.status).toBe("preempted");
 
       active = false;
       calls = 0;
       allowPreempt = false;
-      const secondRun = scheduler.runOnce();
+      const secondRun = await scheduler.runOnce();
       expect(["completed", "budget-exhausted"]).toContain(secondRun.status);
 
       const pageTags = db
@@ -124,7 +121,7 @@ describe("memory sleep scheduler", () => {
       expect(claims).toEqual([{ claim_id: "candidate-b", status: "active" }]);
 
       const promotionEvents = scheduler.store
-        .listAuditEvents({ profileId: "local-main", kind: "consolidate" })
+        .listAuditEvents({ profileId: status.profileId, kind: "consolidate" })
         .filter(
           (event) =>
             event.eventType === "PROMOTED_TO_CLAIM" || event.eventType === "PROMOTED_TO_PROCEDURE",
@@ -135,17 +132,14 @@ describe("memory sleep scheduler", () => {
   });
 
   it("does not run while an active session flag is set", async () => {
-    await withMemoryJobDb(async ({ dbPath, workspaceDir }) => {
+    await withMemoryJobDb(async ({ runtime }) => {
       const scheduler = createMemorySleepScheduler({
-        dbPath,
-        profileId: "local-main",
-        workspaceScope: "ws-1",
-        workspaceDir,
+        runtime,
         activityMonitor: {
           isSessionActive: () => true,
         },
       });
-      const result = scheduler.runOnce();
+      const result = await scheduler.runOnce();
       expect(result.status).toBe("skipped-active");
       expect(result.jobRecords).toEqual([]);
       expect(result.telemetry.counts.sleep_preemptions).toBe(1);

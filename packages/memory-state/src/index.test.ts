@@ -58,6 +58,23 @@ function makeEvents(): MemoryStateEventEnvelopePlain[] {
         kind: "legacy-markdown:memory/alpha.md",
       },
     },
+    {
+      schemaVersion: 1,
+      eventId: "event-4",
+      lamport: 4,
+      actorId: "gaia",
+      createdAtMs: 4,
+      type: "JOB_CHECKPOINT_UPDATED",
+      payload: {
+        jobId: "health:ws-1",
+        profileId: "local-nuno",
+        kind: "health",
+        reason: "threshold",
+        cursor: { phase: "lowConfidenceItems" },
+        pendingEventCount: 8,
+        pendingPayloadBytes: 1024,
+      },
+    },
   ];
 }
 
@@ -73,7 +90,7 @@ describe("memory-state", () => {
     try {
       const first = rebuildDerivedStateFromEvents({ db: firstDb, events, migrationVersion: 1 });
       const second = rebuildDerivedStateFromEvents({ db: secondDb, events, migrationVersion: 1 });
-      expect(first.lastAppliedLamport).toBe(3);
+      expect(first.lastAppliedLamport).toBe(4);
       expect(first.stateHash).toBe(second.stateHash);
     } finally {
       firstDb.close();

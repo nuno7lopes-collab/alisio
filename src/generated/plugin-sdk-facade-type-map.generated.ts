@@ -283,6 +283,9 @@ export interface PluginSdkFacadeTypeMap {
     };
     types: {
       BuiltinMemoryEmbeddingProviderDoctorMetadata: import("@alisio/memory-core/runtime-api.js").BuiltinMemoryEmbeddingProviderDoctorMetadata;
+      CanonicalMemoryStoreStatus: import("@alisio/memory-core/runtime-api.js").CanonicalMemoryStoreStatus;
+      CanonicalStoreBackend: import("@alisio/memory-core/runtime-api.js").CanonicalStoreBackend;
+      MemoryWriteEventResult: import("@alisio/memory-core/runtime-api.js").MemoryWriteEventResult;
     };
   };
   "mattermost-policy": {

@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { createGaiaSleepWriteFacade } from "./gaia.js";
 import { normalizeTextKey, textSimilarity } from "./text.js";
 import { normalizeNumber, uniqueStrings } from "./utils.js";
 
@@ -146,10 +145,6 @@ function toProjectionSnapshot(params: {
     relativePath,
     absolutePath: path.join(params.workspaceDir, relativePath),
   };
-}
-
-export function ensureCanonicalMemorySchemaForTests(db: DatabaseSync): void {
-  createGaiaSleepWriteFacade({ db }).ensureReady();
 }
 
 export function listPagesAfter(params: {

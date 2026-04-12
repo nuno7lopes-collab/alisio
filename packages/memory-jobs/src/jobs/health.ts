@@ -1,4 +1,4 @@
-import type { MemoryStateEventDraft } from "../../../memory-state/src/index.js";
+import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
 import type { CancellationToken } from "../cancellation.js";
 import {
   attachmentExists,
@@ -87,15 +87,15 @@ function appendFinding<T extends HealthDashboardCategory>(
   notePayload(cursor, JSON.stringify(finding).length, true);
 }
 
-function persistCheckpoint(params: {
+async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: HealthCursor;
   jobId: string;
   profileId: string;
   reason: "threshold" | "preempted" | "cycle-complete";
   requestCheckpoint?: boolean;
-}): void {
-  params.gaia.recordJobCheckpoint({
+}): Promise<void> {
+  await params.gaia.recordJobCheckpoint({
     jobId: params.jobId,
     profileId: params.profileId,
     kind: "health",
@@ -108,16 +108,16 @@ function persistCheckpoint(params: {
   resetCheckpoint(params.cursor);
 }
 
-function maybeCheckpoint(params: {
+async function maybeCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: HealthCursor;
   jobId: string;
   profileId: string;
-}): void {
+}): Promise<void> {
   if (!shouldCheckpoint(params.cursor)) {
     return;
   }
-  persistCheckpoint({
+  await persistCheckpoint({
     gaia: params.gaia,
     cursor: params.cursor,
     jobId: params.jobId,
@@ -149,7 +149,7 @@ export function buildHealthJobId(workspaceScope: string): string {
   return `health:${workspaceScope}`;
 }
 
-export function runHealthSlice(params: {
+export async function runHealthSlice(params: {
   store: SqliteMemoryJobStore;
   gaia: GaiaSleepWriteFacade;
   profileId: string;
@@ -158,7 +158,7 @@ export function runHealthSlice(params: {
   sliceDeadlineMs: number;
   token: CancellationToken;
   shouldPreempt?: () => boolean;
-}): MemorySleepJobResult<HealthCursor> {
+}): Promise<MemorySleepJobResult<HealthCursor>> {
   const jobId = buildHealthJobId(params.workspaceScope);
   const { cursor } = params.store.readJobRecord({
     jobId,
@@ -176,9 +176,9 @@ export function runHealthSlice(params: {
 
   const workDoneCounts: Record<string, number> = {};
 
-  const preempt = () => {
+  const preempt = async () => {
     params.token.cancel("active-session");
-    persistCheckpoint({
+    await persistCheckpoint({
       gaia: params.gaia,
       cursor,
       jobId,
@@ -216,7 +216,7 @@ export function runHealthSlice(params: {
 
   while (Date.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
-      return preempt();
+      return await preempt();
     }
     params.token.throwIfCancelled();
     if (cursor.phase === "staleClaims") {
@@ -240,7 +240,7 @@ export function runHealthSlice(params: {
       }
       for (const claim of claims) {
         if (params.shouldPreempt?.()) {
-          return preempt();
+          return await preempt();
         }
         params.token.throwIfCancelled();
         cursor.lastItemId = claim.claimId;
@@ -261,7 +261,7 @@ export function runHealthSlice(params: {
         } else {
           notePayload(cursor, claim.claimId.length, false);
         }
-        maybeCheckpoint({
+        await maybeCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -299,7 +299,7 @@ export function runHealthSlice(params: {
       }
       for (const claim of claims) {
         if (params.shouldPreempt?.()) {
-          return preempt();
+          return await preempt();
         }
         params.token.throwIfCancelled();
         cursor.lastItemId = claim.claimId;
@@ -340,7 +340,7 @@ export function runHealthSlice(params: {
         } else {
           notePayload(cursor, claim.claimId.length, false);
         }
-        maybeCheckpoint({
+        await maybeCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -378,7 +378,7 @@ export function runHealthSlice(params: {
       }
       for (const projection of projections) {
         if (params.shouldPreempt?.()) {
-          return preempt();
+          return await preempt();
         }
         params.token.throwIfCancelled();
         cursor.lastItemId = `${projection.pageId}:${projection.kind}`;
@@ -400,7 +400,7 @@ export function runHealthSlice(params: {
         } else {
           notePayload(cursor, projection.pageId.length, false);
         }
-        maybeCheckpoint({
+        await maybeCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -438,7 +438,7 @@ export function runHealthSlice(params: {
       }
       for (const projection of projections) {
         if (params.shouldPreempt?.()) {
-          return preempt();
+          return await preempt();
         }
         params.token.throwIfCancelled();
         cursor.lastItemId = `${projection.pageId}:${projection.kind}`;
@@ -472,7 +472,7 @@ export function runHealthSlice(params: {
         if (paths.length === 0) {
           notePayload(cursor, projection.pageId.length, false);
         }
-        maybeCheckpoint({
+        await maybeCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -497,9 +497,11 @@ export function runHealthSlice(params: {
     });
     if (pages.length === 0) {
       cursor.dashboard.generatedAtMs = Date.now();
-      const writeResult = params.gaia.writeEvents([buildDashboardDraft(jobId, cursor.dashboard)]);
+      const writeResult = await params.gaia.writeEvents([
+        buildDashboardDraft(jobId, cursor.dashboard),
+      ]);
       if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        persistCheckpoint({
+        await persistCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -509,12 +511,6 @@ export function runHealthSlice(params: {
         });
       }
       params.store.transaction(() => {
-        params.store.writeReport({
-          jobId,
-          profileId: params.profileId,
-          kind: "health",
-          report: cursor.dashboard,
-        });
         params.store.appendAuditEvent({
           jobId,
           profileId: params.profileId,
@@ -549,7 +545,7 @@ export function runHealthSlice(params: {
 
     for (const page of pages) {
       if (params.shouldPreempt?.()) {
-        return preempt();
+        return await preempt();
       }
       params.token.throwIfCancelled();
       cursor.lastItemId = page.pageId;
@@ -574,7 +570,7 @@ export function runHealthSlice(params: {
       } else {
         notePayload(cursor, page.pageId.length, false);
       }
-      maybeCheckpoint({
+      await maybeCheckpoint({
         gaia: params.gaia,
         cursor,
         jobId,

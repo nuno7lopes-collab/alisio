@@ -37,10 +37,11 @@ import {
   type MemoryStateEventDraft,
   type MemoryStateEventEnvelopePlain,
 } from "alisio/plugin-sdk/memory-core-state";
+import { queryCanonicalMemoryGraphFromStore } from "./graph.js";
 
 const log = createSubsystemLogger("memory/canonical");
 
-type CanonicalStoreBackend = "builtin" | "qmd";
+export type CanonicalStoreBackend = "builtin" | "qmd";
 type CanonicalProjectionSource = "workspace-memory";
 type CanonicalRelationType = string;
 type CanonicalRelationDirection = "incoming" | "outgoing";
@@ -252,6 +253,66 @@ export type CanonicalMemoryGraphResult = {
   e2eeRequired: true;
   lastSyncedAt?: string;
   lastError?: string;
+  scope: "global" | "local";
+  focus?: {
+    nodeId: string;
+    pageId: string;
+    entityId: string;
+    title: string;
+    sourcePath: string;
+  };
+  nodes: Array<{
+    id: string;
+    pageId: string;
+    entityId: string;
+    title: string;
+    slug: string;
+    sourcePath: string;
+    sourceKind: CanonicalProjectionSource;
+    aliases: string[];
+    tags: string[];
+    incoming: number;
+    outgoing: number;
+    degree: number;
+  }>;
+  edges: Array<{
+    id: string;
+    fromId: string;
+    toId: string;
+    fromPageId: string;
+    toPageId: string;
+    relationType: string;
+    ordinal: number;
+    reason: {
+      kind: "canonical-link";
+      sourcePageId: string;
+      targetPageId: string;
+      sourceTitle: string;
+      targetTitle: string;
+      sourcePath: string;
+      targetPath: string;
+      relationType: string;
+      ordinal: number;
+    };
+  }>;
+  branches: Array<{
+    id: string;
+    direction: CanonicalRelationDirection;
+    relationType: string;
+    nodeIds: string[];
+  }>;
+  availableRelationTypes: string[];
+  availableTags: string[];
+  stats: {
+    totalNodes: number;
+    totalEdges: number;
+    visibleNodes: number;
+    visibleEdges: number;
+  };
+  truncated: {
+    nodes: boolean;
+    edges: boolean;
+  };
   matches: CanonicalMemoryGraphMatch[];
 };
 
@@ -1754,6 +1815,7 @@ function deleteImportedFileRow(db: DatabaseSync, relativePath: string): void {
 async function createCheckpointIfNeeded(params: {
   db: DatabaseSync;
   lastAppliedLamport: number;
+  force?: boolean;
   encryptCheckpointSnapshot?: (
     snapshot: MemoryStateCheckpointSnapshot,
   ) => Promise<string | null | undefined>;
@@ -1763,7 +1825,10 @@ async function createCheckpointIfNeeded(params: {
   if (params.lastAppliedLamport === 0) {
     return;
   }
-  if (params.lastAppliedLamport - lastCheckpointLamport < CHECKPOINT_EVENT_INTERVAL) {
+  if (
+    params.force !== true &&
+    params.lastAppliedLamport - lastCheckpointLamport < CHECKPOINT_EVENT_INTERVAL
+  ) {
     return;
   }
   const checkpointLamport = readLatestLamport(params.db) + 1;
@@ -1884,6 +1949,7 @@ async function applyEventDrafts(params: {
   drafts: MemoryStateEventDraft[];
   cloudState?: CanonicalCloudSyncState;
   materializeMarkdown?: boolean;
+  forceCheckpoint?: boolean;
 }): Promise<MemoryWriteEventResult> {
   const events = assignLedgerEvents({
     db: params.context.db,
@@ -1909,6 +1975,7 @@ async function applyEventDrafts(params: {
   await createCheckpointIfNeeded({
     db: params.context.db,
     lastAppliedLamport: meta.lastAppliedLamport,
+    force: params.forceCheckpoint,
     encryptCheckpointSnapshot: params.context.encryptCheckpointSnapshot,
   });
   upsertCanonicalSyncState({
@@ -2333,6 +2400,7 @@ export async function memoryWriteEvent(params: {
   events: MemoryStateEventDraft[];
   env?: NodeJS.ProcessEnv;
   materializeMarkdown?: boolean;
+  forceCheckpoint?: boolean;
   encryptCheckpointSnapshot?: (
     snapshot: MemoryStateCheckpointSnapshot,
   ) => Promise<string | null | undefined>;
@@ -2347,6 +2415,7 @@ export async function memoryWriteEvent(params: {
       context,
       drafts: params.events,
       materializeMarkdown: params.materializeMarkdown,
+      forceCheckpoint: params.forceCheckpoint,
     });
   } finally {
     context.db.close();
@@ -2603,177 +2672,18 @@ function resolveRelationDirectionLimits(params: {
 
 export function queryCanonicalMemoryGraph(params: {
   status: CanonicalMemoryStoreStatus;
-  query: string;
+  query?: string;
+  pageId?: string;
+  entityId?: string;
+  scope?: "global" | "local";
   direction?: CanonicalRelationDirection | "both";
+  depth?: number;
   matchLimit?: number;
   relationLimit?: number;
+  nodeLimit?: number;
+  edgeLimit?: number;
 }): CanonicalMemoryGraphResult {
-  const trimmedQuery = params.query.trim();
-  const direction = params.direction ?? "both";
-  const matchLimit =
-    typeof params.matchLimit === "number" && Number.isFinite(params.matchLimit)
-      ? Math.max(1, Math.floor(params.matchLimit))
-      : 3;
-  const emptyResult: CanonicalMemoryGraphResult = {
-    query: trimmedQuery,
-    profileId: params.status.profileId,
-    workspaceScope: params.status.workspaceScope,
-    storePath: params.status.path,
-    backend: params.status.backend,
-    state: params.status.state,
-    projectionInterface: params.status.projectionInterface,
-    syncMode: params.status.syncMode,
-    cloudSync: params.status.cloudSync,
-    lastSyncedLamport: params.status.lastSyncedLamport,
-    e2eeRequired: true,
-    ...(params.status.lastSyncedAt ? { lastSyncedAt: params.status.lastSyncedAt } : {}),
-    ...(params.status.lastError ? { lastError: params.status.lastError } : {}),
-    matches: [],
-  };
-  if (!trimmedQuery) {
-    return emptyResult;
-  }
-  const normalizedQuery = normalizeReferenceKey(trimmedQuery);
-  const loweredQuery = trimmedQuery.toLowerCase();
-  const db = openCanonicalStore(params.status.path);
-  try {
-    const candidates = new Map<
-      string,
-      {
-        page_id: string;
-        title: string;
-        slug: string;
-        projection_kind: string | null;
-        score: number;
-      }
-    >();
-    const pushCandidate = (
-      rows: Array<{ page_id: string; title: string; slug: string; projection_kind: string | null }>,
-      score: number,
-    ) => {
-      for (const row of rows) {
-        const existing = candidates.get(row.page_id);
-        if (!existing || score > existing.score) {
-          candidates.set(row.page_id, { ...row, score });
-        }
-      }
-    };
-    if (normalizedQuery) {
-      pushCandidate(
-        db
-          .prepare(
-            `SELECT DISTINCT p.page_id, p.title, p.slug, pr.kind AS projection_kind
-             FROM pages p
-             LEFT JOIN projections pr ON pr.page_id = p.page_id
-             INNER JOIN page_aliases a ON a.page_id = p.page_id
-             WHERE p.tombstoned = 0 AND a.alias_key = ?`,
-          )
-          .all(normalizedQuery) as Array<{
-          page_id: string;
-          title: string;
-          slug: string;
-          projection_kind: string | null;
-        }>,
-        1,
-      );
-      pushCandidate(
-        db
-          .prepare(
-            `SELECT DISTINCT p.page_id, p.title, p.slug, pr.kind AS projection_kind
-             FROM pages p
-             LEFT JOIN projections pr ON pr.page_id = p.page_id
-             INNER JOIN page_aliases a ON a.page_id = p.page_id
-             WHERE p.tombstoned = 0 AND a.alias_key LIKE ?
-             ORDER BY a.alias_key ASC
-             LIMIT ?`,
-          )
-          .all(`${normalizedQuery}%`, matchLimit * 3) as Array<{
-          page_id: string;
-          title: string;
-          slug: string;
-          projection_kind: string | null;
-        }>,
-        0.8,
-      );
-    }
-    pushCandidate(
-      db
-        .prepare(
-          `SELECT p.page_id, p.title, p.slug, pr.kind AS projection_kind
-           FROM pages p
-           LEFT JOIN projections pr ON pr.page_id = p.page_id
-           WHERE p.tombstoned = 0 AND LOWER(p.title) = ?`,
-        )
-        .all(loweredQuery) as Array<{
-        page_id: string;
-        title: string;
-        slug: string;
-        projection_kind: string | null;
-      }>,
-      0.95,
-    );
-    pushCandidate(
-      db
-        .prepare(
-          `SELECT p.page_id, p.title, p.slug, pr.kind AS projection_kind
-           FROM pages p
-           LEFT JOIN projections pr ON pr.page_id = p.page_id
-           WHERE p.tombstoned = 0 AND LOWER(p.title) LIKE ?
-           ORDER BY p.title ASC
-           LIMIT ?`,
-        )
-        .all(`%${loweredQuery}%`, matchLimit * 3) as Array<{
-        page_id: string;
-        title: string;
-        slug: string;
-        projection_kind: string | null;
-      }>,
-      0.6,
-    );
-    const limits = resolveRelationDirectionLimits({
-      direction,
-      relationLimit: params.relationLimit,
-    });
-    const matches = Array.from(candidates.values())
-      .sort((left, right) => {
-        if (right.score !== left.score) {
-          return right.score - left.score;
-        }
-        return left.title.localeCompare(right.title);
-      })
-      .slice(0, matchLimit)
-      .map((row) => ({
-        entityId: row.page_id,
-        title: row.title,
-        slug: row.slug,
-        sourcePath: parseLegacyProjectionPath(row.projection_kind ?? "") ?? `memory/${row.slug}.md`,
-        sourceKind: "workspace-memory" as const,
-        aliases: listEntityAliases(db, row.page_id),
-        tags: listEntityTags(db, row.page_id),
-        score: row.score,
-        projections: listEntityProjections(db, row.page_id),
-        relations: [
-          ...listEntityRelations({
-            db,
-            pageId: row.page_id,
-            direction: "outgoing",
-            limit: limits.outgoing,
-          }),
-          ...listEntityRelations({
-            db,
-            pageId: row.page_id,
-            direction: "incoming",
-            limit: limits.incoming,
-          }),
-        ],
-      }));
-    return {
-      ...emptyResult,
-      matches,
-    };
-  } finally {
-    db.close();
-  }
+  return queryCanonicalMemoryGraphFromStore(params);
 }
 
 export async function syncCanonicalMemoryStore(params: {

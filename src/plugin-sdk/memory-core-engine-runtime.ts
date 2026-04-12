@@ -13,6 +13,12 @@ function loadFacadeModule(): FacadeModule {
     artifactBasename: "runtime-api.js",
   });
 }
+export const buildCanonicalMemoryStoreStatus: FacadeModule["buildCanonicalMemoryStoreStatus"] = ((
+  ...args
+) =>
+  loadFacadeModule()["buildCanonicalMemoryStoreStatus"](
+    ...args,
+  )) as FacadeModule["buildCanonicalMemoryStoreStatus"];
 export const getBuiltinMemoryEmbeddingProviderDoctorMetadata: FacadeModule["getBuiltinMemoryEmbeddingProviderDoctorMetadata"] =
   ((...args) =>
     loadFacadeModule()["getBuiltinMemoryEmbeddingProviderDoctorMetadata"](
@@ -25,8 +31,13 @@ export const listBuiltinAutoSelectMemoryEmbeddingProviderDoctorMetadata: FacadeM
     loadFacadeModule()["listBuiltinAutoSelectMemoryEmbeddingProviderDoctorMetadata"](
       ...args,
     )) as FacadeModule["listBuiltinAutoSelectMemoryEmbeddingProviderDoctorMetadata"];
+export const memoryWriteEvent: FacadeModule["memoryWriteEvent"] = ((...args) =>
+  loadFacadeModule()["memoryWriteEvent"](...args)) as FacadeModule["memoryWriteEvent"];
 export const MemoryIndexManager: FacadeModule["MemoryIndexManager"] = createLazyFacadeObjectValue(
   () => loadFacadeModule()["MemoryIndexManager"] as object,
 ) as FacadeModule["MemoryIndexManager"];
 export type BuiltinMemoryEmbeddingProviderDoctorMetadata =
   FacadeEntry["types"]["BuiltinMemoryEmbeddingProviderDoctorMetadata"];
+export type CanonicalMemoryStoreStatus = FacadeEntry["types"]["CanonicalMemoryStoreStatus"];
+export type CanonicalStoreBackend = FacadeEntry["types"]["CanonicalStoreBackend"];
+export type MemoryWriteEventResult = FacadeEntry["types"]["MemoryWriteEventResult"];

@@ -1,4 +1,4 @@
-import type { MemoryStateEventDraft } from "../../../memory-state/src/index.js";
+import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
 import type { CancellationToken } from "../cancellation.js";
 import {
   isLikelyCandidate,
@@ -138,15 +138,15 @@ function buildPromotionDrafts(params: {
   return drafts;
 }
 
-function persistCheckpoint(params: {
+async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: ConsolidateCursor;
   jobId: string;
   profileId: string;
   reason: "threshold" | "preempted" | "cycle-complete";
   requestCheckpoint?: boolean;
-}): void {
-  params.gaia.recordJobCheckpoint({
+}): Promise<void> {
+  await params.gaia.recordJobCheckpoint({
     jobId: params.jobId,
     profileId: params.profileId,
     kind: "consolidate",
@@ -163,7 +163,7 @@ export function buildConsolidateJobId(workspaceScope: string): string {
   return `consolidate:${workspaceScope}`;
 }
 
-export function runConsolidateSlice(params: {
+export async function runConsolidateSlice(params: {
   store: SqliteMemoryJobStore;
   gaia: GaiaSleepWriteFacade;
   profileId: string;
@@ -172,7 +172,7 @@ export function runConsolidateSlice(params: {
   sliceDeadlineMs: number;
   token: CancellationToken;
   shouldPreempt?: () => boolean;
-}): MemorySleepJobResult<ConsolidateCursor> {
+}): Promise<MemorySleepJobResult<ConsolidateCursor>> {
   const jobId = buildConsolidateJobId(params.workspaceScope);
   const { cursor } = params.store.readJobRecord({
     jobId,
@@ -190,9 +190,9 @@ export function runConsolidateSlice(params: {
 
   const workDoneCounts: Record<string, number> = {};
 
-  const preempt = () => {
+  const preempt = async () => {
     params.token.cancel("active-session");
-    persistCheckpoint({
+    await persistCheckpoint({
       gaia: params.gaia,
       cursor,
       jobId,
@@ -229,7 +229,7 @@ export function runConsolidateSlice(params: {
 
   while (Date.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
-      return preempt();
+      return await preempt();
     }
     params.token.throwIfCancelled();
     const batch = listPagesAfter({
@@ -240,7 +240,7 @@ export function runConsolidateSlice(params: {
     });
     if (batch.length === 0) {
       if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        persistCheckpoint({
+        await persistCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,
@@ -265,7 +265,7 @@ export function runConsolidateSlice(params: {
 
     for (const page of batch) {
       if (params.shouldPreempt?.()) {
-        return preempt();
+        return await preempt();
       }
       params.token.throwIfCancelled();
       const projection = readPrimaryProjection(params.store.db, page.pageId, params.workspaceDir);
@@ -280,7 +280,7 @@ export function runConsolidateSlice(params: {
           score: promotion.score,
           reason: promotion.reason,
         });
-        const writeResult = params.gaia.writeEvents(drafts);
+        const writeResult = await params.gaia.writeEvents(drafts);
         if (writeResult.events.length > 0) {
           params.store.transaction(() => {
             const eventType =
@@ -334,7 +334,7 @@ export function runConsolidateSlice(params: {
       }
 
       if (shouldCheckpoint(cursor)) {
-        persistCheckpoint({
+        await persistCheckpoint({
           gaia: params.gaia,
           cursor,
           jobId,

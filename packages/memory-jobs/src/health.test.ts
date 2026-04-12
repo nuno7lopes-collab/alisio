@@ -6,13 +6,13 @@ import { withMemoryJobDb } from "./test-utils.js";
 
 describe("memory health dashboards", () => {
   it("reports stale claims, contradictions, orphan pages, broken attachments, and low-confidence items", async () => {
-    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs, gaia }) => {
+    await withMemoryJobDb(async ({ db, workspaceDir, nowMs, gaia, runtime, status }) => {
       const existingAttachment = path.join(workspaceDir, "attachments", "ok.png");
       await fs.mkdir(path.dirname(existingAttachment), { recursive: true });
       await fs.writeFile(existingAttachment, "ok");
 
       const oldUpdatedAt = nowMs - 45 * 24 * 60 * 60_000;
-      gaia.writeEvents([
+      await gaia.writeEvents([
         {
           actorId: "test",
           createdAtMs: oldUpdatedAt,
@@ -154,25 +154,30 @@ describe("memory health dashboards", () => {
             updatedAtMs: nowMs,
           },
         },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "projection-missing-page",
+          pageId: "missing-page",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "missing-page",
+            kind: "legacy-markdown:memory/orphan.md",
+            markdownBody: "orphan content",
+          },
+        },
       ]);
 
-      db.prepare(
-        `INSERT INTO projections (page_id, kind, markdown_body, updated_at_ms)
-         VALUES (?, ?, ?, ?)`,
-      ).run("missing-page", "legacy-markdown:memory/orphan.md", "orphan content", nowMs);
-
       const scheduler = createMemorySleepScheduler({
-        dbPath,
-        profileId: "local-main",
-        workspaceScope: "ws-1",
-        workspaceDir,
+        runtime,
         featureFlags: {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
       });
 
-      const result = scheduler.runOnce();
+      const result = await scheduler.runOnce();
       expect(result.healthDashboard).toBeDefined();
       expect(result.healthDashboard?.staleClaims).toHaveLength(1);
       expect(result.healthDashboard?.contradictions).toHaveLength(2);
@@ -187,7 +192,7 @@ describe("memory health dashboards", () => {
            ORDER BY kind ASC`,
         )
         .all() as Array<{ kind: string }>;
-      expect(dashboards).toEqual([{ kind: "health:ws-1" }]);
+      expect(dashboards).toEqual([{ kind: `health:${status.workspaceScope}` }]);
       scheduler.close();
     });
   });

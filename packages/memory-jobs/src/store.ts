@@ -78,15 +78,6 @@ export class SqliteMemoryJobStore {
       WHERE dedupe_key IS NOT NULL;
     `);
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS memory_job_reports (
-        job_id TEXT PRIMARY KEY,
-        profile_id TEXT NOT NULL,
-        kind TEXT NOT NULL,
-        report_json TEXT NOT NULL,
-        updated_at_ms INTEGER NOT NULL
-      );
-    `);
-    this.db.exec(`
       CREATE TABLE IF NOT EXISTS memory_job_telemetry (
         metric_key TEXT NOT NULL,
         profile_id TEXT NOT NULL,
@@ -243,38 +234,6 @@ export class SqliteMemoryJobStore {
     return {
       counts: Object.fromEntries(rows.map((row) => [row.metric_key, row.value])),
     };
-  }
-
-  writeReport(params: {
-    jobId: string;
-    profileId: string;
-    kind: MemoryJobKind;
-    report: unknown;
-  }): void {
-    this.db
-      .prepare(
-        `INSERT INTO memory_job_reports (job_id, profile_id, kind, report_json, updated_at_ms)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(job_id) DO UPDATE SET
-           profile_id = excluded.profile_id,
-           kind = excluded.kind,
-           report_json = excluded.report_json,
-           updated_at_ms = excluded.updated_at_ms`,
-      )
-      .run(
-        params.jobId,
-        params.profileId,
-        params.kind,
-        stableStringify(params.report),
-        this.clock.now(),
-      );
-  }
-
-  readReport<T>(jobId: string): T | undefined {
-    const row = this.db
-      .prepare(`SELECT report_json FROM memory_job_reports WHERE job_id = ?`)
-      .get(jobId) as { report_json: string } | undefined;
-    return row ? parseJsonValue<T | undefined>(row.report_json, undefined) : undefined;
   }
 
   listJobRecords(profileId: string): MemoryJobRecord[] {

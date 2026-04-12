@@ -2,12 +2,13 @@
 
 `packages/memory-jobs` implementa um sistema de "Agent Sleep" cooperativo para introspecção de memória quando a sessão está parada.
 
-Nesta revisão, as mutações deixaram de escrever directamente em `entities`, `projections` e `relations`. O package passou a usar uma fachada GAIA local (`packages/memory-jobs/src/gaia.ts`) que:
+Nesta revisão, as mutações deixaram de escrever directamente em `entities`, `projections`, `relations` ou `ledger_events`. O package passou a usar a seam pública da GAIA exposta por `alisio/plugin-sdk/memory-core-engine-runtime`:
 
-- escreve primeiro em `ledger_events`
-- aplica reducers de `packages/memory-state` ao estado derivado
-- cria checkpoints em `checkpoints`
-- deixa `memory_jobs` como cursor/scheduler state, não como fonte de verdade
+- `buildCanonicalMemoryStoreStatus(...)` para derivar `profileId`, `workspaceScope` e caminho do store
+- `memoryWriteEvent(...)` para toda a escrita auditável
+- `forceCheckpoint` para alinhar pedidos operacionais de checkpoint com o fluxo oficial de `CHECKPOINT_CREATED`
+
+`packages/memory-jobs/src/gaia.ts` ficou reduzido a adaptador fino. `memory_jobs` continua a guardar apenas cursores e estado operacional do scheduler, nunca o estado autoritativo da memória.
 
 ## Quando corre
 
@@ -48,8 +49,6 @@ Os cursores e checkpoints vivem no mesmo `canonical.sqlite`, mas em camadas dife
   - snapshots do estado derivado com `state_hash`
 - `memory_job_events`
   - auditoria operacional local do scheduler
-- `memory_job_reports`
-  - cache local do último dashboard; a materialização autoritativa fica em `dashboards` via `DASHBOARD_SET`
 - `memory_job_telemetry`
   - `sleep_runs`, `sleep_preemptions`, `sleep_work_done_counts.*`, `health_findings_counts.*`
 

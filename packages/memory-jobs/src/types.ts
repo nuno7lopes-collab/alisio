@@ -1,3 +1,6 @@
+import type { AlisioConfig } from "alisio/plugin-sdk/config-runtime";
+import type { CanonicalStoreBackend } from "alisio/plugin-sdk/memory-core-engine-runtime";
+
 export type MemoryJobKind = "consolidate" | "dedup" | "health";
 
 export type MemoryJobStatus = "idle" | "running" | "paused" | "failed";
@@ -101,12 +104,17 @@ export type SleepRunResult = {
   healthDashboard?: HealthDashboard;
 };
 
-export type SleepSchedulerOptions = {
-  dbPath: string;
-  profileId: string;
-  workspaceScope: string;
+export type SleepGaiaRuntime = {
+  cfg: AlisioConfig;
+  agentId: string;
   workspaceDir: string;
-  gaiaActorId?: string;
+  backend: CanonicalStoreBackend;
+  env?: NodeJS.ProcessEnv;
+  actorId?: string;
+};
+
+export type SleepSchedulerOptions = {
+  runtime: SleepGaiaRuntime;
   featureFlags?: SleepFeatureFlags;
   autoMergeConfirmed?: boolean;
   sliceMs?: number;
