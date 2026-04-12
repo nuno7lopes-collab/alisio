@@ -6,10 +6,6 @@ import {
   type MemoryFlushPlan,
   type AlisioConfig,
 } from "alisio/plugin-sdk/memory-core-host-runtime-core";
-import {
-  resolveObsidianMemoryLayout,
-  resolveObsidianWritePathForDate,
-} from "alisio/plugin-sdk/memory-core-host-runtime-files";
 
 export const DEFAULT_MEMORY_FLUSH_SOFT_TOKENS = 4000;
 export const DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES = 2 * 1024 * 1024;
@@ -98,27 +94,11 @@ function appendCurrentTimeLine(text: string, timeLine: string): string {
   return `${trimmed}\n${timeLine}`;
 }
 
-function resolveMemoryFlushTarget(params: { cfg?: AlisioConfig; dateStamp: string }): {
+function resolveMemoryFlushTarget(params: { dateStamp: string }): {
   path: string;
-  obsidian: boolean;
 } {
-  const obsidianLayout = resolveObsidianMemoryLayout({
-    cfg: params.cfg,
-    workspaceDir: process.cwd(),
-  });
-  if (obsidianLayout) {
-    return {
-      path: resolveObsidianWritePathForDate({
-        layout: obsidianLayout,
-        date: params.dateStamp,
-        workspaceDir: process.cwd(),
-      }),
-      obsidian: true,
-    };
-  }
   return {
     path: `memory/${params.dateStamp}.md`,
-    obsidian: false,
   };
 }
 
@@ -147,7 +127,7 @@ export function buildMemoryFlushPlan(
 
   const { timeLine, userTimezone } = resolveCronStyleNow(cfg ?? {}, nowMs);
   const dateStamp = formatDateStampInTimezone(nowMs, userTimezone);
-  const target = resolveMemoryFlushTarget({ cfg, dateStamp });
+  const target = resolveMemoryFlushTarget({ dateStamp });
   const targetHint = `Store durable memories only in ${target.path}.`;
   const appendOnlyHint = `If ${target.path} already exists, APPEND new content only and do not overwrite existing entries.`;
   const requiredHints = [targetHint, appendOnlyHint, MEMORY_FLUSH_READ_ONLY_HINT];
@@ -169,16 +149,12 @@ export function buildMemoryFlushPlan(
     ),
   );
   const prompt = appendCurrentTimeLine(promptBase.replaceAll("YYYY-MM-DD", dateStamp), timeLine);
-  const obsidianPrompt =
-    target.obsidian && !prompt.includes("frontmatter")
-      ? `${prompt}\n\nIf the note already has frontmatter or headings, preserve them and append only the new durable memory content.`
-      : prompt;
 
   return {
     softThresholdTokens,
     forceFlushTranscriptBytes,
     reserveTokensFloor,
-    prompt: obsidianPrompt,
+    prompt,
     systemPrompt: systemPrompt.replaceAll("YYYY-MM-DD", dateStamp),
     relativePath: target.path,
   };

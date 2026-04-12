@@ -252,7 +252,7 @@ describe("memory cli", () => {
       storePath: "/tmp/canonical.sqlite",
       backend: "builtin",
       state: "ready",
-      projectionInterface: "markdown-vault",
+      projectionInterface: "markdown-repo",
       syncMode: "local-first",
       cloudSync: "unavailable",
       matches: [
@@ -300,7 +300,7 @@ describe("memory cli", () => {
               entities: 1,
               relations: 1,
               projections: 1,
-              projectionInterface: "markdown-vault",
+              projectionInterface: "markdown-repo",
               syncMode: "local-first",
               cloudSync: "unavailable",
               projectionSources: ["workspace-memory"],

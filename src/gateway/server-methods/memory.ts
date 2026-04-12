@@ -153,18 +153,6 @@ function buildRuntimeStatus(
       ...(status.batch.lastProvider ? { lastProvider: status.batch.lastProvider } : {}),
     };
   }
-  if (status.obsidianReadOnly) {
-    runtime.obsidianReadOnly = {
-      enabled: status.obsidianReadOnly.enabled,
-      active: status.obsidianReadOnly.active,
-      vaultPath: status.obsidianReadOnly.vaultPath,
-      indexedFiles: status.obsidianReadOnly.indexedFiles,
-      skippedLargeFiles: status.obsidianReadOnly.skippedLargeFiles,
-      maxFiles: status.obsidianReadOnly.maxFiles,
-      maxFileBytes: status.obsidianReadOnly.maxFileBytes,
-      ...(status.obsidianReadOnly.error ? { error: status.obsidianReadOnly.error } : {}),
-    };
-  }
   const canonicalStore = (status.custom?.canonicalStore ?? null) as {
     state?: "pending-sync" | "ready";
     path?: string;
@@ -177,7 +165,7 @@ function buildRuntimeStatus(
     entities?: number;
     relations?: number;
     projections?: number;
-    projectionInterface?: "markdown-vault";
+    projectionInterface?: "markdown-repo";
     syncMode?: "local-first";
     cloudSync?: "unavailable" | "enabled" | "error";
     projectionSources?: Array<"workspace-memory">;

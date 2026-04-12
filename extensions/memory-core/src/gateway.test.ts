@@ -37,7 +37,7 @@ describe("memory graph gateway handler", () => {
               profileId: "local-main",
               workspaceScope: "scope-main",
               backend: "builtin",
-              projectionInterface: "markdown-vault",
+              projectionInterface: "markdown-repo",
               syncMode: "local-first",
               cloudSync: "unavailable",
             },

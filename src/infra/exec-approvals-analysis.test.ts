@@ -250,15 +250,15 @@ describe("exec approvals shell analysis", () => {
   describe("shell allowlist (chained commands)", () => {
     it.each([
       {
-        allowlist: [{ pattern: "/usr/bin/obsidian-cli" }, { pattern: "/usr/bin/head" }],
+        allowlist: [{ pattern: "/usr/bin/notes-cli" }, { pattern: "/usr/bin/head" }],
         command:
-          "/usr/bin/obsidian-cli print-default && /usr/bin/obsidian-cli search foo | /usr/bin/head",
+          "/usr/bin/notes-cli print-default && /usr/bin/notes-cli search foo | /usr/bin/head",
         expectedAnalysisOk: true,
         expectedAllowlistSatisfied: true,
       },
       {
-        allowlist: [{ pattern: "/usr/bin/obsidian-cli" }],
-        command: "/usr/bin/obsidian-cli print-default && /usr/bin/rm -rf /",
+        allowlist: [{ pattern: "/usr/bin/notes-cli" }],
+        command: "/usr/bin/notes-cli print-default && /usr/bin/rm -rf /",
         expectedAnalysisOk: true,
         expectedAllowlistSatisfied: false,
       },

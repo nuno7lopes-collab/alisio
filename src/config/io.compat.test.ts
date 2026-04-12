@@ -161,6 +161,47 @@ describe("config io paths", () => {
     });
   });
 
+  it("loads configs that still contain removed obsidian-era memory keys", async () => {
+    await withTempHome(async (home) => {
+      const configDir = path.join(home, ".alisio");
+      await fs.mkdir(configDir, { recursive: true });
+      const configPath = path.join(configDir, "alisio.json");
+      await fs.writeFile(
+        configPath,
+        JSON.stringify(
+          {
+            memory: {
+              backend: "builtin",
+              vaultPath: "~/Vault",
+              memoryPath: "memory",
+              obsidianReadOnly: { enabled: true },
+            },
+          },
+          null,
+          2,
+        ),
+        "utf-8",
+      );
+
+      const io = createIoForHome(home);
+      expect(io.configPath).toBe(configPath);
+      expect(io.loadConfig().memory).toEqual({
+        backend: "builtin",
+      });
+
+      const snapshot = await io.readConfigFileSnapshot();
+      expect(snapshot.valid).toBe(true);
+      expect(snapshot.legacyIssues.map((issue) => issue.path).toSorted()).toEqual([
+        "memory.memoryPath",
+        "memory.obsidianReadOnly",
+        "memory.vaultPath",
+      ]);
+      expect(snapshot.sourceConfig.memory).toEqual({
+        backend: "builtin",
+      });
+    });
+  });
+
   it("logs invalid config path details and throws on invalid config", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".alisio");

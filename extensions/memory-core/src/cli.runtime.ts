@@ -26,7 +26,6 @@ import {
 import {
   listMemoryFiles,
   normalizeExtraMemoryPaths,
-  resolveObsidianMemoryLayout,
 } from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import { buildAgentSessionKey } from "alisio/plugin-sdk/routing";
 import type {
@@ -99,19 +98,8 @@ function emitMemorySecretResolveDiagnostics(
   }
 }
 
-function formatSourceLabel(
-  source: string,
-  workspaceDir: string,
-  agentId: string,
-  cfg?: AlisioConfig,
-): string {
+function formatSourceLabel(source: string, workspaceDir: string, agentId: string): string {
   if (source === "memory") {
-    const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
-    if (obsidianLayout) {
-      return shortenHomeInString(
-        `memory (MEMORY.md + memory/*.md, Obsidian ${obsidianLayout.memoryDir}${path.sep}**/*.md)`,
-      );
-    }
     return shortenHomeInString(
       `memory (MEMORY.md + ${path.join(workspaceDir, "memory")}${path.sep}*.md)`,
     );
@@ -236,13 +224,11 @@ async function scanSessionFiles(agentId: string): Promise<SourceScan> {
 async function scanMemoryFiles(
   workspaceDir: string,
   extraPaths: string[] = [],
-  cfg?: AlisioConfig,
 ): Promise<SourceScan> {
   const issues: string[] = [];
   const memoryFile = path.join(workspaceDir, "MEMORY.md");
   const memoryDir = path.join(workspaceDir, "memory");
-  const obsidianLayout = resolveObsidianMemoryLayout({ cfg, workspaceDir });
-  const primaryMemoryDir = obsidianLayout?.memoryDir ?? memoryDir;
+  const primaryMemoryDir = memoryDir;
 
   const primary = await checkReadableFile(memoryFile);
   if (primary.issue) {
@@ -292,7 +278,7 @@ async function scanMemoryFiles(
   let listed: string[] = [];
   let listedOk = false;
   try {
-    listed = await listMemoryFiles(workspaceDir, resolvedExtraPaths, undefined, obsidianLayout);
+    listed = await listMemoryFiles(workspaceDir, resolvedExtraPaths);
     listedOk = true;
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
@@ -391,7 +377,7 @@ async function scanMemorySources(params: {
   const extraPaths = params.extraPaths ?? [];
   for (const source of params.sources) {
     if (source === "memory") {
-      scans.push(await scanMemoryFiles(params.workspaceDir, extraPaths, params.cfg));
+      scans.push(await scanMemoryFiles(params.workspaceDir, extraPaths));
     }
     if (source === "sessions") {
       scans.push(await scanSessionFiles(params.agentId));
@@ -691,7 +677,7 @@ export async function runMemoryIndex(opts: MemoryCommandOptions) {
             const warn = (text: string) => colorize(rich, theme.warn, text);
             const label = (text: string) => muted(`${text}:`);
             const sourceLabels = (status.sources ?? []).map((source) =>
-              formatSourceLabel(source, status.workspaceDir ?? "", agentId, cfg),
+              formatSourceLabel(source, status.workspaceDir ?? "", agentId),
             );
             const extraPaths = status.workspaceDir
               ? formatExtraPaths(status.workspaceDir, status.extraPaths ?? [])

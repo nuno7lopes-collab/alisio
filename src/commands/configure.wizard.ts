@@ -376,7 +376,7 @@ export async function runConfigureWizard(
       );
       workspaceDir = resolveUserPath(String(workspaceInput ?? "").trim() || DEFAULT_WORKSPACE);
       if (!snapshot.exists) {
-        const indicators = ["MEMORY.md", "memory", "Alisio Memory", ".git"].map((name) =>
+        const indicators = ["MEMORY.md", "memory", ".git"].map((name) =>
           nodePath.join(workspaceDir, name),
         );
         const hasExistingContent = (

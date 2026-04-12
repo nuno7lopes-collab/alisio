@@ -2,10 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_AGENTS_FILENAME } from "../agents/workspace.js";
 import type { AlisioConfig } from "../config/config.js";
-import { resolveObsidianMemoryLayout } from "../plugin-sdk/memory-core-host-runtime-files.js";
 import { shortenHomePath } from "../utils.js";
-
-const DEFAULT_OBSIDIAN_MEMORY_PATH = "Alisio Memory";
 
 export const MEMORY_SYSTEM_PROMPT = [
   "Memory system not found in workspace.",
@@ -21,18 +18,11 @@ export async function shouldSuggestMemorySystem(params: {
   cfg?: AlisioConfig;
 }): Promise<boolean> {
   const workspaceDir = params.workspaceDir;
-  if (resolveObsidianMemoryLayout({ cfg: params.cfg, workspaceDir })) {
-    return false;
-  }
-  const memoryPaths = [path.join(workspaceDir, "MEMORY.md")];
-  const obsidianMemoryPaths = [
-    path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH),
-    path.join(workspaceDir, DEFAULT_OBSIDIAN_MEMORY_PATH, "long-term.md"),
-  ];
+  const candidatePaths = [path.join(workspaceDir, "MEMORY.md")];
 
-  for (const memoryPath of [...memoryPaths, ...obsidianMemoryPaths]) {
+  for (const candidatePath of candidatePaths) {
     try {
-      await fs.promises.access(memoryPath);
+      await fs.promises.access(candidatePath);
       return false;
     } catch {
       // keep scanning

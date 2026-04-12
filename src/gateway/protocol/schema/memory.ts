@@ -126,20 +126,6 @@ export const MemoryStatusBatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const MemoryStatusObsidianReadOnlySchema = Type.Object(
-  {
-    enabled: Type.Boolean(),
-    active: Type.Boolean(),
-    vaultPath: Type.String(),
-    indexedFiles: Type.Integer({ minimum: 0 }),
-    skippedLargeFiles: Type.Integer({ minimum: 0 }),
-    maxFiles: Type.Integer({ minimum: 1 }),
-    maxFileBytes: Type.Integer({ minimum: 1 }),
-    error: Type.Optional(Type.String()),
-  },
-  { additionalProperties: false },
-);
-
 export const MemoryCanonicalStoreReplicaSchema = Type.Object(
   {
     deviceId: NonEmptyString,
@@ -161,7 +147,7 @@ export const MemoryCanonicalStoreRuntimeSchema = Type.Object(
     entities: Type.Integer({ minimum: 0 }),
     relations: Type.Integer({ minimum: 0 }),
     projections: Type.Integer({ minimum: 0 }),
-    projectionInterface: Type.Literal("markdown-vault"),
+    projectionInterface: Type.Literal("markdown-repo"),
     syncMode: Type.Literal("local-first"),
     cloudSync: MemoryCanonicalCloudSyncSchema,
     projectionSources: Type.Array(MemoryCanonicalProjectionSourceSchema),
@@ -192,7 +178,6 @@ export const MemoryStatusRuntimeSchema = Type.Object(
     fts: Type.Optional(MemoryStatusFtsSchema),
     vector: Type.Optional(MemoryStatusVectorSchema),
     batch: Type.Optional(MemoryStatusBatchSchema),
-    obsidianReadOnly: Type.Optional(MemoryStatusObsidianReadOnlySchema),
     canonicalStore: Type.Optional(MemoryCanonicalStoreRuntimeSchema),
   },
   { additionalProperties: false },

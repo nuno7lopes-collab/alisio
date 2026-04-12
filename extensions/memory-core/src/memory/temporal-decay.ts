@@ -12,10 +12,7 @@ export const DEFAULT_TEMPORAL_DECAY_CONFIG: TemporalDecayConfig = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DATED_MEMORY_PATH_RES = [
-  /(?:^|\/)memory\/(\d{4})-(\d{2})-(\d{2})\.md$/,
-  /(?:^|\/)daily\/(\d{4})-(\d{2})-(\d{2})\.md$/,
-];
+const DATED_MEMORY_PATH_RES = [/(?:^|\/)memory\/(\d{4})-(\d{2})-(\d{2})\.md$/];
 
 export function toDecayLambda(halfLifeDays: number): number {
   if (!Number.isFinite(halfLifeDays) || halfLifeDays <= 0) {
@@ -81,9 +78,6 @@ function isEvergreenMemoryPath(filePath: string): boolean {
   }
   if (/(?:^|\/)long-term\.md$/.test(normalized)) {
     return true;
-  }
-  if (normalized.startsWith("obsidian/")) {
-    return !/(?:^|\/)daily\/\d{4}-\d{2}-\d{2}\.md$/.test(normalized);
   }
   if (!normalized.startsWith("memory/")) {
     return false;

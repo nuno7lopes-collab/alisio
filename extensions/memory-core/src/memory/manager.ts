@@ -18,10 +18,6 @@ import {
   type MemorySource,
   type MemorySyncProgressUpdate,
 } from "alisio/plugin-sdk/memory-core-host-engine-storage";
-import {
-  resolveObsidianMemoryLayout,
-  resolveObsidianReadOnlyVault,
-} from "alisio/plugin-sdk/memory-core-host-runtime-files";
 import { type FSWatcher } from "chokidar";
 import { buildCanonicalMemoryStoreStatus } from "./canonical-store.js";
 import {
@@ -257,25 +253,6 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
     if (meta?.vectorDims) {
       this.vector.dims = meta.vectorDims;
     }
-    this.obsidianReadOnlyStatus =
-      meta?.obsidianReadOnly ??
-      (() => {
-        const vault = resolveObsidianReadOnlyVault({
-          cfg: this.cfg,
-        });
-        if (!vault) {
-          return undefined;
-        }
-        return {
-          enabled: true,
-          active: false,
-          vaultPath: vault.vaultRoot,
-          indexedFiles: 0,
-          skippedLargeFiles: 0,
-          maxFiles: vault.maxFiles,
-          maxFileBytes: vault.maxFileBytes,
-        };
-      })();
     this.canonicalStoreStatus = buildCanonicalMemoryStoreStatus({
       agentId: this.agentId,
       workspaceDir: this.workspaceDir,
@@ -723,13 +700,6 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
       relPath: params.relPath,
       from: params.from,
       lines: params.lines,
-      obsidianLayout: resolveObsidianMemoryLayout({
-        cfg: this.cfg,
-        workspaceDir: this.workspaceDir,
-      }),
-      obsidianReadOnlyVault: resolveObsidianReadOnlyVault({
-        cfg: this.cfg,
-      }),
     });
   }
 
@@ -831,7 +801,6 @@ export class MemoryIndexManager extends MemoryManagerEmbeddingOps implements Mem
         lastError: this.batchFailureLastError,
         lastProvider: this.batchFailureLastProvider,
       },
-      obsidianReadOnly: this.obsidianReadOnlyStatus,
       custom: {
         searchMode,
         providerUnavailableReason: this.providerUnavailableReason,

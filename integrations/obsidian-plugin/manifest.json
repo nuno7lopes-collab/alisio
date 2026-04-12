@@ -1,8 +1,0 @@
-{
-  "id": "alisio-memory-bridge",
-  "name": "Alisio Memory Bridge",
-  "version": "0.0.1",
-  "minAppVersion": "1.5.0",
-  "description": "Optional Alisio bridge for guarded Vault list/read/write operations inside a configured memory directory.",
-  "author": "OpenAI"
-}

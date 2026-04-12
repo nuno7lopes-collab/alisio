@@ -4,13 +4,11 @@ import path from "node:path";
 import type { Api, Model } from "@mariozechner/pi-ai";
 import type { AuthStorage, ModelRegistry } from "@mariozechner/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { buildObsidianDailyNoteSeed } from "../../../../packages/memory-host-sdk/src/host/obsidian-layout.js";
 import type { AnyAgentTool } from "../../pi-tools.types.js";
 import { resetEmbeddedAttemptHarness } from "./attempt.spawn-workspace.test-support.js";
 
 const MEMORY_RELATIVE_PATH = "memory/2026-03-24.md";
-const OBSIDIAN_DATE = "2026-03-24";
-const OBSIDIAN_SEED = buildObsidianDailyNoteSeed(OBSIDIAN_DATE);
+const MEMORY_SEED = "# 2026-03-24\n";
 
 function createAttemptParams(workspaceDir: string) {
   return {
@@ -35,7 +33,7 @@ function createAttemptParams(workspaceDir: string) {
     thinkLevel: "off" as const,
     trigger: "memory" as const,
     memoryFlushWritePath: MEMORY_RELATIVE_PATH,
-    memoryFlushWriteSeedContent: OBSIDIAN_SEED,
+    memoryFlushWriteSeedContent: MEMORY_SEED,
   };
 }
 
@@ -68,7 +66,7 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
       expect(capturedOptions[0]).toMatchObject({
         trigger: "memory",
         memoryFlushWritePath: MEMORY_RELATIVE_PATH,
-        memoryFlushWriteSeedContent: OBSIDIAN_SEED,
+        memoryFlushWriteSeedContent: MEMORY_SEED,
       });
     } finally {
       vi.doUnmock("../../pi-tools.js");
@@ -127,10 +125,10 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
     }
   });
 
-  it("creates obsidian-friendly daily notes with seed content for absolute vault targets", async () => {
+  it("creates the target memory note with seed content for absolute paths", async () => {
     const workspaceDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-attempt-memory-flush-"));
-    const vaultDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-obsidian-vault-"));
-    const memoryFile = path.join(vaultDir, "Alisio Memory", "daily", `${OBSIDIAN_DATE}.md`);
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), "alisio-memory-seed-"));
+    const memoryFile = path.join(outsideDir, "memory", "2026-03-24.md");
 
     try {
       const { wrapToolMemoryFlushAppendOnlyWrite } = await import("../../pi-tools.read.js");
@@ -147,11 +145,11 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
       const wrapped = wrapToolMemoryFlushAppendOnlyWrite(writeTool, {
         root: workspaceDir,
         relativePath: memoryFile,
-        createSeedContent: OBSIDIAN_SEED,
+        createSeedContent: MEMORY_SEED,
       });
 
       await expect(
-        wrapped.execute("call-memory-flush-obsidian", {
+        wrapped.execute("call-memory-flush-seeded", {
           path: memoryFile,
           content: "durable memory bullet",
         }),
@@ -163,12 +161,12 @@ describe("runEmbeddedAttempt memory flush tool forwarding", () => {
       });
 
       await expect(fs.readFile(memoryFile, "utf-8")).resolves.toBe(
-        `${OBSIDIAN_SEED}durable memory bullet`,
+        `${MEMORY_SEED}durable memory bullet`,
       );
       expect(fallbackWrite).not.toHaveBeenCalled();
     } finally {
       await fs.rm(workspaceDir, { recursive: true, force: true });
-      await fs.rm(vaultDir, { recursive: true, force: true });
+      await fs.rm(outsideDir, { recursive: true, force: true });
     }
   });
 });

@@ -161,7 +161,7 @@ describe("memory-runtime controller", () => {
           storePath: "/tmp/canonical.sqlite",
           backend: "builtin",
           state: "ready",
-          projectionInterface: "markdown-vault",
+          projectionInterface: "markdown-repo",
           syncMode: "local-first",
           cloudSync: "unavailable",
           matches: [],

@@ -24,7 +24,6 @@ export type {
 } from "./host/backend-config.js";
 export type {
   MemoryEmbeddingProbeResult,
-  MemoryObsidianReadOnlyStatus,
   MemoryProviderStatus,
   MemorySearchManager,
   MemorySearchResult,

@@ -160,15 +160,6 @@ describe("memoryHandlers", () => {
             pollIntervalMs: 0,
             timeoutMs: 0,
           },
-          obsidianReadOnly: {
-            enabled: true,
-            active: true,
-            vaultPath: "/vaults/research",
-            indexedFiles: 24,
-            skippedLargeFiles: 2,
-            maxFiles: 2000,
-            maxFileBytes: 1048576,
-          },
           custom: {
             canonicalStore: {
               state: "ready",
@@ -181,7 +172,7 @@ describe("memoryHandlers", () => {
               entities: 3,
               relations: 2,
               projections: 3,
-              projectionInterface: "markdown-vault",
+              projectionInterface: "markdown-repo",
               syncMode: "local-first",
               cloudSync: "unavailable",
               projectionSources: ["workspace-memory"],
@@ -225,11 +216,6 @@ describe("memoryHandlers", () => {
           provider: "openai",
           files: 3,
           chunks: 11,
-          obsidianReadOnly: expect.objectContaining({
-            active: true,
-            vaultPath: "/vaults/research",
-            indexedFiles: 24,
-          }),
           canonicalStore: expect.objectContaining({
             profileId: "local-main",
             entities: 3,

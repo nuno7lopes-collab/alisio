@@ -390,53 +390,6 @@ describe("QmdMemoryManager", () => {
     await manager.close();
   });
 
-  it("syncs a read-only Obsidian vault into the qmd shadow collection and reports status", async () => {
-    const vaultDir = path.join(tmpRoot, "obsidian-vault");
-    await fs.mkdir(path.join(vaultDir, "Projects"), { recursive: true });
-    await fs.writeFile(path.join(vaultDir, "Projects", "roadmap.md"), "# Roadmap\n", "utf-8");
-
-    cfg = {
-      ...cfg,
-      memory: {
-        backend: "qmd",
-        obsidianReadOnly: {
-          enabled: true,
-          vaultPath: vaultDir,
-        },
-        qmd: {
-          includeDefaultMemory: false,
-          update: { interval: "0s", debounceMs: 0, onBoot: false },
-          paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
-        },
-      },
-    } as AlisioConfig;
-
-    const { manager } = await createManager({ mode: "full" });
-    await manager.sync({ reason: "manual", force: true });
-
-    const inner = manager as unknown as {
-      obsidianReadOnlyShadow: { shadowDir: string } | null;
-      obsidianReadOnlyStatusPath: string;
-    };
-    expect(inner.obsidianReadOnlyShadow?.shadowDir).toBeTruthy();
-    const shadowPath = path.join(inner.obsidianReadOnlyShadow!.shadowDir, "Projects", "roadmap.md");
-    await expect(fs.readFile(shadowPath, "utf-8")).resolves.toBe("# Roadmap\n");
-    await expect(fs.readFile(inner.obsidianReadOnlyStatusPath, "utf-8")).resolves.toContain(
-      '"indexedFiles":1',
-    );
-    expect(manager.status().obsidianReadOnly).toEqual(
-      expect.objectContaining({
-        enabled: true,
-        active: true,
-        vaultPath: vaultDir,
-        indexedFiles: 1,
-        skippedLargeFiles: 0,
-      }),
-    );
-
-    await manager.close();
-  });
-
   it("runs boot update in background by default", async () => {
     cfg = {
       ...cfg,
@@ -3546,73 +3499,6 @@ describe("QmdMemoryManager", () => {
       lstatSpy.mockRestore();
       readSpy.mockRestore();
     }
-
-    await manager.close();
-  });
-
-  it("maps qmd obsidian-vault hits back to stable read-only paths and reads from the real vault", async () => {
-    const vaultDir = path.join(tmpRoot, "obsidian-vault");
-    await fs.mkdir(path.join(vaultDir, "Projects"), { recursive: true });
-    await fs.writeFile(
-      path.join(vaultDir, "Projects", "roadmap.md"),
-      "# Roadmap\n\nship read-only sync\n",
-      "utf-8",
-    );
-
-    cfg = {
-      ...cfg,
-      memory: {
-        backend: "qmd",
-        obsidianReadOnly: {
-          enabled: true,
-          vaultPath: vaultDir,
-        },
-        qmd: {
-          includeDefaultMemory: false,
-          update: { interval: "0s", debounceMs: 60_000, onBoot: false },
-          paths: [{ path: workspaceDir, pattern: "**/*.md", name: "workspace" }],
-        },
-      },
-    } as AlisioConfig;
-
-    spawnMock.mockImplementation((_cmd: string, args: string[]) => {
-      if (args[0] === "search") {
-        const child = createMockChild({ autoClose: false });
-        emitAndClose(
-          child,
-          "stdout",
-          JSON.stringify([
-            {
-              file: "qmd://obsidian-vault-main/Projects/roadmap.md",
-              score: 0.91,
-              snippet: "@@ -1,1\n# Roadmap",
-            },
-          ]),
-        );
-        return child;
-      }
-      return createMockChild();
-    });
-
-    const { manager } = await createManager();
-    const results = await manager.search("roadmap", {
-      sessionKey: "agent:main:slack:dm:u123",
-    });
-    expect(results).toEqual([
-      {
-        path: "obsidian-vault/Projects/roadmap.md",
-        startLine: 1,
-        endLine: 1,
-        score: 0.91,
-        snippet: "@@ -1,1\n# Roadmap",
-        source: "memory",
-      },
-    ]);
-
-    await expect(manager.readFile({ relPath: results[0]!.path })).resolves.toEqual({
-      path: "obsidian-vault/Projects/roadmap.md",
-      text: "# Roadmap\n\nship read-only sync\n",
-    });
 
     await manager.close();
   });

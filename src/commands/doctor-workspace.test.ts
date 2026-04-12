@@ -20,21 +20,12 @@ async function createTempWorkspace() {
 }
 
 describe("shouldSuggestMemorySystem", () => {
-  it("does not suggest installation when obsidian memory is configured", async () => {
+  it("does not suggest installation when MEMORY.md already exists", async () => {
     const workspaceDir = await createTempWorkspace();
-    const cfg = {
-      memory: {
-        memoryPath: "Alisio Memory",
-      },
-    } as AlisioConfig;
+    await fs.writeFile(path.join(workspaceDir, "MEMORY.md"), "# Memory\n", "utf-8");
 
-    await expect(shouldSuggestMemorySystem({ workspaceDir, cfg })).resolves.toBe(false);
-  });
-
-  it("does not suggest installation when the default obsidian memory directory already exists", async () => {
-    const workspaceDir = await createTempWorkspace();
-    await fs.mkdir(path.join(workspaceDir, "Alisio Memory"), { recursive: true });
-
-    await expect(shouldSuggestMemorySystem({ workspaceDir })).resolves.toBe(false);
+    await expect(
+      shouldSuggestMemorySystem({ workspaceDir, cfg: {} as AlisioConfig }),
+    ).resolves.toBe(false);
   });
 });

@@ -188,7 +188,7 @@ export type CanonicalMemoryStoreStatus = {
   entities: number;
   relations: number;
   projections: number;
-  projectionInterface: "markdown-vault";
+  projectionInterface: "markdown-repo";
   syncMode: CanonicalStoreSyncMode;
   cloudSync: CanonicalCloudSyncState;
   projectionSources: CanonicalProjectionSource[];
@@ -245,7 +245,7 @@ export type CanonicalMemoryGraphResult = {
   storePath: string;
   backend: CanonicalStoreBackend;
   state: CanonicalStoreStatusState;
-  projectionInterface: "markdown-vault";
+  projectionInterface: "markdown-repo";
   syncMode: CanonicalStoreSyncMode;
   cloudSync: CanonicalCloudSyncState;
   lastSyncedLamport: number;
@@ -640,7 +640,7 @@ function createStatusBase(params: {
     entities: 0,
     relations: 0,
     projections: 0,
-    projectionInterface: "markdown-vault",
+    projectionInterface: "markdown-repo",
     syncMode: CANONICAL_STORE_SYNC_MODE,
     cloudSync: CANONICAL_STORE_CLOUD_SYNC,
     projectionSources: [],

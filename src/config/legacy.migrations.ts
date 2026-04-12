@@ -1,10 +1,12 @@
 import { LEGACY_CONFIG_MIGRATIONS_AUDIO } from "./legacy.migrations.audio.js";
 import { LEGACY_CONFIG_MIGRATIONS_CHANNELS } from "./legacy.migrations.channels.js";
+import { LEGACY_CONFIG_MIGRATIONS_MEMORY } from "./legacy.migrations.memory.js";
 import { LEGACY_CONFIG_MIGRATIONS_RUNTIME } from "./legacy.migrations.runtime.js";
 
 const LEGACY_CONFIG_MIGRATION_SPECS = [
   ...LEGACY_CONFIG_MIGRATIONS_CHANNELS,
   ...LEGACY_CONFIG_MIGRATIONS_AUDIO,
+  ...LEGACY_CONFIG_MIGRATIONS_MEMORY,
   ...LEGACY_CONFIG_MIGRATIONS_RUNTIME,
 ];
 

@@ -51,6 +51,42 @@ describe("legacy migrate audio transcription", () => {
   });
 });
 
+describe("legacy migrate obsidian-era memory config", () => {
+  it("removes obsolete memory path keys and preserves native settings", () => {
+    const res = migrateLegacyConfig({
+      memory: {
+        backend: "builtin",
+        vaultPath: "~/Vault",
+        memoryPath: "memory",
+        obsidianReadOnly: {
+          enabled: true,
+        },
+      },
+    });
+
+    expect(res.changes).toContain("Removed memory.vaultPath.");
+    expect(res.changes).toContain("Removed memory.memoryPath.");
+    expect(res.changes).toContain("Removed memory.obsidianReadOnly.");
+    expect(res.config?.memory).toEqual({
+      backend: "builtin",
+    });
+  });
+
+  it("removes the whole memory block when it only contained obsolete obsidian keys", () => {
+    const res = migrateLegacyConfig({
+      memory: {
+        vaultPath: "~/Vault",
+      },
+    });
+
+    expect(res.changes).toContain("Removed memory.vaultPath.");
+    expect(res.changes).toContain(
+      "Removed empty memory block after deleting obsolete Obsidian-era keys.",
+    );
+    expect(res.config?.memory).toBeUndefined();
+  });
+});
+
 describe("legacy migrate mention routing", () => {
   it("does not rewrite removed routing.groupChat.requireMention migrations", () => {
     const res = migrateLegacyConfig({

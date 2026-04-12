@@ -1481,7 +1481,7 @@ describe("memory index", () => {
     expect(canonicalStore?.state).toBe("ready");
     expect(canonicalStore?.profileId).toBe("local-nuno");
     expect(canonicalStore?.relations).toBeGreaterThanOrEqual(1);
-    expect(canonicalStore?.projectionInterface).toBe("markdown-vault");
+    expect(canonicalStore?.projectionInterface).toBe("markdown-repo");
     expect(canonicalStore?.syncMode).toBe("local-first");
     expect(canonicalStore?.cloudSync).toBe("unavailable");
     expect(canonicalStore?.path).toContain(path.join("memory", "profiles", "local-nuno"));

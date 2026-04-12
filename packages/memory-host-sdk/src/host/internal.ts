@@ -14,14 +14,6 @@ import {
   type MemoryMultimodalModality,
   type MemoryMultimodalSettings,
 } from "./multimodal.js";
-import {
-  resolveObsidianDisplayPath,
-  type ResolvedObsidianMemoryLayout,
-} from "./obsidian-layout.js";
-import {
-  resolveObsidianReadOnlyDisplayPath,
-  type ResolvedObsidianReadOnlyVault,
-} from "./obsidian-readonly.js";
 
 export type MemoryFileEntry = {
   path: string;
@@ -125,7 +117,6 @@ export async function listMemoryFiles(
   workspaceDir: string,
   extraPaths?: string[],
   multimodal?: MemoryMultimodalSettings,
-  obsidianLayout?: ResolvedObsidianMemoryLayout | null,
 ): Promise<string[]> {
   const result: string[] = [];
   const memoryFile = path.join(workspaceDir, "MEMORY.md");
@@ -151,14 +142,6 @@ export async function listMemoryFiles(
       await walkDir(memoryDir, result);
     }
   } catch {}
-  if (obsidianLayout) {
-    try {
-      const dirStat = await fs.lstat(obsidianLayout.memoryDir);
-      if (!dirStat.isSymbolicLink() && dirStat.isDirectory()) {
-        await walkDir(obsidianLayout.memoryDir, result);
-      }
-    } catch {}
-  }
 
   const normalizedExtraPaths = normalizeExtraMemoryPaths(workspaceDir, extraPaths);
   if (normalizedExtraPaths.length > 0) {
@@ -205,8 +188,6 @@ export async function buildFileEntry(
   absPath: string,
   workspaceDir: string,
   multimodal?: MemoryMultimodalSettings,
-  obsidianLayout?: ResolvedObsidianMemoryLayout | null,
-  obsidianReadOnlyVault?: ResolvedObsidianReadOnlyVault | null,
 ): Promise<MemoryFileEntry | null> {
   let stat;
   try {
@@ -217,10 +198,7 @@ export async function buildFileEntry(
     }
     throw err;
   }
-  const normalizedPath =
-    resolveObsidianDisplayPath(absPath, obsidianLayout ?? null) ??
-    resolveObsidianReadOnlyDisplayPath(absPath, obsidianReadOnlyVault ?? null) ??
-    path.relative(workspaceDir, absPath).replace(/\\/g, "/");
+  const normalizedPath = path.relative(workspaceDir, absPath).replace(/\\/g, "/");
   const multimodalSettings = multimodal ?? DISABLED_MULTIMODAL_SETTINGS;
   const modality = classifyMemoryMultimodalPath(absPath, multimodalSettings);
   if (modality) {

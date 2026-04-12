@@ -42,7 +42,7 @@ export type MemoryGraphState = {
   storePath: string;
   backend: "builtin" | "qmd";
   state: "pending-sync" | "ready";
-  projectionInterface: "markdown-vault";
+  projectionInterface: "markdown-repo";
   syncMode: "local-first";
   cloudSync: "unavailable" | "enabled" | "error";
   lastSyncedLamport?: number;

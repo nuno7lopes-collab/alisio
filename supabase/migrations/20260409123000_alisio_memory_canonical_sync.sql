@@ -5,7 +5,7 @@ create table if not exists public.alisio_memory_snapshots (
   profile_id text not null,
   workspace_scope text not null,
   backend text not null,
-  projection_interface text not null default 'markdown-vault',
+  projection_interface text not null default 'markdown-repo',
   sync_mode text not null default 'local-first',
   last_writer_device_id text not null,
   last_writer_state_dir text,
@@ -50,7 +50,7 @@ begin
   ) then
     alter table public.alisio_memory_snapshots
       add constraint alisio_memory_snapshots_projection_interface_check
-      check (projection_interface = 'markdown-vault');
+      check (projection_interface = 'markdown-repo');
   end if;
 end
 $$;

@@ -5,16 +5,6 @@ import { resolveMemorySearchConfig } from "../../../../src/agents/memory-search.
 import type { AlisioConfig } from "../../../../src/config/config.js";
 import { isFileMissingError, statRegularFile } from "./fs-utils.js";
 import { isMemoryPath, normalizeExtraMemoryPaths } from "./internal.js";
-import {
-  resolveObsidianMemoryLayout,
-  resolveObsidianReadPath,
-  type ResolvedObsidianMemoryLayout,
-} from "./obsidian-layout.js";
-import {
-  resolveObsidianReadOnlyReadPath,
-  resolveObsidianReadOnlyVault,
-  type ResolvedObsidianReadOnlyVault,
-} from "./obsidian-readonly.js";
 
 export async function readMemoryFile(params: {
   workspaceDir: string;
@@ -22,36 +12,18 @@ export async function readMemoryFile(params: {
   relPath: string;
   from?: number;
   lines?: number;
-  obsidianLayout?: ResolvedObsidianMemoryLayout | null;
-  obsidianReadOnlyVault?: ResolvedObsidianReadOnlyVault | null;
 }): Promise<{ text: string; path: string }> {
   const rawPath = params.relPath.trim();
   if (!rawPath) {
     throw new Error("path required");
   }
-  const obsidianPath = resolveObsidianReadPath({
-    layout: params.obsidianLayout ?? null,
-    relPath: rawPath,
-  });
-  const obsidianReadOnlyPath = resolveObsidianReadOnlyReadPath({
-    vault: params.obsidianReadOnlyVault ?? null,
-    relPath: rawPath,
-  });
-  const absPath = obsidianPath
-    ? path.resolve(obsidianPath)
-    : obsidianReadOnlyPath
-      ? path.resolve(obsidianReadOnlyPath)
-      : path.isAbsolute(rawPath)
-        ? path.resolve(rawPath)
-        : path.resolve(params.workspaceDir, rawPath);
-  const relPath = obsidianPath
-    ? rawPath
-    : obsidianReadOnlyPath
-      ? rawPath
-      : path.relative(params.workspaceDir, absPath).replace(/\\/g, "/");
+  const absPath = path.isAbsolute(rawPath)
+    ? path.resolve(rawPath)
+    : path.resolve(params.workspaceDir, rawPath);
+  const relPath = path.relative(params.workspaceDir, absPath).replace(/\\/g, "/");
   const inWorkspace = relPath.length > 0 && !relPath.startsWith("..") && !path.isAbsolute(relPath);
   const allowedWorkspace = inWorkspace && isMemoryPath(relPath);
-  let allowedAdditional = Boolean(obsidianPath || obsidianReadOnlyPath);
+  let allowedAdditional = false;
   if (!allowedWorkspace && (params.extraPaths?.length ?? 0) > 0) {
     const additionalPaths = normalizeExtraMemoryPaths(params.workspaceDir, params.extraPaths);
     for (const additionalPath of additionalPaths) {
@@ -120,12 +92,5 @@ export async function readAgentMemoryFile(params: {
     relPath: params.relPath,
     from: params.from,
     lines: params.lines,
-    obsidianLayout: resolveObsidianMemoryLayout({
-      cfg: params.cfg,
-      workspaceDir: resolveAgentWorkspaceDir(params.cfg, params.agentId),
-    }),
-    obsidianReadOnlyVault: resolveObsidianReadOnlyVault({
-      cfg: params.cfg,
-    }),
   });
 }
