@@ -1,27 +1,25 @@
+import type { MemoryStateEventDraft } from "../../../memory-state/src/index.js";
 import type { CancellationToken } from "../cancellation.js";
 import {
-  chooseEntityMergeWinner,
+  choosePageMergeWinner,
   chooseProjectionWinner,
-  deleteProjection,
-  findPotentialEntityDuplicates,
-  findPotentialProjectionDuplicates,
-  listEntitiesAfter,
-  listProjectionsAfter,
-  mergeEntities,
-  type CanonicalEntitySnapshot,
-  type CanonicalProjectionSnapshot,
+  findPotentialPageDuplicates,
+  listPagesAfter,
+  mergePageMetadata,
+  readPrimaryProjection,
+  type SleepPageSnapshot,
 } from "../canonical.js";
+import type { GaiaSleepWriteFacade } from "../gaia.js";
 import type { SqliteMemoryJobStore } from "../store.js";
 import type { DedupCursor, MemorySleepJobResult } from "../types.js";
+import { createEventId } from "../utils.js";
 
-const ENTITY_BATCH_LIMIT = 8;
-const PROJECTION_BATCH_LIMIT = 12;
+const PAGE_BATCH_LIMIT = 8;
 const CHECKPOINT_EVENT_THRESHOLD = 6;
 const CHECKPOINT_SIZE_THRESHOLD_BYTES = 4_096;
 
 function createInitialCursor(): DedupCursor {
   return {
-    phase: "entities",
     checkpoint: {
       pendingEventCount: 0,
       pendingPayloadBytes: 0,
@@ -58,8 +56,8 @@ function appendMergeProposal(params: {
   store: SqliteMemoryJobStore;
   jobId: string;
   profileId: string;
-  entity: CanonicalEntitySnapshot;
-  duplicate: CanonicalEntitySnapshot;
+  page: SleepPageSnapshot;
+  duplicate: SleepPageSnapshot;
   similarity: number;
   reason: string;
 }): boolean {
@@ -68,16 +66,13 @@ function appendMergeProposal(params: {
     profileId: params.profileId,
     kind: "dedup",
     eventType: "MERGE_PROPOSED",
-    entityId: params.entity.entityId,
-    targetEntityId: params.duplicate.entityId,
-    dedupeKey: [
-      "entity-proposal",
-      params.entity.entityId,
-      params.duplicate.entityId,
-      params.reason,
-    ].join(":"),
+    entityId: params.page.pageId,
+    targetEntityId: params.duplicate.pageId,
+    dedupeKey: ["page-proposal", params.page.pageId, params.duplicate.pageId, params.reason].join(
+      ":",
+    ),
     payload: {
-      entityTitle: params.entity.title,
+      title: params.page.title,
       duplicateTitle: params.duplicate.title,
       similarity: params.similarity,
       reason: params.reason,
@@ -85,35 +80,162 @@ function appendMergeProposal(params: {
   });
 }
 
-function appendProjectionProposal(params: {
-  store: SqliteMemoryJobStore;
+function persistCheckpoint(params: {
+  gaia: GaiaSleepWriteFacade;
+  cursor: DedupCursor;
   jobId: string;
   profileId: string;
-  projection: CanonicalProjectionSnapshot;
-  duplicate: CanonicalProjectionSnapshot;
-  similarity: number;
-  reason: string;
-}): boolean {
-  return params.store.appendAuditEvent({
+  reason: "threshold" | "preempted" | "cycle-complete";
+  requestCheckpoint?: boolean;
+}): void {
+  params.gaia.recordJobCheckpoint({
     jobId: params.jobId,
     profileId: params.profileId,
     kind: "dedup",
-    eventType: "PROJECTION_MERGE_PROPOSED",
-    entityId: params.projection.projectionId,
-    targetEntityId: params.duplicate.projectionId,
-    dedupeKey: [
-      "projection-proposal",
-      params.projection.projectionId,
-      params.duplicate.projectionId,
-      params.reason,
-    ].join(":"),
-    payload: {
-      projectionPath: params.projection.relativePath,
-      duplicatePath: params.duplicate.relativePath,
-      similarity: params.similarity,
-      reason: params.reason,
-    },
+    reason: params.reason,
+    cursor: params.cursor,
+    pendingEventCount: params.cursor.checkpoint.pendingEventCount,
+    pendingPayloadBytes: params.cursor.checkpoint.pendingPayloadBytes,
+    requestCheckpoint: params.requestCheckpoint,
   });
+  resetCheckpoint(params.cursor);
+}
+
+function buildMergeDrafts(params: {
+  winner: SleepPageSnapshot;
+  loser: SleepPageSnapshot;
+}): MemoryStateEventDraft[] {
+  const mergedMetadata = mergePageMetadata({
+    winner: params.winner,
+    loser: params.loser,
+  });
+  return [
+    {
+      actorId: "gaia-sleep",
+      eventId: createEventId(
+        "sleep-merge-page",
+        `${params.winner.pageId}:${params.loser.pageId}:metadata`,
+      ),
+      pageId: params.winner.pageId,
+      source: "sleep/dedup",
+      batchId: `dedup:${params.winner.pageId}:${params.loser.pageId}`,
+      type: "PAGE_METADATA_UPDATED",
+      payload: {
+        pageId: params.winner.pageId,
+        title: params.winner.title,
+        slug: params.winner.slug,
+        aliases: mergedMetadata.aliases,
+        tags: mergedMetadata.tags,
+        updatedAtMs: Date.now(),
+      },
+    },
+    {
+      actorId: "gaia-sleep",
+      eventId: createEventId("sleep-merge-tombstone", params.loser.pageId),
+      pageId: params.loser.pageId,
+      source: "sleep/dedup",
+      batchId: `dedup:${params.winner.pageId}:${params.loser.pageId}`,
+      type: "PAGE_TOMBSTONED",
+      payload: {
+        pageId: params.loser.pageId,
+        tombstoned: true,
+        updatedAtMs: Date.now(),
+      },
+    },
+  ];
+}
+
+function buildProjectionMergeDrafts(params: {
+  store: SqliteMemoryJobStore;
+  winner: SleepPageSnapshot;
+  loser: SleepPageSnapshot;
+  workspaceDir: string;
+}): MemoryStateEventDraft[] {
+  const winnerProjection = readPrimaryProjection(
+    params.store.db,
+    params.winner.pageId,
+    params.workspaceDir,
+  );
+  const loserProjection = readPrimaryProjection(
+    params.store.db,
+    params.loser.pageId,
+    params.workspaceDir,
+  );
+  const drafts = buildMergeDrafts({
+    winner: params.winner,
+    loser: params.loser,
+  });
+  if (winnerProjection && loserProjection) {
+    const preferredProjection = chooseProjectionWinner(winnerProjection, loserProjection).winner;
+    if (
+      preferredProjection.pageId === params.loser.pageId &&
+      preferredProjection.markdownBody.trim()
+    ) {
+      drafts.push({
+        actorId: "gaia-sleep",
+        eventId: createEventId(
+          "sleep-merge-projection",
+          `${params.winner.pageId}:${params.loser.pageId}:${preferredProjection.kind}`,
+        ),
+        pageId: params.winner.pageId,
+        source: "sleep/dedup",
+        batchId: `dedup:${params.winner.pageId}:${params.loser.pageId}`,
+        type: "PROJECTION_SET",
+        payload: {
+          pageId: params.winner.pageId,
+          kind: preferredProjection.kind,
+          markdownBody: preferredProjection.markdownBody,
+        },
+      });
+    }
+  }
+
+  if (params.winner.claim || params.loser.claim) {
+    const sourceClaim = params.winner.claim ?? params.loser.claim!;
+    drafts.push({
+      actorId: "gaia-sleep",
+      eventId: createEventId(
+        "sleep-merge-claim-winner",
+        `${params.winner.pageId}:${params.loser.pageId}:winner`,
+      ),
+      pageId: params.winner.pageId,
+      source: "sleep/dedup",
+      batchId: `dedup:${params.winner.pageId}:${params.loser.pageId}`,
+      type: "CLAIM_UPSERTED",
+      payload: {
+        claimId: params.winner.pageId,
+        subject: sourceClaim.subject,
+        predicate: sourceClaim.predicate,
+        object: sourceClaim.object,
+        confidence: Math.max(
+          params.winner.claim?.confidence ?? 0,
+          params.loser.claim?.confidence ?? 0,
+        ),
+        status: "active",
+        updatedAtMs: Date.now(),
+      },
+    });
+    if (params.loser.claim) {
+      drafts.push({
+        actorId: "gaia-sleep",
+        eventId: createEventId("sleep-merge-claim-loser", params.loser.pageId),
+        pageId: params.loser.pageId,
+        source: "sleep/dedup",
+        batchId: `dedup:${params.winner.pageId}:${params.loser.pageId}`,
+        type: "CLAIM_UPSERTED",
+        payload: {
+          claimId: params.loser.pageId,
+          subject: params.loser.claim.subject,
+          predicate: params.loser.claim.predicate,
+          object: params.loser.claim.object,
+          confidence: params.loser.claim.confidence,
+          status: "merged",
+          updatedAtMs: Date.now(),
+        },
+      });
+    }
+  }
+  return drafts;
 }
 
 export function buildDedupJobId(workspaceScope: string): string {
@@ -122,8 +244,10 @@ export function buildDedupJobId(workspaceScope: string): string {
 
 export function runDedupSlice(params: {
   store: SqliteMemoryJobStore;
+  gaia: GaiaSleepWriteFacade;
   profileId: string;
   workspaceScope: string;
+  workspaceDir: string;
   sliceDeadlineMs: number;
   token: CancellationToken;
   autoMergeConfirmed: boolean;
@@ -148,6 +272,15 @@ export function runDedupSlice(params: {
 
   const preempt = () => {
     params.token.cancel("active-session");
+    persistCheckpoint({
+      gaia: params.gaia,
+      cursor,
+      jobId,
+      profileId: params.profileId,
+      reason: "preempted",
+      requestCheckpoint:
+        cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0,
+    });
     params.store.transaction(() => {
       params.store.appendAuditEvent({
         jobId,
@@ -159,7 +292,6 @@ export function runDedupSlice(params: {
           cursor,
         },
       });
-      resetCheckpoint(cursor);
       params.store.saveJobRecord({
         jobId,
         profileId: params.profileId,
@@ -180,211 +312,31 @@ export function runDedupSlice(params: {
       return preempt();
     }
     params.token.throwIfCancelled();
-    if (cursor.phase === "entities") {
-      const batch = listEntitiesAfter({
-        db: params.store.db,
-        profileId: params.profileId,
-        workspaceScope: params.workspaceScope,
-        afterEntityId: cursor.lastEntityId,
-        limit: ENTITY_BATCH_LIMIT,
-        kinds: ["claim", "procedure"],
-      });
-      if (batch.length === 0) {
-        cursor.phase = "projections";
-        cursor.lastEntityId = undefined;
-        params.store.saveJobRecord({
-          jobId,
-          profileId: params.profileId,
-          kind: "dedup",
-          status: "running",
-          cursor,
-        });
-        continue;
-      }
-
-      for (const entity of batch) {
-        if (params.shouldPreempt?.()) {
-          return preempt();
-        }
-        params.token.throwIfCancelled();
-        const duplicates = findPotentialEntityDuplicates({
-          db: params.store.db,
-          entity,
-        });
-        cursor.lastEntityId = entity.entityId;
-
-        params.store.transaction(() => {
-          for (const duplicate of duplicates) {
-            if (!params.autoMergeConfirmed) {
-              const inserted = appendMergeProposal({
-                store: params.store,
-                jobId,
-                profileId: params.profileId,
-                entity,
-                duplicate: duplicate.candidate,
-                similarity: duplicate.similarity,
-                reason: duplicate.reason,
-              });
-              if (inserted) {
-                params.store.incrementTelemetry(
-                  params.profileId,
-                  "sleep_work_done_counts.merge_proposal",
-                );
-                mergeCounts(workDoneCounts, {
-                  "sleep_work_done_counts.merge_proposal": 1,
-                });
-              }
-              notePayload(cursor, JSON.stringify(duplicate).length, false);
-              continue;
-            }
-
-            const plan = chooseEntityMergeWinner({
-              db: params.store.db,
-              left: entity,
-              right: duplicate.candidate,
-            });
-            const mergeResult = mergeEntities({
-              db: params.store.db,
-              winner: plan.winner,
-              loser: plan.loser,
-              nowMs: Date.now(),
-            });
-            params.store.appendAuditEvent({
-              jobId,
-              profileId: params.profileId,
-              kind: "dedup",
-              eventType: "ENTITY_MERGED",
-              entityId: plan.winner.entityId,
-              targetEntityId: plan.loser.entityId,
-              payload: {
-                winnerTitle: plan.winner.title,
-                loserTitle: plan.loser.title,
-                similarity: duplicate.similarity,
-                reason: duplicate.reason,
-              },
-            });
-            params.store.appendAuditEvent({
-              jobId,
-              profileId: params.profileId,
-              kind: "dedup",
-              eventType: "ENTITY_DELETED",
-              entityId: plan.loser.entityId,
-              targetEntityId: plan.winner.entityId,
-              payload: {
-                deletedEntityId: plan.loser.entityId,
-                mergedInto: plan.winner.entityId,
-              },
-            });
-            for (const projectionId of mergeResult.deletedProjectionIds) {
-              params.store.appendAuditEvent({
-                jobId,
-                profileId: params.profileId,
-                kind: "dedup",
-                eventType: "PROJECTION_DELETED",
-                entityId: projectionId,
-                targetEntityId: plan.winner.entityId,
-                payload: {
-                  deletedProjectionId: projectionId,
-                  mergedInto: plan.winner.entityId,
-                },
-              });
-            }
-            for (const relationId of mergeResult.deletedRelationIds) {
-              params.store.appendAuditEvent({
-                jobId,
-                profileId: params.profileId,
-                kind: "dedup",
-                eventType: "RELATION_DELETED",
-                entityId: relationId,
-                targetEntityId: plan.winner.entityId,
-                payload: {
-                  deletedRelationId: relationId,
-                  mergedInto: plan.winner.entityId,
-                },
-              });
-            }
-            params.store.incrementTelemetry(
-              params.profileId,
-              "sleep_work_done_counts.entity_merge",
-            );
-            mergeCounts(workDoneCounts, {
-              "sleep_work_done_counts.entity_merge": 1,
-            });
-            notePayload(cursor, JSON.stringify(duplicate).length, true);
-          }
-
-          if (shouldCheckpoint(cursor)) {
-            params.store.appendAuditEvent({
-              jobId,
-              profileId: params.profileId,
-              kind: "dedup",
-              eventType: "CHECKPOINT_CREATED",
-              payload: {
-                reason: "threshold",
-                cursor,
-              },
-            });
-            resetCheckpoint(cursor);
-          }
-
-          params.store.saveJobRecord({
-            jobId,
-            profileId: params.profileId,
-            kind: "dedup",
-            status: "running",
-            cursor,
-          });
-        });
-
-        if (Date.now() >= params.sliceDeadlineMs) {
-          return {
-            status: "budget-exhausted",
-            cursor,
-            workDoneCounts,
-          };
-        }
-      }
-      continue;
-    }
-
-    const batch = listProjectionsAfter({
+    const batch = listPagesAfter({
       db: params.store.db,
-      profileId: params.profileId,
-      workspaceScope: params.workspaceScope,
-      afterProjectionId: cursor.lastProjectionId,
-      limit: PROJECTION_BATCH_LIMIT,
+      afterPageId: cursor.lastPageId,
+      limit: PAGE_BATCH_LIMIT,
+      taggedAnyOf: ["claim", "procedure"],
+      includeTombstoned: false,
     });
     if (batch.length === 0) {
       if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        params.store.transaction(() => {
-          params.store.appendAuditEvent({
-            jobId,
-            profileId: params.profileId,
-            kind: "dedup",
-            eventType: "CHECKPOINT_CREATED",
-            payload: {
-              reason: "cycle-complete",
-              cursor,
-            },
-          });
-          resetCheckpoint(cursor);
-          params.store.saveJobRecord({
-            jobId,
-            profileId: params.profileId,
-            kind: "dedup",
-            status: "idle",
-            cursor: createInitialCursor(),
-          });
-        });
-      } else {
-        params.store.saveJobRecord({
+        persistCheckpoint({
+          gaia: params.gaia,
+          cursor,
           jobId,
           profileId: params.profileId,
-          kind: "dedup",
-          status: "idle",
-          cursor: createInitialCursor(),
+          reason: "cycle-complete",
+          requestCheckpoint: true,
         });
       }
+      params.store.saveJobRecord({
+        jobId,
+        profileId: params.profileId,
+        kind: "dedup",
+        status: "idle",
+        cursor: createInitialCursor(),
+      });
       return {
         status: "completed",
         cursor: createInitialCursor(),
@@ -392,89 +344,111 @@ export function runDedupSlice(params: {
       };
     }
 
-    for (const projection of batch) {
+    for (const page of batch) {
       if (params.shouldPreempt?.()) {
         return preempt();
       }
       params.token.throwIfCancelled();
-      const duplicates = findPotentialProjectionDuplicates({
+      const duplicates = findPotentialPageDuplicates({
         db: params.store.db,
-        projection,
+        page,
+        workspaceDir: params.workspaceDir,
       });
-      cursor.lastProjectionId = projection.projectionId;
+      cursor.lastPageId = page.pageId;
 
-      params.store.transaction(() => {
-        for (const duplicate of duplicates) {
-          if (!params.autoMergeConfirmed) {
-            const inserted = appendProjectionProposal({
-              store: params.store,
+      for (const duplicate of duplicates) {
+        if (!params.autoMergeConfirmed) {
+          const inserted = appendMergeProposal({
+            store: params.store,
+            jobId,
+            profileId: params.profileId,
+            page,
+            duplicate: duplicate.candidate,
+            similarity: duplicate.similarity,
+            reason: duplicate.reason,
+          });
+          if (inserted) {
+            params.store.incrementTelemetry(
+              params.profileId,
+              "sleep_work_done_counts.merge_proposal",
+            );
+            mergeCounts(workDoneCounts, {
+              "sleep_work_done_counts.merge_proposal": 1,
+            });
+          }
+          notePayload(cursor, JSON.stringify(duplicate).length, false);
+          continue;
+        }
+
+        const plan = choosePageMergeWinner({
+          db: params.store.db,
+          left: page,
+          right: duplicate.candidate,
+        });
+        const drafts = buildProjectionMergeDrafts({
+          store: params.store,
+          winner: plan.winner,
+          loser: plan.loser,
+          workspaceDir: params.workspaceDir,
+        });
+        const writeResult = params.gaia.writeEvents(drafts);
+        if (writeResult.events.length > 0) {
+          params.store.transaction(() => {
+            params.store.appendAuditEvent({
               jobId,
               profileId: params.profileId,
-              projection,
-              duplicate: duplicate.candidate,
-              similarity: duplicate.similarity,
-              reason: duplicate.reason,
+              kind: "dedup",
+              eventType: "ENTITY_MERGED",
+              entityId: plan.winner.pageId,
+              targetEntityId: plan.loser.pageId,
+              payload: {
+                winnerTitle: plan.winner.title,
+                loserTitle: plan.loser.title,
+                similarity: duplicate.similarity,
+                reason: duplicate.reason,
+                ledgerEventIds: writeResult.events.map((event) => event.eventId),
+              },
             });
-            if (inserted) {
-              params.store.incrementTelemetry(
-                params.profileId,
-                "sleep_work_done_counts.projection_merge_proposal",
-              );
-              mergeCounts(workDoneCounts, {
-                "sleep_work_done_counts.projection_merge_proposal": 1,
-              });
-            }
-            notePayload(cursor, JSON.stringify(duplicate).length, false);
-            continue;
-          }
-
-          const plan = chooseProjectionWinner(projection, duplicate.candidate);
-          deleteProjection(params.store.db, plan.loser.projectionId);
-          params.store.appendAuditEvent({
-            jobId,
-            profileId: params.profileId,
-            kind: "dedup",
-            eventType: "PROJECTION_DELETED",
-            entityId: plan.loser.projectionId,
-            targetEntityId: plan.winner.projectionId,
-            payload: {
-              deletedProjectionId: plan.loser.projectionId,
-              keptProjectionId: plan.winner.projectionId,
-              reason: duplicate.reason,
-              similarity: duplicate.similarity,
-            },
+            params.store.appendAuditEvent({
+              jobId,
+              profileId: params.profileId,
+              kind: "dedup",
+              eventType: "ENTITY_DELETED",
+              entityId: plan.loser.pageId,
+              targetEntityId: plan.winner.pageId,
+              payload: {
+                deletedEntityId: plan.loser.pageId,
+                tombstonedInto: plan.winner.pageId,
+              },
+            });
           });
-          params.store.incrementTelemetry(
-            params.profileId,
-            "sleep_work_done_counts.projection_merge",
-          );
+          params.store.incrementTelemetry(params.profileId, "sleep_work_done_counts.entity_merge");
           mergeCounts(workDoneCounts, {
-            "sleep_work_done_counts.projection_merge": 1,
+            "sleep_work_done_counts.entity_merge": 1,
           });
           notePayload(cursor, JSON.stringify(duplicate).length, true);
+        } else {
+          notePayload(cursor, JSON.stringify(duplicate).length, false);
         }
+      }
 
-        if (shouldCheckpoint(cursor)) {
-          params.store.appendAuditEvent({
-            jobId,
-            profileId: params.profileId,
-            kind: "dedup",
-            eventType: "CHECKPOINT_CREATED",
-            payload: {
-              reason: "threshold",
-              cursor,
-            },
-          });
-          resetCheckpoint(cursor);
-        }
-
-        params.store.saveJobRecord({
+      if (shouldCheckpoint(cursor)) {
+        persistCheckpoint({
+          gaia: params.gaia,
+          cursor,
           jobId,
           profileId: params.profileId,
-          kind: "dedup",
-          status: "running",
-          cursor,
+          reason: "threshold",
+          requestCheckpoint: true,
         });
+      }
+
+      params.store.saveJobRecord({
+        jobId,
+        profileId: params.profileId,
+        kind: "dedup",
+        status: "running",
+        cursor,
       });
 
       if (Date.now() >= params.sliceDeadlineMs) {

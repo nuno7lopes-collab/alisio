@@ -6,102 +6,160 @@ import { withMemoryJobDb } from "./test-utils.js";
 
 describe("memory health dashboards", () => {
   it("reports stale claims, contradictions, orphan pages, broken attachments, and low-confidence items", async () => {
-    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs }) => {
-      const missingAttachment = path.join(workspaceDir, "attachments", "missing.png");
+    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs, gaia }) => {
       const existingAttachment = path.join(workspaceDir, "attachments", "ok.png");
       await fs.mkdir(path.dirname(existingAttachment), { recursive: true });
       await fs.writeFile(existingAttachment, "ok");
 
-      const rows = [
+      const oldUpdatedAt = nowMs - 45 * 24 * 60 * 60_000;
+      gaia.writeEvents([
         {
-          id: "claim-old",
-          kind: "claim",
-          title: "Gateway needs a warm restart",
-          updatedAt: nowMs - 45 * 24 * 60 * 60_000,
-          metadata: { confidence: 0.9, truthValue: true },
+          actorId: "test",
+          createdAtMs: oldUpdatedAt,
+          eventId: "page-claim-old",
+          pageId: "claim-old",
+          source: "test",
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "claim-old",
+            title: "Gateway needs a warm restart",
+            slug: "claim-old",
+            aliases: ["claim-old"],
+            tags: ["claim"],
+            createdAtMs: oldUpdatedAt,
+            updatedAtMs: oldUpdatedAt,
+          },
         },
         {
-          id: "claim-opposite",
-          kind: "claim",
-          title: "Gateway needs a warm restart",
-          updatedAt: nowMs,
-          metadata: { confidence: 0.88, truthValue: false },
+          actorId: "test",
+          createdAtMs: oldUpdatedAt,
+          eventId: "projection-claim-old",
+          pageId: "claim-old",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "claim-old",
+            kind: "legacy-markdown:memory/claim-old.md",
+            markdownBody: "![missing](../attachments/missing.png)\nGateway restart is required.\n",
+          },
         },
         {
-          id: "claim-low-confidence",
-          kind: "claim",
-          title: "Matrix bridge flaps overnight",
-          updatedAt: nowMs,
-          metadata: { confidence: 0.2 },
+          actorId: "test",
+          createdAtMs: oldUpdatedAt,
+          eventId: "claim-claim-old",
+          pageId: "claim-old",
+          source: "test",
+          type: "CLAIM_UPSERTED",
+          payload: {
+            claimId: "claim-old",
+            subject: "gateway",
+            predicate: "requires_restart",
+            object: "enabled",
+            confidence: 0.9,
+            status: "active",
+            updatedAtMs: oldUpdatedAt,
+          },
         },
-      ];
-      for (const row of rows) {
-        db.prepare(
-          `INSERT INTO entities (
-             entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          row.id,
-          "local-main",
-          "ws-1",
-          row.kind,
-          row.id,
-          row.title,
-          `memory/${row.id}.md`,
-          "workspace-memory",
-          `hash-${row.id}`,
-          row.updatedAt,
-          JSON.stringify(row.metadata),
-        );
-        db.prepare(
-          `INSERT INTO projections (
-             projection_id, profile_id, workspace_scope, entity_id, projection_kind, relative_path, absolute_path, editable,
-             source_kind, content_hash, frontmatter_json, markdown_body, updated_at, metadata
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          `projection-${row.id}`,
-          "local-main",
-          "ws-1",
-          row.id,
-          "markdown",
-          `memory/${row.id}.md`,
-          path.join(workspaceDir, "memory", `${row.id}.md`),
-          1,
-          "workspace-memory",
-          `projection-hash-${row.id}`,
-          JSON.stringify({ truthValue: row.metadata.truthValue }),
-          row.title,
-          row.updatedAt,
-          JSON.stringify({
-            attachments:
-              row.id === "claim-old"
-                ? [{ path: missingAttachment }]
-                : [{ path: existingAttachment }],
-          }),
-        );
-      }
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "page-claim-opposite",
+          pageId: "claim-opposite",
+          source: "test",
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "claim-opposite",
+            title: "Gateway needs a warm restart",
+            slug: "claim-opposite",
+            aliases: ["claim-opposite"],
+            tags: ["claim"],
+            createdAtMs: nowMs,
+            updatedAtMs: nowMs,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "projection-claim-opposite",
+          pageId: "claim-opposite",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "claim-opposite",
+            kind: "legacy-markdown:memory/claim-opposite.md",
+            markdownBody: `![ok](../attachments/ok.png)\nGateway restart is not required.\n`,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "claim-claim-opposite",
+          pageId: "claim-opposite",
+          source: "test",
+          type: "CLAIM_UPSERTED",
+          payload: {
+            claimId: "claim-opposite",
+            subject: "gateway",
+            predicate: "requires_restart",
+            object: "not enabled",
+            confidence: 0.88,
+            status: "active",
+            updatedAtMs: nowMs,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "page-claim-low-confidence",
+          pageId: "claim-low-confidence",
+          source: "test",
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "claim-low-confidence",
+            title: "Matrix bridge flaps overnight",
+            slug: "claim-low-confidence",
+            aliases: ["claim-low-confidence"],
+            tags: ["claim"],
+            createdAtMs: nowMs,
+            updatedAtMs: nowMs,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "projection-claim-low-confidence",
+          pageId: "claim-low-confidence",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "claim-low-confidence",
+            kind: "legacy-markdown:memory/claim-low-confidence.md",
+            markdownBody: "Bridge flap observed once.\n",
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "claim-claim-low-confidence",
+          pageId: "claim-low-confidence",
+          source: "test",
+          type: "CLAIM_UPSERTED",
+          payload: {
+            claimId: "claim-low-confidence",
+            subject: "matrix",
+            predicate: "overnight_flaps",
+            object: "possible",
+            confidence: 0.2,
+            status: "active",
+            updatedAtMs: nowMs,
+          },
+        },
+      ]);
 
       db.prepare(
-        `INSERT INTO projections (
-           projection_id, profile_id, workspace_scope, entity_id, projection_kind, relative_path, absolute_path, editable,
-           source_kind, content_hash, frontmatter_json, markdown_body, updated_at, metadata
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        "orphan-projection",
-        "local-main",
-        "ws-1",
-        "missing-entity",
-        "markdown",
-        "memory/orphan.md",
-        path.join(workspaceDir, "memory", "orphan.md"),
-        1,
-        "workspace-memory",
-        "projection-hash-orphan",
-        "{}",
-        "orphan content",
-        nowMs,
-        "{}",
-      );
+        `INSERT INTO projections (page_id, kind, markdown_body, updated_at_ms)
+         VALUES (?, ?, ?, ?)`,
+      ).run("missing-page", "legacy-markdown:memory/orphan.md", "orphan content", nowMs);
 
       const scheduler = createMemorySleepScheduler({
         dbPath,
@@ -117,10 +175,19 @@ describe("memory health dashboards", () => {
       const result = scheduler.runOnce();
       expect(result.healthDashboard).toBeDefined();
       expect(result.healthDashboard?.staleClaims).toHaveLength(1);
-      expect(result.healthDashboard?.contradictions).toHaveLength(1);
+      expect(result.healthDashboard?.contradictions).toHaveLength(2);
       expect(result.healthDashboard?.orphanPages).toHaveLength(1);
       expect(result.healthDashboard?.brokenAttachments).toHaveLength(1);
       expect(result.healthDashboard?.lowConfidenceItems).toHaveLength(1);
+
+      const dashboards = db
+        .prepare(
+          `SELECT kind
+           FROM dashboards
+           ORDER BY kind ASC`,
+        )
+        .all() as Array<{ kind: string }>;
+      expect(dashboards).toEqual([{ kind: "health:ws-1" }]);
       scheduler.close();
     });
   });

@@ -1,87 +1,74 @@
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createMemorySleepScheduler } from "./scheduler.js";
 import { withMemoryJobDb } from "./test-utils.js";
 
 describe("memory sleep scheduler", () => {
   it("pauses and resumes deterministically without repeating promotions", async () => {
-    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs }) => {
-      db.prepare(
-        `INSERT INTO entities (
-           entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        "candidate-a",
-        "local-main",
-        "ws-1",
-        "candidate",
-        "candidate-a",
-        "Reset Discord token weekly",
-        "memory/candidate-a.md",
-        "workspace-memory",
-        "hash-a",
-        nowMs,
-        JSON.stringify({ confidence: 0.92, evidenceCount: 5, recurrenceCount: 3 }),
-      );
-      db.prepare(
-        `INSERT INTO entities (
-           entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        "candidate-b",
-        "local-main",
-        "ws-1",
-        "candidate",
-        "candidate-b",
-        "Gateway cache cleanup",
-        "memory/candidate-b.md",
-        "workspace-memory",
-        "hash-b",
-        nowMs,
-        JSON.stringify({ confidence: 0.85, evidenceCount: 4 }),
-      );
-      db.prepare(
-        `INSERT INTO projections (
-           projection_id, profile_id, workspace_scope, entity_id, projection_kind, relative_path, absolute_path, editable,
-           source_kind, content_hash, frontmatter_json, markdown_body, updated_at, metadata
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        "projection-a",
-        "local-main",
-        "ws-1",
-        "candidate-a",
-        "markdown",
-        "memory/candidate-a.md",
-        path.join(workspaceDir, "memory", "candidate-a.md"),
-        1,
-        "workspace-memory",
-        "projection-hash-a",
-        "{}",
-        "1. Open Discord\n2. Rotate token\n3. Restart agent\n",
-        nowMs,
-        "{}",
-      );
-      db.prepare(
-        `INSERT INTO projections (
-           projection_id, profile_id, workspace_scope, entity_id, projection_kind, relative_path, absolute_path, editable,
-           source_kind, content_hash, frontmatter_json, markdown_body, updated_at, metadata
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(
-        "projection-b",
-        "local-main",
-        "ws-1",
-        "candidate-b",
-        "markdown",
-        "memory/candidate-b.md",
-        path.join(workspaceDir, "memory", "candidate-b.md"),
-        1,
-        "workspace-memory",
-        "projection-hash-b",
-        "{}",
-        "Run cleanup after large sync imports.",
-        nowMs,
-        "{}",
-      );
+    await withMemoryJobDb(async ({ db, dbPath, workspaceDir, nowMs, gaia }) => {
+      gaia.writeEvents([
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "page-candidate-a",
+          pageId: "candidate-a",
+          source: "test",
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "candidate-a",
+            title: "Reset Discord token weekly",
+            slug: "candidate-a",
+            aliases: ["candidate-a"],
+            tags: ["candidate"],
+            createdAtMs: nowMs,
+            updatedAtMs: nowMs,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "projection-candidate-a",
+          pageId: "candidate-a",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "candidate-a",
+            kind: "legacy-markdown:memory/candidate-a.md",
+            markdownBody:
+              "confidence: 0.92\nevidence: 5\nrecurrence: 3\n\n1. Open Discord\n2. Rotate token\n3. Restart agent\n",
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "page-candidate-b",
+          pageId: "candidate-b",
+          source: "test",
+          type: "PAGE_CREATED",
+          payload: {
+            pageId: "candidate-b",
+            title: "Gateway cache cleanup",
+            slug: "candidate-b",
+            aliases: ["candidate-b"],
+            tags: ["candidate"],
+            createdAtMs: nowMs,
+            updatedAtMs: nowMs,
+          },
+        },
+        {
+          actorId: "test",
+          createdAtMs: nowMs,
+          eventId: "projection-candidate-b",
+          pageId: "candidate-b",
+          source: "test",
+          type: "PROJECTION_SET",
+          payload: {
+            pageId: "candidate-b",
+            kind: "legacy-markdown:memory/candidate-b.md",
+            markdownBody:
+              "confidence: 0.85\nevidence: 4\n\nRun cleanup after large sync imports.\n",
+          },
+        },
+      ]);
 
       let active = false;
       let calls = 0;
@@ -115,13 +102,26 @@ describe("memory sleep scheduler", () => {
       const secondRun = scheduler.runOnce();
       expect(["completed", "budget-exhausted"]).toContain(secondRun.status);
 
-      const promotionRows = db
-        .prepare(`SELECT entity_id, kind FROM entities ORDER BY entity_id ASC`)
-        .all() as Array<{ entity_id: string; kind: string }>;
-      expect(promotionRows).toEqual([
-        { entity_id: "candidate-a", kind: "procedure" },
-        { entity_id: "candidate-b", kind: "claim" },
+      const pageTags = db
+        .prepare(
+          `SELECT page_id, tag
+           FROM page_tags
+           ORDER BY page_id ASC, tag ASC`,
+        )
+        .all() as Array<{ page_id: string; tag: string }>;
+      expect(pageTags).toEqual([
+        { page_id: "candidate-a", tag: "procedure" },
+        { page_id: "candidate-b", tag: "claim" },
       ]);
+
+      const claims = db
+        .prepare(
+          `SELECT claim_id, status
+           FROM claims
+           ORDER BY claim_id ASC`,
+        )
+        .all() as Array<{ claim_id: string; status: string }>;
+      expect(claims).toEqual([{ claim_id: "candidate-b", status: "active" }]);
 
       const promotionEvents = scheduler.store
         .listAuditEvents({ profileId: "local-main", kind: "consolidate" })

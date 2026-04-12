@@ -1,19 +1,24 @@
+import type { MemoryStateEventDraft } from "../../../memory-state/src/index.js";
 import type { CancellationToken } from "../cancellation.js";
 import {
   attachmentExists,
   extractAttachmentPaths,
   isLowConfidence,
-  listEntitiesAfter,
+  listClaimsAfter,
+  listPagesAfter,
   listProjectionsAfter,
   readContradictingClaims,
+  readPage,
   readPrimaryProjection,
   resolveClaimPolarity,
 } from "../canonical.js";
+import type { GaiaSleepWriteFacade } from "../gaia.js";
 import type { SqliteMemoryJobStore } from "../store.js";
 import type { HealthCursor, MemorySleepJobResult } from "../types.js";
 import { createEventId } from "../utils.js";
 
-const ENTITY_BATCH_LIMIT = 16;
+const CLAIM_BATCH_LIMIT = 16;
+const PAGE_BATCH_LIMIT = 16;
 const PROJECTION_BATCH_LIMIT = 16;
 const STALE_CLAIM_MS = 30 * 24 * 60 * 60_000;
 const LOW_CONFIDENCE_THRESHOLD = 0.55;
@@ -82,12 +87,71 @@ function appendFinding<T extends HealthDashboardCategory>(
   notePayload(cursor, JSON.stringify(finding).length, true);
 }
 
+function persistCheckpoint(params: {
+  gaia: GaiaSleepWriteFacade;
+  cursor: HealthCursor;
+  jobId: string;
+  profileId: string;
+  reason: "threshold" | "preempted" | "cycle-complete";
+  requestCheckpoint?: boolean;
+}): void {
+  params.gaia.recordJobCheckpoint({
+    jobId: params.jobId,
+    profileId: params.profileId,
+    kind: "health",
+    reason: params.reason,
+    cursor: params.cursor,
+    pendingEventCount: params.cursor.checkpoint.pendingEventCount,
+    pendingPayloadBytes: params.cursor.checkpoint.pendingPayloadBytes,
+    requestCheckpoint: params.requestCheckpoint,
+  });
+  resetCheckpoint(params.cursor);
+}
+
+function maybeCheckpoint(params: {
+  gaia: GaiaSleepWriteFacade;
+  cursor: HealthCursor;
+  jobId: string;
+  profileId: string;
+}): void {
+  if (!shouldCheckpoint(params.cursor)) {
+    return;
+  }
+  persistCheckpoint({
+    gaia: params.gaia,
+    cursor: params.cursor,
+    jobId: params.jobId,
+    profileId: params.profileId,
+    reason: "threshold",
+    requestCheckpoint: true,
+  });
+}
+
+function buildDashboardDraft(
+  jobId: string,
+  dashboard: HealthCursor["dashboard"],
+): MemoryStateEventDraft {
+  return {
+    actorId: "gaia-sleep",
+    eventId: createEventId("sleep-health-dashboard", `${jobId}:${dashboard.generatedAtMs}`),
+    source: "sleep/health",
+    batchId: jobId,
+    type: "DASHBOARD_SET",
+    payload: {
+      kind: jobId,
+      json: dashboard as unknown as Record<string, unknown>,
+      updatedAtMs: dashboard.generatedAtMs,
+    },
+  };
+}
+
 export function buildHealthJobId(workspaceScope: string): string {
   return `health:${workspaceScope}`;
 }
 
 export function runHealthSlice(params: {
   store: SqliteMemoryJobStore;
+  gaia: GaiaSleepWriteFacade;
   profileId: string;
   workspaceScope: string;
   workspaceDir: string;
@@ -114,6 +178,15 @@ export function runHealthSlice(params: {
 
   const preempt = () => {
     params.token.cancel("active-session");
+    persistCheckpoint({
+      gaia: params.gaia,
+      cursor,
+      jobId,
+      profileId: params.profileId,
+      reason: "preempted",
+      requestCheckpoint:
+        cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0,
+    });
     params.store.transaction(() => {
       params.store.appendAuditEvent({
         jobId,
@@ -125,7 +198,6 @@ export function runHealthSlice(params: {
           cursor,
         },
       });
-      resetCheckpoint(cursor);
       params.store.saveJobRecord({
         jobId,
         profileId: params.profileId,
@@ -148,15 +220,13 @@ export function runHealthSlice(params: {
     }
     params.token.throwIfCancelled();
     if (cursor.phase === "staleClaims") {
-      const entities = listEntitiesAfter({
+      const claims = listClaimsAfter({
         db: params.store.db,
-        profileId: params.profileId,
-        workspaceScope: params.workspaceScope,
-        afterEntityId: cursor.lastItemId,
-        limit: ENTITY_BATCH_LIMIT,
-        kinds: ["claim"],
+        afterClaimId: cursor.lastItemId,
+        limit: CLAIM_BATCH_LIMIT,
+        statuses: ["active"],
       });
-      if (entities.length === 0) {
+      if (claims.length === 0) {
         cursor.phase = "contradictions";
         cursor.lastItemId = undefined;
         params.store.saveJobRecord({
@@ -168,19 +238,20 @@ export function runHealthSlice(params: {
         });
         continue;
       }
-      for (const entity of entities) {
+      for (const claim of claims) {
         if (params.shouldPreempt?.()) {
           return preempt();
         }
         params.token.throwIfCancelled();
-        cursor.lastItemId = entity.entityId;
-        if (Date.now() - entity.updatedAtMs >= STALE_CLAIM_MS) {
+        cursor.lastItemId = claim.claimId;
+        const page = readPage(params.store.db, claim.claimId);
+        if (Date.now() - claim.updatedAtMs >= STALE_CLAIM_MS) {
           appendFinding(cursor, "staleClaims", {
-            id: createEventId("health-stale", entity.entityId),
+            id: createEventId("health-stale", claim.claimId),
             severity: "warn",
             itemType: "entity",
-            itemId: entity.entityId,
-            title: entity.title,
+            itemId: claim.claimId,
+            title: page?.title ?? claim.object,
             detail: "claim has not been refreshed recently",
           });
           params.store.incrementTelemetry(params.profileId, "health_findings_counts.staleClaims");
@@ -188,8 +259,14 @@ export function runHealthSlice(params: {
             "health_findings_counts.staleClaims": 1,
           });
         } else {
-          notePayload(cursor, entity.entityId.length, false);
+          notePayload(cursor, claim.claimId.length, false);
         }
+        maybeCheckpoint({
+          gaia: params.gaia,
+          cursor,
+          jobId,
+          profileId: params.profileId,
+        });
         params.store.saveJobRecord({
           jobId,
           profileId: params.profileId,
@@ -202,15 +279,13 @@ export function runHealthSlice(params: {
     }
 
     if (cursor.phase === "contradictions") {
-      const entities = listEntitiesAfter({
+      const claims = listClaimsAfter({
         db: params.store.db,
-        profileId: params.profileId,
-        workspaceScope: params.workspaceScope,
-        afterEntityId: cursor.lastItemId,
-        limit: ENTITY_BATCH_LIMIT,
-        kinds: ["claim"],
+        afterClaimId: cursor.lastItemId,
+        limit: CLAIM_BATCH_LIMIT,
+        statuses: ["active"],
       });
-      if (entities.length === 0) {
+      if (claims.length === 0) {
         cursor.phase = "orphanPages";
         cursor.lastItemId = undefined;
         params.store.saveJobRecord({
@@ -222,36 +297,37 @@ export function runHealthSlice(params: {
         });
         continue;
       }
-      for (const entity of entities) {
+      for (const claim of claims) {
         if (params.shouldPreempt?.()) {
           return preempt();
         }
         params.token.throwIfCancelled();
-        cursor.lastItemId = entity.entityId;
+        cursor.lastItemId = claim.claimId;
         const projection = readPrimaryProjection(
           params.store.db,
-          params.profileId,
-          params.workspaceScope,
-          entity.entityId,
+          claim.claimId,
+          params.workspaceDir,
         );
-        const polarity = resolveClaimPolarity(entity, projection);
-        if (polarity) {
+        const polarity = resolveClaimPolarity(claim, projection);
+        if (polarity != null) {
           const contradictions = readContradictingClaims({
             db: params.store.db,
-            entity,
+            claim,
             polarity,
+            workspaceDir: params.workspaceDir,
           });
           for (const contradiction of contradictions) {
+            const page = readPage(params.store.db, claim.claimId);
             appendFinding(cursor, "contradictions", {
               id: createEventId(
                 "health-contradiction",
-                `${entity.entityId}:${contradiction.entityId}`,
+                `${claim.claimId}:${contradiction.claimId}`,
               ),
               severity: "error",
               itemType: "entity",
-              itemId: entity.entityId,
-              title: entity.title,
-              detail: `contradicting claim also exists (${contradiction.entityId})`,
+              itemId: claim.claimId,
+              title: page?.title ?? claim.object,
+              detail: `contradicting claim also exists (${contradiction.claimId})`,
             });
             params.store.incrementTelemetry(
               params.profileId,
@@ -262,8 +338,14 @@ export function runHealthSlice(params: {
             });
           }
         } else {
-          notePayload(cursor, entity.entityId.length, false);
+          notePayload(cursor, claim.claimId.length, false);
         }
+        maybeCheckpoint({
+          gaia: params.gaia,
+          cursor,
+          jobId,
+          profileId: params.profileId,
+        });
         params.store.saveJobRecord({
           jobId,
           profileId: params.profileId,
@@ -278,10 +360,9 @@ export function runHealthSlice(params: {
     if (cursor.phase === "orphanPages") {
       const projections = listProjectionsAfter({
         db: params.store.db,
-        profileId: params.profileId,
-        workspaceScope: params.workspaceScope,
-        afterProjectionId: cursor.lastItemId,
+        afterProjectionKey: cursor.lastItemId,
         limit: PROJECTION_BATCH_LIMIT,
+        workspaceDir: params.workspaceDir,
       });
       if (projections.length === 0) {
         cursor.phase = "brokenAttachments";
@@ -300,25 +381,16 @@ export function runHealthSlice(params: {
           return preempt();
         }
         params.token.throwIfCancelled();
-        cursor.lastItemId = projection.projectionId;
-        const entity = params.store.db
-          .prepare(
-            `SELECT 1 AS ok
-             FROM entities
-             WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?
-             LIMIT 1`,
-          )
-          .get(params.profileId, params.workspaceScope, projection.entityId) as
-          | { ok: number }
-          | undefined;
-        if (!entity) {
+        cursor.lastItemId = `${projection.pageId}:${projection.kind}`;
+        const page = readPage(params.store.db, projection.pageId);
+        if (!page) {
           appendFinding(cursor, "orphanPages", {
-            id: createEventId("health-orphan", projection.projectionId),
+            id: createEventId("health-orphan", `${projection.pageId}:${projection.kind}`),
             severity: "error",
             itemType: "projection",
-            itemId: projection.projectionId,
+            itemId: projection.pageId,
             title: projection.relativePath,
-            detail: "projection points to a missing entity",
+            detail: "projection points to a missing page",
             path: projection.relativePath,
           });
           params.store.incrementTelemetry(params.profileId, "health_findings_counts.orphanPages");
@@ -326,8 +398,14 @@ export function runHealthSlice(params: {
             "health_findings_counts.orphanPages": 1,
           });
         } else {
-          notePayload(cursor, projection.projectionId.length, false);
+          notePayload(cursor, projection.pageId.length, false);
         }
+        maybeCheckpoint({
+          gaia: params.gaia,
+          cursor,
+          jobId,
+          profileId: params.profileId,
+        });
         params.store.saveJobRecord({
           jobId,
           profileId: params.profileId,
@@ -342,10 +420,9 @@ export function runHealthSlice(params: {
     if (cursor.phase === "brokenAttachments") {
       const projections = listProjectionsAfter({
         db: params.store.db,
-        profileId: params.profileId,
-        workspaceScope: params.workspaceScope,
-        afterProjectionId: cursor.lastItemId,
+        afterProjectionKey: cursor.lastItemId,
         limit: PROJECTION_BATCH_LIMIT,
+        workspaceDir: params.workspaceDir,
       });
       if (projections.length === 0) {
         cursor.phase = "lowConfidenceItems";
@@ -364,7 +441,7 @@ export function runHealthSlice(params: {
           return preempt();
         }
         params.token.throwIfCancelled();
-        cursor.lastItemId = projection.projectionId;
+        cursor.lastItemId = `${projection.pageId}:${projection.kind}`;
         const paths = extractAttachmentPaths({
           projection,
           workspaceDir: params.workspaceDir,
@@ -374,11 +451,11 @@ export function runHealthSlice(params: {
             appendFinding(cursor, "brokenAttachments", {
               id: createEventId(
                 "health-attachment",
-                `${projection.projectionId}:${attachmentPath}`,
+                `${projection.pageId}:${projection.kind}:${attachmentPath}`,
               ),
               severity: "warn",
               itemType: "attachment",
-              itemId: projection.projectionId,
+              itemId: projection.pageId,
               title: projection.relativePath,
               detail: "attachment path does not exist on disk",
               path: attachmentPath,
@@ -393,8 +470,14 @@ export function runHealthSlice(params: {
           }
         }
         if (paths.length === 0) {
-          notePayload(cursor, projection.projectionId.length, false);
+          notePayload(cursor, projection.pageId.length, false);
         }
+        maybeCheckpoint({
+          gaia: params.gaia,
+          cursor,
+          jobId,
+          profileId: params.profileId,
+        });
         params.store.saveJobRecord({
           jobId,
           profileId: params.profileId,
@@ -406,15 +489,25 @@ export function runHealthSlice(params: {
       continue;
     }
 
-    const entities = listEntitiesAfter({
+    const pages = listPagesAfter({
       db: params.store.db,
-      profileId: params.profileId,
-      workspaceScope: params.workspaceScope,
-      afterEntityId: cursor.lastItemId,
-      limit: ENTITY_BATCH_LIMIT,
+      afterPageId: cursor.lastItemId,
+      limit: PAGE_BATCH_LIMIT,
+      includeTombstoned: false,
     });
-    if (entities.length === 0) {
+    if (pages.length === 0) {
       cursor.dashboard.generatedAtMs = Date.now();
+      const writeResult = params.gaia.writeEvents([buildDashboardDraft(jobId, cursor.dashboard)]);
+      if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
+        persistCheckpoint({
+          gaia: params.gaia,
+          cursor,
+          jobId,
+          profileId: params.profileId,
+          reason: "cycle-complete",
+          requestCheckpoint: true,
+        });
+      }
       params.store.transaction(() => {
         params.store.writeReport({
           jobId,
@@ -435,16 +528,7 @@ export function runHealthSlice(params: {
               brokenAttachments: cursor.dashboard.brokenAttachments.length,
               lowConfidenceItems: cursor.dashboard.lowConfidenceItems.length,
             },
-          },
-        });
-        params.store.appendAuditEvent({
-          jobId,
-          profileId: params.profileId,
-          kind: "health",
-          eventType: "CHECKPOINT_CREATED",
-          payload: {
-            reason: "cycle-complete",
-            cursor,
+            ledgerEventIds: writeResult.events.map((event) => event.eventId),
           },
         });
         params.store.saveJobRecord({
@@ -463,20 +547,20 @@ export function runHealthSlice(params: {
       };
     }
 
-    for (const entity of entities) {
+    for (const page of pages) {
       if (params.shouldPreempt?.()) {
         return preempt();
       }
       params.token.throwIfCancelled();
-      cursor.lastItemId = entity.entityId;
-      const confidence = isLowConfidence(entity);
+      cursor.lastItemId = page.pageId;
+      const confidence = isLowConfidence(page);
       if (confidence != null && confidence < LOW_CONFIDENCE_THRESHOLD) {
         appendFinding(cursor, "lowConfidenceItems", {
-          id: createEventId("health-confidence", entity.entityId),
+          id: createEventId("health-confidence", page.pageId),
           severity: "warn",
           itemType: "entity",
-          itemId: entity.entityId,
-          title: entity.title,
+          itemId: page.pageId,
+          title: page.title,
           detail: "item confidence is below the default threshold",
           score: confidence,
         });
@@ -488,23 +572,14 @@ export function runHealthSlice(params: {
           "health_findings_counts.lowConfidenceItems": 1,
         });
       } else {
-        notePayload(cursor, entity.entityId.length, false);
+        notePayload(cursor, page.pageId.length, false);
       }
-
-      if (shouldCheckpoint(cursor)) {
-        params.store.appendAuditEvent({
-          jobId,
-          profileId: params.profileId,
-          kind: "health",
-          eventType: "CHECKPOINT_CREATED",
-          payload: {
-            reason: "threshold",
-            cursor,
-          },
-        });
-        resetCheckpoint(cursor);
-      }
-
+      maybeCheckpoint({
+        gaia: params.gaia,
+        cursor,
+        jobId,
+        profileId: params.profileId,
+      });
       params.store.saveJobRecord({
         jobId,
         profileId: params.profileId,

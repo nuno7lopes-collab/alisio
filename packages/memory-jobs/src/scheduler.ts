@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CancellationToken } from "./cancellation.js";
+import { createGaiaSleepWriteFacade, type GaiaSleepWriteFacade } from "./gaia.js";
 import { runConsolidateSlice } from "./jobs/consolidate.js";
 import { runDedupSlice } from "./jobs/dedup.js";
 import { runHealthSlice, buildHealthJobId } from "./jobs/health.js";
@@ -30,6 +31,7 @@ function mergeCounts(target: Record<string, number>, next: Record<string, number
 export class MemorySleepScheduler {
   readonly db: DatabaseSync;
   readonly store: SqliteMemoryJobStore;
+  readonly gaia: GaiaSleepWriteFacade;
   readonly options: Required<
     Pick<
       SleepSchedulerOptions,
@@ -42,6 +44,11 @@ export class MemorySleepScheduler {
     const clock = options.clock ?? createClock();
     this.db = openSqliteDatabase(options.dbPath);
     this.store = new SqliteMemoryJobStore(this.db, clock);
+    this.gaia = createGaiaSleepWriteFacade({
+      db: this.db,
+      actorId: options.gaiaActorId,
+    });
+    this.gaia.ensureReady();
     this.options = {
       ...options,
       profileId: options.profileId,
@@ -109,8 +116,10 @@ export class MemorySleepScheduler {
           kind === "consolidate"
             ? runConsolidateSlice({
                 store: this.store,
+                gaia: this.gaia,
                 profileId: this.options.profileId,
                 workspaceScope: this.options.workspaceScope,
+                workspaceDir: this.options.workspaceDir,
                 sliceDeadlineMs,
                 token,
                 shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
@@ -118,8 +127,10 @@ export class MemorySleepScheduler {
             : kind === "dedup"
               ? runDedupSlice({
                   store: this.store,
+                  gaia: this.gaia,
                   profileId: this.options.profileId,
                   workspaceScope: this.options.workspaceScope,
+                  workspaceDir: this.options.workspaceDir,
                   sliceDeadlineMs,
                   token,
                   autoMergeConfirmed: this.options.autoMergeConfirmed,
@@ -127,6 +138,7 @@ export class MemorySleepScheduler {
                 })
               : runHealthSlice({
                   store: this.store,
+                  gaia: this.gaia,
                   profileId: this.options.profileId,
                   workspaceScope: this.options.workspaceScope,
                   workspaceDir: this.options.workspaceDir,
@@ -162,9 +174,9 @@ export class MemorySleepScheduler {
     }
 
     if (!healthDashboard) {
-      healthDashboard = this.store.readReport<HealthDashboard>(
-        buildHealthJobId(this.options.workspaceScope),
-      );
+      healthDashboard =
+        this.gaia.readDashboard<HealthDashboard>(buildHealthJobId(this.options.workspaceScope)) ??
+        this.store.readReport<HealthDashboard>(buildHealthJobId(this.options.workspaceScope));
     }
 
     return {

@@ -1,722 +1,479 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { createGaiaSleepWriteFacade } from "./gaia.js";
 import { normalizeTextKey, textSimilarity } from "./text.js";
-import {
-  normalizeBoolean,
-  normalizeNumber,
-  parseJsonRecord,
-  stableStringify,
-  uniqueStrings,
-} from "./utils.js";
+import { normalizeNumber, uniqueStrings } from "./utils.js";
 
-export type CanonicalEntitySnapshot = {
-  entityId: string;
-  profileId: string;
-  workspaceScope: string;
-  kind: string;
-  slug: string;
-  title: string;
-  sourcePath: string;
-  sourceKind: string;
-  contentHash: string;
+const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+
+export type SleepClaimSnapshot = {
+  claimId: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  confidence: number;
+  status: string;
   updatedAtMs: number;
-  metadata: Record<string, unknown>;
 };
 
-export type CanonicalProjectionSnapshot = {
-  projectionId: string;
-  profileId: string;
-  workspaceScope: string;
-  entityId: string;
-  projectionKind: string;
-  relativePath: string;
-  absolutePath: string;
-  editable: boolean;
-  sourceKind: string;
-  contentHash: string;
-  frontmatter: Record<string, unknown>;
+export type SleepPageSnapshot = {
+  pageId: string;
+  title: string;
+  slug: string;
+  aliases: string[];
+  tags: string[];
+  createdAtMs: number;
+  updatedAtMs: number;
+  tombstoned: boolean;
+  claim?: SleepClaimSnapshot;
+};
+
+export type SleepProjectionSnapshot = {
+  pageId: string;
+  kind: string;
   markdownBody: string;
   updatedAtMs: number;
-  metadata: Record<string, unknown>;
+  relativePath: string;
+  absolutePath: string;
 };
 
-type EntityRow = {
-  entity_id: string;
-  profile_id: string;
-  workspace_scope: string;
-  kind: string;
-  slug: string;
+type PageRow = {
+  page_id: string;
   title: string;
-  source_path: string;
-  source_kind: string;
-  content_hash: string;
-  updated_at: number;
-  metadata: string;
+  slug: string;
+  created_at_ms: number | bigint;
+  updated_at_ms: number | bigint;
+  tombstoned: number | bigint;
+};
+
+type ClaimRow = {
+  claim_id: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  confidence: number;
+  status: string;
+  updated_at_ms: number | bigint;
 };
 
 type ProjectionRow = {
-  projection_id: string;
-  profile_id: string;
-  workspace_scope: string;
-  entity_id: string;
-  projection_kind: string;
-  relative_path: string;
-  absolute_path: string;
-  editable: number;
-  source_kind: string;
-  content_hash: string;
-  frontmatter_json: string;
+  page_id: string;
+  kind: string;
   markdown_body: string;
-  updated_at: number;
-  metadata: string;
+  updated_at_ms: number | bigint;
 };
 
-export function ensureCanonicalMemorySchemaForTests(db: DatabaseSync): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS entities (
-      entity_id TEXT PRIMARY KEY,
-      profile_id TEXT NOT NULL,
-      workspace_scope TEXT NOT NULL,
-      kind TEXT NOT NULL,
-      slug TEXT NOT NULL,
-      title TEXT NOT NULL,
-      source_path TEXT NOT NULL,
-      source_kind TEXT NOT NULL,
-      content_hash TEXT NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT NOT NULL,
-      origin TEXT NOT NULL DEFAULT 'markdown-import'
-    );
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS entity_aliases (
-      profile_id TEXT NOT NULL,
-      workspace_scope TEXT NOT NULL,
-      alias_key TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      updated_at INTEGER NOT NULL,
-      origin TEXT NOT NULL DEFAULT 'markdown-import',
-      PRIMARY KEY(profile_id, workspace_scope, alias_key, entity_id)
-    );
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS relations (
-      relation_id TEXT PRIMARY KEY,
-      profile_id TEXT NOT NULL,
-      workspace_scope TEXT NOT NULL,
-      from_entity_id TEXT NOT NULL,
-      relation_type TEXT NOT NULL,
-      to_entity_id TEXT,
-      target_locator TEXT,
-      ordinal INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT NOT NULL,
-      origin TEXT NOT NULL DEFAULT 'markdown-import'
-    );
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS projections (
-      projection_id TEXT PRIMARY KEY,
-      profile_id TEXT NOT NULL,
-      workspace_scope TEXT NOT NULL,
-      entity_id TEXT NOT NULL,
-      projection_kind TEXT NOT NULL,
-      relative_path TEXT NOT NULL,
-      absolute_path TEXT NOT NULL,
-      editable INTEGER NOT NULL,
-      source_kind TEXT NOT NULL,
-      content_hash TEXT NOT NULL,
-      frontmatter_json TEXT NOT NULL,
-      markdown_body TEXT NOT NULL,
-      updated_at INTEGER NOT NULL,
-      metadata TEXT NOT NULL,
-      origin TEXT NOT NULL DEFAULT 'markdown-import'
-    );
-  `);
+function toNumber(value: number | bigint): number {
+  return typeof value === "bigint" ? Number(value) : value;
 }
 
-function toEntitySnapshot(row: EntityRow): CanonicalEntitySnapshot {
-  return {
-    entityId: row.entity_id,
-    profileId: row.profile_id,
-    workspaceScope: row.workspace_scope,
-    kind: row.kind,
-    slug: row.slug,
-    title: row.title,
-    sourcePath: row.source_path,
-    sourceKind: row.source_kind,
-    contentHash: row.content_hash,
-    updatedAtMs: row.updated_at,
-    metadata: parseJsonRecord(row.metadata),
-  };
+function listPageAliases(db: DatabaseSync, pageId: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT alias_key
+       FROM page_aliases
+       WHERE page_id = ?
+       ORDER BY ordinal ASC, alias_key ASC`,
+    )
+    .all(pageId) as Array<{
+    alias_key: string;
+  }>;
+  return rows.map((row) => row.alias_key);
 }
 
-function toProjectionSnapshot(row: ProjectionRow): CanonicalProjectionSnapshot {
-  return {
-    projectionId: row.projection_id,
-    profileId: row.profile_id,
-    workspaceScope: row.workspace_scope,
-    entityId: row.entity_id,
-    projectionKind: row.projection_kind,
-    relativePath: row.relative_path,
-    absolutePath: row.absolute_path,
-    editable: row.editable === 1,
-    sourceKind: row.source_kind,
-    contentHash: row.content_hash,
-    frontmatter: parseJsonRecord(row.frontmatter_json),
-    markdownBody: row.markdown_body,
-    updatedAtMs: row.updated_at,
-    metadata: parseJsonRecord(row.metadata),
-  };
+function listPageTags(db: DatabaseSync, pageId: string): string[] {
+  const rows = db
+    .prepare(
+      `SELECT tag
+       FROM page_tags
+       WHERE page_id = ?
+       ORDER BY ordinal ASC, tag ASC`,
+    )
+    .all(pageId) as Array<{
+    tag: string;
+  }>;
+  return rows.map((row) => row.tag);
 }
 
-export function listEntitiesAfter(params: {
-  db: DatabaseSync;
-  profileId: string;
-  workspaceScope: string;
-  afterEntityId?: string;
-  limit: number;
-  kinds?: readonly string[];
-}): CanonicalEntitySnapshot[] {
-  const filters = [`profile_id = ?`, `workspace_scope = ?`];
-  const bindings: Array<string | number> = [params.profileId, params.workspaceScope];
-  if (params.afterEntityId) {
-    filters.push(`entity_id > ?`);
-    bindings.push(params.afterEntityId);
+function readClaim(db: DatabaseSync, pageId: string): SleepClaimSnapshot | undefined {
+  const row = db
+    .prepare(
+      `SELECT claim_id, subject, predicate, object, confidence, status, updated_at_ms
+       FROM claims
+       WHERE claim_id = ?
+       LIMIT 1`,
+    )
+    .get(pageId) as ClaimRow | undefined;
+  if (!row) {
+    return undefined;
   }
-  if (params.kinds?.length) {
-    filters.push(`kind IN (${params.kinds.map(() => "?").join(", ")})`);
-    bindings.push(...params.kinds);
+  return {
+    claimId: row.claim_id,
+    subject: row.subject,
+    predicate: row.predicate,
+    object: row.object,
+    confidence: row.confidence,
+    status: row.status,
+    updatedAtMs: toNumber(row.updated_at_ms),
+  };
+}
+
+function toPageSnapshot(db: DatabaseSync, row: PageRow): SleepPageSnapshot {
+  return {
+    pageId: row.page_id,
+    title: row.title,
+    slug: row.slug,
+    aliases: listPageAliases(db, row.page_id),
+    tags: listPageTags(db, row.page_id),
+    createdAtMs: toNumber(row.created_at_ms),
+    updatedAtMs: toNumber(row.updated_at_ms),
+    tombstoned: toNumber(row.tombstoned) === 1,
+    ...(readClaim(db, row.page_id) ? { claim: readClaim(db, row.page_id) } : {}),
+  };
+}
+
+function toProjectionSnapshot(params: {
+  row: ProjectionRow;
+  workspaceDir: string;
+}): SleepProjectionSnapshot {
+  const relativePath = parseProjectionPath(params.row.kind, params.row.page_id);
+  return {
+    pageId: params.row.page_id,
+    kind: params.row.kind,
+    markdownBody: params.row.markdown_body,
+    updatedAtMs: toNumber(params.row.updated_at_ms),
+    relativePath,
+    absolutePath: path.join(params.workspaceDir, relativePath),
+  };
+}
+
+export function ensureCanonicalMemorySchemaForTests(db: DatabaseSync): void {
+  createGaiaSleepWriteFacade({ db }).ensureReady();
+}
+
+export function listPagesAfter(params: {
+  db: DatabaseSync;
+  afterPageId?: string;
+  limit: number;
+  taggedAnyOf?: readonly string[];
+  excludeTaggedAnyOf?: readonly string[];
+  includeTombstoned?: boolean;
+}): SleepPageSnapshot[] {
+  const filters = [params.includeTombstoned ? "1 = 1" : "tombstoned = 0"];
+  const bindings: Array<string | number> = [];
+  if (params.afterPageId) {
+    filters.push(`page_id > ?`);
+    bindings.push(params.afterPageId);
   }
   bindings.push(params.limit);
   const rows = params.db
     .prepare(
-      `SELECT entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-       FROM entities
+      `SELECT page_id, title, slug, created_at_ms, updated_at_ms, tombstoned
+       FROM pages
        WHERE ${filters.join(" AND ")}
-       ORDER BY entity_id ASC
+       ORDER BY page_id ASC
        LIMIT ?`,
     )
-    .all(...bindings) as EntityRow[];
-  return rows.map(toEntitySnapshot);
+    .all(...bindings) as PageRow[];
+  return rows
+    .map((row) => toPageSnapshot(params.db, row))
+    .filter((page) => {
+      if (
+        params.taggedAnyOf?.length &&
+        !page.tags.some((tag) => params.taggedAnyOf!.includes(tag))
+      ) {
+        return false;
+      }
+      if (
+        params.excludeTaggedAnyOf?.length &&
+        page.tags.some((tag) => params.excludeTaggedAnyOf!.includes(tag))
+      ) {
+        return false;
+      }
+      return true;
+    });
+}
+
+export function listClaimsAfter(params: {
+  db: DatabaseSync;
+  afterClaimId?: string;
+  limit: number;
+  statuses?: readonly string[];
+}): SleepClaimSnapshot[] {
+  const filters: string[] = [];
+  const bindings: Array<string | number> = [];
+  if (params.afterClaimId) {
+    filters.push(`claim_id > ?`);
+    bindings.push(params.afterClaimId);
+  }
+  if (params.statuses?.length) {
+    filters.push(`status IN (${params.statuses.map(() => "?").join(", ")})`);
+    bindings.push(...params.statuses);
+  }
+  bindings.push(params.limit);
+  const where = filters.length > 0 ? `WHERE ${filters.join(" AND ")}` : "";
+  const rows = params.db
+    .prepare(
+      `SELECT claim_id, subject, predicate, object, confidence, status, updated_at_ms
+       FROM claims
+       ${where}
+       ORDER BY claim_id ASC
+       LIMIT ?`,
+    )
+    .all(...bindings) as ClaimRow[];
+  return rows.map((row) => ({
+    claimId: row.claim_id,
+    subject: row.subject,
+    predicate: row.predicate,
+    object: row.object,
+    confidence: row.confidence,
+    status: row.status,
+    updatedAtMs: toNumber(row.updated_at_ms),
+  }));
 }
 
 export function listProjectionsAfter(params: {
   db: DatabaseSync;
-  profileId: string;
-  workspaceScope: string;
-  afterProjectionId?: string;
+  afterProjectionKey?: string;
   limit: number;
-}): CanonicalProjectionSnapshot[] {
-  const filters = [`profile_id = ?`, `workspace_scope = ?`];
-  const bindings: Array<string | number> = [params.profileId, params.workspaceScope];
-  if (params.afterProjectionId) {
-    filters.push(`projection_id > ?`);
-    bindings.push(params.afterProjectionId);
-  }
-  bindings.push(params.limit);
+  workspaceDir: string;
+}): SleepProjectionSnapshot[] {
   const rows = params.db
     .prepare(
-      `SELECT
-         projection_id,
-         profile_id,
-         workspace_scope,
-         entity_id,
-         projection_kind,
-         relative_path,
-         absolute_path,
-         editable,
-         source_kind,
-         content_hash,
-         frontmatter_json,
-         markdown_body,
-         updated_at,
-         metadata
+      `SELECT page_id, kind, markdown_body, updated_at_ms
        FROM projections
-       WHERE ${filters.join(" AND ")}
-       ORDER BY projection_id ASC
-       LIMIT ?`,
+       ORDER BY page_id ASC, kind ASC`,
     )
-    .all(...bindings) as ProjectionRow[];
-  return rows.map(toProjectionSnapshot);
+    .all() as ProjectionRow[];
+  const projected = rows.map((row) =>
+    toProjectionSnapshot({
+      row,
+      workspaceDir: params.workspaceDir,
+    }),
+  );
+  const filtered = params.afterProjectionKey
+    ? projected.filter(
+        (projection) => `${projection.pageId}:${projection.kind}` > params.afterProjectionKey!,
+      )
+    : projected;
+  return filtered.slice(0, params.limit);
+}
+
+export function readPage(db: DatabaseSync, pageId: string): SleepPageSnapshot | undefined {
+  const row = db
+    .prepare(
+      `SELECT page_id, title, slug, created_at_ms, updated_at_ms, tombstoned
+       FROM pages
+       WHERE page_id = ?
+       LIMIT 1`,
+    )
+    .get(pageId) as PageRow | undefined;
+  return row ? toPageSnapshot(db, row) : undefined;
 }
 
 export function readPrimaryProjection(
   db: DatabaseSync,
-  profileId: string,
-  workspaceScope: string,
-  entityId: string,
-): CanonicalProjectionSnapshot | undefined {
+  pageId: string,
+  workspaceDir: string,
+): SleepProjectionSnapshot | undefined {
   const row = db
     .prepare(
-      `SELECT
-         projection_id,
-         profile_id,
-         workspace_scope,
-         entity_id,
-         projection_kind,
-         relative_path,
-         absolute_path,
-         editable,
-         source_kind,
-         content_hash,
-         frontmatter_json,
-         markdown_body,
-         updated_at,
-         metadata
+      `SELECT page_id, kind, markdown_body, updated_at_ms
        FROM projections
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?
-       ORDER BY relative_path ASC, projection_id ASC
+       WHERE page_id = ?
+       ORDER BY kind ASC
        LIMIT 1`,
     )
-    .get(profileId, workspaceScope, entityId) as ProjectionRow | undefined;
-  return row ? toProjectionSnapshot(row) : undefined;
+    .get(pageId) as ProjectionRow | undefined;
+  return row
+    ? toProjectionSnapshot({
+        row,
+        workspaceDir,
+      })
+    : undefined;
 }
 
-export function listEntityAliases(
-  db: DatabaseSync,
-  profileId: string,
-  workspaceScope: string,
-  entityId: string,
-): string[] {
-  const rows = db
-    .prepare(
-      `SELECT alias_key
-       FROM entity_aliases
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?
-       ORDER BY alias_key ASC`,
-    )
-    .all(profileId, workspaceScope, entityId) as Array<{ alias_key: string }>;
-  return rows.map((row) => row.alias_key);
-}
-
-export function countEntityProjections(
-  db: DatabaseSync,
-  profileId: string,
-  workspaceScope: string,
-  entityId: string,
-): number {
+export function countPageProjections(db: DatabaseSync, pageId: string): number {
   const row = db
     .prepare(
       `SELECT COUNT(*) AS count
        FROM projections
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?`,
+       WHERE page_id = ?`,
     )
-    .get(profileId, workspaceScope, entityId) as { count: number } | undefined;
+    .get(pageId) as
+    | {
+        count: number;
+      }
+    | undefined;
   return row?.count ?? 0;
 }
 
-export function countEntityAliases(
-  db: DatabaseSync,
-  profileId: string,
-  workspaceScope: string,
-  entityId: string,
-): number {
+export function countPageAliases(db: DatabaseSync, pageId: string): number {
   const row = db
     .prepare(
       `SELECT COUNT(*) AS count
-       FROM entity_aliases
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?`,
+       FROM page_aliases
+       WHERE page_id = ?`,
     )
-    .get(profileId, workspaceScope, entityId) as { count: number } | undefined;
+    .get(pageId) as
+    | {
+        count: number;
+      }
+    | undefined;
   return row?.count ?? 0;
 }
 
-export function updateEntityKind(params: {
+export function choosePageMergeWinner(params: {
   db: DatabaseSync;
-  entity: CanonicalEntitySnapshot;
-  nextKind: string;
-  score: number;
-  reason: string;
-  nowMs: number;
-}): void {
-  const metadata = {
-    ...params.entity.metadata,
-    sleepPromotionScore: params.score,
-    sleepPromotedAtMs: params.nowMs,
-    sleepPromotedFrom: params.entity.kind,
-    sleepPromotionReason: params.reason,
-  };
-  params.db
-    .prepare(`UPDATE entities SET kind = ?, updated_at = ?, metadata = ? WHERE entity_id = ?`)
-    .run(params.nextKind, params.nowMs, stableStringify(metadata), params.entity.entityId);
-}
-
-type MergePlan = {
-  winner: CanonicalEntitySnapshot;
-  loser: CanonicalEntitySnapshot;
-};
-
-export function chooseEntityMergeWinner(params: {
-  db: DatabaseSync;
-  left: CanonicalEntitySnapshot;
-  right: CanonicalEntitySnapshot;
-}): MergePlan {
-  const candidates = [params.left, params.right].map((entity) => ({
-    entity,
+  left: SleepPageSnapshot;
+  right: SleepPageSnapshot;
+}): {
+  winner: SleepPageSnapshot;
+  loser: SleepPageSnapshot;
+} {
+  const candidates = [params.left, params.right].map((page) => ({
+    page,
     score:
-      countEntityProjections(params.db, entity.profileId, entity.workspaceScope, entity.entityId) *
-        3 +
-      countEntityAliases(params.db, entity.profileId, entity.workspaceScope, entity.entityId) * 2 +
-      (normalizeNumber(entity.metadata.confidence) ?? 0) * 10 +
-      entity.title.length / 200,
+      countPageProjections(params.db, page.pageId) * 3 +
+      countPageAliases(params.db, page.pageId) * 2 +
+      (page.claim?.confidence ?? 0) * 10 +
+      page.title.length / 200 +
+      page.updatedAtMs / 1_000_000_000_000,
   }));
   candidates.sort((left, right) => {
     if (right.score !== left.score) {
       return right.score - left.score;
     }
-    return left.entity.entityId.localeCompare(right.entity.entityId);
+    return left.page.pageId.localeCompare(right.page.pageId);
   });
   return {
-    winner: candidates[0].entity,
-    loser: candidates[1].entity,
+    winner: candidates[0].page,
+    loser: candidates[1].page,
   };
 }
 
-export function mergeEntities(params: {
-  db: DatabaseSync;
-  winner: CanonicalEntitySnapshot;
-  loser: CanonicalEntitySnapshot;
-  nowMs: number;
+export function mergePageMetadata(params: {
+  winner: SleepPageSnapshot;
+  loser: SleepPageSnapshot;
 }): {
-  deletedProjectionIds: string[];
-  deletedRelationIds: string[];
+  aliases: string[];
+  tags: string[];
 } {
-  const winnerProjectionPaths = new Set(
-    params.db
-      .prepare(
-        `SELECT relative_path
-         FROM projections
-         WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?`,
-      )
-      .all(params.winner.profileId, params.winner.workspaceScope, params.winner.entityId)
-      .map((row) => (row as { relative_path: string }).relative_path),
-  );
-  const loserProjectionRows = params.db
-    .prepare(
-      `SELECT projection_id, relative_path
-       FROM projections
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?
-       ORDER BY relative_path ASC`,
-    )
-    .all(params.loser.profileId, params.loser.workspaceScope, params.loser.entityId) as Array<{
-    projection_id: string;
-    relative_path: string;
-  }>;
-
-  const deletedProjectionIds: string[] = [];
-  for (const projection of loserProjectionRows) {
-    if (winnerProjectionPaths.has(projection.relative_path)) {
-      params.db
-        .prepare(`DELETE FROM projections WHERE projection_id = ?`)
-        .run(projection.projection_id);
-      deletedProjectionIds.push(projection.projection_id);
-      continue;
-    }
-    params.db
-      .prepare(`UPDATE projections SET entity_id = ?, updated_at = ? WHERE projection_id = ?`)
-      .run(params.winner.entityId, params.nowMs, projection.projection_id);
-  }
-
-  params.db
-    .prepare(
-      `INSERT OR IGNORE INTO entity_aliases (
-         profile_id,
-         workspace_scope,
-         alias_key,
-         entity_id,
-         updated_at,
-         origin
-       )
-       SELECT profile_id, workspace_scope, alias_key, ?, ?, origin
-       FROM entity_aliases
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?`,
-    )
-    .run(
-      params.winner.entityId,
-      params.nowMs,
-      params.loser.profileId,
-      params.loser.workspaceScope,
-      params.loser.entityId,
-    );
-  params.db
-    .prepare(
-      `DELETE FROM entity_aliases
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id = ?`,
-    )
-    .run(params.loser.profileId, params.loser.workspaceScope, params.loser.entityId);
-
-  params.db
-    .prepare(
-      `UPDATE relations
-       SET from_entity_id = ?, updated_at = ?
-       WHERE profile_id = ? AND workspace_scope = ? AND from_entity_id = ?`,
-    )
-    .run(
-      params.winner.entityId,
-      params.nowMs,
-      params.loser.profileId,
-      params.loser.workspaceScope,
-      params.loser.entityId,
-    );
-  params.db
-    .prepare(
-      `UPDATE relations
-       SET to_entity_id = ?, updated_at = ?
-       WHERE profile_id = ? AND workspace_scope = ? AND to_entity_id = ?`,
-    )
-    .run(
-      params.winner.entityId,
-      params.nowMs,
-      params.loser.profileId,
-      params.loser.workspaceScope,
-      params.loser.entityId,
-    );
-
-  const relationRows = params.db
-    .prepare(
-      `SELECT relation_id, from_entity_id, relation_type, COALESCE(to_entity_id, '') AS to_entity_id,
-              COALESCE(target_locator, '') AS target_locator, ordinal, metadata
-       FROM relations
-       WHERE profile_id = ? AND workspace_scope = ?
-       ORDER BY updated_at DESC, relation_id ASC`,
-    )
-    .all(params.winner.profileId, params.winner.workspaceScope) as Array<{
-    relation_id: string;
-    from_entity_id: string;
-    relation_type: string;
-    to_entity_id: string;
-    target_locator: string;
-    ordinal: number;
-    metadata: string;
-  }>;
-  const deletedRelationIds: string[] = [];
-  const seenRelations = new Set<string>();
-  for (const relation of relationRows) {
-    const dedupeKey = [
-      relation.from_entity_id,
-      relation.relation_type,
-      relation.to_entity_id,
-      relation.target_locator,
-      relation.ordinal,
-      relation.metadata,
-    ].join("\u0000");
-    if (seenRelations.has(dedupeKey)) {
-      params.db.prepare(`DELETE FROM relations WHERE relation_id = ?`).run(relation.relation_id);
-      deletedRelationIds.push(relation.relation_id);
-      continue;
-    }
-    seenRelations.add(dedupeKey);
-  }
-
-  const winnerMetadata = {
-    ...params.loser.metadata,
-    ...params.winner.metadata,
-    sleepMergedAtMs: params.nowMs,
-    sleepMergedFromIds: uniqueStrings([
-      ...(Array.isArray(params.winner.metadata.sleepMergedFromIds)
-        ? params.winner.metadata.sleepMergedFromIds.map((value) =>
-            typeof value === "string" ? value : undefined,
-          )
-        : []),
-      params.loser.entityId,
-      ...(Array.isArray(params.loser.metadata.sleepMergedFromIds)
-        ? params.loser.metadata.sleepMergedFromIds.map((value) =>
-            typeof value === "string" ? value : undefined,
-          )
-        : []),
-    ]),
-  };
-  params.db
-    .prepare(`UPDATE entities SET updated_at = ?, metadata = ? WHERE entity_id = ?`)
-    .run(params.nowMs, stableStringify(winnerMetadata), params.winner.entityId);
-  params.db.prepare(`DELETE FROM entities WHERE entity_id = ?`).run(params.loser.entityId);
-
   return {
-    deletedProjectionIds,
-    deletedRelationIds,
+    aliases: uniqueStrings([
+      ...params.winner.aliases,
+      ...params.loser.aliases,
+      params.loser.slug,
+      params.loser.title,
+    ]),
+    tags: uniqueStrings([...params.winner.tags, ...params.loser.tags]),
   };
-}
-
-export function deleteProjection(db: DatabaseSync, projectionId: string): void {
-  db.prepare(`DELETE FROM projections WHERE projection_id = ?`).run(projectionId);
-}
-
-export function findPotentialEntityDuplicates(params: {
-  db: DatabaseSync;
-  entity: CanonicalEntitySnapshot;
-}): Array<{ candidate: CanonicalEntitySnapshot; similarity: number; reason: string }> {
-  const primaryProjection = readPrimaryProjection(
-    params.db,
-    params.entity.profileId,
-    params.entity.workspaceScope,
-    params.entity.entityId,
-  );
-  const baseText = [params.entity.title, primaryProjection?.markdownBody ?? ""].join("\n");
-  const normalizedTitle = normalizeTextKey(params.entity.title);
-  const rows = params.db
-    .prepare(
-      `SELECT entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-       FROM entities
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id > ?
-         AND kind = ?
-         AND (
-           lower(trim(title)) = lower(trim(?))
-           OR slug = ?
-           OR content_hash = ?
-         )
-       ORDER BY entity_id ASC`,
-    )
-    .all(
-      params.entity.profileId,
-      params.entity.workspaceScope,
-      params.entity.entityId,
-      params.entity.kind,
-      params.entity.title,
-      params.entity.slug,
-      params.entity.contentHash,
-    ) as EntityRow[];
-
-  return rows
-    .map((row) => toEntitySnapshot(row))
-    .map((candidate) => {
-      const candidateProjection = readPrimaryProjection(
-        params.db,
-        candidate.profileId,
-        candidate.workspaceScope,
-        candidate.entityId,
-      );
-      const candidateText = [candidate.title, candidateProjection?.markdownBody ?? ""].join("\n");
-      const sameTitle = normalizeTextKey(candidate.title) === normalizedTitle;
-      const similarity = sameTitle ? 1 : textSimilarity(baseText, candidateText);
-      const reason = sameTitle
-        ? "same-title"
-        : candidate.contentHash === params.entity.contentHash
-          ? "same-content-hash"
-          : candidate.slug === params.entity.slug
-            ? "same-slug"
-            : "text-similarity";
-      return { candidate, similarity, reason };
-    })
-    .filter((entry) => entry.similarity >= 0.88);
-}
-
-export function findPotentialProjectionDuplicates(params: {
-  db: DatabaseSync;
-  projection: CanonicalProjectionSnapshot;
-}): Array<{ candidate: CanonicalProjectionSnapshot; similarity: number; reason: string }> {
-  const basename = path.posix.basename(params.projection.relativePath).toLowerCase();
-  const rows = params.db
-    .prepare(
-      `SELECT
-         projection_id,
-         profile_id,
-         workspace_scope,
-         entity_id,
-         projection_kind,
-         relative_path,
-         absolute_path,
-         editable,
-         source_kind,
-         content_hash,
-         frontmatter_json,
-         markdown_body,
-         updated_at,
-         metadata
-       FROM projections
-       WHERE profile_id = ? AND workspace_scope = ? AND projection_id > ?
-         AND entity_id = ?
-         AND (
-           content_hash = ?
-           OR lower(relative_path) = lower(?)
-         )
-       ORDER BY projection_id ASC`,
-    )
-    .all(
-      params.projection.profileId,
-      params.projection.workspaceScope,
-      params.projection.projectionId,
-      params.projection.entityId,
-      params.projection.contentHash,
-      params.projection.relativePath,
-    ) as ProjectionRow[];
-
-  return rows
-    .map(toProjectionSnapshot)
-    .map((candidate) => {
-      const samePath =
-        candidate.relativePath.toLowerCase() === params.projection.relativePath.toLowerCase();
-      const sameBase = path.posix.basename(candidate.relativePath).toLowerCase() === basename;
-      const similarity =
-        samePath || candidate.contentHash === params.projection.contentHash
-          ? 1
-          : textSimilarity(params.projection.markdownBody, candidate.markdownBody);
-      const reason = samePath
-        ? "same-path"
-        : sameBase
-          ? "same-basename"
-          : candidate.contentHash === params.projection.contentHash
-            ? "same-content-hash"
-            : "text-similarity";
-      return { candidate, similarity, reason };
-    })
-    .filter((entry) => entry.similarity >= 0.92);
 }
 
 export function chooseProjectionWinner(
-  left: CanonicalProjectionSnapshot,
-  right: CanonicalProjectionSnapshot,
-) {
-  const score = (projection: CanonicalProjectionSnapshot) =>
-    projection.markdownBody.length +
-    stableStringify(projection.frontmatter).length * 2 +
-    stableStringify(projection.metadata).length;
-  if (score(left) === score(right)) {
-    return left.projectionId.localeCompare(right.projectionId) <= 0
-      ? { winner: left, loser: right }
-      : { winner: right, loser: left };
+  left: SleepProjectionSnapshot,
+  right: SleepProjectionSnapshot,
+): {
+  winner: SleepProjectionSnapshot;
+  loser: SleepProjectionSnapshot;
+} {
+  const leftScore = left.markdownBody.length + left.updatedAtMs / 1_000_000_000_000;
+  const rightScore = right.markdownBody.length + right.updatedAtMs / 1_000_000_000_000;
+  if (rightScore > leftScore) {
+    return {
+      winner: right,
+      loser: left,
+    };
   }
-  return score(left) > score(right)
-    ? { winner: left, loser: right }
-    : { winner: right, loser: left };
+  return {
+    winner: left,
+    loser: right,
+  };
+}
+
+export function findPotentialPageDuplicates(params: {
+  db: DatabaseSync;
+  page: SleepPageSnapshot;
+  workspaceDir: string;
+}): Array<{
+  candidate: SleepPageSnapshot;
+  similarity: number;
+  reason: string;
+}> {
+  const projection = readPrimaryProjection(params.db, params.page.pageId, params.workspaceDir);
+  const projectionBody = normalizeTextKey(projection?.markdownBody ?? "");
+  const others = listPagesAfter({
+    db: params.db,
+    limit: 512,
+    includeTombstoned: false,
+  }).filter((candidate) => candidate.pageId !== params.page.pageId);
+  const matches: Array<{
+    candidate: SleepPageSnapshot;
+    similarity: number;
+    reason: string;
+  }> = [];
+  for (const candidate of others) {
+    const titleScore = textSimilarity(params.page.title, candidate.title);
+    const candidateProjection = readPrimaryProjection(
+      params.db,
+      candidate.pageId,
+      params.workspaceDir,
+    );
+    const bodyScore = textSimilarity(
+      projectionBody,
+      normalizeTextKey(candidateProjection?.markdownBody ?? ""),
+    );
+    const score = Math.max(titleScore, (titleScore + bodyScore) / 2);
+    const titleKey = normalizeTextKey(params.page.title);
+    const candidateKey = normalizeTextKey(candidate.title);
+    if (titleKey && titleKey === candidateKey) {
+      matches.push({
+        candidate,
+        similarity: Math.max(score, 0.95),
+        reason: "same-normalized-title",
+      });
+      continue;
+    }
+    if (titleScore >= 0.85 || (titleScore >= 0.72 && bodyScore >= 0.72)) {
+      matches.push({
+        candidate,
+        similarity: score,
+        reason: titleScore >= 0.85 ? "title-similarity" : "title-and-body-similarity",
+      });
+    }
+  }
+  return matches.toSorted((left, right) => right.similarity - left.similarity);
+}
+
+function parseProjectionPath(kind: string, pageId: string): string {
+  if (kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
+    return kind.slice(LEGACY_PROJECTION_PREFIX.length);
+  }
+  return path.join("memory", `${pageId}.md`);
 }
 
 export function extractAttachmentPaths(params: {
-  projection: CanonicalProjectionSnapshot;
+  projection: SleepProjectionSnapshot;
   workspaceDir: string;
 }): string[] {
-  const attachmentValues: unknown[] = [];
-  for (const source of [params.projection.metadata, params.projection.frontmatter]) {
-    const attachments = source.attachments;
-    if (Array.isArray(attachments)) {
-      attachmentValues.push(...attachments);
-    }
-  }
-
-  const projectionDir = path.dirname(params.projection.absolutePath);
-  const paths = attachmentValues.flatMap((entry) => {
-    if (typeof entry === "string") {
-      return [entry];
-    }
-    if (entry && typeof entry === "object") {
-      const record = entry as Record<string, unknown>;
-      return [record.absolutePath, record.path, record.filePath, record.relativePath].flatMap(
-        (value) => (typeof value === "string" ? [value] : []),
-      );
-    }
-    return [];
-  });
-
-  return uniqueStrings(paths).map((filePath) => {
-    if (path.isAbsolute(filePath)) {
-      return path.resolve(filePath);
-    }
-    if (filePath.startsWith("./") || filePath.startsWith("../")) {
-      return path.resolve(projectionDir, filePath);
-    }
-    return path.resolve(params.workspaceDir, filePath);
-  });
+  const matches = Array.from(
+    params.projection.markdownBody.matchAll(/!?\[[^\]]*]\(([^)]+)\)/g),
+    (match) => match[1]?.trim() ?? "",
+  )
+    .filter(Boolean)
+    .filter((value) => !/^https?:\/\//i.test(value));
+  return uniqueStrings(
+    matches.map((attachmentPath) =>
+      path.isAbsolute(attachmentPath)
+        ? attachmentPath
+        : path.resolve(
+            params.workspaceDir,
+            path.dirname(params.projection.relativePath),
+            attachmentPath,
+          ),
+    ),
+  );
 }
 
 export function attachmentExists(filePath: string): boolean {
@@ -724,80 +481,52 @@ export function attachmentExists(filePath: string): boolean {
 }
 
 export function resolveClaimPolarity(
-  entity: CanonicalEntitySnapshot,
-  projection?: CanonicalProjectionSnapshot,
-): "positive" | "negative" | undefined {
-  for (const source of [entity.metadata, projection?.frontmatter, projection?.metadata]) {
-    if (!source) {
-      continue;
-    }
-    for (const key of ["polarity", "truthValue", "value", "stance", "state"]) {
-      const raw = source[key];
-      const boolValue = normalizeBoolean(raw);
-      if (boolValue === true) {
-        return "positive";
-      }
-      if (boolValue === false) {
-        return "negative";
-      }
-      if (typeof raw === "string") {
-        const normalized = raw.trim().toLowerCase();
-        if (
-          ["positive", "confirmed", "supports", "support", "for", "present"].includes(normalized)
-        ) {
-          return "positive";
-        }
-        if (["negative", "contradicts", "against", "absent", "denied"].includes(normalized)) {
-          return "negative";
-        }
-      }
-    }
+  claim: SleepClaimSnapshot,
+  projection?: SleepProjectionSnapshot,
+): boolean | undefined {
+  const text = `${claim.predicate} ${claim.object} ${projection?.markdownBody ?? ""}`.toLowerCase();
+  if (/\b(not|never|false|disabled|deny|denied|doesn't|does not)\b/.test(text)) {
+    return false;
+  }
+  if (/\b(true|enabled|allow|allowed|works|required)\b/.test(text)) {
+    return true;
   }
   return undefined;
 }
 
 export function readContradictingClaims(params: {
   db: DatabaseSync;
-  entity: CanonicalEntitySnapshot;
-  polarity: "positive" | "negative";
-}): CanonicalEntitySnapshot[] {
-  const opposing = params.polarity === "positive" ? "negative" : "positive";
-  const rows = params.db
-    .prepare(
-      `SELECT entity_id, profile_id, workspace_scope, kind, slug, title, source_path, source_kind, content_hash, updated_at, metadata
-       FROM entities
-       WHERE profile_id = ? AND workspace_scope = ? AND entity_id > ? AND kind = 'claim'
-         AND lower(trim(title)) = lower(trim(?))
-       ORDER BY entity_id ASC`,
-    )
-    .all(
-      params.entity.profileId,
-      params.entity.workspaceScope,
-      params.entity.entityId,
-      params.entity.title,
-    ) as EntityRow[];
-  return rows.map(toEntitySnapshot).filter((entity) => {
-    const projection = readPrimaryProjection(
-      params.db,
-      entity.profileId,
-      entity.workspaceScope,
-      entity.entityId,
-    );
-    return resolveClaimPolarity(entity, projection) === opposing;
+  claim: SleepClaimSnapshot;
+  polarity: boolean;
+  workspaceDir: string;
+}): SleepClaimSnapshot[] {
+  const candidates = listClaimsAfter({
+    db: params.db,
+    limit: 512,
+    statuses: ["active"],
+  }).filter((candidate) => candidate.claimId !== params.claim.claimId);
+  return candidates.filter((candidate) => {
+    if (
+      normalizeTextKey(candidate.subject) !== normalizeTextKey(params.claim.subject) ||
+      normalizeTextKey(candidate.predicate) !== normalizeTextKey(params.claim.predicate)
+    ) {
+      return false;
+    }
+    const projection = readPrimaryProjection(params.db, candidate.claimId, params.workspaceDir);
+    const candidatePolarity = resolveClaimPolarity(candidate, projection);
+    return candidatePolarity != null && candidatePolarity !== params.polarity;
   });
 }
 
-export function isLowConfidence(entity: CanonicalEntitySnapshot): number | undefined {
-  const confidence =
-    normalizeNumber(entity.metadata.confidence) ??
-    normalizeNumber(entity.metadata.score) ??
-    normalizeNumber(entity.metadata.claimConfidence);
-  if (confidence == null) {
-    return undefined;
-  }
-  return Math.max(0, Math.min(1, confidence));
+export function isLowConfidence(page: SleepPageSnapshot): number | undefined {
+  return page.claim ? normalizeNumber(page.claim.confidence) : undefined;
 }
 
-export function isLikelyCandidate(entity: CanonicalEntitySnapshot): boolean {
-  return entity.kind === "candidate" || entity.metadata.sleepCandidate === true;
+export function isLikelyCandidate(page: SleepPageSnapshot): boolean {
+  return (
+    !page.tombstoned &&
+    !page.tags.includes("claim") &&
+    !page.tags.includes("procedure") &&
+    !page.claim
+  );
 }

@@ -106,6 +106,7 @@ export type SleepSchedulerOptions = {
   profileId: string;
   workspaceScope: string;
   workspaceDir: string;
+  gaiaActorId?: string;
   featureFlags?: SleepFeatureFlags;
   autoMergeConfirmed?: boolean;
   sliceMs?: number;
@@ -120,14 +121,12 @@ export type CheckpointCursorState = {
 };
 
 export type ConsolidateCursor = {
-  lastEntityId?: string;
+  lastPageId?: string;
   checkpoint: CheckpointCursorState;
 };
 
 export type DedupCursor = {
-  phase: "entities" | "projections";
-  lastEntityId?: string;
-  lastProjectionId?: string;
+  lastPageId?: string;
   checkpoint: CheckpointCursorState;
 };
 
