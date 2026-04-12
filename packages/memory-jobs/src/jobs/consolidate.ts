@@ -9,7 +9,12 @@ import {
 import type { GaiaSleepWriteFacade } from "../gaia.js";
 import type { SqliteMemoryJobStore } from "../store.js";
 import { countInstructionalSteps } from "../text.js";
-import type { ConsolidateCursor, MemorySleepJobResult } from "../types.js";
+import type {
+  ConsolidateCursor,
+  MemorySleepJobResult,
+  MemoryJobCheckpointReason,
+  SleepClock,
+} from "../types.js";
 import { createEventId, normalizeNumber, uniqueStrings } from "../utils.js";
 
 const BATCH_LIMIT = 16;
@@ -90,6 +95,7 @@ function buildPromotionDrafts(params: {
   nextKind: "claim" | "procedure";
   score: number;
   reason: string;
+  nowMs: number;
 }): MemoryStateEventDraft[] {
   const tags = uniqueStrings([
     ...params.page.tags.filter((tag) => tag !== "candidate"),
@@ -112,7 +118,7 @@ function buildPromotionDrafts(params: {
         slug: params.page.slug,
         aliases: params.page.aliases,
         tags,
-        updatedAtMs: Date.now(),
+        updatedAtMs: params.nowMs,
       },
     },
   ];
@@ -131,7 +137,7 @@ function buildPromotionDrafts(params: {
         object: params.page.title,
         confidence: params.score,
         status: "active",
-        updatedAtMs: Date.now(),
+        updatedAtMs: params.nowMs,
       },
     });
   }
@@ -141,9 +147,10 @@ function buildPromotionDrafts(params: {
 async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: ConsolidateCursor;
+  checkpointCursor?: ConsolidateCursor;
   jobId: string;
   profileId: string;
-  reason: "threshold" | "preempted" | "cycle-complete";
+  reason: MemoryJobCheckpointReason;
   requestCheckpoint?: boolean;
 }): Promise<void> {
   await params.gaia.recordJobCheckpoint({
@@ -151,7 +158,7 @@ async function persistCheckpoint(params: {
     profileId: params.profileId,
     kind: "consolidate",
     reason: params.reason,
-    cursor: params.cursor,
+    cursor: params.checkpointCursor ?? params.cursor,
     pendingEventCount: params.cursor.checkpoint.pendingEventCount,
     pendingPayloadBytes: params.cursor.checkpoint.pendingPayloadBytes,
     requestCheckpoint: params.requestCheckpoint,
@@ -171,6 +178,7 @@ export async function runConsolidateSlice(params: {
   workspaceDir: string;
   sliceDeadlineMs: number;
   token: CancellationToken;
+  clock: SleepClock;
   shouldPreempt?: () => boolean;
 }): Promise<MemorySleepJobResult<ConsolidateCursor>> {
   const jobId = buildConsolidateJobId(params.workspaceScope);
@@ -189,6 +197,8 @@ export async function runConsolidateSlice(params: {
   });
 
   const workDoneCounts: Record<string, number> = {};
+  const shouldRequestCheckpoint = () =>
+    cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0;
 
   const preempt = async () => {
     params.token.cancel("active-session");
@@ -198,8 +208,7 @@ export async function runConsolidateSlice(params: {
       jobId,
       profileId: params.profileId,
       reason: "preempted",
-      requestCheckpoint:
-        cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0,
+      requestCheckpoint: shouldRequestCheckpoint(),
     });
     params.store.transaction(() => {
       params.store.appendAuditEvent({
@@ -227,7 +236,42 @@ export async function runConsolidateSlice(params: {
     };
   };
 
-  while (Date.now() < params.sliceDeadlineMs) {
+  const budgetExhausted = async () => {
+    await persistCheckpoint({
+      gaia: params.gaia,
+      cursor,
+      jobId,
+      profileId: params.profileId,
+      reason: "budget-exhausted",
+      requestCheckpoint: shouldRequestCheckpoint(),
+    });
+    params.store.transaction(() => {
+      params.store.appendAuditEvent({
+        jobId,
+        profileId: params.profileId,
+        kind: "consolidate",
+        eventType: "CHECKPOINT_CREATED",
+        payload: {
+          reason: "budget-exhausted",
+          cursor,
+        },
+      });
+      params.store.saveJobRecord({
+        jobId,
+        profileId: params.profileId,
+        kind: "consolidate",
+        status: "paused",
+        cursor,
+      });
+    });
+    return {
+      status: "budget-exhausted" as const,
+      cursor,
+      workDoneCounts,
+    };
+  };
+
+  while (params.clock.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
       return await preempt();
     }
@@ -239,26 +283,26 @@ export async function runConsolidateSlice(params: {
       includeTombstoned: false,
     });
     if (batch.length === 0) {
-      if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        await persistCheckpoint({
-          gaia: params.gaia,
-          cursor,
-          jobId,
-          profileId: params.profileId,
-          reason: "cycle-complete",
-          requestCheckpoint: true,
-        });
-      }
+      const completedCursor = createInitialCursor();
+      await persistCheckpoint({
+        gaia: params.gaia,
+        cursor,
+        checkpointCursor: completedCursor,
+        jobId,
+        profileId: params.profileId,
+        reason: "cycle-complete",
+        requestCheckpoint: shouldRequestCheckpoint(),
+      });
       params.store.saveJobRecord({
         jobId,
         profileId: params.profileId,
         kind: "consolidate",
         status: "idle",
-        cursor: createInitialCursor(),
+        cursor: completedCursor,
       });
       return {
         status: "completed",
-        cursor: createInitialCursor(),
+        cursor: completedCursor,
         workDoneCounts,
       };
     }
@@ -279,6 +323,7 @@ export async function runConsolidateSlice(params: {
           nextKind: promotion.nextKind,
           score: promotion.score,
           reason: promotion.reason,
+          nowMs: params.clock.now(),
         });
         const writeResult = await params.gaia.writeEvents(drafts);
         if (writeResult.events.length > 0) {
@@ -352,19 +397,11 @@ export async function runConsolidateSlice(params: {
         cursor,
       });
 
-      if (Date.now() >= params.sliceDeadlineMs) {
-        return {
-          status: "budget-exhausted",
-          cursor,
-          workDoneCounts,
-        };
+      if (params.clock.now() >= params.sliceDeadlineMs) {
+        return await budgetExhausted();
       }
     }
   }
 
-  return {
-    status: "budget-exhausted",
-    cursor,
-    workDoneCounts,
-  };
+  return await budgetExhausted();
 }

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createMemorySleepScheduler } from "./scheduler.js";
-import { withMemoryJobDb } from "./test-utils.js";
+import { createSchedulerTestDependencies, withMemoryJobDb } from "./test-utils.js";
 
 describe("memory health dashboards", () => {
   it("reports stale claims, contradictions, orphan pages, broken attachments, and low-confidence items", async () => {
@@ -175,6 +175,7 @@ describe("memory health dashboards", () => {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
+        dependencies: createSchedulerTestDependencies({ status, gaia }),
       });
 
       const result = await scheduler.runOnce();
@@ -193,6 +194,16 @@ describe("memory health dashboards", () => {
         )
         .all() as Array<{ kind: string }>;
       expect(dashboards).toEqual([{ kind: `health:${status.workspaceScope}` }]);
+
+      const dashboardEvents = db
+        .prepare(
+          `SELECT event_type
+           FROM ledger_events
+           WHERE source = 'sleep/health'
+           ORDER BY lamport ASC`,
+        )
+        .all() as Array<{ event_type: string }>;
+      expect(dashboardEvents.map((row) => row.event_type)).toContain("DASHBOARD_SET");
       scheduler.close();
     });
   });

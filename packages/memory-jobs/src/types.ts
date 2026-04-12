@@ -5,6 +5,12 @@ export type MemoryJobKind = "consolidate" | "dedup" | "health";
 
 export type MemoryJobStatus = "idle" | "running" | "paused" | "failed";
 
+export type MemoryJobCheckpointReason =
+  | "threshold"
+  | "preempted"
+  | "cycle-complete"
+  | "budget-exhausted";
+
 export type MemoryJobEventType =
   | "PROMOTED_TO_CLAIM"
   | "PROMOTED_TO_PROCEDURE"

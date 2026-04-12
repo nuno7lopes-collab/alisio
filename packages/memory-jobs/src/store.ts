@@ -1,7 +1,10 @@
+import fs from "node:fs";
 import type { DatabaseSync } from "node:sqlite";
-import { withImmediateTransaction } from "./sqlite.js";
+import { resolveLedgerSqlitePath } from "../../memory-ledger/src/paths.js";
+import { openSqliteDatabase, withImmediateTransaction } from "./sqlite.js";
 import type {
   MemoryJobEvent,
+  MemoryJobCheckpointReason,
   MemoryJobKind,
   MemoryJobRecord,
   MemoryJobStatus,
@@ -38,10 +41,43 @@ type EventRow = {
   dedupe_key: string | null;
 };
 
+type LedgerCheckpointRow = {
+  event_id: string;
+  batch_id: string | null;
+  source: string | null;
+  created_at_ms: number | bigint;
+  payload_json: string;
+};
+
+type LedgerCheckpointPayload<TCursor> = {
+  jobId?: string;
+  profileId?: string;
+  kind?: MemoryJobKind;
+  reason?: MemoryJobCheckpointReason;
+  cursor?: TCursor;
+};
+
+type CanonicalLedgerCheckpointRow = {
+  event_id: string;
+  created_at_ms: number | bigint;
+  payload_plain: Uint8Array | null;
+};
+
+function toNumber(value: number | bigint): number {
+  return typeof value === "bigint" ? Number(value) : value;
+}
+
+function deriveStatusFromCheckpointReason(
+  reason: MemoryJobCheckpointReason | undefined,
+): MemoryJobStatus {
+  return reason === "cycle-complete" ? "idle" : "paused";
+}
+
 export class SqliteMemoryJobStore {
   constructor(
     readonly db: DatabaseSync,
     private readonly clock: SleepClock,
+    private readonly stateDir?: string,
   ) {
     this.ensureSchema();
   }
@@ -94,6 +130,11 @@ export class SqliteMemoryJobStore {
     kind: MemoryJobKind;
     initialCursor: TCursor;
   }): { record: MemoryJobRecord; cursor: TCursor } {
+    const checkpointRecord = this.readJobRecordFromLedger(params);
+    if (checkpointRecord) {
+      return checkpointRecord;
+    }
+
     const row = this.db
       .prepare(
         `SELECT job_id, profile_id, kind, status, cursor_json, updated_at_ms, last_error
@@ -123,6 +164,187 @@ export class SqliteMemoryJobStore {
         ...(row.last_error ? { lastError: row.last_error } : {}),
       },
       cursor: parseJsonValue(row.cursor_json, params.initialCursor),
+    };
+  }
+
+  private readJobRecordFromLedger<TCursor>(params: {
+    jobId: string;
+    profileId: string;
+    kind: MemoryJobKind;
+    initialCursor: TCursor;
+  }): { record: MemoryJobRecord; cursor: TCursor } | undefined {
+    const canonical = this.readJobRecordFromCanonicalLedger(params);
+    if (this.hasCanonicalLedger(params.profileId)) {
+      return canonical;
+    }
+    return canonical ?? this.readJobRecordFromLegacyMirror(params);
+  }
+
+  private hasCanonicalLedger(profileId: string): boolean {
+    if (!this.stateDir) {
+      return false;
+    }
+    return fs.existsSync(
+      resolveLedgerSqlitePath({
+        profileId,
+        stateDir: this.stateDir,
+      }),
+    );
+  }
+
+  private readJobRecordFromCanonicalLedger<TCursor>(params: {
+    jobId: string;
+    profileId: string;
+    kind: MemoryJobKind;
+    initialCursor: TCursor;
+  }): { record: MemoryJobRecord; cursor: TCursor } | undefined {
+    if (!this.stateDir) {
+      return undefined;
+    }
+    const ledgerPath = resolveLedgerSqlitePath({
+      profileId: params.profileId,
+      stateDir: this.stateDir,
+    });
+    if (!fs.existsSync(ledgerPath)) {
+      return undefined;
+    }
+    const ledgerDb = openSqliteDatabase(ledgerPath);
+    try {
+      const batchSize = 64;
+      let offset = 0;
+      const statement = ledgerDb.prepare(
+        `SELECT event_id, created_at_ms, payload_plain
+         FROM memory_events
+         WHERE profile_id = ? AND event_type = 'JOB_CHECKPOINT_UPDATED'
+         ORDER BY lamport DESC, event_id DESC
+         LIMIT ? OFFSET ?`,
+      );
+      while (true) {
+        const rows = statement.all(
+          params.profileId,
+          batchSize,
+          offset,
+        ) as CanonicalLedgerCheckpointRow[];
+        if (rows.length === 0) {
+          break;
+        }
+        offset += rows.length;
+        for (const row of rows) {
+          const parsed = this.parseCanonicalLedgerCheckpointPayload<TCursor>(row);
+          if (!parsed) {
+            continue;
+          }
+          if (
+            parsed.batchId !== params.jobId ||
+            parsed.source !== `sleep/${params.kind}` ||
+            parsed.payload.jobId !== params.jobId ||
+            parsed.payload.profileId !== params.profileId ||
+            parsed.payload.kind !== params.kind
+          ) {
+            continue;
+          }
+          const cursor = parsed.payload.cursor ?? params.initialCursor;
+          const cursorJson = stableStringify(cursor);
+          return {
+            record: {
+              jobId: params.jobId,
+              profileId: params.profileId,
+              kind: params.kind,
+              status: deriveStatusFromCheckpointReason(parsed.payload.reason),
+              cursorJson,
+              updatedAtMs: parsed.createdAtMs,
+            },
+            cursor,
+          };
+        }
+        if (rows.length < batchSize) {
+          break;
+        }
+      }
+      return undefined;
+    } finally {
+      ledgerDb.close();
+    }
+  }
+
+  private parseCanonicalLedgerCheckpointPayload<TCursor>(row: CanonicalLedgerCheckpointRow): {
+    batchId?: string;
+    source?: string;
+    createdAtMs: number;
+    payload: LedgerCheckpointPayload<TCursor>;
+  } | null {
+    if (!row.payload_plain) {
+      return null;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(Buffer.from(row.payload_plain).toString("utf8"));
+    } catch {
+      return null;
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    const event = parsed as Record<string, unknown>;
+    if (event.type !== "JOB_CHECKPOINT_UPDATED") {
+      return null;
+    }
+    const payload =
+      event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+        ? (event.payload as LedgerCheckpointPayload<TCursor>)
+        : null;
+    if (!payload) {
+      return null;
+    }
+    return {
+      ...(typeof event.batchId === "string" ? { batchId: event.batchId } : {}),
+      ...(typeof event.source === "string" ? { source: event.source } : {}),
+      createdAtMs:
+        typeof event.createdAtMs === "number" ? event.createdAtMs : toNumber(row.created_at_ms),
+      payload,
+    };
+  }
+
+  private readJobRecordFromLegacyMirror<TCursor>(params: {
+    jobId: string;
+    profileId: string;
+    kind: MemoryJobKind;
+    initialCursor: TCursor;
+  }): { record: MemoryJobRecord; cursor: TCursor } | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT event_id, batch_id, source, created_at_ms, payload_json
+         FROM ledger_events
+         WHERE event_type = 'JOB_CHECKPOINT_UPDATED' AND batch_id = ? AND source = ?
+         ORDER BY lamport DESC, event_id DESC
+         LIMIT 1`,
+      )
+      .get(params.jobId, `sleep/${params.kind}`) as LedgerCheckpointRow | undefined;
+    if (!row) {
+      return undefined;
+    }
+
+    const payload = parseJsonValue<LedgerCheckpointPayload<TCursor>>(row.payload_json, {});
+    if (
+      payload.jobId !== params.jobId ||
+      payload.profileId !== params.profileId ||
+      payload.kind !== params.kind
+    ) {
+      return undefined;
+    }
+
+    const cursor = payload.cursor ?? params.initialCursor;
+    const cursorJson = stableStringify(cursor);
+    return {
+      record: {
+        jobId: params.jobId,
+        profileId: params.profileId,
+        kind: params.kind,
+        status: deriveStatusFromCheckpointReason(payload.reason),
+        cursorJson,
+        updatedAtMs: toNumber(row.created_at_ms),
+      },
+      cursor,
     };
   }
 

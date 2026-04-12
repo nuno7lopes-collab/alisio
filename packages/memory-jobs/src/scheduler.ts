@@ -33,11 +33,23 @@ function mergeCounts(target: Record<string, number>, next: Record<string, number
   }
 }
 
+type ResolvedSleepStatus = ReturnType<typeof resolveGaiaSleepStatus>;
+
+type SleepSchedulerDependencies = {
+  openDatabase?: (dbPath: string) => DatabaseSync;
+  createGaia?: (params: Parameters<typeof createGaiaSleepWriteFacade>[0]) => GaiaSleepWriteFacade;
+  resolveStatus?: (runtime: SleepSchedulerOptions["runtime"]) => ResolvedSleepStatus;
+};
+
+type MemorySleepSchedulerOptions = SleepSchedulerOptions & {
+  dependencies?: SleepSchedulerDependencies;
+};
+
 export class MemorySleepScheduler {
   readonly db: DatabaseSync;
   readonly store: SqliteMemoryJobStore;
   readonly gaia: GaiaSleepWriteFacade;
-  readonly options: SleepSchedulerOptions & {
+  readonly options: MemorySleepSchedulerOptions & {
     profileId: string;
     workspaceScope: string;
     workspaceDir: string;
@@ -45,12 +57,14 @@ export class MemorySleepScheduler {
     clock: SleepClock;
   };
 
-  constructor(options: SleepSchedulerOptions) {
+  constructor(options: MemorySleepSchedulerOptions) {
     const clock = options.clock ?? createClock();
-    const runtimeStatus = resolveGaiaSleepStatus(options.runtime);
-    this.db = openSqliteDatabase(runtimeStatus.path);
-    this.store = new SqliteMemoryJobStore(this.db, clock);
-    this.gaia = createGaiaSleepWriteFacade({
+    const runtimeStatus = (options.dependencies?.resolveStatus ?? resolveGaiaSleepStatus)(
+      options.runtime,
+    );
+    this.db = (options.dependencies?.openDatabase ?? openSqliteDatabase)(runtimeStatus.path);
+    this.store = new SqliteMemoryJobStore(this.db, clock, runtimeStatus.replica?.stateDir);
+    this.gaia = (options.dependencies?.createGaia ?? createGaiaSleepWriteFacade)({
       ...options.runtime,
       db: this.db,
     });
@@ -128,6 +142,7 @@ export class MemorySleepScheduler {
                 workspaceDir: this.options.workspaceDir,
                 sliceDeadlineMs,
                 token,
+                clock: this.options.clock,
                 shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
               })
             : kind === "dedup"
@@ -139,6 +154,7 @@ export class MemorySleepScheduler {
                   workspaceDir: this.options.workspaceDir,
                   sliceDeadlineMs,
                   token,
+                  clock: this.options.clock,
                   autoMergeConfirmed: this.options.autoMergeConfirmed,
                   shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
                 })
@@ -150,6 +166,7 @@ export class MemorySleepScheduler {
                   workspaceDir: this.options.workspaceDir,
                   sliceDeadlineMs,
                   token,
+                  clock: this.options.clock,
                   shouldPreempt: () => Boolean(this.options.activityMonitor?.isSessionActive()),
                 });
 
@@ -202,6 +219,8 @@ export class MemorySleepScheduler {
   }
 }
 
-export function createMemorySleepScheduler(options: SleepSchedulerOptions): MemorySleepScheduler {
+export function createMemorySleepScheduler(
+  options: MemorySleepSchedulerOptions,
+): MemorySleepScheduler {
   return new MemorySleepScheduler(options);
 }

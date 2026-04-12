@@ -11,7 +11,12 @@ import {
 } from "../canonical.js";
 import type { GaiaSleepWriteFacade } from "../gaia.js";
 import type { SqliteMemoryJobStore } from "../store.js";
-import type { DedupCursor, MemorySleepJobResult } from "../types.js";
+import type {
+  DedupCursor,
+  MemorySleepJobResult,
+  MemoryJobCheckpointReason,
+  SleepClock,
+} from "../types.js";
 import { createEventId } from "../utils.js";
 
 const PAGE_BATCH_LIMIT = 8;
@@ -83,9 +88,10 @@ function appendMergeProposal(params: {
 async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: DedupCursor;
+  checkpointCursor?: DedupCursor;
   jobId: string;
   profileId: string;
-  reason: "threshold" | "preempted" | "cycle-complete";
+  reason: MemoryJobCheckpointReason;
   requestCheckpoint?: boolean;
 }): Promise<void> {
   await params.gaia.recordJobCheckpoint({
@@ -93,7 +99,7 @@ async function persistCheckpoint(params: {
     profileId: params.profileId,
     kind: "dedup",
     reason: params.reason,
-    cursor: params.cursor,
+    cursor: params.checkpointCursor ?? params.cursor,
     pendingEventCount: params.cursor.checkpoint.pendingEventCount,
     pendingPayloadBytes: params.cursor.checkpoint.pendingPayloadBytes,
     requestCheckpoint: params.requestCheckpoint,
@@ -104,6 +110,7 @@ async function persistCheckpoint(params: {
 function buildMergeDrafts(params: {
   winner: SleepPageSnapshot;
   loser: SleepPageSnapshot;
+  nowMs: number;
 }): MemoryStateEventDraft[] {
   const mergedMetadata = mergePageMetadata({
     winner: params.winner,
@@ -126,7 +133,7 @@ function buildMergeDrafts(params: {
         slug: params.winner.slug,
         aliases: mergedMetadata.aliases,
         tags: mergedMetadata.tags,
-        updatedAtMs: Date.now(),
+        updatedAtMs: params.nowMs,
       },
     },
     {
@@ -139,7 +146,7 @@ function buildMergeDrafts(params: {
       payload: {
         pageId: params.loser.pageId,
         tombstoned: true,
-        updatedAtMs: Date.now(),
+        updatedAtMs: params.nowMs,
       },
     },
   ];
@@ -150,6 +157,7 @@ function buildProjectionMergeDrafts(params: {
   winner: SleepPageSnapshot;
   loser: SleepPageSnapshot;
   workspaceDir: string;
+  nowMs: number;
 }): MemoryStateEventDraft[] {
   const winnerProjection = readPrimaryProjection(
     params.store.db,
@@ -164,6 +172,7 @@ function buildProjectionMergeDrafts(params: {
   const drafts = buildMergeDrafts({
     winner: params.winner,
     loser: params.loser,
+    nowMs: params.nowMs,
   });
   if (winnerProjection && loserProjection) {
     const preferredProjection = chooseProjectionWinner(winnerProjection, loserProjection).winner;
@@ -212,7 +221,7 @@ function buildProjectionMergeDrafts(params: {
           params.loser.claim?.confidence ?? 0,
         ),
         status: "active",
-        updatedAtMs: Date.now(),
+        updatedAtMs: params.nowMs,
       },
     });
     if (params.loser.claim) {
@@ -230,7 +239,7 @@ function buildProjectionMergeDrafts(params: {
           object: params.loser.claim.object,
           confidence: params.loser.claim.confidence,
           status: "merged",
-          updatedAtMs: Date.now(),
+          updatedAtMs: params.nowMs,
         },
       });
     }
@@ -250,6 +259,7 @@ export async function runDedupSlice(params: {
   workspaceDir: string;
   sliceDeadlineMs: number;
   token: CancellationToken;
+  clock: SleepClock;
   autoMergeConfirmed: boolean;
   shouldPreempt?: () => boolean;
 }): Promise<MemorySleepJobResult<DedupCursor>> {
@@ -269,6 +279,8 @@ export async function runDedupSlice(params: {
   });
 
   const workDoneCounts: Record<string, number> = {};
+  const shouldRequestCheckpoint = () =>
+    cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0;
 
   const preempt = async () => {
     params.token.cancel("active-session");
@@ -278,8 +290,7 @@ export async function runDedupSlice(params: {
       jobId,
       profileId: params.profileId,
       reason: "preempted",
-      requestCheckpoint:
-        cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0,
+      requestCheckpoint: shouldRequestCheckpoint(),
     });
     params.store.transaction(() => {
       params.store.appendAuditEvent({
@@ -307,7 +318,42 @@ export async function runDedupSlice(params: {
     };
   };
 
-  while (Date.now() < params.sliceDeadlineMs) {
+  const budgetExhausted = async () => {
+    await persistCheckpoint({
+      gaia: params.gaia,
+      cursor,
+      jobId,
+      profileId: params.profileId,
+      reason: "budget-exhausted",
+      requestCheckpoint: shouldRequestCheckpoint(),
+    });
+    params.store.transaction(() => {
+      params.store.appendAuditEvent({
+        jobId,
+        profileId: params.profileId,
+        kind: "dedup",
+        eventType: "CHECKPOINT_CREATED",
+        payload: {
+          reason: "budget-exhausted",
+          cursor,
+        },
+      });
+      params.store.saveJobRecord({
+        jobId,
+        profileId: params.profileId,
+        kind: "dedup",
+        status: "paused",
+        cursor,
+      });
+    });
+    return {
+      status: "budget-exhausted" as const,
+      cursor,
+      workDoneCounts,
+    };
+  };
+
+  while (params.clock.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
       return await preempt();
     }
@@ -320,26 +366,26 @@ export async function runDedupSlice(params: {
       includeTombstoned: false,
     });
     if (batch.length === 0) {
-      if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        await persistCheckpoint({
-          gaia: params.gaia,
-          cursor,
-          jobId,
-          profileId: params.profileId,
-          reason: "cycle-complete",
-          requestCheckpoint: true,
-        });
-      }
+      const completedCursor = createInitialCursor();
+      await persistCheckpoint({
+        gaia: params.gaia,
+        cursor,
+        checkpointCursor: completedCursor,
+        jobId,
+        profileId: params.profileId,
+        reason: "cycle-complete",
+        requestCheckpoint: shouldRequestCheckpoint(),
+      });
       params.store.saveJobRecord({
         jobId,
         profileId: params.profileId,
         kind: "dedup",
         status: "idle",
-        cursor: createInitialCursor(),
+        cursor: completedCursor,
       });
       return {
         status: "completed",
-        cursor: createInitialCursor(),
+        cursor: completedCursor,
         workDoneCounts,
       };
     }
@@ -390,6 +436,7 @@ export async function runDedupSlice(params: {
           winner: plan.winner,
           loser: plan.loser,
           workspaceDir: params.workspaceDir,
+          nowMs: params.clock.now(),
         });
         const writeResult = await params.gaia.writeEvents(drafts);
         if (writeResult.events.length > 0) {
@@ -451,19 +498,11 @@ export async function runDedupSlice(params: {
         cursor,
       });
 
-      if (Date.now() >= params.sliceDeadlineMs) {
-        return {
-          status: "budget-exhausted",
-          cursor,
-          workDoneCounts,
-        };
+      if (params.clock.now() >= params.sliceDeadlineMs) {
+        return await budgetExhausted();
       }
     }
   }
 
-  return {
-    status: "budget-exhausted",
-    cursor,
-    workDoneCounts,
-  };
+  return await budgetExhausted();
 }

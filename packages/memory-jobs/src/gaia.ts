@@ -7,9 +7,9 @@ import {
   type CanonicalStoreBackend,
 } from "alisio/plugin-sdk/memory-core-engine-runtime";
 import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
+import { openLedger } from "../../memory-ledger/src/index.js";
+import type { MemoryJobCheckpointReason } from "./types.js";
 import { createEventId, parseJsonValue, stableStringify } from "./utils.js";
-
-type GaiaCheckpointReason = "threshold" | "preempted" | "cycle-complete";
 
 export type GaiaSleepRuntime = {
   cfg: AlisioConfig;
@@ -25,15 +25,11 @@ export type JobCheckpointRecord = {
   jobId: string;
   profileId: string;
   kind: string;
-  reason: GaiaCheckpointReason;
+  reason: MemoryJobCheckpointReason;
   cursor: unknown;
   pendingEventCount: number;
   pendingPayloadBytes: number;
   requestCheckpoint?: boolean;
-};
-
-type CheckpointRow = {
-  checkpoint_id: string;
 };
 
 export type GaiaWriteResult = {
@@ -73,16 +69,13 @@ function readDashboard<T>(db: DatabaseSync, kind: string): T | undefined {
   return row ? parseJsonValue<T | undefined>(row.json, undefined) : undefined;
 }
 
-function readLatestCheckpointId(db: DatabaseSync): string | undefined {
-  const row = db
-    .prepare(
-      `SELECT checkpoint_id
-       FROM checkpoints
-       ORDER BY lamport DESC, checkpoint_id DESC
-       LIMIT 1`,
-    )
-    .get() as CheckpointRow | undefined;
-  return row?.checkpoint_id;
+function readLatestCheckpointId(profileId: string, env?: NodeJS.ProcessEnv): string | undefined {
+  const ledger = openLedger(profileId, { env });
+  try {
+    return ledger.getLatestCheckpoint()?.checkpointId;
+  } finally {
+    ledger.close();
+  }
 }
 
 export function resolveGaiaSleepStatus(params: {
@@ -192,7 +185,9 @@ export function createGaiaSleepWriteFacade(params: GaiaSleepRuntime): GaiaSleepW
       return {
         status: result.status,
         checkpointEventId,
-        ...(params.db ? { checkpointId: readLatestCheckpointId(params.db) } : {}),
+        ...(params.db
+          ? { checkpointId: readLatestCheckpointId(record.profileId, params.env) }
+          : {}),
         stateHash: result.stateHash,
       };
     },

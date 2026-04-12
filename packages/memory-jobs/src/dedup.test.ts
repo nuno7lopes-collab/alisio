@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createMemorySleepScheduler } from "./scheduler.js";
-import { withMemoryJobDb } from "./test-utils.js";
+import { createSchedulerTestDependencies, withMemoryJobDb } from "./test-utils.js";
 
 describe("memory dedup job", () => {
   it("proposes merges until explicit confirmation enables auto-merge", async () => {
@@ -109,6 +109,7 @@ describe("memory dedup job", () => {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
+        dependencies: createSchedulerTestDependencies({ status, gaia }),
       });
       await proposeOnly.runOnce();
       const proposed = proposeOnly.store
@@ -124,6 +125,7 @@ describe("memory dedup job", () => {
           enabled: true,
           maxWallTimeMs: 5_000,
         },
+        dependencies: createSchedulerTestDependencies({ status, gaia }),
       });
       await mergeConfirmed.runOnce();
 
@@ -151,6 +153,18 @@ describe("memory dedup job", () => {
         .listAuditEvents({ profileId: status.profileId, kind: "dedup" })
         .filter((event) => event.eventType === "ENTITY_MERGED");
       expect(mergedEvents).toHaveLength(1);
+
+      const ledgerEventTypes = db
+        .prepare(
+          `SELECT event_type
+           FROM ledger_events
+           WHERE source = 'sleep/dedup'
+           ORDER BY lamport ASC`,
+        )
+        .all() as Array<{ event_type: string }>;
+      expect(ledgerEventTypes.map((row) => row.event_type)).toContain("PAGE_METADATA_UPDATED");
+      expect(ledgerEventTypes.map((row) => row.event_type)).toContain("PAGE_TOMBSTONED");
+      expect(ledgerEventTypes.map((row) => row.event_type)).toContain("CLAIM_UPSERTED");
       mergeConfirmed.close();
     });
   });

@@ -14,7 +14,12 @@ import {
 } from "../canonical.js";
 import type { GaiaSleepWriteFacade } from "../gaia.js";
 import type { SqliteMemoryJobStore } from "../store.js";
-import type { HealthCursor, MemorySleepJobResult } from "../types.js";
+import type {
+  HealthCursor,
+  MemorySleepJobResult,
+  MemoryJobCheckpointReason,
+  SleepClock,
+} from "../types.js";
 import { createEventId } from "../utils.js";
 
 const CLAIM_BATCH_LIMIT = 16;
@@ -37,7 +42,7 @@ function createInitialDashboard(nowMs: number) {
   };
 }
 
-function createInitialCursor(nowMs = Date.now()): HealthCursor {
+function createInitialCursor(nowMs: number): HealthCursor {
   return {
     phase: "staleClaims",
     dashboard: createInitialDashboard(nowMs),
@@ -90,9 +95,10 @@ function appendFinding<T extends HealthDashboardCategory>(
 async function persistCheckpoint(params: {
   gaia: GaiaSleepWriteFacade;
   cursor: HealthCursor;
+  checkpointCursor?: HealthCursor;
   jobId: string;
   profileId: string;
-  reason: "threshold" | "preempted" | "cycle-complete";
+  reason: MemoryJobCheckpointReason;
   requestCheckpoint?: boolean;
 }): Promise<void> {
   await params.gaia.recordJobCheckpoint({
@@ -100,7 +106,7 @@ async function persistCheckpoint(params: {
     profileId: params.profileId,
     kind: "health",
     reason: params.reason,
-    cursor: params.cursor,
+    cursor: params.checkpointCursor ?? params.cursor,
     pendingEventCount: params.cursor.checkpoint.pendingEventCount,
     pendingPayloadBytes: params.cursor.checkpoint.pendingPayloadBytes,
     requestCheckpoint: params.requestCheckpoint,
@@ -157,6 +163,7 @@ export async function runHealthSlice(params: {
   workspaceDir: string;
   sliceDeadlineMs: number;
   token: CancellationToken;
+  clock: SleepClock;
   shouldPreempt?: () => boolean;
 }): Promise<MemorySleepJobResult<HealthCursor>> {
   const jobId = buildHealthJobId(params.workspaceScope);
@@ -164,7 +171,7 @@ export async function runHealthSlice(params: {
     jobId,
     profileId: params.profileId,
     kind: "health",
-    initialCursor: createInitialCursor(),
+    initialCursor: createInitialCursor(params.clock.now()),
   });
   params.store.saveJobRecord({
     jobId,
@@ -175,6 +182,8 @@ export async function runHealthSlice(params: {
   });
 
   const workDoneCounts: Record<string, number> = {};
+  const shouldRequestCheckpoint = () =>
+    cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0;
 
   const preempt = async () => {
     params.token.cancel("active-session");
@@ -184,8 +193,7 @@ export async function runHealthSlice(params: {
       jobId,
       profileId: params.profileId,
       reason: "preempted",
-      requestCheckpoint:
-        cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0,
+      requestCheckpoint: shouldRequestCheckpoint(),
     });
     params.store.transaction(() => {
       params.store.appendAuditEvent({
@@ -214,7 +222,43 @@ export async function runHealthSlice(params: {
     };
   };
 
-  while (Date.now() < params.sliceDeadlineMs) {
+  const budgetExhausted = async () => {
+    await persistCheckpoint({
+      gaia: params.gaia,
+      cursor,
+      jobId,
+      profileId: params.profileId,
+      reason: "budget-exhausted",
+      requestCheckpoint: shouldRequestCheckpoint(),
+    });
+    params.store.transaction(() => {
+      params.store.appendAuditEvent({
+        jobId,
+        profileId: params.profileId,
+        kind: "health",
+        eventType: "CHECKPOINT_CREATED",
+        payload: {
+          reason: "budget-exhausted",
+          cursor,
+        },
+      });
+      params.store.saveJobRecord({
+        jobId,
+        profileId: params.profileId,
+        kind: "health",
+        status: "paused",
+        cursor,
+      });
+    });
+    return {
+      status: "budget-exhausted" as const,
+      cursor,
+      workDoneCounts,
+      healthDashboard: cursor.dashboard,
+    };
+  };
+
+  while (params.clock.now() < params.sliceDeadlineMs) {
     if (params.shouldPreempt?.()) {
       return await preempt();
     }
@@ -245,7 +289,7 @@ export async function runHealthSlice(params: {
         params.token.throwIfCancelled();
         cursor.lastItemId = claim.claimId;
         const page = readPage(params.store.db, claim.claimId);
-        if (Date.now() - claim.updatedAtMs >= STALE_CLAIM_MS) {
+        if (params.clock.now() - claim.updatedAtMs >= STALE_CLAIM_MS) {
           appendFinding(cursor, "staleClaims", {
             id: createEventId("health-stale", claim.claimId),
             severity: "warn",
@@ -496,20 +540,20 @@ export async function runHealthSlice(params: {
       includeTombstoned: false,
     });
     if (pages.length === 0) {
-      cursor.dashboard.generatedAtMs = Date.now();
+      cursor.dashboard.generatedAtMs = params.clock.now();
       const writeResult = await params.gaia.writeEvents([
         buildDashboardDraft(jobId, cursor.dashboard),
       ]);
-      if (cursor.checkpoint.pendingEventCount > 0 || cursor.checkpoint.pendingPayloadBytes > 0) {
-        await persistCheckpoint({
-          gaia: params.gaia,
-          cursor,
-          jobId,
-          profileId: params.profileId,
-          reason: "cycle-complete",
-          requestCheckpoint: true,
-        });
-      }
+      const completedCursor = createInitialCursor(params.clock.now());
+      await persistCheckpoint({
+        gaia: params.gaia,
+        cursor,
+        checkpointCursor: completedCursor,
+        jobId,
+        profileId: params.profileId,
+        reason: "cycle-complete",
+        requestCheckpoint: shouldRequestCheckpoint(),
+      });
       params.store.transaction(() => {
         params.store.appendAuditEvent({
           jobId,
@@ -532,12 +576,12 @@ export async function runHealthSlice(params: {
           profileId: params.profileId,
           kind: "health",
           status: "idle",
-          cursor: createInitialCursor(Date.now()),
+          cursor: completedCursor,
         });
       });
       return {
         status: "completed",
-        cursor: createInitialCursor(Date.now()),
+        cursor: completedCursor,
         workDoneCounts,
         healthDashboard: cursor.dashboard,
       };
@@ -586,10 +630,5 @@ export async function runHealthSlice(params: {
     }
   }
 
-  return {
-    status: "budget-exhausted",
-    cursor,
-    workDoneCounts,
-    healthDashboard: cursor.dashboard,
-  };
+  return await budgetExhausted();
 }
