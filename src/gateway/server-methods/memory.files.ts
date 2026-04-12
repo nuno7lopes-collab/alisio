@@ -10,10 +10,10 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-export function validateMemoryFilesListRequest(
+function validateMemoryFilesBaseRequest(
   params: Record<string, unknown>,
   respond: RespondFn,
-): params is MemoryFilesListParams {
+): boolean {
   if (!isNonEmptyString(params.agentId)) {
     respond(
       false,
@@ -33,11 +33,18 @@ export function validateMemoryFilesListRequest(
   return true;
 }
 
+export function validateMemoryFilesListRequest(
+  params: Record<string, unknown>,
+  respond: RespondFn,
+): params is MemoryFilesListParams {
+  return validateMemoryFilesBaseRequest(params, respond);
+}
+
 export function validateMemoryFilesGetRequest(
   params: Record<string, unknown>,
   respond: RespondFn,
 ): params is MemoryFilesGetParams {
-  if (!validateMemoryFilesListRequest(params, respond)) {
+  if (!validateMemoryFilesBaseRequest(params, respond)) {
     return false;
   }
   if (!isNonEmptyString(params.fileId)) {

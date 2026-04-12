@@ -51,7 +51,7 @@ describe("legacy migrate audio transcription", () => {
   });
 });
 
-describe("legacy migrate obsidian-era memory config", () => {
+describe("legacy migrate removed memory config keys", () => {
   it("removes obsolete memory path keys and preserves native settings", () => {
     const res = migrateLegacyConfig({
       memory: {
@@ -72,7 +72,7 @@ describe("legacy migrate obsidian-era memory config", () => {
     });
   });
 
-  it("removes the whole memory block when it only contained obsolete obsidian keys", () => {
+  it("removes the whole memory block when it only contained obsolete legacy keys", () => {
     const res = migrateLegacyConfig({
       memory: {
         vaultPath: "~/Vault",
@@ -81,7 +81,7 @@ describe("legacy migrate obsidian-era memory config", () => {
 
     expect(res.changes).toContain("Removed memory.vaultPath.");
     expect(res.changes).toContain(
-      "Removed empty memory block after deleting obsolete Obsidian-era keys.",
+      "Removed empty memory block after deleting obsolete legacy memory keys.",
     );
     expect(res.config?.memory).toBeUndefined();
   });

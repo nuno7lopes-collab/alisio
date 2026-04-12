@@ -161,7 +161,7 @@ describe("config io paths", () => {
     });
   });
 
-  it("loads configs that still contain removed obsidian-era memory keys", async () => {
+  it("loads configs that still contain removed legacy memory keys", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".alisio");
       await fs.mkdir(configDir, { recursive: true });

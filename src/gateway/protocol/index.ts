@@ -588,10 +588,7 @@ import {
   type WizardStep,
   WizardStepSchema,
 } from "./schema.js";
-import type {
-  AlisioModelHardware,
-  AlisioModelRecommendation,
-} from "./schema/types.js";
+import type { AlisioModelHardware, AlisioModelRecommendation } from "./schema/types.js";
 
 const ajv = new (AjvPkg as unknown as new (opts?: object) => import("ajv").default)({
   allErrors: true,
@@ -1585,6 +1582,19 @@ export type {
   MemoryFilesDeleteResult,
   MemorySyncParams,
   MemorySyncResult,
+  MemoryGraphProjection,
+  MemoryGraphRelatedEntity,
+  MemoryGraphMatchRelation,
+  MemoryGraphMatch,
+  MemoryGraphFocus,
+  MemoryGraphNode,
+  MemoryGraphEdgeReason,
+  MemoryGraphEdge,
+  MemoryGraphBranch,
+  MemoryGraphStats,
+  MemoryGraphTruncated,
+  MemoryGraphParams,
+  MemoryGraphResult,
   ApprovalAuditGetParams,
   ApprovalAuditEntry,
   ApprovalAuditSnapshot,
