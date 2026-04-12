@@ -18,7 +18,7 @@
   - eventos: `ciphertextBase64` + `nonceBase64`
   - blobs: `ciphertextBase64`
 - A decriptação é sempre local.
-- `memory.e2ee.required` é informativo; a implementação assume E2EE obrigatória.
+- E2EE é obrigatório; nesta árvore isso é tratado pelo fluxo/runtime, não por um knob global estável de config.
 - Se faltar `ProfileRootKey`, o estado correto é `blocked`, nunca plaintext fallback.
 
 ## Chamada mínima para GAIA
@@ -35,9 +35,9 @@ import {
 
 const profileRootKey = await loadProfileRootKey({ profileId, passphrase });
 const availability = resolveMemorySyncAvailability({
-  enabled: cfg.memory?.sync?.enabled,
-  mode: cfg.memory?.sync?.mode,
-  directEnabled: cfg.memory?.sync?.direct?.enabled,
+  enabled: true,
+  mode: "cloud",
+  directEnabled: false,
   profileRootKeyAvailable: Boolean(profileRootKey),
 });
 
@@ -66,12 +66,10 @@ await transport.pushEncryptedEvents(profileId, [
 ]);
 ```
 
-## Flags
+## Flags estáveis
 
-- `memory.sync.enabled`
-- `memory.sync.mode = "cloud" | "direct" | "off"`
-- `memory.sync.batchSize`
-- `memory.sync.pullIntervalMs`
-- `memory.sync.maxInflightBatches`
-- `memory.sync.direct.enabled`
-- `memory.e2ee.required = true`
+- `memory.ledger.enabled`
+- `memory.legacyMarkdownProjection.enabled`
+- `memory.crdt.pages.enabled`
+
+Os detalhes de transporte de sync continuam no contrato dos packages (`packages/memory-sync`, `packages/memory-crypto`) e não estão expostos aqui como config global estável nesta árvore.

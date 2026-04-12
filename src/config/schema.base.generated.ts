@@ -477,10 +477,6 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
                     },
                     {
                       type: "string",
-                      const: "alisio",
-                    },
-                    {
-                      type: "string",
                       const: "clawd",
                     },
                     {
@@ -10943,20 +10939,35 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
               },
             ],
           },
-          vaultPath: {
-            type: "string",
-          },
-          memoryPath: {
-            type: "string",
-          },
-          obsidianReadOnly: {
+          ledger: {
             type: "object",
             properties: {
               enabled: {
                 type: "boolean",
               },
-              vaultPath: {
-                type: "string",
+            },
+            additionalProperties: false,
+          },
+          legacyMarkdownProjection: {
+            type: "object",
+            properties: {
+              enabled: {
+                type: "boolean",
+              },
+            },
+            additionalProperties: false,
+          },
+          crdt: {
+            type: "object",
+            properties: {
+              pages: {
+                type: "object",
+                properties: {
+                  enabled: {
+                    type: "boolean",
+                  },
+                },
+                additionalProperties: false,
               },
             },
             additionalProperties: false,
@@ -13707,29 +13718,39 @@ export const GENERATED_BASE_CONFIG_SCHEMA = {
       help: 'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
       tags: ["storage"],
     },
-    "memory.vaultPath": {
-      label: "Memory Obsidian Vault Path",
-      help: 'Sets the absolute Obsidian Vault root (or a path starting with "~") used for zero-plugin memory sync. When set, daily notes are written into that Vault instead of the workspace root.',
+    "memory.ledger": {
+      label: "Memory Ledger",
+      help: "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
       tags: ["storage"],
     },
-    "memory.memoryPath": {
-      label: "Memory Directory Path",
-      help: 'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
+    "memory.ledger.enabled": {
+      label: "Enable Ledger-Derived Rebuild",
+      help: "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
       tags: ["storage"],
     },
-    "memory.obsidianReadOnly": {
-      label: "Obsidian Read-only Connector",
-      help: "Separate read-only Obsidian connector that indexes the entire Vault for memory search without writing back to the Vault. This is explicit opt-in and independent from the legacy vaultPath/memoryPath write flow.",
+    "memory.legacyMarkdownProjection": {
+      label: "Memory Legacy Markdown Projection",
+      help: "Compatibility projection controls for writing derived Markdown files into the local state workspace. Keep this enabled so rollback and export surfaces still have a Markdown view of derived memory.",
       tags: ["storage"],
     },
-    "memory.obsidianReadOnly.enabled": {
-      label: "Enable Obsidian Read-only Connector",
-      help: "Enables whole-vault read-only Obsidian indexing. When enabled, Alisio scans Markdown files across the selected Vault root, skips .obsidian and hidden directories, applies safety limits, and never writes into that Vault.",
+    "memory.legacyMarkdownProjection.enabled": {
+      label: "Enable Legacy Markdown Projection",
+      help: "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable only if you intentionally want derived state without Markdown materialization.",
       tags: ["storage"],
     },
-    "memory.obsidianReadOnly.vaultPath": {
-      label: "Obsidian Read-only Vault Path",
-      help: 'Absolute Obsidian Vault root (or a path starting with "~") used by the read-only connector. This indexes the entire Vault for memory search, does not reuse memory.memoryPath, and never writes notes or rollups back into the Vault.',
+    "memory.crdt": {
+      label: "Memory CRDT",
+      help: "CRDT controls for canonical page bodies. Keep CRDT page storage enabled so concurrent page edits converge through Yjs-backed derived state.",
+      tags: ["storage"],
+    },
+    "memory.crdt.pages": {
+      label: "Memory CRDT Pages",
+      help: "Page-body CRDT settings for canonical memory. This is the primary body storage mode for ledger-derived pages.",
+      tags: ["storage"],
+    },
+    "memory.crdt.pages.enabled": {
+      label: "Enable CRDT Page Bodies",
+      help: "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
       tags: ["storage"],
     },
     "memory.qmd.command": {

@@ -301,14 +301,13 @@ export const pt_PT: TranslationMap = {
       skippedLarge: "grandes ignorados",
       builtin: "Integrado",
       views: {
+        label: "Vistas da memória",
         wiki: "Wiki",
         files: "Ficheiros",
         graph: "Grafo",
       },
       shell: {
         title: "Memória nativa",
-        subtitle:
-          "Páginas wiki com ledger, anexos, contexto em grafo, explicabilidade e exportação.",
       },
       wiki: {
         listTitle: "Páginas wiki",
@@ -321,6 +320,7 @@ export const pt_PT: TranslationMap = {
         backlinks: "Backlinks",
         claims: "Claims",
         evidence: "Evidência",
+        provenance: "Proveniência",
         history: "Histórico",
         context: "Pré-visualização do contexto",
         revision: "Revisão",
@@ -330,6 +330,7 @@ export const pt_PT: TranslationMap = {
         backlinksEmpty: "Ainda não há backlinks.",
         claimsEmpty: "Ainda não surgiram claims.",
         evidenceEmpty: "Ainda não surgiu evidência.",
+        provenanceEmpty: "Ainda não surgiu proveniência.",
         updated: "Actualizado",
         path: "Conteúdo da página",
       },
@@ -362,9 +363,15 @@ export const pt_PT: TranslationMap = {
         view: "Ver trace",
         title: "Trace de retrieval",
         summary: "Resumo legível",
+        query: "Pesquisa",
+        reasons: "Motivos",
+        hits: "Resultados",
         raw: "JSON bruto do trace",
         close: "Fechar",
         unavailable: "Os detalhes do trace não estão disponíveis para este resultado.",
+      },
+      claims: {
+        confidence: "Confiança",
       },
       legacy: {
         title: "Editor Markdown legado",

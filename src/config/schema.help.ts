@@ -879,16 +879,20 @@ export const FIELD_HELP: Record<string, string> = {
     'Selects the global memory engine: "builtin" uses Alisio memory internals, while "qmd" uses the QMD sidecar pipeline. Keep "builtin" unless you intentionally operate QMD.',
   "memory.citations":
     'Controls citation visibility in replies: "auto" shows citations when useful, "on" always shows them, and "off" hides them. Keep "auto" for a balanced signal-to-noise default.',
-  "memory.vaultPath":
-    'Sets the absolute Obsidian Vault root (or a path starting with "~") used for zero-plugin memory sync. When set, daily notes are written into that Vault instead of the workspace root.',
-  "memory.memoryPath":
-    'Sets the relative directory inside the workspace or configured Vault where Alisio memory files live. Keep "memory" for legacy layout, or use a folder such as "Alisio Memory" for Obsidian-friendly daily notes and long-term rollups.',
-  "memory.obsidianReadOnly":
-    "Separate read-only Obsidian connector that indexes the entire Vault for memory search without writing back to the Vault. This is explicit opt-in and independent from the legacy vaultPath/memoryPath write flow.",
-  "memory.obsidianReadOnly.enabled":
-    "Enables whole-vault read-only Obsidian indexing. When enabled, Alisio scans Markdown files across the selected Vault root, skips .obsidian and hidden directories, applies safety limits, and never writes into that Vault.",
-  "memory.obsidianReadOnly.vaultPath":
-    'Absolute Obsidian Vault root (or a path starting with "~") used by the read-only connector. This indexes the entire Vault for memory search, does not reuse memory.memoryPath, and never writes notes or rollups back into the Vault.',
+  "memory.ledger":
+    "Ledger-derived state controls for canonical memory. Keep this enabled in normal operation so local state is rebuilt from auditable events instead of trusting projections as source of truth.",
+  "memory.ledger.enabled":
+    "Emergency fallback switch for the canonical memory pipeline. When false, Alisio skips ledger-derived rebuild and reads compatibility projections only; use this only for temporary rollback or incident mitigation.",
+  "memory.legacyMarkdownProjection":
+    "Compatibility projection controls for writing derived Markdown files into the local state workspace. Keep this enabled so rollback and export surfaces still have a Markdown view of derived memory.",
+  "memory.legacyMarkdownProjection.enabled":
+    "Writes compatibility Markdown projections under the local Alisio state workspace from derived state. Disable only if you intentionally want derived state without Markdown materialization.",
+  "memory.crdt":
+    "CRDT controls for canonical page bodies. Keep CRDT page storage enabled so concurrent page edits converge through Yjs-backed derived state.",
+  "memory.crdt.pages":
+    "Page-body CRDT settings for canonical memory. This is the primary body storage mode for ledger-derived pages.",
+  "memory.crdt.pages.enabled":
+    "Stores canonical page bodies as CRDT/Yjs state in the derived store and emits CRDT events for edits. Disable only for emergency compatibility fallback.",
   "memory.qmd.command":
     "Sets the executable path for the `qmd` binary used by the QMD backend (default: resolved from PATH). Use an explicit absolute path when multiple qmd installs exist or PATH differs across environments.",
   "memory.qmd.mcporter":

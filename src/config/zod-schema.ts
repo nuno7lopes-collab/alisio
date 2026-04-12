@@ -1,4 +1,3 @@
-import path from "node:path";
 import { z } from "zod";
 import { parseByteSize } from "../cli/parse-bytes.js";
 import { parseDurationMs } from "../cli/parse-duration.js";
@@ -113,55 +112,37 @@ const MemoryQmdSchema = z
   })
   .strict();
 
-function isValidMemoryVaultPath(value: string): boolean {
-  const trimmed = value.trim();
-  return Boolean(trimmed) && (trimmed.startsWith("~") || path.isAbsolute(trimmed));
-}
-
-function isValidMemorySubpath(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed || path.isAbsolute(trimmed)) {
-    return false;
-  }
-  const normalized = trimmed.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!normalized) {
-    return false;
-  }
-  return normalized.split("/").every((segment) => segment && segment !== "." && segment !== "..");
-}
-
-const MemoryObsidianReadOnlySchema = z
+const MemoryLedgerSchema = z
   .object({
     enabled: z.boolean().optional(),
-    vaultPath: z
-      .string()
-      .refine(isValidMemoryVaultPath, 'Expected an absolute path or a "~" path')
-      .optional(),
   })
-  .strict()
-  .superRefine((value, ctx) => {
-    if (value.enabled && !value.vaultPath?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["vaultPath"],
-        message: "memory.obsidianReadOnly.vaultPath is required when the connector is enabled",
-      });
-    }
-  });
+  .strict();
+
+const MemoryLegacyMarkdownProjectionSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
+const MemoryCrdtPagesSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
+const MemoryCrdtSchema = z
+  .object({
+    pages: MemoryCrdtPagesSchema.optional(),
+  })
+  .strict();
 
 const MemorySchema = z
   .object({
     backend: z.union([z.literal("builtin"), z.literal("qmd")]).optional(),
     citations: z.union([z.literal("auto"), z.literal("on"), z.literal("off")]).optional(),
-    vaultPath: z
-      .string()
-      .refine(isValidMemoryVaultPath, 'Expected an absolute path or a "~" path')
-      .optional(),
-    memoryPath: z
-      .string()
-      .refine(isValidMemorySubpath, "Expected a relative subpath without '.' or '..'")
-      .optional(),
-    obsidianReadOnly: MemoryObsidianReadOnlySchema.optional(),
+    ledger: MemoryLedgerSchema.optional(),
+    legacyMarkdownProjection: MemoryLegacyMarkdownProjectionSchema.optional(),
+    crdt: MemoryCrdtSchema.optional(),
     qmd: MemoryQmdSchema.optional(),
   })
   .strict()
@@ -439,11 +420,7 @@ export const AlisioSchema = z
                 cdpUrl: z.string().optional(),
                 userDataDir: z.string().optional(),
                 driver: z
-                  .union([
-                    z.literal("alisio"),
-                    z.literal("clawd"),
-                    z.literal("existing-session"),
-                  ])
+                  .union([z.literal("alisio"), z.literal("clawd"), z.literal("existing-session")])
                   .optional(),
                 attachOnly: z.boolean().optional(),
                 color: HexColorSchema,

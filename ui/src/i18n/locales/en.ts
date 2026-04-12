@@ -310,14 +310,13 @@ export const en: TranslationMap = {
       skippedLarge: "large skipped",
       builtin: "Built-in",
       views: {
+        label: "Memory views",
         wiki: "Wiki",
         files: "Files",
         graph: "Graph",
       },
       shell: {
         title: "Native memory",
-        subtitle:
-          "Ledger-backed wiki pages, attachments, graph context, explainability, and export.",
       },
       wiki: {
         listTitle: "Wiki pages",
@@ -330,6 +329,7 @@ export const en: TranslationMap = {
         backlinks: "Backlinks",
         claims: "Claims",
         evidence: "Evidence",
+        provenance: "Provenance",
         history: "History",
         context: "Context preview",
         revision: "Revision",
@@ -339,6 +339,7 @@ export const en: TranslationMap = {
         backlinksEmpty: "No backlinks yet.",
         claimsEmpty: "No claims surfaced yet.",
         evidenceEmpty: "No evidence surfaced yet.",
+        provenanceEmpty: "No provenance surfaced yet.",
         updated: "Updated",
         path: "Page content",
       },
@@ -371,9 +372,15 @@ export const en: TranslationMap = {
         view: "View trace",
         title: "Retrieval trace",
         summary: "Friendly summary",
+        query: "Query",
+        reasons: "Reasons",
+        hits: "Hits",
         raw: "Raw trace JSON",
         close: "Close",
         unavailable: "Trace details are not available for this result.",
+      },
+      claims: {
+        confidence: "Confidence",
       },
       legacy: {
         title: "Legacy markdown editor",

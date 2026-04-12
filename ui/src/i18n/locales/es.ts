@@ -288,14 +288,13 @@ export const es: TranslationMap = {
       projectionsUnit: "proyecciones",
       builtin: "Integrado",
       views: {
+        label: "Vistas de memoria",
         wiki: "Wiki",
         files: "Ficheros",
         graph: "Grafo",
       },
       shell: {
         title: "Memoria nativa",
-        subtitle:
-          "Páginas wiki con ledger, adjuntos, contexto en grafo, explicabilidad y exportación.",
       },
       wiki: {
         listTitle: "Páginas wiki",
@@ -308,6 +307,7 @@ export const es: TranslationMap = {
         backlinks: "Backlinks",
         claims: "Claims",
         evidence: "Evidencia",
+        provenance: "Procedencia",
         history: "Historial",
         context: "Vista previa del contexto",
         revision: "Revisión",
@@ -317,6 +317,7 @@ export const es: TranslationMap = {
         backlinksEmpty: "Todavía no hay backlinks.",
         claimsEmpty: "Todavía no hay claims.",
         evidenceEmpty: "Todavía no hay evidencias.",
+        provenanceEmpty: "Todavía no hay procedencia disponible.",
         updated: "Actualizado",
         path: "Contenido de la página",
       },
@@ -349,9 +350,15 @@ export const es: TranslationMap = {
         view: "Ver trace",
         title: "Trace de retrieval",
         summary: "Resumen legible",
+        query: "Consulta",
+        reasons: "Motivos",
+        hits: "Resultados",
         raw: "JSON bruto del trace",
         close: "Cerrar",
         unavailable: "Los detalles del trace no están disponibles para este resultado.",
+      },
+      claims: {
+        confidence: "Confianza",
       },
       legacy: {
         title: "Editor Markdown legado",
