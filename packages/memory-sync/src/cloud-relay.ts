@@ -43,6 +43,7 @@ function decodeEvent(value: unknown): EncryptedMemoryEvent {
   const lamport = typeof record.lamport === "number" ? record.lamport : Number.NaN;
   const schemaVersion =
     typeof record.schemaVersion === "number" ? record.schemaVersion : Number.NaN;
+  const createdAtMs = typeof record.createdAtMs === "number" ? record.createdAtMs : Number.NaN;
   const ciphertextBase64 =
     typeof record.ciphertextBase64 === "string" ? record.ciphertextBase64 : "";
   const nonceBase64 = typeof record.nonceBase64 === "string" ? record.nonceBase64 : "";
@@ -53,6 +54,7 @@ function decodeEvent(value: unknown): EncryptedMemoryEvent {
     !eventType ||
     !Number.isFinite(lamport) ||
     !Number.isFinite(schemaVersion) ||
+    !Number.isFinite(createdAtMs) ||
     !ciphertextBase64 ||
     !nonceBase64
   ) {
@@ -65,6 +67,7 @@ function decodeEvent(value: unknown): EncryptedMemoryEvent {
     lamport,
     eventType,
     schemaVersion,
+    createdAtMs,
     algorithm: "AES-256-GCM",
     ciphertext: decodeBase64(ciphertextBase64),
     nonce: decodeBase64(nonceBase64),
@@ -78,6 +81,7 @@ function encodeEvent(event: EncryptedMemoryEvent) {
     lamport: event.lamport,
     eventType: event.eventType,
     schemaVersion: event.schemaVersion,
+    createdAtMs: event.createdAtMs,
     algorithm: event.algorithm ?? "AES-256-GCM",
     ciphertextBase64: encodeBase64(event.ciphertext),
     nonceBase64: encodeBase64(event.nonce),

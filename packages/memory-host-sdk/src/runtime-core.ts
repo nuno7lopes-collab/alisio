@@ -12,16 +12,44 @@ export { loadConfig } from "../../../src/config/config.js";
 export { resolveStateDir } from "../../../src/config/paths.js";
 export { resolveSessionTranscriptsDirForAgent } from "../../../src/config/sessions/paths.js";
 export {
+  createMemoryCrypto,
+  decodeBase64,
+  encodeBase64,
+  exportPairingCode,
+  importProfileKeyFromPairingCode,
+  loadProfileRootKey,
+  storeProfileRootKey,
+} from "../../memory-crypto/src/index.js";
+export {
+  MemorySyncBlockedError,
+  MemorySyncHttpError,
+  createCloudRelayMemoryTransport,
+  createDirectMemoryTransportStub,
+  resolveMemorySyncAvailability,
+} from "../../memory-sync/src/index.js";
+export {
   resolveAlisioCanonicalMemoryStorePath,
   resolveAlisioMemoryOwnerProfile,
 } from "../../../src/infra/alisio-memory-profile.js";
+export { getAlisioActiveCloudAccessSession } from "../../../src/infra/alisio-store.js";
 export { loadOrCreateDeviceIdentity } from "../../../src/infra/device-identity.js";
 export { emptyPluginConfigSchema } from "../../../src/plugins/config-schema.js";
 export { parseAgentSessionKey } from "../../../src/routing/session-key.js";
 export type { AlisioConfig } from "../../../src/config/config.js";
 export type { MemoryCitationsMode } from "../../../src/config/types.memory.js";
 export type { AlisioMemoryOwnerProfile } from "../../../src/infra/alisio-memory-profile.js";
+export type { AlisioCloudAccessSession } from "../../../src/infra/alisio-store.js";
 export type { DeviceIdentity } from "../../../src/infra/device-identity.js";
+export type {
+  ImportPairingCodeParams,
+  ImportedProfileKey,
+  LoadProfileRootKeyParams,
+  MemoryCipherBytes,
+  MemoryCryptoTelemetry,
+  MemoryEventCryptoMeta,
+  StoreProfileRootKeyParams,
+  StoreProfileRootKeyResult,
+} from "../../memory-crypto/src/index.js";
 export type {
   MemoryFlushPlan,
   MemoryFlushPlanResolver,
@@ -29,3 +57,13 @@ export type {
   MemoryPromptSectionBuilder,
 } from "../../../src/plugins/memory-state.js";
 export type { AlisioPluginApi } from "../../../src/plugins/types.js";
+export type {
+  EncryptedMemoryEvent,
+  MemoryBlobMeta,
+  MemorySyncAckVector,
+  MemorySyncAvailability,
+  MemorySyncMode,
+  MemorySyncTransport,
+  PulledMemoryBlob,
+  ResolveSyncAvailabilityParams,
+} from "../../memory-sync/src/index.js";

@@ -173,6 +173,18 @@ function buildRuntimeStatus(
     lastSyncedLamport?: number;
     checkpointsCount?: number;
     e2eeRequired?: true;
+    syncAvailability?: "active" | "inactive" | "blocked";
+    syncModeConfigured?: "cloud" | "direct" | "off";
+    syncBlockedReason?:
+      | "disabled"
+      | "mode_off"
+      | "missing_profile_key"
+      | "missing_relay_base_url"
+      | "missing_access_token"
+      | "direct_disabled";
+    lastSyncSuccessAt?: string;
+    lastAckLamport?: number;
+    pendingBacklog?: number;
     lastSyncedAt?: string;
     lastError?: string;
     replica?: {
@@ -198,6 +210,12 @@ function buildRuntimeStatus(
     typeof canonicalStore.ledgerEventsCount === "number" &&
     typeof canonicalStore.lastSyncedLamport === "number" &&
     typeof canonicalStore.checkpointsCount === "number" &&
+    (canonicalStore.syncAvailability === "active" ||
+      canonicalStore.syncAvailability === "inactive" ||
+      canonicalStore.syncAvailability === "blocked") &&
+    (canonicalStore.syncModeConfigured === "cloud" ||
+      canonicalStore.syncModeConfigured === "direct" ||
+      canonicalStore.syncModeConfigured === "off") &&
     canonicalStore.e2eeRequired === true
   ) {
     runtime.canonicalStore = {
@@ -220,6 +238,20 @@ function buildRuntimeStatus(
       lastSyncedLamport: canonicalStore.lastSyncedLamport,
       checkpointsCount: canonicalStore.checkpointsCount,
       e2eeRequired: canonicalStore.e2eeRequired,
+      syncAvailability: canonicalStore.syncAvailability,
+      syncModeConfigured: canonicalStore.syncModeConfigured,
+      ...(canonicalStore.syncBlockedReason
+        ? { syncBlockedReason: canonicalStore.syncBlockedReason }
+        : {}),
+      ...(canonicalStore.lastSyncSuccessAt
+        ? { lastSyncSuccessAt: canonicalStore.lastSyncSuccessAt }
+        : {}),
+      ...(typeof canonicalStore.lastAckLamport === "number"
+        ? { lastAckLamport: canonicalStore.lastAckLamport }
+        : {}),
+      ...(typeof canonicalStore.pendingBacklog === "number"
+        ? { pendingBacklog: canonicalStore.pendingBacklog }
+        : {}),
       ...(canonicalStore.lastSyncedAt ? { lastSyncedAt: canonicalStore.lastSyncedAt } : {}),
       ...(canonicalStore.lastError ? { lastError: canonicalStore.lastError } : {}),
       ...(canonicalStore.replica?.deviceId && canonicalStore.replica.stateDir

@@ -180,6 +180,11 @@ describe("memoryHandlers", () => {
               lastSyncedLamport: 12,
               checkpointsCount: 1,
               e2eeRequired: true,
+              syncAvailability: "active",
+              syncModeConfigured: "cloud",
+              lastSyncSuccessAt: "2026-04-08T10:01:00.000Z",
+              lastAckLamport: 12,
+              pendingBacklog: 0,
               lastSyncedAt: "2026-04-08T10:00:00.000Z",
               replica: {
                 deviceId: "device-main",
@@ -225,6 +230,10 @@ describe("memoryHandlers", () => {
             lastSyncedLamport: 12,
             checkpointsCount: 1,
             e2eeRequired: true,
+            syncAvailability: "active",
+            syncModeConfigured: "cloud",
+            lastAckLamport: 12,
+            pendingBacklog: 0,
           }),
           vector: expect.objectContaining({
             enabled: true,

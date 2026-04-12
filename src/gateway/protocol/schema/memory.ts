@@ -19,6 +19,24 @@ const MemoryCanonicalCloudSyncSchema = Type.Union([
   Type.Literal("enabled"),
   Type.Literal("error"),
 ]);
+const MemoryCanonicalSyncAvailabilitySchema = Type.Union([
+  Type.Literal("active"),
+  Type.Literal("inactive"),
+  Type.Literal("blocked"),
+]);
+const MemoryCanonicalSyncModeConfiguredSchema = Type.Union([
+  Type.Literal("cloud"),
+  Type.Literal("direct"),
+  Type.Literal("off"),
+]);
+const MemoryCanonicalSyncBlockedReasonSchema = Type.Union([
+  Type.Literal("disabled"),
+  Type.Literal("mode_off"),
+  Type.Literal("missing_profile_key"),
+  Type.Literal("missing_relay_base_url"),
+  Type.Literal("missing_access_token"),
+  Type.Literal("direct_disabled"),
+]);
 
 export const MemoryStatusParamsSchema = Type.Object(
   {
@@ -155,6 +173,12 @@ export const MemoryCanonicalStoreRuntimeSchema = Type.Object(
     lastSyncedLamport: Type.Integer({ minimum: 0 }),
     checkpointsCount: Type.Integer({ minimum: 0 }),
     e2eeRequired: Type.Literal(true),
+    syncAvailability: Type.Optional(MemoryCanonicalSyncAvailabilitySchema),
+    syncModeConfigured: Type.Optional(MemoryCanonicalSyncModeConfiguredSchema),
+    syncBlockedReason: Type.Optional(MemoryCanonicalSyncBlockedReasonSchema),
+    lastSyncSuccessAt: Type.Optional(Type.String()),
+    lastAckLamport: Type.Optional(Type.Integer({ minimum: 0 })),
+    pendingBacklog: Type.Optional(Type.Integer({ minimum: 0 })),
     lastSyncedAt: Type.Optional(Type.String()),
     lastError: Type.Optional(Type.String()),
     replica: Type.Optional(MemoryCanonicalStoreReplicaSchema),

@@ -13,6 +13,12 @@ export function resolveMemorySyncAvailability(
   if (!params.profileRootKeyAvailable) {
     return { state: "blocked", mode, reason: "missing_profile_key" };
   }
+  if (mode === "cloud" && !params.relayBaseUrlConfigured) {
+    return { state: "blocked", mode, reason: "missing_relay_base_url" };
+  }
+  if (mode === "cloud" && !params.accessTokenAvailable) {
+    return { state: "blocked", mode, reason: "missing_access_token" };
+  }
   if (mode === "direct" && params.directEnabled !== true) {
     return { state: "blocked", mode, reason: "direct_disabled" };
   }

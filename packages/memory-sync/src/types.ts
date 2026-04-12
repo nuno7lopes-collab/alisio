@@ -18,6 +18,7 @@ export type EncryptedMemoryEvent = {
   lamport: number;
   eventType: string;
   schemaVersion: number;
+  createdAtMs: number;
   ciphertext: Uint8Array;
   nonce: Uint8Array;
   algorithm?: "AES-256-GCM";
@@ -83,12 +84,20 @@ export type ResolveSyncAvailabilityParams = {
   mode?: MemorySyncMode;
   directEnabled?: boolean;
   profileRootKeyAvailable?: boolean;
+  relayBaseUrlConfigured?: boolean;
+  accessTokenAvailable?: boolean;
 };
 
 export type MemorySyncAvailability = {
   state: "active" | "inactive" | "blocked";
   mode: MemorySyncMode;
-  reason?: "disabled" | "mode_off" | "missing_profile_key" | "direct_disabled";
+  reason?:
+    | "disabled"
+    | "mode_off"
+    | "missing_profile_key"
+    | "missing_relay_base_url"
+    | "missing_access_token"
+    | "direct_disabled";
 };
 
 export class MemorySyncHttpError extends Error {

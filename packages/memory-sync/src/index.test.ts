@@ -69,6 +69,7 @@ describe("@alisio/memory-sync", () => {
       lamport: 11,
       eventType: "ledger.memory.merge",
       schemaVersion: 1,
+      createdAtMs: 1_725_000_000_000,
       eventId: "evt-sync-1",
     };
     const encryptedEvent = await crypto.encryptEventPayload(
@@ -101,6 +102,7 @@ describe("@alisio/memory-sync", () => {
                 lamport: eventMeta.lamport,
                 eventType: eventMeta.eventType,
                 schemaVersion: eventMeta.schemaVersion,
+                createdAtMs: eventMeta.createdAtMs,
                 ciphertextBase64: Buffer.from(encryptedEvent.ciphertext).toString("base64"),
                 nonceBase64: Buffer.from(encryptedEvent.nonce).toString("base64"),
               },
@@ -153,6 +155,7 @@ describe("@alisio/memory-sync", () => {
         lamport: eventMeta.lamport,
         eventType: eventMeta.eventType,
         schemaVersion: eventMeta.schemaVersion,
+        createdAtMs: eventMeta.createdAtMs,
         ciphertext: encryptedEvent.ciphertext,
         nonce: encryptedEvent.nonce,
       },
