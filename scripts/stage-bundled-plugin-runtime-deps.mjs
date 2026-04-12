@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { hostPackageNames, readPackageBrandConfig } from "./lib/alisio-branding.mjs";
+import { removePathIfExists } from "./runtime-postbuild-shared.mjs";
 
 const WINDOWS_UNSAFE_CMD_CHARS_RE = /[&|<>^%\r\n]/;
 const RUNTIME_DEPS_LAYOUT_VERSION = 2;
@@ -15,15 +16,6 @@ function readJson(filePath) {
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-}
-
-function removePathIfExists(targetPath) {
-  fs.rmSync(targetPath, {
-    recursive: true,
-    force: true,
-    maxRetries: 5,
-    retryDelay: 50,
-  });
 }
 
 function makeTempDir(prefix) {
