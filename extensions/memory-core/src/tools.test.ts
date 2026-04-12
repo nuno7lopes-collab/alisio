@@ -128,13 +128,30 @@ describe("memory_get stable locators", () => {
       lines: 1,
     });
 
-    expect(result.details).toEqual({
-      text: "Project Atlas notes and launch checklist.",
-      path: fixture.atlasLocator,
-      displayPath: fixture.atlasDisplayPath,
-      pageId: fixture.atlasPageId,
-      projectionId: fixture.atlasProjectionId,
-    });
+    expect(result.details).toEqual(
+      expect.objectContaining({
+        text: "Project Atlas notes and launch checklist.",
+        path: fixture.atlasLocator,
+        displayPath: fixture.atlasDisplayPath,
+        pageId: fixture.atlasPageId,
+        projectionId: fixture.atlasProjectionId,
+        locator: {
+          pageId: fixture.atlasPageId,
+          projectionId: fixture.atlasProjectionId,
+        },
+        reasonCodes: ["stable_locator"],
+        provenance: {
+          sourceLocator: fixture.atlasLocator,
+          evidenceIds: [fixture.atlasPageId, fixture.atlasProjectionId],
+        },
+        scoreBreakdown: expect.objectContaining({
+          confidence: 1,
+          lexical: 1,
+          vector: 0,
+          userFeedback: 0,
+        }),
+      }),
+    );
   });
 
   it("keeps the legacy path read only behind the emergency flag", async () => {

@@ -26,6 +26,7 @@ import {
   isPrivateMemoryAllowed,
   type GaiaMemoryFacade,
   type MemoryContextItem,
+  type MemoryContextItemVisibility,
   type MemoryRetrievalTrace,
   type RetrievalScoreBreakdown,
 } from "../../../packages/memory-service/src/index.js";
@@ -34,6 +35,7 @@ import {
   type CanonicalMemoryGraphResult,
   type CanonicalMemoryStoreStatus,
 } from "./memory/canonical-store.js";
+import { readRecentMemoryLedgerEvents } from "./memory/ledger-interop.js";
 import {
   clampResultsByInjectedChars,
   decorateCitations,
@@ -70,6 +72,7 @@ type CanonicalProjectionRecord = {
   pageId: string;
   projectionKind: string;
   sourceLocator: string;
+  sourcePath?: string;
   displayPath?: string;
   sourceKind: "workspace-memory";
   editable: boolean;
@@ -79,6 +82,7 @@ type CanonicalProjectionRecord = {
   updatedAtMs: number;
   aliases: string[];
   tags: string[];
+  visibility: MemoryContextItemVisibility;
 };
 
 type CanonicalRecentEventRecord = {
@@ -103,6 +107,7 @@ type CanonicalClaimRecord = {
   sourceLocator: string;
   evidenceIds: string[];
   evidenceLocators: string[];
+  visibility: MemoryContextItemVisibility;
 };
 
 type CanonicalStoreReader = {
@@ -110,6 +115,7 @@ type CanonicalStoreReader = {
   findProjectionByPath(path: string): CanonicalProjectionRecord | null;
   findProjectionByProjectionId(projectionId: string): CanonicalProjectionRecord | null;
   findProjectionByPageId(pageId: string): CanonicalProjectionRecord | null;
+  isPagePrivate(pageId: string): boolean;
   listRecentEvents(limit: number): CanonicalRecentEventRecord[];
   listPinnedAndRecent(query: string, limit: number): CanonicalProjectionRecord[];
   listClaimMatches(query: string, limit: number): CanonicalClaimRecord[];
@@ -133,6 +139,15 @@ type GaiaDerivedGraphMatch = Omit<
     CanonicalMemoryGraphResult["matches"][number]["projections"][number] & { pageId: string }
   >;
   relations: GaiaDerivedGraphRelation[];
+};
+
+type NativeExplainability = {
+  reasonCodes: string[];
+  scoreBreakdown: RetrievalScoreBreakdown;
+  provenance: {
+    sourceLocator: string;
+    evidenceIds: string[];
+  };
 };
 
 const textEncoder = new TextEncoder();
@@ -175,6 +190,7 @@ export function createMemorySearchTool(options: {
             profileId: fallbackProfileId,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "manager_unavailable",
             selectedCount: 0,
             deniedCount: 0,
@@ -214,6 +230,7 @@ export function createMemorySearchTool(options: {
               profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "native_store_unavailable",
               selectedCount: 0,
               deniedCount: 0,
@@ -261,6 +278,7 @@ export function createMemorySearchTool(options: {
               profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "emergency_fallback_unavailable",
               selectedCount: 0,
               deniedCount: 0,
@@ -291,12 +309,14 @@ export function createMemorySearchTool(options: {
                   maxResults,
                   reader,
                 }),
-              structured: async () =>
+              structured: async (input) =>
                 buildStructuredItems({
                   query,
                   reader,
                   canonicalStore,
                   matchLimit: expandCandidateLimit(maxResults),
+                  input,
+                  privateOnlyEnabled: flags.privateOnlyEnabled,
                 }),
               textSearch: async () =>
                 await buildTextSearchItems({
@@ -352,6 +372,7 @@ export function createMemorySearchTool(options: {
               profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "native_retrieval_failed",
               selectedCount: 0,
               deniedCount: 0,
@@ -394,6 +415,7 @@ export function createMemorySearchTool(options: {
               profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "emergency_fallback_unavailable",
               selectedCount: 0,
               deniedCount: 0,
@@ -429,8 +451,7 @@ export function createMemoryGetTool(options: {
         const path = readOptionalString(params, "path");
         const from = readNumberParam(params, "from", { integer: true });
         const lines = readNumberParam(params, "lines", { integer: true });
-        const { readAgentMemoryFile, resolveMemoryBackendConfig } = await loadMemoryToolRuntime();
-        const resolved = resolveMemoryBackendConfig({ cfg, agentId });
+        const { readAgentMemoryFile } = await loadMemoryToolRuntime();
         const flags = resolveRetrievalFlags(cfg);
         const gaia = createGaiaFacade({
           cfg,
@@ -452,6 +473,7 @@ export function createMemoryGetTool(options: {
               profileId: `agent:${agentId}`,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "private_denied",
               selectedCount: 0,
               deniedCount: 1,
@@ -474,6 +496,7 @@ export function createMemoryGetTool(options: {
               profileId: `agent:${agentId}`,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "emergency_legacy_path",
               selectedCount: result.text.trim() ? 1 : 0,
               deniedCount: 0,
@@ -488,6 +511,7 @@ export function createMemoryGetTool(options: {
               profileId: `agent:${agentId}`,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "read_error",
               selectedCount: 0,
               deniedCount: 0,
@@ -519,6 +543,7 @@ export function createMemoryGetTool(options: {
             profileId: canonicalStore?.profileId ?? `agent:${agentId}`,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "stable_locator_missing",
             selectedCount: 0,
             deniedCount: 0,
@@ -539,12 +564,17 @@ export function createMemoryGetTool(options: {
             profileId: canonicalStore.profileId,
             privateOnlyEnabled: flags.privateOnlyEnabled,
           });
-          if (!privateAllowed && isSessionLikePath(stableLocator)) {
+          if (
+            !privateAllowed &&
+            (isPrivateMemoryPath(stableLocator) ||
+              (resolvedRecord?.pageId ? reader.isPagePrivate(resolvedRecord.pageId) : false))
+          ) {
             await recordSimpleRetrievalTrace({
               gaia,
               profileId: canonicalStore.profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "private_denied",
               selectedCount: 0,
               deniedCount: 1,
@@ -566,10 +596,20 @@ export function createMemoryGetTool(options: {
             from: from ?? undefined,
             lines: lines ?? undefined,
           });
+          const explainability = buildProjectionExplainability({
+            record: resolvedRecord,
+            reasonCodes: ["stable_locator"],
+            confidence: 1,
+            lexical: projectionId ? 1 : 0.92,
+            vector: 0,
+          });
           const result = {
             text,
             path: resolvedRecord.sourceLocator,
             ...(resolvedRecord.displayPath ? { displayPath: resolvedRecord.displayPath } : {}),
+            reasonCodes: explainability.reasonCodes,
+            scoreBreakdown: explainability.scoreBreakdown,
+            provenance: explainability.provenance,
           };
 
           await recordSimpleRetrievalTrace({
@@ -577,6 +617,7 @@ export function createMemoryGetTool(options: {
             profileId: canonicalStore.profileId,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "stable_locator",
             selectedCount: result.text.trim() ? 1 : 0,
             deniedCount: 0,
@@ -588,6 +629,9 @@ export function createMemoryGetTool(options: {
             ...result,
             ...(resolvedRecord?.pageId ? { pageId: resolvedRecord.pageId } : {}),
             ...(resolvedRecord?.projectionId ? { projectionId: resolvedRecord.projectionId } : {}),
+            locator: resolvedRecord?.projectionId
+              ? { pageId: resolvedRecord.pageId, projectionId: resolvedRecord.projectionId }
+              : { pageId: resolvedRecord.pageId },
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -596,6 +640,7 @@ export function createMemoryGetTool(options: {
             profileId: canonicalStore?.profileId ?? `agent:${agentId}`,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "read_error",
             selectedCount: 0,
             deniedCount: 0,
@@ -649,6 +694,7 @@ export function createMemoryGraphTool(options: {
             profileId: fallbackProfileId,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "manager_unavailable",
             selectedCount: 0,
             deniedCount: 0,
@@ -662,6 +708,7 @@ export function createMemoryGraphTool(options: {
           memory.manager,
           "gaia-derived-graph",
         );
+        const reader = openCanonicalStoreReader(canonicalStore);
         const profileId = canonicalStore?.profileId ?? fallbackProfileId;
         const toolGaia =
           profileId === fallbackProfileId
@@ -675,12 +722,13 @@ export function createMemoryGraphTool(options: {
               });
 
         try {
-          if (!canonicalStore) {
+          if (!canonicalStore || !reader) {
             await recordSimpleRetrievalTrace({
               gaia: toolGaia,
               profileId,
               agentId,
               sessionKey: options.agentSessionKey,
+              privateOnlyEnabled: flags.privateOnlyEnabled,
               reason: "graph_store_unavailable",
               selectedCount: 0,
               deniedCount: 0,
@@ -702,20 +750,36 @@ export function createMemoryGraphTool(options: {
             ...(typeof matchLimit === "number" ? { matchLimit } : {}),
             ...(typeof relationLimit === "number" ? { relationLimit } : {}),
           });
+          const privateAllowed = isPrivateMemoryAllowed({
+            sessionKey: options.agentSessionKey,
+            agentId,
+            profileId: canonicalStore.profileId,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
+          });
+          const decoratedGraph = decorateGraphResult({
+            graph,
+            profileId: canonicalStore.profileId,
+            query,
+            reader,
+            privateAllowed,
+          });
 
           await recordSimpleRetrievalTrace({
             gaia: toolGaia,
             profileId: canonicalStore.profileId,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "graph_query",
-            selectedCount: graph.matches.length,
-            deniedCount: 0,
-            budgetTokens: estimateTokenCount(JSON.stringify(graph.matches.slice(0, 3))),
+            selectedCount: decoratedGraph.graph.matches.length,
+            deniedCount: decoratedGraph.deniedCount,
+            budgetTokens: estimateTokenCount(
+              JSON.stringify(decoratedGraph.graph.matches.slice(0, 3)),
+            ),
             startedAtMs,
           });
 
-          return jsonResult(graph);
+          return jsonResult(decoratedGraph.graph);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           await recordSimpleRetrievalTrace({
@@ -723,6 +787,7 @@ export function createMemoryGraphTool(options: {
             profileId,
             agentId,
             sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
             reason: "graph_error",
             selectedCount: 0,
             deniedCount: 0,
@@ -730,6 +795,8 @@ export function createMemoryGraphTool(options: {
             startedAtMs,
           });
           return jsonResult(buildMemoryGraphUnavailableResult({ query, error: message }));
+        } finally {
+          reader?.close();
         }
       },
   });
@@ -822,8 +889,11 @@ function openCanonicalStoreReader(
     const { DatabaseSync } = requireNodeSqlite();
     const db = new DatabaseSync(status.path, { readOnly: true });
     const projections = loadProjectionRecords(db, status);
-    const recentEvents = loadRecentEventRecords(db, status);
-    const claims = loadClaimRecords(db, status);
+    const pagePrivacy = new Map(
+      projections.map((projection) => [projection.pageId, projection.visibility === "private"]),
+    );
+    const recentEvents = loadRecentEventRecords(db, status, pagePrivacy);
+    const claims = loadClaimRecords(db, status, pagePrivacy);
     return {
       status,
       findProjectionByPath(path) {
@@ -843,6 +913,9 @@ function openCanonicalStoreReader(
       findProjectionByPageId(pageId) {
         return projections.find((projection) => projection.pageId === pageId) ?? null;
       },
+      isPagePrivate(pageId) {
+        return pagePrivacy.get(pageId) ?? false;
+      },
       listRecentEvents(limit) {
         return recentEvents.slice(0, Math.max(1, limit));
       },
@@ -855,7 +928,6 @@ function openCanonicalStoreReader(
           const pinned = isPinnedProjection(record);
           const lexical = computeLexicalScore(normalizedQuery, [
             record.title,
-            record.displayPath ?? "",
             record.slug,
             record.aliases.join(" "),
             record.tags.join(" "),
@@ -984,63 +1056,60 @@ function buildStructuredItems(params: {
   reader: CanonicalStoreReader | null;
   canonicalStore: CanonicalMemoryStoreStatus | null;
   matchLimit: number;
+  input: {
+    profileId: string;
+    agentId: string;
+    sessionKey?: string;
+  };
+  privateOnlyEnabled: boolean;
 }): MemoryContextItem[] {
   if (!params.canonicalStore || !params.reader) {
     return [];
   }
   const canonicalStore = params.canonicalStore;
+  const privateAllowed = isPrivateMemoryAllowed({
+    sessionKey: params.input.sessionKey,
+    agentId: params.input.agentId,
+    profileId: params.input.profileId,
+    privateOnlyEnabled: params.privateOnlyEnabled,
+  });
   const claimItems = params.reader
     .listClaimMatches(params.query, Math.max(1, Math.floor(params.matchLimit / 2)))
-    .map((claim) => claimRecordToContextItem(claim));
-  const graph = queryCanonicalMemoryGraph({
+    .map((claim) => claimRecordToContextItem(claim, params.query));
+  const graph = queryGaiaDerivedGraph({
     status: canonicalStore,
     query: params.query,
     matchLimit: Math.max(2, params.matchLimit),
     relationLimit: 4,
   });
-  const graphItems: MemoryContextItem[] = graph.matches.map((match): MemoryContextItem => {
-    const firstProjection = match.projections[0];
-    const reasonCodes = [
-      ...(match.relations.length > 0 ? ["linked"] : []),
-      ...(match.tags.some((tag) => /claim|fact|decision/i.test(tag))
-        ? ["high_confidence_claim"]
-        : []),
-      "exact_match",
-    ];
-    const lexical = clampScore(match.score);
-    const confidence = reasonCodes.includes("high_confidence_claim") ? 0.92 : 0.68;
-    return {
-      id: `entity:${match.entityId}`,
-      layer: "L2",
-      kind: reasonCodes.includes("high_confidence_claim") ? "claim" : "entity",
-      title: match.title,
-      text: buildStructuredSummary(match),
-      reasonCodes,
-      scoreBreakdown: {
-        recency: 0.35,
-        confidence,
-        lexical,
-        vector: lexical * 0.7,
-        userFeedback: 0,
-      },
-      provenance: {
-        sourceLocator: buildProjectionLocator(
-          canonicalStore.profileId,
-          match.entityId,
-          firstProjection?.projectionId,
-        ),
-        evidenceIds: [
-          match.entityId,
-          ...match.projections.map((projection) => projection.projectionId),
-        ],
-      },
-      locator: firstProjection
-        ? { pageId: match.entityId, projectionId: firstProjection.projectionId }
-        : { pageId: match.entityId },
-      displayPath: firstProjection?.path ?? match.sourcePath,
-      tokenCount: estimateTokenCount(match.title + buildStructuredSummary(match)),
-    };
+  const decoratedGraph = decorateGraphResult({
+    graph,
+    profileId: canonicalStore.profileId,
+    query: params.query,
+    reader: params.reader,
+    privateAllowed,
   });
+  const graphItems: MemoryContextItem[] = decoratedGraph.graph.matches.map(
+    (match): MemoryContextItem => {
+      const firstProjection = match.projections[0];
+      return {
+        id: `entity:${match.entityId}`,
+        layer: "L2",
+        kind: match.reasonCodes.includes("high_confidence_claim") ? "claim" : "entity",
+        title: match.title,
+        text: buildStructuredSummary(match),
+        visibility: resolveGraphMatchVisibility(match, params.reader),
+        reasonCodes: match.reasonCodes,
+        scoreBreakdown: match.scoreBreakdown,
+        provenance: match.provenance,
+        locator: firstProjection
+          ? { pageId: match.entityId, projectionId: firstProjection.projectionId }
+          : { pageId: match.entityId },
+        displayPath: firstProjection?.path ?? match.sourcePath,
+        tokenCount: estimateTokenCount(match.title + buildStructuredSummary(match)),
+      };
+    },
+  );
   return [...claimItems, ...graphItems];
 }
 
@@ -1113,6 +1182,7 @@ async function buildFallbackSearchResult(params: {
     profileId: params.profileId,
     agentId: params.agentId,
     sessionKey: params.sessionKey,
+    privateAllowed,
     budgetTokens: results.reduce((sum, result) => sum + estimateTokenCount(result.snippet), 0),
     selectedCount: results.length,
     deniedCount: rawResults.length - results.length,
@@ -1143,16 +1213,24 @@ async function recordSimpleRetrievalTrace(params: {
   profileId: string;
   agentId: string;
   sessionKey?: string;
+  privateOnlyEnabled?: boolean;
   reason: string;
   selectedCount: number;
   deniedCount: number;
   budgetTokens: number;
   startedAtMs?: number;
 }) {
+  const privateAllowed = isPrivateMemoryAllowed({
+    sessionKey: params.sessionKey,
+    agentId: params.agentId,
+    profileId: params.profileId,
+    privateOnlyEnabled: params.privateOnlyEnabled,
+  });
   const trace = createTracePayload({
     profileId: params.profileId,
     agentId: params.agentId,
     sessionKey: params.sessionKey,
+    privateAllowed,
     budgetTokens: params.budgetTokens,
     selectedCount: params.selectedCount,
     deniedCount: params.deniedCount,
@@ -1181,6 +1259,7 @@ function createTracePayload(params: {
   profileId: string;
   agentId: string;
   sessionKey?: string;
+  privateAllowed: boolean;
   budgetTokens: number;
   selectedCount: number;
   deniedCount: number;
@@ -1206,7 +1285,7 @@ function createTracePayload(params: {
     },
     topFactors: params.topFactors.map((factor) => ({ factor, count: 1 })),
     isolation: {
-      privateAllowed: params.deniedCount === 0,
+      privateAllowed: params.privateAllowed,
       deniedCount: params.deniedCount,
     },
   };
@@ -1256,40 +1335,270 @@ function queryGaiaDerivedGraph(params: {
   };
 }
 
+function buildNativeExplainability(params: {
+  sourceLocator: string;
+  evidenceIds: string[];
+  reasonCodes: Array<string | undefined>;
+  recency: number;
+  confidence: number;
+  lexical: number;
+  vector: number;
+  userFeedback?: number;
+}): NativeExplainability {
+  return {
+    reasonCodes: uniqueStrings(params.reasonCodes.filter(Boolean) as string[]),
+    scoreBreakdown: {
+      recency: clampScore(params.recency),
+      confidence: clampScore(params.confidence),
+      lexical: clampScore(params.lexical),
+      vector: clampScore(params.vector),
+      userFeedback: clampScore(params.userFeedback ?? 0),
+    },
+    provenance: {
+      sourceLocator: params.sourceLocator,
+      evidenceIds: uniqueStrings(params.evidenceIds),
+    },
+  };
+}
+
+function buildProjectionExplainability(params: {
+  record: CanonicalProjectionRecord;
+  reasonCodes: Array<string | undefined>;
+  confidence: number;
+  lexical: number;
+  vector?: number;
+  userFeedback?: number;
+}): NativeExplainability {
+  return buildNativeExplainability({
+    sourceLocator: params.record.sourceLocator,
+    evidenceIds: [params.record.pageId, params.record.projectionId],
+    reasonCodes: params.reasonCodes,
+    recency: computeRecencyScore(params.record.updatedAtMs),
+    confidence: params.confidence,
+    lexical: params.lexical,
+    vector: params.vector ?? 0,
+    userFeedback: params.userFeedback ?? 0,
+  });
+}
+
+function isCanonicalPagePrivate(
+  reader: CanonicalStoreReader | null,
+  params: {
+    pageId: string;
+    sourcePath?: string;
+    projections?: Array<{ path: string }>;
+  },
+): boolean {
+  if (reader?.isPagePrivate(params.pageId)) {
+    return true;
+  }
+  if (params.sourcePath && isPrivateMemoryPath(params.sourcePath)) {
+    return true;
+  }
+  return params.projections?.some((projection) => isPrivateMemoryPath(projection.path)) ?? false;
+}
+
+function resolveGraphMatchVisibility(
+  match: GaiaDerivedGraphMatch,
+  reader: CanonicalStoreReader | null,
+): MemoryContextItemVisibility {
+  return isCanonicalPagePrivate(reader, {
+    pageId: match.pageId,
+    sourcePath: match.sourcePath,
+    projections: match.projections,
+  })
+    ? "private"
+    : "public";
+}
+
+function buildGraphMatchExplainability(params: {
+  profileId: string;
+  query: string;
+  match: GaiaDerivedGraphMatch;
+  reader: CanonicalStoreReader | null;
+}): NativeExplainability {
+  const record = params.reader?.findProjectionByPageId(params.match.pageId);
+  const lexical = clampScore(params.match.score);
+  const highConfidence = params.match.tags.some((tag) => /claim|fact|decision/i.test(tag));
+  const recallScore = computeLexicalScore(params.query, [
+    params.match.title,
+    params.match.slug,
+    params.match.aliases.join(" "),
+    params.match.tags.join(" "),
+  ]);
+  return buildNativeExplainability({
+    sourceLocator:
+      record?.sourceLocator ??
+      buildProjectionLocator(
+        params.profileId,
+        params.match.pageId,
+        params.match.projections[0]?.projectionId,
+      ),
+    evidenceIds: [
+      params.match.pageId,
+      ...params.match.projections.map((projection) => projection.projectionId),
+    ],
+    reasonCodes: [
+      lexical >= 0.96 ? "exact_match" : "graph_match",
+      params.match.relations.length > 0 ? "linked" : undefined,
+      highConfidence ? "high_confidence_claim" : undefined,
+      recallScore >= 0.9 ? "frequent_recall" : undefined,
+    ],
+    recency: record ? computeRecencyScore(record.updatedAtMs) : 0.35,
+    confidence: highConfidence ? 0.92 : 0.68,
+    lexical,
+    vector: lexical * 0.7,
+  });
+}
+
+function decorateGraphResult(params: {
+  graph: CanonicalMemoryGraphResult & { matches: GaiaDerivedGraphMatch[] };
+  profileId: string;
+  query: string;
+  reader: CanonicalStoreReader | null;
+  privateAllowed: boolean;
+}) {
+  const graphWithoutFocus = { ...params.graph } as Omit<typeof params.graph, "focus"> & {
+    focus?: CanonicalMemoryGraphResult["focus"];
+  };
+  delete graphWithoutFocus.focus;
+  const privatePageIds = new Set<string>();
+  if (!params.privateAllowed) {
+    for (const match of params.graph.matches) {
+      if (resolveGraphMatchVisibility(match, params.reader) === "private") {
+        privatePageIds.add(match.pageId);
+      }
+      for (const relation of match.relations) {
+        const related = relation.relatedEntity;
+        if (
+          related &&
+          isCanonicalPagePrivate(params.reader, {
+            pageId: related.pageId,
+            sourcePath: related.sourcePath,
+          })
+        ) {
+          privatePageIds.add(related.pageId);
+        }
+      }
+    }
+    for (const node of params.graph.nodes) {
+      if (
+        isCanonicalPagePrivate(params.reader, {
+          pageId: node.pageId,
+          sourcePath: node.sourcePath,
+        })
+      ) {
+        privatePageIds.add(node.pageId);
+      }
+    }
+  }
+
+  const matches = params.graph.matches
+    .filter((match) => !privatePageIds.has(match.pageId))
+    .map((match) => {
+      const relations = match.relations.filter(
+        (relation) => !relation.relatedEntity || !privatePageIds.has(relation.relatedEntity.pageId),
+      );
+      const nextMatch = { ...match, relations };
+      const explainability = buildGraphMatchExplainability({
+        profileId: params.profileId,
+        query: params.query,
+        match: nextMatch,
+        reader: params.reader,
+      });
+      return {
+        ...nextMatch,
+        ...explainability,
+        locator: nextMatch.projections[0]
+          ? { pageId: nextMatch.pageId, projectionId: nextMatch.projections[0].projectionId }
+          : { pageId: nextMatch.pageId },
+      };
+    });
+
+  const nodes = params.graph.nodes.filter((node) => !privatePageIds.has(node.pageId));
+  const edges = params.graph.edges.filter(
+    (edge) => !privatePageIds.has(edge.fromId) && !privatePageIds.has(edge.toId),
+  );
+  const branches = params.graph.branches
+    .map((branch) => ({
+      ...branch,
+      nodeIds: branch.nodeIds.filter((nodeId) => !privatePageIds.has(nodeId)),
+    }))
+    .filter((branch) => branch.nodeIds.length > 0);
+  const focus =
+    params.graph.focus && !privatePageIds.has(params.graph.focus.pageId)
+      ? {
+          ...params.graph.focus,
+          provenance: {
+            sourceLocator: buildProjectionLocator(params.profileId, params.graph.focus.pageId),
+            evidenceIds: [params.graph.focus.pageId],
+          },
+        }
+      : undefined;
+
+  return {
+    graph: {
+      ...graphWithoutFocus,
+      ...(focus ? { focus } : {}),
+      nodes,
+      edges,
+      branches,
+      availableRelationTypes: [...new Set(edges.map((edge) => edge.relationType))].toSorted(
+        (left, right) => left.localeCompare(right),
+      ),
+      availableTags: [...new Set(nodes.flatMap((node) => node.tags))].toSorted((left, right) =>
+        left.localeCompare(right),
+      ),
+      stats: {
+        ...params.graph.stats,
+        visibleNodes: nodes.length,
+        visibleEdges: edges.length,
+      },
+      truncated: {
+        nodes: params.graph.truncated.nodes || params.graph.nodes.length !== nodes.length,
+        edges: params.graph.truncated.edges || params.graph.edges.length !== edges.length,
+      },
+      matches,
+    },
+    deniedCount: privatePageIds.size,
+  };
+}
+
 function projectionRecordToContextItem(
   record: CanonicalProjectionRecord,
   params: { layer: "L1" | "L3"; kind: "page"; query: string },
 ): MemoryContextItem {
   const pinned = isPinnedProjection(record);
   const lexical = scoreProjectionRecord(params.query, record);
+  const reasonCodes = pinned
+    ? ["pinned", "recent"]
+    : lexical > 0
+      ? params.layer === "L3"
+        ? lexical >= 0.95
+          ? ["exact_match", "frequent_recall"]
+          : ["exact_match"]
+        : ["recent", "frequent_recall"]
+      : params.layer === "L3"
+        ? ["exact_match"]
+        : ["recent"];
+  const explainability = buildProjectionExplainability({
+    record,
+    reasonCodes,
+    confidence: pinned ? 0.8 : params.layer === "L3" ? 0.72 : 0.46,
+    lexical,
+    vector: params.layer === "L3" ? lexical * 0.8 : 0,
+    userFeedback: pinned ? 0.2 : 0,
+  });
   return {
     id: `projection:${record.projectionId}`,
     layer: params.layer,
     kind: params.kind,
     title: record.title,
     text: summarizeText(record.markdownBody, 320),
-    reasonCodes: pinned
-      ? ["pinned", "recent"]
-      : lexical > 0
-        ? params.layer === "L3"
-          ? lexical >= 0.95
-            ? ["exact_match", "frequent_recall"]
-            : ["exact_match"]
-          : ["recent", "frequent_recall"]
-        : params.layer === "L3"
-          ? ["exact_match"]
-          : ["recent"],
-    scoreBreakdown: {
-      recency: computeRecencyScore(record.updatedAtMs),
-      confidence: pinned ? 0.8 : params.layer === "L3" ? 0.72 : 0.46,
-      lexical,
-      vector: params.layer === "L3" ? lexical * 0.8 : 0,
-      userFeedback: pinned ? 0.2 : 0,
-    },
-    provenance: {
-      sourceLocator: record.sourceLocator,
-      evidenceIds: [record.pageId, record.projectionId],
-    },
+    reasonCodes: explainability.reasonCodes,
+    scoreBreakdown: explainability.scoreBreakdown,
+    visibility: record.visibility,
+    provenance: explainability.provenance,
     locator: {
       pageId: record.pageId,
       projectionId: record.projectionId,
@@ -1332,7 +1641,7 @@ function recentEventToContextItem(event: CanonicalRecentEventRecord): MemoryCont
   };
 }
 
-function claimRecordToContextItem(claim: CanonicalClaimRecord): MemoryContextItem {
+function claimRecordToContextItem(claim: CanonicalClaimRecord, query: string): MemoryContextItem {
   const evidencePreview = claim.evidenceLocators.slice(0, 2).join(", ");
   return {
     id: `claim:${claim.claimId}`,
@@ -1351,10 +1660,11 @@ function claimRecordToContextItem(claim: CanonicalClaimRecord): MemoryContextIte
     scoreBreakdown: {
       recency: computeRecencyScore(claim.updatedAtMs),
       confidence: clampScore(claim.confidence),
-      lexical: scoreClaimRecord(`${claim.subject} ${claim.predicate} ${claim.object}`, claim),
+      lexical: scoreClaimRecord(query, claim),
       vector: 0,
       userFeedback: 0,
     },
+    visibility: claim.visibility,
     provenance: {
       sourceLocator: claim.sourceLocator,
       evidenceIds: [claim.claimId, ...claim.evidenceIds],
@@ -1424,6 +1734,16 @@ function loadProjectionRecords(
          pr.kind AS projectionKind,
          pr.markdown_body AS markdownBody,
          COALESCE(pr.updated_at_ms, p.updated_at_ms) AS updatedAtMs,
+         COALESCE(
+           (
+             SELECT i.source_path
+             FROM imported_files i
+             WHERE i.page_id = p.page_id
+             ORDER BY i.updated_at_ms DESC, i.source_path ASC
+             LIMIT 1
+           ),
+           ''
+         ) AS sourcePath,
          COALESCE((SELECT json_group_array(alias_key) FROM page_aliases a WHERE a.page_id = p.page_id), '[]') AS aliasesJson,
          COALESCE((SELECT json_group_array(tag) FROM page_tags t WHERE t.page_id = p.page_id), '[]') AS tagsJson
        FROM pages p
@@ -1441,44 +1761,49 @@ function loadProjectionRecords(
 function loadRecentEventRecords(
   db: InstanceType<ReturnType<typeof requireNodeSqlite>["DatabaseSync"]>,
   status: CanonicalMemoryStoreStatus,
+  pagePrivacy: ReadonlyMap<string, boolean>,
 ): CanonicalRecentEventRecord[] {
-  const rows = db
-    .prepare(
-      `SELECT
-         l.event_id AS eventId,
-         l.event_type AS eventType,
-         l.page_id AS pageId,
-         l.source AS source,
-         l.created_at_ms AS createdAtMs,
-         l.payload_json AS payloadJson,
-         p.title AS title,
-         p.slug AS slug,
-         (
-           SELECT pr.kind
-           FROM projections pr
-           WHERE pr.page_id = l.page_id
-           ORDER BY pr.updated_at_ms DESC, pr.kind ASC
-           LIMIT 1
-         ) AS projectionKind
-       FROM ledger_events l
-       LEFT JOIN pages p
-         ON p.page_id = l.page_id
-       WHERE l.event_type NOT IN ('RETRIEVAL_TRACE_RECORDED', 'CHECKPOINT_CREATED')
-       ORDER BY l.lamport DESC
-       LIMIT 24`,
-    )
-    .all() as Array<Record<string, unknown>>;
+  const rows = readRecentMemoryLedgerEvents({
+    profileId: status.profileId,
+    stateDir: status.replica?.stateDir ?? resolveStateDir(process.env),
+    limit: 24,
+    excludeTypes: new Set(["CHECKPOINT_CREATED"]),
+  });
   return rows.map((row) => {
-    const eventId = typeof row.eventId === "string" ? row.eventId : "";
-    const eventType = typeof row.eventType === "string" ? row.eventType : "EVENT";
-    const pageId = typeof row.pageId === "string" && row.pageId ? row.pageId : undefined;
+    const eventId = row.eventId;
+    const eventType = row.type;
+    const pageId = row.pageId;
     const projectionKind =
-      typeof row.projectionKind === "string" && row.projectionKind ? row.projectionKind : undefined;
+      pageId &&
+      ((
+        db
+          .prepare(
+            `SELECT kind
+           FROM projections
+           WHERE page_id = ?
+           ORDER BY updated_at_ms DESC, kind ASC
+           LIMIT 1`,
+          )
+          .get(pageId) as
+          | {
+              kind?: string;
+            }
+          | undefined
+      )?.kind ??
+        undefined);
     const projectionId =
       pageId && projectionKind ? buildProjectionId(pageId, projectionKind) : undefined;
+    const pageRow = pageId
+      ? ((db.prepare(`SELECT title, slug FROM pages WHERE page_id = ?`).get(pageId) as
+          | {
+              title?: string;
+              slug?: string;
+            }
+          | undefined) ?? {})
+      : {};
     const title =
-      typeof row.title === "string" && row.title.trim()
-        ? row.title
+      typeof pageRow.title === "string" && pageRow.title.trim()
+        ? pageRow.title
         : pageId
           ? `Page ${pageId}`
           : eventType;
@@ -1487,18 +1812,21 @@ function loadRecentEventRecords(
       ...(pageId ? { pageId } : {}),
       ...(projectionId ? { projectionId } : {}),
       title,
-      summary: summarizeLedgerPayload(eventType, row.payloadJson),
+      summary: summarizeLedgerPayload(eventType, JSON.stringify(row.payload)),
       sourceLocator: buildEventLocator(status.profileId, eventId),
       ...(projectionKind
         ? {
             displayPath: resolveProjectionDisplayPath(
               projectionKind,
-              typeof row.slug === "string" ? row.slug : (pageId ?? eventType.toLowerCase()),
+              typeof pageRow.slug === "string" ? pageRow.slug : (pageId ?? eventType.toLowerCase()),
             ),
           }
         : {}),
-      createdAtMs: normalizeNumber(row.createdAtMs) ?? 0,
-      visibility: isPrivateEventSource(row.source) ? "private" : "public",
+      createdAtMs: row.createdAtMs,
+      visibility:
+        isPrivateEventSource(row.source) || (pageId ? (pagePrivacy.get(pageId) ?? false) : false)
+          ? "private"
+          : "public",
     };
   });
 }
@@ -1506,6 +1834,7 @@ function loadRecentEventRecords(
 function loadClaimRecords(
   db: InstanceType<ReturnType<typeof requireNodeSqlite>["DatabaseSync"]>,
   status: CanonicalMemoryStoreStatus,
+  pagePrivacy: ReadonlyMap<string, boolean>,
 ): CanonicalClaimRecord[] {
   const rows = db
     .prepare(
@@ -1523,20 +1852,28 @@ function loadClaimRecords(
        ORDER BY c.updated_at_ms DESC, c.claim_id ASC`,
     )
     .all() as Array<Record<string, unknown>>;
-  return rows.map((row) => ({
-    claimId: typeof row.claimId === "string" ? row.claimId : "",
-    subject: typeof row.subject === "string" ? row.subject : "",
-    predicate: typeof row.predicate === "string" ? row.predicate : "",
-    object: typeof row.object === "string" ? row.object : "",
-    confidence: clampScore(normalizeNumber(row.confidence) ?? 0.5),
-    updatedAtMs: normalizeNumber(row.updatedAtMs) ?? 0,
-    sourceLocator: buildClaimLocator(
-      status.profileId,
-      typeof row.claimId === "string" ? row.claimId : "",
-    ),
-    evidenceIds: parseJsonStringArray(row.evidenceIdsJson),
-    evidenceLocators: parseJsonStringArray(row.evidenceLocatorsJson),
-  }));
+  return rows.map((row) => {
+    const claimId = typeof row.claimId === "string" ? row.claimId : "";
+    const evidenceLocators = parseJsonStringArray(row.evidenceLocatorsJson);
+    const visibility = evidenceLocators.some(
+      (locator) =>
+        isPrivateMemoryPath(locator) || locatorReferencesPrivatePage(locator, pagePrivacy),
+    )
+      ? "private"
+      : "public";
+    return {
+      claimId,
+      subject: typeof row.subject === "string" ? row.subject : "",
+      predicate: typeof row.predicate === "string" ? row.predicate : "",
+      object: typeof row.object === "string" ? row.object : "",
+      confidence: clampScore(normalizeNumber(row.confidence) ?? 0.5),
+      updatedAtMs: normalizeNumber(row.updatedAtMs) ?? 0,
+      sourceLocator: buildClaimLocator(status.profileId, claimId),
+      evidenceIds: parseJsonStringArray(row.evidenceIdsJson),
+      evidenceLocators,
+      visibility,
+    };
+  });
 }
 
 function normalizeProjectionRow(
@@ -1550,12 +1887,14 @@ function normalizeProjectionRow(
   }
   const projectionId = buildProjectionId(pageId, projectionKind);
   const slug = typeof row.slug === "string" && row.slug.trim() ? row.slug : pageId.toLowerCase();
+  const sourcePath = resolveCanonicalProjectionSourcePath(row);
   return {
     projectionId,
     pageId,
     projectionKind,
     sourceLocator: buildProjectionLocator(status.profileId, pageId, projectionId),
     displayPath: resolveProjectionDisplayPath(projectionKind, slug),
+    ...(sourcePath ? { sourcePath } : {}),
     sourceKind: "workspace-memory",
     editable: true,
     title: typeof row.title === "string" && row.title.trim() ? row.title : pageId,
@@ -1564,6 +1903,7 @@ function normalizeProjectionRow(
     updatedAtMs: normalizeNumber(row.updatedAtMs) ?? 0,
     aliases: parseJsonStringArray(row.aliasesJson),
     tags: parseJsonStringArray(row.tagsJson),
+    visibility: sourcePath && isPrivateMemoryPath(sourcePath) ? "private" : "public",
   };
 }
 
@@ -1670,6 +2010,17 @@ function buildClaimLocator(profileId: string, claimId: string): string {
   return `memory://profiles/${profileId}/claims/${claimId}`;
 }
 
+function resolveCanonicalProjectionSourcePath(row: Record<string, unknown>): string | undefined {
+  const projectionKind =
+    typeof row.projectionKind === "string" && row.projectionKind ? row.projectionKind : "";
+  if (projectionKind.startsWith(LEGACY_PROJECTION_PREFIX)) {
+    return normalizeRelativePath(projectionKind.slice(LEGACY_PROJECTION_PREFIX.length));
+  }
+  const importedSourcePath =
+    typeof row.sourcePath === "string" && row.sourcePath.trim() ? row.sourcePath : undefined;
+  return importedSourcePath ? normalizeRelativePath(importedSourcePath) : undefined;
+}
+
 function resolveProjectionDisplayPath(projectionKind: string, slug: string): string | undefined {
   if (projectionKind.startsWith(LEGACY_PROJECTION_PREFIX)) {
     return normalizeRelativePath(projectionKind.slice(LEGACY_PROJECTION_PREFIX.length));
@@ -1682,8 +2033,8 @@ function scoreProjectionRecord(query: string, record: CanonicalProjectionRecord)
   if (!normalized) {
     return 0;
   }
-  const exactFields = [record.title, record.slug, record.displayPath ?? "", ...record.aliases].map(
-    (entry) => entry.toLowerCase(),
+  const exactFields = [record.title, record.slug, ...record.aliases].map((entry) =>
+    entry.toLowerCase(),
   );
   if (exactFields.includes(normalized)) {
     return 1;
@@ -1691,7 +2042,6 @@ function scoreProjectionRecord(query: string, record: CanonicalProjectionRecord)
   const lexical = computeLexicalScore(query, [
     record.title,
     record.slug,
-    record.displayPath ?? "",
     record.aliases.join(" "),
     record.tags.join(" "),
     summarizeText(record.markdownBody, 800),
@@ -1700,12 +2050,7 @@ function scoreProjectionRecord(query: string, record: CanonicalProjectionRecord)
 }
 
 function scoreClaimRecord(query: string, claim: CanonicalClaimRecord): number {
-  return computeLexicalScore(query, [
-    claim.subject,
-    claim.predicate,
-    claim.object,
-    claim.evidenceLocators.join(" "),
-  ]);
+  return computeLexicalScore(query, [claim.subject, claim.predicate, claim.object]);
 }
 
 function summarizeLedgerPayload(eventType: string, payloadJson: unknown): string {
@@ -1782,6 +2127,19 @@ function normalizeRelativePath(value: string): string {
     .trim();
 }
 
+function parsePageIdFromStableLocator(locator: string): string | undefined {
+  const match = locator.match(/\/pages\/([^/]+)/);
+  return match?.[1];
+}
+
+function locatorReferencesPrivatePage(
+  locator: string,
+  pagePrivacy: ReadonlyMap<string, boolean>,
+): boolean {
+  const pageId = parsePageIdFromStableLocator(locator);
+  return pageId ? (pagePrivacy.get(pageId) ?? false) : false;
+}
+
 function resolveStartLine(item: MemoryContextItem): number {
   return typeof item.metadata?.startLine === "number" ? item.metadata.startLine : 1;
 }
@@ -1812,6 +2170,20 @@ function clampScore(value: number): number {
     return 0;
   }
   return Math.max(0, Math.min(1, value));
+}
+
+function uniqueStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const normalized = value.trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
 }
 
 function resolveRetrievalFlags(cfg: AlisioConfig) {
@@ -1864,7 +2236,15 @@ function readOptionalString(params: unknown, key: string): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-function isSessionLikePath(path: string): boolean {
+function isPrivateMemoryPath(path: string): boolean {
   const normalized = path.toLowerCase();
-  return normalized.includes("session") || normalized.includes("transcript");
+  return (
+    normalized.includes("session") ||
+    normalized.includes("transcript") ||
+    normalized.includes("peer-direct")
+  );
+}
+
+function isSessionLikePath(path: string): boolean {
+  return isPrivateMemoryPath(path);
 }

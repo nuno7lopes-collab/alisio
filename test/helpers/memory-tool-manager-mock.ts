@@ -41,6 +41,9 @@ export type CanonicalFixture = {
   roadmapProjectionId: string;
   roadmapDisplayPath: string;
   roadmapLocator: string;
+  privatePageId: string;
+  privateProjectionId: string;
+  privateDisplayPath: string;
 };
 
 let backend: MemoryBackend = "builtin";
@@ -79,11 +82,15 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
   const profileId = "local-main";
   const atlasPageId = "page-atlas";
   const roadmapPageId = "page-roadmap";
+  const privatePageId = "page-private-direct";
   const projectionKind = "page";
+  const privateProjectionKind = "legacy-markdown:sessions/direct-brief.md";
   const atlasProjectionId = buildProjectionId(atlasPageId, projectionKind);
   const roadmapProjectionId = buildProjectionId(roadmapPageId, projectionKind);
+  const privateProjectionId = buildProjectionId(privatePageId, privateProjectionKind);
   const atlasDisplayPath = "memory/project-atlas.md";
   const roadmapDisplayPath = "memory/roadmap.md";
+  const privateDisplayPath = "sessions/direct-brief.md";
 
   ensureMemoryStateSchema(db);
   db.exec(`
@@ -98,6 +105,12 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
       created_at_ms INTEGER NOT NULL,
       payload_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS imported_files (
+      source_path TEXT PRIMARY KEY,
+      content_hash TEXT NOT NULL,
+      page_id TEXT NOT NULL,
+      updated_at_ms INTEGER NOT NULL
+    );
   `);
 
   db.prepare(
@@ -108,6 +121,10 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
     `INSERT INTO pages (page_id, title, slug, created_at_ms, updated_at_ms, tombstoned)
      VALUES (?, ?, ?, ?, ?, 0)`,
   ).run(roadmapPageId, "Roadmap", "roadmap", now - 20_000, now - 2_000);
+  db.prepare(
+    `INSERT INTO pages (page_id, title, slug, created_at_ms, updated_at_ms, tombstoned)
+     VALUES (?, ?, ?, ?, ?, 0)`,
+  ).run(privatePageId, "Direct Brief", "direct-brief", now - 30_000, now - 3_000);
 
   db.prepare(
     `INSERT INTO projections (page_id, kind, markdown_body, updated_at_ms)
@@ -127,6 +144,28 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
     "# Roadmap\nQuarterly roadmap and milestones.\nDepends on Atlas.",
     now - 2_000,
   );
+  db.prepare(
+    `INSERT INTO projections (page_id, kind, markdown_body, updated_at_ms)
+     VALUES (?, ?, ?, ?)`,
+  ).run(
+    privatePageId,
+    privateProjectionKind,
+    "# Direct Brief\nPrivate session follow-up and transcript summary.",
+    now - 3_000,
+  );
+
+  db.prepare(
+    `INSERT INTO imported_files (source_path, content_hash, page_id, updated_at_ms)
+     VALUES (?, ?, ?, ?)`,
+  ).run(atlasDisplayPath, "hash-atlas", atlasPageId, now - 1_000);
+  db.prepare(
+    `INSERT INTO imported_files (source_path, content_hash, page_id, updated_at_ms)
+     VALUES (?, ?, ?, ?)`,
+  ).run(roadmapDisplayPath, "hash-roadmap", roadmapPageId, now - 2_000);
+  db.prepare(
+    `INSERT INTO imported_files (source_path, content_hash, page_id, updated_at_ms)
+     VALUES (?, ?, ?, ?)`,
+  ).run(privateDisplayPath, "hash-private", privatePageId, now - 3_000);
 
   db.prepare(
     `INSERT INTO page_aliases (page_id, alias_key, ordinal)
@@ -158,6 +197,10 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
     `INSERT INTO links (from_page_id, to_page_id, type, ordinal)
      VALUES (?, ?, ?, ?)`,
   ).run(atlasPageId, roadmapPageId, "references", 0);
+  db.prepare(
+    `INSERT INTO links (from_page_id, to_page_id, type, ordinal)
+     VALUES (?, ?, ?, ?)`,
+  ).run(atlasPageId, privatePageId, "references", 1);
 
   db.prepare(
     `INSERT INTO claims (claim_id, subject, predicate, object, confidence, status, updated_at_ms)
@@ -220,6 +263,9 @@ function createCanonicalFixture(currentBackend: MemoryBackend): {
     roadmapProjectionId,
     roadmapDisplayPath,
     roadmapLocator: buildProjectionLocator(profileId, roadmapPageId, roadmapProjectionId),
+    privatePageId,
+    privateProjectionId,
+    privateDisplayPath,
   };
   const status: CanonicalStorePayload = {
     state: "ready",

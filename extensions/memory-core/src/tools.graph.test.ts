@@ -25,6 +25,8 @@ describe("memory_graph tool", () => {
       matches: Array<{
         pageId: string;
         title: string;
+        reasonCodes?: string[];
+        provenance?: { sourceLocator: string };
         relations: Array<{
           direction: string;
           relatedEntity?: { pageId: string; title: string };
@@ -38,6 +40,10 @@ describe("memory_graph tool", () => {
         expect.objectContaining({
           pageId: fixture.atlasPageId,
           title: "Project Atlas",
+          reasonCodes: expect.arrayContaining(["exact_match", "linked"]),
+          provenance: expect.objectContaining({
+            sourceLocator: fixture.atlasLocator,
+          }),
           relations: expect.arrayContaining([
             expect.objectContaining({
               direction: "outgoing",
@@ -50,6 +56,28 @@ describe("memory_graph tool", () => {
         }),
       ]),
     );
+  });
+
+  it("filters private graph relations outside private sessions", async () => {
+    const fixture = getCanonicalFixture();
+    const tool = createMemoryGraphToolOrThrow();
+    const result = await tool.execute("graph-private-filter", {
+      query: "Project Atlas",
+      direction: "both",
+      matchLimit: 2,
+      relationLimit: 6,
+    });
+    const details = result.details as {
+      matches: Array<{
+        pageId: string;
+        relations: Array<{ relatedEntity?: { pageId: string } }>;
+      }>;
+    };
+
+    const atlas = details.matches.find((match) => match.pageId === fixture.atlasPageId);
+    expect(
+      atlas?.relations.some((relation) => relation.relatedEntity?.pageId === fixture.privatePageId),
+    ).toBe(false);
   });
 
   it("returns an explicit unavailable payload when the canonical store is missing", async () => {
