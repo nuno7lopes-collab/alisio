@@ -120,15 +120,64 @@ export type MemoryWikiUpdateResult = {
   sync?: MemorySyncSurface | null;
 };
 
+export type MemoryFilePreviewKind =
+  | "markdown"
+  | "text"
+  | "json"
+  | "image"
+  | "audio"
+  | "pdf"
+  | "binary";
+
+export type MemoryFileLink = {
+  pageId: string;
+  entityId: string;
+  title: string;
+  path: string;
+  relation: "attached" | "mentioned";
+};
+
+export type MemoryFileOrigin = {
+  eventId: string;
+  lamport: number;
+  actorId: string;
+  createdAt?: string | null;
+  pageId?: string | null;
+  entityId?: string | null;
+  pageTitle?: string | null;
+  pagePath?: string | null;
+};
+
+export type MemoryFilePreview = {
+  kind: MemoryFilePreviewKind;
+  mediaType: string;
+  lineCount?: number | null;
+  text?: string | null;
+  bytesBase64?: string | null;
+  truncated?: boolean | null;
+  fallbackLabel?: string | null;
+};
+
+export type MemoryFileDownload = {
+  fileName: string;
+  mediaType: string;
+  bytesBase64: string;
+};
+
 export type MemoryFileListEntry = {
   id: string;
   name: string;
-  mediaType?: string | null;
-  size?: number | null;
+  mediaType: string;
+  previewKind: MemoryFilePreviewKind;
+  size: number;
+  sha256: string;
   updatedAt?: string | null;
-  pageId?: string | null;
-  provenanceSummary?: string | null;
-  provenance?: Array<{ label: string; value: string }> | null;
+  summary: string;
+  provenanceSummary: string;
+  relatedPagesCount: number;
+  primaryPage?: MemoryFileLink | null;
+  origin?: MemoryFileOrigin | null;
+  provenance: Array<{ label: string; value: string }>;
   reasonTags?: MemoryReasonTag[] | null;
   traceId?: string | null;
   trace?: unknown;
@@ -142,8 +191,9 @@ export type MemoryFilesListResult = {
 };
 
 export type MemoryFileDetail = MemoryFileListEntry & {
-  downloadUrl?: string | null;
-  relatedPages?: Array<{ id?: string | null; title: string; path?: string | null }> | null;
+  preview: MemoryFilePreview;
+  download: MemoryFileDownload;
+  relatedPages: MemoryFileLink[];
 };
 
 export type MemoryFilesGetResult = {
@@ -291,7 +341,7 @@ export async function requestMemoryWikiList(
 
 export async function requestMemoryWikiPage(
   client: GatewayBrowserClient,
-  params: { agentId: string; pageId: string },
+  params: { agentId: string; pageId: string; query?: string },
 ) {
   return requestMemoryEndpoint<MemoryWikiGetResult>(
     client,
@@ -344,7 +394,7 @@ export async function requestMemoryFilesList(
 
 export async function requestMemoryFile(
   client: GatewayBrowserClient,
-  params: { agentId: string; fileId: string },
+  params: { agentId: string; fileId: string; query?: string },
 ) {
   return requestMemoryEndpoint<MemoryFilesGetResult>(
     client,
@@ -375,6 +425,30 @@ export async function requestMemoryExport(
     "memory.export",
     params,
     "This version of Alisio does not expose native memory export yet.",
+  );
+}
+
+export async function requestMemoryGraph(
+  client: GatewayBrowserClient,
+  params: {
+    agentId: string;
+    query?: string;
+    pageId?: string;
+    entityId?: string;
+    scope?: "global" | "local";
+    depth?: number;
+    direction?: "incoming" | "outgoing" | "both";
+    matchLimit?: number;
+    relationLimit?: number;
+    nodeLimit?: number;
+    edgeLimit?: number;
+  },
+) {
+  return requestMemoryEndpoint<MemoryGraphState>(
+    client,
+    "memory.graph",
+    params,
+    "This version of Alisio does not expose the canonical memory graph yet.",
   );
 }
 
@@ -475,14 +549,25 @@ export async function loadMemoryGraph(
   params: {
     agentId: string;
     query?: string | null;
+    pageId?: string | null;
+    entityId?: string | null;
+    scope?: "global" | "local";
+    depth?: number;
+    direction?: "incoming" | "outgoing" | "both";
+    matchLimit?: number;
+    relationLimit?: number;
+    nodeLimit?: number;
+    edgeLimit?: number;
   },
 ) {
   const agentId = params.agentId.trim();
   const query = params.query?.trim() ?? "";
+  const pageId = params.pageId?.trim() ?? "";
+  const entityId = params.entityId?.trim() ?? "";
   if (!agentId) {
     return;
   }
-  if (!query) {
+  if (!query && !pageId && !entityId && params.scope !== "global") {
     state.memoryGraph = null;
     state.memoryGraphError = null;
     state.memoryGraphLoading = false;
@@ -495,12 +580,18 @@ export async function loadMemoryGraph(
   state.memoryGraphLoading = true;
   state.memoryGraphError = null;
   try {
-    const res = await request.client.request<MemoryGraphState | null>("memory.graph", {
+    const res = await requestMemoryGraph(request.client, {
       agentId,
-      query,
-      direction: "both",
-      matchLimit: 4,
-      relationLimit: 8,
+      ...(query ? { query } : {}),
+      ...(pageId ? { pageId } : {}),
+      ...(entityId ? { entityId } : {}),
+      ...(params.scope ? { scope: params.scope } : {}),
+      direction: params.direction ?? "both",
+      matchLimit: params.matchLimit ?? 4,
+      relationLimit: params.relationLimit ?? 8,
+      ...(typeof params.depth === "number" ? { depth: params.depth } : {}),
+      ...(typeof params.nodeLimit === "number" ? { nodeLimit: params.nodeLimit } : {}),
+      ...(typeof params.edgeLimit === "number" ? { edgeLimit: params.edgeLimit } : {}),
     });
     if (
       !res ||

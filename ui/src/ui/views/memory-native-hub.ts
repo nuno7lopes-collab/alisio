@@ -5,6 +5,7 @@ import { t } from "../../i18n/index.ts";
 import {
   MemoryEndpointUnavailableError,
   type MemoryClaimItem,
+  type MemoryEvidenceItem,
   type MemoryExportFormat,
   type MemoryExportResult,
   type MemoryFileDetail,
@@ -19,6 +20,7 @@ import {
   requestMemoryExport,
   requestMemoryFile,
   requestMemoryFilesList,
+  requestMemoryGraph,
   requestMemoryTrace,
   requestMemoryWikiHistory,
   requestMemoryWikiList,
@@ -30,13 +32,17 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import { icons } from "../icons.ts";
 import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import type { MemoryGraphState } from "../types.ts";
+import { buildMemoryFileActionModel } from "../controllers/memory-files-preview.ts";
 import {
   renderSkeletonButton,
   renderSkeletonLines,
   renderSkeletonListItem,
 } from "./loading-skeleton.ts";
 import { renderLegacyMemoryEditor } from "./memory-legacy.ts";
+import "./memory-graph-view.ts";
+import { renderMemoryFilesView } from "./memory/files-view.ts";
 import { renderMemorySettings } from "./memory-settings.ts";
+import { renderMemoryWikiView } from "./memory/wiki-view.ts";
 
 type MemoryHubProps = import("./memory.ts").MemoryHubProps;
 type MemoryView = "wiki" | "files" | "graph";
@@ -79,8 +85,8 @@ function memoryText() {
       files: t("alisio.memory.views.files"),
       graph: t("alisio.memory.views.graph"),
     },
+    viewsLabel: t("alisio.memory.views.label"),
     shellTitle: t("alisio.memory.shell.title"),
-    shellSubtitle: t("alisio.memory.shell.subtitle"),
     wikiListTitle: t("alisio.memory.wiki.listTitle"),
     wikiEmpty: t("alisio.memory.wiki.empty"),
     wikiUnavailable: t("alisio.memory.wiki.unavailable"),
@@ -91,6 +97,7 @@ function memoryText() {
     wikiBacklinks: t("alisio.memory.wiki.backlinks"),
     wikiClaims: t("alisio.memory.wiki.claims"),
     wikiEvidence: t("alisio.memory.wiki.evidence"),
+    wikiProvenance: t("alisio.memory.wiki.provenance"),
     wikiHistory: t("alisio.memory.wiki.history"),
     wikiContext: t("alisio.memory.wiki.context"),
     wikiRevision: t("alisio.memory.wiki.revision"),
@@ -100,6 +107,7 @@ function memoryText() {
     wikiBacklinksEmpty: t("alisio.memory.wiki.backlinksEmpty"),
     wikiClaimsEmpty: t("alisio.memory.wiki.claimsEmpty"),
     wikiEvidenceEmpty: t("alisio.memory.wiki.evidenceEmpty"),
+    wikiProvenanceEmpty: t("alisio.memory.wiki.provenanceEmpty"),
     wikiUpdated: t("alisio.memory.wiki.updated"),
     wikiPath: t("alisio.memory.wiki.path"),
     filesTitle: t("alisio.memory.files.title"),
@@ -110,6 +118,15 @@ function memoryText() {
     filesMediaType: t("alisio.memory.files.mediaType"),
     filesSize: t("alisio.memory.files.size"),
     filesUpdated: t("alisio.memory.files.updated"),
+    filesSummary: t("alisio.memory.files.summary"),
+    filesHash: t("alisio.memory.files.hash"),
+    filesPreviewKind: t("alisio.memory.files.previewKind"),
+    filesOpen: t("alisio.memory.files.open"),
+    filesDownload: t("alisio.memory.files.download"),
+    filesOpenPage: t("alisio.memory.files.openPage"),
+    filesFocusGraph: t("alisio.memory.files.focusGraph"),
+    filesPreviewUnavailable: t("alisio.memory.files.previewUnavailable"),
+    filesPreviewTruncated: t("alisio.memory.files.previewTruncated"),
     filesNoSelection: t("alisio.memory.files.noSelection"),
     exportLabel: t("alisio.memory.export.label"),
     exportFormats: {
@@ -126,13 +143,32 @@ function memoryText() {
     viewTrace: t("alisio.memory.trace.view"),
     traceTitle: t("alisio.memory.trace.title"),
     traceSummary: t("alisio.memory.trace.summary"),
+    traceQuery: t("alisio.memory.trace.query"),
+    traceReasons: t("alisio.memory.trace.reasons"),
+    traceHits: t("alisio.memory.trace.hits"),
     traceRaw: t("alisio.memory.trace.raw"),
     traceClose: t("alisio.memory.trace.close"),
     traceUnavailable: t("alisio.memory.trace.unavailable"),
+    confidenceLabel: t("alisio.memory.claims.confidence"),
     legacyTitle: t("alisio.memory.legacy.title"),
     legacyBody: t("alisio.memory.legacy.body"),
-    graphHint: t("alisio.memory.graph.hint"),
     graphFocus: t("alisio.memory.graph.focus"),
+    graphGlobal: t("alisio.memory.graph.global"),
+    graphLocal: t("alisio.memory.graph.local"),
+    graphResetView: t("alisio.memory.graph.resetView"),
+    graphNeighbourhood: t("alisio.memory.graph.neighbourhood"),
+    graphBranches: t("alisio.memory.graph.branches"),
+    graphBranchesEmpty: t("alisio.memory.graph.branchesEmpty"),
+    graphEdgeReason: t("alisio.memory.graph.edgeReason"),
+    graphEdgeReasonEmpty: t("alisio.memory.graph.edgeReasonEmpty"),
+    graphFilterRelations: t("alisio.memory.graph.filterRelations"),
+    graphFilterTags: t("alisio.memory.graph.filterTags"),
+    graphNodesCount: t("alisio.memory.graph.nodesCount"),
+    graphEdgesCount: t("alisio.memory.graph.edgesCount"),
+    graphTruncated: t("alisio.memory.graph.truncated"),
+    graphSource: t("alisio.memory.graph.source"),
+    graphTarget: t("alisio.memory.graph.target"),
+    graphRelationType: t("alisio.memory.graph.relationType"),
   };
 }
 
@@ -196,6 +232,10 @@ function emitMemoryTelemetry(event: string, detail: Record<string, unknown> = {}
 }
 
 function formatReasonLabel(tag: MemoryReasonTag) {
+  const localized = t(`alisio.memory.trace.codes.${tag.code}`);
+  if (localized && localized !== `alisio.memory.trace.codes.${tag.code}`) {
+    return localized;
+  }
   return tag.label?.trim() || tag.code.trim();
 }
 
@@ -206,31 +246,90 @@ function normalizeSummaryLines(value: unknown) {
   return value.map((entry) => String(entry).trim()).filter(Boolean);
 }
 
-function buildTraceSummary(trace: MemoryTraceResult | null) {
-  const explicit = normalizeSummaryLines(trace?.summary);
-  if (explicit.length > 0) {
-    return explicit;
-  }
-  if (!trace?.raw || typeof trace.raw !== "object") {
-    return [] as string[];
-  }
-  const raw = trace.raw as Record<string, unknown>;
+function buildTraceSummary(
+  trace: MemoryTraceResult | null,
+  text: Pick<ReturnType<typeof memoryText>, "traceQuery" | "traceReasons" | "traceHits">,
+) {
   const lines: string[] = [];
+  const raw =
+    trace?.raw && typeof trace.raw === "object" && !Array.isArray(trace.raw)
+      ? (trace.raw as Record<string, unknown>)
+      : null;
+  if (!raw) {
+    return normalizeSummaryLines(trace?.summary);
+  }
   const query = typeof raw.query === "string" ? raw.query.trim() : "";
   if (query) {
-    lines.push(`Query: ${query}`);
+    lines.push(`${text.traceQuery}: ${query}`);
   }
-  const reasons = Array.isArray(raw.reasons)
-    ? raw.reasons.map((entry) => String(entry).trim()).filter(Boolean)
-    : [];
+  const reasonTags = Array.isArray(trace?.reasonTags) ? trace.reasonTags.filter(Boolean) : [];
+  const reasons =
+    reasonTags.length > 0
+      ? reasonTags.map((tag) => formatReasonLabel(tag))
+      : Array.isArray(raw.reasons)
+        ? raw.reasons.map((entry) => String(entry).trim()).filter(Boolean)
+        : [];
   if (reasons.length > 0) {
-    lines.push(`Reasons: ${reasons.join(", ")}`);
+    lines.push(`${text.traceReasons}: ${reasons.join(", ")}`);
   }
-  const hits = Array.isArray(raw.hits) ? raw.hits.length : null;
+  const hits =
+    typeof raw.hitCount === "number"
+      ? raw.hitCount
+      : Array.isArray(raw.hits)
+        ? raw.hits.length
+        : null;
   if (typeof hits === "number") {
-    lines.push(`Hits: ${hits}`);
+    lines.push(`${text.traceHits}: ${hits}`);
   }
-  return lines;
+  return lines.length > 0 ? lines : normalizeSummaryLines(trace?.summary);
+}
+
+function mergeSyncSurfaces(
+  ...surfaces: Array<MemorySyncSurface | null | undefined>
+): MemorySyncSurface | null {
+  const merged: MemorySyncSurface = {};
+  for (const surface of surfaces) {
+    if (!surface) {
+      continue;
+    }
+    if (merged.lastSyncedLamport == null && surface.lastSyncedLamport != null) {
+      merged.lastSyncedLamport = surface.lastSyncedLamport;
+    }
+    if (merged.e2eeRequired == null && surface.e2eeRequired != null) {
+      merged.e2eeRequired = surface.e2eeRequired;
+    }
+    if (merged.state == null && surface.state != null) {
+      merged.state = surface.state;
+    }
+    if (merged.detail == null && surface.detail != null) {
+      merged.detail = surface.detail;
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function deriveStatusSyncSurface(
+  status: MemoryHubProps["memoryStatus"] | null | undefined,
+  graph: MemoryGraphState | null | undefined,
+): MemorySyncSurface | null {
+  return mergeSyncSurfaces(
+    status?.runtime?.canonicalStore
+      ? {
+          lastSyncedLamport: status.runtime.canonicalStore.lastSyncedLamport,
+          e2eeRequired: status.runtime.canonicalStore.e2eeRequired,
+          state: status.runtime.canonicalStore.state,
+          detail: status.runtime.canonicalStore.lastError,
+        }
+      : null,
+    graph
+      ? {
+          lastSyncedLamport: graph.lastSyncedLamport,
+          e2eeRequired: graph.e2eeRequired,
+          state: graph.state,
+          detail: graph.lastError,
+        }
+      : null,
+  );
 }
 
 function downloadText(filename: string, content: string, mediaType: string) {
@@ -318,12 +417,13 @@ function renderSyncCard(params: {
   const provider =
     params.status?.runtime?.provider ?? params.status?.config?.provider ?? params.text.unavailable;
   const lamport = params.sync?.lastSyncedLamport ?? params.text.na;
+  const e2eeRequired =
+    params.sync?.e2eeRequired === false ? params.text.na : params.text.syncE2eeRequired;
   return html`
     <section class="alisio-memory-runtime">
       <div class="alisio-memory-runtime__header">
         <div class="alisio-memory-runtime__copy">
           <h3>${params.text.shellTitle}</h3>
-          <p>${params.text.shellSubtitle}</p>
         </div>
         <div class="alisio-memory-runtime__actions">
           <button
@@ -371,7 +471,7 @@ function renderSyncCard(params: {
         </div>
         <div class="alisio-memory-stat">
           <span class="alisio-memory-stat__label">${params.text.syncE2ee}</span>
-          <strong class="alisio-memory-stat__value">${params.text.syncE2eeRequired}</strong>
+          <strong class="alisio-memory-stat__value">${e2eeRequired}</strong>
         </div>
         <div class="alisio-memory-stat">
           <span class="alisio-memory-stat__label">${params.text.backend}</span>
@@ -407,15 +507,18 @@ export class AlisioMemoryNativeHub extends LitElement {
   @state() private historyLoading = false;
   @state() private historyError: string | null = null;
   @state() private history: MemoryWikiHistoryEntry[] = [];
+  @state() private pageSync: MemorySyncSurface | null = null;
   @state() private pageDrafts: Record<string, string> = {};
   @state() private pageTitleDrafts: Record<string, string> = {};
   @state() private pageSaving = false;
+  @state() private wikiEditorOpen = false;
   @state() private createOpen = false;
   @state() private createTitle = "";
   @state() private filesLoading = false;
   @state() private filesError: string | null = null;
   @state() private filesList: MemoryFilesListResult | null = null;
   @state() private selectedFileId: string | null = null;
+  @state() private fileSync: MemorySyncSurface | null = null;
   @state() private fileLoading = false;
   @state() private fileError: string | null = null;
   @state() private fileDetail: MemoryFileDetail | null = null;
@@ -427,6 +530,11 @@ export class AlisioMemoryNativeHub extends LitElement {
   @state() private exportBusy = false;
   @state() private exportMessage: string | null = null;
   @state() private exportFormat: MemoryExportFormat = "zip";
+  @state() private mutationSync: MemorySyncSurface | null = null;
+  @state() private graphLoading = false;
+  @state() private graphError: string | null = null;
+  @state() private graphData: MemoryGraphState | null = null;
+  @state() private graphScope: "global" | "local" = "global";
 
   private wikiListToken = 0;
   private pageToken = 0;
@@ -434,6 +542,7 @@ export class AlisioMemoryNativeHub extends LitElement {
   private filesListToken = 0;
   private fileToken = 0;
   private traceToken = 0;
+  private graphToken = 0;
   private syncedGraphPath: string | null = null;
 
   protected willUpdate(changed: PropertyValues<this>) {
@@ -483,12 +592,15 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.historyLoading = false;
     this.historyError = null;
     this.history = [];
+    this.pageSync = null;
     this.pageDrafts = {};
     this.pageTitleDrafts = {};
+    this.wikiEditorOpen = false;
     this.filesLoading = false;
     this.filesError = null;
     this.filesList = null;
     this.selectedFileId = null;
+    this.fileSync = null;
     this.fileLoading = false;
     this.fileError = null;
     this.fileDetail = null;
@@ -497,6 +609,11 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.traceError = null;
     this.traceData = null;
     this.exportMessage = null;
+    this.mutationSync = null;
+    this.graphLoading = false;
+    this.graphError = null;
+    this.graphData = null;
+    this.graphScope = "global";
     this.syncedGraphPath = null;
   }
 
@@ -521,7 +638,21 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private get syncSurface(): MemorySyncSurface | null {
-    return this.wikiList?.sync ?? this.filesList?.sync ?? null;
+    return mergeSyncSurfaces(
+      this.mutationSync,
+      this.pageSync,
+      this.fileSync,
+      this.wikiList?.sync,
+      this.filesList?.sync,
+      deriveStatusSyncSurface(
+        this.props?.memoryStatus,
+        this.graphData ?? this.props?.memoryGraph ?? null,
+      ),
+    );
+  }
+
+  private get searchResultsVisible() {
+    return Boolean(this.props?.searchQuery.trim());
   }
 
   private get currentPageDraft() {
@@ -549,6 +680,7 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private async reloadNativeLists() {
     await Promise.allSettled([this.loadWikiList(), this.loadFilesList()]);
+    await this.loadGraph();
   }
 
   private async loadWikiList() {
@@ -573,7 +705,9 @@ export class AlisioMemoryNativeHub extends LitElement {
       }
       const nextPageId = result.pages.some((page) => page.id === this.selectedPageId)
         ? this.selectedPageId
-        : (result.pages[0]?.id ?? null);
+        : this.props?.searchQuery.trim()
+          ? (result.pages[0]?.id ?? null)
+          : null;
       this.selectedPageId = nextPageId;
       if (nextPageId) {
         await Promise.allSettled([
@@ -583,6 +717,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       } else {
         this.page = null;
         this.history = [];
+        this.pageSync = null;
       }
     } catch (err) {
       if (token !== this.wikiListToken) {
@@ -610,6 +745,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       const result = await requestMemoryWikiPage(this.client, {
         agentId: this.selectedAgentId,
         pageId,
+        query: this.props?.searchQuery.trim() || undefined,
       });
       if (token !== this.pageToken) {
         return;
@@ -617,6 +753,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       const preserveDraft =
         options?.preserveDraft && this.page?.id === result.page.id && this.pageDirty;
       this.page = result.page;
+      this.pageSync = result.sync ?? null;
       if (!preserveDraft) {
         this.pageDrafts = {
           ...this.pageDrafts,
@@ -634,6 +771,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       }
       this.pageError = describeMemoryError(err);
       this.page = null;
+      this.pageSync = null;
     } finally {
       if (token === this.pageToken) {
         this.pageLoading = false;
@@ -718,17 +856,20 @@ export class AlisioMemoryNativeHub extends LitElement {
       const result = await requestMemoryFile(this.client, {
         agentId: this.selectedAgentId,
         fileId,
+        query: this.props?.searchQuery.trim() || undefined,
       });
       if (token !== this.fileToken) {
         return;
       }
       this.fileDetail = result.file;
+      this.fileSync = result.sync ?? null;
     } catch (err) {
       if (token !== this.fileToken) {
         return;
       }
       this.fileError = describeMemoryError(err);
       this.fileDetail = null;
+      this.fileSync = null;
     } finally {
       if (token === this.fileToken) {
         this.fileLoading = false;
@@ -736,22 +877,80 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
+  private async loadGraph(options?: {
+    scope?: "global" | "local";
+    focusPageId?: string | null;
+  }) {
+    if (!this.client || !this.selectedAgentId) {
+      this.graphData = null;
+      this.graphError = null;
+      this.graphLoading = false;
+      return;
+    }
+    const requestedScope = options?.scope ?? this.graphScope;
+    const focusPageId = options?.focusPageId ?? this.page?.id ?? this.selectedPageId ?? null;
+    const scope = requestedScope === "local" && focusPageId ? "local" : "global";
+    const token = ++this.graphToken;
+    this.graphScope = scope;
+    this.graphLoading = true;
+    this.graphError = null;
+    try {
+      const result = await requestMemoryGraph(this.client, {
+        agentId: this.selectedAgentId,
+        scope,
+        ...(focusPageId ? { pageId: focusPageId } : {}),
+        direction: "both",
+        depth: scope === "local" ? 2 : 1,
+        nodeLimit: scope === "local" ? 48 : 140,
+        edgeLimit: scope === "local" ? 120 : 280,
+      });
+      if (token !== this.graphToken) {
+        return;
+      }
+      this.graphData = result;
+    } catch (err) {
+      if (token !== this.graphToken) {
+        return;
+      }
+      this.graphData = null;
+      this.graphError = describeMemoryError(err);
+    } finally {
+      if (token === this.graphToken) {
+        this.graphLoading = false;
+      }
+    }
+  }
+
   private async selectPage(pageId: string) {
     this.selectedPageId = pageId;
     this.activeView = "wiki";
+    this.wikiEditorOpen = false;
     emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
+    void this.loadGraph({ scope: this.graphScope, focusPageId: pageId });
     await Promise.allSettled([
       this.loadWikiPage(pageId, { preserveDraft: true }),
       this.loadWikiHistory(pageId),
     ]);
   }
 
+  private openWikiHome() {
+    this.activeView = "wiki";
+    this.selectedPageId = null;
+    this.page = null;
+    this.pageError = null;
+    this.pageSync = null;
+    this.history = [];
+    this.historyError = null;
+    this.wikiEditorOpen = false;
+    emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
+    void this.loadGraph({ scope: this.graphScope, focusPageId: null });
+  }
+
   private syncGraphSelection(path: string | null) {
-    if (!path || !this.props || this.syncedGraphPath === path) {
+    if (!path || this.syncedGraphPath === path) {
       return;
     }
     this.syncedGraphPath = path;
-    this.props.onSelectFile(path);
   }
 
   private async savePage() {
@@ -767,6 +966,7 @@ export class AlisioMemoryNativeHub extends LitElement {
         title: this.currentPageTitleDraft,
         content: this.currentPageDraft,
       });
+      this.mutationSync = result.sync ?? null;
       const pageId = result.page?.id ?? this.page.id;
       this.pageDrafts = {
         ...this.pageDrafts,
@@ -802,6 +1002,7 @@ export class AlisioMemoryNativeHub extends LitElement {
         title,
         content: `# ${title}\n\n`,
       });
+      this.mutationSync = result.sync ?? null;
       this.createOpen = false;
       this.createTitle = "";
       await this.loadWikiList();
@@ -811,6 +1012,7 @@ export class AlisioMemoryNativeHub extends LitElement {
         null;
       if (nextId) {
         await this.selectPage(nextId);
+        this.wikiEditorOpen = true;
       }
       this.props?.onRefresh();
     } catch (err) {
@@ -869,6 +1071,39 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
+  private renderTraceAction(
+    text: ReturnType<typeof memoryText>,
+    params: {
+      label: string;
+      traceId?: string | null;
+      trace?: unknown;
+      summary?: string[] | null;
+      reasonTags?: MemoryReasonTag[] | null;
+    },
+  ) {
+    if (
+      !this.tracesEnabled ||
+      !this.searchResultsVisible ||
+      (!params.traceId && params.trace === undefined)
+    ) {
+      return nothing;
+    }
+    return html`
+      <div class="alisio-memory-native__result-actions">
+        <button
+          type="button"
+          class="btn btn--sm"
+          @click=${(event: Event) => {
+            event.stopPropagation();
+            void this.openTrace(params);
+          }}
+        >
+          ${text.viewTrace}
+        </button>
+      </div>
+    `;
+  }
+
   private async exportMemory() {
     if (!this.client || !this.selectedAgentId) {
       return;
@@ -921,18 +1156,111 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.exportMessage = result.savedPath ?? result.message ?? fileName;
   }
 
-  private openGraphTarget(path: string | null | undefined) {
-    if (!path) {
-      return;
+  private normalizeWikiLookupKey(value: string) {
+    return value
+      .replace(/\\/g, "/")
+      .trim()
+      .replace(/^\.?\//, "")
+      .replace(/\.md$/i, "")
+      .replace(/\/+/g, "/")
+      .toLowerCase();
+  }
+
+  private findMatchingWikiPage(
+    pages: ReadonlyArray<{ id: string; title: string; slug?: string | null; path?: string | null }>,
+    target: string,
+  ) {
+    const normalizedTarget = this.normalizeWikiLookupKey(target);
+    return (
+      pages.find((page) => {
+        const candidates = [
+          page.id,
+          page.title,
+          page.slug ?? "",
+          page.path ?? "",
+          page.path ? page.path.replace(/^memory\//, "") : "",
+          page.path ? page.path.split("/").at(-1)?.replace(/\.md$/i, "") ?? "" : "",
+        ];
+        return candidates.some(
+          (candidate) => this.normalizeWikiLookupKey(candidate) === normalizedTarget,
+        );
+      }) ?? null
+    );
+  }
+
+  private async findPageIdByTarget(target: string) {
+    const directMatch = this.findMatchingWikiPage(this.wikiList?.pages ?? [], target);
+    if (directMatch) {
+      return directMatch.id;
     }
-    const match = this.wikiList?.pages.find((page) => page.path === path) ?? null;
-    if (match) {
-      void this.selectPage(match.id);
+    if (!this.client || !this.selectedAgentId) {
+      return null;
+    }
+    try {
+      const result = await requestMemoryWikiList(this.client, {
+        agentId: this.selectedAgentId,
+      });
+      return this.findMatchingWikiPage(result.pages, target)?.id ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async openWikiTarget(target: string) {
+    const pageId = await this.findPageIdByTarget(target);
+    if (pageId) {
+      await this.selectPage(pageId);
       return;
     }
     this.activeView = "wiki";
     emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
-    this.props?.onSelectFile(path);
+    this.props?.onSelectFile(target);
+  }
+
+  private async openGraphTarget(path: string | null | undefined) {
+    if (!path) {
+      return;
+    }
+    await this.openWikiTarget(path);
+  }
+
+  private openRelatedFile(fileId: string) {
+    this.activeView = "files";
+    this.selectedFileId = fileId;
+    emitMemoryTelemetry("ui_memory_view_opened", { view: "files" });
+    void this.loadFileDetail(fileId);
+  }
+
+  private openFileAttachment() {
+    const target = buildMemoryFileActionModel(this.fileDetail).openHref;
+    if (!target) {
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = target;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+  }
+
+  private downloadFileAttachment() {
+    const download = buildMemoryFileActionModel(this.fileDetail).download;
+    if (!download) {
+      return;
+    }
+    downloadBase64(download.fileName, download.bytesBase64, download.mediaType);
+  }
+
+  private openFileWikiPage(pageId: string) {
+    void this.selectPage(pageId);
+  }
+
+  private focusGraphPage(pageId: string) {
+    void (async () => {
+      await this.selectPage(pageId);
+      this.activeView = "graph";
+      emitMemoryTelemetry("ui_memory_view_opened", { view: "graph" });
+    })();
   }
 
   private setView(view: MemoryView) {
@@ -940,6 +1268,9 @@ export class AlisioMemoryNativeHub extends LitElement {
     emitMemoryTelemetry("ui_memory_view_opened", { view });
     if (view === "files" && this.selectedFileId) {
       void this.loadFileDetail(this.selectedFileId);
+    }
+    if (view === "graph") {
+      void this.loadGraph();
     }
   }
 
@@ -990,7 +1321,7 @@ export class AlisioMemoryNativeHub extends LitElement {
             </button>
           </div>
         </div>
-        <div class="alisio-memory-native__tabs" role="tablist" aria-label="Memory views">
+        <div class="alisio-memory-native__tabs" role="tablist" aria-label=${text.viewsLabel}>
           ${(["wiki", "files", "graph"] as const).map(
             (view) => html`
               <button
@@ -1064,27 +1395,36 @@ export class AlisioMemoryNativeHub extends LitElement {
                 <div class="alisio-memory-file-list">
                   ${(this.wikiList?.pages ?? []).map(
                     (page) => html`
-                      <button
-                        type="button"
-                        class="alisio-memory-file ${this.selectedPageId === page.id
-                          ? "is-active"
-                          : ""}"
-                        aria-current=${this.selectedPageId === page.id ? "true" : "false"}
-                        @click=${() => void this.selectPage(page.id)}
-                      >
-                        <span class="alisio-memory-file__copy">
-                          <span class="alisio-memory-file__title">${page.title}</span>
-                          <span class="alisio-memory-file__meta">
-                            ${page.excerpt?.trim() || page.path?.trim() || text.na}
+                      <article class="alisio-memory-native__result-card">
+                        <button
+                          type="button"
+                          class="alisio-memory-file ${this.selectedPageId === page.id
+                            ? "is-active"
+                            : ""}"
+                          aria-current=${this.selectedPageId === page.id ? "true" : "false"}
+                          @click=${() => void this.selectPage(page.id)}
+                        >
+                          <span class="alisio-memory-file__copy">
+                            <span class="alisio-memory-file__title">${page.title}</span>
+                            <span class="alisio-memory-file__meta">
+                              ${page.excerpt?.trim() || page.path?.trim() || text.na}
+                            </span>
+                            ${renderReasonTags(page.reasonTags)}
                           </span>
-                          ${renderReasonTags(page.reasonTags)}
-                        </span>
-                        <span class="alisio-memory-file__status">
-                          ${typeof page.backlinks === "number"
-                            ? `${page.backlinks} ↩`
-                            : (formatTimestamp(page.updatedAt) ?? text.na)}
-                        </span>
-                      </button>
+                          <span class="alisio-memory-file__status">
+                            ${typeof page.backlinks === "number"
+                              ? `${page.backlinks} ↩`
+                              : (formatTimestamp(page.updatedAt) ?? text.na)}
+                          </span>
+                        </button>
+                        ${this.renderTraceAction(text, {
+                          label: page.title,
+                          traceId: page.traceId,
+                          trace: page.trace,
+                          summary: page.traceSummary,
+                          reasonTags: page.reasonTags,
+                        })}
+                      </article>
                     `,
                   )}
                 </div>
@@ -1147,7 +1487,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                       ${claim.confidence != null
                         ? html`
                             <span class="alisio-memory-runtime__meta-detail">
-                              confidence ${String(claim.confidence)}
+                              ${text.confidenceLabel} ${String(claim.confidence)}
                             </span>
                           `
                         : nothing}
@@ -1175,6 +1515,75 @@ export class AlisioMemoryNativeHub extends LitElement {
                   `,
                 )}
               </div>
+            `}
+      </section>
+    `;
+  }
+
+  private renderEvidence(
+    text: ReturnType<typeof memoryText>,
+    evidence: MemoryEvidenceItem[] | null | undefined,
+  ) {
+    const items = evidence ?? [];
+    return html`
+      <section class="alisio-memory-group">
+        <div class="alisio-memory-group__header"><h2>${text.wikiEvidence}</h2></div>
+        ${items.length === 0
+          ? html`<div class="alisio-memory-empty">${text.wikiEvidenceEmpty}</div>`
+          : html`
+              <div class="alisio-memory-native__stack">
+                ${items.map(
+                  (item) => html`
+                    <article class="alisio-memory-runtime">
+                      <strong>
+                        ${item.title?.trim() || item.source?.trim() || text.wikiEvidence}
+                      </strong>
+                      <span class="alisio-memory-runtime__meta-detail">
+                        ${item.excerpt?.trim() || text.na}
+                      </span>
+                      ${item.source?.trim() && item.source !== item.title?.trim()
+                        ? html`
+                            <span class="alisio-memory-runtime__meta-detail"> ${item.source} </span>
+                          `
+                        : nothing}
+                      ${item.provenance?.length
+                        ? renderProvenanceRows(item.provenance, text.wikiProvenanceEmpty)
+                        : nothing}
+                    </article>
+                  `,
+                )}
+              </div>
+            `}
+      </section>
+    `;
+  }
+
+  private renderRevision(text: ReturnType<typeof memoryText>) {
+    const revision = this.page?.revision ?? null;
+    return html`
+      <section class="alisio-memory-group">
+        <div class="alisio-memory-group__header"><h2>${text.wikiRevision}</h2></div>
+        ${!revision
+          ? html`<div class="alisio-memory-empty">${text.na}</div>`
+          : html`
+              <article class="alisio-memory-runtime__meta-item">
+                <span class="alisio-memory-runtime__meta-label">
+                  ${revision.summary?.trim() || revision.eventId || text.wikiRevision}
+                </span>
+                <strong class="alisio-memory-runtime__meta-value">
+                  ${String(revision.lamport ?? text.na)}
+                </strong>
+                <span class="alisio-memory-runtime__meta-detail">
+                  ${[formatTimestamp(revision.updatedAt), revision.author]
+                    .filter(Boolean)
+                    .join(" · ") || text.na}
+                </span>
+                ${revision.eventId
+                  ? html`
+                      <span class="alisio-memory-runtime__meta-detail"> ${revision.eventId} </span>
+                    `
+                  : nothing}
+              </article>
             `}
       </section>
     `;
@@ -1241,7 +1650,7 @@ export class AlisioMemoryNativeHub extends LitElement {
                 <div class="alisio-memory-runtime__meta-item">
                   <span class="alisio-memory-runtime__meta-label">${text.whySurfaced}</span>
                   <span class="alisio-memory-runtime__meta-detail">
-                    ${preview.summary?.trim() || text.na}
+                    ${buildContextPreviewSummary(text, this.page, preview.summary)}
                   </span>
                   ${renderReasonTags(preview.reasonTags)}
                   ${this.tracesEnabled && (preview.traceId || preview.trace)
@@ -1271,462 +1680,149 @@ export class AlisioMemoryNativeHub extends LitElement {
   }
 
   private renderWikiView(text: ReturnType<typeof memoryText>) {
-    const page = this.page;
-    return html`
-      <div class="alisio-memory-shell">
-        <aside class="alisio-memory-sidebar">${this.renderWikiSidebar(text)}</aside>
-        <div class="alisio-memory-main">
-          ${this.pageError ? html`<div class="callout info">${this.pageError}</div>` : nothing}
-          ${!page
-            ? html`<div class="alisio-memory-panel alisio-memory-panel--empty">
-                ${text.wikiNoSelection}
-              </div>`
-            : html`
-                <section class="alisio-memory-runtime">
-                  <div class="alisio-memory-runtime__header">
-                    <div class="alisio-memory-runtime__copy">
-                      <h3>${this.currentPageTitleDraft || page.title}</h3>
-                      <p>${page.path?.trim() || text.na}</p>
-                    </div>
-                    <div class="alisio-memory-runtime__actions">
-                      ${this.pageDirty
-                        ? html`<span class="alisio-memory-badge">${text.unsaved}</span>`
-                        : nothing}
-                      ${this.tracesEnabled && (page.traceId || page.trace)
-                        ? html`
-                            <button
-                              class="btn btn--sm"
-                              @click=${() =>
-                                void this.openTrace({
-                                  label: page.title,
-                                  traceId: page.traceId,
-                                  trace: page.trace,
-                                  summary: page.traceSummary,
-                                  reasonTags: page.reasonTags,
-                                })}
-                            >
-                              ${text.viewTrace}
-                            </button>
-                          `
-                        : nothing}
-                      <button
-                        class="btn btn--sm"
-                        ?disabled=${!this.pageDirty || this.pageSaving}
-                        @click=${() => {
-                          if (!page.id) {
-                            return;
-                          }
-                          this.pageDrafts = { ...this.pageDrafts, [page.id]: page.content };
-                          this.pageTitleDrafts = { ...this.pageTitleDrafts, [page.id]: page.title };
-                        }}
-                      >
-                        ${text.reset}
-                      </button>
-                      <button
-                        class="btn btn--sm primary"
-                        ?disabled=${this.pageSaving || !this.pageDirty}
-                        @click=${() => void this.savePage()}
-                      >
-                        ${this.pageSaving ? text.saving : text.save}
-                      </button>
-                    </div>
-                  </div>
-                  ${renderReasonTags(page.reasonTags)}
-                  <div class="alisio-memory-native__editor">
-                    <label class="field">
-                      <span>${text.wikiEditorTitle}</span>
-                      <input
-                        .value=${this.currentPageTitleDraft}
-                        @input=${(event: Event) => {
-                          if (!page.id) {
-                            return;
-                          }
-                          this.pageTitleDrafts = {
-                            ...this.pageTitleDrafts,
-                            [page.id]: (event.target as HTMLInputElement).value,
-                          };
-                        }}
-                      />
-                    </label>
-                    <div class="alisio-memory-editor">
-                      <label class="field alisio-memory-editor__pane">
-                        <span>${text.wikiPath}</span>
-                        <textarea
-                          class="alisio-memory-textarea"
-                          .value=${this.currentPageDraft}
-                          @input=${(event: Event) => {
-                            if (!page.id) {
-                              return;
-                            }
-                            this.pageDrafts = {
-                              ...this.pageDrafts,
-                              [page.id]: (event.target as HTMLTextAreaElement).value,
-                            };
-                          }}
-                        ></textarea>
-                      </label>
-                      <section class="alisio-memory-preview">
-                        <div class="alisio-memory-preview__label">${text.preview}</div>
-                        ${this.currentPageDraft.trim()
-                          ? html`
-                              <div class="alisio-memory-preview__body sidebar-markdown">
-                                ${unsafeHTML(toSanitizedMarkdownHtml(this.currentPageDraft))}
-                              </div>
-                            `
-                          : html`<div class="alisio-memory-preview__empty">
-                              ${text.previewEmpty}
-                            </div>`}
-                      </section>
-                    </div>
-                  </div>
-                </section>
-                <div class="alisio-memory-native__panels">
-                  ${this.renderContext(text)} ${this.renderBacklinks(text, page.backlinks)}
-                  ${this.renderClaims(text, page.claims)}
-                  <section class="alisio-memory-group">
-                    <div class="alisio-memory-group__header"><h2>${text.wikiEvidence}</h2></div>
-                    ${renderProvenanceRows(page.provenance, text.wikiEvidenceEmpty)}
-                  </section>
-                  ${this.renderHistory(text)}
-                  ${this.legacyEditorEnabled
-                    ? html`
-                        <details class="alisio-memory-runtime">
-                          <summary>${text.legacyTitle}</summary>
-                          <p>${text.legacyBody}</p>
-                          ${renderLegacyMemoryEditor(this.props!, { compact: true })}
-                        </details>
-                      `
-                    : nothing}
-                </div>
-              `}
-        </div>
-      </div>
-    `;
+    return renderMemoryWikiView({
+      text,
+      searchQuery: this.props?.searchQuery ?? "",
+      wikiLoading: this.wikiLoading,
+      wikiError: this.wikiError,
+      wikiList: this.wikiList,
+      selectedPageId: this.selectedPageId,
+      pageLoading: this.pageLoading,
+      pageError: this.pageError,
+      page: this.page,
+      historyLoading: this.historyLoading,
+      historyError: this.historyError,
+      history: this.history,
+      tracesEnabled: this.tracesEnabled,
+      searchResultsVisible: this.searchResultsVisible,
+      createOpen: this.createOpen,
+      createTitle: this.createTitle,
+      pageSaving: this.pageSaving,
+      pageDirty: this.pageDirty,
+      currentPageDraft: this.currentPageDraft,
+      currentPageTitleDraft: this.currentPageTitleDraft,
+      editorOpen: this.wikiEditorOpen,
+      legacyEditorEnabled: this.legacyEditorEnabled,
+      legacyEditor: this.legacyEditorEnabled
+        ? renderLegacyMemoryEditor(this.props!, { compact: true })
+        : undefined,
+      onGoHome: () => this.openWikiHome(),
+      onSelectPage: (pageId) => void this.selectPage(pageId),
+      onSelectFile: (fileId) => this.openRelatedFile(fileId),
+      onOpenTrace: (params) => void this.openTrace(params),
+      onOpenWikiTarget: (target) => void this.openWikiTarget(target),
+      onToggleCreate: (open) => {
+        this.createOpen = open;
+      },
+      onCreateTitle: (value) => {
+        this.createTitle = value;
+      },
+      onCreatePage: () => void this.createPage(),
+      onToggleEditor: (open) => {
+        this.wikiEditorOpen = open;
+      },
+      onSetPageDraft: (value) => {
+        if (!this.page?.id) {
+          return;
+        }
+        this.pageDrafts = {
+          ...this.pageDrafts,
+          [this.page.id]: value,
+        };
+      },
+      onSetPageTitleDraft: (value) => {
+        if (!this.page?.id) {
+          return;
+        }
+        this.pageTitleDrafts = {
+          ...this.pageTitleDrafts,
+          [this.page.id]: value,
+        };
+      },
+      onResetPage: () => {
+        if (!this.page?.id) {
+          return;
+        }
+        this.pageDrafts = { ...this.pageDrafts, [this.page.id]: this.page.content };
+        this.pageTitleDrafts = { ...this.pageTitleDrafts, [this.page.id]: this.page.title };
+      },
+      onSavePage: () => void this.savePage(),
+    });
   }
 
   private renderFilesView(text: ReturnType<typeof memoryText>) {
-    const files = this.filesList?.files ?? [];
-    return html`
-      <div class="alisio-memory-shell">
-        <aside class="alisio-memory-sidebar">
-          <section class="alisio-memory-group">
-            <div class="alisio-memory-group__header"><h2>${text.filesTitle}</h2></div>
-            ${this.filesLoading && files.length === 0
-              ? html`${renderSkeletonListItem({
-                  lines: ["short", "medium"],
-                })}${renderSkeletonListItem({ lines: ["short", "medium"] })}`
-              : this.filesError
-                ? html`<div class="callout info">${this.filesError}</div>`
-                : files.length === 0
-                  ? html`<div class="alisio-memory-empty">${text.filesEmpty}</div>`
-                  : html`
-                      <div class="alisio-memory-file-list">
-                        ${files.map(
-                          (file) => html`
-                            <button
-                              type="button"
-                              class="alisio-memory-file ${this.selectedFileId === file.id
-                                ? "is-active"
-                                : ""}"
-                              @click=${() => {
-                                this.selectedFileId = file.id;
-                                void this.loadFileDetail(file.id);
-                              }}
-                            >
-                              <span class="alisio-memory-file__copy">
-                                <span class="alisio-memory-file__title">${file.name}</span>
-                                <span class="alisio-memory-file__meta">
-                                  ${file.provenanceSummary?.trim() || text.na}
-                                </span>
-                                ${renderReasonTags(file.reasonTags)}
-                              </span>
-                            </button>
-                          `,
-                        )}
-                      </div>
-                    `}
-          </section>
-        </aside>
-        <div class="alisio-memory-main">
-          ${this.fileLoading && !this.fileDetail
-            ? html`
-                <section class="alisio-memory-runtime">
-                  ${renderSkeletonLines(["short", "medium", "long"], { compact: true })}
-                </section>
-              `
-            : this.fileError
-              ? html`<div class="callout info">${this.fileError}</div>`
-              : !this.fileDetail
-                ? html`<div class="alisio-memory-panel alisio-memory-panel--empty">
-                    ${text.filesNoSelection}
-                  </div>`
-                : html`
-                    <section class="alisio-memory-runtime">
-                      <div class="alisio-memory-runtime__header">
-                        <div class="alisio-memory-runtime__copy">
-                          <h3>${this.fileDetail.name}</h3>
-                          <p>${this.fileDetail.provenanceSummary?.trim() || text.na}</p>
-                        </div>
-                        ${this.tracesEnabled && (this.fileDetail.traceId || this.fileDetail.trace)
-                          ? html`
-                              <div class="alisio-memory-runtime__actions">
-                                <button
-                                  class="btn btn--sm"
-                                  @click=${() =>
-                                    void this.openTrace({
-                                      label: this.fileDetail?.name ?? text.traceTitle,
-                                      traceId: this.fileDetail?.traceId,
-                                      trace: this.fileDetail?.trace,
-                                      summary: this.fileDetail?.traceSummary,
-                                      reasonTags: this.fileDetail?.reasonTags,
-                                    })}
-                                >
-                                  ${text.viewTrace}
-                                </button>
-                              </div>
-                            `
-                          : nothing}
-                      </div>
-                      ${renderReasonTags(this.fileDetail.reasonTags)}
-                      <div class="alisio-memory-runtime__meta">
-                        <div class="alisio-memory-runtime__meta-item">
-                          <span class="alisio-memory-runtime__meta-label"
-                            >${text.filesMediaType}</span
-                          >
-                          <strong class="alisio-memory-runtime__meta-value">
-                            ${this.fileDetail.mediaType?.trim() || text.na}
-                          </strong>
-                        </div>
-                        <div class="alisio-memory-runtime__meta-item">
-                          <span class="alisio-memory-runtime__meta-label">${text.filesSize}</span>
-                          <strong class="alisio-memory-runtime__meta-value">
-                            ${formatBytes(this.fileDetail.size) ?? text.na}
-                          </strong>
-                        </div>
-                        <div class="alisio-memory-runtime__meta-item">
-                          <span class="alisio-memory-runtime__meta-label"
-                            >${text.filesUpdated}</span
-                          >
-                          <strong class="alisio-memory-runtime__meta-value">
-                            ${formatTimestamp(this.fileDetail.updatedAt) ?? text.na}
-                          </strong>
-                        </div>
-                      </div>
-                    </section>
-                    <div class="alisio-memory-native__panels">
-                      <section class="alisio-memory-group">
-                        <div class="alisio-memory-group__header">
-                          <h2>${text.filesProvenance}</h2>
-                        </div>
-                        ${renderProvenanceRows(this.fileDetail.provenance, text.na)}
-                      </section>
-                      <section class="alisio-memory-group">
-                        <div class="alisio-memory-group__header">
-                          <h2>${text.filesRelatedPages}</h2>
-                        </div>
-                        ${(this.fileDetail.relatedPages?.length ?? 0) === 0
-                          ? html`<div class="alisio-memory-empty">${text.none}</div>`
-                          : html`
-                              <div class="alisio-memory-file-list">
-                                ${this.fileDetail.relatedPages!.map(
-                                  (page) => html`
-                                    <button
-                                      type="button"
-                                      class="alisio-memory-file"
-                                      @click=${() =>
-                                        page.id
-                                          ? void this.selectPage(page.id)
-                                          : this.openGraphTarget(page.path)}
-                                    >
-                                      <span class="alisio-memory-file__copy">
-                                        <span class="alisio-memory-file__title">${page.title}</span>
-                                        <span class="alisio-memory-file__meta">
-                                          ${page.path?.trim() || text.na}
-                                        </span>
-                                      </span>
-                                    </button>
-                                  `,
-                                )}
-                              </div>
-                            `}
-                      </section>
-                    </div>
-                  `}
-        </div>
-      </div>
-    `;
-  }
-
-  private buildGraphModel(graph: MemoryGraphState | null) {
-    if (!graph || graph.matches.length === 0) {
-      return null;
-    }
-    const focus = graph.matches[0];
-    const seen = new Set<string>();
-    const nodes: Array<{
-      key: string;
-      label: string;
-      path?: string | null;
-      x: number;
-      y: number;
-      active?: boolean;
-    }> = [];
-    const edges: Array<{ from: string; to: string; label: string }> = [];
-    nodes.push({
-      key: focus.entityId,
-      label: focus.title,
-      path: focus.sourcePath,
-      x: 360,
-      y: 210,
-      active: true,
+    return renderMemoryFilesView({
+      text,
+      filesLoading: this.filesLoading,
+      filesError: this.filesError,
+      filesList: this.filesList,
+      selectedFileId: this.selectedFileId,
+      fileLoading: this.fileLoading,
+      fileError: this.fileError,
+      fileDetail: this.fileDetail,
+      renderReasonTags,
+      renderProvenance: renderProvenanceRows,
+      renderTraceAction: (params) => this.renderTraceAction(text, params),
+      formatBytes,
+      formatTimestamp,
+      onSelectFile: (fileId) => {
+        this.selectedFileId = fileId;
+        void this.loadFileDetail(fileId);
+      },
+      onOpenAttachment: () => this.openFileAttachment(),
+      onDownloadAttachment: () => this.downloadFileAttachment(),
+      onOpenWikiPage: (pageId) => this.openFileWikiPage(pageId),
+      onFocusGraphPage: (pageId) => this.focusGraphPage(pageId),
     });
-    seen.add(focus.entityId);
-    const relations = focus.relations.slice(0, 8);
-    const radius = 140;
-    relations.forEach((relation, index) => {
-      const related = relation.relatedEntity;
-      if (!related || seen.has(related.entityId)) {
-        return;
-      }
-      const angle = (Math.PI * 2 * index) / Math.max(relations.length, 1) - Math.PI / 2;
-      nodes.push({
-        key: related.entityId,
-        label: related.title,
-        path: related.sourcePath,
-        x: 360 + Math.cos(angle) * radius,
-        y: 210 + Math.sin(angle) * radius,
-      });
-      seen.add(related.entityId);
-      edges.push({
-        from: focus.entityId,
-        to: related.entityId,
-        label: relation.relationType,
-      });
-    });
-    return { focus, nodes, edges };
   }
 
   private renderGraphView(text: ReturnType<typeof memoryText>) {
-    const model = this.buildGraphModel(this.props?.memoryGraph ?? null);
     return html`
-      <div class="alisio-memory-shell">
-        <aside class="alisio-memory-sidebar">
-          <section class="alisio-memory-group">
-            <div class="alisio-memory-group__header"><h2>${text.graphTitle}</h2></div>
-            ${this.props?.memoryGraphError
-              ? html`<div class="callout info">${this.props.memoryGraphError}</div>`
-              : !model
-                ? html`<div class="alisio-memory-empty">${text.graphHint}</div>`
-                : html`
-                    <div class="alisio-memory-native__stack">
-                      <div class="alisio-memory-runtime__meta-item">
-                        <span class="alisio-memory-runtime__meta-label">${text.graphFocus}</span>
-                        <strong class="alisio-memory-runtime__meta-value"
-                          >${model.focus.title}</strong
-                        >
-                        <span class="alisio-memory-runtime__meta-detail"
-                          >${model.focus.sourcePath}</span
-                        >
-                      </div>
-                      ${renderReasonTags(
-                        this.wikiList?.pages.find((page) => page.path === model.focus.sourcePath)
-                          ?.reasonTags,
-                      )}
-                    </div>
-                  `}
-          </section>
-          <section class="alisio-memory-group">
-            <div class="alisio-memory-group__header"><h2>${text.graphRelations}</h2></div>
-            ${!model
-              ? html`<div class="alisio-memory-empty">${text.graphEmpty}</div>`
-              : html`
-                  <div class="alisio-memory-native__stack">
-                    ${model.edges.map(
-                      (edge) => html`
-                        <button
-                          type="button"
-                          class="alisio-memory-file"
-                          @click=${() =>
-                            this.openGraphTarget(
-                              model.nodes.find((node) => node.key === edge.to)?.path,
-                            )}
-                        >
-                          <span class="alisio-memory-file__copy">
-                            <span class="alisio-memory-file__title">
-                              ${edge.label} →
-                              ${model.nodes.find((node) => node.key === edge.to)?.label ?? text.na}
-                            </span>
-                          </span>
-                        </button>
-                      `,
-                    )}
-                  </div>
-                `}
-          </section>
-        </aside>
-        <div class="alisio-memory-main">
-          ${this.props?.memoryGraphLoading
-            ? html`
-                <section class="alisio-memory-runtime">
-                  <div class="alisio-memory-empty">${text.graphLoading}</div>
-                </section>
-              `
-            : !model
-              ? html`<div class="alisio-memory-panel alisio-memory-panel--empty">
-                  ${text.graphUnavailable}
-                </div>`
-              : html`
-                  <section class="alisio-memory-runtime">
-                    <svg
-                      class="alisio-memory-native__graph"
-                      viewBox="0 0 720 420"
-                      role="img"
-                      aria-label=${text.graphTitle}
-                    >
-                      ${model.edges.map((edge) => {
-                        const from = model.nodes.find((node) => node.key === edge.from)!;
-                        const to = model.nodes.find((node) => node.key === edge.to)!;
-                        const midX = (from.x + to.x) / 2;
-                        const midY = (from.y + to.y) / 2;
-                        return html`
-                          <line
-                            x1=${from.x}
-                            y1=${from.y}
-                            x2=${to.x}
-                            y2=${to.y}
-                            stroke="currentColor"
-                            opacity="0.25"
-                          ></line>
-                          <text
-                            x=${midX}
-                            y=${midY}
-                            text-anchor="middle"
-                            class="alisio-memory-native__edge-label"
-                          >
-                            ${edge.label}
-                          </text>
-                        `;
-                      })}
-                      ${model.nodes.map(
-                        (node) => html`
-                          <g
-                            class="alisio-memory-native__graph-node ${node.active
-                              ? "is-active"
-                              : ""}"
-                            @click=${() => this.openGraphTarget(node.path)}
-                          >
-                            <circle cx=${node.x} cy=${node.y} r=${node.active ? 48 : 34}></circle>
-                            <text x=${node.x} y=${node.y} text-anchor="middle">
-                              ${node.label}
-                            </text>
-                          </g>
-                        `,
-                      )}
-                    </svg>
-                  </section>
-                `}
-        </div>
-      </div>
+      <alisio-memory-graph-view
+        .graph=${this.graphData}
+        .loading=${this.graphLoading}
+        .error=${this.graphError}
+        .activeScope=${this.graphScope}
+        .localAvailable=${Boolean(this.page?.id ?? this.selectedPageId)}
+        .text=${{
+          graphTitle: text.graphTitle,
+          graphLoading: text.graphLoading,
+          graphUnavailable: text.graphUnavailable,
+          graphEmpty: text.graphEmpty,
+          graphFocus: text.graphFocus,
+          graphGlobal: text.graphGlobal,
+          graphLocal: text.graphLocal,
+          graphResetView: text.graphResetView,
+          graphNeighbourhood: text.graphNeighbourhood,
+          graphBranches: text.graphBranches,
+          graphBranchesEmpty: text.graphBranchesEmpty,
+          graphEdgeReason: text.graphEdgeReason,
+          graphEdgeReasonEmpty: text.graphEdgeReasonEmpty,
+          graphFilterRelations: text.graphFilterRelations,
+          graphFilterTags: text.graphFilterTags,
+          graphNodesCount: text.graphNodesCount,
+          graphEdgesCount: text.graphEdgesCount,
+          graphTruncated: text.graphTruncated,
+          graphSource: text.graphSource,
+          graphTarget: text.graphTarget,
+          graphRelationType: text.graphRelationType,
+        }}
+        @alisio-memory-graph-open-node=${(event: CustomEvent<{ pageId: string }>) => {
+          const pageId = event.detail?.pageId?.trim();
+          if (pageId) {
+            void this.selectPage(pageId);
+          }
+        }}
+        @alisio-memory-graph-scope-change=${(
+          event: CustomEvent<{ scope: "global" | "local" }>,
+        ) => {
+          const scope = event.detail?.scope;
+          if (!scope) {
+            return;
+          }
+          void this.loadGraph({ scope });
+        }}
+      ></alisio-memory-graph-view>
     `;
   }
 
@@ -1734,7 +1830,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     if (!this.traceOpen) {
       return nothing;
     }
-    const summary = buildTraceSummary(this.traceData);
+    const summary = buildTraceSummary(this.traceData, text);
     return html`
       <section class="alisio-memory-runtime alisio-memory-native__drawer">
         <div class="alisio-memory-runtime__header">
@@ -1851,6 +1947,60 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 18px;
+        }
+        .alisio-memory-native__result-card {
+          display: grid;
+          gap: 8px;
+        }
+        .alisio-memory-native__result-actions {
+          display: flex;
+          justify-content: flex-end;
+        }
+        .alisio-memory-preview {
+          display: grid;
+          gap: 10px;
+        }
+        .alisio-memory-preview__label {
+          font-size: 0.78rem;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--text-muted);
+        }
+        .alisio-memory-preview__body,
+        .alisio-memory-preview__empty,
+        .alisio-memory-files-preview__code {
+          margin: 0;
+          padding: 14px;
+          border-radius: 16px;
+          background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+        }
+        .alisio-memory-files-preview__code {
+          overflow: auto;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+        .alisio-memory-files-preview__image,
+        .alisio-memory-files-preview__frame {
+          width: 100%;
+          border: 0;
+          border-radius: 16px;
+          background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+        }
+        .alisio-memory-files-preview__image {
+          display: block;
+          max-height: 480px;
+          object-fit: contain;
+        }
+        .alisio-memory-files-preview__frame {
+          min-height: 480px;
+        }
+        .alisio-memory-files-preview__audio {
+          width: 100%;
+        }
+        .alisio-memory-preview__hint {
+          font-size: 0.82rem;
+          color: var(--text-muted);
         }
         .alisio-memory-native__trace-raw {
           margin: 0;

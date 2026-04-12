@@ -236,4 +236,62 @@ describe("loadControlUiBootstrapConfig", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("does not block startup forever when the bootstrap request hangs", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          basePath: "",
+          assistantName: "Assistant",
+          assistantAvatar: "A",
+          assistantAgentId: "main",
+          serverVersion: "2026.3.30",
+        }),
+      })
+      .mockImplementationOnce((_url, init) => {
+        return new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          signal?.addEventListener(
+            "abort",
+            () => {
+              const abortError = new Error("Aborted");
+              abortError.name = "AbortError";
+              reject(abortError);
+            },
+            { once: true },
+          );
+        });
+      });
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const state: ControlUiBootstrapState = {
+      basePath: "",
+      assistantName: "Assistant",
+      assistantAvatar: null,
+      assistantAgentId: null,
+      serverVersion: null,
+      alisioStartupLoading: false,
+      alisioStartupError: null,
+      alisioStartupBootstrap: null,
+      gatewayBootstrapUrl: null,
+      gatewayBootstrapToken: null,
+    };
+
+    const loadPromise = loadControlUiBootstrapConfig(state);
+    await vi.advanceTimersByTimeAsync(3000);
+    await loadPromise;
+
+    expect(state.alisioStartupLoading).toBe(false);
+    expect(state.alisioStartupError).toBeNull();
+    expect(state.alisioStartupBootstrap).toBeNull();
+    expect(state.gatewayBootstrapUrl).toBeNull();
+    expect(state.gatewayBootstrapToken).toBeNull();
+    expect(state.serverVersion).toBe("2026.3.30");
+
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 });

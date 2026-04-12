@@ -87,14 +87,24 @@ describe("scripts/test-extension.mjs", () => {
     expect(sharedTestFiles).toEqual([bundledPluginFile("firecrawl", "src/index.test.ts")]);
   });
 
-  it("includes paired src roots when they contain tests", () => {
+  it("routes paired channel src roots through the channel vitest config", () => {
     const plan = resolveExtensionTestPlan({ targetArg: "line", cwd: process.cwd() });
 
     expect(plan.roots).toContain(bundledPluginRoot("line"));
-    expect(plan.config).toBe("vitest.extensions.config.ts");
+    expect(plan.config).toBe("vitest.channels.config.ts");
     expect(plan.testFiles.some((file) => file.startsWith(`${bundledPluginRoot("line")}/`))).toBe(
       true,
     );
+  });
+
+  it("routes bundled channel plugins that were previously extension-scoped onto channel config", () => {
+    const plan = resolveExtensionTestPlan({ targetArg: "bluebubbles", cwd: process.cwd() });
+
+    expect(plan.extensionId).toBe("bluebubbles");
+    expect(plan.config).toBe("vitest.channels.config.ts");
+    expect(
+      plan.testFiles.some((file) => file.startsWith(`${bundledPluginRoot("bluebubbles")}/`)),
+    ).toBe(true);
   });
 
   it("infers the extension from the current working directory", () => {

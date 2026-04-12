@@ -137,15 +137,119 @@ describe("canonical memory store", () => {
         direction: "both",
         relationLimit: 4,
       });
+      const focusId = graph.focus?.pageId ?? graph.matches[0]?.entityId;
       expect(graph.lastSyncedLamport).toBe(status.lastSyncedLamport);
       expect(graph.e2eeRequired).toBe(true);
+      expect(graph.scope).toBe("local");
+      expect(graph.focus).toEqual(
+        expect.objectContaining({
+          pageId: focusId,
+          entityId: focusId,
+        }),
+      );
+      expect(graph.nodes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            pageId: focusId,
+            sourcePath: "memory/alpha.md",
+            tags: ["project"],
+          }),
+        ]),
+      );
+      expect(graph.edges).toEqual([
+        expect.objectContaining({
+          relationType: "references",
+          toPageId: focusId,
+        }),
+      ]);
       expect(graph.matches).toEqual([
         expect.objectContaining({
+          entityId: focusId,
           sourcePath: "memory/alpha.md",
           sourceKind: "workspace-memory",
           tags: ["project"],
         }),
       ]);
+    } finally {
+      await fs.rm(test.root, { recursive: true, force: true });
+    }
+  });
+
+  it("builds a global graph with stable deduplicated canonical edge ids", async () => {
+    const test = await createTestWorkspace("alisio-canonical-memory-graph-global-");
+    vi.stubEnv("ALISIO_STATE_DIR", test.stateDir);
+
+    try {
+      await fs.writeFile(
+        path.join(test.workspaceDir, "MEMORY.md"),
+        "# Team Memory\n\nSee [[memory/alpha]] and [[memory/beta]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "alpha.md"),
+        "# Alpha\n\nDepends on [[memory/beta]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "beta.md"),
+        "# Beta\n\nShips with [[memory/gamma]].\n",
+        "utf8",
+      );
+      await fs.writeFile(
+        path.join(test.workspaceDir, "memory", "gamma.md"),
+        "# Gamma\n\nReference leaf.\n",
+        "utf8",
+      );
+
+      const status = await syncCanonicalMemoryStore({
+        cfg: test.cfg,
+        agentId: "main",
+        workspaceDir: test.workspaceDir,
+        backend: "builtin",
+        env: process.env,
+      });
+
+      const graph = queryCanonicalMemoryGraph({
+        status,
+        scope: "global",
+        direction: "both",
+        depth: 2,
+        nodeLimit: 16,
+        edgeLimit: 16,
+        relationLimit: 8,
+      });
+
+      expect(graph.scope).toBe("global");
+      expect(new Set(graph.edges.map((edge) => edge.id)).size).toBe(graph.edges.length);
+      expect(graph.edges).toEqual(
+        expect.arrayContaining(
+          graph.edges.map((edge) =>
+            expect.objectContaining({
+              id: `${edge.fromPageId}:${edge.relationType}:${edge.ordinal}:${edge.toPageId}`,
+            })
+          ),
+        ),
+      );
+
+      const nodeIdByTitle = new Map(graph.nodes.map((node) => [node.title, node.id]));
+      const alphaId = nodeIdByTitle.get("Alpha");
+      const betaId = nodeIdByTitle.get("Beta");
+      const gammaId = nodeIdByTitle.get("Gamma");
+
+      expect(alphaId).toBeTruthy();
+      expect(betaId).toBeTruthy();
+      expect(gammaId).toBeTruthy();
+
+      const alphaBetaEdges = graph.edges.filter(
+        (edge) => edge.fromId === alphaId && edge.toId === betaId,
+      );
+      const betaGammaEdges = graph.edges.filter(
+        (edge) => edge.fromId === betaId && edge.toId === gammaId,
+      );
+
+      expect(alphaBetaEdges).toHaveLength(1);
+      expect(betaGammaEdges).toHaveLength(1);
+      expect(graph.branches.length).toBeGreaterThan(0);
     } finally {
       await fs.rm(test.root, { recursive: true, force: true });
     }

@@ -227,40 +227,6 @@ export const MemoryWorkspaceFileDocumentSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const MemoryFilesListParamsSchema = Type.Object(
-  {
-    agentId: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-
-export const MemoryFilesListResultSchema = Type.Object(
-  {
-    agentId: NonEmptyString,
-    workspace: NonEmptyString,
-    rootFileMissing: Type.Boolean(),
-    files: Type.Array(MemoryWorkspaceFileEntrySchema),
-  },
-  { additionalProperties: false },
-);
-
-export const MemoryFilesGetParamsSchema = Type.Object(
-  {
-    agentId: NonEmptyString,
-    path: NonEmptyString,
-  },
-  { additionalProperties: false },
-);
-
-export const MemoryFilesGetResultSchema = Type.Object(
-  {
-    agentId: NonEmptyString,
-    workspace: NonEmptyString,
-    file: MemoryWorkspaceFileDocumentSchema,
-  },
-  { additionalProperties: false },
-);
-
 export const MemoryFilesSetParamsSchema = Type.Object(
   {
     agentId: NonEmptyString,

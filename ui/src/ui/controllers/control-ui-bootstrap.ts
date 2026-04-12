@@ -24,6 +24,8 @@ export type ControlUiBootstrapState = {
   gatewayBootstrapToken: string | null;
 };
 
+const CONTROL_UI_BOOTSTRAP_FETCH_TIMEOUT_MS = 2500;
+
 function looksLikeHtmlDocument(payload: string) {
   const normalized = payload.trim().toLowerCase();
   return normalized.startsWith("<!doctype html") || normalized.startsWith("<html");
@@ -33,6 +35,39 @@ function staleGatewayBootstrapMessage(serverVersion: string | null) {
   return serverVersion
     ? `The local Alisio app is still running an older build (${serverVersion}). Restart Alisio, then reload this page.`
     : "The local Alisio app is still serving an older workspace build. Restart Alisio, then reload this page.";
+}
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number) {
+  if (typeof AbortController !== "function" || timeoutMs <= 0) {
+    return await fetch(input, init);
+  }
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeoutId = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (timedOut) {
+      const timeoutError = new Error(`Timed out after ${timeoutMs}ms`);
+      timeoutError.name = "TimeoutError";
+      throw timeoutError;
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
+function isTimeoutLikeError(error: unknown) {
+  return error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
 export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapState) {
@@ -58,11 +93,15 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
   state.gatewayBootstrapToken = null;
 
   try {
-    const res = await fetch(configUrl, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    });
+    const res = await fetchWithTimeout(
+      configUrl,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      },
+      CONTROL_UI_BOOTSTRAP_FETCH_TIMEOUT_MS,
+    );
     if (res.ok) {
       const parsed = (await res.json()) as ControlUiBootstrapConfig;
       const normalized = normalizeAssistantIdentity({
@@ -80,11 +119,15 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
   }
 
   try {
-    const res = await fetch(alisioBootstrapUrl, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    });
+    const res = await fetchWithTimeout(
+      alisioBootstrapUrl,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      },
+      CONTROL_UI_BOOTSTRAP_FETCH_TIMEOUT_MS,
+    );
     if (!res.ok) {
       state.alisioStartupError = `startup bootstrap failed (${res.status})`;
       return;
@@ -115,6 +158,9 @@ export async function loadControlUiBootstrapConfig(state: ControlUiBootstrapStat
       }
     }
   } catch (error) {
+    if (isTimeoutLikeError(error)) {
+      return;
+    }
     state.alisioStartupError = String(error);
   } finally {
     state.alisioStartupLoading = false;

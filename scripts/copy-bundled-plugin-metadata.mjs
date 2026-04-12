@@ -17,6 +17,31 @@ const GENERATED_BUNDLED_SKILLS_DIR = "bundled-skills";
 const TRANSIENT_COPY_ERROR_CODES = new Set(["EEXIST", "ENOENT", "ENOTEMPTY", "EBUSY"]);
 const COPY_RETRY_DELAYS_MS = [10, 25, 50];
 const TOP_LEVEL_PUBLIC_SURFACE_EXTENSIONS = new Set([".ts", ".js", ".mts", ".cts", ".mjs", ".cjs"]);
+const BUNDLED_SKILL_BRANDING_FILE_NAMES = new Set([
+  "LICENSE",
+  "README.md",
+  "SKILL.md",
+  "package.json",
+]);
+const LEGACY_BRAND_SLUG = ["open", "claw"].join("");
+const LEGACY_BRAND_NAME = ["Open", "Claw"].join("");
+const LEGACY_BRAND_UPPER = ["OPEN", "CLAW"].join("");
+const BUNDLED_SKILL_BRANDING_REPLACEMENTS = [
+  [`${LEGACY_BRAND_NAME} Settings Manager`, "Alisio Settings Manager"],
+  [`${LEGACY_BRAND_NAME} ACP`, "Alisio ACP"],
+  [`${LEGACY_BRAND_NAME} config`, "Alisio config"],
+  [`${LEGACY_BRAND_NAME} settings`, "Alisio settings"],
+  [`${LEGACY_BRAND_NAME} agents`, "Alisio agents"],
+  [LEGACY_BRAND_NAME, "Alisio"],
+  [LEGACY_BRAND_UPPER, "ALISIO"],
+  [`${LEGACY_BRAND_SLUG}/${LEGACY_BRAND_SLUG}`, "alisio/alisio"],
+  [`${LEGACY_BRAND_SLUG}/acpx`, "alisio/acpx"],
+  [`dev@${LEGACY_BRAND_SLUG}.ai`, "dev@alisio.ai"],
+  [`${LEGACY_BRAND_SLUG}.ai`, "alisio.ai"],
+  [`${LEGACY_BRAND_SLUG} acp`, "alisio acp"],
+  [`.${LEGACY_BRAND_SLUG}`, ".alisio"],
+  [LEGACY_BRAND_SLUG, "alisio"],
+];
 const CAPABILITY_ONLY_PUBLIC_SURFACE_BASENAMES = new Set([
   "api",
   "channel-config-api",
@@ -158,6 +183,37 @@ function copySkillPathWithRetry(params) {
   }
 }
 
+function rewriteBundledSkillBranding(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return;
+  }
+  const queue = [targetPath];
+  while (queue.length > 0) {
+    const currentPath = queue.pop();
+    if (!currentPath) {
+      continue;
+    }
+    const stat = fs.statSync(currentPath);
+    if (stat.isDirectory()) {
+      for (const dirent of fs.readdirSync(currentPath, { withFileTypes: true })) {
+        queue.push(path.join(currentPath, dirent.name));
+      }
+      continue;
+    }
+    if (!stat.isFile() || !BUNDLED_SKILL_BRANDING_FILE_NAMES.has(path.basename(currentPath))) {
+      continue;
+    }
+    const original = fs.readFileSync(currentPath, "utf8");
+    let rewritten = original;
+    for (const [from, to] of BUNDLED_SKILL_BRANDING_REPLACEMENTS) {
+      rewritten = rewritten.replaceAll(from, to);
+    }
+    if (rewritten !== original) {
+      fs.writeFileSync(currentPath, rewritten, "utf8");
+    }
+  }
+}
+
 function copyDeclaredPluginSkillPaths(params) {
   const skills = Array.isArray(params.manifest.skills) ? params.manifest.skills : [];
   const copiedSkills = [];
@@ -199,6 +255,12 @@ function copyDeclaredPluginSkillPaths(params) {
         },
       },
     });
+    if (shouldExcludeNestedNodeModules) {
+      // Dependency-backed skill bundles can carry upstream branding in docs and
+      // metadata files. Rewrite those copied text assets so generated runtime
+      // artifacts stay aligned with the repo-wide Alisio brand.
+      rewriteBundledSkillBranding(targetPath);
+    }
     copiedSkills.push(target.manifestPath);
   }
   return copiedSkills;

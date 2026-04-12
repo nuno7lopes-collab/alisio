@@ -1,4 +1,4 @@
-import { canonicalSkillSources } from "../../brand-compat.ts";
+import { canonicalSkillSources, normalizeSkillSource } from "../../brand-compat.ts";
 import { t } from "../../i18n/index.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
@@ -58,9 +58,10 @@ export function groupSkills(skills: SkillStatusEntry[]): SkillGroup[] {
     skills: [],
   };
   for (const skill of skills) {
+    const normalizedSource = normalizeSkillSource(skill.source);
     const match = skill.bundled
       ? builtInGroup
-      : SKILL_SOURCE_GROUPS.find((group) => group.sources.includes(skill.source));
+      : SKILL_SOURCE_GROUPS.find((group) => group.sources.includes(normalizedSource));
     if (match) {
       groups.get(match.id)?.skills.push(skill);
     } else {

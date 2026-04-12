@@ -1,7 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { installedPluginRoot } from "../../test/helpers/bundled-plugin-paths.js";
 import {
   clearRuntimeConfigSnapshot,
   setRuntimeConfigSnapshot,
@@ -209,14 +208,10 @@ describe("buildWorkspaceSkillCommandSpecs", () => {
         }),
       ]),
     );
-    expect(
-      commands.find((entry) => entry.skillName === "workflows:review")?.sourceFilePath,
-    ).toContain(
-      path.join(
-        installedPluginRoot(path.join(workspaceDir, ".alisio"), "compound-bundle"),
-        "commands",
-        "workflows-review.md",
-      ),
+    const command = commands.find((entry) => entry.skillName === "workflows:review");
+    expect(command?.sourceFilePath).toBeTruthy();
+    await expect(fs.realpath(command!.sourceFilePath!)).resolves.toBe(
+      await fs.realpath(path.join(pluginRoot, "commands", "workflows-review.md")),
     );
   });
 });

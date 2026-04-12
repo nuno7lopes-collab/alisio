@@ -1,14 +1,70 @@
 import type { AlisioConfig } from "alisio/plugin-sdk/memory-core";
 import { Command } from "commander";
 import { describe, expect, it, vi } from "vitest";
-import plugin, {
+
+const registerMemoryCli = vi.hoisted(() => vi.fn());
+const handleMemoryGraphGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryWikiListGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryWikiGetGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryWikiUpdateGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryWikiHistoryGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryFilesListGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryFilesGetGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryTraceGetGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryExportGatewayRequest = vi.hoisted(() => vi.fn());
+const memoryRuntime = vi.hoisted(() => ({ kind: "memory-runtime" }));
+const registerBuiltInMemoryEmbeddingProviders = vi.hoisted(() =>
+  vi.fn((api: { registerMemoryEmbeddingProvider: (value: unknown) => void }) => {
+    for (let index = 0; index < 5; index += 1) {
+      api.registerMemoryEmbeddingProvider({ id: `mock-provider-${index}` });
+    }
+  }),
+);
+const createMemorySearchTool = vi.hoisted(() => vi.fn(() => ({ name: "memory_search" })));
+const createMemoryGetTool = vi.hoisted(() => vi.fn(() => ({ name: "memory_get" })));
+const createMemoryGraphTool = vi.hoisted(() => vi.fn(() => ({ name: "memory_graph" })));
+
+vi.mock("./src/cli.js", () => ({
+  registerMemoryCli,
+}));
+
+vi.mock("./src/gateway.js", () => ({
+  handleMemoryGraphGatewayRequest,
+}));
+
+vi.mock("./src/gateway.native.js", () => ({
+  handleMemoryWikiListGatewayRequest,
+  handleMemoryWikiGetGatewayRequest,
+  handleMemoryWikiUpdateGatewayRequest,
+  handleMemoryWikiHistoryGatewayRequest,
+  handleMemoryFilesListGatewayRequest,
+  handleMemoryFilesGetGatewayRequest,
+  handleMemoryTraceGetGatewayRequest,
+  handleMemoryExportGatewayRequest,
+}));
+
+vi.mock("./src/runtime-provider.js", () => ({
+  memoryRuntime,
+}));
+
+vi.mock("./src/memory/provider-adapters.js", () => ({
+  registerBuiltInMemoryEmbeddingProviders,
+}));
+
+vi.mock("./src/tools.js", () => ({
+  createMemorySearchTool,
+  createMemoryGetTool,
+  createMemoryGraphTool,
+}));
+
+const {
+  default: plugin,
   buildMemoryFlushPlan,
   buildPromptSection,
   DEFAULT_MEMORY_FLUSH_FORCE_TRANSCRIPT_BYTES,
   DEFAULT_MEMORY_FLUSH_PROMPT,
   DEFAULT_MEMORY_FLUSH_SOFT_TOKENS,
-} from "./index.js";
-import { memoryRuntime } from "./src/runtime-provider.js";
+} = await import("./index.js");
 
 describe("buildPromptSection", () => {
   it("returns empty when no memory tools are available", () => {
@@ -139,7 +195,7 @@ describe("plugin registration", () => {
     expect((getFactory?.(ctx) as { name?: string } | null)?.name).toBe("memory_get");
     expect((graphFactory?.(ctx) as { name?: string } | null)?.name).toBe("memory_graph");
     expect(() => cliRegistrar?.({ program } as never)).not.toThrow();
-    expect(program.commands.map((command) => command.name())).toContain("memory");
+    expect(registerMemoryCli).toHaveBeenCalledWith(program);
   });
 });
 

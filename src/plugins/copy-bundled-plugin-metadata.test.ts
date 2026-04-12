@@ -129,6 +129,7 @@ describe("copyBundledPluginMetadata", () => {
   it("relocates node_modules-backed skill paths into bundled-skills and rewrites the manifest", () => {
     const repoRoot = makeRepoRoot("alisio-bundled-plugin-node-modules-");
     const pluginDir = createTlonSkillPlugin(repoRoot);
+    const legacyBrandName = ["Open", "Claw"].join("");
     const storeSkillDir = path.join(
       repoRoot,
       "node_modules",
@@ -140,6 +141,11 @@ describe("copyBundledPluginMetadata", () => {
     );
     fs.mkdirSync(storeSkillDir, { recursive: true });
     fs.writeFileSync(path.join(storeSkillDir, "SKILL.md"), "# Tlon Skill\n", "utf8");
+    fs.writeFileSync(path.join(storeSkillDir, "README.md"), `${legacyBrandName} config\n`, "utf8");
+    writeJson(path.join(storeSkillDir, "package.json"), {
+      name: "@tloncorp/tlon-skill",
+      description: `Tlon/Urbit skill for ${legacyBrandName} agents`,
+    });
     fs.mkdirSync(path.join(storeSkillDir, "node_modules", ".bin"), { recursive: true });
     fs.writeFileSync(
       path.join(storeSkillDir, "node_modules", ".bin", "tlon"),
@@ -175,6 +181,15 @@ describe("copyBundledPluginMetadata", () => {
     expect(fs.existsSync(path.join(bundledPluginDir(repoRoot, "tlon"), "node_modules"))).toBe(
       false,
     );
+    expect(fs.readFileSync(path.join(copiedSkillDir, "README.md"), "utf8")).toContain(
+      "Alisio config",
+    );
+    expect(fs.readFileSync(path.join(copiedSkillDir, "README.md"), "utf8")).not.toContain(
+      legacyBrandName,
+    );
+    expect(
+      JSON.parse(fs.readFileSync(path.join(copiedSkillDir, "package.json"), "utf8")).description,
+    ).toBe("Tlon/Urbit skill for Alisio agents");
     expectBundledSkills(repoRoot, "tlon", ["./bundled-skills/@tloncorp/tlon-skill"]);
   });
 

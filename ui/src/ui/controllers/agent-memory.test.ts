@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { GatewayRequestError } from "../gateway.ts";
+import { asWikiPageModel, buildWikiPortalModel } from "./memory-wiki-model.ts";
 import {
   deleteAgentMemoryFile,
   loadAgentMemoryFiles,
@@ -334,5 +335,85 @@ describe("agent-memory controller", () => {
     expect(state.memoryList?.agentId).toBe("other");
     expect(state.memoryActive).toBe("MEMORY.md");
     expect(state.memoryDrafts["MEMORY.md"]).toBe("# Other memory");
+  });
+
+  it("builds wiki portal groups from additive wiki metadata", () => {
+    const portal = buildWikiPortalModel({
+      agentId: "main",
+      pages: [
+        {
+          id: "atlas",
+          title: "Project Atlas",
+          path: "memory/project-atlas.md",
+          excerpt: "Launch blockers.",
+          updatedAt: "2026-04-11T10:00:00.000Z",
+          backlinks: 2,
+          claims: 1,
+          evidence: 1,
+          categories: ["Operations"],
+          collections: ["Featured"],
+          featured: true,
+        } as never,
+        {
+          id: "roadmap",
+          title: "Roadmap",
+          path: "memory/roadmap.md",
+          excerpt: "Release plan.",
+          updatedAt: "2026-04-10T10:00:00.000Z",
+          categories: ["Planning"],
+        } as never,
+      ],
+    });
+
+    expect(portal.featured?.id).toBe("atlas");
+    expect(portal.categories.map((entry) => entry.name)).toContain("Operations");
+    expect(portal.collections.map((entry) => entry.name)).toContain("Featured");
+  });
+
+  it("resolves wiki links against the current wiki list", () => {
+    const page = asWikiPageModel(
+      {
+        id: "atlas",
+        title: "Project Atlas",
+        slug: "project-atlas",
+        path: "memory/project-atlas.md",
+        content: [
+          "---",
+          'summary: "Launch blockers and delivery plan."',
+          "categories: [Operations]",
+          "---",
+          "# Project Atlas",
+          "",
+          "See [[Roadmap]] and [[memory/roadmap.md|the roadmap file]].",
+        ].join("\n"),
+      } as never,
+      [
+        {
+          id: "roadmap",
+          title: "Roadmap",
+          slug: "roadmap",
+          path: "memory/roadmap.md",
+          excerpt: "Release plan.",
+          summary: "Release plan.",
+          tags: [],
+          categories: ["Planning"],
+          collections: [],
+          featured: false,
+          updatedAtMs: null,
+          portalScore: 1,
+        },
+      ],
+    );
+
+    expect(page.summary).toBe("Launch blockers and delivery plan.");
+    expect(page.categories).toEqual(["Operations"]);
+    expect(page.links).toHaveLength(2);
+    expect(page.links[0]).toEqual(
+      expect.objectContaining({
+        target: "Roadmap",
+        pageId: "roadmap",
+        missing: false,
+      }),
+    );
   });
 });

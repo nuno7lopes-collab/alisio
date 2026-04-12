@@ -35,51 +35,10 @@ export type AlisioSharingPolicySetResult =
   import("../../../src/gateway/protocol/index.js").AlisioSharingPolicySetResult;
 export type MemoryStatusState = import("../../../src/gateway/protocol/index.js").MemoryStatusResult;
 export type MemorySyncResult = import("../../../src/gateway/protocol/index.js").MemorySyncResult;
-export type MemoryGraphState = {
-  query: string;
-  profileId: string;
-  workspaceScope: string;
-  storePath: string;
-  backend: "builtin" | "qmd";
-  state: "pending-sync" | "ready";
-  projectionInterface: "markdown-repo";
-  syncMode: "local-first";
-  cloudSync: "unavailable" | "enabled" | "error";
-  lastSyncedLamport?: number;
-  e2eeRequired?: true;
-  lastSyncedAt?: string;
-  lastError?: string;
-  matches: Array<{
-    entityId: string;
-    title: string;
-    slug: string;
-    sourcePath: string;
-    sourceKind: string;
-    aliases: string[];
-    tags: string[];
-    score: number;
-    projections: Array<{
-      projectionId: string;
-      path: string;
-      sourceKind: string;
-      editable: boolean;
-    }>;
-    relations: Array<{
-      direction: "incoming" | "outgoing";
-      relationType: string;
-      ordinal: number;
-      metadata: Record<string, unknown>;
-      relatedEntity?: {
-        entityId: string;
-        title: string;
-        slug: string;
-        sourcePath: string;
-        sourceKind: string;
-      };
-      targetLocator?: string;
-    }>;
-  }>;
-};
+export type MemoryGraphState = import("../../../src/gateway/protocol/index.js").MemoryGraphResult;
+export type MemoryGraphNode = import("../../../src/gateway/protocol/index.js").MemoryGraphNode;
+export type MemoryGraphEdge = import("../../../src/gateway/protocol/index.js").MemoryGraphEdge;
+export type MemoryGraphBranch = import("../../../src/gateway/protocol/index.js").MemoryGraphBranch;
 export type AlisioBootstrapStep = import("../../../src/infra/alisio-store.js").AlisioBootstrapStep;
 export type AlisioConnectedAccount =
   import("../../../src/infra/alisio-store.js").AlisioConnectedAccount;

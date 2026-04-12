@@ -61,6 +61,72 @@ struct IOSGatewayChatTransport: AlisioChatTransport, Sendable {
         return try JSONDecoder().decode(AlisioChatHistoryPayload.self, from: res)
     }
 
+    func listModels() async throws -> [AlisioChatModelChoice] {
+        let res = try await self.gateway.request(method: "models.list", paramsJSON: "{}", timeoutSeconds: 15)
+        let decoded = try JSONDecoder().decode(ModelsListResult.self, from: res)
+        return decoded.models.map { model in
+            AlisioChatModelChoice(
+                modelID: model.id,
+                name: model.name,
+                provider: model.provider,
+                contextWindow: model.contextwindow)
+        }
+    }
+
+    func setSessionModel(sessionKey: String, model: String?) async throws {
+        let params = SessionsPatchParams(
+            key: sessionKey,
+            label: nil,
+            thinkinglevel: nil,
+            fastmode: nil,
+            verboselevel: nil,
+            reasoninglevel: nil,
+            responseusage: nil,
+            elevatedlevel: nil,
+            exechost: nil,
+            execsecurity: nil,
+            execask: nil,
+            execnode: nil,
+            model: AnyCodable(model ?? NSNull()),
+            spawnedby: nil,
+            spawnedworkspacedir: nil,
+            spawndepth: nil,
+            subagentrole: nil,
+            subagentcontrolscope: nil,
+            sendpolicy: nil,
+            groupactivation: nil)
+        let data = try JSONEncoder().encode(params)
+        let json = String(data: data, encoding: .utf8)
+        _ = try await self.gateway.request(method: "sessions.patch", paramsJSON: json, timeoutSeconds: 10)
+    }
+
+    func setSessionThinking(sessionKey: String, thinkingLevel: String) async throws {
+        let params = SessionsPatchParams(
+            key: sessionKey,
+            label: nil,
+            thinkinglevel: AnyCodable(thinkingLevel),
+            fastmode: nil,
+            verboselevel: nil,
+            reasoninglevel: nil,
+            responseusage: nil,
+            elevatedlevel: nil,
+            exechost: nil,
+            execsecurity: nil,
+            execask: nil,
+            execnode: nil,
+            model: nil,
+            spawnedby: nil,
+            spawnedworkspacedir: nil,
+            spawndepth: nil,
+            subagentrole: nil,
+            subagentcontrolscope: nil,
+            sendpolicy: nil,
+            groupactivation: nil)
+        let data = try JSONEncoder().encode(params)
+        let json = String(data: data, encoding: .utf8)
+        _ = try await self.gateway.request(method: "sessions.patch", paramsJSON: json, timeoutSeconds: 10)
+    }
+
     func sendMessage(
         sessionKey: String,
         message: String,

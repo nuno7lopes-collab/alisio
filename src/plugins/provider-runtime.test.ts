@@ -334,6 +334,65 @@ describe("provider-runtime", () => {
     });
   });
 
+  it("resolves direct runtime hooks through hook-only aliases", () => {
+    const wrappedStreamFn = vi.fn();
+    resolvePluginProvidersMock.mockReturnValue([
+      {
+        id: "google",
+        label: "Google",
+        hookAliases: ["google-vertex"],
+        auth: [],
+        resolveDynamicModel: ({ provider, modelId }) => ({
+          ...MODEL,
+          provider,
+          id: modelId,
+          name: modelId,
+        }),
+        wrapStreamFn: () => wrappedStreamFn,
+        isModernModelRef: ({ modelId }) => modelId === "gemini-3.1-pro-preview",
+      },
+    ]);
+
+    expect(
+      runProviderDynamicModel({
+        provider: "google-vertex",
+        context: {
+          provider: "google-vertex",
+          modelId: "gemini-3.1-pro-preview",
+          modelRegistry: EMPTY_MODEL_REGISTRY,
+        },
+      }),
+    ).toMatchObject({
+      provider: "google-vertex",
+      id: "gemini-3.1-pro-preview",
+      name: "gemini-3.1-pro-preview",
+    });
+
+    expect(
+      wrapProviderStreamFn({
+        provider: "google-vertex",
+        context: createDemoResolvedModelContext({
+          provider: "google-vertex",
+          model: {
+            ...MODEL,
+            provider: "google-vertex",
+          },
+          streamFn: vi.fn(),
+        }),
+      }),
+    ).toBe(wrappedStreamFn);
+
+    expect(
+      resolveProviderModernModelRef({
+        provider: "google-vertex",
+        context: {
+          provider: "google-vertex",
+          modelId: "gemini-3.1-pro-preview",
+        },
+      }),
+    ).toBe(true);
+  });
+
   it("normalizes transport hooks without needing provider ownership", () => {
     resolvePluginProvidersMock.mockReturnValue([
       {

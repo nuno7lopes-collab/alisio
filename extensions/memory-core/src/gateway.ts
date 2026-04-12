@@ -46,12 +46,15 @@ export async function handleMemoryGraphGatewayRequest({
 }: GatewayRequestHandlerOptions) {
   const agentId = typeof params.agentId === "string" ? params.agentId.trim() : "";
   const query = typeof params.query === "string" ? params.query.trim() : "";
+  const pageId = typeof params.pageId === "string" ? params.pageId.trim() : "";
+  const entityId = typeof params.entityId === "string" ? params.entityId.trim() : "";
+  const scope = params.scope === "local" || params.scope === "global" ? params.scope : undefined;
   if (!agentId) {
     respondGatewayError(respond, "INVALID_REQUEST", "memory.graph requires agentId");
     return;
   }
-  if (!query) {
-    respondGatewayError(respond, "INVALID_REQUEST", "memory.graph requires query");
+  if (!query && !pageId && !entityId && scope === "local") {
+    respondGatewayError(respond, "INVALID_REQUEST", "memory.graph local scope requires pageId, entityId, or query");
     return;
   }
   const direction =
@@ -60,8 +63,11 @@ export async function handleMemoryGraphGatewayRequest({
     params.direction === "both"
       ? params.direction
       : "both";
+  const depth = parseOptionalPositiveInt(params.depth);
   const matchLimit = parseOptionalPositiveInt(params.matchLimit);
   const relationLimit = parseOptionalPositiveInt(params.relationLimit);
+  const nodeLimit = parseOptionalPositiveInt(params.nodeLimit);
+  const edgeLimit = parseOptionalPositiveInt(params.edgeLimit);
   const cfg = loadConfig();
   const { manager, error } = await getMemorySearchManager({
     cfg,
@@ -91,10 +97,16 @@ export async function handleMemoryGraphGatewayRequest({
       true,
       queryCanonicalMemoryGraph({
         status: canonicalStore,
-        query,
+        ...(query ? { query } : {}),
+        ...(pageId ? { pageId } : {}),
+        ...(entityId ? { entityId } : {}),
+        ...(scope ? { scope } : {}),
         direction,
+        ...(depth ? { depth } : {}),
         ...(matchLimit ? { matchLimit } : {}),
         ...(relationLimit ? { relationLimit } : {}),
+        ...(nodeLimit ? { nodeLimit } : {}),
+        ...(edgeLimit ? { edgeLimit } : {}),
       }),
       undefined,
     );

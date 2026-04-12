@@ -82,12 +82,12 @@ describe("subtitleForTab", () => {
     expect(subtitleForTab("setup")).toContain("OpenAI");
     expect(subtitleForTab("chat")).toContain("tool");
     expect(subtitleForTab("memory")).toContain("memory");
-    expect(subtitleForTab("models")).toContain("ChatGPT");
+    expect(subtitleForTab("models")).toContain("OpenAI");
     expect(subtitleForTab("channels")).toContain("WhatsApp");
     expect(subtitleForTab("capabilities")).toContain("simpler");
     expect(subtitleForTab("connections")).toContain("Devices");
     expect(subtitleForTab("security")).toContain("Approvals");
-    expect(subtitleForTab("authentications")).toContain("runtime");
+    expect(subtitleForTab("authentications")).toContain("model sources");
     expect(subtitleForTab("settings")).toContain("General");
   });
 });

@@ -190,7 +190,7 @@ export function runProviderDynamicModel(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderResolveDynamicModelContext;
 }): ProviderRuntimeModel | undefined {
-  return resolveProviderRuntimePlugin(params)?.resolveDynamicModel?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.resolveDynamicModel?.(params.context) ?? undefined;
 }
 
 export async function prepareProviderDynamicModel(params: {
@@ -200,7 +200,7 @@ export async function prepareProviderDynamicModel(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderPrepareDynamicModelContext;
 }): Promise<void> {
-  await resolveProviderRuntimePlugin(params)?.prepareDynamicModel?.(params.context);
+  await resolveProviderHookPlugin(params)?.prepareDynamicModel?.(params.context);
 }
 
 export function normalizeProviderResolvedModelWithPlugin(params: {
@@ -218,7 +218,7 @@ export function normalizeProviderResolvedModelWithPlugin(params: {
   };
 }): ProviderRuntimeModel | undefined {
   return (
-    resolveProviderRuntimePlugin(params)?.normalizeResolvedModel?.(params.context) ?? undefined
+    resolveProviderHookPlugin(params)?.normalizeResolvedModel?.(params.context) ?? undefined
   );
 }
 
@@ -429,7 +429,7 @@ export function resolveProviderCapabilitiesWithPlugin(params: {
   workspaceDir?: string;
   env?: NodeJS.ProcessEnv;
 }) {
-  return resolveProviderRuntimePlugin(params)?.capabilities;
+  return resolveProviderHookPlugin(params)?.capabilities;
 }
 
 export function prepareProviderExtraParams(params: {
@@ -439,7 +439,7 @@ export function prepareProviderExtraParams(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderPrepareExtraParamsContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.prepareExtraParams?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.prepareExtraParams?.(params.context) ?? undefined;
 }
 
 export function resolveProviderStreamFn(params: {
@@ -449,7 +449,7 @@ export function resolveProviderStreamFn(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderCreateStreamFnContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.createStreamFn?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.createStreamFn?.(params.context) ?? undefined;
 }
 
 export function wrapProviderStreamFn(params: {
@@ -459,7 +459,7 @@ export function wrapProviderStreamFn(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderWrapStreamFnContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.wrapStreamFn?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.wrapStreamFn?.(params.context) ?? undefined;
 }
 
 export async function createProviderEmbeddingProvider(params: {
@@ -469,7 +469,7 @@ export async function createProviderEmbeddingProvider(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderCreateEmbeddingProviderContext;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.createEmbeddingProvider?.(params.context);
+  return await resolveProviderHookPlugin(params)?.createEmbeddingProvider?.(params.context);
 }
 
 export async function prepareProviderRuntimeAuth(params: {
@@ -479,7 +479,7 @@ export async function prepareProviderRuntimeAuth(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderPrepareRuntimeAuthContext;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.prepareRuntimeAuth?.(params.context);
+  return await resolveProviderHookPlugin(params)?.prepareRuntimeAuth?.(params.context);
 }
 
 export async function resolveProviderUsageAuthWithPlugin(params: {
@@ -489,7 +489,7 @@ export async function resolveProviderUsageAuthWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderResolveUsageAuthContext;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.resolveUsageAuth?.(params.context);
+  return await resolveProviderHookPlugin(params)?.resolveUsageAuth?.(params.context);
 }
 
 export async function resolveProviderUsageSnapshotWithPlugin(params: {
@@ -499,7 +499,7 @@ export async function resolveProviderUsageSnapshotWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderFetchUsageSnapshotContext;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.fetchUsageSnapshot?.(params.context);
+  return await resolveProviderHookPlugin(params)?.fetchUsageSnapshot?.(params.context);
 }
 
 export function formatProviderAuthProfileApiKeyWithPlugin(params: {
@@ -509,7 +509,7 @@ export function formatProviderAuthProfileApiKeyWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: AuthProfileCredential;
 }) {
-  return resolveProviderRuntimePlugin(params)?.formatApiKey?.(params.context);
+  return resolveProviderHookPlugin(params)?.formatApiKey?.(params.context);
 }
 
 export async function refreshProviderOAuthCredentialWithPlugin(params: {
@@ -519,7 +519,7 @@ export async function refreshProviderOAuthCredentialWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: OAuthCredential;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.refreshOAuth?.(params.context);
+  return await resolveProviderHookPlugin(params)?.refreshOAuth?.(params.context);
 }
 
 export async function buildProviderAuthDoctorHintWithPlugin(params: {
@@ -529,7 +529,7 @@ export async function buildProviderAuthDoctorHintWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderAuthDoctorHintContext;
 }) {
-  return await resolveProviderRuntimePlugin(params)?.buildAuthDoctorHint?.(params.context);
+  return await resolveProviderHookPlugin(params)?.buildAuthDoctorHint?.(params.context);
 }
 
 export function resolveProviderCacheTtlEligibility(params: {
@@ -539,7 +539,7 @@ export function resolveProviderCacheTtlEligibility(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderCacheTtlEligibilityContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.isCacheTtlEligible?.(params.context);
+  return resolveProviderHookPlugin(params)?.isCacheTtlEligible?.(params.context);
 }
 
 export function resolveProviderBinaryThinking(params: {
@@ -549,7 +549,7 @@ export function resolveProviderBinaryThinking(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderThinkingPolicyContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.isBinaryThinking?.(params.context);
+  return resolveProviderHookPlugin(params)?.isBinaryThinking?.(params.context);
 }
 
 export function resolveProviderXHighThinking(params: {
@@ -559,7 +559,7 @@ export function resolveProviderXHighThinking(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderThinkingPolicyContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.supportsXHighThinking?.(params.context);
+  return resolveProviderHookPlugin(params)?.supportsXHighThinking?.(params.context);
 }
 
 export function resolveProviderDefaultThinkingLevel(params: {
@@ -569,7 +569,7 @@ export function resolveProviderDefaultThinkingLevel(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderDefaultThinkingPolicyContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.resolveDefaultThinkingLevel?.(params.context);
+  return resolveProviderHookPlugin(params)?.resolveDefaultThinkingLevel?.(params.context);
 }
 
 export function resolveProviderModernModelRef(params: {
@@ -579,7 +579,7 @@ export function resolveProviderModernModelRef(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderModernModelPolicyContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.isModernModelRef?.(params.context);
+  return resolveProviderHookPlugin(params)?.isModernModelRef?.(params.context);
 }
 
 export function buildProviderMissingAuthMessageWithPlugin(params: {
@@ -589,9 +589,7 @@ export function buildProviderMissingAuthMessageWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderBuildMissingAuthMessageContext;
 }) {
-  return (
-    resolveProviderRuntimePlugin(params)?.buildMissingAuthMessage?.(params.context) ?? undefined
-  );
+  return resolveProviderHookPlugin(params)?.buildMissingAuthMessage?.(params.context) ?? undefined;
 }
 
 export function buildProviderUnknownModelHintWithPlugin(params: {
@@ -601,7 +599,7 @@ export function buildProviderUnknownModelHintWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderBuildUnknownModelHintContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.buildUnknownModelHint?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.buildUnknownModelHint?.(params.context) ?? undefined;
 }
 
 export function resolveProviderSyntheticAuthWithPlugin(params: {
@@ -611,7 +609,7 @@ export function resolveProviderSyntheticAuthWithPlugin(params: {
   env?: NodeJS.ProcessEnv;
   context: ProviderResolveSyntheticAuthContext;
 }) {
-  return resolveProviderRuntimePlugin(params)?.resolveSyntheticAuth?.(params.context) ?? undefined;
+  return resolveProviderHookPlugin(params)?.resolveSyntheticAuth?.(params.context) ?? undefined;
 }
 
 export function resolveProviderBuiltInModelSuppression(params: {

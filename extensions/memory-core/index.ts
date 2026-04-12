@@ -8,9 +8,11 @@ import {
 } from "./src/flush-plan.js";
 import { handleMemoryGraphGatewayRequest } from "./src/gateway.js";
 import {
-  handleMemoryExportGatewayRequest,
   handleMemoryFilesGetGatewayRequest,
   handleMemoryFilesListGatewayRequest,
+} from "./src/gateway/files.js";
+import {
+  handleMemoryExportGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
   handleMemoryWikiGetGatewayRequest,
   handleMemoryWikiHistoryGatewayRequest,

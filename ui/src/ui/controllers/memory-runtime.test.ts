@@ -4,7 +4,9 @@ import {
   loadMemoryGraph,
   loadMemoryStatus,
   requestMemoryExport,
+  requestMemoryFile,
   requestMemoryWikiList,
+  requestMemoryWikiPage,
   syncMemoryNow,
   type MemoryRuntimeState,
 } from "./memory-runtime.ts";
@@ -164,6 +166,22 @@ describe("memory-runtime controller", () => {
           projectionInterface: "markdown-repo",
           syncMode: "local-first",
           cloudSync: "unavailable",
+          scope: "global",
+          nodes: [],
+          edges: [],
+          branches: [],
+          availableRelationTypes: [],
+          availableTags: [],
+          stats: {
+            totalNodes: 0,
+            totalEdges: 0,
+            visibleNodes: 0,
+            visibleEdges: 0,
+          },
+          truncated: {
+            nodes: false,
+            edges: false,
+          },
           matches: [],
         });
       }
@@ -234,4 +252,52 @@ describe("memory-runtime controller", () => {
       format: "json",
     });
   });
+
+  it("passes the active query when requesting a wiki page", async () => {
+    const { request } = createState();
+
+    request.mockResolvedValue({
+      agentId: "main",
+      page: {
+        id: "atlas",
+        title: "Project Atlas",
+        content: "# Project Atlas",
+      },
+    });
+
+    await requestMemoryWikiPage(
+      { request } as unknown as Parameters<typeof requestMemoryWikiPage>[0],
+      { agentId: "main", pageId: "atlas", query: "atlas" },
+    );
+
+    expect(request).toHaveBeenCalledWith("memory.wiki.get", {
+      agentId: "main",
+      pageId: "atlas",
+      query: "atlas",
+    });
+  });
+
+  it("passes the active query when requesting a file detail", async () => {
+    const { request } = createState();
+
+    request.mockResolvedValue({
+      agentId: "main",
+      file: {
+        id: "brief",
+        name: "product-brief.pdf",
+      },
+    });
+
+    await requestMemoryFile(
+      { request } as unknown as Parameters<typeof requestMemoryFile>[0],
+      { agentId: "main", fileId: "brief", query: "pdf" },
+    );
+
+    expect(request).toHaveBeenCalledWith("memory.files.get", {
+      agentId: "main",
+      fileId: "brief",
+      query: "pdf",
+    });
+  });
+
 });
