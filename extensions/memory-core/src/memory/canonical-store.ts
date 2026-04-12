@@ -20,6 +20,23 @@ import {
   type MemoryFileEntry,
 } from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import {
+  createCloudRelayMemoryTransport,
+  createDirectMemoryTransportStub,
+  createMemoryCrypto,
+  decodeBase64,
+  encodeBase64,
+  getAlisioActiveCloudAccessSession,
+  importProfileKeyFromPairingCode,
+  loadProfileRootKey,
+  resolveMemorySyncAvailability,
+  type EncryptedMemoryEvent,
+  type MemoryBlobMeta,
+  type MemoryCipherBytes,
+  type MemorySyncAvailability,
+  type MemorySyncMode,
+  type MemorySyncTransport,
+} from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import {
   applyEventToDerivedState,
   captureMemoryStateCheckpoint,
   computeMemoryStateHash,
@@ -30,14 +47,27 @@ import {
   readMemoryStateMeta,
   rebuildDerivedStateFromEvents,
   restoreMemoryStateCheckpoint,
-  sortMemoryStateEvents,
   writeMemoryStateMeta,
   type MemoryPageLink,
   type MemoryStateCheckpointSnapshot,
   type MemoryStateEventDraft,
   type MemoryStateEventEnvelopePlain,
 } from "alisio/plugin-sdk/memory-core-state";
+import type { MemoryLedger } from "../../../../packages/memory-ledger/src/index.js";
+import {
+  createCanonicalStableId,
+  isCanonicalStableId,
+  type MemoryEventType,
+} from "../../../../packages/memory-schema/src/index.js";
 import { queryCanonicalMemoryGraphFromStore } from "./graph.js";
+import {
+  appendMemoryStateEvents,
+  assignMemoryStateLedgerEvents,
+  deserializeMemoryStateLedgerEvent,
+  listMemoryStateEventsSince,
+  openProfileMemoryLedger,
+  serializeMemoryStateLedgerEvent,
+} from "./ledger-interop.js";
 
 const log = createSubsystemLogger("memory/canonical");
 
@@ -48,6 +78,8 @@ type CanonicalRelationDirection = "incoming" | "outgoing";
 type CanonicalStoreStatusState = "pending-sync" | "ready";
 type CanonicalStoreSyncMode = "local-first";
 type CanonicalCloudSyncState = "unavailable" | "enabled" | "error";
+type CanonicalSyncAvailabilityState = MemorySyncAvailability["state"];
+type CanonicalSyncBlockedReason = NonNullable<MemorySyncAvailability["reason"]>;
 
 const CANONICAL_STORE_SYNC_MODE: CanonicalStoreSyncMode = "local-first";
 const CANONICAL_STORE_CLOUD_SYNC: CanonicalCloudSyncState = "unavailable";
@@ -55,6 +87,10 @@ const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
 const LEDGER_EVENT_SCHEMA_VERSION = 1 as const;
 const DERIVED_STATE_MIGRATION_VERSION = 1;
 const CHECKPOINT_EVENT_INTERVAL = 50;
+const MAX_ULID_TIMESTAMP = 0xffff_ffff_ffff;
+const SYNC_PULL_BATCH_LIMIT = 200;
+const textEncoder = new TextEncoder();
+const textDecoder = new TextDecoder();
 
 type ParsedFrontmatter = {
   raw?: string;
@@ -114,7 +150,6 @@ type LegacyProjectionRow = {
 };
 
 type CanonicalStoreFeatureFlags = {
-  ledgerEnabled: boolean;
   legacyMarkdownProjectionEnabled: boolean;
   crdtPagesEnabled: boolean;
 };
@@ -123,7 +158,50 @@ type CanonicalStoreSyncRow = {
   last_synced_at?: number | bigint;
   last_synced_lamport?: number | bigint;
   cloud_state?: string;
+  sync_availability_state?: string;
+  sync_mode_configured?: string;
+  sync_blocked_reason?: string | null;
+  last_sync_success_at?: number | bigint;
+  last_ack_lamport?: number | bigint;
+  last_pushed_local_lamport?: number | bigint;
 };
+
+type CanonicalStoreSyncConfig = {
+  enabled: boolean;
+  mode: MemorySyncMode;
+  relayBaseUrl?: string;
+  pairingCode?: string;
+  pairingPassphrase?: string;
+};
+
+type CanonicalSyncRuntime = {
+  config: CanonicalStoreSyncConfig;
+  availability: MemorySyncAvailability;
+  transport: MemorySyncTransport | null;
+  crypto: ReturnType<typeof createMemoryCrypto> | null;
+  profileRootKey: Uint8Array | null;
+  lastError?: string;
+};
+
+type CanonicalSyncBlobRef = {
+  blobId: string;
+  kind: "attachment";
+};
+
+type CanonicalSyncEventEnvelope = Omit<MemoryStateEventEnvelopePlain, "type" | "payload"> & {
+  type: string;
+  payload: Record<string, unknown>;
+};
+
+type CanonicalAttachmentBlobEnvelope = {
+  version: 1;
+  event: CanonicalSyncEventEnvelope;
+  blob: CanonicalSyncBlobRef;
+};
+
+type MemoryAttachmentAddedPayload = MemoryStateEventEnvelopePlain<"ATTACHMENT_ADDED">["payload"];
+type MemoryCheckpointCreatedPayload =
+  MemoryStateEventEnvelopePlain<"CHECKPOINT_CREATED">["payload"];
 
 type CanonicalStoreContext = {
   env: NodeJS.ProcessEnv;
@@ -132,18 +210,14 @@ type CanonicalStoreContext = {
   deviceId: string;
   stateDir: string;
   db: DatabaseSync;
+  ledger: MemoryLedger;
   flags: CanonicalStoreFeatureFlags;
   backend: CanonicalStoreBackend;
   workspaceDir: string;
+  sync: CanonicalSyncRuntime;
   encryptCheckpointSnapshot?: (
     snapshot: MemoryStateCheckpointSnapshot,
   ) => Promise<string | null | undefined>;
-};
-
-type MemorySyncEncryptedEvent = {
-  eventId?: string;
-  ciphertext: string;
-  metadata?: Record<string, unknown>;
 };
 
 export type CanonicalMemoryStructuredProjectionInput = {
@@ -197,6 +271,12 @@ export type CanonicalMemoryStoreStatus = {
   lastSyncedLamport: number;
   checkpointsCount: number;
   e2eeRequired: true;
+  syncAvailability: CanonicalSyncAvailabilityState;
+  syncModeConfigured: MemorySyncMode;
+  syncBlockedReason?: CanonicalSyncBlockedReason;
+  lastSyncSuccessAt?: string;
+  lastAckLamport?: number;
+  pendingBacklog?: number;
   lastSyncedAt?: string;
   lastError?: string;
   replica?: {
@@ -659,13 +739,11 @@ function readFeatureFlags(cfg: AlisioConfig): CanonicalStoreFeatureFlags {
     | {
         legacyMarkdownProjection?: { enabled?: boolean };
         crdt?: { pages?: { enabled?: boolean } };
-        ledger?: { enabled?: boolean };
       }
     | undefined;
   return {
     legacyMarkdownProjectionEnabled: rawMemory?.legacyMarkdownProjection?.enabled ?? true,
     crdtPagesEnabled: rawMemory?.crdt?.pages?.enabled ?? true,
-    ledgerEnabled: rawMemory?.ledger?.enabled ?? true,
   };
 }
 
@@ -679,6 +757,95 @@ function canonicalStoreTelemetry(
     value,
     ...(extra ?? {}),
   });
+}
+
+function normalizeBooleanEnv(value: string | undefined, fallback: boolean): boolean {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return fallback;
+  }
+  if (["1", "true", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
+function normalizeSyncMode(value: string | undefined): MemorySyncMode | undefined {
+  switch (value?.trim().toLowerCase()) {
+    case "cloud":
+    case "direct":
+    case "off":
+      return value.trim().toLowerCase() as MemorySyncMode;
+    default:
+      return undefined;
+  }
+}
+
+function resolveCanonicalSyncConfig(env: NodeJS.ProcessEnv): CanonicalStoreSyncConfig {
+  const relayBaseUrl = env.ALISIO_MEMORY_SYNC_RELAY_BASE_URL?.trim() || undefined;
+  const explicitMode = normalizeSyncMode(env.ALISIO_MEMORY_SYNC_MODE);
+  const inferredMode = explicitMode ?? (relayBaseUrl ? "cloud" : "off");
+  const enabled = normalizeBooleanEnv(
+    env.ALISIO_MEMORY_SYNC_ENABLED,
+    inferredMode !== "off" || Boolean(relayBaseUrl),
+  );
+  return {
+    enabled,
+    mode: inferredMode,
+    ...(relayBaseUrl ? { relayBaseUrl } : {}),
+    ...(env.ALISIO_MEMORY_SYNC_PAIRING_CODE?.trim()
+      ? { pairingCode: env.ALISIO_MEMORY_SYNC_PAIRING_CODE.trim() }
+      : {}),
+    ...(env.ALISIO_MEMORY_SYNC_PAIRING_PASSPHRASE?.trim()
+      ? { pairingPassphrase: env.ALISIO_MEMORY_SYNC_PAIRING_PASSPHRASE.trim() }
+      : {}),
+  };
+}
+
+function normalizeSyncBlockedReason(value: unknown): CanonicalSyncBlockedReason | undefined {
+  switch (value) {
+    case "disabled":
+    case "mode_off":
+    case "missing_profile_key":
+    case "missing_relay_base_url":
+    case "missing_access_token":
+    case "direct_disabled":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
+function describeSyncBlockedReason(
+  reason: CanonicalSyncBlockedReason | undefined,
+): string | undefined {
+  switch (reason) {
+    case "disabled":
+      return "memory sync disabled";
+    case "mode_off":
+      return "memory sync mode is off";
+    case "missing_profile_key":
+      return "memory sync blocked: missing profile root key";
+    case "missing_relay_base_url":
+      return "memory sync blocked: relay base URL missing";
+    case "missing_access_token":
+      return "memory sync blocked: cloud access token missing";
+    case "direct_disabled":
+      return "memory sync blocked: direct mode not enabled";
+    default:
+      return undefined;
+  }
+}
+
+function encodeJsonBytes(value: unknown): Uint8Array {
+  return Uint8Array.from(textEncoder.encode(JSON.stringify(value)));
+}
+
+function decodeJsonValue<T>(bytes: Uint8Array): T {
+  return JSON.parse(textDecoder.decode(bytes)) as T;
 }
 
 function createStatusBase(params: {
@@ -709,6 +876,8 @@ function createStatusBase(params: {
     lastSyncedLamport: 0,
     checkpointsCount: 0,
     e2eeRequired: true,
+    syncAvailability: "inactive",
+    syncModeConfigured: "off",
   };
 }
 
@@ -792,36 +961,12 @@ function ensureCanonicalStoreSchema(db: DatabaseSync): void {
     );
   `);
   ensureSyncStateColumn(db, "last_synced_lamport", "INTEGER NOT NULL DEFAULT 0");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ledger_events (
-      event_id TEXT PRIMARY KEY,
-      lamport INTEGER NOT NULL UNIQUE,
-      actor_id TEXT NOT NULL,
-      event_type TEXT NOT NULL,
-      page_id TEXT,
-      source TEXT,
-      batch_id TEXT,
-      created_at_ms INTEGER NOT NULL,
-      payload_json TEXT NOT NULL
-    );
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS checkpoints (
-      checkpoint_id TEXT PRIMARY KEY,
-      lamport INTEGER NOT NULL,
-      state_hash TEXT NOT NULL,
-      snapshot_json TEXT,
-      encrypted_snapshot TEXT,
-      created_at_ms INTEGER NOT NULL
-    );
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ledger_acks (
-      peer_id TEXT PRIMARY KEY,
-      last_acked_lamport INTEGER NOT NULL,
-      updated_at_ms INTEGER NOT NULL
-    );
-  `);
+  ensureSyncStateColumn(db, "sync_availability_state", "TEXT NOT NULL DEFAULT 'inactive'");
+  ensureSyncStateColumn(db, "sync_mode_configured", "TEXT NOT NULL DEFAULT 'off'");
+  ensureSyncStateColumn(db, "sync_blocked_reason", "TEXT");
+  ensureSyncStateColumn(db, "last_sync_success_at", "INTEGER");
+  ensureSyncStateColumn(db, "last_ack_lamport", "INTEGER NOT NULL DEFAULT 0");
+  ensureSyncStateColumn(db, "last_pushed_local_lamport", "INTEGER NOT NULL DEFAULT 0");
   db.exec(`
     CREATE TABLE IF NOT EXISTS imported_files (
       source_path TEXT PRIMARY KEY,
@@ -906,19 +1051,43 @@ function upsertCanonicalSyncState(params: {
   now: number;
   cloudState?: CanonicalCloudSyncState;
   lastSyncedLamport?: number;
+  syncAvailability?: CanonicalSyncAvailabilityState;
+  syncModeConfigured?: MemorySyncMode;
+  syncBlockedReason?: CanonicalSyncBlockedReason;
+  lastSyncSuccessAt?: number;
+  lastAckLamport?: number;
+  lastPushedLocalLamport?: number;
 }): void {
   params.db
     .prepare(
       `INSERT INTO sync_state (
-         profile_id, workspace_scope, backend, sync_mode, cloud_state, last_synced_at, last_synced_lamport
+         profile_id,
+         workspace_scope,
+         backend,
+         sync_mode,
+         cloud_state,
+         last_synced_at,
+         last_synced_lamport,
+         sync_availability_state,
+         sync_mode_configured,
+         sync_blocked_reason,
+         last_sync_success_at,
+         last_ack_lamport,
+         last_pushed_local_lamport
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(profile_id, workspace_scope) DO UPDATE SET
          backend = excluded.backend,
          sync_mode = excluded.sync_mode,
          cloud_state = excluded.cloud_state,
          last_synced_at = excluded.last_synced_at,
-         last_synced_lamport = excluded.last_synced_lamport`,
+         last_synced_lamport = excluded.last_synced_lamport,
+         sync_availability_state = excluded.sync_availability_state,
+         sync_mode_configured = excluded.sync_mode_configured,
+         sync_blocked_reason = excluded.sync_blocked_reason,
+         last_sync_success_at = excluded.last_sync_success_at,
+         last_ack_lamport = excluded.last_ack_lamport,
+         last_pushed_local_lamport = excluded.last_pushed_local_lamport`,
     )
     .run(
       params.profileId,
@@ -928,6 +1097,12 @@ function upsertCanonicalSyncState(params: {
       params.cloudState ?? CANONICAL_STORE_CLOUD_SYNC,
       params.now,
       params.lastSyncedLamport ?? 0,
+      params.syncAvailability ?? "inactive",
+      params.syncModeConfigured ?? "off",
+      params.syncBlockedReason ?? null,
+      params.lastSyncSuccessAt ?? null,
+      params.lastAckLamport ?? 0,
+      params.lastPushedLocalLamport ?? 0,
     );
 }
 
@@ -938,7 +1113,16 @@ function readSyncState(
   return (
     (db
       .prepare(
-        `SELECT last_synced_at, last_synced_lamport, cloud_state
+        `SELECT
+           last_synced_at,
+           last_synced_lamport,
+           cloud_state,
+           sync_availability_state,
+           sync_mode_configured,
+           sync_blocked_reason,
+           last_sync_success_at,
+           last_ack_lamport,
+           last_pushed_local_lamport
          FROM sync_state
          WHERE profile_id = ? AND workspace_scope = ?`,
       )
@@ -952,42 +1136,57 @@ function readScopeCounts(db: DatabaseSync) {
       `SELECT
         (SELECT COUNT(*) FROM pages WHERE tombstoned = 0) AS entities,
         (SELECT COUNT(*) FROM links) AS relations,
-        (SELECT COUNT(*) FROM projections) AS projections,
-        (SELECT COUNT(*) FROM ledger_events) AS ledger_events_count,
-        (SELECT COUNT(*) FROM checkpoints) AS checkpoints_count`,
+        (SELECT COUNT(*) FROM projections) AS projections`,
     )
     .get() as
     | {
         entities: number;
         relations: number;
         projections: number;
-        ledger_events_count: number;
-        checkpoints_count: number;
       }
     | undefined;
   return {
     entities: row?.entities ?? 0,
     relations: row?.relations ?? 0,
     projections: row?.projections ?? 0,
-    ledgerEventsCount: row?.ledger_events_count ?? 0,
-    checkpointsCount: row?.checkpoints_count ?? 0,
   };
+}
+
+function countPendingBacklog(ledger: MemoryLedger, lastAckLamport: number): number {
+  const lastLamport = ledger.getStats().lastLamport;
+  return Math.max(0, lastLamport - Math.max(0, lastAckLamport));
 }
 
 function buildReadyCanonicalStoreStatus(params: {
   baseStatus: CanonicalMemoryStoreStatus;
   db: DatabaseSync;
+  ledger: MemoryLedger;
   profileId: string;
   workspaceScope: string;
   deviceId: string;
   stateDir: string;
 }): CanonicalMemoryStoreStatus {
   const counts = readScopeCounts(params.db);
+  const ledgerStats = params.ledger.getStats();
   const meta = readMemoryStateMeta(params.db);
   const syncState = readSyncState(params.db, {
     profileId: params.profileId,
     workspaceScope: params.workspaceScope,
   });
+  const syncAvailability =
+    syncState.sync_availability_state === "active" ||
+    syncState.sync_availability_state === "inactive" ||
+    syncState.sync_availability_state === "blocked"
+      ? syncState.sync_availability_state
+      : "inactive";
+  const syncModeConfigured =
+    syncState.sync_mode_configured === "cloud" ||
+    syncState.sync_mode_configured === "direct" ||
+    syncState.sync_mode_configured === "off"
+      ? syncState.sync_mode_configured
+      : "off";
+  const syncBlockedReason = normalizeSyncBlockedReason(syncState.sync_blocked_reason);
+  const lastAckLamport = normalizeNumber(syncState.last_ack_lamport);
   return {
     ...params.baseStatus,
     state: "ready",
@@ -995,13 +1194,27 @@ function buildReadyCanonicalStoreStatus(params: {
     relations: counts.relations,
     projections: counts.projections,
     projectionSources: counts.projections > 0 ? ["workspace-memory"] : [],
-    ledgerEventsCount: counts.ledgerEventsCount,
-    checkpointsCount: counts.checkpointsCount,
+    ledgerEventsCount: ledgerStats.eventCount,
+    checkpointsCount: ledgerStats.checkpointCount,
     lastSyncedLamport: normalizeNumber(syncState.last_synced_lamport) || meta.lastAppliedLamport,
     cloudSync:
       syncState.cloud_state === "enabled" || syncState.cloud_state === "error"
         ? (syncState.cloud_state as CanonicalCloudSyncState)
         : CANONICAL_STORE_CLOUD_SYNC,
+    syncAvailability,
+    syncModeConfigured,
+    ...(syncBlockedReason ? { syncBlockedReason } : {}),
+    ...(normalizeNumber(syncState.last_sync_success_at) > 0
+      ? {
+          lastSyncSuccessAt: new Date(
+            normalizeNumber(syncState.last_sync_success_at),
+          ).toISOString(),
+        }
+      : {}),
+    ...(lastAckLamport > 0 ? { lastAckLamport } : {}),
+    ...(syncAvailability === "active" || lastAckLamport > 0
+      ? { pendingBacklog: countPendingBacklog(params.ledger, lastAckLamport) }
+      : {}),
     ...(normalizeNumber(syncState.last_synced_at) > 0
       ? { lastSyncedAt: new Date(normalizeNumber(syncState.last_synced_at)).toISOString() }
       : {}),
@@ -1027,29 +1240,7 @@ function sanitizeAliases(params: {
   ]);
 }
 
-function eventBinaryPayloadKey(eventType: string): "yjsState" | "update" | "bytes" | null {
-  switch (eventType) {
-    case "DOC_CRDT_SNAPSHOT":
-      return "yjsState";
-    case "DOC_CRDT_UPDATE":
-      return "update";
-    case "ATTACHMENT_ADDED":
-      return "bytes";
-    default:
-      return null;
-  }
-}
-
-function serializeLedgerEventPayload(event: MemoryStateEventEnvelopePlain): string {
-  const payload = { ...event.payload } as Record<string, unknown>;
-  const binaryKey = eventBinaryPayloadKey(event.type);
-  if (binaryKey && payload[binaryKey] instanceof Uint8Array) {
-    payload[binaryKey] = Buffer.from(payload[binaryKey] as Uint8Array).toString("base64");
-  }
-  return JSON.stringify(payload);
-}
-
-function deserializeLedgerEventRow(row: {
+type LegacyCanonicalLedgerEventRow = {
   event_id: string;
   lamport: number | bigint;
   actor_id: string;
@@ -1059,55 +1250,158 @@ function deserializeLedgerEventRow(row: {
   batch_id: string | null;
   created_at_ms: number | bigint;
   payload_json: string;
-}): MemoryStateEventEnvelopePlain {
-  const payload = parseJsonRecord(row.payload_json);
-  const binaryKey = eventBinaryPayloadKey(row.event_type);
-  if (binaryKey && typeof payload[binaryKey] === "string") {
-    payload[binaryKey] = Buffer.from(String(payload[binaryKey]), "base64");
+};
+
+type LegacyCanonicalCheckpointRow = {
+  checkpoint_id: string;
+  lamport: number | bigint;
+  state_hash: string;
+  snapshot_json: string | null;
+  encrypted_snapshot: string | null;
+};
+
+function readLegacyCanonicalLedgerEvents(db: DatabaseSync): MemoryStateEventEnvelopePlain[] {
+  if (!hasTable(db, "ledger_events")) {
+    return [];
   }
-  return {
+  const rows = db
+    .prepare(
+      `SELECT event_id, lamport, actor_id, event_type, page_id, source, batch_id, created_at_ms, payload_json
+       FROM ledger_events
+       ORDER BY lamport ASC, event_id ASC`,
+    )
+    .all() as LegacyCanonicalLedgerEventRow[];
+  return rows.map((row) => ({
     schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
     eventId: row.event_id,
     lamport: normalizeNumber(row.lamport),
     actorId: row.actor_id,
     createdAtMs: normalizeNumber(row.created_at_ms),
     type: row.event_type,
-    payload: payload as never,
+    payload: parseJsonRecord(row.payload_json) as never,
     ...(row.page_id ? { pageId: row.page_id } : {}),
     ...(row.source ? { source: row.source } : {}),
     ...(row.batch_id ? { batchId: row.batch_id } : {}),
+  }));
+}
+
+function readLegacyCanonicalCheckpointRows(db: DatabaseSync): LegacyCanonicalCheckpointRow[] {
+  if (!hasTable(db, "checkpoints")) {
+    return [];
+  }
+  return db
+    .prepare(
+      `SELECT checkpoint_id, lamport, state_hash, snapshot_json, encrypted_snapshot
+       FROM checkpoints
+       ORDER BY lamport ASC, checkpoint_id ASC`,
+    )
+    .all() as LegacyCanonicalCheckpointRow[];
+}
+
+function hasLedgerStateEvents(ledger: MemoryLedger): boolean {
+  return (
+    listMemoryStateEventsSince({
+      ledger,
+      lamportExclusive: 0,
+      batchSize: 1,
+    }).length > 0
+  );
+}
+
+function toCanonicalCheckpointId(seed: string, createdAtMs: number): string {
+  if (isCanonicalStableId(seed)) {
+    return seed;
+  }
+  const digest = Buffer.from(hashText(seed), "hex");
+  return createCanonicalStableId({
+    nowMs: Math.max(0, Math.min(Math.trunc(createdAtMs), MAX_ULID_TIMESTAMP)),
+    random: new Uint8Array(digest.subarray(0, 10)),
+  });
+}
+
+function normalizeCheckpointEvent(
+  event: MemoryStateEventEnvelopePlain,
+): MemoryStateEventEnvelopePlain {
+  if (event.type !== "CHECKPOINT_CREATED") {
+    return event;
+  }
+  const payload = event.payload as MemoryCheckpointCreatedPayload;
+  const checkpointId = toCanonicalCheckpointId(
+    `${payload.checkpointId}:${payload.stateHash}`,
+    event.createdAtMs,
+  );
+  if (checkpointId === payload.checkpointId) {
+    return event;
+  }
+  return {
+    ...event,
+    payload: {
+      ...payload,
+      checkpointId,
+    } as MemoryCheckpointCreatedPayload,
   };
 }
 
-function readLedgerEvents(db: DatabaseSync, afterLamport = 0): MemoryStateEventEnvelopePlain[] {
-  const rows = db
-    .prepare(
-      `SELECT event_id, lamport, actor_id, event_type, page_id, source, batch_id, created_at_ms, payload_json
-       FROM ledger_events
-       WHERE lamport > ?
-       ORDER BY lamport ASC, event_id ASC`,
-    )
-    .all(afterLamport) as Array<{
-    event_id: string;
-    lamport: number | bigint;
-    actor_id: string;
-    event_type: MemoryStateEventEnvelopePlain["type"];
-    page_id: string | null;
-    source: string | null;
-    batch_id: string | null;
-    created_at_ms: number | bigint;
-    payload_json: string;
-  }>;
-  return rows.map((row) => deserializeLedgerEventRow(row));
+function normalizeCheckpointEvents(
+  events: readonly MemoryStateEventEnvelopePlain[],
+): MemoryStateEventEnvelopePlain[] {
+  return events.map((event) => normalizeCheckpointEvent(event));
 }
 
-function readLatestLamport(db: DatabaseSync): number {
-  const row = db.prepare(`SELECT MAX(lamport) AS lamport FROM ledger_events`).get() as
-    | {
-        lamport?: number | bigint | null;
-      }
-    | undefined;
-  return normalizeNumber(row?.lamport);
+async function migrateLegacyCanonicalLedgerIfNeeded(params: CanonicalStoreContext): Promise<void> {
+  if (hasLedgerStateEvents(params.ledger)) {
+    return;
+  }
+  const legacyEvents = readLegacyCanonicalLedgerEvents(params.db);
+  if (legacyEvents.length === 0) {
+    return;
+  }
+  const normalizedLegacyEvents = normalizeCheckpointEvents(legacyEvents);
+  const reassignedEvents = assignMemoryStateLedgerEvents({
+    ledger: params.ledger,
+    drafts: normalizedLegacyEvents.map((event) => ({
+      actorId: event.actorId,
+      createdAtMs: event.createdAtMs,
+      eventId: event.eventId,
+      pageId: event.pageId,
+      source: event.source,
+      batchId: event.batchId,
+      type: event.type,
+      payload: event.payload,
+    })),
+  });
+  const lamportMap = new Map<number, number>();
+  normalizedLegacyEvents.forEach((event, index) => {
+    lamportMap.set(event.lamport, reassignedEvents[index]?.lamport ?? event.lamport);
+  });
+  appendMemoryStateEvents({
+    ledger: params.ledger,
+    profileId: params.ownerProfile.profileId,
+    events: reassignedEvents,
+  });
+  for (const checkpoint of readLegacyCanonicalCheckpointRows(params.db)) {
+    const checkpointId = toCanonicalCheckpointId(
+      `${checkpoint.checkpoint_id}:${checkpoint.state_hash}`,
+      normalizeNumber(checkpoint.lamport),
+    );
+    params.ledger.createCheckpoint(
+      checkpointId,
+      lamportMap.get(normalizeNumber(checkpoint.lamport)) ?? normalizeNumber(checkpoint.lamport),
+      checkpoint.state_hash,
+      {
+        ...(checkpoint.snapshot_json
+          ? {
+              plain: Buffer.from(checkpoint.snapshot_json, "utf8"),
+            }
+          : {}),
+        ...(checkpoint.encrypted_snapshot
+          ? {
+              cipher: Buffer.from(checkpoint.encrypted_snapshot, "utf8"),
+            }
+          : {}),
+      },
+    );
+  }
 }
 
 function readCurrentPageMarkdown(db: DatabaseSync, pageId: string): string {
@@ -1632,160 +1926,6 @@ function buildPageEventDrafts(params: {
   return drafts;
 }
 
-function assignLedgerEvents(params: {
-  db: DatabaseSync;
-  drafts: MemoryStateEventDraft[];
-}): MemoryStateEventEnvelopePlain[] {
-  let lamport = readLatestLamport(params.db);
-  return params.drafts.map((draft, index) => {
-    lamport += 1;
-    return {
-      schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
-      eventId:
-        draft.eventId ??
-        hashText(
-          JSON.stringify({
-            lamport,
-            index,
-            type: draft.type,
-            pageId: draft.pageId,
-            source: draft.source,
-            payload: draft.payload,
-          }),
-        ),
-      lamport,
-      actorId: draft.actorId,
-      createdAtMs: draft.createdAtMs ?? Date.now(),
-      type: draft.type,
-      payload: draft.payload as never,
-      ...(draft.pageId ? { pageId: draft.pageId } : {}),
-      ...(draft.source ? { source: draft.source } : {}),
-      ...(draft.batchId ? { batchId: draft.batchId } : {}),
-    };
-  });
-}
-
-function insertLedgerEvents(
-  db: DatabaseSync,
-  events: MemoryStateEventEnvelopePlain[],
-): MemoryStateEventEnvelopePlain[] {
-  const insert = db.prepare(
-    `INSERT OR IGNORE INTO ledger_events (
-       event_id, lamport, actor_id, event_type, page_id, source, batch_id, created_at_ms, payload_json
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const inserted: MemoryStateEventEnvelopePlain[] = [];
-  for (const event of events) {
-    const result = insert.run(
-      event.eventId,
-      event.lamport,
-      event.actorId,
-      event.type,
-      event.pageId ?? null,
-      event.source ?? null,
-      event.batchId ?? null,
-      event.createdAtMs,
-      serializeLedgerEventPayload(event),
-    ) as { changes?: number };
-    if ((result?.changes ?? 0) > 0) {
-      inserted.push(event);
-    }
-  }
-  return inserted;
-}
-
-function readLatestCheckpoint(
-  db: DatabaseSync,
-  checkpointId?: string,
-): {
-  checkpoint_id: string;
-  lamport: number | bigint;
-  snapshot_json: string | null;
-} | null {
-  if (checkpointId) {
-    return (
-      (db
-        .prepare(
-          `SELECT checkpoint_id, lamport, snapshot_json
-           FROM checkpoints
-           WHERE checkpoint_id = ?`,
-        )
-        .get(checkpointId) as
-        | {
-            checkpoint_id: string;
-            lamport: number | bigint;
-            snapshot_json: string | null;
-          }
-        | undefined) ?? null
-    );
-  }
-  return (
-    (db
-      .prepare(
-        `SELECT checkpoint_id, lamport, snapshot_json
-         FROM checkpoints
-         ORDER BY lamport DESC
-         LIMIT 1`,
-      )
-      .get() as
-      | {
-          checkpoint_id: string;
-          lamport: number | bigint;
-          snapshot_json: string | null;
-        }
-      | undefined) ?? null
-  );
-}
-
-function maybeRestoreCheckpoint(db: DatabaseSync): number {
-  const meta = readMemoryStateMeta(db);
-  const checkpoint = readLatestCheckpoint(db, meta.lastCheckpointId);
-  if (!checkpoint?.snapshot_json) {
-    return 0;
-  }
-  try {
-    const snapshot = JSON.parse(checkpoint.snapshot_json) as MemoryStateCheckpointSnapshot;
-    restoreMemoryStateCheckpoint(db, snapshot);
-    return normalizeNumber(checkpoint.lamport);
-  } catch (error) {
-    log.warn(`failed to restore memory checkpoint ${checkpoint.checkpoint_id}: ${String(error)}`);
-    return 0;
-  }
-}
-
-function bootstrapDerivedState(db: DatabaseSync): void {
-  ensureCanonicalStoreSchema(db);
-  const latestLamport = readLatestLamport(db);
-  const checkpointLamport = maybeRestoreCheckpoint(db);
-  if (checkpointLamport > 0) {
-    const tailEvents = readLedgerEvents(db, checkpointLamport);
-    if (tailEvents.length > 0) {
-      for (const event of tailEvents) {
-        applyEventToDerivedState({
-          db,
-          event,
-          migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-        });
-      }
-    }
-    return;
-  }
-  if (latestLamport > 0) {
-    rebuildDerivedStateFromEvents({
-      db,
-      events: readLedgerEvents(db),
-      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-    });
-  } else {
-    const meta = readMemoryStateMeta(db);
-    writeMemoryStateMeta(db, {
-      migrationVersion: Math.max(meta.migrationVersion, DERIVED_STATE_MIGRATION_VERSION),
-      lastAppliedLamport: 0,
-      lastCheckpointId: meta.lastCheckpointId,
-    });
-  }
-}
-
 function readImportedFileRows(db: DatabaseSync): Map<string, ImportedFileRow> {
   const rows = db
     .prepare(
@@ -1813,68 +1953,66 @@ function deleteImportedFileRow(db: DatabaseSync, relativePath: string): void {
 }
 
 async function createCheckpointIfNeeded(params: {
-  db: DatabaseSync;
+  context: CanonicalStoreContext;
   lastAppliedLamport: number;
   force?: boolean;
-  encryptCheckpointSnapshot?: (
-    snapshot: MemoryStateCheckpointSnapshot,
-  ) => Promise<string | null | undefined>;
 }): Promise<void> {
-  const latestCheckpoint = readLatestCheckpoint(params.db);
-  const lastCheckpointLamport = normalizeNumber(latestCheckpoint?.lamport);
+  const latestCheckpoint = params.context.ledger.getLatestCheckpoint();
+  const lastCheckpointLamport = latestCheckpoint?.coveredUntilLamport ?? 0;
   if (params.lastAppliedLamport === 0) {
     return;
   }
-  if (
-    params.force !== true &&
-    params.lastAppliedLamport - lastCheckpointLamport < CHECKPOINT_EVENT_INTERVAL
-  ) {
+  const memoryEventsSinceCheckpoint = listMemoryStateEventsSince({
+    ledger: params.context.ledger,
+    lamportExclusive: lastCheckpointLamport,
+  }).filter((event) => event.type !== "CHECKPOINT_CREATED").length;
+  if (params.force !== true && memoryEventsSinceCheckpoint < CHECKPOINT_EVENT_INTERVAL) {
     return;
   }
-  const checkpointLamport = readLatestLamport(params.db) + 1;
-  const snapshot = captureMemoryStateCheckpoint(params.db);
-  const checkpointId = hashText(
-    `checkpoint:${checkpointLamport}:${computeMemoryStateHash(params.db)}`,
-  ).slice(0, 24);
+  const checkpointLamport = params.context.ledger.getStats().lastLamport + 1;
+  const snapshot = captureMemoryStateCheckpoint(params.context.db);
+  const checkpointId = toCanonicalCheckpointId(
+    `checkpoint:${checkpointLamport}:${computeMemoryStateHash(params.context.db)}`,
+    checkpointLamport,
+  );
   snapshot.meta = {
     migrationVersion: snapshot.meta.migrationVersion,
     lastAppliedLamport: checkpointLamport,
     lastCheckpointId: checkpointId,
   };
   const stateHash = hashText(JSON.stringify(snapshot));
-  const encryptedSnapshot = (await params.encryptCheckpointSnapshot?.(snapshot)) ?? null;
-  params.db
-    .prepare(
-      `INSERT OR REPLACE INTO checkpoints (
-         checkpoint_id, lamport, state_hash, snapshot_json, encrypted_snapshot, created_at_ms
-       ) VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      checkpointId,
-      checkpointLamport,
-      stateHash,
-      JSON.stringify(snapshot),
-      encryptedSnapshot,
-      Date.now(),
-    );
-  const checkpointEvent: MemoryStateEventEnvelopePlain = {
-    schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
-    eventId: hashText(`checkpoint-event:${checkpointId}`).slice(0, 24),
-    lamport: checkpointLamport,
-    actorId: "gaia-checkpoint",
-    createdAtMs: Date.now(),
-    type: "CHECKPOINT_CREATED",
-    payload: {
-      checkpointId,
-      stateHash,
-      encryptedSnapshot,
-    },
-    source: "checkpoint",
-  };
-  const inserted = insertLedgerEvents(params.db, [checkpointEvent]);
+  const encryptedSnapshot = (await params.context.encryptCheckpointSnapshot?.(snapshot)) ?? null;
+  params.context.ledger.createCheckpoint(checkpointId, checkpointLamport, stateHash, {
+    plain: Buffer.from(JSON.stringify(snapshot), "utf8"),
+    ...(encryptedSnapshot
+      ? {
+          cipher: Buffer.from(encryptedSnapshot, "utf8"),
+        }
+      : {}),
+  });
+  const inserted = appendMemoryStateEvents({
+    ledger: params.context.ledger,
+    profileId: params.context.ownerProfile.profileId,
+    events: [
+      {
+        schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
+        eventId: hashText(`checkpoint-event:${checkpointId}`).slice(0, 24),
+        lamport: checkpointLamport,
+        actorId: "gaia-checkpoint",
+        createdAtMs: Date.now(),
+        type: "CHECKPOINT_CREATED",
+        payload: {
+          checkpointId,
+          stateHash,
+          encryptedSnapshot,
+        },
+        source: "checkpoint",
+      },
+    ],
+  });
   for (const event of inserted) {
     applyEventToDerivedState({
-      db: params.db,
+      db: params.context.db,
       event,
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
     });
@@ -1883,6 +2021,353 @@ async function createCheckpointIfNeeded(params: {
     checkpointId,
     lastAppliedLamport: params.lastAppliedLamport,
   });
+}
+
+function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger }): void {
+  ensureCanonicalStoreSchema(params.db);
+  const latestCheckpoint = params.ledger.getLatestCheckpoint();
+  const checkpointLamport = latestCheckpoint?.coveredUntilLamport ?? 0;
+  if (latestCheckpoint?.payloadPlain) {
+    try {
+      const snapshot = JSON.parse(
+        Buffer.from(latestCheckpoint.payloadPlain).toString("utf8"),
+      ) as MemoryStateCheckpointSnapshot;
+      restoreMemoryStateCheckpoint(params.db, snapshot);
+      const tailEvents = listMemoryStateEventsSince({
+        ledger: params.ledger,
+        lamportExclusive: checkpointLamport,
+      });
+      if (tailEvents.length > 0) {
+        for (const event of tailEvents) {
+          applyEventToDerivedState({
+            db: params.db,
+            event,
+            migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
+          });
+        }
+      }
+      return;
+    } catch (error) {
+      log.warn(
+        `failed to restore memory checkpoint ${latestCheckpoint.checkpointId}: ${String(error)}`,
+      );
+    }
+  }
+  const events = listMemoryStateEventsSince({
+    ledger: params.ledger,
+    lamportExclusive: 0,
+  });
+  if (events.length > 0) {
+    rebuildDerivedStateFromEvents({
+      db: params.db,
+      events,
+      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
+    });
+    return;
+  }
+  const meta = readMemoryStateMeta(params.db);
+  writeMemoryStateMeta(params.db, {
+    migrationVersion: Math.max(meta.migrationVersion, DERIVED_STATE_MIGRATION_VERSION),
+    lastAppliedLamport: 0,
+    ...(latestCheckpoint?.checkpointId ? { lastCheckpointId: latestCheckpoint.checkpointId } : {}),
+  });
+}
+
+function hasCurrentDerivedState(db: DatabaseSync): boolean {
+  const row = db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM pages) AS pages_count,
+         (SELECT COUNT(*) FROM page_doc_state) AS doc_state_count,
+         (SELECT COUNT(*) FROM claims) AS claims_count,
+         (SELECT COUNT(*) FROM evidence) AS evidence_count,
+         (SELECT COUNT(*) FROM links) AS links_count,
+         (SELECT COUNT(*) FROM attachments) AS attachments_count,
+         (SELECT COUNT(*) FROM projections) AS projections_count,
+         (SELECT COUNT(*) FROM dashboards) AS dashboards_count`,
+    )
+    .get() as
+    | {
+        pages_count: number;
+        doc_state_count: number;
+        claims_count: number;
+        evidence_count: number;
+        links_count: number;
+        attachments_count: number;
+        projections_count: number;
+        dashboards_count: number;
+      }
+    | undefined;
+  return (
+    (row?.pages_count ?? 0) > 0 ||
+    (row?.doc_state_count ?? 0) > 0 ||
+    (row?.claims_count ?? 0) > 0 ||
+    (row?.evidence_count ?? 0) > 0 ||
+    (row?.links_count ?? 0) > 0 ||
+    (row?.attachments_count ?? 0) > 0 ||
+    (row?.projections_count ?? 0) > 0 ||
+    (row?.dashboards_count ?? 0) > 0
+  );
+}
+
+function buildGenesisDraftsFromCurrentDerivedState(params: {
+  db: DatabaseSync;
+  actorId: string;
+  batchId: string;
+}): MemoryStateEventDraft[] {
+  const drafts: MemoryStateEventDraft[] = [];
+  const pages = params.db
+    .prepare(
+      `SELECT page_id, title, slug, created_at_ms, updated_at_ms, tombstoned
+       FROM pages
+       ORDER BY page_id ASC`,
+    )
+    .all() as Array<{
+    page_id: string;
+    title: string;
+    slug: string;
+    created_at_ms: number;
+    updated_at_ms: number;
+    tombstoned: number;
+  }>;
+  for (const page of pages) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      pageId: page.page_id,
+      type: "PAGE_CREATED",
+      payload: {
+        pageId: page.page_id,
+        title: page.title,
+        slug: page.slug,
+        aliases: readCurrentPageAliases(params.db, page.page_id),
+        tags: readCurrentPageTags(params.db, page.page_id),
+        createdAtMs: page.created_at_ms,
+        updatedAtMs: page.updated_at_ms,
+      },
+    });
+    if (page.tombstoned === 1) {
+      drafts.push({
+        actorId: params.actorId,
+        batchId: params.batchId,
+        source: "legacy-canonical-state",
+        pageId: page.page_id,
+        type: "PAGE_TOMBSTONED",
+        payload: {
+          pageId: page.page_id,
+          tombstoned: true,
+          updatedAtMs: page.updated_at_ms,
+        },
+      });
+    }
+  }
+  const docStates = params.db
+    .prepare(
+      `SELECT page_id, yjs_state, updated_at_ms
+       FROM page_doc_state
+       ORDER BY page_id ASC`,
+    )
+    .all() as Array<{
+    page_id: string;
+    yjs_state: Uint8Array;
+    updated_at_ms: number;
+  }>;
+  for (const row of docStates) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      pageId: row.page_id,
+      createdAtMs: row.updated_at_ms,
+      type: "DOC_CRDT_SNAPSHOT",
+      payload: {
+        pageId: row.page_id,
+        yjsState: row.yjs_state,
+      },
+    });
+  }
+  const linkRows = params.db
+    .prepare(
+      `SELECT from_page_id, to_page_id, type, ordinal
+       FROM links
+       ORDER BY from_page_id ASC, ordinal ASC, to_page_id ASC, type ASC`,
+    )
+    .all() as Array<{
+    from_page_id: string;
+    to_page_id: string;
+    type: string;
+    ordinal: number;
+  }>;
+  const linksByPage = new Map<string, MemoryPageLink[]>();
+  for (const row of linkRows) {
+    const entry = linksByPage.get(row.from_page_id) ?? [];
+    entry.push({
+      toPageId: row.to_page_id,
+      type: row.type,
+      ordinal: row.ordinal,
+    });
+    linksByPage.set(row.from_page_id, entry);
+  }
+  for (const [pageId, links] of linksByPage) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      pageId,
+      type: "LINKS_REPLACED",
+      payload: {
+        pageId,
+        links,
+      },
+    });
+  }
+  const projections = params.db
+    .prepare(
+      `SELECT page_id, kind, markdown_body, updated_at_ms
+       FROM projections
+       ORDER BY page_id ASC, kind ASC`,
+    )
+    .all() as Array<{
+    page_id: string;
+    kind: string;
+    markdown_body: string;
+    updated_at_ms: number;
+  }>;
+  for (const row of projections) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      pageId: row.page_id,
+      createdAtMs: row.updated_at_ms,
+      type: "PROJECTION_SET",
+      payload: {
+        pageId: row.page_id,
+        kind: row.kind,
+        markdownBody: row.markdown_body,
+      },
+    });
+  }
+  const claims = params.db
+    .prepare(
+      `SELECT claim_id, subject, predicate, object, confidence, status, updated_at_ms
+       FROM claims
+       ORDER BY claim_id ASC`,
+    )
+    .all() as Array<{
+    claim_id: string;
+    subject: string;
+    predicate: string;
+    object: string;
+    confidence: number;
+    status: string;
+    updated_at_ms: number;
+  }>;
+  for (const row of claims) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      createdAtMs: row.updated_at_ms,
+      type: "CLAIM_UPSERTED",
+      payload: {
+        claimId: row.claim_id,
+        subject: row.subject,
+        predicate: row.predicate,
+        object: row.object,
+        confidence: row.confidence,
+        status: row.status,
+        updatedAtMs: row.updated_at_ms,
+      },
+    });
+  }
+  const evidence = params.db
+    .prepare(
+      `SELECT evidence_id, claim_id, source_locator, quote, hash, created_at_ms
+       FROM evidence
+       ORDER BY evidence_id ASC`,
+    )
+    .all() as Array<{
+    evidence_id: string;
+    claim_id: string;
+    source_locator: string;
+    quote: string;
+    hash: string;
+    created_at_ms: number;
+  }>;
+  for (const row of evidence) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      createdAtMs: row.created_at_ms,
+      type: "EVIDENCE_ADDED",
+      payload: {
+        evidenceId: row.evidence_id,
+        claimId: row.claim_id,
+        sourceLocator: row.source_locator,
+        quote: row.quote,
+        hash: row.hash,
+        createdAtMs: row.created_at_ms,
+      },
+    });
+  }
+  const attachments = params.db
+    .prepare(
+      `SELECT blob_id, mime, bytes, sha256, created_at_ms
+       FROM attachments
+       ORDER BY blob_id ASC`,
+    )
+    .all() as Array<{
+    blob_id: string;
+    mime: string;
+    bytes: Uint8Array;
+    sha256: string;
+    created_at_ms: number;
+  }>;
+  for (const row of attachments) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      createdAtMs: row.created_at_ms,
+      type: "ATTACHMENT_ADDED",
+      payload: {
+        blobId: row.blob_id,
+        mime: row.mime,
+        bytes: row.bytes,
+        sha256: row.sha256,
+        createdAtMs: row.created_at_ms,
+      },
+    });
+  }
+  const dashboards = params.db
+    .prepare(
+      `SELECT kind, json, updated_at_ms
+       FROM dashboards
+       ORDER BY kind ASC`,
+    )
+    .all() as Array<{
+    kind: string;
+    json: string;
+    updated_at_ms: number;
+  }>;
+  for (const row of dashboards) {
+    drafts.push({
+      actorId: params.actorId,
+      batchId: params.batchId,
+      source: "legacy-canonical-state",
+      createdAtMs: row.updated_at_ms,
+      type: "DASHBOARD_SET",
+      payload: {
+        kind: row.kind,
+        json: parseJsonRecord(row.json),
+        updatedAtMs: row.updated_at_ms,
+      },
+    });
+  }
+  return drafts;
 }
 
 async function materializeLegacyMarkdownProjections(params: {
@@ -1934,14 +2419,16 @@ function buildImportPageIdMap(
 }
 
 function buildReadyStatusFromContext(params: CanonicalStoreContext): CanonicalMemoryStoreStatus {
-  return buildReadyCanonicalStoreStatus({
+  const status = buildReadyCanonicalStoreStatus({
     baseStatus: params.baseStatus,
     db: params.db,
+    ledger: params.ledger,
     profileId: params.ownerProfile.profileId,
     workspaceScope: params.baseStatus.workspaceScope,
     deviceId: params.deviceId,
     stateDir: params.stateDir,
   });
+  return params.sync.lastError ? { ...status, lastError: params.sync.lastError } : status;
 }
 
 async function applyEventDrafts(params: {
@@ -1951,10 +2438,12 @@ async function applyEventDrafts(params: {
   materializeMarkdown?: boolean;
   forceCheckpoint?: boolean;
 }): Promise<MemoryWriteEventResult> {
-  const events = assignLedgerEvents({
-    db: params.context.db,
-    drafts: params.drafts,
-  });
+  const events = normalizeCheckpointEvents(
+    assignMemoryStateLedgerEvents({
+      ledger: params.context.ledger,
+      drafts: params.drafts,
+    }),
+  );
   if (events.length === 0) {
     const status = buildReadyStatusFromContext(params.context);
     return {
@@ -1963,7 +2452,19 @@ async function applyEventDrafts(params: {
       stateHash: computeMemoryStateHash(params.context.db),
     };
   }
-  const inserted = insertLedgerEvents(params.context.db, events);
+  const inserted = appendMemoryStateEvents({
+    ledger: params.context.ledger,
+    profileId: params.context.ownerProfile.profileId,
+    events,
+  });
+  if (inserted.length === 0) {
+    const status = buildReadyStatusFromContext(params.context);
+    return {
+      status,
+      events: [],
+      stateHash: computeMemoryStateHash(params.context.db),
+    };
+  }
   for (const event of inserted) {
     applyEventToDerivedState({
       db: params.context.db,
@@ -1973,18 +2474,12 @@ async function applyEventDrafts(params: {
   }
   const meta = readMemoryStateMeta(params.context.db);
   await createCheckpointIfNeeded({
-    db: params.context.db,
+    context: params.context,
     lastAppliedLamport: meta.lastAppliedLamport,
     force: params.forceCheckpoint,
-    encryptCheckpointSnapshot: params.context.encryptCheckpointSnapshot,
   });
-  upsertCanonicalSyncState({
-    db: params.context.db,
-    profileId: params.context.ownerProfile.profileId,
-    workspaceScope: params.context.baseStatus.workspaceScope,
-    backend: params.context.backend,
-    now: Date.now(),
-    cloudState: params.cloudState,
+  persistCanonicalSyncRuntimeState(params.context, {
+    cloudState: params.cloudState ?? resolveSyncCloudState(params.context),
     lastSyncedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
   });
   if (
@@ -2003,6 +2498,24 @@ async function applyEventDrafts(params: {
   canonicalStoreTelemetry("ledger_to_state_apply_ms", applyDurationMs, {
     events: inserted.length,
   });
+  if (params.context.sync.availability.state === "active") {
+    try {
+      await pushPendingEncryptedEvents(params.context);
+      await pullRelayAckVector(params.context);
+      persistCanonicalSyncRuntimeState(params.context, {
+        cloudState: resolveSyncCloudState(params.context),
+        lastSyncSuccessAt: Date.now(),
+        lastSyncedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
+        lastError: null,
+      });
+    } catch (error) {
+      persistCanonicalSyncRuntimeState(params.context, {
+        cloudState: resolveSyncCloudState(params.context, true),
+        lastSyncedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
+        lastError: `memory sync push failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
   return {
     status: buildReadyStatusFromContext(params.context),
     events: inserted,
@@ -2011,12 +2524,50 @@ async function applyEventDrafts(params: {
 }
 
 async function migrateLegacyStateIfNeeded(params: CanonicalStoreContext): Promise<void> {
-  const latestLamport = readLatestLamport(params.db);
+  const latestLamport = hasLedgerStateEvents(params.ledger)
+    ? params.ledger.getStats().lastLamport
+    : 0;
   const meta = readMemoryStateMeta(params.db);
   if (latestLamport > 0 || meta.migrationVersion >= DERIVED_STATE_MIGRATION_VERSION) {
     return;
   }
   const startedAt = Date.now();
+  if (hasCurrentDerivedState(params.db)) {
+    writeMemoryStateMeta(params.db, {
+      migrationVersion: meta.migrationVersion,
+      lastAppliedLamport: 0,
+    });
+    const batchId = `genesis-state:${computeMemoryStateHash(params.db).slice(0, 16)}`;
+    const drafts = buildGenesisDraftsFromCurrentDerivedState({
+      db: params.db,
+      actorId: "gaia-legacy-state",
+      batchId,
+    });
+    if (drafts.length > 0) {
+      await applyEventDrafts({
+        context: params,
+        drafts,
+        materializeMarkdown: false,
+      });
+    }
+    writeMemoryStateMeta(params.db, {
+      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
+      lastAppliedLamport: readMemoryStateMeta(params.db).lastAppliedLamport,
+      lastCheckpointId: readMemoryStateMeta(params.db).lastCheckpointId,
+    });
+    const pagesCount =
+      (
+        params.db.prepare(`SELECT COUNT(*) AS count FROM pages`).get() as
+          | {
+              count: number;
+            }
+          | undefined
+      )?.count ?? 0;
+    canonicalStoreTelemetry("migration_duration_ms", Date.now() - startedAt, {
+      pages: pagesCount,
+    });
+    return;
+  }
   const importedRows = readImportedFileRows(params.db);
   const workspacePages = await collectWorkspaceMarkdownPages({
     workspaceDir: params.workspaceDir,
@@ -2028,7 +2579,6 @@ async function migrateLegacyStateIfNeeded(params: CanonicalStoreContext): Promis
     writeMemoryStateMeta(params.db, {
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
       lastAppliedLamport: 0,
-      lastCheckpointId: meta.lastCheckpointId,
     });
     return;
   }
@@ -2135,6 +2685,680 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
       env: params.env,
     });
   }
+}
+
+async function initializeCanonicalLedgerState(context: CanonicalStoreContext): Promise<void> {
+  await migrateLegacyCanonicalLedgerIfNeeded(context);
+  bootstrapDerivedState({
+    db: context.db,
+    ledger: context.ledger,
+  });
+  await migrateLegacyStateIfNeeded(context);
+}
+
+function createInactiveSyncRuntime(env: NodeJS.ProcessEnv): CanonicalSyncRuntime {
+  const config = resolveCanonicalSyncConfig(env);
+  return {
+    config,
+    availability: {
+      state: "inactive",
+      mode: config.mode,
+      ...(config.enabled ? {} : { reason: "disabled" as const }),
+    },
+    transport: null,
+    crypto: null,
+    profileRootKey: null,
+  };
+}
+
+function resolveSyncCloudState(
+  context: CanonicalStoreContext,
+  failed = false,
+): CanonicalCloudSyncState {
+  if (failed) {
+    return "error";
+  }
+  return context.sync.availability.state === "active" && context.sync.config.mode === "cloud"
+    ? "enabled"
+    : CANONICAL_STORE_CLOUD_SYNC;
+}
+
+function persistCanonicalSyncRuntimeState(
+  context: CanonicalStoreContext,
+  patch: {
+    cloudState?: CanonicalCloudSyncState;
+    lastSyncedLamport?: number;
+    lastSyncSuccessAt?: number;
+    lastAckLamport?: number;
+    lastPushedLocalLamport?: number;
+    syncAvailability?: CanonicalSyncAvailabilityState;
+    syncBlockedReason?: CanonicalSyncBlockedReason;
+    syncModeConfigured?: MemorySyncMode;
+    lastError?: string | null;
+  } = {},
+): void {
+  const existing = readSyncState(context.db, {
+    profileId: context.ownerProfile.profileId,
+    workspaceScope: context.baseStatus.workspaceScope,
+  });
+  if ("lastError" in patch) {
+    context.sync.lastError = patch.lastError ?? undefined;
+  }
+  const resolvedBlockedReason =
+    patch.syncBlockedReason ?? normalizeSyncBlockedReason(context.sync.availability.reason);
+  upsertCanonicalSyncState({
+    db: context.db,
+    profileId: context.ownerProfile.profileId,
+    workspaceScope: context.baseStatus.workspaceScope,
+    backend: context.backend,
+    now: Date.now(),
+    cloudState:
+      patch.cloudState ??
+      (existing.cloud_state === "enabled" || existing.cloud_state === "error"
+        ? (existing.cloud_state as CanonicalCloudSyncState)
+        : resolveSyncCloudState(context)),
+    lastSyncedLamport:
+      patch.lastSyncedLamport ?? readMemoryStateMeta(context.db).lastAppliedLamport,
+    syncAvailability: patch.syncAvailability ?? context.sync.availability.state,
+    syncModeConfigured: patch.syncModeConfigured ?? context.sync.config.mode,
+    syncBlockedReason: resolvedBlockedReason,
+    lastSyncSuccessAt:
+      patch.lastSyncSuccessAt ??
+      (normalizeNumber(existing.last_sync_success_at) > 0
+        ? normalizeNumber(existing.last_sync_success_at)
+        : undefined),
+    lastAckLamport: patch.lastAckLamport ?? normalizeNumber(existing.last_ack_lamport),
+    lastPushedLocalLamport:
+      patch.lastPushedLocalLamport ?? normalizeNumber(existing.last_pushed_local_lamport),
+  });
+}
+
+function buildSyncEventCryptoMeta(
+  profileId: string,
+  event: Pick<
+    EncryptedMemoryEvent,
+    "eventId" | "deviceId" | "lamport" | "eventType" | "schemaVersion"
+  >,
+) {
+  return {
+    profileId,
+    deviceId: event.deviceId,
+    lamport: event.lamport,
+    eventType: event.eventType,
+    schemaVersion: event.schemaVersion,
+    eventId: event.eventId,
+  };
+}
+
+function toMemoryCipherBytes(cipher: {
+  ciphertext: Uint8Array;
+  nonce: Uint8Array;
+  algorithm?: "AES-256-GCM";
+}): MemoryCipherBytes {
+  return {
+    algorithm: cipher.algorithm ?? "AES-256-GCM",
+    ciphertext: Uint8Array.from(cipher.ciphertext),
+    nonce: Uint8Array.from(cipher.nonce),
+  };
+}
+
+function toLedgerEventTypeForSync(eventType: string): MemoryEventType {
+  switch (eventType) {
+    case "PAGE_METADATA_UPDATED":
+      return "PAGE_CREATED";
+    case "LINKS_REPLACED":
+      return "LINK_ADDED";
+    case "PROJECTION_SET":
+      return "DOC_CRDT_SNAPSHOT";
+    case "DASHBOARD_SET":
+      return "JOB_CHECKPOINT_UPDATED";
+    case "PAGE_CREATED":
+    case "PAGE_TOMBSTONED":
+    case "DOC_CRDT_SNAPSHOT":
+    case "DOC_CRDT_UPDATE":
+    case "CLAIM_UPSERTED":
+    case "EVIDENCE_ADDED":
+    case "ATTACHMENT_ADDED":
+    case "CHECKPOINT_CREATED":
+    case "JOB_CHECKPOINT_UPDATED":
+      return eventType;
+    default:
+      throw new Error(`unsupported synced memory event type: ${eventType}`);
+  }
+}
+
+function requireBinaryPayload(value: unknown, fieldName: string): Uint8Array {
+  if (value instanceof Uint8Array) {
+    return Uint8Array.from(value);
+  }
+  if (Buffer.isBuffer(value)) {
+    return Uint8Array.from(value);
+  }
+  if (value instanceof ArrayBuffer) {
+    return Uint8Array.from(new Uint8Array(value));
+  }
+  throw new Error(`${fieldName} must be binary data`);
+}
+
+function asJsonRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readBlobNonce(meta: MemoryBlobMeta, blobId: string): Uint8Array {
+  const nonceBase64 = typeof meta.nonceBase64 === "string" ? meta.nonceBase64 : "";
+  if (!nonceBase64) {
+    throw new Error(`memory sync blob ${blobId} is missing nonce metadata`);
+  }
+  return Uint8Array.from(decodeBase64(nonceBase64));
+}
+
+function isLocalMemoryStateEventType(
+  eventType: string,
+): eventType is MemoryStateEventEnvelopePlain["type"] {
+  switch (eventType) {
+    case "PAGE_CREATED":
+    case "PAGE_METADATA_UPDATED":
+    case "PAGE_TOMBSTONED":
+    case "DOC_CRDT_SNAPSHOT":
+    case "DOC_CRDT_UPDATE":
+    case "LINKS_REPLACED":
+    case "PROJECTION_SET":
+    case "CLAIM_UPSERTED":
+    case "EVIDENCE_ADDED":
+    case "ATTACHMENT_ADDED":
+    case "DASHBOARD_SET":
+    case "JOB_CHECKPOINT_UPDATED":
+    case "CHECKPOINT_CREATED":
+      return true;
+    default:
+      return false;
+  }
+}
+
+function normalizeLedgerMemoryEventType(eventType: string): MemoryEventType {
+  switch (eventType) {
+    case "PAGE_CREATED":
+    case "PAGE_METADATA_UPDATED":
+    case "PAGE_TOMBSTONED":
+    case "DOC_CRDT_SNAPSHOT":
+    case "DOC_CRDT_UPDATE":
+    case "LINKS_REPLACED":
+    case "PROJECTION_SET":
+    case "CLAIM_UPSERTED":
+    case "EVIDENCE_ADDED":
+    case "ATTACHMENT_ADDED":
+    case "DASHBOARD_SET":
+    case "JOB_CHECKPOINT_UPDATED":
+    case "CHECKPOINT_CREATED":
+    case "RETRIEVAL_TRACE_RECORDED":
+      return eventType;
+    default:
+      throw new Error(`unsupported memory sync event type: ${eventType}`);
+  }
+}
+
+function buildCanonicalSyncEventEnvelope(
+  event: MemoryStateEventEnvelopePlain,
+): CanonicalSyncEventEnvelope {
+  return {
+    schemaVersion: event.schemaVersion,
+    eventId: event.eventId,
+    lamport: event.lamport,
+    actorId: event.actorId,
+    createdAtMs: event.createdAtMs,
+    type: event.type,
+    payload: { ...(event.payload as Record<string, unknown>) },
+    ...(event.pageId ? { pageId: event.pageId } : {}),
+    ...(event.source ? { source: event.source } : {}),
+    ...(event.batchId ? { batchId: event.batchId } : {}),
+  };
+}
+
+async function encryptLedgerEventForRelay(
+  context: CanonicalStoreContext,
+  event: ReturnType<MemoryLedger["listEventsSince"]>[number],
+): Promise<EncryptedMemoryEvent> {
+  if (!context.sync.crypto || !context.sync.transport) {
+    throw new Error("memory sync runtime is not active");
+  }
+  if (event.payload.kind !== "plain") {
+    throw new Error(`memory sync cannot relay encrypted local payloads (${event.meta.eventId})`);
+  }
+
+  let plaintextBytes: Uint8Array = Uint8Array.from(event.payload.bytes);
+  if (event.meta.eventType === "ATTACHMENT_ADDED") {
+    const attachmentEvent = deserializeMemoryStateLedgerEvent(event.payload.bytes, {
+      lamport: event.meta.lamport,
+      eventType: event.meta.eventType,
+      createdAtMs: event.meta.createdAtMs,
+    });
+    if (!attachmentEvent || attachmentEvent.type !== "ATTACHMENT_ADDED") {
+      throw new Error(`failed to decode attachment event ${event.meta.eventId} for relay sync`);
+    }
+    const attachmentPayload = attachmentEvent.payload as MemoryAttachmentAddedPayload;
+    const blobBytes = requireBinaryPayload(attachmentPayload.bytes, "attachment payload bytes");
+    const blobCipher = await context.sync.crypto.encryptBlob(attachmentPayload.blobId, blobBytes);
+    await context.sync.transport.pushBlob(
+      context.ownerProfile.profileId,
+      attachmentPayload.blobId,
+      blobCipher.ciphertext,
+      {
+        kind: "attachment",
+        version: 1,
+        nonceBase64: encodeBase64(blobCipher.nonce),
+        mime: attachmentPayload.mime,
+        sha256: attachmentPayload.sha256,
+        createdAtMs: attachmentPayload.createdAtMs ?? attachmentEvent.createdAtMs,
+      },
+    );
+    const attachmentEnvelope: CanonicalAttachmentBlobEnvelope = {
+      version: 1,
+      event: {
+        ...buildCanonicalSyncEventEnvelope(attachmentEvent),
+        payload: {
+          ...(attachmentPayload as Record<string, unknown>),
+          bytes: undefined,
+        },
+      },
+      blob: {
+        blobId: attachmentPayload.blobId,
+        kind: "attachment",
+      },
+    };
+    delete attachmentEnvelope.event.payload.bytes;
+    plaintextBytes = encodeJsonBytes(attachmentEnvelope);
+  }
+
+  const cipher = await context.sync.crypto.encryptEventPayload(
+    buildSyncEventCryptoMeta(context.ownerProfile.profileId, event.meta),
+    plaintextBytes,
+  );
+  return {
+    eventId: event.meta.eventId,
+    deviceId: event.meta.deviceId,
+    lamport: event.meta.lamport,
+    eventType: event.meta.eventType,
+    schemaVersion: event.meta.schemaVersion,
+    createdAtMs: event.meta.createdAtMs,
+    ciphertext: new Uint8Array(cipher.ciphertext),
+    nonce: new Uint8Array(cipher.nonce),
+    algorithm: cipher.algorithm,
+  };
+}
+
+async function decryptRelayEventToPlainPayload(
+  context: CanonicalStoreContext,
+  event: EncryptedMemoryEvent,
+): Promise<Uint8Array> {
+  if (!context.sync.crypto) {
+    throw new Error("memory sync root key unavailable");
+  }
+  const plainBytes = await context.sync.crypto.decryptEventPayload(
+    buildSyncEventCryptoMeta(context.ownerProfile.profileId, event),
+    toMemoryCipherBytes({
+      algorithm: event.algorithm,
+      ciphertext: new Uint8Array(event.ciphertext),
+      nonce: new Uint8Array(event.nonce),
+    }),
+  );
+  if (event.eventType !== "ATTACHMENT_ADDED") {
+    return Uint8Array.from(plainBytes);
+  }
+  if (!context.sync.transport) {
+    throw new Error("memory sync transport unavailable for attachment replay");
+  }
+  const attachmentEnvelope = decodeJsonValue<CanonicalAttachmentBlobEnvelope>(plainBytes);
+  if (attachmentEnvelope.event.type !== "ATTACHMENT_ADDED") {
+    throw new Error(`attachment relay envelope mismatch for ${event.eventId}`);
+  }
+  const pulledBlob = await context.sync.transport.pullBlob(
+    context.ownerProfile.profileId,
+    attachmentEnvelope.blob.blobId,
+  );
+  if (!pulledBlob) {
+    throw new Error(`attachment blob ${attachmentEnvelope.blob.blobId} is missing on the relay`);
+  }
+  const blobBytes = await context.sync.crypto.decryptBlob(
+    attachmentEnvelope.blob.blobId,
+    toMemoryCipherBytes({
+      ciphertext: new Uint8Array(pulledBlob.cipherBytes),
+      nonce: new Uint8Array(readBlobNonce(pulledBlob.meta, attachmentEnvelope.blob.blobId)),
+    }),
+  );
+  const payloadRecord = asJsonRecord(attachmentEnvelope.event.payload);
+  if (!payloadRecord) {
+    throw new Error(`attachment relay payload is invalid for ${event.eventId}`);
+  }
+  const plainEvent: MemoryStateEventEnvelopePlain<"ATTACHMENT_ADDED"> = {
+    schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
+    eventId: event.eventId,
+    lamport: event.lamport,
+    actorId: event.deviceId,
+    createdAtMs: event.createdAtMs,
+    type: "ATTACHMENT_ADDED",
+    payload: {
+      blobId: String(payloadRecord.blobId ?? attachmentEnvelope.blob.blobId),
+      mime: String(payloadRecord.mime ?? "application/octet-stream"),
+      bytes: blobBytes,
+      sha256: String(payloadRecord.sha256 ?? ""),
+      createdAtMs:
+        typeof payloadRecord.createdAtMs === "number"
+          ? payloadRecord.createdAtMs
+          : event.createdAtMs,
+    },
+    ...(attachmentEnvelope.event.pageId ? { pageId: attachmentEnvelope.event.pageId } : {}),
+    ...(attachmentEnvelope.event.source ? { source: attachmentEnvelope.event.source } : {}),
+    ...(attachmentEnvelope.event.batchId ? { batchId: attachmentEnvelope.event.batchId } : {}),
+  };
+  return serializeMemoryStateLedgerEvent(plainEvent);
+}
+
+async function appendPulledEncryptedEvents(params: {
+  context: CanonicalStoreContext;
+  encryptedEvents: readonly EncryptedMemoryEvent[];
+  materializeMarkdown?: boolean;
+}): Promise<{ insertedCount: number; appliedCount: number }> {
+  if (params.encryptedEvents.length === 0) {
+    return { insertedCount: 0, appliedCount: 0 };
+  }
+  const sortedEvents = [...params.encryptedEvents].toSorted((left, right) => {
+    if (left.lamport !== right.lamport) {
+      return left.lamport - right.lamport;
+    }
+    if (left.createdAtMs !== right.createdAtMs) {
+      return left.createdAtMs - right.createdAtMs;
+    }
+    return left.eventId.localeCompare(right.eventId);
+  });
+  const decryptedPayloads = await Promise.all(
+    sortedEvents.map(async (event) => ({
+      event,
+      payload: await decryptRelayEventToPlainPayload(params.context, event),
+    })),
+  );
+  const lastAppliedBefore = readMemoryStateMeta(params.context.db).lastAppliedLamport;
+  const appendResults = params.context.ledger.appendBatch(
+    decryptedPayloads.map(({ event, payload }) => ({
+      meta: {
+        eventId: event.eventId,
+        profileId: params.context.ownerProfile.profileId,
+        deviceId: event.deviceId,
+        lamport: event.lamport,
+        eventType: normalizeLedgerMemoryEventType(event.eventType),
+        createdAtMs: event.createdAtMs,
+        schemaVersion: event.schemaVersion,
+      },
+      payload: new Uint8Array(payload),
+    })),
+  );
+  let insertedCount = 0;
+  let appliedCount = 0;
+  let requiresRebuild = false;
+  for (const [index, result] of appendResults.entries()) {
+    if (result?.status !== "inserted") {
+      continue;
+    }
+    insertedCount += 1;
+    const decrypted = decryptedPayloads[index];
+    if (!isLocalMemoryStateEventType(decrypted.event.eventType)) {
+      continue;
+    }
+    const parsedPlainEvent = deserializeMemoryStateLedgerEvent(decrypted.payload, {
+      lamport: decrypted.event.lamport,
+      eventType: decrypted.event.eventType,
+      createdAtMs: decrypted.event.createdAtMs,
+    });
+    const plainEvent = parsedPlainEvent
+      ? {
+          ...parsedPlainEvent,
+          eventId: decrypted.event.eventId,
+          actorId: decrypted.event.deviceId,
+          lamport: decrypted.event.lamport,
+          createdAtMs: decrypted.event.createdAtMs,
+          schemaVersion: LEDGER_EVENT_SCHEMA_VERSION,
+        }
+      : null;
+    if (!plainEvent) {
+      continue;
+    }
+    if (plainEvent.lamport <= lastAppliedBefore) {
+      requiresRebuild = true;
+      continue;
+    }
+    applyEventToDerivedState({
+      db: params.context.db,
+      event: plainEvent,
+      migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
+    });
+    appliedCount += 1;
+  }
+  if (requiresRebuild) {
+    bootstrapDerivedState({
+      db: params.context.db,
+      ledger: params.context.ledger,
+    });
+  }
+  await createCheckpointIfNeeded({
+    context: params.context,
+    lastAppliedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
+  });
+  if (
+    params.materializeMarkdown !== false &&
+    params.context.flags.legacyMarkdownProjectionEnabled
+  ) {
+    await materializeLegacyMarkdownProjections({
+      db: params.context.db,
+      env: params.context.env,
+    });
+  }
+  return { insertedCount, appliedCount };
+}
+
+function readLatestLocalLedgerEvent(context: CanonicalStoreContext) {
+  const lastLamport = context.ledger.getStats().lastLamport;
+  if (lastLamport <= 0) {
+    return null;
+  }
+  return context.ledger.listEventsSince(Math.max(0, lastLamport - 1), 1)[0] ?? null;
+}
+
+async function pushLocalAck(context: CanonicalStoreContext): Promise<void> {
+  if (!context.sync.transport) {
+    return;
+  }
+  const latestEvent = readLatestLocalLedgerEvent(context);
+  if (!latestEvent) {
+    return;
+  }
+  await context.sync.transport.pushAck(
+    context.ownerProfile.profileId,
+    context.deviceId,
+    latestEvent.meta.lamport,
+    latestEvent.meta.eventId,
+  );
+  context.ledger.recordAck(context.deviceId, latestEvent.meta.lamport, latestEvent.meta.eventId);
+  persistCanonicalSyncRuntimeState(context, {
+    lastAckLamport: latestEvent.meta.lamport,
+  });
+}
+
+async function pullRelayAckVector(context: CanonicalStoreContext): Promise<void> {
+  if (!context.sync.transport) {
+    return;
+  }
+  const ackVector = await context.sync.transport.pullAckVector(context.ownerProfile.profileId);
+  let localAckLamport: number | undefined;
+  for (const [replicaId, ack] of Object.entries(ackVector)) {
+    context.ledger.recordAck(replicaId, ack.ackLamport, ack.ackEventId);
+    if (replicaId === context.deviceId) {
+      localAckLamport = ack.ackLamport;
+    }
+  }
+  if (typeof localAckLamport === "number") {
+    persistCanonicalSyncRuntimeState(context, {
+      lastAckLamport: localAckLamport,
+    });
+  }
+}
+
+async function pushPendingEncryptedEvents(context: CanonicalStoreContext): Promise<number> {
+  if (!context.sync.transport || !context.sync.crypto) {
+    return 0;
+  }
+  const syncState = readSyncState(context.db, {
+    profileId: context.ownerProfile.profileId,
+    workspaceScope: context.baseStatus.workspaceScope,
+  });
+  let lastPushedLocalLamport = normalizeNumber(syncState.last_pushed_local_lamport);
+  let scanCursor = lastPushedLocalLamport;
+  while (true) {
+    const scannedBatch = context.ledger.listEventsSince(scanCursor, SYNC_PULL_BATCH_LIMIT);
+    if (scannedBatch.length === 0) {
+      break;
+    }
+    scanCursor = scannedBatch.at(-1)?.meta.lamport ?? scanCursor;
+    const localBatch = scannedBatch.filter((event) => event.meta.deviceId === context.deviceId);
+    if (localBatch.length === 0) {
+      if (scannedBatch.length < SYNC_PULL_BATCH_LIMIT) {
+        break;
+      }
+      continue;
+    }
+    if (localBatch.at(-1)?.meta.lamport === lastPushedLocalLamport) {
+      break;
+    }
+    const encryptedBatch = await Promise.all(
+      localBatch.map((event) => encryptLedgerEventForRelay(context, event)),
+    );
+    await context.sync.transport.pushEncryptedEvents(
+      context.ownerProfile.profileId,
+      encryptedBatch,
+    );
+    lastPushedLocalLamport = localBatch.at(-1)?.meta.lamport ?? lastPushedLocalLamport;
+    persistCanonicalSyncRuntimeState(context, {
+      lastPushedLocalLamport,
+      cloudState: resolveSyncCloudState(context),
+    });
+    if (scannedBatch.length < SYNC_PULL_BATCH_LIMIT) {
+      break;
+    }
+  }
+  await pushLocalAck(context);
+  return lastPushedLocalLamport;
+}
+
+async function pullEncryptedEventsFromRelay(context: CanonicalStoreContext): Promise<number> {
+  if (!context.sync.transport || !context.sync.crypto) {
+    return 0;
+  }
+  let cursor = Math.max(
+    context.ledger.getStats().lastLamport,
+    readMemoryStateMeta(context.db).lastAppliedLamport,
+  );
+  let insertedTotal = 0;
+  while (true) {
+    const pulledBatch = await context.sync.transport.pullEncryptedEvents(
+      context.ownerProfile.profileId,
+      cursor,
+      SYNC_PULL_BATCH_LIMIT,
+    );
+    if (pulledBatch.length === 0) {
+      break;
+    }
+    const result = await appendPulledEncryptedEvents({
+      context,
+      encryptedEvents: pulledBatch,
+      materializeMarkdown: false,
+    });
+    insertedTotal += result.insertedCount;
+    cursor = pulledBatch.at(-1)?.lamport ?? cursor;
+    if (pulledBatch.length < SYNC_PULL_BATCH_LIMIT) {
+      break;
+    }
+  }
+  if (insertedTotal > 0 && context.flags.legacyMarkdownProjectionEnabled) {
+    await materializeLegacyMarkdownProjections({
+      db: context.db,
+      env: context.env,
+    });
+  }
+  return insertedTotal;
+}
+
+async function initializeCanonicalSyncRuntime(context: CanonicalStoreContext): Promise<void> {
+  const config = resolveCanonicalSyncConfig(context.env);
+  let profileRootKey =
+    (await loadProfileRootKey({
+      profileId: context.ownerProfile.profileId,
+      env: context.env,
+      stateDir: context.stateDir,
+    })) ?? null;
+  let lastError: string | undefined;
+  if (!profileRootKey && config.pairingCode) {
+    if (!config.pairingPassphrase) {
+      lastError = "memory sync pairing code requires ALISIO_MEMORY_SYNC_PAIRING_PASSPHRASE";
+    } else {
+      try {
+        const imported = await importProfileKeyFromPairingCode({
+          pairingCode: config.pairingCode,
+          passphrase: config.pairingPassphrase,
+          env: context.env,
+          stateDir: context.stateDir,
+        });
+        if (imported.profileId !== context.ownerProfile.profileId) {
+          lastError =
+            `memory sync pairing code targets ${imported.profileId},` +
+            ` expected ${context.ownerProfile.profileId}`;
+        } else {
+          profileRootKey = imported.profileRootKey;
+        }
+      } catch (error) {
+        lastError = `memory sync pairing import failed: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
+  }
+  const accessSession =
+    config.mode === "cloud" ? await getAlisioActiveCloudAccessSession(context.env) : null;
+  const availability = resolveMemorySyncAvailability({
+    enabled: config.enabled,
+    mode: config.mode,
+    directEnabled: false,
+    profileRootKeyAvailable: Boolean(profileRootKey),
+    relayBaseUrlConfigured: Boolean(config.relayBaseUrl),
+    accessTokenAvailable: Boolean(accessSession?.accessToken),
+  });
+  const runtimeLastError =
+    lastError ??
+    (availability.state === "blocked" ? describeSyncBlockedReason(availability.reason) : undefined);
+  context.sync = {
+    config,
+    availability,
+    transport:
+      availability.state === "active" && availability.mode === "cloud" && config.relayBaseUrl
+        ? createCloudRelayMemoryTransport({
+            baseUrl: config.relayBaseUrl,
+            getAccessToken: async () =>
+              (
+                (await getAlisioActiveCloudAccessSession(context.env))?.accessToken ??
+                accessSession?.accessToken
+              )?.trim() || undefined,
+          })
+        : availability.mode === "direct"
+          ? createDirectMemoryTransportStub()
+          : null,
+    crypto: profileRootKey ? createMemoryCrypto({ profileRootKey }) : null,
+    profileRootKey,
+    ...(runtimeLastError ? { lastError: runtimeLastError } : {}),
+  };
+  persistCanonicalSyncRuntimeState(context, {
+    cloudState: resolveSyncCloudState(context),
+    syncAvailability: availability.state,
+    syncModeConfigured: config.mode,
+    syncBlockedReason: normalizeSyncBlockedReason(availability.reason),
+    lastError: context.sync.lastError ?? null,
+  });
 }
 
 function currentProjectionPathsForPage(db: DatabaseSync, pageId: string): string[] {
@@ -2337,32 +3561,41 @@ function createCanonicalContext(params: {
   const deviceIdentity = loadOrCreateDeviceIdentity();
   const stateDir = resolveStateDir(env);
   const db = openCanonicalStore(baseStatus.path);
-  const flags = readFeatureFlags(params.cfg);
-  upsertCanonicalOwnerProfile({
-    db,
-    ownerProfile,
-    now: Date.now(),
-  });
-  upsertCanonicalReplica({
-    db,
-    ownerProfile,
-    workspaceScope: baseStatus.workspaceScope,
-    deviceId: deviceIdentity.deviceId,
-    stateDir,
-    now: Date.now(),
-  });
-  return {
-    env,
-    baseStatus,
-    ownerProfile,
-    deviceId: deviceIdentity.deviceId,
-    stateDir,
-    db,
-    flags,
-    backend: params.backend,
-    workspaceDir: params.workspaceDir,
-    encryptCheckpointSnapshot: params.encryptCheckpointSnapshot,
-  };
+  const ledger = openProfileMemoryLedger(ownerProfile.profileId, stateDir);
+  try {
+    const flags = readFeatureFlags(params.cfg);
+    upsertCanonicalOwnerProfile({
+      db,
+      ownerProfile,
+      now: Date.now(),
+    });
+    upsertCanonicalReplica({
+      db,
+      ownerProfile,
+      workspaceScope: baseStatus.workspaceScope,
+      deviceId: deviceIdentity.deviceId,
+      stateDir,
+      now: Date.now(),
+    });
+    return {
+      env,
+      baseStatus,
+      ownerProfile,
+      deviceId: deviceIdentity.deviceId,
+      stateDir,
+      db,
+      ledger,
+      flags,
+      backend: params.backend,
+      workspaceDir: params.workspaceDir,
+      sync: createInactiveSyncRuntime(env),
+      encryptCheckpointSnapshot: params.encryptCheckpointSnapshot,
+    };
+  } catch (error) {
+    ledger.close();
+    db.close();
+    throw error;
+  }
 }
 
 export function buildCanonicalMarkdownProjection(params: {
@@ -2407,10 +3640,8 @@ export async function memoryWriteEvent(params: {
 }): Promise<MemoryWriteEventResult> {
   const context = createCanonicalContext(params);
   try {
-    if (context.flags.ledgerEnabled) {
-      bootstrapDerivedState(context.db);
-      await migrateLegacyStateIfNeeded(context);
-    }
+    await initializeCanonicalLedgerState(context);
+    await initializeCanonicalSyncRuntime(context);
     return await applyEventDrafts({
       context,
       drafts: params.events,
@@ -2419,6 +3650,7 @@ export async function memoryWriteEvent(params: {
     });
   } finally {
     context.db.close();
+    context.ledger.close();
   }
 }
 
@@ -2427,9 +3659,7 @@ export async function memoryPullApplySync(params: {
   agentId: string;
   workspaceDir: string;
   backend: CanonicalStoreBackend;
-  plainEvents?: MemoryStateEventEnvelopePlain[];
-  encryptedEvents?: MemorySyncEncryptedEvent[];
-  decryptEvent?: (event: MemorySyncEncryptedEvent) => Promise<MemoryStateEventEnvelopePlain>;
+  encryptedEvents: EncryptedMemoryEvent[];
   env?: NodeJS.ProcessEnv;
   materializeMarkdown?: boolean;
   encryptCheckpointSnapshot?: (
@@ -2438,61 +3668,30 @@ export async function memoryPullApplySync(params: {
 }): Promise<MemoryPullApplySyncResult> {
   const context = createCanonicalContext(params);
   try {
-    bootstrapDerivedState(context.db);
-    await migrateLegacyStateIfNeeded(context);
-    const plainEvents = params.plainEvents
-      ? [...params.plainEvents]
-      : params.encryptedEvents && params.decryptEvent
-        ? await Promise.all(params.encryptedEvents.map((event) => params.decryptEvent!(event)))
-        : [];
-    if (params.encryptedEvents && !params.decryptEvent) {
-      throw new Error("E2EE sync requires a decryptEvent callback");
+    await initializeCanonicalLedgerState(context);
+    await initializeCanonicalSyncRuntime(context);
+    if (!context.sync.crypto) {
+      throw new Error("memory sync blocked: missing profile root key");
     }
-    const inserted = insertLedgerEvents(context.db, sortMemoryStateEvents(plainEvents));
-    if (
-      inserted.some((event) => event.lamport <= readMemoryStateMeta(context.db).lastAppliedLamport)
-    ) {
-      rebuildDerivedStateFromEvents({
-        db: context.db,
-        events: readLedgerEvents(context.db),
-        migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-      });
-    } else {
-      for (const event of inserted) {
-        applyEventToDerivedState({
-          db: context.db,
-          event,
-          migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
-        });
-      }
-    }
-    await createCheckpointIfNeeded({
-      db: context.db,
-      lastAppliedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
-      encryptCheckpointSnapshot: context.encryptCheckpointSnapshot,
+    const result = await appendPulledEncryptedEvents({
+      context,
+      encryptedEvents: params.encryptedEvents,
+      materializeMarkdown: params.materializeMarkdown,
     });
-    upsertCanonicalSyncState({
-      db: context.db,
-      profileId: context.ownerProfile.profileId,
-      workspaceScope: context.baseStatus.workspaceScope,
-      backend: context.backend,
-      now: Date.now(),
-      cloudState: inserted.length > 0 ? "enabled" : CANONICAL_STORE_CLOUD_SYNC,
+    persistCanonicalSyncRuntimeState(context, {
+      cloudState: params.encryptedEvents.length > 0 ? "enabled" : resolveSyncCloudState(context),
       lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+      lastSyncSuccessAt: Date.now(),
+      lastError: null,
     });
-    if (params.materializeMarkdown !== false && context.flags.legacyMarkdownProjectionEnabled) {
-      await materializeLegacyMarkdownProjections({
-        db: context.db,
-        env: context.env,
-      });
-    }
     return {
       status: buildReadyStatusFromContext(context),
-      appliedCount: inserted.length,
+      appliedCount: result.appliedCount,
       stateHash: computeMemoryStateHash(context.db),
     };
   } finally {
     context.db.close();
+    context.ledger.close();
   }
 }
 
@@ -2510,10 +3709,8 @@ export async function upsertCanonicalMemoryStructuredEntities(params: {
 }): Promise<CanonicalMemoryStoreStatus> {
   const context = createCanonicalContext(params);
   try {
-    if (context.flags.ledgerEnabled) {
-      bootstrapDerivedState(context.db);
-      await migrateLegacyStateIfNeeded(context);
-    }
+    await initializeCanonicalLedgerState(context);
+    await initializeCanonicalSyncRuntime(context);
     const batchId = `structured:${Date.now()}`;
     const drafts = params.entities.flatMap((entity) =>
       buildStructuredEntityEvents({
@@ -2532,6 +3729,7 @@ export async function upsertCanonicalMemoryStructuredEntities(params: {
     return result.status;
   } finally {
     context.db.close();
+    context.ledger.close();
   }
 }
 
@@ -2698,29 +3896,56 @@ export async function syncCanonicalMemoryStore(params: {
 }): Promise<CanonicalMemoryStoreStatus> {
   const context = createCanonicalContext(params);
   try {
-    if (!context.flags.ledgerEnabled) {
-      if (context.flags.legacyMarkdownProjectionEnabled) {
-        await materializeLegacyMarkdownProjections({
-          db: context.db,
-          env: context.env,
+    await initializeCanonicalLedgerState(context);
+    await initializeCanonicalSyncRuntime(context);
+    let syncFailed = false;
+    if (context.sync.availability.state === "active") {
+      try {
+        await pullEncryptedEventsFromRelay(context);
+        await pullRelayAckVector(context);
+      } catch (error) {
+        syncFailed = true;
+        persistCanonicalSyncRuntimeState(context, {
+          cloudState: resolveSyncCloudState(context, true),
+          lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+          lastError: `memory sync pull failed: ${error instanceof Error ? error.message : String(error)}`,
         });
       }
-      return buildReadyStatusFromContext(context);
+    } else {
+      persistCanonicalSyncRuntimeState(context, {
+        cloudState: resolveSyncCloudState(context),
+        lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+        lastError: context.sync.lastError ?? null,
+      });
     }
-    bootstrapDerivedState(context.db);
-    await migrateLegacyStateIfNeeded(context);
     await syncWorkspaceImports(context);
-    upsertCanonicalSyncState({
-      db: context.db,
-      profileId: context.ownerProfile.profileId,
-      workspaceScope: context.baseStatus.workspaceScope,
-      backend: context.backend,
-      now: Date.now(),
-      cloudState: CANONICAL_STORE_CLOUD_SYNC,
-      lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
-    });
+    if (context.sync.availability.state === "active") {
+      syncFailed = syncFailed || Boolean(context.sync.lastError);
+      if (!syncFailed) {
+        try {
+          await pushPendingEncryptedEvents(context);
+          await pullRelayAckVector(context);
+        } catch (error) {
+          syncFailed = true;
+          persistCanonicalSyncRuntimeState(context, {
+            cloudState: resolveSyncCloudState(context, true),
+            lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+            lastError: `memory sync finalization failed: ${error instanceof Error ? error.message : String(error)}`,
+          });
+        }
+      }
+      if (!syncFailed) {
+        persistCanonicalSyncRuntimeState(context, {
+          cloudState: resolveSyncCloudState(context),
+          lastSyncedLamport: readMemoryStateMeta(context.db).lastAppliedLamport,
+          lastSyncSuccessAt: Date.now(),
+          lastError: null,
+        });
+      }
+    }
     return buildReadyStatusFromContext(context);
   } finally {
     context.db.close();
+    context.ledger.close();
   }
 }

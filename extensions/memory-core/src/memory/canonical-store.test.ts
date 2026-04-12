@@ -9,11 +9,18 @@ import {
 } from "alisio/plugin-sdk/memory-core-state";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  createMemoryCrypto,
+  deriveProfileRootKey,
+  exportPairingCode,
+} from "../../../../packages/memory-crypto/src/index.js";
+import { openLedger } from "../../../../packages/memory-ledger/src/index.js";
+import {
   memoryPullApplySync,
   memoryWriteEvent,
   queryCanonicalMemoryGraph,
   syncCanonicalMemoryStore,
 } from "./canonical-store.js";
+import { listMemoryStateEventsSince } from "./ledger-interop.js";
 
 type TestWorkspace = {
   root: string;
@@ -64,6 +71,19 @@ function openDb(dbPath: string) {
   return new DatabaseSync(dbPath);
 }
 
+function withLedger<T>(
+  profileId: string,
+  stateDir: string,
+  run: (ledger: ReturnType<typeof openLedger>) => T,
+): T {
+  const ledger = openLedger(profileId, { stateDir });
+  try {
+    return run(ledger);
+  } finally {
+    ledger.close();
+  }
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
 });
@@ -103,9 +123,6 @@ describe("canonical memory store", () => {
 
       const db = openDb(status.path);
       try {
-        const ledgerCount = db.prepare(`SELECT COUNT(*) AS count FROM ledger_events`).get() as
-          | { count: number }
-          | undefined;
         const alphaProjection = db
           .prepare(
             `SELECT markdown_body
@@ -114,7 +131,13 @@ describe("canonical memory store", () => {
           )
           .get("legacy-markdown:memory/alpha.md") as { markdown_body: string } | undefined;
 
-        expect(ledgerCount?.count).toBe(status.ledgerEventsCount);
+        const ledgerCount = withLedger(
+          status.profileId,
+          test.stateDir,
+          (ledger) => ledger.getStats().eventCount,
+        );
+
+        expect(ledgerCount).toBe(status.ledgerEventsCount);
         expect(alphaProjection?.markdown_body).toContain("Alpha line.");
       } finally {
         db.close();
@@ -226,7 +249,7 @@ describe("canonical memory store", () => {
           graph.edges.map((edge) =>
             expect.objectContaining({
               id: `${edge.fromPageId}:${edge.relationType}:${edge.ordinal}:${edge.toPageId}`,
-            })
+            }),
           ),
         ),
       );
@@ -341,16 +364,15 @@ describe("canonical memory store", () => {
              WHERE page_id = ? AND kind = ?`,
           )
           .get(pageId, "legacy-markdown:memory/alpha.md") as { markdown_body: string } | undefined;
-        const eventTypes = db
-          .prepare(
-            `SELECT event_type
-             FROM ledger_events
-             ORDER BY lamport ASC`,
-          )
-          .all() as Array<{ event_type: string }>;
+        const eventTypes = withLedger(updated.status.profileId, test.stateDir, (ledger) =>
+          listMemoryStateEventsSince({
+            ledger,
+            lamportExclusive: 0,
+          }).map((event) => event.type),
+        );
 
         expect(projection?.markdown_body).toContain("Two.");
-        expect(eventTypes.map((row) => row.event_type)).toEqual([
+        expect(eventTypes).toEqual([
           "PAGE_CREATED",
           "DOC_CRDT_SNAPSHOT",
           "PROJECTION_SET",
@@ -375,6 +397,7 @@ describe("canonical memory store", () => {
     const target = await createTestWorkspace("alisio-canonical-memory-sync-target-");
 
     try {
+      const passphrase = "canonical sync pairing test";
       vi.stubEnv("ALISIO_STATE_DIR", source.stateDir);
       const sourceResult = await memoryWriteEvent({
         cfg: source.cfg,
@@ -408,9 +431,49 @@ describe("canonical memory store", () => {
         ],
       });
 
-      const encryptedEvents = sourceResult.events.map((event) => ({
-        ciphertext: Buffer.from(JSON.stringify(event), "utf8").toString("base64"),
-      }));
+      const sharedRootKey = await deriveProfileRootKey({
+        profileId: sourceResult.status.profileId,
+        passphrase,
+      });
+      const pairingCode = await exportPairingCode({
+        profileId: sourceResult.status.profileId,
+        profileRootKey: sharedRootKey,
+        passphrase,
+        sourceDeviceId: "gaia-device-a",
+      });
+      const crypto = createMemoryCrypto({ profileRootKey: sharedRootKey });
+      const sourceLedger = openLedger(sourceResult.status.profileId, {
+        stateDir: source.stateDir,
+      });
+      const encryptedEvents = await Promise.all(
+        sourceLedger.listEventsSince(0, 10).map(async (event) => {
+          if (event.payload.kind !== "plain") {
+            throw new Error("expected plain local ledger payload for sync test");
+          }
+          const cipher = await crypto.encryptEventPayload(
+            {
+              profileId: sourceResult.status.profileId,
+              deviceId: event.meta.deviceId,
+              lamport: event.meta.lamport,
+              eventType: event.meta.eventType,
+              schemaVersion: event.meta.schemaVersion,
+              eventId: event.meta.eventId,
+            },
+            event.payload.bytes,
+          );
+          return {
+            eventId: event.meta.eventId,
+            deviceId: event.meta.deviceId,
+            lamport: event.meta.lamport,
+            eventType: event.meta.eventType,
+            schemaVersion: event.meta.schemaVersion,
+            createdAtMs: event.meta.createdAtMs,
+            ciphertext: cipher.ciphertext,
+            nonce: cipher.nonce,
+          };
+        }),
+      );
+      sourceLedger.close();
 
       vi.stubEnv("ALISIO_STATE_DIR", target.stateDir);
       const syncResult = await memoryPullApplySync({
@@ -418,10 +481,13 @@ describe("canonical memory store", () => {
         agentId: "main",
         workspaceDir: target.workspaceDir,
         backend: "builtin",
-        env: { ...process.env, ALISIO_STATE_DIR: target.stateDir },
+        env: {
+          ...process.env,
+          ALISIO_STATE_DIR: target.stateDir,
+          ALISIO_MEMORY_SYNC_PAIRING_CODE: pairingCode,
+          ALISIO_MEMORY_SYNC_PAIRING_PASSPHRASE: passphrase,
+        },
         encryptedEvents,
-        decryptEvent: async (event) =>
-          JSON.parse(Buffer.from(event.ciphertext, "base64").toString("utf8")),
       });
 
       expect(syncResult.appliedCount).toBe(2);
@@ -513,23 +579,15 @@ describe("canonical memory store", () => {
               last_checkpoint_id: string | null;
             }
           | undefined;
-        const checkpoint = db
-          .prepare(
-            `SELECT checkpoint_id, encrypted_snapshot
-             FROM checkpoints
-             ORDER BY lamport DESC
-             LIMIT 1`,
-          )
-          .get() as
-          | {
-              checkpoint_id: string;
-              encrypted_snapshot: string | null;
-            }
-          | undefined;
+        const checkpoint = withLedger(reopened.profileId, test.stateDir, (ledger) =>
+          ledger.getLatestCheckpoint(),
+        );
 
         expect(meta?.last_applied_lamport).toBe(51);
-        expect(meta?.last_checkpoint_id).toBe(checkpoint?.checkpoint_id);
-        expect(checkpoint?.encrypted_snapshot).toBe("cipher-checkpoint");
+        expect(meta?.last_checkpoint_id).toBe(checkpoint?.checkpointId);
+        expect(
+          checkpoint?.payloadCipher ? Buffer.from(checkpoint.payloadCipher).toString("utf8") : null,
+        ).toBe("cipher-checkpoint");
       } finally {
         db.close();
       }
@@ -577,27 +635,21 @@ describe("canonical memory store", () => {
 
       const db = openDb(writeResult.status.path);
       try {
-        const eventTypes = db
-          .prepare(
-            `SELECT event_type
-             FROM ledger_events
-             ORDER BY lamport ASC`,
-          )
-          .all() as Array<{ event_type: string }>;
-        const checkpoint = db
-          .prepare(
-            `SELECT checkpoint_id
-             FROM checkpoints
-             ORDER BY lamport DESC
-             LIMIT 1`,
-          )
-          .get() as { checkpoint_id: string } | undefined;
+        const eventTypes = withLedger(writeResult.status.profileId, test.stateDir, (ledger) =>
+          listMemoryStateEventsSince({
+            ledger,
+            lamportExclusive: 0,
+          }).map((event) => ({ event_type: event.type })),
+        );
+        const checkpoint = withLedger(writeResult.status.profileId, test.stateDir, (ledger) =>
+          ledger.getLatestCheckpoint(),
+        );
 
         expect(eventTypes).toEqual([
           { event_type: "JOB_CHECKPOINT_UPDATED" },
           { event_type: "CHECKPOINT_CREATED" },
         ]);
-        expect(checkpoint?.checkpoint_id).toBeTruthy();
+        expect(checkpoint?.checkpointId).toBeTruthy();
       } finally {
         db.close();
       }

@@ -64,6 +64,7 @@ type CheckpointRow = {
   profile_id: string;
   covered_until_lamport: number | bigint;
   state_hash: string;
+  payload_plain: Uint8Array | null;
   payload_cipher: Uint8Array | null;
   created_at_ms: number | bigint;
 };
@@ -141,8 +142,22 @@ export type LedgerCheckpoint = {
   profileId: string;
   coveredUntilLamport: number;
   stateHash: HashHex;
+  payloadPlain?: Uint8Array;
   payloadCipher?: Uint8Array;
   createdAtMs: number;
+};
+
+export type LedgerCheckpointPayloadInput =
+  | Uint8Array
+  | {
+      plain?: Uint8Array;
+      cipher?: Uint8Array;
+    };
+
+export type LedgerStats = {
+  eventCount: number;
+  checkpointCount: number;
+  lastLamport: number;
 };
 
 export type CompactionPlan = {
@@ -188,9 +203,11 @@ export type MemoryLedger = {
     checkpointId: CheckpointId,
     coveredUntilLamport: number,
     stateHash: HashHex,
-    payloadCipher?: Uint8Array,
+    payload?: LedgerCheckpointPayloadInput,
   ): LedgerCheckpoint;
+  getCheckpoint(checkpointId: CheckpointId): LedgerCheckpoint | null;
   getLatestCheckpoint(): LedgerCheckpoint | null;
+  getStats(): LedgerStats;
   planCompaction(): CompactionPlan;
 };
 
@@ -520,7 +537,7 @@ class SqliteMemoryLedger implements MemoryLedger {
     checkpointId: CheckpointId,
     coveredUntilLamport: number,
     stateHash: HashHex,
-    payloadCipher?: Uint8Array,
+    payload?: LedgerCheckpointPayloadInput,
   ): LedgerCheckpoint {
     const normalizedCheckpointId = CheckpointIdSchema.parse(checkpointId);
     const normalizedCoveredUntil = normalizePositiveInteger(
@@ -528,7 +545,7 @@ class SqliteMemoryLedger implements MemoryLedger {
       "coveredUntilLamport",
     );
     const normalizedStateHash = normalizeSha256Hex(stateHash, "stateHash");
-    const normalizedPayloadCipher = payloadCipher ? copyBytes(payloadCipher) : undefined;
+    const normalizedPayload = normalizeCheckpointPayload(payload);
 
     const existing = this.statements.selectCheckpointById.get(normalizedCheckpointId) as
       | CheckpointRow
@@ -539,7 +556,8 @@ class SqliteMemoryLedger implements MemoryLedger {
         checkpoint.profileId !== this.profileId ||
         checkpoint.coveredUntilLamport !== normalizedCoveredUntil ||
         checkpoint.stateHash !== normalizedStateHash ||
-        !bytesEqual(checkpoint.payloadCipher, normalizedPayloadCipher)
+        !bytesEqual(checkpoint.payloadPlain, normalizedPayload.payloadPlain) ||
+        !bytesEqual(checkpoint.payloadCipher, normalizedPayload.payloadCipher)
       ) {
         throw new Error(
           `Checkpoint ${normalizedCheckpointId} already exists with different contents.`,
@@ -555,7 +573,12 @@ class SqliteMemoryLedger implements MemoryLedger {
         profile_id: this.profileId,
         covered_until_lamport: normalizedCoveredUntil,
         state_hash: normalizedStateHash,
-        payload_cipher: normalizedPayloadCipher ? toSqliteBlob(normalizedPayloadCipher) : null,
+        payload_plain: normalizedPayload.payloadPlain
+          ? toSqliteBlob(normalizedPayload.payloadPlain)
+          : null,
+        payload_cipher: normalizedPayload.payloadCipher
+          ? toSqliteBlob(normalizedPayload.payloadCipher)
+          : null,
         created_at_ms: createdAtMs,
       });
     });
@@ -565,9 +588,19 @@ class SqliteMemoryLedger implements MemoryLedger {
       profileId: this.profileId,
       coveredUntilLamport: normalizedCoveredUntil,
       stateHash: normalizedStateHash,
-      ...(normalizedPayloadCipher ? { payloadCipher: normalizedPayloadCipher } : {}),
+      ...(normalizedPayload.payloadPlain ? { payloadPlain: normalizedPayload.payloadPlain } : {}),
+      ...(normalizedPayload.payloadCipher
+        ? { payloadCipher: normalizedPayload.payloadCipher }
+        : {}),
       createdAtMs,
     };
+  }
+
+  getCheckpoint(checkpointId: CheckpointId): LedgerCheckpoint | null {
+    const row = this.statements.selectCheckpointById.get(CheckpointIdSchema.parse(checkpointId)) as
+      | CheckpointRow
+      | undefined;
+    return row ? rowToCheckpoint(row) : null;
   }
 
   getLatestCheckpoint(): LedgerCheckpoint | null {
@@ -575,6 +608,37 @@ class SqliteMemoryLedger implements MemoryLedger {
       | CheckpointRow
       | undefined;
     return row ? rowToCheckpoint(row) : null;
+  }
+
+  getStats(): LedgerStats {
+    const eventRow = this.db
+      .prepare(
+        `SELECT COUNT(*) AS event_count, MAX(lamport) AS last_lamport
+         FROM memory_events
+         WHERE profile_id = ?`,
+      )
+      .get(this.profileId) as
+      | {
+          event_count?: number | bigint | null;
+          last_lamport?: number | bigint | null;
+        }
+      | undefined;
+    const checkpointRow = this.db
+      .prepare(
+        `SELECT COUNT(*) AS checkpoint_count
+         FROM checkpoints
+         WHERE profile_id = ?`,
+      )
+      .get(this.profileId) as
+      | {
+          checkpoint_count?: number | bigint | null;
+        }
+      | undefined;
+    return {
+      eventCount: toNumber(eventRow?.event_count ?? 0),
+      checkpointCount: toNumber(checkpointRow?.checkpoint_count ?? 0),
+      lastLamport: toNumber(eventRow?.last_lamport ?? 0),
+    };
   }
 
   planCompaction(): CompactionPlan {
@@ -786,6 +850,7 @@ function createStatements(db: DatabaseSync): Statements {
         profile_id,
         covered_until_lamport,
         state_hash,
+        payload_plain,
         payload_cipher,
         created_at_ms
       FROM checkpoints
@@ -797,6 +862,7 @@ function createStatements(db: DatabaseSync): Statements {
         profile_id,
         covered_until_lamport,
         state_hash,
+        payload_plain,
         payload_cipher,
         created_at_ms
       ) VALUES (
@@ -804,6 +870,7 @@ function createStatements(db: DatabaseSync): Statements {
         @profile_id,
         @covered_until_lamport,
         @state_hash,
+        @payload_plain,
         @payload_cipher,
         @created_at_ms
       )
@@ -814,6 +881,7 @@ function createStatements(db: DatabaseSync): Statements {
         profile_id,
         covered_until_lamport,
         state_hash,
+        payload_plain,
         payload_cipher,
         created_at_ms
       FROM checkpoints
@@ -865,6 +933,7 @@ function migrateLedgerDatabase(
         profile_id TEXT NOT NULL,
         covered_until_lamport INTEGER NOT NULL,
         state_hash TEXT NOT NULL,
+        payload_plain BLOB NULL,
         payload_cipher BLOB NULL,
         created_at_ms INTEGER NOT NULL
       );
@@ -887,6 +956,7 @@ function migrateLedgerDatabase(
     ensureColumn(db, "memory_events", "event_hash", "TEXT NOT NULL DEFAULT ''");
     ensureColumn(db, "replica_acks", "ack_event_id", "TEXT NOT NULL DEFAULT ''");
     ensureColumn(db, "replica_acks", "updated_at_ms", "INTEGER NOT NULL DEFAULT 0");
+    ensureColumn(db, "checkpoints", "payload_plain", "BLOB NULL");
     ensureColumn(db, "checkpoints", "payload_cipher", "BLOB NULL");
     ensureColumn(db, "meta", "last_lamport", "INTEGER NOT NULL DEFAULT 0");
     ensureColumn(db, "meta", "last_event_hash", "TEXT NOT NULL DEFAULT ''");
@@ -1018,8 +1088,27 @@ function rowToCheckpoint(row: CheckpointRow): LedgerCheckpoint {
     profileId: row.profile_id,
     coveredUntilLamport: toNumber(row.covered_until_lamport),
     stateHash: row.state_hash,
+    ...(row.payload_plain ? { payloadPlain: copyBytes(row.payload_plain) } : {}),
     ...(row.payload_cipher ? { payloadCipher: copyBytes(row.payload_cipher) } : {}),
     createdAtMs: toNumber(row.created_at_ms),
+  };
+}
+
+function normalizeCheckpointPayload(payload?: LedgerCheckpointPayloadInput): {
+  payloadPlain?: Uint8Array;
+  payloadCipher?: Uint8Array;
+} {
+  if (!payload) {
+    return {};
+  }
+  if (payload instanceof Uint8Array) {
+    return {
+      payloadCipher: copyBytes(payload),
+    };
+  }
+  return {
+    ...(payload.plain ? { payloadPlain: copyBytes(payload.plain) } : {}),
+    ...(payload.cipher ? { payloadCipher: copyBytes(payload.cipher) } : {}),
   };
 }
 

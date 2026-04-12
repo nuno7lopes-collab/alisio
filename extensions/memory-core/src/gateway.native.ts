@@ -1,23 +1,21 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import JSZip from "jszip";
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
-import {
-  hashText,
-  requireNodeSqlite,
-} from "alisio/plugin-sdk/memory-core-host-engine-storage";
-import {
-  loadConfig,
-  resolveStateDir,
-} from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import { resolveAgentWorkspaceDir } from "alisio/plugin-sdk/memory-core-host-engine-foundation";
+import { hashText, requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
+import { loadConfig, resolveStateDir } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import { resolveMemoryBackendConfig } from "alisio/plugin-sdk/memory-core-host-runtime-files";
+import JSZip from "jszip";
 import {
   buildCanonicalMarkdownProjection,
   type CanonicalMemoryStructuredEntityInput,
   type CanonicalMemoryStoreStatus,
+  syncCanonicalMemoryStore,
   upsertCanonicalMemoryStructuredEntities,
 } from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
+import { readRecentMemoryLedgerEvents } from "./memory/ledger-interop.js";
 
 type GatewayRespond = GatewayRequestHandlerOptions["respond"];
 
@@ -31,6 +29,11 @@ type MemorySyncSurface = {
   lastSyncedLamport?: number;
   e2eeRequired?: true;
   state?: string;
+  mode?: string;
+  blockedReason?: string;
+  lastSuccessAt?: string;
+  lastAckLamport?: number;
+  pendingBacklog?: number;
   detail?: string;
 };
 
@@ -216,7 +219,10 @@ function normalizeNumber(value: unknown): number | null {
 }
 
 function normalizeDisplayPath(value: string): string {
-  const normalized = value.replace(/\\/g, "/").trim().replace(/^\.?\//, "");
+  const normalized = value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.?\//, "");
   const segments = normalized.split("/").filter(Boolean);
   if (
     segments.length === 0 ||
@@ -635,12 +641,36 @@ async function resolveNativeMemoryContext(params: {
     return null;
   }
   const cfg = loadConfig();
+  const tryDirectCanonicalStore = async (): Promise<NativeMemoryContext | null> => {
+    const workspaceDir = resolveAgentWorkspaceDir(cfg, agentId);
+    const backendConfig = resolveMemoryBackendConfig({ cfg, agentId });
+    if (!workspaceDir || !backendConfig) {
+      return null;
+    }
+    const canonicalStore = await syncCanonicalMemoryStore({
+      cfg,
+      agentId,
+      workspaceDir,
+      backend: backendConfig.backend,
+      env: process.env,
+    });
+    return {
+      cfg,
+      agentId,
+      canonicalStore,
+      async close() {},
+    };
+  };
   const { manager, error } = await getMemorySearchManager({
     cfg,
     agentId,
     purpose: "status",
   });
   if (!manager) {
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback) {
+      return fallback;
+    }
     respondGatewayError(
       params.respond,
       "UNAVAILABLE",
@@ -677,6 +707,10 @@ async function resolveNativeMemoryContext(params: {
     };
   } catch (error) {
     await manager.close?.().catch(() => {});
+    const fallback = await tryDirectCanonicalStore().catch(() => null);
+    if (fallback) {
+      return fallback;
+    }
     respondGatewayError(
       params.respond,
       "UNAVAILABLE",
@@ -692,11 +726,26 @@ function openCanonicalDb(status: CanonicalMemoryStoreStatus, readOnly = true): D
 }
 
 function buildSyncSurface(status: CanonicalMemoryStoreStatus): MemorySyncSurface {
+  const detailParts = [
+    `mode ${status.syncModeConfigured}`,
+    ...(status.syncBlockedReason ? [`blocked ${status.syncBlockedReason}`] : []),
+    ...(typeof status.lastAckLamport === "number" ? [`ack ${String(status.lastAckLamport)}`] : []),
+    ...(typeof status.pendingBacklog === "number"
+      ? [`backlog ${String(status.pendingBacklog)}`]
+      : []),
+    ...(status.lastSyncSuccessAt ? [`last success ${status.lastSyncSuccessAt}`] : []),
+    ...(status.lastError ? [status.lastError] : []),
+  ];
   return {
     lastSyncedLamport: status.lastSyncedLamport,
     e2eeRequired: true,
-    state: status.state,
-    ...(status.lastError ? { detail: status.lastError } : {}),
+    state: status.syncAvailability,
+    mode: status.syncModeConfigured,
+    ...(status.syncBlockedReason ? { blockedReason: status.syncBlockedReason } : {}),
+    ...(status.lastSyncSuccessAt ? { lastSuccessAt: status.lastSyncSuccessAt } : {}),
+    ...(typeof status.lastAckLamport === "number" ? { lastAckLamport: status.lastAckLamport } : {}),
+    ...(typeof status.pendingBacklog === "number" ? { pendingBacklog: status.pendingBacklog } : {}),
+    ...(detailParts.length > 0 ? { detail: detailParts.join("; ") } : {}),
   };
 }
 
@@ -994,65 +1043,53 @@ function summarizeLedgerEvent(eventType: string, payloadJson: string): string {
   return eventType.replace(/_/g, " ").toLowerCase();
 }
 
+function summarizeStateEvent(event: { type: string; payload: Record<string, unknown> }): string {
+  return summarizeLedgerEvent(event.type, JSON.stringify(event.payload));
+}
+
 function loadLatestRevision(
-  db: DatabaseSync,
+  canonicalStore: CanonicalMemoryStoreStatus,
   pageId: string,
 ): NativeWikiPage["revision"] | undefined {
-  const row = db
-    .prepare(
-      `SELECT event_id, lamport, actor_id, created_at_ms, event_type, payload_json
-       FROM ledger_events
-       WHERE page_id = ? AND event_type != 'CHECKPOINT_CREATED'
-       ORDER BY lamport DESC
-       LIMIT 1`,
-    )
-    .get(pageId) as
-    | {
-        event_id: string;
-        lamport: number | bigint;
-        actor_id: string;
-        created_at_ms: number | bigint;
-        event_type: string;
-        payload_json: string;
-      }
-    | undefined;
+  const row = readRecentMemoryLedgerEvents({
+    profileId: canonicalStore.profileId,
+    stateDir: canonicalStore.replica?.stateDir ?? resolveStateDir(process.env),
+    limit: 1,
+    pageId,
+    excludeTypes: new Set(["CHECKPOINT_CREATED"]),
+  })[0];
   if (!row) {
     return undefined;
   }
   return {
-    eventId: row.event_id,
-    lamport: normalizeNumber(row.lamport),
-    updatedAt: toIso(row.created_at_ms),
-    author: row.actor_id,
-    summary: summarizeLedgerEvent(row.event_type, row.payload_json),
+    eventId: row.eventId,
+    lamport: row.lamport,
+    updatedAt: toIso(row.createdAtMs),
+    author: row.actorId,
+    summary: summarizeStateEvent(row),
   };
 }
 
-function loadHistoryEntries(db: DatabaseSync, pageId: string, limit = 40): NativeHistoryEntry[] {
-  const rows = db
-    .prepare(
-      `SELECT event_id, lamport, actor_id, created_at_ms, event_type, payload_json
-       FROM ledger_events
-       WHERE page_id = ? AND event_type != 'CHECKPOINT_CREATED'
-       ORDER BY lamport DESC
-       LIMIT ?`,
-    )
-    .all(pageId, limit) as Array<{
-    event_id: string;
-    lamport: number | bigint;
-    actor_id: string;
-    created_at_ms: number | bigint;
-    event_type: string;
-    payload_json: string;
-  }>;
+function loadHistoryEntries(
+  canonicalStore: CanonicalMemoryStoreStatus,
+  pageId: string,
+  limit = 40,
+): NativeHistoryEntry[] {
+  const rows = readRecentMemoryLedgerEvents({
+    profileId: canonicalStore.profileId,
+    stateDir: canonicalStore.replica?.stateDir ?? resolveStateDir(process.env),
+    limit,
+    pageId,
+    excludeTypes: new Set(["CHECKPOINT_CREATED"]),
+  });
   return rows.map((row) => ({
-    eventId: row.event_id,
-    lamport: normalizeNumber(row.lamport) ?? 0,
-    at: toIso(row.created_at_ms) ?? new Date(0).toISOString(),
-    author: row.actor_id,
-    operation: row.event_type.toLowerCase(),
-    summary: summarizeLedgerEvent(row.event_type, row.payload_json),
-    diffSummary: summarizeLedgerEvent(row.event_type, row.payload_json),
+    eventId: row.eventId,
+    lamport: row.lamport,
+    at: toIso(row.createdAtMs) ?? new Date(0).toISOString(),
+    author: row.actorId,
+    operation: row.type.toLowerCase(),
+    summary: summarizeStateEvent(row),
+    diffSummary: summarizeStateEvent(row),
   }));
 }
 
@@ -1173,7 +1210,9 @@ function loadRelatedPagesForAttachment(
   });
 }
 
-function formatAttachmentProvenance(attachment: AttachmentRow): Array<{ label: string; value: string }> {
+function formatAttachmentProvenance(
+  attachment: AttachmentRow,
+): Array<{ label: string; value: string }> {
   return [
     { label: "Blob", value: attachment.blob_id },
     { label: "SHA-256", value: attachment.sha256 },
@@ -1199,7 +1238,10 @@ function loadRelatedFilesForPage(
   const loweredBody = body.toLowerCase();
   return loadAttachments(db)
     .filter((attachment) => {
-      const attachmentName = resolveAttachmentName(attachment.blob_id, attachment.mime).toLowerCase();
+      const attachmentName = resolveAttachmentName(
+        attachment.blob_id,
+        attachment.mime,
+      ).toLowerCase();
       return (
         loweredBody.includes(String(attachment.blob_id).toLowerCase()) ||
         loweredBody.includes(String(attachment.sha256).toLowerCase()) ||
@@ -1234,7 +1276,7 @@ function buildWikiPageDetail(params: {
   const evidence = loadEvidence(params.db, identity, body);
   const backlinks = loadBacklinks(params.db, params.pageId);
   const relatedFiles = loadRelatedFilesForPage(params.db, body) ?? [];
-  const revision = loadLatestRevision(params.db, params.pageId);
+  const revision = loadLatestRevision(params.canonicalStore, params.pageId);
   const provenance = [
     { label: "Path", value: identity.path },
     { label: "Page ID", value: identity.pageId },
@@ -1303,9 +1345,7 @@ function buildWikiPageDetail(params: {
     ...(trace ? { trace } : {}),
     ...(traceSummary ? { traceSummary } : {}),
     contextPreview: {
-      ...(contextSummaryParts.length > 0
-        ? { summary: contextSummaryParts.join(" • ") }
-        : {}),
+      ...(contextSummaryParts.length > 0 ? { summary: contextSummaryParts.join(" • ") } : {}),
       ...(reasonTags.length > 0 ? { reasonTags } : {}),
       ...(trace ? { trace } : {}),
       ...(traceSummary ? { traceSummary } : {}),
@@ -1485,10 +1525,7 @@ function loadTraceById(
   }
 }
 
-function buildWikiListResult(params: {
-  db: DatabaseSync;
-  query?: string;
-}) {
+function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
   const rows = params.db
     .prepare(
       `SELECT
@@ -1536,8 +1573,7 @@ function buildWikiListResult(params: {
       const title = normalizeString(row.title) || pageId;
       const slug = normalizeString(row.slug) || pageId.toLowerCase();
       const pagePath =
-        parseLegacyProjectionPath(normalizeString(row.projection_kind)) ??
-        `memory/${slug}.md`;
+        parseLegacyProjectionPath(normalizeString(row.projection_kind)) ?? `memory/${slug}.md`;
       const markdown = normalizeString(row.markdown_body);
       const parsed = parseFrontmatter(markdown);
       const body = parsed.body;
@@ -1688,10 +1724,7 @@ function buildFileEntry(params: {
   };
 }
 
-function buildFilesListResult(params: {
-  db: DatabaseSync;
-  query?: string;
-}) {
+function buildFilesListResult(params: { db: DatabaseSync; query?: string }) {
   const attachments = loadAttachments(params.db);
   const query = normalizeString(params.query);
   const candidateCount = attachments.length;
@@ -1735,24 +1768,26 @@ async function buildExportResult(params: {
 }) {
   const pages = buildWikiListResult({
     db: params.db,
-  }).map((page) => {
-    const detail = buildWikiPageDetail({
-      db: params.db,
-      canonicalStore: params.canonicalStore,
-      pageId: page.id,
-    });
-    return detail
-      ? {
-          id: detail.id,
-          title: detail.title,
-          path: detail.path,
-          content: detail.content,
-          backlinks: detail.backlinks.map((entry) => entry.path),
-          claims: detail.claims.map((entry) => entry.claim),
-          evidence: detail.evidence.map((entry) => entry.source ?? entry.id ?? ""),
-        }
-      : null;
-  }).filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  })
+    .map((page) => {
+      const detail = buildWikiPageDetail({
+        db: params.db,
+        canonicalStore: params.canonicalStore,
+        pageId: page.id,
+      });
+      return detail
+        ? {
+            id: detail.id,
+            title: detail.title,
+            path: detail.path,
+            content: detail.content,
+            backlinks: detail.backlinks.map((entry) => entry.path),
+            claims: detail.claims.map((entry) => entry.claim),
+            evidence: detail.evidence.map((entry) => entry.source ?? entry.id ?? ""),
+          }
+        : null;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const attachments = loadAttachments(params.db).map((attachment) => ({
     id: attachment.blob_id,
     name: resolveAttachmentName(attachment.blob_id, attachment.mime),
@@ -2050,7 +2085,7 @@ export async function handleMemoryWikiHistoryGatewayRequest({
       {
         agentId: context.agentId,
         pageId,
-        history: loadHistoryEntries(db, pageId),
+        history: loadHistoryEntries(context.canonicalStore, pageId),
       },
       undefined,
     );

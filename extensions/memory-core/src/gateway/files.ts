@@ -1,8 +1,9 @@
-import type { DatabaseSync } from "node:sqlite";
 import path from "node:path";
+import type { DatabaseSync } from "node:sqlite";
 import type { GatewayRequestHandlerOptions } from "alisio/plugin-sdk/core";
 import { requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
-import { loadConfig } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import { loadConfig, resolveStateDir } from "alisio/plugin-sdk/memory-core-host-runtime-core";
+import { readAttachmentOriginsFromLedger } from "../memory/ledger-interop.js";
 import type { CanonicalMemoryStoreStatus } from "./memory/canonical-store.js";
 import { getMemorySearchManager } from "./memory/index.js";
 
@@ -18,6 +19,11 @@ type MemorySyncSurface = {
   lastSyncedLamport?: number;
   e2eeRequired?: true;
   state?: string;
+  mode?: string;
+  blockedReason?: string;
+  lastSuccessAt?: string;
+  lastAckLamport?: number;
+  pendingBacklog?: number;
   detail?: string;
 };
 
@@ -170,7 +176,10 @@ function summarizeText(value: string, maxChars: number): string {
 }
 
 function normalizeDisplayPath(value: string): string {
-  const normalized = value.replace(/\\/g, "/").trim().replace(/^\.?\//, "");
+  const normalized = value
+    .replace(/\\/g, "/")
+    .trim()
+    .replace(/^\.?\//, "");
   const segments = normalized.split("/").filter(Boolean);
   if (
     segments.length === 0 ||
@@ -453,11 +462,26 @@ function openCanonicalDb(status: CanonicalMemoryStoreStatus): DatabaseSync {
 }
 
 function buildSyncSurface(status: CanonicalMemoryStoreStatus): MemorySyncSurface {
+  const detailParts = [
+    `mode ${status.syncModeConfigured}`,
+    ...(status.syncBlockedReason ? [`blocked ${status.syncBlockedReason}`] : []),
+    ...(typeof status.lastAckLamport === "number" ? [`ack ${String(status.lastAckLamport)}`] : []),
+    ...(typeof status.pendingBacklog === "number"
+      ? [`backlog ${String(status.pendingBacklog)}`]
+      : []),
+    ...(status.lastSyncSuccessAt ? [`last success ${status.lastSyncSuccessAt}`] : []),
+    ...(status.lastError ? [status.lastError] : []),
+  ];
   return {
     lastSyncedLamport: status.lastSyncedLamport,
     e2eeRequired: true,
-    state: status.state,
-    ...(status.lastError ? { detail: status.lastError } : {}),
+    state: status.syncAvailability,
+    mode: status.syncModeConfigured,
+    ...(status.syncBlockedReason ? { blockedReason: status.syncBlockedReason } : {}),
+    ...(status.lastSyncSuccessAt ? { lastSuccessAt: status.lastSyncSuccessAt } : {}),
+    ...(typeof status.lastAckLamport === "number" ? { lastAckLamport: status.lastAckLamport } : {}),
+    ...(typeof status.pendingBacklog === "number" ? { pendingBacklog: status.pendingBacklog } : {}),
+    ...(detailParts.length > 0 ? { detail: detailParts.join("; ") } : {}),
   };
 }
 
@@ -514,39 +538,23 @@ function readPageLink(db: DatabaseSync, pageId: string): NativeMemoryFileLink | 
   };
 }
 
-function escapeLike(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
+function loadAttachmentOrigins(
+  canonicalStore: CanonicalMemoryStoreStatus,
+  attachment: AttachmentRow,
+): AttachmentLedgerOrigin[] {
+  return readAttachmentOriginsFromLedger({
+    profileId: canonicalStore.profileId,
+    stateDir: canonicalStore.replica?.stateDir ?? resolveStateDir(process.env),
+    blobId: attachment.blob_id,
+    sha256: attachment.sha256,
+  }).map((origin) => ({
+    ...origin,
+    pageId: origin.pageId ?? null,
+  }));
 }
 
-function loadAttachmentOrigins(db: DatabaseSync, attachment: AttachmentRow): AttachmentLedgerOrigin[] {
-  const rows = db
-    .prepare(
-      `SELECT event_id, lamport, actor_id, created_at_ms, page_id
-       FROM ledger_events
-       WHERE event_type = 'ATTACHMENT_ADDED'
-         AND (
-           payload_json LIKE ? ESCAPE '\\'
-           OR payload_json LIKE ? ESCAPE '\\'
-         )
-       ORDER BY lamport DESC, event_id DESC`,
-    )
-    .all(
-      `%\"blobId\":\"${escapeLike(attachment.blob_id)}\"%`,
-      `%${escapeLike(attachment.sha256)}%`,
-    ) as Array<{
-    event_id: string;
-    lamport: number | bigint;
-    actor_id: string;
-    created_at_ms: number | bigint;
-    page_id: string | null;
-  }>;
-  return rows.map((row) => ({
-    eventId: row.event_id,
-    lamport: normalizeNumber(row.lamport) ?? 0,
-    actorId: row.actor_id,
-    createdAt: toIso(row.created_at_ms),
-    pageId: row.page_id,
-  }));
+function escapeLike(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
 }
 
 function loadMentionedPagesForAttachment(
@@ -738,7 +746,7 @@ function buildFileEntry(params: {
   const name = resolveAttachmentName(params.attachment.blob_id, params.attachment.mime);
   const updatedAtMs = normalizeNumber(params.attachment.created_at_ms);
   const query = normalizeString(params.query);
-  const origins = loadAttachmentOrigins(params.db, params.attachment);
+  const origins = loadAttachmentOrigins(params.canonicalStore, params.attachment);
   const relatedPages = buildRelatedPages(params.db, params.attachment, origins);
   const primaryOriginRaw = origins[0] ?? null;
   const primaryOrigin = buildPrimaryOrigin(params.db, primaryOriginRaw);
@@ -753,7 +761,10 @@ function buildFileEntry(params: {
         {
           title: [name],
           alias: [params.attachment.blob_id],
-          path: [params.attachment.sha256, ...(relatedPages[0]?.path ? [relatedPages[0].path] : [])],
+          path: [
+            params.attachment.sha256,
+            ...(relatedPages[0]?.path ? [relatedPages[0].path] : []),
+          ],
           tag: [params.attachment.mime, previewKind, ...relatedPages.map((entry) => entry.title)],
           body: [
             params.attachment.sha256,

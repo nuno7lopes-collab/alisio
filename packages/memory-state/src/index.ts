@@ -508,7 +508,6 @@ export function rebuildDerivedStateFromEvents(params: {
   writeMemoryStateMeta(params.db, {
     migrationVersion: params.migrationVersion ?? meta.migrationVersion,
     lastAppliedLamport: 0,
-    lastCheckpointId: meta.lastCheckpointId,
   });
   let lastAppliedLamport = 0;
   for (const event of sortMemoryStateEvents(params.events)) {
