@@ -47,6 +47,7 @@ const DEFAULT_PERSON_WRITING_PREFERENCES = [
 const PERSON_STARTER_TOOL_ALLOW = [
   "agents_list",
   "browser",
+  "memory_graph",
   "memory_get",
   "memory_search",
   "read",

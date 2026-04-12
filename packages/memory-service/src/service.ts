@@ -61,6 +61,7 @@ export type RetrieveContextInput = {
   agentId: string;
   sessionKey?: string;
   queryText: string;
+  minScore?: number;
   budgets: MemoryRetrievalBudgets;
   modes: MemoryRetrievalModes;
 };
@@ -187,6 +188,35 @@ export function estimateTokenCount(value: string): number {
   return Math.max(1, Math.ceil(trimmed.length / 4));
 }
 
+export function computeMemoryItemScore(
+  item: Pick<MemoryContextItem, "scoreBreakdown" | "reasonCodes">,
+): number {
+  let total =
+    item.scoreBreakdown.recency * 0.22 +
+    item.scoreBreakdown.confidence * 0.24 +
+    item.scoreBreakdown.lexical * 0.24 +
+    item.scoreBreakdown.vector * 0.2 +
+    item.scoreBreakdown.userFeedback * 0.1;
+
+  if (item.reasonCodes.includes("pinned")) {
+    total += 0.2;
+  }
+  if (item.reasonCodes.includes("exact_match")) {
+    total += 0.14;
+  }
+  if (item.reasonCodes.includes("high_confidence_claim")) {
+    total += 0.1;
+  }
+  if (item.reasonCodes.includes("linked")) {
+    total += 0.08;
+  }
+  if (item.reasonCodes.includes("frequent_recall")) {
+    total += 0.04;
+  }
+
+  return clamp01(total);
+}
+
 export function isPrivateMemoryAllowed(params: {
   sessionKey?: string;
   agentId: string;
@@ -274,7 +304,12 @@ export function createMemoryService(options: MemoryServiceOptions = {}): MemoryS
         ...normalizedByLayer.L2.items,
         ...normalizedByLayer.L3.items,
       ]);
-      const ranked = rankItems(deduped);
+      const ranked = rankItems(deduped).filter(
+        (item) =>
+          input.minScore === undefined ||
+          !Number.isFinite(input.minScore) ||
+          computeMemoryItemScore(item) >= clamp01(input.minScore),
+      );
       candidateCounts.L4 = ranked.length;
 
       const selectedRanked = selectRankedWithinBudget(ranked, remainingBudget, {
@@ -463,7 +498,7 @@ function dedupeItems(items: MemoryContextItem[]): MemoryContextItem[] {
       item.provenance.sourceLocator ||
       `${item.kind}:${item.title}`;
     const existing = deduped.get(key);
-    if (!existing || combinedScore(item) > combinedScore(existing)) {
+    if (!existing || computeMemoryItemScore(item) > computeMemoryItemScore(existing)) {
       deduped.set(key, item);
     }
   }
@@ -472,8 +507,8 @@ function dedupeItems(items: MemoryContextItem[]): MemoryContextItem[] {
 
 function rankItems(items: MemoryContextItem[]): MemoryContextItem[] {
   return items.toSorted((left, right) => {
-    const rightScore = combinedScore(right);
-    const leftScore = combinedScore(left);
+    const rightScore = computeMemoryItemScore(right);
+    const leftScore = computeMemoryItemScore(left);
     if (rightScore !== leftScore) {
       return rightScore - leftScore;
     }
@@ -531,7 +566,7 @@ function selectMmrItems(
       if (tokens + tokenCount > budgets.maxTokens) {
         continue;
       }
-      const relevance = combinedScore(candidate);
+      const relevance = computeMemoryItemScore(candidate);
       const noveltyPenalty = selected.length
         ? Math.max(...selected.map((entry) => similarityScore(entry, candidate)))
         : 0;
@@ -555,33 +590,6 @@ function selectMmrItems(
   }
 
   return { items: selected, tokens };
-}
-
-function combinedScore(item: MemoryContextItem): number {
-  let total =
-    item.scoreBreakdown.recency * 0.22 +
-    item.scoreBreakdown.confidence * 0.24 +
-    item.scoreBreakdown.lexical * 0.24 +
-    item.scoreBreakdown.vector * 0.2 +
-    item.scoreBreakdown.userFeedback * 0.1;
-
-  if (item.reasonCodes.includes("pinned")) {
-    total += 0.2;
-  }
-  if (item.reasonCodes.includes("exact_match")) {
-    total += 0.14;
-  }
-  if (item.reasonCodes.includes("high_confidence_claim")) {
-    total += 0.1;
-  }
-  if (item.reasonCodes.includes("linked")) {
-    total += 0.08;
-  }
-  if (item.reasonCodes.includes("frequent_recall")) {
-    total += 0.04;
-  }
-
-  return total;
 }
 
 function similarityScore(left: MemoryContextItem, right: MemoryContextItem): number {

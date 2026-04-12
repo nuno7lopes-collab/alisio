@@ -80,7 +80,12 @@
     "memory_get": {
       "emoji": "📓",
       "title": "Memory Get",
-      "detailKeys": ["path", "from", "lines"]
+      "detailKeys": ["projectionId", "pageId", "from", "lines"]
+    },
+    "memory_graph": {
+      "emoji": "🕸️",
+      "title": "Memory Graph",
+      "detailKeys": ["query", "direction"]
     },
     "web_search": {
       "emoji": "🔎",

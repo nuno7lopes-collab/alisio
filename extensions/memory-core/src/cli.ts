@@ -42,7 +42,7 @@ async function runMemoryGraph(queryArg: string | undefined, opts: MemoryGraphCom
 export function registerMemoryCli(program: Command) {
   const memory = program
     .command("memory")
-    .description("Search, inspect, and reindex memory files")
+    .description("Search, inspect, and sync native memory")
     .addHelpText(
       "after",
       () =>
@@ -74,7 +74,7 @@ export function registerMemoryCli(program: Command) {
 
   memory
     .command("index")
-    .description("Reindex memory files")
+    .description("Sync native memory state")
     .option("--agent <id>", "Agent id (default: default agent)")
     .option("--force", "Force full reindex", false)
     .option("--verbose", "Verbose logging", false)
@@ -84,7 +84,7 @@ export function registerMemoryCli(program: Command) {
 
   memory
     .command("search")
-    .description("Search memory files")
+    .description("Search native memory")
     .argument("[query]", "Search query")
     .option("--query <text>", "Search query (alternative to positional argument)")
     .option("--agent <id>", "Agent id (default: default agent)")

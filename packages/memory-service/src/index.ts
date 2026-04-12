@@ -1,4 +1,5 @@
 export {
+  computeMemoryItemScore,
   createDisabledShareGrantStore,
   createMemoryService,
   createNoopGaiaMemoryFacade,

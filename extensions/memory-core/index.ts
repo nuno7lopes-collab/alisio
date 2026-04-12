@@ -7,6 +7,16 @@ import {
   DEFAULT_MEMORY_FLUSH_SOFT_TOKENS,
 } from "./src/flush-plan.js";
 import { handleMemoryGraphGatewayRequest } from "./src/gateway.js";
+import {
+  handleMemoryExportGatewayRequest,
+  handleMemoryFilesGetGatewayRequest,
+  handleMemoryFilesListGatewayRequest,
+  handleMemoryTraceGetGatewayRequest,
+  handleMemoryWikiGetGatewayRequest,
+  handleMemoryWikiHistoryGatewayRequest,
+  handleMemoryWikiListGatewayRequest,
+  handleMemoryWikiUpdateGatewayRequest,
+} from "./src/gateway.native.js";
 import { registerBuiltInMemoryEmbeddingProviders } from "./src/memory/provider-adapters.js";
 import { buildPromptSection } from "./src/prompt-section.js";
 import { memoryRuntime } from "./src/runtime-provider.js";
@@ -22,7 +32,7 @@ export { buildPromptSection } from "./src/prompt-section.js";
 export default definePluginEntry({
   id: "memory-core",
   name: "Memory (Core)",
-  description: "File-backed memory search tools and CLI",
+  description: "Native memory retrieval tools and CLI",
   kind: "memory",
   register(api) {
     registerBuiltInMemoryEmbeddingProviders(api);
@@ -30,6 +40,30 @@ export default definePluginEntry({
     api.registerMemoryFlushPlan(buildMemoryFlushPlan);
     api.registerMemoryRuntime(memoryRuntime);
     api.registerGatewayMethod("memory.graph", handleMemoryGraphGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.wiki.list", handleMemoryWikiListGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.wiki.get", handleMemoryWikiGetGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.wiki.update", handleMemoryWikiUpdateGatewayRequest, {
+      scope: "operator.write",
+    });
+    api.registerGatewayMethod("memory.wiki.history", handleMemoryWikiHistoryGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.files.list", handleMemoryFilesListGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.files.get", handleMemoryFilesGetGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.trace.get", handleMemoryTraceGetGatewayRequest, {
+      scope: "operator.read",
+    });
+    api.registerGatewayMethod("memory.export", handleMemoryExportGatewayRequest, {
       scope: "operator.read",
     });
 
@@ -68,7 +102,7 @@ export default definePluginEntry({
         descriptors: [
           {
             name: "memory",
-            description: "Search, inspect, and reindex memory files",
+            description: "Search, inspect, and sync native memory",
             hasSubcommands: true,
           },
         ],

@@ -62,8 +62,9 @@ export const FALLBACK_TOOL_SECTIONS: AgentToolSection[] = [
     id: "memory",
     label: "Memory",
     tools: [
-      { id: "memory_search", label: "memory_search", description: "Semantic search" },
-      { id: "memory_get", label: "memory_get", description: "Read memory files" },
+      { id: "memory_search", label: "memory_search", description: "Layered memory recall" },
+      { id: "memory_get", label: "memory_get", description: "Read stable memory locators" },
+      { id: "memory_graph", label: "memory_graph", description: "Inspect memory relationships" },
     ],
   },
   {

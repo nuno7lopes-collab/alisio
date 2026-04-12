@@ -19,6 +19,7 @@ import {
   createCanonicalStableId,
 } from "../../../packages/memory-schema/src/index.js";
 import {
+  computeMemoryItemScore,
   createDisabledShareGrantStore,
   createMemoryService,
   estimateTokenCount,
@@ -310,6 +311,7 @@ export function createMemorySearchTool(options: {
             agentId,
             sessionKey: options.agentSessionKey,
             queryText: query,
+            ...(typeof minScore === "number" ? { minScore } : {}),
             budgets: {
               maxTokens: resolveSearchBudgetTokens(resolved.qmd?.limits.maxInjectedChars),
               maxItems: resolveSearchBudgetItems(maxResults),
@@ -1063,7 +1065,7 @@ function mapContextItemsToToolResults(items: MemoryContextItem[]): ToolSearchRes
     path: item.provenance.sourceLocator,
     startLine: resolveStartLine(item),
     endLine: resolveEndLine(item),
-    score: combinedItemScore(item.scoreBreakdown),
+    score: computeMemoryItemScore(item),
     snippet: item.text,
     source: "memory",
     layer: item.layer === "L1" || item.layer === "L2" || item.layer === "L3" ? item.layer : "L3",
@@ -1788,16 +1790,6 @@ function resolveEndLine(item: MemoryContextItem): number {
   return typeof item.metadata?.endLine === "number"
     ? item.metadata.endLine
     : resolveStartLine(item);
-}
-
-function combinedItemScore(score: RetrievalScoreBreakdown): number {
-  return clampScore(
-    score.lexical * 0.4 +
-      score.vector * 0.25 +
-      score.confidence * 0.2 +
-      score.recency * 0.1 +
-      score.userFeedback * 0.05,
-  );
 }
 
 function decorateSearchResults(

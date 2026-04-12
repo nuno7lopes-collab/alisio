@@ -111,6 +111,7 @@ describe("resolveSubagentToolPolicy depth awareness", () => {
       },
     } as unknown as AlisioConfig;
     const policy = resolveSubagentToolPolicy(cfg, 1);
+    expect(isToolAllowedByPolicyName("memory_graph", policy)).toBe(true);
     expect(isToolAllowedByPolicyName("memory_search", policy)).toBe(false);
     expect(isToolAllowedByPolicyName("memory_get", policy)).toBe(false);
   });
@@ -149,6 +150,7 @@ describe("resolveSubagentToolPolicy depth awareness", () => {
     const policy = resolveSubagentToolPolicy(baseCfg, 1);
     expect(isToolAllowedByPolicyName("gateway", policy)).toBe(false);
     expect(isToolAllowedByPolicyName("cron", policy)).toBe(false);
+    expect(isToolAllowedByPolicyName("memory_graph", policy)).toBe(true);
     expect(isToolAllowedByPolicyName("memory_search", policy)).toBe(true);
     expect(isToolAllowedByPolicyName("memory_get", policy)).toBe(true);
   });
@@ -222,6 +224,7 @@ describe("resolveSubagentToolPolicy depth awareness", () => {
     const policy = resolveSubagentToolPolicyForSession(cfg, "agent:main:subagent:flat-leaf");
     expect(isToolAllowedByPolicyName("sessions_spawn", policy)).toBe(false);
     expect(isToolAllowedByPolicyName("subagents", policy)).toBe(false);
+    expect(isToolAllowedByPolicyName("memory_graph", policy)).toBe(true);
     expect(isToolAllowedByPolicyName("memory_search", policy)).toBe(true);
     expect(isToolAllowedByPolicyName("memory_get", policy)).toBe(true);
   });

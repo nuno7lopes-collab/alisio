@@ -37,7 +37,7 @@ import {
 import { getHeader, normalizeGatewayRequestMessageChannel } from "./http-request-helpers.js";
 
 const DEFAULT_BODY_BYTES = 2 * 1024 * 1024;
-const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get"]);
+const MEMORY_TOOL_NAMES = new Set(["memory_search", "memory_get", "memory_graph"]);
 
 type ToolsInvokeBody = {
   tool?: unknown;

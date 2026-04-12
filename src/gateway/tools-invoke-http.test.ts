@@ -685,4 +685,30 @@ describe("POST /tools/invoke", () => {
     expect(body.result?.observedFormat).toBe("pdf");
     expect(body.result?.observedFileFormat).toBeUndefined();
   });
+
+  it("treats memory_graph as a memory tool for HTTP test-disable gating", async () => {
+    cfg = {
+      ...cfg,
+      plugins: {
+        slots: {
+          memory: "none",
+        },
+      },
+    };
+
+    const res = await invokeToolAuthed({
+      tool: "memory_graph",
+      args: { query: "atlas" },
+      sessionKey: "main",
+    });
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      ok: false,
+      error: {
+        type: "invalid_request",
+        message: expect.stringContaining("memory tools are disabled in tests"),
+      },
+    });
+  });
 });

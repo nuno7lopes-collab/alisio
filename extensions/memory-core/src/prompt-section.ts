@@ -15,27 +15,25 @@ export const buildPromptSection: MemoryPromptSectionBuilder = ({
   let toolGuidance: string;
   if (hasMemorySearch && hasMemoryGet) {
     toolGuidance =
-      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on the configured memory roots (legacy files, any configured Obsidian memory directory, and optional session transcripts); then use memory_get to pull only the needed lines. Use memory_graph when the user is asking how notes or memories relate, because it reads the structured canonical store under the Markdown vault projection. If low confidence after search, say you checked.";
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search first; then use memory_get with projectionId or pageId to read only the needed lines. Use memory_graph when the user is asking how memories or decisions relate. If low confidence after checking, say you checked.";
   } else if (hasMemorySearch) {
     toolGuidance =
-      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search on the configured memory roots and answer from the matching results. Use memory_graph for explicit note-to-note relationships. If low confidence after search, say you checked.";
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos: run memory_search and answer from the layered results. Use memory_graph for explicit memory relationships. If low confidence after checking, say you checked.";
   } else if (hasMemoryGet) {
     toolGuidance =
-      "Before answering anything about prior work, decisions, dates, people, preferences, or todos that already point to a specific memory file or note: run memory_get to pull only the needed lines. If low confidence after reading them, say you checked.";
+      "Before answering anything about prior work, decisions, dates, people, preferences, or todos that already point to a stable memory locator: run memory_get to pull only the needed lines. If low confidence after reading them, say you checked.";
   } else {
     toolGuidance =
-      "When the user is asking how memories, notes, or decisions relate: run memory_graph to inspect the structured canonical memory graph under the Markdown vault projection. If low confidence after checking it, say you checked.";
+      "When the user is asking how memories or decisions relate: run memory_graph to inspect the structured canonical memory graph. If low confidence after checking it, say you checked.";
   }
 
   const lines = ["## Memory Recall", toolGuidance];
   if (citationsMode === "off") {
     lines.push(
-      "Citations are disabled: do not mention file paths or line numbers in replies unless the user explicitly asks.",
+      "Citations are disabled: do not mention memory locators or line numbers in replies unless the user explicitly asks.",
     );
   } else {
-    lines.push(
-      "Citations: include Source: <path#line> when it helps the user verify memory snippets.",
-    );
+    lines.push("Citations: include Source: <locator#line> when it helps verify memory snippets.");
   }
   lines.push("");
   return lines;

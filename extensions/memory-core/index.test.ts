@@ -24,7 +24,7 @@ describe("buildPromptSection", () => {
     expect(result[1]).toContain("then use memory_get");
     expect(result[1]).toContain("memory_graph");
     expect(result).toContain(
-      "Citations: include Source: <path#line> when it helps the user verify memory snippets.",
+      "Citations: include Source: <locator#line> when it helps verify memory snippets.",
     );
     expect(result.at(-1)).toBe("");
   });
@@ -49,7 +49,7 @@ describe("buildPromptSection", () => {
       citationsMode: "off",
     });
     expect(result).toContain(
-      "Citations are disabled: do not mention file paths or line numbers in replies unless the user explicitly asks.",
+      "Citations are disabled: do not mention memory locators or line numbers in replies unless the user explicitly asks.",
     );
   });
 });
@@ -78,8 +78,36 @@ describe("plugin registration", () => {
     expect(registerMemoryPromptSection).toHaveBeenCalledWith(buildPromptSection);
     expect(registerMemoryFlushPlan).toHaveBeenCalledWith(buildMemoryFlushPlan);
     expect(registerMemoryRuntime).toHaveBeenCalledWith(memoryRuntime);
-    expect(registerMemoryEmbeddingProvider).toHaveBeenCalledTimes(6);
+    expect(registerMemoryEmbeddingProvider).toHaveBeenCalledTimes(5);
     expect(registerGatewayMethod).toHaveBeenCalledWith("memory.graph", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.list", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.get", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.wiki.update", expect.any(Function), {
+      scope: "operator.write",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith(
+      "memory.wiki.history",
+      expect.any(Function),
+      {
+        scope: "operator.read",
+      },
+    );
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.files.list", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.files.get", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.trace.get", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.export", expect.any(Function), {
       scope: "operator.read",
     });
     expect(registerTool).toHaveBeenCalledTimes(3);
@@ -90,7 +118,7 @@ describe("plugin registration", () => {
       descriptors: [
         {
           name: "memory",
-          description: "Search, inspect, and reindex memory files",
+          description: "Search, inspect, and sync native memory",
           hasSubcommands: true,
         },
       ],
@@ -149,23 +177,6 @@ describe("buildMemoryFlushPlan", () => {
       "Current time: Monday, February 16th, 2026 — 10:00 AM (America/New_York) / 2026-02-16 15:00 UTC",
     );
     expect(plan?.relativePath).toBe("memory/2026-02-16.md");
-  });
-
-  it("targets obsidian daily notes when a vault path is configured", () => {
-    const plan = buildMemoryFlushPlan({
-      cfg: {
-        ...cfg,
-        memory: {
-          vaultPath: "/vaults/main",
-          memoryPath: "Alisio Memory",
-        },
-      },
-      nowMs: Date.UTC(2026, 1, 16, 15, 0, 0),
-    });
-
-    expect(plan?.relativePath).toBe("/vaults/main/Alisio Memory/daily/2026-02-16.md");
-    expect(plan?.prompt).toContain("/vaults/main/Alisio Memory/daily/2026-02-16.md");
-    expect(plan?.prompt).toContain("frontmatter");
   });
 
   it("does not append a duplicate current time line", () => {

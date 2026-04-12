@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMemoryService, type GaiaMemoryFacade, type MemoryContextItem } from "./index.js";
+import {
+  computeMemoryItemScore,
+  createMemoryService,
+  type GaiaMemoryFacade,
+  type MemoryContextItem,
+} from "./index.js";
 
 function createTraceRecorder() {
   const recordRetrievalTrace = vi.fn<GaiaMemoryFacade["recordRetrievalTrace"]>();
@@ -60,7 +65,8 @@ function createBaseService(overrides?: {
               userFeedback: 0.1,
             },
             provenance: {
-              sourceLocator: "projection:claim-1",
+              sourceLocator:
+                "memory://profiles/local-main/pages/page-claim-1/projections/projection-claim-1",
               evidenceIds: ["claim-1", "proof-1"],
             },
             locator: { pageId: "page-claim-1", projectionId: "projection-claim-1" },
@@ -84,7 +90,8 @@ function createBaseService(overrides?: {
               userFeedback: 0.2,
             },
             provenance: {
-              sourceLocator: "memory/project-atlas.md",
+              sourceLocator:
+                "memory://profiles/local-main/pages/page-1/projections/projection-page-1",
               evidenceIds: ["projection-page-1"],
             },
             locator: { pageId: "page-1", projectionId: "projection-page-1" },
@@ -191,6 +198,76 @@ describe("@alisio/memory-service", () => {
     });
 
     expect(result.items.every((item) => item.reasonCodes.length > 0)).toBe(true);
+  });
+
+  it("applies minScore before the final ranked selection", async () => {
+    const { service } = createBaseService({
+      alwaysVisible: [],
+      workingSet: [],
+      structured: [],
+      textSearch: [
+        {
+          id: "strong",
+          layer: "L3",
+          kind: "page",
+          title: "Strong",
+          text: "Strong exact match",
+          reasonCodes: ["exact_match"],
+          scoreBreakdown: {
+            recency: 0.4,
+            confidence: 0.7,
+            lexical: 0.95,
+            vector: 0.9,
+            userFeedback: 0,
+          },
+          provenance: {
+            sourceLocator:
+              "memory://profiles/local-main/pages/page-strong/projections/projection-strong",
+            evidenceIds: ["projection-strong"],
+          },
+          tokenCount: 5,
+        },
+        {
+          id: "weak",
+          layer: "L3",
+          kind: "page",
+          title: "Weak",
+          text: "Weak fuzzy match",
+          reasonCodes: ["exact_match"],
+          scoreBreakdown: {
+            recency: 0.1,
+            confidence: 0.15,
+            lexical: 0.2,
+            vector: 0.1,
+            userFeedback: 0,
+          },
+          provenance: {
+            sourceLocator:
+              "memory://profiles/local-main/pages/page-weak/projections/projection-weak",
+            evidenceIds: ["projection-weak"],
+          },
+          tokenCount: 5,
+        },
+      ],
+    });
+
+    const result = await service.retrieveContext({
+      profileId: "local-main",
+      agentId: "main",
+      sessionKey: "agent:main:discord:dm:u123",
+      queryText: "atlas",
+      minScore: 0.6,
+      budgets: { maxTokens: 40, maxItems: 6 },
+      modes: {
+        includeWorkingSet: true,
+        includeClaims: true,
+        includePages: true,
+        includeFiles: true,
+      },
+    });
+
+    expect(result.items.map((item) => item.id)).toEqual(["strong"]);
+    expect(computeMemoryItemScore(result.items[0])).toBeGreaterThanOrEqual(0.6);
   });
 
   it("blocks private working-set items outside private sessions by default", async () => {

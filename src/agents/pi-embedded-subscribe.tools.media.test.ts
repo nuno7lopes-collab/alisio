@@ -265,6 +265,10 @@ describe("extractToolResultMediaPaths", () => {
     expect(isToolResultMediaTrusted("image_generate")).toBe(true);
   });
 
+  it("trusts memory_graph local MEDIA paths", () => {
+    expect(isToolResultMediaTrusted("memory_graph")).toBe(true);
+  });
+
   it("does not trust local MEDIA paths for MCP-provenance results", () => {
     expect(
       filterToolResultMediaUrls("browser", ["/tmp/screenshot.png"], {

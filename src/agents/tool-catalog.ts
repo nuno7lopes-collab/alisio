@@ -116,7 +116,7 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   {
     id: "memory_search",
     label: "memory_search",
-    description: "Semantic search",
+    description: "Layered memory recall",
     sectionId: "memory",
     profiles: ["coding"],
     includeInAlisioGroup: true,
@@ -124,7 +124,15 @@ const CORE_TOOL_DEFINITIONS: CoreToolDefinition[] = [
   {
     id: "memory_get",
     label: "memory_get",
-    description: "Read memory files",
+    description: "Read stable memory locators",
+    sectionId: "memory",
+    profiles: ["coding"],
+    includeInAlisioGroup: true,
+  },
+  {
+    id: "memory_graph",
+    label: "memory_graph",
+    description: "Inspect memory relationships",
     sectionId: "memory",
     profiles: ["coding"],
     includeInAlisioGroup: true,

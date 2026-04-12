@@ -1,4 +1,5 @@
 import { Type } from "@sinclair/typebox";
+import { optionalStringEnum } from "alisio/plugin-sdk/core";
 import {
   resolveMemorySearchConfig,
   resolveSessionAgentId,
@@ -33,9 +34,7 @@ export const MemoryGetSchema = Type.Object({
 
 export const MemoryGraphSchema = Type.Object({
   query: Type.String(),
-  direction: Type.Optional(
-    Type.Union([Type.Literal("incoming"), Type.Literal("outgoing"), Type.Literal("both")]),
-  ),
+  direction: optionalStringEnum(["incoming", "outgoing", "both"] as const),
   matchLimit: Type.Optional(Type.Number()),
   relationLimit: Type.Optional(Type.Number()),
 });
