@@ -161,7 +161,7 @@ describe("config io paths", () => {
     });
   });
 
-  it("loads configs that still contain removed legacy memory keys", async () => {
+  it("loads configs that still contain deprecated memory path keys", async () => {
     await withTempHome(async (home) => {
       const configDir = path.join(home, ".alisio");
       await fs.mkdir(configDir, { recursive: true });
@@ -174,7 +174,6 @@ describe("config io paths", () => {
               backend: "builtin",
               vaultPath: "~/Vault",
               memoryPath: "memory",
-              obsidianReadOnly: { enabled: true },
             },
           },
           null,
@@ -193,7 +192,6 @@ describe("config io paths", () => {
       expect(snapshot.valid).toBe(true);
       expect(snapshot.legacyIssues.map((issue) => issue.path).toSorted()).toEqual([
         "memory.memoryPath",
-        "memory.obsidianReadOnly",
         "memory.vaultPath",
       ]);
       expect(snapshot.sourceConfig.memory).toEqual({

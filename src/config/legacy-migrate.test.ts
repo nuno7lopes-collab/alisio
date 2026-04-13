@@ -51,28 +51,24 @@ describe("legacy migrate audio transcription", () => {
   });
 });
 
-describe("legacy migrate removed memory config keys", () => {
-  it("removes obsolete memory path keys and preserves native settings", () => {
+describe("legacy migrate deprecated memory path keys", () => {
+  it("removes deprecated memory path keys and preserves native settings", () => {
     const res = migrateLegacyConfig({
       memory: {
         backend: "builtin",
         vaultPath: "~/Vault",
         memoryPath: "memory",
-        obsidianReadOnly: {
-          enabled: true,
-        },
       },
     });
 
     expect(res.changes).toContain("Removed memory.vaultPath.");
     expect(res.changes).toContain("Removed memory.memoryPath.");
-    expect(res.changes).toContain("Removed memory.obsidianReadOnly.");
     expect(res.config?.memory).toEqual({
       backend: "builtin",
     });
   });
 
-  it("removes the whole memory block when it only contained obsolete legacy keys", () => {
+  it("removes the whole memory block when it only contained deprecated path keys", () => {
     const res = migrateLegacyConfig({
       memory: {
         vaultPath: "~/Vault",
@@ -81,7 +77,7 @@ describe("legacy migrate removed memory config keys", () => {
 
     expect(res.changes).toContain("Removed memory.vaultPath.");
     expect(res.changes).toContain(
-      "Removed empty memory block after deleting obsolete legacy memory keys.",
+      "Removed empty memory block after deleting deprecated memory path keys.",
     );
     expect(res.config?.memory).toBeUndefined();
   });

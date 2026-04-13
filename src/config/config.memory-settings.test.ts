@@ -67,11 +67,11 @@ describe("config memory settings", () => {
     );
   });
 
-  it("rejects unknown legacy memory keys", () => {
-    const legacyVaultKey = ["vault", "Path"].join("");
+  it("rejects unknown deprecated memory keys", () => {
+    const deprecatedVaultKey = ["vault", "Path"].join("");
     const result = validateConfigObject({
       memory: {
-        [legacyVaultKey]: "vaults/main",
+        [deprecatedVaultKey]: "vaults/main",
       },
     });
 
@@ -82,28 +82,11 @@ describe("config memory settings", () => {
     expect(result.issues.length).toBeGreaterThan(0);
   });
 
-  it("rejects unexpected legacy subpath keys", () => {
-    const legacyPathKey = ["memory", "Path"].join("");
+  it("rejects unexpected deprecated memory subpath keys", () => {
+    const deprecatedPathKey = ["memory", "Path"].join("");
     const result = validateConfigObject({
       memory: {
-        [legacyPathKey]: "../escape",
-      },
-    });
-
-    expect(result.ok).toBe(false);
-    if (result.ok) {
-      throw new Error("expected validation to fail");
-    }
-    expect(result.issues.length).toBeGreaterThan(0);
-  });
-
-  it("rejects removed legacy connector config", () => {
-    const legacyConnectorKey = ["obsi", "dian", "ReadOnly"].join("");
-    const result = validateConfigObject({
-      memory: {
-        [legacyConnectorKey]: {
-          enabled: true,
-        },
+        [deprecatedPathKey]: "../escape",
       },
     });
 
