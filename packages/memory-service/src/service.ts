@@ -98,6 +98,7 @@ export type GaiaRetrievalTraceRecord = {
     retrieval_selected_count: number;
     retrieval_budget_tokens: number;
     isolation_denies_count: number;
+    retrieval_trace_events_total: number;
   };
 };
 
@@ -249,6 +250,10 @@ export function createMemoryService(options: MemoryServiceOptions = {}): MemoryS
   return {
     async retrieveContext(input) {
       const startedAt = Date.now();
+      const crossAgentAccessDenied = isCrossAgentAccessDenied({
+        sessionKey: input.sessionKey,
+        agentId: input.agentId,
+      });
       const privateAllowed = isPrivateMemoryAllowed({
         sessionKey: input.sessionKey,
         agentId: input.agentId,
@@ -271,18 +276,40 @@ export function createMemoryService(options: MemoryServiceOptions = {}): MemoryS
           options.layers?.alwaysVisible,
           input,
           privateAllowed,
+          crossAgentAccessDenied,
           grants,
         ),
         L1: input.modes.includeWorkingSet
-          ? await normalizeLayer("L1", options.layers?.workingSet, input, privateAllowed, grants)
+          ? await normalizeLayer(
+              "L1",
+              options.layers?.workingSet,
+              input,
+              privateAllowed,
+              crossAgentAccessDenied,
+              grants,
+            )
           : { items: [], deniedCount: 0 },
         L2:
           input.modes.includeClaims || input.modes.includePages
-            ? await normalizeLayer("L2", options.layers?.structured, input, privateAllowed, grants)
+            ? await normalizeLayer(
+                "L2",
+                options.layers?.structured,
+                input,
+                privateAllowed,
+                crossAgentAccessDenied,
+                grants,
+              )
             : { items: [], deniedCount: 0 },
         L3:
           input.modes.includePages || input.modes.includeFiles
-            ? await normalizeLayer("L3", options.layers?.textSearch, input, privateAllowed, grants)
+            ? await normalizeLayer(
+                "L3",
+                options.layers?.textSearch,
+                input,
+                privateAllowed,
+                crossAgentAccessDenied,
+                grants,
+              )
             : { items: [], deniedCount: 0 },
       };
 
@@ -350,6 +377,7 @@ export function createMemoryService(options: MemoryServiceOptions = {}): MemoryS
             retrieval_selected_count: trace.selectedCount,
             retrieval_budget_tokens: trace.budgetUsed.tokens,
             isolation_denies_count: trace.isolation.deniedCount,
+            retrieval_trace_events_total: 1,
           },
         });
       }
@@ -369,6 +397,7 @@ async function normalizeLayer(
   supplier: MemoryServiceLayerSupplier | undefined,
   input: RetrieveContextInput,
   privateAllowed: boolean,
+  crossAgentAccessDenied: boolean,
   grants: MemoryShareGrantStore,
 ): Promise<NormalizedLayer> {
   if (!supplier) {
@@ -383,7 +412,7 @@ async function normalizeLayer(
     if (!isKindAllowed(normalized, input.modes)) {
       continue;
     }
-    if (await isItemVisible(normalized, input, privateAllowed, grants)) {
+    if (await isItemVisible(normalized, input, privateAllowed, crossAgentAccessDenied, grants)) {
       accepted.push(normalized);
       continue;
     }
@@ -435,25 +464,38 @@ async function isItemVisible(
   item: MemoryContextItem,
   input: RetrieveContextInput,
   privateAllowed: boolean,
+  crossAgentAccessDenied: boolean,
   grants: MemoryShareGrantStore,
 ): Promise<boolean> {
-  if (item.visibility === "public") {
+  const hasGrant = await grants.hasGrant({
+    profileId: input.profileId,
+    agentId: input.agentId,
+    sessionKey: input.sessionKey,
+    item,
+  });
+  if (hasGrant) {
     return true;
   }
-  if (
-    await grants.hasGrant({
-      profileId: input.profileId,
-      agentId: input.agentId,
-      sessionKey: input.sessionKey,
-      item,
-    })
-  ) {
+  if (crossAgentAccessDenied) {
+    return item.layer === "L0";
+  }
+  if (item.visibility === "public") {
     return true;
   }
   if (item.visibility === "shared") {
     return false;
   }
   return privateAllowed;
+}
+
+function isCrossAgentAccessDenied(params: { sessionKey?: string; agentId: string }): boolean {
+  const scope = parseSessionScope(params.sessionKey);
+  const scopedAgentId = scope.agentId?.trim().toLowerCase();
+  const targetAgentId = params.agentId.trim().toLowerCase();
+  if (!scopedAgentId || !targetAgentId) {
+    return false;
+  }
+  return scopedAgentId !== targetAgentId;
 }
 
 function isKindAllowed(item: MemoryContextItem, modes: MemoryRetrievalModes): boolean {

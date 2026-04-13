@@ -26,6 +26,7 @@ describe("memory_graph tool", () => {
         pageId: string;
         title: string;
         reasonCodes?: string[];
+        scoreBreakdown?: { lexical: number; confidence: number };
         provenance?: { sourceLocator: string };
         relations: Array<{
           direction: string;
@@ -41,6 +42,10 @@ describe("memory_graph tool", () => {
           pageId: fixture.atlasPageId,
           title: "Project Atlas",
           reasonCodes: expect.arrayContaining(["exact_match", "linked"]),
+          scoreBreakdown: expect.objectContaining({
+            lexical: expect.any(Number),
+            confidence: expect.any(Number),
+          }),
           provenance: expect.objectContaining({
             sourceLocator: fixture.atlasLocator,
           }),

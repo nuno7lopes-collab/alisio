@@ -112,7 +112,6 @@ type CanonicalClaimRecord = {
 
 type CanonicalStoreReader = {
   status: CanonicalMemoryStoreStatus;
-  findProjectionByPath(path: string): CanonicalProjectionRecord | null;
   findProjectionByProjectionId(projectionId: string): CanonicalProjectionRecord | null;
   findProjectionByPageId(pageId: string): CanonicalProjectionRecord | null;
   isPagePrivate(pageId: string): boolean;
@@ -236,70 +235,22 @@ export function createMemorySearchTool(options: {
               });
 
         if (!canonicalStore || !reader) {
-          if (!flags.emergencyLegacyFallbackEnabled) {
-            await recordSimpleRetrievalTrace({
-              gaia: toolGaia,
-              profileId,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "native_store_unavailable",
-              selectedCount: 0,
-              deniedCount: 0,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            reader?.close();
-            return jsonResult(
-              buildMemorySearchUnavailableResult("native canonical memory store unavailable"),
-            );
-          }
-          try {
-            const fallback = await buildFallbackSearchResult({
-              manager: memory.manager,
-              query,
-              maxResults,
-              minScore,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              agentId,
-              profileId,
-              gaia: toolGaia,
-              startedAtMs,
-            });
-            const decorated = decorateSearchResults(fallback.results, includeCitations);
-            const results =
-              status.backend === "qmd"
-                ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars)
-                : decorated;
-            reader?.close();
-            return jsonResult({
-              results,
-              trace: fallback.trace,
-              budgetUsed: fallback.trace.budgetUsed,
-              provider: status.provider,
-              model: status.model,
-              fallback: status.fallback,
-              citations: citationsMode,
-              mode: "emergency-fallback",
-            });
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            await recordSimpleRetrievalTrace({
-              gaia: toolGaia,
-              profileId,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "emergency_fallback_unavailable",
-              selectedCount: 0,
-              deniedCount: 0,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            reader?.close();
-            return jsonResult(buildMemorySearchUnavailableResult(message));
-          }
+          await recordSimpleRetrievalTrace({
+            gaia: toolGaia,
+            profileId,
+            agentId,
+            sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
+            reason: "native_store_unavailable",
+            selectedCount: 0,
+            deniedCount: 0,
+            budgetTokens: 0,
+            startedAtMs,
+          });
+          reader?.close();
+          return jsonResult(
+            buildMemorySearchUnavailableResult("native canonical memory store unavailable"),
+          );
         }
 
         try {
@@ -378,64 +329,19 @@ export function createMemorySearchTool(options: {
           });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          if (!flags.emergencyLegacyFallbackEnabled) {
-            await recordSimpleRetrievalTrace({
-              gaia: toolGaia,
-              profileId,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "native_retrieval_failed",
-              selectedCount: 0,
-              deniedCount: 0,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            return jsonResult(buildMemorySearchUnavailableResult(message));
-          }
-          try {
-            const fallback = await buildFallbackSearchResult({
-              manager: memory.manager,
-              query,
-              maxResults,
-              minScore,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              agentId,
-              profileId,
-              gaia: toolGaia,
-              startedAtMs,
-            });
-            const decorated = decorateSearchResults(fallback.results, includeCitations);
-            const results =
-              status.backend === "qmd"
-                ? clampResultsByInjectedChars(decorated, resolved.qmd?.limits.maxInjectedChars)
-                : decorated;
-            return jsonResult({
-              results,
-              trace: fallback.trace,
-              budgetUsed: fallback.trace.budgetUsed,
-              provider: status.provider,
-              model: status.model,
-              fallback: status.fallback,
-              citations: citationsMode,
-              mode: "emergency-fallback",
-            });
-          } catch {
-            await recordSimpleRetrievalTrace({
-              gaia: toolGaia,
-              profileId,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "emergency_fallback_unavailable",
-              selectedCount: 0,
-              deniedCount: 0,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            return jsonResult(buildMemorySearchUnavailableResult(message));
-          }
+          await recordSimpleRetrievalTrace({
+            gaia: toolGaia,
+            profileId,
+            agentId,
+            sessionKey: options.agentSessionKey,
+            privateOnlyEnabled: flags.privateOnlyEnabled,
+            reason: "native_retrieval_failed",
+            selectedCount: 0,
+            deniedCount: 0,
+            budgetTokens: 0,
+            startedAtMs,
+          });
+          return jsonResult(buildMemorySearchUnavailableResult(message));
         } finally {
           reader?.close();
         }
@@ -460,10 +366,8 @@ export function createMemoryGetTool(options: {
         const startedAtMs = Date.now();
         const projectionId = readOptionalString(params, "projectionId");
         const pageId = readOptionalString(params, "pageId");
-        const path = readOptionalString(params, "path");
         const from = readNumberParam(params, "from", { integer: true });
         const lines = readNumberParam(params, "lines", { integer: true });
-        const { readAgentMemoryFile } = await loadMemoryToolRuntime();
         const flags = resolveRetrievalFlags(cfg);
         const gaia = createGaiaFacade({
           cfg,
@@ -472,67 +376,6 @@ export function createMemoryGetTool(options: {
           sessionKey: options.agentSessionKey,
           enabled: flags.tracingEnabled,
         });
-        if (!projectionId && !pageId && path && flags.emergencyLegacyFallbackEnabled) {
-          const privateAllowed = isPrivateMemoryAllowed({
-            sessionKey: options.agentSessionKey,
-            agentId,
-            profileId: `agent:${agentId}`,
-            privateOnlyEnabled: flags.privateOnlyEnabled,
-          });
-          if (!privateAllowed && isSessionLikePath(path)) {
-            await recordSimpleRetrievalTrace({
-              gaia,
-              profileId: `agent:${agentId}`,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "private_denied",
-              selectedCount: 0,
-              deniedCount: 1,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            return jsonResult({ text: "", path, disabled: true, error: "private memory denied" });
-          }
-
-          try {
-            const result = await readAgentMemoryFile({
-              cfg,
-              agentId,
-              relPath: path,
-              from: from ?? undefined,
-              lines: lines ?? undefined,
-            });
-            await recordSimpleRetrievalTrace({
-              gaia,
-              profileId: `agent:${agentId}`,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "emergency_legacy_path",
-              selectedCount: result.text.trim() ? 1 : 0,
-              deniedCount: 0,
-              budgetTokens: estimateTokenCount(result.text),
-              startedAtMs,
-            });
-            return jsonResult(result);
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            await recordSimpleRetrievalTrace({
-              gaia,
-              profileId: `agent:${agentId}`,
-              agentId,
-              sessionKey: options.agentSessionKey,
-              privateOnlyEnabled: flags.privateOnlyEnabled,
-              reason: "read_error",
-              selectedCount: 0,
-              deniedCount: 0,
-              budgetTokens: 0,
-              startedAtMs,
-            });
-            return jsonResult({ path, text: "", disabled: true, error: message });
-          }
-        }
         const memory = await getMemoryManagerContextWithPurpose({
           cfg,
           agentId,
@@ -544,7 +387,6 @@ export function createMemoryGetTool(options: {
         const resolvedRecord = resolveLocatorRecord(reader, {
           projectionId,
           pageId,
-          path: flags.emergencyLegacyFallbackEnabled ? path : undefined,
         });
         const stableLocator = resolvedRecord?.sourceLocator ?? "";
 
@@ -908,17 +750,6 @@ function openCanonicalStoreReader(
     const claims = loadClaimRecords(db, status, pagePrivacy);
     return {
       status,
-      findProjectionByPath(path) {
-        const normalizedPath = normalizeRelativePath(path);
-        if (!normalizedPath) {
-          return null;
-        }
-        return (
-          projections.find(
-            (projection) => normalizeRelativePath(projection.displayPath ?? "") === normalizedPath,
-          ) ?? null
-        );
-      },
       findProjectionByProjectionId(projectionId) {
         return projections.find((projection) => projection.projectionId === projectionId) ?? null;
       },
@@ -1159,67 +990,6 @@ function mapContextItemsToToolResults(items: MemoryContextItem[]): ToolSearchRes
   }));
 }
 
-async function buildFallbackSearchResult(params: {
-  manager: MemorySearchManager;
-  query: string;
-  maxResults?: number;
-  minScore?: number;
-  sessionKey?: string;
-  privateOnlyEnabled: boolean;
-  agentId: string;
-  profileId: string;
-  gaia: GaiaMemoryFacade;
-  startedAtMs?: number;
-}): Promise<{ results: ToolSearchResult[]; trace: MemoryRetrievalTrace }> {
-  const privateAllowed = isPrivateMemoryAllowed({
-    sessionKey: params.sessionKey,
-    agentId: params.agentId,
-    profileId: params.profileId,
-    privateOnlyEnabled: params.privateOnlyEnabled,
-  });
-  const rawResults = await params.manager.search(params.query, {
-    maxResults: params.maxResults,
-    minScore: params.minScore,
-    sessionKey: params.sessionKey,
-  });
-  const results = rawResults
-    .filter((entry) => privateAllowed || entry.source !== "sessions")
-    .map((entry) =>
-      searchResultToToolResult(entry, {
-        layer: entry.source === "sessions" ? "L1" : "L3",
-        reasonCodes: entry.source === "sessions" ? ["recent"] : ["exact_match"],
-      }),
-    );
-  const trace = createTracePayload({
-    profileId: params.profileId,
-    agentId: params.agentId,
-    sessionKey: params.sessionKey,
-    privateAllowed,
-    budgetTokens: results.reduce((sum, result) => sum + estimateTokenCount(result.snippet), 0),
-    selectedCount: results.length,
-    deniedCount: rawResults.length - results.length,
-    timeMs: Math.max(0, Date.now() - (params.startedAtMs ?? Date.now())),
-    candidateCounts: {
-      L0: 0,
-      L1: results.filter((entry) => entry.layer === "L1").length,
-      L2: 0,
-      L3: results.filter((entry) => entry.layer === "L3").length,
-      L4: results.length,
-    },
-    topFactors: results.flatMap((result) => result.reasonCodes ?? []).slice(0, 4),
-  });
-  await params.gaia.recordRetrievalTrace({
-    trace,
-    metrics: {
-      retrieval_latency_ms: trace.timeMs,
-      retrieval_selected_count: trace.selectedCount,
-      retrieval_budget_tokens: trace.budgetUsed.tokens,
-      isolation_denies_count: trace.isolation.deniedCount,
-    },
-  });
-  return { results, trace };
-}
-
 async function recordSimpleRetrievalTrace(params: {
   gaia: GaiaMemoryFacade;
   profileId: string;
@@ -1263,6 +1033,7 @@ async function recordSimpleRetrievalTrace(params: {
       retrieval_selected_count: trace.selectedCount,
       retrieval_budget_tokens: trace.budgetUsed.tokens,
       isolation_denies_count: trace.isolation.deniedCount,
+      retrieval_trace_events_total: 1,
     },
   });
 }
@@ -1688,32 +1459,9 @@ function claimRecordToContextItem(claim: CanonicalClaimRecord, query: string): M
   };
 }
 
-function searchResultToToolResult(
-  entry: MemorySearchResult,
-  params: { layer: "L1" | "L3"; reasonCodes: string[] },
-): ToolSearchResult {
-  return {
-    ...entry,
-    layer: params.layer,
-    reasonCodes: params.reasonCodes,
-    displayPath: entry.path,
-    scoreBreakdown: {
-      recency: params.layer === "L1" ? 0.9 : 0.35,
-      confidence: entry.score >= 0.8 ? 0.8 : 0.56,
-      lexical: clampScore(entry.score),
-      vector: clampScore(entry.score * 0.85),
-      userFeedback: 0,
-    },
-    provenance: {
-      sourceLocator: entry.path,
-      evidenceIds: [`${entry.path}:${entry.startLine}-${entry.endLine}`],
-    },
-  };
-}
-
 function resolveLocatorRecord(
   reader: CanonicalStoreReader | null,
-  params: { projectionId?: string; pageId?: string; path?: string },
+  params: { projectionId?: string; pageId?: string },
 ) {
   if (reader && params.projectionId) {
     const projection = reader.findProjectionByProjectionId(params.projectionId);
@@ -1723,12 +1471,6 @@ function resolveLocatorRecord(
   }
   if (reader && params.pageId) {
     const projection = reader.findProjectionByPageId(params.pageId);
-    if (projection) {
-      return projection;
-    }
-  }
-  if (reader && params.path) {
-    const projection = reader.findProjectionByPath(params.path);
     if (projection) {
       return projection;
     }
@@ -2209,11 +1951,6 @@ function resolveRetrievalFlags(cfg: AlisioConfig) {
       ["memory", "retrieval", "privateOnly", "enabled"],
       true,
     ),
-    emergencyLegacyFallbackEnabled: readBooleanFlag(
-      cfg,
-      ["memory", "retrieval", "emergencyLegacyFallback", "enabled"],
-      false,
-    ),
   };
 }
 
@@ -2258,8 +1995,4 @@ function isPrivateMemoryPath(path: string): boolean {
     normalized.includes("transcript") ||
     normalized.includes("peer-direct")
   );
-}
-
-function isSessionLikePath(path: string): boolean {
-  return isPrivateMemoryPath(path);
 }

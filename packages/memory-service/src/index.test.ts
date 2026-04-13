@@ -318,6 +318,77 @@ describe("@alisio/memory-service", () => {
     expect(result.trace.isolation.deniedCount).toBe(1);
   });
 
+  it("denies cross-agent retrieval without explicit grants", async () => {
+    const { service } = createBaseService({
+      alwaysVisible: [],
+      workingSet: [
+        {
+          id: "session-private-cross-agent",
+          layer: "L1",
+          kind: "event",
+          title: "Private session memory",
+          text: "Agent B private note.",
+          visibility: "private",
+          reasonCodes: ["recent"],
+          scoreBreakdown: {
+            recency: 1,
+            confidence: 0.5,
+            lexical: 0.6,
+            vector: 0.2,
+            userFeedback: 0,
+          },
+          provenance: {
+            sourceLocator: "session:agent-b:dm",
+            evidenceIds: ["session-private-cross-agent"],
+          },
+          tokenCount: 7,
+        },
+      ],
+      structured: [],
+      textSearch: [
+        {
+          id: "public-page-cross-agent",
+          layer: "L3",
+          kind: "page",
+          title: "Agent B public page",
+          text: "Agent B public memory should still require an explicit grant cross-agent.",
+          visibility: "public",
+          reasonCodes: ["exact_match"],
+          scoreBreakdown: {
+            recency: 0.7,
+            confidence: 0.8,
+            lexical: 0.9,
+            vector: 0.6,
+            userFeedback: 0,
+          },
+          provenance: {
+            sourceLocator:
+              "memory://profiles/local-main/pages/page-cross-agent/projections/proj-cross-agent",
+            evidenceIds: ["proj-cross-agent"],
+          },
+          tokenCount: 9,
+        },
+      ],
+    });
+
+    const result = await service.retrieveContext({
+      profileId: "local-main",
+      agentId: "atlas-b",
+      sessionKey: "agent:atlas-a:discord:dm:u123",
+      queryText: "agent b",
+      budgets: { maxTokens: 30, maxItems: 4 },
+      modes: {
+        includeWorkingSet: true,
+        includeClaims: true,
+        includePages: true,
+        includeFiles: true,
+      },
+    });
+
+    expect(result.items).toEqual([]);
+    expect(result.trace.isolation.deniedCount).toBe(2);
+  });
+
   it("records RETRIEVAL_TRACE_RECORDED for every retrieval when tracing is enabled", async () => {
     const { service, trace } = createBaseService();
     const result = await service.retrieveContext({
@@ -345,6 +416,7 @@ describe("@alisio/memory-service", () => {
           retrieval_latency_ms: expect.any(Number),
           retrieval_selected_count: result.items.length,
           retrieval_budget_tokens: result.budgetUsed.tokens,
+          retrieval_trace_events_total: 1,
         }),
       }),
     );
