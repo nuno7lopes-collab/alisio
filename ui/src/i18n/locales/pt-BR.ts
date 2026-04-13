@@ -205,9 +205,8 @@ export const pt_BR: TranslationMap = {
       longTermCount: "Arquivos persistentes",
       lastUpdated: "Última atualização",
       updatedNever: "Nunca atualizado",
-      searchPlaceholder: "Pesquisar notas...",
+      searchPlaceholder: "Pesquisar memória...",
       mainMemory: "Memória principal",
-      legacyMemory: "Memória antiga",
       note: "Nota",
       missing: "Faltando",
       unsaved: "Não salvo",
@@ -282,9 +281,15 @@ export const pt_BR: TranslationMap = {
         wiki: "Wiki",
         files: "Arquivos",
         graph: "Grafo",
+        wikiDescription: "Explore páginas, backlinks e evidências como uma wiki pessoal.",
+        filesDescription:
+          "Percorra arquivos, proveniência e páginas relacionadas sem perder contexto.",
+        graphDescription: "Veja entidades, relações e a vizinhança ativa da memória.",
       },
       shell: {
-        title: "Memória nativa",
+        title: "Estado e exportação",
+        subtitle:
+          "Sincronize, exporte e confirme rapidamente o estado atual da memória deste agente.",
       },
       wiki: {
         listTitle: "Páginas wiki",
@@ -335,14 +340,14 @@ export const pt_BR: TranslationMap = {
       },
       files: {
         title: "Arquivos",
-        empty: "Ainda não há anexos disponíveis.",
+        empty: "Ainda não há arquivos de memória disponíveis.",
         unavailable: "Esta versão do Alisio ainda não expõe os arquivos nativos da memória.",
         provenance: "Proveniência",
         relatedPages: "Páginas relacionadas",
         mediaType: "Tipo de mídia",
         size: "Tamanho",
         updated: "Atualizado",
-        noSelection: "Escolha um anexo para inspecionar a proveniência.",
+        noSelection: "Escolha um arquivo para inspecionar a proveniência.",
       },
       export: {
         label: "Exportar",
@@ -386,10 +391,6 @@ export const pt_BR: TranslationMap = {
       },
       claims: {
         confidence: "Confiança",
-      },
-      legacy: {
-        title: "Editor Markdown legado",
-        body: "Fallback temporário para edição baseada em arquivos enquanto as vistas nativas são ativadas.",
       },
       graph: {
         hint: "Abra uma página wiki para focar o grafo no contexto ligado dessa memória.",

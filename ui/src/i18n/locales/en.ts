@@ -237,9 +237,8 @@ export const en: TranslationMap = {
       longTermCount: "Long-term files",
       lastUpdated: "Last updated",
       updatedNever: "Never updated",
-      searchPlaceholder: "Search notes...",
+      searchPlaceholder: "Search memory...",
       mainMemory: "Main memory",
-      legacyMemory: "Legacy memory",
       note: "Note",
       missing: "Missing",
       unsaved: "Unsaved",
@@ -314,9 +313,13 @@ export const en: TranslationMap = {
         wiki: "Wiki",
         files: "Files",
         graph: "Graph",
+        wikiDescription: "Browse pages, backlinks, and evidence as a personal wiki.",
+        filesDescription: "Inspect files, provenance, and linked pages without losing context.",
+        graphDescription: "See entities, relations, and the active neighborhood of memory.",
       },
       shell: {
-        title: "Native memory",
+        title: "State and export",
+        subtitle: "Sync, export, and confirm the current state of this agent's memory at a glance.",
       },
       wiki: {
         listTitle: "Wiki pages",
@@ -366,8 +369,8 @@ export const en: TranslationMap = {
         },
       },
       files: {
-        title: "Attachments",
-        empty: "No attachments are available yet.",
+        title: "Files",
+        empty: "No memory files are available yet.",
         unavailable: "This version does not expose native memory files yet.",
         provenance: "Provenance",
         relatedPages: "Related pages",
@@ -383,7 +386,7 @@ export const en: TranslationMap = {
         focusGraph: "Focus graph",
         previewUnavailable: "Preview unavailable for this attachment.",
         previewTruncated: "Preview truncated for safety.",
-        noSelection: "Choose an attachment to inspect its provenance.",
+        noSelection: "Choose a file to inspect its provenance.",
       },
       export: {
         label: "Export",
@@ -430,10 +433,6 @@ export const en: TranslationMap = {
       claims: {
         confidence: "Confidence",
       },
-      legacy: {
-        title: "Legacy markdown editor",
-        body: "Temporary fallback for file-based editing while the native views are rolling out.",
-      },
       graph: {
         hint: "Open a wiki page to focus the graph around its linked memory context.",
         focus: "Focused page",
@@ -468,22 +467,6 @@ export const en: TranslationMap = {
         localBody:
           "Finish setting up the local embeddings runtime, or switch memory to a remote embeddings provider with its own API key.",
         useLocal: "Use local embeddings",
-      },
-      settings: {
-        title: "Memory settings",
-        subtitle:
-          "Tune the backend, defaults, and per-agent memory behavior without leaving this tab.",
-        unavailable: "Memory settings are not available for this workspace yet.",
-        save: "Save settings",
-        saving: "Saving...",
-        unsaved: "Unsaved",
-        backendTitle: "Backend and storage",
-        backendHelp: "Choose how memory search is stored, indexed, and embedded.",
-        defaultsTitle: "Default search behavior",
-        defaultsHelp: "These defaults apply to agents that do not override memory search.",
-        agentTitle: "Agent overrides",
-        agentHelp: "Override memory search only for the selected agent.",
-        agentHelpNamed: "Override memory search only for {agent}.",
       },
     },
     authentications: {
@@ -897,10 +880,10 @@ export const en: TranslationMap = {
         title: "System health",
         openChecks: "{count} open checks",
         restartRuntime: "Restart runtime",
-        rebuildApp: "Refresh app + runtime",
-        rebuildingApp: "Refreshing app + runtime…",
+        rebuildApp: "Sync app + UI",
+        rebuildingApp: "Syncing app + UI…",
         rebuildStarted:
-          "Refresh started. The app will close, restart the local runtime, and reopen.",
+          "Sync started. The app will close, rebuild the Control UI, restart the local runtime, and reopen.",
         rebuildUnavailable: "Reconnect the runtime, or open the native dev app build first.",
         reconnectApp: "Reconnect Alisio",
         openSetup: "Open setup",

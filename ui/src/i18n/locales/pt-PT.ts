@@ -227,9 +227,8 @@ export const pt_PT: TranslationMap = {
       longTermCount: "Ficheiros duradouros",
       lastUpdated: "Última actualização",
       updatedNever: "Nunca actualizado",
-      searchPlaceholder: "Pesquisar notas...",
+      searchPlaceholder: "Pesquisar memória...",
       mainMemory: "Memória principal",
-      legacyMemory: "Memória antiga",
       note: "Nota",
       missing: "Em falta",
       unsaved: "Por guardar",
@@ -304,9 +303,15 @@ export const pt_PT: TranslationMap = {
         wiki: "Wiki",
         files: "Ficheiros",
         graph: "Grafo",
+        wikiDescription: "Explora páginas, backlinks e evidência como uma wiki pessoal.",
+        filesDescription:
+          "Percorre ficheiros, proveniência e páginas relacionadas sem perder contexto.",
+        graphDescription: "Vê entidades, relações e a vizinhança activa da memória.",
       },
       shell: {
-        title: "Memória nativa",
+        title: "Estado e exportação",
+        subtitle:
+          "Sincroniza, exporta e confirma rapidamente o estado actual da memória deste agente.",
       },
       wiki: {
         listTitle: "Páginas wiki",
@@ -356,8 +361,8 @@ export const pt_PT: TranslationMap = {
         },
       },
       files: {
-        title: "Anexos",
-        empty: "Ainda não há anexos disponíveis.",
+        title: "Ficheiros",
+        empty: "Ainda não há ficheiros de memória disponíveis.",
         unavailable: "Esta versão do Alisio ainda não expõe os ficheiros nativos da memória.",
         provenance: "Proveniência",
         relatedPages: "Páginas relacionadas",
@@ -373,7 +378,7 @@ export const pt_PT: TranslationMap = {
         focusGraph: "Focar grafo",
         previewUnavailable: "A pré-visualização não está disponível para este anexo.",
         previewTruncated: "Pré-visualização truncada por segurança.",
-        noSelection: "Escolhe um anexo para inspecionares a proveniência.",
+        noSelection: "Escolhe um ficheiro para inspecionares a proveniência.",
       },
       export: {
         label: "Exportar",
@@ -420,10 +425,6 @@ export const pt_PT: TranslationMap = {
       claims: {
         confidence: "Confiança",
       },
-      legacy: {
-        title: "Editor Markdown legado",
-        body: "Fallback temporário para edição baseada em ficheiros enquanto as vistas nativas são activadas.",
-      },
       graph: {
         hint: "Abre uma página wiki para focar o grafo no contexto ligado dessa memória.",
         focus: "Página em foco",
@@ -458,21 +459,6 @@ export const pt_PT: TranslationMap = {
         localBody:
           "Termina a configuração do runtime de Local embeddings ou muda a memória para um provider remoto com a respectiva API key.",
         useLocal: "Usar Local embeddings",
-      },
-      settings: {
-        title: "Definições da memória",
-        subtitle: "Ajusta backend, defaults e comportamento por agente sem sair desta tab.",
-        unavailable: "As definições de memória ainda não estão disponíveis nesta workspace.",
-        save: "Guardar definições",
-        saving: "A guardar...",
-        unsaved: "Por guardar",
-        backendTitle: "Backend e armazenamento",
-        backendHelp: "Define como a memória é guardada, indexada e embebida.",
-        defaultsTitle: "Comportamento de pesquisa por omissão",
-        defaultsHelp: "Estas definições aplicam-se aos agentes sem override específico.",
-        agentTitle: "Overrides do agente",
-        agentHelp: "Substitui a configuração de memória apenas para o agente seleccionado.",
-        agentHelpNamed: "Substitui a configuração de memória apenas para {agent}.",
       },
     },
     authentications: {
@@ -883,10 +869,10 @@ export const pt_PT: TranslationMap = {
         title: "Saúde do sistema",
         openChecks: "{count} verificações em aberto",
         restartRuntime: "Reiniciar runtime",
-        rebuildApp: "Actualizar app + runtime",
-        rebuildingApp: "A actualizar app + runtime…",
+        rebuildApp: "Sincronizar app + UI",
+        rebuildingApp: "A sincronizar app + UI…",
         rebuildStarted:
-          "A actualização começou. A app vai fechar, reiniciar o runtime local e voltar a abrir.",
+          "A sincronização começou. A app vai fechar, actualizar a Control UI, reiniciar o runtime local e voltar a abrir.",
         rebuildUnavailable:
           "Volta a ligar o runtime, ou abre primeiro a build nativa de desenvolvimento.",
         reconnectApp: "Reconectar Alisio",

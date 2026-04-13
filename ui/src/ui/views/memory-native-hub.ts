@@ -36,9 +36,7 @@ import {
   renderSkeletonLines,
   renderSkeletonListItem,
 } from "./loading-skeleton.ts";
-import { renderLegacyMemoryEditor } from "./memory-legacy.ts";
 import "./memory-graph-view.ts";
-import { renderMemorySettings } from "./memory-settings.ts";
 import { renderMemoryFilesView } from "./memory/files-view.ts";
 import { renderMemoryWikiView } from "./memory/wiki-view.ts";
 
@@ -83,9 +81,16 @@ function memoryText() {
       files: t("alisio.memory.views.files"),
       graph: t("alisio.memory.views.graph"),
     },
+    viewDescriptions: {
+      wiki: t("alisio.memory.views.wikiDescription"),
+      files: t("alisio.memory.views.filesDescription"),
+      graph: t("alisio.memory.views.graphDescription"),
+    },
     viewsLabel: t("alisio.memory.views.label"),
     shellTitle: t("alisio.memory.shell.title"),
+    shellSubtitle: t("alisio.memory.shell.subtitle"),
     wikiListTitle: t("alisio.memory.wiki.listTitle"),
+    wikiPages: t("alisio.memory.wiki.pages"),
     wikiEmpty: t("alisio.memory.wiki.empty"),
     wikiUnavailable: t("alisio.memory.wiki.unavailable"),
     wikiCreate: t("alisio.memory.wiki.create"),
@@ -150,8 +155,6 @@ function memoryText() {
     traceClose: t("alisio.memory.trace.close"),
     traceUnavailable: t("alisio.memory.trace.unavailable"),
     confidenceLabel: t("alisio.memory.claims.confidence"),
-    legacyTitle: t("alisio.memory.legacy.title"),
-    legacyBody: t("alisio.memory.legacy.body"),
     graphFocus: t("alisio.memory.graph.focus"),
     graphGlobal: t("alisio.memory.graph.global"),
     graphLocal: t("alisio.memory.graph.local"),
@@ -512,10 +515,11 @@ function renderSyncCard(params: {
     params.sync?.e2eeRequired === false ? params.text.na : params.text.syncE2eeRequired;
   const syncDetail = params.sync?.detail?.trim() ?? "";
   return html`
-    <section class="alisio-memory-runtime">
+    <section class="alisio-memory-runtime alisio-memory-runtime--secondary">
       <div class="alisio-memory-runtime__header">
         <div class="alisio-memory-runtime__copy">
           <h3>${params.text.shellTitle}</h3>
+          <p>${params.text.shellSubtitle}</p>
         </div>
         <div class="alisio-memory-runtime__actions">
           <button
@@ -735,14 +739,6 @@ export class AlisioMemoryNativeHub extends LitElement {
 
   private get tracesEnabled() {
     return readMemoryUiFlag(this.props?.configForm, ["ui", "memory", "traces", "enabled"], true);
-  }
-
-  private get legacyEditorEnabled() {
-    return readMemoryUiFlag(
-      this.props?.configForm,
-      ["ui", "memory", "legacyEditor", "enabled"],
-      false,
-    );
   }
 
   private get syncSurface(): MemorySyncSurface | null {
@@ -1299,14 +1295,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     const pageId = await this.findPageIdByTarget(target);
     if (pageId) {
       await this.selectPage(pageId);
-      return;
     }
-    if (!this.legacyEditorEnabled) {
-      return;
-    }
-    this.activeView = "wiki";
-    emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
-    this.props?.onSelectFile(target);
   }
 
   private async openGraphTarget(path: string | null | undefined) {
@@ -1366,64 +1355,120 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
+  private resolveSelectedAgentLabel(text: ReturnType<typeof memoryText>) {
+    const agents = this.props?.agentsList?.agents ?? [];
+    const selectedAgentId = this.props?.selectedAgentId?.trim() ?? "";
+    if (!selectedAgentId) {
+      return text.emptyAgents;
+    }
+    const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+    return selectedAgent?.name?.trim() || selectedAgentId;
+  }
+
+  private resolveViewCards(text: ReturnType<typeof memoryText>) {
+    const graphNodes =
+      this.graphData?.stats.totalNodes ?? this.props?.memoryGraph?.stats.totalNodes ?? 0;
+    return [
+      {
+        view: "wiki" as const,
+        icon: icons.book,
+        title: text.views.wiki,
+        description: text.viewDescriptions.wiki,
+        count: this.wikiList?.pages.length ?? 0,
+        label: text.wikiPages,
+      },
+      {
+        view: "files" as const,
+        icon: icons.folder,
+        title: text.views.files,
+        description: text.viewDescriptions.files,
+        count: this.filesList?.files.length ?? 0,
+        label: text.filesTitle,
+      },
+      {
+        view: "graph" as const,
+        icon: icons.link,
+        title: text.views.graph,
+        description: text.viewDescriptions.graph,
+        count: graphNodes,
+        label: text.graphNodesCount,
+      },
+    ];
+  }
+
   private renderHeader(text: ReturnType<typeof memoryText>) {
     const agents = this.props?.agentsList?.agents ?? [];
+    const selectedAgentLabel = this.resolveSelectedAgentLabel(text);
+    const viewCards = this.resolveViewCards(text);
     return html`
-      <section class="alisio-memory-runtime">
-        <div class="alisio-memory-runtime__header">
-          <div class="alisio-memory-runtime__copy">
-            <h3>${text.runtimeTitle}</h3>
-          </div>
-          <div class="alisio-memory-runtime__actions">
-            <label class="field field--inline">
-              <span>${text.agent}</span>
-              <select
-                .value=${this.props?.selectedAgentId ?? ""}
-                ?disabled=${agents.length === 0}
-                @change=${(event: Event) =>
-                  this.props?.onSelectAgent((event.target as HTMLSelectElement).value)}
-              >
-                ${agents.length === 0
-                  ? html`<option value="">${text.emptyAgents}</option>`
-                  : agents.map(
-                      (agent) => html`<option value=${agent.id}>${agent.name ?? agent.id}</option>`,
-                    )}
-              </select>
-            </label>
-            <label class="field field--with-icon alisio-memory-search">
-              <span class="sr-only">${text.searchPlaceholder}</span>
-              <span class="field__icon" aria-hidden="true">${icons.search}</span>
-              <input
-                .value=${this.props?.searchQuery ?? ""}
-                placeholder=${text.searchPlaceholder}
-                @input=${(event: Event) =>
-                  this.props?.onSearchChange((event.target as HTMLInputElement).value)}
-              />
-            </label>
-            <button
-              class="btn btn--icon btn--ghost alisio-memory-refresh"
-              title=${text.refresh}
-              aria-label=${text.refresh}
-              @click=${() => {
-                this.props?.onRefresh();
-                void this.reloadNativeLists();
-              }}
+      <section class="alisio-memory-workspace">
+        <div class="alisio-memory-workspace__top">
+          <div class="alisio-memory-workspace__copy">
+            <span class="alisio-memory-workspace__eyebrow"
+              >${text.agent} · ${selectedAgentLabel}</span
             >
-              ${icons.refresh}
-            </button>
+            <h2>${text.views[this.activeView]}</h2>
+            <p>${text.viewDescriptions[this.activeView]}</p>
           </div>
         </div>
-        <div class="alisio-memory-native__tabs" role="tablist" aria-label=${text.viewsLabel}>
-          ${(["wiki", "files", "graph"] as const).map(
+        <div class="alisio-memory-workspace__controls">
+          <label class="field field--inline">
+            <span>${text.agent}</span>
+            <select
+              .value=${this.props?.selectedAgentId ?? ""}
+              ?disabled=${agents.length === 0}
+              @change=${(event: Event) =>
+                this.props?.onSelectAgent((event.target as HTMLSelectElement).value)}
+            >
+              ${agents.length === 0
+                ? html`<option value="">${text.emptyAgents}</option>`
+                : agents.map(
+                    (agent) => html`<option value=${agent.id}>${agent.name ?? agent.id}</option>`,
+                  )}
+            </select>
+          </label>
+          <label class="field field--with-icon alisio-memory-search">
+            <span class="sr-only">${text.searchPlaceholder}</span>
+            <span class="field__icon" aria-hidden="true">${icons.search}</span>
+            <input
+              .value=${this.props?.searchQuery ?? ""}
+              placeholder=${text.searchPlaceholder}
+              @input=${(event: Event) =>
+                this.props?.onSearchChange((event.target as HTMLInputElement).value)}
+            />
+          </label>
+          <button
+            class="btn btn--icon btn--ghost alisio-memory-refresh"
+            title=${text.refresh}
+            aria-label=${text.refresh}
+            @click=${() => {
+              this.props?.onRefresh();
+              void this.reloadNativeLists();
+            }}
+          >
+            ${icons.refresh}
+          </button>
+        </div>
+        <div class="alisio-memory-view-switcher" role="tablist" aria-label=${text.viewsLabel}>
+          ${viewCards.map(
             (view) => html`
               <button
                 type="button"
-                class="btn btn--sm ${this.activeView === view ? "primary" : ""}"
+                class="alisio-memory-view-tab ${this.activeView === view.view ? "is-active" : ""}"
                 role="tab"
-                aria-selected=${this.activeView === view ? "true" : "false"}
-                @click=${() => this.setView(view)}
+                aria-selected=${this.activeView === view.view ? "true" : "false"}
+                aria-current=${this.activeView === view.view ? "page" : "false"}
+                @click=${() => this.setView(view.view)}
               >
-                ${text.views[view]}
+                <span class="alisio-memory-view-tab__icon" aria-hidden="true">${view.icon}</span>
+                <span class="alisio-memory-view-tab__copy">
+                  <strong>${view.title}</strong>
+                  <span>${view.description}</span>
+                </span>
+                <span class="alisio-memory-view-tab__metric">
+                  <strong>${String(view.count)}</strong>
+                  <span>${view.label}</span>
+                </span>
               </button>
             `,
           )}
@@ -1793,10 +1838,6 @@ export class AlisioMemoryNativeHub extends LitElement {
       currentPageDraft: this.currentPageDraft,
       currentPageTitleDraft: this.currentPageTitleDraft,
       editorOpen: this.wikiEditorOpen,
-      legacyEditorEnabled: this.legacyEditorEnabled,
-      legacyEditor: this.legacyEditorEnabled
-        ? renderLegacyMemoryEditor(this.props!, { compact: true })
-        : undefined,
       onGoHome: () => this.openWikiHome(),
       onSelectPage: (pageId) => void this.selectPage(pageId),
       onSelectFile: (fileId) => this.openRelatedFile(fileId),
@@ -1992,11 +2033,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
 
     return html`
       <style>
-        .alisio-memory-native__tabs {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
         .alisio-memory-native__stack {
           display: grid;
           gap: 12px;
@@ -2158,22 +2194,6 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
             ? this.renderFilesView(text)
             : this.renderGraphView(text)}
         ${this.renderTraceDrawer(text)}
-        ${this.activeView === "graph"
-          ? nothing
-          : renderMemorySettings({
-              loading: props.configLoading,
-              saving: props.configSaving,
-              dirty: props.configDirty,
-              schema: props.configSchema,
-              uiHints: props.configUiHints,
-              value: props.configForm,
-              selectedAgentId: props.selectedAgentId,
-              selectedAgentLabel:
-                props.agentsList?.agents.find((agent) => agent.id === props.selectedAgentId)
-                  ?.name ?? props.selectedAgentId,
-              onPatch: props.onConfigPatch,
-              onSave: props.onSaveSettings,
-            })}
       </section>
     `;
   }

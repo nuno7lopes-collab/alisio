@@ -1,4 +1,4 @@
-import { html, nothing, type TemplateResult } from "lit";
+import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { t } from "../../../i18n/index.ts";
 import type {
@@ -57,8 +57,6 @@ type MemoryText = {
   whySurfaced: string;
   confidenceLabel: string;
   filesTitle: string;
-  legacyTitle: string;
-  legacyBody: string;
 };
 
 type OpenTraceParams = {
@@ -90,8 +88,6 @@ export type RenderMemoryWikiViewParams = {
   currentPageDraft: string;
   currentPageTitleDraft: string;
   editorOpen: boolean;
-  legacyEditorEnabled: boolean;
-  legacyEditor?: TemplateResult;
   onGoHome: () => void;
   onSelectPage: (pageId: string) => void;
   onSelectFile: (fileId: string) => void;
@@ -902,15 +898,6 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
           ${renderClaims(params.text, page.claims)} ${renderEvidence(params.text, page.evidence)}
           ${renderProvenance(params.text, page.provenance)}
           ${renderHistory(params.text, params.historyLoading, params.historyError, params.history)}
-          ${params.legacyEditorEnabled && params.legacyEditor
-            ? html`
-                <details class="memory-wiki__rail-card">
-                  <summary>${params.text.legacyTitle}</summary>
-                  <p>${params.text.legacyBody}</p>
-                  ${params.legacyEditor}
-                </details>
-              `
-            : nothing}
         </aside>
       </div>
     </article>

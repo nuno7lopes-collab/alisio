@@ -9,7 +9,6 @@ import type {
   MemoryGraphState,
   MemoryStatusState,
 } from "../types.ts";
-import { renderLegacyMemoryEditor } from "./memory-legacy.ts";
 import "./memory-native-hub.ts";
 
 export type MemoryHubProps = {
@@ -37,11 +36,11 @@ export type MemoryHubProps = {
   memoryGraphError: string | null;
   memoryGraph: MemoryGraphState | null;
   memoryGraphQuery: string | null;
-  configLoading: boolean;
-  configSaving: boolean;
-  configDirty: boolean;
-  configSchema: unknown;
-  configUiHints: ConfigUiHints;
+  configLoading?: boolean;
+  configSaving?: boolean;
+  configDirty?: boolean;
+  configSchema?: unknown;
+  configUiHints?: ConfigUiHints;
   configForm: Record<string, unknown> | null;
   searchQuery: string;
   composerOpen: boolean;
@@ -60,43 +59,12 @@ export type MemoryHubProps = {
   onComposerTitleChange: (value: string) => void;
   onCreateNote: () => void;
   onSync: () => void;
-  onConfigPatch: (path: Array<string | number>, value: unknown) => void;
-  onSaveSettings: () => void;
-  onUseLocalEmbeddings: () => void;
+  onConfigPatch?: (path: Array<string | number>, value: unknown) => void;
+  onSaveSettings?: () => void;
+  onUseLocalEmbeddings?: () => void;
 };
 
-function readNestedValue(
-  record: Record<string, unknown> | null | undefined,
-  path: readonly string[],
-): unknown {
-  let current: unknown = record;
-  for (const segment of path) {
-    if (!current || typeof current !== "object" || Array.isArray(current)) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
-}
-
-function readMemoryUiFlag(
-  record: Record<string, unknown> | null | undefined,
-  path: readonly string[],
-  fallback: boolean,
-) {
-  const value = readNestedValue(record, path);
-  return typeof value === "boolean" ? value : fallback;
-}
-
 export function renderMemoryHub(props: MemoryHubProps) {
-  const newViewsEnabled = readMemoryUiFlag(
-    props.configForm,
-    ["ui", "memory", "newViews", "enabled"],
-    true,
-  );
-  if (!newViewsEnabled) {
-    return renderLegacyMemoryEditor(props);
-  }
   return html`<alisio-memory-native-hub .props=${props}></alisio-memory-native-hub>`;
 }
 

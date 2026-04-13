@@ -589,17 +589,10 @@ function createProps(
     memoryGraphError: null,
     memoryGraph: makeGraphResult("global"),
     memoryGraphQuery: "Project Atlas",
-    configLoading: false,
-    configSaving: false,
-    configDirty: false,
-    configSchema: { type: "object", properties: {} },
-    configUiHints: {},
     configForm: {
       ui: {
         memory: {
-          newViews: { enabled: true },
           traces: { enabled: true },
-          legacyEditor: { enabled: false },
         },
       },
     },
@@ -620,9 +613,6 @@ function createProps(
     onComposerTitleChange: vi.fn(),
     onCreateNote: vi.fn(),
     onSync: vi.fn(),
-    onConfigPatch: vi.fn(),
-    onSaveSettings: vi.fn(),
-    onUseLocalEmbeddings: vi.fn(),
     ...overrides,
   };
 }
@@ -648,18 +638,47 @@ describe("renderMemoryHub", () => {
   it("renders the native memory shell with wiki, files, and graph views", async () => {
     const { container } = await mountNativeHub(createProps());
 
+    expect(container.querySelectorAll(".alisio-memory-view-tab")).toHaveLength(3);
     expect(container.textContent).toContain("Wiki");
     expect(container.textContent).toContain("Files");
     expect(container.textContent).toContain("Graph");
+    expect(container.textContent).toContain(
+      "Browse pages, backlinks, and evidence as a personal wiki.",
+    );
+    expect(container.textContent).toContain(
+      "Inspect files, provenance, and linked pages without losing context.",
+    );
+    expect(container.textContent).toContain(
+      "See entities, relations, and the active neighborhood of memory.",
+    );
     expect(container.textContent).toContain("Memory portal");
     expect(container.textContent).toContain("Featured article");
     expect(container.textContent).toContain("Project Atlas");
     expect(container.textContent).toContain("Recent updates");
     expect(container.textContent).toContain("Categories");
     expect(container.textContent).toContain("Collections");
+    expect(container.textContent).toContain("State and export");
     expect(container.textContent).toContain("Last synced lamport");
     expect(container.textContent).toContain("E2EE");
     expect(container.textContent).toContain("Required");
+    expect(container.textContent).not.toContain("Memory runtime");
+  });
+
+  it("keeps the memory page focused on wiki, files, and graph without legacy surfaces", async () => {
+    const { container } = await mountNativeHub(createProps());
+
+    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
+    expect(container.textContent).not.toContain("Legacy markdown editor");
+    expect(container.textContent).not.toContain("Memory settings");
+    expect(container.textContent).not.toContain("Save settings");
+
+    clickButton(container, "Files");
+    await flushMemoryHub();
+    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
+
+    clickButton(container, "Graph");
+    await flushMemoryHub();
+    expect(container.querySelector(".alisio-memory-settings")).toBeNull();
   });
 
   it("opens traces from the wiki context preview", async () => {
@@ -879,8 +898,11 @@ describe("renderMemoryHub", () => {
     if (!client) {
       throw new Error("expected native memory client");
     }
+    const mockedClient = client as typeof client & {
+      request: ReturnType<typeof makeRequestMock>;
+    };
     const { hub } = await mountNativeHub(props);
-    client.request.mockClear();
+    mockedClient.request.mockClear();
 
     hub.props = {
       ...props,
@@ -897,18 +919,17 @@ describe("renderMemoryHub", () => {
     };
     await flushMemoryHub();
 
+    const requestCalls = mockedClient.request.mock.calls;
+    expect(requestCalls.filter(([method]) => method === "memory.wiki.list").length).toBeGreaterThan(
+      0,
+    );
     expect(
-      client.request.mock.calls.filter(([method]) => method === "memory.wiki.list").length,
+      requestCalls.filter(([method]) => method === "memory.files.list").length,
     ).toBeGreaterThan(0);
-    expect(
-      client.request.mock.calls.filter(([method]) => method === "memory.files.list").length,
-    ).toBeGreaterThan(0);
-    expect(
-      client.request.mock.calls.filter(([method]) => method === "memory.graph").length,
-    ).toBeGreaterThan(0);
+    expect(requestCalls.filter(([method]) => method === "memory.graph").length).toBeGreaterThan(0);
   });
 
-  it("wraps the native hub when the new views flag is enabled", () => {
+  it("wraps the native memory hub", () => {
     const container = document.createElement("div");
     render(renderMemoryHub(createProps()), container);
     expect(container.querySelector("alisio-memory-native-hub")).toBeTruthy();

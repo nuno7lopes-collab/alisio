@@ -216,9 +216,8 @@ export const es: TranslationMap = {
       longTermCount: "Archivos persistentes",
       lastUpdated: "Última actualización",
       updatedNever: "Nunca actualizado",
-      searchPlaceholder: "Buscar notas...",
+      searchPlaceholder: "Buscar memoria...",
       mainMemory: "Memoria principal",
-      legacyMemory: "Memoria antigua",
       note: "Nota",
       missing: "Falta",
       unsaved: "Sin guardar",
@@ -292,9 +291,15 @@ export const es: TranslationMap = {
         wiki: "Wiki",
         files: "Ficheros",
         graph: "Grafo",
+        wikiDescription: "Recorre páginas, backlinks y evidencias como una wiki personal.",
+        filesDescription:
+          "Inspecciona ficheros, procedencia y páginas relacionadas sin perder contexto.",
+        graphDescription: "Ve entidades, relaciones y la vecindad activa de la memoria.",
       },
       shell: {
-        title: "Memoria nativa",
+        title: "Estado y exportación",
+        subtitle:
+          "Sincroniza, exporta y confirma rápidamente el estado actual de la memoria de este agente.",
       },
       wiki: {
         listTitle: "Páginas wiki",
@@ -344,15 +349,15 @@ export const es: TranslationMap = {
         },
       },
       files: {
-        title: "Adjuntos",
-        empty: "Todavía no hay adjuntos disponibles.",
+        title: "Ficheros",
+        empty: "Todavía no hay ficheros de memoria disponibles.",
         unavailable: "Esta versión de Alisio todavía no expone los ficheros nativos de memoria.",
         provenance: "Procedencia",
         relatedPages: "Páginas relacionadas",
         mediaType: "Tipo de medio",
         size: "Tamaño",
         updated: "Actualizado",
-        noSelection: "Elige un adjunto para inspeccionar su procedencia.",
+        noSelection: "Elige un fichero para inspeccionar su procedencia.",
       },
       export: {
         label: "Exportar",
@@ -398,10 +403,6 @@ export const es: TranslationMap = {
       },
       claims: {
         confidence: "Confianza",
-      },
-      legacy: {
-        title: "Editor Markdown legado",
-        body: "Fallback temporal para la edición basada en ficheros mientras se despliegan las vistas nativas.",
       },
       graph: {
         hint: "Abre una página wiki para enfocar el grafo en su contexto enlazado.",
@@ -794,10 +795,10 @@ export const es: TranslationMap = {
         title: "Salud del sistema",
         openChecks: "{count} comprobaciones abiertas",
         restartRuntime: "Reiniciar runtime",
-        rebuildApp: "Actualizar app + runtime",
-        rebuildingApp: "Actualizando app + runtime…",
+        rebuildApp: "Sincronizar app + UI",
+        rebuildingApp: "Sincronizando app + UI…",
         rebuildStarted:
-          "La actualización ha comenzado. La app se cerrará, reiniciará el runtime local y volverá a abrirse.",
+          "La sincronización ha comenzado. La app se cerrará, reconstruirá la Control UI, reiniciará el runtime local y volverá a abrirse.",
         rebuildUnavailable:
           "Vuelve a conectar el runtime o abre primero la build nativa de desarrollo.",
         reconnectApp: "Reconectar Alisio",
