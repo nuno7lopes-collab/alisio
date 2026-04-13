@@ -12,9 +12,13 @@ Nesta revisão, as mutações deixaram de escrever directamente em `entities`, `
 
 ## Quando corre
 
-- Só corre quando `activityMonitor.isSessionActive()` devolve `false`.
-- Se a sessão voltar a ficar activa, o scheduler preempta o job no próximo checkpoint cooperativo e guarda `cursor_json`.
-- O master flag é `memory.jobs.sleep.enabled` e faz short-circuit limpo quando está desligado.
+- O runtime fica residente no processo do plugin `memory-core` e usa um timer interno.
+- Só corre quando não há sessão activa (`status === "running"` no session store do agent) e quando não houve pedidos recentes ao gateway do `memory-core`.
+- Se a sessão voltar a ficar activa ou se entrar tráfego novo no gateway do `memory-core`, o scheduler preempta o job no próximo checkpoint cooperativo e guarda `cursor_json`.
+- Os flags estáveis são:
+  - `memory.jobs.enabled`
+  - `memory.jobs.autoSleep.enabled`
+  - `memory.jobs.maxSliceMs`
 
 ## O que faz
 
@@ -59,6 +63,20 @@ Os cursores e checkpoints vivem no mesmo `canonical.sqlite`, mas em camadas dife
 - Quando há limiar de eventos/tamanho ou fecho de ciclo, é criado também `CHECKPOINT_CREATED`.
 - O resume continua exactamente do último cursor persistido; as mutações evitam repetição porque o estado derivado já reflecte os eventos emitidos.
 
+## Gateway
+
+O runtime expõe três métodos gateway:
+
+- `memory.jobs.status`
+  - leitura do estado runtime + job records + telemetria do perfil
+- `memory.jobs.runOnce`
+  - força uma slice única mesmo com auto-sleep desligado
+  - ignora apenas o próprio request gateway que o invocou; qualquer actividade nova continua a poder preemptar
+- `memory.jobs.cancel`
+  - pede preempção imediata e espera pelo checkpoint cooperativo da slice actual
+
+Todos os métodos gateway já existentes do `memory-core` marcam actividade recente, para evitar que os jobs de fundo concorram com navegação interactiva na memória.
+
 ## Debug rápido
 
 1. Correr os testes direccionados:
@@ -71,5 +89,5 @@ Os cursores e checkpoints vivem no mesmo `canonical.sqlite`, mas em camadas dife
    - `sqlite3 ~/.alisio/memory/profiles/<profile>/canonical.sqlite 'select checkpoint_id, lamport, state_hash from checkpoints order by lamport desc limit 20;'`
    - `sqlite3 ~/.alisio/memory/profiles/<profile>/canonical.sqlite 'select kind from dashboards order by kind;'`
 3. Se houver regressões:
-   - desactivar `memory.jobs.sleep.enabled`
+   - desactivar `memory.jobs.enabled`
    - a memória canónica continua utilizável, só pára o trabalho de background

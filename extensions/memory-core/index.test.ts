@@ -12,6 +12,11 @@ const handleMemoryFilesListGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryFilesGetGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryTraceGetGatewayRequest = vi.hoisted(() => vi.fn());
 const handleMemoryExportGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryJobsStatusGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryJobsRunOnceGatewayRequest = vi.hoisted(() => vi.fn());
+const handleMemoryJobsCancelGatewayRequest = vi.hoisted(() => vi.fn());
+const primeMemoryJobsRuntime = vi.hoisted(() => vi.fn());
+const withMemoryJobsGatewayActivity = vi.hoisted(() => vi.fn((handler: unknown) => handler));
 const memoryRuntime = vi.hoisted(() => ({ kind: "memory-runtime" }));
 const registerBuiltInMemoryEmbeddingProviders = vi.hoisted(() =>
   vi.fn((api: { registerMemoryEmbeddingProvider: (value: unknown) => void }) => {
@@ -41,6 +46,14 @@ vi.mock("./src/gateway.native.js", () => ({
   handleMemoryFilesGetGatewayRequest,
   handleMemoryTraceGetGatewayRequest,
   handleMemoryExportGatewayRequest,
+}));
+
+vi.mock("./src/jobs/gateway.js", () => ({
+  handleMemoryJobsStatusGatewayRequest,
+  handleMemoryJobsRunOnceGatewayRequest,
+  handleMemoryJobsCancelGatewayRequest,
+  primeMemoryJobsRuntime,
+  withMemoryJobsGatewayActivity,
 }));
 
 vi.mock("./src/runtime-provider.js", () => ({
@@ -131,6 +144,7 @@ describe("plugin registration", () => {
 
     plugin.register(api as never);
 
+    expect(primeMemoryJobsRuntime).toHaveBeenCalledTimes(1);
     expect(registerMemoryPromptSection).toHaveBeenCalledWith(buildPromptSection);
     expect(registerMemoryFlushPlan).toHaveBeenCalledWith(buildMemoryFlushPlan);
     expect(registerMemoryRuntime).toHaveBeenCalledWith(memoryRuntime);
@@ -166,6 +180,20 @@ describe("plugin registration", () => {
     expect(registerGatewayMethod).toHaveBeenCalledWith("memory.export", expect.any(Function), {
       scope: "operator.read",
     });
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.jobs.status", expect.any(Function), {
+      scope: "operator.read",
+    });
+    expect(registerGatewayMethod).toHaveBeenCalledWith(
+      "memory.jobs.runOnce",
+      expect.any(Function),
+      {
+        scope: "operator.write",
+      },
+    );
+    expect(registerGatewayMethod).toHaveBeenCalledWith("memory.jobs.cancel", expect.any(Function), {
+      scope: "operator.write",
+    });
+    expect(withMemoryJobsGatewayActivity).toHaveBeenCalledTimes(9);
     expect(registerTool).toHaveBeenCalledTimes(3);
     expect(registerTool.mock.calls[0]?.[1]).toEqual({ names: ["memory_search"] });
     expect(registerTool.mock.calls[1]?.[1]).toEqual({ names: ["memory_get"] });
