@@ -83,7 +83,11 @@ type CanonicalSyncBlockedReason = NonNullable<MemorySyncAvailability["reason"]>;
 
 const CANONICAL_STORE_SYNC_MODE: CanonicalStoreSyncMode = "local-first";
 const CANONICAL_STORE_CLOUD_SYNC: CanonicalCloudSyncState = "unavailable";
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX = "md-path:";
+const MARKDOWN_PROJECTION_PREFIX_ALIASES = [
+  MARKDOWN_PROJECTION_PREFIX,
+  "legacy-markdown:",
+] as const;
 const LEDGER_EVENT_SCHEMA_VERSION = 1 as const;
 const DERIVED_STATE_MIGRATION_VERSION = 1;
 const CHECKPOINT_EVENT_INTERVAL = 50;
@@ -150,7 +154,7 @@ type LegacyProjectionRow = {
 };
 
 type CanonicalStoreFeatureFlags = {
-  legacyMarkdownProjectionEnabled: boolean;
+  markdownProjectionEnabled: boolean;
   crdtPagesEnabled: boolean;
 };
 
@@ -204,6 +208,7 @@ type MemoryCheckpointCreatedPayload =
   MemoryStateEventEnvelopePlain<"CHECKPOINT_CREATED">["payload"];
 
 type CanonicalStoreContext = {
+  cfg: AlisioConfig;
   env: NodeJS.ProcessEnv;
   baseStatus: CanonicalMemoryStoreStatus;
   ownerProfile: AlisioMemoryOwnerProfile;
@@ -714,16 +719,63 @@ function createWorkspaceScope(agentId: string, workspaceDir: string): string {
   ).slice(0, 16);
 }
 
-function resolveLegacyProjectionKind(relativePath: string): string {
-  return `${LEGACY_PROJECTION_PREFIX}${normalizeDisplayPath(relativePath)}`;
+function resolveMarkdownProjectionKind(relativePath: string): string {
+  return `${MARKDOWN_PROJECTION_PREFIX}${normalizeDisplayPath(relativePath)}`;
 }
 
-function parseLegacyProjectionPath(kind: string): string | null {
-  if (!kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return null;
+function parseMarkdownProjectionPath(kind: string): string | null {
+  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
+    if (!kind.startsWith(prefix)) {
+      continue;
+    }
+    const relativePath = kind.slice(prefix.length);
+    return relativePath ? normalizeDisplayPath(relativePath) : null;
   }
-  const relativePath = kind.slice(LEGACY_PROJECTION_PREFIX.length);
-  return relativePath ? normalizeDisplayPath(relativePath) : null;
+  return null;
+}
+
+function resolveMarkdownProjectionKindAliases(relativePath: string): [string, string] {
+  const normalizedPath = normalizeDisplayPath(relativePath);
+  return [
+    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[0]}${normalizedPath}`,
+    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}${normalizedPath}`,
+  ];
+}
+
+function normalizeProjectionKind(kind: string): string {
+  const relativePath = parseMarkdownProjectionPath(kind);
+  return relativePath ? resolveMarkdownProjectionKind(relativePath) : kind;
+}
+
+function normalizeProjectionPayload<T>(payload: T): T {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+  const record = payload as Record<string, unknown>;
+  const kind = typeof record.kind === "string" ? record.kind : "";
+  if (!kind) {
+    return payload;
+  }
+  const normalizedKind = normalizeProjectionKind(kind);
+  return normalizedKind === kind ? payload : ({ ...record, kind: normalizedKind } as T);
+}
+
+function normalizeProjectionDraft(draft: MemoryStateEventDraft): MemoryStateEventDraft {
+  if (draft.type !== "PROJECTION_SET") {
+    return draft;
+  }
+  const payload = normalizeProjectionPayload(draft.payload);
+  return payload === draft.payload ? draft : { ...draft, payload };
+}
+
+function normalizeProjectionEvent(
+  event: MemoryStateEventEnvelopePlain,
+): MemoryStateEventEnvelopePlain {
+  if (event.type !== "PROJECTION_SET") {
+    return event;
+  }
+  const payload = normalizeProjectionPayload(event.payload);
+  return payload === event.payload ? event : { ...event, payload };
 }
 
 function resolveCompatibilityProjectionRoot(env: NodeJS.ProcessEnv): string {
@@ -737,12 +789,17 @@ function resolveCompatibilityProjectionPath(env: NodeJS.ProcessEnv, relativePath
 function readFeatureFlags(cfg: AlisioConfig): CanonicalStoreFeatureFlags {
   const rawMemory = (cfg as { memory?: unknown }).memory as
     | {
+        markdownProjection?: { enabled?: boolean };
         legacyMarkdownProjection?: { enabled?: boolean };
         crdt?: { pages?: { enabled?: boolean } };
       }
     | undefined;
   return {
-    legacyMarkdownProjectionEnabled: rawMemory?.legacyMarkdownProjection?.enabled ?? true,
+    // Keep the legacy config path as a read-only alias for one release.
+    markdownProjectionEnabled:
+      rawMemory?.markdownProjection?.enabled ??
+      rawMemory?.legacyMarkdownProjection?.enabled ??
+      true,
     crdtPagesEnabled: rawMemory?.crdt?.pages?.enabled ?? true,
   };
 }
@@ -784,14 +841,31 @@ function normalizeSyncMode(value: string | undefined): MemorySyncMode | undefine
   }
 }
 
-function resolveCanonicalSyncConfig(env: NodeJS.ProcessEnv): CanonicalStoreSyncConfig {
-  const relayBaseUrl = env.ALISIO_MEMORY_SYNC_RELAY_BASE_URL?.trim() || undefined;
-  const explicitMode = normalizeSyncMode(env.ALISIO_MEMORY_SYNC_MODE);
-  const inferredMode = explicitMode ?? (relayBaseUrl ? "cloud" : "off");
-  const enabled = normalizeBooleanEnv(
-    env.ALISIO_MEMORY_SYNC_ENABLED,
-    inferredMode !== "off" || Boolean(relayBaseUrl),
-  );
+function resolveCanonicalSyncConfig(
+  cfg: AlisioConfig,
+  env: NodeJS.ProcessEnv,
+): CanonicalStoreSyncConfig {
+  const rawMemory = (cfg as { memory?: unknown }).memory as
+    | {
+        sync?: {
+          mode?: string;
+          relayBaseUrl?: string;
+        };
+      }
+    | undefined;
+  const configuredRelayBaseUrl = rawMemory?.sync?.relayBaseUrl?.trim() || undefined;
+  const legacyRelayBaseUrl = env.ALISIO_MEMORY_SYNC_RELAY_BASE_URL?.trim() || undefined;
+  const relayBaseUrl = configuredRelayBaseUrl ?? legacyRelayBaseUrl;
+  const configuredMode = normalizeSyncMode(rawMemory?.sync?.mode);
+  const legacyMode = normalizeSyncMode(env.ALISIO_MEMORY_SYNC_MODE);
+  const inferredMode =
+    configuredMode ??
+    legacyMode ??
+    (configuredRelayBaseUrl ? "off" : legacyRelayBaseUrl ? "cloud" : "off");
+  const enabled =
+    configuredMode !== undefined
+      ? inferredMode !== "off"
+      : normalizeBooleanEnv(env.ALISIO_MEMORY_SYNC_ENABLED, inferredMode !== "off");
   return {
     enabled,
     mode: inferredMode,
@@ -915,6 +989,83 @@ function renameLegacyProjectionTableIfNeeded(db: DatabaseSync): void {
     return;
   }
   db.exec(`ALTER TABLE projections RENAME TO legacy_projections_v0`);
+}
+
+function migrateMarkdownProjectionKindsIfNeeded(db: DatabaseSync): void {
+  if (!hasTable(db, "projections")) {
+    return;
+  }
+  const legacyRows = db
+    .prepare(
+      `SELECT page_id, kind, markdown_body, updated_at_ms
+       FROM projections
+       WHERE kind LIKE ?
+       ORDER BY updated_at_ms DESC, page_id ASC, kind ASC`,
+    )
+    .all(`${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}%`) as Array<{
+    page_id: string;
+    kind: string;
+    markdown_body: string;
+    updated_at_ms: number;
+  }>;
+  if (legacyRows.length === 0) {
+    return;
+  }
+  const readCanonicalRow = db.prepare(
+    `SELECT markdown_body, updated_at_ms
+     FROM projections
+     WHERE page_id = ? AND kind = ?
+     LIMIT 1`,
+  );
+  const renameKind = db.prepare(
+    `UPDATE projections
+     SET kind = ?
+     WHERE page_id = ? AND kind = ?`,
+  );
+  const updateCanonicalRow = db.prepare(
+    `UPDATE projections
+     SET markdown_body = ?, updated_at_ms = ?
+     WHERE page_id = ? AND kind = ?`,
+  );
+  const deleteLegacyRow = db.prepare(
+    `DELETE FROM projections
+     WHERE page_id = ? AND kind = ?`,
+  );
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    for (const row of legacyRows) {
+      const relativePath = parseMarkdownProjectionPath(row.kind);
+      if (!relativePath) {
+        continue;
+      }
+      const canonicalKind = resolveMarkdownProjectionKind(relativePath);
+      if (canonicalKind === row.kind) {
+        continue;
+      }
+      const existingCanonicalRow = readCanonicalRow.get(row.page_id, canonicalKind) as
+        | {
+            markdown_body: string;
+            updated_at_ms: number;
+          }
+        | undefined;
+      if (!existingCanonicalRow) {
+        renameKind.run(canonicalKind, row.page_id, row.kind);
+        continue;
+      }
+      const shouldPromoteLegacyRow =
+        row.updated_at_ms > existingCanonicalRow.updated_at_ms ||
+        (row.updated_at_ms === existingCanonicalRow.updated_at_ms &&
+          row.markdown_body.length > existingCanonicalRow.markdown_body.length);
+      if (shouldPromoteLegacyRow) {
+        updateCanonicalRow.run(row.markdown_body, row.updated_at_ms, row.page_id, canonicalKind);
+      }
+      deleteLegacyRow.run(row.page_id, row.kind);
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 function ensureSyncStateColumn(db: DatabaseSync, column: string, definition: string): void {
@@ -1516,13 +1667,16 @@ function resolvePageIdForAlias(db: DatabaseSync, aliasKey: string): string | nul
 }
 
 function resolvePageIdForProjectionPath(db: DatabaseSync, relativePath: string): string | null {
+  const [canonicalKind, compatKind] = resolveMarkdownProjectionKindAliases(relativePath);
   const row = db
     .prepare(
       `SELECT page_id
        FROM projections
-       WHERE kind = ?`,
+       WHERE kind IN (?, ?)
+       ORDER BY CASE WHEN kind = ? THEN 0 ELSE 1 END, page_id ASC
+       LIMIT 1`,
     )
-    .get(resolveLegacyProjectionKind(relativePath)) as
+    .get(canonicalKind, compatKind, canonicalKind) as
     | {
         page_id: string;
       }
@@ -1899,11 +2053,19 @@ function buildPageEventDrafts(params: {
       },
     });
   }
-  const projectionKind = resolveLegacyProjectionKind(params.page.relativePath);
+  const projectionKind = resolveMarkdownProjectionKind(params.page.relativePath);
+  const [canonicalProjectionKind, compatProjectionKind] = resolveMarkdownProjectionKindAliases(
+    params.page.relativePath,
+  );
   const projectionExists = Boolean(
     params.db
-      .prepare(`SELECT 1 AS found FROM projections WHERE page_id = ? AND kind = ?`)
-      .get(params.page.pageId, projectionKind) as
+      .prepare(
+        `SELECT 1 AS found
+         FROM projections
+         WHERE page_id = ? AND kind IN (?, ?)
+         LIMIT 1`,
+      )
+      .get(params.page.pageId, canonicalProjectionKind, compatProjectionKind) as
       | {
           found?: number;
         }
@@ -2025,6 +2187,7 @@ async function createCheckpointIfNeeded(params: {
 
 function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger }): void {
   ensureCanonicalStoreSchema(params.db);
+  migrateMarkdownProjectionKindsIfNeeded(params.db);
   const latestCheckpoint = params.ledger.getLatestCheckpoint();
   const checkpointLamport = latestCheckpoint?.coveredUntilLamport ?? 0;
   if (latestCheckpoint?.payloadPlain) {
@@ -2046,6 +2209,7 @@ function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger 
           });
         }
       }
+      migrateMarkdownProjectionKindsIfNeeded(params.db);
       return;
     } catch (error) {
       log.warn(
@@ -2063,6 +2227,7 @@ function bootstrapDerivedState(params: { db: DatabaseSync; ledger: MemoryLedger 
       events,
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
     });
+    migrateMarkdownProjectionKindsIfNeeded(params.db);
     return;
   }
   const meta = readMemoryStateMeta(params.db);
@@ -2244,7 +2409,7 @@ function buildGenesisDraftsFromCurrentDerivedState(params: {
       type: "PROJECTION_SET",
       payload: {
         pageId: row.page_id,
-        kind: row.kind,
+        kind: normalizeProjectionKind(row.kind),
         markdownBody: row.markdown_body,
       },
     });
@@ -2370,7 +2535,7 @@ function buildGenesisDraftsFromCurrentDerivedState(params: {
   return drafts;
 }
 
-async function materializeLegacyMarkdownProjections(params: {
+async function materializeMarkdownProjections(params: {
   db: DatabaseSync;
   env: NodeJS.ProcessEnv;
 }): Promise<number> {
@@ -2390,7 +2555,7 @@ async function materializeLegacyMarkdownProjections(params: {
   let written = 0;
   const expectedPaths = new Set<string>();
   for (const row of rows) {
-    const relativePath = parseLegacyProjectionPath(row.kind);
+    const relativePath = parseMarkdownProjectionPath(row.kind);
     if (!relativePath) {
       continue;
     }
@@ -2441,9 +2606,9 @@ async function applyEventDrafts(params: {
   const events = normalizeCheckpointEvents(
     assignMemoryStateLedgerEvents({
       ledger: params.context.ledger,
-      drafts: params.drafts,
+      drafts: params.drafts.map((draft) => normalizeProjectionDraft(draft)),
     }),
-  );
+  ).map((event) => normalizeProjectionEvent(event));
   if (events.length === 0) {
     const status = buildReadyStatusFromContext(params.context);
     return {
@@ -2482,11 +2647,8 @@ async function applyEventDrafts(params: {
     cloudState: params.cloudState ?? resolveSyncCloudState(params.context),
     lastSyncedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
   });
-  if (
-    params.materializeMarkdown !== false &&
-    params.context.flags.legacyMarkdownProjectionEnabled
-  ) {
-    await materializeLegacyMarkdownProjections({
+  if (params.materializeMarkdown !== false && params.context.flags.markdownProjectionEnabled) {
+    await materializeMarkdownProjections({
       db: params.context.db,
       env: params.context.env,
     });
@@ -2679,8 +2841,8 @@ async function syncWorkspaceImports(params: CanonicalStoreContext): Promise<void
     }
     deleteImportedFileRow(params.db, relativePath);
   }
-  if (params.flags.legacyMarkdownProjectionEnabled) {
-    await materializeLegacyMarkdownProjections({
+  if (params.flags.markdownProjectionEnabled) {
+    await materializeMarkdownProjections({
       db: params.db,
       env: params.env,
     });
@@ -2696,8 +2858,11 @@ async function initializeCanonicalLedgerState(context: CanonicalStoreContext): P
   await migrateLegacyStateIfNeeded(context);
 }
 
-function createInactiveSyncRuntime(env: NodeJS.ProcessEnv): CanonicalSyncRuntime {
-  const config = resolveCanonicalSyncConfig(env);
+function createInactiveSyncRuntime(
+  cfg: AlisioConfig,
+  env: NodeJS.ProcessEnv,
+): CanonicalSyncRuntime {
+  const config = resolveCanonicalSyncConfig(cfg, env);
   return {
     config,
     availability: {
@@ -3078,9 +3243,26 @@ async function appendPulledEncryptedEvents(params: {
       payload: await decryptRelayEventToPlainPayload(params.context, event),
     })),
   );
+  const normalizedPayloads = decryptedPayloads.map(({ event, payload }) => {
+    if (!isLocalMemoryStateEventType(event.eventType)) {
+      return { event, payload };
+    }
+    const parsedEvent = deserializeMemoryStateLedgerEvent(payload, {
+      lamport: event.lamport,
+      eventType: event.eventType,
+      createdAtMs: event.createdAtMs,
+    });
+    if (!parsedEvent) {
+      return { event, payload };
+    }
+    const normalizedEvent = normalizeProjectionEvent(parsedEvent);
+    return normalizedEvent === parsedEvent
+      ? { event, payload }
+      : { event, payload: serializeMemoryStateLedgerEvent(normalizedEvent) };
+  });
   const lastAppliedBefore = readMemoryStateMeta(params.context.db).lastAppliedLamport;
   const appendResults = params.context.ledger.appendBatch(
-    decryptedPayloads.map(({ event, payload }) => ({
+    normalizedPayloads.map(({ event, payload }) => ({
       meta: {
         eventId: event.eventId,
         profileId: params.context.ownerProfile.profileId,
@@ -3101,7 +3283,7 @@ async function appendPulledEncryptedEvents(params: {
       continue;
     }
     insertedCount += 1;
-    const decrypted = decryptedPayloads[index];
+    const decrypted = normalizedPayloads[index];
     if (!isLocalMemoryStateEventType(decrypted.event.eventType)) {
       continue;
     }
@@ -3129,7 +3311,7 @@ async function appendPulledEncryptedEvents(params: {
     }
     applyEventToDerivedState({
       db: params.context.db,
-      event: plainEvent,
+      event: normalizeProjectionEvent(plainEvent),
       migrationVersion: DERIVED_STATE_MIGRATION_VERSION,
     });
     appliedCount += 1;
@@ -3144,11 +3326,8 @@ async function appendPulledEncryptedEvents(params: {
     context: params.context,
     lastAppliedLamport: readMemoryStateMeta(params.context.db).lastAppliedLamport,
   });
-  if (
-    params.materializeMarkdown !== false &&
-    params.context.flags.legacyMarkdownProjectionEnabled
-  ) {
-    await materializeLegacyMarkdownProjections({
+  if (params.materializeMarkdown !== false && params.context.flags.markdownProjectionEnabled) {
+    await materializeMarkdownProjections({
       db: params.context.db,
       env: params.context.env,
     });
@@ -3278,8 +3457,8 @@ async function pullEncryptedEventsFromRelay(context: CanonicalStoreContext): Pro
       break;
     }
   }
-  if (insertedTotal > 0 && context.flags.legacyMarkdownProjectionEnabled) {
-    await materializeLegacyMarkdownProjections({
+  if (insertedTotal > 0 && context.flags.markdownProjectionEnabled) {
+    await materializeMarkdownProjections({
       db: context.db,
       env: context.env,
     });
@@ -3288,7 +3467,7 @@ async function pullEncryptedEventsFromRelay(context: CanonicalStoreContext): Pro
 }
 
 async function initializeCanonicalSyncRuntime(context: CanonicalStoreContext): Promise<void> {
-  const config = resolveCanonicalSyncConfig(context.env);
+  const config = resolveCanonicalSyncConfig(context.cfg, context.env);
   let profileRootKey =
     (await loadProfileRootKey({
       profileId: context.ownerProfile.profileId,
@@ -3372,9 +3551,11 @@ function currentProjectionPathsForPage(db: DatabaseSync, pageId: string): string
     .all(pageId) as Array<{
     kind: string;
   }>;
-  return rows
-    .map((row) => parseLegacyProjectionPath(row.kind))
-    .filter((value): value is string => Boolean(value));
+  return uniqueStrings(
+    rows
+      .map((row) => parseMarkdownProjectionPath(row.kind))
+      .filter((value): value is string => Boolean(value)),
+  );
 }
 
 function buildStructuredMarkdown(params: {
@@ -3527,7 +3708,7 @@ function buildStructuredEntityEvents(params: {
       type: "PROJECTION_SET",
       payload: {
         pageId,
-        kind: resolveLegacyProjectionKind(projection.relativePath),
+        kind: resolveMarkdownProjectionKind(projection.relativePath),
         markdownBody: buildStructuredMarkdown({
           title: params.entity.title,
           aliases,
@@ -3578,6 +3759,7 @@ function createCanonicalContext(params: {
       now: Date.now(),
     });
     return {
+      cfg: params.cfg,
       env,
       baseStatus,
       ownerProfile,
@@ -3588,7 +3770,7 @@ function createCanonicalContext(params: {
       flags,
       backend: params.backend,
       workspaceDir: params.workspaceDir,
-      sync: createInactiveSyncRuntime(env),
+      sync: createInactiveSyncRuntime(params.cfg, env),
       encryptCheckpointSnapshot: params.encryptCheckpointSnapshot,
     };
   } catch (error) {
@@ -3752,20 +3934,19 @@ function listEntityProjections(db: DatabaseSync, pageId: string): CanonicalMemor
     .all(pageId) as Array<{
     kind: string;
   }>;
-  return rows.flatMap((row) => {
-    const relativePath = parseLegacyProjectionPath(row.kind);
-    if (!relativePath) {
-      return [];
-    }
-    return [
-      {
-        projectionId: hashText(`${pageId}:${row.kind}`),
+  return uniqueStrings(
+    rows
+      .map((row) => parseMarkdownProjectionPath(row.kind))
+      .filter((value): value is string => Boolean(value)),
+  ).map(
+    (relativePath) =>
+      ({
+        projectionId: hashText(`${pageId}:${relativePath}`),
         path: relativePath,
         sourceKind: "workspace-memory",
         editable: true,
-      } satisfies CanonicalMemoryGraphProjection,
-    ];
-  });
+      }) satisfies CanonicalMemoryGraphProjection,
+  );
 }
 
 function listEntityRelations(params: {
@@ -3841,7 +4022,7 @@ function listEntityRelations(params: {
       title: row.related_title,
       slug: row.related_slug,
       sourcePath:
-        parseLegacyProjectionPath(row.related_projection_kind ?? "") ??
+        parseMarkdownProjectionPath(row.related_projection_kind ?? "") ??
         `memory/${row.related_slug}.md`,
       sourceKind: "workspace-memory",
     },

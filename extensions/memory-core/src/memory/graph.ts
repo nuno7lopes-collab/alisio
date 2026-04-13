@@ -1,8 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import {
-  hashText,
-  requireNodeSqlite,
-} from "alisio/plugin-sdk/memory-core-host-engine-storage";
+import { hashText, requireNodeSqlite } from "alisio/plugin-sdk/memory-core-host-engine-storage";
 import type {
   CanonicalMemoryGraphMatch,
   CanonicalMemoryGraphProjection,
@@ -11,7 +8,7 @@ import type {
   CanonicalMemoryStoreStatus,
 } from "./canonical-store.js";
 
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
 
 type GraphDirection = "incoming" | "outgoing";
 type GraphScope = "global" | "local";
@@ -76,12 +73,15 @@ function uniqueStrings(values: Array<string | null | undefined>): string[] {
   return out;
 }
 
-function parseLegacyProjectionPath(kind: string): string | null {
-  if (!kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return null;
+function parseMarkdownProjectionPath(kind: string): string | null {
+  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
+    if (!kind.startsWith(prefix)) {
+      continue;
+    }
+    const relativePath = kind.slice(prefix.length).trim();
+    return relativePath ? relativePath.replace(/\\/g, "/").replace(/^\.?\//, "") : null;
   }
-  const relativePath = kind.slice(LEGACY_PROJECTION_PREFIX.length).trim();
-  return relativePath ? relativePath.replace(/\\/g, "/").replace(/^\.?\//, "") : null;
+  return null;
 }
 
 function openCanonicalDb(status: CanonicalMemoryStoreStatus): DatabaseSync {
@@ -131,7 +131,7 @@ function listProjections(
     )
     .all(pageId) as Array<{ kind: string }>;
   const projections = rows.flatMap((row) => {
-    const projectionPath = parseLegacyProjectionPath(row.kind);
+    const projectionPath = parseMarkdownProjectionPath(row.kind);
     if (!projectionPath) {
       return [];
     }
@@ -288,7 +288,7 @@ function listRelations(params: {
       title: row.related_title,
       slug: row.related_slug,
       sourcePath:
-        parseLegacyProjectionPath(row.related_projection_kind ?? "") ??
+        parseMarkdownProjectionPath(row.related_projection_kind ?? "") ??
         defaultProjectionPath(row.related_slug),
       sourceKind: "workspace-memory",
     },
@@ -708,8 +708,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
 }): CanonicalMemoryGraphResult {
   const query = normalizeString(params.query);
   const requestedFocusId = normalizeString(params.pageId) || normalizeString(params.entityId);
-  const scope =
-    params.scope ?? (requestedFocusId || query ? "local" : "global");
+  const scope = params.scope ?? (requestedFocusId || query ? "local" : "global");
   const db = openCanonicalDb(params.status);
 
   try {
@@ -749,7 +748,7 @@ export function queryCanonicalMemoryGraphFromStore(params: {
     const focusId =
       (requestedFocusId && catalogById.has(requestedFocusId) ? requestedFocusId : null) ??
       matches[0]?.entityId ??
-      (scope === "global" ? catalog[0]?.pageId ?? null : null);
+      (scope === "global" ? (catalog[0]?.pageId ?? null) : null);
 
     if (scope === "local" && !focusId) {
       return buildEmptyGraph({ status: params.status, query, scope });
@@ -853,8 +852,10 @@ export function queryCanonicalMemoryGraphFromStore(params: {
               kind: "canonical-link",
               sourcePageId,
               targetPageId,
-              sourceTitle: source?.title ?? (relation.direction === "outgoing" ? page.title : related.title),
-              targetTitle: target?.title ?? (relation.direction === "outgoing" ? related.title : page.title),
+              sourceTitle:
+                source?.title ?? (relation.direction === "outgoing" ? page.title : related.title),
+              targetTitle:
+                target?.title ?? (relation.direction === "outgoing" ? related.title : page.title),
               sourcePath:
                 source?.sourcePath ??
                 (relation.direction === "outgoing" ? page.sourcePath : related.sourcePath),

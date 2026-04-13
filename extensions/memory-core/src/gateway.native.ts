@@ -194,7 +194,11 @@ type AttachmentRow = {
   created_at_ms: number | bigint;
 };
 
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX = "md-path:";
+const MARKDOWN_PROJECTION_PREFIX_ALIASES = [
+  MARKDOWN_PROJECTION_PREFIX,
+  "legacy-markdown:",
+] as const;
 
 function respondGatewayError(respond: GatewayRespond, code: string, message: string) {
   respond(false, undefined, { code, message });
@@ -244,12 +248,23 @@ function normalizeReferenceKey(value: string): string {
     .toLowerCase();
 }
 
-function parseLegacyProjectionPath(kind: string): string | null {
-  if (!kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return null;
+function parseMarkdownProjectionPath(kind: string): string | null {
+  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
+    if (!kind.startsWith(prefix)) {
+      continue;
+    }
+    const relativePath = kind.slice(prefix.length);
+    return relativePath ? normalizeDisplayPath(relativePath) : null;
   }
-  const relativePath = kind.slice(LEGACY_PROJECTION_PREFIX.length);
-  return relativePath ? normalizeDisplayPath(relativePath) : null;
+  return null;
+}
+
+function resolveMarkdownProjectionKinds(relativePath: string): [string, string] {
+  const normalizedPath = normalizeDisplayPath(relativePath);
+  return [
+    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[0]}${normalizedPath}`,
+    `${MARKDOWN_PROJECTION_PREFIX_ALIASES[1]}${normalizedPath}`,
+  ];
 }
 
 function extensionForMediaType(mediaType: string): string {
@@ -819,7 +834,7 @@ function readPageIdentity(db: DatabaseSync, pageId: string): PageIdentity | null
     title: row.title,
     slug: row.slug,
     path:
-      parseLegacyProjectionPath(projection?.kind ?? "") ??
+      parseMarkdownProjectionPath(projection?.kind ?? "") ??
       `memory/${row.slug || row.page_id.toLowerCase()}.md`,
     aliases: listAliases(db, pageId),
   };
@@ -1010,7 +1025,7 @@ function loadBacklinks(db: DatabaseSync, pageId: string, limit = 8): NativeWikiP
   return rows.map((row) => {
     const projection = latestProjectionForPage(db, row.page_id);
     const pagePath =
-      parseLegacyProjectionPath(projection?.kind ?? "") ??
+      parseMarkdownProjectionPath(projection?.kind ?? "") ??
       `memory/${row.slug || row.page_id.toLowerCase()}.md`;
     return {
       id: row.page_id,
@@ -1204,7 +1219,7 @@ function loadRelatedPagesForAttachment(
       id: row.page_id,
       title: row.title,
       path:
-        parseLegacyProjectionPath(projection?.kind ?? "") ??
+        parseMarkdownProjectionPath(projection?.kind ?? "") ??
         `memory/${row.slug || row.page_id.toLowerCase()}.md`,
     };
   });
@@ -1369,14 +1384,15 @@ function candidatePagePath(title: string): string {
 }
 
 function projectionExists(db: DatabaseSync, relativePath: string): boolean {
+  const [canonicalKind, compatKind] = resolveMarkdownProjectionKinds(relativePath);
   const row = db
     .prepare(
       `SELECT 1 AS found
        FROM projections
-       WHERE kind = ?
+       WHERE kind IN (?, ?)
        LIMIT 1`,
     )
-    .get(`${LEGACY_PROJECTION_PREFIX}${normalizeDisplayPath(relativePath)}`) as
+    .get(canonicalKind, compatKind) as
     | {
         found?: number;
       }
@@ -1573,7 +1589,7 @@ function buildWikiListResult(params: { db: DatabaseSync; query?: string }) {
       const title = normalizeString(row.title) || pageId;
       const slug = normalizeString(row.slug) || pageId.toLowerCase();
       const pagePath =
-        parseLegacyProjectionPath(normalizeString(row.projection_kind)) ?? `memory/${slug}.md`;
+        parseMarkdownProjectionPath(normalizeString(row.projection_kind)) ?? `memory/${slug}.md`;
       const markdown = normalizeString(row.markdown_body);
       const parsed = parseFrontmatter(markdown);
       const body = parsed.body;

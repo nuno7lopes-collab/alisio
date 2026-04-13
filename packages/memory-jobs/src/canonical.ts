@@ -4,7 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { normalizeTextKey, textSimilarity } from "./text.js";
 import { normalizeNumber, uniqueStrings } from "./utils.js";
 
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
 
 export type SleepClaimSnapshot = {
   claimId: string;
@@ -442,8 +442,10 @@ export function findPotentialPageDuplicates(params: {
 }
 
 function parseProjectionPath(kind: string, pageId: string): string {
-  if (kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return kind.slice(LEGACY_PROJECTION_PREFIX.length);
+  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
+    if (kind.startsWith(prefix)) {
+      return kind.slice(prefix.length);
+    }
   }
   return path.join("memory", `${pageId}.md`);
 }

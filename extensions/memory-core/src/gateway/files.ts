@@ -132,7 +132,7 @@ type NativeMemoryFileDetail = NativeMemoryFileListEntry & {
   relatedPages: NativeMemoryFileLink[];
 };
 
-const LEGACY_PROJECTION_PREFIX = "legacy-markdown:";
+const MARKDOWN_PROJECTION_PREFIX_ALIASES = ["md-path:", "legacy-markdown:"] as const;
 const INLINE_TEXT_PREVIEW_MAX_CHARS = 24_000;
 const INLINE_BINARY_PREVIEW_MAX_BYTES = 1_500_000;
 
@@ -191,12 +191,15 @@ function normalizeDisplayPath(value: string): string {
   return segments.join("/");
 }
 
-function parseLegacyProjectionPath(kind: string): string | null {
-  if (!kind.startsWith(LEGACY_PROJECTION_PREFIX)) {
-    return null;
+function parseMarkdownProjectionPath(kind: string): string | null {
+  for (const prefix of MARKDOWN_PROJECTION_PREFIX_ALIASES) {
+    if (!kind.startsWith(prefix)) {
+      continue;
+    }
+    const relativePath = kind.slice(prefix.length);
+    return relativePath ? normalizeDisplayPath(relativePath) : null;
   }
-  const relativePath = kind.slice(LEGACY_PROJECTION_PREFIX.length);
-  return relativePath ? normalizeDisplayPath(relativePath) : null;
+  return null;
 }
 
 function extensionForMediaType(mediaType: string): string {
@@ -508,7 +511,7 @@ function latestProjectionPathForPage(db: DatabaseSync, pageId: string): string |
   if (!row) {
     return null;
   }
-  return parseLegacyProjectionPath(row.kind) ?? `memory/${row.slug || pageId.toLowerCase()}.md`;
+  return parseMarkdownProjectionPath(row.kind) ?? `memory/${row.slug || pageId.toLowerCase()}.md`;
 }
 
 function readPageLink(db: DatabaseSync, pageId: string): NativeMemoryFileLink | null {
