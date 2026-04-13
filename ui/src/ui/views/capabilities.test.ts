@@ -382,7 +382,7 @@ describe("renderCapabilities", () => {
       container,
     );
 
-    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(4);
+    expect(container.querySelectorAll(".loading-state__stat-card")).toHaveLength(5);
     expect(container.querySelectorAll(".loading-state__list-item")).toHaveLength(3);
     expect(container.textContent).not.toContain("No capabilities matched your filters.");
   });
@@ -488,12 +488,63 @@ describe("renderCapabilities", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("Installed");
     expect(text).toContain("Catalog");
+    expect(text).toContain("Not installed");
     expect(text).toContain("Allow once");
     expect(text).toContain("Allow always");
     expect(text).toContain("Tools (1)");
     expect(text).toContain("MCP");
     expect(text).toContain("Exec: mcp-inspect");
     expect(text).toContain("Primary: prompt");
+  });
+
+  it("separates not installed skills from setup blockers in the capability view", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderCapabilities(
+        createProps({
+          report: {
+            workspaceDir: "/tmp/workspace",
+            managedSkillsDir: "/tmp/skills",
+            skills: [],
+            marketplaceCatalog: [
+              createSkill({
+                skillKey: "installed-skill",
+                name: "Installed Skill",
+                installed: true,
+                eligible: true,
+              }),
+              createSkill({
+                skillKey: "catalog-skill",
+                name: "Catalog Skill",
+                installed: false,
+                eligible: false,
+              }),
+              createSkill({
+                skillKey: "needs-config-skill",
+                name: "Needs Config Skill",
+                installed: true,
+                eligible: false,
+                missing: {
+                  bins: [],
+                  anyBins: [],
+                  env: ["OPENAI_API_KEY"],
+                  config: [],
+                  os: [],
+                },
+              }),
+            ],
+          },
+        }),
+      ),
+      container,
+    );
+
+    const text = container.textContent ?? "";
+    expect(text).toContain("Not installed");
+    expect(text).toContain("Need setup");
+    expect(text).toContain("Catalog Skill");
+    expect(text).toContain("Needs Config Skill");
   });
 });
 

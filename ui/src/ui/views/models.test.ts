@@ -250,7 +250,7 @@ function createDefaultModelState(
 }
 
 describe("renderModelsHub", () => {
-  it("renders only the three supported source cards and wires OpenAI selection", () => {
+  it("renders only OpenAI and this computer cards and wires local selection", () => {
     const props = createProps();
     const container = document.createElement("div");
 
@@ -260,13 +260,13 @@ describe("renderModelsHub", () => {
       container.querySelectorAll<HTMLElement>(".alisio-models__provider-title"),
     ).map((element) => element.textContent?.trim() ?? "");
 
-    expect(providerTitles).toEqual(["OpenAI", "This computer", "Alisio nodes"]);
+    expect(providerTitles).toEqual(["OpenAI", "This computer"]);
 
-    const nodesCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Alisio nodes"),
+    const localCard = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
+      (button) => button.textContent?.includes("This computer"),
     );
-    nodesCard?.click();
-    expect(props.onSelectProvider).toHaveBeenCalledWith("nodes");
+    localCard?.click();
+    expect(props.onSelectProvider).toHaveBeenCalledWith("local");
 
     const allModelButtons = Array.from(
       container.querySelectorAll<HTMLButtonElement>(".alisio-models__model-chip"),
@@ -274,6 +274,7 @@ describe("renderModelsHub", () => {
     allModelButtons[0]?.click();
     expect(props.onSelectDefaultChatModel).toHaveBeenCalledWith("openai-codex/gpt-5.3-codex");
     expect(container.textContent).not.toContain("This chat");
+    expect(container.textContent).not.toContain("Alisio nodes");
   });
 
   it("renders the local surface with install, update and uninstall actions", () => {
@@ -314,50 +315,6 @@ describe("renderModelsHub", () => {
     expect(props.onUninstallModel).toHaveBeenCalledWith("current", "qwen3-4b-q4-k-m");
   });
 
-  it("renders the nodes surface with paired-node models only", () => {
-    const props = createProps({
-      selectedProviderId: "nodes",
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    const section = container.querySelector<HTMLElement>(".alisio-models-section");
-
-    expect(section?.textContent).toContain("Alisio nodes");
-    expect(section?.textContent).toContain("Studio Mac");
-    expect(section?.textContent).toContain("Qwen3 8B");
-    expect(section?.textContent ?? "").not.toContain("alice@example.com");
-    expect(container.querySelector(".alisio-models__chooser")).toBeNull();
-  });
-
-  it("shows read-only metadata for shared nodes", () => {
-    const baseModels = createModelsState();
-    const props = createProps({
-      selectedProviderId: "nodes",
-      models: {
-        ...baseModels,
-        targets: [
-          baseModels.targets[0],
-          {
-            ...baseModels.targets[1],
-            access: "shared",
-            ownerLabel: "Alice",
-            ownerScope: "user",
-            grantId: "grant-1",
-          },
-        ],
-      },
-    });
-    const container = document.createElement("div");
-
-    render(renderModelsHub(props), container);
-
-    expect(container.textContent).toContain("Read-only");
-    expect(container.textContent).toContain("Shared");
-    expect(container.textContent).toContain("Owned by Alice");
-  });
-
   it("renders loading, empty and error states for the local surface", () => {
     const loadingProps = createProps({
       selectedProviderId: "local",
@@ -392,36 +349,18 @@ describe("renderModelsHub", () => {
     expect(errorContainer.textContent).toContain("Local fetch failed");
   });
 
-  it("renders loading, empty and error states for the nodes surface", () => {
-    const loadingProps = createProps({
-      selectedProviderId: "nodes",
-      modelsLoading: true,
-      models: null,
+  it("falls back to a valid surface when a stale nodes selection is provided", () => {
+    const props = createProps({
+      selectedProviderId: "nodes" as unknown as Parameters<
+        typeof renderModelsHub
+      >[0]["selectedProviderId"],
     });
-    const loadingContainer = document.createElement("div");
-    render(renderModelsHub(loadingProps), loadingContainer);
-    expect(loadingContainer.querySelectorAll(".loading-state__list-item").length).toBeGreaterThan(
-      1,
-    );
+    const container = document.createElement("div");
 
-    const emptyProps = createProps({
-      selectedProviderId: "nodes",
-      models: {
-        ...createModelsState(),
-        targets: [createModelsState().targets[0]],
-      },
-    });
-    const emptyContainer = document.createElement("div");
-    render(renderModelsHub(emptyProps), emptyContainer);
-    expect(emptyContainer.textContent).toContain("No Alisio nodes are available yet.");
+    render(renderModelsHub(props), container);
 
-    const errorProps = createProps({
-      selectedProviderId: "nodes",
-      modelsError: "Node list failed",
-    });
-    const errorContainer = document.createElement("div");
-    render(renderModelsHub(errorProps), errorContainer);
-    expect(errorContainer.textContent).toContain("Node list failed");
+    expect(container.textContent).toContain("OpenAI");
+    expect(container.textContent).not.toContain("Alisio nodes");
   });
 
   it("hides OpenAI model controls until an account is actually connected", () => {

@@ -112,7 +112,6 @@ function renderSidebarList(params: RenderMemoryFilesViewParams) {
             </button>
             ${params.renderTraceAction({
               label: file.name,
-              traceId: file.traceId,
               trace: file.trace,
               summary: file.traceSummary,
               reasonTags: file.reasonTags,
@@ -201,7 +200,6 @@ function renderDetail(params: RenderMemoryFilesViewParams) {
             : nothing}
           ${params.renderTraceAction({
             label: file.name,
-            traceId: file.traceId,
             trace: file.trace,
             summary: file.traceSummary,
             reasonTags: file.reasonTags,

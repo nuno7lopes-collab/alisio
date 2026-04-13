@@ -40,6 +40,21 @@ export function createChatModelOverride(value: string): ChatModelOverride | null
   return { kind: "raw", value: trimmed };
 }
 
+export function normalizeChatModelSelectionValue(
+  value: string | null | undefined,
+  defaultModelValue?: string | null,
+): string {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) {
+    return "";
+  }
+  const defaultTrimmed = defaultModelValue?.trim() ?? "";
+  if (defaultTrimmed && trimmed.toLowerCase() === defaultTrimmed.toLowerCase()) {
+    return "";
+  }
+  return trimmed;
+}
+
 export function normalizeChatModelOverrideValue(
   override: ChatModelOverride | null | undefined,
   catalog: ModelCatalogEntry[],

@@ -6,7 +6,10 @@ import {
   type CanonicalMemoryStoreStatus,
   type CanonicalStoreBackend,
 } from "alisio/plugin-sdk/memory-core-engine-runtime";
-import type { MemoryStateEventDraft } from "alisio/plugin-sdk/memory-core-state";
+import type {
+  MemoryStateEventDraft,
+  MemoryStateEventEnvelopePlain,
+} from "alisio/plugin-sdk/memory-core-state";
 import { openLedger } from "../../memory-ledger/src/index.js";
 import type { MemoryJobCheckpointReason } from "./types.js";
 import { createEventId, parseJsonValue, stableStringify } from "./utils.js";

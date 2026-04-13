@@ -58,6 +58,8 @@ export function createSessionsListResult(
   params: {
     model?: string | null;
     modelProvider?: string | null;
+    modelOverride?: string | null;
+    providerOverride?: string | null;
     defaultsModel?: string | null;
     defaultsProvider?: string | null;
     omitSessionFromList?: boolean;
@@ -66,6 +68,8 @@ export function createSessionsListResult(
   const {
     model = null,
     modelProvider = model ? "openai" : null,
+    modelOverride = model,
+    providerOverride = modelOverride ? (modelProvider ?? "openai") : null,
     defaultsModel = "gpt-5",
     defaultsProvider = defaultsModel ? "openai" : null,
     omitSessionFromList = false,
@@ -84,6 +88,8 @@ export function createSessionsListResult(
       ? []
       : [
           createMainSessionRow({
+            ...(providerOverride ? { providerOverride } : {}),
+            ...(modelOverride ? { modelOverride } : {}),
             ...(modelProvider ? { modelProvider } : {}),
             ...(model ? { model } : {}),
           }),

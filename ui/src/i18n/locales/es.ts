@@ -365,6 +365,8 @@ export const es: TranslationMap = {
         lamport: "Último lamport sincronizado",
         e2ee: "E2EE",
         e2eeRequired: "Obligatorio",
+        state: "Estado de la sincronización",
+        detail: "Detalles de la sincronización",
       },
       trace: {
         reasonTags: "Etiquetas de motivo",
@@ -411,7 +413,8 @@ export const es: TranslationMap = {
         branches: "Ramificaciones",
         branchesEmpty: "No hay ramificaciones visibles para el foco actual.",
         edgeReason: "Por qué existe este enlace",
-        edgeReasonEmpty: "Selecciona una arista para inspeccionar el enlace canónico que la sustenta.",
+        edgeReasonEmpty:
+          "Selecciona una arista para inspeccionar el enlace canónico que la sustenta.",
         filterRelations: "Filtrar por relación",
         filterTags: "Filtrar por etiqueta",
         nodesCount: "Nodos",
@@ -509,7 +512,7 @@ export const es: TranslationMap = {
       statuses: {
         connected: "Conectada",
         needs_reconnect: "Necesita reconexión",
-        setup_required: "Preparando",
+        setup_required: "Configuración necesaria",
         ready: "Lista",
         in_review: "Próximamente",
         unavailable: "No disponible",
@@ -518,8 +521,8 @@ export const es: TranslationMap = {
         remove: "Eliminar",
         revoke: "Revocar",
         reconnect: "Reconectar",
-        reviewSetup: "Revisar configuración",
-        openModels: "Abrir modelos",
+        reviewSetup: "Configurar",
+        openConnections: "Abrir conexiones",
       },
       hints: {
         connected: "Conectada y lista para chats, tareas y automatizaciones.",
@@ -527,7 +530,7 @@ export const es: TranslationMap = {
         inReview: "Visible en el producto, a la espera de aprobación del proveedor.",
         unavailable: "Todavía no disponible en este entorno.",
         setupRequired:
-          "Esta autenticación se está preparando y estará disponible cuando termine la configuración del servicio.",
+          "La app OAuth del proveedor todavía no está configurada en este gateway de Alisio.",
         needsReconnect:
           "La autorización existe, pero debe reconectarse antes de que el agente pueda usarla.",
       },
@@ -537,7 +540,7 @@ export const es: TranslationMap = {
         reviewTitle: "El despliegue del conector sigue en progreso",
         unavailableTitle: "El conector todavía no está disponible",
         missingConfigBody:
-          "Este conector ya usa el flujo OAuth nativo de Alisio, pero la app del proveedor todavía no está configurada en este workspace de Alisio.",
+          "Este conector ya usa el flujo OAuth nativo de Alisio, pero la app del proveedor todavía no está configurada en este gateway de Alisio.",
         missingTokenEncryptionBody:
           "Este conector no puede guardar tokens OAuth de forma segura en este Mac ahora mismo. Restaura el keychain de inicio de sesión o configura ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY antes de volver a intentarlo.",
         reviewBody:
@@ -706,6 +709,7 @@ export const es: TranslationMap = {
       },
       reasons: {
         disabled: "Deshabilitada",
+        notInstalled: "Todavía no está instalada en este ordenador",
         blockedByAllowlist: "Bloqueada por la allowlist",
       },
       sources: {
@@ -730,8 +734,6 @@ export const es: TranslationMap = {
     },
     organization: {
       title: "Organización",
-      subtitle:
-        "Mantén esta primera fase deliberadamente simple: crea una organización o únete a una cuando te inviten.",
       loading: "Cargando organización…",
       currentOrganization: "Organización actual",
       unnamedOrganization: "Organización sin nombre",
@@ -747,19 +749,23 @@ export const es: TranslationMap = {
       joinPlaceholder: "La organización a la que fuiste invitado",
       invitationEmail: "Correo de invitación",
       invitationPlaceholder: "team@company.com",
+      invitationHint: "Añade el correo de invitación si la organización te envió uno.",
+      invitationInvalid: "Usa un correo de invitación válido.",
       submitCreate: "Crear organización",
       submitJoin: "Unirse a la organización",
+      saving: "Guardando…",
+      reconnectHint: "Vuelve a conectar Alisio antes de editar organizaciones.",
+      accountHint: "Inicia sesión en Alisio antes de crear o unirte a una organización.",
+      upgradeHint:
+        "Las organizaciones requieren Plus. Abre Ajustes -> Facturación antes de crear o unirte a una.",
       membership: {
         owner: "Propietario",
         member: "Miembro",
         personal: "Personal",
       },
-      keepPersonalTitle: "Mantenlo personal por ahora",
-      keepPersonalBody:
-        "Las organizaciones son opcionales en la primera ejecución. Puedes volver aquí más tarde sin bloquear el chat.",
-      afterFirstChatTitle: "Después del primer chat",
-      afterFirstChatBody:
-        "Usa organizaciones solo si tu cuenta ya tiene acceso y necesitas acceso compartido, facturación de equipo o controles de administración. No es obligatorio para empezar a usar Alisio.",
+      createHint:
+        "Opcional. Usa una organización solo cuando necesites acceso compartido o controles de administración.",
+      leaveHint: "Puedes volver al modo personal en cualquier momento.",
     },
     settings: {
       title: "Ajustes",
@@ -788,9 +794,10 @@ export const es: TranslationMap = {
         title: "Salud del sistema",
         openChecks: "{count} comprobaciones abiertas",
         restartRuntime: "Reiniciar runtime",
-        rebuildApp: "Reconstruir app",
-        rebuildingApp: "Reconstruyendo app…",
-        rebuildStarted: "La reconstrucción ha comenzado. La app se cerrará y volverá a abrirse.",
+        rebuildApp: "Actualizar app + runtime",
+        rebuildingApp: "Actualizando app + runtime…",
+        rebuildStarted:
+          "La actualización ha comenzado. La app se cerrará, reiniciará el runtime local y volverá a abrirse.",
         rebuildUnavailable:
           "Vuelve a conectar el runtime o abre primero la build nativa de desarrollo.",
         reconnectApp: "Reconectar Alisio",
@@ -1149,6 +1156,113 @@ export const es: TranslationMap = {
         remove: "Eliminar dispositivo",
         removeConfirm:
           "¿Eliminar el dispositivo vinculado {deviceId}? Cualquier token activo de ese dispositivo dejará de funcionar.",
+      },
+      sharing: {
+        title: "Compartir",
+        subtitle: "Descubrimiento automático. El acceso sigue controlado por políticas.",
+        note: "Los dispositivos de runtime conocidos aparecen automáticamente. Después del emparejamiento, los dispositivos vinculados en la misma cuenta comparten acceso a modelos. La ejecución sigue requiriendo una aprobación explícita por dispositivo. La memoria, el vault, los archivos y otro contexto sensible no se comparten automáticamente aquí.",
+        suggestionsTitle: "Sugerencias para compartir",
+        target: "Destino",
+        policyTitle: "Política para compartir",
+        policyModeLabel: "Modo de política",
+        summaryTitle: "Resumen de compartición",
+        currentScopes: "Scopes actuales",
+        requestModels: "Solicitar modelos",
+        requestExec: "Solicitar ejecución",
+        requestModelsAndExec: "Solicitar modelos y ejecución",
+        requestReadOnly: "Solicitar acceso",
+        availableTitle: "Disponibles para solicitar",
+        availableEmpty: "No hay otros dispositivos que se puedan solicitar ahora mismo.",
+        sharedTitle: "Compartidos contigo",
+        sharedEmpty: "Todavía no hay dispositivos compartidos contigo.",
+        incomingTitle: "Solicitudes entrantes",
+        incomingEmpty: "No hay solicitudes entrantes.",
+        outgoingTitle: "Tus solicitudes",
+        outgoingEmpty: "No hay solicitudes salientes.",
+        grantsTitle: "Aprobaciones",
+        grantsEmpty: "Todavía no hay aprobaciones.",
+        auditTitle: "Registro de auditoría",
+        auditEmpty: "Todavía no hay eventos de compartición.",
+        approve: "Aprobar",
+        reject: "Denegar",
+        revoke: "Revocar",
+        allowExternalUse: "Permitir uso externo",
+        externalOn:
+          "Los dispositivos de la organización permiten solicitudes externas en este momento.",
+        externalOff:
+          "Los dispositivos de la organización siguen requiriendo una activación explícita para uso externo.",
+        emptyState: "No hay dispositivos compartidos, solicitudes ni aprobaciones ahora mismo.",
+        sameAccount: "Misma cuenta",
+        sensitiveGroup: "Sensibles",
+        models: "Modelos",
+        exec: "Ejecución",
+        readOnly: "Solo lectura",
+        summary: {
+          discovery: "Descubrimiento automático",
+          sensitive: "Sensibles",
+        },
+        resource: {
+          compute: "Compute",
+          models: "Modelos",
+          jobs: "Jobs",
+          artifacts: "Artefactos",
+          cache: "Cache",
+          memory: "Memoria",
+          vault: "Vault",
+          files: "Archivos",
+          context: "Contexto sensible",
+        },
+        policyMode: {
+          "paired-device": "Dispositivo emparejado",
+          "light-approval": "Aprobación ligera",
+          "explicit-consent": "Consentimiento explícito",
+        },
+        policyModeHint: {
+          "paired-device":
+            "Permite por defecto dispositivos emparejados de la misma cuenta después del primer paso de confianza.",
+          "light-approval":
+            "Permite descubrimiento y sugerencias, pero exige una aprobación ligera antes del uso.",
+          "explicit-consent":
+            "Mantiene este recurso detrás de consentimiento explícito cuando el flujo pasa a ser sensible.",
+        },
+        suggestion: {
+          modelReuse: {
+            title: "Reutilizar modelos de {target}",
+            body: "Da prioridad a los modelos ya descargados en ese dispositivo antes de volver a descargarlos.",
+          },
+          artifactCache: {
+            title: "Reutilizar artefactos de {target}",
+            body: "Los outputs útiles y los artefactos intermedios pueden quedarse en el dispositivo emparejado y sugerirse cuando ayuden.",
+          },
+          cacheReuse: {
+            title: "Reutilizar cache de {target}",
+            body: "Los caches calientes pueden sugerirse entre dispositivos para mantener rápido el trabajo repetido sin exponer archivos ampliamente.",
+          },
+          execUpgrade: {
+            title: "Activar ejecución en {target}",
+            body: "El acceso a modelos ya está compartido. Aprueba la ejecución una vez si quieres que este dispositivo también acepte jobs distribuidos.",
+          },
+          distributedJobs: {
+            title: "Enviar jobs distribuidos a {target}",
+            body: "Este dispositivo ya es de confianza para ejecución y puede recibir jobs distribuidos cuando haya capacidad disponible.",
+          },
+          sensitiveConsent: {
+            title: "Los datos sensibles siguen siendo explícitos",
+            body: "La memoria, el vault, los archivos y el contexto sensible siguen detrás de consentimiento explícito incluso cuando la compartición de compute es más automática.",
+          },
+        },
+        access: {
+          owner: "propio",
+          shared: "compartido",
+          requestable: "solicitable",
+          blocked: "bloqueado",
+        },
+        requestStatus: {
+          pending: "Pendiente",
+          approved: "Aprobado",
+          rejected: "Denegado",
+          revoked: "Revocado",
+        },
       },
       bindings: {
         title: "Ejecución",

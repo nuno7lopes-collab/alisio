@@ -117,7 +117,6 @@ export type AppViewState = {
   alisioConnectorSetupGuide: import("./types.ts").AlisioConnectorsBeginResult | null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null;
   alisioConnectorsSearch: string;
-  alisioConnectorsCategoryFilter: string;
   alisioOrganizationDraftMode: "create" | "join";
   alisioOrganizationName: string;
   alisioOrganizationInviteEmail: string;
@@ -149,6 +148,7 @@ export type AppViewState = {
   chatAvatarUrl: string | null;
   chatThinkingLevel: string | null;
   chatModelOverrides: Record<string, ChatModelOverride | null>;
+  chatModelSwitchPendingBySession?: Record<string, string | null>;
   chatModelsLoading: boolean;
   chatModelCatalog: ModelCatalogEntry[];
   modelManagementLoading: boolean;
@@ -395,7 +395,7 @@ export type AppViewState = {
     skillsReport: SkillStatusReport | null;
     skillsError: string | null;
     skillsFilter: string;
-    skillsStatusFilter: "all" | "ready" | "needs-setup" | "disabled";
+    skillsStatusFilter: "all" | "ready" | "not-installed" | "needs-setup" | "disabled";
     skillEdits: Record<string, string>;
     skillMessages: Record<string, SkillMessage>;
     skillActionOutputs: Record<string, import("./controllers/skills.ts").SkillActionOutput>;

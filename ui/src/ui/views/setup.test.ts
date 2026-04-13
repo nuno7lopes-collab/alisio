@@ -153,18 +153,11 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     birthdate: "",
     aiLoading: false,
     aiError: null,
-    connectorsSearch: "",
-    connectorsCategoryFilter: "all",
-    onConnectorsSearchChange: vi.fn(),
-    onConnectorsCategoryChange: vi.fn(),
     onDismissSetupGuide: vi.fn(),
     onOpenSupportUrl: vi.fn(),
     organizationLoading: false,
     organizationError: null,
     organization: { mode: "none" },
-    sharingLoading: false,
-    sharingError: null,
-    sharing: null,
     organizationDraftMode: "create",
     organizationName: "",
     organizationInviteEmail: "",
@@ -195,13 +188,6 @@ function createSetupProps(overrides: Partial<SetupRenderProps> = {}): SetupRende
     onCreateOrganization: vi.fn(),
     onJoinOrganization: vi.fn(),
     onResetOrganization: vi.fn(),
-    onRefreshSharing: vi.fn(),
-    onRequestAccess: vi.fn(),
-    onApproveRequest: vi.fn(),
-    onRejectRequest: vi.fn(),
-    onRevokeGrant: vi.fn(),
-    onSetPolicy: vi.fn(),
-    onSetResourcePolicy: vi.fn(),
     onBeginConnector: vi.fn(),
     onRevokeConnector: vi.fn(),
     onStartWizard: vi.fn(),
@@ -234,9 +220,6 @@ function createOrganizationProps(
     loading: false,
     error: null,
     organization: null,
-    sharingLoading: false,
-    sharingError: null,
-    sharing: null,
     draftMode: "create",
     organizationName: "",
     inviteEmail: "",
@@ -246,13 +229,6 @@ function createOrganizationProps(
     onCreateOrganization: vi.fn(),
     onJoinOrganization: vi.fn(),
     onResetOrganization: vi.fn(),
-    onRefreshSharing: vi.fn(),
-    onRequestAccess: vi.fn(),
-    onApproveRequest: vi.fn(),
-    onRejectRequest: vi.fn(),
-    onRevokeGrant: vi.fn(),
-    onSetPolicy: vi.fn(),
-    onSetResourcePolicy: vi.fn(),
     ...overrides,
   };
 }
@@ -356,14 +332,12 @@ describe("setup view", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Organizations currently require Plus");
-    expect(container.textContent).toContain("rollout-sensitive");
+    expect(container.textContent).toContain("Organizations require Plus");
     const action = container.querySelector<HTMLButtonElement>(".btn.primary");
     expect(action?.disabled).toBe(true);
   });
 
-  it("keeps execution upgrade requests on already shared devices in organization sharing", () => {
-    const onRequestAccess = vi.fn();
+  it("keeps the organization page focused on membership only", () => {
     const container = document.createElement("div");
 
     render(
@@ -373,128 +347,6 @@ describe("setup view", () => {
             mode: "owner",
             organizationName: "Team Orbit",
             inviteEmail: "team@example.com",
-          },
-          onRequestAccess,
-          sharing: {
-            viewer: {
-              ownerKey: "organization:team-orbit",
-              ownerScope: "organization",
-              label: "Team Orbit",
-            },
-            planSupported: true,
-            policy: {
-              ownerKey: "organization:team-orbit",
-              ownerLabel: "Team Orbit",
-              allowExternalUse: true,
-              editable: true,
-            },
-            devices: {
-              owned: [],
-              available: [],
-              sharedWithMe: [
-                {
-                  targetId: "remote-1",
-                  label: "Render Node",
-                  sourceKind: "node",
-                  connected: true,
-                  current: false,
-                  ownerKey: "organization:partner",
-                  ownerScope: "organization",
-                  ownerLabel: "Partner Org",
-                  registeredAt: new Date(0).toISOString(),
-                  updatedAt: new Date(0).toISOString(),
-                  deviceAccess: "shared",
-                  modelAccess: "shared",
-                  execAccess: "requestable",
-                  grantScopes: ["read-only", "model-use"],
-                },
-              ],
-            },
-            incomingRequests: [],
-            outgoingRequests: [],
-            approvals: [],
-            grants: [],
-            audit: [],
-          },
-        }),
-      ),
-      container,
-    );
-
-    const requestButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(
-      (button) => button.textContent?.includes("Request access exec"),
-    );
-    expect(requestButton).toBeDefined();
-
-    requestButton?.click();
-
-    expect(onRequestAccess).toHaveBeenCalledWith("remote-1", ["read-only", "model-use", "exec"]);
-    expect(
-      Array.from(container.querySelectorAll<HTMLButtonElement>("button")).filter((button) =>
-        button.textContent?.includes("Revoke"),
-      ),
-    ).toHaveLength(0);
-  });
-
-  it("renders organization sharing suggestions and per-resource policy controls", () => {
-    const onSetResourcePolicy = vi.fn();
-    const container = document.createElement("div");
-
-    render(
-      renderOrganization(
-        createOrganizationProps({
-          organization: {
-            mode: "owner",
-            organizationName: "Team Orbit",
-            inviteEmail: "team@example.com",
-          },
-          onSetResourcePolicy,
-          sharing: {
-            viewer: {
-              ownerKey: "organization:team-orbit",
-              ownerScope: "organization",
-              label: "Team Orbit",
-            },
-            planSupported: true,
-            policy: {
-              ownerKey: "organization:team-orbit",
-              ownerScope: "organization",
-              ownerLabel: "Team Orbit",
-              allowExternalUse: true,
-              editable: true,
-              resourcesEditable: true,
-              resourcePolicies: {
-                compute: "light-approval",
-                models: "paired-device",
-                jobs: "light-approval",
-                artifacts: "paired-device",
-                cache: "paired-device",
-                memory: "explicit-consent",
-                vault: "explicit-consent",
-                files: "explicit-consent",
-                context: "explicit-consent",
-              },
-            },
-            devices: {
-              owned: [],
-              available: [],
-              sharedWithMe: [],
-            },
-            incomingRequests: [],
-            outgoingRequests: [],
-            approvals: [],
-            grants: [],
-            audit: [],
-            suggestions: [
-              {
-                suggestionId: "distributed-jobs:remote-1",
-                kind: "distributed-jobs",
-                resource: "jobs",
-                targetId: "remote-1",
-                targetLabel: "Render Node",
-                sameAccount: false,
-              },
-            ],
           },
         }),
       ),
@@ -502,20 +354,10 @@ describe("setup view", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Suggested sharing");
-    expect(text).toContain("Send distributed jobs to Render Node");
-    expect(text).toContain("Sharing policy");
-    expect(text).toContain("Compute");
-
-    const computeSelect = Array.from(container.querySelectorAll<HTMLSelectElement>("select")).find(
-      (select) => select.closest(".list-item")?.textContent?.includes("Compute"),
-    );
-    expect(computeSelect).toBeDefined();
-
-    computeSelect!.value = "paired-device";
-    computeSelect!.dispatchEvent(new Event("change", { bubbles: true }));
-
-    expect(onSetResourcePolicy).toHaveBeenCalledWith("compute", "paired-device");
+    expect(text).toContain("Current organization");
+    expect(text).not.toContain("Devices");
+    expect(text).not.toContain("Sharing policy");
+    expect(text).not.toContain("Suggested sharing");
   });
 
   it("renders the web-first setup flow and key steps", () => {
@@ -1014,7 +856,7 @@ describe("setup view", () => {
     );
 
     expect(container.textContent).toContain("GitHub");
-    expect(container.textContent).toContain("Preparing");
+    expect(container.textContent).toContain("Setup required");
     expect(container.querySelector(".alisio-setup-page__progress .chip-active")).not.toBeNull();
     expect(
       [...container.querySelectorAll("button")].some((button) =>

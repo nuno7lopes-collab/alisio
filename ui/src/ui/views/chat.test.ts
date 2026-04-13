@@ -30,12 +30,22 @@ function createChatHeaderState(
   overrides: {
     model?: string | null;
     modelProvider?: string | null;
+    modelOverride?: string | null;
+    providerOverride?: string | null;
     models?: ModelCatalogEntry[];
     omitSessionFromList?: boolean;
   } = {},
 ): { state: AppViewState; request: ReturnType<typeof vi.fn> } {
   let currentModel = overrides.model ?? null;
   let currentModelProvider = overrides.modelProvider ?? (currentModel ? "openai" : null);
+  let currentModelOverride =
+    overrides.modelOverride === undefined ? currentModel : overrides.modelOverride;
+  let currentProviderOverride =
+    overrides.providerOverride === undefined
+      ? currentModelOverride
+        ? (currentModelProvider ?? "openai")
+        : null
+      : overrides.providerOverride;
   const omitSessionFromList = overrides.omitSessionFromList ?? false;
   const catalog = overrides.models ?? createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG);
   const request = vi.fn(async (method: string, params: Record<string, unknown>) => {
@@ -44,12 +54,16 @@ function createChatHeaderState(
       if (!nextModel) {
         currentModel = null;
         currentModelProvider = null;
+        currentModelOverride = null;
+        currentProviderOverride = null;
       } else {
         const normalized = nextModel.trim();
         const slashIndex = normalized.indexOf("/");
         if (slashIndex > 0) {
           currentModelProvider = normalized.slice(0, slashIndex);
           currentModel = normalized.slice(slashIndex + 1);
+          currentProviderOverride = currentModelProvider;
+          currentModelOverride = currentModel;
         } else {
           currentModel = normalized;
           const matchingProviders = catalog
@@ -58,6 +72,8 @@ function createChatHeaderState(
             .filter(Boolean);
           currentModelProvider =
             matchingProviders.length === 1 ? matchingProviders[0] : currentModelProvider;
+          currentProviderOverride = currentModelProvider;
+          currentModelOverride = currentModel;
         }
       }
       return { ok: true, key: "main" };
@@ -69,6 +85,8 @@ function createChatHeaderState(
       return createSessionsListResult({
         model: currentModel,
         modelProvider: currentModelProvider,
+        modelOverride: currentModelOverride,
+        providerOverride: currentProviderOverride,
         omitSessionFromList,
       });
     }
@@ -91,6 +109,8 @@ function createChatHeaderState(
     sessionsResult: createSessionsListResult({
       model: currentModel,
       modelProvider: currentModelProvider,
+      modelOverride: currentModelOverride,
+      providerOverride: currentProviderOverride,
       omitSessionFromList,
     }),
     chatModelOverrides: {},
@@ -445,6 +465,29 @@ describe("chat view", () => {
 
     expect(firstClick).not.toHaveBeenCalled();
     expect(secondClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks composer send actions when canSend is false", () => {
+    const container = document.createElement("div");
+    const onSend = vi.fn();
+    render(
+      renderChat(
+        createProps({
+          draft: "Mensagem pendente",
+          canSend: false,
+          onSend,
+        }),
+      ),
+      container,
+    );
+
+    const sendButton = container.querySelector<HTMLButtonElement>(".chat-send-btn");
+    expect(sendButton?.disabled).toBe(true);
+
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea");
+    composer?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+    expect(onSend).not.toHaveBeenCalled();
   });
 
   it("shows a runtime setup callout instead of the raw error when setup is missing", () => {
@@ -1239,6 +1282,41 @@ describe("chat view", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not render the default model twice in the chat header picker", () => {
+    const { state } = createChatHeaderState();
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+
+    const optionValues = Array.from(modelSelect?.querySelectorAll("option") ?? []).map(
+      (option) => option.value,
+    );
+    expect(optionValues.filter((value) => value === "")).toHaveLength(1);
+    expect(optionValues).not.toContain("openai/gpt-5");
+    expect(optionValues).toContain("openai/gpt-5-mini");
+  });
+
+  it("shows Default when the session is using the default runtime model without an explicit override", () => {
+    const { state } = createChatHeaderState({
+      model: "gpt-5",
+      modelProvider: "openai",
+      modelOverride: null,
+      providerOverride: null,
+    });
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+    expect(modelSelect?.value).toBe("");
+  });
+
   it("reloads effective tools after a chat-header model switch for the active tools panel", async () => {
     vi.stubGlobal(
       "fetch",
@@ -1304,6 +1382,34 @@ describe("chat view", () => {
     vi.unstubAllGlobals();
   });
 
+  it("treats selecting the explicit default-model option as clearing the override", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+      } satisfies Partial<Response>),
+    );
+    const { state, request } = createChatHeaderState({ model: "gpt-5-mini" });
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+
+    modelSelect!.value = "openai/gpt-5";
+    modelSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushTasks();
+
+    expect(request).toHaveBeenCalledWith("sessions.patch", {
+      key: "main",
+      model: null,
+    });
+    expect(state.chatModelOverrides.main).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
   it("disables the chat header model picker while a run is active", () => {
     const { state } = createChatHeaderState();
     state.chatRunId = "run-123";
@@ -1316,6 +1422,71 @@ describe("chat view", () => {
     );
     expect(modelSelect).not.toBeNull();
     expect(modelSelect?.disabled).toBe(true);
+  });
+
+  it("locks the chat header model picker while a model switch is still in flight", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+      } satisfies Partial<Response>),
+    );
+    let resolvePatch!: () => void;
+    const { state, request } = createChatHeaderState();
+    request.mockImplementation(async (method: string, _params: Record<string, unknown>) => {
+      if (method === "sessions.patch") {
+        await new Promise<void>((resolve) => {
+          resolvePatch = resolve;
+        });
+        return { ok: true, key: "main" };
+      }
+      if (method === "chat.history") {
+        return { messages: [], thinkingLevel: null };
+      }
+      if (method === "sessions.list") {
+        return createSessionsListResult();
+      }
+      if (method === "models.list") {
+        return { models: createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG) };
+      }
+      if (method === "tools.effective") {
+        return {
+          agentId: "main",
+          profile: "coding",
+          groups: [],
+        };
+      }
+      throw new Error(`Unexpected request: ${method}`);
+    });
+    const container = document.createElement("div");
+    render(renderChatSessionSelect(state), container);
+
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(modelSelect).not.toBeNull();
+
+    modelSelect!.value = "openai/gpt-5-mini";
+    modelSelect!.dispatchEvent(new Event("change", { bubbles: true }));
+    await flushTasks();
+    render(renderChatSessionSelect(state), container);
+
+    const pendingSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(state.chatModelSwitchPendingBySession?.main).toMatch(/^chat-model-switch-/);
+    expect(pendingSelect?.disabled).toBe(true);
+
+    resolvePatch();
+    await flushTasks();
+    render(renderChatSessionSelect(state), container);
+
+    const settledSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-chat-model-select="true"]',
+    );
+    expect(state.chatModelSwitchPendingBySession?.main).toBeUndefined();
+    expect(settledSelect?.disabled).toBe(false);
+    vi.unstubAllGlobals();
   });
 
   it("keeps the selected model visible when the active session is absent from sessions.list", async () => {

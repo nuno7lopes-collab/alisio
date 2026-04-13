@@ -3,7 +3,12 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID }
 import os from "node:os";
 import path from "node:path";
 import { ensureAuthProfileStore } from "../agents/auth-profiles.js";
-import { resolveAlternativeStateDirs, resolveNewStateDir, resolveStateDir } from "../config/paths.js";
+import {
+  resolveAlternativeStateDirs,
+  resolveNewStateDir,
+  resolveStateDir,
+} from "../config/paths.js";
+import { readStateDirDotEnvVars } from "../config/state-dir-dotenv.js";
 import {
   type AlisioAccountAuthMethod,
   deriveAlisioAvatarLabel,
@@ -629,6 +634,17 @@ const LEGACY_ALISIO_CONNECTOR_TOKEN_KEYCHAIN_SERVICE = ALISIO_CONNECTOR_TOKEN_KE
 const GMAIL_SEND_CONNECTOR_ID = "gmail-send";
 const withLock = createAsyncLock();
 
+function resolveDurableRuntimeEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const dotEnvVars = readStateDirDotEnvVars(env);
+  if (Object.keys(dotEnvVars).length === 0) {
+    return env;
+  }
+  return {
+    ...dotEnvVars,
+    ...env,
+  } as NodeJS.ProcessEnv;
+}
+
 type AlisioEncryptedToken = {
   iv: string;
   tag: string;
@@ -994,19 +1010,20 @@ function resolveConnectorTokenEncryptionKey(
   env: NodeJS.ProcessEnv,
   options?: { createIfMissing?: boolean },
 ) {
-  const raw = env[CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV]?.trim() || "";
+  const runtimeEnv = resolveDurableRuntimeEnv(env);
+  const raw = runtimeEnv[CONNECTOR_TOKEN_ENCRYPTION_KEY_ENV]?.trim() || "";
   if (raw) {
     return decodeConnectorTokenEncryptionKey(raw);
   }
-  const keychainSecret = readConnectorTokenKeychainSecret(env);
+  const keychainSecret = readConnectorTokenKeychainSecret(runtimeEnv);
   if (keychainSecret) {
     return decodeConnectorTokenEncryptionKey(keychainSecret);
   }
-  if (!options?.createIfMissing || !shouldUseConnectorTokenKeychain(env)) {
+  if (!options?.createIfMissing || !shouldUseConnectorTokenKeychain(runtimeEnv)) {
     return null;
   }
   const generated = randomBytes(32).toString("base64");
-  if (!writeConnectorTokenKeychainSecret(env, generated)) {
+  if (!writeConnectorTokenKeychainSecret(runtimeEnv, generated)) {
     return null;
   }
   return Buffer.from(generated, "base64");
@@ -6496,30 +6513,31 @@ function providerSetupHint(provider: AlisioOAuthProvider, connectorTitle: string
 }
 
 function resolveOAuthClientConfig(provider: AlisioOAuthProvider, env: NodeJS.ProcessEnv) {
+  const runtimeEnv = resolveDurableRuntimeEnv(env);
   switch (provider) {
     case "google":
       return {
-        clientId: env.ALISIO_GOOGLE_CLIENT_ID?.trim() || "",
-        clientSecret: env.ALISIO_GOOGLE_CLIENT_SECRET?.trim() || "",
-        redirectUri: env.ALISIO_GOOGLE_REDIRECT_URI?.trim() || "",
+        clientId: runtimeEnv.ALISIO_GOOGLE_CLIENT_ID?.trim() || "",
+        clientSecret: runtimeEnv.ALISIO_GOOGLE_CLIENT_SECRET?.trim() || "",
+        redirectUri: runtimeEnv.ALISIO_GOOGLE_REDIRECT_URI?.trim() || "",
       };
     case "github":
       return {
-        clientId: env.ALISIO_GITHUB_CLIENT_ID?.trim() || "",
-        clientSecret: env.ALISIO_GITHUB_CLIENT_SECRET?.trim() || "",
-        redirectUri: env.ALISIO_GITHUB_REDIRECT_URI?.trim() || "",
+        clientId: runtimeEnv.ALISIO_GITHUB_CLIENT_ID?.trim() || "",
+        clientSecret: runtimeEnv.ALISIO_GITHUB_CLIENT_SECRET?.trim() || "",
+        redirectUri: runtimeEnv.ALISIO_GITHUB_REDIRECT_URI?.trim() || "",
       };
     case "notion":
       return {
-        clientId: env.ALISIO_NOTION_CLIENT_ID?.trim() || "",
-        clientSecret: env.ALISIO_NOTION_CLIENT_SECRET?.trim() || "",
-        redirectUri: env.ALISIO_NOTION_REDIRECT_URI?.trim() || "",
+        clientId: runtimeEnv.ALISIO_NOTION_CLIENT_ID?.trim() || "",
+        clientSecret: runtimeEnv.ALISIO_NOTION_CLIENT_SECRET?.trim() || "",
+        redirectUri: runtimeEnv.ALISIO_NOTION_REDIRECT_URI?.trim() || "",
       };
     case "vercel":
       return {
-        clientId: env.ALISIO_VERCEL_CLIENT_ID?.trim() || "",
-        clientSecret: env.ALISIO_VERCEL_CLIENT_SECRET?.trim() || "",
-        redirectUri: env.ALISIO_VERCEL_REDIRECT_URI?.trim() || "",
+        clientId: runtimeEnv.ALISIO_VERCEL_CLIENT_ID?.trim() || "",
+        clientSecret: runtimeEnv.ALISIO_VERCEL_CLIENT_SECRET?.trim() || "",
+        redirectUri: runtimeEnv.ALISIO_VERCEL_REDIRECT_URI?.trim() || "",
       };
   }
 }

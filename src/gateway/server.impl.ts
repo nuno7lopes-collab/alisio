@@ -33,6 +33,7 @@ import {
   resolveControlUiRootSync,
 } from "../infra/control-ui-assets.js";
 import { isDiagnosticsEnabled } from "../infra/diagnostic-events.js";
+import { loadRuntimeDotEnvFile } from "../infra/dotenv.js";
 import { logAcceptedEnvOption } from "../infra/env.js";
 import { createExecApprovalForwarder } from "../infra/exec-approval-forwarder.js";
 import { onHeartbeatEvent } from "../infra/heartbeat-events.js";
@@ -80,6 +81,7 @@ import {
   getInspectableTaskRegistrySummary,
   startTaskRegistryMaintenance,
 } from "../tasks/task-registry.maintenance.js";
+import { resolveConfigDir } from "../utils.js";
 import { runSetupWizard } from "../wizard/setup.js";
 import { createAuthRateLimiter, type AuthRateLimiter } from "./auth-rate-limit.js";
 import { startChannelHealthMonitor } from "./channel-health-monitor.js";
@@ -391,6 +393,7 @@ export async function startGatewayServer(
 
   // Ensure all default port derivations (browser/canvas) see the actual runtime port.
   process.env.ALISIO_GATEWAY_PORT = String(port);
+  loadRuntimeDotEnvFile(path.join(resolveConfigDir(process.env), ".env"), { quiet: true });
   logAcceptedEnvOption({
     key: "ALISIO_RAW_STREAM",
     description: "raw stream logging enabled",

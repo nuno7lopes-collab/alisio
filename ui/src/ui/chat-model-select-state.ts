@@ -42,7 +42,11 @@ export function resolveChatModelOverrideValue(state: ChatModelSelectStateInput):
   }
 
   const activeRow = resolveActiveSessionRow(state);
-  return resolvePreferredServerChatModelValue(activeRow?.model, activeRow?.modelProvider, catalog);
+  return resolvePreferredServerChatModelValue(
+    activeRow?.modelOverride,
+    activeRow?.providerOverride,
+    catalog,
+  );
 }
 
 function resolveDefaultModelValue(state: ChatModelSelectStateInput): string {
@@ -56,8 +60,12 @@ function resolveDefaultModelValue(state: ChatModelSelectStateInput): string {
 export function buildChatModelOptions(
   catalog: ModelCatalogEntry[],
   extraValues: string[] = [],
+  excludeValues: string[] = [],
 ): ChatModelSelectOption[] {
   const seen = new Set<string>();
+  const excluded = new Set(
+    excludeValues.map((value) => value.trim().toLowerCase()).filter((value) => value.length > 0),
+  );
   const options: ChatModelSelectOption[] = [];
 
   const addOption = (value: string, label?: string) => {
@@ -66,6 +74,9 @@ export function buildChatModelOptions(
       return;
     }
     const key = trimmed.toLowerCase();
+    if (excluded.has(key)) {
+      return;
+    }
     if (seen.has(key)) {
       return;
     }
@@ -96,6 +107,6 @@ export function resolveChatModelSelectState(
     defaultModel,
     defaultDisplay,
     defaultLabel: defaultModel ? `Default (${defaultDisplay})` : "Default model",
-    options: buildChatModelOptions(state.chatModelCatalog ?? [], [currentOverride, defaultModel]),
+    options: buildChatModelOptions(state.chatModelCatalog ?? [], [currentOverride], [defaultModel]),
   };
 }

@@ -157,10 +157,10 @@ describe("nodes devices pending rendering", () => {
 
     const text = container.textContent ?? "";
     expect(text).toContain("Devices");
-    expect(text).toContain("Devices and execution");
+    expect(text).toContain("Alisio nodes and execution");
     expect(text).toContain("Execution");
-    expect(text).toContain("Runtime devices");
-    expect(text).toContain("Runtime device requests");
+    expect(text).toContain("Alisio nodes");
+    expect(text).toContain("Node requests");
   });
 
   it("lets the operator remove a linked device from the paired list", () => {
@@ -339,7 +339,7 @@ describe("nodes devices pending rendering", () => {
     );
 
     const text = container.textContent ?? "";
-    expect(text).toContain("Runtime device requests");
+    expect(text).toContain("Node requests");
     expect(text).toContain("Runner");
     expect(text).toContain("1 commands");
     expect(text).toContain("Approve");

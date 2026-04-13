@@ -26,7 +26,6 @@ import type {
   AlisioConnectorDefinition,
   AlisioDoctorSummaryState,
   AlisioOrganizationMembershipState,
-  AlisioSharingState,
   NativeShellPermission,
   NativeShellState,
   WizardStep,
@@ -44,10 +43,6 @@ import {
   NATIVE_SHELL_PERMISSION_ORDER,
 } from "./native-shell-permissions.ts";
 import { renderOrganization } from "./organization.ts";
-
-type SharingResourcePolicyMap = NonNullable<
-  NonNullable<AlisioSharingState["policy"]["resourcePolicies"]>
->;
 
 type SetupProps = {
   connected: boolean;
@@ -87,18 +82,11 @@ type SetupProps = {
   birthdate: string;
   aiLoading: boolean;
   aiError: string | null;
-  connectorsSearch: string;
-  connectorsCategoryFilter: string;
-  onConnectorsSearchChange: (value: string) => void;
-  onConnectorsCategoryChange: (value: string) => void;
   onDismissSetupGuide: () => void;
   onOpenSupportUrl: (url: string) => void;
   organizationLoading: boolean;
   organizationError: string | null;
   organization: AlisioOrganizationMembershipState | null;
-  sharingLoading: boolean;
-  sharingError: string | null;
-  sharing: AlisioSharingState | null;
   organizationDraftMode: "create" | "join";
   organizationName: string;
   organizationInviteEmail: string;
@@ -129,16 +117,6 @@ type SetupProps = {
   onCreateOrganization: () => void;
   onJoinOrganization: () => void;
   onResetOrganization: () => void;
-  onRefreshSharing: () => void;
-  onRequestAccess: (targetId: string, scopes?: readonly string[]) => void;
-  onApproveRequest: (requestId: string, scopes?: readonly string[]) => void;
-  onRejectRequest: (requestId: string) => void;
-  onRevokeGrant: (grantId: string) => void;
-  onSetPolicy: (allowExternalUse: boolean) => void;
-  onSetResourcePolicy: (
-    resource: keyof SharingResourcePolicyMap,
-    mode: SharingResourcePolicyMap[keyof SharingResourcePolicyMap],
-  ) => void;
   onBeginConnector: (connectorId: string) => void;
   onRevokeConnector: (connectorId: string) => void;
   onStartWizard: (mode?: "local" | "remote") => void;
@@ -1000,9 +978,6 @@ function renderOrganizationStep(props: SetupProps) {
     loading: props.organizationLoading,
     error: props.organizationError,
     organization: props.organization,
-    sharingLoading: props.sharingLoading,
-    sharingError: props.sharingError,
-    sharing: props.sharing,
     draftMode: props.organizationDraftMode,
     organizationName: props.organizationName,
     inviteEmail: props.organizationInviteEmail,
@@ -1012,13 +987,6 @@ function renderOrganizationStep(props: SetupProps) {
     onCreateOrganization: props.onCreateOrganization,
     onJoinOrganization: props.onJoinOrganization,
     onResetOrganization: props.onResetOrganization,
-    onRefreshSharing: props.onRefreshSharing,
-    onRequestAccess: props.onRequestAccess,
-    onApproveRequest: props.onApproveRequest,
-    onRejectRequest: props.onRejectRequest,
-    onRevokeGrant: props.onRevokeGrant,
-    onSetPolicy: props.onSetPolicy,
-    onSetResourcePolicy: props.onSetResourcePolicy,
   });
 }
 

@@ -6,6 +6,44 @@ import { normalizeMessageChannel } from "../../utils/message-channel.js";
 import { buildGroupDisplayName, resolveGroupSessionKey } from "./group.js";
 import type { GroupKeyResolution, SessionEntry, SessionOrigin } from "./types.js";
 
+const SYNTHETIC_SESSION_ORIGIN_PROVIDERS = new Set(["heartbeat", "cron-event", "exec-event"]);
+
+function normalizeOriginToken(value?: string): string | undefined {
+  const trimmed = value?.trim().toLowerCase();
+  return trimmed ? trimmed : undefined;
+}
+
+function isSyntheticSessionOriginContext(ctx: MsgContext): boolean {
+  const provider = normalizeOriginToken(ctx.Provider);
+  return provider ? SYNTHETIC_SESSION_ORIGIN_PROVIDERS.has(provider) : false;
+}
+
+function isSyntheticHeartbeatPlaceholder(origin?: SessionOrigin): boolean {
+  return (
+    normalizeOriginToken(origin?.label) === "heartbeat" &&
+    normalizeOriginToken(origin?.from) === "heartbeat" &&
+    normalizeOriginToken(origin?.to) === "heartbeat"
+  );
+}
+
+function sanitizeExistingOriginForContext(
+  existing: SessionOrigin | undefined,
+  ctx: MsgContext,
+): SessionOrigin | undefined {
+  if (
+    !existing ||
+    isSyntheticSessionOriginContext(ctx) ||
+    !isSyntheticHeartbeatPlaceholder(existing)
+  ) {
+    return existing;
+  }
+  const sanitized: SessionOrigin = { ...existing };
+  delete sanitized.label;
+  delete sanitized.from;
+  delete sanitized.to;
+  return Object.keys(sanitized).length > 0 ? sanitized : undefined;
+}
+
 const mergeOrigin = (
   existing: SessionOrigin | undefined,
   next: SessionOrigin | undefined,
@@ -42,6 +80,10 @@ const mergeOrigin = (
 };
 
 export function deriveSessionOrigin(ctx: MsgContext): SessionOrigin | undefined {
+  if (isSyntheticSessionOriginContext(ctx)) {
+    return undefined;
+  }
+
   const label = resolveConversationLabel(ctx)?.trim();
   const providerRaw =
     (typeof ctx.OriginatingChannel === "string" && ctx.OriginatingChannel) ||
@@ -157,14 +199,21 @@ export function deriveSessionMetaPatch(params: {
 }): Partial<SessionEntry> | null {
   const groupPatch = deriveGroupSessionPatch(params);
   const origin = deriveSessionOrigin(params.ctx);
-  if (!groupPatch && !origin) {
+  const sanitizedExistingOrigin = sanitizeExistingOriginForContext(
+    params.existing?.origin,
+    params.ctx,
+  );
+  const originChanged = sanitizedExistingOrigin !== params.existing?.origin;
+  if (!groupPatch && !origin && !originChanged) {
     return null;
   }
 
   const patch: Partial<SessionEntry> = groupPatch ? { ...groupPatch } : {};
-  const mergedOrigin = mergeOrigin(params.existing?.origin, origin);
+  const mergedOrigin = mergeOrigin(sanitizedExistingOrigin, origin);
   if (mergedOrigin) {
     patch.origin = mergedOrigin;
+  } else if (originChanged && params.existing?.origin) {
+    patch.origin = undefined;
   }
 
   return Object.keys(patch).length > 0 ? patch : null;

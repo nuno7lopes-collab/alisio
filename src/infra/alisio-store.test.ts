@@ -1144,6 +1144,36 @@ describe("beginAlisioConnectorSetup", () => {
     });
   });
 
+  it("reads Google OAuth client config from the state-dir .env when the process env is missing it", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      const env = await createReadyAlisioAccountEnv(root);
+      delete env.ALISIO_GOOGLE_CLIENT_ID;
+      delete env.ALISIO_GOOGLE_CLIENT_SECRET;
+      delete env.ALISIO_GOOGLE_REDIRECT_URI;
+      delete env.ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY;
+      await fs.writeFile(
+        path.join(root, ".env"),
+        [
+          "ALISIO_GOOGLE_CLIENT_ID=google-client-id",
+          "ALISIO_GOOGLE_CLIENT_SECRET=google-client-secret",
+          "ALISIO_GOOGLE_REDIRECT_URI=http://127.0.0.1:8787/oauth/google/callback",
+          `ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY=${CONNECTOR_ENCRYPTION_KEY}`,
+        ].join("\n"),
+      );
+
+      const result = await beginAlisioConnectorSetup("gmail-send", env);
+
+      expect(result).toMatchObject({
+        connectorId: "gmail-send",
+        availability: "ready",
+        mode: "oauth",
+        provider: "google",
+        statusReason: "ready_for_oauth",
+      });
+      expect(result?.setupUrl).toContain("accounts.google.com/o/oauth2/v2/auth");
+    });
+  });
+
   it("builds a hardened GitHub OAuth authorization URL when client config exists", async () => {
     await withTempDir({ prefix: "alisio-store-" }, async (root) => {
       const env = await createReadyAlisioAccountEnv(root, {
@@ -1763,6 +1793,33 @@ describe("beginAlisioConnectorSetup", () => {
       expect(authorizations.find((entry) => entry.connectorId === "facebook")).toMatchObject({
         state: "not_connected",
         health: "in_review",
+      });
+    });
+  });
+
+  it("treats ready connectors as healthy when OAuth config exists only in the state-dir .env", async () => {
+    await withTempDir({ prefix: "alisio-store-" }, async (root) => {
+      await fs.writeFile(
+        path.join(root, ".env"),
+        [
+          "ALISIO_GOOGLE_CLIENT_ID=google-client-id",
+          "ALISIO_GOOGLE_CLIENT_SECRET=google-client-secret",
+          "ALISIO_GOOGLE_REDIRECT_URI=http://127.0.0.1:8787/oauth/google/callback",
+          `ALISIO_CONNECTOR_TOKEN_ENCRYPTION_KEY=${CONNECTOR_ENCRYPTION_KEY}`,
+        ].join("\n"),
+      );
+
+      const authorizations = await listAlisioConnectorAuthorizations({
+        ALISIO_STATE_DIR: root,
+      } as NodeJS.ProcessEnv);
+
+      expect(authorizations.find((entry) => entry.connectorId === "gmail-send")).toMatchObject({
+        state: "not_connected",
+        health: "healthy",
+      });
+      expect(authorizations.find((entry) => entry.connectorId === "github")).toMatchObject({
+        state: "not_connected",
+        health: "config_missing",
       });
     });
   });

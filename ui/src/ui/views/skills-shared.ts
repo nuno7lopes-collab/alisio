@@ -11,7 +11,11 @@ import {
 import { resolveSafeExternalUrl } from "../open-external-url.ts";
 import type { SkillStatusEntry } from "../types.ts";
 
-export type SkillsStatusFilter = "all" | "ready" | "needs-setup" | "disabled";
+export type SkillsStatusFilter = "all" | "ready" | "not-installed" | "needs-setup" | "disabled";
+
+export function isSkillNotInstalled(skill: SkillStatusEntry): boolean {
+  return skill.installed === false;
+}
 
 type SkillDetailDialogProps = {
   edits: Record<string, string>;
@@ -45,12 +49,15 @@ export function buildSkillStatusCounts(
   const counts: Record<SkillsStatusFilter, number> = {
     all: skills.length,
     ready: 0,
+    "not-installed": 0,
     "needs-setup": 0,
     disabled: 0,
   };
   for (const skill of skills) {
     if (skill.disabled) {
       counts.disabled++;
+    } else if (isSkillNotInstalled(skill)) {
+      counts["not-installed"]++;
     } else if (skill.eligible) {
       counts.ready++;
     } else {
@@ -66,8 +73,10 @@ export function skillMatchesStatus(skill: SkillStatusEntry, status: SkillsStatus
       return true;
     case "ready":
       return !skill.disabled && skill.eligible;
+    case "not-installed":
+      return !skill.disabled && isSkillNotInstalled(skill);
     case "needs-setup":
-      return !skill.disabled && !skill.eligible;
+      return !skill.disabled && !isSkillNotInstalled(skill) && !skill.eligible;
     case "disabled":
       return skill.disabled;
   }
@@ -86,6 +95,9 @@ export function skillStatusLabel(skill: SkillStatusEntry) {
   }
   if (skill.blockedByAllowlist) {
     return t("alisio.capabilities.status.blocked");
+  }
+  if (isSkillNotInstalled(skill)) {
+    return t("alisio.capabilities.filters.notInstalled");
   }
   return skill.eligible
     ? t("alisio.capabilities.filters.ready")
@@ -120,7 +132,13 @@ function formatSkillMissingItem(kind: SkillMissingKind, value: string) {
 }
 
 function skillStatusChipClass(skill: SkillStatusEntry) {
-  if (skill.disabled || skill.blockedByAllowlist || !skill.eligible) {
+  if (skill.disabled || skill.blockedByAllowlist) {
+    return "chip chip-warn";
+  }
+  if (isSkillNotInstalled(skill)) {
+    return "chip";
+  }
+  if (!skill.eligible) {
     return "chip chip-warn";
   }
   return "chip chip-ok";
@@ -253,6 +271,9 @@ export function computeSkillReasons(skill: SkillStatusEntry): string[] {
   const reasons: string[] = [];
   if (skill.disabled) {
     reasons.push(t("alisio.capabilities.reasons.disabled"));
+  }
+  if (isSkillNotInstalled(skill)) {
+    reasons.push(t("alisio.capabilities.reasons.notInstalled"));
   }
   if (skill.blockedByAllowlist) {
     reasons.push(t("alisio.capabilities.reasons.blockedByAllowlist"));

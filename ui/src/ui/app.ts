@@ -204,7 +204,6 @@ export class AlisioApp extends LitElement {
     null;
   pendingConnectorChatResume: PendingAlisioConnectorChatResume | null = null;
   @state() alisioConnectorsSearch = "";
-  @state() alisioConnectorsCategoryFilter = "all";
   @state() alisioOrganizationDraftMode: "create" | "join" = "create";
   @state() alisioOrganizationName = "";
   @state() alisioOrganizationInviteEmail = "";
@@ -236,6 +235,7 @@ export class AlisioApp extends LitElement {
   @state() chatAvatarUrl: string | null = null;
   @state() chatThinkingLevel: string | null = null;
   @state() chatModelOverrides: Record<string, ChatModelOverride | null> = {};
+  @state() chatModelSwitchPendingBySession: Record<string, string | null> = {};
   @state() chatModelsLoading = false;
   @state() chatModelCatalog: ModelCatalogEntry[] = [];
   @state() modelManagementLoading = false;
@@ -521,7 +521,8 @@ export class AlisioApp extends LitElement {
   @state() skillsReport: SkillStatusReport | null = null;
   @state() skillsError: string | null = null;
   @state() skillsFilter = "";
-  @state() skillsStatusFilter: "all" | "ready" | "needs-setup" | "disabled" = "all";
+  @state() skillsStatusFilter: "all" | "ready" | "not-installed" | "needs-setup" | "disabled" =
+    "all";
   @state() skillEdits: Record<string, string> = {};
   @state() skillsBusyKey: string | null = null;
   @state() skillMessages: Record<string, SkillMessage> = {};
@@ -567,8 +568,10 @@ export class AlisioApp extends LitElement {
   private chatUserNearBottom = true;
   @state() chatNewMessagesBelow = false;
   private nodesPollInterval: number | null = null;
+  private memoryPollInterval: number | null = null;
   private logsPollInterval: number | null = null;
   private debugPollInterval: number | null = null;
+  private chatRecoveryPollInterval: number | null = null;
   private logsScrollFrame: number | null = null;
   private toolStreamById = new Map<string, ToolStreamEntry>();
   private toolStreamOrder: string[] = [];

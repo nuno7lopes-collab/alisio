@@ -10,9 +10,9 @@ describe("authentications view", () => {
     await i18n.setLocale("en");
   });
 
-  it("renders the unified provider overview sections", () => {
+  it("renders only external apps even when the overview includes assistant, providers, and runtimes", () => {
     const container = document.createElement("div");
-    const onOpenModels = vi.fn();
+    const onOpenConnections = vi.fn();
 
     render(
       renderAuthentications({
@@ -30,8 +30,30 @@ describe("authentications view", () => {
           account: {} as never,
           ai: {} as never,
           connectors: {
-            catalog: [],
-            authorizations: [],
+            catalog: [
+              {
+                id: "github",
+                title: "GitHub",
+                providerLabel: "GitHub",
+                category: "development",
+                connectLabel: "Connect with GitHub",
+                summary: "Repository and pull request workflows.",
+                availability: "ready",
+                scopes: ["repo"],
+              },
+            ],
+            authorizations: [
+              {
+                connectorId: "github",
+                state: "connected",
+                health: "healthy",
+                scopes: ["repo"],
+                connectedAccount: {
+                  label: "Nuno",
+                  email: "nuno@example.com",
+                },
+              },
+            ],
           },
           assistant: [
             {
@@ -75,31 +97,44 @@ describe("authentications view", () => {
               active: true,
             },
           ],
-          apps: [],
+          apps: [
+            {
+              id: "connector:github",
+              title: "GitHub",
+              subtitle: "Repository and pull request workflows.",
+              status: "connected",
+              authSource: "connector",
+              connectorId: "github",
+              connectLabel: "Connect with GitHub",
+              chips: ["GitHub", "Development"],
+              usageWindows: [],
+              current: false,
+              active: true,
+            },
+          ],
         },
         connectorCatalog: [],
         connectorAuthorizations: [],
         search: "",
-        categoryFilter: "all",
         onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenModels,
+        onOpenConnections,
       }),
       container,
     );
 
-    expect(container.textContent).toContain("Providers");
-    expect(container.textContent).toContain("Primary assistant account");
-    expect(container.textContent).toContain("Model providers");
-    expect(container.textContent).toContain("Runtimes and nodes");
+    expect(container.textContent).toContain("External apps");
+    expect(container.textContent).toContain("GitHub");
+    expect(container.textContent).not.toContain("Primary assistant account");
+    expect(container.textContent).not.toContain("Model providers");
+    expect(container.textContent).not.toContain("Runtimes and nodes");
 
     const button = Array.from(container.querySelectorAll("button")).find((candidate) =>
-      candidate.textContent?.includes("Open models"),
+      candidate.textContent?.includes("Open connections"),
     );
     button?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    expect(onOpenModels).toHaveBeenCalledOnce();
+    expect(onOpenConnections).toHaveBeenCalledOnce();
   });
 
   it("renders connected external apps from the overview and keeps revoke actions wired", () => {
@@ -169,12 +204,10 @@ describe("authentications view", () => {
         connectorCatalog: [],
         connectorAuthorizations: [],
         search: "",
-        categoryFilter: "all",
         onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector,
-        onOpenModels: vi.fn(),
+        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -277,12 +310,10 @@ describe("authentications view", () => {
           },
         ],
         search: "",
-        categoryFilter: "all",
         onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
         onBeginConnector,
         onRevokeConnector: vi.fn(),
-        onOpenModels: vi.fn(),
+        onOpenConnections: vi.fn(),
       }),
       container,
     );
@@ -308,12 +339,10 @@ describe("authentications view", () => {
         connectorCatalog: [],
         connectorAuthorizations: [],
         search: "",
-        categoryFilter: "all",
         onSearchChange: vi.fn(),
-        onCategoryChange: vi.fn(),
         onBeginConnector: vi.fn(),
         onRevokeConnector: vi.fn(),
-        onOpenModels: vi.fn(),
+        onOpenConnections: vi.fn(),
       }),
       container,
     );

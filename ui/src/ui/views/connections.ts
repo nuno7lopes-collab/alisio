@@ -81,7 +81,7 @@ function resolveSharingAccessLabel(access: string) {
 
 function resolveSharingStatusLabel(status: string | null | undefined) {
   const normalized = status === "denied" ? "rejected" : status;
-  return normalized ? t(`alisio.organization.sharing.requestStatus.${normalized}`) : "";
+  return normalized ? t(`alisio.connections.sharing.requestStatus.${normalized}`) : "";
 }
 
 function resolveSharingRequestLabel(scopes: readonly string[]) {
@@ -421,17 +421,17 @@ function renderSharing(props: NodesProps) {
     note: t("alisio.connections.sharing.note"),
     loading: t("alisio.connections.loading"),
     refresh: t("common.refresh"),
-    availableTitle: t("alisio.organization.sharing.availableTitle"),
-    availableEmpty: t("alisio.organization.sharing.availableEmpty"),
-    sharedTitle: t("alisio.organization.sharing.sharedTitle"),
-    sharedEmpty: t("alisio.organization.sharing.sharedEmpty"),
-    incomingTitle: t("alisio.organization.sharing.incomingTitle"),
-    incomingEmpty: t("alisio.organization.sharing.incomingEmpty"),
+    availableTitle: t("alisio.connections.sharing.availableTitle"),
+    availableEmpty: t("alisio.connections.sharing.availableEmpty"),
+    sharedTitle: t("alisio.connections.sharing.sharedTitle"),
+    sharedEmpty: t("alisio.connections.sharing.sharedEmpty"),
+    incomingTitle: t("alisio.connections.sharing.incomingTitle"),
+    incomingEmpty: t("alisio.connections.sharing.incomingEmpty"),
     currentScopes: t("alisio.connections.sharing.currentScopes"),
-    approve: t("alisio.organization.sharing.approve"),
-    reject: t("alisio.organization.sharing.reject"),
-    revoke: t("alisio.organization.sharing.revoke"),
-    allowExternalUse: t("alisio.organization.sharing.allowExternalUse"),
+    approve: t("alisio.connections.sharing.approve"),
+    reject: t("alisio.connections.sharing.reject"),
+    revoke: t("alisio.connections.sharing.revoke"),
+    allowExternalUse: t("alisio.connections.sharing.allowExternalUse"),
     externalOn: t("alisio.connections.sharing.externalOn"),
     externalOff: t("alisio.connections.sharing.externalOff"),
     emptyState: t("alisio.connections.sharing.emptyState"),

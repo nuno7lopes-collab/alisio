@@ -1,4 +1,4 @@
-export type ModelProviderId = "openai" | "nodes" | "local";
+export type ModelProviderId = "openai" | "local";
 
 export type ModelsOperationAction = "install" | "uninstall";
 export type ModelsOperationPhase = "started" | "running" | "completed" | "failed";

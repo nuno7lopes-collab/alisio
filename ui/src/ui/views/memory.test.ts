@@ -29,8 +29,7 @@ function makeGraphResult(
           pageId: focusPageId,
           entityId: focusPageId,
           title: focusPageId === "atlas" ? "Project Atlas" : "Roadmap",
-          sourcePath:
-            focusPageId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
+          sourcePath: focusPageId === "atlas" ? "memory/project-atlas.md" : "memory/roadmap.md",
         }
       : undefined,
     nodes: [
@@ -41,7 +40,7 @@ function makeGraphResult(
         title: "Project Atlas",
         slug: "project-atlas",
         sourcePath: "memory/project-atlas.md",
-        sourceKind: "workspace-memory",
+        sourceKind: "workspace-memory" as const,
         aliases: ["Atlas"],
         tags: ["launch"],
         incoming: 1,
@@ -55,7 +54,7 @@ function makeGraphResult(
         title: "Roadmap",
         slug: "roadmap",
         sourcePath: "memory/roadmap.md",
-        sourceKind: "workspace-memory",
+        sourceKind: "workspace-memory" as const,
         aliases: [],
         tags: ["planning"],
         incoming: 1,
@@ -111,7 +110,7 @@ function makeGraphResult(
         title: "Project Atlas",
         slug: "project-atlas",
         sourcePath: "memory/project-atlas.md",
-        sourceKind: "workspace-memory",
+        sourceKind: "workspace-memory" as const,
         aliases: ["Atlas"],
         tags: ["launch"],
         score: 1,
@@ -119,7 +118,7 @@ function makeGraphResult(
           {
             projectionId: "projection-atlas",
             path: "memory/project-atlas.md",
-            sourceKind: "workspace-memory",
+            sourceKind: "workspace-memory" as const,
             editable: true,
           },
         ],
@@ -134,7 +133,7 @@ function makeGraphResult(
               title: "Roadmap",
               slug: "roadmap",
               sourcePath: "memory/roadmap.md",
-              sourceKind: "workspace-memory",
+              sourceKind: "workspace-memory" as const,
             },
           },
         ],
@@ -355,7 +354,22 @@ function makeRequestMock() {
               relation: "mentioned",
             },
             provenance: [{ label: "Source", value: "product-brief.md" }],
-            traceId: "trace-file",
+            trace: {
+              kind: "files",
+              query: "atlas",
+              candidateCount: 1,
+              hitCount: 1,
+              hits: [
+                {
+                  id: "brief",
+                  name: "product-brief.pdf",
+                  mediaType: "application/pdf",
+                  reasons: ["attachment"],
+                },
+              ],
+              reasons: ["attachment"],
+            },
+            traceSummary: ["Query: atlas", "Reasons: attachment"],
             reasonTags: [{ code: "attachment", label: "Attachment" }],
           },
         ],
@@ -406,7 +420,22 @@ function makeRequestMock() {
               relation: "mentioned",
             },
           ],
-          traceId: "trace-file",
+          trace: {
+            kind: "files",
+            query: "atlas",
+            candidateCount: 1,
+            hitCount: 1,
+            hits: [
+              {
+                id: "brief",
+                name: "product-brief.pdf",
+                mediaType: "application/pdf",
+                reasons: ["attachment"],
+              },
+            ],
+            reasons: ["attachment"],
+          },
+          traceSummary: ["Query: atlas", "Reasons: attachment"],
           reasonTags: [{ code: "attachment", label: "Attachment" }],
         },
       });
@@ -546,6 +575,8 @@ function createProps(
           lastSyncedLamport: 5,
           checkpointsCount: 1,
           e2eeRequired: true,
+          syncAvailability: "active",
+          syncModeConfigured: "cloud",
         },
       },
       embedding: {
@@ -636,9 +667,9 @@ describe("renderMemoryHub", () => {
     clickButton(container, "Project Atlas");
     await flushMemoryHub();
 
-    const traceButtons = Array.from(container.querySelectorAll(".alisio-memory-main button")).filter(
-      (entry) => entry.textContent?.includes("View trace"),
-    );
+    const traceButtons = Array.from(
+      container.querySelectorAll(".alisio-memory-main button"),
+    ).filter((entry) => entry.textContent?.includes("View trace"));
     expect(traceButtons.length).toBeGreaterThan(0);
     traceButtons.at(-1)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushMemoryHub();
@@ -691,9 +722,9 @@ describe("renderMemoryHub", () => {
     clickButton(container, "Project Atlas");
     await flushMemoryHub();
 
-    const wikiLink = Array.from(container.querySelectorAll(".memory-wiki__article-markdown a")).find(
-      (entry) => entry.textContent?.includes("Roadmap"),
-    );
+    const wikiLink = Array.from(
+      container.querySelectorAll(".memory-wiki__article-markdown a"),
+    ).find((entry) => entry.textContent?.includes("Roadmap"));
     expect(wikiLink).toBeTruthy();
     wikiLink?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     await flushMemoryHub();
@@ -738,7 +769,9 @@ describe("renderMemoryHub", () => {
     clickButton(container, "Open page");
     await flushMemoryHub();
 
-    expect(container.textContent).toContain("Project Atlas keeps the launch blockers in one place.");
+    expect(container.textContent).toContain(
+      "Project Atlas keeps the launch blockers in one place.",
+    );
 
     clickButton(container, "Files");
     await flushMemoryHub();
@@ -838,6 +871,41 @@ describe("renderMemoryHub", () => {
 
     expect(container.textContent).toContain("99");
     expect(container.textContent).toContain("Required");
+  });
+
+  it("reloads native data when the canonical sync marker changes", async () => {
+    const props = createProps();
+    const client = props.client;
+    if (!client) {
+      throw new Error("expected native memory client");
+    }
+    const { hub } = await mountNativeHub(props);
+    client.request.mockClear();
+
+    hub.props = {
+      ...props,
+      memoryStatus: {
+        ...props.memoryStatus!,
+        runtime: {
+          ...props.memoryStatus!.runtime!,
+          canonicalStore: {
+            ...props.memoryStatus!.runtime!.canonicalStore!,
+            lastSyncedLamport: 6,
+          },
+        },
+      },
+    };
+    await flushMemoryHub();
+
+    expect(
+      client.request.mock.calls.filter(([method]) => method === "memory.wiki.list").length,
+    ).toBeGreaterThan(0);
+    expect(
+      client.request.mock.calls.filter(([method]) => method === "memory.files.list").length,
+    ).toBeGreaterThan(0);
+    expect(
+      client.request.mock.calls.filter(([method]) => method === "memory.graph").length,
+    ).toBeGreaterThan(0);
   });
 
   it("wraps the native hub when the new views flag is enabled", () => {

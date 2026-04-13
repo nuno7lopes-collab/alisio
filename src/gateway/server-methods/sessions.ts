@@ -184,6 +184,8 @@ function emitSessionsChanged(
             contextTokens: sessionRow.contextTokens,
             estimatedCostUsd: sessionRow.estimatedCostUsd,
             responseUsage: sessionRow.responseUsage,
+            providerOverride: sessionRow.providerOverride,
+            modelOverride: sessionRow.modelOverride,
             modelProvider: sessionRow.modelProvider,
             model: sessionRow.model,
             status: sessionRow.status,

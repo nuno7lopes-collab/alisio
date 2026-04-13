@@ -516,6 +516,8 @@ export type GatewaySessionRow = {
   endedAt?: number;
   runtimeMs?: number;
   childSessions?: string[];
+  modelOverride?: string;
+  providerOverride?: string;
   model?: string;
   modelProvider?: string;
   contextTokens?: number;

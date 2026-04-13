@@ -24,9 +24,13 @@ vi.mock("./app-settings.ts", () => ({
 }));
 
 vi.mock("./app-polling.ts", () => ({
+  startChatRecoveryPolling: vi.fn(),
   startLogsPolling: vi.fn(),
+  startMemoryPolling: vi.fn(),
   startNodesPolling: vi.fn(),
+  stopChatRecoveryPolling: vi.fn(),
   stopLogsPolling: vi.fn(),
+  stopMemoryPolling: vi.fn(),
   stopNodesPolling: vi.fn(),
   startDebugPolling: vi.fn(),
   stopDebugPolling: vi.fn(),
@@ -69,6 +73,8 @@ function createHost() {
     logsAutoFollow: false,
     logsAtBottom: true,
     logsEntries: [],
+    memoryPollInterval: null,
+    chatRecoveryPollInterval: null,
     popStateHandler: vi.fn(),
     topbarObserver: null,
     setTab: vi.fn(),

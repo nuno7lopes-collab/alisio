@@ -1677,6 +1677,10 @@
   background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
 }
 
+.alisio-organization-panel--full {
+  grid-column: 1 / -1;
+}
+
 .alisio-organization-panel--muted {
   align-content: start;
   background: color-mix(in srgb, var(--bg) 72%, transparent);

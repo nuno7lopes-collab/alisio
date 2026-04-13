@@ -76,12 +76,7 @@ function modelsText() {
     chatgptSubtitle: t("alisio.settings.models.chatgptSubtitle"),
     localTitle: t("alisio.settings.models.localTitle"),
     localSubtitle: t("alisio.settings.models.localSubtitle"),
-    nodesTitle: t("alisio.settings.models.nodesTitle"),
-    nodesSubtitle: t("alisio.settings.models.nodesSubtitle"),
     currentComputer: t("alisio.settings.models.currentComputer"),
-    node: t("alisio.settings.models.linkedComputer"),
-    nodeShort: t("alisio.settings.models.linkedComputerShort"),
-    nodesShort: t("alisio.settings.models.linkedComputersShort"),
     activeComputer: t("alisio.settings.models.activeComputer"),
     connected: t("alisio.settings.models.connected"),
     sharedTarget: t("alisio.settings.models.sharedTarget"),
@@ -90,7 +85,6 @@ function modelsText() {
     modelSourcePending: t("alisio.settings.models.modelSourcePending"),
     noTargets: t("alisio.settings.models.noTargets"),
     noLocalModels: t("alisio.settings.models.noLocalModels"),
-    emptyNodes: t("alisio.settings.models.emptyNodes"),
     install: t("alisio.settings.models.install"),
     installing: t("alisio.settings.models.installing"),
     update: t("alisio.settings.models.update"),
@@ -117,9 +111,6 @@ function modelsText() {
     recommendedUpTo: t("alisio.settings.models.recommendedUpTo"),
     memory: t("alisio.settings.models.memory"),
     disk: t("alisio.settings.models.disk"),
-    nodesGroupTitle: t("alisio.settings.models.linkedComputersTitle"),
-    nodesGroupSubtitle: t("alisio.settings.models.linkedComputersSubtitle"),
-    noNodes: t("alisio.settings.models.emptyNodes"),
     defaultModel: t("alisio.settings.models.defaultModel"),
     chooseModel: t("alisio.settings.models.chooseModel"),
     noModelChoices: t("alisio.settings.models.noModelChoices"),
@@ -900,7 +891,7 @@ function renderTargetCard(props: {
       : "";
   const title = props.target.current ? text.currentComputer : props.target.label;
   const subtitle = [
-    props.target.current ? resolveTargetRuntimeLabel(props.target) : text.node,
+    resolveTargetRuntimeLabel(props.target),
     formatPlatformLabel(props.target.platform),
   ]
     .filter(Boolean)
@@ -1044,9 +1035,6 @@ function renderProviderPicker(props: {
   openAiTitle: string;
   openAiPrimary: string;
   openAiSecondary: string;
-  nodesTitle: string;
-  nodesPrimary: string;
-  nodesSecondary: string;
   localTitle: string;
   localPrimary: string;
   localSecondary: string;
@@ -1072,13 +1060,6 @@ function renderProviderPicker(props: {
       title: props.localTitle,
       primary: props.localPrimary,
       secondary: props.localSecondary,
-    },
-    {
-      id: "nodes",
-      badge: "N",
-      title: props.nodesTitle,
-      primary: props.nodesPrimary,
-      secondary: props.nodesSecondary,
     },
   ];
 
@@ -1613,71 +1594,6 @@ function renderLocalModelsSection(props: {
   `;
 }
 
-function renderNodesSection(props: {
-  models: AlisioModelsState | null;
-  modelsLoading: boolean;
-  modelsError: string | null;
-  modelOptions: readonly ChatModelOption[];
-  modelOperations?: ModelsOperationMap;
-  onInstallModel: (targetId: string, modelId: string) => void;
-  onUpdateModel: (targetId: string, modelId: string) => void;
-  onUninstallModel: (targetId: string, modelId: string) => void;
-}) {
-  const text = modelsText();
-  const showInitialLoading = props.modelsLoading && !props.models && !props.modelsError;
-  const catalog = props.models?.catalog ?? [];
-  const { linkedTargets } = splitTargets(props.models?.targets ?? []);
-  return html`
-    <article class="card alisio-settings-card alisio-models-section">
-      <div class="alisio-models-section__header">
-        <div>
-          <div class="card-title">${text.nodesTitle}</div>
-          <div class="card-sub">${text.nodesSubtitle}</div>
-        </div>
-        ${showInitialLoading ? renderSkeletonPill() : nothing}
-      </div>
-      ${props.modelsError ? html`<div class="callout danger">${props.modelsError}</div>` : nothing}
-      ${showInitialLoading
-        ? html`
-            <div role="status" aria-label=${text.nodesSubtitle}>
-              <div class="loading-state__list">
-                ${renderSkeletonListItem({ lines: ["medium", "long", "short"] })}
-                ${renderSkeletonListItem({ lines: ["short", "medium", "short"] })}
-              </div>
-            </div>
-          `
-        : nothing}
-      ${linkedTargets.length > 0
-        ? html`
-            <div class="alisio-models__group">
-              <div class="alisio-models__group-head">
-                <div class="list-title">${text.nodesGroupTitle}</div>
-                <div class="list-sub">${text.nodesGroupSubtitle}</div>
-              </div>
-              <div class="alisio-models__targets">
-                ${linkedTargets.map((target) =>
-                  renderTargetCard({
-                    target,
-                    installCatalog: target.supportsInstall ? catalog : undefined,
-                    modelOptions: props.modelOptions,
-                    operations: props.modelOperations,
-                    busy: props.modelsLoading,
-                    onInstallModel: props.onInstallModel,
-                    onUpdateModel: props.onUpdateModel,
-                    onUninstallModel: props.onUninstallModel,
-                  }),
-                )}
-              </div>
-            </div>
-          `
-        : nothing}
-      ${!showInitialLoading && linkedTargets.length === 0
-        ? html`<div class="alisio-settings-ai__empty">${text.noNodes}</div>`
-        : nothing}
-    </article>
-  `;
-}
-
 export function renderModelsHub(props: {
   bootstrap: AlisioBootstrapState | null;
   models: AlisioModelsState | null;
@@ -1710,7 +1626,7 @@ export function renderModelsHub(props: {
   const aiTextValues = aiText();
   const profiles = resolveProfiles(props.bootstrap?.ai);
   const localTargets = props.models?.targets ?? [];
-  const { currentTargets, linkedTargets } = splitTargets(localTargets);
+  const { currentTargets } = splitTargets(localTargets);
   const localCatalog = props.models?.catalog ?? [];
   const currentTargetDisplayModels = currentTargets.flatMap((target) =>
     resolveTargetDisplayModels(target, props.modelOptions, target.chatProviderId ?? null),
@@ -1737,22 +1653,6 @@ export function renderModelsHub(props: {
       : localSuggestionsCount > 0
         ? formatCount(localSuggestionsCount, text.suggestion, text.suggestions)
         : text.noLocalModels;
-  const linkedDisplayModelCount = linkedTargets.reduce(
-    (total, target) =>
-      total +
-      resolveTargetDisplayModels(target, props.modelOptions, target.chatProviderId ?? null).length,
-    0,
-  );
-  const nodesPrimary = linkedTargets[0]?.label || text.nodesTitle;
-  const nodesSecondary = linkedTargets.some((target) => !target.connected)
-    ? text.targetNotConnected
-    : linkedDisplayModelCount > 0
-      ? linkedTargets.every((target) => !target.supportsInstall)
-        ? text.availableModels
-        : text.installedModels
-      : linkedTargets.length > 0
-        ? formatCount(linkedTargets.length, text.nodeShort, text.nodesShort)
-        : text.noNodes;
   const primaryOpenAiProfile = profiles[0] ?? null;
   const openAiPrimary =
     profiles.length > 0 && isOpenAiModelValue(props.defaultChatModelValue)
@@ -1762,16 +1662,15 @@ export function renderModelsHub(props: {
         : aiTextValues.noProfiles;
   const openAiSecondary = `${profiles.length} ${profiles.length === 1 ? aiTextValues.profile : aiTextValues.profiles}`;
   const selectedProviderId =
-    props.selectedProviderId ??
-    (providerPickerLoading
-      ? "openai"
-      : profiles.length > 0
+    props.selectedProviderId === "local" || props.selectedProviderId === "openai"
+      ? props.selectedProviderId
+      : providerPickerLoading
         ? "openai"
-        : currentTargets.length > 0 || localCatalog.length > 0
-          ? "local"
-          : linkedTargets.length > 0
-            ? "nodes"
-            : "openai");
+        : profiles.length > 0
+          ? "openai"
+          : currentTargets.length > 0 || localCatalog.length > 0
+            ? "local"
+            : "openai";
 
   return html`
     <section class="alisio-page alisio-models-page">
@@ -1782,9 +1681,6 @@ export function renderModelsHub(props: {
           openAiTitle: text.chatgptTitle,
           openAiPrimary,
           openAiSecondary,
-          nodesTitle: text.nodesTitle,
-          nodesPrimary,
-          nodesSecondary,
           localTitle: text.localTitle,
           localPrimary,
           localSecondary,
@@ -1813,18 +1709,6 @@ export function renderModelsHub(props: {
           : nothing}
         ${selectedProviderId === "local"
           ? renderLocalModelsSection({
-              models: props.models,
-              modelsLoading: props.modelsLoading,
-              modelsError: props.modelsError,
-              modelOptions: props.modelOptions,
-              modelOperations: props.modelOperations,
-              onInstallModel: props.onInstallModel,
-              onUpdateModel: props.onUpdateModel,
-              onUninstallModel: props.onUninstallModel,
-            })
-          : nothing}
-        ${selectedProviderId === "nodes"
-          ? renderNodesSection({
               models: props.models,
               modelsLoading: props.modelsLoading,
               modelsError: props.modelsError,

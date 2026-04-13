@@ -141,6 +141,10 @@ type GaiaDerivedGraphMatch = Omit<
   relations: GaiaDerivedGraphRelation[];
 };
 
+type GaiaDerivedGraphResult = Omit<CanonicalMemoryGraphResult, "matches"> & {
+  matches: GaiaDerivedGraphMatch[];
+};
+
 type NativeExplainability = {
   reasonCodes: string[];
   scoreBreakdown: RetrievalScoreBreakdown;
@@ -149,6 +153,14 @@ type NativeExplainability = {
     evidenceIds: string[];
   };
 };
+
+type DecoratedGaiaGraphMatch = GaiaDerivedGraphMatch &
+  NativeExplainability & {
+    locator: {
+      pageId: string;
+      projectionId?: string;
+    };
+  };
 
 const textEncoder = new TextEncoder();
 const GAIA_LEDGER_STATE_KEY = "__alisioMemoryRetrievalLedgerState";
@@ -1297,9 +1309,7 @@ function queryGaiaDerivedGraph(params: {
   direction?: "incoming" | "outgoing" | "both";
   matchLimit?: number;
   relationLimit?: number;
-}): CanonicalMemoryGraphResult & {
-  matches: GaiaDerivedGraphMatch[];
-} {
+}): GaiaDerivedGraphResult {
   const graph = queryCanonicalMemoryGraph(params);
   const matches: GaiaDerivedGraphMatch[] = graph.matches.map((match) => ({
     ...match,
@@ -1452,12 +1462,17 @@ function buildGraphMatchExplainability(params: {
 }
 
 function decorateGraphResult(params: {
-  graph: CanonicalMemoryGraphResult & { matches: GaiaDerivedGraphMatch[] };
+  graph: GaiaDerivedGraphResult;
   profileId: string;
   query: string;
   reader: CanonicalStoreReader | null;
   privateAllowed: boolean;
-}) {
+}): {
+  graph: Omit<GaiaDerivedGraphResult, "matches"> & {
+    matches: DecoratedGaiaGraphMatch[];
+  };
+  deniedCount: number;
+} {
   const graphWithoutFocus = { ...params.graph } as Omit<typeof params.graph, "focus"> & {
     focus?: CanonicalMemoryGraphResult["focus"];
   };
@@ -1495,11 +1510,11 @@ function decorateGraphResult(params: {
 
   const matches = params.graph.matches
     .filter((match) => !privatePageIds.has(match.pageId))
-    .map((match) => {
+    .map((match): DecoratedGaiaGraphMatch => {
       const relations = match.relations.filter(
         (relation) => !relation.relatedEntity || !privatePageIds.has(relation.relatedEntity.pageId),
       );
-      const nextMatch = { ...match, relations };
+      const nextMatch: GaiaDerivedGraphMatch = { ...match, relations };
       const explainability = buildGraphMatchExplainability({
         profileId: params.profileId,
         query: params.query,

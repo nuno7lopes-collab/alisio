@@ -264,7 +264,7 @@ describe("renderSettingsHub", () => {
     expect(container.textContent).not.toContain("gateway");
   });
 
-  it("shows the rebuild action in the Mac section when a local checkout is available", () => {
+  it("shows a single refresh action in the Mac section when a local checkout is available", () => {
     const container = document.createElement("div");
 
     render(
@@ -290,6 +290,45 @@ describe("renderSettingsHub", () => {
       container,
     );
 
-    expect(container.textContent).toContain("Rebuild app");
+    expect(container.textContent).toContain("Refresh app + runtime");
+    expect(container.textContent).not.toContain("Restart runtime");
+  });
+
+  it("prefers the refresh action over runtime restart in the Mac doctor state", () => {
+    const container = document.createElement("div");
+
+    render(
+      renderSettingsHub(
+        createProps({
+          section: "mac",
+          nativeRebuildAvailable: true,
+          doctor: {
+            ok: false,
+            bootstrap: {} as never,
+            issues: [
+              {
+                code: "gateway_unhealthy",
+                severity: "error",
+                title: "Runtime needs a restart",
+                message: "Gateway probe failed.",
+                step: "gateway",
+              },
+            ],
+            checks: {
+              gateway: false,
+              runtime: true,
+              account: true,
+              organization: true,
+              connectors: true,
+              permissions: true,
+            },
+          },
+        }),
+      ),
+      container,
+    );
+
+    expect(container.textContent).toContain("Refresh app + runtime");
+    expect(container.textContent).not.toContain("Restart runtime");
   });
 });

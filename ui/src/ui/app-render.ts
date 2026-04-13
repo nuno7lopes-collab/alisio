@@ -34,6 +34,7 @@ import {
   renderChatMobileToggle,
   resolveAlisioAccountCallbackUrl,
   resolveAlisioOpenAiCallbackUrl,
+  isChatModelSwitchPending,
   renderTab,
   setDefaultChatModel,
   switchChatSession,
@@ -560,14 +561,6 @@ export function renderApp(state: AppViewState) {
     birthdate: state.alisioBirthdate,
     aiLoading: state.alisioAiLoading,
     aiError: state.alisioAiError,
-    connectorsSearch: state.alisioConnectorsSearch,
-    connectorsCategoryFilter: state.alisioConnectorsCategoryFilter,
-    onConnectorsSearchChange: (value) => {
-      state.alisioConnectorsSearch = value;
-    },
-    onConnectorsCategoryChange: (value) => {
-      state.alisioConnectorsCategoryFilter = value;
-    },
     onDismissSetupGuide: () => {
       state.alisioConnectorSetupGuide = null;
     },
@@ -577,9 +570,6 @@ export function renderApp(state: AppViewState) {
     organizationLoading: state.alisioOrganizationLoading,
     organizationError: state.alisioOrganizationError,
     organization: state.alisioOrganization,
-    sharingLoading: state.alisioSharingLoading,
-    sharingError: state.alisioSharingError,
-    sharing: state.alisioSharing,
     organizationDraftMode: state.alisioOrganizationDraftMode,
     organizationName: state.alisioOrganizationName,
     organizationInviteEmail: state.alisioOrganizationInviteEmail,
@@ -691,31 +681,6 @@ export function renderApp(state: AppViewState) {
     },
     onResetOrganization: () => {
       void saveAlisioOrganization(state, { mode: "none" });
-    },
-    onRefreshSharing: () => {
-      void loadAlisioSharing(state);
-    },
-    onRequestAccess: (targetId, scopes) => {
-      void requestAlisioSharedDeviceAccess(state, targetId, scopes);
-    },
-    onApproveRequest: (requestId, scopes) => {
-      void approveAlisioSharedDeviceRequest(state, requestId, scopes);
-    },
-    onRejectRequest: (requestId) => {
-      void rejectAlisioSharedDeviceRequest(state, requestId);
-    },
-    onRevokeGrant: (grantId) => {
-      void revokeAlisioSharedDeviceGrant(state, grantId);
-    },
-    onSetPolicy: (allowExternalUse) => {
-      void saveAlisioSharingPolicy(state, allowExternalUse);
-    },
-    onSetResourcePolicy: (resource, mode) => {
-      void saveAlisioSharingPolicy(state, {
-        resourcePolicies: {
-          [resource]: mode,
-        },
-      });
     },
     onBeginConnector: (connectorId) => {
       beginConnectorFlow(state, connectorId);
@@ -1199,12 +1164,8 @@ export function renderApp(state: AppViewState) {
               connectorCatalog: state.alisioConnectorCatalog,
               connectorAuthorizations: state.alisioConnectorAuthorizations,
               search: state.alisioConnectorsSearch,
-              categoryFilter: state.alisioConnectorsCategoryFilter,
               onSearchChange: (value) => {
                 state.alisioConnectorsSearch = value;
-              },
-              onCategoryChange: (value) => {
-                state.alisioConnectorsCategoryFilter = value;
               },
               onBeginConnector: (connectorId) => {
                 beginConnectorFlow(state, connectorId);
@@ -1212,8 +1173,8 @@ export function renderApp(state: AppViewState) {
               onRevokeConnector: (connectorId) => {
                 void revokeAlisioConnector(state, connectorId);
               },
-              onOpenModels: () => {
-                state.setTab("models" as import("./navigation.ts").Tab);
+              onOpenConnections: () => {
+                state.setTab("connections" as import("./navigation.ts").Tab);
               },
             })
           : nothing}
@@ -1611,9 +1572,6 @@ export function renderApp(state: AppViewState) {
               loading: state.alisioOrganizationLoading,
               error: state.alisioOrganizationError,
               organization: state.alisioOrganization,
-              sharingLoading: state.alisioSharingLoading,
-              sharingError: state.alisioSharingError,
-              sharing: state.alisioSharing,
               draftMode: state.alisioOrganizationDraftMode,
               organizationName: state.alisioOrganizationName,
               inviteEmail: state.alisioOrganizationInviteEmail,
@@ -1641,31 +1599,6 @@ export function renderApp(state: AppViewState) {
               },
               onResetOrganization: () => {
                 void saveAlisioOrganization(state, { mode: "none" });
-              },
-              onRefreshSharing: () => {
-                void loadAlisioSharing(state);
-              },
-              onRequestAccess: (targetId, scopes) => {
-                void requestAlisioSharedDeviceAccess(state, targetId, scopes);
-              },
-              onApproveRequest: (requestId, scopes) => {
-                void approveAlisioSharedDeviceRequest(state, requestId, scopes);
-              },
-              onRejectRequest: (requestId) => {
-                void rejectAlisioSharedDeviceRequest(state, requestId);
-              },
-              onRevokeGrant: (grantId) => {
-                void revokeAlisioSharedDeviceGrant(state, grantId);
-              },
-              onSetPolicy: (allowExternalUse) => {
-                void saveAlisioSharingPolicy(state, allowExternalUse);
-              },
-              onSetResourcePolicy: (resource, mode) => {
-                void saveAlisioSharingPolicy(state, {
-                  resourcePolicies: {
-                    [resource]: mode,
-                  },
-                });
               },
             })
           : nothing}
@@ -1712,7 +1645,7 @@ export function renderApp(state: AppViewState) {
                   draft: state.chatMessage,
                   queue: state.chatQueue,
                   connected: state.connected,
-                  canSend: state.connected,
+                  canSend: state.connected && !isChatModelSwitchPending(state),
                   accessMode: state.gatewayAccessMode,
                   accessModeLoading: state.gatewayAccessModeLoading,
                   accessModeBusy: state.gatewayAccessModeBusy,

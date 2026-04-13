@@ -999,6 +999,7 @@ export function renderChat(props: ChatProps) {
   syncChatViewStateForSession(props.sessionKey);
 
   const canCompose = props.connected;
+  const canSendMessage = props.connected && props.canSend;
   const isBusy = Boolean(
     props.sending || props.stream !== null || props.canAbort || props.finalizing,
   );
@@ -1257,7 +1258,7 @@ export function renderChat(props: ChatProps) {
       if (e.isComposing || e.keyCode === 229) {
         return;
       }
-      if (!props.connected) {
+      if (!canSendMessage) {
         return;
       }
       e.preventDefault();
@@ -1567,7 +1568,7 @@ export function renderChat(props: ChatProps) {
                       }
                       props.onSend();
                     }}
-                    ?disabled=${!props.connected || props.sending}
+                    ?disabled=${!canSendMessage || props.sending}
                     title=${isBusy ? chatText("compose.queue") : chatText("compose.send")}
                     aria-label=${isBusy
                       ? chatText("compose.queueMessage")

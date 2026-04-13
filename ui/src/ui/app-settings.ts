@@ -440,7 +440,6 @@ export async function refreshActiveTab(host: SettingsHost, opts?: RefreshActiveT
     await Promise.allSettled([
       loadAlisioAccount(host as unknown as AlisioApp),
       loadAlisioOrganization(host as unknown as AlisioApp),
-      loadAlisioSharing(host as unknown as AlisioApp),
     ]);
   }
   if (host.tab === "chat") {

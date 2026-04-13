@@ -29,8 +29,10 @@ vi.mock("./app-gateway.ts", () => ({
 
 vi.mock("./app-polling.ts", () => ({
   startLogsPolling: vi.fn(),
+  startMemoryPolling: vi.fn(),
   startNodesPolling: vi.fn(),
   stopLogsPolling: vi.fn(),
+  stopMemoryPolling: vi.fn(),
   stopNodesPolling: vi.fn(),
   startDebugPolling: vi.fn(),
   stopDebugPolling: vi.fn(),

@@ -1546,6 +1546,8 @@ describe("listSessionsFromStore search", () => {
 
       expect(result.sessions[0]).toMatchObject({
         key: "agent:main:main",
+        providerOverride: "openai",
+        modelOverride: "gpt-5.4",
         modelProvider: "openai",
         model: "gpt-5.4",
         totalTokens: 3_200,

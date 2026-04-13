@@ -8,14 +8,27 @@ export type MemoryReasonTag = {
   detail?: string;
 };
 
+export type MemoryWikiTaxonomyFields = {
+  summary?: string | null;
+  tags?: string[] | null;
+  categories?: string[] | null;
+  collections?: string[] | null;
+  featured?: boolean | null;
+};
+
 export type MemorySyncSurface = {
   lastSyncedLamport?: string | number | null;
   e2eeRequired?: boolean | null;
   state?: string | null;
+  mode?: string | null;
+  blockedReason?: string | null;
+  lastSuccessAt?: string | null;
+  lastAckLamport?: string | number | null;
+  pendingBacklog?: number | null;
   detail?: string | null;
 };
 
-export type MemoryWikiListPage = {
+export type MemoryWikiListPage = MemoryWikiTaxonomyFields & {
   id: string;
   title: string;
   slug?: string | null;
@@ -60,7 +73,15 @@ export type MemoryClaimItem = {
   evidence?: MemoryEvidenceItem[] | null;
 };
 
-export type MemoryWikiPage = {
+export type MemoryWikiRelatedFile = {
+  id?: string | null;
+  name: string;
+  mediaType?: string | null;
+  updatedAt?: string | null;
+  provenanceSummary?: string | null;
+};
+
+export type MemoryWikiPage = MemoryWikiTaxonomyFields & {
   id: string;
   title: string;
   slug?: string | null;
@@ -69,6 +90,7 @@ export type MemoryWikiPage = {
   backlinks?: MemoryWikiBacklink[] | null;
   claims?: MemoryClaimItem[] | null;
   evidence?: MemoryEvidenceItem[] | null;
+  relatedFiles?: MemoryWikiRelatedFile[] | null;
   provenance?: Array<{ label: string; value: string }> | null;
   reasonTags?: MemoryReasonTag[] | null;
   traceId?: string | null;
@@ -179,7 +201,6 @@ export type MemoryFileListEntry = {
   origin?: MemoryFileOrigin | null;
   provenance: Array<{ label: string; value: string }>;
   reasonTags?: MemoryReasonTag[] | null;
-  traceId?: string | null;
   trace?: unknown;
   traceSummary?: string[] | null;
 };

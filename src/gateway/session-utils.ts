@@ -91,6 +91,27 @@ export type {
 } from "./session-utils.types.js";
 
 const DERIVED_TITLE_MAX_LEN = 60;
+const SYNTHETIC_HEARTBEAT_ORIGIN_TOKEN = "heartbeat";
+
+function normalizeOriginDisplayToken(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed.toLowerCase() : undefined;
+}
+
+function isSyntheticHeartbeatDisplayOrigin(origin: SessionEntry["origin"] | undefined): boolean {
+  return (
+    normalizeOriginDisplayToken(origin?.label) === SYNTHETIC_HEARTBEAT_ORIGIN_TOKEN &&
+    normalizeOriginDisplayToken(origin?.from) === SYNTHETIC_HEARTBEAT_ORIGIN_TOKEN &&
+    normalizeOriginDisplayToken(origin?.to) === SYNTHETIC_HEARTBEAT_ORIGIN_TOKEN
+  );
+}
+
+function resolveOriginDisplayLabel(origin: SessionEntry["origin"] | undefined): string | undefined {
+  if (isSyntheticHeartbeatDisplayOrigin(origin)) {
+    return undefined;
+  }
+  return origin?.label?.trim() || undefined;
+}
 
 function tryResolveExistingPath(value: string): string | null {
   try {
@@ -1155,7 +1176,7 @@ export function buildGatewaySessionRow(params: {
   const space = entry?.space;
   const id = parsed?.id;
   const origin = entry?.origin;
-  const originLabel = origin?.label;
+  const originLabel = resolveOriginDisplayLabel(origin);
   const displayName =
     entry?.displayName ??
     (channel
@@ -1226,6 +1247,8 @@ export function buildGatewaySessionRow(params: {
       }
     : resolvedModelIdentity;
   const { provider: modelProvider, model } = modelIdentity;
+  const modelOverride = entry?.modelOverride?.trim() || undefined;
+  const providerOverride = modelOverride ? entry?.providerOverride?.trim() || undefined : undefined;
   const totalTokens =
     resolvePositiveNumber(resolveFreshSessionTotalTokens(entry)) ??
     resolvePositiveNumber(transcriptUsage?.totalTokens);
@@ -1312,6 +1335,8 @@ export function buildGatewaySessionRow(params: {
     parentSessionKey: subagentOwner || entry?.parentSessionKey,
     childSessions,
     responseUsage: entry?.responseUsage,
+    providerOverride,
+    modelOverride,
     modelProvider,
     model,
     contextTokens,

@@ -146,6 +146,7 @@ function renderDoctorCard(props: {
 
   const statusText = props.doctor.ok ? text.healthy : text.needsAttention;
   const compact = props.doctor.ok && props.doctor.issues.length === 0;
+  const showRefreshAppAction = Boolean(props.rebuildAvailable && props.onRebuildApp);
   return html`
     <section
       class="alisio-settings-doctor ${props.doctor.ok ? "is-ok" : "is-attention"} ${compact
@@ -177,7 +178,7 @@ function renderDoctorCard(props: {
         ? html`
             <div class="alisio-settings-doctor__actions">
               <button class="btn btn--sm" @click=${props.onOpenSetup}>${text.openSetup}</button>
-              ${props.rebuildAvailable && props.onRebuildApp
+              ${showRefreshAppAction
                 ? html`
                     <button
                       class="btn btn--sm"
@@ -200,14 +201,8 @@ function renderDoctorCard(props: {
           `
         : html`
             <div class="alisio-settings-doctor__actions">
-              <button class="btn" @click=${props.onReconnectRuntime}>
-                ${reconnectRequired ? text.reconnectApp : text.restartRuntime}
-              </button>
-              <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
-            </div>
-            ${props.rebuildAvailable && props.onRebuildApp
-              ? html`
-                  <div class="alisio-settings-doctor__actions" style="margin-top: 8px;">
+              ${showRefreshAppAction
+                ? html`
                     <button
                       class="btn"
                       ?disabled=${Boolean(props.rebuildInFlight)}
@@ -215,9 +210,14 @@ function renderDoctorCard(props: {
                     >
                       ${props.rebuildInFlight ? text.rebuildingApp : text.rebuildApp}
                     </button>
-                  </div>
-                `
-              : nothing}
+                  `
+                : html`
+                    <button class="btn" @click=${props.onReconnectRuntime}>
+                      ${reconnectRequired ? text.reconnectApp : text.restartRuntime}
+                    </button>
+                  `}
+              <button class="btn" @click=${props.onOpenSetup}>${text.openSetup}</button>
+            </div>
             ${props.rebuildStatus
               ? html`<div class="list-sub" style="margin-top: 8px;">${props.rebuildStatus}</div>`
               : nothing}

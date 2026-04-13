@@ -23,13 +23,14 @@ import {
 } from "./loading-skeleton.ts";
 import {
   buildSkillStatusCounts,
+  isSkillNotInstalled,
   renderSkillDetailDialog,
   skillMatchesStatus,
   skillStatusClass,
   skillStatusLabel,
   type SkillsStatusFilter,
 } from "./skills-shared.ts";
-type CapabilityStatus = "ready" | "partial" | "needs-setup" | "not-exposed";
+type CapabilityStatus = "ready" | "partial" | "not-installed" | "needs-setup" | "not-exposed";
 
 type CapabilityCard = {
   id: string;
@@ -123,6 +124,8 @@ function statusFilterLabel(status: SkillsStatusFilter) {
   switch (status) {
     case "ready":
       return t("alisio.capabilities.filters.ready");
+    case "not-installed":
+      return t("alisio.capabilities.filters.notInstalled");
     case "needs-setup":
       return t("alisio.capabilities.filters.needsSetup");
     case "disabled":
@@ -139,6 +142,8 @@ function capabilityStatusLabel(status: CapabilityStatus) {
       return t("alisio.capabilities.status.ready");
     case "partial":
       return t("alisio.capabilities.status.partial");
+    case "not-installed":
+      return t("alisio.capabilities.status.notInstalled");
     case "needs-setup":
       return t("alisio.capabilities.status.needsSetup");
     case "not-exposed":
@@ -153,6 +158,8 @@ function capabilityStatusClass(status: CapabilityStatus) {
       return "chip chip-ok";
     case "partial":
       return "chip chip-active";
+    case "not-installed":
+      return "chip";
     case "needs-setup":
       return "chip chip-warn";
     case "not-exposed":
@@ -176,6 +183,9 @@ function resolveSkillFamilyStatus(skills: SkillStatusEntry[]): CapabilityStatus 
   }
   const readyCount = skills.filter((skill) => !skill.disabled && skill.eligible).length;
   if (readyCount === 0) {
+    if (skills.every((skill) => !skill.disabled && isSkillNotInstalled(skill))) {
+      return "not-installed";
+    }
     return "needs-setup";
   }
   if (readyCount === skills.length) {
@@ -268,6 +278,14 @@ function renderCapabilitySkeletonCard() {
 }
 
 function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
+  const status: CapabilityStatus =
+    skill.disabled || skill.blockedByAllowlist
+      ? "needs-setup"
+      : isSkillNotInstalled(skill)
+        ? "not-installed"
+        : skill.eligible
+          ? "ready"
+          : "needs-setup";
   return html`
     <div
       class="list-item list-item-clickable capability-skill-row"
@@ -284,13 +302,7 @@ function renderSkillCard(skill: SkillStatusEntry, props: CapabilitiesProps) {
         </div>
       </div>
       <div class="list-meta capability-skill-row__meta">
-        <span
-          class=${capabilityStatusClass(
-            skill.disabled || skill.blockedByAllowlist || !skill.eligible ? "needs-setup" : "ready",
-          )}
-        >
-          ${skillStatusLabel(skill)}
-        </span>
+        <span class=${capabilityStatusClass(status)}>${skillStatusLabel(skill)}</span>
       </div>
     </div>
   `;
@@ -351,16 +363,18 @@ export function renderCapabilities(props: CapabilitiesProps) {
 
         <div class="alisio-summary-grid alisio-summary-grid--spacious">
           ${showInitialLoading
-            ? renderSkeletonStatCards(4)
+            ? renderSkeletonStatCards(5)
             : html`
                 <article class="list-item capabilities-summary-card">
                   <div class="list-title">${statusCounts.ready}</div>
                   <div class="list-sub">${t("alisio.capabilities.summary.readyNow")}</div>
                 </article>
                 <article class="list-item capabilities-summary-card">
-                  <div class="list-title">
-                    ${statusCounts["needs-setup"] + statusCounts.disabled}
-                  </div>
+                  <div class="list-title">${statusCounts["not-installed"]}</div>
+                  <div class="list-sub">${t("alisio.capabilities.summary.notInstalled")}</div>
+                </article>
+                <article class="list-item capabilities-summary-card">
+                  <div class="list-title">${statusCounts["needs-setup"]}</div>
                   <div class="list-sub">${t("alisio.capabilities.summary.needsSetup")}</div>
                 </article>
                 <article class="list-item capabilities-summary-card">
@@ -397,7 +411,9 @@ export function renderCapabilities(props: CapabilitiesProps) {
         </div>
 
         <div class="agent-tabs" style="margin-top: 14px;">
-          ${(["all", "ready", "needs-setup", "disabled"] as SkillsStatusFilter[]).map(
+          ${(
+            ["all", "ready", "not-installed", "needs-setup", "disabled"] as SkillsStatusFilter[]
+          ).map(
             (status) => html`
               <button
                 class="agent-tab ${props.statusFilter === status ? "active" : ""}"

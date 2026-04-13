@@ -1,7 +1,7 @@
 import { LitElement, html, nothing, type PropertyValues } from "lit";
 import { property, state } from "lit/decorators.js";
-import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { t } from "../../i18n/index.ts";
+import { buildMemoryFileActionModel } from "../controllers/memory-files-preview.ts";
 import {
   MemoryEndpointUnavailableError,
   type MemoryClaimItem,
@@ -30,9 +30,7 @@ import {
 import { formatRelativeTimestamp } from "../format.ts";
 import type { GatewayBrowserClient } from "../gateway.ts";
 import { icons } from "../icons.ts";
-import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import type { MemoryGraphState } from "../types.ts";
-import { buildMemoryFileActionModel } from "../controllers/memory-files-preview.ts";
 import {
   renderSkeletonButton,
   renderSkeletonLines,
@@ -40,8 +38,8 @@ import {
 } from "./loading-skeleton.ts";
 import { renderLegacyMemoryEditor } from "./memory-legacy.ts";
 import "./memory-graph-view.ts";
-import { renderMemoryFilesView } from "./memory/files-view.ts";
 import { renderMemorySettings } from "./memory-settings.ts";
+import { renderMemoryFilesView } from "./memory/files-view.ts";
 import { renderMemoryWikiView } from "./memory/wiki-view.ts";
 
 type MemoryHubProps = import("./memory.ts").MemoryHubProps;
@@ -138,6 +136,8 @@ function memoryText() {
     syncLamport: t("alisio.memory.sync.lamport"),
     syncE2ee: t("alisio.memory.sync.e2ee"),
     syncE2eeRequired: t("alisio.memory.sync.e2eeRequired"),
+    syncState: t("alisio.memory.sync.state"),
+    syncDetail: t("alisio.memory.sync.detail"),
     reasonTags: t("alisio.memory.trace.reasonTags"),
     whySurfaced: t("alisio.memory.trace.whySurfaced"),
     viewTrace: t("alisio.memory.trace.view"),
@@ -284,6 +284,25 @@ function buildTraceSummary(
   return lines.length > 0 ? lines : normalizeSummaryLines(trace?.summary);
 }
 
+function buildContextPreviewSummary(
+  text: Pick<ReturnType<typeof memoryText>, "na">,
+  page: MemoryWikiPage | null,
+  summary?: string | null,
+) {
+  const explicit = typeof summary === "string" ? summary.trim() : "";
+  if (explicit) {
+    return explicit;
+  }
+  const traceSummary = page?.contextPreview?.traceSummary?.find(
+    (entry) => typeof entry === "string" && entry.trim(),
+  );
+  if (traceSummary) {
+    return traceSummary;
+  }
+  const pageSummary = typeof page?.summary === "string" ? page.summary.trim() : "";
+  return pageSummary || text.na;
+}
+
 function mergeSyncSurfaces(
   ...surfaces: Array<MemorySyncSurface | null | undefined>
 ): MemorySyncSurface | null {
@@ -301,11 +320,52 @@ function mergeSyncSurfaces(
     if (merged.state == null && surface.state != null) {
       merged.state = surface.state;
     }
+    if (merged.mode == null && surface.mode != null) {
+      merged.mode = surface.mode;
+    }
+    if (merged.blockedReason == null && surface.blockedReason != null) {
+      merged.blockedReason = surface.blockedReason;
+    }
+    if (merged.lastSuccessAt == null && surface.lastSuccessAt != null) {
+      merged.lastSuccessAt = surface.lastSuccessAt;
+    }
+    if (merged.lastAckLamport == null && surface.lastAckLamport != null) {
+      merged.lastAckLamport = surface.lastAckLamport;
+    }
+    if (merged.pendingBacklog == null && surface.pendingBacklog != null) {
+      merged.pendingBacklog = surface.pendingBacklog;
+    }
     if (merged.detail == null && surface.detail != null) {
       merged.detail = surface.detail;
     }
   }
   return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function buildCanonicalStatusSyncDetail(
+  canonicalStore:
+    | NonNullable<NonNullable<MemoryHubProps["memoryStatus"]>["runtime"]>["canonicalStore"]
+    | null
+    | undefined,
+) {
+  if (!canonicalStore) {
+    return null;
+  }
+  const parts = [
+    `mode ${canonicalStore.syncModeConfigured}`,
+    ...(canonicalStore.syncBlockedReason ? [`blocked ${canonicalStore.syncBlockedReason}`] : []),
+    ...(typeof canonicalStore.lastAckLamport === "number"
+      ? [`ack ${String(canonicalStore.lastAckLamport)}`]
+      : []),
+    ...(typeof canonicalStore.pendingBacklog === "number"
+      ? [`backlog ${String(canonicalStore.pendingBacklog)}`]
+      : []),
+    ...(canonicalStore.lastSyncSuccessAt
+      ? [`last success ${canonicalStore.lastSyncSuccessAt}`]
+      : []),
+    ...(canonicalStore.lastError ? [canonicalStore.lastError] : []),
+  ];
+  return parts.length > 0 ? parts.join("; ") : null;
 }
 
 function deriveStatusSyncSurface(
@@ -317,8 +377,13 @@ function deriveStatusSyncSurface(
       ? {
           lastSyncedLamport: status.runtime.canonicalStore.lastSyncedLamport,
           e2eeRequired: status.runtime.canonicalStore.e2eeRequired,
-          state: status.runtime.canonicalStore.state,
-          detail: status.runtime.canonicalStore.lastError,
+          state: status.runtime.canonicalStore.syncAvailability,
+          mode: status.runtime.canonicalStore.syncModeConfigured,
+          blockedReason: status.runtime.canonicalStore.syncBlockedReason,
+          lastSuccessAt: status.runtime.canonicalStore.lastSyncSuccessAt,
+          lastAckLamport: status.runtime.canonicalStore.lastAckLamport,
+          pendingBacklog: status.runtime.canonicalStore.pendingBacklog,
+          detail: buildCanonicalStatusSyncDetail(status.runtime.canonicalStore),
         }
       : null,
     graph
@@ -330,6 +395,31 @@ function deriveStatusSyncSurface(
         }
       : null,
   );
+}
+
+function resolveSyncInvalidationMarker(
+  props: Pick<MemoryHubProps, "memoryStatus" | "memoryGraph"> | null | undefined,
+) {
+  const surface = deriveStatusSyncSurface(props?.memoryStatus, props?.memoryGraph);
+  if (!surface) {
+    return null;
+  }
+  const state = surface.state?.trim() ?? "";
+  const lamport = surface.lastSyncedLamport == null ? "" : String(surface.lastSyncedLamport).trim();
+  const detail = surface.detail?.trim() ?? "";
+  return `${state}:${lamport}:${detail}`;
+}
+
+function formatSyncStateLabel(value: string | null | undefined) {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ");
 }
 
 function downloadText(filename: string, content: string, mediaType: string) {
@@ -417,8 +507,10 @@ function renderSyncCard(params: {
   const provider =
     params.status?.runtime?.provider ?? params.status?.config?.provider ?? params.text.unavailable;
   const lamport = params.sync?.lastSyncedLamport ?? params.text.na;
+  const syncState = formatSyncStateLabel(params.sync?.state) ?? params.text.na;
   const e2eeRequired =
     params.sync?.e2eeRequired === false ? params.text.na : params.text.syncE2eeRequired;
+  const syncDetail = params.sync?.detail?.trim() ?? "";
   return html`
     <section class="alisio-memory-runtime">
       <div class="alisio-memory-runtime__header">
@@ -474,6 +566,10 @@ function renderSyncCard(params: {
           <strong class="alisio-memory-stat__value">${e2eeRequired}</strong>
         </div>
         <div class="alisio-memory-stat">
+          <span class="alisio-memory-stat__label">${params.text.syncState}</span>
+          <strong class="alisio-memory-stat__value">${syncState}</strong>
+        </div>
+        <div class="alisio-memory-stat">
           <span class="alisio-memory-stat__label">${params.text.backend}</span>
           <strong class="alisio-memory-stat__value">
             ${params.status?.backend?.backend ?? params.text.na}
@@ -484,6 +580,11 @@ function renderSyncCard(params: {
           <strong class="alisio-memory-stat__value">${provider}</strong>
         </div>
       </div>
+      ${syncDetail
+        ? html`<div class="alisio-memory-runtime__meta-detail">
+            ${params.text.syncDetail}: ${syncDetail}
+          </div>`
+        : nothing}
     </section>
   `;
 }
@@ -543,7 +644,6 @@ export class AlisioMemoryNativeHub extends LitElement {
   private fileToken = 0;
   private traceToken = 0;
   private graphToken = 0;
-  private syncedGraphPath: string | null = null;
 
   protected willUpdate(changed: PropertyValues<this>) {
     if (!changed.has("props") || !this.props) {
@@ -567,12 +667,21 @@ export class AlisioMemoryNativeHub extends LitElement {
     const queryChanged = previous?.searchQuery !== this.props.searchQuery;
     const clientChanged =
       previous?.client !== this.props.client || previous?.connected !== this.props.connected;
+    const syncChanged =
+      resolveSyncInvalidationMarker(previous) !== resolveSyncInvalidationMarker(this.props);
     if (clientChanged || agentChanged) {
       if (this.props.connected && this.props.client && this.props.selectedAgentId) {
         void this.reloadNativeLists();
       }
     } else if (
       queryChanged &&
+      this.props.connected &&
+      this.props.client &&
+      this.props.selectedAgentId
+    ) {
+      void this.reloadNativeLists();
+    } else if (
+      syncChanged &&
       this.props.connected &&
       this.props.client &&
       this.props.selectedAgentId
@@ -614,7 +723,6 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.graphError = null;
     this.graphData = null;
     this.graphScope = "global";
-    this.syncedGraphPath = null;
   }
 
   private get client(): GatewayBrowserClient | null {
@@ -649,10 +757,6 @@ export class AlisioMemoryNativeHub extends LitElement {
         this.graphData ?? this.props?.memoryGraph ?? null,
       ),
     );
-  }
-
-  private get searchResultsVisible() {
-    return Boolean(this.props?.searchQuery.trim());
   }
 
   private get currentPageDraft() {
@@ -764,7 +868,6 @@ export class AlisioMemoryNativeHub extends LitElement {
           [result.page.id]: result.page.title,
         };
       }
-      this.syncGraphSelection(result.page.path ?? null);
     } catch (err) {
       if (token !== this.pageToken) {
         return;
@@ -877,10 +980,7 @@ export class AlisioMemoryNativeHub extends LitElement {
     }
   }
 
-  private async loadGraph(options?: {
-    scope?: "global" | "local";
-    focusPageId?: string | null;
-  }) {
+  private async loadGraph(options?: { scope?: "global" | "local"; focusPageId?: string | null }) {
     if (!this.client || !this.selectedAgentId) {
       this.graphData = null;
       this.graphError = null;
@@ -944,13 +1044,6 @@ export class AlisioMemoryNativeHub extends LitElement {
     this.wikiEditorOpen = false;
     emitMemoryTelemetry("ui_memory_view_opened", { view: "wiki" });
     void this.loadGraph({ scope: this.graphScope, focusPageId: null });
-  }
-
-  private syncGraphSelection(path: string | null) {
-    if (!path || this.syncedGraphPath === path) {
-      return;
-    }
-    this.syncedGraphPath = path;
   }
 
   private async savePage() {
@@ -1081,11 +1174,7 @@ export class AlisioMemoryNativeHub extends LitElement {
       reasonTags?: MemoryReasonTag[] | null;
     },
   ) {
-    if (
-      !this.tracesEnabled ||
-      !this.searchResultsVisible ||
-      (!params.traceId && params.trace === undefined)
-    ) {
+    if (!this.tracesEnabled || (!params.traceId && params.trace === undefined)) {
       return nothing;
     }
     return html`
@@ -1179,7 +1268,7 @@ export class AlisioMemoryNativeHub extends LitElement {
           page.slug ?? "",
           page.path ?? "",
           page.path ? page.path.replace(/^memory\//, "") : "",
-          page.path ? page.path.split("/").at(-1)?.replace(/\.md$/i, "") ?? "" : "",
+          page.path ? (page.path.split("/").at(-1)?.replace(/\.md$/i, "") ?? "") : "",
         ];
         return candidates.some(
           (candidate) => this.normalizeWikiLookupKey(candidate) === normalizedTarget,
@@ -1210,6 +1299,9 @@ export class AlisioMemoryNativeHub extends LitElement {
     const pageId = await this.findPageIdByTarget(target);
     if (pageId) {
       await this.selectPage(pageId);
+      return;
+    }
+    if (!this.legacyEditorEnabled) {
       return;
     }
     this.activeView = "wiki";
@@ -1694,7 +1786,6 @@ export class AlisioMemoryNativeHub extends LitElement {
       historyError: this.historyError,
       history: this.history,
       tracesEnabled: this.tracesEnabled,
-      searchResultsVisible: this.searchResultsVisible,
       createOpen: this.createOpen,
       createTitle: this.createTitle,
       pageSaving: this.pageSaving,
@@ -1813,9 +1904,7 @@ export class AlisioMemoryNativeHub extends LitElement {
             void this.selectPage(pageId);
           }
         }}
-        @alisio-memory-graph-scope-change=${(
-          event: CustomEvent<{ scope: "global" | "local" }>,
-        ) => {
+        @alisio-memory-graph-scope-change=${(event: CustomEvent<{ scope: "global" | "local" }>) => {
           const scope = event.detail?.scope;
           if (!scope) {
             return;
@@ -2069,20 +2158,22 @@ ${JSON.stringify(this.traceData.raw, null, 2)}</pre
             ? this.renderFilesView(text)
             : this.renderGraphView(text)}
         ${this.renderTraceDrawer(text)}
-        ${renderMemorySettings({
-          loading: props.configLoading,
-          saving: props.configSaving,
-          dirty: props.configDirty,
-          schema: props.configSchema,
-          uiHints: props.configUiHints,
-          value: props.configForm,
-          selectedAgentId: props.selectedAgentId,
-          selectedAgentLabel:
-            props.agentsList?.agents.find((agent) => agent.id === props.selectedAgentId)?.name ??
-            props.selectedAgentId,
-          onPatch: props.onConfigPatch,
-          onSave: props.onSaveSettings,
-        })}
+        ${this.activeView === "graph"
+          ? nothing
+          : renderMemorySettings({
+              loading: props.configLoading,
+              saving: props.configSaving,
+              dirty: props.configDirty,
+              schema: props.configSchema,
+              uiHints: props.configUiHints,
+              value: props.configForm,
+              selectedAgentId: props.selectedAgentId,
+              selectedAgentLabel:
+                props.agentsList?.agents.find((agent) => agent.id === props.selectedAgentId)
+                  ?.name ?? props.selectedAgentId,
+              onPatch: props.onConfigPatch,
+              onSave: props.onSaveSettings,
+            })}
       </section>
     `;
   }

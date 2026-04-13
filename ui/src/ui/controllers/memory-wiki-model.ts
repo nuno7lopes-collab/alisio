@@ -3,15 +3,8 @@ import type {
   MemoryWikiListPage,
   MemoryWikiListResult,
   MemoryWikiPage,
+  MemoryWikiRelatedFile,
 } from "./memory-runtime.ts";
-
-export type MemoryWikiRelatedFile = {
-  id?: string | null;
-  name: string;
-  mediaType?: string | null;
-  updatedAt?: string | null;
-  provenanceSummary?: string | null;
-};
 
 export type MemoryWikiResolvedLink = {
   rawTarget: string;
@@ -178,7 +171,10 @@ function slugifyHeading(value: string) {
 
 function splitTargetAnchor(rawTarget: string): { target: string; anchor?: string } {
   const [target, ...rest] = rawTarget.split("#");
-  const anchor = rest.map((entry) => entry.trim()).filter(Boolean).join("#");
+  const anchor = rest
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .join("#");
   return {
     target: target.trim(),
     ...(anchor ? { anchor } : {}),
@@ -244,7 +240,9 @@ function buildPortalScore(page: {
   );
 }
 
-function normalizeRelatedFiles(value: unknown): MemoryWikiRelatedFile[] {
+function normalizeRelatedFiles(
+  value: MemoryWikiPage["relatedFiles"] | null | undefined,
+): MemoryWikiRelatedFile[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -344,7 +342,10 @@ export function asWikiListPageModel(page: MemoryWikiListPage): MemoryWikiListPag
   const categories = normalizeCategories(rawPage, tags);
   const collections = normalizeCollections(rawPage);
   const featured = normalizeBoolean(rawPage.featured) || collections.includes("Featured");
-  const summary = normalizeSummary(rawPage, page.excerpt?.trim() || page.path?.trim() || page.title);
+  const summary = normalizeSummary(
+    rawPage,
+    page.excerpt?.trim() || page.path?.trim() || page.title,
+  );
   const updatedAtMs = normalizeUpdatedAtMs(page.updatedAt);
   return {
     ...page,
@@ -376,10 +377,7 @@ export function asWikiPageModel(
     ...normalizeCategories(rawPage, tags),
     ...frontmatter.categories,
   ]);
-  const collections = uniqueStrings([
-    ...normalizeCollections(rawPage),
-    ...frontmatter.collections,
-  ]);
+  const collections = uniqueStrings([...normalizeCollections(rawPage), ...frontmatter.collections]);
   const featured = normalizeBoolean(rawPage.featured) || collections.includes("Featured");
   const lead = extractLead(body);
   return {
@@ -422,7 +420,9 @@ function groupPagesBy(
     .map(([name, groupedPages]) => ({
       name,
       kind,
-      pages: [...groupedPages].toSorted((left, right) => right.portalScore - left.portalScore).slice(0, 4),
+      pages: [...groupedPages]
+        .toSorted((left, right) => right.portalScore - left.portalScore)
+        .slice(0, 4),
     }))
     .toSorted((left, right) => {
       if (right.pages.length !== left.pages.length) {

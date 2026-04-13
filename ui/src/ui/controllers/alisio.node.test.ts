@@ -558,7 +558,7 @@ describe("alisio controller reconnect safety", () => {
         { id: "gpt-oss-20b", name: "gpt-oss-20b", provider: "alisio-remote" },
       ],
       modelsExpandedProfileId: "profile-1",
-      modelsSelectedProviderId: "nodes",
+      modelsSelectedProviderId: "local",
       setupWizardSessionId: "wizard-1",
       setupWizardStatus: "running",
       setupWizardStep: {

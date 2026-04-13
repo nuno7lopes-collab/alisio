@@ -56,6 +56,8 @@ export type GatewaySessionRow = {
   parentSessionKey?: string;
   childSessions?: string[];
   responseUsage?: "on" | "off" | "tokens" | "full";
+  providerOverride?: string;
+  modelOverride?: string;
   modelProvider?: string;
   model?: string;
   contextTokens?: number;

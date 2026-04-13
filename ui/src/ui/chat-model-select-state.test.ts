@@ -55,4 +55,36 @@ describe("chat-model-select-state", () => {
     expect(resolved.options.map((option) => option.value)).toContain("openai/gpt-5-mini");
     expect(resolved.options.map((option) => option.value)).not.toContain("gpt-5-mini");
   });
+
+  it("does not duplicate the default model inside the concrete option list", () => {
+    const state = {
+      sessionKey: "main",
+      chatModelOverrides: {},
+      chatModelCatalog: createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG),
+      sessionsResult: createSessionsListResult(),
+    };
+
+    const resolved = resolveChatModelSelectState(state);
+    expect(resolved.defaultModel).toBe("openai/gpt-5");
+    expect(resolved.options.map((option) => option.value)).not.toContain("openai/gpt-5");
+    expect(resolved.options.map((option) => option.value)).toContain("openai/gpt-5-mini");
+  });
+
+  it("treats a default-backed runtime model as the default picker state when no explicit override exists", () => {
+    const state = {
+      sessionKey: "main",
+      chatModelOverrides: {},
+      chatModelCatalog: createModelCatalog(...DEFAULT_CHAT_MODEL_CATALOG),
+      sessionsResult: createSessionsListResult({
+        model: "gpt-5",
+        modelProvider: "openai",
+        modelOverride: null,
+        providerOverride: null,
+      }),
+    };
+
+    const resolved = resolveChatModelSelectState(state);
+    expect(resolved.currentOverride).toBe("");
+    expect(resolved.defaultModel).toBe("openai/gpt-5");
+  });
 });

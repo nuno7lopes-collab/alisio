@@ -1,8 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { t } from "../../../i18n/index.ts";
-import { formatRelativeTimestamp } from "../../format.ts";
-import { toSanitizedMarkdownHtml } from "../../markdown.ts";
 import type {
   MemoryClaimItem,
   MemoryEvidenceItem,
@@ -11,6 +9,7 @@ import type {
   MemoryWikiHistoryEntry,
   MemoryWikiListResult,
   MemoryWikiPage,
+  MemoryWikiRelatedFile,
 } from "../../controllers/memory-runtime.ts";
 import {
   asWikiPageModel,
@@ -19,8 +18,9 @@ import {
   type MemoryWikiHeading,
   type MemoryWikiPageModel,
   type MemoryWikiPortalGroup,
-  type MemoryWikiRelatedFile,
 } from "../../controllers/memory-wiki-model.ts";
+import { formatRelativeTimestamp } from "../../format.ts";
+import { toSanitizedMarkdownHtml } from "../../markdown.ts";
 
 type MemoryText = {
   na: string;
@@ -83,7 +83,6 @@ export type RenderMemoryWikiViewParams = {
   historyError: string | null;
   history: MemoryWikiHistoryEntry[];
   tracesEnabled: boolean;
-  searchResultsVisible: boolean;
   createOpen: boolean;
   createTitle: string;
   pageSaving: boolean;
@@ -246,14 +245,16 @@ function renderClaims(text: MemoryText, claims: MemoryClaimItem[] | null | undef
                   <article class="memory-wiki__detail-card">
                     <strong>${claim.claim}</strong>
                     ${claim.confidence != null
-                      ? html`<span
-                          >${text.confidenceLabel}: ${String(claim.confidence)}</span
-                        >`
+                      ? html`<span>${text.confidenceLabel}: ${String(claim.confidence)}</span>`
                       : nothing}
-                    ${(claim.evidence ?? []).slice(0, 2).map(
-                      (evidence) =>
-                        html`<span>${evidence.excerpt?.trim() || evidence.title?.trim() || text.na}</span>`,
-                    )}
+                    ${(claim.evidence ?? [])
+                      .slice(0, 2)
+                      .map(
+                        (evidence) =>
+                          html`<span
+                            >${evidence.excerpt?.trim() || evidence.title?.trim() || text.na}</span
+                          >`,
+                      )}
                   </article>
                 `,
               )}
@@ -278,7 +279,9 @@ function renderEvidence(text: MemoryText, evidence: MemoryEvidenceItem[] | null 
               ${items.map(
                 (item) => html`
                   <article class="memory-wiki__detail-card">
-                    <strong>${item.title?.trim() || item.source?.trim() || text.wikiEvidence}</strong>
+                    <strong
+                      >${item.title?.trim() || item.source?.trim() || text.wikiEvidence}</strong
+                    >
                     <span>${item.excerpt?.trim() || text.na}</span>
                     ${item.source?.trim() ? html`<span>${item.source}</span>` : nothing}
                   </article>
@@ -315,7 +318,9 @@ function renderRelatedFiles(
                     @click=${() => (file.id ? onSelectFile(file.id) : undefined)}
                   >
                     <strong>${file.name}</strong>
-                    <span>${file.provenanceSummary?.trim() || file.mediaType?.trim() || text.na}</span>
+                    <span
+                      >${file.provenanceSummary?.trim() || file.mediaType?.trim() || text.na}</span
+                    >
                   </button>
                 `,
               )}
@@ -367,7 +372,11 @@ function renderRevision(text: MemoryText, page: MemoryWikiPage | null) {
             <div class="memory-wiki__stack">
               <strong>${revision.summary?.trim() || revision.eventId || text.wikiRevision}</strong>
               <span>${String(revision.lamport ?? text.na)}</span>
-              <span>${[formatTimestamp(revision.updatedAt), revision.author].filter(Boolean).join(" · ") || text.na}</span>
+              <span
+                >${[formatTimestamp(revision.updatedAt), revision.author]
+                  .filter(Boolean)
+                  .join(" · ") || text.na}</span
+              >
               ${revision.eventId ? html`<span>${revision.eventId}</span>` : nothing}
             </div>
           `}
@@ -399,8 +408,16 @@ function renderHistory(
                   ${entries.map(
                     (entry) => html`
                       <article class="memory-wiki__detail-card">
-                        <strong>${entry.summary?.trim() || entry.operation?.trim() || entry.eventId}</strong>
-                        <span>${[formatTimestamp(entry.at), entry.author].filter(Boolean).join(" · ") || text.na}</span>
+                        <strong
+                          >${entry.summary?.trim() ||
+                          entry.operation?.trim() ||
+                          entry.eventId}</strong
+                        >
+                        <span
+                          >${[formatTimestamp(entry.at), entry.author]
+                            .filter(Boolean)
+                            .join(" · ") || text.na}</span
+                        >
                         ${entry.diffSummary ? html`<span>${entry.diffSummary}</span>` : nothing}
                       </article>
                     `,
@@ -417,17 +434,16 @@ function buildArticleMarkdown(markdown: string) {
       return match;
     }
     const [target, label] = String(rawTarget).split("|", 2);
-    const safeLabel = (label?.trim() || target?.trim() || "").replace(/\[/g, "\\[").replace(/\]/g, "\\]");
+    const safeLabel = (label?.trim() || target?.trim() || "")
+      .replace(/\[/g, "\\[")
+      .replace(/\]/g, "\\]");
     const encodedTarget = encodeURIComponent((target ?? "").trim());
     return `[${safeLabel}](#wiki:${encodedTarget})`;
   });
   return toSanitizedMarkdownHtml(body);
 }
 
-function handleArticleClick(
-  event: Event,
-  onOpenWikiTarget: (target: string) => void,
-) {
+function handleArticleClick(event: Event, onOpenWikiTarget: (target: string) => void) {
   const target = event.target instanceof Element ? event.target : null;
   const anchor = target?.closest("a");
   if (!anchor) {
@@ -459,8 +475,7 @@ function renderCreateComposer(params: RenderMemoryWikiViewParams) {
         <input
           .value=${params.createTitle}
           placeholder=${text.wikiCreatePlaceholder}
-          @input=${(event: Event) =>
-            params.onCreateTitle((event.target as HTMLInputElement).value)}
+          @input=${(event: Event) => params.onCreateTitle((event.target as HTMLInputElement).value)}
         />
       </label>
       <div class="alisio-memory-runtime__actions">
@@ -490,7 +505,10 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
           <button class="btn btn--sm" @click=${() => params.onGoHome()}>
             ${translateWithFallback("alisio.memory.wiki.portalHome", "Portal")}
           </button>
-          <button class="btn btn--sm primary" @click=${() => params.onToggleCreate(!params.createOpen)}>
+          <button
+            class="btn btn--sm primary"
+            @click=${() => params.onToggleCreate(!params.createOpen)}
+          >
             ${text.wikiCreate}
           </button>
         </div>
@@ -503,7 +521,9 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
               class="memory-wiki__featured-teaser"
               @click=${() => params.onSelectPage(portal.featured!.id)}
             >
-              <span>${translateWithFallback("alisio.memory.wiki.featured", "Featured article")}</span>
+              <span
+                >${translateWithFallback("alisio.memory.wiki.featured", "Featured article")}</span
+              >
               <strong>${portal.featured.title}</strong>
               <p>${portal.featured.summary}</p>
             </button>
@@ -512,7 +532,9 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
       ${params.wikiError
         ? html`<div class="callout info">${params.wikiError}</div>`
         : params.wikiLoading && !params.wikiList
-          ? html`<div class="alisio-memory-empty">${translateWithFallback("alisio.memory.loading", "Loading")}</div>`
+          ? html`<div class="alisio-memory-empty">
+              ${translateWithFallback("alisio.memory.loading", "Loading")}
+            </div>`
           : portal.pages.length === 0
             ? html`<div class="alisio-memory-empty">${text.wikiEmpty}</div>`
             : html`
@@ -522,7 +544,9 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
                       <article class="alisio-memory-native__result-card">
                         <button
                           type="button"
-                          class="alisio-memory-file ${params.selectedPageId === page.id ? "is-active" : ""}"
+                          class="alisio-memory-file ${params.selectedPageId === page.id
+                            ? "is-active"
+                            : ""}"
                           aria-current=${params.selectedPageId === page.id ? "true" : "false"}
                           @click=${() => params.onSelectPage(page.id)}
                         >
@@ -537,9 +561,7 @@ function renderSidebar(params: RenderMemoryWikiViewParams) {
                               : (formatTimestamp(page.updatedAt) ?? text.na)}
                           </span>
                         </button>
-                        ${params.tracesEnabled &&
-                        params.searchResultsVisible &&
-                        (page.traceId || page.trace)
+                        ${params.tracesEnabled && (page.traceId || page.trace)
                           ? html`
                               <div class="alisio-memory-native__result-actions">
                                 <button
@@ -574,7 +596,10 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
   const portal = buildWikiPortalModel(params.wikiList);
   const text = params.text;
   const labels = {
-    portalEyebrow: translateWithFallback("alisio.memory.wiki.portalEyebrow", "Personal encyclopedia"),
+    portalEyebrow: translateWithFallback(
+      "alisio.memory.wiki.portalEyebrow",
+      "Personal encyclopedia",
+    ),
     portalTitle: translateWithFallback("alisio.memory.wiki.portalTitle", "Memory portal"),
     portalBody: translateWithFallback(
       "alisio.memory.wiki.portalBody",
@@ -595,7 +620,10 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
           <p>${labels.portalBody}</p>
         </div>
         <div class="memory-wiki__stats">
-          ${renderStat(translateWithFallback("alisio.memory.wiki.pages", "Pages"), portal.stats.pages)}
+          ${renderStat(
+            translateWithFallback("alisio.memory.wiki.pages", "Pages"),
+            portal.stats.pages,
+          )}
           ${renderStat(text.wikiBacklinks, portal.stats.backlinks)}
           ${renderStat(text.wikiClaims, portal.stats.claims)}
           ${renderStat(text.wikiEvidence, portal.stats.evidence)}
@@ -616,7 +644,10 @@ function renderPortal(params: RenderMemoryWikiViewParams) {
                     <span>${portal.featured.path?.trim() || params.text.na}</span>
                     <span>${formatTimestamp(portal.featured.updatedAt) ?? params.text.na}</span>
                   </div>
-                  <button class="btn btn--sm primary" @click=${() => params.onSelectPage(portal.featured!.id)}>
+                  <button
+                    class="btn btn--sm primary"
+                    @click=${() => params.onSelectPage(portal.featured!.id)}
+                  >
                     ${translateWithFallback("alisio.memory.wiki.readArticle", "Read article")}
                   </button>
                 </div>
@@ -723,7 +754,9 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
             <span>${page.title}</span>
           </div>
           <h3>${page.title}</h3>
-          <p class="memory-wiki__lede">${page.summary || page.lead || page.path?.trim() || params.text.na}</p>
+          <p class="memory-wiki__lede">
+            ${page.summary || page.lead || page.path?.trim() || params.text.na}
+          </p>
           <div class="memory-wiki__meta-row">
             <span>${page.path?.trim() || params.text.na}</span>
             ${page.revision?.updatedAt
@@ -757,7 +790,10 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
                 </button>
               `
             : nothing}
-          <button class="btn btn--sm primary" @click=${() => params.onToggleEditor(!params.editorOpen)}>
+          <button
+            class="btn btn--sm primary"
+            @click=${() => params.onToggleEditor(!params.editorOpen)}
+          >
             ${params.editorOpen ? labels.hideEditor : labels.edit}
           </button>
         </div>
@@ -836,7 +872,8 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
                       ? html`
                           <div
                             class="memory-wiki__paper sidebar-markdown"
-                            @click=${(event: Event) => handleArticleClick(event, params.onOpenWikiTarget)}
+                            @click=${(event: Event) =>
+                              handleArticleClick(event, params.onOpenWikiTarget)}
                           >
                             ${unsafeHTML(buildArticleMarkdown(params.currentPageDraft))}
                           </div>
@@ -856,9 +893,13 @@ function renderArticle(params: RenderMemoryWikiViewParams, page: MemoryWikiPageM
             params.onSelectPage,
             params.onOpenWikiTarget,
           )}
-          ${renderRelatedFiles(labels.relatedFiles, page.relatedFiles, params.text, params.onSelectFile)}
-          ${renderClaims(params.text, page.claims)}
-          ${renderEvidence(params.text, page.evidence)}
+          ${renderRelatedFiles(
+            labels.relatedFiles,
+            page.relatedFiles,
+            params.text,
+            params.onSelectFile,
+          )}
+          ${renderClaims(params.text, page.claims)} ${renderEvidence(params.text, page.evidence)}
           ${renderProvenance(params.text, page.provenance)}
           ${renderHistory(params.text, params.historyLoading, params.historyError, params.history)}
           ${params.legacyEditorEnabled && params.legacyEditor
@@ -891,12 +932,11 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
       .memory-wiki__portal {
         border: 1px solid color-mix(in srgb, var(--border-subtle) 82%, transparent);
         border-radius: 22px;
-        background:
-          linear-gradient(
-            180deg,
-            color-mix(in srgb, var(--surface-elevated) 82%, rgba(255, 255, 255, 0.02)),
-            color-mix(in srgb, var(--surface-panel) 88%, rgba(255, 255, 255, 0.01))
-          );
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--surface-elevated) 82%, rgba(255, 255, 255, 0.02)),
+          color-mix(in srgb, var(--surface-panel) 88%, rgba(255, 255, 255, 0.01))
+        );
         box-shadow: 0 18px 48px rgba(7, 11, 22, 0.12);
       }
       .memory-wiki__portal,
@@ -1078,7 +1118,9 @@ export function renderMemoryWikiView(params: RenderMemoryWikiViewParams) {
       <div class="alisio-memory-main">
         ${params.pageError ? html`<div class="callout info">${params.pageError}</div>` : nothing}
         ${params.pageLoading && !page
-          ? html`<section class="memory-wiki__paper">${translateWithFallback("alisio.memory.loading", "Loading")}</section>`
+          ? html`<section class="memory-wiki__paper">
+              ${translateWithFallback("alisio.memory.loading", "Loading")}
+            </section>`
           : page
             ? renderArticle(params, page)
             : renderPortal(params)}

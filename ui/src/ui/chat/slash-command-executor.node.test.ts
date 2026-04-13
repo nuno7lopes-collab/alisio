@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createSessionsListResult,
   createResolvedModelPatch,
   createModelCatalog,
   DEEPSEEK_CHAT_MODEL,
@@ -303,6 +304,31 @@ describe("executeSlashCommand directives", () => {
       kind: "qualified",
       value: "openai/gpt-5-mini",
     });
+  });
+
+  it("clears the local override cache when /model resolves back to the default model", async () => {
+    const request = vi.fn(async (method: string, _payload?: unknown) => {
+      if (method === "sessions.patch") {
+        return createResolvedModelPatch("gpt-5-mini", "openai");
+      }
+      throw new Error(`unexpected method: ${method}`);
+    });
+
+    const result = await executeSlashCommand(
+      { request } as unknown as GatewayBrowserClient,
+      "main",
+      "model",
+      "gpt-5-mini",
+      {
+        chatModelCatalog: [{ id: "gpt-5-mini", name: "GPT-5 Mini", provider: "openai" }],
+        sessionsResult: createSessionsListResult({
+          defaultsModel: "gpt-5-mini",
+          defaultsProvider: "openai",
+        }),
+      },
+    );
+
+    expect(result.sessionPatch?.modelOverride).toBeNull();
   });
 
   it("uses the local model catalog to qualify raw /model overrides when the patch response omits provider", async () => {

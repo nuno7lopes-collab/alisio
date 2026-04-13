@@ -3,18 +3,18 @@
 import { html, render } from "lit";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildMemoryFileActionModel,
+  buildMemoryFileDataUrl,
+  buildMemoryFilePreviewModel,
+} from "./controllers/memory-files-preview.ts";
+import type { MemoryFileDetail, MemoryFilesListResult } from "./controllers/memory-runtime.ts";
+import {
   buildMemoryNoteName,
   humanizeMemoryNoteTitle,
   isLongTermMemoryFileName,
   isMemoryNoteFileName,
   todayMemoryDate,
 } from "./memory-files.ts";
-import {
-  buildMemoryFileActionModel,
-  buildMemoryFileDataUrl,
-  buildMemoryFilePreviewModel,
-} from "./controllers/memory-files-preview.ts";
-import type { MemoryFileDetail, MemoryFilesListResult } from "./controllers/memory-runtime.ts";
 import { renderMemoryFilePreview } from "./views/memory/files-preview.ts";
 import { renderMemoryFilesView } from "./views/memory/files-view.ts";
 
@@ -103,7 +103,7 @@ function createFilesList(): MemoryFilesListResult {
         },
         provenance: [{ label: "Source", value: "project-atlas.md" }],
         reasonTags: [{ code: "attachment", label: "Attachment" }],
-        traceId: "trace-brief",
+        trace: { query: "brief" },
       },
     ],
   };

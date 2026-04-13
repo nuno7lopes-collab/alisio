@@ -6,11 +6,8 @@ import { refreshChat } from "./app-chat.ts";
 import { syncUrlWithSessionKey } from "./app-settings.ts";
 import type { AppViewState } from "./app-view-state.ts";
 import type { AlisioApp } from "./app.ts";
-import { createChatModelOverride } from "./chat-model-ref.ts";
-import {
-  resolveChatModelOverrideValue,
-  resolveChatModelSelectState,
-} from "./chat-model-select-state.ts";
+import { createChatModelOverride, normalizeChatModelSelectionValue } from "./chat-model-ref.ts";
+import { resolveChatModelSelectState } from "./chat-model-select-state.ts";
 import { refreshVisibleToolsEffectiveForCurrentSession } from "./controllers/agents.ts";
 import { ChatState, loadChatHistory } from "./controllers/chat.ts";
 import { loadConfig } from "./controllers/config.ts";
@@ -30,6 +27,38 @@ type SessionDefaultsSnapshot = {
   mainSessionKey?: string;
   mainKey?: string;
 };
+
+let chatModelSwitchSeq = 0;
+
+function nextChatModelSwitchToken(): string {
+  chatModelSwitchSeq += 1;
+  return `chat-model-switch-${chatModelSwitchSeq}`;
+}
+
+function readChatModelSwitchToken(state: AppViewState, sessionKey: string): string | null {
+  return state.chatModelSwitchPendingBySession?.[sessionKey] ?? null;
+}
+
+function writeChatModelSwitchToken(
+  state: AppViewState,
+  sessionKey: string,
+  token: string | null,
+): void {
+  const next = { ...state.chatModelSwitchPendingBySession };
+  if (token) {
+    next[sessionKey] = token;
+  } else {
+    delete next[sessionKey];
+  }
+  state.chatModelSwitchPendingBySession = next;
+}
+
+export function isChatModelSwitchPending(
+  state: AppViewState,
+  sessionKey = state.sessionKey,
+): boolean {
+  return Boolean(readChatModelSwitchToken(state, sessionKey));
+}
 
 function resolveGatewayHttpOrigin(rawUrl: string, pageHref: string): string | null {
   try {
@@ -633,12 +662,14 @@ async function refreshSessionOptions(state: AppViewState) {
 
 function renderChatModelSelect(state: AppViewState) {
   const { currentOverride, defaultLabel, options } = resolveChatModelSelectState(state);
+  const switchingModel = isChatModelSwitchPending(state);
   const busy =
     state.chatLoading ||
     state.chatSending ||
     Boolean(state.chatRunId) ||
     Boolean(state.chatFinalizing) ||
-    state.chatStream !== null;
+    state.chatStream !== null ||
+    switchingModel;
   const disabled =
     !state.connected || busy || (state.chatModelsLoading && options.length === 0) || !state.client;
   return html`
@@ -670,29 +701,44 @@ async function switchChatModel(state: AppViewState, nextModel: string) {
   if (!state.client || !state.connected) {
     return;
   }
-  const currentOverride = resolveChatModelOverrideValue(state);
-  if (currentOverride === nextModel) {
+  const { currentOverride, defaultModel } = resolveChatModelSelectState(state);
+  const nextOverrideValue = normalizeChatModelSelectionValue(nextModel, defaultModel);
+  if (currentOverride === nextOverrideValue) {
     return;
   }
   const targetSessionKey = state.sessionKey;
   const prevOverride = state.chatModelOverrides[targetSessionKey];
+  const requestToken = nextChatModelSwitchToken();
   state.lastError = null;
   // Write the override cache immediately so the picker stays in sync during the RPC round-trip.
   state.chatModelOverrides = {
     ...state.chatModelOverrides,
-    [targetSessionKey]: createChatModelOverride(nextModel),
+    [targetSessionKey]: createChatModelOverride(nextOverrideValue),
   };
+  writeChatModelSwitchToken(state, targetSessionKey, requestToken);
   try {
     await state.client.request("sessions.patch", {
       key: targetSessionKey,
-      model: nextModel || null,
+      model: nextOverrideValue || null,
     });
-    void refreshVisibleToolsEffectiveForCurrentSession(state);
+    if (readChatModelSwitchToken(state, targetSessionKey) !== requestToken) {
+      return;
+    }
+    if (state.sessionKey === targetSessionKey) {
+      void refreshVisibleToolsEffectiveForCurrentSession(state);
+    }
     await refreshSessionOptions(state);
   } catch (err) {
+    if (readChatModelSwitchToken(state, targetSessionKey) !== requestToken) {
+      return;
+    }
     // Roll back so the picker reflects the actual server model.
     state.chatModelOverrides = { ...state.chatModelOverrides, [targetSessionKey]: prevOverride };
     state.lastError = `Failed to set model: ${String(err)}`;
+  } finally {
+    if (readChatModelSwitchToken(state, targetSessionKey) === requestToken) {
+      writeChatModelSwitchToken(state, targetSessionKey, null);
+    }
   }
 }
 

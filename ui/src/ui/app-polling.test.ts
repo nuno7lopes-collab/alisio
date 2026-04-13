@@ -1,29 +1,84 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { loadNodesMock } = vi.hoisted(() => ({
+const { loadChatHistoryMock, loadMemoryStatusMock, loadNodesMock } = vi.hoisted(() => ({
+  loadChatHistoryMock: vi.fn(),
+  loadMemoryStatusMock: vi.fn(),
   loadNodesMock: vi.fn(),
+}));
+
+vi.mock("./controllers/chat.ts", () => ({
+  loadChatHistory: loadChatHistoryMock,
 }));
 
 vi.mock("./controllers/nodes.ts", () => ({
   loadNodes: loadNodesMock,
 }));
 
-import { startNodesPolling, stopNodesPolling } from "./app-polling.ts";
+vi.mock("./controllers/memory-runtime.ts", () => ({
+  loadMemoryStatus: loadMemoryStatusMock,
+}));
+
+import {
+  startChatRecoveryPolling,
+  startMemoryPolling,
+  startNodesPolling,
+  stopChatRecoveryPolling,
+  stopMemoryPolling,
+  stopNodesPolling,
+} from "./app-polling.ts";
+
+type MockRequest = ReturnType<typeof vi.fn> &
+  (<T>(method: string, params: Record<string, unknown>) => Promise<T>);
+
+type MockClient = {
+  request: MockRequest;
+};
 
 type PollingHost = {
   nodesPollInterval: number | null;
+  memoryPollInterval: number | null;
   logsPollInterval: number | null;
   debugPollInterval: number | null;
+  chatRecoveryPollInterval: number | null;
   tab: string;
   settingsSection?: string;
+  connected?: boolean;
+  client?: MockClient | null;
+  sessionKey?: string;
+  assistantAgentId?: string | null;
+  memorySelectedAgentId?: string | null;
+  agentsList?: { defaultId?: string | null; agents: Array<{ id: string }> } | null;
+  chatRunId?: string | null;
+  chatFinalizing?: boolean;
+  chatStream?: string | null;
+  chatStreamStartedAt?: number | null;
+  resetToolStream?: () => void;
 };
 
-function createHost(tab: string): PollingHost {
+function createHost(tab: string, overrides: Partial<PollingHost> = {}): PollingHost {
+  const request = vi.fn(async () => undefined) as unknown as MockRequest;
   return {
     nodesPollInterval: null,
+    memoryPollInterval: null,
     logsPollInterval: null,
     debugPollInterval: null,
+    chatRecoveryPollInterval: null,
     tab,
+    connected: true,
+    client: { request },
+    sessionKey: "main",
+    assistantAgentId: "main",
+    memorySelectedAgentId: "main",
+    chatRunId: null,
+    chatFinalizing: false,
+    chatStream: null,
+    chatStreamStartedAt: null,
+    resetToolStream: vi.fn(),
+    agentsList: {
+      defaultId: "main",
+      agents: [{ id: "main" }],
+    },
+    ...overrides,
   };
 }
 
@@ -46,6 +101,8 @@ describe("startNodesPolling", () => {
     });
     vi.useFakeTimers();
     loadNodesMock.mockReset();
+    loadMemoryStatusMock.mockReset();
+    loadChatHistoryMock.mockReset();
     setVisibilityState("visible");
   });
 
@@ -86,5 +143,206 @@ describe("startNodesPolling", () => {
 
     expect(loadNodesMock).not.toHaveBeenCalled();
     stopNodesPolling(host);
+  });
+});
+
+describe("startMemoryPolling", () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: globalThis,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {},
+    });
+    vi.useFakeTimers();
+    loadMemoryStatusMock.mockReset();
+    setVisibilityState("visible");
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    delete (globalThis as { document?: unknown }).document;
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("ignora tabs fora da memória", () => {
+    const host = createHost("chat");
+
+    startMemoryPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadMemoryStatusMock).not.toHaveBeenCalled();
+    stopMemoryPolling(host);
+  });
+
+  it("faz polling do estado da memória na tab Memória", () => {
+    const host = createHost("memory");
+
+    startMemoryPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadMemoryStatusMock).toHaveBeenCalledTimes(1);
+    expect(loadMemoryStatusMock).toHaveBeenCalledWith(host, "main");
+    stopMemoryPolling(host);
+  });
+
+  it("ignora polling sem agente resolvido", () => {
+    const host = createHost("memory", {
+      memorySelectedAgentId: null,
+      assistantAgentId: null,
+      agentsList: { defaultId: null, agents: [] },
+    });
+
+    startMemoryPolling(host);
+    vi.advanceTimersByTime(5_000);
+
+    expect(loadMemoryStatusMock).not.toHaveBeenCalled();
+    stopMemoryPolling(host);
+  });
+});
+
+describe("startChatRecoveryPolling", () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: globalThis,
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {},
+    });
+    vi.useFakeTimers();
+    loadChatHistoryMock.mockReset();
+    setVisibilityState("visible");
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    delete (globalThis as { document?: unknown }).document;
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("ignora o recovery polling quando não há run activa", async () => {
+    const host = createHost("chat");
+
+    startChatRecoveryPolling(host);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(host.client?.request).not.toHaveBeenCalled();
+    expect(loadChatHistoryMock).not.toHaveBeenCalled();
+    stopChatRecoveryPolling(host);
+  });
+
+  it("não limpa uma run ainda marcada como running", async () => {
+    const host = createHost("chat", {
+      chatRunId: "run-1",
+      chatStreamStartedAt: 5_000,
+    });
+    host.client?.request.mockResolvedValue({
+      sessions: [
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: 6_000,
+          status: "running",
+        },
+      ],
+    });
+
+    startChatRecoveryPolling(host);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(loadChatHistoryMock).not.toHaveBeenCalled();
+    stopChatRecoveryPolling(host);
+  });
+
+  it("recupera um chat preso quando a sessão já terminou depois do arranque local", async () => {
+    const host = createHost("chat", {
+      chatRunId: "run-1",
+      chatStream: "stuck stream",
+      chatStreamStartedAt: 5_000,
+    });
+    host.client?.request.mockResolvedValue({
+      sessions: [
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: 9_000,
+          status: "done",
+          endedAt: 8_500,
+        },
+      ],
+    });
+
+    startChatRecoveryPolling(host);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(loadChatHistoryMock).toHaveBeenCalledWith(host, {
+      silent: true,
+      preserveEphemeral: false,
+    });
+    expect(host.chatRunId).toBeNull();
+    expect(host.chatFinalizing).toBe(false);
+    expect(host.chatStream).toBeNull();
+    expect(host.chatStreamStartedAt).toBeNull();
+    stopChatRecoveryPolling(host);
+  });
+
+  it("ignora estado terminal antigo que pertence à run anterior", async () => {
+    const host = createHost("chat", {
+      chatRunId: "run-1",
+      chatStreamStartedAt: 9_000,
+    });
+    host.client?.request.mockResolvedValue({
+      sessions: [
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: 6_500,
+          status: "done",
+          endedAt: 6_000,
+        },
+      ],
+    });
+
+    startChatRecoveryPolling(host);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(loadChatHistoryMock).not.toHaveBeenCalled();
+    stopChatRecoveryPolling(host);
+  });
+
+  it("força recovery quando o chat ficou preso em finalizing", async () => {
+    const host = createHost("chat", {
+      chatFinalizing: true,
+      chatStream: "finishing",
+    });
+    host.client?.request.mockResolvedValue({
+      sessions: [
+        {
+          key: "main",
+          kind: "direct",
+          updatedAt: 9_000,
+          status: "done",
+          endedAt: 8_500,
+        },
+      ],
+    });
+
+    startChatRecoveryPolling(host);
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(loadChatHistoryMock).toHaveBeenCalledWith(host, {
+      silent: true,
+      preserveEphemeral: false,
+    });
+    expect(host.chatRunId).toBeNull();
+    expect(host.chatFinalizing).toBe(false);
+    expect(host.chatStream).toBeNull();
+    stopChatRecoveryPolling(host);
   });
 });

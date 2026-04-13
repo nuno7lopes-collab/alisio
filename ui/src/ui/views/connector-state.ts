@@ -17,7 +17,7 @@ function createFallbackAuthorization(
   return {
     connectorId: definition.id,
     state: "not_connected",
-    health: definition.availability === "ready" ? "config_missing" : definition.availability,
+    health: definition.availability === "ready" ? "healthy" : definition.availability,
     scopes: definition.scopes,
   };
 }
